@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+	<Module Id='gum' Version='@VERSION@' Language="1033">
+		<Package Id="{98F7CCE7-BE3D-461d-A521-3A0FB2AF97C6}"
+				Description="Helper library for instrumenting code"
+				Manufacturer="Free Software Community" InstallerVersion="300" />
+
+		<Directory Id='TARGETDIR' Name='SourceDir'>
+			<Directory Id='MODULE_DIR' Name='.'>
+				<Directory Id="FossBinDir" Name="bin">
+					<Component Id="libgum" Guid="{90DBB074-610C-4cdd-BA78-F5AE130E71A6}">
+						<File Id="libgum.dll" Source="..\Win32\Release\bin\libgum.dll" />
+					</Component>
+					<Component Id="dbghelp" Guid="{64A72DBE-8840-4815-8106-3C10F46FC38B}">
+						<File Id="dbghelp.dll" Source="..\Win32\Release\bin\dbghelp.dll" />
+					</Component>
+				</Directory>
+			</Directory>
+		</Directory>
+	</Module>
+</Wix>

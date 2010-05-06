@@ -1,0 +1,14 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+def make_gum_library_target(bld, target_name, kind):
+  obj = bld.new_task_gen('cc', kind)
+  obj.source = 'gum.c gumallocationblock.c gumallocationgroup.c gumallocationtracker.c gumallocatorprobe.c gumarray.c gumbacktracer.c gumboundschecker.c gumcallcountsampler.c gumcobject.c gumcobjecttracker.c gumcyclesampler.c gumfunctionaddress.c gumgnubacktracer.c gumhash.c guminstancetracker.c guminterceptor.c guminterceptor-thunks-gas.S guminvocationlistener.c gumlist.c gummalloccountsampler.c gummemory-unix.c gumpagepool.c gumprofiler.c gumprofilereport.c gumreturnaddress.c gumsampler.c gumsymbolutil-bfd.c'
+  obj.includes = '..'
+  obj.uselib = 'GLIB GOBJECT GMODULE GTHREAD UDIS86 BFD'
+  obj.target = target_name
+  return obj
+
+make_gum_library_target(bld, 'gum', 'shlib')
+make_gum_library_target(bld, 'gum-static', 'staticlib')
+

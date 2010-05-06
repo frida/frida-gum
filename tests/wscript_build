@@ -1,0 +1,11 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+obj = bld.new_task_gen('cxx', 'program')
+obj.source = 'gumtest.c allocationtracker.c allocatorprobe.c allocatorprobex.cxx backtracer.c boundschecker.c cobjecttracker.c dummyclasses.c fakebacktracer.c fakesampler.c instancetracker.c interceptor.c interceptor-lowlevel-common.c interceptor-lowlevel-gas.S interceptorharness.c pagepool.c profiler.c profilereportharness.c profilerharness.c sampler.c symbolutil.c testutil.c'
+obj.includes = '..'
+obj.uselib = 'GLIB GOBJECT'
+obj.uselib_local = 'gum-static'
+obj.target = 'gumtest'
+obj.features.append('cc')
+
