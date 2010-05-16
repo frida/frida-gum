@@ -23,6 +23,8 @@
 #define __TEST_UTIL_H__
 
 #include <gum/gum.h>
+#include <gum/gum-heap.h>
+#include <gum/gum-prof.h>
 
 #define TEST_LIST_BEGIN(NAME)       void test_ ##NAME## _add_tests (void) {
 #define TEST_LIST_END()             }
@@ -30,14 +32,14 @@
 #define TEST_ENTRY_SIMPLE(NAME, FUNC)                                     \
   G_STMT_START                                                            \
   {                                                                       \
-    void FUNC (void);                                                     \
+    static void FUNC (void);                                              \
     g_test_add_func ("/" #NAME "/" #FUNC, FUNC);                          \
   }                                                                       \
   G_STMT_END;
 #define TEST_ENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)               \
   G_STMT_START                                                            \
   {                                                                       \
-    void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data);        \
+    static void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
     g_test_add ("/" #NAME "/" #FUNC,                                      \
         STRUCT,                                                           \
         NULL,                                                             \

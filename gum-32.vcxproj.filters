@@ -1,0 +1,156 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="udis86">
+      <UniqueIdentifier>{96caf29c-cc6c-4449-b9f1-5d7d4d12ffa2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core">
+      <UniqueIdentifier>{74cb2d4d-5427-4afb-9759-3dda0e1d63de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\arch-x86">
+      <UniqueIdentifier>{8ca2fe2f-8308-46da-9a9a-c42718a3c319}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\backend-windows">
+      <UniqueIdentifier>{a9d6e08d-8710-43d0-a08a-3c8ae4b72286}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\backend-x86">
+      <UniqueIdentifier>{7825fddb-aa4b-42c0-a292-e43208ae4bc7}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="ext\udis86\libudis86\udis86.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\syn.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\syn-intel.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\syn-att.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\opcmap.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\mnemonics.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\input.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\decode.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gum.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\guminterceptor.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumcodereader.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumfunctionparser.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumcodewriter.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumrelocator.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumudis86.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-windows\gummemory-windows.c">
+      <Filter>core\backend-windows</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumarray.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumhash.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\guminvocationlistener.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-x86\guminterceptor-ia32.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-x86\guminterceptor-ia32-thunks.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumlist.c">
+      <Filter>core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ext\udis86\libudis86\extern.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\input.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\mnemonics.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\opcmap.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\syn.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\types.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\udis86.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumudis86.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumrelocator.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumfunctionparser.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumcodewriter.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumcodereader.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\guminterceptor.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gummemory.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumdefs.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gum.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\guminvocationlistener.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumarray.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumhash.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\guminterceptor-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumlist.h">
+      <Filter>core</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

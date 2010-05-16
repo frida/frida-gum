@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <PreprocessorDefinitions>GUM_EXPORTS;GUM_DISABLE_SYMBOL_UTIL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)ext\udis86;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <ItemGroup>
+    <ClInclude Include="gum\gum.h" />
+    <ClInclude Include="gum\gumarray.h" />
+    <ClInclude Include="gum\gumdefs.h" />
+    <ClInclude Include="gum\gumhash.h" />
+    <ClInclude Include="gum\guminterceptor.h" />
+    <ClInclude Include="gum\guminterceptor-priv.h" />
+    <ClInclude Include="gum\guminvocationlistener.h" />
+    <ClInclude Include="gum\gumlist.h" />
+    <ClInclude Include="gum\gummemory.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\gum.c" />
+    <ClCompile Include="gum\gumarray.c" />
+    <ClCompile Include="gum\gumhash.c" />
+    <ClCompile Include="gum\guminterceptor.c" />
+    <ClCompile Include="gum\guminvocationlistener.c" />
+    <ClCompile Include="gum\gumlist.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="gum\arch-x86\gumcodereader.h" />
+    <ClInclude Include="gum\arch-x86\gumcodewriter.h" />
+    <ClInclude Include="gum\arch-x86\gumfunctionparser.h" />
+    <ClInclude Include="gum\arch-x86\gumrelocator.h" />
+    <ClInclude Include="gum\arch-x86\gumudis86.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\arch-x86\gumcodereader.c" />
+    <ClCompile Include="gum\arch-x86\gumcodewriter.c" />
+    <ClCompile Include="gum\arch-x86\gumfunctionparser.c" />
+    <ClCompile Include="gum\arch-x86\gumrelocator.c" />
+    <ClCompile Include="gum\arch-x86\gumudis86.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="ext\udis86\libudis86\decode.h" />
+    <ClInclude Include="ext\udis86\libudis86\extern.h" />
+    <ClInclude Include="ext\udis86\libudis86\input.h" />
+    <ClInclude Include="ext\udis86\libudis86\itab.h" />
+    <ClInclude Include="ext\udis86\libudis86\syn.h" />
+    <ClInclude Include="ext\udis86\libudis86\types.h" />
+    <ClInclude Include="ext\udis86\udis86.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="ext\udis86\libudis86\decode.c" />
+    <ClCompile Include="ext\udis86\libudis86\input.c" />
+    <ClCompile Include="ext\udis86\libudis86\itab.c" />
+    <ClCompile Include="ext\udis86\libudis86\syn.c" />
+    <ClCompile Include="ext\udis86\libudis86\syn-att.c" />
+    <ClCompile Include="ext\udis86\libudis86\syn-intel.c" />
+    <ClCompile Include="ext\udis86\libudis86\udis86.c" />
+  </ItemGroup>
+
+</Project>

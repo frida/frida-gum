@@ -47,7 +47,7 @@ gum_code_reader_try_get_indirect_jump_target (gconstpointer address)
   if (ud_obj.mnemonic != UD_Ijmp || ud_obj.operand[0].type != UD_OP_MEM)
     return NULL;
 
-  return *((gpointer *) ud_obj.operand[0].lval.udword);
+  return *((gpointer *) GSIZE_TO_POINTER (ud_obj.operand[0].lval.udword));
 }
 
 static gpointer

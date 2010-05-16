@@ -134,7 +134,7 @@ gum_relocator_peek_next_write_source (GumRelocator * self)
   if (next == NULL)
     return NULL;
 
-  return (gpointer) ud_insn_off (next);
+  return GSIZE_TO_POINTER (ud_insn_off (next));
 }
 
 void
@@ -164,7 +164,7 @@ gum_relocator_write_one (GumRelocator * self)
   gum_relocator_put_label_for (self, cur);
 
   cur_len = ud_insn_len (cur);
-  cur_start = (guint8 *) ud_insn_off (cur);
+  cur_start = GSIZE_TO_POINTER (ud_insn_off (cur));
   cur_end = cur_start + cur_len;
 
   switch (cur->mnemonic)
@@ -175,7 +175,7 @@ gum_relocator_write_one (GumRelocator * self)
         ud_operand_t * op = &cur->operand[0];
         if (op->type == UD_OP_JIMM && op->base == UD_NONE)
         {
-          gconstpointer target;
+          gconstpointer target = NULL;
 
           if (op->size == 32)
             target = cur_end + op->lval.sdword;
@@ -270,7 +270,7 @@ gum_relocator_put_label_for (GumRelocator * self,
                              ud_t * insn)
 {
   gum_code_writer_put_label (self->output,
-      GUINT_TO_POINTER (ud_insn_off (insn)));
+      GSIZE_TO_POINTER (ud_insn_off (insn)));
 }
 
 gboolean

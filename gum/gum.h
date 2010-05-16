@@ -22,38 +22,16 @@
 
 #include <gum/gumdefs.h>
 
-#include <gum/gumallocationblock.h>
-#include <gum/gumallocationgroup.h>
-#include <gum/gumallocationtracker.h>
-#include <gum/gumallocatorprobe.h>
 #include <gum/gumbacktracer.h>
-#include <gum/gumboundschecker.h>
-#include <gum/gumbusycyclesampler.h>
-#include <gum/gumcallcountsampler.h>
-#include <gum/gumcobject.h>
-#include <gum/gumcobjecttracker.h>
-#include <gum/gumcyclesampler.h>
 #include <gum/gumevent.h>
 #include <gum/gumeventsink.h>
-#include <gum/guminstancetracker.h>
 #include <gum/guminterceptor.h>
 #include <gum/guminvocationlistener.h>
 #include <gum/gumlist.h>
-#include <gum/gummalloccountsampler.h>
-#include <gum/gumprofiler.h>
-#include <gum/gumprofilereport.h>
 #include <gum/gumreturnaddress.h>
-#include <gum/gumsampler.h>
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
 #include <gum/gumtracer.h>
-#include <gum/gumwallclocksampler.h>
-
-#ifdef G_OS_WIN32
-#include <gum/gumwindowsbacktracer.h>
-#else
-#include <gum/gumgnubacktracer.h>
-#endif
 
 G_BEGIN_DECLS
 

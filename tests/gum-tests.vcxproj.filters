@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav</Extensions>
+    </Filter>
+    <Filter Include="Tests">
+      <UniqueIdentifier>{f85ae72e-aaa1-46ba-9b9c-41c1dcddf4fe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tests\core">
+      <UniqueIdentifier>{e922a0c8-3818-4a4a-a627-9f221c99047e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tests\core\arch-x86">
+      <UniqueIdentifier>{7be0ff34-ec97-484c-b59a-2f46aeed9d6b}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="gumtest.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="testutil.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptorharness.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-x86\codewriter.c">
+      <Filter>Tests\core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-x86\functionparser.c">
+      <Filter>Tests\core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-x86\relocator.c">
+      <Filter>Tests\core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor-lowlevel-amd64-msc.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor-lowlevel-ia32-msc.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor-lowlevel-x86.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="testutil.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="core\interceptorharness.h">
+      <Filter>Tests\core</Filter>
+    </ClInclude>
+    <ClInclude Include="core\interceptor-lowlevel.h">
+      <Filter>Tests\core</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,39 +18,15 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gum.h"
-#include "gummemory.h"
+#ifndef __GUM_MALLOC_COUNT_SAMPLER_H__
+#define __GUM_MALLOC_COUNT_SAMPLER_H__
 
-#include <glib-object.h>
+#include <gum/prof/gumcallcountsampler.h>
 
-static gpointer do_init (gpointer data);
+G_BEGIN_DECLS
 
-void
-gum_init (void)
-{
-  static GOnce init_once = G_ONCE_INIT;
-  g_once (&init_once, do_init, NULL);
-}
+GumSampler * gum_malloc_count_sampler_new (void);
 
-static gpointer
-do_init (gpointer data)
-{
-  g_setenv ("G_SLICE", "always-malloc", TRUE);
+G_END_DECLS
 
-  g_type_init ();
-
-  if (!g_thread_supported ())
-#ifdef _DEBUG
-    g_thread_init_with_errorcheck_mutexes (NULL);
-#else
-    g_thread_init (NULL);
 #endif
-
-  gum_memory_init ();
-
-#ifndef GUM_DISABLE_SYMBOL_UTIL
-  gum_symbol_util_init ();
-#endif
-
-  return NULL;
-}
