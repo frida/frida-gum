@@ -24,12 +24,6 @@
     <ClCompile Include="ext\udis86\libudis86\input.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\mnemonics.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\opcmap.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
     <ClCompile Include="ext\udis86\libudis86\syn-att.c">
       <Filter>udis86</Filter>
     </ClCompile>
@@ -84,6 +78,9 @@
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="ext\udis86\libudis86\itab.c">
+      <Filter>udis86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -96,12 +93,6 @@
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="ext\udis86\libudis86\syn.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\opcmap.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\mnemonics.h">
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="ext\udis86\libudis86\input.h">
@@ -148,6 +139,12 @@
     </ClInclude>
     <ClInclude Include="gum\gumlist.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\decode.h">
+      <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="ext\udis86\libudis86\itab.h">
+      <Filter>udis86</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
