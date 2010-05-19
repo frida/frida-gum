@@ -24,6 +24,12 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
+#if GLIB_SIZEOF_VOID_P == 8
+#define GUM_REDIRECT_CODE_SIZE 14
+#else
+#define GUM_REDIRECT_CODE_SIZE 5
+#endif
+
 typedef struct _FunctionContext          FunctionContext;
 typedef struct _FunctionThreadContext    FunctionThreadContext;
 
@@ -42,7 +48,7 @@ struct _FunctionContext
   gpointer function_address;
 
   gpointer trampoline;
-  guint8 * overwritten_prologue;
+  guint8 overwritten_prologue[32];
   guint overwritten_prologue_len;
 
   GPtrArray * listener_entries;

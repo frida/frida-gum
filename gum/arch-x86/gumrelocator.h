@@ -62,6 +62,7 @@ gboolean gum_relocator_eob (GumRelocator * self);
 gboolean gum_relocator_eoi (GumRelocator * self);
 
 gboolean gum_relocator_can_relocate (gpointer address, guint min_bytes);
+guint gum_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
 
 G_END_DECLS
 

@@ -30,6 +30,8 @@
 
 static const UnsupportedFunction unsupported_functions[] =
 {
+  /* x64 implementation doesn't use Relocator yet */
+#if GLIB_SIZEOF_VOID_P == 8
   { "call",  8, { 0x55, 0x89, 0xe5, 0xe8, 0xf8, 0xff, 0xff, 0xff } },
   { "ja",    5, { 0x55, 0x89, 0xe5, 0x77, 0xfb                   } },
   { "jae",   5, { 0x55, 0x89, 0xe5, 0x73, 0xfb                   } },
@@ -49,6 +51,7 @@ static const UnsupportedFunction unsupported_functions[] =
   { "jp",    5, { 0x55, 0x89, 0xe5, 0x7a, 0xfb                   } },
   { "js",    5, { 0x55, 0x89, 0xe5, 0x78, 0xfb                   } },
   { "jz",    5, { 0x55, 0x89, 0xe5, 0x74, 0xfb                   } },
+#endif
   { "ret",   1, { 0xc3                                           } },
   { "retf",  1, { 0xcb                                           } },
 };
@@ -83,7 +86,8 @@ proxy_func_new_relative_with_target (TargetFunc target_func)
 
   func = executable_page_new ();
   func[0] = OPCODE_JMP;
-  *((gint32 *) (func + 1)) = (guint8 *) target_func - (func + 5);
+  *((gint32 *) (func + 1)) =
+      (guint8 *) GSIZE_TO_POINTER (target_func) - (func + 5);
 
   return (ProxyFunc) func;
 }
@@ -115,6 +119,30 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
   func[21] = 0x25;
   *((gpointer *)   (func + 22)) = func + 30;
   *((TargetFunc *) (func + 30)) = target_func;
+
+  return (ProxyFunc) func;
+}
+
+ProxyFunc
+proxy_func_new_early_call_with_target (TargetFunc target_func)
+{
+  guint8 * func;
+
+  func = executable_page_new ();
+  func[0] = 0xFF; /* push dword [esp + 4] */
+  func[1] = 0x74;
+  func[2] = 0x24;
+  func[3] = 0x04;
+
+  func[4] = 0xe8; /* call */
+  *((gssize *) (func + 5)) = ((gssize) GPOINTER_TO_SIZE (target_func))
+      - ((gssize) GPOINTER_TO_SIZE (func + 9));
+
+  func[9] = 0x83; /* add esp, 4 */
+  func[10] = 0xC4;
+  func[11] = 0x04;
+
+  func[12] = 0xC3; /* ret */
 
   return (ProxyFunc) func;
 }

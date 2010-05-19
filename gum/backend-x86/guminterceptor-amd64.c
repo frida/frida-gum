@@ -66,12 +66,17 @@ _gum_function_ctx_make_monitor_trampoline (FunctionContext * ctx)
   MonitorTrampolineTail64 * tail;
   RedirectStub64 * jump_back_stub;
 
+  /* TODO: migrate to Relocator once it supports x64 */
+  ctx->overwritten_prologue_len =
+      _gum_interceptor_find_displacement_size (ctx->function_address,
+          GUM_REDIRECT_CODE_SIZE);
+  g_assert (ctx->overwritten_prologue_len != 0);
+
   ctx->trampoline = head =
       gum_alloc_n_pages (1, GUM_PAGE_READ|GUM_PAGE_WRITE|GUM_PAGE_EXECUTE);
   tail = (MonitorTrampolineTail64 *) (
       (guint8 *) head + gum_query_page_size ()
       - sizeof (MonitorTrampolineTail64));
-  ctx->overwritten_prologue = head->overwritten_prologue;
   head->push_func_ctx_pfx = 0xff;
   head->push_func_ctx_insn = 0x35;
   head->push_func_ctx_offset = (gssize) (&tail->function_ctx)
@@ -81,6 +86,11 @@ _gum_function_ctx_make_monitor_trampoline (FunctionContext * ctx)
   head->call_on_enter_offset = (gssize) (&tail->on_enter_thunk)
       - (gssize) (&head->overwritten_prologue);
   memcpy (head->overwritten_prologue, ctx->function_address,
+      ctx->overwritten_prologue_len);
+
+  g_assert_cmpuint (ctx->overwritten_prologue_len, <=,
+      sizeof (ctx->overwritten_prologue));
+  memcpy (ctx->overwritten_prologue, ctx->function_address,
       ctx->overwritten_prologue_len);
 
   jump_back_stub = (RedirectStub64 *) (

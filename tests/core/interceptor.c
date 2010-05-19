@@ -753,6 +753,29 @@ test_two_indirects_to_function (void)
   interceptor_harness_teardown (&h);
 }
 
+#if GLIB_SIZEOF_VOID_P == 4
+
+static void
+test_relocation_of_early_call (void)
+{
+  InterceptorHarness h;
+  ProxyFunc proxy_func;
+
+  interceptor_harness_setup (&h);
+
+  proxy_func = proxy_func_new_early_call_with_target (&target_function);
+
+  interceptor_harness_attach_listener (&h, 0, proxy_func, '>', '<');
+  proxy_func (h.result);
+  g_assert_cmpstr (h.result->str, ==, ">|<");
+
+  interceptor_harness_teardown (&h);
+
+  proxy_func_free (proxy_func);
+}
+
+#endif
+
 static void
 test_replace_function (void)
 {
@@ -850,6 +873,10 @@ gum_test_register_interceptor_tests (void)
       &test_absolute_indirect_proxy_function);
   g_test_add_func ("/Gum/Interceptor/test-two-indirects-to-function",
       &test_two_indirects_to_function);
+#if GLIB_SIZEOF_VOID_P == 4
+  g_test_add_func ("/Gum/Interceptor/test-relocation-of-early-call",
+      &test_relocation_of_early_call);
+#endif
 
   g_test_add_func ("/Gum/Interceptor/test-attach-one", &test_attach_one);
   g_test_add_func ("/Gum/Interceptor/test-attach-two", &test_attach_two);

@@ -302,3 +302,30 @@ gum_relocator_can_relocate (gpointer address,
   return TRUE;
 }
 
+guint
+gum_relocator_relocate (gpointer from,
+                        guint min_bytes,
+                        gpointer to)
+{
+  GumCodeWriter cw;
+  GumRelocator rl;
+  guint reloc_bytes;
+
+  gum_code_writer_init (&cw, to);
+
+  gum_relocator_init (&rl, from, &cw);
+
+  do
+  {
+    reloc_bytes = gum_relocator_read_one (&rl, NULL);
+    g_assert_cmpuint (reloc_bytes, !=, 0);
+  }
+  while (reloc_bytes < min_bytes);
+
+  gum_relocator_write_all (&rl);
+
+  gum_relocator_free (&rl);
+  gum_code_writer_free (&cw);
+
+  return reloc_bytes;
+}

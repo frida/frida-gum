@@ -21,6 +21,12 @@
 #include "guminterceptor.h"
 #include "guminterceptor-priv.h"
 
+#include "gumarray.h"
+#include "gumcodereader.h"
+#include "gumhash.h"
+#include "gummemory.h"
+#include "gumrelocator.h"
+
 #include <string.h>
 #ifdef G_OS_WIN32
 #define _WIN32_LEAN_AND_MEAN
@@ -33,16 +39,6 @@ typedef DWORD GumTlsKey;
 typedef pthread_key_t GumTlsKey;
 #define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
 #define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
-#endif
-#include "gumarray.h"
-#include "gumcodereader.h"
-#include "gumhash.h"
-#include "gummemory.h"
-
-#if GLIB_SIZEOF_VOID_P == 8
-#define GUM_REDIRECT_CODE_SIZE 14
-#else
-#define GUM_REDIRECT_CODE_SIZE 5
 #endif
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
@@ -467,11 +463,6 @@ function_context_new (gpointer function_address)
   ctx = gum_malloc0 (sizeof (FunctionContext));
   ctx->function_address = function_address;
 
-  ctx->overwritten_prologue_len =
-      _gum_interceptor_find_displacement_size (ctx->function_address,
-          GUM_REDIRECT_CODE_SIZE);
-  g_assert (ctx->overwritten_prologue_len != 0);
-
   return ctx;
 }
 
@@ -808,8 +799,12 @@ is_patched_function (GumInterceptor * self,
 static gboolean
 can_intercept_function (gpointer function_address)
 {
+#if GLIB_SIZEOF_VOID_P == 8
   return (_gum_interceptor_find_displacement_size (function_address,
       GUM_REDIRECT_CODE_SIZE) != 0);
+#else
+  return gum_relocator_can_relocate (function_address, GUM_REDIRECT_CODE_SIZE);
+#endif
 }
 
 static guint

@@ -47,6 +47,7 @@ void unsupported_function_list_free (UnsupportedFunction * functions);
 ProxyFunc proxy_func_new_relative_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_absolute_indirect_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_two_jumps_with_target (TargetFunc target_func);
+ProxyFunc proxy_func_new_early_call_with_target (TargetFunc target_func);
 void proxy_func_free (ProxyFunc proxy_func);
 
 #endif

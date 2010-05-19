@@ -21,6 +21,7 @@
 #include "guminterceptor-priv.h"
 
 #include "gummemory.h"
+#include "gumrelocator.h"
 
 #include <string.h>
 
@@ -79,14 +80,19 @@ _gum_function_ctx_make_monitor_trampoline (FunctionContext * ctx)
 
   ctx->trampoline = trampoline =
       gum_alloc_n_pages (1, GUM_PAGE_READ|GUM_PAGE_WRITE|GUM_PAGE_EXECUTE);
-  ctx->overwritten_prologue = trampoline->overwritten_prologue;
   trampoline->push_func_ctx_insn = OPCODE_PUSH_IMM32;
   trampoline->push_func_ctx_address = ctx;
   trampoline->call_on_enter_insn = OPCODE_CALL_REL32;
   trampoline->call_on_enter_offset =
       (gssize) (&_gum_interceptor_function_context_on_enter_thunk)
       - (gssize) &trampoline->overwritten_prologue;
-  memcpy (trampoline->overwritten_prologue, ctx->function_address,
+
+  ctx->overwritten_prologue_len =
+      gum_relocator_relocate (ctx->function_address, GUM_REDIRECT_CODE_SIZE,
+          trampoline->overwritten_prologue);
+  g_assert_cmpuint (ctx->overwritten_prologue_len, <=,
+      sizeof (ctx->overwritten_prologue));
+  memcpy (ctx->overwritten_prologue, ctx->function_address,
       ctx->overwritten_prologue_len);
 
   trampoline_jump_back = (RedirectStub32 *) (
@@ -108,7 +114,6 @@ _gum_function_ctx_make_replace_trampoline (FunctionContext * ctx,
 
   ctx->trampoline = trampoline =
       gum_alloc_n_pages (1, GUM_PAGE_READ|GUM_PAGE_WRITE|GUM_PAGE_EXECUTE);
-  ctx->overwritten_prologue = trampoline->overwritten_prologue;
   trampoline->push_userdata_insn = OPCODE_PUSH_IMM32;
   trampoline->push_userdata_ptr = user_data;
   trampoline->push_origimpl_insn = OPCODE_PUSH_IMM32;
@@ -120,7 +125,12 @@ _gum_function_ctx_make_replace_trampoline (FunctionContext * ctx,
   trampoline->pop_userdata_to_ecx_insn = 0x59;
   trampoline->ret_insn = 0xC3;
 
-  memcpy (trampoline->overwritten_prologue, ctx->function_address,
+  ctx->overwritten_prologue_len =
+      gum_relocator_relocate (ctx->function_address, GUM_REDIRECT_CODE_SIZE,
+          trampoline->overwritten_prologue);
+  g_assert_cmpuint (ctx->overwritten_prologue_len, <=,
+      sizeof (ctx->overwritten_prologue));
+  memcpy (ctx->overwritten_prologue, ctx->function_address,
       ctx->overwritten_prologue_len);
 
   trampoline_jump_back = (RedirectStub32 *) (
