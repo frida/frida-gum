@@ -162,7 +162,8 @@ static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
     gpointer address);
 
 static void gum_write_push_branch_target_address (
-    const GumBranchTarget * target, GumCodeWriter * cw);
+    const GumBranchTarget * target, enum ud_type working_register,
+    guint cdecl_preserve_stack_offset, GumCodeWriter * cw);
 
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
@@ -507,7 +508,7 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_code_writer_put_mov_eax_offset_ptr (cw,
       G_STRUCT_OFFSET (GumCallEvent, location), (guint32) location);
 
-  gum_write_push_branch_target_address (target, cw);
+  gum_write_push_branch_target_address (target, UD_R_EDX, 0, cw);
   gum_code_writer_put_pop_ecx (cw);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumCallEvent, target));
@@ -670,9 +671,12 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
       g_assert_not_reached ();
     target.is_indirect = FALSE;
   }
-  else if (op->type == UD_OP_MEM && op->base == UD_NONE)
+  else if (op->type == UD_OP_MEM)
   {
     g_assert (op->size == 32);
+    g_assert (op->base == UD_NONE ||
+        (op->base >= UD_R_EAX && op->base <= UD_R_EDI));
+    g_assert (op->offset == 8 || op->offset == 32);
 
 #ifdef G_OS_WIN32
     /* Don't follow WoW64 for now */
@@ -680,7 +684,10 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
       return FALSE;
 #endif
 
-    target.address = (gpointer) op->lval.udword;
+    if (op->offset == 8)
+      target.address = GSIZE_TO_POINTER (op->lval.ubyte);
+    else
+      target.address = GSIZE_TO_POINTER (op->lval.udword);
     target.is_indirect = TRUE;
     target.pfx_seg = insn->ud->pfx_seg;
   }
@@ -769,7 +776,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 {
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, cw);
+  gum_write_push_branch_target_address (target, UD_R_EAX, 0, cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_create_and_push_block);
   gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
@@ -808,7 +815,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push_eax (cw); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, cw);
+  gum_write_push_branch_target_address (target, UD_R_EAX, 0, cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
@@ -862,6 +869,8 @@ gum_exec_block_get_real_address_of (GumExecBlock * block,
 
 static void
 gum_write_push_branch_target_address (const GumBranchTarget * target,
+                                      enum ud_type working_register,
+                                      guint cdecl_preserve_stack_offset,
                                       GumCodeWriter * cw)
 {
   if (!target->is_indirect)
@@ -870,6 +879,8 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   }
   else
   {
+    enum ud_type actual_base;
+
     switch (target->pfx_seg)
     {
       case UD_NONE: break;
@@ -886,7 +897,28 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
         break;
     }
 
-    if (target->address != NULL)
+    if (target->base >= UD_R_EAX && target->base <= UD_R_EDX)
+    {
+      const guint8 reg_selector[] = { 0x44, 0x4c, 0x54 };
+
+      actual_base = working_register;
+
+      gum_code_writer_put_byte (cw, 0x8b);
+      gum_code_writer_put_byte (cw, reg_selector[actual_base - UD_R_EAX]);
+      gum_code_writer_put_byte (cw, 0x24);
+      gum_code_writer_put_byte (cw, cdecl_preserve_stack_offset + 8 - ((target->base - UD_R_EAX) * 4));
+    }
+    else
+    {
+      actual_base = target->base;
+    }
+
+    if (target->address == NULL)
+    {
+      g_assert (actual_base >= UD_R_EAX && actual_base <= UD_R_EDI);
+      gum_code_writer_put_byte (cw, 0x50 + actual_base - UD_R_EAX);
+    }
+    else if (actual_base == UD_NONE)
     {
       gum_code_writer_put_byte (cw, 0xff);
       gum_code_writer_put_byte (cw, 0x35);
@@ -895,8 +927,10 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
     }
     else
     {
-      g_assert (target->base >= UD_R_EAX && target->base <= UD_R_EDI);
-      gum_code_writer_put_byte (cw, 0x50 + target->base - UD_R_EAX);
+      gum_code_writer_put_byte (cw, 0xff);
+      gum_code_writer_put_byte (cw, 0xb0 + actual_base - UD_R_EAX);
+      gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
+          sizeof (target->address));
     }
   }
 }

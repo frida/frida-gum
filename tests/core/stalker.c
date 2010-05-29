@@ -144,6 +144,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (follow_stdcall)
   STALKER_TESTENTRY (unfollow_deep)
   STALKER_TESTENTRY (indirect_call_with_immediate)
+  STALKER_TESTENTRY (indirect_call_with_register_and_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
   STALKER_TESTENTRY (direct_call_with_register)
   STALKER_TESTENTRY (no_clobber)
@@ -517,6 +518,72 @@ STALKER_TESTCASE (indirect_call_with_immediate)
   g_assert_cmphex ((guint64) NTH_CALL_EVENT (1, target), ==, (guint64) target);
 }
 
+static const guint8 indirect_call_with_register_and_immediate_code[] = {
+    0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
+    0xff, 0x50, 0x54,                   /* call [eax + 0x54]    */
+    0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
+    0xff, 0x90, 0x54, 0x00, 0x00, 0x00, /* call [eax + 0x54]    */
+    0xc3,                               /* ret                  */
+
+    0xb8, 0xe9, 0x03, 0x00, 0x00,       /* mov eax, 1001        */
+    0xc3,                               /* ret                  */
+};
+
+static StalkerTestFunc
+invoke_indirect_call_with_register_and_immediate (TestStalkerFixture * fixture,
+                                                  GumEventType mask,
+                                                  gpointer * last_call_location,
+                                                  gpointer * last_call_target)
+{
+  guint8 * code;
+  StalkerTestFunc func;
+  gpointer subfunc_addr;
+  gint ret;
+
+  code = test_stalker_fixture_dup_code (fixture,
+      indirect_call_with_register_and_immediate_code,
+      sizeof (indirect_call_with_register_and_immediate_code));
+  func = (StalkerTestFunc) code;
+
+  subfunc_addr = code + 20;
+  *((gpointer *) (code + 1)) =
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (&subfunc_addr) - 0x54);
+  *((gpointer *) (code + 9)) =
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (&subfunc_addr) - 0x54);
+
+  if (last_call_location != NULL)
+    *last_call_location = code + 13;
+  if (last_call_target != NULL)
+    *last_call_target = subfunc_addr;
+
+  fixture->sink->mask = mask;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpint (ret, ==, 1001);
+
+  return func;
+}
+
+STALKER_TESTCASE (indirect_call_with_register_and_immediate)
+{
+  gpointer location, target;
+
+  invoke_indirect_call_with_register_and_immediate (fixture, GUM_EXEC,
+      NULL, NULL);
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, INVOKER_INSN_COUNT + 9);
+
+  gum_fake_event_sink_reset (fixture->sink);
+
+  invoke_indirect_call_with_register_and_immediate (fixture, GUM_CALL,
+      &location, &target);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 3);
+
+  g_assert_cmphex ((guint64) NTH_CALL_EVENT (2, location),
+      ==, (guint64) location);
+  g_assert_cmphex ((guint64) NTH_CALL_EVENT (2, target), ==, (guint64) target);
+}
+
 static const guint8 indirect_jump_with_immediate_code[] = {
     0xff, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp <indirect> */
     0xcc,                               /* int3           */
@@ -558,8 +625,8 @@ STALKER_TESTCASE (indirect_jump_with_immediate)
 }
 
 static const guint8 direct_call_with_register_code[] = {
-    0xbb, 0x78, 0x56, 0x34, 0x12,       /* mov ebx, 0x12345678  */
-    0xff, 0xd3,                         /* call ebx             */
+    0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
+    0xff, 0xd0,                         /* call eax             */
     0xc3,                               /* ret                  */
 
     0xb8, 0xcb, 0x04, 0x00, 0x00,       /* mov eax, 1227        */
