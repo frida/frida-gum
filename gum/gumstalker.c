@@ -25,7 +25,7 @@
 #include "gumudis86.h"
 
 #define GUM_MAX_EXEC_BLOCKS         1024
-#define GUM_EXEC_BLOCK_MAX_MAPPINGS  128
+#define GUM_EXEC_BLOCK_MAX_MAPPINGS  512
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
