@@ -101,13 +101,12 @@ struct _GumBranchTarget
 
   gboolean is_indirect;
   uint8_t pfx_seg;
+  enum ud_type base;
 };
 
 #define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
 #define CDECL_PRESERVE_SIZE (4 * sizeof (gpointer))
-
-static void gum_stalker_finalize (GObject * object);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
@@ -168,11 +167,7 @@ static void gum_write_push_branch_target_address (
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
-  GObjectClass * gobject_class = G_OBJECT_CLASS (klass);
-
   g_type_class_add_private (klass, sizeof (GumStalkerPrivate));
-
-  gobject_class->finalize = gum_stalker_finalize;
 }
 
 static void
@@ -188,15 +183,6 @@ gum_stalker_init (GumStalker * self)
   priv->exec_ctx = g_private_new (NULL);
 }
 
-static void
-gum_stalker_finalize (GObject * object)
-{
-  GumStalker * self = GUM_STALKER (object);
-  GumStalkerPrivate * priv = GUM_STALKER_GET_PRIVATE (self);
-
-  G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
-}
-
 GumStalker *
 gum_stalker_new (void)
 {
@@ -207,7 +193,6 @@ void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
-  GumStalkerPrivate * priv = GUM_STALKER_GET_PRIVATE (self);
   gpointer * ret_addr_ptr, start_address;
   GumExecCtx * ctx;
 
@@ -667,12 +652,13 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
 {
   gboolean is_conditional;
   ud_operand_t * op = &insn->ud->operand[0];
-  GumBranchTarget target;
+  GumBranchTarget target = { 0, };
 
   is_conditional =
       (insn->ud->mnemonic != UD_Icall && insn->ud->mnemonic != UD_Ijmp);
 
   target.pfx_seg = UD_NONE;
+  target.base = op->base;
 
   if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
@@ -697,6 +683,11 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     target.address = (gpointer) op->lval.udword;
     target.is_indirect = TRUE;
     target.pfx_seg = insn->ud->pfx_seg;
+  }
+  else if (op->type == UD_OP_REG)
+  {
+    target.address = NULL;
+    target.is_indirect = TRUE;
   }
   else
   {
@@ -754,8 +745,6 @@ gum_exec_block_handle_ret_insn (GumExecBlock * block,
                                 GumRelocator * rl,
                                 GumCodeWriter * cw)
 {
-  gboolean handled = FALSE;
-
   if ((block->ctx->sink_mask & GUM_RET) != 0)
   {
     guint8 * insn_start;
@@ -897,9 +886,17 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
         break;
     }
 
-    gum_code_writer_put_byte (cw, 0xff);
-    gum_code_writer_put_byte (cw, 0x35);
-    gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
-        sizeof (target->address));
+    if (target->address != NULL)
+    {
+      gum_code_writer_put_byte (cw, 0xff);
+      gum_code_writer_put_byte (cw, 0x35);
+      gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
+          sizeof (target->address));
+    }
+    else
+    {
+      g_assert (target->base >= UD_R_EAX && target->base <= UD_R_EDI);
+      gum_code_writer_put_byte (cw, 0x50 + target->base - UD_R_EAX);
+    }
   }
 }

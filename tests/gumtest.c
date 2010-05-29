@@ -89,9 +89,8 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (relocator);
   /*
   TEST_RUN_LIST (tracer);
-  TEST_RUN_LIST (sampler);
+  TEST_RUN_LIST (sampler);*/
   TEST_RUN_LIST (stalker);
-  */
 
 #ifdef _MSC_VER
 #pragma warning (pop)

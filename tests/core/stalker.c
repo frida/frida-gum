@@ -20,8 +20,8 @@
 #include "testutil.h"
 #include "fakeeventsink.h"
 
-#include "../gum/gumcodewriter.h"
-#include "../gum/gummemory.h"
+#include "gumcodewriter.h"
+#include "gummemory.h"
 
 #include <string.h>
 
@@ -145,6 +145,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (unfollow_deep)
   STALKER_TESTENTRY (indirect_call_mem)
   STALKER_TESTENTRY (indirect_jmp_mem)
+  STALKER_TESTENTRY (indirect_call_reg)
   STALKER_TESTENTRY (no_clobber)
 
   STALKER_TESTENTRY (heap_api)
@@ -207,7 +208,7 @@ STALKER_TESTCASE (ret)
       ==, GUM_RET);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).ret;
   g_assert_cmphex ((guint64) ev->location,
-      ==, (guint64) (((guint8 *) func) + 4));
+      ==, (guint64) (((guint8 *) GSIZE_TO_POINTER (func)) + 4));
   g_assert_cmphex ((guint64) ev->target,
       ==, (guint64) fixture->last_invoke_retaddr);
 }
@@ -553,6 +554,64 @@ STALKER_TESTCASE (indirect_jmp_mem)
 
   g_assert_cmpuint (fixture->sink->events->len,
       ==, INVOKER_INSN_COUNT + 3);
+}
+
+static const guint8 indirect_call_reg_func_code[] = {
+    0xbb, 0x78, 0x56, 0x34, 0x12,       /* mov ebx, 0x12345678  */
+    0xff, 0xd3,                         /* call ebx             */
+    0xc3,                               /* ret                  */
+
+    0xb8, 0xcb, 0x04, 0x00, 0x00,       /* mov eax, 1227        */
+    0xc3                                /* ret                  */
+};
+
+static StalkerTestFunc
+invoke_indirect_call_reg_func (TestStalkerFixture * fixture,
+                               GumEventType mask,
+                               gpointer * call_location,
+                               gpointer * call_target)
+{
+  guint8 * code;
+  StalkerTestFunc func;
+  gpointer subfunc_addr;
+  gint ret;
+
+  code = test_stalker_fixture_dup_code (fixture, indirect_call_reg_func_code,
+      sizeof (indirect_call_reg_func_code));
+  func = (StalkerTestFunc) code;
+
+  subfunc_addr = code + 8;
+  *((gpointer *) (code + 1)) = subfunc_addr;
+
+  if (call_location != NULL)
+    *call_location = code + 5;
+  if (call_target != NULL)
+    *call_target = subfunc_addr;
+
+  fixture->sink->mask = mask;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpint (ret, ==, 1227);
+
+  return func;
+}
+
+STALKER_TESTCASE (indirect_call_reg)
+{
+  gpointer location, target;
+
+  invoke_indirect_call_reg_func (fixture, GUM_EXEC, NULL, NULL);
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, INVOKER_INSN_COUNT + 5);
+
+  gum_fake_event_sink_reset (fixture->sink);
+
+  invoke_indirect_call_reg_func (fixture, GUM_CALL, &location, &target);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 2);
+
+  g_assert_cmphex ((guint64) NTH_CALL_EVENT (1, location),
+      ==, (guint64) location);
+  g_assert_cmphex ((guint64) NTH_CALL_EVENT (1, target), ==, (guint64) target);
 }
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
