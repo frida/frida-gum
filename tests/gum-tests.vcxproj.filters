@@ -63,6 +63,9 @@
     <ClCompile Include="stubs\fakeeventsink.c">
       <Filter>Source Files\stubs</Filter>
     </ClCompile>
+    <ClCompile Include="core\stalker-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
