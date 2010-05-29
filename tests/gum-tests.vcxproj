@@ -83,7 +83,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -94,7 +94,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -105,7 +105,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -116,7 +116,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -128,6 +128,7 @@
   <ItemGroup>
     <ClInclude Include="core\interceptor-lowlevel.h" />
     <ClInclude Include="core\interceptorharness.h" />
+    <ClInclude Include="stubs\fakeeventsink.h" />
     <ClInclude Include="testutil.h" />
   </ItemGroup>
   <ItemGroup>
@@ -145,7 +146,9 @@
     <ClCompile Include="core\interceptor-lowlevel-x86.c" />
     <ClCompile Include="core\interceptor.c" />
     <ClCompile Include="core\interceptorharness.c" />
+    <ClCompile Include="core\stalker.c" />
     <ClCompile Include="gumtest.c" />
+    <ClCompile Include="stubs\fakeeventsink.c" />
     <ClCompile Include="testutil.c" />
   </ItemGroup>
   <ItemGroup>

@@ -22,6 +22,9 @@
     <Filter Include="Tests\core\arch-x86">
       <UniqueIdentifier>{7be0ff34-ec97-484c-b59a-2f46aeed9d6b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\stubs">
+      <UniqueIdentifier>{e1481fee-55ad-4ba6-92cf-4663e0195527}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumtest.c">
@@ -54,6 +57,12 @@
     <ClCompile Include="core\interceptor-lowlevel-x86.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\stalker.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="stubs\fakeeventsink.c">
+      <Filter>Source Files\stubs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
@@ -64,6 +73,9 @@
     </ClInclude>
     <ClInclude Include="core\interceptor-lowlevel.h">
       <Filter>Tests\core</Filter>
+    </ClInclude>
+    <ClInclude Include="stubs\fakeeventsink.h">
+      <Filter>Source Files\stubs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

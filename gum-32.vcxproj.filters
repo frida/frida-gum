@@ -84,6 +84,12 @@
     <ClCompile Include="ext\udis86\libudis86\itab.c">
       <Filter>udis86</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumeventsink.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumstalker.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -148,6 +154,12 @@
     </ClInclude>
     <ClInclude Include="ext\udis86\libudis86\itab.h">
       <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumstalker.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumeventsink.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
