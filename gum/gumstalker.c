@@ -164,7 +164,8 @@ static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
 
 static void gum_write_push_branch_target_address (
     const GumBranchTarget * target, enum ud_type working_register,
-    guint cdecl_preserve_stack_offset, GumCodeWriter * cw);
+    guint cdecl_preserve_stack_offset, guint accumulated_stack_delta,
+    GumCodeWriter * cw);
 
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
@@ -509,7 +510,8 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_code_writer_put_mov_eax_offset_ptr (cw,
       G_STRUCT_OFFSET (GumCallEvent, location), (guint32) location);
 
-  gum_write_push_branch_target_address (target, UD_R_EDX, 0, cw);
+  gum_write_push_branch_target_address (target, UD_R_EDX, 0,
+      CDECL_PRESERVE_SIZE, cw);
   gum_code_writer_put_pop_ecx (cw);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumCallEvent, target));
@@ -777,7 +779,8 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 {
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, UD_R_EAX, 0, cw);
+  gum_write_push_branch_target_address (target, UD_R_EAX, 0,
+      CDECL_PRESERVE_SIZE, cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_create_and_push_block);
   gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
@@ -816,7 +819,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push_eax (cw); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, UD_R_EAX, 0, cw);
+  gum_write_push_branch_target_address (target, UD_R_EAX, 0,
+      CDECL_PRESERVE_SIZE + 4, cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
@@ -872,6 +876,7 @@ static void
 gum_write_push_branch_target_address (const GumBranchTarget * target,
                                       enum ud_type working_register,
                                       guint cdecl_preserve_stack_offset,
+                                      guint accumulated_stack_delta,
                                       GumCodeWriter * cw)
 {
   if (!target->is_indirect)
@@ -908,6 +913,17 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
       gum_code_writer_put_byte (cw, reg_selector[actual_base - UD_R_EAX]);
       gum_code_writer_put_byte (cw, 0x24);
       gum_code_writer_put_byte (cw, cdecl_preserve_stack_offset + 8 - ((target->base - UD_R_EAX) * 4));
+    }
+    else if (target->base == UD_R_ESP)
+    {
+      guint8 lea_template[] = { 0x8d, 0x84, 0x24 };
+
+      actual_base = working_register;
+
+      lea_template[1] += (actual_base - UD_R_EAX) << 3;
+      gum_code_writer_put_bytes (cw, lea_template, sizeof (lea_template));
+      gum_code_writer_put_bytes (cw, (guint8 *) &accumulated_stack_delta,
+          sizeof (accumulated_stack_delta));
     }
     else
     {

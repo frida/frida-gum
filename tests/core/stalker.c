@@ -42,6 +42,8 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_call_with_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_byte_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_dword_immediate)
+  STALKER_TESTENTRY (indirect_call_with_esp_and_byte_immediate)
+  STALKER_TESTENTRY (indirect_call_with_esp_and_dword_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
   STALKER_TESTENTRY (direct_call_with_register)
   STALKER_TESTENTRY (no_clobber)
@@ -379,9 +381,9 @@ struct _CallTemplate
 {
   const guint8 * code_template;
   guint code_size;
-  gboolean is_direct;
   guint call_site_offset;
   guint target_address_offset;
+  gboolean target_address_offset_points_directly_to_function;
   guint target_func_offset;
   gint target_func_immediate_fixup;
   guint instruction_count;
@@ -402,7 +404,7 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   func = (StalkerTestFunc) code;
 
   target_func_address = code + call_template->target_func_offset;
-  if (call_template->is_direct)
+  if (call_template->target_address_offset_points_directly_to_function)
     target_actual_address = GPOINTER_TO_SIZE (target_func_address);
   else
     target_actual_address = GPOINTER_TO_SIZE (&target_func_address);
@@ -496,6 +498,64 @@ STALKER_TESTCASE (indirect_call_with_register_and_dword_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
+STALKER_TESTCASE (indirect_call_with_esp_and_byte_immediate)
+{
+  const guint8 code[] = {
+      0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678 */
+      0x50,                               /* push eax            */
+      0x56,                               /* push esi            */
+      0x57,                               /* push edi            */
+      0xff, 0x54, 0x24, 0x08,             /* call [esp + 8]      */
+      0x5F,                               /* pop edi             */
+      0x5E,                               /* pop esi             */
+      0x59,                               /* pop ecx             */
+      0xc3,                               /* ret                 */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337       */
+      0xc3,                               /* ret                 */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 8;
+  call_template.target_address_offset = 1;
+  call_template.target_address_offset_points_directly_to_function = TRUE;
+  call_template.target_func_offset = 16;
+  call_template.instruction_count = 11;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
+STALKER_TESTCASE (indirect_call_with_esp_and_dword_immediate)
+{
+  const guint8 code[] = {
+      0xb8, 0x78, 0x56, 0x34, 0x12,               /* mov eax, 0x12345678 */
+      0x50,                                       /* push eax            */
+      0x56,                                       /* push esi            */
+      0x57,                                       /* push edi            */
+      0xff, 0x94, 0x24, 0x08, 0x00, 0x00, 0x00,   /* call [esp + 8]      */
+      0x5F,                                       /* pop edi             */
+      0x5E,                                       /* pop esi             */
+      0x59,                                       /* pop ecx             */
+      0xc3,                                       /* ret                 */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,               /* mov eax, 1337       */
+      0xc3,                                       /* ret                 */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 8;
+  call_template.target_address_offset = 1;
+  call_template.target_address_offset_points_directly_to_function = TRUE;
+  call_template.target_func_offset = 19;
+  call_template.instruction_count = 11;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
 STALKER_TESTCASE (direct_call_with_register)
 {
   const guint8 code[] = {
@@ -510,9 +570,9 @@ STALKER_TESTCASE (direct_call_with_register)
 
   call_template.code_template = code;
   call_template.code_size = sizeof (code);
-  call_template.is_direct = TRUE;
   call_template.call_site_offset = 5;
   call_template.target_address_offset = 1;
+  call_template.target_address_offset_points_directly_to_function = TRUE;
   call_template.target_func_offset = 8;
   call_template.instruction_count = 5;
 
