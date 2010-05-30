@@ -69,10 +69,6 @@ struct _GumExecCtx
   guint block_size;
   guint block_code_offset;
   guint block_code_maxsize;
-
-#if GUM_STALKER_ENABLE_DEBUG
-  gpointer last_jump_site;
-#endif
 };
 
 struct _GumAddressMapping
@@ -181,6 +177,10 @@ static void gum_load_real_register_into (enum ud_type target_register,
 
 static gchar debug_buffer[1024 * 1024] = { 0, };
 static guint debug_offset = 0;
+
+static guint number_of_blocks_created = 0;
+static gpointer last_code_address[2] = { NULL, NULL };
+static gpointer last_block_address[2] = { NULL, NULL };
 
 static void
 debug_printf (const gchar * format,
@@ -497,12 +497,6 @@ gum_exec_ctx_resolve_code_address (GumExecCtx * ctx,
 
   return address;
 }
-
-#if GUM_STALKER_ENABLE_DEBUG
-guint number_of_blocks_created = 0;
-gpointer last_code_address[2] = { NULL, NULL };
-gpointer last_block_address[2] = { NULL, NULL };
-#endif
 
 static GumExecBlock *
 gum_exec_ctx_create_block_for (GumExecCtx * ctx,
@@ -916,14 +910,6 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 {
   gum_code_writer_put_push_eax (cw); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
-
-#if GUM_STALKER_ENABLE_DEBUG
-  {
-    gum_code_writer_put_mov_eax (cw, GPOINTER_TO_SIZE (block));
-    gum_code_writer_put_mov_mem_reg (cw, &block->ctx->last_jump_site,
-        GUM_REG_EAX);
-  }
-#endif
 
   gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE + 4,
       cw);
