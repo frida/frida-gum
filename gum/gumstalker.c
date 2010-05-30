@@ -28,6 +28,7 @@
 #define GUM_STALKER_ENABLE_DEBUG 1
 
 #define GUM_MAX_EXEC_BLOCKS           2048
+#define GUM_EXEC_BLOCK_SIZE_IN_PAGES    16
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS   2048
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
@@ -430,8 +431,11 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
 static void
 gum_exec_ctx_create_block_pool (GumExecCtx * ctx)
 {
-  ctx->block_pool = gum_alloc_n_pages (GUM_MAX_EXEC_BLOCKS * 2, GUM_PAGE_RWX);
-  ctx->block_size = 2 * ctx->stalker->priv->page_size;
+  ctx->block_pool = gum_alloc_n_pages (
+      GUM_MAX_EXEC_BLOCKS * GUM_EXEC_BLOCK_SIZE_IN_PAGES, GUM_PAGE_RWX);
+  ctx->block_size =
+      GUM_EXEC_BLOCK_SIZE_IN_PAGES * ctx->stalker->priv->page_size;
+  g_assert (ctx->block_size >= 2 * sizeof (GumExecBlock));
   ctx->block_code_offset = ((sizeof (GumExecBlock) + (64 - 1)) & ~(64 - 1));
   ctx->block_code_maxsize = ctx->block_size - ctx->block_code_offset;
 }
