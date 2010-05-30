@@ -173,6 +173,7 @@ static void gum_write_push_branch_target_address (
 static void gum_load_real_register_into (enum ud_type target_register,
     enum ud_type source_register, guint8 cdecl_preserve_stack_offset,
     guint accumulated_stack_delta, GumCodeWriter * cw);
+static void gum_write_segment_prefix (uint8_t segment, GumCodeWriter * cw);
 
 #if GUM_STALKER_ENABLE_DEBUG
 
@@ -995,8 +996,8 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   {
     g_assert (target->scale == 0);
     g_assert (target->address != NULL);
-    g_assert (target->pfx_seg == UD_NONE);
 
+    gum_write_segment_prefix (target->pfx_seg, cw);
     gum_code_writer_put_byte (cw, 0xff);
     gum_code_writer_put_byte (cw, 0x35);
     gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
@@ -1014,22 +1015,6 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
     gum_load_real_register_into (UD_R_EDX, target->index,
         cdecl_preserve_stack_offset + 12, accumulated_stack_delta + 12, cw);
 
-    switch (target->pfx_seg)
-    {
-      case UD_NONE: break;
-
-      case UD_R_CS: gum_code_writer_put_byte (cw, 0x2e); break;
-      case UD_R_SS: gum_code_writer_put_byte (cw, 0x36); break;
-      case UD_R_DS: gum_code_writer_put_byte (cw, 0x3e); break;
-      case UD_R_ES: gum_code_writer_put_byte (cw, 0x26); break;
-      case UD_R_FS: gum_code_writer_put_byte (cw, 0x64); break;
-      case UD_R_GS: gum_code_writer_put_byte (cw, 0x65); break;
-
-      default:
-        g_assert_not_reached ();
-        break;
-    }
-
     {
       const guint8 scale_lookup[] = {
           0x00,
@@ -1045,6 +1030,7 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
       guint8 mov_reg_scale_imm_template[] = { 0x8b, 0x84, 0x10 };
 
       mov_reg_scale_imm_template[2] += scale_lookup[target->scale];
+      gum_write_segment_prefix (target->pfx_seg, cw);
       gum_code_writer_put_bytes (cw, mov_reg_scale_imm_template,
           sizeof (mov_reg_scale_imm_template));
       gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
@@ -1103,5 +1089,26 @@ gum_load_real_register_into (enum ud_type target_register,
 
     gum_code_writer_put_bytes (cw, mov_reg_reg_template,
         sizeof (mov_reg_reg_template));
+  }
+}
+
+static void
+gum_write_segment_prefix (uint8_t segment,
+                          GumCodeWriter * cw)
+{
+  switch (segment)
+  {
+    case UD_NONE: break;
+
+    case UD_R_CS: gum_code_writer_put_byte (cw, 0x2e); break;
+    case UD_R_SS: gum_code_writer_put_byte (cw, 0x36); break;
+    case UD_R_DS: gum_code_writer_put_byte (cw, 0x3e); break;
+    case UD_R_ES: gum_code_writer_put_byte (cw, 0x26); break;
+    case UD_R_FS: gum_code_writer_put_byte (cw, 0x64); break;
+    case UD_R_GS: gum_code_writer_put_byte (cw, 0x65); break;
+
+    default:
+      g_assert_not_reached ();
+      break;
   }
 }
