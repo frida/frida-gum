@@ -25,8 +25,10 @@
 #include "gumrelocator.h"
 #include "gumudis86.h"
 
-#define GUM_MAX_EXEC_BLOCKS         1024
-#define GUM_EXEC_BLOCK_MAX_MAPPINGS  512
+#define GUM_STALKER_ENABLE_DEBUG 1
+
+#define GUM_MAX_EXEC_BLOCKS           2048
+#define GUM_EXEC_BLOCK_MAX_MAPPINGS   2048
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -68,7 +70,9 @@ struct _GumExecCtx
   guint block_code_offset;
   guint block_code_maxsize;
 
+#if GUM_STALKER_ENABLE_DEBUG
   gpointer last_jump_site;
+#endif
 };
 
 struct _GumAddressMapping
@@ -435,6 +439,11 @@ gum_exec_ctx_resolve_code_address (GumExecCtx * ctx,
   return address;
 }
 
+#if GUM_STALKER_ENABLE_DEBUG
+gpointer last_code_address[2] = { NULL, NULL };
+gpointer last_block_address[2] = { NULL, NULL };
+#endif
+
 static GumExecBlock *
 gum_exec_ctx_create_block_for (GumExecCtx * ctx,
                                gpointer address)
@@ -501,6 +510,13 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   block->code_end = gum_code_writer_cur (cw);
 
   g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
+
+#if GUM_STALKER_ENABLE_DEBUG
+  last_code_address[0] = last_code_address[1];
+  last_code_address[1] = address;
+  last_block_address[0] = last_block_address[1];
+  last_block_address[1] = block;
+#endif
 
   return block;
 }
@@ -832,11 +848,13 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push_eax (cw); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
+#if GUM_STALKER_ENABLE_DEBUG
   {
     gum_code_writer_put_mov_eax (cw, GPOINTER_TO_SIZE (block));
     gum_code_writer_put_mov_mem_reg (cw, &block->ctx->last_jump_site,
         GUM_REG_EAX);
   }
+#endif
 
   gum_write_push_branch_target_address (target, UD_R_EAX, 0,
       CDECL_PRESERVE_SIZE + 4, cw);
