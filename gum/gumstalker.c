@@ -171,9 +171,8 @@ static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
     gpointer address);
 
 static void gum_write_push_branch_target_address (
-    const GumBranchTarget * target, enum ud_type working_register,
-    guint cdecl_preserve_stack_offset, guint accumulated_stack_delta,
-    GumCodeWriter * cw);
+    const GumBranchTarget * target, guint cdecl_preserve_stack_offset,
+    guint accumulated_stack_delta, GumCodeWriter * cw);
 static void gum_load_real_register_into (enum ud_type target_register,
     enum ud_type source_register, guint8 cdecl_preserve_stack_offset,
     guint accumulated_stack_delta, GumCodeWriter * cw);
@@ -533,8 +532,7 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_code_writer_put_mov_eax_offset_ptr (cw,
       G_STRUCT_OFFSET (GumCallEvent, location), (guint32) location);
 
-  gum_write_push_branch_target_address (target, UD_R_EDX, 0,
-      CDECL_PRESERVE_SIZE, cw);
+  gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE, cw);
   gum_code_writer_put_pop_ecx (cw);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumCallEvent, target));
@@ -808,8 +806,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
 {
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, UD_R_EAX, 0,
-      CDECL_PRESERVE_SIZE, cw);
+  gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE, cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_create_and_push_block);
   gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
@@ -856,8 +853,8 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   }
 #endif
 
-  gum_write_push_branch_target_address (target, UD_R_EAX, 0,
-      CDECL_PRESERVE_SIZE + 4, cw);
+  gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE + 4,
+      cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
@@ -911,7 +908,6 @@ gum_exec_block_get_real_address_of (GumExecBlock * block,
 
 static void
 gum_write_push_branch_target_address (const GumBranchTarget * target,
-                                      enum ud_type working_register,
                                       guint cdecl_preserve_stack_offset,
                                       guint accumulated_stack_delta,
                                       GumCodeWriter * cw)
