@@ -177,6 +177,66 @@ static void gum_load_real_register_into (enum ud_type target_register,
     enum ud_type source_register, guint8 cdecl_preserve_stack_offset,
     guint accumulated_stack_delta, GumCodeWriter * cw);
 
+#if GUM_STALKER_ENABLE_DEBUG
+
+static gchar debug_buffer[1024 * 1024] = { 0, };
+static guint debug_offset = 0;
+
+static void
+debug_printf (const gchar * format,
+              ...)
+{
+  va_list args;
+
+  va_start (args, format);
+  debug_offset += vsprintf_s (debug_buffer + debug_offset,
+      sizeof (debug_buffer) - debug_offset,
+      format, args);
+  g_assert (debug_offset < sizeof (debug_buffer));
+}
+
+static void
+debug_print_code (const guint8 * code,
+                  guint size)
+{
+  ud_t ud;
+  guint remaining;
+
+  ud_init (&ud);
+  ud_set_mode (&ud, GUM_CPU_MODE);
+  ud_set_syntax (&ud, UD_SYN_INTEL);
+
+  ud_set_pc (&ud, (uint64_t) code);
+  ud_set_input_buffer (&ud, (guint8 *) code, size);
+
+  remaining = size;
+  while (remaining != 0)
+  {
+    guint in_size;
+    guint offset;
+
+    in_size = ud_disassemble (&ud);
+    g_assert (in_size != 0);
+
+    for (offset = 0; offset != in_size; offset++)
+    {
+      if (offset != 0)
+        debug_printf (" ");
+      debug_printf ("%02x", code[size - remaining + offset]);
+    }
+
+    if (in_size < 3)
+      debug_printf ("\t\t");
+    else if (in_size < 6)
+      debug_printf ("\t");
+    debug_printf ("\t%s\n", ud_insn_asm (&ud));
+
+    remaining -= in_size;
+  }
+}
+
+#endif
+
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
@@ -439,6 +499,7 @@ gum_exec_ctx_resolve_code_address (GumExecCtx * ctx,
 }
 
 #if GUM_STALKER_ENABLE_DEBUG
+guint number_of_blocks_created = 0;
 gpointer last_code_address[2] = { NULL, NULL };
 gpointer last_block_address[2] = { NULL, NULL };
 #endif
@@ -511,6 +572,17 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
 
 #if GUM_STALKER_ENABLE_DEBUG
+  debug_printf ("\n********************************************************************************\n");
+  debug_printf ("Original code at %p:\n", address);
+  debug_print_code (rl->input_start, rl->input_cur - rl->input_start);
+  debug_printf ("\nGenerated code:\n");
+  debug_print_code (block->code_begin, block->code_end - block->code_begin);
+
+  if (number_of_blocks_created == 44)
+    G_BREAKPOINT ();
+
+  number_of_blocks_created++;
+
   last_code_address[0] = last_code_address[1];
   last_code_address[1] = address;
   last_block_address[0] = last_block_address[1];
@@ -758,15 +830,15 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
 
     if (is_conditional)
     {
-      GumBranchTarget cond_target;
+      GumBranchTarget cond_target = { 0, };
 
+      cond_target.address = insn->end;
+
+      cond_target.is_indirect = FALSE;
       cond_target.pfx_seg = UD_NONE;
       cond_target.base = UD_NONE;
       cond_target.index = UD_NONE;
       cond_target.scale = 0;
-
-      cond_target.address = insn->end;
-      cond_target.is_indirect = FALSE;
 
       gum_code_writer_put_label (cw, cond_false_lbl_id);
       gum_exec_block_write_jmp_transfer_code (block, insn, &cond_target, cw);
@@ -928,6 +1000,17 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
       gum_code_writer_put_bytes (cw, xchg_eax_esp_template,
           sizeof (xchg_eax_esp_template));
     }
+  }
+  else if (target->base == UD_NONE && target->index == UD_NONE)
+  {
+    g_assert (target->scale == 0);
+    g_assert (target->address != NULL);
+    g_assert (target->pfx_seg == UD_NONE);
+
+    gum_code_writer_put_byte (cw, 0xff);
+    gum_code_writer_put_byte (cw, 0x35);
+    gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
+        sizeof (target->address));
   }
   else
   {
