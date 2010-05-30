@@ -25,7 +25,7 @@
 #include "gumrelocator.h"
 #include "gumudis86.h"
 
-#define GUM_STALKER_ENABLE_DEBUG 1
+#define GUM_STALKER_ENABLE_DEBUG 0
 
 #define GUM_MAX_EXEC_BLOCKS           2048
 #define GUM_EXEC_BLOCK_SIZE_IN_PAGES    16
