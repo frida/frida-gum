@@ -45,6 +45,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_call_with_esp_and_byte_immediate)
   STALKER_TESTENTRY (indirect_call_with_esp_and_dword_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
+  STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
   STALKER_TESTENTRY (no_clobber)
 
@@ -395,8 +396,8 @@ invoke_call_from_template (TestStalkerFixture * fixture,
 {
   guint8 * code;
   StalkerTestFunc func;
-  gsize target_actual_address;
   gpointer target_func_address;
+  gsize target_actual_address;
   gint ret;
 
   code = test_stalker_fixture_dup_code (fixture,
@@ -579,44 +580,90 @@ STALKER_TESTCASE (direct_call_with_register)
   invoke_call_from_template (fixture, &call_template);
 }
 
-static const guint8 indirect_jump_with_immediate_code[] = {
-    0xff, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp <indirect> */
-    0xcc,                               /* int3           */
+typedef struct _JumpTemplate JumpTemplate;
 
-    0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337  */
-    0xc3,                               /* ret            */
+struct _JumpTemplate
+{
+  const guint8 * code_template;
+  guint code_size;
+  guint offset_of_target_pointer;
+  gboolean offset_of_target_pointer_points_directly;
+  guint offset_of_target;
+  gint target_immediate_fixup;
+  guint instruction_count;
 };
 
 static StalkerTestFunc
-invoke_indirect_jump_with_immediate (TestStalkerFixture * fixture,
-                                     GumEventType mask)
+invoke_jump (TestStalkerFixture * fixture,
+             JumpTemplate * jump_template)
 {
   guint8 * code;
   StalkerTestFunc func;
-  gpointer realfunc_addr;
+  gpointer target_address;
+  gsize target_actual_address;
   gint ret;
 
-  code = test_stalker_fixture_dup_code (fixture, indirect_jump_with_immediate_code,
-      sizeof (indirect_jump_with_immediate_code));
+  code = test_stalker_fixture_dup_code (fixture, jump_template->code_template,
+      jump_template->code_size);
   func = (StalkerTestFunc) code;
 
-  realfunc_addr = code + 6 + 1;
-  *((gpointer *) (code + 2)) = &realfunc_addr;
+  target_address = code + jump_template->offset_of_target;
+  if (jump_template->offset_of_target_pointer_points_directly)
+    target_actual_address = GPOINTER_TO_SIZE (target_address);
+  else
+    target_actual_address = GPOINTER_TO_SIZE (&target_address);
+  *((gsize *) (code + jump_template->offset_of_target_pointer)) =
+      target_actual_address + jump_template->target_immediate_fixup;
 
-  fixture->sink->mask = mask;
+  fixture->sink->mask = GUM_EXEC;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
-
   g_assert_cmpint (ret, ==, 1337);
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, INVOKER_INSN_COUNT + jump_template->instruction_count);
 
   return func;
 }
 
 STALKER_TESTCASE (indirect_jump_with_immediate)
 {
-  invoke_indirect_jump_with_immediate (fixture, GUM_EXEC);
+  const guint8 code[] = {
+      0xff, 0x25, 0x00, 0x00, 0x00, 0x00, /* jmp <indirect> */
+      0xcc,                               /* int3           */
 
-  g_assert_cmpuint (fixture->sink->events->len,
-      ==, INVOKER_INSN_COUNT + 3);
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337  */
+      0xc3,                               /* ret            */
+  };
+  JumpTemplate jump_template = { 0, };
+
+  jump_template.code_template = code;
+  jump_template.code_size = sizeof (code);
+  jump_template.offset_of_target_pointer = 2;
+  jump_template.offset_of_target = 7;
+  jump_template.instruction_count = 3;
+
+  invoke_jump (fixture, &jump_template);
+}
+
+STALKER_TESTCASE (indirect_jump_with_immediate_and_scaled_register)
+{
+  const guint8 code[] = {
+      0xb8, 0x03, 0x00, 0x00, 0x00,             /* mov eax, 3                       */
+      0xff, 0x24, 0x85, 0xff, 0xff, 0xff, 0xff, /* jmp dword [eax * 4 + 0xffffffff] */
+      0xcc,                                     /* int3                             */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,             /* mov eax, 1337                    */
+      0xc3,                                     /* ret                              */
+  };
+  JumpTemplate jump_template = { 0, };
+
+  jump_template.code_template = code;
+  jump_template.code_size = sizeof (code);
+  jump_template.offset_of_target_pointer = 8;
+  jump_template.offset_of_target = 13;
+  jump_template.target_immediate_fixup = -12;
+  jump_template.instruction_count = 4;
+
+  invoke_jump (fixture, &jump_template);
 }
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);

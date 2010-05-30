@@ -22,7 +22,7 @@
 
 #include <string.h>
 
-#define GUM_MAX_INPUT_INSN_COUNT 128
+#define GUM_MAX_INPUT_INSN_COUNT 1024
 
 static void gum_relocator_put_label_for (GumRelocator * self,
     ud_t * insn);
