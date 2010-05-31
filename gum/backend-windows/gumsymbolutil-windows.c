@@ -69,7 +69,9 @@ gum_module_enumerate_exports (const gchar * module_name,
       if (func_address < exp_begin || func_address > exp_end)
       {
         const gchar * func_name = (const gchar *) &mod_base[name_rvas[index]];
-        func (func_name, func_address, user_data);
+
+        if (!func (func_name, func_address, user_data))
+          return;
       }
     }
   }

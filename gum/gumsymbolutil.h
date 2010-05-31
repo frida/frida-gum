@@ -36,7 +36,7 @@ struct _GumSymbolDetails
 
 G_BEGIN_DECLS
 
-typedef void (* GumFoundExportFunc) (const gchar * name, gpointer address,
+typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
     gpointer user_data);
 
 GUM_API void gum_symbol_util_init (void);

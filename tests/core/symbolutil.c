@@ -26,7 +26,12 @@
 #define SYSTEM_MODULE_NAME "libc.so.6"
 #endif
 
-static void export_found_cb (const gchar * name, gpointer address,
+typedef struct _TestModuleExportContext {
+  gboolean value_to_return;
+  guint number_of_calls;
+} TestModuleExportContext;
+
+static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 
 #ifndef GUM_DISABLE_SYMBOL_UTIL
@@ -48,20 +53,29 @@ TEST_LIST_END ()
 static void
 test_module_exports (void)
 {
-  guint count = 0;
+  TestModuleExportContext ctx;
 
-  gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &count);
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
-  g_assert_cmpuint (count, >, 0);
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-static void
+static gboolean
 export_found_cb (const gchar * name,
                  gpointer address,
                  gpointer user_data)
 {
-  guint * count = user_data;
-  (*count) ++;
+  TestModuleExportContext * ctx = (TestModuleExportContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
 }
 
 #ifndef GUM_DISABLE_SYMBOL_UTIL
