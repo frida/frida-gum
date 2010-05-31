@@ -318,7 +318,11 @@ STALKER_TESTCASE (follow_stdcall)
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
       stdcall_code, sizeof (stdcall_code));
 
+  fixture->sink->mask = GUM_EXEC;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, INVOKER_INSN_COUNT + 5);
 
   g_assert_cmpint (ret, ==, 0xbeef);
 }
