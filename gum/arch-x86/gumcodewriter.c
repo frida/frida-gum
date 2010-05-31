@@ -21,7 +21,7 @@
 
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT (1024)
+#define GUM_MAX_LABEL_COUNT (10 * 1000)
 #define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
 
 #define IS_WITHIN_UINT8_RANGE(i) ((i) >= -128 && (i) <= 127)
