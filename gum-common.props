@@ -51,6 +51,7 @@
 
   <ItemGroup>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
+    <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c" />
   </ItemGroup>
 
   <ItemGroup>

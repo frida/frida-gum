@@ -83,7 +83,7 @@ main (gint argc, gchar * argv[])
 #pragma warning (disable: 4210)
 #endif
 
-  /*TEST_RUN_LIST (symbolutil);*/
+  TEST_RUN_LIST (symbolutil);
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (functionparser);
   TEST_RUN_LIST (relocator);

@@ -90,6 +90,9 @@
     <ClCompile Include="gum\gumstalker.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c">
+      <Filter>core\backend-windows</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">

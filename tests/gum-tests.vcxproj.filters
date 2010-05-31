@@ -66,6 +66,9 @@
     <ClCompile Include="core\stalker-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\symbolutil.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

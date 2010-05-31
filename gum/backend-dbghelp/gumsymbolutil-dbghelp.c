@@ -18,6 +18,7 @@
  */
 
 #include "gumsymbolutil.h"
+
 #include "gumdbghelp.h"
 
 #include <psapi.h>
@@ -154,59 +155,6 @@ gum_find_functions_matching (const gchar * str)
   g_free (match_formatted_str);
 
   return matches;
-}
-
-void
-gum_module_enumerate_exports (const gchar * module_name,
-                              GumFoundExportFunc func,
-                              gpointer user_data)
-{
-  gunichar2 * wide_name;
-  gpointer module;
-  guint8 * mod_base;
-  IMAGE_DOS_HEADER * dos_hdr;
-  IMAGE_NT_HEADERS * nt_hdrs;
-  IMAGE_EXPORT_DIRECTORY * exp;
-  guint8 * exp_begin, * exp_end;
-
-  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = GetModuleHandleW (wide_name);
-  g_free (wide_name);
-
-  g_assert (module != NULL);
-
-  mod_base = module;
-  dos_hdr = module;
-  nt_hdrs = (IMAGE_NT_HEADERS *) &mod_base[dos_hdr->e_lfanew];
-  exp = (IMAGE_EXPORT_DIRECTORY *)
-      &mod_base[nt_hdrs->OptionalHeader.DataDirectory->VirtualAddress];
-  exp_begin = mod_base + nt_hdrs->OptionalHeader.DataDirectory->VirtualAddress;
-  exp_end = exp_begin + nt_hdrs->OptionalHeader.DataDirectory->Size - 1;
-
-  if (exp->AddressOfNames != 0)
-  {
-    DWORD * name_rvas, * func_rvas;
-    WORD * ord_rvas;
-    DWORD index;
-
-    name_rvas = (DWORD *) &mod_base[exp->AddressOfNames];
-    ord_rvas = (WORD *) &mod_base[exp->AddressOfNameOrdinals];
-    func_rvas = (DWORD *) &mod_base[exp->AddressOfFunctions];
-
-    for (index = 0; index < exp->NumberOfNames; index++)
-    {
-      DWORD func_rva;
-      guint8 * func_address;
-
-      func_rva = func_rvas[ord_rvas[index]];
-      func_address = &mod_base[func_rva];
-      if (func_address < exp_begin || func_address > exp_end)
-      {
-        const gchar * func_name = (const gchar *) &mod_base[name_rvas[index]];
-        func (func_name, func_address, user_data);
-      }
-    }
-  }
 }
 
 static BOOL CALLBACK
