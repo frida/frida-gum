@@ -67,6 +67,7 @@ struct _GumExecCtx
   gpointer ret_block_thunk;
 
   guint8 * block_pool;
+  guint block_pool_size;
   guint block_size;
   guint block_code_offset;
   guint block_code_maxsize;
@@ -395,6 +396,14 @@ gum_exec_ctx_create_and_return_to_block (GumExecCtx * ctx,
   }
   else
   {
+#if 0
+    if (!(start_address >= GSIZE_TO_POINTER (ctx->block_pool) &&
+          start_address < GSIZE_TO_POINTER (ctx->block_pool + ctx->block_pool_size)))
+    {
+      G_BREAKPOINT ();
+    }
+#endif
+
     return start_address;
   }
 }
@@ -432,8 +441,10 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
 static void
 gum_exec_ctx_create_block_pool (GumExecCtx * ctx)
 {
-  ctx->block_pool = gum_alloc_n_pages (
-      GUM_MAX_EXEC_BLOCKS * GUM_EXEC_BLOCK_SIZE_IN_PAGES, GUM_PAGE_RWX);
+  ctx->block_pool_size = GUM_MAX_EXEC_BLOCKS * GUM_EXEC_BLOCK_SIZE_IN_PAGES;
+  ctx->block_pool = gum_alloc_n_pages (ctx->block_pool_size, GUM_PAGE_RWX);
+  ctx->block_pool_size *= ctx->stalker->priv->page_size;
+
   ctx->block_size =
       GUM_EXEC_BLOCK_SIZE_IN_PAGES * ctx->stalker->priv->page_size;
   g_assert (ctx->block_size >= 2 * sizeof (GumExecBlock));
