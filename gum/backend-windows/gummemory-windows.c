@@ -19,7 +19,7 @@
  */
 
 #include "gummemory.h"
-#define _WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN
 #include <windows.h>
 
 static DWORD gum_page_protection_to_windows (GumPageProtection page_prot);
