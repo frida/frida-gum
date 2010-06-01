@@ -784,7 +784,7 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     g_assert (op->size == 32);
     g_assert (op->base == UD_NONE ||
         (op->base >= UD_R_EAX && op->base <= UD_R_EDI));
-    g_assert (op->offset == 8 || op->offset == 32);
+    g_assert (op->offset == 8 || op->offset == 32 || op->offset == 0);
 
 #ifdef G_OS_WIN32
     /* Don't follow WoW64 for now */
@@ -794,8 +794,10 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
 
     if (op->offset == 8)
       target.address = GSIZE_TO_POINTER (op->lval.ubyte);
-    else
+    else if (op->offset == 32)
       target.address = GSIZE_TO_POINTER (op->lval.udword);
+    else
+      target.address = NULL;
     target.is_indirect = TRUE;
     target.pfx_seg = insn->ud->pfx_seg;
   }
