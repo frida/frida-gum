@@ -41,8 +41,10 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (unfollow_deep)
   STALKER_TESTENTRY (indirect_call_with_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_no_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_byte_immediate)
-  STALKER_TESTENTRY (indirect_call_with_register_and_dword_immediate)
+  STALKER_TESTENTRY (indirect_call_with_register_and_positive_byte_immediate)
+  STALKER_TESTENTRY (indirect_call_with_register_and_negative_byte_immediate)
+  STALKER_TESTENTRY (indirect_call_with_register_and_positive_dword_immediate)
+  STALKER_TESTENTRY (indirect_call_with_register_and_negative_dword_immediate)
   STALKER_TESTENTRY (indirect_call_with_esp_and_byte_immediate)
   STALKER_TESTENTRY (indirect_call_with_esp_and_dword_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
@@ -480,7 +482,7 @@ STALKER_TESTCASE (indirect_call_with_register_and_no_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_byte_immediate)
+STALKER_TESTCASE (indirect_call_with_register_and_positive_byte_immediate)
 {
   const guint8 code[] = {
       0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
@@ -503,7 +505,30 @@ STALKER_TESTCASE (indirect_call_with_register_and_byte_immediate)
   invoke_call_from_template (fixture, &call_template);
 }
 
-STALKER_TESTCASE (indirect_call_with_register_and_dword_immediate)
+STALKER_TESTCASE (indirect_call_with_register_and_negative_byte_immediate)
+{
+  const guint8 code[] = {
+      0xbd, 0x78, 0x56, 0x34, 0x12,       /* mov ebp, 0x12345678  */
+      0xff, 0x55, 0xe4,                   /* call [ebp - 0x1c]    */
+      0xc3,                               /* ret                  */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337        */
+      0xc3,                               /* ret                  */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 5;
+  call_template.target_address_offset = 1;
+  call_template.target_func_offset = 9;
+  call_template.target_func_immediate_fixup = 0x1c;
+  call_template.instruction_count = 5;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
+STALKER_TESTCASE (indirect_call_with_register_and_positive_dword_immediate)
 {
   const guint8 code[] = {
       0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
@@ -521,6 +546,29 @@ STALKER_TESTCASE (indirect_call_with_register_and_dword_immediate)
   call_template.target_address_offset = 1;
   call_template.target_func_offset = 12;
   call_template.target_func_immediate_fixup = -0x54;
+  call_template.instruction_count = 5;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
+STALKER_TESTCASE (indirect_call_with_register_and_negative_dword_immediate)
+{
+  const guint8 code[] = {
+      0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
+      0xff, 0x90, 0xbe, 0xab, 0xff, 0xff, /* call [eax - 0x5442]  */
+      0xc3,                               /* ret                  */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337        */
+      0xc3,                               /* ret                  */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 5;
+  call_template.target_address_offset = 1;
+  call_template.target_func_offset = 12;
+  call_template.target_func_immediate_fixup = 0x5442;
   call_template.instruction_count = 5;
 
   invoke_call_from_template (fixture, &call_template);

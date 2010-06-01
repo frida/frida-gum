@@ -98,6 +98,8 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_code_writer_init (&cw, code);
 
+  gum_code_writer_put_pushad (&cw);
+
   gum_code_writer_put_push (&cw, (guint32) fixture->sink);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
@@ -112,6 +114,8 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
   gum_code_writer_put_add_esp_u32 (&cw, 4 * sizeof (GumStalker *));
+
+  gum_code_writer_put_popad (&cw);
 
   gum_code_writer_put_ret (&cw);
 

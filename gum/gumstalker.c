@@ -102,7 +102,8 @@ struct _GumInstruction
 
 struct _GumBranchTarget
 {
-  gpointer address;
+  gpointer absolute_address;
+  gssize relative_offset;
 
   gboolean is_indirect;
   uint8_t pfx_seg;
@@ -772,9 +773,9 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
   if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
     if (op->size == 8)
-      target.address = insn->end + op->lval.sbyte;
+      target.absolute_address = insn->end + op->lval.sbyte;
     else if (op->size == 32)
-      target.address = insn->end + op->lval.sdword;
+      target.absolute_address = insn->end + op->lval.sdword;
     else
       g_assert_not_reached ();
     target.is_indirect = FALSE;
@@ -792,18 +793,26 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
       return FALSE;
 #endif
 
-    if (op->offset == 8)
-      target.address = GSIZE_TO_POINTER (op->lval.ubyte);
-    else if (op->offset == 32)
-      target.address = GSIZE_TO_POINTER (op->lval.udword);
+    if (op->base == UD_NONE && op->index == UD_NONE)
+    {
+      g_assert (op->offset == 32);
+      target.absolute_address = GSIZE_TO_POINTER (op->lval.udword);
+    }
     else
-      target.address = NULL;
+    {
+      if (op->offset == 8)
+        target.relative_offset = op->lval.sbyte;
+      else if (op->offset == 32)
+        target.relative_offset = op->lval.sdword;
+      else
+        target.relative_offset = 0;
+    }
+
     target.is_indirect = TRUE;
     target.pfx_seg = insn->ud->pfx_seg;
   }
   else if (op->type == UD_OP_REG)
   {
-    target.address = NULL;
     target.is_indirect = FALSE;
   }
   else
@@ -811,7 +820,7 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     g_assert_not_reached ();
   }
 
-  if (target.address == gum_stalker_unfollow_me)
+  if (target.absolute_address == gum_stalker_unfollow_me)
     return FALSE;
 
   gum_relocator_skip_one (rl);
@@ -844,7 +853,7 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     {
       GumBranchTarget cond_target = { 0, };
 
-      cond_target.address = insn->end;
+      cond_target.absolute_address = insn->end;
 
       cond_target.is_indirect = FALSE;
       cond_target.pfx_seg = UD_NONE;
@@ -992,7 +1001,7 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   {
     if (target->base == UD_NONE)
     {
-      gum_code_writer_put_push (cw, (guint32) target->address);
+      gum_code_writer_put_push (cw, (guint32) target->absolute_address);
     }
     else
     {
@@ -1008,13 +1017,14 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   else if (target->base == UD_NONE && target->index == UD_NONE)
   {
     g_assert (target->scale == 0);
-    g_assert (target->address != NULL);
+    g_assert (target->absolute_address != NULL);
+    g_assert (target->relative_offset == 0);
 
     gum_write_segment_prefix (target->pfx_seg, cw);
     gum_code_writer_put_byte (cw, 0xff);
     gum_code_writer_put_byte (cw, 0x35);
-    gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
-        sizeof (target->address));
+    gum_code_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
+        sizeof (target->absolute_address));
   }
   else
   {
@@ -1046,8 +1056,8 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
       gum_write_segment_prefix (target->pfx_seg, cw);
       gum_code_writer_put_bytes (cw, mov_reg_scale_imm_template,
           sizeof (mov_reg_scale_imm_template));
-      gum_code_writer_put_bytes (cw, (guint8 *) &target->address,
-          sizeof (target->address));
+      gum_code_writer_put_bytes (cw, (guint8 *) &target->relative_offset,
+          sizeof (target->relative_offset));
     }
 
     gum_code_writer_put_mov_esp_offset_ptr_eax (cw, 8);
