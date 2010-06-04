@@ -27,9 +27,11 @@
 
 #define GUM_STALKER_ENABLE_DEBUG 0
 
-#define GUM_MAX_EXEC_BLOCKS           2048
-#define GUM_EXEC_BLOCK_SIZE_IN_PAGES    16
-#define GUM_EXEC_BLOCK_MAX_MAPPINGS   2048
+#define GUM_MAX_EXEC_BLOCKS                 2048
+#define GUM_EXEC_BLOCK_SIZE_IN_PAGES          16
+#define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
+#define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
+#define GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE 256
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
@@ -151,6 +153,7 @@ static void gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_free (GumExecBlock * block);
+static gboolean gum_exec_block_full (GumExecBlock * block);
 static gboolean gum_exec_block_handle_branch_insn (GumExecBlock * block,
     GumGeneratorContext * gc);
 static gboolean gum_exec_block_handle_ret_insn (GumExecBlock * block,
@@ -444,16 +447,11 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   do
   {
     guint n_read;
+    GumInstruction insn;
+    gboolean handled = FALSE;
 
     n_read = gum_relocator_read_one (rl, NULL);
     g_assert_cmpuint (n_read, !=, 0);
-  }
-  while (!gum_relocator_eob (rl));
-
-  do
-  {
-    GumInstruction insn;
-    gboolean handled = FALSE;
 
     insn.ud = gum_relocator_peek_next_write_insn (rl);
     if (insn.ud == NULL)
@@ -489,8 +487,14 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
       gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
           insn.end);
     }
+
+    if (gum_exec_block_full (block))
+    {
+      gc.continuation_real_address = insn.end;
+      break;
+    }
   }
-  while (TRUE);
+  while (!gum_relocator_eob (rl));
 
   if (gc.continuation_real_address != NULL)
   {
@@ -672,6 +676,18 @@ static void
 gum_exec_block_free (GumExecBlock * block)
 {
   block->ctx = NULL;
+}
+
+static gboolean
+gum_exec_block_full (GumExecBlock * block)
+{
+  guint mappings_available, bytes_available;
+
+  mappings_available = G_N_ELEMENTS (block->mappings) - block->mappings_len;
+  bytes_available =
+      block->ctx->block_size - (block->code_end - (guint8 *) block);
+  return (mappings_available < GUM_MAX_INSTRUMENTATION_MAPPING_COUNT) ||
+      (bytes_available < GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE);
 }
 
 static gboolean

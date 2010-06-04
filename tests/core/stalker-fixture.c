@@ -75,7 +75,8 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
 {
   if (fixture->code != NULL)
     gum_free_pages (fixture->code);
-  fixture->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  fixture->code = (guint8 *) gum_alloc_n_pages (
+      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX);
   memcpy (fixture->code, tpl_code, tpl_size);
   return fixture->code;
 }

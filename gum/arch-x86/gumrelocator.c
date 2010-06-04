@@ -67,8 +67,6 @@ gum_relocator_read_one (GumRelocator * self,
   ud_t * ud;
   guint in_size;
 
-  g_assert_cmpint (self->outpos, <, 0); /* no reads after the first write */
-
   if (self->eoi)
     return 0;
 

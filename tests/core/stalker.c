@@ -52,6 +52,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
   STALKER_TESTENTRY (no_clobber)
+  STALKER_TESTENTRY (big_block)
 
   STALKER_TESTENTRY (heap_api)
 
@@ -855,6 +856,35 @@ STALKER_TESTCASE (no_clobber)
   g_assert_cmphex (ctx.edi, ==, 0x1227);
 
   gum_free_pages (code);
+}
+
+STALKER_TESTCASE (big_block)
+{
+  const guint nop_instruction_count = 1000000;
+  guint8 * code;
+  GumCodeWriter cw;
+  guint i;
+  StalkerTestFunc func;
+
+  code = gum_alloc_n_pages (
+      (nop_instruction_count / gum_query_page_size ()) + 1,
+      GUM_PAGE_RWX);
+  gum_code_writer_init (&cw, code);
+
+  for (i = 0; i != nop_instruction_count; i++)
+    gum_code_writer_put_nop (&cw);
+  gum_code_writer_put_ret (&cw);
+
+  gum_code_writer_flush (&cw);
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      code, gum_code_writer_offset (&cw));
+
+  gum_code_writer_free (&cw);
+  gum_free_pages (code);
+
+  fixture->sink->mask = GUM_NOTHING;
+  test_stalker_fixture_follow_and_invoke (fixture, func, -1);
 }
 
 #ifdef G_OS_WIN32
