@@ -60,8 +60,7 @@ struct _GumExecCtx
   gpointer sink_process_impl; /* cached */
   GumEvent tmp_event;
 
-  GumExecBlock * block_stack[GUM_MAX_EXEC_BLOCKS];
-  guint block_stack_len;
+  GumExecBlock * current_block;
 
   gpointer thunks;
   gpointer jmp_block_thunk;
@@ -126,20 +125,13 @@ static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
-static gpointer gum_exec_ctx_create_and_push_block (GumExecCtx * ctx,
-    gpointer start_address);
-static gpointer GUM_STDCALL gum_exec_ctx_create_and_switch_block (
-    GumExecCtx * ctx, gpointer start_address);
-static gpointer GUM_STDCALL gum_exec_ctx_create_and_return_to_block (
+static gpointer GUM_STDCALL gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_create_block_pool (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_block_pool (GumExecCtx * ctx);
 
-static GumExecBlock * gum_exec_ctx_peek_top (GumExecCtx * ctx);
-static GumExecBlock * gum_exec_ctx_replace_top (GumExecCtx * ctx,
-    GumExecBlock * replacement);
 static GumExecBlock * gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     gpointer address);
 static void gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
@@ -284,7 +276,8 @@ gum_stalker_follow_me (GumStalker * self,
   start_address = *ret_addr_ptr;
 
   ctx = gum_stalker_create_exec_ctx (self, sink);
-  *ret_addr_ptr = gum_exec_ctx_create_and_push_block (ctx, start_address);
+  ctx->current_block = gum_exec_ctx_create_block_for (ctx, start_address);
+  *ret_addr_ptr = ctx->current_block->code_begin;
 }
 
 void
@@ -292,17 +285,16 @@ gum_stalker_unfollow_me (GumStalker * self)
 {
   gpointer * ret_addr_ptr, ret_addr;
   GumExecCtx * ctx;
-  GumExecBlock * block;
 
   ret_addr_ptr = (gpointer *) (((gssize) &self) - sizeof (GumStalker *));
   ret_addr = *ret_addr_ptr;
 
   ctx = gum_stalker_get_exec_ctx (self);
 
-  block = gum_exec_ctx_peek_top (ctx);
-  g_assert (ret_addr == block->code_end);
+  g_assert (ret_addr == ctx->current_block->code_end);
 
-  *ret_addr_ptr = gum_exec_block_get_real_address_of (block, ret_addr);
+  *ret_addr_ptr =
+      gum_exec_block_get_real_address_of (ctx->current_block, ret_addr);
 
   gum_stalker_destroy_exec_ctx (self, ctx);
 }
@@ -356,59 +348,14 @@ gum_stalker_get_exec_ctx (GumStalker * self)
   return g_private_get (self->priv->exec_ctx);
 }
 
-static gpointer
-gum_exec_ctx_create_and_push_block (GumExecCtx * ctx,
-                                    gpointer start_address)
-{
-  GumExecBlock * block;
-
-  block = gum_exec_ctx_create_block_for (ctx, start_address);
-
-  ctx->block_stack[ctx->block_stack_len++] = block;
-  g_assert_cmpuint (ctx->block_stack_len, <=, G_N_ELEMENTS (ctx->block_stack));
-
-  return block->code_begin;
-}
-
 static gpointer GUM_STDCALL
-gum_exec_ctx_create_and_switch_block (GumExecCtx * ctx,
-                                      gpointer start_address)
-{
-  GumExecBlock * old_block, * new_block;
-
-  new_block = gum_exec_ctx_create_block_for (ctx, start_address);
-  old_block = gum_exec_ctx_replace_top (ctx, new_block);
-  gum_exec_block_free (old_block);
-
-  return new_block->code_begin;
-}
-
-static gpointer GUM_STDCALL
-gum_exec_ctx_create_and_return_to_block (GumExecCtx * ctx,
+gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
-  if (ctx->block_stack_len == 1)
-  {
-    GumExecBlock * new_block, * old_block;
+  gum_exec_block_free (ctx->current_block);
+  ctx->current_block = gum_exec_ctx_create_block_for (ctx, start_address);
 
-    new_block = gum_exec_ctx_create_block_for (ctx, start_address);
-    old_block = gum_exec_ctx_replace_top (ctx, new_block);
-    gum_exec_block_free (old_block);
-
-    return new_block->code_begin;
-  }
-  else
-  {
-#if 0
-    if (!(start_address >= GSIZE_TO_POINTER (ctx->block_pool) &&
-          start_address < GSIZE_TO_POINTER (ctx->block_pool  + ctx->block_pool_size)))
-    {
-      G_BREAKPOINT ();
-    }
-#endif
-
-    return start_address;
-  }
+  return ctx->current_block->code_begin;
 }
 
 static void
@@ -461,57 +408,16 @@ gum_exec_ctx_destroy_block_pool (GumExecCtx * ctx)
   gum_free_pages (ctx->block_pool);
 }
 
-static void
-gum_exec_ctx_pop_block (GumExecCtx * ctx)
-{
-  GumExecBlock * block;
-
-  block = gum_exec_ctx_peek_top (ctx);
-  g_assert (block != NULL);
-
-  ctx->block_stack_len--;
-
-  gum_exec_block_free (block);
-}
-
-static GumExecBlock *
-gum_exec_ctx_peek_top (GumExecCtx * ctx)
-{
-  if (ctx->block_stack_len > 0)
-    return ctx->block_stack[ctx->block_stack_len - 1];
-  else
-    return NULL;
-}
-
-static GumExecBlock *
-gum_exec_ctx_replace_top (GumExecCtx * ctx,
-                          GumExecBlock * replacement)
-{
-  guint idx;
-  gpointer prev;
-
-  g_assert_cmpuint (ctx->block_stack_len, >, 0);
-
-  idx = ctx->block_stack_len - 1;
-  prev = ctx->block_stack[idx];
-  ctx->block_stack[idx] = replacement;
-
-  return prev;
-}
-
 static gpointer
 gum_exec_ctx_resolve_code_address (GumExecCtx * ctx,
                                    gpointer address)
 {
   guint8 * addr = address;
-  guint i;
 
-  for (i = 0; i < ctx->block_stack_len; ++i)
+  if (addr >= ctx->current_block->code_begin &&
+      addr < ctx->current_block->code_end)
   {
-    GumExecBlock * block = ctx->block_stack[i];
-
-    if (addr >= block->code_begin && addr < block->code_end)
-      return gum_exec_block_get_real_address_of (block, address);
+    return gum_exec_block_get_real_address_of (ctx->current_block, address);
   }
 
   return address;
@@ -922,7 +828,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
-  gum_code_writer_put_jmp (cw, gum_exec_ctx_create_and_switch_block);
+  gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
 static void
@@ -938,7 +844,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
-  gum_code_writer_put_jmp (cw, gum_exec_ctx_create_and_switch_block);
+  gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
 static void
@@ -955,7 +861,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push (cw, (guint32) block->ctx);
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->ret_block_thunk);
-  gum_code_writer_put_jmp (cw, gum_exec_ctx_create_and_return_to_block);
+  gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
 static void
