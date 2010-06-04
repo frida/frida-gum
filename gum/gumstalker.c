@@ -36,6 +36,7 @@ G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
 
+typedef struct _GumGeneratorContext GumGeneratorContext;
 typedef struct _GumAddressMapping GumAddressMapping;
 typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
@@ -86,11 +87,16 @@ struct _GumExecBlock
   guint8 * code_begin;
   guint8 * code_end;
 
-  gpointer * ret_addr_ptr;
   GumAddressMapping mappings[GUM_EXEC_BLOCK_MAX_MAPPINGS];
   guint mappings_len;
+};
 
-  gpointer tmp_func_addr;
+struct _GumGeneratorContext
+{
+  GumInstruction * instruction;
+  GumRelocator * relocator;
+  GumCodeWriter * code_writer;
+  gpointer continuation_real_address;
 };
 
 struct _GumInstruction
@@ -153,21 +159,22 @@ static void gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_free (GumExecBlock * block);
-static void gum_exec_block_revert_retaddr (GumExecBlock * block);
 static gboolean gum_exec_block_handle_branch_insn (GumExecBlock * block,
-    GumInstruction * insn, GumRelocator * rl, GumCodeWriter * cw);
+    GumGeneratorContext * gc);
 static gboolean gum_exec_block_handle_ret_insn (GumExecBlock * block,
-    GumInstruction * insn, GumRelocator * rl, GumCodeWriter * cw);
+    GumGeneratorContext * gc);
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     GumInstruction * insn, const GumBranchTarget * target, GumCodeWriter * cw);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
-    GumInstruction * insn, const GumBranchTarget * target, GumCodeWriter * cw);
+    const GumBranchTarget * target, GumCodeWriter * cw);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     gpointer orig_ret_insn, GumCodeWriter * cw);
 static void gum_exec_block_add_address_mapping (GumExecBlock * block,
     gpointer replica_address, gpointer real_address);
 static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
     gpointer address);
+static gpointer gum_exec_block_get_real_address_of_last_instruction (
+    GumExecBlock * block);
 
 static void gum_write_push_branch_target_address (
     const GumBranchTarget * target, guint cdecl_preserve_stack_offset,
@@ -285,7 +292,6 @@ gum_stalker_unfollow_me (GumStalker * self)
 {
   gpointer * ret_addr_ptr, ret_addr;
   GumExecCtx * ctx;
-  guint i;
   GumExecBlock * block;
 
   ret_addr_ptr = (gpointer *) (((gssize) &self) - sizeof (GumStalker *));
@@ -293,12 +299,8 @@ gum_stalker_unfollow_me (GumStalker * self)
 
   ctx = gum_stalker_get_exec_ctx (self);
 
-  for (i = 0; i < ctx->block_stack_len; ++i)
-    gum_exec_block_revert_retaddr (ctx->block_stack[i]);
-
   block = gum_exec_ctx_peek_top (ctx);
-  g_assert (ret_addr >= (gpointer) block->code_begin
-      && ret_addr < (gpointer) block->code_end);
+  g_assert (ret_addr == block->code_end);
 
   *ret_addr_ptr = gum_exec_block_get_real_address_of (block, ret_addr);
 
@@ -399,7 +401,7 @@ gum_exec_ctx_create_and_return_to_block (GumExecCtx * ctx,
   {
 #if 0
     if (!(start_address >= GSIZE_TO_POINTER (ctx->block_pool) &&
-          start_address < GSIZE_TO_POINTER (ctx->block_pool + ctx->block_pool_size)))
+          start_address < GSIZE_TO_POINTER (ctx->block_pool  + ctx->block_pool_size)))
     {
       G_BREAKPOINT ();
     }
@@ -522,10 +524,16 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   GumExecBlock * block;
   GumCodeWriter * cw = &ctx->code_writer;
   GumRelocator * rl = &ctx->relocator;
+  GumGeneratorContext gc;
 
   block = gum_exec_block_new (ctx);
   gum_code_writer_reset (cw, block->code_begin);
   gum_relocator_reset (rl, address, cw);
+
+  gc.instruction = NULL;
+  gc.relocator = rl;
+  gc.code_writer = cw;
+  gc.continuation_real_address = NULL;
 
   do
   {
@@ -547,6 +555,8 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     insn.begin = gum_relocator_peek_next_write_source (rl);
     insn.end = insn.begin + ud_insn_len (insn.ud);
 
+    gc.instruction = &insn;
+
     if ((ctx->sink_mask & GUM_EXEC) != 0)
       gum_exec_ctx_write_exec_event_code (ctx, insn.begin, cw);
 
@@ -554,14 +564,14 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     {
       case UD_Icall:
       case UD_Ijmp:
-        handled = gum_exec_block_handle_branch_insn (block, &insn, rl, cw);
+        handled = gum_exec_block_handle_branch_insn (block, &gc);
         break;
       case UD_Iret:
-        handled = gum_exec_block_handle_ret_insn (block, &insn, rl, cw);
+        handled = gum_exec_block_handle_ret_insn (block, &gc);
         break;
       default:
         if (gum_mnemonic_is_jcc (insn.ud->mnemonic))
-          handled = gum_exec_block_handle_branch_insn (block, &insn, rl, cw);
+          handled = gum_exec_block_handle_branch_insn (block, &gc);
         break;
     }
 
@@ -576,11 +586,25 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   }
   while (TRUE);
 
+  if (gc.continuation_real_address != NULL)
+  {
+    GumBranchTarget continue_target = { 0, };
+
+    continue_target.is_indirect = FALSE;
+    continue_target.absolute_address = gc.continuation_real_address;
+
+    gum_exec_block_write_jmp_transfer_code (block, &continue_target, cw);
+  }
+
+  gum_code_writer_put_int3 (cw); /* should never get here */
+
   gum_code_writer_flush (cw);
 
   block->code_end = gum_code_writer_cur (cw);
 
   g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
+
+  block->code_end--; /* pretend the INT3 guard isn't part of the block */
 
 #if GUM_STALKER_ENABLE_DEBUG
   debug_printf ("\n********************************************************************************\n");
@@ -726,6 +750,8 @@ gum_exec_block_new (GumExecCtx * ctx)
 
       block->mappings_len = 0;
 
+      /* TODO: should we fill the block with INT3 instructions? */
+
       return block;
     }
 
@@ -742,22 +768,12 @@ gum_exec_block_free (GumExecBlock * block)
   block->ctx = NULL;
 }
 
-static void
-gum_exec_block_revert_retaddr (GumExecBlock * block)
-{
-  if (block->ret_addr_ptr != NULL)
-  {
-    *(block->ret_addr_ptr) = gum_exec_block_get_real_address_of (block,
-        *(block->ret_addr_ptr));
-  }
-}
-
 static gboolean
 gum_exec_block_handle_branch_insn (GumExecBlock * block,
-                                   GumInstruction * insn,
-                                   GumRelocator * rl,
-                                   GumCodeWriter * cw)
+                                   GumGeneratorContext * gc)
 {
+  GumInstruction * insn = gc->instruction;
+  GumCodeWriter * cw = gc->code_writer;
   gboolean is_conditional;
   ud_operand_t * op = &insn->ud->operand[0];
   GumBranchTarget target = { 0, };
@@ -790,7 +806,10 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
 #ifdef G_OS_WIN32
     /* Don't follow WoW64 for now */
     if (insn->ud->pfx_seg == UD_R_FS && op->lval.udword == 0xc0)
+    {
+      gc->continuation_real_address = insn->end;
       return FALSE;
+    }
 #endif
 
     if (op->base == UD_NONE && op->index == UD_NONE)
@@ -823,7 +842,7 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
   if (target.absolute_address == gum_stalker_unfollow_me)
     return FALSE;
 
-  gum_relocator_skip_one (rl);
+  gum_relocator_skip_one (gc->relocator);
 
   if (insn->ud->mnemonic == UD_Icall)
   {
@@ -847,22 +866,17 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
           cond_false_lbl_id);
     }
 
-    gum_exec_block_write_jmp_transfer_code (block, insn, &target, cw);
+    gum_exec_block_write_jmp_transfer_code (block, &target, cw);
 
     if (is_conditional)
     {
       GumBranchTarget cond_target = { 0, };
 
+      cond_target.is_indirect = FALSE;
       cond_target.absolute_address = insn->end;
 
-      cond_target.is_indirect = FALSE;
-      cond_target.pfx_seg = UD_NONE;
-      cond_target.base = UD_NONE;
-      cond_target.index = UD_NONE;
-      cond_target.scale = 0;
-
       gum_code_writer_put_label (cw, cond_false_lbl_id);
-      gum_exec_block_write_jmp_transfer_code (block, insn, &cond_target, cw);
+      gum_exec_block_write_jmp_transfer_code (block, &cond_target, cw);
     }
   }
 
@@ -871,22 +885,22 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
 
 static gboolean
 gum_exec_block_handle_ret_insn (GumExecBlock * block,
-                                GumInstruction * insn,
-                                GumRelocator * rl,
-                                GumCodeWriter * cw)
+                                GumGeneratorContext * gc)
 {
   if ((block->ctx->sink_mask & GUM_RET) != 0)
   {
     guint8 * insn_start;
 
-    insn_start = gum_relocator_peek_next_write_source (rl);
+    insn_start = gum_relocator_peek_next_write_source (gc->relocator);
 
-    gum_exec_ctx_write_ret_event_code (block->ctx, insn_start, cw);
+    gum_exec_ctx_write_ret_event_code (block->ctx, insn_start,
+        gc->code_writer);
   }
 
-  gum_relocator_skip_one (rl);
+  gum_relocator_skip_one (gc->relocator);
 
-  gum_exec_block_write_ret_transfer_code (block, insn->begin, cw);
+  gum_exec_block_write_ret_transfer_code (block, gc->instruction->begin,
+      gc->code_writer);
 
   return TRUE;
 }
@@ -897,41 +911,22 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumCodeWriter * cw)
 {
+  /* untouched return-address */
+  gum_code_writer_put_push (cw, GPOINTER_TO_SIZE (insn->end));
+
+  gum_code_writer_put_push_eax (cw); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE, cw);
+  gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE + 8,
+      cw);
   gum_code_writer_put_push (cw, (guint32) block->ctx);
-  gum_code_writer_put_call (cw, gum_exec_ctx_create_and_push_block);
-  gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
-  gum_code_writer_put_mov_mem_reg (cw, &block->tmp_func_addr, GUM_REG_EAX);
 
-  gum_code_writer_put_mov_ecx_esp (cw);
-  gum_code_writer_put_sub_ecx (cw, sizeof (gpointer) - CDECL_PRESERVE_SIZE);
-  gum_code_writer_put_mov_mem_reg (cw, &block->ret_addr_ptr, GUM_REG_ECX);
-
-  gum_exec_ctx_write_cdecl_preserve_epilog (block->ctx, cw);
-
-  gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
-      insn->begin);
-  gum_code_writer_put_call_indirect (cw, &block->tmp_func_addr);
-  gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
-      insn->end);
-
-  gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
-
-  gum_code_writer_put_mov_ecx (cw, 0);
-  gum_code_writer_put_mov_mem_reg (cw, &block->ret_addr_ptr, GUM_REG_ECX);
-
-  gum_code_writer_put_push (cw, (guint32) block->ctx);
-  gum_code_writer_put_call (cw, gum_exec_ctx_pop_block);
-  gum_code_writer_put_add_esp_u32 (cw, sizeof (gpointer));
-
-  gum_exec_ctx_write_cdecl_preserve_epilog (block->ctx, cw);
+  gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
+  gum_code_writer_put_jmp (cw, gum_exec_ctx_create_and_switch_block);
 }
 
 static void
 gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
-                                        GumInstruction * insn,
                                         const GumBranchTarget * target,
                                         GumCodeWriter * cw)
 {
@@ -989,6 +984,12 @@ gum_exec_block_get_real_address_of (GumExecBlock * block,
 
   g_assert_not_reached ();
   return NULL;
+}
+
+static gpointer
+gum_exec_block_get_real_address_of_last_instruction (GumExecBlock * block)
+{
+  return block->mappings[block->mappings_len - 1].real_address;
 }
 
 static void

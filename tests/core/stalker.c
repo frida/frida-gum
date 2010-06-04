@@ -39,6 +39,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (follow_return)
   STALKER_TESTENTRY (follow_stdcall)
   STALKER_TESTENTRY (unfollow_deep)
+  STALKER_TESTENTRY (call_followed_by_junk)
   STALKER_TESTENTRY (indirect_call_with_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_no_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_positive_byte_immediate)
@@ -381,6 +382,32 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   invoke_func ();
 
   gum_free_pages (code);
+}
+
+STALKER_TESTCASE (call_followed_by_junk)
+{
+  const guint8 code[] =
+  {
+    0xe8, 0x05, 0x00, 0x00, 0x00, /* call func         */
+    0xff, 0xff, 0xff, 0xff, 0xff, /* <junk>            */
+    0x58,                         /* pop eax           */
+    0x68, 0xef, 0xbe, 0x00, 0x00, /* push dword 0xbeef */
+    0x58,                         /* pop eax           */
+    0xc3                          /* ret               */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      code, sizeof (code));
+
+  fixture->sink->mask = GUM_EXEC;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, INVOKER_INSN_COUNT + 5);
+
+  g_assert_cmpint (ret, ==, 0xbeef);
 }
 
 typedef struct _CallTemplate CallTemplate;
