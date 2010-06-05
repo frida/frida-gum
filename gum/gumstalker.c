@@ -43,6 +43,8 @@ typedef struct _GumAddressMapping GumAddressMapping;
 typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
 
+typedef guint GumVirtualizationRequirements;
+
 struct _GumStalkerPrivate
 {
   guint page_size;
@@ -119,6 +121,14 @@ struct _GumBranchTarget
   guint8 scale;
 };
 
+enum _GumVirtualizationRequirements
+{
+  GUM_REQUIRE_NOTHING         = 0,
+
+  GUM_REQUIRE_MAPPING         = 1 << 0,
+  GUM_REQUIRE_RELOCATION      = 1 << 1
+};
+
 #define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
 #define CDECL_PRESERVE_SIZE (4 * sizeof (gpointer))
@@ -154,10 +164,10 @@ static void gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_free (GumExecBlock * block);
 static gboolean gum_exec_block_full (GumExecBlock * block);
-static gboolean gum_exec_block_handle_branch_insn (GumExecBlock * block,
-    GumGeneratorContext * gc);
-static gboolean gum_exec_block_handle_ret_insn (GumExecBlock * block,
-    GumGeneratorContext * gc);
+static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
+    GumExecBlock * block, GumGeneratorContext * gc);
+static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
+    GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     GumInstruction * insn, const GumBranchTarget * target, GumCodeWriter * cw);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
@@ -448,14 +458,13 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   {
     guint n_read;
     GumInstruction insn;
-    gboolean handled = FALSE;
+    GumVirtualizationRequirements requirements = GUM_REQUIRE_NOTHING;
 
     n_read = gum_relocator_read_one (rl, NULL);
     g_assert_cmpuint (n_read, !=, 0);
 
     insn.ud = gum_relocator_peek_next_write_insn (rl);
-    if (insn.ud == NULL)
-      break;
+    g_assert (insn.ud != NULL);
     insn.begin = gum_relocator_peek_next_write_source (rl);
     insn.end = insn.begin + ud_insn_len (insn.ud);
 
@@ -468,25 +477,37 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     {
       case UD_Icall:
       case UD_Ijmp:
-        handled = gum_exec_block_handle_branch_insn (block, &gc);
+        requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
         break;
       case UD_Iret:
-        handled = gum_exec_block_handle_ret_insn (block, &gc);
+        requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
         break;
       default:
         if (gum_mnemonic_is_jcc (insn.ud->mnemonic))
-          handled = gum_exec_block_handle_branch_insn (block, &gc);
+          requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
+        else
+          requirements = GUM_REQUIRE_RELOCATION;
         break;
     }
 
-    if (!handled)
+    if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
     {
-      gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
-          insn.begin);
-      gum_relocator_write_one (rl);
-      gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
-          insn.end);
+      if ((requirements & GUM_REQUIRE_MAPPING) != 0)
+      {
+        gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
+            insn.begin);
+      }
+
+      gum_relocator_write_one_no_label (rl);
+
+      if ((requirements & GUM_REQUIRE_MAPPING) != 0)
+      {
+        gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
+            insn.end);
+      }
     }
+
+    block->code_end = gum_code_writer_cur (cw);
 
     if (gum_exec_block_full (block))
     {
@@ -690,9 +711,9 @@ gum_exec_block_full (GumExecBlock * block)
       (bytes_available < GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE);
 }
 
-static gboolean
-gum_exec_block_handle_branch_insn (GumExecBlock * block,
-                                   GumGeneratorContext * gc)
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
+                                       GumGeneratorContext * gc)
 {
   GumInstruction * insn = gc->instruction;
   GumCodeWriter * cw = gc->code_writer;
@@ -730,7 +751,7 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     if (insn->ud->pfx_seg == UD_R_FS && op->lval.udword == 0xc0)
     {
       gc->continuation_real_address = insn->end;
-      return FALSE;
+      return GUM_REQUIRE_RELOCATION;
     }
 #endif
 
@@ -762,9 +783,9 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
   }
 
   if (target.absolute_address == gum_stalker_unfollow_me)
-    return FALSE;
+    return GUM_REQUIRE_MAPPING | GUM_REQUIRE_RELOCATION;
 
-  gum_relocator_skip_one (gc->relocator);
+  gum_relocator_skip_one_no_label (gc->relocator);
 
   if (insn->ud->mnemonic == UD_Icall)
   {
@@ -802,12 +823,12 @@ gum_exec_block_handle_branch_insn (GumExecBlock * block,
     }
   }
 
-  return TRUE;
+  return GUM_REQUIRE_NOTHING;
 }
 
-static gboolean
-gum_exec_block_handle_ret_insn (GumExecBlock * block,
-                                GumGeneratorContext * gc)
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
+                                    GumGeneratorContext * gc)
 {
   if ((block->ctx->sink_mask & GUM_RET) != 0)
   {
@@ -819,12 +840,12 @@ gum_exec_block_handle_ret_insn (GumExecBlock * block,
         gc->code_writer);
   }
 
-  gum_relocator_skip_one (gc->relocator);
+  gum_relocator_skip_one_no_label (gc->relocator);
 
   gum_exec_block_write_ret_transfer_code (block, gc->instruction->begin,
       gc->code_writer);
 
-  return TRUE;
+  return GUM_REQUIRE_NOTHING;
 }
 
 static void
