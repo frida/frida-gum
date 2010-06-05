@@ -35,10 +35,10 @@ struct _GumRelocator
   const guint8 * input_start;
   const guint8 * input_cur;
   ud_t * input_insns;
-  guint input_insns_len;
-
   GumCodeWriter * output;
-  gint outpos;
+
+  guint inpos;
+  guint outpos;
 
   gboolean eob;
   gboolean eoi;
@@ -55,7 +55,9 @@ guint gum_relocator_read_one (GumRelocator * self, const ud_t ** insn);
 ud_t * gum_relocator_peek_next_write_insn (GumRelocator * self);
 gpointer gum_relocator_peek_next_write_source (GumRelocator * self);
 void gum_relocator_skip_one (GumRelocator * self);
+void gum_relocator_skip_one_no_label (GumRelocator * self);
 gboolean gum_relocator_write_one (GumRelocator * self);
+gboolean gum_relocator_write_one_no_label (GumRelocator * self);
 void gum_relocator_write_all (GumRelocator * self);
 
 gboolean gum_relocator_eob (GumRelocator * self);

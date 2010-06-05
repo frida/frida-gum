@@ -22,8 +22,9 @@
 
 #include <string.h>
 
-#define GUM_MAX_INPUT_INSN_COUNT (100 * 1000)
+#define GUM_MAX_INPUT_INSN_COUNT (100)
 
+static gboolean gum_relocator_write_one_instruction (GumRelocator * self);
 static void gum_relocator_put_label_for (GumRelocator * self,
     ud_t * insn);
 
@@ -43,11 +44,9 @@ gum_relocator_reset (GumRelocator * relocator,
                      GumCodeWriter * output)
 {
   relocator->input_start = relocator->input_cur = input_code;
-
-  relocator->input_insns_len = 0;
-
   relocator->output = output;
-  relocator->outpos = -1;
+
+  relocator->inpos = relocator->outpos = 0;
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
@@ -57,6 +56,32 @@ void
 gum_relocator_free (GumRelocator * relocator)
 {
   g_free (relocator->input_insns);
+}
+
+static guint
+gum_relocator_inpos (GumRelocator * self)
+{
+  return self->inpos % GUM_MAX_INPUT_INSN_COUNT;
+}
+
+static guint
+gum_relocator_outpos (GumRelocator * self)
+{
+  return self->outpos % GUM_MAX_INPUT_INSN_COUNT;
+}
+
+static void
+gum_relocator_increment_inpos (GumRelocator * self)
+{
+  self->inpos++;
+  g_assert_cmpint (self->inpos, >, self->outpos);
+}
+
+static void
+gum_relocator_increment_outpos (GumRelocator * self)
+{
+  self->outpos++;
+  g_assert_cmpint (self->outpos, <=, self->inpos);
 }
 
 guint
@@ -70,8 +95,8 @@ gum_relocator_read_one (GumRelocator * self,
   if (self->eoi)
     return 0;
 
-  ud = &self->input_insns[self->input_insns_len++];
-  g_assert_cmpuint (self->input_insns_len, <=, GUM_MAX_INPUT_INSN_COUNT);
+  ud = &self->input_insns[gum_relocator_inpos (self)];
+  gum_relocator_increment_inpos (self);
 
   ud_init (ud);
   ud_set_mode (ud, GUM_CPU_MODE);
@@ -116,12 +141,10 @@ gum_relocator_read_one (GumRelocator * self,
 ud_t *
 gum_relocator_peek_next_write_insn (GumRelocator * self)
 {
-  g_assert_cmpint (self->input_insns_len, >, 0);
-
-  if (self->outpos == self->input_insns_len - 1)
+  if (self->outpos == self->inpos)
     return NULL;
 
-  return &self->input_insns[self->outpos + 1];
+  return &self->input_insns[gum_relocator_outpos (self)];
 }
 
 gpointer
@@ -143,13 +166,42 @@ gum_relocator_skip_one (GumRelocator * self)
 
   next = gum_relocator_peek_next_write_insn (self);
   g_assert (next != NULL);
-  self->outpos++;
+  gum_relocator_increment_outpos (self);
 
   gum_relocator_put_label_for (self, next);
 }
 
+void
+gum_relocator_skip_one_no_label (GumRelocator * self)
+{
+  ud_t * next;
+
+  next = gum_relocator_peek_next_write_insn (self);
+  g_assert (next != NULL);
+  gum_relocator_increment_outpos (self);
+}
+
 gboolean
 gum_relocator_write_one (GumRelocator * self)
+{
+  ud_t * cur;
+
+  if ((cur = gum_relocator_peek_next_write_insn (self)) == NULL)
+    return FALSE;
+
+  gum_relocator_put_label_for (self, cur);
+
+  return gum_relocator_write_one_instruction (self);
+}
+
+gboolean
+gum_relocator_write_one_no_label (GumRelocator * self)
+{
+  return gum_relocator_write_one_instruction (self);
+}
+
+static gboolean
+gum_relocator_write_one_instruction (GumRelocator * self)
 {
   ud_t * cur;
   guint8 * cur_start, * cur_end;
@@ -158,9 +210,7 @@ gum_relocator_write_one (GumRelocator * self)
 
   if ((cur = gum_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
-  self->outpos++;
-
-  gum_relocator_put_label_for (self, cur);
+  gum_relocator_increment_outpos (self);
 
   cur_len = ud_insn_len (cur);
   cur_start = GSIZE_TO_POINTER (ud_insn_off (cur));
