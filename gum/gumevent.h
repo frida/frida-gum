@@ -53,6 +53,7 @@ struct _GumCallEvent
 
   gpointer location;
   gpointer target;
+  gint depth;
 };
 
 struct _GumRetEvent
@@ -61,6 +62,7 @@ struct _GumRetEvent
 
   gpointer location;
   gpointer target;
+  gint depth;
 };
 
 struct _GumExecEvent

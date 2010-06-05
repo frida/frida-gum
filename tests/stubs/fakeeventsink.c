@@ -84,6 +84,36 @@ gum_fake_event_sink_reset (GumFakeEventSink * self)
   g_array_set_size (self->events, 0);
 }
 
+const GumCallEvent *
+gum_fake_event_sink_get_nth_event_as_call (GumFakeEventSink * self, guint n)
+{
+  const GumEvent * ev;
+
+  ev = &g_array_index (self->events, GumEvent, n);
+  g_assert_cmpint (ev->type, ==, GUM_CALL);
+  return &ev->call;
+}
+
+const GumRetEvent *
+gum_fake_event_sink_get_nth_event_as_ret (GumFakeEventSink * self, guint n)
+{
+  const GumEvent * ev;
+
+  ev = &g_array_index (self->events, GumEvent, n);
+  g_assert_cmpint (ev->type, ==, GUM_RET);
+  return &ev->ret;
+}
+
+const GumExecEvent *
+gum_fake_event_sink_get_nth_event_as_exec (GumFakeEventSink * self, guint n)
+{
+  const GumEvent * ev;
+
+  ev = &g_array_index (self->events, GumEvent, n);
+  g_assert_cmpint (ev->type, ==, GUM_EXEC);
+  return &ev->exec;
+}
+
 void
 gum_fake_event_sink_dump (GumFakeEventSink * self)
 {

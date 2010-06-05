@@ -32,10 +32,12 @@
     TEST_ENTRY_WITH_FIXTURE (Stalker, test_stalker, NAME, \
         TestStalkerFixture)
 
-#define NTH_CALL_EVENT(N, M) \
-    (g_array_index (fixture->sink->events, GumEvent, N).call.M)
+#define NTH_EVENT_AS_CALL(N) \
+    (gum_fake_event_sink_get_nth_event_as_call (fixture->sink, N))
+#define NTH_EVENT_AS_RET(N) \
+    (gum_fake_event_sink_get_nth_event_as_ret (fixture->sink, N))
 #define NTH_EXEC_EVENT_LOCATION(N) \
-    (g_array_index (fixture->sink->events, GumEvent, N).exec.location)
+    (gum_fake_event_sink_get_nth_event_as_exec (fixture->sink, N)->location)
 
 typedef struct _TestStalkerFixture
 {

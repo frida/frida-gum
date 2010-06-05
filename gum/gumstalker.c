@@ -65,6 +65,7 @@ struct _GumExecCtx
   GumEvent tmp_event;
 
   GumExecBlock * current_block;
+  gint call_depth;
 
   gpointer thunks;
   gpointer jmp_block_thunk;
@@ -159,6 +160,10 @@ static void gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
 static void gum_exec_ctx_write_cdecl_preserve_prolog (GumExecCtx * ctx,
     GumCodeWriter * cw);
 static void gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
+    GumCodeWriter * cw);
+static void gum_exec_ctx_write_depth_increment_code (GumExecCtx * ctx,
+    GumCodeWriter * cw);
+static void gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
     GumCodeWriter * cw);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
@@ -575,6 +580,10 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumCallEvent, target));
 
+  gum_code_writer_put_mov_ecx_imm_ptr (cw, &ctx->call_depth);
+  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
+      G_STRUCT_OFFSET (GumCallEvent, depth));
+
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, cw);
@@ -597,8 +606,13 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
   gum_exec_ctx_write_event_init_code (ctx, GUM_RET, cw);
   gum_code_writer_put_mov_eax_offset_ptr (cw,
       G_STRUCT_OFFSET (GumRetEvent, location), (guint32) location);
+
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumRetEvent, target));
+
+  gum_code_writer_put_mov_ecx_imm_ptr (cw, &ctx->call_depth);
+  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
+      G_STRUCT_OFFSET (GumCallEvent, depth));
 
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
@@ -658,6 +672,32 @@ gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
   gum_code_writer_put_pop_edx (cw);
   gum_code_writer_put_pop_ecx (cw);
   gum_code_writer_put_pop_eax (cw);
+  gum_code_writer_put_popfd (cw);
+}
+
+static void
+gum_exec_ctx_write_depth_increment_code (GumExecCtx * ctx,
+    GumCodeWriter * cw)
+{
+  static const guint8 templ[2] = { 0xff, 0x05 };
+  gpointer ptr = &ctx->call_depth;
+
+  gum_code_writer_put_pushfd (cw);
+  gum_code_writer_put_bytes (cw, templ, sizeof (templ));
+  gum_code_writer_put_bytes (cw, (guint8 *) &ptr, sizeof (ptr));
+  gum_code_writer_put_popfd (cw);
+}
+
+static void
+gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
+    GumCodeWriter * cw)
+{
+  static const guint8 templ[2] = { 0xff, 0x0d };
+  gpointer ptr = &ctx->call_depth;
+
+  gum_code_writer_put_pushfd (cw);
+  gum_code_writer_put_bytes (cw, templ, sizeof (templ));
+  gum_code_writer_put_bytes (cw, (guint8 *) &ptr, sizeof (ptr));
   gum_code_writer_put_popfd (cw);
 }
 
@@ -791,6 +831,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     if ((block->ctx->sink_mask & GUM_CALL) != 0)
       gum_exec_ctx_write_call_event_code (block->ctx, insn->begin, &target, cw);
+    if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) != 0)
+      gum_exec_ctx_write_depth_increment_code (block->ctx, cw);
     gum_exec_block_write_call_invoke_code (block, insn, &target, cw);
   }
   else
@@ -841,6 +883,9 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   }
 
   gum_relocator_skip_one_no_label (gc->relocator);
+
+  if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) != 0)
+    gum_exec_ctx_write_depth_decrement_code (block->ctx, gc->code_writer);
 
   gum_exec_block_write_ret_transfer_code (block, gc->instruction->begin,
       gc->code_writer);

@@ -33,6 +33,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (call)
   STALKER_TESTENTRY (ret)
   STALKER_TESTENTRY (exec)
+  STALKER_TESTENTRY (call_depth)
   STALKER_TESTENTRY (unconditional_jumps)
   STALKER_TESTENTRY (conditional_jump_true)
   STALKER_TESTENTRY (conditional_jump_false)
@@ -148,6 +149,43 @@ STALKER_TESTCASE (exec)
   ev = &g_array_index (fixture->sink->events, GumEvent,
       INVOKER_IMPL_OFFSET).ret;
   g_assert_cmphex ((guint64) ev->location, ==, (guint64) func);
+}
+
+STALKER_TESTCASE (call_depth)
+{
+  const guint8 code[] =
+  {
+    0xb8, 0x07, 0x00, 0x00, 0x00, /* mov eax, 7 */
+    0x48,                         /* dec eax    */
+    0x74, 0x05,                   /* jz +5      */
+    0xe8, 0xf8, 0xff, 0xff, 0xff, /* call -8    */
+    0xc3,                         /* ret        */
+    0xcc,                         /* int3       */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      code, sizeof (code));
+
+  fixture->sink->mask = GUM_CALL | GUM_RET;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+
+  g_assert_cmpuint (fixture->sink->events->len, ==, 7 + 7);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (0)->depth, ==, 0);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (1)->depth, ==, 1);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (2)->depth, ==, 2);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (3)->depth, ==, 3);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (4)->depth, ==, 4);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (5)->depth, ==, 5);
+  g_assert_cmpint (NTH_EVENT_AS_CALL (6)->depth, ==, 6);
+  g_assert_cmpint (NTH_EVENT_AS_RET (7)->depth, ==, 7);
+  g_assert_cmpint (NTH_EVENT_AS_RET (8)->depth, ==, 6);
+  g_assert_cmpint (NTH_EVENT_AS_RET (9)->depth, ==, 5);
+  g_assert_cmpint (NTH_EVENT_AS_RET (10)->depth, ==, 4);
+  g_assert_cmpint (NTH_EVENT_AS_RET (11)->depth, ==, 3);
+  g_assert_cmpint (NTH_EVENT_AS_RET (12)->depth, ==, 2);
+  g_assert_cmpint (NTH_EVENT_AS_RET (13)->depth, ==, 1);
 }
 
 static const guint8 jumpy_code[] = {
@@ -459,9 +497,9 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpint (ret, ==, 1337);
   g_assert_cmpuint (fixture->sink->events->len, ==, 2);
-  g_assert_cmphex ((guint64) NTH_CALL_EVENT (1, location),
+  g_assert_cmphex ((guint64) NTH_EVENT_AS_CALL (1)->location,
       ==, (guint64) (code + call_template->call_site_offset));
-  g_assert_cmphex ((guint64) NTH_CALL_EVENT (1, target),
+  g_assert_cmphex ((guint64) NTH_EVENT_AS_CALL (1)->target,
       ==, (guint64) (code + call_template->target_func_offset));
 
   return func;

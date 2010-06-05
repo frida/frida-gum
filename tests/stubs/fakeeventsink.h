@@ -58,6 +58,14 @@ GType gum_fake_event_sink_get_type (void) G_GNUC_CONST;
 GumEventSink * gum_fake_event_sink_new (void);
 
 void gum_fake_event_sink_reset (GumFakeEventSink * self);
+
+const GumCallEvent * gum_fake_event_sink_get_nth_event_as_call (
+    GumFakeEventSink * self, guint n);
+const GumRetEvent * gum_fake_event_sink_get_nth_event_as_ret (
+    GumFakeEventSink * self, guint n);
+const GumExecEvent * gum_fake_event_sink_get_nth_event_as_exec (
+    GumFakeEventSink * self, guint n);
+
 void gum_fake_event_sink_dump (GumFakeEventSink * self);
 
 G_END_DECLS
