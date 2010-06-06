@@ -22,6 +22,7 @@
 #ifdef G_OS_WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <tchar.h>
 #endif
 
 #include "stalker-fixture.c"
@@ -59,7 +60,8 @@ TEST_LIST_BEGIN (stalker)
 
 #ifdef G_OS_WIN32
   STALKER_TESTENTRY (win32_indirect_call_seg)
-  STALKER_TESTENTRY (win32_api)
+  STALKER_TESTENTRY (win32_messagebeep_api)
+  STALKER_TESTENTRY (win32_window_api)
 #endif
 TEST_LIST_END ()
 
@@ -927,6 +929,9 @@ STALKER_TESTCASE (big_block)
 
 #ifdef G_OS_WIN32
 
+static LRESULT CALLBACK gum_test_window_proc (HWND hwnd, UINT msg,
+    WPARAM wparam, LPARAM lparam);
+
 static const guint8 indirect_call_seg_code[] = {
     0x64, 0xff, 0x35, 0x00, 0x07, 0x00, 0x00, /* push dword [dword fs:0x700] */
                                               /* mov dword [dword fs:0x700], <addr> */
@@ -976,13 +981,77 @@ STALKER_TESTCASE (win32_indirect_call_seg)
       ==, INVOKER_INSN_COUNT + 11);
 }
 
-STALKER_TESTCASE (win32_api)
+STALKER_TESTCASE (win32_messagebeep_api)
 {
   fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   MessageBeep (MB_ICONINFORMATION);
   gum_stalker_unfollow_me (fixture->stalker);
+}
+
+STALKER_TESTCASE (win32_window_api)
+{
+  WNDCLASS wc = { 0, };
+  ATOM wc_atom;
+  HWND window;
+  MSG msg;
+
+  wc.lpfnWndProc = gum_test_window_proc;
+  wc.hInstance = GetModuleHandle (NULL);
+  wc.lpszClassName = _T ("GumTestWindowClass");
+  wc_atom = RegisterClass (&wc);
+  g_assert (wc_atom != 0);
+
+  window = CreateWindow ((LPTSTR) (DWORD) wc_atom, _T ("GumTestWindow"),
+      WS_CAPTION, 10, 10, 320, 240, HWND_MESSAGE, NULL,
+      GetModuleHandle (NULL), NULL);
+  g_assert (window != NULL);
+
+  ShowWindow (window, SW_SHOWNORMAL);
+
+  fixture->sink->mask = GUM_NOTHING;
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+
+  SetWindowLongPtr (window, GWLP_USERDATA, (LONG) fixture->stalker);
+  SetTimer (window, 1, USER_TIMER_MINIMUM, NULL);
+
+  while (GetMessage (&msg, window, 0, 0) == TRUE)
+  {
+    TranslateMessage (&msg);
+    DispatchMessage (&msg);
+  }
+
+  g_assert (!gum_stalker_is_following_me (fixture->stalker));
+
+  g_assert (UnregisterClass ((LPTSTR) (DWORD) wc_atom,
+      GetModuleHandle (NULL)));
+}
+
+static LRESULT CALLBACK
+gum_test_window_proc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
+{
+  /*g_print ("got msg 0x%08x\n", msg);*/
+
+  if (msg == WM_TIMER)
+  {
+    GumStalker * stalker;
+    
+    stalker = GUM_STALKER (GetWindowLongPtr (hwnd, GWLP_USERDATA));
+    gum_stalker_unfollow_me (stalker);
+
+    KillTimer (hwnd, 1);
+    DestroyWindow (hwnd);
+
+    return 0;
+  }
+  else if (msg == WM_DESTROY)
+  {
+    PostQuitMessage (0);
+    return 0;
+  }
+
+  return DefWindowProc (hwnd, msg, wparam, lparam);
 }
 
 #endif

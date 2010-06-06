@@ -62,6 +62,7 @@ GUM_API GumStalker * gum_stalker_new (void);
 
 GUM_API void gum_stalker_follow_me (GumStalker * self, GumEventSink * sink);
 GUM_API void gum_stalker_unfollow_me (GumStalker * self);
+GUM_API gboolean gum_stalker_is_following_me (GumStalker * self);
 
 G_END_DECLS
 

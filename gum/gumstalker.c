@@ -317,11 +317,16 @@ gum_stalker_unfollow_me (GumStalker * self)
   gum_stalker_destroy_exec_ctx (self, ctx);
 }
 
+gboolean
+gum_stalker_is_following_me (GumStalker * self)
+{
+  return gum_stalker_get_exec_ctx (self) != NULL;
+}
+
 static GumExecCtx *
 gum_stalker_create_exec_ctx (GumStalker * self,
                              GumEventSink * sink)
 {
-  GumStalkerPrivate * priv = GUM_STALKER_GET_PRIVATE (self);
   GumExecCtx * ctx;
 
   ctx = g_new0 (GumExecCtx, 1);
@@ -338,7 +343,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   gum_exec_ctx_create_thunks (ctx);
   gum_exec_ctx_create_block_pool (ctx);
 
-  g_private_set (priv->exec_ctx, ctx);
+  g_private_set (self->priv->exec_ctx, ctx);
 
   return ctx;
 }
@@ -358,6 +363,8 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
   g_object_unref (ctx->stalker);
 
   g_free (ctx);
+
+  g_private_set (self->priv->exec_ctx, NULL);
 }
 
 static GumExecCtx *
