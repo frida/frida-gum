@@ -637,6 +637,16 @@ gum_code_writer_put_mov_esp_offset_ptr_eax (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 guint32 imm_value)
+{
+  self->code[0] = 0xb8 + dst_reg;
+  *((guint32 *) (self->code + 1)) = imm_value;
+  self->code += 5;
+}
+
+void
 gum_code_writer_put_mov_fs_ptr_eax (GumCodeWriter * self,
                                     guint32 fs_offset)
 {
@@ -787,6 +797,22 @@ void
 gum_code_writer_put_pop_edx (GumCodeWriter * self)
 {
   self->code[0] = 0x5a;
+  self->code++;
+}
+
+void
+gum_code_writer_put_push_reg (GumCodeWriter * self,
+                              GumCpuReg reg)
+{
+  self->code[0] = 0x50 + reg;
+  self->code++;
+}
+
+void
+gum_code_writer_put_pop_reg (GumCodeWriter * self,
+                             GumCpuReg reg)
+{
+  self->code[0] = 0x58 + reg;
   self->code++;
 }
 

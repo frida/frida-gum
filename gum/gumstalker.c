@@ -72,12 +72,16 @@ struct _GumExecCtx
   gpointer thunks;
   gpointer jmp_block_thunk;
   gpointer ret_block_thunk;
+  gpointer replace_block_thunk;
 
   guint8 * block_pool;
   guint block_pool_size;
   guint block_size;
   guint block_code_offset;
   guint block_code_maxsize;
+
+  gpointer temporary_stack_bottom;
+  gpointer temporary_stack_top;
 };
 
 struct _GumAddressMapping
@@ -451,6 +455,9 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
       sizeof (gpointer) + CDECL_PRESERVE_SIZE);
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
   gum_code_writer_put_ret (&cw);
+
+  ctx->replace_block_thunk = gum_code_writer_cur (&cw);
+  gum_code_writer_put_int3 (&cw); /* TODO */
 
   gum_code_writer_free (&cw);
 }
@@ -1252,8 +1259,17 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
     }
 
     case GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL:
-      while (TRUE) ;
-      return TRUE;
+    {
+      context->Dr0 = block->previous_dr0;
+      context->Dr1 = block->previous_dr1;
+      context->Dr7 = block->previous_dr7;
+
+      context->Eip = (DWORD) ctx->replace_block_thunk;
+
+      block->state = GUM_EXEC_NORMAL;
+
+      break;
+    }
 
     case GUM_EXEC_NORMAL:
       return FALSE;
