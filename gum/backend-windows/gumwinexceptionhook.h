@@ -26,10 +26,12 @@
 
 G_BEGIN_DECLS
 
-typedef BOOL (WINAPI * GumWinExceptionHandler) (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context);
+typedef gboolean (* GumWinExceptionHandler) (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context,
+    gpointer user_data);
 
-void gum_win_exception_hook_add (GumWinExceptionHandler handler);
+void gum_win_exception_hook_add (GumWinExceptionHandler handler,
+    gpointer user_data);
 void gum_win_exception_hook_remove (GumWinExceptionHandler handler);
 
 G_END_DECLS

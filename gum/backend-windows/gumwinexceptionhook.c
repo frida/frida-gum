@@ -23,17 +23,25 @@
 #include <udis86.h>
 
 typedef struct _GumWinExceptionHook GumWinExceptionHook;
+typedef struct _GumWinExceptionHandlerEntry GumWinExceptionHandlerEntry;
+
+typedef BOOL (WINAPI * GumSystemExceptionHandler) (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context);
 
 struct _GumWinExceptionHook
 {
-  guint ref_count;
-
-  GumWinExceptionHandler system_handler;
   GSList * client_handlers;
+  GumSystemExceptionHandler system_handler;
 
   gpointer dispatcher_impl;
   gint32 * dispatcher_impl_call_immediate;
   DWORD previous_page_protection;
+};
+
+struct _GumWinExceptionHandlerEntry
+{
+  GumWinExceptionHandler func;
+  gpointer user_data;
 };
 
 static BOOL gum_win_exception_dispatch (EXCEPTION_RECORD * exception_record,
@@ -43,8 +51,14 @@ G_LOCK_DEFINE_STATIC (hook_instance);
 static GumWinExceptionHook * hook_instance = NULL;
 
 void
-gum_win_exception_hook_add (GumWinExceptionHandler handler)
+gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
 {
+  GumWinExceptionHandlerEntry * entry;
+
+  entry = g_slice_new (GumWinExceptionHandlerEntry);
+  entry->func = handler;
+  entry->user_data = user_data;
+
   G_LOCK (hook_instance);
 
   if (hook_instance == NULL)
@@ -83,7 +97,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler)
         (guint8 *) hook_instance->dispatcher_impl + ud_insn_off (&ud_obj);
     call_end = call_begin + ud_insn_len (&ud_obj);
 
-    hook_instance->system_handler = (GumWinExceptionHandler)
+    hook_instance->system_handler = (GumSystemExceptionHandler)
         (call_end + op->lval.sdword);
 
     VirtualProtect (hook_instance->dispatcher_impl, 4096,
@@ -94,10 +108,8 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler)
         (gssize) gum_win_exception_dispatch - (gssize) call_end;
   }
 
-  hook_instance->ref_count++;
-
   hook_instance->client_handlers =
-      g_slist_append (hook_instance->client_handlers, handler);
+      g_slist_append (hook_instance->client_handlers, entry);
 
   G_UNLOCK (hook_instance);
 }
@@ -105,16 +117,30 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler)
 void
 gum_win_exception_hook_remove (GumWinExceptionHandler handler)
 {
+  GumWinExceptionHandlerEntry * matching_entry = NULL;
+  GSList * walk;
+
   G_LOCK (hook_instance);
 
   g_assert (hook_instance != NULL);
 
-  if (--hook_instance->ref_count != 0)
+  for (walk = hook_instance->client_handlers;
+      walk != NULL && matching_entry == NULL;
+      walk = walk->next)
   {
-    hook_instance->client_handlers =
-        g_slist_remove (hook_instance->client_handlers, handler);
+    GumWinExceptionHandlerEntry * entry =
+        (GumWinExceptionHandlerEntry *) walk->data;
+
+    if (entry->func == handler)
+      matching_entry = entry;
   }
-  else
+
+  g_assert (matching_entry != NULL);
+  g_slice_free (GumWinExceptionHandlerEntry, matching_entry);
+  hook_instance->client_handlers =
+      g_slist_remove (hook_instance->client_handlers, matching_entry);
+
+  if (hook_instance->client_handlers == NULL)
   {
     DWORD page_prot;
 
@@ -123,8 +149,6 @@ gum_win_exception_hook_remove (GumWinExceptionHandler handler)
         (gssize) hook_instance->dispatcher_impl_call_immediate;
     VirtualProtect (hook_instance->dispatcher_impl, 4096,
         hook_instance->previous_page_protection, &page_prot);
-
-    g_slist_free (hook_instance->client_handlers);
 
     g_free (hook_instance);
     hook_instance = NULL;
@@ -140,9 +164,10 @@ gum_win_exception_dispatch (EXCEPTION_RECORD * exception_record, CONTEXT * conte
 
   for (walk = hook_instance->client_handlers; walk != NULL; walk = walk->next)
   {
-    GumWinExceptionHandler handler = (GumWinExceptionHandler) walk->data;
+    GumWinExceptionHandlerEntry * entry =
+        (GumWinExceptionHandlerEntry *) walk->data;
 
-    if (handler (exception_record, context))
+    if (entry->func (exception_record, context, entry->user_data))
       return TRUE;
   }
 

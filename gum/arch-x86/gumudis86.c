@@ -19,6 +19,22 @@
 
 #include "gumudis86.h"
 
+guint
+gum_find_instruction_length (guint8 * code)
+{
+  ud_t ud_obj;
+  guint insn_size;
+
+  ud_init (&ud_obj);
+  ud_set_mode (&ud_obj, 32);
+  ud_set_input_buffer (&ud_obj, code, 16);
+
+  insn_size = ud_disassemble (&ud_obj);
+  g_assert (insn_size != 0);
+
+  return insn_size;
+}
+
 gboolean
 gum_mnemonic_is_jcc (ud_mnemonic_code_t mnemonic)
 {

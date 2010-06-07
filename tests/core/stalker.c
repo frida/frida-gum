@@ -1010,13 +1010,12 @@ STALKER_TESTCASE (win32_follow_through_ki_user_callback_dispatcher)
 
   SetWindowLongPtr (window, GWLP_USERDATA, (LONG) fixture->stalker);
   ShowWindow (window, SW_SHOWNORMAL);
+  SetTimer (window, 1, USER_TIMER_MINIMUM, NULL);
 
   fixture->sink->mask = GUM_NOTHING;
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
 
   SendMessage (window, WM_USER, 0, 0);
-
-  SetTimer (window, 1, USER_TIMER_MINIMUM, NULL);
 
   while (GetMessage (&msg, window, 0, 0) == TRUE)
   {

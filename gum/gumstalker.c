@@ -95,6 +95,21 @@ struct _GumExecBlock
 
   GumAddressMapping mappings[GUM_EXEC_BLOCK_MAX_MAPPINGS];
   guint mappings_len;
+
+  guint8 state;
+
+#ifdef G_OS_WIN32
+  DWORD previous_dr0;
+  DWORD previous_dr1;
+  DWORD previous_dr7;
+#endif
+};
+
+enum _GumExecState
+{
+  GUM_EXEC_NORMAL,
+  GUM_EXEC_SINGLE_STEPPING_ON_CALL,
+  GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL
 };
 
 struct _GumGeneratorContext
@@ -202,8 +217,9 @@ static void gum_load_real_register_into (enum ud_type target_register,
 static void gum_write_segment_prefix (uint8_t segment, GumCodeWriter * cw);
 
 #ifdef G_OS_WIN32
-static BOOL WINAPI gum_stalker_handle_exception (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context);
+static gboolean gum_stalker_handle_exception (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context,
+    gpointer user_data);
 #endif
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT);
@@ -292,7 +308,7 @@ gum_stalker_init (GumStalker * self)
   priv = GUM_STALKER_GET_PRIVATE (self);
 
 #ifdef G_OS_WIN32
-  gum_win_exception_hook_add (gum_stalker_handle_exception);
+  gum_win_exception_hook_add (gum_stalker_handle_exception, self);
 #endif
 
   priv->page_size = gum_query_page_size ();
@@ -764,6 +780,7 @@ gum_exec_block_new (GumExecCtx * ctx)
       block->code_end = block->code_begin = cur + ctx->block_code_offset;
 
       block->mappings_len = 0;
+      block->state = GUM_EXEC_NORMAL;
 
       /* TODO: should we fill the block with INT3 instructions? */
 
@@ -992,11 +1009,14 @@ gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
     GumGeneratorContext * gc)
 {
   guint8 code[] = {
-    0x9c,                                     /* pushfd               */
-    0x81, 0x0c, 0x24, 0x00, 0x01, 0x00, 0x00, /* or [esp], 0x100      */
-    0x9d                                      /* popfd                */
+    0xc6, 0x05, 0x78, 0x56, 0x34, 0x12,       /* mov byte [X], state */
+          GUM_EXEC_SINGLE_STEPPING_ON_CALL,
+    0x9c,                                     /* pushfd              */
+    0x81, 0x0c, 0x24, 0x00, 0x01, 0x00, 0x00, /* or [esp], 0x100     */
+    0x9d                                      /* popfd               */
   };
 
+  *((guint8 **) (code + 2)) = &block->state;
   gum_code_writer_put_bytes (gc->code_writer, code, sizeof (code));
   gum_code_writer_put_jmp (gc->code_writer, gc->instruction->begin);
 }
@@ -1182,11 +1202,67 @@ gum_write_segment_prefix (uint8_t segment,
 
 #ifdef G_OS_WIN32
 
-static BOOL WINAPI
+static gboolean
 gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
-    CONTEXT * context)
+    CONTEXT * context, gpointer user_data)
 {
-  printf ("gum_stalker_handle_exception\n");
+  GumStalker * self = GUM_STALKER (user_data);
+  GumExecCtx * ctx;
+  GumExecBlock * block;
+
+  if (exception_record->ExceptionCode != STATUS_SINGLE_STEP)
+    return FALSE;
+
+  ctx = gum_stalker_get_exec_ctx (self);
+  if (ctx == NULL)
+    return FALSE;
+
+  block = ctx->current_block;
+
+#ifdef _M_IX86
+  printf ("gum_stalker_handle_exception state=%u %p %08x\n", block->state, context->Eip, exception_record->ExceptionCode);
+
+  switch (block->state)
+  {
+    case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
+    {
+      DWORD instruction_after_call;
+      guint index;
+
+      block->previous_dr0 = context->Dr0;
+      block->previous_dr1 = context->Dr1;
+      block->previous_dr7 = context->Dr7;
+
+      instruction_after_call = context->Eip +
+          gum_find_instruction_length ((guint8 *) context->Eip);
+
+      context->Dr0 = instruction_after_call;
+
+      index = 0;
+
+      /* set both RWn and LENn to 00 */
+      context->Dr7 &= ~(0xf << (16 + (2 * index)));
+
+      /* set LE bit */
+      context->Dr7 |= 1 << (2 * index);
+
+      block->state = GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL;
+
+      break;
+    }
+
+    case GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL:
+      while (TRUE) ;
+      return TRUE;
+
+    case GUM_EXEC_NORMAL:
+      return FALSE;
+
+    default:
+      g_assert_not_reached ();
+  }
+#endif
+
   return TRUE;
 }
 

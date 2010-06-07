@@ -25,6 +25,7 @@
 
 G_BEGIN_DECLS
 
+guint gum_find_instruction_length (guint8 * code);
 gboolean gum_mnemonic_is_jcc (ud_mnemonic_code_t mnemonic);
 guint8 gum_jcc_insn_to_short_opcode (guint8 * code);
 guint8 gum_jcc_insn_to_near_opcode (guint8 * code);
