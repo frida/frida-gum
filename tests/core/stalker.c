@@ -20,7 +20,7 @@
 
 #include <glib.h>
 #ifdef G_OS_WIN32
-#define WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN
 #include <windows.h>
 #include <tchar.h>
 #endif
@@ -1008,12 +1008,11 @@ STALKER_TESTCASE (win32_follow_through_ki_user_callback_dispatcher)
       GetModuleHandle (NULL), NULL);
   g_assert (window != NULL);
 
+  SetWindowLongPtr (window, GWLP_USERDATA, (LONG) fixture->stalker);
   ShowWindow (window, SW_SHOWNORMAL);
 
   fixture->sink->mask = GUM_NOTHING;
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-
-  SetWindowLongPtr (window, GWLP_USERDATA, (LONG) fixture->stalker);
 
   SendMessage (window, WM_USER, 0, 0);
 

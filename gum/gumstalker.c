@@ -25,6 +25,10 @@
 #include "gumrelocator.h"
 #include "gumudis86.h"
 
+#ifdef G_OS_WIN32
+#include "backend-windows/gumwinexceptionhook.h"
+#endif
+
 #define GUM_STALKER_ENABLE_DEBUG 0
 
 #define GUM_MAX_EXEC_BLOCKS                 2048
@@ -32,8 +36,6 @@
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
 #define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
 #define GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE 256
-
-G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT)
 
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
@@ -127,12 +129,15 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_NOTHING         = 0,
 
   GUM_REQUIRE_MAPPING         = 1 << 0,
-  GUM_REQUIRE_RELOCATION      = 1 << 1
+  GUM_REQUIRE_RELOCATION      = 1 << 1,
+  GUM_REQUIRE_SINGLE_STEP     = 1 << 2
 };
 
 #define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
 #define CDECL_PRESERVE_SIZE (4 * sizeof (gpointer))
+
+static void gum_stalker_finalize (GObject * object);
 
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
@@ -179,6 +184,8 @@ static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
     const GumBranchTarget * target, GumCodeWriter * cw);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     gpointer orig_ret_insn, GumCodeWriter * cw);
+static void gum_exec_block_write_single_step_transfer_code (
+    GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_add_address_mapping (GumExecBlock * block,
     gpointer replica_address, gpointer real_address);
 static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
@@ -193,6 +200,13 @@ static void gum_load_real_register_into (enum ud_type target_register,
     enum ud_type source_register, guint8 cdecl_preserve_stack_offset,
     guint accumulated_stack_delta, GumCodeWriter * cw);
 static void gum_write_segment_prefix (uint8_t segment, GumCodeWriter * cw);
+
+#ifdef G_OS_WIN32
+static BOOL WINAPI gum_stalker_handle_exception (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context);
+#endif
+
+G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT);
 
 #if GUM_STALKER_ENABLE_DEBUG
 
@@ -261,7 +275,11 @@ debug_print_code (const guint8 * code,
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
 {
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
   g_type_class_add_private (klass, sizeof (GumStalkerPrivate));
+
+  object_class->finalize = gum_stalker_finalize;
 }
 
 static void
@@ -273,8 +291,22 @@ gum_stalker_init (GumStalker * self)
       GUM_TYPE_STALKER, GumStalkerPrivate);
   priv = GUM_STALKER_GET_PRIVATE (self);
 
+#ifdef G_OS_WIN32
+  gum_win_exception_hook_add (gum_stalker_handle_exception);
+#endif
+
   priv->page_size = gum_query_page_size ();
   priv->exec_ctx = g_private_new (NULL);
+}
+
+static void
+gum_stalker_finalize (GObject * object)
+{
+#ifdef G_OS_WIN32
+  gum_win_exception_hook_remove (gum_stalker_handle_exception);
+#endif
+
+  G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
 
 GumStalker *
@@ -517,6 +549,11 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
         gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
             insn.end);
       }
+    }
+    else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
+    {
+      gum_relocator_skip_one_no_label (rl);
+      gum_exec_block_write_single_step_transfer_code (block, &gc);
     }
 
     block->code_end = gum_code_writer_cur (cw);
@@ -794,12 +831,9 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     g_assert (op->offset == 8 || op->offset == 32 || op->offset == 0);
 
 #ifdef G_OS_WIN32
-    /* Don't follow WoW64 for now */
+    /* Can't follow WoW64 */
     if (insn->ud->pfx_seg == UD_R_FS && op->lval.udword == 0xc0)
-    {
-      gc->continuation_real_address = insn->end;
-      return GUM_REQUIRE_RELOCATION;
-    }
+      return GUM_REQUIRE_SINGLE_STEP;
 #endif
 
     if (op->base == UD_NONE && op->index == UD_NONE)
@@ -830,7 +864,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
 
   if (target.absolute_address == gum_stalker_unfollow_me)
-    return GUM_REQUIRE_MAPPING | GUM_REQUIRE_RELOCATION;
+    return GUM_REQUIRE_RELOCATION | GUM_REQUIRE_MAPPING;
 
   gum_relocator_skip_one_no_label (gc->relocator);
 
@@ -951,6 +985,20 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
   gum_code_writer_put_push (cw, (guint32) block->ctx->ret_block_thunk);
   gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
+}
+
+static void
+gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
+    GumGeneratorContext * gc)
+{
+  guint8 code[] = {
+    0x9c,                                     /* pushfd               */
+    0x81, 0x0c, 0x24, 0x00, 0x01, 0x00, 0x00, /* or [esp], 0x100      */
+    0x9d                                      /* popfd                */
+  };
+
+  gum_code_writer_put_bytes (gc->code_writer, code, sizeof (code));
+  gum_code_writer_put_jmp (gc->code_writer, gc->instruction->begin);
 }
 
 static void
@@ -1131,3 +1179,15 @@ gum_write_segment_prefix (uint8_t segment,
       break;
   }
 }
+
+#ifdef G_OS_WIN32
+
+static BOOL WINAPI
+gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
+    CONTEXT * context)
+{
+  printf ("gum_stalker_handle_exception\n");
+  return TRUE;
+}
+
+#endif

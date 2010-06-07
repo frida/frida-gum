@@ -93,6 +93,9 @@
     <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c">
+      <Filter>core\backend-windows</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -163,6 +166,9 @@
     </ClInclude>
     <ClInclude Include="gum\gumeventsink.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\backend-windows\gumwinexceptionhook.h">
+      <Filter>core\backend-windows</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
