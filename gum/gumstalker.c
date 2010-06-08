@@ -27,6 +27,9 @@
 
 #ifdef G_OS_WIN32
 #include "backend-windows/gumwinexceptionhook.h"
+
+#include <windows.h>
+#include <tchar.h>
 #endif
 
 #define GUM_STALKER_ENABLE_DEBUG 0
@@ -52,6 +55,10 @@ struct _GumStalkerPrivate
   guint page_size;
 
   GPrivate * exec_ctx;
+
+#ifdef G_OS_WIN32
+  gpointer ki_user_callback_dispatcher_impl;
+#endif
 };
 
 struct _GumExecCtx
@@ -73,6 +80,7 @@ struct _GumExecCtx
   gpointer jmp_block_thunk;
   gpointer ret_block_thunk;
   gpointer replace_block_thunk;
+  gpointer replacement_address;
 
   guint8 * block_pool;
   guint block_pool_size;
@@ -313,6 +321,17 @@ gum_stalker_init (GumStalker * self)
 
 #ifdef G_OS_WIN32
   gum_win_exception_hook_add (gum_stalker_handle_exception, self);
+
+  {
+    HMODULE ntmod;
+
+    ntmod = GetModuleHandle (_T ("ntdll.dll"));
+    g_assert (ntmod != NULL);
+
+    priv->ki_user_callback_dispatcher_impl =
+        GetProcAddress (ntmod, "KiUserCallbackDispatcher");
+    g_assert (priv->ki_user_callback_dispatcher_impl != NULL);
+  }
 #endif
 
   priv->page_size = gum_query_page_size ();
@@ -457,7 +476,14 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_put_ret (&cw);
 
   ctx->replace_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_int3 (&cw); /* TODO */
+  gum_code_writer_put_push_eax (&cw); /* placeholder */
+  gum_exec_ctx_write_cdecl_preserve_prolog (ctx, &cw);
+  gum_code_writer_put_push_imm_ptr (&cw, &ctx->replacement_address);
+  gum_code_writer_put_push (&cw, (guint32) ctx);
+  gum_code_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
+  gum_code_writer_put_mov_esp_offset_ptr_eax (&cw, CDECL_PRESERVE_SIZE);
+  gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
+  gum_code_writer_put_ret (&cw);
 
   gum_code_writer_free (&cw);
 }
@@ -1209,6 +1235,16 @@ gum_write_segment_prefix (uint8_t segment,
 
 #ifdef G_OS_WIN32
 
+static void
+enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
+{
+  /* set both RWn and LENn to 00 */
+  *dr7_reg &= ~(0xf << (16 + (2 * index)));
+
+  /* set LE bit */
+  *dr7_reg |= 1 << (2 * index);
+}
+
 static gboolean
 gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
     CONTEXT * context, gpointer user_data)
@@ -1227,14 +1263,16 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
   block = ctx->current_block;
 
 #ifdef _M_IX86
-  printf ("gum_stalker_handle_exception state=%u %p %08x\n", block->state, context->Eip, exception_record->ExceptionCode);
+  /*
+  printf ("gum_stalker_handle_exception state=%u %p %08x\n",
+      block->state, context->Eip, exception_record->ExceptionCode);
+  */
 
   switch (block->state)
   {
     case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
     {
       DWORD instruction_after_call;
-      guint index;
 
       block->previous_dr0 = context->Dr0;
       block->previous_dr1 = context->Dr1;
@@ -1244,14 +1282,10 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
           gum_find_instruction_length ((guint8 *) context->Eip);
 
       context->Dr0 = instruction_after_call;
+      enable_hardware_breakpoint (&context->Dr7, 0);
 
-      index = 0;
-
-      /* set both RWn and LENn to 00 */
-      context->Dr7 &= ~(0xf << (16 + (2 * index)));
-
-      /* set LE bit */
-      context->Dr7 |= 1 << (2 * index);
+      context->Dr1 = (DWORD) self->priv->ki_user_callback_dispatcher_impl;
+      enable_hardware_breakpoint (&context->Dr7, 1);
 
       block->state = GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL;
 
@@ -1264,6 +1298,7 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
       context->Dr1 = block->previous_dr1;
       context->Dr7 = block->previous_dr7;
 
+      ctx->replacement_address = (gpointer) context->Eip;
       context->Eip = (DWORD) ctx->replace_block_thunk;
 
       block->state = GUM_EXEC_NORMAL;

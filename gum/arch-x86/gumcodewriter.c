@@ -817,6 +817,16 @@ gum_code_writer_put_pop_reg (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_push_imm_ptr (GumCodeWriter * self,
+                                  gconstpointer imm_ptr)
+{
+  self->code[0] = 0xff;
+  self->code[1] = 0x35;
+  *((gconstpointer *) (self->code + 2)) = imm_ptr;
+  self->code += 6;
+}
+
+void
 gum_code_writer_put_pushad (GumCodeWriter * self)
 {
   self->code[0] = 0x60;

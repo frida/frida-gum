@@ -137,6 +137,7 @@ void gum_code_writer_put_pop_ecx (GumCodeWriter * self);
 void gum_code_writer_put_pop_edx (GumCodeWriter * self);
 void gum_code_writer_put_push_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_pop_reg (GumCodeWriter * self, GumCpuReg reg);
+void gum_code_writer_put_push_imm_ptr (GumCodeWriter * self, gconstpointer imm_ptr);
 void gum_code_writer_put_pushad (GumCodeWriter * self);
 void gum_code_writer_put_popad (GumCodeWriter * self);
 void gum_code_writer_put_pushfd (GumCodeWriter * self);
