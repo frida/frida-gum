@@ -25,6 +25,11 @@
 
 #include <string.h>
 
+#ifdef G_OS_WIN32
+#define VC_EXTRALEAN
+#include <windows.h>
+#endif
+
 #define STALKER_TESTCASE(NAME) \
     void test_stalker_ ## NAME ( \
         TestStalkerFixture * fixture, gconstpointer data)
@@ -57,6 +62,14 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
 {
   fixture->stalker = gum_stalker_new ();
   fixture->sink = GUM_FAKE_EVENT_SINK (gum_fake_event_sink_new ());
+
+#ifdef G_OS_WIN32
+  if (IsDebuggerPresent ())
+  {
+    g_critical ("\n\nRunning Stalker tests with a debugger attached is "
+        "not yet supported.\nPlease run detached.\n");
+  }
+#endif
 }
 
 static void
