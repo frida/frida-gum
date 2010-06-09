@@ -1101,13 +1101,15 @@ send_message_and_iterate_loop_briefly (TestWindow * window,
     TranslateMessage (&msg);
     DispatchMessage (&msg);
   }
+
+  /* Flush thread's message queue */
+  while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE) == TRUE)
+    ;
 }
 
 static LRESULT CALLBACK
 test_window_proc (HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
-  /*g_print ("got msg 0x%08x\n", msg);*/
-
   if (msg == WM_USER)
   {
     TestWindow * window;

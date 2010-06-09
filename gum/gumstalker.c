@@ -29,6 +29,7 @@
 #include "backend-windows/gumwinexceptionhook.h"
 
 #include <windows.h>
+#include <psapi.h>
 #include <tchar.h>
 #endif
 
@@ -57,6 +58,7 @@ struct _GumStalkerPrivate
   GPrivate * exec_ctx;
 
 #ifdef G_OS_WIN32
+  gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
 #endif
 };
@@ -113,6 +115,7 @@ struct _GumExecBlock
 #ifdef G_OS_WIN32
   DWORD previous_dr0;
   DWORD previous_dr1;
+  DWORD previous_dr2;
   DWORD previous_dr7;
 #endif
 };
@@ -323,10 +326,19 @@ gum_stalker_init (GumStalker * self)
   gum_win_exception_hook_add (gum_stalker_handle_exception, self);
 
   {
-    HMODULE ntmod;
+    HMODULE ntmod, usermod;
+    MODULEINFO mi;
+    BOOL success;
 
     ntmod = GetModuleHandle (_T ("ntdll.dll"));
-    g_assert (ntmod != NULL);
+    usermod = GetModuleHandle (_T ("user32.dll"));
+    g_assert (ntmod != NULL && usermod != NULL);
+
+    success = GetModuleInformation (GetCurrentProcess (), usermod,
+        &mi, sizeof (mi));
+    g_assert (success);
+    priv->user32_start = mi.lpBaseOfDll;
+    priv->user32_end = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
 
     priv->ki_user_callback_dispatcher_impl =
         GetProcAddress (ntmod, "KiUserCallbackDispatcher");
@@ -1235,6 +1247,8 @@ gum_write_segment_prefix (uint8_t segment,
 
 #ifdef G_OS_WIN32
 
+#ifdef _M_IX86
+
 static void
 enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
 {
@@ -1244,6 +1258,41 @@ enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
   /* set LE bit */
   *dr7_reg |= 1 << (2 * index);
 }
+
+static gpointer
+find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
+{
+  GumStalkerPrivate * priv = stalker->priv;
+  gpointer * top_esp, * cur_esp;
+  guint8 call_fs_c0_code[] = { 0x64, 0xff, 0x15, 0xc0, 0x00, 0x00, 0x00 };
+  guint8 * minimum_address, * maximum_address;
+
+  __asm
+  {
+    mov eax, fs:[4];
+    mov [top_esp], eax;
+  }
+
+  /* These boundaries are quite artificial... */
+  minimum_address = (guint8 *) priv->user32_start + sizeof (call_fs_c0_code);
+  maximum_address = (guint8 *) priv->user32_end - 1;
+
+  for (cur_esp = start_esp + 1; cur_esp < top_esp; cur_esp++)
+  {
+    guint8 * address = (guint8 *) *cur_esp;
+
+    if (address >= minimum_address && address <= maximum_address &&
+        memcmp (address - sizeof (call_fs_c0_code), call_fs_c0_code,
+        sizeof (call_fs_c0_code)) == 0)
+    {
+      return address;
+    }
+  }
+
+  return NULL;
+}
+
+#endif
 
 static gboolean
 gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
@@ -1272,20 +1321,29 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
   {
     case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
     {
-      DWORD instruction_after_call;
+      DWORD instruction_after_call_here;
+      DWORD instruction_after_call_above_us;
 
       block->previous_dr0 = context->Dr0;
       block->previous_dr1 = context->Dr1;
+      block->previous_dr2 = context->Dr2;
       block->previous_dr7 = context->Dr7;
 
-      instruction_after_call = context->Eip +
+      instruction_after_call_here = context->Eip +
           gum_find_instruction_length ((guint8 *) context->Eip);
-
-      context->Dr0 = instruction_after_call;
+      context->Dr0 = instruction_after_call_here;
       enable_hardware_breakpoint (&context->Dr7, 0);
 
       context->Dr1 = (DWORD) self->priv->ki_user_callback_dispatcher_impl;
       enable_hardware_breakpoint (&context->Dr7, 1);
+
+      instruction_after_call_above_us = (DWORD)
+          find_system_call_above_us (self, (gpointer *) context->Esp);
+      if (instruction_after_call_above_us != 0)
+      {
+        context->Dr2 = instruction_after_call_above_us;
+        enable_hardware_breakpoint (&context->Dr7, 2);
+      }
 
       block->state = GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL;
 
@@ -1296,6 +1354,7 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
     {
       context->Dr0 = block->previous_dr0;
       context->Dr1 = block->previous_dr1;
+      context->Dr2 = block->previous_dr2;
       context->Dr7 = block->previous_dr7;
 
       ctx->replacement_address = (gpointer) context->Eip;
