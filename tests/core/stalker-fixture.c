@@ -66,8 +66,14 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
 #ifdef G_OS_WIN32
   if (IsDebuggerPresent ())
   {
-    g_critical ("\n\nRunning Stalker tests with a debugger attached is "
-        "not yet supported.\nPlease run detached.\n");
+    static gboolean shown_once = FALSE;
+
+    if (!shown_once)
+    {
+      g_print ("\n\nWARNING:\tRunning Stalker tests with a debugger attached "
+          "is not yet supported.\n\t\tSome tests will fail.\n\n");
+      shown_once = TRUE;
+    }
   }
 #endif
 }
