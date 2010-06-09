@@ -948,7 +948,7 @@ static void do_unfollow (TestWindow * window, gpointer user_data);
 
 static TestWindow * create_test_window (GumStalker * stalker);
 static void destroy_test_window (TestWindow * window);
-static void send_message_and_iterate_loop_briefly (TestWindow * window,
+static void send_message_and_pump_messages_briefly (TestWindow * window,
     TestWindowMessageHandler handler, gpointer user_data);
 
 static LRESULT CALLBACK test_window_proc (HWND hwnd, UINT msg,
@@ -1019,7 +1019,7 @@ STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
   window = create_test_window (fixture->stalker);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-  send_message_and_iterate_loop_briefly (window, do_unfollow, fixture->stalker);
+  send_message_and_pump_messages_briefly (window, do_unfollow, fixture->stalker);
   g_assert (!gum_stalker_is_following_me (fixture->stalker));
 
   destroy_test_window (window);
@@ -1031,7 +1031,7 @@ STALKER_TESTCASE (win32_follow_callback_to_kernel_to_user)
 
   window = create_test_window (fixture->stalker);
 
-  send_message_and_iterate_loop_briefly (window, do_follow, fixture->sink);
+  send_message_and_pump_messages_briefly (window, do_follow, fixture->sink);
   g_assert (gum_stalker_is_following_me (fixture->stalker));
   gum_stalker_unfollow_me (fixture->stalker);
 
@@ -1086,7 +1086,7 @@ destroy_test_window (TestWindow * window)
 }
 
 static void
-send_message_and_iterate_loop_briefly (TestWindow * window,
+send_message_and_pump_messages_briefly (TestWindow * window,
     TestWindowMessageHandler handler, gpointer user_data)
 {
   MSG msg;
@@ -1096,15 +1096,11 @@ send_message_and_iterate_loop_briefly (TestWindow * window,
 
   SendMessage (window->handle, WM_USER, 0, 0);
 
-  while (GetMessage (&msg, window->handle, 0, 0) == TRUE)
+  while (GetMessage (&msg, NULL, 0, 0))
   {
     TranslateMessage (&msg);
     DispatchMessage (&msg);
   }
-
-  /* Flush thread's message queue */
-  while (PeekMessage (&msg, NULL, 0, 0, PM_REMOVE) == TRUE)
-    ;
 }
 
 static LRESULT CALLBACK
