@@ -87,9 +87,6 @@ struct _GumExecCtx
   guint block_size;
   guint block_code_offset;
   guint block_code_maxsize;
-
-  gpointer temporary_stack_bottom;
-  gpointer temporary_stack_top;
 };
 
 struct _GumAddressMapping
@@ -101,6 +98,9 @@ struct _GumAddressMapping
 struct _GumExecBlock
 {
   GumExecCtx * ctx;
+
+  guint8 * real_begin;
+  guint8 * real_end;
 
   guint8 * code_begin;
   guint8 * code_end;
@@ -503,9 +503,10 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     g_assert_cmpuint (n_read, !=, 0);
 
     insn.ud = gum_relocator_peek_next_write_insn (rl);
-    g_assert (insn.ud != NULL);
     insn.begin = gum_relocator_peek_next_write_source (rl);
     insn.end = insn.begin + ud_insn_len (insn.ud);
+
+    g_assert (insn.ud != NULL && insn.begin != NULL);
 
     gc.instruction = &insn;
 
@@ -575,7 +576,10 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
 
   gum_code_writer_flush (cw);
 
-  block->code_end = gum_code_writer_cur (cw);
+  block->code_end = (guint8 *) gum_code_writer_cur (cw);
+
+  block->real_begin = (guint8 *) rl->input_start;
+  block->real_end = (guint8 *) rl->input_cur;
 
   g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
 
@@ -1187,6 +1191,12 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
   {
     mov eax, fs:[4];
     mov [top_esp], eax;
+  }
+
+  if ((guint) ABS (top_esp - start_esp) > priv->page_size)
+  {
+    top_esp = (gpointer *) ((GPOINTER_TO_SIZE (start_esp) +
+        (priv->page_size - 1)) & ~(priv->page_size - 1));
   }
 
   /* These boundaries are quite artificial... */
