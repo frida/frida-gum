@@ -33,8 +33,6 @@
 #include <tchar.h>
 #endif
 
-#define GUM_STALKER_ENABLE_DEBUG 0
-
 #define GUM_MAX_EXEC_BLOCKS                 2048
 #define GUM_EXEC_BLOCK_SIZE_IN_PAGES          16
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
@@ -238,70 +236,6 @@ static gboolean gum_stalker_handle_exception (
 #endif
 
 G_DEFINE_TYPE (GumStalker, gum_stalker, G_TYPE_OBJECT);
-
-#if GUM_STALKER_ENABLE_DEBUG
-
-static gchar debug_buffer[1024 * 1024] = { 0, };
-static guint debug_offset = 0;
-
-static guint number_of_blocks_created = 0;
-static gpointer last_code_address[2] = { NULL, NULL };
-static gpointer last_block_address[2] = { NULL, NULL };
-
-static void
-debug_printf (const gchar * format,
-              ...)
-{
-  va_list args;
-
-  va_start (args, format);
-  debug_offset += vsprintf_s (debug_buffer + debug_offset,
-      sizeof (debug_buffer) - debug_offset,
-      format, args);
-  g_assert (debug_offset < sizeof (debug_buffer));
-}
-
-static void
-debug_print_code (const guint8 * code,
-                  guint size)
-{
-  ud_t ud;
-  guint remaining;
-
-  ud_init (&ud);
-  ud_set_mode (&ud, GUM_CPU_MODE);
-  ud_set_syntax (&ud, UD_SYN_INTEL);
-
-  ud_set_pc (&ud, (uint64_t) code);
-  ud_set_input_buffer (&ud, (guint8 *) code, size);
-
-  remaining = size;
-  while (remaining != 0)
-  {
-    guint in_size;
-    guint offset;
-
-    in_size = ud_disassemble (&ud);
-    g_assert (in_size != 0);
-
-    for (offset = 0; offset != in_size; offset++)
-    {
-      if (offset != 0)
-        debug_printf (" ");
-      debug_printf ("%02x", code[size - remaining + offset]);
-    }
-
-    if (in_size < 3)
-      debug_printf ("\t\t");
-    else if (in_size < 6)
-      debug_printf ("\t");
-    debug_printf ("\t%s\n", ud_insn_asm (&ud));
-
-    remaining -= in_size;
-  }
-}
-
-#endif
 
 static void
 gum_stalker_class_init (GumStalkerClass * klass)
@@ -646,24 +580,6 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
 
   block->code_end--; /* pretend the INT3 guard isn't part of the block */
-
-#if GUM_STALKER_ENABLE_DEBUG
-  debug_printf ("\n********************************************************************************\n");
-  debug_printf ("Original code at %p:\n", address);
-  debug_print_code (rl->input_start, rl->input_cur - rl->input_start);
-  debug_printf ("\nGenerated code:\n");
-  debug_print_code (block->code_begin, block->code_end - block->code_begin);
-
-  if (number_of_blocks_created == 44)
-    G_BREAKPOINT ();
-
-  number_of_blocks_created++;
-
-  last_code_address[0] = last_code_address[1];
-  last_code_address[1] = address;
-  last_block_address[0] = last_block_address[1];
-  last_block_address[1] = block;
-#endif
 
   return block;
 }
