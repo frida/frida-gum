@@ -96,6 +96,9 @@
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-x86\gumspinlock-ia32-msc.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -169,6 +172,9 @@
     </ClInclude>
     <ClInclude Include="gum\backend-windows\gumwinexceptionhook.h">
       <Filter>core\backend-windows</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumspinlock.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

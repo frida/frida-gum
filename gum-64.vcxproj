@@ -62,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gum\backend-x86\guminterceptor-amd64.c" />
+    <ClCompile Include="gum\backend-x86\gumspinlock-amd64-msc.c" />
   </ItemGroup>
   <ItemGroup>
     <None Include="gum\backend-x86\guminterceptor-amd64-thunks.asm" />

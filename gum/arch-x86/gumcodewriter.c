@@ -880,6 +880,18 @@ gum_code_writer_put_cmp_ecx (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self,
+                                         gconstpointer imm_ptr,
+                                         guint32 imm_value)
+{
+  self->code[0] = 0x81;
+  self->code[1] = 0x3d;
+  *((gconstpointer *) (self->code + 2)) = imm_ptr;
+  *((guint32 *) (self->code + 6)) = imm_value;
+  self->code += 10;
+}
+
+void
 gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self)
 {
   self->code[0] = 0xf0; /* lock prefix */

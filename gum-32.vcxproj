@@ -63,6 +63,7 @@
   <ItemGroup>
     <ClCompile Include="gum\backend-x86\guminterceptor-ia32-thunks.c" />
     <ClCompile Include="gum\backend-x86\guminterceptor-ia32.c" />
+    <ClCompile Include="gum\backend-x86\gumspinlock-ia32-msc.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

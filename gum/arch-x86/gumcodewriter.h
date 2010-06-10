@@ -145,6 +145,7 @@ void gum_code_writer_put_popfd (GumCodeWriter * self);
 void gum_code_writer_put_ret (GumCodeWriter * self);
 void gum_code_writer_put_test_eax_eax (GumCodeWriter * self);
 void gum_code_writer_put_cmp_ecx (GumCodeWriter * self, gint32 imm_value);
+void gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self, gconstpointer imm_ptr, guint32 imm_value);
 void gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self);
 void gum_code_writer_put_nop (GumCodeWriter * self);
 void gum_code_writer_put_int3 (GumCodeWriter * self);

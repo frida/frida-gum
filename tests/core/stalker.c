@@ -231,27 +231,33 @@ STALKER_TESTCASE (call_probe)
   };
   StalkerTestFunc func;
   guint8 * func_a_address;
-  CallProbeContext probe_ctx;
-  GumProbeId probe_id;
+  CallProbeContext probe_ctx, secondary_probe_ctx;
+  GumProbeId probe_id, secondary_probe_id;
 
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
       code_template, sizeof (code_template));
 
-  func_a_address = fixture->code + 32;
+  func_a_address = fixture->code + 52;
 
   probe_ctx.callback_count = 0;
   probe_ctx.block_start = fixture->code;
-
-  probe_id = gum_stalker_add_call_probe (fixture->stalker, func_a_address,
-      probe_func_a_invocation, &probe_ctx);
+  probe_id = gum_stalker_add_call_probe (fixture->stalker,
+      func_a_address, probe_func_a_invocation, &probe_ctx);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 1);
+
+  secondary_probe_ctx.callback_count = 0;
+  secondary_probe_ctx.block_start = fixture->code;
+  secondary_probe_id = gum_stalker_add_call_probe (fixture->stalker,
+      func_a_address, probe_func_a_invocation, &secondary_probe_ctx);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 1);
 
   gum_stalker_remove_call_probe (fixture->stalker, probe_id);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+  g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 2);
 }
 
 static void

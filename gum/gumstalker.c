@@ -23,6 +23,7 @@
 #include "gumcodewriter.h"
 #include "gummemory.h"
 #include "gumrelocator.h"
+#include "gumspinlock.h"
 #include "gumudis86.h"
 
 #ifdef G_OS_WIN32
@@ -38,6 +39,8 @@
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
 #define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
 #define GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE 256
+
+typedef struct _GumCallProbe GumCallProbe;
 
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
@@ -55,10 +58,23 @@ struct _GumStalkerPrivate
 
   GPrivate * exec_ctx;
 
+  volatile gboolean any_probes_attached;
+  volatile gint last_probe_id;
+  GumSpinlock probe_lock;
+  GHashTable * probe_target_by_id;
+  GHashTable * probe_array_by_address;
+
 #ifdef G_OS_WIN32
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
 #endif
+};
+
+struct _GumCallProbe
+{
+  GumProbeId id;
+  GumCallProbeCallback callback;
+  gpointer user_data;
 };
 
 struct _GumExecCtx
@@ -167,6 +183,8 @@ enum _GumVirtualizationRequirements
 
 static void gum_stalker_finalize (GObject * object);
 
+static void gum_stalker_free_probe_array (gpointer data);
+
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumEventSink * sink);
 static void gum_stalker_destroy_exec_ctx (GumStalker * self, GumExecCtx * ctx);
@@ -214,6 +232,8 @@ static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
     gpointer orig_ret_insn, GumCodeWriter * cw);
 static void gum_exec_block_write_single_step_transfer_code (
     GumExecBlock * block, GumGeneratorContext * gc);
+static void gum_exec_block_write_call_probe_code (GumExecBlock * block,
+    const GumBranchTarget * target, GumGeneratorContext * gc);
 static void gum_exec_block_add_address_mapping (GumExecBlock * block,
     gpointer replica_address, gpointer real_address);
 static gpointer gum_exec_block_get_real_address_of (GumExecBlock * block,
@@ -256,6 +276,12 @@ gum_stalker_init (GumStalker * self)
       GUM_TYPE_STALKER, GumStalkerPrivate);
   priv = GUM_STALKER_GET_PRIVATE (self);
 
+  gum_spinlock_init (&priv->probe_lock);
+  priv->probe_target_by_id =
+      g_hash_table_new_full (NULL, NULL, NULL, NULL);
+  priv->probe_array_by_address =
+      g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
+
 #ifdef G_OS_WIN32
   gum_win_exception_hook_add (gum_stalker_handle_exception, self);
 
@@ -287,9 +313,14 @@ gum_stalker_init (GumStalker * self)
 static void
 gum_stalker_finalize (GObject * object)
 {
+  GumStalker * self = GUM_STALKER (object);
+
 #ifdef G_OS_WIN32
   gum_win_exception_hook_remove (gum_stalker_handle_exception);
 #endif
+
+  g_hash_table_unref (self->priv->probe_array_by_address);
+  g_hash_table_unref (self->priv->probe_target_by_id);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
@@ -343,16 +374,93 @@ gum_stalker_is_following_me (GumStalker * self)
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
-                            GumCallProbeCallback handler,
+                            GumCallProbeCallback callback,
                             gpointer data)
 {
-  return 1;
+  GumStalkerPrivate * priv = self->priv;
+  GumCallProbe probe;
+  GArray * probes;
+
+  probe.id = g_atomic_int_exchange_and_add (&priv->last_probe_id, 1) + 1;
+  probe.callback = callback;
+  probe.user_data = data;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  g_hash_table_insert (priv->probe_target_by_id, GSIZE_TO_POINTER (probe.id),
+      target_address);
+
+  probes = (GArray *)
+      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+  if (probes == NULL)
+  {
+    probes = g_array_sized_new (FALSE, FALSE, sizeof (GumCallProbe), 4);
+    g_hash_table_insert (priv->probe_array_by_address, target_address, probes);
+  }
+
+  g_array_append_val (probes, probe);
+
+  priv->any_probes_attached = TRUE;
+
+  gum_spinlock_release (&priv->probe_lock);
+
+  return probe.id;
 }
 
 void
 gum_stalker_remove_call_probe (GumStalker * self,
                                GumProbeId id)
 {
+  GumStalkerPrivate * priv = self->priv;
+  gpointer target_address;
+  GArray * probes;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  target_address =
+      g_hash_table_lookup (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+  g_assert (target_address != NULL);
+  g_hash_table_remove (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+
+  probes = (GArray *)
+      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+  g_assert (probes != NULL);
+
+  if (probes->len == 1)
+  {
+    g_assert_cmpuint (g_array_index (probes, GumCallProbe, 0).id, ==, id);
+    g_hash_table_remove (priv->probe_target_by_id, target_address);
+  }
+  else
+  {
+    gint i, match_index = -1;
+
+    for (i = 0; i != probes->len; i++)
+    {
+      GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
+
+      if (probe->id == id)
+      {
+        match_index = i;
+        break;
+      }
+    }
+
+    g_assert (match_index != -1);
+    g_array_remove_index (probes, match_index);
+  }
+
+  priv->any_probes_attached =
+      g_hash_table_size (priv->probe_array_by_address) != 0;
+
+  gum_spinlock_release (&priv->probe_lock);
+}
+
+static void
+gum_stalker_free_probe_array (gpointer data)
+{
+  GArray * probe_array = (GArray *) data;
+  g_array_free (probe_array, TRUE);
 }
 
 static GumExecCtx *
@@ -869,8 +977,13 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     if ((block->ctx->sink_mask & GUM_CALL) != 0)
       gum_exec_ctx_write_call_event_code (block->ctx, insn->begin, &target, cw);
+
+    if (block->ctx->stalker->priv->any_probes_attached)
+      gum_exec_block_write_call_probe_code (block, &target, gc);
+
     if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) != 0)
       gum_exec_ctx_write_depth_increment_code (block->ctx, cw);
+
     gum_exec_block_write_call_invoke_code (block, insn, &target, cw);
   }
   else
@@ -986,7 +1099,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
 
 static void
 gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
-    GumGeneratorContext * gc)
+                                                GumGeneratorContext * gc)
 {
   guint8 code[] = {
     0xc6, 0x05, 0x78, 0x56, 0x34, 0x12,       /* mov byte [X], state */
@@ -999,6 +1112,70 @@ gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
   *((guint8 **) (code + 2)) = &block->state;
   gum_code_writer_put_bytes (gc->code_writer, code, sizeof (code));
   gum_code_writer_put_jmp (gc->code_writer, gc->instruction->begin);
+}
+
+static void
+gum_exec_block_invoke_call_probes_for_target (GumExecBlock * block,
+                                              gpointer target_address,
+                                              GumCpuContext cpu_context,
+                                              guint32 eflags)
+{
+  GumStalkerPrivate * priv = block->ctx->stalker->priv;
+  GArray * probes;
+
+  gum_spinlock_acquire (&priv->probe_lock);
+
+  probes = (GArray *)
+      g_hash_table_lookup (priv->probe_array_by_address, target_address);
+  if (probes != NULL)
+  {
+    GumCallSite call_site;
+    guint i;
+
+    call_site.block_address = block->real_begin;
+#if GLIB_SIZEOF_VOID_P == 4
+    call_site.stack_data = GSIZE_TO_POINTER (cpu_context.esp + 4);
+#endif
+    call_site.cpu_context = &cpu_context;
+
+    for (i = 0; i != probes->len; i++)
+    {
+      GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
+
+      probe->callback (&call_site, probe->user_data);
+    }
+  }
+
+  gum_spinlock_release (&priv->probe_lock);
+}
+
+static void
+gum_exec_block_write_call_probe_code (GumExecBlock * block,
+                                      const GumBranchTarget * target,
+                                      GumGeneratorContext * gc)
+{
+  GumCodeWriter * cw = gc->code_writer;
+  guint accumulated_stack_delta = 0;
+
+  gum_code_writer_put_pushfd (cw);
+  accumulated_stack_delta += 4;
+
+  gum_code_writer_put_pushad (cw); /* GumCpuContext.edi to GumCpuContext.eax */
+  gum_code_writer_put_push (cw,
+      (guint32) gc->instruction->begin); /* GumCpuContext.eip */
+  accumulated_stack_delta += sizeof (GumCpuContext);
+
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_write_push_branch_target_address (target,
+      G_STRUCT_OFFSET (GumCpuContext, edx), accumulated_stack_delta, cw);
+#endif
+  gum_code_writer_put_push (cw, (guint32) block);
+  gum_code_writer_put_call (cw, gum_exec_block_invoke_call_probes_for_target);
+  gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
+
+  gum_code_writer_put_pop_eax (cw); /* discard GumCpuContext.eip */
+  gum_code_writer_put_popad (cw);
+  gum_code_writer_put_popfd (cw);
 }
 
 static void
