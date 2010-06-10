@@ -35,6 +35,8 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (ret)
   STALKER_TESTENTRY (exec)
   STALKER_TESTENTRY (call_depth)
+  STALKER_TESTENTRY (call_probe)
+
   STALKER_TESTENTRY (unconditional_jumps)
   STALKER_TESTENTRY (conditional_jump_true)
   STALKER_TESTENTRY (conditional_jump_false)
@@ -189,6 +191,82 @@ STALKER_TESTCASE (call_depth)
   g_assert_cmpint (NTH_EVENT_AS_RET (11)->depth, ==, 3);
   g_assert_cmpint (NTH_EVENT_AS_RET (12)->depth, ==, 2);
   g_assert_cmpint (NTH_EVENT_AS_RET (13)->depth, ==, 1);
+}
+
+typedef struct _CallProbeContext CallProbeContext;
+
+struct _CallProbeContext
+{
+  guint callback_count;
+  guint8 * block_start;
+};
+
+static void probe_func_a_invocation (GumCallSite * site, gpointer user_data);
+
+STALKER_TESTCASE (call_probe)
+{
+  const guint8 code_template[] =
+  {
+    0x68, 0x44, 0x44, 0xaa, 0xaa, /* push 0xaaaa4444     */
+    0x68, 0x33, 0x33, 0xaa, 0xaa, /* push 0xaaaa3333     */
+    0xba, 0x22, 0x22, 0xaa, 0xaa, /* mov edx, 0xaaaa2222 */
+    0xb9, 0x11, 0x11, 0xaa, 0xaa, /* mov ecx, 0xaaaa1111 */
+    0xe8, 0x1b, 0x00, 0x00, 0x00, /* call func_a         */
+    0x68, 0x44, 0x44, 0xaa, 0xaa, /* push 0xbbbb4444     */
+    0x68, 0x33, 0x33, 0xaa, 0xaa, /* push 0xbbbb3333     */
+    0xba, 0x22, 0x22, 0xaa, 0xaa, /* mov edx, 0xbbbb2222 */
+    0xb9, 0x11, 0x11, 0xaa, 0xaa, /* mov ecx, 0xbbbb1111 */
+    0xe8, 0x06, 0x00, 0x00, 0x00, /* call func_b         */
+    0xc3,                         /* ret                 */
+
+    0xcc,                         /* int 3               */
+
+    /* func_a: */
+    0xc2, 0x08, 0x00,             /* ret 8               */
+
+    0xcc,                         /* int 3               */
+
+    /* func_b: */
+    0xc2, 0x08, 0x00,             /* ret 8               */
+  };
+  StalkerTestFunc func;
+  guint8 * func_a_address;
+  CallProbeContext probe_ctx;
+  GumProbeId probe_id;
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      code_template, sizeof (code_template));
+
+  func_a_address = fixture->code + 32;
+
+  probe_ctx.callback_count = 0;
+  probe_ctx.block_start = fixture->code;
+
+  probe_id = gum_stalker_add_call_probe (fixture->stalker, func_a_address,
+      probe_func_a_invocation, &probe_ctx);
+  test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 1);
+  test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+
+  gum_stalker_remove_call_probe (fixture->stalker, probe_id);
+  test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
+}
+
+static void
+probe_func_a_invocation (GumCallSite * site, gpointer user_data)
+{
+  CallProbeContext * ctx = (CallProbeContext *) user_data;
+
+  ctx->callback_count++;
+
+  g_assert_cmphex ((guint64) site->block_address, ==,
+      (guint64) ctx->block_start);
+  g_assert_cmphex (site->cpu_context->ecx, ==, 0xaaaa1111);
+  g_assert_cmphex (site->cpu_context->edx, ==, 0xaaaa2222);
+  g_assert_cmphex (((guint32 *) site->stack_data)[0], ==, 0xaaaa3333);
+  g_assert_cmphex (((guint32 *) site->stack_data)[1], ==, 0xaaaa4444);
 }
 
 static const guint8 jumpy_code[] = {

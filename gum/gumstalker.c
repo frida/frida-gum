@@ -340,6 +340,21 @@ gum_stalker_is_following_me (GumStalker * self)
   return gum_stalker_get_exec_ctx (self) != NULL;
 }
 
+GumProbeId
+gum_stalker_add_call_probe (GumStalker * self,
+                            gpointer target_address,
+                            GumCallProbeCallback handler,
+                            gpointer data)
+{
+  return 1;
+}
+
+void
+gum_stalker_remove_call_probe (GumStalker * self,
+                               GumProbeId id)
+{
+}
+
 static GumExecCtx *
 gum_stalker_create_exec_ctx (GumStalker * self,
                              GumEventSink * sink)

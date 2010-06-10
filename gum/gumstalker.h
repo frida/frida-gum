@@ -44,6 +44,10 @@ typedef struct _GumStalker           GumStalker;
 typedef struct _GumStalkerClass      GumStalkerClass;
 typedef struct _GumStalkerPrivate    GumStalkerPrivate;
 
+typedef guint GumProbeId;
+typedef struct _GumCallSite GumCallSite;
+typedef void (* GumCallProbeCallback) (GumCallSite * site, gpointer user_data);
+
 struct _GumStalker
 {
   GObject parent;
@@ -56,6 +60,13 @@ struct _GumStalkerClass
   GObjectClass parent_class;
 };
 
+struct _GumCallSite
+{
+  gpointer block_address;
+  gpointer stack_data;
+  GumCpuContext * cpu_context;
+};
+
 GUM_API GType gum_stalker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumStalker * gum_stalker_new (void);
@@ -63,6 +74,11 @@ GUM_API GumStalker * gum_stalker_new (void);
 GUM_API void gum_stalker_follow_me (GumStalker * self, GumEventSink * sink);
 GUM_API void gum_stalker_unfollow_me (GumStalker * self);
 GUM_API gboolean gum_stalker_is_following_me (GumStalker * self);
+
+GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
+    gpointer target_address, GumCallProbeCallback handler, gpointer data);
+GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
+    GumProbeId id);
 
 G_END_DECLS
 
