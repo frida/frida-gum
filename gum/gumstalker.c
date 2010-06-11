@@ -29,6 +29,7 @@
 #ifdef G_OS_WIN32
 #include "backend-windows/gumwinexceptionhook.h"
 
+#define VC_EXTRALEAN
 #include <windows.h>
 #include <psapi.h>
 #include <tchar.h>
