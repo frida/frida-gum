@@ -39,7 +39,8 @@ gum_module_enumerate_exports (const gchar * module_name,
   module = GetModuleHandleW (wide_name);
   g_free (wide_name);
 
-  g_assert (module != NULL);
+  if (module == NULL)
+    return;
 
   mod_base = module;
   dos_hdr = module;
