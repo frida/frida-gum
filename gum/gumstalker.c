@@ -182,6 +182,19 @@ enum _GumVirtualizationRequirements
 
 #define CDECL_PRESERVE_SIZE (4 * sizeof (gpointer))
 
+#if GLIB_SIZEOF_VOID_P == 4
+  #define INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(ptr, arg)   \
+      __asm                                                           \
+      {                                                               \
+        __asm lea eax, [arg - 4]                                      \
+        __asm mov [ptr], eax                                          \
+      }
+#else
+  /* FIXME */
+  #define INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(ptr, arg)   \
+      ptr = NULL
+#endif
+
 static void gum_stalker_finalize (GObject * object);
 
 static void gum_stalker_free_probe_array (gpointer data);
@@ -339,7 +352,8 @@ gum_stalker_follow_me (GumStalker * self,
   gpointer * ret_addr_ptr, start_address;
   GumExecCtx * ctx;
 
-  ret_addr_ptr = (gpointer *) (((gssize) &self) - sizeof (GumStalker *));
+  INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (ret_addr_ptr, self);
+
   start_address = *ret_addr_ptr;
 
   ctx = gum_stalker_create_exec_ctx (self, sink);
@@ -353,7 +367,8 @@ gum_stalker_unfollow_me (GumStalker * self)
   gpointer * ret_addr_ptr, ret_addr;
   GumExecCtx * ctx;
 
-  ret_addr_ptr = (gpointer *) (((gssize) &self) - sizeof (GumStalker *));
+  INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (ret_addr_ptr, self);
+
   ret_addr = *ret_addr_ptr;
 
   ctx = gum_stalker_get_exec_ctx (self);

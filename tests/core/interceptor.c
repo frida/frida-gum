@@ -789,6 +789,13 @@ test_replace_function (void)
       &counter);
   ret = malloc (0x42);
 
+  /*
+   * This statement is needed so the compiler doesn't move the malloc() call
+   * to after revert_function().  We do the real assert after reverting,
+   * as failing asserts with broken malloc() are quite tricky to debug. :)
+   */
+  g_assert (ret != NULL);
+
   gum_interceptor_revert_function (interceptor, malloc);
   g_assert_cmphex (GPOINTER_TO_SIZE (ret), ==, 0x42);
   g_assert_cmpint (counter, ==, 1);
