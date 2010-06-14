@@ -48,7 +48,7 @@ struct _MonitorTrampolineHead64
   guint8 call_on_enter_insn;
   gint32 call_on_enter_offset;
 
-  guint8 overwritten_prologue[0];
+  guint8 overwritten_prologue[1];
 };
 
 struct _MonitorTrampolineTail64

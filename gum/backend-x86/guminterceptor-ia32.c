@@ -49,7 +49,7 @@ struct _MonitorTrampolineHead32
   guint8 call_on_enter_insn;
   gint32 call_on_enter_offset;
 
-  guint8 overwritten_prologue[0];
+  guint8 overwritten_prologue[1];
 };
 
 struct _ReplaceTrampolineHead32
@@ -64,7 +64,7 @@ struct _ReplaceTrampolineHead32
   guint8 pop_userdata_to_ecx_insn;
   guint8 ret_insn;
 
-  guint8 overwritten_prologue[0];
+  guint8 overwritten_prologue[1];
 };
 
 #pragma pack (pop)
