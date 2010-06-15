@@ -35,7 +35,7 @@
 #include <tchar.h>
 #endif
 
-#define GUM_MAX_EXEC_BLOCKS                 2048
+#define GUM_MAX_EXEC_BLOCKS                    2
 #define GUM_EXEC_BLOCK_SIZE_IN_PAGES          16
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
 #define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
