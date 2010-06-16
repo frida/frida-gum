@@ -56,7 +56,7 @@ struct _GumScriptClass
 
 GUM_API GType gum_script_get_type (void) G_GNUC_CONST;
 
-GUM_API GumScript * gum_script_from_string (const gchar * str,
+GUM_API GumScript * gum_script_from_string (const gchar * script_text,
     GError ** error);
 
 GUM_API void gum_script_execute (GumScript * self,

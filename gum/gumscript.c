@@ -63,7 +63,7 @@ gum_script_finalize (GObject * object)
 }
 
 GumScript *
-gum_script_from_string (const gchar * str,
+gum_script_from_string (const gchar * script_text,
                         GError ** error)
 {
   return GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
