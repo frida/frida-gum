@@ -537,6 +537,11 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
                                             gpointer function_arguments)
 {
   InterceptorThreadContext * interceptor_ctx;
+#ifdef G_OS_WIN32
+  DWORD previous_last_error;
+
+  previous_last_error = GetLastError ();
+#endif
 
 #if GLIB_SIZEOF_VOID_P == 4
   /* sort of hackish, but close enough */
@@ -554,7 +559,9 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 
     parent_thread_ctx = thread_context_stack_peek_top_and_push (thread_ctx,
         *caller_ret_addr);
+#ifdef _M_IX86 /* FIXME */
     *caller_ret_addr = _gum_interceptor_function_context_on_leave_thunk;
+#endif
 
     listener_entries = thread_ctx->function_ctx->listener_entries;
     for (i = 0; i < listener_entries->len; i++)
@@ -589,6 +596,10 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
           &parent_context, cpu_context, function_arguments);
     }
   }
+
+#ifdef G_OS_WIN32
+  SetLastError (previous_last_error);
+#endif
 }
 
 gpointer
@@ -598,6 +609,11 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
   gpointer caller_ret_addr;
   GPtrArray * listener_entries;
   guint i;
+#ifdef G_OS_WIN32
+  DWORD previous_last_error;
+
+  previous_last_error = GetLastError ();
+#endif
 
   parent_thread_ctx =
       thread_context_stack_pop_and_peek_top (&thread_ctx, &caller_ret_addr);
@@ -618,6 +634,10 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
     entry->listener_interface->on_leave (entry->listener_instance, &context,
         &parent_context, function_return_value);
   }
+
+#ifdef G_OS_WIN32
+  SetLastError (previous_last_error);
+#endif
 
   return caller_ret_addr;
 }

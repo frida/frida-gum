@@ -19,6 +19,7 @@
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
+    <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
   </ItemGroup>
@@ -31,6 +32,7 @@
     <ClCompile Include="gum\guminterceptor.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumlist.c" />
+    <ClCompile Include="gum\gumscript.c" />
     <ClCompile Include="gum\gumstalker.c" />
   </ItemGroup>
 

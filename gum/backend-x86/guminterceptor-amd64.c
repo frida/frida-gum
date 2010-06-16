@@ -102,7 +102,7 @@ _gum_function_ctx_make_monitor_trampoline (FunctionContext * ctx)
       (guint8 *) ctx->function_address + ctx->overwritten_prologue_len;
 
   tail->function_ctx = ctx;
-  tail->on_enter_thunk = _gum_interceptor_function_context_on_enter_thunk;
+  tail->on_enter_thunk = NULL; /* FIXME: _gum_interceptor_function_context_on_enter_thunk */
 }
 
 void

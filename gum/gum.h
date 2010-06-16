@@ -29,6 +29,7 @@
 #include <gum/guminvocationlistener.h>
 #include <gum/gumlist.h>
 #include <gum/gumreturnaddress.h>
+#include <gum/gumscript.h>
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
 #include <gum/gumtracer.h>
