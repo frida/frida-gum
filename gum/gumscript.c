@@ -147,7 +147,7 @@ gum_script_from_string (const gchar * script_text,
   scanner->msg_handler = gum_script_handle_parse_error;
   scanner->user_data = parse_messages;
 
-  g_scanner_input_text (scanner, script_text, strlen (script_text));
+  g_scanner_input_text (scanner, script_text, (guint) strlen (script_text));
 
   while (!g_scanner_eof (scanner))
   {
@@ -221,6 +221,18 @@ gum_script_execute (GumScript * self,
                     void * stack_arguments)
 {
   self->priv->entrypoint (cpu_context, stack_arguments);
+}
+
+gpointer
+gum_script_get_code_address (GumScript * self)
+{
+  return self->priv->code;
+}
+
+guint
+gum_script_get_code_size (GumScript * self)
+{
+  return gum_code_writer_offset (&self->priv->code_writer);
 }
 
 static gboolean
@@ -347,7 +359,7 @@ gum_script_handle_replace_argument (GumScript * self,
     gum_code_writer_put_mov_ecx_esp_offset_ptr (cw,
         GUM_SCRIPT_ESP_OFFSET_TO_STACK_ARGS);
     gum_code_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_ECX,
-        argument_index * sizeof (gpointer), GUM_REG_EAX);
+        (gint8) (argument_index * sizeof (gpointer)), GUM_REG_EAX);
   }
   else
   {
