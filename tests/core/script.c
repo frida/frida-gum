@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole Andr� Vadla Ravn�s <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,16 +19,34 @@
 
 #include "testutil.h"
 
+#define VC_EXTRALEAN
+#include <windows.h>
+
 TEST_LIST_BEGIN (script)
   TEST_ENTRY_SIMPLE (Script, test_replace_string_and_length_arguments)
+  TEST_ENTRY_SIMPLE (Script, test_send_string_from_argument)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
+typedef struct _StringsAndLengthArgs StringsAndLengthArgs;
 
 struct _StringAndLengthArgs {
   gunichar2 * text;
   guint length;
 };
+
+struct _StringsAndLengthArgs {
+  gchar * text_ansi;
+  gunichar2 * text_wide;
+  guint length;
+};
+
+static void store_message (GumScript * script, GVariant * msg,
+    gpointer user_data);
+
+static gchar * ansi_string_from_utf8 (const gchar * str_utf8);
+
+static GumCpuContext fake_cpu_ctx = { 0, };
 
 static void
 test_replace_string_and_length_arguments (void)
@@ -39,7 +57,6 @@ test_replace_string_and_length_arguments (void)
     "ReplaceArgument 1 LengthOf new_text\n";
   GumScript * script;
   GError * error = NULL;
-  GumCpuContext fake_cpu_ctx = { 0, };
   gunichar2 * previous_text;
   guint previous_length;
   StringAndLengthArgs args;
@@ -66,4 +83,68 @@ test_replace_string_and_length_arguments (void)
   g_free (previous_text);
 
   g_object_unref (script);
+}
+
+static void
+test_send_string_from_argument (void)
+{
+  const gchar * script_text =
+    "SendAnsiStringFromArgument 0\n"
+    "SendWideStringFromArgument 1\n"
+    "SendInt32FromArgument 2\n";
+  GumScript * script;
+  GError * error = NULL;
+  StringsAndLengthArgs args;
+  GVariant * msg = NULL;
+  gchar * msg_str_ansi, * msg_str_wide;
+  gint32 msg_int;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (script != NULL);
+  g_assert (error == NULL);
+  args.text_ansi = ansi_string_from_utf8 ("ÆØÅæøå");
+  args.text_wide = g_utf8_to_utf16 ("ÆØÅæøå", -1, NULL, NULL, NULL);
+  args.length = 42;
+
+  gum_script_set_message_handler (script, store_message, &msg);
+  gum_script_execute (script, &fake_cpu_ctx, &args);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(ssi)")));
+  g_variant_get (msg, "(ssi)", &msg_str_ansi, &msg_str_wide, &msg_int);
+  g_assert_cmpstr (msg_str_ansi, ==, "ÆØÅæøå");
+  g_assert_cmpstr (msg_str_wide, ==, "ÆØÅæøå");
+  g_assert_cmpint (msg_int, ==, 42);
+
+  g_variant_unref (msg);
+
+  g_free (args.text_wide);
+  g_free (args.text_ansi);
+  g_object_unref (script);
+}
+
+static void
+store_message (GumScript * script,
+               GVariant * msg,
+               gpointer user_data)
+{
+  GVariant ** testcase_msg_ptr = (GVariant **) user_data;
+
+  g_assert (*testcase_msg_ptr == NULL);
+  *testcase_msg_ptr = msg;
+}
+
+static gchar *
+ansi_string_from_utf8 (const gchar * str_utf8)
+{
+  glong len;
+  gunichar2 * str_utf16;
+  gchar * str_ansi;
+
+  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, &len, NULL);
+  str_ansi = (gchar *) g_malloc0 (len * 2);
+  WideCharToMultiByte (CP_ACP, 0, (LPCWSTR) str_utf16, -1, str_ansi, len * 2,
+      NULL, NULL);
+  g_free (str_utf16);
+
+  return str_ansi;
 }

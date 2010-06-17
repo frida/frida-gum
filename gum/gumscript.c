@@ -24,9 +24,17 @@
 
 #include <string.h>
 #include <gio/gio.h> /* FIXME: piggy-backing on IOError for now */
+#ifdef G_OS_WIN32
+#define VC_EXTRALEAN
+#include <windows.h>
+#endif
+
+#define GUM_SCRIPT_DEFAULT_LOCALS_CAPACITY 64
 
 typedef enum _GumVariableType GumVariableType;
 typedef struct _GumVariable GumVariable;
+
+typedef struct _GumSendArgItem GumSendArgItem;
 
 typedef void (* GumScriptEntrypoint) (GumCpuContext * cpu_context,
     void * stack_arguments);
@@ -39,10 +47,17 @@ struct _GumScriptPrivate
 
   guint8 * code;
   GumCodeWriter code_writer;
+
+  GString * send_arg_type_signature;
+  GArray * send_arg_items;
+
+  GumScriptMessageHandler message_handler_func;
+  gpointer message_handler_data;
 };
 
 enum _GumVariableType
 {
+  GUM_VARIABLE_INT32,
   GUM_VARIABLE_ANSI_STRING,
   GUM_VARIABLE_WIDE_STRING
 };
@@ -59,14 +74,24 @@ struct _GumVariable
   } value;
 };
 
-#define GUM_SCRIPT_ESP_OFFSET_TO_CPU_CONTEXT 4
-#define GUM_SCRIPT_ESP_OFFSET_TO_STACK_ARGS  8
+struct _GumSendArgItem
+{
+  guint index;
+  GumVariableType type;
+};
+
+#define GUM_SCRIPT_FRAME_OFFSET_TO_CPU_CONTEXT 8
+#define GUM_SCRIPT_FRAME_OFFSET_TO_STACK_ARGS  12
 
 static void gum_script_finalize (GObject * object);
 
 static gboolean gum_script_handle_variable_declaration (GumScript * self,
     GScanner * scanner);
 static gboolean gum_script_handle_replace_argument (GumScript * self,
+    GScanner * scanner);
+static gboolean gum_script_handle_send_statement (GumScript * self,
+    GScanner * scanner);
+static void gum_script_generate_call_to_send_item_commit (GumScript * self,
     GScanner * scanner);
 
 static GumVariable * gum_script_add_wide_string_variable (GumScript * self,
@@ -110,6 +135,9 @@ gum_script_init (GumScript * self)
 
   priv->code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_code_writer_init (&priv->code_writer, priv->code);
+
+  priv->send_arg_items = g_array_new (FALSE, FALSE, sizeof (GumSendArgItem));
+  priv->send_arg_type_signature = g_string_new ("");
 }
 
 static void
@@ -117,6 +145,9 @@ gum_script_finalize (GObject * object)
 {
   GumScript * self = GUM_SCRIPT (object);
   GumScriptPrivate * priv = self->priv;
+
+  g_string_free (priv->send_arg_type_signature, TRUE);
+  g_array_free (priv->send_arg_items, TRUE);
 
   gum_code_writer_free (&priv->code_writer);
   gum_free_pages (priv->code);
@@ -132,12 +163,15 @@ gum_script_from_string (const gchar * script_text,
 {
   GumScript * script;
   GumScriptPrivate * priv;
+  GumCodeWriter * cw;
   GScannerConfig scanner_config = { 0, };
   GScanner * scanner;
   GString * parse_messages;
+  guint start_offset;
 
   script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
   priv = script->priv;
+  cw = &priv->code_writer;
 
   gum_script_init_scanner_config (&scanner_config);
 
@@ -148,6 +182,12 @@ gum_script_from_string (const gchar * script_text,
   scanner->user_data = parse_messages;
 
   g_scanner_input_text (scanner, script_text, (guint) strlen (script_text));
+
+  gum_code_writer_put_push_reg (cw, GUM_REG_EBP);
+  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EBP, GUM_REG_ESP);
+  /*gum_code_writer_put_sub_reg_i8 (cw, GUM_REG_ESP, priv->locals_capacity);*/
+
+  start_offset = gum_code_writer_offset (cw);
 
   while (!g_scanner_eof (scanner))
   {
@@ -176,9 +216,13 @@ gum_script_from_string (const gchar * script_text,
     {
       statement_is_valid = gum_script_handle_replace_argument (script, scanner);
     }
+    else if (g_str_has_prefix (statement_type, "Send"))
+    {
+      statement_is_valid = gum_script_handle_send_statement (script, scanner);
+    }
     else
     {
-      g_scanner_error (scanner, "unexpected identifier: '%s'", statement_type);
+      g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
       statement_is_valid = FALSE;
     }
 
@@ -186,13 +230,17 @@ gum_script_from_string (const gchar * script_text,
       goto parse_error;
   }
 
-  if (gum_code_writer_offset (&priv->code_writer) == 0)
+  gum_script_generate_call_to_send_item_commit (script, scanner);
+
+  if (gum_code_writer_offset (&priv->code_writer) == start_offset)
   {
     g_scanner_error (scanner, "script without any statements");
     goto parse_error;
   }
 
-  gum_code_writer_put_ret (&priv->code_writer);
+  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ESP, GUM_REG_EBP);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_EBP);
+  gum_code_writer_put_ret (cw);
 
   priv->entrypoint = (GumScriptEntrypoint) priv->code;
 
@@ -216,6 +264,15 @@ parse_error:
 }
 
 void
+gum_script_set_message_handler (GumScript * self,
+                                GumScriptMessageHandler func,
+                                gpointer data)
+{
+  self->priv->message_handler_func = func;
+  self->priv->message_handler_data = data;
+}
+
+void
 gum_script_execute (GumScript * self,
                     GumCpuContext * cpu_context,
                     void * stack_arguments)
@@ -233,6 +290,91 @@ guint
 gum_script_get_code_size (GumScript * self)
 {
   return gum_code_writer_offset (&self->priv->code_writer);
+}
+
+static void
+gum_script_send_item_commit (GumScript * self,
+                             GumCpuContext * cpu_context,
+                             void * stack_arguments,
+                             guint argument_index,
+                             ...)
+{
+  GumScriptPrivate * priv = self->priv;
+  GVariantType * variant_type;
+  GVariantBuilder * builder;
+  va_list args;
+
+  variant_type = g_variant_type_new (priv->send_arg_type_signature->str);
+  builder = g_variant_builder_new (variant_type);
+
+  va_start (args, argument_index);
+
+  while (argument_index != G_MAXUINT)
+  {
+    guint8 * argument_data;
+    GumVariableType var_type;
+    GVariant * value;
+
+    argument_data =
+        (guint8 *) stack_arguments + argument_index * sizeof (gpointer);
+    var_type = va_arg (args, GumVariableType);
+
+    switch (var_type)
+    {
+      case GUM_VARIABLE_INT32:
+        value = g_variant_new_int32 (*((gint32 *) argument_data));
+        break;
+
+      case GUM_VARIABLE_ANSI_STRING:
+      {
+        gchar * str_ansi;
+        guint str_wide_size;
+        WCHAR * str_wide;
+        gchar * str_utf8;
+
+        str_ansi = *((gchar **) argument_data);
+
+        str_wide_size = (strlen (str_ansi) + 1) * sizeof (WCHAR);
+        str_wide = (WCHAR *) g_malloc (str_wide_size);
+        MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_wide, str_wide_size);
+        str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_wide, -1, NULL, NULL, NULL);
+
+        value = g_variant_new_string (str_utf8);
+
+        g_free (str_utf8);
+        g_free (str_wide);
+
+        break;
+      }
+
+      case GUM_VARIABLE_WIDE_STRING:
+      {
+        gchar * str_utf8;
+
+        str_utf8 = g_utf16_to_utf8 (*((gunichar2 **) argument_data), -1,
+            NULL, NULL, NULL);
+        value = g_variant_new_string (str_utf8);
+        g_free (str_utf8);
+
+        break;
+      }
+
+      default:
+        value = NULL;
+        g_assert_not_reached ();
+    }
+
+    g_variant_builder_add_value (builder, value);
+
+    argument_index = va_arg (args, guint);
+  }
+
+  va_end (args);
+
+  priv->message_handler_func (self, g_variant_builder_end (builder),
+      priv->message_handler_data);
+
+  g_variant_type_free (variant_type);
 }
 
 static gboolean
@@ -317,7 +459,6 @@ gum_script_handle_replace_argument (GumScript * self,
         "expected argument index", TRUE);
     goto error;
   }
-
   argument_index = scanner->value.v_int;
 
   if (g_scanner_get_next_token (scanner) != G_TOKEN_IDENTIFIER)
@@ -326,7 +467,6 @@ gum_script_handle_replace_argument (GumScript * self,
         "expected operation name to follow argument index", TRUE);
     goto error;
   }
-
   operation_name = g_strdup (scanner->value.v_string);
 
   if (strcmp (operation_name, "AddressOf") == 0 ||
@@ -356,8 +496,8 @@ gum_script_handle_replace_argument (GumScript * self,
     else
       gum_code_writer_put_mov_eax (cw, (guint32) var->value.string_length);
 
-    gum_code_writer_put_mov_ecx_esp_offset_ptr (cw,
-        GUM_SCRIPT_ESP_OFFSET_TO_STACK_ARGS);
+    gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX, GUM_REG_EBP,
+        GUM_SCRIPT_FRAME_OFFSET_TO_STACK_ARGS);
     gum_code_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_ECX,
         (gint8) (argument_index * sizeof (gpointer)), GUM_REG_EAX);
   }
@@ -373,6 +513,94 @@ gum_script_handle_replace_argument (GumScript * self,
 error:
   g_free (operation_name);
   return FALSE;
+}
+
+static gboolean
+gum_script_handle_send_statement (GumScript * self,
+                                  GScanner * scanner)
+{
+  GumCodeWriter * cw = &self->priv->code_writer;
+  const gchar * statement_type = scanner->value.v_string;
+  GumSendArgItem item;
+  gchar type_char;
+
+  if (strcmp (statement_type, "SendInt32FromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_INT32;
+    type_char = 'i';
+  }
+  else if (strcmp (statement_type, "SendAnsiStringFromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_ANSI_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "SendWideStringFromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_WIDE_STRING;
+    type_char = 's';
+  }
+  else
+  {
+    g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
+    goto error;
+  }
+
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_INT)
+  {
+    g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
+        "expected argument index", TRUE);
+    goto error;
+  }
+  item.index = scanner->value.v_int;
+
+  g_string_append_c (self->priv->send_arg_type_signature, type_char);
+  g_array_append_val (self->priv->send_arg_items, item);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static void
+gum_script_generate_call_to_send_item_commit (GumScript * self,
+                                              GScanner * scanner)
+{
+  GumCodeWriter * cw = &self->priv->code_writer;
+  GArray * items = self->priv->send_arg_items;
+  gint item_index;
+
+  if (items->len == 0)
+    return;
+
+  g_string_insert_c (self->priv->send_arg_type_signature, 0, '(');
+  g_string_append_c (self->priv->send_arg_type_signature, ')');
+
+  gum_code_writer_put_push (cw, G_MAXUINT);
+
+  for (item_index = items->len - 1; item_index >= 0; item_index--)
+  {
+    GumSendArgItem * item = &g_array_index (items, GumSendArgItem, item_index);
+
+    gum_code_writer_put_push (cw, item->type);
+    gum_code_writer_put_push (cw, item->index);
+  }
+
+  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EAX, GUM_REG_EBP,
+      GUM_SCRIPT_FRAME_OFFSET_TO_STACK_ARGS);
+  gum_code_writer_put_push_eax (cw);
+
+  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EAX, GUM_REG_EBP,
+      GUM_SCRIPT_FRAME_OFFSET_TO_CPU_CONTEXT);
+  gum_code_writer_put_push_eax (cw);
+
+  gum_code_writer_put_push (cw, (guint32) self);
+
+  gum_code_writer_put_call (cw, gum_script_send_item_commit);
+
+  /* not really needed, but... */
+  gum_code_writer_put_add_esp_u32 (cw, (3 + (items->len * 2) + 1) *
+      sizeof (gpointer));
 }
 
 static GumVariable *

@@ -42,6 +42,9 @@ typedef struct _GumScript           GumScript;
 typedef struct _GumScriptClass      GumScriptClass;
 typedef struct _GumScriptPrivate    GumScriptPrivate;
 
+typedef void (* GumScriptMessageHandler) (GumScript * script, GVariant * msg,
+    gpointer user_data);
+
 struct _GumScript
 {
   GObject parent;
@@ -58,6 +61,9 @@ GUM_API GType gum_script_get_type (void) G_GNUC_CONST;
 
 GUM_API GumScript * gum_script_from_string (const gchar * script_text,
     GError ** error);
+
+GUM_API void gum_script_set_message_handler (GumScript * self,
+    GumScriptMessageHandler func, gpointer data);
 
 GUM_API void gum_script_execute (GumScript * self,
     GumCpuContext * cpu_context, void * stack_arguments);
