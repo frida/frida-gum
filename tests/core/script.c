@@ -34,9 +34,9 @@ static void
 test_replace_string_and_length_arguments (void)
 {
   const gchar * script_text =
-    "var msg \"No, not me!\"\n"
-    "replace-arg 1 address-of new_text\n"
-    "replace-arg 2 length-of new_text\n";
+    "var new_text = \"No, not me!\"\n"
+    "ReplaceArgument 0 AddressOf new_text\n"
+    "ReplaceArgument 1 LengthOf new_text\n";
   GumScript * script;
   GError * error = NULL;
   GumCpuContext fake_cpu_ctx = { 0, };
