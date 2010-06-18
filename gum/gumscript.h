@@ -63,7 +63,7 @@ GUM_API GumScript * gum_script_from_string (const gchar * script_text,
     GError ** error);
 
 GUM_API void gum_script_set_message_handler (GumScript * self,
-    GumScriptMessageHandler func, gpointer data);
+    GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
 
 GUM_API void gum_script_execute (GumScript * self,
     GumCpuContext * cpu_context, void * stack_arguments);

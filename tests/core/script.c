@@ -106,7 +106,7 @@ test_send_string_from_argument (void)
   args.text_wide = g_utf8_to_utf16 ("ÆØÅæøå", -1, NULL, NULL, NULL);
   args.length = 42;
 
-  gum_script_set_message_handler (script, store_message, &msg);
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
   gum_script_execute (script, &fake_cpu_ctx, &args);
   g_assert (msg != NULL);
   g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(ssi)")));

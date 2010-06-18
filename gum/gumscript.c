@@ -53,6 +53,7 @@ struct _GumScriptPrivate
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
+  GDestroyNotify message_handler_notify;
 };
 
 enum _GumVariableType
@@ -145,6 +146,9 @@ gum_script_finalize (GObject * object)
 {
   GumScript * self = GUM_SCRIPT (object);
   GumScriptPrivate * priv = self->priv;
+
+  if (priv->message_handler_notify != NULL)
+    priv->message_handler_notify (priv->message_handler_data);
 
   g_string_free (priv->send_arg_type_signature, TRUE);
   g_array_free (priv->send_arg_items, TRUE);
@@ -266,10 +270,12 @@ parse_error:
 void
 gum_script_set_message_handler (GumScript * self,
                                 GumScriptMessageHandler func,
-                                gpointer data)
+                                gpointer data,
+                                GDestroyNotify notify)
 {
   self->priv->message_handler_func = func;
   self->priv->message_handler_data = data;
+  self->priv->message_handler_notify = notify;
 }
 
 void
@@ -334,7 +340,7 @@ gum_script_send_item_commit (GumScript * self,
 
         str_ansi = *((gchar **) argument_data);
 
-        str_wide_size = (strlen (str_ansi) + 1) * sizeof (WCHAR);
+        str_wide_size = (guint) (strlen (str_ansi) + 1) * sizeof (WCHAR);
         str_wide = (WCHAR *) g_malloc (str_wide_size);
         MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_wide, str_wide_size);
         str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_wide, -1, NULL, NULL, NULL);
