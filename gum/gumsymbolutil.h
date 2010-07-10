@@ -36,6 +36,8 @@ struct _GumSymbolDetails
 
 G_BEGIN_DECLS
 
+typedef gboolean (* GumFoundModuleFunc) (const gchar * name, gpointer address,
+    const gchar * path, gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
     gpointer user_data);
 
@@ -48,6 +50,8 @@ GUM_API gchar * gum_symbol_name_from_address (gpointer address);
 GUM_API gpointer gum_find_function (const gchar * name);
 GUM_API GArray * gum_find_functions_matching (const gchar * str);
 
+GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
+    gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 

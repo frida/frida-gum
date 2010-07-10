@@ -26,11 +26,13 @@
 #define SYSTEM_MODULE_NAME "libc.so.6"
 #endif
 
-typedef struct _TestModuleExportContext {
+typedef struct _TestForEachContext {
   gboolean value_to_return;
   guint number_of_calls;
-} TestModuleExportContext;
+} TestForEachContext;
 
+static gboolean module_found_cb (const gchar * name, gpointer address,
+    const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 
@@ -40,6 +42,7 @@ static void GUM_STDCALL dummy_function_1 (void);
 #endif
 
 TEST_LIST_BEGIN (symbolutil)
+  TEST_ENTRY_SIMPLE (SymbolUtil, test_process_modules)
   TEST_ENTRY_SIMPLE (SymbolUtil, test_module_exports)
 #ifndef GUM_DISABLE_SYMBOL_UTIL
   TEST_ENTRY_SIMPLE (SymbolUtil, test_symbol_details_from_address)
@@ -51,9 +54,25 @@ TEST_LIST_BEGIN (symbolutil)
 TEST_LIST_END ()
 
 static void
+test_process_modules (void)
+{
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_process_enumerate_modules (module_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_process_enumerate_modules (module_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+static void
 test_module_exports (void)
 {
-  TestModuleExportContext ctx;
+  TestForEachContext ctx;
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -67,11 +86,24 @@ test_module_exports (void)
 }
 
 static gboolean
+module_found_cb (const gchar * name,
+                 gpointer address,
+                 const gchar * path,
+                 gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}
+
+static gboolean
 export_found_cb (const gchar * name,
                  gpointer address,
                  gpointer user_data)
 {
-  TestModuleExportContext * ctx = (TestModuleExportContext *) user_data;
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
 
   ctx->number_of_calls++;
 

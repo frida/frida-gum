@@ -21,6 +21,61 @@
 
 #define VC_EXTRALEAN
 #include <windows.h>
+#include <psapi.h>
+
+void
+gum_process_enumerate_modules (GumFoundModuleFunc func,
+                               gpointer user_data)
+{
+  HANDLE this_process = GetCurrentProcess ();
+  HMODULE first_module;
+  DWORD modules_size = 0;
+  HMODULE * modules = NULL;
+  guint mod_idx;
+
+  if (!EnumProcessModules (this_process, &first_module, sizeof (first_module),
+      &modules_size))
+  {
+    goto beach;
+  }
+
+  modules = (HMODULE *) g_malloc (modules_size);
+
+  if (!EnumProcessModules (this_process, modules, modules_size, &modules_size))
+  {
+    goto beach;
+  }
+
+  for (mod_idx = 0; mod_idx != modules_size / sizeof (HMODULE); mod_idx++)
+  {
+    MODULEINFO mi;
+    WCHAR module_path_utf16[MAX_PATH];
+    gchar * module_path, * module_name;
+    gboolean carry_on;
+
+    if (!GetModuleInformation (this_process, modules[mod_idx], &mi,
+        sizeof (mi)))
+    {
+      continue;
+    }
+
+    GetModuleFileNameW (modules[mod_idx], module_path_utf16, MAX_PATH);
+    module_path_utf16[MAX_PATH - 1] = '\0';
+    module_path = g_utf16_to_utf8 ((const gunichar2 *) module_path_utf16, -1,
+        NULL, NULL, NULL);
+    module_name = strrchr (module_path, '\\') + 1;
+
+    carry_on = func (module_name, mi.lpBaseOfDll, module_path, user_data);
+
+    g_free (module_path);
+
+    if (!carry_on)
+      break;
+  }
+
+beach:
+  g_free (modules);
+}
 
 void
 gum_module_enumerate_exports (const gchar * module_name,
