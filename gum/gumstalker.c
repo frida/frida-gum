@@ -764,7 +764,7 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
   gum_code_writer_put_push_ecx (cw);
   gum_code_writer_put_push (cw, (guint32) ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_resolve_code_address);
-  gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
   gum_code_writer_put_mov_ecx_eax (cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_RET, cw);
@@ -816,7 +816,7 @@ gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
   gum_code_writer_put_push_eax (cw);
   gum_code_writer_put_push (cw, (guint32) ctx->sink);
   gum_code_writer_put_call (cw, ctx->sink_process_impl);
-  gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
 }
 
 static void
@@ -1187,7 +1187,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 #endif
   gum_code_writer_put_push (cw, (guint32) block);
   gum_code_writer_put_call (cw, gum_exec_block_invoke_call_probes_for_target);
-  gum_code_writer_put_add_esp_u32 (cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
 
   gum_code_writer_put_pop_eax (cw); /* discard GumCpuContext.eip */
   gum_code_writer_put_popad (cw);

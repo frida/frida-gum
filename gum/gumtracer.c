@@ -402,7 +402,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_code_writer_put_label (&cw, stack_acq_lbl);
   gum_code_writer_put_mov_ecx_esp_ptr (&cw);
   gum_code_writer_put_mov_eax_ptr_ecx (&cw);
-  gum_code_writer_put_add_eax_i32 (&cw, 4);
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
 
   /* overwrite caller's return address so we can trap the return */
@@ -462,12 +462,12 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
 
   /* then jump back to caller */
   gum_code_writer_put_mov_ecx_fs_ptr (&cw, TIB_OFFSET_STACK);
-  gum_code_writer_put_sub_ecx (&cw, 4);
+  gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_ECX, 4);
   gum_code_writer_put_mov_fs_ptr_ecx (&cw, TIB_OFFSET_STACK);
 
   gum_code_writer_put_pop_eax (&cw);
 
-  gum_code_writer_put_jmp_ecx_ptr (&cw);
+  gum_code_writer_put_jmp_reg_ptr (&cw, GUM_REG_ECX);
 
   g_assert_cmpuint (gum_code_writer_offset (&cw), <=, LEAVE_MAX_SIZE);
   gum_tracer_shrink_code (self, code, gum_code_writer_offset (&cw));
@@ -506,7 +506,7 @@ gum_tracer_write_logging_code (GumTracer * self,
   /* make sure we write behind readpos */
   gum_code_writer_put_label (cw, check_can_write_lbl);
   gum_code_writer_put_mov_ecx_imm_ptr (cw, (gint *) &rb->readpos);
-  gum_code_writer_put_sub_ecx_eax (cw);
+  gum_code_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
   gum_code_writer_put_cmp_ecx (cw,
       -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));
   gum_code_writer_put_jle_label (cw, check_can_write_lbl, GUM_UNLIKELY);
@@ -533,7 +533,7 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       /* adjust to the current block index -- block 0 is used for header */
       for (inc_idx = 0; inc_idx < block_idx + 1; inc_idx++)
-        gum_code_writer_put_inc_eax (cw);
+        gum_code_writer_put_inc_reg (cw, GUM_REG_EAX);
 
       gum_tracer_write_conversion_from_eax_index_to_address (self, cw);
 
@@ -588,10 +588,10 @@ gum_tracer_write_logging_code (GumTracer * self,
   /* fill in depth and modify it */
   gum_code_writer_put_mov_ecx_fs_ptr (cw, TIB_OFFSET_DEPTH);
   if (kind == GUM_TRAMPOLINE_LEAVE)
-    gum_code_writer_put_dec_ecx (cw);
+    gum_code_writer_put_dec_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw, GT_ENTRY_OFFSET (depth));
   if (kind == GUM_TRAMPOLINE_ENTER)
-    gum_code_writer_put_inc_ecx (cw);
+    gum_code_writer_put_inc_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_mov_fs_ptr_ecx (cw, TIB_OFFSET_DEPTH);
 
   /* fill in timestamp */
@@ -622,7 +622,8 @@ gum_tracer_write_conversion_from_eax_index_to_address (GumTracer * self,
   gum_code_writer_put_shl_eax (cw, GUM_TRACE_ENTRY_SIZE_IN_POT);
 
   /* add base address */
-  gum_code_writer_put_add_eax_u32 (cw, (guint32) self->priv->ringbuf->entries);
+  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_EAX,
+      (gint32) self->priv->ringbuf->entries);
 }
 
 static gpointer

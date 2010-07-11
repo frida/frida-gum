@@ -182,10 +182,11 @@ gum_code_writer_put_call (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_call_eax (GumCodeWriter * self)
+gum_code_writer_put_call_reg (GumCodeWriter * self,
+                              GumCpuReg reg)
 {
   self->code[0] = 0xff;
-  self->code[1] = 0xd0;
+  self->code[1] = 0xd0 | reg;
   self->code += 2;
 }
 
@@ -205,6 +206,13 @@ gum_code_writer_put_call_near_label (GumCodeWriter * self,
 {
   gum_code_writer_put_call (self, self->code);
   gum_code_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
+}
+
+void
+gum_code_writer_put_ret (GumCodeWriter * self)
+{
+  self->code[0] = 0xc3;
+  self->code++;
 }
 
 void
@@ -267,10 +275,11 @@ gum_code_writer_put_jcc_near (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_jmp_ecx_ptr (GumCodeWriter * self)
+gum_code_writer_put_jmp_reg_ptr (GumCodeWriter * self,
+                                 GumCpuReg reg)
 {
   self->code[0] = 0xff;
-  self->code[1] = 0x21;
+  self->code[1] = 0x20 | reg;
   self->code += 2;
 }
 
@@ -327,31 +336,101 @@ gum_code_writer_put_jle_label (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_add_eax_i32 (GumCodeWriter * self,
+gum_code_writer_put_add_reg_i8 (GumCodeWriter * self,
+                                GumCpuReg reg,
+                                gint8 imm_value)
+{
+  self->code[0] = 0x83;
+  self->code[1] = 0xc0 | reg;
+  *((gint8 *) (self->code + 2)) = imm_value;
+  self->code += 3;
+}
+
+void
+gum_code_writer_put_add_reg_i32 (GumCodeWriter * self,
+                                 GumCpuReg reg,
                                  gint32 imm_value)
 {
-  self->code[0] = 0x05;
-  *((gint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
+  if (reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0x05;
+    *((gint32 *) (self->code + 1)) = imm_value;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x81;
+    self->code[1] = 0xc0 | reg;
+    *((gint32 *) (self->code + 2)) = imm_value;
+    self->code += 6;
+  }
 }
 
 void
-gum_code_writer_put_add_eax_u32 (GumCodeWriter * self,
-                                 guint32 imm_value)
+gum_code_writer_put_add_reg_reg (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 GumCpuReg src_reg)
 {
-  self->code[0] = 0x05;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
+  self->code[0] = 0x01;
+  self->code[1] = 0xc0 | (src_reg << 3) | dst_reg;
+  self->code += 2;
 }
 
 void
-gum_code_writer_put_add_esp_u32 (GumCodeWriter * self,
-                                 guint32 imm_value)
+gum_code_writer_put_sub_reg_i8 (GumCodeWriter * self,
+                                GumCpuReg reg,
+                                gint8 imm_value)
 {
-  self->code[0] = 0x81;
-  self->code[1] = 0xc4;
-  *((guint32 *) (self->code + 2)) = imm_value;
-  self->code += 6;
+  self->code[0] = 0x83;
+  self->code[1] = 0xe8 | reg;
+  *((gint8 *) (self->code + 2)) = imm_value;
+  self->code += 3;
+}
+
+void
+gum_code_writer_put_sub_reg_i32 (GumCodeWriter * self,
+                                 GumCpuReg reg,
+                                 gint32 imm_value)
+{
+  if (reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0x2d;
+    *((gint32 *) (self->code + 1)) = imm_value;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x81;
+    self->code[1] = 0xe8 | reg;
+    *((gint32 *) (self->code + 2)) = imm_value;
+    self->code += 6;
+  }
+}
+
+void
+gum_code_writer_put_sub_reg_reg (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 GumCpuReg src_reg)
+{
+  self->code[0] = 0x29;
+  self->code[1] = 0xc0 | (src_reg << 3) | dst_reg;
+  self->code += 2;
+}
+
+void
+gum_code_writer_put_inc_reg (GumCodeWriter * self,
+                             GumCpuReg reg)
+{
+  self->code[0] = 0x40 | reg;
+  self->code++;
+}
+
+void
+gum_code_writer_put_dec_reg (GumCodeWriter * self,
+                             GumCpuReg reg)
+{
+  self->code[0] = 0x48 | reg;
+  self->code++;
 }
 
 void
@@ -371,56 +450,6 @@ gum_code_writer_put_shl_eax (GumCodeWriter * self,
   self->code[1] = 0xe0;
   self->code[2] = imm_value;
   self->code += 3;
-}
-
-void
-gum_code_writer_put_sub_ecx (GumCodeWriter * self,
-                             gint32 imm_value)
-{
-  self->code[0] = 0x81;
-  self->code[1] = 0xe9;
-  *((gint32 *) (self->code + 2)) = imm_value;
-  self->code += 6;
-}
-
-void
-gum_code_writer_put_sub_ecx_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x29;
-  self->code[1] = 0xc1;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_sub_reg_i8 (GumCodeWriter * self,
-                                GumCpuReg reg,
-                                gint8 imm_value)
-{
-  self->code[0] = 0x83;
-  self->code[1] = 0xe8 | reg;
-  *((gint8 *) (self->code + 2)) = imm_value;
-  self->code += 3;
-}
-
-void
-gum_code_writer_put_inc_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x40;
-  self->code++;
-}
-
-void
-gum_code_writer_put_inc_ecx (GumCodeWriter * self)
-{
-  self->code[0] = 0x41;
-  self->code++;
-}
-
-void
-gum_code_writer_put_dec_ecx (GumCodeWriter * self)
-{
-  self->code[0] = 0x49;
-  self->code++;
 }
 
 void
@@ -884,13 +913,6 @@ void
 gum_code_writer_put_popfd (GumCodeWriter * self)
 {
   self->code[0] = 0x9d;
-  self->code++;
-}
-
-void
-gum_code_writer_put_ret (GumCodeWriter * self)
-{
-  self->code[0] = 0xc3;
   self->code++;
 }
 

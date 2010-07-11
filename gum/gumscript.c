@@ -605,8 +605,8 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
   gum_code_writer_put_call (cw, gum_script_send_item_commit);
 
   /* not really needed, but... */
-  gum_code_writer_put_add_esp_u32 (cw, (3 + (items->len * 2) + 1) *
-      sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP,
+      (3 + (items->len * 2) + 1) * sizeof (gpointer));
 }
 
 static GumVariable *

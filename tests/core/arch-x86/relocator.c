@@ -223,7 +223,7 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
   gum_relocator_write_one (&fixture->rl);
   gum_relocator_write_one (&fixture->rl);
   gum_relocator_write_one (&fixture->rl);
-  gum_code_writer_put_inc_eax (&fixture->cw);
+  gum_code_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
   gum_relocator_write_one (&fixture->rl);
 
   gum_code_writer_flush (&fixture->cw);
@@ -312,7 +312,8 @@ RELOCATOR_TESTCASE (skip_instruction)
   gum_relocator_write_one (&fixture->rl);
   gum_relocator_write_one (&fixture->rl);
   gum_relocator_skip_one (&fixture->rl); /* skip retn */
-  gum_code_writer_put_inc_eax (&fixture->cw); /* put "inc eax" there instead */
+  gum_code_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX); /* put "inc eax"
+                                                            * there instead */
 
   gum_code_writer_flush (&fixture->cw);
 

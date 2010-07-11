@@ -410,7 +410,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, sizeof (GumStalker *));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, sizeof (GumStalker *));
 
   gum_code_writer_put_ret (&cw);
 
@@ -418,7 +418,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   gum_code_writer_put_push (&cw, (guint32) fixture->sink);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_free (&cw);
@@ -483,7 +483,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_code_writer_put_push (&cw, (guint32) fixture->sink);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
 
   gum_code_writer_put_call_near_label (&cw, func_a_lbl);
   gum_code_writer_put_ret (&cw);
@@ -499,7 +499,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_code_writer_put_label (&cw, func_c_lbl);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, sizeof (GumStalker *));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, sizeof (GumStalker *));
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_free (&cw);
@@ -914,7 +914,7 @@ STALKER_TESTCASE (no_clobber)
   gum_code_writer_put_push (&cw, (guint32) fixture->sink);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
   gum_code_writer_put_popad (&cw);
 
   gum_code_writer_put_mov_eax (&cw, 0xcafebabe);
@@ -930,7 +930,7 @@ STALKER_TESTCASE (no_clobber)
   gum_code_writer_put_pushad (&cw);
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, 1 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
   gum_code_writer_put_popad (&cw);
 
   gum_code_writer_put_push_ecx (&cw);

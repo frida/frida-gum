@@ -135,7 +135,8 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_esp_u32 (&cw, 4 * sizeof (GumStalker *));
+  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP,
+      4 * sizeof (GumStalker *));
 
   gum_code_writer_put_popad (&cw);
 
