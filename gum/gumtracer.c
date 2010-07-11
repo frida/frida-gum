@@ -42,7 +42,7 @@
 #define TIB_OFFSET_STACK                (0x700 + 12)
 #define TIB_OFFSET_DEPTH                (0x700 + 16)
 
-#define GT_ENTRY_OFFSET(M)              (G_STRUCT_OFFSET (GumTraceEntry, header.M))
+#define GT_ENTRY_OFFSET(M)              (G_STRUCT_OFFSET (GumTraceEntry, entry.header.M))
 
 #define GUM_CODE_ALIGNMENT              (16)
 #define GUM_ALIGN(N, A)                 (((N) + ((A) - 1)) & ~((A) - 1))
@@ -508,7 +508,7 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_code_writer_put_mov_ecx_imm_ptr (cw, (gint *) &rb->readpos);
   gum_code_writer_put_sub_ecx_eax (cw);
   gum_code_writer_put_cmp_ecx (cw,
-      -(GUM_TRACER_BUFFER_SIZE - num_data_blocks));
+      -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));
   gum_code_writer_put_jle_label (cw, check_can_write_lbl, GUM_UNLIKELY);
 
   if (num_data_blocks > 0)
@@ -683,7 +683,7 @@ gum_tracer_alloc_code (GumTracer * self,
   GumTracerPrivate * priv = GUM_TRACER_GET_PRIVATE (self);
   gpointer result = NULL;
   gint i;
-  GumCodePage * cp;
+  GumCodePage * cp = NULL;
 
   size = GUM_ALIGN (size, GUM_CODE_ALIGNMENT);
 

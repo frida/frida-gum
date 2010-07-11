@@ -96,6 +96,12 @@
     <ClCompile Include="gum\backend-x86\gumspinlock-amd64-msc.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscript.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumtracer.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -171,6 +177,12 @@
       <Filter>core\backend-windows</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumspinlock.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumtracer.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscript.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

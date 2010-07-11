@@ -38,14 +38,14 @@
 #define GUM_TRACER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
     (obj), GUM_TYPE_TRACER, GumTracerClass))
 
-#define GUM_TRACE_ENTRY_TYPE(e)         ((e)->header.type)
-#define GUM_TRACE_ENTRY_NAME_ID(e)      ((e)->header.name_id)
-#define GUM_TRACE_ENTRY_THREAD_ID(e)    ((e)->header.thread_id)
-#define GUM_TRACE_ENTRY_DEPTH(e)        ((e)->header.depth)
-#define GUM_TRACE_ENTRY_TIMESTAMP(e)    ((e)->header.timestamp)
-#define GUM_TRACE_ENTRY_ARGLIST_SIZE(e) ((e)->header.arglist_size)
+#define GUM_TRACE_ENTRY_TYPE(e)         ((e)->entry.header.type)
+#define GUM_TRACE_ENTRY_NAME_ID(e)      ((e)->entry.header.name_id)
+#define GUM_TRACE_ENTRY_THREAD_ID(e)    ((e)->entry.header.thread_id)
+#define GUM_TRACE_ENTRY_DEPTH(e)        ((e)->entry.header.depth)
+#define GUM_TRACE_ENTRY_TIMESTAMP(e)    ((e)->entry.header.timestamp)
+#define GUM_TRACE_ENTRY_ARGLIST_SIZE(e) ((e)->entry.header.arglist_size)
 
-#define GUM_TRACE_ENTRY_DATA(e)         ((e)->data.buf)
+#define GUM_TRACE_ENTRY_DATA(e)         ((e)->entry.data.buf)
 
 G_BEGIN_DECLS
 
@@ -86,7 +86,7 @@ struct _GumTraceEntry
     {
       gchar buf[32];
     } data;
-  } data;
+  } entry;
 };
 
 enum _GumEntryType

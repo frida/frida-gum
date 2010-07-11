@@ -102,6 +102,9 @@
     <ClCompile Include="gum\gumscript.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumtracer.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -180,6 +183,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscript.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumtracer.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
