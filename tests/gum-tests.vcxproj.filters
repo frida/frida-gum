@@ -72,6 +72,9 @@
     <ClCompile Include="core\script.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\tracer.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

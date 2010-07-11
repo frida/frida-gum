@@ -75,7 +75,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (peek_next_write);
   RELOCATOR_TESTENTRY (skip_instruction);
   RELOCATOR_TESTENTRY (eob_and_eoi_on_jmp)
-  RELOCATOR_TESTENTRY (eob_and_eoi_on_call)
+  RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
 TEST_LIST_END ()
@@ -337,18 +337,17 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
   g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
-RELOCATOR_TESTCASE (eob_and_eoi_on_call)
+RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
 {
   const guint8 input[] = {
-    0xe8, 0x42, 0x00, 0x00, 0x00  /* jmp +0x42 */
+    0xe8, 0x42, 0x00, 0x00, 0x00  /* call +0x42 */
   };
 
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 5);
   g_assert (gum_relocator_eob (&fixture->rl));
-  g_assert (gum_relocator_eoi (&fixture->rl));
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
+  g_assert (!gum_relocator_eoi (&fixture->rl));
 }
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_ret)

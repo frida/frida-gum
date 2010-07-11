@@ -117,11 +117,15 @@ gum_relocator_read_one (GumRelocator * self,
       break;
 
     case UD_Ijmp:
-    case UD_Icall:
     case UD_Iret:
     case UD_Iretf:
       self->eob = TRUE;
       self->eoi = TRUE;
+      break;
+
+    case UD_Icall:
+      self->eob = TRUE;
+      self->eoi = FALSE;
       break;
 
     default:

@@ -155,6 +155,7 @@
     </ClCompile>
     <ClCompile Include="core\stalker.c" />
     <ClCompile Include="core\symbolutil.c" />
+    <ClCompile Include="core\tracer.c" />
     <ClCompile Include="gumtest.c" />
     <ClCompile Include="stubs\fakeeventsink.c" />
     <ClCompile Include="testutil.c" />
