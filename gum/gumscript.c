@@ -498,9 +498,15 @@ gum_script_handle_replace_argument (GumScript * self,
     g_assert (var->type == GUM_VARIABLE_WIDE_STRING);
 
     if (operation_name[0] == 'A')
-      gum_code_writer_put_mov_eax (cw, (guint32) var->value.wide_string);
+    {
+      gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX,
+          (guint32) var->value.wide_string);
+    }
     else
-      gum_code_writer_put_mov_eax (cw, (guint32) var->value.string_length);
+    {
+      gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX,
+          (guint32) var->value.string_length);
+    }
 
     gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX, GUM_REG_EBP,
         GUM_SCRIPT_FRAME_OFFSET_TO_STACK_ARGS);
@@ -582,25 +588,25 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
   g_string_insert_c (self->priv->send_arg_type_signature, 0, '(');
   g_string_append_c (self->priv->send_arg_type_signature, ')');
 
-  gum_code_writer_put_push (cw, G_MAXUINT);
+  gum_code_writer_put_push_u32 (cw, G_MAXUINT);
 
   for (item_index = items->len - 1; item_index >= 0; item_index--)
   {
     GumSendArgItem * item = &g_array_index (items, GumSendArgItem, item_index);
 
-    gum_code_writer_put_push (cw, item->type);
-    gum_code_writer_put_push (cw, item->index);
+    gum_code_writer_put_push_u32 (cw, item->type);
+    gum_code_writer_put_push_u32 (cw, item->index);
   }
 
   gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EAX, GUM_REG_EBP,
       GUM_SCRIPT_FRAME_OFFSET_TO_STACK_ARGS);
-  gum_code_writer_put_push_eax (cw);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
 
   gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EAX, GUM_REG_EBP,
       GUM_SCRIPT_FRAME_OFFSET_TO_CPU_CONTEXT);
-  gum_code_writer_put_push_eax (cw);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
 
-  gum_code_writer_put_push (cw, (guint32) self);
+  gum_code_writer_put_push_u32 (cw, (guint32) self);
 
   gum_code_writer_put_call (cw, gum_script_send_item_commit);
 

@@ -561,10 +561,10 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_put_ret (&cw);
 
   ctx->replace_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_push_eax (&cw); /* placeholder */
+  gum_code_writer_put_push_reg (&cw, GUM_REG_EAX); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (ctx, &cw);
   gum_code_writer_put_push_imm_ptr (&cw, &ctx->replacement_address);
-  gum_code_writer_put_push (&cw, (guint32) ctx);
+  gum_code_writer_put_push_u32 (&cw, (guint32) ctx);
   gum_code_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
   gum_code_writer_put_mov_esp_offset_ptr_eax (&cw, CDECL_PRESERVE_SIZE);
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
@@ -740,7 +740,7 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
       G_STRUCT_OFFSET (GumCallEvent, location), (guint32) location);
 
   gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE, cw);
-  gum_code_writer_put_pop_ecx (cw);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       G_STRUCT_OFFSET (GumCallEvent, target));
 
@@ -761,11 +761,11 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
   gum_exec_ctx_write_cdecl_preserve_prolog (ctx, cw);
 
   gum_code_writer_put_mov_ecx_esp_offset_ptr (cw, CDECL_PRESERVE_SIZE);
-  gum_code_writer_put_push_ecx (cw);
-  gum_code_writer_put_push (cw, (guint32) ctx);
+  gum_code_writer_put_push_reg (cw, GUM_REG_ECX);
+  gum_code_writer_put_push_u32 (cw, (guint32) ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_resolve_code_address);
   gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
-  gum_code_writer_put_mov_ecx_eax (cw);
+  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_RET, cw);
   gum_code_writer_put_mov_eax_offset_ptr (cw,
@@ -804,7 +804,7 @@ gum_exec_ctx_write_event_init_code (GumExecCtx * ctx,
                                     GumEventType type,
                                     GumCodeWriter * cw)
 {
-  gum_code_writer_put_mov_eax (cw, (guint32) &ctx->tmp_event);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, (guint32) &ctx->tmp_event);
   gum_code_writer_put_mov_eax_offset_ptr (cw,
       G_STRUCT_OFFSET (GumAnyEvent, type), type);
 }
@@ -813,8 +813,8 @@ static void
 gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
                                       GumCodeWriter * cw)
 {
-  gum_code_writer_put_push_eax (cw);
-  gum_code_writer_put_push (cw, (guint32) ctx->sink);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
+  gum_code_writer_put_push_u32 (cw, (guint32) ctx->sink);
   gum_code_writer_put_call (cw, ctx->sink_process_impl);
   gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
 }
@@ -824,18 +824,18 @@ gum_exec_ctx_write_cdecl_preserve_prolog (GumExecCtx * ctx,
                                           GumCodeWriter * cw)
 {
   gum_code_writer_put_pushfd (cw);
-  gum_code_writer_put_push_eax (cw);
-  gum_code_writer_put_push_ecx (cw);
-  gum_code_writer_put_push_edx (cw);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
+  gum_code_writer_put_push_reg (cw, GUM_REG_ECX);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EDX);
 }
 
 static void
 gum_exec_ctx_write_cdecl_preserve_epilog (GumExecCtx * ctx,
                                           GumCodeWriter * cw)
 {
-  gum_code_writer_put_pop_edx (cw);
-  gum_code_writer_put_pop_ecx (cw);
-  gum_code_writer_put_pop_eax (cw);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_EDX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_ECX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_EAX);
   gum_code_writer_put_popfd (cw);
 }
 
@@ -1067,16 +1067,16 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        GumCodeWriter * cw)
 {
   /* untouched return-address */
-  gum_code_writer_put_push (cw, GPOINTER_TO_SIZE (insn->end));
+  gum_code_writer_put_push_u32 (cw, GPOINTER_TO_SIZE (insn->end));
 
-  gum_code_writer_put_push_eax (cw); /* placeholder */
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
   gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE + 8,
       cw);
-  gum_code_writer_put_push (cw, (guint32) block->ctx);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx);
 
-  gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx->jmp_block_thunk);
   gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
@@ -1085,14 +1085,14 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         const GumBranchTarget * target,
                                         GumCodeWriter * cw)
 {
-  gum_code_writer_put_push_eax (cw); /* placeholder */
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX); /* placeholder */
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
   gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE + 4,
       cw);
-  gum_code_writer_put_push (cw, (guint32) block->ctx);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx);
 
-  gum_code_writer_put_push (cw, (guint32) block->ctx->jmp_block_thunk);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx->jmp_block_thunk);
   gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
@@ -1101,15 +1101,15 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
                                         gpointer orig_ret_insn,
                                         GumCodeWriter * cw)
 {
-  gum_code_writer_put_push (cw, (guint32) orig_ret_insn);
+  gum_code_writer_put_push_u32 (cw, (guint32) orig_ret_insn);
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
   gum_code_writer_put_mov_ecx_esp_offset_ptr (cw,
       CDECL_PRESERVE_SIZE + sizeof (gpointer));
-  gum_code_writer_put_push_ecx (cw);
-  gum_code_writer_put_push (cw, (guint32) block->ctx);
+  gum_code_writer_put_push_reg (cw, GUM_REG_ECX);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx);
 
-  gum_code_writer_put_push (cw, (guint32) block->ctx->ret_block_thunk);
+  gum_code_writer_put_push_u32 (cw, (guint32) block->ctx->ret_block_thunk);
   gum_code_writer_put_jmp (cw, gum_exec_ctx_replace_current_block_with);
 }
 
@@ -1177,7 +1177,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   accumulated_stack_delta += 4;
 
   gum_code_writer_put_pushad (cw); /* GumCpuContext.edi to GumCpuContext.eax */
-  gum_code_writer_put_push (cw,
+  gum_code_writer_put_push_u32 (cw,
       (guint32) gc->instruction->begin); /* GumCpuContext.eip */
   accumulated_stack_delta += sizeof (GumCpuContext);
 
@@ -1185,11 +1185,12 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   gum_write_push_branch_target_address (target,
       G_STRUCT_OFFSET (GumCpuContext, edx), accumulated_stack_delta, cw);
 #endif
-  gum_code_writer_put_push (cw, (guint32) block);
+  gum_code_writer_put_push_u32 (cw, (guint32) block);
   gum_code_writer_put_call (cw, gum_exec_block_invoke_call_probes_for_target);
   gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
 
-  gum_code_writer_put_pop_eax (cw); /* discard GumCpuContext.eip */
+  gum_code_writer_put_pop_reg (cw, GUM_REG_EAX); /* discard
+                                                    GumCpuContext.eip */
   gum_code_writer_put_popad (cw);
   gum_code_writer_put_popfd (cw);
 }
@@ -1238,13 +1239,13 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   {
     if (target->base == UD_NONE)
     {
-      gum_code_writer_put_push (cw, (guint32) target->absolute_address);
+      gum_code_writer_put_push_u32 (cw, (guint32) target->absolute_address);
     }
     else
     {
       guint8 xchg_eax_esp_template[] = { 0x87, 0x04, 0x24 };
 
-      gum_code_writer_put_push_eax (cw);
+      gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
       gum_load_real_register_into (UD_R_EAX, target->base,
           cdecl_preserve_stack_offset + 4, accumulated_stack_delta + 4, cw);
       gum_code_writer_put_bytes (cw, xchg_eax_esp_template,
@@ -1265,10 +1266,10 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
   }
   else
   {
-    gum_code_writer_put_push_eax (cw); /* placeholder */
+    gum_code_writer_put_push_reg (cw, GUM_REG_EAX); /* placeholder */
 
-    gum_code_writer_put_push_eax (cw);
-    gum_code_writer_put_push_edx (cw);
+    gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
+    gum_code_writer_put_push_reg (cw, GUM_REG_EDX);
 
     gum_load_real_register_into (UD_R_EAX, target->base,
         cdecl_preserve_stack_offset + 12, accumulated_stack_delta + 12, cw);
@@ -1299,8 +1300,8 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
 
     gum_code_writer_put_mov_esp_offset_ptr_eax (cw, 8);
 
-    gum_code_writer_put_pop_edx (cw);
-    gum_code_writer_put_pop_eax (cw);
+    gum_code_writer_put_pop_reg (cw, GUM_REG_EDX);
+    gum_code_writer_put_pop_reg (cw, GUM_REG_EAX);
   }
 }
 

@@ -434,39 +434,34 @@ gum_code_writer_put_dec_reg (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_and_eax (GumCodeWriter * self,
-                             guint32 imm_value)
+gum_code_writer_put_and_reg_u32 (GumCodeWriter * self,
+                                 GumCpuReg reg,
+                                 guint32 imm_value)
 {
-  self->code[0] = 0x25;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
+  if (reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0x25;
+    *((guint32 *) (self->code + 1)) = imm_value;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x81;
+    self->code[1] = 0xe0 | reg;
+    *((guint32 *) (self->code + 2)) = imm_value;
+    self->code += 6;
+  }
 }
 
 void
-gum_code_writer_put_shl_eax (GumCodeWriter * self,
-                             guint8 imm_value)
+gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self,
+                                GumCpuReg reg,
+                                guint8 imm_value)
 {
   self->code[0] = 0xc1;
-  self->code[1] = 0xe0;
+  self->code[1] = 0xe0 | reg;
   self->code[2] = imm_value;
   self->code += 3;
-}
-
-void
-gum_code_writer_put_mov_eax (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xb8;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
-gum_code_writer_put_mov_eax_edx (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0xd0;
-  self->code += 2;
 }
 
 void
@@ -518,33 +513,6 @@ gum_code_writer_put_mov_eax_offset_ptr_ecx (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_mov_ebp (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xbd;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
-gum_code_writer_put_mov_ebx (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xbb;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
-gum_code_writer_put_mov_ecx (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xb9;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
 gum_code_writer_put_mov_ecx_imm_ptr (GumCodeWriter * self,
                                      gconstpointer imm_ptr)
 {
@@ -552,22 +520,6 @@ gum_code_writer_put_mov_ecx_imm_ptr (GumCodeWriter * self,
   self->code[1] = 0x0d;
   *((gconstpointer *) (self->code + 2)) = imm_ptr;
   self->code += 6;
-}
-
-void
-gum_code_writer_put_mov_ecx_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0xc1;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_ecx_esp (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0xe1;
-  self->code += 2;
 }
 
 void
@@ -620,41 +572,6 @@ gum_code_writer_put_mov_ecx_fs_ptr (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_mov_edi (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xbf;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
-gum_code_writer_put_mov_edx (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xba;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
-gum_code_writer_put_mov_edx_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0xc2;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_esi (GumCodeWriter * self,
-                             guint32 imm_value)
-{
-  self->code[0] = 0xbe;
-  *((guint32 *) (self->code + 1)) = imm_value;
-  self->code += 5;
-}
-
-void
 gum_code_writer_put_mov_esp_ptr (GumCodeWriter * self,
                                  guint32 imm_value)
 {
@@ -681,7 +598,7 @@ gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self,
                                  GumCpuReg dst_reg,
                                  guint32 imm_value)
 {
-  self->code[0] = 0xb8 + dst_reg;
+  self->code[0] = 0xb8 | dst_reg;
   *((guint32 *) (self->code + 1)) = imm_value;
   self->code += 5;
 }
@@ -812,54 +729,12 @@ gum_code_writer_put_movdqu_eax_offset_ptr_xmm0 (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_push (GumCodeWriter * self,
-                          guint32 imm_value)
+gum_code_writer_put_push_u32 (GumCodeWriter * self,
+                              guint32 imm_value)
 {
   self->code[0] = 0x68;
   *((guint32 *) (self->code + 1)) = imm_value;
   self->code += 5;
-}
-
-void
-gum_code_writer_put_push_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x50;
-  self->code++;
-}
-
-void
-gum_code_writer_put_push_ecx (GumCodeWriter * self)
-{
-  self->code[0] = 0x51;
-  self->code++;
-}
-
-void
-gum_code_writer_put_push_edx (GumCodeWriter * self)
-{
-  self->code[0] = 0x52;
-  self->code++;
-}
-
-void
-gum_code_writer_put_pop_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x58;
-  self->code++;
-}
-
-void
-gum_code_writer_put_pop_ecx (GumCodeWriter * self)
-{
-  self->code[0] = 0x59;
-  self->code++;
-}
-
-void
-gum_code_writer_put_pop_edx (GumCodeWriter * self)
-{
-  self->code[0] = 0x5a;
-  self->code++;
 }
 
 void

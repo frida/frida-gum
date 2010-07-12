@@ -428,8 +428,9 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
 
   /* setup_stack: allocate a new stack */
   gum_code_writer_put_label (&cw, setup_stack_lbl);
-  gum_code_writer_put_mov_ecx (&cw, (guint32) &priv->next_stack);
-  gum_code_writer_put_mov_eax (&cw, 4);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX,
+      (guint32) &priv->next_stack);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_lock_xadd_ecx_eax (&cw);
   gum_code_writer_put_mov_eax_eax_ptr (&cw);
   gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
@@ -454,7 +455,7 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
   code = gum_tracer_alloc_code (self, LEAVE_MAX_SIZE);
   gum_code_writer_init (&cw, code);
 
-  gum_code_writer_put_push_eax (&cw);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_EAX);
   /* FIXME: we should also store edx for 64 bit return type */
 
   /* log */
@@ -465,7 +466,7 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
   gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_ECX, 4);
   gum_code_writer_put_mov_fs_ptr_ecx (&cw, TIB_OFFSET_STACK);
 
-  gum_code_writer_put_pop_eax (&cw);
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_EAX);
 
   gum_code_writer_put_jmp_reg_ptr (&cw, GUM_REG_ECX);
 
@@ -499,8 +500,8 @@ gum_tracer_write_logging_code (GumTracer * self,
   num_data_blocks = GUM_TRACER_SIZE_TO_BLOCKS (arglist_size);
 
   /* atomically increment writepos */
-  gum_code_writer_put_mov_ecx (cw, (guint32) &rb->writepos);
-  gum_code_writer_put_mov_eax (cw, 1 + num_data_blocks);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX, (guint32) &rb->writepos);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, 1 + num_data_blocks);
   gum_code_writer_put_lock_xadd_ecx_eax (cw);
 
   /* make sure we write behind readpos */
@@ -517,7 +518,7 @@ gum_tracer_write_logging_code (GumTracer * self,
     gint8 sp_offset = 4;
 
     /* save starting index for later */
-    gum_code_writer_put_mov_edx_eax (cw);
+    gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EDX, GUM_REG_EAX);
 
     total_remainder = arglist_size;
 
@@ -529,7 +530,7 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       /* restore starting index */
       if (block_idx > 0)
-        gum_code_writer_put_mov_eax_edx (cw);
+        gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
 
       /* adjust to the current block index -- block 0 is used for header */
       for (inc_idx = 0; inc_idx < block_idx + 1; inc_idx++)
@@ -571,7 +572,7 @@ gum_tracer_write_logging_code (GumTracer * self,
     }
 
     /* restore starting index */
-    gum_code_writer_put_mov_eax_edx (cw);
+    gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
   }
 
   gum_tracer_write_conversion_from_eax_index_to_address (self, cw);
@@ -595,10 +596,10 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_code_writer_put_mov_fs_ptr_ecx (cw, TIB_OFFSET_DEPTH);
 
   /* fill in timestamp */
-  gum_code_writer_put_push_eax (cw);
+  gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
   gum_code_writer_put_call (cw, priv->get_time_impl);
-  gum_code_writer_put_mov_ecx_eax (cw);
-  gum_code_writer_put_pop_eax (cw);
+  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_EAX);
   gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
       GT_ENTRY_OFFSET (timestamp));
 
@@ -616,10 +617,12 @@ gum_tracer_write_conversion_from_eax_index_to_address (GumTracer * self,
                                                        GumCodeWriter * cw)
 {
   /* eax % GUM_TRACER_BUFFER_SIZE, avoiding idiv to save a few cycles */
-  gum_code_writer_put_and_eax (cw, GUM_TRACER_BUFFER_SIZE - 1);
+  gum_code_writer_put_and_reg_u32 (cw, GUM_REG_EAX,
+      GUM_TRACER_BUFFER_SIZE - 1);
 
   /* multiply by sizeof (GumTraceEntry) */
-  gum_code_writer_put_shl_eax (cw, GUM_TRACE_ENTRY_SIZE_IN_POT);
+  gum_code_writer_put_shl_reg_u8 (cw, GUM_REG_EAX,
+      GUM_TRACE_ENTRY_SIZE_IN_POT);
 
   /* add base address */
   gum_code_writer_put_add_reg_i32 (cw, GUM_REG_EAX,

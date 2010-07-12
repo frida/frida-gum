@@ -96,30 +96,20 @@ void gum_code_writer_put_sub_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, G
 void gum_code_writer_put_inc_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_dec_reg (GumCodeWriter * self, GumCpuReg reg);
 
-void gum_code_writer_put_and_eax (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_shl_eax (GumCodeWriter * self, guint8 imm_value);
-void gum_code_writer_put_mov_eax (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_mov_eax_edx (GumCodeWriter * self);
+void gum_code_writer_put_and_reg_u32 (GumCodeWriter * self, GumCpuReg reg, guint32 imm_value);
+void gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self, GumCpuReg reg, guint8 imm_value);
+
 void gum_code_writer_put_mov_eax_eax_ptr (GumCodeWriter * self);
 void gum_code_writer_put_mov_eax_ptr (GumCodeWriter * self, guint32 imm_value);
 void gum_code_writer_put_mov_eax_ptr_ecx (GumCodeWriter * self);
 void gum_code_writer_put_mov_eax_offset_ptr (GumCodeWriter * self, guint8 offset, guint32 value);
 void gum_code_writer_put_mov_eax_offset_ptr_ecx (GumCodeWriter * self, guint8 offset);
-void gum_code_writer_put_mov_ebp (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_mov_ebx (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_mov_ecx (GumCodeWriter * self, guint32 imm_value);
 void gum_code_writer_put_mov_ecx_imm_ptr (GumCodeWriter * self, gconstpointer imm_ptr);
-void gum_code_writer_put_mov_ecx_eax (GumCodeWriter * self);
-void gum_code_writer_put_mov_ecx_esp (GumCodeWriter * self);
 void gum_code_writer_put_mov_ecx_ptr_eax (GumCodeWriter * self);
 void gum_code_writer_put_mov_ecx_esp_ptr (GumCodeWriter * self);
 void gum_code_writer_put_mov_ecx_esp_offset_ptr (GumCodeWriter * self, gint8 offset);
 void gum_code_writer_put_mov_eax_fs_ptr (GumCodeWriter * self, guint32 fs_offset);
 void gum_code_writer_put_mov_ecx_fs_ptr (GumCodeWriter * self, guint32 fs_offset);
-void gum_code_writer_put_mov_edi (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_mov_edx (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_mov_edx_eax (GumCodeWriter * self);
-void gum_code_writer_put_mov_esi (GumCodeWriter * self, guint32 imm_value);
 void gum_code_writer_put_mov_esp_ptr (GumCodeWriter * self, guint32 imm_value);
 void gum_code_writer_put_mov_esp_offset_ptr_eax (GumCodeWriter * self, guint8 offset);
 void gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self, GumCpuReg dst_reg, guint32 imm_value);
@@ -133,13 +123,7 @@ void gum_code_writer_put_movq_xmm0_esp_offset_ptr (GumCodeWriter * self, gint8 o
 void gum_code_writer_put_movq_eax_offset_ptr_xmm0 (GumCodeWriter * self, gint8 offset);
 void gum_code_writer_put_movdqu_xmm0_esp_offset_ptr (GumCodeWriter * self, gint8 offset);
 void gum_code_writer_put_movdqu_eax_offset_ptr_xmm0 (GumCodeWriter * self, gint8 offset);
-void gum_code_writer_put_push (GumCodeWriter * self, guint32 imm_value);
-void gum_code_writer_put_push_eax (GumCodeWriter * self);
-void gum_code_writer_put_push_ecx (GumCodeWriter * self);
-void gum_code_writer_put_push_edx (GumCodeWriter * self);
-void gum_code_writer_put_pop_eax (GumCodeWriter * self);
-void gum_code_writer_put_pop_ecx (GumCodeWriter * self);
-void gum_code_writer_put_pop_edx (GumCodeWriter * self);
+void gum_code_writer_put_push_u32 (GumCodeWriter * self, guint32 imm_value);
 void gum_code_writer_put_push_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_pop_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_push_imm_ptr (GumCodeWriter * self, gconstpointer imm_ptr);

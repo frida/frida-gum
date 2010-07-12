@@ -122,18 +122,18 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_code_writer_put_pushad (&cw);
 
-  gum_code_writer_put_push (&cw, (guint32) fixture->sink);
-  gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
+  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
+  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
 
-  gum_code_writer_put_push (&cw, arg);
-  fixture->last_invoke_calladdr = gum_code_writer_cur (&cw);
+  gum_code_writer_put_push_u32 (&cw, arg);
+  fixture->last_invoke_calladdr = (guint8 *) gum_code_writer_cur (&cw);
   gum_code_writer_put_call (&cw, func);
-  fixture->last_invoke_retaddr = gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_ecx (&cw, (guint32) &ret);
+  fixture->last_invoke_retaddr = (guint8 *) gum_code_writer_cur (&cw);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, (guint32) &ret);
   gum_code_writer_put_mov_ecx_ptr_eax (&cw);
 
-  gum_code_writer_put_push (&cw, (guint32) fixture->stalker);
+  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
   gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP,
       4 * sizeof (GumStalker *));
