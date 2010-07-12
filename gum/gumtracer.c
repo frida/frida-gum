@@ -400,8 +400,8 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
 
   /* push return address onto our stack  */
   gum_code_writer_put_label (&cw, stack_acq_lbl);
-  gum_code_writer_put_mov_ecx_esp_ptr (&cw);
-  gum_code_writer_put_mov_eax_ptr_ecx (&cw);
+  gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_ECX, GUM_REG_ESP);
+  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_EAX, GUM_REG_ECX);
   gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
 
@@ -432,7 +432,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
       (guint32) &priv->next_stack);
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_lock_xadd_ecx_eax (&cw);
-  gum_code_writer_put_mov_eax_eax_ptr (&cw);
+  gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_EAX, GUM_REG_EAX);
   gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
   gum_code_writer_put_jmp_short_label (&cw, stack_acq_lbl);
 
@@ -506,7 +506,7 @@ gum_tracer_write_logging_code (GumTracer * self,
 
   /* make sure we write behind readpos */
   gum_code_writer_put_label (cw, check_can_write_lbl);
-  gum_code_writer_put_mov_ecx_imm_ptr (cw, (gint *) &rb->readpos);
+  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, (gint *) &rb->readpos);
   gum_code_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
   gum_code_writer_put_cmp_ecx (cw,
       -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));
@@ -560,8 +560,10 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       if (block_remainder >= 4)
       {
-        gum_code_writer_put_mov_ecx_esp_offset_ptr (cw, sp_offset);
-        gum_code_writer_put_mov_eax_offset_ptr_ecx (cw, block_offset);
+        gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
+            GUM_REG_ESP, sp_offset);
+        gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+            GUM_REG_EAX, block_offset, GUM_REG_ECX);
 
         sp_offset += 4;
         block_offset += 4;
@@ -578,19 +580,22 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_tracer_write_conversion_from_eax_index_to_address (self, cw);
 
   /* fill in name_id */
-  gum_code_writer_put_mov_eax_offset_ptr (cw, GT_ENTRY_OFFSET (name_id),
-      func->name_id);
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (name_id), func->name_id);
 
   /* fill in thread_id */
   gum_code_writer_put_mov_ecx_fs_ptr (cw, TIB_OFFSET_CUR_THREAD_ID);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      GT_ENTRY_OFFSET (thread_id));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (thread_id),
+      GUM_REG_ECX);
 
   /* fill in depth and modify it */
   gum_code_writer_put_mov_ecx_fs_ptr (cw, TIB_OFFSET_DEPTH);
   if (kind == GUM_TRAMPOLINE_LEAVE)
     gum_code_writer_put_dec_reg (cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw, GT_ENTRY_OFFSET (depth));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (depth),
+      GUM_REG_ECX);
   if (kind == GUM_TRAMPOLINE_ENTER)
     gum_code_writer_put_inc_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_mov_fs_ptr_ecx (cw, TIB_OFFSET_DEPTH);
@@ -600,15 +605,18 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_code_writer_put_call (cw, priv->get_time_impl);
   gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
   gum_code_writer_put_pop_reg (cw, GUM_REG_EAX);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      GT_ENTRY_OFFSET (timestamp));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (timestamp),
+      GUM_REG_ECX);
 
   /* fill in arglist_size */
-  gum_code_writer_put_mov_eax_offset_ptr (cw, GT_ENTRY_OFFSET (arglist_size),
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (arglist_size),
       arglist_size);
 
   /* fill in type, which implicitly seals off the entry */
-  gum_code_writer_put_mov_eax_offset_ptr (cw, GT_ENTRY_OFFSET (type),
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, GT_ENTRY_OFFSET (type),
       (kind == GUM_TRAMPOLINE_ENTER) ? GUM_ENTRY_ENTER : GUM_ENTRY_LEAVE);
 }
 

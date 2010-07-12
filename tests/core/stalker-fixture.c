@@ -131,7 +131,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_code_writer_put_call (&cw, func);
   fixture->last_invoke_retaddr = (guint8 *) gum_code_writer_cur (&cw);
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, (guint32) &ret);
-  gum_code_writer_put_mov_ecx_ptr_eax (&cw);
+  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_ECX, GUM_REG_EAX);
 
   gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);

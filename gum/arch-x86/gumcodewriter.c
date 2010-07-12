@@ -465,89 +465,23 @@ gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_mov_eax_eax_ptr (GumCodeWriter * self)
-{
-  self->code[0] = 0x8b;
-  self->code[1] = 0x00;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_eax_ptr (GumCodeWriter * self,
-                                 guint32 imm_value)
-{
-  self->code[0] = 0xc7;
-  self->code[1] = 0x00;
-  *((guint32 *) (self->code + 2)) = imm_value;
-  self->code += 6;
-}
-
-void
-gum_code_writer_put_mov_eax_ptr_ecx (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0x08;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_eax_offset_ptr (GumCodeWriter * self,
-                                        guint8 offset,
-                                        guint32 value)
-{
-  self->code[0] = 0xc7;
-  self->code[1] = 0x40;
-  self->code[2] = offset;
-  *((guint32 *) (self->code + 3)) = value;
-  self->code += 7;
-}
-
-void
-gum_code_writer_put_mov_eax_offset_ptr_ecx (GumCodeWriter * self,
-                                            guint8 offset)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0x48;
-  self->code[2] = offset;
-  self->code += 3;
-}
-
-void
-gum_code_writer_put_mov_ecx_imm_ptr (GumCodeWriter * self,
+gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
+                                     GumCpuReg reg,
                                      gconstpointer imm_ptr)
 {
-  self->code[0] = 0x8b;
-  self->code[1] = 0x0d;
-  *((gconstpointer *) (self->code + 2)) = imm_ptr;
-  self->code += 6;
-}
-
-void
-gum_code_writer_put_mov_ecx_ptr_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0x01;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_ecx_esp_ptr (GumCodeWriter * self)
-{
-  self->code[0] = 0x8b;
-  self->code[1] = 0x0c;
-  self->code[2] = 0x24;
-  self->code += 3;
-}
-
-void
-gum_code_writer_put_mov_ecx_esp_offset_ptr (GumCodeWriter * self,
-                                            gint8 offset)
-{
-  self->code[0] = 0x8b;
-  self->code[1] = 0x4c;
-  self->code[2] = 0x24;
-  self->code[3] = offset;
-  self->code += 4;
+  if (reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0xa1;
+    *((gconstpointer *) (self->code + 1)) = imm_ptr;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x8b;
+    self->code[1] = 0x05 | (reg << 3);
+    *((gconstpointer *) (self->code + 2)) = imm_ptr;
+    self->code += 6;
+  }
 }
 
 void
@@ -604,6 +538,41 @@ gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_mov_reg_ptr_u32 (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     guint32 imm_value)
+{
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (self, dst_reg, 0, imm_value);
+}
+
+void
+gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self,
+                                            GumCpuReg dst_reg,
+                                            gssize dst_offset,
+                                            guint32 imm_value)
+{
+  /* FIXME: */
+  g_assert (dst_reg != GUM_REG_ESP && dst_reg != GUM_REG_EBP);
+  g_assert (IS_WITHIN_UINT8_RANGE (dst_offset));
+
+  self->code[0] = 0xc7;
+
+  if (dst_offset == 0)
+  {
+    self->code[1] = 0x00 | dst_reg;
+    *((guint32 *) (self->code + 2)) = imm_value;
+    self->code += 6;
+  }
+  else
+  {
+    self->code[1] = 0x40 | dst_reg;
+    self->code[2] = dst_offset;
+    *((guint32 *) (self->code + 3)) = imm_value;
+    self->code += 7;
+  }
+}
+
+void
 gum_code_writer_put_mov_fs_ptr_eax (GumCodeWriter * self,
                                     guint32 fs_offset)
 {
@@ -655,6 +624,14 @@ gum_code_writer_put_mov_mem_reg (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     GumCpuReg src_reg)
+{
+  gum_code_writer_put_mov_reg_offset_ptr_reg (self, dst_reg, 0, src_reg);
+}
+
+void
 gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
                                             GumCpuReg dst_reg,
                                             gint8 dst_offset,
@@ -667,15 +644,33 @@ gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_mov_reg_reg_ptr (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     GumCpuReg src_reg)
+{
+  gum_code_writer_put_mov_reg_reg_offset_ptr (self, dst_reg, src_reg, 0);
+}
+
+void
 gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
                                             GumCpuReg dst_reg,
                                             GumCpuReg src_reg,
-                                            gint8 src_offset)
+                                            gssize src_offset)
 {
+  g_assert (IS_WITHIN_UINT8_RANGE (src_offset));
+
   self->code[0] = 0x8b;
   self->code[1] = 0x40 | src_reg | (dst_reg << 3);
-  *((gint8 *) (self->code + 2)) = src_offset;
-  self->code += 3;
+  self->code += 2;
+
+  if (src_reg == GUM_REG_ESP)
+  {
+    self->code[0] = 0x24;
+    self->code++;
+  }
+
+  *((gint8 *) self->code) = src_offset;
+  self->code++;
 }
 
 void

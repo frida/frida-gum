@@ -934,8 +934,9 @@ STALKER_TESTCASE (no_clobber)
   gum_code_writer_put_popad (&cw);
 
   gum_code_writer_put_push_reg (&cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_ecx_esp_offset_ptr (&cw, sizeof (gpointer)
-      + (8 * sizeof (gpointer)) + sizeof (gpointer));
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
+      GUM_REG_ESP, sizeof (gpointer) + (8 * sizeof (gpointer))
+      + sizeof (gpointer));
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax), GUM_REG_EAX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,

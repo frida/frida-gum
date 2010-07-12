@@ -736,17 +736,20 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_exec_ctx_write_cdecl_preserve_prolog (ctx, cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_CALL, cw);
-  gum_code_writer_put_mov_eax_offset_ptr (cw,
-      G_STRUCT_OFFSET (GumCallEvent, location), (guint32) location);
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, location),
+      (guint32) location);
 
   gum_write_push_branch_target_address (target, 0, CDECL_PRESERVE_SIZE, cw);
   gum_code_writer_put_pop_reg (cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      G_STRUCT_OFFSET (GumCallEvent, target));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, target),
+      GUM_REG_ECX);
 
-  gum_code_writer_put_mov_ecx_imm_ptr (cw, &ctx->call_depth);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      G_STRUCT_OFFSET (GumCallEvent, depth));
+  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, &ctx->call_depth);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, depth),
+      GUM_REG_ECX);
 
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
@@ -760,7 +763,8 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
 {
   gum_exec_ctx_write_cdecl_preserve_prolog (ctx, cw);
 
-  gum_code_writer_put_mov_ecx_esp_offset_ptr (cw, CDECL_PRESERVE_SIZE);
+  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
+      GUM_REG_ESP, CDECL_PRESERVE_SIZE);
   gum_code_writer_put_push_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_push_u32 (cw, (guint32) ctx);
   gum_code_writer_put_call (cw, gum_exec_ctx_resolve_code_address);
@@ -768,15 +772,18 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
   gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_RET, cw);
-  gum_code_writer_put_mov_eax_offset_ptr (cw,
-      G_STRUCT_OFFSET (GumRetEvent, location), (guint32) location);
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumRetEvent, location),
+      (guint32) location);
 
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      G_STRUCT_OFFSET (GumRetEvent, target));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumRetEvent, target),
+      GUM_REG_ECX);
 
-  gum_code_writer_put_mov_ecx_imm_ptr (cw, &ctx->call_depth);
-  gum_code_writer_put_mov_eax_offset_ptr_ecx (cw,
-      G_STRUCT_OFFSET (GumCallEvent, depth));
+  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, &ctx->call_depth);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, depth),
+      GUM_REG_ECX);
 
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
@@ -791,8 +798,9 @@ gum_exec_ctx_write_exec_event_code (GumExecCtx * ctx,
   gum_exec_ctx_write_cdecl_preserve_prolog (ctx, cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_EXEC, cw);
-  gum_code_writer_put_mov_eax_offset_ptr (cw,
-      G_STRUCT_OFFSET (GumExecEvent, location), (guint32) location);
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecEvent, location),
+      (guint32) location);
 
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
@@ -805,8 +813,9 @@ gum_exec_ctx_write_event_init_code (GumExecCtx * ctx,
                                     GumCodeWriter * cw)
 {
   gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, (guint32) &ctx->tmp_event);
-  gum_code_writer_put_mov_eax_offset_ptr (cw,
-      G_STRUCT_OFFSET (GumAnyEvent, type), type);
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumAnyEvent, type),
+      type);
 }
 
 static void
@@ -1104,8 +1113,9 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   gum_code_writer_put_push_u32 (cw, (guint32) orig_ret_insn);
   gum_exec_ctx_write_cdecl_preserve_prolog (block->ctx, cw);
 
-  gum_code_writer_put_mov_ecx_esp_offset_ptr (cw,
-      CDECL_PRESERVE_SIZE + sizeof (gpointer));
+  gum_code_writer_put_mov_reg_reg_offset_ptr (cw,
+      GUM_REG_ECX,
+      GUM_REG_ESP, CDECL_PRESERVE_SIZE + sizeof (gpointer));
   gum_code_writer_put_push_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_push_u32 (cw, (guint32) block->ctx);
 
