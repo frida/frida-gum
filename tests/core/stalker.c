@@ -55,7 +55,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
+#if GLIB_SIZEOF_VOID_P == 4
   STALKER_TESTENTRY (no_clobber)
+#endif
   STALKER_TESTENTRY (big_block)
 
   STALKER_TESTENTRY (heap_api)
@@ -269,8 +271,10 @@ probe_func_a_invocation (GumCallSite * site, gpointer user_data)
 
   g_assert_cmphex ((guint64) site->block_address, ==,
       (guint64) ctx->block_start);
+#if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmphex (site->cpu_context->ecx, ==, 0xaaaa1111);
   g_assert_cmphex (site->cpu_context->edx, ==, 0xaaaa2222);
+#endif
   g_assert_cmphex (((guint32 *) site->stack_data)[0], ==, 0xaaaa3333);
   g_assert_cmphex (((guint32 *) site->stack_data)[1], ==, 0xaaaa4444);
 }
@@ -894,6 +898,8 @@ STALKER_TESTCASE (indirect_jump_with_immediate_and_scaled_register)
   invoke_jump (fixture, &jump_template);
 }
 
+#if GLIB_SIZEOF_VOID_P == 4
+
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
 STALKER_TESTCASE (no_clobber)
@@ -983,6 +989,8 @@ STALKER_TESTCASE (no_clobber)
 
   gum_free_pages (code);
 }
+
+#endif
 
 STALKER_TESTCASE (big_block)
 {
@@ -1148,12 +1156,15 @@ create_test_window (GumStalker * stalker)
   wc.lpfnWndProc = test_window_proc;
   wc.hInstance = GetModuleHandle (NULL);
   wc.lpszClassName = _T ("GumTestWindowClass");
-  window->klass = (LPTSTR) (DWORD) RegisterClass (&wc);
+  window->klass = (LPTSTR) GSIZE_TO_POINTER (RegisterClass (&wc));
   g_assert (window->klass != 0);
 
+#pragma warning (push)
+#pragma warning (disable: 4306)
   window->handle = CreateWindow (window->klass, _T ("GumTestWindow"),
       WS_CAPTION, 10, 10, 320, 240, HWND_MESSAGE, NULL,
       GetModuleHandle (NULL), NULL);
+#pragma warning (pop)
   g_assert (window->handle != NULL);
 
   SetWindowLongPtr (window->handle, GWLP_USERDATA, (LONG) window);

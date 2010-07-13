@@ -421,16 +421,18 @@ void
 gum_code_writer_put_inc_reg (GumCodeWriter * self,
                              GumCpuReg reg)
 {
-  self->code[0] = 0x40 | reg;
-  self->code++;
+  self->code[0] = 0xff;
+  self->code[1] = 0xc0 | reg;
+  self->code += 2;
 }
 
 void
 gum_code_writer_put_dec_reg (GumCodeWriter * self,
                              GumCpuReg reg)
 {
-  self->code[0] = 0x48 | reg;
-  self->code++;
+  self->code[0] = 0xff;
+  self->code[1] = 0xc8 | reg;
+  self->code += 2;
 }
 
 void

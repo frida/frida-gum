@@ -45,7 +45,12 @@ test_ret_size (void)
 
   gum_function_parser_init (&fp);
   gum_function_parser_parse (&fp, sample_func, &details);
+
+#if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmpint (details.arglist_size, ==, 12);
+#else
+  g_assert_cmpint (details.arglist_size, ==, 0);
+#endif
 }
 
 #ifdef G_OS_WIN32

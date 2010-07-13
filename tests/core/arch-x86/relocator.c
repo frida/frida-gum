@@ -203,8 +203,8 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
   const guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
     0x81, 0xfb, 0x2a, 0x00, 0x00, 0x00, /* cmp ebx, 42 */
-    0x75, 0x01,                         /* jnz beach   */
-    0x40,                               /* inc eax     */
+    0x75, 0x02,                         /* jnz beach   */
+    0xff, 0xc0,                         /* inc eax     */
 
 /* beach:                                              */
     0xc3                                /* retn        */
@@ -217,7 +217,7 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
   g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 10);
   gum_relocator_read_one (&fixture->rl, NULL);
   g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==,
-      sizeof(input));
+      sizeof (input));
 
   gum_relocator_write_one (&fixture->rl);
   gum_relocator_write_one (&fixture->rl);
@@ -228,18 +228,18 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
 
   gum_code_writer_flush (&fixture->cw);
 
-  /* output should have one extra instruction of 1 byte */
+  /* output should have one extra instruction of 2 bytes */
   g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
-      sizeof (input) + 1);
+      sizeof (input) + 2);
 
   /* the first 9 bytes should be the same */
   g_assert_cmpint (memcmp (fixture->output, input, 9), ==, 0);
 
   /* the jnz offset should be adjusted to account for the extra instruction */
-  g_assert_cmpint ((gint8) fixture->output[9], ==, ((gint8) input[9]) + 1);
+  g_assert_cmpint ((gint8) fixture->output[9], ==, ((gint8) input[9]) + 2);
 
   /* the rest should be the same */
-  g_assert_cmpint (memcmp (fixture->output + 11, input + 10, 2), ==, 0);
+  g_assert_cmpint (memcmp (fixture->output + 10 + 2, input + 10, 3), ==, 0);
 }
 
 RELOCATOR_TESTCASE (jcc_short_outside_block)
@@ -267,7 +267,7 @@ RELOCATOR_TESTCASE (peek_next_write)
 {
   const guint8 input[] = {
     0x31, 0xc0, /* xor eax,eax */
-    0x40,       /* inc eax     */
+    0xff, 0xc0  /* inc eax     */
   };
 
   SETUP_RELOCATOR_WITH (input);
@@ -295,8 +295,8 @@ RELOCATOR_TESTCASE (skip_instruction)
   const guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
     0x81, 0xfb, 0x2a, 0x00, 0x00, 0x00, /* cmp ebx, 42 */
-    0x75, 0x01,                         /* jnz beach   */
-    0x40,                               /* inc eax     */
+    0x75, 0x02,                         /* jnz beach   */
+    0xff, 0xc0,                         /* inc eax     */
 
 /* beach:                                              */
     0xc3                                /* retn        */
@@ -317,8 +317,9 @@ RELOCATOR_TESTCASE (skip_instruction)
 
   gum_code_writer_flush (&fixture->cw);
 
-  /* output should be of same size */
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, sizeof (input));
+  /* output should be of almost the same size */
+  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
+      sizeof (input) + 1);
 
   /* the first n - 1 bytes should be the same */
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input) - 1), ==, 0);
