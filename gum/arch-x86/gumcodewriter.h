@@ -95,7 +95,7 @@ void gum_code_writer_put_sub_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint3
 void gum_code_writer_put_sub_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_inc_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_dec_reg (GumCodeWriter * self, GumCpuReg reg);
-void gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self);
+void gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 
 void gum_code_writer_put_and_reg_u32 (GumCodeWriter * self, GumCpuReg reg, guint32 imm_value);
 void gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self, GumCpuReg reg, guint8 imm_value);

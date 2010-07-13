@@ -410,7 +410,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
       (guint32) leave_trampoline);
 
   /* finally execute the original instructions and resume execution */
-  gum_relocator_init (&rl, func->details.address, &cw);
+  gum_relocator_init (&rl, (guint8 *) func->details.address, &cw);
   do
   {
     reloc_size = gum_relocator_read_one (&rl, NULL);
@@ -432,7 +432,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX,
       (guint32) &priv->next_stack);
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 4);
-  gum_code_writer_put_lock_xadd_ecx_eax (&cw);
+  gum_code_writer_put_lock_xadd_reg_ptr_reg (&cw, GUM_REG_ECX, GUM_REG_EAX);
   gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_EAX, GUM_REG_EAX);
   gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_EAX);
   gum_code_writer_put_jmp_short_label (&cw, stack_acq_lbl);
@@ -503,7 +503,7 @@ gum_tracer_write_logging_code (GumTracer * self,
   /* atomically increment writepos */
   gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX, (guint32) &rb->writepos);
   gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, 1 + num_data_blocks);
-  gum_code_writer_put_lock_xadd_ecx_eax (cw);
+  gum_code_writer_put_lock_xadd_reg_ptr_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
 
   /* make sure we write behind readpos */
   gum_code_writer_put_label (cw, check_can_write_lbl);

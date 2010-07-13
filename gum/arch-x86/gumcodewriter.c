@@ -434,13 +434,25 @@ gum_code_writer_put_dec_reg (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self)
+gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self,
+                                           GumCpuReg dst_reg,
+                                           GumCpuReg src_reg)
 {
   self->code[0] = 0xf0; /* lock prefix */
   self->code[1] = 0x0f;
   self->code[2] = 0xc1;
-  self->code[3] = 0x01;
+  self->code[3] = 0x00 | (src_reg << 3) | dst_reg;
   self->code += 4;
+
+  if (dst_reg == GUM_REG_ESP)
+  {
+    *self->code++ = 0x24;
+  }
+  else if (dst_reg == GUM_REG_EBP)
+  {
+    self->code[-1] |= 0x40;
+    *self->code++ = 0x00;
+  }
 }
 
 void
