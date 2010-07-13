@@ -550,13 +550,16 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_init (&cw, ctx->thunks);
 
   ctx->jmp_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_esp_offset_ptr_eax (&cw, CDECL_PRESERVE_SIZE);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_ESP, CDECL_PRESERVE_SIZE,
+      GUM_REG_EAX);
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
   gum_code_writer_put_ret (&cw);
 
   ctx->ret_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_esp_offset_ptr_eax (&cw,
-      sizeof (gpointer) + CDECL_PRESERVE_SIZE);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_ESP, sizeof (gpointer) + CDECL_PRESERVE_SIZE,
+      GUM_REG_EAX);
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
   gum_code_writer_put_ret (&cw);
 
@@ -566,7 +569,9 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_put_push_imm_ptr (&cw, &ctx->replacement_address);
   gum_code_writer_put_push_u32 (&cw, (guint32) ctx);
   gum_code_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
-  gum_code_writer_put_mov_esp_offset_ptr_eax (&cw, CDECL_PRESERVE_SIZE);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_ESP, CDECL_PRESERVE_SIZE,
+      GUM_REG_EAX);
   gum_exec_ctx_write_cdecl_preserve_epilog (ctx, &cw);
   gum_code_writer_put_ret (&cw);
 
@@ -1308,7 +1313,8 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
           sizeof (target->relative_offset));
     }
 
-    gum_code_writer_put_mov_esp_offset_ptr_eax (cw, 8);
+    gum_code_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_ESP, 8,
+        GUM_REG_EAX);
 
     gum_code_writer_put_pop_reg (cw, GUM_REG_EDX);
     gum_code_writer_put_pop_reg (cw, GUM_REG_EAX);

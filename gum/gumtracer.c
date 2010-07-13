@@ -394,7 +394,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_tracer_write_logging_code (self, func, GUM_TRAMPOLINE_ENTER, &cw);
 
   /* get hold of our stack */
-  gum_code_writer_put_mov_eax_fs_ptr (&cw, TIB_OFFSET_STACK);
+  gum_code_writer_put_mov_reg_fs_u32_ptr (&cw, GUM_REG_EAX, TIB_OFFSET_STACK);
   gum_code_writer_put_test_eax_eax (&cw);
   gum_code_writer_put_jz_label (&cw, setup_stack_lbl, GUM_UNLIKELY);
 
@@ -403,10 +403,11 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_ECX, GUM_REG_ESP);
   gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_EAX, GUM_REG_ECX);
   gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_EAX, 4);
-  gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
+  gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_EAX);
 
   /* overwrite caller's return address so we can trap the return */
-  gum_code_writer_put_mov_esp_ptr (&cw, (guint32) leave_trampoline);
+  gum_code_writer_put_mov_reg_ptr_u32 (&cw, GUM_REG_ESP,
+      (guint32) leave_trampoline);
 
   /* finally execute the original instructions and resume execution */
   gum_relocator_init (&rl, func->details.address, &cw);
@@ -433,7 +434,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_lock_xadd_ecx_eax (&cw);
   gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_EAX, GUM_REG_EAX);
-  gum_code_writer_put_mov_fs_ptr_eax (&cw, TIB_OFFSET_STACK);
+  gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_EAX);
   gum_code_writer_put_jmp_short_label (&cw, stack_acq_lbl);
 
   g_assert_cmpuint (gum_code_writer_offset (&cw), <=, ENTER_MAX_SIZE);
@@ -462,9 +463,9 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
   gum_tracer_write_logging_code (self, func, GUM_TRAMPOLINE_LEAVE, &cw);
 
   /* then jump back to caller */
-  gum_code_writer_put_mov_ecx_fs_ptr (&cw, TIB_OFFSET_STACK);
+  gum_code_writer_put_mov_reg_fs_u32_ptr (&cw, GUM_REG_ECX, TIB_OFFSET_STACK);
   gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_ECX, 4);
-  gum_code_writer_put_mov_fs_ptr_ecx (&cw, TIB_OFFSET_STACK);
+  gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_ECX);
 
   gum_code_writer_put_pop_reg (&cw, GUM_REG_EAX);
 
@@ -584,13 +585,14 @@ gum_tracer_write_logging_code (GumTracer * self,
       GUM_REG_EAX, GT_ENTRY_OFFSET (name_id), func->name_id);
 
   /* fill in thread_id */
-  gum_code_writer_put_mov_ecx_fs_ptr (cw, TIB_OFFSET_CUR_THREAD_ID);
+  gum_code_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_ECX,
+      TIB_OFFSET_CUR_THREAD_ID);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_EAX, GT_ENTRY_OFFSET (thread_id),
       GUM_REG_ECX);
 
   /* fill in depth and modify it */
-  gum_code_writer_put_mov_ecx_fs_ptr (cw, TIB_OFFSET_DEPTH);
+  gum_code_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_ECX, TIB_OFFSET_DEPTH);
   if (kind == GUM_TRAMPOLINE_LEAVE)
     gum_code_writer_put_dec_reg (cw, GUM_REG_ECX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
@@ -598,7 +600,7 @@ gum_tracer_write_logging_code (GumTracer * self,
       GUM_REG_ECX);
   if (kind == GUM_TRAMPOLINE_ENTER)
     gum_code_writer_put_inc_reg (cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_fs_ptr_ecx (cw, TIB_OFFSET_DEPTH);
+  gum_code_writer_put_mov_fs_u32_ptr_reg (cw, TIB_OFFSET_DEPTH, GUM_REG_ECX);
 
   /* fill in timestamp */
   gum_code_writer_put_push_reg (cw, GUM_REG_EAX);

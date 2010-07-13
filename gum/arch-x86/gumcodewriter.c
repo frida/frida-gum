@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -434,6 +434,16 @@ gum_code_writer_put_dec_reg (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self)
+{
+  self->code[0] = 0xf0; /* lock prefix */
+  self->code[1] = 0x0f;
+  self->code[2] = 0xc1;
+  self->code[3] = 0x01;
+  self->code += 4;
+}
+
+void
 gum_code_writer_put_and_reg_u32 (GumCodeWriter * self,
                                  GumCpuReg reg,
                                  guint32 imm_value)
@@ -465,66 +475,13 @@ gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
-                                     GumCpuReg reg,
-                                     gconstpointer imm_ptr)
-{
-  if (reg == GUM_REG_EAX)
-  {
-    self->code[0] = 0xa1;
-    *((gconstpointer *) (self->code + 1)) = imm_ptr;
-    self->code += 5;
-  }
-  else
-  {
-    self->code[0] = 0x8b;
-    self->code[1] = 0x05 | (reg << 3);
-    *((gconstpointer *) (self->code + 2)) = imm_ptr;
-    self->code += 6;
-  }
-}
-
-void
-gum_code_writer_put_mov_eax_fs_ptr (GumCodeWriter * self,
-                                    guint32 fs_offset)
-{
-  self->code[0] = 0x64;
-  self->code[1] = 0xa1;
-  *((guint32 *) (self->code + 2)) = fs_offset;
-  self->code += 6;
-}
-
-void
-gum_code_writer_put_mov_ecx_fs_ptr (GumCodeWriter * self,
-                                    guint32 fs_offset)
-{
-  self->code[0] = 0x64;
-  self->code[1] = 0x8b;
-  self->code[2] = 0x0d;
-  *((guint32 *) (self->code + 3)) = fs_offset;
-  self->code += 7;
-}
-
-void
-gum_code_writer_put_mov_esp_ptr (GumCodeWriter * self,
-                                 guint32 imm_value)
-{
-  self->code[0] = 0xc7;
-  self->code[1] = 0x04;
-  self->code[2] = 0x24;
-  *((guint32 *) (self->code + 3)) = imm_value;
-  self->code += 7;
-}
-
-void
-gum_code_writer_put_mov_esp_offset_ptr_eax (GumCodeWriter * self,
-                                            guint8 offset)
+gum_code_writer_put_mov_reg_reg (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 GumCpuReg src_reg)
 {
   self->code[0] = 0x89;
-  self->code[1] = 0x44;
-  self->code[2] = 0x24;
-  *((guint8 *) (self->code + 3)) = offset;
-  self->code += 4;
+  self->code[1] = 0xc0 | (src_reg << 3) | dst_reg;
+  self->code += 2;
 }
 
 void
@@ -551,74 +508,64 @@ gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self,
                                             gssize dst_offset,
                                             guint32 imm_value)
 {
-  /* FIXME: */
-  g_assert (dst_reg != GUM_REG_ESP && dst_reg != GUM_REG_EBP);
   g_assert (IS_WITHIN_UINT8_RANGE (dst_offset));
 
-  self->code[0] = 0xc7;
+  *self->code++ = 0xc7;
 
-  if (dst_offset == 0)
+  if (dst_offset == 0 && dst_reg != GUM_REG_EBP)
   {
-    self->code[1] = 0x00 | dst_reg;
-    *((guint32 *) (self->code + 2)) = imm_value;
-    self->code += 6;
+    *self->code++ = 0x00 | dst_reg;
+    if (dst_reg == GUM_REG_ESP)
+      *self->code++ = 0x24;
   }
   else
   {
-    self->code[1] = 0x40 | dst_reg;
-    self->code[2] = dst_offset;
-    *((guint32 *) (self->code + 3)) = imm_value;
-    self->code += 7;
+    *self->code++ = 0x40 | dst_reg;
+    if (dst_reg == GUM_REG_ESP)
+      *self->code++ = 0x24;
+    *self->code++ = dst_offset;
+  }
+
+  *((guint32 *) self->code) = imm_value;
+  self->code += 4;
+}
+
+void
+gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     gconstpointer imm_ptr)
+{
+  if (dst_reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0xa1;
+    *((gconstpointer *) (self->code + 1)) = imm_ptr;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x8b;
+    self->code[1] = 0x05 | (dst_reg << 3);
+    *((gconstpointer *) (self->code + 2)) = imm_ptr;
+    self->code += 6;
   }
 }
 
 void
-gum_code_writer_put_mov_fs_ptr_eax (GumCodeWriter * self,
-                                    guint32 fs_offset)
-{
-  self->code[0] = 0x64;
-  self->code[1] = 0xa3;
-  *((guint32 *) (self->code + 2)) = fs_offset;
-  self->code += 6;
-}
-
-void
-gum_code_writer_put_mov_fs_ptr_ecx (GumCodeWriter * self,
-                                    guint32 fs_offset)
-{
-  self->code[0] = 0x64;
-  self->code[1] = 0x89;
-  self->code[2] = 0x0d;
-  *((guint32 *) (self->code + 3)) = fs_offset;
-  self->code += 7;
-}
-
-void
-gum_code_writer_put_mov_reg_reg (GumCodeWriter * self,
-                                 GumCpuReg dst_reg,
-                                 GumCpuReg src_reg)
-{
-  self->code[0] = 0x89;
-  self->code[1] = 0xc0 | (src_reg << 3) | dst_reg;
-  self->code += 2;
-}
-
-void
-gum_code_writer_put_mov_mem_reg (GumCodeWriter * self,
-                                 gpointer address,
-                                 GumCpuReg reg)
+gum_code_writer_put_mov_imm_ptr_reg (GumCodeWriter * self,
+                                     gconstpointer address,
+                                     GumCpuReg reg)
 {
   if (reg == GUM_REG_EAX)
   {
     self->code[0] = 0xa3;
-    *((gpointer *) (self->code + 1)) = address;
+    *((gconstpointer *) (self->code + 1)) = address;
     self->code += 5;
   }
   else
   {
     self->code[0] = 0x89;
     self->code[1] = (reg << 3) | 0x5;
-    *((gpointer *) (self->code + 2)) = address;
+    *((gconstpointer *) (self->code + 2)) = address;
     self->code += 6;
   }
 }
@@ -637,10 +584,21 @@ gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
                                             gint8 dst_offset,
                                             GumCpuReg src_reg)
 {
-  self->code[0] = 0x89;
-  self->code[1] = 0x40 | (src_reg << 3) | dst_reg;
-  *((gint8 *) (self->code + 2)) = dst_offset;
-  self->code += 3;
+  *self->code++ = 0x89;
+
+  if (dst_offset == 0 && dst_reg != GUM_REG_EBP)
+  {
+    *self->code++ = 0x00 | (src_reg << 3) | dst_reg;
+    if (dst_reg == GUM_REG_ESP)
+      *self->code++ = 0x24;
+  }
+  else
+  {
+    *self->code++ = 0x40 | (src_reg << 3) | dst_reg;
+    if (dst_reg == GUM_REG_ESP)
+      *self->code++ = 0x24;
+    *self->code++ = dst_offset;
+  }
 }
 
 void
@@ -671,6 +629,26 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
 
   *((gint8 *) self->code) = src_offset;
   self->code++;
+}
+
+void
+gum_code_writer_put_mov_fs_u32_ptr_reg (GumCodeWriter * self,
+                                        guint32 fs_offset,
+                                        GumCpuReg src_reg)
+{
+  gum_code_writer_put_byte (self, 0x64);
+  gum_code_writer_put_mov_imm_ptr_reg (self, GSIZE_TO_POINTER (fs_offset),
+      src_reg);
+}
+
+void
+gum_code_writer_put_mov_reg_fs_u32_ptr (GumCodeWriter * self,
+                                        GumCpuReg dst_reg,
+                                        guint32 fs_offset)
+{
+  gum_code_writer_put_byte (self, 0x64);
+  gum_code_writer_put_mov_reg_imm_ptr (self, dst_reg,
+      GSIZE_TO_POINTER (fs_offset));
 }
 
 void
@@ -814,16 +792,6 @@ gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self,
   *((gconstpointer *) (self->code + 2)) = imm_ptr;
   *((guint32 *) (self->code + 6)) = imm_value;
   self->code += 10;
-}
-
-void
-gum_code_writer_put_lock_xadd_ecx_eax (GumCodeWriter * self)
-{
-  self->code[0] = 0xf0; /* lock prefix */
-  self->code[1] = 0x0f;
-  self->code[2] = 0xc1;
-  self->code[3] = 0x01;
-  self->code += 4;
 }
 
 void
