@@ -395,7 +395,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
 
   /* get hold of our stack */
   gum_code_writer_put_mov_reg_fs_u32_ptr (&cw, GUM_REG_EAX, TIB_OFFSET_STACK);
-  gum_code_writer_put_test_eax_eax (&cw);
+  gum_code_writer_put_test_reg_reg (&cw, GUM_REG_EAX, GUM_REG_EAX);
   gum_code_writer_put_jz_label (&cw, setup_stack_lbl, GUM_UNLIKELY);
 
   /* push return address onto our stack  */
@@ -509,7 +509,7 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_code_writer_put_label (cw, check_can_write_lbl);
   gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, (gint *) &rb->readpos);
   gum_code_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
-  gum_code_writer_put_cmp_ecx (cw,
+  gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_ECX,
       -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));
   gum_code_writer_put_jle_label (cw, check_can_write_lbl, GUM_UNLIKELY);
 

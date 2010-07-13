@@ -128,8 +128,8 @@ void gum_code_writer_put_popad (GumCodeWriter * self);
 void gum_code_writer_put_pushfd (GumCodeWriter * self);
 void gum_code_writer_put_popfd (GumCodeWriter * self);
 
-void gum_code_writer_put_test_eax_eax (GumCodeWriter * self);
-void gum_code_writer_put_cmp_ecx (GumCodeWriter * self, gint32 imm_value);
+void gum_code_writer_put_test_reg_reg (GumCodeWriter * self, GumCpuReg reg_a, GumCpuReg reg_b);
+void gum_code_writer_put_cmp_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint32 imm_value);
 void gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self, gconstpointer imm_ptr, guint32 imm_value);
 
 void gum_code_writer_put_nop (GumCodeWriter * self);

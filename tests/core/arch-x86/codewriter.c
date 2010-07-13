@@ -75,7 +75,7 @@ CODE_WRITER_TESTCASE (jump_label)
   const gchar * beach_lbl = "beach";
 
   gum_code_writer_put_label (&fixture->cw, start_lbl);
-  gum_code_writer_put_cmp_ecx (&fixture->cw, 1337);
+  gum_code_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_ECX, 1337);
   gum_code_writer_put_jz_label (&fixture->cw, handle_error_lbl, GUM_UNLIKELY);
   gum_code_writer_put_jle_label (&fixture->cw, handle_error_lbl, GUM_UNLIKELY);
   gum_code_writer_put_jmp_short_label (&fixture->cw, beach_lbl);

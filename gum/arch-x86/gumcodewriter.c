@@ -777,21 +777,33 @@ gum_code_writer_put_popfd (GumCodeWriter * self)
 }
 
 void
-gum_code_writer_put_test_eax_eax (GumCodeWriter * self)
+gum_code_writer_put_test_reg_reg (GumCodeWriter * self,
+                                  GumCpuReg reg_a,
+                                  GumCpuReg reg_b)
 {
   self->code[0] = 0x85;
-  self->code[1] = 0xc0;
+  self->code[1] = 0xc0 | (reg_b << 3) | reg_a;
   self->code += 2;
 }
 
 void
-gum_code_writer_put_cmp_ecx (GumCodeWriter * self,
-                             gint32 imm_value)
+gum_code_writer_put_cmp_reg_i32 (GumCodeWriter * self,
+                                 GumCpuReg reg,
+                                 gint32 imm_value)
 {
-  self->code[0] = 0x81;
-  self->code[1] = 0xf9;
-  *((gint32 *) (self->code + 2)) = imm_value;
-  self->code += 6;
+  if (reg == GUM_REG_EAX)
+  {
+    *self->code++ = 0x3d;
+  }
+  else
+  {
+    self->code[0] = 0x81;
+    self->code[1] = 0xf8 | reg;
+    self->code += 2;
+  }
+
+  *((gint32 *) self->code) = imm_value;
+  self->code += 4;
 }
 
 void
