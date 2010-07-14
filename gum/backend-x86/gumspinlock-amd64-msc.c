@@ -19,20 +19,68 @@
 
 #include "gumspinlock.h"
 
+#include "gumcodewriter.h"
+#include "gummemory.h"
+
+typedef struct _GumSpinlockImpl GumSpinlockImpl;
+
+typedef void (* GumSpinlockAcquireFunc) (GumSpinlock * spinlock);
+
+struct _GumSpinlockImpl
+{
+  volatile guint32 is_held;
+
+  gpointer code;
+  GumSpinlockAcquireFunc acquire_impl;
+};
+
 void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
-  g_assert_not_reached (); /* FIXME */
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+  GumCodeWriter cw;
+  gpointer try_again_label = "gum_spinlock_try_again";
+  gpointer beach_label = "gum_spinlock_beach";
+
+  self->is_held = FALSE;
+
+  self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+
+  gum_code_writer_init (&cw, self->code);
+
+  self->acquire_impl = (GumSpinlockAcquireFunc) gum_code_writer_cur (&cw);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 1);
+
+  gum_code_writer_put_label (&cw, try_again_label);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0);
+  gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (&cw, GUM_REG_RCX, GUM_REG_EDX);
+  gum_code_writer_put_jz_label (&cw, beach_label, GUM_NO_HINT);
+
+  gum_code_writer_put_pause (&cw);
+  gum_code_writer_put_jmp_short_label (&cw, try_again_label);
+
+  gum_code_writer_put_label (&cw, beach_label);
+  gum_code_writer_put_ret (&cw);
+
+  gum_code_writer_free (&cw);
+}
+
+void
+gum_spinlock_free (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  gum_free_pages (self->code);
 }
 
 void
 gum_spinlock_acquire (GumSpinlock * spinlock)
 {
-  g_assert_not_reached (); /* FIXME */
+  ((GumSpinlockImpl *) spinlock)->acquire_impl (spinlock);
 }
 
 void
 gum_spinlock_release (GumSpinlock * spinlock)
 {
-  g_assert_not_reached (); /* FIXME */
+  ((GumSpinlockImpl *) spinlock)->is_held = FALSE;
 }

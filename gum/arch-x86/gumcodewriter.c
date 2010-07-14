@@ -26,6 +26,18 @@
 
 #define IS_WITHIN_UINT8_RANGE(i) ((i) >= -128 && (i) <= 127)
 
+typedef enum _GumMetaReg
+{
+  GUM_META_REG_XAX = 0,
+  GUM_META_REG_XCX,
+  GUM_META_REG_XDX,
+  GUM_META_REG_XBX,
+  GUM_META_REG_XSP,
+  GUM_META_REG_XBP,
+  GUM_META_REG_XSI,
+  GUM_META_REG_XDI,
+} GumMetaReg;
+
 typedef enum _GumLabelRefSize
 {
   GUM_LREF_SHORT,
@@ -44,6 +56,9 @@ struct _GumLabelRef
   guint8 * address;
   GumLabelRefSize size;
 };
+
+static gboolean gum_cpu_reg_is_wide (GumCpuReg reg);
+static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
 
 static guint8 * gum_code_writer_lookup_address_for_label_id (
     GumCodeWriter * self, gconstpointer id);
@@ -294,10 +309,11 @@ gum_code_writer_put_jz (GumCodeWriter * self,
 
   g_assert (IS_WITHIN_UINT8_RANGE (distance)); /* for now */
 
-  self->code[0] = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
-  self->code[1] = 0x74;
-  self->code[2] = distance;
-  self->code += 3;
+  if (hint != GUM_NO_HINT)
+    *self->code++ = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
+  self->code[0] = 0x74;
+  self->code[1] = distance;
+  self->code += 2;
 }
 
 void
@@ -451,6 +467,35 @@ gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self,
     *self->code++ = 0x24;
   }
   else if (dst_reg == GUM_REG_EBP)
+  {
+    self->code[-1] |= 0x40;
+    *self->code++ = 0x00;
+  }
+}
+
+void
+gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self,
+                                              GumCpuReg dst_reg,
+                                              GumCpuReg src_reg)
+{
+  GumMetaReg dst, src;
+
+  g_assert (!gum_cpu_reg_is_wide (src_reg));
+
+  dst = gum_meta_reg_from_cpu_reg (dst_reg);
+  src = gum_meta_reg_from_cpu_reg (src_reg);
+
+  self->code[0] = 0xf0; /* lock prefix */
+  self->code[1] = 0x0f;
+  self->code[2] = 0xb1;
+  self->code[3] = 0x00 | (src << 3) | dst;
+  self->code += 4;
+
+  if (dst == GUM_META_REG_XSP)
+  {
+    *self->code++ = 0x24;
+  }
+  else if (dst == GUM_META_REG_XBP)
   {
     self->code[-1] |= 0x40;
     *self->code++ = 0x00;
@@ -821,6 +866,14 @@ gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_pause (GumCodeWriter * self)
+{
+  self->code[0] = 0xf3;
+  self->code[1] = 0x90;
+  self->code += 2;
+}
+
+void
 gum_code_writer_put_nop (GumCodeWriter * self)
 {
   self->code[0] = 0x90;
@@ -851,3 +904,19 @@ gum_code_writer_put_bytes (GumCodeWriter * self,
   self->code += n;
 }
 
+static gboolean
+gum_cpu_reg_is_wide (GumCpuReg reg)
+{
+  return (reg >= GUM_REG_RAX && reg <= GUM_REG_RDI);
+}
+
+static GumMetaReg
+gum_meta_reg_from_cpu_reg (GumCpuReg reg)
+{
+  if (reg >= GUM_REG_EAX && reg <= GUM_REG_EDI)
+    return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_EAX);
+  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_RDI)
+    return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_RAX);
+  else
+    g_assert_not_reached ();
+}

@@ -19,10 +19,17 @@
 
 #include "gumspinlock.h"
 
+#include <string.h>
+
 void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
-  *spinlock = 0;
+  memset (spinlock, 0, sizeof (GumSpinlock));
+}
+
+void
+gum_spinlock_free (GumSpinlock * spinlock)
+{
 }
 
 __declspec (naked) void

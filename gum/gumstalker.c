@@ -336,6 +336,8 @@ gum_stalker_finalize (GObject * object)
   g_hash_table_unref (self->priv->probe_array_by_address);
   g_hash_table_unref (self->priv->probe_target_by_id);
 
+  gum_spinlock_free (&self->priv->probe_lock);
+
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
 

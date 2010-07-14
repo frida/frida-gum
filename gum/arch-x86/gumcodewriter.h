@@ -52,11 +52,21 @@ enum _GumCpuReg
   GUM_REG_ESP,
   GUM_REG_EBP,
   GUM_REG_ESI,
-  GUM_REG_EDI
+  GUM_REG_EDI,
+
+  GUM_REG_RAX,
+  GUM_REG_RCX,
+  GUM_REG_RDX,
+  GUM_REG_RBX,
+  GUM_REG_RSP,
+  GUM_REG_RBP,
+  GUM_REG_RSI,
+  GUM_REG_RDI
 };
 
 enum _GumBranchHint
 {
+  GUM_NO_HINT,
   GUM_LIKELY,
   GUM_UNLIKELY
 };
@@ -96,6 +106,7 @@ void gum_code_writer_put_sub_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, G
 void gum_code_writer_put_inc_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_dec_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+void gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 
 void gum_code_writer_put_and_reg_u32 (GumCodeWriter * self, GumCpuReg reg, guint32 imm_value);
 void gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self, GumCpuReg reg, guint8 imm_value);
@@ -132,6 +143,7 @@ void gum_code_writer_put_test_reg_reg (GumCodeWriter * self, GumCpuReg reg_a, Gu
 void gum_code_writer_put_cmp_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint32 imm_value);
 void gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self, gconstpointer imm_ptr, guint32 imm_value);
 
+void gum_code_writer_put_pause (GumCodeWriter * self);
 void gum_code_writer_put_nop (GumCodeWriter * self);
 void gum_code_writer_put_int3 (GumCodeWriter * self);
 

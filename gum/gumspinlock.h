@@ -24,9 +24,15 @@
 
 G_BEGIN_DECLS
 
-typedef gsize GumSpinlock;
+typedef struct _GumSpinlock GumSpinlock;
+
+struct _GumSpinlock
+{
+  gpointer data[8];
+};
 
 void gum_spinlock_init (GumSpinlock * spinlock);
+void gum_spinlock_free (GumSpinlock * spinlock);
 
 void gum_spinlock_acquire (GumSpinlock * spinlock);
 void gum_spinlock_release (GumSpinlock * spinlock);
