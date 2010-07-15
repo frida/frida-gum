@@ -351,6 +351,7 @@ void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
+#if GLIB_SIZEOF_VOID_P == 4
   gpointer * ret_addr_ptr, start_address;
   GumExecCtx * ctx;
 
@@ -361,11 +362,13 @@ gum_stalker_follow_me (GumStalker * self,
   ctx = gum_stalker_create_exec_ctx (self, sink);
   ctx->current_block = gum_exec_ctx_create_block_for (ctx, start_address);
   *ret_addr_ptr = ctx->current_block->code_begin;
+#endif
 }
 
 void
 gum_stalker_unfollow_me (GumStalker * self)
 {
+#if GLIB_SIZEOF_VOID_P == 4
   gpointer * ret_addr_ptr, ret_addr;
   GumExecCtx * ctx;
 
@@ -381,6 +384,7 @@ gum_stalker_unfollow_me (GumStalker * self)
       gum_exec_block_get_real_address_of (ctx->current_block, ret_addr);
 
   gum_stalker_destroy_exec_ctx (self, ctx);
+#endif
 }
 
 gboolean
@@ -753,7 +757,9 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
       GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, target),
       GUM_REG_ECX);
 
-  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, &ctx->call_depth);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX,
+      (guint32) &ctx->call_depth);
+  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_ECX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, depth),
       GUM_REG_ECX);
@@ -787,7 +793,9 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
       GUM_REG_EAX, G_STRUCT_OFFSET (GumRetEvent, target),
       GUM_REG_ECX);
 
-  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, &ctx->call_depth);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX,
+      (guint32) &ctx->call_depth);
+  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_ECX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, depth),
       GUM_REG_ECX);

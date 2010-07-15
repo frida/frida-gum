@@ -70,8 +70,8 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
 
     if (!shown_once)
     {
-      g_print ("\n\nWARNING:\tRunning Stalker tests with a debugger attached "
-          "is not yet supported.\n\t\tSome tests will fail.\n\n");
+      g_print ("\n\nWARNING:\tRunning Stalker tests with debugger attached "
+          "is not supported.\n\t\tSome tests will fail.\n\n");
       shown_once = TRUE;
     }
   }
@@ -102,8 +102,13 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
   return fixture->code;
 }
 
-#define INVOKER_INSN_COUNT  6
-#define INVOKER_IMPL_OFFSET 2
+#if GLIB_SIZEOF_VOID_P == 4
+#define INVOKER_INSN_COUNT  8
+#define INVOKER_IMPL_OFFSET 3
+#else
+#define INVOKER_INSN_COUNT  9
+#define INVOKER_IMPL_OFFSET 4
+#endif
 
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
@@ -122,21 +127,24 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_code_writer_put_pushad (&cw);
 
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_follow_me);
+  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me,
+      2, fixture->stalker, fixture->sink);
 
+#if GLIB_SIZEOF_VOID_P == 4
   gum_code_writer_put_push_u32 (&cw, arg);
+#else
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
+  gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_RSP, 8);
+#endif
   fixture->last_invoke_calladdr = (guint8 *) gum_code_writer_cur (&cw);
   gum_code_writer_put_call (&cw, func);
   fixture->last_invoke_retaddr = (guint8 *) gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, (guint32) &ret);
-  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_ECX, GUM_REG_EAX);
+  gum_code_writer_put_add_reg_i8 (&cw, GUM_REG_XSP, sizeof (gpointer));
+  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
+  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
 
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP,
-      4 * sizeof (GumStalker *));
+  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me,
+      1, fixture->stalker);
 
   gum_code_writer_put_popad (&cw);
 

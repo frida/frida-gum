@@ -31,6 +31,10 @@ typedef enum _GumBranchHint   GumBranchHint;
 typedef struct _GumLabelMapping GumLabelMapping;
 typedef struct _GumLabelRef GumLabelRef;
 
+typedef guint64 GumAddress;
+
+#define GUM_ADDRESS(a) ((GumAddress) a)
+
 struct _GumCodeWriter
 {
   GumCpuType target_cpu;
@@ -47,6 +51,7 @@ struct _GumCodeWriter
 
 enum _GumCpuReg
 {
+  /* 32 bit */
   GUM_REG_EAX = 0,
   GUM_REG_ECX,
   GUM_REG_EDX,
@@ -56,6 +61,16 @@ enum _GumCpuReg
   GUM_REG_ESI,
   GUM_REG_EDI,
 
+  GUM_REG_R8D,
+  GUM_REG_R9D,
+  GUM_REG_R10D,
+  GUM_REG_R11D,
+  GUM_REG_R12D,
+  GUM_REG_R13D,
+  GUM_REG_R14D,
+  GUM_REG_R15D,
+
+  /* 64 bit */
   GUM_REG_RAX,
   GUM_REG_RCX,
   GUM_REG_RDX,
@@ -64,6 +79,7 @@ enum _GumCpuReg
   GUM_REG_RBP,
   GUM_REG_RSI,
   GUM_REG_RDI,
+
   GUM_REG_R8,
   GUM_REG_R9,
   GUM_REG_R10,
@@ -71,7 +87,17 @@ enum _GumCpuReg
   GUM_REG_R12,
   GUM_REG_R13,
   GUM_REG_R14,
-  GUM_REG_R15
+  GUM_REG_R15,
+
+  /* Meta */
+  GUM_REG_XAX,
+  GUM_REG_XCX,
+  GUM_REG_XDX,
+  GUM_REG_XBX,
+  GUM_REG_XSP,
+  GUM_REG_XBP,
+  GUM_REG_XSI,
+  GUM_REG_XDI
 };
 
 enum _GumBranchHint
@@ -94,6 +120,7 @@ void gum_code_writer_flush (GumCodeWriter * self);
 
 void gum_code_writer_put_label (GumCodeWriter * self, gconstpointer id);
 
+void gum_code_writer_put_call_with_arguments (GumCodeWriter * self, gpointer func, guint n_args, ...);
 void gum_code_writer_put_call (GumCodeWriter * self, gconstpointer target);
 void gum_code_writer_put_call_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_call_indirect (GumCodeWriter * self, gconstpointer * addr);
@@ -125,10 +152,10 @@ void gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self, GumCpuReg reg, guint8
 
 void gum_code_writer_put_mov_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self, GumCpuReg dst_reg, guint32 imm_value);
+void gum_code_writer_put_mov_reg_u64 (GumCodeWriter * self, GumCpuReg dst_reg, guint64 imm_value);
+void gum_code_writer_put_mov_reg_address (GumCodeWriter * self, GumCpuReg dst_reg, GumAddress address);
 void gum_code_writer_put_mov_reg_ptr_u32 (GumCodeWriter * self, GumCpuReg dst_reg, guint32 imm_value);
 void gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self, GumCpuReg dst_reg, gssize dst_offset, guint32 imm_value);
-void gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self, GumCpuReg dst_reg, gconstpointer imm_ptr);
-void gum_code_writer_put_mov_imm_ptr_reg (GumCodeWriter * self, gconstpointer address, GumCpuReg reg);
 void gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, gint8 dst_offset, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_reg_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);

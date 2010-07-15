@@ -31,6 +31,7 @@ static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
 TEST_LIST_BEGIN (stalker)
+  STALKER_TESTENTRY (no_events)
   STALKER_TESTENTRY (call)
   STALKER_TESTENTRY (ret)
   STALKER_TESTENTRY (exec)
@@ -108,6 +109,12 @@ invoke_flat (TestStalkerFixture * fixture,
   g_assert_cmpint (ret, ==, 2);
 
   return func;
+}
+
+STALKER_TESTCASE (no_events)
+{
+  invoke_flat (fixture, GUM_NOTHING);
+  g_assert_cmpuint (fixture->sink->events->len, ==, 0);
 }
 
 STALKER_TESTCASE (call)

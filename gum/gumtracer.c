@@ -507,7 +507,8 @@ gum_tracer_write_logging_code (GumTracer * self,
 
   /* make sure we write behind readpos */
   gum_code_writer_put_label (cw, check_can_write_lbl);
-  gum_code_writer_put_mov_reg_imm_ptr (cw, GUM_REG_ECX, (gint *) &rb->readpos);
+  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX, (guint32) &rb->readpos);
+  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_ECX);
   gum_code_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
   gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_ECX,
       -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));

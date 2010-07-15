@@ -75,11 +75,15 @@ struct _GumLabelRef
   GumLabelRefSize size;
 };
 
-static void gum_cpu_reg_describe (GumCpuReg reg, GumCpuRegInfo * ri);
-static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
-
 static guint8 * gum_code_writer_lookup_address_for_label_id (
     GumCodeWriter * self, gconstpointer id);
+static void gum_code_writer_describe_cpu_reg (GumCodeWriter * self,
+    GumCpuReg reg, GumCpuRegInfo * ri);
+
+static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
+
+static void gum_code_writer_put_prefix_for_reg_info (GumCodeWriter * self,
+    const GumCpuRegInfo * ri, guint operand_index);
 
 void
 gum_code_writer_init (GumCodeWriter * writer,
@@ -218,19 +222,97 @@ gum_code_writer_add_label_reference_here (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
+                                         gpointer func,
+                                         guint n_args,
+                                         ...)
+{
+  GPtrArray * args;
+  va_list vl;
+  gint arg_index;
+
+  g_return_if_fail (n_args > 0 && n_args <= 4);
+
+  args = g_ptr_array_sized_new (n_args);
+  va_start (vl, n_args);
+  for (arg_index = 0; arg_index != n_args; arg_index++)
+    g_ptr_array_add (args, va_arg (vl, gpointer));
+  va_end (vl);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    for (arg_index = args->len - 1; arg_index >= 0; arg_index--)
+    {
+      gum_code_writer_put_push_u32 (self,
+          (guint32) g_ptr_array_index (args, arg_index));
+    }
+    gum_code_writer_put_call (self, func);
+    gum_code_writer_put_add_reg_i8 (self, GUM_REG_ESP,
+        (gint8) n_args * sizeof (guint32));
+  }
+  else
+  {
+    GumCpuReg reg_for_arg[4] = {
+      GUM_REG_RCX,
+      GUM_REG_RDX,
+      GUM_REG_R8,
+      GUM_REG_R9
+    };
+    guint arglist_size = n_args * sizeof (guint64);
+
+    for (arg_index = args->len - 1; arg_index >= 0; arg_index--)
+    {
+      gum_code_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
+          (guint64) g_ptr_array_index (args, arg_index));
+    }
+    gum_code_writer_put_sub_reg_i8 (self, GUM_REG_RSP, arglist_size);
+    gum_code_writer_put_call (self, func);
+    gum_code_writer_put_add_reg_i8 (self, GUM_REG_RSP, arglist_size);
+  }
+
+  g_ptr_array_free (args, TRUE);
+}
+
+void
 gum_code_writer_put_call (GumCodeWriter * self,
                           gconstpointer target)
 {
-  self->code[0] = 0xe8;
-  *((gint32 *) (self->code + 1)) =
-      GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 5);
-  self->code += 5;
+  gint64 distance;
+  gboolean distance_fits_in_i32;
+
+  distance = (gint64) target - (gint64) (self->code + 5);
+  distance_fits_in_i32 = (distance >= G_MININT32 && distance <= G_MAXINT32);
+
+  if (distance_fits_in_i32)
+  {
+    self->code[0] = 0xe8;
+    *((gint32 *) (self->code + 1)) = distance;
+    self->code += 5;
+  }
+  else
+  {
+    g_assert (self->target_cpu == GUM_CPU_AMD64);
+
+    gum_code_writer_put_mov_reg_u64 (self, GUM_REG_RAX, (guint64) target);
+    gum_code_writer_put_call_reg (self, GUM_REG_RAX);
+  }
 }
 
 void
 gum_code_writer_put_call_reg (GumCodeWriter * self,
                               GumCpuReg reg)
 {
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  else
+    g_return_if_fail (ri.width == 64);
+
+  if (ri.index_is_extended)
+    *self->code++ = 0x41;
   self->code[0] = 0xff;
   self->code[1] = 0xd0 | reg;
   self->code += 2;
@@ -387,8 +469,14 @@ gum_code_writer_put_add_reg_i8 (GumCodeWriter * self,
                                 GumCpuReg reg,
                                 gint8 imm_value)
 {
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
+
   self->code[0] = 0x83;
-  self->code[1] = 0xc0 | reg;
+  self->code[1] = 0xc0 | ri.index;
   *((gint8 *) (self->code + 2)) = imm_value;
   self->code += 3;
 }
@@ -428,8 +516,14 @@ gum_code_writer_put_sub_reg_i8 (GumCodeWriter * self,
                                 GumCpuReg reg,
                                 gint8 imm_value)
 {
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
+
   self->code[0] = 0x83;
-  self->code[1] = 0xe8 | reg;
+  self->code[1] = 0xe8 | ri.index;
   *((gint8 *) (self->code + 2)) = imm_value;
   self->code += 3;
 }
@@ -511,16 +605,15 @@ gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self,
 {
   GumCpuRegInfo dst, src;
 
-  gum_cpu_reg_describe (dst_reg, &dst);
-  gum_cpu_reg_describe (src_reg, &src);
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_assert_cmpuint (dst.width, ==, 32);
+    g_return_if_fail (dst.width == 32);
   else
-    g_assert_cmpuint (dst.width, ==, 64);
-  g_assert (!dst.index_is_extended);
-  g_assert_cmpuint (src.width, ==, 32);
-  g_assert (!src.index_is_extended);
+    g_return_if_fail (dst.width == 64);
+  g_return_if_fail (!dst.index_is_extended);
+  g_return_if_fail (src.width == 32 && !src.index_is_extended);
 
   self->code[0] = 0xf0; /* lock prefix */
   self->code[1] = 0x0f;
@@ -585,9 +678,52 @@ gum_code_writer_put_mov_reg_u32 (GumCodeWriter * self,
                                  GumCpuReg dst_reg,
                                  guint32 imm_value)
 {
-  self->code[0] = 0xb8 | dst_reg;
+  GumCpuRegInfo dst;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+
+  g_return_if_fail (dst.width == 32);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+
+  self->code[0] = 0xb8 | dst.index;
   *((guint32 *) (self->code + 1)) = imm_value;
   self->code += 5;
+}
+
+void
+gum_code_writer_put_mov_reg_u64 (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 guint64 imm_value)
+{
+  GumCpuRegInfo dst;
+
+  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64);
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+
+  g_return_if_fail (dst.width == 64);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+
+  self->code[0] = 0xb8 | dst.index;
+  *((guint64 *) (self->code + 1)) = imm_value;
+  self->code += 9;
+}
+
+void
+gum_code_writer_put_mov_reg_address (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     GumAddress address)
+{
+  GumCpuRegInfo dst;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+
+  if (dst.width == 32)
+    gum_code_writer_put_mov_reg_u32 (self, dst_reg, (guint32) address);
+  else
+    gum_code_writer_put_mov_reg_u64 (self, dst_reg, (guint64) address);
 }
 
 void
@@ -627,46 +763,6 @@ gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
-                                     GumCpuReg dst_reg,
-                                     gconstpointer imm_ptr)
-{
-  if (dst_reg == GUM_REG_EAX)
-  {
-    self->code[0] = 0xa1;
-    *((gconstpointer *) (self->code + 1)) = imm_ptr;
-    self->code += 5;
-  }
-  else
-  {
-    self->code[0] = 0x8b;
-    self->code[1] = 0x05 | (dst_reg << 3);
-    *((gconstpointer *) (self->code + 2)) = imm_ptr;
-    self->code += 6;
-  }
-}
-
-void
-gum_code_writer_put_mov_imm_ptr_reg (GumCodeWriter * self,
-                                     gconstpointer address,
-                                     GumCpuReg reg)
-{
-  if (reg == GUM_REG_EAX)
-  {
-    self->code[0] = 0xa3;
-    *((gconstpointer *) (self->code + 1)) = address;
-    self->code += 5;
-  }
-  else
-  {
-    self->code[0] = 0x89;
-    self->code[1] = (reg << 3) | 0x5;
-    *((gconstpointer *) (self->code + 2)) = address;
-    self->code += 6;
-  }
-}
-
-void
 gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self,
                                      GumCpuReg dst_reg,
                                      GumCpuReg src_reg)
@@ -680,18 +776,30 @@ gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
                                             gint8 dst_offset,
                                             GumCpuReg src_reg)
 {
+  GumCpuRegInfo dst, src;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (dst.width == 32 && src.width == 32);
+  else
+    g_return_if_fail (dst.width == 64);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &src, 1);
+
   *self->code++ = 0x89;
 
-  if (dst_offset == 0 && dst_reg != GUM_REG_EBP)
+  if (dst_offset == 0 && dst.meta != GUM_META_REG_XBP)
   {
-    *self->code++ = 0x00 | (src_reg << 3) | dst_reg;
-    if (dst_reg == GUM_REG_ESP)
+    *self->code++ = 0x00 | (src.index << 3) | dst.index;
+    if (dst.meta == GUM_META_REG_XSP)
       *self->code++ = 0x24;
   }
   else
   {
-    *self->code++ = 0x40 | (src_reg << 3) | dst_reg;
-    if (dst_reg == GUM_REG_ESP)
+    *self->code++ = 0x40 | (src.index << 3) | dst.index;
+    if (dst.meta == GUM_META_REG_XSP)
       *self->code++ = 0x24;
     *self->code++ = dst_offset;
   }
@@ -727,14 +835,53 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
   self->code++;
 }
 
+static void
+gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
+                                     GumCpuReg dst_reg,
+                                     guint32 address)
+{
+  if (dst_reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0xa1;
+    *((guint32 *) (self->code + 1)) = address;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x8b;
+    self->code[1] = 0x05 | (dst_reg << 3);
+    *((guint32 *) (self->code + 2)) = address;
+    self->code += 6;
+  }
+}
+
+static void
+gum_code_writer_put_mov_imm_ptr_reg (GumCodeWriter * self,
+                                     guint32 address,
+                                     GumCpuReg src_reg)
+{
+  if (src_reg == GUM_REG_EAX)
+  {
+    self->code[0] = 0xa3;
+    *((guint32 *) (self->code + 1)) = address;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0x89;
+    self->code[1] = (src_reg << 3) | 0x5;
+    *((guint32 *) (self->code + 2)) = address;
+    self->code += 6;
+  }
+}
+
 void
 gum_code_writer_put_mov_fs_u32_ptr_reg (GumCodeWriter * self,
                                         guint32 fs_offset,
                                         GumCpuReg src_reg)
 {
   gum_code_writer_put_byte (self, 0x64);
-  gum_code_writer_put_mov_imm_ptr_reg (self, GSIZE_TO_POINTER (fs_offset),
-      src_reg);
+  gum_code_writer_put_mov_imm_ptr_reg (self, fs_offset, src_reg);
 }
 
 void
@@ -743,8 +890,7 @@ gum_code_writer_put_mov_reg_fs_u32_ptr (GumCodeWriter * self,
                                         guint32 fs_offset)
 {
   gum_code_writer_put_byte (self, 0x64);
-  gum_code_writer_put_mov_reg_imm_ptr (self, dst_reg,
-      GSIZE_TO_POINTER (fs_offset));
+  gum_code_writer_put_mov_reg_imm_ptr (self, dst_reg, fs_offset);
 }
 
 void
@@ -812,15 +958,15 @@ gum_code_writer_put_push_reg (GumCodeWriter * self,
 {
   GumCpuRegInfo ri;
 
-  gum_cpu_reg_describe (reg, &ri);
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_assert_cmpuint (ri.width, ==, 32);
+    g_return_if_fail (ri.width == 32);
   else
-    g_assert_cmpuint (ri.width, ==, 64);
+    g_return_if_fail (ri.width == 64);
 
-  if (ri.index_is_extended)
-    *self->code++ = 0x41;
+  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
+
   *self->code++ = 0x50 | ri.index;
 }
 
@@ -830,15 +976,15 @@ gum_code_writer_put_pop_reg (GumCodeWriter * self,
 {
   GumCpuRegInfo ri;
 
-  gum_cpu_reg_describe (reg, &ri);
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
 
   if (self->target_cpu == GUM_CPU_IA32)
-    g_assert_cmpuint (ri.width, ==, 32);
+    g_return_if_fail (ri.width == 32);
   else
-    g_assert_cmpuint (ri.width, ==, 64);
+    g_return_if_fail (ri.width == 64);
 
-  if (ri.index_is_extended)
-    *self->code++ = 0x41;
+  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
+
   *self->code++ = 0x58 | ri.index;
 }
 
@@ -1008,9 +1154,18 @@ gum_code_writer_put_bytes (GumCodeWriter * self,
 }
 
 static void
-gum_cpu_reg_describe (GumCpuReg reg,
-                      GumCpuRegInfo * ri)
+gum_code_writer_describe_cpu_reg (GumCodeWriter * self,
+                                  GumCpuReg reg,
+                                  GumCpuRegInfo * ri)
 {
+  if (reg >= GUM_REG_XAX && reg <= GUM_REG_XDI)
+  {
+    if (self->target_cpu == GUM_CPU_IA32)
+      reg = (GumCpuReg) (GUM_REG_EAX + reg - GUM_REG_XAX);
+    else
+      reg = (GumCpuReg) (GUM_REG_RAX + reg - GUM_REG_XAX);
+  }
+
   ri->meta = gum_meta_reg_from_cpu_reg (reg);
 
   if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
@@ -1032,18 +1187,53 @@ gum_cpu_reg_describe (GumCpuReg reg,
   {
     ri->width = 32;
 
-    ri->index = reg - GUM_REG_EAX;
-    ri->index_is_extended = FALSE;
+    if (reg < GUM_REG_R8D)
+    {
+      ri->index = reg - GUM_REG_EAX;
+      ri->index_is_extended = FALSE;
+    }
+    else
+    {
+      ri->index = reg - GUM_REG_R8D;
+      ri->index_is_extended = TRUE;
+    }
   }
 }
 
 static GumMetaReg
 gum_meta_reg_from_cpu_reg (GumCpuReg reg)
 {
-  if (reg >= GUM_REG_EAX && reg <= GUM_REG_EDI)
+  if (reg >= GUM_REG_EAX && reg <= GUM_REG_R15D)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_EAX);
   else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_RAX);
   else
     g_assert_not_reached ();
+}
+
+static void
+gum_code_writer_put_prefix_for_reg_info (GumCodeWriter * self,
+                                         const GumCpuRegInfo * ri,
+                                         guint operand_index)
+{
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_return_if_fail (ri->width == 32 && !ri->index_is_extended);
+  }
+  else
+  {
+    guint mask;
+
+    mask = 1 << (operand_index * 2);
+
+    if (ri->width == 32)
+    {
+      if (ri->index_is_extended)
+        *self->code++ = 0x40 | mask;
+    }
+    else
+    {
+      *self->code++ = (ri->index_is_extended) ? 0x48 | mask : 0x48;
+    }
+  }
 }
