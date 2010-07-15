@@ -36,7 +36,25 @@ typedef enum _GumMetaReg
   GUM_META_REG_XBP,
   GUM_META_REG_XSI,
   GUM_META_REG_XDI,
+  GUM_META_REG_R8,
+  GUM_META_REG_R9,
+  GUM_META_REG_R10,
+  GUM_META_REG_R11,
+  GUM_META_REG_R12,
+  GUM_META_REG_R13,
+  GUM_META_REG_R14,
+  GUM_META_REG_R15
 } GumMetaReg;
+
+typedef struct _GumCpuRegInfo GumCpuRegInfo;
+
+struct _GumCpuRegInfo
+{
+  GumMetaReg meta;
+  guint width;
+  guint index;
+  gboolean index_is_extended;
+};
 
 typedef enum _GumLabelRefSize
 {
@@ -57,7 +75,7 @@ struct _GumLabelRef
   GumLabelRefSize size;
 };
 
-static gboolean gum_cpu_reg_is_wide (GumCpuReg reg);
+static void gum_cpu_reg_describe (GumCpuReg reg, GumCpuRegInfo * ri);
 static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
 
 static guint8 * gum_code_writer_lookup_address_for_label_id (
@@ -77,6 +95,12 @@ void
 gum_code_writer_reset (GumCodeWriter * writer,
                        gpointer code_address)
 {
+#if GLIB_SIZEOF_VOID_P == 4
+  writer->target_cpu = GUM_CPU_IA32;
+#else
+  writer->target_cpu = GUM_CPU_AMD64;
+#endif
+
   writer->base = code_address;
   writer->code = code_address;
 
@@ -91,6 +115,13 @@ gum_code_writer_free (GumCodeWriter * writer)
 
   g_free (writer->id_to_address);
   g_free (writer->label_refs);
+}
+
+void
+gum_code_writer_set_target_cpu (GumCodeWriter * writer,
+                                GumCpuType cpu_type)
+{
+  writer->target_cpu = cpu_type;
 }
 
 gpointer
@@ -478,24 +509,30 @@ gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self,
                                               GumCpuReg dst_reg,
                                               GumCpuReg src_reg)
 {
-  GumMetaReg dst, src;
+  GumCpuRegInfo dst, src;
 
-  g_assert (!gum_cpu_reg_is_wide (src_reg));
+  gum_cpu_reg_describe (dst_reg, &dst);
+  gum_cpu_reg_describe (src_reg, &src);
 
-  dst = gum_meta_reg_from_cpu_reg (dst_reg);
-  src = gum_meta_reg_from_cpu_reg (src_reg);
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_assert_cmpuint (dst.width, ==, 32);
+  else
+    g_assert_cmpuint (dst.width, ==, 64);
+  g_assert (!dst.index_is_extended);
+  g_assert_cmpuint (src.width, ==, 32);
+  g_assert (!src.index_is_extended);
 
   self->code[0] = 0xf0; /* lock prefix */
   self->code[1] = 0x0f;
   self->code[2] = 0xb1;
-  self->code[3] = 0x00 | (src << 3) | dst;
+  self->code[3] = 0x00 | (src.index << 3) | dst.index;
   self->code += 4;
 
-  if (dst == GUM_META_REG_XSP)
+  if (dst.meta == GUM_META_REG_XSP)
   {
     *self->code++ = 0x24;
   }
-  else if (dst == GUM_META_REG_XBP)
+  else if (dst.meta == GUM_META_REG_XBP)
   {
     self->code[-1] |= 0x40;
     *self->code++ = 0x00;
@@ -773,16 +810,36 @@ void
 gum_code_writer_put_push_reg (GumCodeWriter * self,
                               GumCpuReg reg)
 {
-  self->code[0] = 0x50 + reg;
-  self->code++;
+  GumCpuRegInfo ri;
+
+  gum_cpu_reg_describe (reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_assert_cmpuint (ri.width, ==, 32);
+  else
+    g_assert_cmpuint (ri.width, ==, 64);
+
+  if (ri.index_is_extended)
+    *self->code++ = 0x41;
+  *self->code++ = 0x50 | ri.index;
 }
 
 void
 gum_code_writer_put_pop_reg (GumCodeWriter * self,
                              GumCpuReg reg)
 {
-  self->code[0] = 0x58 + reg;
-  self->code++;
+  GumCpuRegInfo ri;
+
+  gum_cpu_reg_describe (reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_assert_cmpuint (ri.width, ==, 32);
+  else
+    g_assert_cmpuint (ri.width, ==, 64);
+
+  if (ri.index_is_extended)
+    *self->code++ = 0x41;
+  *self->code++ = 0x58 | ri.index;
 }
 
 void
@@ -798,15 +855,61 @@ gum_code_writer_put_push_imm_ptr (GumCodeWriter * self,
 void
 gum_code_writer_put_pushad (GumCodeWriter * self)
 {
-  self->code[0] = 0x60;
-  self->code++;
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    self->code[0] = 0x60;
+    self->code++;
+  }
+  else
+  {
+    gum_code_writer_put_push_reg (self, GUM_REG_R15);
+    gum_code_writer_put_push_reg (self, GUM_REG_R14);
+    gum_code_writer_put_push_reg (self, GUM_REG_R13);
+    gum_code_writer_put_push_reg (self, GUM_REG_R12);
+    gum_code_writer_put_push_reg (self, GUM_REG_R11);
+    gum_code_writer_put_push_reg (self, GUM_REG_R10);
+    gum_code_writer_put_push_reg (self, GUM_REG_R9);
+    gum_code_writer_put_push_reg (self, GUM_REG_R8);
+
+    gum_code_writer_put_push_reg (self, GUM_REG_RBP);
+    gum_code_writer_put_push_reg (self, GUM_REG_RDI);
+    gum_code_writer_put_push_reg (self, GUM_REG_RSI);
+    gum_code_writer_put_push_reg (self, GUM_REG_RDX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RCX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RBX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RAX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RSP);
+  }
 }
 
 void
 gum_code_writer_put_popad (GumCodeWriter * self)
 {
-  self->code[0] = 0x61;
-  self->code++;
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    self->code[0] = 0x61;
+    self->code++;
+  }
+  else
+  {
+    gum_code_writer_put_pop_reg (self, GUM_REG_RSP);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RAX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RBX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RCX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RDX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RSI);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RDI);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RBP);
+
+    gum_code_writer_put_pop_reg (self, GUM_REG_R8);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R9);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R10);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R11);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R12);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R13);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R14);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R15);
+  }
 }
 
 void
@@ -904,10 +1007,34 @@ gum_code_writer_put_bytes (GumCodeWriter * self,
   self->code += n;
 }
 
-static gboolean
-gum_cpu_reg_is_wide (GumCpuReg reg)
+static void
+gum_cpu_reg_describe (GumCpuReg reg,
+                      GumCpuRegInfo * ri)
 {
-  return (reg >= GUM_REG_RAX && reg <= GUM_REG_RDI);
+  ri->meta = gum_meta_reg_from_cpu_reg (reg);
+
+  if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
+  {
+    ri->width = 64;
+
+    if (reg < GUM_REG_R8)
+    {
+      ri->index = reg - GUM_REG_RAX;
+      ri->index_is_extended = FALSE;
+    }
+    else
+    {
+      ri->index = reg - GUM_REG_R8;
+      ri->index_is_extended = TRUE;
+    }
+  }
+  else
+  {
+    ri->width = 32;
+
+    ri->index = reg - GUM_REG_EAX;
+    ri->index_is_extended = FALSE;
+  }
 }
 
 static GumMetaReg
@@ -915,7 +1042,7 @@ gum_meta_reg_from_cpu_reg (GumCpuReg reg)
 {
   if (reg >= GUM_REG_EAX && reg <= GUM_REG_EDI)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_EAX);
-  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_RDI)
+  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_RAX);
   else
     g_assert_not_reached ();

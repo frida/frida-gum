@@ -88,8 +88,8 @@ STALKER_TESTCASE (heap_api)
 
 static const guint8 flat_code[] = {
     0x33, 0xc0, /* xor eax, eax */
-    0x40,       /* inc eax      */
-    0x40,       /* inc eax      */
+    0xff, 0xc0, /* inc eax      */
+    0xff, 0xc0, /* inc eax      */
     0xc3        /* retn         */
 };
 
@@ -138,7 +138,7 @@ STALKER_TESTCASE (ret)
       ==, GUM_RET);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).ret;
   g_assert_cmphex ((guint64) ev->location,
-      ==, (guint64) (((guint8 *) GSIZE_TO_POINTER (func)) + 4));
+      ==, (guint64) (((guint8 *) GSIZE_TO_POINTER (func)) + 6));
   g_assert_cmphex ((guint64) ev->target,
       ==, (guint64) fixture->last_invoke_retaddr);
 }

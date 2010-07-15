@@ -32,7 +32,14 @@
 #  define GUM_API
 #endif
 
+typedef enum _GumCpuType GumCpuType;
 typedef struct _GumCpuContext GumCpuContext;
+
+enum _GumCpuType
+{
+  GUM_CPU_IA32,
+  GUM_CPU_AMD64
+};
 
 struct _GumCpuContext
 {

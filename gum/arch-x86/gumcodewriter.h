@@ -33,6 +33,8 @@ typedef struct _GumLabelRef GumLabelRef;
 
 struct _GumCodeWriter
 {
+  GumCpuType target_cpu;
+
   guint8 * base;
   guint8 * code;
 
@@ -61,7 +63,15 @@ enum _GumCpuReg
   GUM_REG_RSP,
   GUM_REG_RBP,
   GUM_REG_RSI,
-  GUM_REG_RDI
+  GUM_REG_RDI,
+  GUM_REG_R8,
+  GUM_REG_R9,
+  GUM_REG_R10,
+  GUM_REG_R11,
+  GUM_REG_R12,
+  GUM_REG_R13,
+  GUM_REG_R14,
+  GUM_REG_R15
 };
 
 enum _GumBranchHint
@@ -74,6 +84,8 @@ enum _GumBranchHint
 void gum_code_writer_init (GumCodeWriter * writer, gpointer code_address);
 void gum_code_writer_reset (GumCodeWriter * writer, gpointer code_address);
 void gum_code_writer_free (GumCodeWriter * writer);
+
+void gum_code_writer_set_target_cpu (GumCodeWriter * writer, GumCpuType cpu_type);
 
 gpointer gum_code_writer_cur (GumCodeWriter * self);
 guint gum_code_writer_offset (GumCodeWriter * self);
