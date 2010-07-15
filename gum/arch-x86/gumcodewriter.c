@@ -258,7 +258,13 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
       GUM_REG_R8,
       GUM_REG_R9
     };
-    guint arglist_size = n_args * sizeof (guint64);
+    guint arglist_size;
+
+    arglist_size = n_args * sizeof (guint64);
+    if ((arglist_size + 8) % 16 != 0)
+    {
+      arglist_size = (((arglist_size + 8) + (16 - 1)) & ~(16 - 1)) - 8;
+    }
 
     for (arg_index = args->len - 1; arg_index >= 0; arg_index--)
     {
