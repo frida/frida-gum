@@ -182,18 +182,8 @@ enum _GumVirtualizationRequirements
 
 #define CDECL_PRESERVE_SIZE (4 * sizeof (gpointer))
 
-#if GLIB_SIZEOF_VOID_P == 4
-  #define INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(ptr, arg)   \
-      __asm                                                           \
-      {                                                               \
-        __asm lea eax, [arg - 4]                                      \
-        __asm mov [ptr], eax                                          \
-      }
-#else
-  /* FIXME */
-  #define INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(ptr, arg)   \
-      ptr = NULL
-#endif
+#define RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(arg)   \
+    ((gpointer *) ((volatile guint8 *) &arg - sizeof (gpointer)))
 
 static void gum_stalker_finalize (GObject * object);
 
@@ -351,28 +341,27 @@ void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
-#if GLIB_SIZEOF_VOID_P == 4
-  gpointer * ret_addr_ptr, start_address;
+  volatile gpointer * ret_addr_ptr;
+  gpointer start_address;
   GumExecCtx * ctx;
 
-  INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (ret_addr_ptr, self);
+  ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
   start_address = *ret_addr_ptr;
 
   ctx = gum_stalker_create_exec_ctx (self, sink);
   ctx->current_block = gum_exec_ctx_create_block_for (ctx, start_address);
   *ret_addr_ptr = ctx->current_block->code_begin;
-#endif
 }
 
 void
 gum_stalker_unfollow_me (GumStalker * self)
 {
-#if GLIB_SIZEOF_VOID_P == 4
-  gpointer * ret_addr_ptr, ret_addr;
+  volatile gpointer * ret_addr_ptr;
+  gpointer ret_addr;
   GumExecCtx * ctx;
 
-  INIT_RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (ret_addr_ptr, self);
+  ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
   ret_addr = *ret_addr_ptr;
 
@@ -384,7 +373,6 @@ gum_stalker_unfollow_me (GumStalker * self)
       gum_exec_block_get_real_address_of (ctx->current_block, ret_addr);
 
   gum_stalker_destroy_exec_ctx (self, ctx);
-#endif
 }
 
 gboolean
