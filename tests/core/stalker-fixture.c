@@ -125,7 +125,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_code_writer_init (&cw, code);
 
-  gum_code_writer_put_pushad (&cw);
+  gum_code_writer_put_pushax (&cw);
 
   gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me,
       2, fixture->stalker, fixture->sink);
@@ -146,7 +146,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_code_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me,
       1, fixture->stalker);
 
-  gum_code_writer_put_popad (&cw);
+  gum_code_writer_put_popax (&cw);
 
   gum_code_writer_put_ret (&cw);
 

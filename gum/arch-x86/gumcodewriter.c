@@ -320,7 +320,7 @@ gum_code_writer_put_call_reg (GumCodeWriter * self,
   if (ri.index_is_extended)
     *self->code++ = 0x41;
   self->code[0] = 0xff;
-  self->code[1] = 0xd0 | reg;
+  self->code[1] = 0xd0 | ri.index;
   self->code += 2;
 }
 
@@ -406,6 +406,26 @@ gum_code_writer_put_jcc_near (GumCodeWriter * self,
   self->code[1] = opcode;
   *((gint32 *) (self->code + 2)) = distance;
   self->code += 6;
+}
+
+void
+gum_code_writer_put_jmp_reg (GumCodeWriter * self,
+                             GumCpuReg reg)
+{
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  else
+    g_return_if_fail (ri.width == 64);
+
+  if (ri.index_is_extended)
+    *self->code++ = 0x41;
+  self->code[0] = 0xff;
+  self->code[1] = 0xe0 | ri.index;
+  self->code += 2;
 }
 
 void
@@ -670,6 +690,26 @@ gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_xor_reg_reg (GumCodeWriter * self,
+                                 GumCpuReg dst_reg,
+                                 GumCpuReg src_reg)
+{
+  GumCpuRegInfo dst, src;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
+
+  g_return_if_fail (dst.width == src.width);
+  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+
+  self->code[0] = 0x31;
+  self->code[1] = 0xc0 | (src.index << 3) | dst.index;
+  self->code += 2;
+}
+
+void
 gum_code_writer_put_mov_reg_reg (GumCodeWriter * self,
                                  GumCpuReg dst_reg,
                                  GumCpuReg src_reg)
@@ -825,18 +865,25 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
                                             GumCpuReg src_reg,
                                             gssize src_offset)
 {
-  g_assert (IS_WITHIN_UINT8_RANGE (src_offset));
+  GumCpuRegInfo dst, src;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (dst.width == 32 && src.width == 32);
+  else
+    g_return_if_fail (src.width == 64);
+  g_return_if_fail (IS_WITHIN_UINT8_RANGE (src_offset));
+
+  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
 
   self->code[0] = 0x8b;
-  self->code[1] = 0x40 | src_reg | (dst_reg << 3);
+  self->code[1] = 0x40 | (dst.index << 3) | src.index;
   self->code += 2;
 
-  if (src_reg == GUM_REG_ESP)
-  {
-    self->code[0] = 0x24;
-    self->code++;
-  }
-
+  if (src.meta == GUM_META_REG_XSP)
+    *self->code++ = 0x24;
   *((gint8 *) self->code) = src_offset;
   self->code++;
 }
@@ -950,6 +997,70 @@ gum_code_writer_put_movdqu_eax_offset_ptr_xmm0 (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_lea_reg_reg_offset (GumCodeWriter * self,
+                                        GumCpuReg dst_reg,
+                                        GumCpuReg src_reg,
+                                        gssize src_offset)
+{
+  GumCpuRegInfo dst, src;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
+
+  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+
+  if (self->target_cpu == GUM_CPU_AMD64)
+  {
+    if (src.width == 32)
+      *self->code++ = 0x67;
+    if (dst.width == 64)
+      *self->code++ = 0x48;
+  }
+
+  self->code[0] = 0x8d;
+  self->code[1] = 0x80 | (dst.index << 3) | src.index;
+  self->code += 2;
+
+  if (src.meta == GUM_META_REG_XSP)
+    *self->code++ = 0x24;
+
+  *((gint32 *) self->code) = src_offset;
+  self->code += 4;
+}
+
+void
+gum_code_writer_put_xchg_reg_reg_ptr (GumCodeWriter * self,
+                                      GumCpuReg left_reg,
+                                      GumCpuReg right_reg)
+{
+  GumCpuRegInfo left, right;
+
+  gum_code_writer_describe_cpu_reg (self, left_reg, &left);
+  gum_code_writer_describe_cpu_reg (self, right_reg, &right);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (right.width == 32);
+  else
+    g_return_if_fail (right.width == 64);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &left, 1);
+
+  self->code[0] = 0x87;
+  self->code[1] = 0x00 | (left.index << 3) | right.index;
+  self->code += 2;
+
+  if (right.meta == GUM_META_REG_XSP)
+  {
+    *self->code++ = 0x24;
+  }
+  else if (right.meta == GUM_META_REG_XBP)
+  {
+    self->code[-1] |= 0x40;
+    *self->code++ = 0x00;
+  }
+}
+
+void
 gum_code_writer_put_push_u32 (GumCodeWriter * self,
                               guint32 imm_value)
 {
@@ -1005,7 +1116,7 @@ gum_code_writer_put_push_imm_ptr (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_pushad (GumCodeWriter * self)
+gum_code_writer_put_pushax (GumCodeWriter * self)
 {
   if (self->target_cpu == GUM_CPU_IA32)
   {
@@ -1035,7 +1146,7 @@ gum_code_writer_put_pushad (GumCodeWriter * self)
 }
 
 void
-gum_code_writer_put_popad (GumCodeWriter * self)
+gum_code_writer_put_popax (GumCodeWriter * self)
 {
   if (self->target_cpu == GUM_CPU_IA32)
   {
@@ -1065,14 +1176,14 @@ gum_code_writer_put_popad (GumCodeWriter * self)
 }
 
 void
-gum_code_writer_put_pushfd (GumCodeWriter * self)
+gum_code_writer_put_pushfx (GumCodeWriter * self)
 {
   self->code[0] = 0x9c;
   self->code++;
 }
 
 void
-gum_code_writer_put_popfd (GumCodeWriter * self)
+gum_code_writer_put_popfx (GumCodeWriter * self)
 {
   self->code[0] = 0x9d;
   self->code++;
