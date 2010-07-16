@@ -602,6 +602,55 @@ gum_code_writer_put_dec_reg (GumCodeWriter * self,
   self->code += 2;
 }
 
+static void
+gum_code_writer_put_inc_or_dec_reg_ptr (GumCodeWriter * self,
+                                        GumPtrTarget target,
+                                        GumCpuReg reg,
+                                        gboolean increment)
+{
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_AMD64)
+  {
+    if (target == GUM_PTR_QWORD)
+      *self->code++ = 0x48 | (ri.index_is_extended) ? 0x01 : 0x00;
+    else if (ri.index_is_extended)
+      *self->code++ = 0x41;
+  }
+
+  switch (target)
+  {
+    case GUM_PTR_BYTE:
+      *self->code++ = 0xfe;
+      break;
+    case GUM_PTR_QWORD:
+      g_return_if_fail (self->target_cpu == GUM_CPU_AMD64);
+    case GUM_PTR_DWORD:
+      *self->code++ = 0xff;
+      break;
+  }
+
+  *self->code++ = ((increment) ? 0x00 : 0x08) | ri.index;
+}
+
+void
+gum_code_writer_put_inc_reg_ptr (GumCodeWriter * self,
+                                 GumPtrTarget target,
+                                 GumCpuReg reg)
+{
+  gum_code_writer_put_inc_or_dec_reg_ptr (self, target, reg, TRUE);
+}
+
+void
+gum_code_writer_put_dec_reg_ptr (GumCodeWriter * self,
+                                 GumPtrTarget target,
+                                 GumCpuReg reg)
+{
+  gum_code_writer_put_inc_or_dec_reg_ptr (self, target, reg, FALSE);
+}
+
 void
 gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self,
                                            GumCpuReg dst_reg,
@@ -714,8 +763,18 @@ gum_code_writer_put_mov_reg_reg (GumCodeWriter * self,
                                  GumCpuReg dst_reg,
                                  GumCpuReg src_reg)
 {
+  GumCpuRegInfo dst, src;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, src_reg, &src);
+
+  g_return_if_fail (dst.width == src.width);
+  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+
+  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+
   self->code[0] = 0x89;
-  self->code[1] = 0xc0 | (src_reg << 3) | dst_reg;
+  self->code[1] = 0xc0 | (src.index << 3) | dst.index;
   self->code += 2;
 }
 
@@ -786,20 +845,29 @@ gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self,
                                             gssize dst_offset,
                                             guint32 imm_value)
 {
+  GumCpuRegInfo dst;
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (dst.width == 32);
+  else
+    g_return_if_fail (dst.width == 64);
+
   g_assert (IS_WITHIN_UINT8_RANGE (dst_offset));
 
   *self->code++ = 0xc7;
 
-  if (dst_offset == 0 && dst_reg != GUM_REG_EBP)
+  if (dst_offset == 0 && dst.meta != GUM_META_REG_XBP)
   {
-    *self->code++ = 0x00 | dst_reg;
-    if (dst_reg == GUM_REG_ESP)
+    *self->code++ = 0x00 | dst.index;
+    if (dst.meta == GUM_META_REG_XSP)
       *self->code++ = 0x24;
   }
   else
   {
-    *self->code++ = 0x40 | dst_reg;
-    if (dst_reg == GUM_REG_ESP)
+    *self->code++ = 0x40 | dst.index;
+    if (dst.meta == GUM_META_REG_XSP)
       *self->code++ = 0x24;
     *self->code++ = dst_offset;
   }

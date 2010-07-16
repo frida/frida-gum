@@ -757,22 +757,24 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
   gum_exec_ctx_write_state_preserve_prolog (ctx, cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_CALL, cw);
-  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, location),
-      (guint32) location);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+      GUM_ADDRESS (location));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, location),
+      GUM_REG_XCX);
 
   gum_write_push_branch_target_address (target, 0, STATE_PRESERVE_SIZE, cw);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_ECX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_XCX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, target),
-      GUM_REG_ECX);
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, target),
+      GUM_REG_XCX);
 
-  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_ECX,
-      (guint32) &ctx->call_depth);
-  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_ECX);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+      GUM_ADDRESS (&ctx->call_depth));
+  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XCX, GUM_REG_XCX);
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumCallEvent, depth),
-      GUM_REG_ECX);
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, depth),
+      GUM_REG_XCX);
 
   gum_exec_ctx_write_event_submit_code (ctx, cw);
 
@@ -837,9 +839,10 @@ gum_exec_ctx_write_event_init_code (GumExecCtx * ctx,
                                     GumEventType type,
                                     GumCodeWriter * cw)
 {
-  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, (guint32) &ctx->tmp_event);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (&ctx->tmp_event));
   gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
-      GUM_REG_EAX, G_STRUCT_OFFSET (GumAnyEvent, type),
+      GUM_REG_XAX, G_STRUCT_OFFSET (GumAnyEvent, type),
       type);
 }
 
@@ -847,10 +850,19 @@ static void
 gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
                                       GumCodeWriter * cw)
 {
+#if GLIB_SIZEOF_VOID_P == 4
   gum_code_writer_put_push_reg (cw, GUM_REG_EAX);
   gum_code_writer_put_push_u32 (cw, (guint32) ctx->sink);
   gum_code_writer_put_call (cw, ctx->sink_process_impl);
   gum_code_writer_put_add_reg_i32 (cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+#else
+  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RAX);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_RCX,
+      GUM_ADDRESS (ctx->sink));
+  gum_code_writer_put_sub_reg_i8 (cw, GUM_REG_RSP, 64);
+  gum_code_writer_put_call (cw, ctx->sink_process_impl);
+  gum_code_writer_put_add_reg_i8 (cw, GUM_REG_RSP, 64);
+#endif
 }
 
 static void
@@ -893,12 +905,12 @@ static void
 gum_exec_ctx_write_depth_increment_code (GumExecCtx * ctx,
     GumCodeWriter * cw)
 {
-  static const guint8 templ[2] = { 0xff, 0x05 };
-  gpointer ptr = &ctx->call_depth;
-
   gum_code_writer_put_pushfx (cw);
-  gum_code_writer_put_bytes (cw, templ, sizeof (templ));
-  gum_code_writer_put_bytes (cw, (guint8 *) &ptr, sizeof (ptr));
+  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (&ctx->call_depth));
+  gum_code_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
   gum_code_writer_put_popfx (cw);
 }
 
@@ -906,12 +918,12 @@ static void
 gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
     GumCodeWriter * cw)
 {
-  static const guint8 templ[2] = { 0xff, 0x0d };
-  gpointer ptr = &ctx->call_depth;
-
   gum_code_writer_put_pushfx (cw);
-  gum_code_writer_put_bytes (cw, templ, sizeof (templ));
-  gum_code_writer_put_bytes (cw, (guint8 *) &ptr, sizeof (ptr));
+  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (&ctx->call_depth));
+  gum_code_writer_put_dec_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
   gum_code_writer_put_popfx (cw);
 }
 

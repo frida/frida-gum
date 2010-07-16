@@ -26,6 +26,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumCodeWriter GumCodeWriter;
 typedef enum _GumCpuReg       GumCpuReg;
+typedef enum _GumPtrTarget    GumPtrTarget;
 typedef enum _GumBranchHint   GumBranchHint;
 
 typedef struct _GumLabelMapping GumLabelMapping;
@@ -102,6 +103,13 @@ enum _GumCpuReg
   GUM_REG_NONE
 };
 
+enum _GumPtrTarget
+{
+  GUM_PTR_BYTE,
+  GUM_PTR_DWORD,
+  GUM_PTR_QWORD
+};
+
 enum _GumBranchHint
 {
   GUM_NO_HINT,
@@ -147,6 +155,8 @@ void gum_code_writer_put_sub_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint3
 void gum_code_writer_put_sub_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_inc_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_dec_reg (GumCodeWriter * self, GumCpuReg reg);
+void gum_code_writer_put_inc_reg_ptr (GumCodeWriter * self, GumPtrTarget target, GumCpuReg reg);
+void gum_code_writer_put_dec_reg_ptr (GumCodeWriter * self, GumPtrTarget target, GumCpuReg reg);
 void gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 
