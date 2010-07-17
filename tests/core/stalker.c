@@ -664,12 +664,17 @@ STALKER_TESTCASE (indirect_call_with_immediate)
 STALKER_TESTCASE (indirect_call_with_register_and_no_immediate)
 {
   const guint8 code[] = {
-      0xb8, 0x78, 0x56, 0x34, 0x12,       /* mov eax, 0x12345678  */
-      0xff, 0x10,                         /* call [eax]           */
-      0xc3,                               /* ret                  */
+#if GLIB_SIZEOF_VOID_P == 4
+            0xb8, 0x00, 0x00, 0x00, 0x00, /* mov eax, X    */
+#else
+      0x48, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov rax, X    */
+                  0x00, 0x00, 0x00, 0x00,
+#endif
+      0xff, 0x10,                         /* call [xax]    */
+      0xc3,                               /* ret           */
 
-      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337        */
-      0xc3,                               /* ret                  */
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337 */
+      0xc3,                               /* ret           */
   };
   CallTemplate call_template = { 0, };
 
@@ -679,6 +684,12 @@ STALKER_TESTCASE (indirect_call_with_register_and_no_immediate)
   call_template.target_address_offset = 1;
   call_template.target_func_offset = 8;
   call_template.instruction_count = 5;
+
+#if GLIB_SIZEOF_VOID_P == 8
+  call_template.call_site_offset += 5;
+  call_template.target_address_offset += 1;
+  call_template.target_func_offset += 5;
+#endif
 
   invoke_call_from_template (fixture, &call_template);
 }
