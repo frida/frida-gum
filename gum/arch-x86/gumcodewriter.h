@@ -78,6 +78,8 @@ enum _GumCpuReg
   GUM_REG_R14D,
   GUM_REG_R15D,
 
+  GUM_REG_EIP,
+
   /* 64 bit */
   GUM_REG_RAX,
   GUM_REG_RCX,
@@ -97,6 +99,8 @@ enum _GumCpuReg
   GUM_REG_R14,
   GUM_REG_R15,
 
+  GUM_REG_RIP,
+
   /* Meta */
   GUM_REG_XAX,
   GUM_REG_XCX,
@@ -106,6 +110,8 @@ enum _GumCpuReg
   GUM_REG_XBP,
   GUM_REG_XSI,
   GUM_REG_XDI,
+
+  GUM_REG_XIP,
 
   GUM_REG_NONE
 };
@@ -181,6 +187,7 @@ void gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_re
 void gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, gint8 dst_offset, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_reg_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
+void gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg base_reg, GumCpuReg index_reg, guint8 scale, gssize offset);
 
 void gum_code_writer_put_mov_fs_u32_ptr_reg (GumCodeWriter * self, guint32 fs_offset, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_fs_u32_ptr (GumCodeWriter * self, GumCpuReg dst_reg, guint32 fs_offset);

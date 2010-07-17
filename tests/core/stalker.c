@@ -619,6 +619,9 @@ invoke_call_from_template (TestStalkerFixture * fixture,
 
 STALKER_TESTCASE (indirect_call_with_immediate)
 {
+  CallTemplate call_template = { 0, };
+
+#if GLIB_SIZEOF_VOID_P == 4
   const guint8 code[] = {
       0xff, 0x15, 0x00, 0x00, 0x00, 0x00, /* call <indirect> */
       0xc3,                               /* ret             */
@@ -626,7 +629,6 @@ STALKER_TESTCASE (indirect_call_with_immediate)
       0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337   */
       0xc3,                               /* ret             */
   };
-  CallTemplate call_template = { 0, };
 
   call_template.code_template = code;
   call_template.code_size = sizeof (code);
@@ -634,6 +636,27 @@ STALKER_TESTCASE (indirect_call_with_immediate)
   call_template.target_address_offset = 2;
   call_template.target_func_offset = 7;
   call_template.instruction_count = 4;
+#else
+  const guint8 code[] = {
+      0xeb, 0x08,                         /* jmp +8          */
+
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+
+      0xff, 0x15, 0xf2, 0xff, 0xff, 0xff, /* call [rip-14]   */
+      0xc3,                               /* ret             */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337   */
+      0xc3,                               /* ret             */
+  };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 10;
+  call_template.target_address_offset = 2;
+  call_template.target_address_offset_points_directly_to_function = TRUE;
+  call_template.target_func_offset = 17;
+  call_template.instruction_count = 5;
+#endif
 
   invoke_call_from_template (fixture, &call_template);
 }

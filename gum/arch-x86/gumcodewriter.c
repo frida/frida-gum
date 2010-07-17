@@ -994,6 +994,65 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
   }
 }
 
+void
+gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (GumCodeWriter * self,
+                                                         GumCpuReg dst_reg,
+                                                         GumCpuReg base_reg,
+                                                         GumCpuReg index_reg,
+                                                         guint8 scale,
+                                                         gssize offset)
+{
+  GumCpuRegInfo dst, base, index;
+  gboolean offset_fits_in_i8;
+  const guint8 scale_lookup[] = {
+      /* 0: */ 0xff,
+      /* 1: */    0,
+      /* 2: */    1,
+      /* 3: */ 0xff,
+      /* 4: */    2,
+      /* 5: */ 0xff,
+      /* 6: */ 0xff,
+      /* 7: */ 0xff,
+      /* 8: */    3
+  };
+
+  gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_code_writer_describe_cpu_reg (self, base_reg, &base);
+  gum_code_writer_describe_cpu_reg (self, index_reg, &index);
+
+  g_return_if_fail (!dst.index_is_extended);
+  g_return_if_fail (base.width == index.width);
+  g_return_if_fail (!base.index_is_extended && !index.index_is_extended);
+  g_return_if_fail (index.meta != GUM_META_REG_XSP);
+  g_return_if_fail (scale == 1 || scale == 2 || scale == 4 || scale == 8);
+
+  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+
+  if (self->target_cpu == GUM_CPU_AMD64)
+  {
+    g_return_if_fail (dst.width == 64);
+    g_return_if_fail (base.width == 64 && index.width == 64);
+
+    *self->code++ = 0x48;
+  }
+
+  self->code[0] = 0x8b;
+  self->code[1] = (offset_fits_in_i8 ? 0x40 : 0x80) | (dst.index << 3) | 0x04;
+  self->code[2] = (scale_lookup[scale] << 6) | (index.index << 3) | base.index;
+  self->code += 3;
+
+  if (offset_fits_in_i8)
+  {
+    *((gint8 *) self->code) = offset;
+    self->code++;
+  }
+  else
+  {
+    *((gint32 *) self->code) = offset;
+    self->code += 4;
+  }
+}
+
 static void
 gum_code_writer_put_mov_reg_imm_ptr (GumCodeWriter * self,
                                      GumCpuReg dst_reg,

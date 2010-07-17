@@ -160,6 +160,8 @@ struct _GumInstruction
 
 struct _GumBranchTarget
 {
+  gpointer origin_ip;
+
   gpointer absolute_address;
   gssize relative_offset;
 
@@ -260,7 +262,7 @@ static void gum_write_push_branch_target_address (
     guint accumulated_stack_delta, GumCodeWriter * cw);
 static void gum_load_real_register_into (GumCpuReg target_register,
     GumCpuReg source_register, guint state_preserve_stack_offset,
-    guint accumulated_stack_delta, GumCodeWriter * cw);
+    guint accumulated_stack_delta, gpointer ip, GumCodeWriter * cw);
 static void gum_write_segment_prefix (uint8_t segment, GumCodeWriter * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
@@ -986,6 +988,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   is_conditional =
       (insn->ud->mnemonic != UD_Icall && insn->ud->mnemonic != UD_Ijmp);
 
+  target.origin_ip = insn->end;
+
   target.pfx_seg = UD_NONE;
   target.base = op->base;
   target.index = op->index;
@@ -1003,9 +1007,14 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
   else if (op->type == UD_OP_MEM)
   {
-    g_assert (op->size == 32);
+    g_assert (op->size == GLIB_SIZEOF_VOID_P * 8);
+#if GLIB_SIZEOF_VOID_P == 4
     g_assert (op->base == UD_NONE ||
         (op->base >= UD_R_EAX && op->base <= UD_R_EDI));
+#else
+    g_assert (op->base == UD_NONE || op->base == UD_R_RIP ||
+        (op->base >= UD_R_RAX && op->base <= UD_R_RDI));
+#endif
     g_assert (op->offset == 8 || op->offset == 32 || op->offset == 0);
 
 #ifdef G_OS_WIN32
@@ -1364,6 +1373,7 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
           gum_cpu_reg_from_ud (target->base),
           state_preserve_stack_offset + sizeof (gpointer),
           accumulated_stack_delta + sizeof (gpointer),
+          target->origin_ip,
           cw);
       gum_code_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
     }
@@ -1391,36 +1401,19 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
         gum_cpu_reg_from_ud (target->base),
         state_preserve_stack_offset + 3 * sizeof (gpointer),
         accumulated_stack_delta + 3 * sizeof (gpointer),
+        target->origin_ip,
         cw);
     gum_load_real_register_into (GUM_REG_XDX,
         gum_cpu_reg_from_ud (target->index),
         state_preserve_stack_offset + 3 * sizeof (gpointer),
         accumulated_stack_delta + 3 * sizeof (gpointer),
+        target->origin_ip,
         cw);
-
-    {
-      const guint8 scale_lookup[] = {
-          0x00,
-          0x00,
-          0x40,
-          0xff,
-          0x80,
-          0xff,
-          0xff,
-          0xff,
-          0xc0
-      };
-      guint8 mov_reg_scale_imm_template[] = { 0x8b, 0x84, 0x10 };
-
-      mov_reg_scale_imm_template[2] += scale_lookup[target->scale];
-      gum_write_segment_prefix (target->pfx_seg, cw);
-      gum_code_writer_put_bytes (cw, mov_reg_scale_imm_template,
-          sizeof (mov_reg_scale_imm_template));
-      gum_code_writer_put_bytes (cw, (guint8 *) &target->relative_offset,
-          sizeof (target->relative_offset));
-    }
-
-    gum_code_writer_put_mov_reg_offset_ptr_reg (cw, GUM_REG_XSP, 8,
+    gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (cw, GUM_REG_XAX,
+        GUM_REG_XAX, GUM_REG_XDX, target->scale ? target->scale : 1,
+        target->relative_offset);
+    gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+        GUM_REG_XSP, 2 * sizeof (gpointer),
         GUM_REG_XAX);
 
     gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
@@ -1433,6 +1426,7 @@ gum_load_real_register_into (GumCpuReg target_register,
                              GumCpuReg source_register,
                              guint state_preserve_stack_offset,
                              guint accumulated_stack_delta,
+                             gpointer ip,
                              GumCodeWriter * cw)
 {
   GumCpuReg source_meta;
@@ -1450,6 +1444,11 @@ gum_load_real_register_into (GumCpuReg target_register,
   {
     gum_code_writer_put_lea_reg_reg_offset (cw, target_register,
         source_register, accumulated_stack_delta);
+  }
+  else if (source_meta == GUM_REG_XIP)
+  {
+    gum_code_writer_put_mov_reg_address (cw, target_register,
+        GUM_ADDRESS (ip));
   }
   else if (source_meta == GUM_REG_NONE)
   {
@@ -1489,6 +1488,8 @@ gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
     return (GumCpuReg) (GUM_REG_XAX + reg - GUM_REG_EAX);
   else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
     return (GumCpuReg) (GUM_REG_XAX + reg - GUM_REG_RAX);
+  else if (reg == GUM_REG_RIP)
+    return GUM_REG_XIP;
   else if (reg == GUM_REG_NONE)
     return GUM_REG_NONE;
   else
@@ -1502,6 +1503,8 @@ gum_cpu_reg_from_ud (enum ud_type reg)
     return (GumCpuReg) (GUM_REG_EAX + reg - UD_R_EAX);
   else if (reg >= UD_R_RAX && reg <= UD_R_R15)
     return (GumCpuReg) (GUM_REG_RAX + reg - UD_R_RAX);
+  else if (reg == UD_R_RIP)
+    return GUM_REG_RIP;
   else if (reg == UD_NONE)
     return GUM_REG_NONE;
   else
