@@ -44,27 +44,28 @@ enum _GumCpuType
 struct _GumCpuContext
 {
 #if GLIB_SIZEOF_VOID_P == 8
-  guint64 rsp;
-  guint64 rax;
-  guint64 rbx;
-  guint64 rcx;
-  guint64 rdx;
-  guint64 rsi;
-  guint64 rdi;
-  guint64 rbp;
-
-  guint64 r8;
-  guint64 r9;
-  guint64 r10;
-  guint64 r11;
-  guint64 r12;
-  guint64 r13;
-  guint64 r14;
-  guint64 r15;
-
   guint64 rip;
+
+  guint64 r15;
+  guint64 r14;
+  guint64 r13;
+  guint64 r12;
+  guint64 r11;
+  guint64 r10;
+  guint64 r9;
+  guint64 r8;
+
+  guint64 rdi;
+  guint64 rsi;
+  guint64 rbp;
+  guint64 rsp;
+  guint64 rbx;
+  guint64 rdx;
+  guint64 rcx;
+  guint64 rax;
 #else
   guint32 eip;
+
   guint32 edi;
   guint32 esi;
   guint32 ebp;

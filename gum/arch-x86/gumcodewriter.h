@@ -25,6 +25,7 @@
 G_BEGIN_DECLS
 
 typedef struct _GumCodeWriter GumCodeWriter;
+typedef enum _GumArgType      GumArgType;
 typedef enum _GumCpuReg       GumCpuReg;
 typedef enum _GumPtrTarget    GumPtrTarget;
 typedef enum _GumBranchHint   GumBranchHint;
@@ -48,6 +49,12 @@ struct _GumCodeWriter
 
   GumLabelRef * label_refs;
   guint label_refs_len;
+};
+
+enum _GumArgType
+{
+  GUM_ARG_POINTER,
+  GUM_ARG_REGISTER
 };
 
 enum _GumCpuReg

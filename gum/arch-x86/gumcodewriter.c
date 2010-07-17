@@ -24,7 +24,18 @@
 #define GUM_MAX_LABEL_COUNT (10 * 1000)
 #define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
 
-#define IS_WITHIN_UINT8_RANGE(i) ((i) >= -128 && (i) <= 127)
+#define IS_WITHIN_INT8_RANGE(i) ((i) >= -128 && (i) <= 127)
+
+typedef struct _GumArgument
+{
+  GumArgType type;
+
+  union
+  {
+    GumCpuReg reg;
+    gpointer pointer;
+  } value;
+} GumArgument;
 
 typedef enum _GumMetaReg
 {
@@ -84,6 +95,8 @@ static GumMetaReg gum_meta_reg_from_cpu_reg (GumCpuReg reg);
 
 static void gum_code_writer_put_prefix_for_reg_info (GumCodeWriter * self,
     const GumCpuRegInfo * ri, guint operand_index);
+static void gum_code_writer_put_prefix_for_registers (GumCodeWriter * self,
+    const GumCpuRegInfo * rm, const GumCpuRegInfo * r);
 
 void
 gum_code_writer_init (GumCodeWriter * writer,
@@ -158,7 +171,7 @@ gum_code_writer_flush (GumCodeWriter * self)
 
     if (r->size == GUM_LREF_SHORT)
     {
-      g_assert (IS_WITHIN_UINT8_RANGE (distance));
+      g_assert (IS_WITHIN_INT8_RANGE (distance));
       *((gint8 *) (r->address - 1)) = distance;
     }
     else
@@ -227,24 +240,37 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
                                          guint n_args,
                                          ...)
 {
-  GPtrArray * args;
+  GumArgument args[4];
   va_list vl;
   gint arg_index;
 
   g_return_if_fail (n_args > 0 && n_args <= 4);
 
-  args = g_ptr_array_sized_new (n_args);
   va_start (vl, n_args);
   for (arg_index = 0; arg_index != n_args; arg_index++)
-    g_ptr_array_add (args, va_arg (vl, gpointer));
+  {
+    GumArgument * arg = &args[arg_index];
+
+    arg->type = va_arg (vl, GumArgType);
+    if (arg->type == GUM_ARG_POINTER)
+      arg->value.pointer = va_arg (vl, gpointer);
+    else if (arg->type == GUM_ARG_REGISTER)
+      arg->value.reg = va_arg (vl, GumCpuReg);
+    else
+      g_assert_not_reached ();
+  }
   va_end (vl);
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    for (arg_index = args->len - 1; arg_index >= 0; arg_index--)
+    for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
     {
-      gum_code_writer_put_push_u32 (self,
-          (guint32) g_ptr_array_index (args, arg_index));
+      GumArgument * arg = &args[arg_index];
+
+      if (arg->type == GUM_ARG_POINTER)
+        gum_code_writer_put_push_u32 (self, (guint32) arg->value.pointer);
+      else
+        gum_code_writer_put_push_reg (self, arg->value.reg);
     }
     gum_code_writer_put_call (self, func);
     gum_code_writer_put_add_reg_i8 (self, GUM_REG_ESP,
@@ -258,25 +284,26 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
       GUM_REG_R8,
       GUM_REG_R9
     };
-    guint arglist_size;
 
-    arglist_size = n_args * sizeof (guint64);
-    if ((arglist_size + 8) % 16 != 0)
+    for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
     {
-      arglist_size = (((arglist_size + 8) + (16 - 1)) & ~(16 - 1)) - 8;
-    }
+      GumArgument * arg = &args[arg_index];
 
-    for (arg_index = args->len - 1; arg_index >= 0; arg_index--)
-    {
-      gum_code_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
-          (guint64) g_ptr_array_index (args, arg_index));
+      if (arg->type == GUM_ARG_POINTER)
+      {
+        gum_code_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
+            (guint64) arg->value.pointer);
+      }
+      else
+      {
+        gum_code_writer_put_mov_reg_reg (self, reg_for_arg[arg_index],
+            arg->value.reg);
+      }
     }
-    gum_code_writer_put_sub_reg_i8 (self, GUM_REG_RSP, arglist_size);
+    gum_code_writer_put_sub_reg_i8 (self, GUM_REG_RSP, 64);
     gum_code_writer_put_call (self, func);
-    gum_code_writer_put_add_reg_i8 (self, GUM_REG_RSP, arglist_size);
+    gum_code_writer_put_add_reg_i8 (self, GUM_REG_RSP, 64);
   }
-
-  g_ptr_array_free (args, TRUE);
 }
 
 void
@@ -357,7 +384,7 @@ gum_code_writer_put_jmp (GumCodeWriter * self,
 
   distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 2);
 
-  if (IS_WITHIN_UINT8_RANGE (distance))
+  if (IS_WITHIN_INT8_RANGE (distance))
   {
     self->code[0] = 0xeb;
     *((gint8 *) (self->code + 1)) = distance;
@@ -446,7 +473,7 @@ gum_code_writer_put_jz (GumCodeWriter * self,
 
   distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 3);
 
-  g_assert (IS_WITHIN_UINT8_RANGE (distance)); /* for now */
+  g_assert (IS_WITHIN_INT8_RANGE (distance)); /* for now */
 
   if (hint != GUM_NO_HINT)
     *self->code++ = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
@@ -473,7 +500,7 @@ gum_code_writer_put_jle (GumCodeWriter * self,
 
   distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 3);
 
-  g_assert (IS_WITHIN_UINT8_RANGE (distance)); /* for now */
+  g_assert (IS_WITHIN_INT8_RANGE (distance)); /* for now */
 
   self->code[0] = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
   self->code[1] = 0x7e;
@@ -769,9 +796,8 @@ gum_code_writer_put_mov_reg_reg (GumCodeWriter * self,
   gum_code_writer_describe_cpu_reg (self, src_reg, &src);
 
   g_return_if_fail (dst.width == src.width);
-  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
 
-  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+  gum_code_writer_put_prefix_for_registers (self, &dst, &src);
 
   self->code[0] = 0x89;
   self->code[1] = 0xc0 | (src.index << 3) | dst.index;
@@ -854,7 +880,7 @@ gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self,
   else
     g_return_if_fail (dst.width == 64);
 
-  g_assert (IS_WITHIN_UINT8_RANGE (dst_offset));
+  g_assert (IS_WITHIN_INT8_RANGE (dst_offset));
 
   *self->code++ = 0xc7;
 
@@ -934,6 +960,7 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
                                             gssize src_offset)
 {
   GumCpuRegInfo dst, src;
+  gboolean offset_fits_in_i8;
 
   gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_code_writer_describe_cpu_reg (self, src_reg, &src);
@@ -942,18 +969,29 @@ gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self,
     g_return_if_fail (dst.width == 32 && src.width == 32);
   else
     g_return_if_fail (src.width == 64);
-  g_return_if_fail (IS_WITHIN_UINT8_RANGE (src_offset));
 
-  gum_code_writer_put_prefix_for_reg_info (self, &dst, 0);
+  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (src_offset);
+
+  gum_code_writer_put_prefix_for_registers (self, &src, &dst);
 
   self->code[0] = 0x8b;
-  self->code[1] = 0x40 | (dst.index << 3) | src.index;
+  self->code[1] = ((offset_fits_in_i8) ? 0x40 : 0x80)
+      | (dst.index << 3) | src.index;
   self->code += 2;
 
   if (src.meta == GUM_META_REG_XSP)
     *self->code++ = 0x24;
-  *((gint8 *) self->code) = src_offset;
-  self->code++;
+
+  if (offset_fits_in_i8)
+  {
+    *((gint8 *) self->code) = src_offset;
+    self->code++;
+  }
+  else
+  {
+    *((gint32 *) self->code) = src_offset;
+    self->code += 4;
+  }
 }
 
 static void
@@ -1193,23 +1231,29 @@ gum_code_writer_put_pushax (GumCodeWriter * self)
   }
   else
   {
-    gum_code_writer_put_push_reg (self, GUM_REG_R15);
-    gum_code_writer_put_push_reg (self, GUM_REG_R14);
-    gum_code_writer_put_push_reg (self, GUM_REG_R13);
-    gum_code_writer_put_push_reg (self, GUM_REG_R12);
-    gum_code_writer_put_push_reg (self, GUM_REG_R11);
-    gum_code_writer_put_push_reg (self, GUM_REG_R10);
-    gum_code_writer_put_push_reg (self, GUM_REG_R9);
-    gum_code_writer_put_push_reg (self, GUM_REG_R8);
+    gum_code_writer_put_push_reg (self, GUM_REG_RAX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RCX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RDX);
+    gum_code_writer_put_push_reg (self, GUM_REG_RBX);
+
+    gum_code_writer_put_lea_reg_reg_offset (self, GUM_REG_RAX,
+        GUM_REG_RSP, 4 * 8);
+    gum_code_writer_put_push_reg (self, GUM_REG_RAX);
+    gum_code_writer_put_mov_reg_reg_offset_ptr (self, GUM_REG_RAX,
+        GUM_REG_RSP, 4 * 8);
 
     gum_code_writer_put_push_reg (self, GUM_REG_RBP);
-    gum_code_writer_put_push_reg (self, GUM_REG_RDI);
     gum_code_writer_put_push_reg (self, GUM_REG_RSI);
-    gum_code_writer_put_push_reg (self, GUM_REG_RDX);
-    gum_code_writer_put_push_reg (self, GUM_REG_RCX);
-    gum_code_writer_put_push_reg (self, GUM_REG_RBX);
-    gum_code_writer_put_push_reg (self, GUM_REG_RAX);
-    gum_code_writer_put_push_reg (self, GUM_REG_RSP);
+    gum_code_writer_put_push_reg (self, GUM_REG_RDI);
+
+    gum_code_writer_put_push_reg (self, GUM_REG_R8);
+    gum_code_writer_put_push_reg (self, GUM_REG_R9);
+    gum_code_writer_put_push_reg (self, GUM_REG_R10);
+    gum_code_writer_put_push_reg (self, GUM_REG_R11);
+    gum_code_writer_put_push_reg (self, GUM_REG_R12);
+    gum_code_writer_put_push_reg (self, GUM_REG_R13);
+    gum_code_writer_put_push_reg (self, GUM_REG_R14);
+    gum_code_writer_put_push_reg (self, GUM_REG_R15);
   }
 }
 
@@ -1223,23 +1267,23 @@ gum_code_writer_put_popax (GumCodeWriter * self)
   }
   else
   {
-    gum_code_writer_put_pop_reg (self, GUM_REG_RSP);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RAX);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RBX);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RCX);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RDX);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RSI);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RDI);
-    gum_code_writer_put_pop_reg (self, GUM_REG_RBP);
-
-    gum_code_writer_put_pop_reg (self, GUM_REG_R8);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R9);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R10);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R11);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R12);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R13);
-    gum_code_writer_put_pop_reg (self, GUM_REG_R14);
     gum_code_writer_put_pop_reg (self, GUM_REG_R15);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R14);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R13);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R12);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R11);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R10);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R9);
+    gum_code_writer_put_pop_reg (self, GUM_REG_R8);
+
+    gum_code_writer_put_pop_reg (self, GUM_REG_RDI);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RSI);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RBP);
+    gum_code_writer_put_lea_reg_reg_offset (self, GUM_REG_RSP, GUM_REG_RSP, 8);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RBX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RDX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RCX);
+    gum_code_writer_put_pop_reg (self, GUM_REG_RAX);
   }
 }
 
@@ -1420,5 +1464,32 @@ gum_code_writer_put_prefix_for_reg_info (GumCodeWriter * self,
     {
       *self->code++ = (ri->index_is_extended) ? 0x48 | mask : 0x48;
     }
+  }
+}
+
+/* TODO: improve this function and get rid of the one above */
+static void
+gum_code_writer_put_prefix_for_registers (GumCodeWriter * self,
+                                          const GumCpuRegInfo * rm,
+                                          const GumCpuRegInfo * r)
+{
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_return_if_fail (rm->width == 32 && !rm->index_is_extended);
+    g_return_if_fail (r->width == 32 && !r->index_is_extended);
+  }
+  else
+  {
+    guint nibble = 0;
+
+    if (rm->width == 64)
+      nibble |= 0x8;
+    if (r->index_is_extended)
+      nibble |= 0x4;
+    if (rm->index_is_extended)
+      nibble |= 0x1;
+
+    if (nibble != 0)
+      *self->code++ = 0x40 | nibble;
   }
 }

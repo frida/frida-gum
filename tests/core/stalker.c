@@ -170,9 +170,9 @@ STALKER_TESTCASE (call_depth)
   const guint8 code[] =
   {
     0xb8, 0x07, 0x00, 0x00, 0x00, /* mov eax, 7 */
-    0x48,                         /* dec eax    */
+    0xff, 0xc8,                   /* dec eax    */
     0x74, 0x05,                   /* jz +5      */
-    0xe8, 0xf8, 0xff, 0xff, 0xff, /* call -8    */
+    0xe8, 0xf7, 0xff, 0xff, 0xff, /* call -9    */
     0xc3,                         /* ret        */
     0xcc,                         /* int3       */
   };
@@ -231,12 +231,12 @@ STALKER_TESTCASE (call_probe)
     0xcc,                         /* int 3               */
 
     /* func_a: */
-    0xc2, 0x08, 0x00,             /* ret 8               */
+    0xc2, 2 * sizeof (gpointer), 0x00, /* ret x          */
 
     0xcc,                         /* int 3               */
 
     /* func_b: */
-    0xc2, 0x08, 0x00,             /* ret 8               */
+    0xc2, 2 * sizeof (gpointer), 0x00, /* ret x          */
   };
   StalkerTestFunc func;
   guint8 * func_a_address;
@@ -281,16 +281,21 @@ probe_func_a_invocation (GumCallSite * site, gpointer user_data)
 #if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmphex (site->cpu_context->ecx, ==, 0xaaaa1111);
   g_assert_cmphex (site->cpu_context->edx, ==, 0xaaaa2222);
+#else
+  g_assert_cmphex (site->cpu_context->rcx & 0xffffffff, ==, 0xaaaa1111);
+  g_assert_cmphex (site->cpu_context->rdx & 0xffffffff, ==, 0xaaaa2222);
 #endif
-  g_assert_cmphex (((guint32 *) site->stack_data)[0], ==, 0xaaaa3333);
-  g_assert_cmphex (((guint32 *) site->stack_data)[1], ==, 0xaaaa4444);
+  g_assert_cmphex (((gsize *) site->stack_data)[0] & 0xffffffff,
+      ==, 0xaaaa3333);
+  g_assert_cmphex (((gsize *) site->stack_data)[1] & 0xffffffff,
+      ==, 0xaaaa4444);
 }
 
 static const guint8 jumpy_code[] = {
-    0x31, 0xc0,                   /* xor eax,eax  */
+    0x31, 0xc0,                   /* xor eax, eax */
     0xeb, 0x01,                   /* jmp short +1 */
     0xcc,                         /* int3         */
-    0x40,                         /* inc eax      */
+    0xff, 0xc0,                   /* inc eax      */
     0xe9, 0x02, 0x00, 0x00, 0x00, /* jmp near +2  */
     0xcc,                         /* int3         */
     0xcc,                         /* int3         */
@@ -326,13 +331,14 @@ STALKER_TESTCASE (unconditional_jumps)
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
       ==, (guint64) (fixture->code + 5));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 6));
+      ==, (guint64) (fixture->code + 7));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
-      ==, (guint64) (fixture->code + 13));
+      ==, (guint64) (fixture->code + 14));
 }
 
 static const guint8 condy_code[] = {
-    0x81, 0x7c, 0x24, 0x04, 0x2a, 0x00, 0x00, 0x00, /* cmp dword [esp+0x4], 42  */
+    0x81, 0x7c, 0x24, sizeof (gpointer),            /* cmp dword [esp + X], 42  */
+          0x2a, 0x00, 0x00, 0x00,
     0x74, 0x05,                                     /* jz +5                    */
     0xe9, 0x06, 0x00, 0x00, 0x00,                   /* jmp dword +6             */
 
@@ -394,13 +400,20 @@ STALKER_TESTCASE (conditional_jump_false)
       ==, (guint64) (fixture->code + 26));
 }
 
+#if GLIB_SIZEOF_VOID_P == 4
+#define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
+#else
+#define FOLLOW_RETURN_EXTRA_INSN_COUNT 2
+#endif
+
 STALKER_TESTCASE (follow_return)
 {
   fixture->sink->mask = GUM_EXEC;
 
   invoke_follow_return_code (fixture);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 5);
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, 5 + FOLLOW_RETURN_EXTRA_INSN_COUNT);
 }
 
 static void
@@ -416,20 +429,16 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   gum_code_writer_init (&cw, code);
 
   gum_code_writer_put_call_near_label (&cw, start_following_lbl);
-
   gum_code_writer_put_nop (&cw);
-
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, sizeof (GumStalker *));
-
+  gum_code_writer_put_call_with_arguments (&cw,
+      gum_stalker_unfollow_me, 1,
+      GUM_ARG_POINTER, fixture->stalker);
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_put_label (&cw, start_following_lbl);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
+      GUM_ARG_POINTER, fixture->stalker,
+      GUM_ARG_POINTER, fixture->sink);
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_free (&cw);
@@ -450,8 +459,9 @@ STALKER_TESTCASE (follow_stdcall)
     0xcc,                         /* int3              */
 
   /* func: */
-    0x8b, 0x44, 0x24, 0x04,       /* mov eax,[esp+0x4] */
-    0xc2, 0x04, 0x00              /* ret  4            */
+    0x8b, 0x44, 0x24,             /* mov eax, [esp+X]  */
+          sizeof (gpointer),
+    0xc2, sizeof (gpointer), 0x00 /* ret X             */
   };
   StalkerTestFunc func;
   gint ret;
@@ -468,13 +478,20 @@ STALKER_TESTCASE (follow_stdcall)
   g_assert_cmpint (ret, ==, 0xbeef);
 }
 
+#if GLIB_SIZEOF_VOID_P == 4
+#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 0
+#else
+#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 2
+#endif
+
 STALKER_TESTCASE (unfollow_deep)
 {
   fixture->sink->mask = GUM_EXEC;
 
   invoke_unfollow_deep_code (fixture);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, 6);
+  g_assert_cmpuint (fixture->sink->events->len,
+      ==, 6 + UNFOLLOW_DEEP_EXTRA_INSN_COUNT);
 }
 
 static void
@@ -491,11 +508,9 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   gum_code_writer_init (&cw, code);
 
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
-
+  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
+      GUM_ARG_POINTER, fixture->stalker,
+      GUM_ARG_POINTER, fixture->sink);
   gum_code_writer_put_call_near_label (&cw, func_a_lbl);
   gum_code_writer_put_ret (&cw);
 
@@ -508,9 +523,8 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_put_label (&cw, func_c_lbl);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, sizeof (GumStalker *));
+  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me, 1,
+      GUM_ARG_POINTER, fixture->stalker);
   gum_code_writer_put_ret (&cw);
 
   gum_code_writer_free (&cw);
