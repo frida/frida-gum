@@ -37,6 +37,12 @@
     TEST_ENTRY_WITH_FIXTURE (Stalker, test_stalker, NAME, \
         TestStalkerFixture)
 
+#if GLIB_SIZEOF_VOID_P == 4
+#define STALKER_TESTFUNC __fastcall
+#else
+#define STALKER_TESTFUNC
+#endif
+
 #define NTH_EVENT_AS_CALL(N) \
     (gum_fake_event_sink_get_nth_event_as_call (fixture->sink, N))
 #define NTH_EVENT_AS_RET(N) \
@@ -54,7 +60,7 @@ typedef struct _TestStalkerFixture
   guint8 * last_invoke_retaddr;
 } TestStalkerFixture;
 
-typedef gint (* StalkerTestFunc) (gint arg);
+typedef gint (STALKER_TESTFUNC * StalkerTestFunc) (gint arg);
 
 static void
 test_stalker_fixture_setup (TestStalkerFixture * fixture,
@@ -103,9 +109,9 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define INVOKER_INSN_COUNT  8
+#define INVOKER_INSN_COUNT  7
 #else
-#define INVOKER_INSN_COUNT  10
+#define INVOKER_INSN_COUNT  9
 #endif
 #define INVOKER_IMPL_OFFSET 3
 
@@ -120,7 +126,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   GumCodeWriter cw;
   GCallback invoke_func;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
 
   gum_code_writer_init (&cw, code);
 
@@ -131,11 +137,10 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
 
-  gum_code_writer_put_push_u32 (&cw, arg);
+  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
   fixture->last_invoke_calladdr = (guint8 *) gum_code_writer_cur (&cw);
   gum_code_writer_put_call (&cw, func);
   fixture->last_invoke_retaddr = (guint8 *) gum_code_writer_cur (&cw);
-  gum_code_writer_put_add_reg_i8 (&cw, GUM_REG_XSP, sizeof (gpointer));
   gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
   gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
 

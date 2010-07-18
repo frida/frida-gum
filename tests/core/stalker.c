@@ -39,8 +39,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (call_probe)
 
   STALKER_TESTENTRY (unconditional_jumps)
-  STALKER_TESTENTRY (conditional_jump_true)
-  STALKER_TESTENTRY (conditional_jump_false)
+  STALKER_TESTENTRY (short_conditional_jump_true)
+  STALKER_TESTENTRY (short_conditional_jump_false)
+  STALKER_TESTENTRY (long_conditional_jump)
   STALKER_TESTENTRY (follow_return)
   STALKER_TESTENTRY (follow_stdcall)
   STALKER_TESTENTRY (unfollow_deep)
@@ -75,7 +76,7 @@ STALKER_TESTCASE (heap_api)
 {
   gpointer p;
 
-  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
@@ -336,29 +337,27 @@ STALKER_TESTCASE (unconditional_jumps)
       ==, (guint64) (fixture->code + 14));
 }
 
-static const guint8 condy_code[] = {
-    0x81, 0x7c, 0x24, sizeof (gpointer),            /* cmp dword [esp + X], 42  */
-          0x2a, 0x00, 0x00, 0x00,
-    0x74, 0x05,                                     /* jz +5                    */
-    0xe9, 0x06, 0x00, 0x00, 0x00,                   /* jmp dword +6             */
-
-    0xb8, 0x39, 0x05, 0x00, 0x00,                   /* mov eax, 1337            */
-    0xc3,                                           /* ret                      */
-
-    0xb8, 0xcb, 0x04, 0x00, 0x00,                   /* mov eax, 1227            */
-    0xc3,                                           /* ret                      */
-};
-
 static StalkerTestFunc
-invoke_condy (TestStalkerFixture * fixture,
-              GumEventType mask,
-              gint arg)
+invoke_short_condy (TestStalkerFixture * fixture,
+                    GumEventType mask,
+                    gint arg)
 {
+  const guint8 code[] = {
+      0x83, 0xf9, 0x2a,             /* cmp ecx, 42    */
+      0x74, 0x05,                   /* jz +5          */
+      0xe9, 0x06, 0x00, 0x00, 0x00, /* jmp dword +6   */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00, /* mov eax, 1337  */
+      0xc3,                         /* ret            */
+
+      0xb8, 0xcb, 0x04, 0x00, 0x00, /* mov eax, 1227  */
+      0xc3,                         /* ret            */
+  };
   StalkerTestFunc func;
   gint ret;
 
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      condy_code, sizeof (condy_code));
+      code, sizeof (code));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, arg);
@@ -368,36 +367,103 @@ invoke_condy (TestStalkerFixture * fixture,
   return func;
 }
 
-STALKER_TESTCASE (conditional_jump_true)
+STALKER_TESTCASE (short_conditional_jump_true)
 {
-  invoke_condy (fixture, GUM_EXEC, 42);
+  invoke_short_condy (fixture, GUM_EXEC, 42);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
       ==, (guint64) (fixture->code + 0));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, (guint64) (fixture->code + 8));
+      ==, (guint64) (fixture->code + 3));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
-      ==, (guint64) (fixture->code + 15));
+      ==, (guint64) (fixture->code + 10));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 20));
+      ==, (guint64) (fixture->code + 15));
 }
 
-STALKER_TESTCASE (conditional_jump_false)
+STALKER_TESTCASE (short_conditional_jump_false)
 {
-  invoke_condy (fixture, GUM_EXEC, 43);
+  invoke_short_condy (fixture, GUM_EXEC, 43);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
       ==, (guint64) (fixture->code + 0));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, (guint64) (fixture->code + 8));
+      ==, (guint64) (fixture->code + 3));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
-      ==, (guint64) (fixture->code + 10));
+      ==, (guint64) (fixture->code + 5));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 21));
+      ==, (guint64) (fixture->code + 16));
   g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
-      ==, (guint64) (fixture->code + 26));
+      ==, (guint64) (fixture->code + 21));
+}
+
+static StalkerTestFunc
+invoke_long_condy (TestStalkerFixture * fixture,
+                   GumEventType mask,
+                   gint arg)
+{
+  const guint8 code[] = {
+      0xe9, 0x0c, 0x01, 0x00, 0x00,         /* jmp +268             */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,         /* mov eax, 1337        */
+      0xc3,                                 /* ret                  */
+
+      0xb8, 0xcb, 0x04, 0x00, 0x00,         /* mov eax, 1227        */
+      0xc3,                                 /* ret                  */
+
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+      0xcc, 0xcc, 0xcc, 0xcc, 0xcc, 0xcc,
+
+      0x81, 0xc1, 0xff, 0xff, 0xff, 0xff,   /* add ecx, G_MAXUINT32 */
+      0x0f, 0x83, 0xee, 0xfe, 0xff, 0xff,   /* jnc dword -274       */
+      0xe9, 0xe3, 0xfe, 0xff, 0xff,         /* jmp dword -285       */
+  };
+  StalkerTestFunc func;
+  gint ret;
+
+  g_assert (arg == FALSE || arg == TRUE);
+
+  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
+      code, sizeof (code));
+
+  fixture->sink->mask = mask;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, arg);
+
+  g_assert_cmpint (ret, ==, (arg == TRUE) ? 1337 : 1227);
+
+  return func;
+}
+
+STALKER_TESTCASE (long_conditional_jump)
+{
+  invoke_long_condy (fixture, GUM_EXEC, TRUE);
+  invoke_long_condy (fixture, GUM_EXEC, FALSE);
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
