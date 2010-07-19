@@ -553,7 +553,7 @@ decode_modrm(struct ud* u, struct ud_operand *op, unsigned int s,
     /* 64bit addressing */
     if (u->adr_mode == 64) {
 
-        op->base = UD_R_RAX + rm;
+        op->base = (ud_type_t) (UD_R_RAX + rm);
 
         /* get offset type */
         if (mod == 1)
@@ -570,8 +570,8 @@ decode_modrm(struct ud* u, struct ud_operand *op, unsigned int s,
             inp_next(u);
             
             op->scale = (1 << SIB_S(inp_curr(u))) & ~1;
-            op->index = UD_R_RAX + (SIB_I(inp_curr(u)) | (REX_X(u->pfx_rex) << 3));
-            op->base  = UD_R_RAX + (SIB_B(inp_curr(u)) | (REX_B(u->pfx_rex) << 3));
+            op->index = (ud_type_t) (UD_R_RAX + (SIB_I(inp_curr(u)) | (REX_X(u->pfx_rex) << 3)));
+            op->base  = (ud_type_t) (UD_R_RAX + (SIB_B(inp_curr(u)) | (REX_B(u->pfx_rex) << 3)));
 
             /* special conditions for base reference */
             if (op->index == UD_R_RSP) {
@@ -593,7 +593,7 @@ decode_modrm(struct ud* u, struct ud_operand *op, unsigned int s,
     else if (u->adr_mode == 32) {
 
         /* get base */
-        op->base = UD_R_EAX + rm;
+        op->base = (ud_type_t) (UD_R_EAX + rm);
 
         /* get offset type */
         if (mod == 1)
@@ -610,8 +610,8 @@ decode_modrm(struct ud* u, struct ud_operand *op, unsigned int s,
             inp_next(u);
 
             op->scale = (1 << SIB_S(inp_curr(u))) & ~1;
-            op->index = UD_R_EAX + (SIB_I(inp_curr(u)) | (REX_X(u->pfx_rex) << 3));
-            op->base  = UD_R_EAX + (SIB_B(inp_curr(u)) | (REX_B(u->pfx_rex) << 3));
+            op->index = (ud_type_t) (UD_R_EAX + (SIB_I(inp_curr(u)) | (REX_X(u->pfx_rex) << 3)));
+            op->base  = (ud_type_t) (UD_R_EAX + (SIB_B(inp_curr(u)) | (REX_B(u->pfx_rex) << 3)));
 
             if (op->index == UD_R_ESP) {
                 op->index = UD_NONE;
@@ -806,7 +806,7 @@ static int disasm_operands(register struct ud* u)
     case OP_AH : case OP_CH : case OP_DH : case OP_BH :
 
         iop[0].type = UD_OP_REG;
-        iop[0].base = UD_R_AL + (mop1t - OP_AL);
+        iop[0].base = (ud_type_t) (UD_R_AL + (mop1t - OP_AL));
         iop[0].size = 8;
 
         if (mop2t == OP_I)
@@ -845,10 +845,10 @@ static int disasm_operands(register struct ud* u)
     case OP_ALr8b : case OP_CLr9b : case OP_DLr10b : case OP_BLr11b :
     case OP_AHr12b: case OP_CHr13b: case OP_DHr14b : case OP_BHr15b :
     {
-        ud_type_t gpr = (mop1t - OP_ALr8b) + UD_R_AL + 
-                        (REX_B(u->pfx_rex) << 3);
+        ud_type_t gpr = (ud_type_t) ((mop1t - OP_ALr8b) + UD_R_AL + 
+                                     (REX_B(u->pfx_rex) << 3));
         if (UD_R_AH <= gpr && u->pfx_rex)
-            gpr = gpr + 4;
+            gpr = (ud_type_t) (gpr + 4);
         iop[0].type = UD_OP_REG;
         iop[0].base = gpr;
         if (mop2t == OP_I)
@@ -879,7 +879,7 @@ static int disasm_operands(register struct ud* u)
             if (mop1t != OP_FS && mop1t != OP_GS)
                 u->error= 1;
         iop[0].type = UD_OP_REG;
-        iop[0].base = (mop1t - OP_ES) + UD_R_ES;
+        iop[0].base = (ud_type_t) ((mop1t - OP_ES) + UD_R_ES);
         iop[0].size = 16;
 
         break;
@@ -1039,12 +1039,12 @@ static int disasm_operands(register struct ud* u)
     case OP_ST4 : case OP_ST5 : case OP_ST6 : case OP_ST7 :
 
         iop[0].type = UD_OP_REG;
-        iop[0].base = (mop1t-OP_ST0) + UD_R_ST0;
+        iop[0].base = (ud_type_t) ((mop1t-OP_ST0) + UD_R_ST0);
         iop[0].size = 0;
 
         if (mop2t >= OP_ST0 && mop2t <= OP_ST7) {
             iop[1].type = UD_OP_REG;
-            iop[1].base = (mop2t-OP_ST0) + UD_R_ST0;
+            iop[1].base = (ud_type_t) ((mop2t-OP_ST0) + UD_R_ST0);
             iop[1].size = 0;
         }
         break;
