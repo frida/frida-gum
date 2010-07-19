@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -78,6 +78,10 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
+
+#if GLIB_SIZEOF_VOID_P == 8
+  RELOCATOR_TESTENTRY (mov_rip_relative)
+#endif
 TEST_LIST_END ()
 
 RELOCATOR_TESTCASE (one_to_one)
@@ -382,3 +386,32 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
   g_assert (gum_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
+
+#if GLIB_SIZEOF_VOID_P == 8
+
+RELOCATOR_TESTCASE (mov_rip_relative)
+{
+  const guint8 input[] = {
+    0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
+    0xc3,                               /* ret                */
+    0x01, 0x02, 0x03, 0x04
+  };
+  guint8 expected_output[] = {
+    0x50,                               /* push rax           */
+    0x48, 0xb8, 0xff, 0xff, 0xff, 0xff, /* mov rax, <rip>     */
+                0xff, 0xff, 0xff, 0xff,
+    0x8b, 0x90, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rax + 1] */
+    0x58                                /* pop rax            */
+  };
+
+  *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_relocator_read_one (&fixture->rl, NULL);
+  gum_relocator_write_one (&fixture->rl);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+#endif
