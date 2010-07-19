@@ -827,13 +827,13 @@ static int disasm_operands(register struct ud* u)
     case OP_rSP : case OP_rBP : case OP_rSI : case OP_rDI :
 
         iop[0].type = UD_OP_REG;
-        iop[0].base = resolve_gpr64(u, mop1t, &(iop[0].size));
+        iop[0].base = resolve_gpr64(u, mop1t, (enum ud_operand_size *) &(iop[0].size));
 
         if (mop2t == OP_I)
             decode_imm(u, mop2s, &(iop[1]));
         else if (mop2t >= OP_rAX && mop2t <= OP_rDI) {
             iop[1].type = UD_OP_REG;
-            iop[1].base = resolve_gpr64(u, mop2t, &(iop[1].size));
+            iop[1].base = resolve_gpr64(u, mop2t, (enum ud_operand_size *) &(iop[1].size));
         }
         else if (mop2t == OP_O) {
             decode_o(u, mop2s, &(iop[1]));  
@@ -1025,7 +1025,7 @@ static int disasm_operands(register struct ud* u)
         else if (mop2t == OP_eAX)
             iop[1].base = resolve_gpr32(u, mop2t);
         else if (mop2t == OP_rAX)
-            iop[1].base = resolve_gpr64(u, mop2t, &(iop[1].size));      
+            iop[1].base = resolve_gpr64(u, mop2t, (enum ud_operand_size *) &(iop[1].size));      
         break;
 
     /* 3 */
