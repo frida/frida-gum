@@ -301,7 +301,7 @@ gum_stalker_init (GumStalker * self)
   priv->probe_array_by_address =
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
-#ifdef G_OS_WIN32
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
   gum_win_exception_hook_add (gum_stalker_handle_exception, self);
 
   {
@@ -334,7 +334,7 @@ gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
 
-#ifdef G_OS_WIN32
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
   gum_win_exception_hook_remove (gum_stalker_handle_exception);
 #endif
 

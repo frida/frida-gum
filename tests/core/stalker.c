@@ -65,7 +65,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (heap_api)
 
 #ifdef G_OS_WIN32
+#if GLIB_SIZEOF_VOID_P == 4
   STALKER_TESTENTRY (win32_indirect_call_seg)
+#endif
   STALKER_TESTENTRY (win32_messagebeep_api)
   STALKER_TESTENTRY (win32_follow_user_to_kernel_to_callback)
   STALKER_TESTENTRY (win32_follow_callback_to_kernel_to_user)
@@ -1211,38 +1213,39 @@ static void send_message_and_pump_messages_briefly (TestWindow * window,
 static LRESULT CALLBACK test_window_proc (HWND hwnd, UINT msg,
     WPARAM wparam, LPARAM lparam);
 
-static const guint8 indirect_call_seg_code[] = {
-    0x64, 0xff, 0x35, 0x00, 0x07, 0x00, 0x00, /* push dword [dword fs:0x700] */
-                                              /* mov dword [dword fs:0x700], <addr> */
-    0x64, 0xc7, 0x05, 0x00, 0x07, 0x00, 0x00, 0xaa, 0xbb, 0xcc, 0xdd,
-
-    0x64, 0xff, 0x15, 0x00, 0x07, 0x00, 0x00, /* call fs:700h                */
-
-    0x50,                                     /* push eax                    */
-    0x8b, 0x44, 0x24, 0x04,                   /* mov eax, [esp+0x4]          */
-    0x64, 0xa3, 0x00, 0x07, 0x00, 0x00,       /* mov [fs:0x700],eax          */
-    0x58,                                     /* pop eax                     */
-    0x81, 0xc4, 0x04, 0x00, 0x00, 0x00,       /* add esp, 0x4                */
-
-    0xc3,                                     /* ret                         */
-
-    0xb8, 0xbe, 0xba, 0xfe, 0xca,             /* mov eax, 0xcafebabe         */
-    0xc3,                                     /* ret                         */
-};
+#if GLIB_SIZEOF_VOID_P == 4
 
 static StalkerTestFunc
 invoke_indirect_call_seg (TestStalkerFixture * fixture,
                           GumEventType mask)
 {
+  const guint8 code_template[] = {
+      0x64, 0xff, 0x35, 0x00, 0x07, 0x00, 0x00, /* push dword [dword fs:0x700] */
+                                                /* mov dword [dword fs:0x700], <addr> */
+      0x64, 0xc7, 0x05, 0x00, 0x07, 0x00, 0x00, 0xaa, 0xbb, 0xcc, 0xdd,
+
+      0x64, 0xff, 0x15, 0x00, 0x07, 0x00, 0x00, /* call fs:700h                */
+
+      0x50,                                     /* push eax                    */
+      0x8b, 0x44, 0x24, 0x04,                   /* mov eax, [esp+0x4]          */
+      0x64, 0xa3, 0x00, 0x07, 0x00, 0x00,       /* mov [fs:0x700],eax          */
+      0x58,                                     /* pop eax                     */
+      0x81, 0xc4, 0x04, 0x00, 0x00, 0x00,       /* add esp, 0x4                */
+
+      0xc3,                                     /* ret                         */
+
+      0xb8, 0xbe, 0xba, 0xfe, 0xca,             /* mov eax, 0xcafebabe         */
+      0xc3,                                     /* ret                         */
+  };
   guint8 * code;
   StalkerTestFunc func;
   guint ret;
 
-  code = test_stalker_fixture_dup_code (fixture, indirect_call_seg_code,
-      sizeof (indirect_call_seg_code));
+  code = test_stalker_fixture_dup_code (fixture, code_template,
+      sizeof (code_template));
   func = (StalkerTestFunc) code;
 
-  *((gpointer *) (code + 14)) = code + sizeof (indirect_call_seg_code) - 1 - 5;
+  *((gpointer *) (code + 14)) = code + sizeof (code_template) - 1 - 5;
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -1260,9 +1263,11 @@ STALKER_TESTCASE (win32_indirect_call_seg)
       ==, INVOKER_INSN_COUNT + 11);
 }
 
+#endif
+
 STALKER_TESTCASE (win32_messagebeep_api)
 {
-  fixture->sink->mask = GUM_EXEC | GUM_CALL | GUM_RET;
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   MessageBeep (MB_ICONINFORMATION);
