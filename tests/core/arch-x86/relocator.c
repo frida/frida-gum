@@ -19,6 +19,7 @@
 
 #include "testutil.h"
 
+#include "gummemory.h"
 #include "gumrelocator.h"
 
 #include <string.h>
@@ -34,7 +35,7 @@
 
 typedef struct _TestRelocatorFixture
 {
-  guint8 output[TEST_OUTBUF_SIZE];
+  guint8 * output;
   GumCodeWriter cw;
   GumRelocator rl;
 } TestRelocatorFixture;
@@ -43,7 +44,8 @@ static void
 test_relocator_fixture_setup (TestRelocatorFixture * fixture,
                               gconstpointer data)
 {
-  memset (fixture->output, 0, sizeof (fixture->output));
+  fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  memset (fixture->output, 0, gum_query_page_size ());
   gum_code_writer_init (&fixture->cw, fixture->output);
 }
 
@@ -53,6 +55,7 @@ test_relocator_fixture_teardown (TestRelocatorFixture * fixture,
 {
   gum_relocator_free (&fixture->rl);
   gum_code_writer_free (&fixture->cw);
+  gum_free_pages (fixture->output);
 }
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
@@ -80,7 +83,8 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
 
 #if GLIB_SIZEOF_VOID_P == 8
-  RELOCATOR_TESTENTRY (mov_rip_relative)
+  RELOCATOR_TESTENTRY (rip_relative_different_target)
+  RELOCATOR_TESTENTRY (rip_relative_same_target)
 #endif
 TEST_LIST_END ()
 
@@ -389,7 +393,7 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
 
 #if GLIB_SIZEOF_VOID_P == 8
 
-RELOCATOR_TESTCASE (mov_rip_relative)
+RELOCATOR_TESTCASE (rip_relative_different_target)
 {
   const guint8 input[] = {
     0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
@@ -402,6 +406,31 @@ RELOCATOR_TESTCASE (mov_rip_relative)
                 0xff, 0xff, 0xff, 0xff,
     0x8b, 0x90, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rax + 1] */
     0x58                                /* pop rax            */
+  };
+
+  *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_relocator_read_one (&fixture->rl, NULL);
+  gum_relocator_write_one (&fixture->rl);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (rip_relative_same_target)
+{
+  const guint8 input[] = {
+    0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
+    0xc3,                               /* ret                */
+    0x01, 0x02, 0x03, 0x04
+  };
+  guint8 expected_output[] = {
+    0x51,                               /* push rcx           */
+    0x48, 0xb9, 0xff, 0xff, 0xff, 0xff, /* mov rcx, <rip>     */
+                0xff, 0xff, 0xff, 0xff,
+    0x8b, 0x81, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rcx + 1] */
+    0x59                                /* pop rcx            */
   };
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);

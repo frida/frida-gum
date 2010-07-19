@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,9 +24,28 @@
 
 #define GUM_MAX_INPUT_INSN_COUNT (100)
 
+typedef struct _GumCodeGenCtx GumCodeGenCtx;
+
+struct _GumCodeGenCtx
+{
+  ud_t * insn;
+  guint8 * start;
+  guint8 * end;
+  guint len;
+
+  GumCodeWriter * code_writer;
+};
+
 static gboolean gum_relocator_write_one_instruction (GumRelocator * self);
 static void gum_relocator_put_label_for (GumRelocator * self,
     ud_t * insn);
+
+static gboolean gum_relocator_rewrite_unconditional_branch (
+    GumRelocator * self, GumCodeGenCtx * ctx);
+static gboolean gum_relocator_rewrite_conditional_branch (GumRelocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_relocator_rewrite_if_rip_relative (GumRelocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_relocator_init (GumRelocator * relocator,
@@ -207,90 +226,36 @@ gum_relocator_write_one_no_label (GumRelocator * self)
 static gboolean
 gum_relocator_write_one_instruction (GumRelocator * self)
 {
-  ud_t * cur;
-  guint8 * cur_start, * cur_end;
-  guint cur_len;
-  gboolean passthrough = FALSE;
+  GumCodeGenCtx ctx;
+  gboolean rewritten = FALSE;
 
-  if ((cur = gum_relocator_peek_next_write_insn (self)) == NULL)
+  if ((ctx.insn = gum_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
   gum_relocator_increment_outpos (self);
 
-  cur_len = ud_insn_len (cur);
-  cur_start = GSIZE_TO_POINTER (ud_insn_off (cur));
-  cur_end = cur_start + cur_len;
+  ctx.len = ud_insn_len (ctx.insn);
+  ctx.start = (guint8 *) ud_insn_off (ctx.insn);
+  ctx.end = ctx.start + ctx.len;
 
-  switch (cur->mnemonic)
+  ctx.code_writer = self->output;
+
+  switch (ctx.insn->mnemonic)
   {
     case UD_Icall:
     case UD_Ijmp:
-      {
-        ud_operand_t * op = &cur->operand[0];
-        if (op->type == UD_OP_JIMM && op->base == UD_NONE)
-        {
-          gconstpointer target = NULL;
-
-          if (op->size == 32)
-            target = cur_end + op->lval.sdword;
-          else if (op->size == 8)
-            target = cur_end + op->lval.sbyte;
-          else
-            g_assert_not_reached ();
-
-          if (cur->mnemonic == UD_Icall)
-            gum_code_writer_put_call (self->output, target);
-          else
-            gum_code_writer_put_jmp (self->output, target);
-        }
-        else if ((cur->mnemonic == UD_Icall && op->type == UD_OP_MEM) ||
-            (cur->mnemonic == UD_Ijmp && op->type == UD_OP_JIMM
-                && op->size == 8))
-        {
-          passthrough = TRUE;
-        }
-        else
-        {
-          /* FIXME */
-          g_assert_not_reached ();
-        }
-      }
+      rewritten = gum_relocator_rewrite_unconditional_branch (self, &ctx);
       break;
 
     default:
-      if (gum_mnemonic_is_jcc (cur->mnemonic))
-      {
-        ud_operand_t * op = &cur->operand[0];
-        if (op->type == UD_OP_JIMM && op->size == 8 && op->base == UD_NONE)
-        {
-          const guint8 * target = cur_end + op->lval.sbyte;
-
-          /* FIXME */
-          if (target >= self->input_start && target < self->input_cur)
-          {
-            gum_code_writer_put_jcc_short_label (self->output, cur_start[0],
-                GUINT_TO_POINTER (target));
-          }
-          else
-          {
-            gum_code_writer_put_jcc_near (self->output,
-                gum_jcc_insn_to_near_opcode (cur_start), target);
-          }
-        }
-        else
-        {
-          /* FIXME */
-          g_assert_not_reached ();
-        }
-      }
+      if (gum_mnemonic_is_jcc (ctx.insn->mnemonic))
+        rewritten = gum_relocator_rewrite_conditional_branch (self, &ctx);
       else
-      {
-        passthrough = TRUE;
-      }
+        rewritten = gum_relocator_rewrite_if_rip_relative (self, &ctx);
       break;
   }
 
-  if (passthrough)
-    gum_code_writer_put_bytes (self->output, cur_start, cur_len);
+  if (!rewritten)
+    gum_code_writer_put_bytes (ctx.code_writer, ctx.start, ctx.len);
 
   return TRUE;
 }
@@ -381,4 +346,122 @@ gum_relocator_relocate (gpointer from,
   gum_code_writer_free (&cw);
 
   return reloc_bytes;
+}
+
+static gboolean
+gum_relocator_rewrite_unconditional_branch (GumRelocator * self,
+                                            GumCodeGenCtx * ctx)
+{
+  ud_operand_t * op = &ctx->insn->operand[0];
+  if (op->type == UD_OP_JIMM && op->base == UD_NONE)
+  {
+    gconstpointer target = NULL;
+
+    if (op->size == 32)
+      target = ctx->end + op->lval.sdword;
+    else if (op->size == 8)
+      target = ctx->end + op->lval.sbyte;
+    else
+      g_assert_not_reached ();
+
+    if (ctx->insn->mnemonic == UD_Icall)
+      gum_code_writer_put_call (ctx->code_writer, target);
+    else
+      gum_code_writer_put_jmp (ctx->code_writer, target);
+
+    return TRUE;
+  }
+  else if ((ctx->insn->mnemonic == UD_Icall && op->type == UD_OP_MEM) ||
+      (ctx->insn->mnemonic == UD_Ijmp && op->type == UD_OP_JIMM
+          && op->size == 8))
+  {
+    return FALSE;
+  }
+  else
+  {
+    /* FIXME */
+    g_assert_not_reached ();
+  }
+}
+
+static gboolean
+gum_relocator_rewrite_conditional_branch (GumRelocator * self,
+                                          GumCodeGenCtx * ctx)
+{
+  ud_operand_t * op = &ctx->insn->operand[0];
+  if (op->type == UD_OP_JIMM && op->size == 8 && op->base == UD_NONE)
+  {
+    const guint8 * target = ctx->end + op->lval.sbyte;
+
+    /* FIXME */
+    if (target >= self->input_start && target < self->input_cur)
+    {
+      gum_code_writer_put_jcc_short_label (ctx->code_writer, ctx->start[0],
+          GUINT_TO_POINTER (target));
+    }
+    else
+    {
+      gum_code_writer_put_jcc_near (ctx->code_writer,
+          gum_jcc_insn_to_near_opcode (ctx->start), target);
+    }
+  }
+  else
+  {
+    /* FIXME */
+    g_assert_not_reached ();
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_relocator_rewrite_if_rip_relative (GumRelocator * self,
+                                       GumCodeGenCtx * ctx)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  return FALSE;
+#else
+  ud_t * insn = ctx->insn;
+  guint mod, reg, rm;
+  gboolean is_rip_relative;
+  GumCpuReg target_reg, rip_reg;
+  guint8 code[16];
+
+  if (!insn->have_modrm)
+    return FALSE;
+
+  mod = (insn->modrm & 0xc0) >> 6;
+  reg = (insn->modrm & 0x38) >> 3;
+  rm  = (insn->modrm & 0x07) >> 0;
+
+  is_rip_relative = (mod == 0 && rm == 5);
+  if (!is_rip_relative)
+    return FALSE;
+
+  mod = 2;
+
+  target_reg = (GumCpuReg) (GUM_REG_RAX + reg);
+  if (target_reg != GUM_REG_RAX)
+  {
+    rip_reg = GUM_REG_RAX;
+    rm = 0;
+  }
+  else
+  {
+    rip_reg = GUM_REG_RCX;
+    rm = 1;
+  }
+
+  gum_code_writer_put_push_reg (ctx->code_writer, rip_reg);
+  gum_code_writer_put_mov_reg_address (ctx->code_writer, rip_reg,
+      GUM_ADDRESS (ctx->end));
+
+  memcpy (code, ctx->start, ctx->len);
+  code[ctx->insn->modrm_offset] = (mod << 6) | (reg << 3) | rm;
+  gum_code_writer_put_bytes (ctx->code_writer, code, ctx->len);
+
+  gum_code_writer_put_pop_reg (ctx->code_writer, rip_reg);
+
+  return TRUE;
+#endif
 }
