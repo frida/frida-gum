@@ -38,7 +38,7 @@
 #include "input.h"
 #include "decode.h"
 
-#define dbg(x, n...)
+#define dbg(x, ...)
 /* #define dbg printf */
 
 #ifndef __UD_STANDALONE__
