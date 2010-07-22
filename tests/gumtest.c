@@ -34,7 +34,6 @@ typedef void (* TestRegisterFunction) (void);
 
 /* FIXME: these should be converted to use the new test infrastructure */
 GUM_TEST_DECLARE (testutil);
-GUM_TEST_DECLARE (interceptor);
 /*
 GUM_TEST_DECLARE (allocation_tracker);
 GUM_TEST_DECLARE (allocator_probe);
@@ -50,7 +49,6 @@ GUM_TEST_DECLARE (cobject_tracker);
 static const TestRegisterFunction test_register_functions[] =
 {
   GUM_TEST (testutil),
-  GUM_TEST (interceptor),
   /*
   GUM_TEST (allocation_tracker),
   GUM_TEST (allocator_probe),
@@ -87,6 +85,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (functionparser);
   TEST_RUN_LIST (relocator);
+  TEST_RUN_LIST (interceptor);
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (script);
   TEST_RUN_LIST (tracer);

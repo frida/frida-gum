@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,10 +18,9 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "interceptorharness.h"
-#include "interceptor-lowlevel.h"
+#include "interceptor-fixture.c"
+
 #include <stdlib.h>
-#include <string.h>
 
 static gpointer target_function (GString * str);
 static gpointer target_nop_function_a (gpointer data);
@@ -30,134 +29,124 @@ static gpointer target_nop_function_c (gpointer data);
 static gpointer replacement_malloc (gpointer original_impl, gpointer user_data,
     gpointer caller_ret_addr, guint size);
 
-static void
-test_attach_one (void)
+TEST_LIST_BEGIN (interceptor)
+#if GLIB_SIZEOF_VOID_P == 4
+  INTERCEPTOR_TESTENTRY (cpu_register_clobber)
+  INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
+#endif
+
+  INTERCEPTOR_TESTENTRY (i_can_has_attachability)
+  INTERCEPTOR_TESTENTRY (already_attached)
+#if GLIB_SIZEOF_VOID_P == 4
+  INTERCEPTOR_TESTENTRY (relative_proxy_function)
+#endif
+  INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
+  INTERCEPTOR_TESTENTRY (two_indirects_to_function)
+#if GLIB_SIZEOF_VOID_P == 4
+  INTERCEPTOR_TESTENTRY (relocation_of_early_call)
+#endif
+
+  INTERCEPTOR_TESTENTRY (attach_one)
+  INTERCEPTOR_TESTENTRY (attach_two)
+  INTERCEPTOR_TESTENTRY (attach_to_dependent_api)  
+  INTERCEPTOR_TESTENTRY (thread_id)
+  INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
+  INTERCEPTOR_TESTENTRY (function_arguments)
+  INTERCEPTOR_TESTENTRY (function_return_value)
+#if GLIB_SIZEOF_VOID_P == 4
+  INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
+#endif
+  INTERCEPTOR_TESTENTRY (ignore_caller)
+  INTERCEPTOR_TESTENTRY (ignore_caller_nested)
+  INTERCEPTOR_TESTENTRY (detach)
+  INTERCEPTOR_TESTENTRY (listener_ref_count)
+  INTERCEPTOR_TESTENTRY (function_data)
+  INTERCEPTOR_TESTENTRY (parent_data)
+
+  INTERCEPTOR_TESTENTRY (replace_function)
+TEST_LIST_END ()
+
+INTERCEPTOR_TESTCASE (attach_one)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, '>', '<');
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
-
-  interceptor_harness_teardown (&h);
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>', '<');
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-static void
-test_attach_two (void)
+INTERCEPTOR_TESTCASE (attach_two)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, 'a', 'b');
-  interceptor_harness_attach_listener (&h, 1, &target_function, 'c', 'd');
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, "ac|bd");
-
-  interceptor_harness_teardown (&h);
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 1, &target_function, 'c', 'd');
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 }
 
-static void
-test_attach_to_dependent_api (void)
+INTERCEPTOR_TESTCASE (attach_to_dependent_api)
 {
-  InterceptorHarness h;
   void * p;
 
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &malloc, '>', '<');
-  interceptor_harness_attach_listener (&h, 1, &free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, &malloc, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 1, &free, 'a', 'b');
   p = malloc (1);
   free (p);
-  g_assert_cmpstr (h.result->str, ==, "><ab");
+  g_assert_cmpstr (fixture->result->str, ==, "><ab");
 
-  interceptor_harness_detach_listener (&h, 0);
-  interceptor_harness_detach_listener (&h, 1);
+  interceptor_fixture_detach_listener (fixture, 0);
+  interceptor_fixture_detach_listener (fixture, 1);
 
-  g_assert_cmpstr (h.result->str, ==, "><ab");
-
-  interceptor_harness_teardown (&h);
+  g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
 
-static void
-test_thread_id (void)
+INTERCEPTOR_TESTCASE (thread_id)
 {
-  InterceptorHarness h;
   guint first_thread_id, second_thread_id;
 
-  interceptor_harness_setup (&h);
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
 
-  interceptor_harness_attach_listener (&h, 0, &target_function, 'a', 'b');
+  target_function (fixture->result);
+  first_thread_id = fixture->listener_context[0]->last_thread_id;
 
-  target_function (h.result);
-  first_thread_id = h.listener_context[0]->last_thread_id;
-
-  g_thread_join (g_thread_create ((GThreadFunc) target_function, h.result,
-      TRUE, NULL));
-  second_thread_id = h.listener_context[0]->last_thread_id;
+  g_thread_join (g_thread_create ((GThreadFunc) target_function,
+      fixture->result, TRUE, NULL));
+  second_thread_id = fixture->listener_context[0]->last_thread_id;
 
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
-
-  interceptor_harness_teardown (&h);
 }
 
-static void
-test_intercepted_free_in_thread_exit (void)
+INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, &free, 'a', 'b');
   g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
-
-  interceptor_harness_teardown (&h);
 }
 
-static void
-test_function_arguments (void)
+INTERCEPTOR_TESTCASE (function_arguments)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_nop_function_a, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, &target_nop_function_a, 'a',
       'b');
   target_nop_function_a (GSIZE_TO_POINTER (0x12349876));
-  g_assert_cmphex (h.listener_context[0]->last_seen_argument, ==, 0x12349876);
-
-  interceptor_harness_teardown (&h);
+  g_assert_cmphex (fixture->listener_context[0]->last_seen_argument,
+      ==, 0x12349876);
 }
 
-static void
-test_function_return_value (void)
+INTERCEPTOR_TESTCASE (function_return_value)
 {
-  InterceptorHarness h;
   gpointer return_value;
 
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_nop_function_a, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, &target_nop_function_a, 'a',
       'b');
   return_value = target_nop_function_a (NULL);
-  g_assert_cmphex (GPOINTER_TO_SIZE (h.listener_context[0]->last_return_value),
+  g_assert_cmphex (
+      GPOINTER_TO_SIZE (fixture->listener_context[0]->last_return_value),
       ==, GPOINTER_TO_SIZE (return_value));
-
-  interceptor_harness_teardown (&h);
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-static void
-test_function_cpu_context_on_enter (void)
+
+INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 {
-  InterceptorHarness h;
   GumCpuContext input, output, * ctx;
 
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &clobber_test_function, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, &clobber_test_function, 'a',
       'b');
 
   input.edi = 0x1234a001;
@@ -170,7 +159,7 @@ test_function_cpu_context_on_enter (void)
   
   invoke_clobber_test_function_with_cpu_context (&input, &output);
 
-  ctx = &h.listener_context[0]->last_on_enter_cpu_context;
+  ctx = &fixture->listener_context[0]->last_on_enter_cpu_context;
   g_assert_cmphex (ctx->edi, ==, input.edi);
   g_assert_cmphex (ctx->esi, ==, input.esi);
   g_assert_cmphex (ctx->ebp, ==, input.ebp);
@@ -178,257 +167,78 @@ test_function_cpu_context_on_enter (void)
   g_assert_cmphex (ctx->edx, ==, input.edx);
   g_assert_cmphex (ctx->ecx, ==, input.ecx);
   g_assert_cmphex (ctx->eax, ==, input.eax);
-
-  interceptor_harness_teardown (&h);
 }
+
 #endif
 
-static void
-test_ignore_caller (void)
+INTERCEPTOR_TESTCASE (ignore_caller)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, '>',
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>',
       '<');
 
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
-  gum_interceptor_ignore_caller (h.interceptor);
-  g_string_truncate (h.result, 0);
+  gum_interceptor_ignore_caller (fixture->interceptor);
+  g_string_truncate (fixture->result, 0);
 
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, "|");
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
 
-  gum_interceptor_unignore_caller (h.interceptor);
-  g_string_truncate (h.result, 0);
+  gum_interceptor_unignore_caller (fixture->interceptor);
+  g_string_truncate (fixture->result, 0);
 
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
-
-  interceptor_harness_teardown (&h);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-/* FIXME: ignore_caller()/unignore_caller() need better names */
-static void
-test_ignore_caller_nested (void)
+INTERCEPTOR_TESTCASE (ignore_caller_nested)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, '>',
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>',
       '<');
 
-  gum_interceptor_ignore_caller (h.interceptor);
-  gum_interceptor_ignore_caller (h.interceptor);
-  gum_interceptor_unignore_caller (h.interceptor);
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, "|");
-  gum_interceptor_unignore_caller (h.interceptor);
-
-  interceptor_harness_teardown (&h);
+  gum_interceptor_ignore_caller (fixture->interceptor);
+  gum_interceptor_ignore_caller (fixture->interceptor);
+  gum_interceptor_unignore_caller (fixture->interceptor);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "|");
+  gum_interceptor_unignore_caller (fixture->interceptor);
 }
 
-static void
-test_detach (void)
+INTERCEPTOR_TESTCASE (detach)
 {
-  InterceptorHarness h;
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 1, &target_function, 'c', 'd');
 
-  interceptor_harness_setup (&h);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 
-  interceptor_harness_attach_listener (&h, 0, &target_function, 'a', 'b');
-  interceptor_harness_attach_listener (&h, 1, &target_function, 'c', 'd');
+  interceptor_fixture_detach_listener (fixture, 0);
+  g_string_truncate (fixture->result, 0);
 
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, "ac|bd");
-
-  interceptor_harness_detach_listener (&h, 0);
-  g_string_truncate (h.result, 0);
-
-  target_function (h.result);
-  g_assert_cmpstr (h.result->str, ==, "c|d");
-
-  interceptor_harness_teardown (&h);
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, "c|d");
 }
 
-static void
-test_listener_ref_count (void)
+INTERCEPTOR_TESTCASE (listener_ref_count)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, 'a', 'b');
-  g_assert_cmpuint (G_OBJECT (h.listener_context[0])->ref_count, ==, 1);
-
-  interceptor_harness_teardown (&h);
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
+  g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
 }
 
-typedef struct {
-  GObject parent;
-  guint on_enter_call_count;
-  guint on_leave_call_count;
-  guint provide_thread_data_call_count;
-  GumInvocationContext last_on_enter_ctx;
-  GumInvocationContext last_on_leave_ctx;
-  GSList * a_threads_seen;
-  guint a_thread_index;
-  GSList * b_threads_seen;
-  guint b_thread_index;
-  GSList * provided_thread_data;
-} TestFunctionDataListener;
+#include "interceptor-functiondatalistener.c"
 
-typedef struct {
-  GObjectClass parent_class;
-} TestFunctionDataListenerClass;
-
-#define TEST_TYPE_FUNCTION_DATA_LISTENER \
-    (test_function_data_listener_get_type ())
-#define TEST_FUNCTION_DATA_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    TEST_TYPE_FUNCTION_DATA_LISTENER, TestFunctionDataListener))
-
-static void test_function_data_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
-static void test_function_data_listener_finalize (GObject * object);
-
-G_DEFINE_TYPE_EXTENDED (TestFunctionDataListener,
-                        test_function_data_listener,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            test_function_data_listener_iface_init));
-
-static void
-test_function_data_listener_on_enter (GumInvocationListener * listener,
-                                      GumInvocationContext * context,
-                                      GumInvocationContext * parent_context,
-                                      GumCpuContext * cpu_context,
-                                      gpointer function_arguments)
+INTERCEPTOR_TESTCASE (function_data)
 {
-  TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
-
-  self->on_enter_call_count++;
-  self->last_on_enter_ctx = *context;
-}
-
-static void
-test_function_data_listener_on_leave (GumInvocationListener * listener,
-                                      GumInvocationContext * context,
-                                      GumInvocationContext * parent_context,
-                                      gpointer function_return_value)
-{
-  TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
-
-  self->on_leave_call_count++;
-  self->last_on_leave_ctx = *context;
-}
-
-static gpointer
-test_context_provide_thread_data (GumInvocationListener * listener,
-                                  gpointer function_instance_data,
-                                  guint thread_id)
-{
-  TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
-  GSList ** threads_seen = NULL;
-  guint * thread_index = 0;
-  GThread * cur_thread;
-  gchar * thread_data;
-
-  self->provide_thread_data_call_count++;
-
-  if (strcmp (function_instance_data, "a") == 0)
-  {
-    threads_seen = &self->a_threads_seen;
-    thread_index = &self->a_thread_index;
-  }
-  else if (strcmp (function_instance_data, "b") == 0)
-  {
-    threads_seen = &self->b_threads_seen;
-    thread_index = &self->b_thread_index;
-  }
-  else
-    g_assert_not_reached ();
-
-  cur_thread = g_thread_self ();
-  if (g_slist_find (*threads_seen, cur_thread) == NULL)
-  {
-    *threads_seen = g_slist_prepend (*threads_seen, cur_thread);
-    (*thread_index)++;
-  }
-
-  thread_data =
-      g_strdup_printf ("%s%d", (gchar *) function_instance_data, *thread_index);
-  self->provided_thread_data = g_slist_prepend (self->provided_thread_data,
-      thread_data);
-  return thread_data;
-}
-
-static void
-test_function_data_listener_iface_init (gpointer g_iface,
-                                        gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  iface->on_enter = test_function_data_listener_on_enter;
-  iface->on_leave = test_function_data_listener_on_leave;
-  iface->provide_thread_data = test_context_provide_thread_data;
-}
-
-static void
-test_function_data_listener_class_init (TestFunctionDataListenerClass * klass)
-{
-  GObjectClass * gobject_class = G_OBJECT_CLASS (klass);
-
-  gobject_class->finalize = test_function_data_listener_finalize;
-}
-
-static void
-test_function_data_listener_init (TestFunctionDataListener * self)
-{
-}
-
-static void
-test_function_data_listener_finalize (GObject * object)
-{
-  TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (object);
-
-  while (self->provided_thread_data != NULL)
-  {
-    gchar * entry = self->provided_thread_data->data;
-    self->provided_thread_data = g_slist_remove (self->provided_thread_data,
-        entry);
-    g_free (entry);
-  }
-
-  G_OBJECT_CLASS (test_function_data_listener_parent_class)->finalize (object);
-}
-
-static void
-test_function_data_listener_reset (TestFunctionDataListener * self)
-{
-  self->on_enter_call_count = 0;
-  self->on_leave_call_count = 0;
-  self->provide_thread_data_call_count = 0;
-  memset (&self->last_on_enter_ctx, 0, sizeof (GumInvocationContext));
-  memset (&self->last_on_leave_ctx, 0, sizeof (GumInvocationContext));
-}
-
-static void
-test_function_data (void)
-{
-  GumInterceptor * interceptor;
   TestFunctionDataListener * fd_listener;
   GumInvocationListener * listener;
 
-  interceptor = gum_interceptor_obtain ();
-  fd_listener = g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
+  fd_listener = (TestFunctionDataListener *)
+      g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
-  g_assert_cmpint (gum_interceptor_attach_listener (interceptor,
+  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
       &target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
-  g_assert_cmpint (gum_interceptor_attach_listener (interceptor,
+  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
       &target_nop_function_b, listener, "b"), ==, GUM_ATTACH_OK);
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
@@ -438,19 +248,27 @@ test_function_data (void)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->provide_thread_data_call_count, ==, 1);
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.thread_data, ==, "a1");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.thread_data, ==, "a1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.thread_data,
+      ==, "a1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.thread_data,
+      ==, "a1");
 
   target_nop_function_a (NULL);
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->provide_thread_data_call_count, ==, 1);
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.thread_data, ==, "a1");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.thread_data, ==, "a1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.thread_data,
+      ==, "a1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.thread_data,
+      ==, "a1");
 
   test_function_data_listener_reset (fd_listener);
 
@@ -458,10 +276,14 @@ test_function_data (void)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->provide_thread_data_call_count, ==, 1);
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.instance_data, ==, "b");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.instance_data, ==, "b");
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.thread_data, ==, "b1");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.thread_data, ==, "b1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.instance_data,
+      ==, "b");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.instance_data,
+      ==, "b");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.thread_data,
+      ==, "b1");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.thread_data,
+      ==, "b1");
 
   test_function_data_listener_reset (fd_listener);
 
@@ -469,121 +291,31 @@ test_function_data (void)
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->provide_thread_data_call_count, ==, 1);
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.instance_data, ==, "a");
-  g_assert_cmpstr (fd_listener->last_on_enter_ctx.thread_data, ==, "a2");
-  g_assert_cmpstr (fd_listener->last_on_leave_ctx.thread_data, ==, "a2");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.instance_data,
+      ==, "a");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_ctx.thread_data,
+      ==, "a2");
+  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_ctx.thread_data,
+      ==, "a2");
 
-  gum_interceptor_detach_listener (interceptor, listener);
+  gum_interceptor_detach_listener (fixture->interceptor, listener);
   g_object_unref (fd_listener);
-  g_object_unref (interceptor);
 }
 
-typedef struct {
-  GObject parent;
-  GumInvocationContext a_on_enter_parent_ctx;
-  GumInvocationContext a_on_leave_parent_ctx;
-  GumInvocationContext c_on_enter_parent_ctx;
-  GumInvocationContext c_on_leave_parent_ctx;
-} TestParentDataListener;
+#include "interceptor-parentdatalistener.c"
 
-typedef struct {
-  GObjectClass parent_class;
-} TestParentDataListenerClass;
-
-#define TEST_TYPE_PARENT_DATA_LISTENER \
-    (test_parent_data_listener_get_type ())
-#define TEST_PARENT_DATA_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    TEST_TYPE_PARENT_DATA_LISTENER, TestParentDataListener))
-
-static void test_parent_data_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
-
-G_DEFINE_TYPE_EXTENDED (TestParentDataListener,
-                        test_parent_data_listener,
-                        G_TYPE_OBJECT,
-                        0,
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            test_parent_data_listener_iface_init));
-
-static void
-test_parent_data_listener_on_enter (GumInvocationListener * listener,
-                                    GumInvocationContext * context,
-                                    GumInvocationContext * parent_context,
-                                    GumCpuContext * cpu_context,
-                                    gpointer function_arguments)
+INTERCEPTOR_TESTCASE (parent_data)
 {
-  TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
-
-  if (strcmp (context->instance_data, "a") == 0)
-    self->a_on_enter_parent_ctx = *parent_context;
-  else if (strcmp (context->instance_data, "c") == 0)
-    self->c_on_enter_parent_ctx = *parent_context;
-}
-
-static void
-test_parent_data_listener_on_leave (GumInvocationListener * listener,
-                                    GumInvocationContext * context,
-                                    GumInvocationContext * parent_context,
-                                    gpointer function_return_value)
-{
-  TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
-
-  if (strcmp (context->instance_data, "a") == 0)
-    self->a_on_leave_parent_ctx = *parent_context;
-  else if (strcmp (context->instance_data, "c") == 0)
-    self->c_on_leave_parent_ctx = *parent_context;
-}
-
-static gpointer
-test_parent_data_listener_provide_thread_data (GumInvocationListener * listener,
-                                               gpointer function_instance_data,
-                                               guint thread_id)
-{
-  if (strcmp (function_instance_data, "a") == 0)
-    return "a1";
-  else if (strcmp (function_instance_data, "c") == 0)
-    return "c1";
-  else
-    g_assert_not_reached ();
-
-  return NULL;
-}
-
-static void
-test_parent_data_listener_iface_init (gpointer g_iface,
-                                      gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  iface->on_enter = test_parent_data_listener_on_enter;
-  iface->on_leave = test_parent_data_listener_on_leave;
-  iface->provide_thread_data = test_parent_data_listener_provide_thread_data;
-}
-
-static void
-test_parent_data_listener_class_init (TestParentDataListenerClass * klass)
-{
-}
-
-static void
-test_parent_data_listener_init (TestParentDataListener * self)
-{
-}
-
-static void
-test_parent_data (void)
-{
-  GumInterceptor * interceptor;
   TestParentDataListener * pd_listener;
   GumInvocationListener * listener;
 
-  interceptor = gum_interceptor_obtain ();
   pd_listener = g_object_new (TEST_TYPE_PARENT_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (pd_listener);
-  g_assert_cmpint (gum_interceptor_attach_listener (interceptor,
+  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
       &target_nop_function_c, listener, "c"), ==, GUM_ATTACH_OK);
-  g_assert_cmpint (gum_interceptor_attach_listener (interceptor,
+  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
       &target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
 
   target_nop_function_c (NULL);
@@ -598,16 +330,14 @@ test_parent_data (void)
   g_assert (pd_listener->c_on_leave_parent_ctx.instance_data == NULL);
   g_assert (pd_listener->c_on_leave_parent_ctx.thread_data   == NULL);
 
-  gum_interceptor_detach_listener (interceptor, listener);
+  gum_interceptor_detach_listener (fixture->interceptor, listener);
   g_object_unref (pd_listener);
-  g_object_unref (interceptor);
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-static void
-test_cpu_register_clobber (void)
+
+INTERCEPTOR_TESTCASE (cpu_register_clobber)
 {
-  InterceptorHarness h;
   GumCpuContext input, output;
 
   input.edi = 0x1234a001;
@@ -618,9 +348,8 @@ test_cpu_register_clobber (void)
   input.ecx = 0x12340f06;
   input.eax = 0x12340107;
 
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &clobber_test_function, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 0, &clobber_test_function,
+      '>', '<');
 
   invoke_clobber_test_function_with_cpu_context (&input, &output);
 
@@ -631,36 +360,26 @@ test_cpu_register_clobber (void)
   g_assert_cmphex (output.edx, ==, input.edx);
   g_assert_cmphex (output.ecx, ==, input.ecx);
   g_assert_cmphex (output.eax, ==, input.eax);
-
-  interceptor_harness_teardown (&h);
 }
 
-static void
-test_cpu_flag_clobber (void)
+INTERCEPTOR_TESTCASE (cpu_flag_clobber)
 {
-  InterceptorHarness h;
   gsize flags_input, flags_output;
 
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, clobber_test_function, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function,
+      '>', '<');
 
   invoke_clobber_test_function_with_carry_set (&flags_input, &flags_output);
 
   g_assert_cmphex (flags_output, ==, flags_input);
-
-  interceptor_harness_teardown (&h);
 }
+
 #endif
 
-static void
-test_i_can_has_attachability (void)
+INTERCEPTOR_TESTCASE (i_can_has_attachability)
 {
-  InterceptorHarness h;
   UnsupportedFunction * unsupported_functions;
   guint count, i;
-
-  interceptor_harness_setup (&h);
   
   unsupported_functions = unsupported_function_list_new (&count);
 
@@ -668,125 +387,89 @@ test_i_can_has_attachability (void)
   {
     UnsupportedFunction * func = &unsupported_functions[i];
 
-    g_assert_cmpint (interceptor_harness_try_attaching_listener (&h, 0,
+    g_assert_cmpint (interceptor_fixture_try_attaching_listener (fixture, 0,
         func->code, '>', '<'), ==, GUM_ATTACH_WRONG_SIGNATURE);
   }
   
   unsupported_function_list_free (unsupported_functions);
-
-  interceptor_harness_teardown (&h);
 }
 
-static void
-test_already_attached (void)
+INTERCEPTOR_TESTCASE (already_attached)
 {
-  InterceptorHarness h;
-
-  interceptor_harness_setup (&h);
-
-  interceptor_harness_attach_listener (&h, 0, &target_function, '>', '<');
-  g_assert_cmpint (gum_interceptor_attach_listener (h.interceptor,
-      &target_function, GUM_INVOCATION_LISTENER (h.listener_context[0]), NULL),
-      ==, GUM_ATTACH_ALREADY_ATTACHED);
-
-  interceptor_harness_teardown (&h);
+  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>', '<');
+  g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
+      &target_function, GUM_INVOCATION_LISTENER (fixture->listener_context[0]),
+      NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
 
-static void
-test_relative_proxy_function (void)
+INTERCEPTOR_TESTCASE (relative_proxy_function)
 {
-  InterceptorHarness h;
   ProxyFunc proxy_func;
-
-  interceptor_harness_setup (&h);
 
   proxy_func = proxy_func_new_relative_with_target (&target_function);
 
-  interceptor_harness_attach_listener (&h, 0, proxy_func, '>', '<');
-  proxy_func (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
+  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  proxy_func (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
   proxy_func_free (proxy_func);
-
-  interceptor_harness_teardown (&h);
 }
 
 #endif
 
-static void
-test_absolute_indirect_proxy_function (void)
+INTERCEPTOR_TESTCASE (absolute_indirect_proxy_function)
 {
-  InterceptorHarness h;
   ProxyFunc proxy_func;
-
-  interceptor_harness_setup (&h);
 
   proxy_func = proxy_func_new_absolute_indirect_with_target (&target_function);
 
-  interceptor_harness_attach_listener (&h, 0, proxy_func, '>', '<');
-  proxy_func (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
+  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  proxy_func (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
   proxy_func_free (proxy_func);
-
-  interceptor_harness_teardown (&h);
 }
 
-static void
-test_two_indirects_to_function (void)
+INTERCEPTOR_TESTCASE (two_indirects_to_function)
 {
-  InterceptorHarness h;
   ProxyFunc proxy_func;
-
-  interceptor_harness_setup (&h);
 
   proxy_func = proxy_func_new_two_jumps_with_target (&target_function);
 
-  interceptor_harness_attach_listener (&h, 0, proxy_func, '>', '<');
-  proxy_func (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
+  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  proxy_func (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
   proxy_func_free (proxy_func);
-
-  interceptor_harness_teardown (&h);
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
 
-static void
-test_relocation_of_early_call (void)
+INTERCEPTOR_TESTCASE (relocation_of_early_call)
 {
-  InterceptorHarness h;
   ProxyFunc proxy_func;
-
-  interceptor_harness_setup (&h);
 
   proxy_func = proxy_func_new_early_call_with_target (&target_function);
 
-  interceptor_harness_attach_listener (&h, 0, proxy_func, '>', '<');
-  proxy_func (h.result);
-  g_assert_cmpstr (h.result->str, ==, ">|<");
-
-  interceptor_harness_teardown (&h);
+  interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
+  proxy_func (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
+  interceptor_fixture_detach_listener (fixture, 0);
 
   proxy_func_free (proxy_func);
 }
 
 #endif
 
-static void
-test_replace_function (void)
+INTERCEPTOR_TESTCASE (replace_function)
 {
-  GumInterceptor * interceptor;
   guint counter = 0;
   gpointer ret;
 
-  interceptor = gum_interceptor_obtain ();
-
-  gum_interceptor_replace_function (interceptor, malloc, replacement_malloc,
-      &counter);
+  gum_interceptor_replace_function (fixture->interceptor,
+      malloc, replacement_malloc, &counter);
   ret = malloc (0x42);
 
   /*
@@ -796,15 +479,13 @@ test_replace_function (void)
    */
   g_assert (ret != NULL);
 
-  gum_interceptor_revert_function (interceptor, malloc);
+  gum_interceptor_revert_function (fixture->interceptor, malloc);
   g_assert_cmphex (GPOINTER_TO_SIZE (ret), ==, 0x42);
   g_assert_cmpint (counter, ==, 1);
 
   ret = malloc (1);
   g_assert_cmpint (counter, ==, 1);
   free (ret);
-
-  g_object_unref (interceptor);
 }
 
 static gpointer GUM_NOINLINE
@@ -846,8 +527,8 @@ replacement_malloc (gpointer original_impl,
                     gpointer caller_ret_addr,
                     guint size)
 {
-  MallocFunction malloc_impl = original_impl;
-  guint * counter = user_data;
+  MallocFunction malloc_impl = (MallocFunction) original_impl;
+  guint * counter = (guint *) user_data;
   gpointer a;
 
   (*counter)++;
@@ -856,59 +537,4 @@ replacement_malloc (gpointer original_impl,
   free (a);
 
   return GSIZE_TO_POINTER (size);
-}
-
-void
-gum_test_register_interceptor_tests (void)
-{
-#if GLIB_SIZEOF_VOID_P == 4
-  g_test_add_func ("/Gum/Interceptor/test-cpu-register-clobber",
-      &test_cpu_register_clobber);
-  g_test_add_func ("/Gum/Interceptor/test-cpu-flag-clobber",
-      &test_cpu_flag_clobber);
-#endif
-
-  g_test_add_func ("/Gum/Interceptor/test-i-can-has-attachability",
-      &test_i_can_has_attachability);
-  g_test_add_func ("/Gum/Interceptor/test-already-attached",
-      &test_already_attached);
-#if GLIB_SIZEOF_VOID_P == 4
-  g_test_add_func ("/Gum/Interceptor/test-relative-proxy-function",
-      &test_relative_proxy_function);
-#endif
-  g_test_add_func ("/Gum/Interceptor/test-absolute-indirect-proxy-function",
-      &test_absolute_indirect_proxy_function);
-  g_test_add_func ("/Gum/Interceptor/test-two-indirects-to-function",
-      &test_two_indirects_to_function);
-#if GLIB_SIZEOF_VOID_P == 4
-  g_test_add_func ("/Gum/Interceptor/test-relocation-of-early-call",
-      &test_relocation_of_early_call);
-#endif
-
-  g_test_add_func ("/Gum/Interceptor/test-attach-one", &test_attach_one);
-  g_test_add_func ("/Gum/Interceptor/test-attach-two", &test_attach_two);
-  g_test_add_func ("/Gum/Interceptor/test-attach-to-dependent-api",
-      &test_attach_to_dependent_api);
-  g_test_add_func ("/Gum/Interceptor/test-thread-id", &test_thread_id);
-  g_test_add_func ("/Gum/Interceptor/test-intercepted-free-in-thread-exit",
-      &test_intercepted_free_in_thread_exit);
-  g_test_add_func ("/Gum/Interceptor/test-function-arguments",
-      &test_function_arguments);
-  g_test_add_func ("/Gum/Interceptor/test-function-return-value",
-      &test_function_return_value);
-#if GLIB_SIZEOF_VOID_P == 4
-  g_test_add_func ("/Gum/Interceptor/test-function-cpu-context-on-enter",
-      &test_function_cpu_context_on_enter);
-#endif
-  g_test_add_func ("/Gum/Interceptor/test-ignore-caller", &test_ignore_caller);
-  g_test_add_func ("/Gum/Interceptor/test-ignore-caller-nested",
-      &test_ignore_caller_nested);
-  g_test_add_func ("/Gum/Interceptor/test-detach", &test_detach);
-  g_test_add_func ("/Gum/Interceptor/test-listener-ref-count",
-      &test_listener_ref_count);
-  g_test_add_func ("/Gum/Interceptor/test-function-data", &test_function_data);
-  g_test_add_func ("/Gum/Interceptor/test-parent-data", &test_parent_data);
-
-  g_test_add_func ("/Gum/Interceptor/test-replace-function",
-      &test_replace_function);
 }

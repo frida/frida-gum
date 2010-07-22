@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -41,23 +41,16 @@ gum_invocation_listener_get_type (void)
 
 void
 gum_invocation_listener_on_enter (GumInvocationListener * self,
-                                  GumInvocationContext * context,
-                                  GumInvocationContext * parent_context,
-                                  GumCpuContext * cpu_context,
-                                  gpointer function_arguments)
+                                  GumInvocationContext * ctx)
 {
-  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_enter (self,
-      context, parent_context, cpu_context, function_arguments);
+  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_enter (self, ctx);
 }
 
 void
 gum_invocation_listener_on_leave (GumInvocationListener * self,
-                                  GumInvocationContext * context,
-                                  GumInvocationContext * parent_context,
-                                  gpointer function_return_value)
+                                  GumInvocationContext * ctx)
 {
-  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_leave (self,
-      context, parent_context, function_return_value);
+  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_leave (self, ctx);
 }
 
 gpointer
@@ -67,4 +60,27 @@ gum_invocation_listener_provide_thread_data (GumInvocationListener * self,
 {
   return GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->provide_thread_data (
       self, function_instance_data, thread_id);
+}
+
+gpointer
+gum_invocation_context_get_nth_argument (GumInvocationContext * context,
+                                         guint n)
+{
+  return context->backend->get_nth_argument (context, n);
+}
+
+gpointer
+gum_invocation_context_get_return_value (GumInvocationContext * context)
+{
+  return context->backend->get_return_value (context);
+}
+
+gpointer
+gum_invocation_context_get_stack_pointer (GumInvocationContext * context)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  return (gpointer) context->cpu_context->esp;
+#else
+  return (gpointer) context->cpu_context->rsp;
+#endif
 }

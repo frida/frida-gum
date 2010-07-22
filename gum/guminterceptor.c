@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -520,7 +520,7 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
 
   for (i = 0; i < function_ctx->listener_entries->len; i++)
   {
-    ListenerEntry * entry =
+    ListenerEntry * entry = (ListenerEntry *)
         g_ptr_array_index (function_ctx->listener_entries, i);
 
     if (entry->listener_instance == listener)
@@ -529,6 +529,39 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
 
   return NULL;
 }
+
+static gpointer
+gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
+                                             guint n)
+{
+  gpointer * first_argument_on_stack;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  first_argument_on_stack = (gpointer *) context->cpu_context->esp;
+#else
+  first_argument_on_stack = (gpointer *) context->cpu_context->rsp;
+#endif
+
+  return first_argument_on_stack[n];
+}
+
+static gpointer
+gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  return (gpointer) context->cpu_context->eax;
+#else
+  return (gpointer) context->cpu_context->rax;
+#endif
+}
+
+static const GumInvocationBackend gum_interceptor_invocation_backend_template =
+{
+  gum_interceptor_invocation_get_nth_argument,
+  gum_interceptor_invocation_get_return_value,
+
+  NULL
+};
 
 void
 _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
@@ -544,8 +577,11 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 #endif
 
 #if GLIB_SIZEOF_VOID_P == 4
-  /* sort of hackish, but close enough */
+  cpu_context->esp = (guint32) function_arguments;
   cpu_context->eip = (guint32) *caller_ret_addr;
+#else
+  cpu_context->rsp = (guint64) function_arguments;
+  cpu_context->rip = (guint64) *caller_ret_addr;
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
@@ -557,8 +593,8 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 
     thread_ctx = get_thread_context (function_ctx);
 
-    parent_thread_ctx = thread_context_stack_peek_top_and_push (thread_ctx,
-        *caller_ret_addr);
+    parent_thread_ctx = (FunctionThreadContext *)
+        thread_context_stack_peek_top_and_push (thread_ctx, *caller_ret_addr);
 #ifdef _M_IX86 /* FIXME */
     *caller_ret_addr = _gum_interceptor_function_context_on_leave_thunk;
 #endif
@@ -566,9 +602,13 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
     listener_entries = thread_ctx->function_ctx->listener_entries;
     for (i = 0; i < listener_entries->len; i++)
     {
-      ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
-      GumInvocationContext context;
-      GumInvocationContext parent_context;
+      ListenerEntry * entry = (ListenerEntry *)
+          g_ptr_array_index (listener_entries, i);
+      GumInvocationBackend backend;
+      GumInvocationContext context, parent_context;
+
+      backend = gum_interceptor_invocation_backend_template;
+      backend.user_data = entry;
 
       context.instance_data = entry->function_instance_data;
 
@@ -591,9 +631,12 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 
       fill_parent_context_for_listener (parent_thread_ctx,
           entry->listener_instance, &parent_context);
+      context.parent = &parent_context;
 
-      entry->listener_interface->on_enter (entry->listener_instance, &context,
-          &parent_context, cpu_context, function_arguments);
+      context.cpu_context = cpu_context;
+      context.backend = &backend;
+
+      entry->listener_interface->on_enter (entry->listener_instance, &context);
     }
   }
 
@@ -615,24 +658,39 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
   previous_last_error = GetLastError ();
 #endif
 
-  parent_thread_ctx =
+  parent_thread_ctx = (FunctionThreadContext *)
       thread_context_stack_pop_and_peek_top (&thread_ctx, &caller_ret_addr);
 
   listener_entries = thread_ctx->function_ctx->listener_entries;
   for (i = 0; i < listener_entries->len; i++)
   {
-    ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
-    GumInvocationContext context;
-    GumInvocationContext parent_context;
+    ListenerEntry * entry = (ListenerEntry *)
+        g_ptr_array_index (listener_entries, i);
+    GumInvocationBackend backend;
+    GumInvocationContext context, parent_context;
+    GumCpuContext cpu_context = { 0, };
+
+    /* FIXME */
+#if GLIB_SIZEOF_VOID_P == 4
+    cpu_context.eax = (guint32) function_return_value;
+#else
+    cpu_context.rax = (guint64) function_return_value;
+#endif
+
+    backend = gum_interceptor_invocation_backend_template;
+    backend.user_data = entry;
 
     context.instance_data = entry->function_instance_data;
     context.thread_data = thread_ctx->listener_data[i];
 
     fill_parent_context_for_listener (parent_thread_ctx,
         entry->listener_instance, &parent_context);
+    context.parent = &parent_context;
 
-    entry->listener_interface->on_leave (entry->listener_instance, &context,
-        &parent_context, function_return_value);
+    context.cpu_context = &cpu_context;
+    context.backend = &backend;
+
+    entry->listener_interface->on_leave (entry->listener_instance, &context);
   }
 
 #ifdef G_OS_WIN32
@@ -647,6 +705,10 @@ fill_parent_context_for_listener (FunctionThreadContext * parent_thread_ctx,
                                   GumInvocationListener * listener,
                                   GumInvocationContext * parent_context)
 {
+  parent_context->parent = NULL;
+  parent_context->cpu_context = NULL;
+  parent_context->backend = NULL;
+
   if (parent_thread_ctx != NULL)
   {
     guint i;
@@ -655,7 +717,8 @@ fill_parent_context_for_listener (FunctionThreadContext * parent_thread_ctx,
     entries = parent_thread_ctx->function_ctx->listener_entries;
     for (i = 0; i < entries->len; i++)
     {
-      ListenerEntry * entry = g_ptr_array_index (entries, i);
+      ListenerEntry * entry = (ListenerEntry *) g_ptr_array_index (entries, i);
+
       if (entry->listener_instance == listener)
       {
         parent_context->instance_data = entry->function_instance_data;

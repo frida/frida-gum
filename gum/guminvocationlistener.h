@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -33,26 +33,38 @@
 
 typedef struct _GumInvocationListener GumInvocationListener;
 typedef struct _GumInvocationListenerIface GumInvocationListenerIface;
+typedef struct _GumInvocationBackend GumInvocationBackend;
 typedef struct _GumInvocationContext GumInvocationContext;
 
 struct _GumInvocationListenerIface
 {
   GTypeInterface parent;
 
-  void (*on_enter) (GumInvocationListener * self,
-      GumInvocationContext * context, GumInvocationContext * parent_context,
-      GumCpuContext * cpu_context, gpointer function_arguments);
-  void (*on_leave) (GumInvocationListener * self,
-      GumInvocationContext * context, GumInvocationContext * parent_context,
-      gpointer function_return_value);
+  void (*on_enter) (GumInvocationListener * self, GumInvocationContext * ctx);
+  void (*on_leave) (GumInvocationListener * self, GumInvocationContext * ctx);
   gpointer (*provide_thread_data) (GumInvocationListener * self,
       gpointer function_instance_data, guint thread_id);
 };
 
+struct _GumInvocationBackend
+{
+  gpointer (* get_nth_argument) (GumInvocationContext * context, guint n);
+  gpointer (* get_return_value) (GumInvocationContext * context);
+
+  gpointer user_data;
+};
+
 struct _GumInvocationContext
 {
+  GumInvocationContext * parent;
+
   gpointer instance_data;
   gpointer thread_data;
+
+  GumCpuContext * cpu_context;
+
+  /*< private */
+  GumInvocationBackend * backend;
 };
 
 G_BEGIN_DECLS
@@ -60,14 +72,20 @@ G_BEGIN_DECLS
 GUM_API GType gum_invocation_listener_get_type (void);
 
 GUM_API void gum_invocation_listener_on_enter (GumInvocationListener * self,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    GumCpuContext * cpu_context, gpointer function_arguments);
+    GumInvocationContext * ctx);
 GUM_API void gum_invocation_listener_on_leave (GumInvocationListener * self,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    gpointer function_return_value);
+    GumInvocationContext * ctx);
 GUM_API gpointer gum_invocation_listener_provide_thread_data (
     GumInvocationListener * self, gpointer function_instance_data,
     guint thread_id);
+
+GUM_API gpointer gum_invocation_context_get_nth_argument (
+    GumInvocationContext * context, guint n);
+GUM_API gpointer gum_invocation_context_get_return_value (
+    GumInvocationContext * context);
+/* TODO: remove this when migration is complete */
+GUM_API gpointer gum_invocation_context_get_stack_pointer (
+    GumInvocationContext * context);
 
 G_END_DECLS
 

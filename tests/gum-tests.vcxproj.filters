@@ -36,9 +36,6 @@
     <ClCompile Include="core\interceptor.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\interceptorharness.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\arch-x86\codewriter.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
@@ -75,13 +72,19 @@
     <ClCompile Include="core\tracer.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\interceptor-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor-functiondatalistener.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\interceptor-parentdatalistener.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="core\interceptorharness.h">
-      <Filter>Tests\core</Filter>
     </ClInclude>
     <ClInclude Include="core\interceptor-lowlevel.h">
       <Filter>Tests\core</Filter>
