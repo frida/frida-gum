@@ -29,11 +29,11 @@
 #define TEST_LIST_BEGIN(NAME)       void test_ ##NAME## _add_tests (void) {
 #define TEST_LIST_END()             }
 
-#define TEST_ENTRY_SIMPLE(NAME, FUNC)                                     \
+#define TEST_ENTRY_SIMPLE(NAME, PREFIX, FUNC)                             \
   G_STMT_START                                                            \
   {                                                                       \
-    static void FUNC (void);                                              \
-    g_test_add_func ("/" #NAME "/" #FUNC, FUNC);                          \
+    static void PREFIX## _ ##FUNC (void);                                 \
+    g_test_add_func ("/" #NAME "/" #FUNC, PREFIX## _ ##FUNC);             \
   }                                                                       \
   G_STMT_END;
 #define TEST_ENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)               \

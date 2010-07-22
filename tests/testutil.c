@@ -19,8 +19,14 @@
  */
 
 #include "testutil.h"
+
 #include <stdlib.h>
 #include <string.h>
+
+#define TESTUTIL_TESTCASE(NAME) \
+    void test_testutil_ ## NAME (void)
+#define TESTUTIL_TESTENTRY(NAME) \
+    TEST_ENTRY_SIMPLE (TestUtil, test_testutil, NAME)
 
 static gchar * prettify_xml (const gchar * input_xml);
 static void on_start_element (GMarkupParseContext * context,
@@ -35,10 +41,13 @@ static gchar * diff_line (const gchar * expected_line,
     const gchar * actual_line);
 static void append_indent (GString * str, guint indent_level);
 
-/* Tests */
+TEST_LIST_BEGIN (testutil)
+  TESTUTIL_TESTENTRY (xml_line_diff)
+  TESTUTIL_TESTENTRY (xml_pretty_split)
+  TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
+TEST_LIST_END ()
 
-static void
-test_xml_line_diff (void)
+TESTUTIL_TESTCASE (xml_line_diff)
 {
   const gchar * expected_xml = "<tag/>";
   const gchar * bad_xml = "<taG/>";
@@ -53,8 +62,7 @@ test_xml_line_diff (void)
   g_free (diff);
 }
 
-static void
-test_xml_pretty_split (void)
+TESTUTIL_TESTCASE (xml_pretty_split)
 {
   const gchar * input_xml = "<foo><bar id=\"2\">Woot</bar></foo>";
   const gchar * expected_xml =
@@ -70,8 +78,7 @@ test_xml_pretty_split (void)
   g_free (output_xml);
 }
 
-static void
-test_xml_multiline_diff_same_size (void)
+TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
 {
   const gchar * expected_xml = "<foo><bar id=\"4\"></bar></foo>";
   const gchar * bad_xml      = "<foo><bar id=\"5\"></bar></foo>";
@@ -283,13 +290,4 @@ append_indent (GString * str,
 
   for (i = 0; i < indent_level; i++)
     g_string_append (str, "  ");
-}
-
-void
-gum_test_register_testutil_tests (void)
-{
-  g_test_add_func ("/Gum/TestUtil/Xml/line-diff", &test_xml_line_diff);
-  g_test_add_func ("/Gum/TestUtil/Xml/pretty-split", &test_xml_pretty_split);
-  g_test_add_func ("/Gum/TestUtil/Xml/multiline-diff-same-size",
-      &test_xml_multiline_diff_same_size);
 }

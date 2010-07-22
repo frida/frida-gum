@@ -22,9 +22,14 @@
 #define VC_EXTRALEAN
 #include <windows.h>
 
+#define SCRIPT_TESTCASE(NAME) \
+    void test_script_ ## NAME (void)
+#define SCRIPT_TESTENTRY(NAME) \
+    TEST_ENTRY_SIMPLE (Script, test_script, NAME)
+
 TEST_LIST_BEGIN (script)
-  TEST_ENTRY_SIMPLE (Script, test_replace_string_and_length_arguments)
-  TEST_ENTRY_SIMPLE (Script, test_send_string_from_argument)
+  SCRIPT_TESTENTRY (replace_string_and_length_arguments)
+  SCRIPT_TESTENTRY (send_string_from_argument)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
@@ -48,8 +53,7 @@ static gchar * ansi_string_from_utf8 (const gchar * str_utf8);
 
 static GumCpuContext fake_cpu_ctx = { 0, };
 
-static void
-test_replace_string_and_length_arguments (void)
+SCRIPT_TESTCASE (replace_string_and_length_arguments)
 {
   const gchar * script_text =
     "var new_text = \"No, not me!\"\n"
@@ -85,8 +89,7 @@ test_replace_string_and_length_arguments (void)
   g_object_unref (script);
 }
 
-static void
-test_send_string_from_argument (void)
+SCRIPT_TESTCASE (send_string_from_argument)
 {
   const gchar * script_text =
     "SendAnsiStringFromArgument 0\n"

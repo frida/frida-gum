@@ -27,41 +27,6 @@
 #include <conio.h>
 #endif
 
-#define GUM_TEST_DECLARE(name) void gum_test_register_##name##_tests (void)
-#define GUM_TEST(name) gum_test_register_##name##_tests
-
-typedef void (* TestRegisterFunction) (void);
-
-/* FIXME: these should be converted to use the new test infrastructure */
-GUM_TEST_DECLARE (testutil);
-/*
-GUM_TEST_DECLARE (allocation_tracker);
-GUM_TEST_DECLARE (allocator_probe);
-GUM_TEST_DECLARE (allocator_probe_cxx);
-GUM_TEST_DECLARE (backtracer);
-GUM_TEST_DECLARE (profiler);
-GUM_TEST_DECLARE (page_pool);
-GUM_TEST_DECLARE (bounds_checker);
-GUM_TEST_DECLARE (instance_tracker);
-GUM_TEST_DECLARE (cobject_tracker);
-*/
-
-static const TestRegisterFunction test_register_functions[] =
-{
-  GUM_TEST (testutil),
-  /*
-  GUM_TEST (allocation_tracker),
-  GUM_TEST (allocator_probe),
-  GUM_TEST (allocator_probe_cxx),
-  GUM_TEST (backtracer),
-  GUM_TEST (profiler),
-  GUM_TEST (page_pool),
-  GUM_TEST (bounds_checker),
-  GUM_TEST (instance_tracker),
-  GUM_TEST (cobject_tracker)
-  */
-};
-
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
 
 gint
@@ -81,6 +46,7 @@ main (gint argc, gchar * argv[])
 #pragma warning (disable: 4210)
 #endif
 
+  TEST_RUN_LIST (testutil);
   TEST_RUN_LIST (symbolutil);
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (functionparser);
@@ -94,9 +60,6 @@ main (gint argc, gchar * argv[])
 #ifdef _MSC_VER
 #pragma warning (pop)
 #endif
-
-  for (i = 0; i < G_N_ELEMENTS (test_register_functions); i++)
-    test_register_functions[i] ();
 
   timer = g_timer_new ();
   result = g_test_run ();
@@ -137,4 +100,3 @@ get_number_of_tests_in_suite (GTestSuite * suite)
 
   return total;
 }
-

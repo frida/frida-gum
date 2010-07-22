@@ -26,6 +26,11 @@
 #define SYSTEM_MODULE_NAME "libc.so.6"
 #endif
 
+#define SYMUTIL_TESTCASE(NAME) \
+    void test_symbolutil_ ## NAME (void)
+#define SYMUTIL_TESTENTRY(NAME) \
+    TEST_ENTRY_SIMPLE (SymbolUtil, test_symbolutil, NAME)
+
 typedef struct _TestForEachContext {
   gboolean value_to_return;
   guint number_of_calls;
@@ -42,19 +47,18 @@ static void GUM_STDCALL dummy_function_1 (void);
 #endif
 
 TEST_LIST_BEGIN (symbolutil)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_process_modules)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_module_exports)
+  SYMUTIL_TESTENTRY (process_modules)
+  SYMUTIL_TESTENTRY (module_exports)
 #ifndef GUM_DISABLE_SYMBOL_UTIL
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_symbol_details_from_address)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_symbol_name_from_address)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_find_external_public_function)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_find_local_static_function)
-  TEST_ENTRY_SIMPLE (SymbolUtil, test_find_functions_matching)
+  SYMUTIL_TESTENTRY (symbol_details_from_address)
+  SYMUTIL_TESTENTRY (symbol_name_from_address)
+  SYMUTIL_TESTENTRY (find_external_public_function)
+  SYMUTIL_TESTENTRY (find_local_static_function)
+  SYMUTIL_TESTENTRY (find_functions_matching)
 #endif
 TEST_LIST_END ()
 
-static void
-test_process_modules (void)
+SYMUTIL_TESTCASE (process_modules)
 {
   TestForEachContext ctx;
 
@@ -69,8 +73,7 @@ test_process_modules (void)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-static void
-test_module_exports (void)
+SYMUTIL_TESTCASE (module_exports)
 {
   TestForEachContext ctx;
 
@@ -112,8 +115,7 @@ export_found_cb (const gchar * name,
 
 #ifndef GUM_DISABLE_SYMBOL_UTIL
 
-static void
-test_symbol_details_from_address (void)
+SYMUTIL_TESTCASE (symbol_details_from_address)
 {
   GumSymbolDetails details;
 
@@ -127,8 +129,7 @@ test_symbol_details_from_address (void)
   g_assert_cmpuint (details.line_number, >, 0);
 }
 
-static void
-test_symbol_name_from_address (void)
+SYMUTIL_TESTCASE (symbol_name_from_address)
 {
   gchar * symbol_name;
 
@@ -137,14 +138,12 @@ test_symbol_name_from_address (void)
   g_free (symbol_name);
 }
 
-static void
-test_find_external_public_function (void)
+SYMUTIL_TESTCASE (find_external_public_function)
 {
   g_assert (gum_find_function ("g_hash_table_new") != NULL);
 }
 
-static void
-test_find_local_static_function (void)
+SYMUTIL_TESTCASE (find_local_static_function)
 {
   gpointer function_address;
 
@@ -153,8 +152,7 @@ test_find_local_static_function (void)
       GPOINTER_TO_SIZE (dummy_function_0));
 }
 
-static void
-test_find_functions_matching (void)
+SYMUTIL_TESTCASE (find_functions_matching)
 {
   GArray * functions;
 

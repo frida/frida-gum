@@ -26,19 +26,23 @@
 #include <windows.h>
 #endif
 
+#define FUNCPARSER_TESTCASE(NAME) \
+    void test_functionparser_ ## NAME (void)
+#define FUNCPARSER_TESTENTRY(NAME) \
+    TEST_ENTRY_SIMPLE (FunctionParser, test_functionparser, NAME)
+
 static int GUM_STDCALL sample_func (int a, int b, int c);
 
 TEST_LIST_BEGIN (functionparser)
-  TEST_ENTRY_SIMPLE (FunctionParser, test_ret_size)
+  FUNCPARSER_TESTENTRY (ret_size)
   /*
 #ifdef G_OS_WIN32
-  TEST_ENTRY_SIMPLE (FunctionParser, test_ret_torture)
+  FUNCPARSER_TESTENTRY (ret_torture)
 #endif
   */
 TEST_LIST_END ()
 
-static void
-test_ret_size (void)
+FUNCPARSER_TESTCASE (ret_size)
 {
   GumFunctionParser fp;
   GumFunctionDetails details;
@@ -72,8 +76,7 @@ parse_exported_function (const gchar * name,
 }
 
 /*
-static void
-test_ret_torture (void)
+FUNCPARSER_TESTCASE (ret_torture)
 {
   HMODULE mod;
   const gchar * module_name = "opengl32.dll";
