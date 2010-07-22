@@ -19,7 +19,6 @@
  */
 
 #include "guminterceptor.h"
-#include "guminterceptor-priv.h"
 
 #include "gumarray.h"
 #include "gumcodereader.h"
@@ -41,6 +40,12 @@ typedef pthread_key_t GumTlsKey;
 #define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
 #endif
 
+#if GLIB_SIZEOF_VOID_P == 8
+#define GUM_REDIRECT_CODE_SIZE 14
+#else
+#define GUM_REDIRECT_CODE_SIZE 5
+#endif
+
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
 #define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (priv->mutex))
@@ -48,6 +53,8 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef struct _ListenerEntry            ListenerEntry;
+typedef struct _FunctionContext          FunctionContext;
+typedef struct _FunctionThreadContext    FunctionThreadContext;
 typedef struct _ThreadContextStackEntry  ThreadContextStackEntry;
 
 struct _GumInterceptorPrivate
@@ -69,6 +76,35 @@ struct _ListenerEntry
   GumInvocationListenerIface * listener_interface;
   GumInvocationListener * listener_instance;
   gpointer function_instance_data;
+};
+
+struct _FunctionThreadContext
+{
+  FunctionContext * function_ctx;
+
+  guint thread_id;
+
+  gpointer listener_data[GUM_MAX_LISTENERS_PER_FUNCTION];
+  guint listener_data_count;
+};
+
+struct _FunctionContext
+{
+  gpointer function_address;
+
+  gpointer code;
+
+  gpointer on_enter_trampoline;
+  guint8 overwritten_prologue[32];
+  guint overwritten_prologue_len;
+
+  gpointer on_leave_trampoline;
+
+  GPtrArray * listener_entries;
+
+  /* state */
+  FunctionThreadContext thread_contexts[GUM_MAX_THREADS];
+  volatile gint thread_context_count;
 };
 
 struct _ThreadContextStackEntry
@@ -124,6 +160,14 @@ static gboolean is_patched_function (GumInterceptor * self,
 static gboolean can_intercept_function (gpointer function_address);
 
 static guint get_current_thread_id (void);
+
+static void gum_function_context_make_monitor_trampoline (
+    FunctionContext * ctx);
+static void gum_function_context_make_replace_trampoline (
+    FunctionContext * ctx, gpointer replacement_address, gpointer user_data);
+static void gum_function_context_destroy_trampoline (FunctionContext * ctx);
+static void gum_function_context_activate_trampoline (FunctionContext * ctx);
+static void gum_function_context_deactivate_trampoline (FunctionContext * ctx);
 
 static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
 static GumInterceptor * _the_interceptor = NULL;
@@ -379,8 +423,8 @@ intercept_function_at (GumInterceptor * self,
 
   ctx->listener_entries = g_ptr_array_sized_new (2);
 
-  _gum_function_ctx_make_monitor_trampoline (ctx);
-  _gum_function_ctx_activate_trampoline (ctx);
+  gum_function_context_make_monitor_trampoline (ctx);
+  gum_function_context_activate_trampoline (ctx);
 
 #ifdef G_OS_WIN32
   FlushInstructionCache (GetCurrentProcess (), NULL, 0);
@@ -400,9 +444,9 @@ replace_function_at (GumInterceptor * self,
 
   ctx = function_context_new (function_address);
 
-  _gum_function_ctx_make_replace_trampoline (ctx, replacement_address,
+  gum_function_context_make_replace_trampoline (ctx, replacement_address,
       user_data);
-  _gum_function_ctx_activate_trampoline (ctx);
+  gum_function_context_activate_trampoline (ctx);
 
   gum_hash_table_insert (priv->replaced_function_by_address, function_address,
       ctx);
@@ -460,7 +504,7 @@ function_context_new (gpointer function_address)
 {
   FunctionContext * ctx;
 
-  ctx = gum_malloc0 (sizeof (FunctionContext));
+  ctx = (FunctionContext *) gum_malloc0 (sizeof (FunctionContext));
   ctx->function_address = function_address;
 
   return ctx;
@@ -469,10 +513,10 @@ function_context_new (gpointer function_address)
 static void
 function_context_destroy (FunctionContext * function_ctx)
 {
-  if (function_ctx->trampoline != NULL)
+  if (function_ctx->code != NULL)
   {
-    _gum_function_ctx_deactivate_trampoline (function_ctx);
-    _gum_function_ctx_destroy_trampoline (function_ctx);
+    gum_function_context_deactivate_trampoline (function_ctx);
+    gum_function_context_destroy_trampoline (function_ctx);
   }
 
   gum_free (function_ctx);
@@ -540,6 +584,15 @@ gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
   first_argument_on_stack = (gpointer *) context->cpu_context->esp;
 #else
   first_argument_on_stack = (gpointer *) context->cpu_context->rsp;
+
+  switch (n)
+  {
+    case 0:   return (gpointer) context->cpu_context->rcx;
+    case 1:   return (gpointer) context->cpu_context->rdx;
+    case 2:   return (gpointer) context->cpu_context->r8;
+    case 3:   return (gpointer) context->cpu_context->r9;
+    default:  break;
+  }
 #endif
 
   return first_argument_on_stack[n];
@@ -563,11 +616,10 @@ static const GumInvocationBackend gum_interceptor_invocation_backend_template =
   NULL
 };
 
-void
-_gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
-                                            GumCpuContext * cpu_context,
-                                            gpointer * caller_ret_addr,
-                                            gpointer function_arguments)
+static void
+gum_function_context_on_enter (FunctionContext * function_ctx,
+                               GumCpuContext * cpu_context,
+                               gpointer * caller_ret_addr)
 {
   InterceptorThreadContext * interceptor_ctx;
 #ifdef G_OS_WIN32
@@ -577,10 +629,8 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 #endif
 
 #if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->esp = (guint32) function_arguments;
   cpu_context->eip = (guint32) *caller_ret_addr;
 #else
-  cpu_context->rsp = (guint64) function_arguments;
   cpu_context->rip = (guint64) *caller_ret_addr;
 #endif
 
@@ -595,9 +645,7 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 
     parent_thread_ctx = (FunctionThreadContext *)
         thread_context_stack_peek_top_and_push (thread_ctx, *caller_ret_addr);
-#ifdef _M_IX86 /* FIXME */
-    *caller_ret_addr = _gum_interceptor_function_context_on_leave_thunk;
-#endif
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
 
     listener_entries = thread_ctx->function_ctx->listener_entries;
     for (i = 0; i < listener_entries->len; i++)
@@ -645,8 +693,9 @@ _gum_interceptor_function_context_on_enter (FunctionContext * function_ctx,
 #endif
 }
 
-gpointer
-_gum_interceptor_function_context_on_leave (gpointer function_return_value)
+static gpointer
+gum_function_context_on_leave (FunctionContext * function_ctx,
+                               GumCpuContext * cpu_context)
 {
   FunctionThreadContext * thread_ctx, * parent_thread_ctx;
   gpointer caller_ret_addr;
@@ -661,6 +710,12 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
   parent_thread_ctx = (FunctionThreadContext *)
       thread_context_stack_pop_and_peek_top (&thread_ctx, &caller_ret_addr);
 
+#if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->eip = (guint32) caller_ret_addr;
+#else
+  cpu_context->rip = (guint64) caller_ret_addr;
+#endif
+
   listener_entries = thread_ctx->function_ctx->listener_entries;
   for (i = 0; i < listener_entries->len; i++)
   {
@@ -668,14 +723,6 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
         g_ptr_array_index (listener_entries, i);
     GumInvocationBackend backend;
     GumInvocationContext context, parent_context;
-    GumCpuContext cpu_context = { 0, };
-
-    /* FIXME */
-#if GLIB_SIZEOF_VOID_P == 4
-    cpu_context.eax = (guint32) function_return_value;
-#else
-    cpu_context.rax = (guint64) function_return_value;
-#endif
 
     backend = gum_interceptor_invocation_backend_template;
     backend.user_data = entry;
@@ -687,7 +734,7 @@ _gum_interceptor_function_context_on_leave (gpointer function_return_value)
         entry->listener_instance, &parent_context);
     context.parent = &parent_context;
 
-    context.cpu_context = &cpu_context;
+    context.cpu_context = cpu_context;
     context.backend = &backend;
 
     entry->listener_interface->on_leave (entry->listener_instance, &context);
@@ -882,12 +929,7 @@ is_patched_function (GumInterceptor * self,
 static gboolean
 can_intercept_function (gpointer function_address)
 {
-#if GLIB_SIZEOF_VOID_P == 8
-  return (_gum_interceptor_find_displacement_size (function_address,
-      GUM_REDIRECT_CODE_SIZE) != 0);
-#else
   return gum_relocator_can_relocate (function_address, GUM_REDIRECT_CODE_SIZE);
-#endif
 }
 
 static guint
@@ -907,4 +949,180 @@ get_current_thread_id (void)
 
   return id;
 #endif
+}
+
+static void
+gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
+{
+  GumCodeWriter cw;
+  GumRelocator rl;
+  guint reloc_bytes;
+
+  ctx->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+
+  /*
+   * Generate on_enter trampoline
+   */
+  ctx->on_enter_trampoline = ctx->code;
+  gum_code_writer_init (&cw, ctx->code);
+  gum_relocator_init (&rl, (guint8 *) ctx->function_address, &cw);
+
+  gum_code_writer_put_pushfx (&cw);
+  gum_code_writer_put_pushax (&cw);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
+
+  /* GumCpuContext fixup of stack pointer */
+  gum_code_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSI,
+      GUM_REG_XSP, sizeof (GumCpuContext) + 2 * sizeof (gpointer));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_XSP,
+#if GLIB_SIZEOF_VOID_P == 4
+      G_STRUCT_OFFSET (GumCpuContext, esp),
+#else
+      G_STRUCT_OFFSET (GumCpuContext, rsp),
+#endif
+      GUM_REG_XSI);
+
+  gum_code_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
+  gum_code_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XDI, GUM_REG_XSP,
+      sizeof (GumCpuContext) + sizeof (gpointer));
+
+  gum_code_writer_put_call_with_arguments (&cw, gum_function_context_on_enter,
+      3,
+      GUM_ARG_POINTER, ctx,
+      GUM_ARG_REGISTER, GUM_REG_XSI,
+      GUM_ARG_REGISTER, GUM_REG_XDI);
+
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX); /* clear xip placeholder */
+  gum_code_writer_put_popax (&cw);
+  gum_code_writer_put_popfx (&cw);
+
+  do
+  {
+    reloc_bytes = gum_relocator_read_one (&rl, NULL);
+    g_assert_cmpuint (reloc_bytes, !=, 0);
+  }
+  while (reloc_bytes < GUM_REDIRECT_CODE_SIZE);
+  gum_relocator_write_all (&rl);
+
+  if (!gum_relocator_eoi (&rl))
+  {
+    gum_code_writer_put_jmp (&cw,
+        (guint8 *) ctx->function_address + reloc_bytes);
+  }
+
+  gum_code_writer_put_int3 (&cw);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
+
+  /*
+   * Generate on_leave trampoline
+   */
+  ctx->on_leave_trampoline = gum_code_writer_cur (&cw);
+
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for ret */
+
+  gum_code_writer_put_pushfx (&cw);
+  gum_code_writer_put_pushax (&cw);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
+
+  gum_code_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
+
+  gum_code_writer_put_call_with_arguments (&cw, gum_function_context_on_leave,
+      2,
+      GUM_ARG_POINTER, ctx,
+      GUM_ARG_REGISTER, GUM_REG_XSI);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer),
+      GUM_REG_XAX);
+
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX); /* clear xip placeholder */
+  gum_code_writer_put_popax (&cw);
+  gum_code_writer_put_popfx (&cw);
+
+  gum_code_writer_put_ret (&cw);
+
+  gum_code_writer_put_int3 (&cw);
+
+  gum_relocator_free (&rl);
+  gum_code_writer_free (&cw);
+}
+
+static void
+gum_function_context_make_replace_trampoline (FunctionContext * ctx,
+                                              gpointer replacement_address,
+                                              gpointer user_data)
+{
+  GumCodeWriter cw;
+  gpointer orig_impl;
+  GumRelocator rl;
+  guint reloc_bytes;
+
+  ctx->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+
+  orig_impl = (guint8 *) ctx->code + 1024;
+
+  ctx->on_enter_trampoline = ctx->code;
+  gum_code_writer_init (&cw, ctx->on_enter_trampoline);
+  gum_code_writer_put_call_with_arguments (&cw, replacement_address,
+      2,
+      GUM_ARG_POINTER, orig_impl,
+      GUM_ARG_POINTER, user_data);
+  gum_code_writer_put_ret (&cw);
+  gum_code_writer_flush (&cw);
+
+  gum_code_writer_reset (&cw, orig_impl);
+  gum_relocator_init (&rl, (guint8 *) ctx->function_address, &cw);
+
+  do
+  {
+    reloc_bytes = gum_relocator_read_one (&rl, NULL);
+    g_assert_cmpuint (reloc_bytes, !=, 0);
+  }
+  while (reloc_bytes < GUM_REDIRECT_CODE_SIZE);
+  gum_relocator_write_all (&rl);
+
+  if (!gum_relocator_eoi (&rl))
+  {
+    gum_code_writer_put_jmp (&cw,
+        (guint8 *) ctx->function_address + reloc_bytes);
+  }
+
+  gum_code_writer_put_int3 (&cw);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
+
+  gum_relocator_free (&rl);
+  gum_code_writer_free (&cw);
+}
+
+static void
+gum_function_context_destroy_trampoline (FunctionContext * ctx)
+{
+  gum_free_pages (ctx->code);
+  ctx->code = NULL;
+}
+
+static void
+gum_function_context_activate_trampoline (FunctionContext * ctx)
+{
+  GumCodeWriter cw;
+  guint padding;
+
+  gum_code_writer_init (&cw, ctx->function_address);
+  gum_code_writer_put_jmp (&cw, ctx->on_enter_trampoline);
+  padding = ctx->overwritten_prologue_len - gum_code_writer_offset (&cw);
+  for (; padding > 0; padding--)
+    gum_code_writer_put_nop (&cw);
+  gum_code_writer_free (&cw);
+}
+
+static void
+gum_function_context_deactivate_trampoline (FunctionContext * ctx)
+{
+  gum_mprotect (ctx->function_address, 16, GUM_PAGE_RWX);
+  memcpy (ctx->function_address, ctx->overwritten_prologue,
+      ctx->overwritten_prologue_len);
 }

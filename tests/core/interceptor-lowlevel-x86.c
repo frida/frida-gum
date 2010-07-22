@@ -30,41 +30,19 @@
 
 static const UnsupportedFunction unsupported_functions[] =
 {
-  /* x64 implementation doesn't use Relocator yet */
-#if GLIB_SIZEOF_VOID_P == 8
-  { "call",  8, { 0x55, 0x89, 0xe5, 0xe8, 0xf8, 0xff, 0xff, 0xff } },
-  { "ja",    5, { 0x55, 0x89, 0xe5, 0x77, 0xfb                   } },
-  { "jae",   5, { 0x55, 0x89, 0xe5, 0x73, 0xfb                   } },
-  { "jb",    5, { 0x55, 0x89, 0xe5, 0x72, 0xfb                   } },
-  { "jbe",   5, { 0x55, 0x89, 0xe5, 0x76, 0xfb                   } },
-  { "jcxz",  6, { 0x55, 0x89, 0xe5, 0x67, 0xe3, 0xfa             } },
-  { "jecxz", 5, { 0x55, 0x89, 0xe5, 0xe3, 0xfb                   } },
-  { "jg",    5, { 0x55, 0x89, 0xe5, 0x7f, 0xfb                   } },
-  { "jge",   5, { 0x55, 0x89, 0xe5, 0x7d, 0xfb                   } },
-  { "jl",    5, { 0x55, 0x89, 0xe5, 0x7c, 0xfb                   } },
-  { "jle",   5, { 0x55, 0x89, 0xe5, 0x7e, 0xfb                   } },
-  { "jmp",   5, { 0x55, 0x89, 0xe5, 0xeb, 0xfb                   } },
-  { "jnp",   5, { 0x55, 0x89, 0xe5, 0x7b, 0xfb                   } },
-  { "jns",   5, { 0x55, 0x89, 0xe5, 0x79, 0xfb                   } },
-  { "jnz",   5, { 0x55, 0x89, 0xe5, 0x75, 0xfb                   } },
-  { "jo",    5, { 0x55, 0x89, 0xe5, 0x70, 0xfb                   } },
-  { "jp",    5, { 0x55, 0x89, 0xe5, 0x7a, 0xfb                   } },
-  { "js",    5, { 0x55, 0x89, 0xe5, 0x78, 0xfb                   } },
-  { "jz",    5, { 0x55, 0x89, 0xe5, 0x74, 0xfb                   } },
-#endif
   { "ret",   1, { 0xc3                                           } },
   { "retf",  1, { 0xcb                                           } },
 };
 
-static gpointer executable_page_new (void);
-static void executable_page_free (gpointer page);
+static guint8 * executable_page_new (void);
+static void executable_page_free (guint8 * page);
 
 UnsupportedFunction *
 unsupported_function_list_new (guint * count)
 {
   UnsupportedFunction * result;
 
-  result = executable_page_new ();
+  result = (UnsupportedFunction *) executable_page_new ();
   memcpy (result, unsupported_functions, sizeof (unsupported_functions));
   *count = G_N_ELEMENTS (unsupported_functions);
 
@@ -74,7 +52,7 @@ unsupported_function_list_new (guint * count)
 void
 unsupported_function_list_free (UnsupportedFunction * functions)
 {
-  executable_page_free (functions);
+  executable_page_free ((guint8 *) functions);
 }
 
 #define OPCODE_JMP (0xE9)
@@ -100,7 +78,11 @@ proxy_func_new_absolute_indirect_with_target (TargetFunc target_func)
   func = executable_page_new ();
   func[0] = 0xff;
   func[1] = 0x25;
+#if GLIB_SIZEOF_VOID_P == 4
   *((gpointer *) (func + 2)) = func + 6;
+#else
+  *((gint32 *) (func + 2)) = 0;
+#endif
   *((TargetFunc *) (func + 6)) = target_func;
 
   return (ProxyFunc) func;
@@ -117,7 +99,11 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 
   func[20] = 0xff;
   func[21] = 0x25;
+#if GLIB_SIZEOF_VOID_P == 4
   *((gpointer *)   (func + 22)) = func + 30;
+#else
+  *((gint32 *)     (func + 22)) = 4;
+#endif
   *((TargetFunc *) (func + 30)) = target_func;
 
   return (ProxyFunc) func;
@@ -150,10 +136,10 @@ proxy_func_new_early_call_with_target (TargetFunc target_func)
 void
 proxy_func_free (ProxyFunc proxy_func)
 {
-  executable_page_free (proxy_func);
+  executable_page_free ((guint8 *) (gsize) proxy_func);
 }
 
-static gpointer
+static guint8 *
 executable_page_new (void)
 {
   gpointer result;
@@ -170,11 +156,11 @@ executable_page_new (void)
       PROT_EXEC | PROT_READ | PROT_WRITE) == 0);
 #endif
 
-  return result;
+  return (guint8 *) result;
 }
 
 static void
-executable_page_free (gpointer page)
+executable_page_free (guint8 * page)
 {
 #ifdef G_OS_WIN32
   VirtualFree (page, 0, MEM_RELEASE);

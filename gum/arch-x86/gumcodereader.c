@@ -42,12 +42,19 @@ gum_code_reader_try_get_indirect_jump_target (gconstpointer address)
 {
   ud_t ud_obj;
   guint insn_size;
+  ud_operand_t * op;
 
   insn_size = disassemble_instruction_at (address, &ud_obj);
+  op = &ud_obj.operand[0];
   if (ud_obj.mnemonic != UD_Ijmp || ud_obj.operand[0].type != UD_OP_MEM)
     return NULL;
 
-  return *((gpointer *) GSIZE_TO_POINTER (ud_obj.operand[0].lval.udword));
+  if (op->base == UD_R_RIP && op->index == UD_NONE)
+    return *((gpointer *) ((guint8 *) address + insn_size + op->lval.sdword));
+  else if (op->base == UD_NONE && op->index == UD_NONE)
+    return *((gpointer *) GSIZE_TO_POINTER (ud_obj.operand[0].lval.udword));
+  else
+    return NULL;
 }
 
 static gpointer

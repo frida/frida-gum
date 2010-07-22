@@ -15,7 +15,6 @@
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumhash.h" />
     <ClInclude Include="gum\guminterceptor.h" />
-    <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
@@ -62,10 +61,6 @@
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c" />
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
   </ItemGroup>
 
   <ItemGroup>

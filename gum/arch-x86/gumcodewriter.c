@@ -25,6 +25,7 @@
 #define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
 
 #define IS_WITHIN_INT8_RANGE(i) ((i) >= -128 && (i) <= 127)
+#define IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
 
 typedef struct _GumArgument
 {
@@ -381,9 +382,9 @@ void
 gum_code_writer_put_jmp (GumCodeWriter * self,
                          gconstpointer target)
 {
-  gint32 distance;
+  gint64 distance;
 
-  distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 2);
+  distance = (gint64) target - (gint64) (self->code + 2);
 
   if (IS_WITHIN_INT8_RANGE (distance))
   {
@@ -393,11 +394,23 @@ gum_code_writer_put_jmp (GumCodeWriter * self,
   }
   else
   {
-    distance -= 3;
+    distance = (gint64) target - (gint64) (self->code + 5);
+    if (IS_WITHIN_INT32_RANGE (distance))
+    {
+      self->code[0] = 0xe9;
+      *((gint32 *) (self->code + 1)) = distance;
+      self->code += 5;
+    }
+    else
+    {
+      g_assert_cmpint (self->target_cpu, ==, GUM_CPU_AMD64);
 
-    self->code[0] = 0xe9;
-    *((gint32 *) (self->code + 1)) = distance;
-    self->code += 5;
+      self->code[0] = 0xff;
+      self->code[1] = 0x25;
+      *((gint32 *) (self->code + 2)) = 0; /* rip + 0 */
+      *((gconstpointer *) (self->code + 6)) = target;
+      self->code += 14;
+    }
   }
 }
 
@@ -914,10 +927,11 @@ gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self,
 void
 gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
                                             GumCpuReg dst_reg,
-                                            gint8 dst_offset,
+                                            gssize dst_offset,
                                             GumCpuReg src_reg)
 {
   GumCpuRegInfo dst, src;
+  gboolean offset_fits_in_i8;
 
   gum_code_writer_describe_cpu_reg (self, dst_reg, &dst);
   gum_code_writer_describe_cpu_reg (self, src_reg, &src);
@@ -926,6 +940,8 @@ gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
     g_return_if_fail (dst.width == 32 && src.width == 32);
   else
     g_return_if_fail (dst.width == 64);
+
+  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (dst_offset);
 
   gum_code_writer_put_prefix_for_reg_info (self, &src, 1);
 
@@ -939,10 +955,22 @@ gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self,
   }
   else
   {
-    *self->code++ = 0x40 | (src.index << 3) | dst.index;
+    *self->code++ = ((offset_fits_in_i8) ? 0x40 : 0x80) |
+        (src.index << 3) | dst.index;
+
     if (dst.meta == GUM_META_REG_XSP)
       *self->code++ = 0x24;
-    *self->code++ = dst_offset;
+
+    if (offset_fits_in_i8)
+    {
+      *((gint8 *) self->code) = dst_offset;
+      self->code++;
+    }
+    else
+    {
+      *((gint32 *) self->code) = dst_offset;
+      self->code += 4;
+    }
   }
 }
 

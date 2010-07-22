@@ -63,7 +63,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (function_data)
   INTERCEPTOR_TESTENTRY (parent_data)
 
+#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (replace_function)
+#endif
 TEST_LIST_END ()
 
 INTERCEPTOR_TESTCASE (attach_one)
@@ -461,8 +463,6 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
   proxy_func_free (proxy_func);
 }
 
-#endif
-
 INTERCEPTOR_TESTCASE (replace_function)
 {
   guint counter = 0;
@@ -487,6 +487,8 @@ INTERCEPTOR_TESTCASE (replace_function)
   g_assert_cmpint (counter, ==, 1);
   free (ret);
 }
+
+#endif
 
 static gpointer GUM_NOINLINE
 target_function (GString * str)

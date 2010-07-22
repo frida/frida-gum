@@ -184,7 +184,7 @@ void gum_code_writer_put_mov_reg_address (GumCodeWriter * self, GumCpuReg dst_re
 void gum_code_writer_put_mov_reg_ptr_u32 (GumCodeWriter * self, GumCpuReg dst_reg, guint32 imm_value);
 void gum_code_writer_put_mov_reg_offset_ptr_u32 (GumCodeWriter * self, GumCpuReg dst_reg, gssize dst_offset, guint32 imm_value);
 void gum_code_writer_put_mov_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, gint8 dst_offset, GumCpuReg src_reg);
+void gum_code_writer_put_mov_reg_offset_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, gssize dst_offset, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_reg_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_reg_offset_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg, gssize src_offset);
 void gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg base_reg, GumCpuReg index_reg, guint8 scale, gssize offset);
