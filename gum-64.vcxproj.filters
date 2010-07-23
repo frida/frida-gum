@@ -69,12 +69,6 @@
     <ClCompile Include="gum\guminvocationlistener.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c">
-      <Filter>core\backend-x86</Filter>
-    </ClCompile>
-    <ClCompile Include="gum\backend-x86\guminterceptor-amd64.c">
-      <Filter>core\backend-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -100,6 +94,9 @@
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="gum\gumtracer.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumcodeallocator.c">
       <Filter>core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -155,9 +152,6 @@
     <ClInclude Include="gum\gumhash.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="gum\guminterceptor-priv.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="gum\gumlist.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -185,10 +179,11 @@
     <ClInclude Include="gum\gumscript.h">
       <Filter>core</Filter>
     </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="gum\backend-x86\guminterceptor-amd64-thunks.asm">
-      <Filter>core\backend-x86</Filter>
-    </None>
+    <ClInclude Include="gum\gumsymbolutil.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumcodeallocator.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

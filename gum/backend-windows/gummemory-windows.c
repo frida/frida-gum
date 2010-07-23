@@ -132,6 +132,50 @@ gum_alloc_n_pages (guint n_pages,
   size = n_pages * gum_query_page_size ();
   win_page_prot = gum_page_protection_to_windows (page_prot);
   result = VirtualAlloc (NULL, size, MEM_COMMIT | MEM_RESERVE, win_page_prot);
+  g_assert (result != NULL);
+
+  return result;
+}
+
+gpointer
+gum_alloc_n_pages_near (guint n_pages,
+                        GumPageProtection page_prot,
+                        GumAddressSpec * address_spec)
+{
+  gpointer result = NULL;
+  gsize page_size, size;
+  DWORD win_page_prot;
+  guint8 * low_address, * high_address;
+
+  page_size = gum_query_page_size ();
+  size = n_pages * page_size;
+  win_page_prot = gum_page_protection_to_windows (page_prot);
+
+  low_address = (guint8 *)
+      (GPOINTER_TO_SIZE (address_spec->near_address) & ~(page_size - 1));
+  high_address = low_address;
+
+  do
+  {
+    gsize cur_distance;
+
+    low_address -= page_size;
+    high_address += page_size;
+    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
+    if (cur_distance > address_spec->max_distance)
+      break;
+
+    result = VirtualAlloc (low_address, size, MEM_COMMIT | MEM_RESERVE,
+        win_page_prot);
+    if (result == NULL)
+    {
+      result = VirtualAlloc (high_address, size, MEM_COMMIT | MEM_RESERVE,
+          win_page_prot);
+    }
+  }
+  while (result == NULL);
+
+  g_assert (result != NULL);
 
   return result;
 }

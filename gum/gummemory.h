@@ -24,6 +24,9 @@
 #include <gum/gumdefs.h>
 
 typedef enum _GumPageProtection GumPageProtection;
+typedef struct _GumAddressSpec GumAddressSpec;
+
+typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
 
 enum _GumPageProtection
 {
@@ -31,6 +34,12 @@ enum _GumPageProtection
   GUM_PAGE_READ      = 1,
   GUM_PAGE_WRITE     = 2,
   GUM_PAGE_EXECUTE   = 4
+};
+
+struct _GumAddressSpec
+{
+  gpointer near_address;
+  gsize max_distance;
 };
 
 #define GUM_PAGE_RW ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE))
@@ -52,6 +61,7 @@ gpointer gum_memdup (gconstpointer mem, gsize byte_size);
 void gum_free (gpointer mem);
 
 gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
+gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot, GumAddressSpec * address_spec);
 void gum_free_pages (gpointer mem);
 
 G_END_DECLS
