@@ -20,6 +20,8 @@
 
 #include "interceptor-fixture.c"
 
+#include "interceptor-callbacklistener.c"
+
 #include <stdlib.h>
 
 static gpointer target_function (GString * str);
@@ -48,7 +50,8 @@ TEST_LIST_BEGIN (interceptor)
 
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
-  INTERCEPTOR_TESTENTRY (attach_to_dependent_api)  
+  INTERCEPTOR_TESTENTRY (attach_to_heap_api)
+  /*INTERCEPTOR_TESTENTRY (attach_to_own_api)*/
   INTERCEPTOR_TESTENTRY (thread_id)
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
   INTERCEPTOR_TESTENTRY (function_arguments)
@@ -83,7 +86,7 @@ INTERCEPTOR_TESTCASE (attach_two)
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 }
 
-INTERCEPTOR_TESTCASE (attach_to_dependent_api)
+INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   void * p;
 
@@ -97,6 +100,23 @@ INTERCEPTOR_TESTCASE (attach_to_dependent_api)
   interceptor_fixture_detach_listener (fixture, 1);
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
+}
+
+INTERCEPTOR_TESTCASE (attach_to_own_api)
+{
+  TestCallbackListener * listener;
+
+  listener = test_callback_listener_new ();
+  listener->on_enter = (TestCallbackListenerFunc) target_function;
+  listener->user_data = fixture->result;
+
+  gum_interceptor_attach_listener (fixture->interceptor, target_function,
+      GUM_INVOCATION_LISTENER (listener), NULL);
+  target_function (fixture->result);
+  gum_interceptor_detach_listener (fixture->interceptor,
+      GUM_INVOCATION_LISTENER (listener));
+
+  g_object_unref (listener);
 }
 
 INTERCEPTOR_TESTCASE (thread_id)
