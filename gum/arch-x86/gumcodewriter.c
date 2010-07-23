@@ -275,8 +275,8 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
         gum_code_writer_put_push_reg (self, arg->value.reg);
     }
     gum_code_writer_put_call (self, func);
-    gum_code_writer_put_add_reg_i8 (self, GUM_REG_ESP,
-        (gint8) n_args * sizeof (guint32));
+    gum_code_writer_put_add_reg_imm (self, GUM_REG_ESP,
+        n_args * sizeof (guint32));
   }
   else
   {
@@ -302,9 +302,9 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
             arg->value.reg);
       }
     }
-    gum_code_writer_put_sub_reg_i8 (self, GUM_REG_RSP, 64);
+    gum_code_writer_put_sub_reg_imm (self, GUM_REG_RSP, 64);
     gum_code_writer_put_call (self, func);
-    gum_code_writer_put_add_reg_i8 (self, GUM_REG_RSP, 64);
+    gum_code_writer_put_add_reg_imm (self, GUM_REG_RSP, 64);
   }
 }
 
@@ -531,41 +531,50 @@ gum_code_writer_put_jle_label (GumCodeWriter * self,
   gum_code_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
-void
-gum_code_writer_put_add_reg_i8 (GumCodeWriter * self,
-                                GumCpuReg reg,
-                                gint8 imm_value)
+static void
+gum_code_writer_put_add_or_sub_reg_imm (GumCodeWriter * self,
+                                        GumCpuReg reg,
+                                        gssize imm_value,
+                                        gboolean add)
 {
   GumCpuRegInfo ri;
+  gboolean immediate_fits_in_i8;
 
   gum_code_writer_describe_cpu_reg (self, reg, &ri);
 
-  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
+  immediate_fits_in_i8 = IS_WITHIN_INT8_RANGE (imm_value);
 
-  self->code[0] = 0x83;
-  self->code[1] = 0xc0 | ri.index;
-  *((gint8 *) (self->code + 2)) = imm_value;
-  self->code += 3;
-}
+  gum_code_writer_put_prefix_for_registers (self, 32, &ri, NULL, NULL);
 
-void
-gum_code_writer_put_add_reg_i32 (GumCodeWriter * self,
-                                 GumCpuReg reg,
-                                 gint32 imm_value)
-{
-  if (reg == GUM_REG_EAX)
+  if (ri.meta == GUM_META_REG_XAX && !immediate_fits_in_i8)
   {
-    self->code[0] = 0x05;
-    *((gint32 *) (self->code + 1)) = imm_value;
-    self->code += 5;
+    *self->code++ = add ? 0x05 : 0x2d;
   }
   else
   {
-    self->code[0] = 0x81;
-    self->code[1] = 0xc0 | reg;
-    *((gint32 *) (self->code + 2)) = imm_value;
-    self->code += 6;
+    self->code[0] = (immediate_fits_in_i8 ? 0x83 : 0x81);
+    self->code[1] = (add ? 0xc0 : 0xe8) | ri.index;
+    self->code += 2;
   }
+
+  if (immediate_fits_in_i8)
+  {
+    *((gint8 *) self->code) = imm_value;
+    self->code++;
+  }
+  else
+  {
+    *((gint32 *) self->code) = imm_value;
+    self->code += 4;
+  }
+}
+
+void
+gum_code_writer_put_add_reg_imm (GumCodeWriter * self,
+                                 GumCpuReg reg,
+                                 gssize imm_value)
+{
+  gum_code_writer_put_add_or_sub_reg_imm (self, reg, imm_value, TRUE);
 }
 
 void
@@ -579,40 +588,11 @@ gum_code_writer_put_add_reg_reg (GumCodeWriter * self,
 }
 
 void
-gum_code_writer_put_sub_reg_i8 (GumCodeWriter * self,
-                                GumCpuReg reg,
-                                gint8 imm_value)
-{
-  GumCpuRegInfo ri;
-
-  gum_code_writer_describe_cpu_reg (self, reg, &ri);
-
-  gum_code_writer_put_prefix_for_reg_info (self, &ri, 0);
-
-  self->code[0] = 0x83;
-  self->code[1] = 0xe8 | ri.index;
-  *((gint8 *) (self->code + 2)) = imm_value;
-  self->code += 3;
-}
-
-void
-gum_code_writer_put_sub_reg_i32 (GumCodeWriter * self,
+gum_code_writer_put_sub_reg_imm (GumCodeWriter * self,
                                  GumCpuReg reg,
-                                 gint32 imm_value)
+                                 gssize imm_value)
 {
-  if (reg == GUM_REG_EAX)
-  {
-    self->code[0] = 0x2d;
-    *((gint32 *) (self->code + 1)) = imm_value;
-    self->code += 5;
-  }
-  else
-  {
-    self->code[0] = 0x81;
-    self->code[1] = 0xe8 | reg;
-    *((gint32 *) (self->code + 2)) = imm_value;
-    self->code += 6;
-  }
+  gum_code_writer_put_add_or_sub_reg_imm (self, reg, imm_value, FALSE);
 }
 
 void

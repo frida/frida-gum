@@ -84,6 +84,9 @@
     <ClCompile Include="core\interceptor-callbacklistener.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\script-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

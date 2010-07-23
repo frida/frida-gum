@@ -22,6 +22,7 @@
 
 #include <glib-object.h>
 #include <gum/gumdefs.h>
+#include <gum/guminvocationcontext.h>
 
 #define GUM_TYPE_SCRIPT (gum_script_get_type ())
 #define GUM_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -65,8 +66,7 @@ GUM_API GumScript * gum_script_from_string (const gchar * script_text,
 GUM_API void gum_script_set_message_handler (GumScript * self,
     GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
 
-GUM_API void gum_script_execute (GumScript * self,
-    GumCpuContext * cpu_context, void * stack_arguments);
+GUM_API void gum_script_execute (GumScript * self, GumInvocationContext * ctx);
 
 GUM_API gpointer gum_script_get_code_address (GumScript * self);
 GUM_API guint gum_script_get_code_size (GumScript * self);

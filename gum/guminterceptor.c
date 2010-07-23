@@ -606,6 +606,32 @@ gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
   return stack_argument[n];
 }
 
+static void
+gum_interceptor_invocation_replace_nth_argument (
+    GumInvocationContext * context,
+    guint n,
+    gpointer value)
+{
+  gpointer * stack_argument;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  stack_argument = (gpointer *) context->cpu_context->esp;
+#else
+  stack_argument = (gpointer *) context->cpu_context->rsp;
+
+  switch (n)
+  {
+    case 0:   context->cpu_context->rcx = (guint64) value; return;
+    case 1:   context->cpu_context->rdx = (guint64) value; return;
+    case 2:   context->cpu_context->r8  = (guint64) value; return;
+    case 3:   context->cpu_context->r9  = (guint64) value; return;
+    default:  break;
+  }
+#endif
+
+  stack_argument[n] = value;
+}
+
 static gpointer
 gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 {
@@ -619,6 +645,7 @@ gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 static const GumInvocationBackend gum_interceptor_invocation_backend_template =
 {
   gum_interceptor_invocation_get_nth_argument,
+  gum_interceptor_invocation_replace_nth_argument,
   gum_interceptor_invocation_get_return_value,
 
   NULL

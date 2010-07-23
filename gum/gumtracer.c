@@ -402,7 +402,7 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_code_writer_put_label (&cw, stack_acq_lbl);
   gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_ECX, GUM_REG_ESP);
   gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_EAX, GUM_REG_ECX);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_EAX, 4);
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_EAX, 4);
   gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_EAX);
 
   /* overwrite caller's return address so we can trap the return */
@@ -464,7 +464,7 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
 
   /* then jump back to caller */
   gum_code_writer_put_mov_reg_fs_u32_ptr (&cw, GUM_REG_ECX, TIB_OFFSET_STACK);
-  gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_ECX, 4);
+  gum_code_writer_put_sub_reg_imm (&cw, GUM_REG_ECX, 4);
   gum_code_writer_put_mov_fs_u32_ptr_reg (&cw, TIB_OFFSET_STACK, GUM_REG_ECX);
 
   gum_code_writer_put_pop_reg (&cw, GUM_REG_EAX);
@@ -636,7 +636,7 @@ gum_tracer_write_conversion_from_eax_index_to_address (GumTracer * self,
       GUM_TRACE_ENTRY_SIZE_IN_POT);
 
   /* add base address */
-  gum_code_writer_put_add_reg_i32 (cw, GUM_REG_EAX,
+  gum_code_writer_put_add_reg_imm (cw, GUM_REG_EAX,
       (gint32) self->priv->ringbuf->entries);
 }
 

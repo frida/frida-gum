@@ -160,11 +160,9 @@ void gum_code_writer_put_jz_label (GumCodeWriter * self, gconstpointer label_id,
 void gum_code_writer_put_jle (GumCodeWriter * self, gconstpointer target, GumBranchHint hint);
 void gum_code_writer_put_jle_label (GumCodeWriter * self, gconstpointer label_id, GumBranchHint hint);
 
-void gum_code_writer_put_add_reg_i8 (GumCodeWriter * self, GumCpuReg reg, gint8 imm_value);
-void gum_code_writer_put_add_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint32 imm_value);
+void gum_code_writer_put_add_reg_imm (GumCodeWriter * self, GumCpuReg reg, gssize imm_value);
 void gum_code_writer_put_add_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_code_writer_put_sub_reg_i8 (GumCodeWriter * self, GumCpuReg reg, gint8 imm_value);
-void gum_code_writer_put_sub_reg_i32 (GumCodeWriter * self, GumCpuReg reg, gint32 imm_value);
+void gum_code_writer_put_sub_reg_imm (GumCodeWriter * self, GumCpuReg reg, gssize imm_value);
 void gum_code_writer_put_sub_reg_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_inc_reg (GumCodeWriter * self, GumCpuReg reg);
 void gum_code_writer_put_dec_reg (GumCodeWriter * self, GumCpuReg reg);

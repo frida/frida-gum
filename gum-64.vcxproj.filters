@@ -99,6 +99,9 @@
     <ClCompile Include="gum\gumcodeallocator.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\guminvocationcontext.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -183,6 +186,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumcodeallocator.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\guminvocationcontext.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

@@ -17,15 +17,10 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
+#include "script-fixture.c"
 
 #define VC_EXTRALEAN
 #include <windows.h>
-
-#define SCRIPT_TESTCASE(NAME) \
-    void test_script_ ## NAME (void)
-#define SCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE (Script, test_script, NAME)
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (replace_string_and_length_arguments)
@@ -74,8 +69,9 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
   previous_length = 7;
   args.text = previous_text;
   args.length = previous_length;
+  fixture->argument_list = &args;
 
-  gum_script_execute (script, &fake_cpu_ctx, &args);
+  gum_script_execute (script, &fixture->invocation_context);
 
   g_assert_cmphex ((guint64) args.text, !=, (guint64) previous_text);
   g_assert_cmpuint (args.length, !=, previous_length);
@@ -108,9 +104,10 @@ SCRIPT_TESTCASE (send_string_from_argument)
   args.text_ansi = ansi_string_from_utf8 ("ÆØÅæøå");
   args.text_wide = g_utf8_to_utf16 ("ÆØÅæøå", -1, NULL, NULL, NULL);
   args.length = 42;
+  fixture->argument_list = &args;
 
   gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fake_cpu_ctx, &args);
+  gum_script_execute (script, &fixture->invocation_context);
   g_assert (msg != NULL);
   g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(ssi)")));
   g_variant_get (msg, "(ssi)", &msg_str_ansi, &msg_str_wide, &msg_int);

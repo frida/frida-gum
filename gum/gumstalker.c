@@ -557,7 +557,7 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_init (&cw, ctx->thunks);
 
   ctx->jmp_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_add_reg_i8 (&cw, GUM_REG_XSP,
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE,
@@ -566,7 +566,7 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_put_ret (&cw);
 
   ctx->ret_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_add_reg_i8 (&cw, GUM_REG_XSP,
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, sizeof (gpointer) + STATE_PRESERVE_SIZE,
@@ -582,10 +582,10 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XDX, GUM_REG_XDX);
   gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
       GUM_ADDRESS (ctx));
-  gum_code_writer_put_sub_reg_i8 (&cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_code_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_code_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
-  gum_code_writer_put_add_reg_i8 (&cw, GUM_REG_XSP,
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE,
@@ -1147,7 +1147,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
   gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_i8 (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to jmp_block_thunk */
@@ -1175,7 +1175,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
   gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_i8 (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to jmp_block_thunk */
@@ -1210,7 +1210,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
       GUM_REG_XSP, STATE_PRESERVE_SIZE + sizeof (gpointer));
   gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_i8 (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to ret_block_thunk */

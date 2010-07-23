@@ -22,6 +22,7 @@
 
 #include <glib-object.h>
 #include <gum/gumdefs.h>
+#include <gum/guminvocationcontext.h>
 
 #define GUM_TYPE_INVOCATION_LISTENER (gum_invocation_listener_get_type ())
 #define GUM_INVOCATION_LISTENER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -33,8 +34,6 @@
 
 typedef struct _GumInvocationListener GumInvocationListener;
 typedef struct _GumInvocationListenerIface GumInvocationListenerIface;
-typedef struct _GumInvocationBackend GumInvocationBackend;
-typedef struct _GumInvocationContext GumInvocationContext;
 
 struct _GumInvocationListenerIface
 {
@@ -44,27 +43,6 @@ struct _GumInvocationListenerIface
   void (*on_leave) (GumInvocationListener * self, GumInvocationContext * ctx);
   gpointer (*provide_thread_data) (GumInvocationListener * self,
       gpointer function_instance_data, guint thread_id);
-};
-
-struct _GumInvocationBackend
-{
-  gpointer (* get_nth_argument) (GumInvocationContext * context, guint n);
-  gpointer (* get_return_value) (GumInvocationContext * context);
-
-  gpointer user_data;
-};
-
-struct _GumInvocationContext
-{
-  GumInvocationContext * parent;
-
-  gpointer instance_data;
-  gpointer thread_data;
-
-  GumCpuContext * cpu_context;
-
-  /*< private */
-  GumInvocationBackend * backend;
 };
 
 G_BEGIN_DECLS
@@ -78,14 +56,6 @@ GUM_API void gum_invocation_listener_on_leave (GumInvocationListener * self,
 GUM_API gpointer gum_invocation_listener_provide_thread_data (
     GumInvocationListener * self, gpointer function_instance_data,
     guint thread_id);
-
-GUM_API gpointer gum_invocation_context_get_nth_argument (
-    GumInvocationContext * context, guint n);
-GUM_API gpointer gum_invocation_context_get_return_value (
-    GumInvocationContext * context);
-/* TODO: remove this when migration is complete */
-GUM_API gpointer gum_invocation_context_get_stack_pointer (
-    GumInvocationContext * context);
 
 G_END_DECLS
 

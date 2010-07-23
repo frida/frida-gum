@@ -1086,7 +1086,7 @@ STALKER_TESTCASE (no_clobber)
   gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
   gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
   gum_code_writer_put_popax (&cw);
 
   gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0xcafebabe);
@@ -1102,7 +1102,7 @@ STALKER_TESTCASE (no_clobber)
   gum_code_writer_put_pushax (&cw);
   gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_reg_i32 (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
+  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
   gum_code_writer_put_popax (&cw);
 
   gum_code_writer_put_push_reg (&cw, GUM_REG_ECX);
