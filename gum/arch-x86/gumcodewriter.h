@@ -189,6 +189,8 @@ void gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (GumCodeWriter * se
 
 void gum_code_writer_put_mov_fs_u32_ptr_reg (GumCodeWriter * self, guint32 fs_offset, GumCpuReg src_reg);
 void gum_code_writer_put_mov_reg_fs_u32_ptr (GumCodeWriter * self, GumCpuReg dst_reg, guint32 fs_offset);
+void gum_code_writer_put_mov_gs_u32_ptr_reg (GumCodeWriter * self, guint32 fs_offset, GumCpuReg src_reg);
+void gum_code_writer_put_mov_reg_gs_u32_ptr (GumCodeWriter * self, GumCpuReg dst_reg, guint32 fs_offset);
 
 void gum_code_writer_put_movq_xmm0_esp_offset_ptr (GumCodeWriter * self, gint8 offset);
 void gum_code_writer_put_movq_eax_offset_ptr_xmm0 (GumCodeWriter * self, gint8 offset);

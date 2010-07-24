@@ -51,7 +51,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
-  /*INTERCEPTOR_TESTENTRY (attach_to_own_api)*/
+  INTERCEPTOR_TESTENTRY (attach_to_own_api)
   INTERCEPTOR_TESTENTRY (thread_id)
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
   INTERCEPTOR_TESTENTRY (function_arguments)
@@ -108,6 +108,7 @@ INTERCEPTOR_TESTCASE (attach_to_own_api)
 
   listener = test_callback_listener_new ();
   listener->on_enter = (TestCallbackListenerFunc) target_function;
+  listener->on_leave = (TestCallbackListenerFunc) target_function;
   listener->user_data = fixture->result;
 
   gum_interceptor_attach_listener (fixture->interceptor, target_function,
@@ -115,6 +116,8 @@ INTERCEPTOR_TESTCASE (attach_to_own_api)
   target_function (fixture->result);
   gum_interceptor_detach_listener (fixture->interceptor,
       GUM_INVOCATION_LISTENER (listener));
+
+  g_assert_cmpstr (fixture->result->str, ==, "|||");
 
   g_object_unref (listener);
 }

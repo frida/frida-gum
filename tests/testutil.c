@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -28,6 +28,8 @@
 #define TESTUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE (TestUtil, test_testutil, NAME)
 
+static gchar * byte_array_to_hex_string (const guint8 * bytes, guint length);
+static gchar * byte_array_to_bin_string (const guint8 * bytes, guint length);
 static gchar * prettify_xml (const gchar * input_xml);
 static void on_start_element (GMarkupParseContext * context,
     const gchar * element_name, const gchar ** attribute_names,
@@ -42,10 +44,36 @@ static gchar * diff_line (const gchar * expected_line,
 static void append_indent (GString * str, guint indent_level);
 
 TEST_LIST_BEGIN (testutil)
+  TESTUTIL_TESTENTRY (binary_diff)
   TESTUTIL_TESTENTRY (xml_line_diff)
   TESTUTIL_TESTENTRY (xml_pretty_split)
   TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
 TEST_LIST_END ()
+
+TESTUTIL_TESTCASE (binary_diff)
+{
+  const guint8 expected_bytes[] = { 0x48, 0x8b, 0x40, 0x07 };
+  const guint8 bad_bytes[] = { 0x4c, 0x8b, 0x40, 0x07 };
+  const gchar * expected_diff = "In hex:\n"
+                                "-------\n"
+                                "\n"
+                                "48 8b 40 07  <-- Expected\n"
+                                " #\n"
+                                "4c 8b 40 07  <-- Wrong\n"
+                                "\n"
+                                "In binary:\n"
+                                "----------\n"
+                                "\n"
+                                "0100 1000  1000 1011  0100 0000  0000 0111  <-- Expected\n"
+                                "      #\n"
+                                "0100 1100  1000 1011  0100 0000  0000 0111  <-- Wrong\n";
+  gchar * diff;
+
+  diff = test_util_diff_binary (expected_bytes, sizeof (expected_bytes),
+      bad_bytes, sizeof (bad_bytes));
+  g_assert_cmpstr (diff, ==, expected_diff);
+  g_free (diff);
+}
 
 TESTUTIL_TESTCASE (xml_line_diff)
 {
@@ -126,6 +154,40 @@ assert_basename_equals (const gchar * expected_filename,
 }
 
 gchar *
+test_util_diff_binary (const guint8 * expected_bytes,
+                       guint expected_length,
+                       const guint8 * actual_bytes,
+                       guint actual_length)
+{
+  GString * full_diff;
+  gchar * expected_str, * actual_str, * diff;
+
+  full_diff = g_string_new ("In hex:\n");
+  g_string_append (full_diff, "-------\n");
+  expected_str = byte_array_to_hex_string (expected_bytes, expected_length);
+  actual_str = byte_array_to_hex_string (actual_bytes, actual_length);
+  diff = diff_line (expected_str, actual_str);
+  g_string_append (full_diff, diff);
+  g_free (diff);
+  g_free (actual_str);
+  g_free (expected_str);
+
+  g_string_append_c (full_diff, '\n');
+
+  g_string_append (full_diff, "In binary:\n");
+  g_string_append (full_diff, "----------\n");
+  expected_str = byte_array_to_bin_string (expected_bytes, expected_length);
+  actual_str = byte_array_to_bin_string (actual_bytes, actual_length);
+  diff = diff_line (expected_str, actual_str);
+  g_string_append (full_diff, diff);
+  g_free (diff);
+  g_free (actual_str);
+  g_free (expected_str);
+
+  return g_string_free (full_diff, FALSE);
+}
+
+gchar *
 test_util_diff_xml (const gchar * expected_xml,
                     const gchar * actual_xml)
 {
@@ -162,6 +224,56 @@ test_util_diff_xml (const gchar * expected_xml,
   g_strfreev (actual_lines);
 
   return g_string_free (full_diff, FALSE);
+}
+
+static gchar *
+byte_array_to_hex_string (const guint8 * bytes,
+                          guint length)
+{
+  GString * result;
+  guint byte_idx;
+
+  result = g_string_sized_new (length * 2 + length - 1);
+
+  for (byte_idx = 0; byte_idx != length; byte_idx++)
+  {
+    if (byte_idx != 0)
+      g_string_append_c (result, ' ');
+    g_string_append_printf (result, "%02x", bytes[byte_idx]);
+  }
+
+  return g_string_free (result, FALSE);
+}
+
+static gchar *
+byte_array_to_bin_string (const guint8 * bytes,
+                          guint length)
+{
+  GString * result;
+  guint byte_idx;
+
+  result = g_string_sized_new (length * 9 + length * 2 - 2);
+
+  for (byte_idx = 0; byte_idx != length; byte_idx++)
+  {
+    guint bit_idx;
+
+    if (byte_idx != 0)
+      g_string_append (result, "  ");
+
+    for (bit_idx = 0; bit_idx != 8; bit_idx++)
+    {
+      gboolean bit_is_set;
+
+      bit_is_set = (bytes[byte_idx] >> (7 - bit_idx)) & 1;
+
+      if (bit_idx == 4)
+        g_string_append_c (result, ' ');
+      g_string_append_c (result, bit_is_set ? '1' : '0');
+    }
+  }
+
+  return g_string_free (result, FALSE);
 }
 
 typedef struct _PrettifyState PrettifyState;

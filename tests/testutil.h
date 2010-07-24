@@ -64,6 +64,9 @@ GumSampler * heap_access_counter_new (void);
 void assert_basename_equals (const gchar * expected_filename,
     const gchar * actual_filename);
 
+gchar * test_util_diff_binary (const guint8 * expected_bytes,
+    guint expected_length, const guint8 * actual_bytes,
+    guint actual_length);
 gchar * test_util_diff_xml (const gchar * expected_xml,
     const gchar * actual_xml);
 

@@ -28,17 +28,35 @@
 #include "gumrelocator.h"
 
 #include <string.h>
+
 #ifdef G_OS_WIN32
-#define VC_EXTRALEAN
-#include <windows.h>
+
+# define VC_EXTRALEAN
+# include <windows.h>
+
 typedef DWORD GumTlsKey;
-#define GUM_TLS_KEY_GET_VALUE(k)    TlsGetValue (k)
-#define GUM_TLS_KEY_SET_VALUE(k, v) TlsSetValue (k, v)
+# define GUM_TLS_KEY_GET_VALUE(k)    TlsGetValue (k)
+# define GUM_TLS_KEY_SET_VALUE(k, v) TlsSetValue (k, v)
+
+# if GLIB_SIZEOF_VOID_P == 4
+#  define TEB_OFFSET_SELF 0x0018
+#  define TEB_OFFSET_USER 0x0700
+# else
+#  define TEB_OFFSET_SELF 0x0030
+#  define TEB_OFFSET_USER 0x0878
+# endif
+
+# define GUARD_MAGIC_TEB_OFFSET (TEB_OFFSET_USER + 4)
+# define GUARD_MAGIC_VALUE                 0x47756D21
+
 #else
-#include <pthread.h>
+
+# include <pthread.h>
+
 typedef pthread_key_t GumTlsKey;
-#define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
-#define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
+# define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
+# define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
+
 #endif
 
 #define GUM_REDIRECT_CODE_SIZE 5
@@ -170,6 +188,11 @@ static void gum_function_context_make_replace_trampoline (
 static void gum_function_context_destroy_trampoline (FunctionContext * ctx);
 static void gum_function_context_activate_trampoline (FunctionContext * ctx);
 static void gum_function_context_deactivate_trampoline (FunctionContext * ctx);
+
+static void gum_function_context_write_guard_enter_code (FunctionContext * ctx,
+    gconstpointer skip_label, GumCodeWriter * cw);
+static void gum_function_context_write_guard_leave_code (FunctionContext * ctx,
+    GumCodeWriter * cw);
 
 static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
 static GumInterceptor * _the_interceptor = NULL;
@@ -991,6 +1014,7 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   GumCodeWriter cw;
   GumRelocator rl;
+  gconstpointer on_enter_skip_label = "gum_interceptor_on_enter_skip";
   guint reloc_bytes;
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
@@ -1006,6 +1030,8 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_code_writer_put_pushfx (&cw);
   gum_code_writer_put_pushax (&cw);
   gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
+
+  gum_function_context_write_guard_enter_code (ctx, on_enter_skip_label, &cw);
 
   /* GumCpuContext fixup of stack pointer */
   gum_code_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSI,
@@ -1029,6 +1055,9 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI);
 
+  gum_function_context_write_guard_leave_code (ctx, &cw);
+
+  gum_code_writer_put_label (&cw, on_enter_skip_label);
   gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX); /* clear xip placeholder */
   gum_code_writer_put_popax (&cw);
   gum_code_writer_put_popfx (&cw);
@@ -1063,6 +1092,8 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_code_writer_put_pushax (&cw);
   gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
 
+  gum_function_context_write_guard_enter_code (ctx, NULL, &cw);
+
   gum_code_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
 
   gum_code_writer_put_call_with_arguments (&cw, gum_function_context_on_leave,
@@ -1072,6 +1103,8 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer),
       GUM_REG_XAX);
+
+  gum_function_context_write_guard_leave_code (ctx, &cw);
 
   gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX); /* clear xip placeholder */
   gum_code_writer_put_popax (&cw);
@@ -1176,4 +1209,43 @@ gum_function_context_deactivate_trampoline (FunctionContext * ctx)
   gum_mprotect (ctx->function_address, 16, GUM_PAGE_RWX);
   memcpy (ctx->function_address, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
+}
+
+static void
+gum_function_context_write_guard_enter_code (FunctionContext * ctx,
+                                             gconstpointer skip_label,
+                                             GumCodeWriter * cw)
+{
+#ifdef G_OS_WIN32
+# if GLIB_SIZEOF_VOID_P == 4
+  gum_code_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_EBX,
+      TEB_OFFSET_SELF);
+# else
+  gum_code_writer_put_mov_reg_gs_u32_ptr (cw, GUM_REG_RBX,
+      TEB_OFFSET_SELF);
+# endif
+  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EBP,
+      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET);
+
+  if (skip_label != NULL)
+  {
+    gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_EBP, GUARD_MAGIC_VALUE);
+    gum_code_writer_put_jz_label (cw, skip_label, GUM_UNLIKELY);
+  }
+
+  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET,
+      GUARD_MAGIC_VALUE);
+#endif
+}
+
+static void
+gum_function_context_write_guard_leave_code (FunctionContext * ctx,
+                                             GumCodeWriter * cw)
+{
+#ifdef G_OS_WIN32
+  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET,
+      GUM_REG_EBP);
+#endif
 }

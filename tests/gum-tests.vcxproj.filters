@@ -87,6 +87,9 @@
     <ClCompile Include="core\script-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\arch-x86\codewriter-fixture.c">
+      <Filter>Tests\core\arch-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

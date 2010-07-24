@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,46 +17,20 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
-
-#include "gumcodewriter.h"
-
-#include <string.h>
-
-#define CODE_WRITER_TESTCASE(NAME) \
-    void test_code_writer_ ## NAME ( \
-        TestCodeWriterFixture * fixture, gconstpointer data)
-#define CODE_WRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (CodeWriter, test_code_writer, NAME, \
-        TestCodeWriterFixture)
-
-typedef struct _TestCodeWriterFixture
-{
-  guint8 output[32];
-  GumCodeWriter cw;
-} TestCodeWriterFixture;
-
-static void
-test_code_writer_fixture_setup (TestCodeWriterFixture * fixture,
-                                gconstpointer data)
-{
-  gum_code_writer_init (&fixture->cw, fixture->output);
-}
-
-static void
-test_code_writer_fixture_teardown (TestCodeWriterFixture * fixture,
-                                   gconstpointer data)
-{
-  gum_code_writer_free (&fixture->cw);
-}
+#include "codewriter-fixture.c"
 
 TEST_LIST_BEGIN (codewriter)
-  CODE_WRITER_TESTENTRY (jump_label)
-  CODE_WRITER_TESTENTRY (call_label)
-  CODE_WRITER_TESTENTRY (flush_on_free)
+  CODEWRITER_TESTENTRY (jump_label)
+  CODEWRITER_TESTENTRY (call_label)
+  CODEWRITER_TESTENTRY (flush_on_free)
+  CODEWRITER_TESTENTRY (mov_ecx_rsi_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_rcx_rsi_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_r10d_rsi_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_r10_rsi_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_ecx_r11_offset_ptr)
 TEST_LIST_END ()
 
-CODE_WRITER_TESTCASE (jump_label)
+CODEWRITER_TESTCASE (jump_label)
 {
   const guint8 expected_code[] = {
   /* start: */
@@ -87,15 +61,10 @@ CODE_WRITER_TESTCASE (jump_label)
   gum_code_writer_put_nop (&fixture->cw);
   gum_code_writer_put_jmp_short_label (&fixture->cw, start_lbl);
 
-  gum_code_writer_flush (&fixture->cw);
-
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
-      sizeof (expected_code));
-  g_assert_cmpint (
-      memcmp (fixture->output, expected_code, sizeof (expected_code)), ==, 0);
+  assert_output_equals (expected_code);
 }
 
-CODE_WRITER_TESTCASE (call_label)
+CODEWRITER_TESTCASE (call_label)
 {
   const guint8 expected_code[] = {
     0xe8, 0x01, 0x00, 0x00, 0x00, /* call func */
@@ -111,32 +80,61 @@ CODE_WRITER_TESTCASE (call_label)
   gum_code_writer_put_label (&fixture->cw, func_lbl);
   gum_code_writer_put_ret (&fixture->cw);
 
-  gum_code_writer_flush (&fixture->cw);
-
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
-      sizeof (expected_code));
-  g_assert_cmpint (
-      memcmp (fixture->output, expected_code, sizeof (expected_code)), ==, 0);
+  assert_output_equals (expected_code);
 }
 
-CODE_WRITER_TESTCASE (flush_on_free)
+CODEWRITER_TESTCASE (flush_on_free)
 {
   const guint8 expected_code[] = {
     0xe8, 0x00, 0x00, 0x00, 0x00, /* call func */
     0xc3                          /* retn      */
   };
-  GumCodeWriter cw;
+  GumCodeWriter * cw = &fixture->cw;
   const gchar * func_lbl = "func";
 
-  gum_code_writer_init (&cw, fixture->output);
+  gum_code_writer_put_call_near_label (cw, func_lbl);
+  gum_code_writer_put_label (cw, func_lbl);
+  gum_code_writer_put_ret (cw);
 
-  gum_code_writer_put_call_near_label (&cw, func_lbl);
-  gum_code_writer_put_label (&cw, func_lbl);
-  gum_code_writer_put_ret (&cw);
-
-  gum_code_writer_free (&cw);
-
-  g_assert_cmpint (
-      memcmp (fixture->output, expected_code, sizeof (expected_code)), ==, 0);
+  assert_output_equals (expected_code);
 }
 
+CODEWRITER_TESTCASE (mov_ecx_rsi_offset_ptr)
+{
+  const guint8 expected_code[] = { 0x8b, 0x8e, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_ECX,
+      GUM_REG_RSI, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_rcx_rsi_offset_ptr)
+{
+  const guint8 expected_code[] = { 0x48, 0x8b, 0x8e, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_RCX,
+      GUM_REG_RSI, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_r10d_rsi_offset_ptr)
+{
+  const guint8 expected_code[] = { 0x44, 0x8b, 0x96, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_R10D,
+      GUM_REG_RSI, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_r10_rsi_offset_ptr)
+{
+  const guint8 expected_code[] = { 0x4c, 0x8b, 0x96, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_R10,
+      GUM_REG_RSI, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_ecx_r11_offset_ptr)
+{
+  const guint8 expected_code[] = { 0x41, 0x8b, 0x8b, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_ECX,
+      GUM_REG_R11, 0x1337);
+  assert_output_equals (expected_code);
+}
