@@ -17,12 +17,9 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
-
-#include "../gum/gummemory.h"
+#include "tracer-fixture.c"
 
 #include <stdio.h>
-#include <string.h>
 
 #define TORTURE_ENTRY_COUNT 200000
 
@@ -36,73 +33,6 @@ static void target_function_beta (GString * s);
 static void target_function_gamma (GString * s);
 static int target_function_argh (int a, int b, int c, int d, int e, int f,
     int g, int h, int i, int j, int k);
-
-#define TRACER_TESTCASE(NAME) \
-    void test_tracer_ ## NAME ( \
-        TestTracerFixture * fixture, gconstpointer data)
-#define TRACER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Tracer, test_tracer, NAME, \
-        TestTracerFixture)
-
-typedef struct _TestTracerFixture
-{
-  GumTracer * tracer;
-
-  guint8 * code;
-} TestTracerFixture;
-
-static void
-test_tracer_fixture_setup (TestTracerFixture * fixture,
-                           gconstpointer data)
-{
-  fixture->tracer = gum_tracer_new ();
-}
-
-static void
-test_tracer_fixture_teardown (TestTracerFixture * fixture,
-                              gconstpointer data)
-{
-  g_object_unref (fixture->tracer);
-
-  if (fixture->code != NULL)
-    gum_free_pages (fixture->code);
-}
-
-static guint8 *
-test_tracer_fixture_dup_code (TestTracerFixture * fixture,
-                              const guint8 * tpl_code,
-                              guint tpl_size)
-{
-  g_assert (fixture->code == NULL);
-  fixture->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  memcpy (fixture->code, tpl_code, tpl_size);
-  return fixture->code;
-}
-
-#define gum_assert_cmp_type_of(e, cmp, t) \
-    g_assert_cmpint (GUM_TRACE_ENTRY_TYPE (e), cmp, t)
-
-#define gum_assert_cmp_name_of(e, cmp, s) \
-    g_assert_cmpstr (gum_tracer_name_id_to_string (fixture->tracer,\
-        GUM_TRACE_ENTRY_NAME_ID (e)), cmp, s)
-
-#define gum_assert_cmp_thread_id_of(e, cmp, n) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_THREAD_ID (e), cmp, n)
-#define gum_assert_cmp_thread_ids_of(a, cmp, b) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_THREAD_ID (a), cmp,\
-        GUM_TRACE_ENTRY_THREAD_ID (b))
-
-#define gum_assert_cmp_depth_of(e, cmp, n) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_DEPTH (e), cmp, n)
-
-#define gum_assert_cmp_timestamp_of(e, cmp, n) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_TIMESTAMP (e), cmp, n)
-#define gum_assert_cmp_timestamps_of(a, cmp, b) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_TIMESTAMP (a), cmp,\
-        GUM_TRACE_ENTRY_TIMESTAMP (b))
-
-#define gum_assert_cmp_arglist_size_of(e, cmp, n) \
-    g_assert_cmpuint (GUM_TRACE_ENTRY_ARGLIST_SIZE (e), cmp, n)
 
 TEST_LIST_BEGIN (tracer)
   TRACER_TESTENTRY (tid_and_name)
