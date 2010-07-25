@@ -29,9 +29,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (relative_proxy_function)
   INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
   INTERCEPTOR_TESTENTRY (two_indirects_to_function)
-#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (relocation_of_early_call)
-#endif
 
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
@@ -422,8 +420,6 @@ INTERCEPTOR_TESTCASE (two_indirects_to_function)
   proxy_func_free (proxy_func);
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
-
 INTERCEPTOR_TESTCASE (relocation_of_early_call)
 {
   ProxyFunc proxy_func;
@@ -437,6 +433,8 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 
   proxy_func_free (proxy_func);
 }
+
+#if GLIB_SIZEOF_VOID_P == 4
 
 INTERCEPTOR_TESTCASE (replace_function)
 {

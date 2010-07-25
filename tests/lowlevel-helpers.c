@@ -358,8 +358,6 @@ unsupported_function_list_free (UnsupportedFunction * functions)
   gum_free_pages (functions);
 }
 
-#define OPCODE_JMP (0xE9)
-
 ProxyFunc
 proxy_func_new_relative_with_target (TargetFunc target_func)
 {
@@ -369,7 +367,7 @@ proxy_func_new_relative_with_target (TargetFunc target_func)
   addr_spec.near_address = target_func;
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
   func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
-  func[0] = OPCODE_JMP;
+  func[0] = 0xe9;
   *((gint32 *) (func + 1)) =
       ((gssize) target_func) - (gssize) (func + 5);
 
@@ -400,7 +398,7 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
   guint8 * func;
 
   func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  func[0] = OPCODE_JMP;
+  func[0] = 0xe9;
   *((gint32 *) (func + 1)) = (guint8 *) (func + 20) - (func + 5);
 
   func[20] = 0xff;
@@ -418,23 +416,47 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 ProxyFunc
 proxy_func_new_early_call_with_target (TargetFunc target_func)
 {
-  guint8 * func;
+  GumAddressSpec addr_spec;
+  guint8 * func, * code;
 
-  func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  func[0] = 0xFF; /* push dword [esp + 4] */
-  func[1] = 0x74;
-  func[2] = 0x24;
-  func[3] = 0x04;
+  addr_spec.near_address = target_func;
+  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
+  func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
 
-  func[4] = 0xe8; /* call */
-  *((gssize *) (func + 5)) = ((gssize) GPOINTER_TO_SIZE (target_func))
-      - ((gssize) GPOINTER_TO_SIZE (func + 9));
+  code = func;
 
-  func[9] = 0x83; /* add esp, 4 */
-  func[10] = 0xC4;
-  func[11] = 0x04;
+#if GLIB_SIZEOF_VOID_P == 4
+  code[0] = 0xff; /* push dword [esp + 4] */
+  code[1] = 0x74;
+  code[2] = 0x24;
+  code[3] = 0x04;
+  code += 4;
+#else
+  code[0] = 0x48; /* sub rsp, 0x28 (4 * sizeof (gpointer) + 8) */
+  code[1] = 0x83;
+  code[2] = 0xec;
+  code[3] = 0x28;
+  code += 4;
+#endif
 
-  func[12] = 0xC3; /* ret */
+  code[0] = 0xe8; /* call */
+  *((gssize *) (code + 1)) = (gssize) target_func - (gssize) (code + 5);
+  code += 5;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  code[0] = 0x83; /* add esp, 4 */
+  code[1] = 0xc4;
+  code[2] = 0x04;
+  code += 3;
+#else
+  code[0] = 0x48; /* add rsp, 0x28 */
+  code[1] = 0x83;
+  code[2] = 0xc4;
+  code[3] = 0x28;
+  code += 4;
+#endif
+
+  *code++ = 0xc3; /* ret */
 
   return (ProxyFunc) func;
 }
