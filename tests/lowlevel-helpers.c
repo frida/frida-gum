@@ -363,12 +363,15 @@ unsupported_function_list_free (UnsupportedFunction * functions)
 ProxyFunc
 proxy_func_new_relative_with_target (TargetFunc target_func)
 {
+  GumAddressSpec addr_spec;
   guint8 * func;
 
-  func = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  addr_spec.near_address = target_func;
+  addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
+  func = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
   func[0] = OPCODE_JMP;
   *((gint32 *) (func + 1)) =
-      (guint8 *) GSIZE_TO_POINTER (target_func) - (func + 5);
+      ((gssize) target_func) - (gssize) (func + 5);
 
   return (ProxyFunc) func;
 }

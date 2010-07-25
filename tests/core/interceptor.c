@@ -26,9 +26,7 @@ TEST_LIST_BEGIN (interceptor)
 
   INTERCEPTOR_TESTENTRY (i_can_has_attachability)
   INTERCEPTOR_TESTENTRY (already_attached)
-#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (relative_proxy_function)
-#endif
   INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
   INTERCEPTOR_TESTENTRY (two_indirects_to_function)
 #if GLIB_SIZEOF_VOID_P == 4
@@ -385,8 +383,6 @@ INTERCEPTOR_TESTCASE (already_attached)
       NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
-
 INTERCEPTOR_TESTCASE (relative_proxy_function)
 {
   ProxyFunc proxy_func;
@@ -399,8 +395,6 @@ INTERCEPTOR_TESTCASE (relative_proxy_function)
 
   proxy_func_free (proxy_func);
 }
-
-#endif
 
 INTERCEPTOR_TESTCASE (absolute_indirect_proxy_function)
 {
