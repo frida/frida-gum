@@ -301,9 +301,9 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
             arg->value.reg);
       }
     }
-    gum_code_writer_put_sub_reg_imm (self, GUM_REG_RSP, 64);
+    gum_code_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
     gum_code_writer_put_call (self, func);
-    gum_code_writer_put_add_reg_imm (self, GUM_REG_RSP, 64);
+    gum_code_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);
   }
 }
 
