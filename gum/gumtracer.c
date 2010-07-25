@@ -27,7 +27,7 @@
 #include "gumsysinternals.h"
 
 #include <string.h>
-#define WIN32_LEAN_AND_MEAN
+#define VC_EXTRALEAN
 #include <windows.h>
 
 /* NOTE: buffer size must be a power of two! */
