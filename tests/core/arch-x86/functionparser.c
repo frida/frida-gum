@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,21 +17,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
-
-#include "gumfunctionparser.h"
+#include "functionparser-fixture.c"
 
 #ifdef G_OS_WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
-
-#define FUNCPARSER_TESTCASE(NAME) \
-    void test_functionparser_ ## NAME (void)
-#define FUNCPARSER_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE (FunctionParser, test_functionparser, NAME)
-
-static int GUM_STDCALL sample_func (int a, int b, int c);
 
 TEST_LIST_BEGIN (functionparser)
   FUNCPARSER_TESTENTRY (ret_size)
@@ -42,13 +33,13 @@ TEST_LIST_BEGIN (functionparser)
   */
 TEST_LIST_END ()
 
+static int GUM_STDCALL sample_func (int a, int b, int c);
+
 FUNCPARSER_TESTCASE (ret_size)
 {
-  GumFunctionParser fp;
   GumFunctionDetails details;
 
-  gum_function_parser_init (&fp);
-  gum_function_parser_parse (&fp, sample_func, &details);
+  gum_function_parser_parse (&fixture->fp, sample_func, &details);
 
 #if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmpint (details.num_arguments, ==, 3);

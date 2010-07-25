@@ -87,6 +87,9 @@
     <ClCompile Include="lowlevel-helpers.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="core\arch-x86\functionparser-fixture.c">
+      <Filter>Tests\core\arch-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
