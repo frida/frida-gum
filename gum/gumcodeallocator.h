@@ -29,6 +29,9 @@ struct _GumCodeAllocator
 {
   GumList * pages;
   gsize page_size;
+  guint header_size;
+  guint slice_size;
+  guint slices_per_page;
 };
 
 struct _GumCodeSlice
@@ -37,7 +40,7 @@ struct _GumCodeSlice
   guint size;
 };
 
-void gum_code_allocator_init (GumCodeAllocator * allocator);
+void gum_code_allocator_init (GumCodeAllocator * allocator, guint slice_size);
 void gum_code_allocator_free (GumCodeAllocator * allocator);
 
 GumCodeSlice * gum_code_allocator_new_slice_near (GumCodeAllocator * self, gpointer address);

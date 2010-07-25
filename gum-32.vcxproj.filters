@@ -191,5 +191,8 @@
     <ClInclude Include="gum\guminvocationcontext.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumsysinternals.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

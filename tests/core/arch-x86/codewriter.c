@@ -24,6 +24,11 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (call_label)
   CODEWRITER_TESTENTRY (flush_on_free)
 
+  CODEWRITER_TESTENTRY (jmp_rcx)
+  CODEWRITER_TESTENTRY (jmp_r8)
+  CODEWRITER_TESTENTRY (jmp_rsp_ptr)
+  CODEWRITER_TESTENTRY (jmp_r8_ptr)
+
   CODEWRITER_TESTENTRY (add_eax_ecx)
   CODEWRITER_TESTENTRY (add_rax_rcx)
   CODEWRITER_TESTENTRY (add_r8_rcx)
@@ -43,6 +48,12 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (mov_r10d_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_r10_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_ecx_r11_offset_ptr)
+
+  CODEWRITER_TESTENTRY (test_eax_ecx)
+  CODEWRITER_TESTENTRY (test_rax_rcx)
+  CODEWRITER_TESTENTRY (test_rax_r9)
+  CODEWRITER_TESTENTRY (cmp_eax_i32)
+  CODEWRITER_TESTENTRY (cmp_r9_i32)
 TEST_LIST_END ()
 
 CODEWRITER_TESTCASE (jump_label)
@@ -111,6 +122,34 @@ CODEWRITER_TESTCASE (flush_on_free)
   gum_code_writer_put_label (cw, func_lbl);
   gum_code_writer_put_ret (cw);
 
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (jmp_rcx)
+{
+  const guint8 expected_code[] = { 0xff, 0xe1 };
+  gum_code_writer_put_jmp_reg (&fixture->cw, GUM_REG_RCX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (jmp_r8)
+{
+  const guint8 expected_code[] = { 0x41, 0xff, 0xe0 };
+  gum_code_writer_put_jmp_reg (&fixture->cw, GUM_REG_R8);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (jmp_rsp_ptr)
+{
+  const guint8 expected_code[] = { 0xff, 0x24, 0x24 };
+  gum_code_writer_put_jmp_reg_ptr (&fixture->cw, GUM_REG_RSP);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (jmp_r8_ptr)
+{
+  const guint8 expected_code[] = { 0x41, 0xff, 0x20 };
+  gum_code_writer_put_jmp_reg_ptr (&fixture->cw, GUM_REG_R8);
   assert_output_equals (expected_code);
 }
 
@@ -231,5 +270,40 @@ CODEWRITER_TESTCASE (mov_ecx_r11_offset_ptr)
   const guint8 expected_code[] = { 0x41, 0x8b, 0x8b, 0x37, 0x13, 0x00, 0x00 };
   gum_code_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_ECX,
       GUM_REG_R11, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (test_eax_ecx)
+{
+  const guint8 expected_code[] = { 0x85, 0xc8 };
+  gum_code_writer_put_test_reg_reg (&fixture->cw, GUM_REG_EAX, GUM_REG_ECX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (test_rax_rcx)
+{
+  const guint8 expected_code[] = { 0x48, 0x85, 0xc8 };
+  gum_code_writer_put_test_reg_reg (&fixture->cw, GUM_REG_RAX, GUM_REG_RCX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (test_rax_r9)
+{
+  const guint8 expected_code[] = { 0x4c, 0x85, 0xc8 };
+  gum_code_writer_put_test_reg_reg (&fixture->cw, GUM_REG_RAX, GUM_REG_R9);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_eax_i32)
+{
+  const guint8 expected_code[] = { 0x3d, 0xff, 0xff, 0xff, 0xff };
+  gum_code_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_EAX, -1);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (cmp_r9_i32)
+{
+  const guint8 expected_code[] = { 0x49, 0x81, 0xf9, 0x37, 0x13, 0x00, 0x00 };
+  gum_code_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_R9, 0x1337);
   assert_output_equals (expected_code);
 }

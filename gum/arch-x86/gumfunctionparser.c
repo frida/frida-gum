@@ -50,7 +50,8 @@ gum_function_parser_parse (GumFunctionParser * fp,
 
     if (ud_obj.mnemonic == UD_Iret)
     {
-      details->arglist_size = ud_obj.operand[0].lval.udword;
+      details->num_arguments =
+          ud_obj.operand[0].lval.udword / sizeof (gpointer);
       break;
     }
     else if (ud_obj.mnemonic == UD_Ijmp)
@@ -63,7 +64,7 @@ gum_function_parser_parse (GumFunctionParser * fp,
       }
       else
       {
-        details->arglist_size = -1;
+        details->num_arguments = -1;
         break;
       }
     }

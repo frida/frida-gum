@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -253,7 +253,7 @@ TRACER_TESTCASE (one_argument)
 
   details.name = "alpha";
   details.address = target_function_alpha;
-  details.arglist_size = 4;
+  details.num_arguments = 1;
 
   gum_tracer_add_function_with (fixture->tracer, &details);
 
@@ -268,7 +268,7 @@ TRACER_TESTCASE (one_argument)
 
   g_assert_cmpuint (num_entries, ==, 3);
 
-  gum_assert_cmp_arglist_size_of (&entries[0], ==, 4);
+  gum_assert_cmp_arglist_size_of (&entries[0], ==, sizeof (gpointer));
   g_assert (*((GString **) GUM_TRACE_ENTRY_DATA (&entries[1])) == s);
   gum_assert_cmp_arglist_size_of (&entries[2], ==, 0);
 
@@ -279,11 +279,11 @@ TRACER_TESTCASE (many_arguments)
 {
   GumFunctionDetails details;
   GumTraceEntry * entries;
-  guint num_entries;
+  guint num_entries, expected_count;
 
   details.name = "argh";
   details.address = target_function_argh;
-  details.arglist_size = 44;
+  details.num_arguments = 11;
 
   gum_tracer_add_function_with (fixture->tracer, &details);
 
@@ -294,10 +294,18 @@ TRACER_TESTCASE (many_arguments)
 
   entries = gum_tracer_drain (fixture->tracer, &num_entries);
 
-  g_assert_cmpuint (num_entries, ==, 4);
+  g_assert_cmpuint (num_entries, >=, 3);
+  gum_assert_cmp_arglist_size_of (&entries[0], ==, 11 * sizeof (gpointer));
 
-  gum_assert_cmp_arglist_size_of (&entries[0], ==, 44);
-  gum_assert_cmp_arglist_size_of (&entries[3], ==, 0);
+  expected_count = 1; /* ENTER */
+  expected_count +=
+      GUM_TRACE_ENTRY_ARGLIST_SIZE (&entries[0]) / sizeof (GumTraceEntry);
+  if (GUM_TRACE_ENTRY_ARGLIST_SIZE (&entries[0]) % sizeof (GumTraceEntry) != 0)
+    expected_count++;
+  expected_count++; /* LEAVE */
+  g_assert_cmpuint (num_entries, ==, expected_count);
+
+  gum_assert_cmp_arglist_size_of (&entries[num_entries - 1], ==, 0);
 
   g_free (entries);
 }

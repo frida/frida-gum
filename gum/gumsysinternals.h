@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,20 +17,27 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_FUNCTION_H__
-#define __GUM_FUNCTION_H__
+#ifndef __GUM_SYS_INTERNALS_H__
+#define __GUM_SYS_INTERNALS_H__
 
-G_BEGIN_DECLS
+#include <glib.h>
 
-typedef struct _GumFunctionDetails  GumFunctionDetails;
+#ifdef G_OS_WIN32
 
-struct _GumFunctionDetails
-{
-  const gchar * name;
-  gpointer address;
-  gint num_arguments;
-};
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_TEB_OFFSET_SELF 0x0018
+#  define GUM_TEB_OFFSET_TID  0x0024
+#  define GUM_TEB_OFFSET_USER 0x0700
+# else
+#  define GUM_TEB_OFFSET_SELF 0x0030
+#  define GUM_TEB_OFFSET_TID  0x0048
+#  define GUM_TEB_OFFSET_USER 0x0878
+# endif
 
-G_END_DECLS
+# define GUM_TEB_OFFSET_INTERCEPTOR_GUARD (GUM_TEB_OFFSET_USER + 4)
+# define GUM_TEB_OFFSET_TRACER_STACK      (GUM_TEB_OFFSET_USER + 8)
+# define GUM_TEB_OFFSET_TRACER_DEPTH      (GUM_TEB_OFFSET_USER + 16)
+
+#endif
 
 #endif

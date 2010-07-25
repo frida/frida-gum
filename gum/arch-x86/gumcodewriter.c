@@ -461,8 +461,8 @@ gum_code_writer_put_jmp_reg (GumCodeWriter * self,
   else
     g_return_if_fail (ri.width == 64);
 
-  if (ri.index_is_extended)
-    *self->code++ = 0x41;
+  gum_code_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+
   self->code[0] = 0xff;
   self->code[1] = 0xe0 | ri.index;
   self->code += 2;
@@ -472,9 +472,23 @@ void
 gum_code_writer_put_jmp_reg_ptr (GumCodeWriter * self,
                                  GumCpuReg reg)
 {
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  else
+    g_return_if_fail (ri.width == 64);
+
+  gum_code_writer_put_prefix_for_registers (self, &ri, 64, &ri, NULL);
+
   self->code[0] = 0xff;
-  self->code[1] = 0x20 | reg;
+  self->code[1] = 0x20 | ri.index;
   self->code += 2;
+
+  if (ri.meta == GUM_META_REG_XSP)
+    *self->code++ = 0x24;
 }
 
 void
@@ -1427,8 +1441,17 @@ gum_code_writer_put_test_reg_reg (GumCodeWriter * self,
                                   GumCpuReg reg_a,
                                   GumCpuReg reg_b)
 {
+  GumCpuRegInfo a, b;
+
+  gum_code_writer_describe_cpu_reg (self, reg_a, &a);
+  gum_code_writer_describe_cpu_reg (self, reg_b, &b);
+
+  g_return_if_fail (a.width == b.width);
+
+  gum_code_writer_put_prefix_for_registers (self, &a, 32, &a, &b, NULL);
+
   self->code[0] = 0x85;
-  self->code[1] = 0xc0 | (reg_b << 3) | reg_a;
+  self->code[1] = 0xc0 | (b.index << 3) | a.index;
   self->code += 2;
 }
 
@@ -1437,14 +1460,20 @@ gum_code_writer_put_cmp_reg_i32 (GumCodeWriter * self,
                                  GumCpuReg reg,
                                  gint32 imm_value)
 {
-  if (reg == GUM_REG_EAX)
+  GumCpuRegInfo ri;
+
+  gum_code_writer_describe_cpu_reg (self, reg, &ri);
+
+  gum_code_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+
+  if (ri.meta == GUM_META_REG_XAX)
   {
     *self->code++ = 0x3d;
   }
   else
   {
     self->code[0] = 0x81;
-    self->code[1] = 0xf8 | reg;
+    self->code[1] = 0xf8 | ri.index;
     self->code += 2;
   }
 

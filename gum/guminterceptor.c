@@ -26,40 +26,26 @@
 #include "gumhash.h"
 #include "gummemory.h"
 #include "gumrelocator.h"
+#include "gumsysinternals.h"
 
 #include <string.h>
 
 #ifdef G_OS_WIN32
-
 # define VC_EXTRALEAN
 # include <windows.h>
-
 typedef DWORD GumTlsKey;
 # define GUM_TLS_KEY_GET_VALUE(k)    TlsGetValue (k)
 # define GUM_TLS_KEY_SET_VALUE(k, v) TlsSetValue (k, v)
-
-# if GLIB_SIZEOF_VOID_P == 4
-#  define TEB_OFFSET_SELF 0x0018
-#  define TEB_OFFSET_USER 0x0700
-# else
-#  define TEB_OFFSET_SELF 0x0030
-#  define TEB_OFFSET_USER 0x0878
-# endif
-
-# define GUARD_MAGIC_TEB_OFFSET (TEB_OFFSET_USER + 4)
-# define GUARD_MAGIC_VALUE                 0x47756D21
-
 #else
-
 # include <pthread.h>
-
 typedef pthread_key_t GumTlsKey;
 # define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
 # define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
-
 #endif
 
-#define GUM_REDIRECT_CODE_SIZE 5
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     320
+#define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE  5
+#define GUM_INTERCEPTOR_GUARD_MAGIC         0x47756D21
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
@@ -237,7 +223,7 @@ gum_interceptor_init (GumInterceptor * self)
   priv->replaced_function_by_address = gum_hash_table_new_full (g_direct_hash,
       g_direct_equal, NULL, NULL);
 
-  gum_code_allocator_init (&priv->allocator);
+  gum_code_allocator_init (&priv->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
 }
 
 static void
@@ -987,7 +973,8 @@ is_patched_function (GumInterceptor * self,
 static gboolean
 can_intercept_function (gpointer function_address)
 {
-  return gum_relocator_can_relocate (function_address, GUM_REDIRECT_CODE_SIZE);
+  return gum_relocator_can_relocate (function_address,
+      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
 }
 
 static guint
@@ -1067,7 +1054,7 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
     reloc_bytes = gum_relocator_read_one (&rl, NULL);
     g_assert_cmpuint (reloc_bytes, !=, 0);
   }
-  while (reloc_bytes < GUM_REDIRECT_CODE_SIZE);
+  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
   gum_relocator_write_all (&rl);
 
   if (!gum_relocator_eoi (&rl))
@@ -1154,7 +1141,7 @@ gum_function_context_make_replace_trampoline (FunctionContext * ctx,
     reloc_bytes = gum_relocator_read_one (&rl, NULL);
     g_assert_cmpuint (reloc_bytes, !=, 0);
   }
-  while (reloc_bytes < GUM_REDIRECT_CODE_SIZE);
+  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
   gum_relocator_write_all (&rl);
 
   if (!gum_relocator_eoi (&rl))
@@ -1219,23 +1206,24 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
   gum_code_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_EBX,
-      TEB_OFFSET_SELF);
+      GUM_TEB_OFFSET_SELF);
 # else
   gum_code_writer_put_mov_reg_gs_u32_ptr (cw, GUM_REG_RBX,
-      TEB_OFFSET_SELF);
+      GUM_TEB_OFFSET_SELF);
 # endif
   gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EBP,
-      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET);
+      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD);
 
   if (skip_label != NULL)
   {
-    gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_EBP, GUARD_MAGIC_VALUE);
+    gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_EBP,
+        GUM_INTERCEPTOR_GUARD_MAGIC);
     gum_code_writer_put_jz_label (cw, skip_label, GUM_UNLIKELY);
   }
 
   gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
-      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET,
-      GUARD_MAGIC_VALUE);
+      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
+      GUM_INTERCEPTOR_GUARD_MAGIC);
 #endif
 }
 
@@ -1245,7 +1233,7 @@ gum_function_context_write_guard_leave_code (FunctionContext * ctx,
 {
 #ifdef G_OS_WIN32
   gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
-      GUM_REG_XBX, GUARD_MAGIC_TEB_OFFSET,
+      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
       GUM_REG_EBP);
 #endif
 }

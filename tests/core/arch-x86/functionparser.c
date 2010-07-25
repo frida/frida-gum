@@ -51,9 +51,9 @@ FUNCPARSER_TESTCASE (ret_size)
   gum_function_parser_parse (&fp, sample_func, &details);
 
 #if GLIB_SIZEOF_VOID_P == 4
-  g_assert_cmpint (details.arglist_size, ==, 12);
+  g_assert_cmpint (details.num_arguments, ==, 3);
 #else
-  g_assert_cmpint (details.arglist_size, ==, 0);
+  g_assert_cmpint (details.num_arguments, ==, 0);
 #endif
 }
 
@@ -72,7 +72,7 @@ parse_exported_function (const gchar * name,
   gum_function_parser_parse (&fp, address, &details);
   /*g_print ("%d\n", details.arglist_size);*/
 
-  g_assert_cmpint (details.arglist_size, <=, 128);
+  g_assert_cmpint (details.num_arguments, <=, 32);
 }
 
 /*

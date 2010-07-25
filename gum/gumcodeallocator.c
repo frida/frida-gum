@@ -27,7 +27,7 @@ typedef struct _GumCodePage GumCodePage;
 
 struct _GumCodePage
 {
-  GumCodeSlice slice[12];
+  GumCodeSlice slice[1];
 };
 
 static GumCodePage * gum_code_allocator_new_page_near (GumCodeAllocator * self,
@@ -40,10 +40,18 @@ static void gum_code_slice_mark_free (GumCodeSlice * slice);
 static void gum_code_slice_mark_taken (GumCodeSlice * slice);
 
 void
-gum_code_allocator_init (GumCodeAllocator * allocator)
+gum_code_allocator_init (GumCodeAllocator * allocator,
+                         guint slice_size)
 {
   allocator->pages = NULL;
   allocator->page_size = gum_query_page_size ();
+  allocator->header_size = 256;
+  allocator->slice_size = slice_size;
+  allocator->slices_per_page =
+      (allocator->page_size - allocator->header_size) / allocator->slice_size;
+
+  g_assert_cmpuint (allocator->header_size, >=,
+      allocator->slices_per_page * sizeof (GumCodeSlice));
 }
 
 void
@@ -70,7 +78,7 @@ gum_code_allocator_new_slice_near (GumCodeAllocator * self,
     {
       guint slice_idx;
 
-      for (slice_idx = 0; slice_idx != G_N_ELEMENTS (page->slice); slice_idx++)
+      for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
       {
         slice = &page->slice[slice_idx];
 
@@ -104,7 +112,7 @@ gum_code_allocator_free_slice (GumCodeAllocator * self,
   gum_code_slice_mark_free (slice);
 
   is_empty = TRUE;
-  for (slice_idx = 0; slice_idx != G_N_ELEMENTS (cp->slice); slice_idx++)
+  for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
   {
     if (!gum_code_slice_is_free (&cp->slice[slice_idx]))
     {
@@ -126,24 +134,20 @@ gum_code_allocator_new_page_near (GumCodeAllocator * self,
 {
   GumAddressSpec spec;
   GumCodePage * cp;
-  guint header_size, slice_size, slice_idx;
+  guint slice_idx;
 
   spec.near_address = address;
   spec.max_distance = GUM_CODE_ALLOCATOR_MAX_DISTANCE;
 
   cp = (GumCodePage *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
-  header_size = 256;
-  g_assert_cmpuint (header_size, >=, sizeof (GumCodePage));
-
-  slice_size = (self->page_size - header_size) / G_N_ELEMENTS (cp->slice);
-
-  for (slice_idx = 0; slice_idx != G_N_ELEMENTS (cp->slice); slice_idx++)
+  for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
   {
     GumCodeSlice * slice = &cp->slice[slice_idx];
 
-    slice->data = (guint8 *) cp + header_size + (slice_idx * slice_size);
-    slice->size = slice_size;
+    slice->data =
+        (guint8 *) cp + self->header_size + (slice_idx * self->slice_size);
+    slice->size = self->slice_size;
     gum_code_slice_mark_free (slice);
   }
 
