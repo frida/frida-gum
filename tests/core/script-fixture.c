@@ -17,9 +17,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "gumscript.h"
+
 #include "testutil.h"
 
 #include <string.h>
+#define VC_EXTRALEAN
+#include <windows.h>
 
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)

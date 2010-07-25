@@ -20,16 +20,28 @@
 
 #include "testutil.h"
 
+#define SYMUTIL_TESTCASE(NAME) \
+    void test_symbolutil_ ## NAME (void)
+#define SYMUTIL_TESTENTRY(NAME) \
+    TEST_ENTRY_SIMPLE (SymbolUtil, test_symbolutil, NAME)
+
+TEST_LIST_BEGIN (symbolutil)
+  SYMUTIL_TESTENTRY (process_modules)
+  SYMUTIL_TESTENTRY (module_exports)
+#ifndef GUM_DISABLE_SYMBOL_UTIL
+  SYMUTIL_TESTENTRY (symbol_details_from_address)
+  SYMUTIL_TESTENTRY (symbol_name_from_address)
+  SYMUTIL_TESTENTRY (find_external_public_function)
+  SYMUTIL_TESTENTRY (find_local_static_function)
+  SYMUTIL_TESTENTRY (find_functions_matching)
+#endif
+TEST_LIST_END ()
+
 #ifdef G_OS_WIN32
 #define SYSTEM_MODULE_NAME "kernel32.dll"
 #else
 #define SYSTEM_MODULE_NAME "libc.so.6"
 #endif
-
-#define SYMUTIL_TESTCASE(NAME) \
-    void test_symbolutil_ ## NAME (void)
-#define SYMUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE (SymbolUtil, test_symbolutil, NAME)
 
 typedef struct _TestForEachContext {
   gboolean value_to_return;
@@ -45,18 +57,6 @@ static gboolean export_found_cb (const gchar * name, gpointer address,
 static void GUM_CDECL dummy_function_0 (void);
 static void GUM_STDCALL dummy_function_1 (void);
 #endif
-
-TEST_LIST_BEGIN (symbolutil)
-  SYMUTIL_TESTENTRY (process_modules)
-  SYMUTIL_TESTENTRY (module_exports)
-#ifndef GUM_DISABLE_SYMBOL_UTIL
-  SYMUTIL_TESTENTRY (symbol_details_from_address)
-  SYMUTIL_TESTENTRY (symbol_name_from_address)
-  SYMUTIL_TESTENTRY (find_external_public_function)
-  SYMUTIL_TESTENTRY (find_local_static_function)
-  SYMUTIL_TESTENTRY (find_functions_matching)
-#endif
-TEST_LIST_END ()
 
 SYMUTIL_TESTCASE (process_modules)
 {

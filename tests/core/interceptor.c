@@ -20,18 +20,6 @@
 
 #include "interceptor-fixture.c"
 
-#include "interceptor-callbacklistener.c"
-#include "lowlevel-helpers.h"
-
-#include <stdlib.h>
-
-static gpointer target_function (GString * str);
-static gpointer target_nop_function_a (gpointer data);
-static gpointer target_nop_function_b (gpointer data);
-static gpointer target_nop_function_c (gpointer data);
-static gpointer replacement_malloc (gpointer original_impl, gpointer user_data,
-    gpointer caller_ret_addr, guint size);
-
 TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (cpu_register_clobber)
   INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
@@ -67,6 +55,13 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (replace_function)
 #endif
 TEST_LIST_END ()
+
+static gpointer target_function (GString * str);
+static gpointer target_nop_function_a (gpointer data);
+static gpointer target_nop_function_b (gpointer data);
+static gpointer target_nop_function_c (gpointer data);
+static gpointer replacement_malloc (gpointer original_impl, gpointer user_data,
+    gpointer caller_ret_addr, guint size);
 
 INTERCEPTOR_TESTCASE (attach_one)
 {

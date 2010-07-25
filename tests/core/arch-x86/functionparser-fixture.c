@@ -17,9 +17,14 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "gumfunctionparser.h"
+
 #include "testutil.h"
 
-#include "gumfunctionparser.h"
+#ifdef G_OS_WIN32
+#define VC_EXTRALEAN
+#include <windows.h>
+#endif
 
 #define FUNCPARSER_TESTCASE(NAME) \
     void test_function_parser_ ## NAME ( \

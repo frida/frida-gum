@@ -18,16 +18,18 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "gumstalker.h"
+
 #include "fakeeventsink.h"
 #include "gumcodewriter.h"
 #include "gummemory.h"
 #include "testutil.h"
 
 #include <string.h>
-
 #ifdef G_OS_WIN32
 #define VC_EXTRALEAN
 #include <windows.h>
+#include <tchar.h>
 #endif
 
 #define STALKER_TESTCASE(NAME) \

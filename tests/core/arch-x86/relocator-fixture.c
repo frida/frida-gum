@@ -17,10 +17,10 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
+#include "gumrelocator.h"
 
 #include "gummemory.h"
-#include "gumrelocator.h"
+#include "testutil.h"
 
 #include <string.h>
 

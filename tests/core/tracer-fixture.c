@@ -17,10 +17,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "gumtracer.h"
+
+#include "gummemory.h"
 #include "testutil.h"
 
-#include "../gum/gummemory.h"
-
+#include <stdio.h>
 #include <string.h>
 
 #define TRACER_TESTCASE(NAME) \

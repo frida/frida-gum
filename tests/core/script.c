@@ -19,9 +19,6 @@
 
 #include "script-fixture.c"
 
-#define VC_EXTRALEAN
-#include <windows.h>
-
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (replace_string_and_length_arguments)
   SCRIPT_TESTENTRY (send_string_from_argument)

@@ -19,11 +19,6 @@
 
 #include "functionparser-fixture.c"
 
-#ifdef G_OS_WIN32
-#define VC_EXTRALEAN
-#include <windows.h>
-#endif
-
 TEST_LIST_BEGIN (functionparser)
   FUNCPARSER_TESTENTRY (ret_size)
   /*

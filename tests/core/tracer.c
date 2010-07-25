@@ -19,21 +19,6 @@
 
 #include "tracer-fixture.c"
 
-#include <stdio.h>
-
-#define TORTURE_ENTRY_COUNT 200000
-
-static gpointer torture_writer_thread (gpointer data);
-
-static gpointer ringbuffer_reader (gpointer data);
-static gpointer ringbuffer_writer (gpointer data);
-
-static void target_function_alpha (GString * s);
-static void target_function_beta (GString * s);
-static void target_function_gamma (GString * s);
-static int target_function_argh (int a, int b, int c, int d, int e, int f,
-    int g, int h, int i, int j, int k);
-
 TEST_LIST_BEGIN (tracer)
   TRACER_TESTENTRY (tid_and_name)
   TRACER_TESTENTRY (level_and_timestamp)
@@ -49,6 +34,19 @@ TEST_LIST_BEGIN (tracer)
 
   TEST_ENTRY_SIMPLE (Tracer, test, ringbuffer)
 TEST_LIST_END ()
+
+#define TORTURE_ENTRY_COUNT 200000
+
+static gpointer torture_writer_thread (gpointer data);
+
+static gpointer ringbuffer_reader (gpointer data);
+static gpointer ringbuffer_writer (gpointer data);
+
+static void target_function_alpha (GString * s);
+static void target_function_beta (GString * s);
+static void target_function_gamma (GString * s);
+static int target_function_argh (int a, int b, int c, int d, int e, int f,
+    int g, int h, int i, int j, int k);
 
 TRACER_TESTCASE (tid_and_name)
 {

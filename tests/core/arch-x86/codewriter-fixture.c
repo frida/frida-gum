@@ -17,9 +17,9 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
-
 #include "gumcodewriter.h"
+
+#include "testutil.h"
 
 #include <string.h>
 

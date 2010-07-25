@@ -18,17 +18,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <glib.h>
-#ifdef G_OS_WIN32
-#define VC_EXTRALEAN
-#include <windows.h>
-#include <tchar.h>
-#endif
-
 #include "stalker-fixture.c"
-
-static void invoke_follow_return_code (TestStalkerFixture * fixture);
-static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
 TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (no_events)
@@ -73,6 +63,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (win32_follow_callback_to_kernel_to_user)
 #endif
 TEST_LIST_END ()
+
+static void invoke_follow_return_code (TestStalkerFixture * fixture);
+static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
 STALKER_TESTCASE (heap_api)
 {

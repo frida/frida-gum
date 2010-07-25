@@ -17,11 +17,13 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "guminterceptor.h"
+
+#include "interceptor-callbacklistener.c"
+#include "lowlevel-helpers.h"
 #include "testutil.h"
 
-#include "guminterceptor.h"
-#include "lowlevel-helpers.h"
-
+#include <stdlib.h>
 #include <string.h>
 
 #define INTERCEPTOR_TESTCASE(NAME) \
