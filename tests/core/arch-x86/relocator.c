@@ -17,55 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "testutil.h"
-
-#include "gummemory.h"
-#include "gumrelocator.h"
-
-#include <string.h>
-
-#define RELOCATOR_TESTCASE(NAME) \
-    void test_relocator_ ## NAME ( \
-        TestRelocatorFixture * fixture, gconstpointer data)
-#define RELOCATOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Relocator, test_relocator, NAME, \
-        TestRelocatorFixture)
-
-#define TEST_OUTBUF_SIZE 32
-
-typedef struct _TestRelocatorFixture
-{
-  guint8 * output;
-  GumCodeWriter cw;
-  GumRelocator rl;
-} TestRelocatorFixture;
-
-static void
-test_relocator_fixture_setup (TestRelocatorFixture * fixture,
-                              gconstpointer data)
-{
-  fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  memset (fixture->output, 0, gum_query_page_size ());
-  gum_code_writer_init (&fixture->cw, fixture->output);
-}
-
-static void
-test_relocator_fixture_teardown (TestRelocatorFixture * fixture,
-                                 gconstpointer data)
-{
-  gum_relocator_free (&fixture->rl);
-  gum_code_writer_free (&fixture->cw);
-  gum_free_pages (fixture->output);
-}
-
-static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
-
-#define SETUP_RELOCATOR_WITH(CODE) \
-    gum_relocator_init (&fixture->rl, CODE, &fixture->cw)
-
-#define assert_outbuf_still_zeroed_from_offset(OFF) \
-    g_assert_cmpint (memcmp (fixture->output + OFF, cleared_outbuf + OFF, \
-        sizeof (cleared_outbuf) - OFF), ==, 0)
+#include "relocator-fixture.c"
 
 TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (one_to_one)
