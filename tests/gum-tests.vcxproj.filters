@@ -45,15 +45,6 @@
     <ClCompile Include="core\arch-x86\relocator.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
-    <ClCompile Include="core\interceptor-lowlevel-amd64-msc.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
-    <ClCompile Include="core\interceptor-lowlevel-ia32-msc.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
-    <ClCompile Include="core\interceptor-lowlevel-x86.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\stalker.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
@@ -93,16 +84,19 @@
     <ClCompile Include="core\tracer-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="lowlevel-helpers.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="core\interceptor-lowlevel.h">
-      <Filter>Tests\core</Filter>
-    </ClInclude>
     <ClInclude Include="stubs\fakeeventsink.h">
       <Filter>Source Files\stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="lowlevel-helpers.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,13 +17,20 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __INTERCEPTOR_LOWLEVEL_H__
-#define __INTERCEPTOR_LOWLEVEL_H__
+#ifndef __LOWLEVEL_HELPERS_H__
+#define __LOWLEVEL_HELPERS_H__
 
 #include <gum/gumdefs.h>
 
+#if GLIB_SIZEOF_VOID_P == 4
+#define GUM_THUNK GUM_FASTCALL
+#else
+#define GUM_THUNK
+#endif
+
 typedef struct _UnsupportedFunction UnsupportedFunction;
 
+typedef void (GUM_THUNK * ClobberTestFunc) (gpointer data);
 typedef gpointer (* ProxyFunc) (GString * str);
 typedef ProxyFunc TargetFunc;
 
@@ -34,12 +41,19 @@ struct _UnsupportedFunction
   guint8 code[16];
 };
 
+extern ClobberTestFunc clobber_test_function;
+
+void lowlevel_helpers_init (void);
+void lowlevel_helpers_deinit (void);  
+
+void fill_cpu_context_with_magic_values (GumCpuContext * ctx);
+void assert_cpu_contexts_are_equal (GumCpuContext * input,
+    GumCpuContext * output);
+
 void invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
     GumCpuContext * output);
 void invoke_clobber_test_function_with_carry_set (gsize * flags_input,
     gsize * flags_output);
-
-gpointer clobber_test_function (gpointer data);
 
 UnsupportedFunction * unsupported_function_list_new (guint * count);
 void unsupported_function_list_free (UnsupportedFunction * functions);
@@ -51,4 +65,3 @@ ProxyFunc proxy_func_new_early_call_with_target (TargetFunc target_func);
 void proxy_func_free (ProxyFunc proxy_func);
 
 #endif
-

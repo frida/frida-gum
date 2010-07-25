@@ -21,6 +21,7 @@
 #include "interceptor-fixture.c"
 
 #include "interceptor-callbacklistener.c"
+#include "lowlevel-helpers.h"
 
 #include <stdlib.h>
 
@@ -32,10 +33,8 @@ static gpointer replacement_malloc (gpointer original_impl, gpointer user_data,
     gpointer caller_ret_addr, guint size);
 
 TEST_LIST_BEGIN (interceptor)
-#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (cpu_register_clobber)
   INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
-#endif
 
   INTERCEPTOR_TESTENTRY (i_can_has_attachability)
   INTERCEPTOR_TESTENTRY (already_attached)
@@ -56,9 +55,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
   INTERCEPTOR_TESTENTRY (function_arguments)
   INTERCEPTOR_TESTENTRY (function_return_value)
-#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
-#endif
   INTERCEPTOR_TESTENTRY (ignore_caller)
   INTERCEPTOR_TESTENTRY (ignore_caller_nested)
   INTERCEPTOR_TESTENTRY (detach)
@@ -165,36 +162,19 @@ INTERCEPTOR_TESTCASE (function_return_value)
       ==, GPOINTER_TO_SIZE (return_value));
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
-
 INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 {
   GumCpuContext input, output, * ctx;
 
-  interceptor_fixture_attach_listener (fixture, 0, &clobber_test_function, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function, 'a',
       'b');
 
-  input.edi = 0x1234a001;
-  input.esi = 0x12340b02;
-  input.ebp = 0x123400c3;
-  input.ebx = 0x12340d04;
-  input.edx = 0x1234e005;
-  input.ecx = 0x12340f06;
-  input.eax = 0x12340107;
-  
+  fill_cpu_context_with_magic_values (&input);
   invoke_clobber_test_function_with_cpu_context (&input, &output);
-
-  ctx = &fixture->listener_context[0]->last_on_enter_cpu_context;
-  g_assert_cmphex (ctx->edi, ==, input.edi);
-  g_assert_cmphex (ctx->esi, ==, input.esi);
-  g_assert_cmphex (ctx->ebp, ==, input.ebp);
-  g_assert_cmphex (ctx->ebx, ==, input.ebx);
-  g_assert_cmphex (ctx->edx, ==, input.edx);
-  g_assert_cmphex (ctx->ecx, ==, input.ecx);
-  g_assert_cmphex (ctx->eax, ==, input.eax);
+  g_assert_cmpstr (fixture->result->str, ==, "ab");
+  assert_cpu_contexts_are_equal (&input,
+      &fixture->listener_context[0]->last_on_enter_cpu_context);
 }
-
-#endif
 
 INTERCEPTOR_TESTCASE (ignore_caller)
 {
@@ -359,32 +339,17 @@ INTERCEPTOR_TESTCASE (parent_data)
   g_object_unref (pd_listener);
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
-
 INTERCEPTOR_TESTCASE (cpu_register_clobber)
 {
   GumCpuContext input, output;
 
-  input.edi = 0x1234a001;
-  input.esi = 0x12340b02;
-  input.ebp = 0x123400c3;
-  input.ebx = 0x12340d04;
-  input.edx = 0x1234e005;
-  input.ecx = 0x12340f06;
-  input.eax = 0x12340107;
-
-  interceptor_fixture_attach_listener (fixture, 0, &clobber_test_function,
+  interceptor_fixture_attach_listener (fixture, 0, clobber_test_function,
       '>', '<');
 
+  fill_cpu_context_with_magic_values (&input);
   invoke_clobber_test_function_with_cpu_context (&input, &output);
-
-  g_assert_cmphex (output.edi, ==, input.edi);
-  g_assert_cmphex (output.esi, ==, input.esi);
-  g_assert_cmphex (output.ebp, ==, input.ebp);
-  g_assert_cmphex (output.ebx, ==, input.ebx);
-  g_assert_cmphex (output.edx, ==, input.edx);
-  g_assert_cmphex (output.ecx, ==, input.ecx);
-  g_assert_cmphex (output.eax, ==, input.eax);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+  assert_cpu_contexts_are_equal (&input, &output);
 }
 
 INTERCEPTOR_TESTCASE (cpu_flag_clobber)
@@ -395,11 +360,9 @@ INTERCEPTOR_TESTCASE (cpu_flag_clobber)
       '>', '<');
 
   invoke_clobber_test_function_with_carry_set (&flags_input, &flags_output);
-
+  g_assert_cmpstr (fixture->result->str, ==, "><");
   g_assert_cmphex (flags_output, ==, flags_input);
 }
-
-#endif
 
 INTERCEPTOR_TESTCASE (i_can_has_attachability)
 {

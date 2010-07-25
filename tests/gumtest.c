@@ -19,6 +19,8 @@
 
 #include "testutil.h"
 
+#include "lowlevel-helpers.h"
+
 #include <glib.h>
 #include <gum/gum.h>
 
@@ -40,6 +42,8 @@ main (gint argc, gchar * argv[])
 
   g_test_init (&argc, &argv, NULL);
   gum_init ();
+
+  lowlevel_helpers_init ();
 
 #ifdef _MSC_VER
 #pragma warning (push)
@@ -68,6 +72,8 @@ main (gint argc, gchar * argv[])
   g_timer_destroy (timer);
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
+
+  lowlevel_helpers_deinit ();
 
 #ifdef G_OS_WIN32
   if (IsDebuggerPresent ())

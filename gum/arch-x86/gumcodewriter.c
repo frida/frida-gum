@@ -1494,6 +1494,18 @@ gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self,
 }
 
 void
+gum_code_writer_put_clc (GumCodeWriter * self)
+{
+  *self->code++ = 0xf8;
+}
+
+void
+gum_code_writer_put_stc (GumCodeWriter * self)
+{
+  *self->code++ = 0xf9;
+}
+
+void
 gum_code_writer_put_pause (GumCodeWriter * self)
 {
   self->code[0] = 0xf3;

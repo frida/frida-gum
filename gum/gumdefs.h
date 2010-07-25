@@ -77,6 +77,28 @@ struct _GumCpuContext
 #endif
 };
 
+#if GLIB_SIZEOF_VOID_P == 8
+# define GUM_CPU_CONTEXT_XAX(c) ((c)->rax)
+# define GUM_CPU_CONTEXT_XCX(c) ((c)->rcx)
+# define GUM_CPU_CONTEXT_XDX(c) ((c)->rdx)
+# define GUM_CPU_CONTEXT_XBX(c) ((c)->rbx)
+# define GUM_CPU_CONTEXT_XSP(c) ((c)->rsp)
+# define GUM_CPU_CONTEXT_XBP(c) ((c)->rbp)
+# define GUM_CPU_CONTEXT_XSI(c) ((c)->rsi)
+# define GUM_CPU_CONTEXT_XDI(c) ((c)->rdi)
+# define GUM_CPU_CONTEXT_XIP(c) ((c)->rip)
+#else
+# define GUM_CPU_CONTEXT_XAX(c) ((c)->eax)
+# define GUM_CPU_CONTEXT_XCX(c) ((c)->ecx)
+# define GUM_CPU_CONTEXT_XDX(c) ((c)->edx)
+# define GUM_CPU_CONTEXT_XBX(c) ((c)->ebx)
+# define GUM_CPU_CONTEXT_XSP(c) ((c)->esp)
+# define GUM_CPU_CONTEXT_XBP(c) ((c)->ebp)
+# define GUM_CPU_CONTEXT_XSI(c) ((c)->esi)
+# define GUM_CPU_CONTEXT_XDI(c) ((c)->edi)
+# define GUM_CPU_CONTEXT_XIP(c) ((c)->eip)
+#endif
+
 #define GUM_MAX_PATH                 260
 #define GUM_MAX_TYPE_NAME             16
 #define GUM_MAX_SYMBOL_NAME         2000
@@ -97,10 +119,12 @@ struct _GumCpuContext
 #ifdef _MSC_VER
 #define GUM_CDECL __cdecl
 #define GUM_STDCALL __stdcall
+#define GUM_FASTCALL __fastcall
 #define GUM_NOINLINE __declspec (noinline)
 #else
 #define GUM_CDECL __attribute__((cdecl))
 #define GUM_STDCALL __attribute__((stdcall))
+#define GUM_FASTCALL __attribute__((fastcall))
 /* FIXME: */
 #define GUM_NOINLINE
 #endif

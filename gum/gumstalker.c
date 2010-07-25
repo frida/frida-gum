@@ -184,7 +184,7 @@ enum _GumVirtualizationRequirements
 #define GUM_STALKER_GET_PRIVATE(o) ((o)->priv)
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define GUM_THUNK __fastcall
+#define GUM_THUNK GUM_FASTCALL
 #define STATE_PRESERVE_SIZE (4 * sizeof (gpointer))
 #define STATE_PRESERVE_TOPMOST_REGISTER_INDEX (2)
 #else

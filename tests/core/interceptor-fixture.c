@@ -19,8 +19,8 @@
 
 #include "testutil.h"
 
-#include <gum/guminterceptor.h>
-#include "interceptor-lowlevel.h"
+#include "guminterceptor.h"
+#include "lowlevel-helpers.h"
 
 #include <string.h>
 
@@ -113,7 +113,7 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
   GumAttachReturn result;
   ListenerContext * ctx;
 
-  ctx = g_object_new (listener_context_get_type (), NULL);
+  ctx = (ListenerContext *) g_object_new (listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
