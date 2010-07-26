@@ -36,6 +36,7 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (lock_xadd_rcx_ptr_eax)
   CODEWRITER_TESTENTRY (lock_xadd_rcx_ptr_rax)
   CODEWRITER_TESTENTRY (lock_xadd_r15_ptr_eax)
+  CODEWRITER_TESTENTRY (lock_inc_dec_imm32_ptr)
 
   CODEWRITER_TESTENTRY (and_eax_u32)
   CODEWRITER_TESTENTRY (and_rax_u32)
@@ -195,6 +196,31 @@ CODEWRITER_TESTCASE (lock_xadd_r15_ptr_eax)
   const guint8 expected_code[] = { 0xf0, 0x41, 0x0f, 0xc1, 0x07 };
   gum_code_writer_put_lock_xadd_reg_ptr_reg (&fixture->cw, GUM_REG_R15,
       GUM_REG_EAX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (lock_inc_dec_imm32_ptr)
+{
+  gpointer target;
+  guint8 expected_code[] = { 0xf0, 0xff, 0x05, 0x00, 0x00, 0x00, 0x00 };
+
+  target = fixture->output + 32;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_code_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  *((gpointer *) (expected_code + 3)) = target;
+#else
+  gum_code_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  *((gint32 *) (expected_code + 3)) = 32 - sizeof (expected_code);
+#endif
+
+  gum_code_writer_put_lock_inc_imm32_ptr (&fixture->cw, target);
+  assert_output_equals (expected_code);
+
+  gum_code_writer_reset (&fixture->cw, fixture->output);
+
+  expected_code[2] = 0x0d;
+  gum_code_writer_put_lock_dec_imm32_ptr (&fixture->cw, target);
   assert_output_equals (expected_code);
 }
 

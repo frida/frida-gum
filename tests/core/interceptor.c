@@ -35,6 +35,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
+  INTERCEPTOR_TESTENTRY (attach_detach_torture)
   INTERCEPTOR_TESTENTRY (thread_id)
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
   INTERCEPTOR_TESTENTRY (function_arguments)
@@ -50,6 +51,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (replace_function)
 TEST_LIST_END ()
 
+static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer target_function (GString * str);
 static gpointer target_nop_function_a (gpointer data);
 static gpointer target_nop_function_b (gpointer data);
@@ -105,6 +107,37 @@ INTERCEPTOR_TESTCASE (attach_to_own_api)
   g_assert_cmpstr (fixture->result->str, ==, "|||");
 
   g_object_unref (listener);
+}
+
+INTERCEPTOR_TESTCASE (attach_detach_torture)
+{
+  GThread * th;
+  volatile guint n_passes = 100;
+
+  th = g_thread_create (hit_target_function_repeatedly, (gpointer) &n_passes,
+      TRUE, NULL);
+
+  g_thread_yield ();
+
+  do
+  {
+    TestCallbackListener * listener;
+
+    interceptor_fixture_attach_listener (fixture, 0, target_function,
+        'a', 'b');
+
+    listener = test_callback_listener_new ();
+    gum_interceptor_attach_listener (fixture->interceptor, target_function,
+        GUM_INVOCATION_LISTENER (listener), NULL);
+    gum_interceptor_detach_listener (fixture->interceptor,
+        GUM_INVOCATION_LISTENER (listener));
+    g_object_unref (listener);
+
+    interceptor_fixture_detach_listener (fixture, 0);
+  }
+  while (--n_passes != 0);
+
+  g_thread_join (th);
 }
 
 INTERCEPTOR_TESTCASE (thread_id)
@@ -456,10 +489,33 @@ INTERCEPTOR_TESTCASE (replace_function)
   free (ret);
 }
 
+static gpointer
+hit_target_function_repeatedly (gpointer data)
+{
+  volatile guint * n_passes = (guint *) data;
+  GString * str;
+
+  str = g_string_new ("");
+
+  do
+  {
+    target_function (NULL);
+  }
+  while (*n_passes != 0);
+
+  g_string_free (str, TRUE);
+
+  return NULL;
+}
+
 static gpointer GUM_NOINLINE
 target_function (GString * str)
 {
-  g_string_append_c (str, '|');
+  if (str != NULL)
+    g_string_append_c (str, '|');
+  else
+    g_usleep (G_USEC_PER_SEC / 100);
+
   return NULL;
 }
 

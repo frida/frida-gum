@@ -764,6 +764,43 @@ gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self,
   }
 }
 
+static void
+gum_code_writer_put_lock_inc_or_dec_imm32_ptr (GumCodeWriter * self,
+                                               gpointer target,
+                                               gboolean increment)
+{
+  self->code[0] = 0xf0;
+  self->code[1] = 0xff;
+  self->code[2] = increment ? 0x05 : 0x0d;
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    *((guint32 *) (self->code + 3)) = (guint32) target;
+  }
+  else
+  {
+    gint64 distance = (gint64) target - (gint64) (self->code + 7);
+    g_assert (IS_WITHIN_INT32_RANGE (distance));
+    *((gint32 *) (self->code + 3)) = distance;
+  }
+
+  self->code += 7;
+}
+
+void
+gum_code_writer_put_lock_inc_imm32_ptr (GumCodeWriter * self,
+                                        gpointer target)
+{
+  gum_code_writer_put_lock_inc_or_dec_imm32_ptr (self, target, TRUE);
+}
+
+void
+gum_code_writer_put_lock_dec_imm32_ptr (GumCodeWriter * self,
+                                        gpointer target)
+{
+  gum_code_writer_put_lock_inc_or_dec_imm32_ptr (self, target, FALSE);
+}
+
 void
 gum_code_writer_put_and_reg_u32 (GumCodeWriter * self,
                                  GumCpuReg reg,

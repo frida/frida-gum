@@ -170,6 +170,8 @@ void gum_code_writer_put_inc_reg_ptr (GumCodeWriter * self, GumPtrTarget target,
 void gum_code_writer_put_dec_reg_ptr (GumCodeWriter * self, GumPtrTarget target, GumCpuReg reg);
 void gum_code_writer_put_lock_xadd_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (GumCodeWriter * self, GumCpuReg dst_reg, GumCpuReg src_reg);
+void gum_code_writer_put_lock_inc_imm32_ptr (GumCodeWriter * self, gpointer target);
+void gum_code_writer_put_lock_dec_imm32_ptr (GumCodeWriter * self, gpointer target);
 
 void gum_code_writer_put_and_reg_u32 (GumCodeWriter * self, GumCpuReg reg, guint32 imm_value);
 void gum_code_writer_put_shl_reg_u8 (GumCodeWriter * self, GumCpuReg reg, guint8 imm_value);
