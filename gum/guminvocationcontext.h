@@ -20,7 +20,7 @@
 #ifndef __GUM_INVOCATION_CONTEXT_H__
 #define __GUM_INVOCATION_CONTEXT_H__
 
-#include <glib.h>
+#include <glib-object.h>
 #include <gum/gumdefs.h>
 
 typedef struct _GumInvocationBackend GumInvocationBackend;
@@ -38,12 +38,13 @@ struct _GumInvocationBackend
 
 struct _GumInvocationContext
 {
-  GumInvocationContext * parent;
+  GCallback function;
+  GumCpuContext * cpu_context;
 
   gpointer instance_data;
   gpointer thread_data;
 
-  GumCpuContext * cpu_context;
+  GumInvocationContext * parent;
 
   /*< private */
   GumInvocationBackend * backend;

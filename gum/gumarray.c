@@ -73,7 +73,7 @@ gum_array_sized_new (gboolean zero_terminated,
                      guint    elt_size,
                      guint    reserved_size)
 {
-  GumRealArray * array = gum_malloc (sizeof (GumRealArray));
+  GumRealArray * array = gum_new (GumRealArray, 1);
 
   array->data            = NULL;
   array->len             = 0;

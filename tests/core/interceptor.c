@@ -47,17 +47,14 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (function_data)
   INTERCEPTOR_TESTENTRY (parent_data)
 
-#if GLIB_SIZEOF_VOID_P == 4
   INTERCEPTOR_TESTENTRY (replace_function)
-#endif
 TEST_LIST_END ()
 
 static gpointer target_function (GString * str);
 static gpointer target_nop_function_a (gpointer data);
 static gpointer target_nop_function_b (gpointer data);
 static gpointer target_nop_function_c (gpointer data);
-static gpointer replacement_malloc (gpointer original_impl, gpointer user_data,
-    gpointer caller_ret_addr, guint size);
+static gpointer replacement_malloc (gsize size);
 
 INTERCEPTOR_TESTCASE (attach_one)
 {
@@ -434,8 +431,6 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
   proxy_func_free (proxy_func);
 }
 
-#if GLIB_SIZEOF_VOID_P == 4
-
 INTERCEPTOR_TESTCASE (replace_function)
 {
   guint counter = 0;
@@ -460,8 +455,6 @@ INTERCEPTOR_TESTCASE (replace_function)
   g_assert_cmpint (counter, ==, 1);
   free (ret);
 }
-
-#endif
 
 static gpointer GUM_NOINLINE
 target_function (GString * str)
@@ -494,22 +487,29 @@ target_nop_function_c (gpointer data)
   return GSIZE_TO_POINTER (3);
 }
 
-typedef gpointer (* MallocFunction) (guint size);
+typedef gpointer (* MallocFunc) (gsize size);
 
-static gpointer GUM_NOINLINE
-replacement_malloc (gpointer original_impl,
-                    gpointer user_data,
-                    gpointer caller_ret_addr,
-                    guint size)
+static gpointer
+replacement_malloc (gsize size)
 {
-  MallocFunction malloc_impl = (MallocFunction) original_impl;
-  guint * counter = (guint *) user_data;
+  GumInvocationContext * ctx;
+  MallocFunc malloc_impl;
+  guint * counter;
   gpointer a;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  malloc_impl = (MallocFunc) ctx->function;
+  counter = (guint *) ctx->instance_data;
 
   (*counter)++;
 
   a = malloc_impl (1);
   free (a);
+
+  g_assert_cmpuint ((gsize) gum_invocation_context_get_nth_argument (ctx, 0),
+      ==, size);
 
   return GSIZE_TO_POINTER (size);
 }

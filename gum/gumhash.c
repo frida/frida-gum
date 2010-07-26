@@ -403,7 +403,7 @@ gum_hash_table_resize (GumHashTable *hash_table)
   old_size = hash_table->size;
   gum_hash_table_set_shift_from_size (hash_table, hash_table->nnodes * 2);
 
-  new_nodes = gum_malloc0 (hash_table->size * sizeof (GumHashNode));
+  new_nodes = gum_new0 (GumHashNode, hash_table->size);
 
   for (i = 0; i < old_size; i++)
     {
@@ -505,7 +505,7 @@ gum_hash_table_new_full (GHashFunc       hash_func,
 {
   GumHashTable *hash_table;
 
-  hash_table = gum_malloc (sizeof (GumHashTable));
+  hash_table = gum_new (GumHashTable, 1);
   gum_hash_table_set_shift (hash_table, HASH_TABLE_MIN_SHIFT);
   hash_table->nnodes             = 0;
   hash_table->noccupied          = 0;
@@ -517,8 +517,7 @@ gum_hash_table_new_full (GHashFunc       hash_func,
 #endif
   hash_table->key_destroy_func   = key_destroy_func;
   hash_table->value_destroy_func = value_destroy_func;
-  hash_table->nodes              =
-      gum_malloc0 (hash_table->size * sizeof (GumHashNode));
+  hash_table->nodes              = gum_new0 (GumHashNode, hash_table->size);
 
   return hash_table;
 }

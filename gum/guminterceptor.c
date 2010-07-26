@@ -72,6 +72,12 @@ struct _InterceptorThreadContext
 {
   guint ignore_level;
   GumArray * stack;
+
+  GumInvocationContext * current_invocation;
+  GumInvocationContext invocation_context;
+  GumInvocationBackend invocation_backend;
+  GumCpuContext cpu_context;
+  gpointer return_address;
 };
 
 struct _ListenerEntry
@@ -97,7 +103,6 @@ struct _FunctionContext
 
   GumCodeAllocator * allocator;
   GumCodeSlice * trampoline_slice;
-  GumCodeSlice * prologue_slice;
 
   gpointer on_enter_trampoline;
   guint8 overwritten_prologue[32];
@@ -410,6 +415,58 @@ gum_interceptor_revert_function (GumInterceptor * self,
   GUM_INTERCEPTOR_UNLOCK ();
 }
 
+GumInvocationContext *
+gum_interceptor_get_current_invocation (void)
+{
+  InterceptorThreadContext * interceptor_ctx;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+  return &interceptor_ctx->invocation_context;
+}
+
+static gboolean
+gum_interceptor_begin_invocation (GCallback function,
+                                  const GumCpuContext * cpu_context,
+                                  gpointer instance_data,
+                                  gpointer return_address)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationContext * ctx;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  if (interceptor_ctx->current_invocation != NULL)
+    return FALSE;
+
+  ctx = &interceptor_ctx->invocation_context;
+  ctx->function = function;
+
+  ctx->instance_data = instance_data;
+
+  interceptor_ctx->cpu_context = *cpu_context;
+  interceptor_ctx->return_address = return_address;
+
+  interceptor_ctx->current_invocation = ctx;
+  return TRUE;
+}
+
+static gpointer
+gum_interceptor_end_invocation (void)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationContext * ctx;
+  gpointer return_address;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  g_assert (interceptor_ctx->current_invocation != NULL);
+
+  return_address = interceptor_ctx->return_address;
+  interceptor_ctx->return_address = NULL;
+
+  interceptor_ctx->current_invocation = NULL;
+  return return_address;
+}
+
 void
 gum_interceptor_ignore_caller (GumInterceptor * self)
 {
@@ -520,7 +577,7 @@ function_context_new (gpointer function_address,
 {
   FunctionContext * ctx;
 
-  ctx = (FunctionContext *) gum_malloc0 (sizeof (FunctionContext));
+  ctx = gum_new0 (FunctionContext, 1);
   ctx->function_address = function_address;
   ctx->allocator = allocator;
 
@@ -702,6 +759,9 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
       backend = gum_interceptor_invocation_backend_template;
       backend.user_data = entry;
 
+      context.function = G_CALLBACK (function_ctx->function_address);
+      context.cpu_context = cpu_context;
+
       context.instance_data = entry->function_instance_data;
 
       if (i < thread_ctx->listener_data_count)
@@ -725,7 +785,6 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
           entry->listener_instance, &parent_context);
       context.parent = &parent_context;
 
-      context.cpu_context = cpu_context;
       context.backend = &backend;
 
       entry->listener_interface->on_enter (entry->listener_instance, &context);
@@ -771,6 +830,9 @@ gum_function_context_on_leave (FunctionContext * function_ctx,
     backend = gum_interceptor_invocation_backend_template;
     backend.user_data = entry;
 
+    context.function = G_CALLBACK (function_ctx->function_address);
+    context.cpu_context = cpu_context;
+
     context.instance_data = entry->function_instance_data;
     context.thread_data = thread_ctx->listener_data[i];
 
@@ -778,7 +840,6 @@ gum_function_context_on_leave (FunctionContext * function_ctx,
         entry->listener_instance, &parent_context);
     context.parent = &parent_context;
 
-    context.cpu_context = cpu_context;
     context.backend = &backend;
 
     entry->listener_interface->on_leave (entry->listener_instance, &context);
@@ -796,8 +857,10 @@ fill_parent_context_for_listener (FunctionThreadContext * parent_thread_ctx,
                                   GumInvocationListener * listener,
                                   GumInvocationContext * parent_context)
 {
-  parent_context->parent = NULL;
+  parent_context->function = NULL;
   parent_context->cpu_context = NULL;
+
+  parent_context->parent = NULL;
   parent_context->backend = NULL;
 
   if (parent_thread_ctx != NULL)
@@ -855,13 +918,18 @@ get_interceptor_thread_context (void)
 {
   InterceptorThreadContext * context;
 
-  context = GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
+  context = (InterceptorThreadContext *)
+      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
   if (context == NULL)
   {
-    context = gum_malloc (sizeof (InterceptorThreadContext));
+    context = gum_new0 (InterceptorThreadContext, 1);
     context->ignore_level = 0;
     context->stack = gum_array_sized_new (FALSE, FALSE,
         sizeof (ThreadContextStackEntry), GUM_MAX_CALL_DEPTH);
+
+    context->invocation_context.cpu_context = &context->cpu_context;
+    context->invocation_context.backend = &context->invocation_backend;
+    context->invocation_backend = gum_interceptor_invocation_backend_template;
 
     GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tls_key, context);
   }
@@ -1024,12 +1092,7 @@ gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_code_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XSI,
       GUM_REG_XSP, sizeof (GumCpuContext) + 2 * sizeof (gpointer));
   gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_XSP,
-#if GLIB_SIZEOF_VOID_P == 4
-      G_STRUCT_OFFSET (GumCpuContext, esp),
-#else
-      G_STRUCT_OFFSET (GumCpuContext, rsp),
-#endif
+      GUM_REG_XSP, GUM_CPU_CONTEXT_OFFSET_XSP,
       GUM_REG_XSI);
 
   gum_code_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
@@ -1112,28 +1175,63 @@ gum_function_context_make_replace_trampoline (FunctionContext * ctx,
                                               gpointer replacement_address,
                                               gpointer user_data)
 {
+  gconstpointer skip_label = "gum_interceptor_replacement_skip";
   GumCodeWriter cw;
   GumRelocator rl;
   guint reloc_bytes;
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       ctx->function_address);
-  ctx->prologue_slice = gum_code_allocator_new_slice_near (ctx->allocator,
-      ctx->function_address);
 
-  ctx->on_enter_trampoline = ctx->trampoline_slice->data;
-  gum_code_writer_init (&cw, ctx->on_enter_trampoline);
-  gum_code_writer_put_call_with_arguments (&cw, replacement_address,
-      2,
-      GUM_ARG_POINTER, ctx->prologue_slice->data,
-      GUM_ARG_POINTER, user_data);
+  ctx->on_leave_trampoline = ctx->trampoline_slice->data;
+  gum_code_writer_init (&cw, ctx->on_leave_trampoline);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder */
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XDX);
+  gum_code_writer_put_call_with_arguments (&cw,
+      gum_interceptor_end_invocation, 0);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_XSP, 2 * sizeof (gpointer),
+      GUM_REG_XAX);
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XDX);
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX);
   gum_code_writer_put_ret (&cw);
 
-  gum_code_writer_flush (&cw);
-  g_assert_cmpuint (gum_code_writer_offset (&cw),
-      <=, ctx->trampoline_slice->size);
+  ctx->on_enter_trampoline = gum_code_writer_cur (&cw);
 
-  gum_code_writer_reset (&cw, ctx->prologue_slice->data);
+  gum_code_writer_put_pushax (&cw);
+  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder */
+
+  /* GumCpuContext fixup of stack pointer */
+  gum_code_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XAX,
+      GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer));
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_XSP, GUM_CPU_CONTEXT_OFFSET_XSP,
+      GUM_REG_XAX);
+
+  gum_code_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
+  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XDI,
+      GUM_REG_XSP, sizeof (GumCpuContext));
+  gum_code_writer_put_call_with_arguments (&cw,
+      gum_interceptor_begin_invocation, 4,
+      GUM_ARG_POINTER, ctx->function_address,
+      GUM_ARG_REGISTER, GUM_REG_XSI,
+      GUM_ARG_POINTER, user_data,
+      GUM_ARG_REGISTER, GUM_REG_XDI);
+  gum_code_writer_put_test_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
+  gum_code_writer_put_jz_label (&cw, skip_label, GUM_NO_HINT);
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_code_writer_put_popax (&cw);
+
+  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
+      GUM_ADDRESS (ctx->on_leave_trampoline));
+  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XSP, GUM_REG_XAX);
+  gum_code_writer_put_jmp (&cw, replacement_address);
+
+  gum_code_writer_put_label (&cw, skip_label);
+  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_code_writer_put_popax (&cw);
+
   gum_relocator_init (&rl, (guint8 *) ctx->function_address, &cw);
 
   do
@@ -1154,7 +1252,7 @@ gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   gum_code_writer_flush (&cw);
   g_assert_cmpuint (gum_code_writer_offset (&cw),
-      <=, ctx->prologue_slice->size);
+      <=, ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
@@ -1168,12 +1266,6 @@ gum_function_context_destroy_trampoline (FunctionContext * ctx)
 {
   gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
-
-  if (ctx->prologue_slice != NULL)
-  {
-    gum_code_allocator_free_slice (ctx->allocator, ctx->prologue_slice);
-    ctx->prologue_slice = NULL;
-  }
 }
 
 static void

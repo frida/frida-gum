@@ -31,9 +31,9 @@
 #include "gumlist.h"
 #include "gummemory.h"
 
-#define _gum_list_alloc()         gum_malloc  (sizeof (GumList))
-#define _gum_list_alloc0()        gum_malloc0 (sizeof (GumList))
-#define _gum_list_free1(list)     gum_free    (list)
+#define _gum_list_alloc()         gum_new  (GumList, 1)
+#define _gum_list_alloc0()        gum_new0 (GumList, 1)
+#define _gum_list_free1(list)     gum_free (list)
 
 GumList*
 gum_list_alloc (void)

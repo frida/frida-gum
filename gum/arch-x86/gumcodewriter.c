@@ -245,7 +245,7 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
   va_list vl;
   gint arg_index;
 
-  g_return_if_fail (n_args > 0 && n_args <= 4);
+  g_return_if_fail (n_args <= 4);
 
   va_start (vl, n_args);
   for (arg_index = 0; arg_index != n_args; arg_index++)
@@ -273,9 +273,14 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
       else
         gum_code_writer_put_push_reg (self, arg->value.reg);
     }
+
     gum_code_writer_put_call (self, func);
-    gum_code_writer_put_add_reg_imm (self, GUM_REG_ESP,
-        n_args * sizeof (guint32));
+
+    if (n_args != 0)
+    {
+      gum_code_writer_put_add_reg_imm (self, GUM_REG_ESP,
+          n_args * sizeof (guint32));
+    }
   }
   else
   {
@@ -301,6 +306,7 @@ gum_code_writer_put_call_with_arguments (GumCodeWriter * self,
             arg->value.reg);
       }
     }
+
     gum_code_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
     gum_code_writer_put_call (self, func);
     gum_code_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);

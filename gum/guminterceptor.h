@@ -79,6 +79,8 @@ GUM_API void gum_interceptor_replace_function (GumInterceptor * self,
 GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
     gpointer function_address);
 
+GUM_API GumInvocationContext * gum_interceptor_get_current_invocation (void);
+
 GUM_API void gum_interceptor_ignore_caller (GumInterceptor * self);
 GUM_API void gum_interceptor_unignore_caller (GumInterceptor * self);
 
