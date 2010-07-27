@@ -30,7 +30,8 @@
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Script, test_script, NAME, TestScriptFixture)
+    TEST_ENTRY_WITH_FIXTURE ("Core/Script", test_script, NAME, \
+        TestScriptFixture)
 
 typedef struct _TestScriptFixture
 {

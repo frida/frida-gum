@@ -36,7 +36,7 @@
     void test_stalker_ ## NAME ( \
         TestStalkerFixture * fixture, gconstpointer data)
 #define STALKER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Stalker, test_stalker, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
         TestStalkerFixture)
 
 #if GLIB_SIZEOF_VOID_P == 4

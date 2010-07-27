@@ -32,15 +32,15 @@
 #define TEST_ENTRY_SIMPLE(NAME, PREFIX, FUNC)                             \
   G_STMT_START                                                            \
   {                                                                       \
-    static void PREFIX## _ ##FUNC (void);                                 \
-    g_test_add_func ("/" #NAME "/" #FUNC, PREFIX## _ ##FUNC);             \
+    extern void PREFIX## _ ##FUNC (void);                                 \
+    g_test_add_func ("/" NAME "/" #FUNC, PREFIX## _ ##FUNC);              \
   }                                                                       \
   G_STMT_END;
 #define TEST_ENTRY_WITH_FIXTURE(NAME, PREFIX, FUNC, STRUCT)               \
   G_STMT_START                                                            \
   {                                                                       \
-    static void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
-    g_test_add ("/" #NAME "/" #FUNC,                                      \
+    extern void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
+    g_test_add ("/" NAME "/" #FUNC,                                       \
         STRUCT,                                                           \
         NULL,                                                             \
         PREFIX## _fixture_setup,                                          \

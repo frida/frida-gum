@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -64,11 +64,9 @@ static void gum_instance_tracker_dispose (GObject * object);
 static void gum_instance_tracker_finalize (GObject * object);
 
 static void gum_instance_tracker_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    GumCpuContext * cpu_context, gpointer function_arguments);
+    GumInvocationContext * ctx);
 static void gum_instance_tracker_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    gpointer function_return_value);
+    GumInvocationContext * ctx);
 static gpointer gum_instance_tracker_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
@@ -279,18 +277,19 @@ gum_instance_tracker_remove_instance (GumInstanceTracker * self,
 
 static void
 gum_instance_tracker_on_enter (GumInvocationListener * listener,
-                               GumInvocationContext * context,
-                               GumInvocationContext * parent_context,
-                               GumCpuContext * cpu_context,
-                               gpointer function_arguments)
+                               GumInvocationContext * ctx)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
-  FunctionId function_id = GPOINTER_TO_INT (context->instance_data);
+  FunctionId function_id = (FunctionId) GPOINTER_TO_INT (ctx->instance_data);
 
   if (function_id == FUNCTION_ID_FREE_INSTANCE)
   {
-    GTypeInstance * instance = *((gpointer *) function_arguments);
-    GType gtype = G_TYPE_FROM_INSTANCE (instance);
+    GTypeInstance * instance;
+    GType gtype;
+
+    instance = (GTypeInstance *)
+        gum_invocation_context_get_nth_argument (ctx, 0);
+    gtype = G_TYPE_FROM_INSTANCE (instance);
 
     gum_instance_tracker_remove_instance (self, instance, gtype);
   }
@@ -298,17 +297,18 @@ gum_instance_tracker_on_enter (GumInvocationListener * listener,
 
 static void
 gum_instance_tracker_on_leave (GumInvocationListener * listener,
-                               GumInvocationContext * context,
-                               GumInvocationContext * parent_context,
-                               gpointer function_return_value)
+                               GumInvocationContext * ctx)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
-  FunctionId function_id = GPOINTER_TO_INT (context->instance_data);
+  FunctionId function_id = (FunctionId) GPOINTER_TO_INT (ctx->instance_data);
 
   if (function_id == FUNCTION_ID_CREATE_INSTANCE)
   {
-    GTypeInstance * instance = function_return_value;
-    GType gtype = G_TYPE_FROM_INSTANCE (instance);
+    GTypeInstance * instance;
+    GType gtype;
+
+    instance = (GTypeInstance *) gum_invocation_context_get_return_value (ctx);
+    gtype = G_TYPE_FROM_INSTANCE (instance);
 
     gum_instance_tracker_add_instance (self, instance, gtype);
   }

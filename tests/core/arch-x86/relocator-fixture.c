@@ -28,7 +28,7 @@
     void test_relocator_ ## NAME ( \
         TestRelocatorFixture * fixture, gconstpointer data)
 #define RELOCATOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Relocator, test_relocator, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Core/Relocator", test_relocator, NAME, \
         TestRelocatorFixture)
 
 #define TEST_OUTBUF_SIZE 32

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,6 +19,12 @@
 
 #include "gumbacktracer.h"
 
+#ifdef G_OS_WIN32
+#include "backend-dbghelp/gumdbghelpbacktracer.h"
+#else
+#include "backend-glibc/gumgnubacktracer.h"
+#endif
+
 GType
 gum_backtracer_get_type (void)
 {
@@ -36,6 +42,16 @@ gum_backtracer_get_type (void)
   }
 
   return (GType) gonce_value;
+}
+
+GumBacktracer *
+gum_backtracer_make_default (void)
+{
+#ifdef G_OS_WIN32
+  return gum_dbghelp_backtracer_new ();
+#else
+  return gum_gnu_backtracer_new ();
+#endif
 }
 
 void

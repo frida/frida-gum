@@ -32,7 +32,7 @@ TEST_LIST_BEGIN (tracer)
 
   TRACER_TESTENTRY (torture)
 
-  TEST_ENTRY_SIMPLE (Tracer, test, ringbuffer)
+  TEST_ENTRY_SIMPLE ("Core/Tracer", test, ringbuffer)
 TEST_LIST_END ()
 
 #define TORTURE_ENTRY_COUNT 200000

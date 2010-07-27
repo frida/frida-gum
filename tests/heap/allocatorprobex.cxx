@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,28 +17,23 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <stdlib.h>
-#include <gum/gum.h>
+#include "allocatorprobe-fixture.c"
 
-#define READ_PROBE_COUNTERS() \
-  g_object_get (probe,\
-      "malloc-count", &malloc_count,\
-      "realloc-count", &realloc_count,\
-      "free-count", &free_count,\
-      NULL);
+G_BEGIN_DECLS
+
+TEST_LIST_BEGIN (allocator_probe_cxx)
+  ALLOCPROBE_TESTENTRY (new_delete)
+  ALLOCPROBE_TESTENTRY (concurrency)
+TEST_LIST_END ()
 
 static gpointer concurrency_torture_helper (gpointer data);
 
-static void
-test_new_delete (void)
+ALLOCPROBE_TESTCASE (new_delete)
 {
-  GumAllocatorProbe * probe;
   guint malloc_count, realloc_count, free_count;
   int * a;
 
-  probe = gum_allocator_probe_new ();
-
-  g_object_set (probe, "enable-counters", TRUE, NULL);
+  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);
@@ -53,7 +48,7 @@ test_new_delete (void)
 
   delete a;
 
-  gum_allocator_probe_attach (probe);
+  gum_allocator_probe_attach (fixture->ap);
 
   a = new int;
   READ_PROBE_COUNTERS ();
@@ -67,21 +62,17 @@ test_new_delete (void)
   g_assert_cmpuint (realloc_count, ==, 0);
   g_assert_cmpuint (free_count, ==, 1);
 
-  gum_allocator_probe_detach (probe);
+  gum_allocator_probe_detach (fixture->ap);
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);
   g_assert_cmpuint (realloc_count, ==, 0);
   g_assert_cmpuint (free_count, ==, 0);
-
-  g_object_unref (probe);
 }
 
-static void
-test_concurrency (void)
+ALLOCPROBE_TESTCASE (concurrency)
 {
-  GumAllocatorProbe * probe = gum_allocator_probe_new ();
-  gum_allocator_probe_attach (probe);
+  gum_allocator_probe_attach (fixture->ap);
 
   GThread * thread = g_thread_create (concurrency_torture_helper, NULL, TRUE,
       NULL);
@@ -95,9 +86,6 @@ test_concurrency (void)
   }
 
   g_thread_join (thread);
-
-  gum_allocator_probe_detach (probe);
-  g_object_unref (probe);
 }
 
 static gpointer
@@ -110,15 +98,6 @@ concurrency_torture_helper (gpointer data)
   }
 
   return NULL;
-}
-
-G_BEGIN_DECLS
-
-void
-gum_test_register_allocator_probe_cxx_tests (void)
-{
-  g_test_add_func ("/Gum/AllocatorProbe/test-new-delete", &test_new_delete);
-  g_test_add_func ("/Gum/AllocatorProbe/test-concurrency", &test_concurrency);
 }
 
 G_END_DECLS

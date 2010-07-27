@@ -27,13 +27,21 @@ static gpointer do_init (gpointer data);
 void
 gum_init (void)
 {
+  gum_init_with_features (GUM_FEATURE_DEFAULT);
+}
+
+void
+gum_init_with_features (GumFeatureFlags features)
+{
   static GOnce init_once = G_ONCE_INIT;
-  g_once (&init_once, do_init, NULL);
+  g_once (&init_once, do_init, GINT_TO_POINTER (features));
 }
 
 static gpointer
 do_init (gpointer data)
 {
+  GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
+
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 
   g_type_init ();
@@ -47,9 +55,8 @@ do_init (gpointer data)
 
   gum_memory_init ();
 
-#ifndef GUM_DISABLE_SYMBOL_UTIL
-  gum_symbol_util_init ();
-#endif
+  if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
+    gum_symbol_util_init ();
 
   return NULL;
 }

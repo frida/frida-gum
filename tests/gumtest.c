@@ -59,7 +59,10 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (script);
   TEST_RUN_LIST (tracer);
-  /*TEST_RUN_LIST (sampler);*/
+
+  TEST_RUN_LIST (allocation_tracker);
+  TEST_RUN_LIST (allocator_probe);
+  TEST_RUN_LIST (allocator_probe_cxx);
 
 #ifdef _MSC_VER
 #pragma warning (pop)

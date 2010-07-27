@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -19,10 +19,11 @@
  */
 
 #include "gumallocatorprobe.h"
+
 #include "guminterceptor.h"
 #include "gumsymbolutil.h"
-#include <gmodule.h>
 
+#include <gmodule.h>
 #ifdef G_OS_WIN32
 # ifdef _DEBUG
 #  include <crtdbg.h>
@@ -61,9 +62,9 @@ typedef struct _AllocThreadContext   AllocThreadContext;
 typedef struct _ReallocThreadContext ReallocThreadContext;
 
 typedef void (* HeapEnterHandler) (GumAllocatorProbe * self,
-    gpointer thread_ctx, GumCpuContext * cpu_context, gpointer args);
+    gpointer thread_ctx, GumInvocationContext * invocation_ctx);
 typedef void (* HeapLeaveHandler) (GumAllocatorProbe * self,
-    gpointer thread_ctx, gpointer seen_return_value);
+    gpointer thread_ctx, GumInvocationContext * invocation_ctx);
 
 struct _GumAllocatorProbePrivate
 {
@@ -94,8 +95,13 @@ struct _GumAllocatorProbePrivate
  */
 #if defined (G_OS_WIN32) && defined (_DEBUG)
 #define LOCK_INDEX_HEAP (4)
+#ifdef GUM_STATIC
+void _lock   (gint lock_index);
+void _unlock (gint lock_index);
+#else
 __declspec(dllimport) void _lock   (gint lock_index);
 __declspec(dllimport) void _unlock (gint lock_index);
+#endif
 #define GUM_ALLOCATOR_PROBE_LOCK()   _lock   (LOCK_INDEX_HEAP)
 #define GUM_ALLOCATOR_PROBE_UNLOCK() _unlock (LOCK_INDEX_HEAP)
 #else
@@ -145,75 +151,6 @@ struct _FreeThreadContext
   gpointer address;
 };
 
-#pragma pack (push, 1)
-
-typedef struct
-{
-  gsize size;
-} MallocArgs;
-
-typedef struct
-{
-  gsize num;
-  gsize size;
-} CallocArgs;
-
-typedef struct
-{
-  gpointer old_address;
-  gsize new_size;
-} ReallocArgs;
-
-typedef struct
-{
-  gpointer old_address;
-  gsize num;
-  gsize size;
-} ReCallocArgs;
-
-typedef struct
-{
-  gpointer address;
-} FreeArgs;
-
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-
-typedef struct
-{
-  gsize size;
-  gint block_type;
-  const gchar * filename;
-  gint line_number;
-} MallocDbgArgs;
-
-typedef struct
-{
-  gsize num;
-  gsize size;
-  gint block_type;
-  const gchar * filename;
-  gint line_number;
-} CallocDbgArgs;
-
-typedef struct
-{
-  gpointer old_address;
-  gsize new_size;
-  gint block_type;
-  const gchar * filename;
-  gint line_number;
-} ReallocDbgArgs;
-
-typedef struct
-{
-  gpointer address;
-  gint block_type;
-} FreeDbgArgs;
-
-#endif
-
-#pragma pack (pop)
-
 static void gum_allocator_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -229,11 +166,9 @@ static void gum_allocator_probe_apply_default_suppressions (
     GumAllocatorProbe * self);
 
 static void gum_allocator_probe_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    GumCpuContext * cpu_context, gpointer function_arguments);
+    GumInvocationContext * ctx);
 static void gum_allocator_probe_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    gpointer function_return_value);
+    GumInvocationContext * ctx);
 static gpointer gum_allocator_probe_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
@@ -253,35 +188,28 @@ static void gum_allocator_probe_on_realloc (GumAllocatorProbe * self,
     const GumCpuContext * cpu_context);
 
 static void on_malloc_enter_handler (GumAllocatorProbe * self,
-    AllocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    MallocArgs * args);
+    AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_calloc_enter_handler (GumAllocatorProbe * self,
-    AllocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    CallocArgs * args);
+    AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_shared_xalloc_leave_handler (GumAllocatorProbe * self,
-    AllocThreadContext * thread_ctx, gpointer seen_return_value);
+    AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_realloc_enter_handler (GumAllocatorProbe * self,
-    ReallocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    ReallocArgs * args);
+    ReallocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_realloc_leave_handler (GumAllocatorProbe * self,
-    ReallocThreadContext * thread_ctx, gpointer seen_return_value);
+    ReallocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_free_enter_handler (GumAllocatorProbe * self,
-    gpointer thread_ctx, GumCpuContext * cpu_context, FreeArgs * args);
+    gpointer thread_ctx, GumInvocationContext * invocation_ctx);
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
 
 static void on_malloc_dbg_enter_handler (GumAllocatorProbe * self,
-    AllocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    MallocDbgArgs * args);
+    AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_calloc_dbg_enter_handler (GumAllocatorProbe * self,
-    AllocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    CallocDbgArgs * args);
+    AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_realloc_dbg_enter_handler (GumAllocatorProbe * self,
-    ReallocThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    ReallocDbgArgs * args);
+    ReallocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_free_dbg_enter_handler (GumAllocatorProbe * self,
-    ThreadContext * thread_ctx, GumCpuContext * cpu_context,
-    FreeDbgArgs * args);
+    ThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 
 static void decide_ignore_from_block_type (ThreadContext * thread_ctx,
     gint block_type);
@@ -310,29 +238,29 @@ gum_allocator_probe_class_init (GumAllocatorProbeClass * klass)
 
   pspec = g_param_spec_object ("allocation-tracker", "AllocationTracker",
       "AllocationTracker to use", GUM_TYPE_ALLOCATION_TRACKER,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_ALLOCATION_TRACKER,
       pspec);
 
   pspec = g_param_spec_boolean ("enable-counters", "Enable Counters",
       "Enable counters for probed functions", DEFAULT_ENABLE_COUNTERS,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_ENABLE_COUNTERS,
       pspec);
 
   pspec = g_param_spec_uint ("malloc-count", "Malloc Count",
       "Number of malloc() calls seen so far", 0, G_MAXUINT, 0,
-      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+      (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_MALLOC_COUNT, pspec);
 
   pspec = g_param_spec_uint ("realloc-count", "Realloc Count",
       "Number of realloc() calls seen so far", 0, G_MAXUINT, 0,
-      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+      (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_REALLOC_COUNT, pspec);
 
   pspec = g_param_spec_uint ("free-count", "Free Count",
       "Number of free() calls seen so far", 0, G_MAXUINT, 0,
-      G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
+      (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FREE_COUNT, pspec);
 }
 
@@ -492,15 +420,12 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
 static void
 gum_allocator_probe_on_enter (GumInvocationListener * listener,
-                              GumInvocationContext * context,
-                              GumInvocationContext * parent_context,
-                              GumCpuContext * cpu_context,
-                              gpointer function_arguments)
+                              GumInvocationContext * ctx)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
-  FunctionContext * function_ctx = context->instance_data;
-  ThreadContext * base_thread_ctx = context->thread_data;
+  FunctionContext * function_ctx = (FunctionContext *) ctx->instance_data;
+  ThreadContext * base_thread_ctx = (ThreadContext *) ctx->thread_data;
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
@@ -510,31 +435,25 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 
     base_thread_ctx->ignored = FALSE;
 
-    function_ctx->handlers.enter_handler (self, context->thread_data,
-        cpu_context, function_arguments);
+    function_ctx->handlers.enter_handler (self, ctx->thread_data, ctx);
   }
 }
 
 static void
 gum_allocator_probe_on_leave (GumInvocationListener * listener,
-                              GumInvocationContext * context,
-                              GumInvocationContext * parent_context,
-                              gpointer function_return_value)
+                              GumInvocationContext * ctx)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
-  FunctionContext * function_ctx = context->instance_data;
-  ThreadContext * base_ctx = context->thread_data;
+  FunctionContext * function_ctx = (FunctionContext *) ctx->instance_data;
+  ThreadContext * base_ctx = (ThreadContext *) ctx->thread_data;
 
   if (function_ctx != NULL)
   {
     if (!base_ctx->ignored)
     {
       if (function_ctx->handlers.leave_handler != NULL)
-      {
-        function_ctx->handlers.leave_handler (self, context->thread_data,
-            function_return_value);
-      }
+        function_ctx->handlers.leave_handler (self, ctx->thread_data, ctx);
     }
 
     GUM_ALLOCATOR_PROBE_UNLOCK ();
@@ -548,7 +467,7 @@ gum_allocator_probe_provide_thread_data (GumInvocationListener * listener,
                                          gpointer function_instance_data,
                                          guint thread_id)
 {
-  FunctionContext * function_ctx = function_instance_data;
+  FunctionContext * function_ctx = (FunctionContext *) function_instance_data;
   guint i;
 
   if (function_ctx == NULL)
@@ -562,33 +481,83 @@ gum_allocator_probe_provide_thread_data (GumInvocationListener * listener,
 GumAllocatorProbe *
 gum_allocator_probe_new (void)
 {
-  return g_object_new (GUM_TYPE_ALLOCATOR_PROBE, NULL);
+  return GUM_ALLOCATOR_PROBE_CAST (
+      g_object_new (GUM_TYPE_ALLOCATOR_PROBE, NULL));
 }
 
 typedef struct
 {
   const gchar * name;
+  gpointer local_address;
   HeapHandlers handlers;
 } ProbeHandler;
 
 static const ProbeHandler probe_handlers[] =
 {
-  { "malloc",  { (HeapEnterHandler) on_malloc_enter_handler,
-                 (HeapLeaveHandler) on_shared_xalloc_leave_handler        } },
-  { "calloc",  { (HeapEnterHandler) on_calloc_enter_handler,
-                 (HeapLeaveHandler) on_shared_xalloc_leave_handler        } },
-  { "realloc", { (HeapEnterHandler) on_realloc_enter_handler,
-                 (HeapLeaveHandler) on_realloc_leave_handler              } },
-  { "free",    { (HeapEnterHandler) on_free_enter_handler, NULL           } },
+  {
+    "malloc", malloc,
+    {
+      (HeapEnterHandler) on_malloc_enter_handler,
+      (HeapLeaveHandler) on_shared_xalloc_leave_handler
+    }
+  },
+
+  {
+    "calloc", calloc,
+    {
+      (HeapEnterHandler) on_calloc_enter_handler,
+      (HeapLeaveHandler) on_shared_xalloc_leave_handler
+    }
+  },
+
+  {
+    "realloc", realloc,
+    {
+      (HeapEnterHandler) on_realloc_enter_handler,
+      (HeapLeaveHandler) on_realloc_leave_handler
+    }
+  },
+
+  {
+    "free", free,
+    {
+      (HeapEnterHandler) on_free_enter_handler,
+      NULL
+    }
+  },
+
 #if defined (G_OS_WIN32) && defined (_DEBUG)
-  { "_malloc_dbg",  { on_malloc_dbg_enter_handler,
-                      on_shared_xalloc_leave_handler                      } },
-  { "_calloc_dbg",  { on_calloc_dbg_enter_handler,
-                      on_shared_xalloc_leave_handler                      } },
-  { "_realloc_dbg", { on_realloc_dbg_enter_handler,
-                      on_realloc_leave_handler                            } },
-  { "_free_dbg",    { on_free_dbg_enter_handler,
-                      NULL                                                } }
+  {
+    "_malloc_dbg", _malloc_dbg,
+    {
+      (HeapEnterHandler) on_malloc_dbg_enter_handler,
+      (HeapLeaveHandler) on_shared_xalloc_leave_handler
+    }
+  },
+
+  {
+    "_calloc_dbg", _calloc_dbg,
+    {
+      (HeapEnterHandler) on_calloc_dbg_enter_handler,
+      (HeapLeaveHandler) on_shared_xalloc_leave_handler
+    }
+  },
+
+  {
+    "_realloc_dbg", _realloc_dbg,
+    {
+      (HeapEnterHandler) on_realloc_dbg_enter_handler,
+      (HeapLeaveHandler) on_realloc_leave_handler
+    }
+  },
+
+  {
+    "_free_dbg", _free_dbg,
+    {
+      (HeapEnterHandler) on_free_dbg_enter_handler,
+      NULL
+    }
+  }
 #endif
 };
 
@@ -604,16 +573,25 @@ gum_allocator_probe_attach (GumAllocatorProbe * self)
   /*
    * TODO: we only intercept the CRT currently in use for now.
    */
-  module = g_module_open (CRT_MODULE_NAME, 0);
-  g_assert (module != NULL);
-
-  for (i = 0; i < G_N_ELEMENTS (probe_handlers); i++)
+  module = g_module_open (CRT_MODULE_NAME, (GModuleFlags) 0);
+  if (module != NULL)
   {
-    attach_to_function_by_name (self, module, probe_handlers[i].name,
-        &probe_handlers[i].handlers);
-  }
+    for (i = 0; i != G_N_ELEMENTS (probe_handlers); i++)
+    {
+      attach_to_function_by_name (self, module, probe_handlers[i].name,
+          &probe_handlers[i].handlers);
+    }
 
-  g_module_close (module);
+    g_module_close (module);
+  }
+  else
+  {
+    for (i = 0; i != G_N_ELEMENTS (probe_handlers); i++)
+    {
+      attach_to_function (self, probe_handlers[i].local_address,
+          &probe_handlers[i].handlers);
+    }
+  }
 
   gum_allocator_probe_apply_default_suppressions (self);
 
@@ -751,65 +729,81 @@ gum_allocator_probe_on_realloc (GumAllocatorProbe * self,
 static void
 on_malloc_enter_handler (GumAllocatorProbe * self,
                          AllocThreadContext * thread_ctx,
-                         GumCpuContext * cpu_context,
-                         MallocArgs * args)
+                         GumInvocationContext * invocation_ctx)
 {
-  thread_ctx->cpu_context = *cpu_context;
-  thread_ctx->size = args->size;
+  thread_ctx->cpu_context = *invocation_ctx->cpu_context;
+  thread_ctx->size =
+      (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
 }
 
 static void
 on_calloc_enter_handler (GumAllocatorProbe * self,
                          AllocThreadContext * thread_ctx,
-                         GumCpuContext * cpu_context,
-                         CallocArgs * args)
+                         GumInvocationContext * invocation_ctx)
 {
-  thread_ctx->cpu_context = *cpu_context;
-  thread_ctx->size = args->num * args->size;
+  gsize num, size;
+
+  num = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
+  size = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
+
+  thread_ctx->cpu_context = *invocation_ctx->cpu_context;
+  thread_ctx->size = num * size;
 }
 
 static void
 on_shared_xalloc_leave_handler (GumAllocatorProbe * self,
                                 AllocThreadContext * thread_ctx,
-                                gpointer seen_return_value)
+                                GumInvocationContext * invocation_ctx)
 {
-  if (seen_return_value == NULL)
-    return;
+  gpointer return_value;
 
-  gum_allocator_probe_on_malloc (self, seen_return_value, thread_ctx->size,
-      &thread_ctx->cpu_context);
+  return_value = gum_invocation_context_get_return_value (invocation_ctx);
+
+  if (return_value != NULL)
+  {
+    gum_allocator_probe_on_malloc (self, return_value, thread_ctx->size,
+        &thread_ctx->cpu_context);
+  }
 }
 
 static void
 on_realloc_enter_handler (GumAllocatorProbe * self,
                           ReallocThreadContext * thread_ctx,
-                          GumCpuContext * cpu_context,
-                          ReallocArgs * args)
+                          GumInvocationContext * invocation_ctx)
 {
-  thread_ctx->cpu_context = *cpu_context;
-  thread_ctx->old_address = args->old_address;
-  thread_ctx->new_size = args->new_size;
+  thread_ctx->cpu_context = *invocation_ctx->cpu_context;
+  thread_ctx->old_address =
+      gum_invocation_context_get_nth_argument (invocation_ctx, 0);
+  thread_ctx->new_size =
+      (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
 }
 
 static void
 on_realloc_leave_handler (GumAllocatorProbe * self,
                           ReallocThreadContext * thread_ctx,
-                          gpointer seen_return_value)
+                          GumInvocationContext * invocation_ctx)
 {
-  if (seen_return_value == NULL)
-    return;
+  gpointer return_value;
 
-  gum_allocator_probe_on_realloc (self, thread_ctx->old_address,
-      seen_return_value, thread_ctx->new_size, &thread_ctx->cpu_context);
+  return_value = gum_invocation_context_get_return_value (invocation_ctx);
+
+  if (return_value != NULL)
+  {
+    gum_allocator_probe_on_realloc (self, thread_ctx->old_address,
+        return_value, thread_ctx->new_size, &thread_ctx->cpu_context);
+  }
 }
 
 static void
 on_free_enter_handler (GumAllocatorProbe * self,
                        gpointer thread_ctx,
-                       GumCpuContext * cpu_context,
-                       FreeArgs * args)
+                       GumInvocationContext * invocation_ctx)
 {
-  gum_allocator_probe_on_free (self, args->address, cpu_context);
+  gpointer address;
+
+  address = gum_invocation_context_get_nth_argument (invocation_ctx, 0);
+
+  gum_allocator_probe_on_free (self, address, invocation_ctx->cpu_context);
 }
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
@@ -817,64 +811,65 @@ on_free_enter_handler (GumAllocatorProbe * self,
 static void
 on_malloc_dbg_enter_handler (GumAllocatorProbe * self,
                              AllocThreadContext * thread_ctx,
-                             GumCpuContext * cpu_context,
-                             MallocDbgArgs * args)
+                             GumInvocationContext * invocation_ctx)
 {
-  decide_ignore_from_block_type ((ThreadContext *) thread_ctx,
-      args->block_type);
+  gint block_type;
+
+  block_type =
+      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
+
+  decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
   if (!thread_ctx->ignored)
-  {
-    on_malloc_enter_handler (self, thread_ctx, cpu_context,
-        (MallocArgs *) args);
-  }
+    on_malloc_enter_handler (self, thread_ctx, invocation_ctx);
 }
 
 static void
 on_calloc_dbg_enter_handler (GumAllocatorProbe * self,
                              AllocThreadContext * thread_ctx,
-                             GumCpuContext * cpu_context,
-                             CallocDbgArgs * args)
+                             GumInvocationContext * invocation_ctx)
 {
-  decide_ignore_from_block_type ((ThreadContext *) thread_ctx,
-      args->block_type);
+  gint block_type;
+
+  block_type =
+      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 2);
+
+  decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
   if (!thread_ctx->ignored)
-  {
-    on_calloc_enter_handler (self, thread_ctx, cpu_context,
-        (CallocArgs *) args);
-  }
+    on_calloc_enter_handler (self, thread_ctx, invocation_ctx);
 }
 
 static void
 on_realloc_dbg_enter_handler (GumAllocatorProbe * self,
                               ReallocThreadContext * thread_ctx,
-                              GumCpuContext * cpu_context,
-                              ReallocDbgArgs * args)
+                              GumInvocationContext * invocation_ctx)
 {
-  decide_ignore_from_block_type ((ThreadContext *) thread_ctx,
-      args->block_type);
+  gint block_type;
+
+  block_type =
+      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 2);
+
+  decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
   if (!thread_ctx->ignored)
-  {
-    on_realloc_enter_handler (self, thread_ctx, cpu_context,
-        (ReallocArgs *) args);
-  }
+    on_realloc_enter_handler (self, thread_ctx, invocation_ctx);
 }
 
 static void
 on_free_dbg_enter_handler (GumAllocatorProbe * self,
                            ThreadContext * thread_ctx,
-                           GumCpuContext * cpu_context,
-                           FreeDbgArgs * args)
+                           GumInvocationContext * invocation_ctx)
 {
-  decide_ignore_from_block_type ((ThreadContext *) thread_ctx,
-      args->block_type);
+  gint block_type;
+
+  block_type =
+      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
+
+  decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
   if (!thread_ctx->ignored)
-  {
-    on_free_enter_handler (self, thread_ctx, cpu_context, (FreeArgs *) args);
-  }
+    on_free_enter_handler (self, thread_ctx, invocation_ctx);
 }
 
 static void

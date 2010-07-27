@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,6 +27,7 @@
 #define GUM_TYPE_BACKTRACER (gum_backtracer_get_type ())
 #define GUM_BACKTRACER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_BACKTRACER, GumBacktracer))
+#define GUM_BACKTRACER_CAST(obj) ((GumBacktracer *) (obj))
 #define GUM_IS_BACKTRACER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
     GUM_TYPE_BACKTRACER))
 #define GUM_BACKTRACER_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\
@@ -46,6 +47,8 @@ struct _GumBacktracerIface
 G_BEGIN_DECLS
 
 GType gum_backtracer_get_type (void);
+
+GUM_API GumBacktracer * gum_backtracer_make_default (void);
 
 GUM_API void gum_backtracer_generate (GumBacktracer * self,
     const GumCpuContext * cpu_context,

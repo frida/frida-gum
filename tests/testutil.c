@@ -26,7 +26,7 @@
 #define TESTUTIL_TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
 #define TESTUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE (TestUtil, test_testutil, NAME)
+    TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
 static gchar * byte_array_to_hex_string (const guint8 * bytes, guint length);
 static gchar * byte_array_to_bin_string (const guint8 * bytes, guint length);

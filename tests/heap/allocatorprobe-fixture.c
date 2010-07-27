@@ -1,0 +1,61 @@
+/*
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU Library General Public
+ * License as published by the Free Software Foundation; either
+ * version 2 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Library General Public License for more details.
+ *
+ * You should have received a copy of the GNU Library General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ */
+
+#include "gumallocatorprobe.h"
+
+#include "dummyclasses.h"
+#include "testutil.h"
+
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+#include <crtdbg.h>
+#endif
+#include <stdlib.h>
+
+#define ALLOCPROBE_TESTCASE(NAME) \
+    void test_allocator_probe_ ## NAME (TestAllocatorProbeFixture * fixture, \
+        gconstpointer data)
+#define ALLOCPROBE_TESTENTRY(NAME) \
+    TEST_ENTRY_WITH_FIXTURE ("Heap/AllocatorProbe", test_allocator_probe, \
+        NAME, TestAllocatorProbeFixture)
+
+typedef struct _TestAllocatorProbeFixture
+{
+  GumAllocatorProbe * ap;
+} TestAllocatorProbeFixture;
+
+static void
+test_allocator_probe_fixture_setup (TestAllocatorProbeFixture * fixture,
+                                    gconstpointer data)
+{
+  fixture->ap = gum_allocator_probe_new ();
+}
+
+static void
+test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
+                                       gconstpointer data)
+{
+  g_object_unref (fixture->ap);
+}
+
+#define READ_PROBE_COUNTERS()           \
+  g_object_get (fixture->ap,            \
+      "malloc-count", &malloc_count,    \
+      "realloc-count", &realloc_count,  \
+      "free-count", &free_count,        \
+      NULL);

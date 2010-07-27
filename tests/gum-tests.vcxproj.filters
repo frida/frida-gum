@@ -25,6 +25,9 @@
     <Filter Include="Source Files\stubs">
       <UniqueIdentifier>{e1481fee-55ad-4ba6-92cf-4663e0195527}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests\heap">
+      <UniqueIdentifier>{d8565679-3ce6-4e4f-993f-88ead8a3aa7c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumtest.c">
@@ -93,6 +96,39 @@
     <ClCompile Include="core\arch-x86\relocator-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
+    <ClCompile Include="heap\allocatorprobe.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\allocationtracker.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\allocatorprobex.cxx">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\boundschecker.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\cobjecttracker.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\instancetracker.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\pagepool.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\allocatorprobe-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="stubs\dummyclasses.c">
+      <Filter>Source Files\stubs</Filter>
+    </ClCompile>
+    <ClCompile Include="stubs\fakebacktracer.c">
+      <Filter>Source Files\stubs</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\allocationtracker-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
@@ -103,6 +139,12 @@
     </ClInclude>
     <ClInclude Include="lowlevel-helpers.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="stubs\dummyclasses.h">
+      <Filter>Source Files\stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="stubs\fakebacktracer.h">
+      <Filter>Source Files\stubs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

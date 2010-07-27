@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,35 +17,28 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <gum/gum.h>
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-#include <crtdbg.h>
-#endif
-#include <stdlib.h>
-#include "dummyclasses.h"
+#include "allocatorprobe-fixture.c"
 
-#define READ_PROBE_COUNTERS() \
-  g_object_get (probe,\
-      "malloc-count", &malloc_count,\
-      "realloc-count", &realloc_count,\
-      "free-count", &free_count,\
-      NULL);
+TEST_LIST_BEGIN (allocator_probe)
+  ALLOCPROBE_TESTENTRY (basics)
+  ALLOCPROBE_TESTENTRY (ignore_gquark)
+  ALLOCPROBE_TESTENTRY (nonstandard_basics)
+  ALLOCPROBE_TESTENTRY (nonstandard_ignored)
+  ALLOCPROBE_TESTENTRY (full_cycle)
+  ALLOCPROBE_TESTENTRY (gtype_interop)
+TEST_LIST_END ()
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
-static void do_nonstandard_heap_calls (GumAllocatorProbe * probe,
+static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
     gint block_type, gint factor);
 #endif
 
-static void
-test_basics (void)
+ALLOCPROBE_TESTCASE (basics)
 {
-  GumAllocatorProbe * probe;
   guint malloc_count, realloc_count, free_count;
   gpointer a, b;
 
-  probe = gum_allocator_probe_new ();
-
-  g_object_set (probe, "enable-counters", TRUE, NULL);
+  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);
@@ -59,7 +52,7 @@ test_basics (void)
   g_assert_cmpuint (free_count, ==, 0);
   free (a);
 
-  gum_allocator_probe_attach (probe);
+  gum_allocator_probe_attach (fixture->ap);
 
   a = malloc (42);
   READ_PROBE_COUNTERS ();
@@ -86,25 +79,20 @@ test_basics (void)
   g_assert_cmpuint (realloc_count, ==, 1);
   g_assert_cmpuint (free_count, ==, 2);
 
-  gum_allocator_probe_detach (probe);
+  gum_allocator_probe_detach (fixture->ap);
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);
   g_assert_cmpuint (realloc_count, ==, 0);
   g_assert_cmpuint (free_count, ==, 0);
-
-  g_object_unref (probe);
 }
 
-static void
-test_ignore_gquark (void)
+ALLOCPROBE_TESTCASE (ignore_gquark)
 {
-  GumAllocatorProbe * probe;
   guint malloc_count, realloc_count, free_count;
 
-  probe = gum_allocator_probe_new ();
-  g_object_set (probe, "enable-counters", TRUE, NULL);
-  gum_allocator_probe_attach (probe);
+  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
+  gum_allocator_probe_attach (fixture->ap);
 
   g_quark_from_static_string ("gumtestquark1");
   g_quark_from_string ("gumtestquark2");
@@ -114,59 +102,43 @@ test_ignore_gquark (void)
   g_assert_cmpuint (realloc_count, ==, 0);
   g_assert_cmpuint (free_count, ==, 0);
 
-  gum_allocator_probe_detach (probe);
-  g_object_unref (probe);
+  gum_allocator_probe_detach (fixture->ap);
 }
 
-static void
-test_nonstandard_basics (void)
+ALLOCPROBE_TESTCASE (nonstandard_basics)
 {
 #if defined (G_OS_WIN32) && defined (_DEBUG)
-  GumAllocatorProbe * probe;
+  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
-  probe = gum_allocator_probe_new ();
-  g_object_set (probe, "enable-counters", TRUE, NULL);
-  gum_allocator_probe_attach (probe);
-
-  do_nonstandard_heap_calls (probe, _NORMAL_BLOCK, 1);
-
-  gum_allocator_probe_detach (probe);
-  g_object_unref (probe);
+  gum_allocator_probe_attach (fixture->ap);
+  do_nonstandard_heap_calls (fixture, _NORMAL_BLOCK, 1);
+  gum_allocator_probe_detach (fixture->ap);
 #endif
 }
 
-static void
-test_nonstandard_ignored (void)
+ALLOCPROBE_TESTCASE (nonstandard_ignored)
 {
 #if defined (G_OS_WIN32) && defined (_DEBUG)
-  GumAllocatorProbe * probe;
+  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
+  gum_allocator_probe_attach (fixture->ap);
 
-  probe = gum_allocator_probe_new ();
-  g_object_set (probe, "enable-counters", TRUE, NULL);
-  gum_allocator_probe_attach (probe);
+  do_nonstandard_heap_calls (fixture, _CRT_BLOCK, 0);
 
-  do_nonstandard_heap_calls (probe, _CRT_BLOCK, 0);
-
-  gum_allocator_probe_detach (probe);
-  g_object_unref (probe);
+  gum_allocator_probe_detach (fixture->ap);
 #endif
 }
 
-static void
-test_full_cycle (void)
+ALLOCPROBE_TESTCASE (full_cycle)
 {
-  GumAllocatorProbe * p;
   GumAllocationTracker * t;
   gpointer a, b;
-
-  p = gum_allocator_probe_new ();
 
   t = gum_allocation_tracker_new ();
   gum_allocation_tracker_begin (t);
 
-  g_object_set (p, "allocation-tracker", t, NULL);
+  g_object_set (fixture->ap, "allocation-tracker", t, NULL);
 
-  gum_allocator_probe_attach (p);
+  gum_allocator_probe_attach (fixture->ap);
 
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
 
@@ -191,7 +163,6 @@ test_full_cycle (void)
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 0);
 
   g_object_unref (t);
-  g_object_unref (p);
 }
 
 /*
@@ -206,25 +177,20 @@ test_full_cycle (void)
  * FIXME: This test covers both AllocatorProbe and Interceptor, so the
  *        latter should obviously also have a test covering its own layer.
  */
-static void
-test_gtype_interop (void)
+ALLOCPROBE_TESTCASE (gtype_interop)
 {
-  GumAllocatorProbe * probe;
   MyPony * pony;
 
-  probe = gum_allocator_probe_new ();
-  gum_allocator_probe_attach (probe);
+  gum_allocator_probe_attach (fixture->ap);
 
-  pony = g_object_new (MY_TYPE_PONY, NULL);
+  pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
   g_object_unref (pony);
-
-  g_object_unref (probe);
 }
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
 
 static void
-do_nonstandard_heap_calls (GumAllocatorProbe * probe,
+do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
                            gint block_type,
                            gint factor)
 {
@@ -264,18 +230,3 @@ do_nonstandard_heap_calls (GumAllocatorProbe * probe,
 }
 
 #endif
-
-void
-gum_test_register_allocator_probe_tests (void)
-{
-  g_test_add_func ("/Gum/AllocatorProbe/test-basics", &test_basics);
-  g_test_add_func ("/Gum/AllocationTracker/test-ignore-gquark",
-      &test_ignore_gquark);
-  g_test_add_func ("/Gum/AllocatorProbe/NonStandard/test-basics",
-      &test_nonstandard_basics);
-  g_test_add_func ("/Gum/AllocatorProbe/NonStandard/test-ignored",
-      &test_nonstandard_ignored);
-  g_test_add_func ("/Gum/AllocatorProbe/test-full-cycle", &test_full_cycle);
-  g_test_add_func ("/Gum/AllocatorProbe/test-gtype-interop",
-      &test_gtype_interop);
-}

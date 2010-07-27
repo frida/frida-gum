@@ -29,7 +29,7 @@
     void test_tracer_ ## NAME ( \
         TestTracerFixture * fixture, gconstpointer data)
 #define TRACER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Tracer, test_tracer, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Core/Tracer", test_tracer, NAME, \
         TestTracerFixture)
 
 typedef struct _TestTracerFixture

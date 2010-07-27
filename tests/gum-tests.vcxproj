@@ -83,7 +83,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;GUM_DISABLE_SYMBOL_UTIL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -91,10 +91,17 @@
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copying dbghelp.dll into place</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;GUM_DISABLE_SYMBOL_UTIL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -102,10 +109,17 @@
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copying dbghelp.dll into place</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;GUM_DISABLE_SYMBOL_UTIL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -113,10 +127,17 @@
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copying dbghelp.dll into place</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;GUM_DISABLE_SYMBOL_UTIL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4205;4210;4211;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -124,9 +145,18 @@
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
     </Link>
+    <PostBuildEvent>
+      <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+</Command>
+    </PostBuildEvent>
+    <PostBuildEvent>
+      <Message>Copying dbghelp.dll into place</Message>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="lowlevel-helpers.h" />
+    <ClInclude Include="stubs\dummyclasses.h" />
+    <ClInclude Include="stubs\fakebacktracer.h" />
     <ClInclude Include="stubs\fakeeventsink.h" />
     <ClInclude Include="testutil.h" />
   </ItemGroup>
@@ -159,6 +189,45 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="core\interceptor-functiondatalistener.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\allocationtracker-fixture.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\allocationtracker.c" />
+    <ClCompile Include="heap\allocatorprobe-fixture.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\allocatorprobe.c" />
+    <ClCompile Include="heap\allocatorprobex.cxx" />
+    <ClCompile Include="heap\boundschecker.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\cobjecttracker.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\instancetracker.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="heap\pagepool.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
@@ -201,6 +270,8 @@
     </ClCompile>
     <ClCompile Include="core\tracer.c" />
     <ClCompile Include="gumtest.c" />
+    <ClCompile Include="stubs\dummyclasses.c" />
+    <ClCompile Include="stubs\fakebacktracer.c" />
     <ClCompile Include="stubs\fakeeventsink.c" />
     <ClCompile Include="testutil.c" />
   </ItemGroup>

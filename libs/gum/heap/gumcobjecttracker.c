@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -44,15 +44,13 @@ typedef struct _ObjectType             ObjectType;
 typedef struct _CObjectFunctionContext CObjectFunctionContext;
 typedef struct _CObjectThreadContext   CObjectThreadContext;
 typedef struct _CObjectHandlers        CObjectHandlers;
-typedef struct _FreeArgs               FreeArgs;
-typedef struct _GSliceFree1Args        GSliceFree1Args;
 
 typedef void (* CObjectEnterHandler) (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
-    gpointer function_arguments, const GumCpuContext * cpu_context);
+    GumInvocationContext * invocation_context);
 typedef void (* CObjectLeaveHandler) (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
-    gpointer seen_return_value);
+    GumInvocationContext * invocation_context);
 
 struct _GumCObjectTrackerPrivate
 {
@@ -93,21 +91,6 @@ struct _CObjectFunctionContext
   volatile gint thread_context_count;
 };
 
-#pragma pack (push, 1)
-
-struct _FreeArgs
-{
-  gpointer mem;
-};
-
-struct _GSliceFree1Args
-{
-  gsize mem_size;
-  gpointer mem_block;
-};
-
-#pragma pack (pop)
-
 #define GUM_COBJECT_TRACKER_GET_PRIVATE(o) ((o)->priv)
 
 #define GUM_COBJECT_TRACKER_LOCK()   g_mutex_lock   (priv->mutex)
@@ -133,27 +116,25 @@ static void gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
     gpointer context);
 
 static void gum_cobject_tracker_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    GumCpuContext * cpu_context, gpointer function_arguments);
+    GumInvocationContext * ctx);
 static void gum_cobject_tracker_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    gpointer function_return_value);
+    GumInvocationContext * ctx);
 static gpointer gum_cobject_tracker_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
 
 static void on_constructor_enter_handler (GumCObjectTracker * self,
     ObjectType * object_type, CObjectThreadContext * thread_context,
-    gpointer function_arguments, const GumCpuContext * cpu_ctx);
+    GumInvocationContext * invocation_context);
 static void on_constructor_leave_handler (GumCObjectTracker * self,
     ObjectType * object_type, CObjectThreadContext * thread_context,
-    gpointer seen_return_value);
+    GumInvocationContext * invocation_context);
 static void on_free_enter_handler (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
-    gpointer function_arguments, const GumCpuContext * cpu_ctx);
+    GumInvocationContext * invocation_context);
 static void on_g_slice_free1_enter_handler (GumCObjectTracker * self,
     gpointer handler_context, CObjectThreadContext * thread_context,
-    gpointer function_arguments, const GumCpuContext * cpu_ctx);
+    GumInvocationContext * invocation_context);
 
 static void
 gum_cobject_tracker_class_init (GumCObjectTrackerClass * klass)
@@ -170,7 +151,8 @@ gum_cobject_tracker_class_init (GumCObjectTrackerClass * klass)
 
   pspec = g_param_spec_object ("backtracer", "Backtracer",
       "Backtracer Implementation", GUM_TYPE_BACKTRACER,
-      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY);
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS |
+      G_PARAM_CONSTRUCT_ONLY));
   g_object_class_install_property (gobject_class, PROP_BACKTRACER, pspec);
 }
 
@@ -495,34 +477,31 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
 
 static void
 gum_cobject_tracker_on_enter (GumInvocationListener * listener,
-                              GumInvocationContext * context,
-                              GumInvocationContext * parent_context,
-                              GumCpuContext * cpu_context,
-                              gpointer function_arguments)
+                              GumInvocationContext * ctx)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
-  CObjectFunctionContext * function_ctx = context->instance_data;
+  CObjectFunctionContext * function_ctx =
+      (CObjectFunctionContext *) ctx->instance_data;
 
   if (function_ctx->handlers.enter_handler != NULL)
   {
     function_ctx->handlers.enter_handler (self, function_ctx->context,
-        context->thread_data, function_arguments, cpu_context);
+        (CObjectThreadContext *) ctx->thread_data, ctx);
   }
 }
 
 static void
 gum_cobject_tracker_on_leave (GumInvocationListener * listener,
-                              GumInvocationContext * context,
-                              GumInvocationContext * parent_context,
-                              gpointer function_return_value)
+                              GumInvocationContext * ctx)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
-  CObjectFunctionContext * function_ctx = context->instance_data;
+  CObjectFunctionContext * function_ctx =
+      (CObjectFunctionContext *) ctx->instance_data;
 
   if (function_ctx->handlers.leave_handler != NULL)
   {
     function_ctx->handlers.leave_handler (self, function_ctx->context,
-        context->thread_data, function_return_value);
+        (CObjectThreadContext *) ctx->thread_data, ctx);
   }
 }
 
@@ -531,11 +510,13 @@ gum_cobject_tracker_provide_thread_data (GumInvocationListener * listener,
                                          gpointer function_instance_data,
                                          guint thread_id)
 {
-  CObjectFunctionContext * function_ctx = function_instance_data;
+  CObjectFunctionContext * function_ctx =
+      (CObjectFunctionContext *) function_instance_data;
   guint i;
 
   i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
   g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
+
   return &function_ctx->thread_contexts[i];
 }
 
@@ -543,8 +524,7 @@ static void
 on_constructor_enter_handler (GumCObjectTracker * self,
                               ObjectType * object_type,
                               CObjectThreadContext * thread_context,
-                              gpointer function_arguments,
-                              const GumCpuContext * cpu_ctx)
+                              GumInvocationContext * invocation_context)
 {
   GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
   GumCObject * cobject;
@@ -555,7 +535,7 @@ on_constructor_enter_handler (GumCObjectTracker * self,
   if (priv->backtracer_instance != NULL)
   {
     priv->backtracer_interface->generate (priv->backtracer_instance,
-        cpu_ctx, &cobject->return_addresses);
+        invocation_context->cpu_context, &cobject->return_addresses);
   }
 
   thread_context->data = cobject;
@@ -565,11 +545,12 @@ static void
 on_constructor_leave_handler (GumCObjectTracker * self,
                               ObjectType * object_type,
                               CObjectThreadContext * thread_context,
-                              gpointer seen_return_value)
+                              GumInvocationContext * invocation_context)
 {
-  GumCObject * cobject = thread_context->data;
+  GumCObject * cobject = (GumCObject *) thread_context->data;
 
-  cobject->address = seen_return_value;
+  cobject->address =
+      gum_invocation_context_get_return_value (invocation_context);
   gum_cobject_tracker_add_object (self, cobject);
 }
 
@@ -577,22 +558,24 @@ static void
 on_free_enter_handler (GumCObjectTracker * self,
                        gpointer handler_context,
                        CObjectThreadContext * thread_context,
-                       gpointer function_arguments,
-                       const GumCpuContext * cpu_ctx)
+                       GumInvocationContext * invocation_context)
 {
-  FreeArgs * args = function_arguments;
+  gpointer address;
 
-  gum_cobject_tracker_maybe_remove_object (self, args->mem);
+  address = gum_invocation_context_get_nth_argument (invocation_context, 0);
+
+  gum_cobject_tracker_maybe_remove_object (self, address);
 }
 
 static void
 on_g_slice_free1_enter_handler (GumCObjectTracker * self,
                                 gpointer handler_context,
                                 CObjectThreadContext * thread_context,
-                                gpointer function_arguments,
-                                const GumCpuContext * cpu_ctx)
+                                GumInvocationContext * invocation_context)
 {
-  GSliceFree1Args * args = function_arguments;
+  gpointer mem_block;
 
-  gum_cobject_tracker_maybe_remove_object (self, args->mem_block);
+  mem_block = gum_invocation_context_get_nth_argument (invocation_context, 1);
+
+  gum_cobject_tracker_maybe_remove_object (self, mem_block);
 }

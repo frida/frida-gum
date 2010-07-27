@@ -75,9 +75,7 @@ load_dbghelp (void)
   WCHAR path[MAX_PATH + 1] = { 0, };
   WCHAR * filename;
 
-  mod = GetModuleHandleW (L"libgum");
-  if (mod == NULL)
-    mod = GetModuleHandleW (L"gumtest.exe"); /* FIXME */
+  mod = GetModuleHandleW (NULL);
   g_assert (mod != NULL);
 
   if (GetModuleFileNameW (mod, path, MAX_PATH) == 0)

@@ -36,7 +36,19 @@
 
 G_BEGIN_DECLS
 
-GUM_API void gum_init ();
+typedef enum _GumFeatureFlags GumFeatureFlags;
+
+enum _GumFeatureFlags
+{
+  GUM_FEATURE_SYMBOL_LOOKUP = (1 << 0),
+
+  GUM_FEATURE_NONE          = 0,
+  GUM_FEATURE_ALL           = (GUM_FEATURE_SYMBOL_LOOKUP),
+  GUM_FEATURE_DEFAULT       = GUM_FEATURE_ALL
+};
+
+GUM_API void gum_init (void);
+GUM_API void gum_init_with_features (GumFeatureFlags features);
 
 G_END_DECLS
 

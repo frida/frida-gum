@@ -16,6 +16,15 @@
     <Filter Include="core\backend-x86">
       <UniqueIdentifier>{e2b9ce9b-ec87-4716-8ee8-9bafdf6216c5}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libs">
+      <UniqueIdentifier>{bf1c3d19-8158-4a35-b313-79875fe25640}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="libs\heap">
+      <UniqueIdentifier>{fcd4cade-306b-4523-ae7d-d4b6466f66ac}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\backend-dbghelp">
+      <UniqueIdentifier>{7502d842-9b17-4269-b789-95d62d99860c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ext\udis86\libudis86\decode.c">
@@ -100,6 +109,48 @@
       <Filter>core</Filter>
     </ClCompile>
     <ClCompile Include="gum\guminvocationcontext.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumallocationblock.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumallocationgroup.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumallocationtracker.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumallocatorprobe.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumboundschecker.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumcobject.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumcobjecttracker.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\guminstancetracker.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumpagepool.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumbacktracer.c">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-dbghelp\gumdbghelp.c">
+      <Filter>core\backend-dbghelp</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-dbghelp\gumsymbolutil-dbghelp.c">
+      <Filter>core\backend-dbghelp</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-dbghelp\gumdbghelpbacktracer.c">
+      <Filter>core\backend-dbghelp</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumreturnaddress.c">
       <Filter>core</Filter>
     </ClCompile>
   </ItemGroup>
@@ -192,6 +243,48 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumsysinternals.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\gum-heap.h">
+      <Filter>libs</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumpagepool.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumallocationblock.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumallocationgroup.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumallocationtracker.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumallocatorprobe.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumboundschecker.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumcobject.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumcobjecttracker.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\guminstancetracker.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumbacktracer.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\backend-dbghelp\gumdbghelp.h">
+      <Filter>core\backend-dbghelp</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\backend-dbghelp\gumdbghelpbacktracer.h">
+      <Filter>core\backend-dbghelp</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumreturnaddress.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

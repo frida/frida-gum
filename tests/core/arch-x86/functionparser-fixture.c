@@ -30,8 +30,8 @@
     void test_function_parser_ ## NAME ( \
         TestFunctionParserFixture * fixture, gconstpointer data)
 #define FUNCPARSER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (FunctionParser, test_function_parser, NAME, \
-        TestFunctionParserFixture)
+    TEST_ENTRY_WITH_FIXTURE ("Core/FunctionParser", test_function_parser, \
+        NAME, TestFunctionParserFixture)
 
 typedef struct _TestFunctionParserFixture
 {

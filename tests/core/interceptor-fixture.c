@@ -30,7 +30,7 @@
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
 #define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Interceptor, test_interceptor, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", test_interceptor, NAME, \
         TestInterceptorFixture)
 
 typedef struct _TestInterceptorFixture   TestInterceptorFixture;

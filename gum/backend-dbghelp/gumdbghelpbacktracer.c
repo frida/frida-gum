@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,62 +17,64 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumwindowsbacktracer.h"
+#include "gumdbghelpbacktracer.h"
+
 #include "gumdbghelp.h"
 
-static void gum_windows_backtracer_iface_init (gpointer g_iface,
+static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_windows_backtracer_generate (GumBacktracer * backtracer,
+static void gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
 
-G_DEFINE_TYPE_EXTENDED (GumWindowsBacktracer,
-                        gum_windows_backtracer,
+G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
+                        gum_dbghelp_backtracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_windows_backtracer_iface_init));
+                                               gum_dbghelp_backtracer_iface_init));
 
-static void gum_windows_backtracer_fill_address_details (
-    GumWindowsBacktracer * self, GumReturnAddress * ret_addr);
+static void gum_dbghelp_backtracer_fill_address_details (
+    GumDbghelpBacktracer * self, GumReturnAddress * ret_addr);
 
 static GumDbgHelpImpl * dbghelp = NULL;
 
 static void
-gum_windows_backtracer_class_init (GumWindowsBacktracerClass * klass)
+gum_dbghelp_backtracer_class_init (GumDbghelpBacktracerClass * klass)
 {
   dbghelp = gum_dbghelp_impl_obtain ();
 }
 
 static void
-gum_windows_backtracer_iface_init (gpointer g_iface,
+gum_dbghelp_backtracer_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
 
-  iface->generate = gum_windows_backtracer_generate;
+  iface->generate = gum_dbghelp_backtracer_generate;
 }
 
 static void
-gum_windows_backtracer_init (GumWindowsBacktracer * self)
+gum_dbghelp_backtracer_init (GumDbghelpBacktracer * self)
 {
 }
 
 GumBacktracer *
-gum_windows_backtracer_new (void)
+gum_dbghelp_backtracer_new (void)
 {
-  return g_object_new (GUM_TYPE_WINDOWS_BACKTRACER, NULL);
+  return GUM_BACKTRACER_CAST (
+      g_object_new (GUM_TYPE_DBGHELP_BACKTRACER, NULL));
 }
 
 static void
-gum_windows_backtracer_generate (GumBacktracer * backtracer,
+gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
                                  const GumCpuContext * cpu_context,
                                  GumReturnAddressArray * return_addresses)
 {
   guint i;
   guint skip_count = 0;
   STACKFRAME64 frame = { 0, };
-  CONTEXT context = { 0, };
+  __declspec (align (64)) CONTEXT context = { 0, };
   BOOL success;
 
   /* Get the raw addresses */
@@ -84,8 +86,9 @@ gum_windows_backtracer_generate (GumBacktracer * backtracer,
 
   if (cpu_context != NULL)
   {
-#ifndef _WIN64
+#if GLIB_SIZEOF_VOID_P == 4
     context.Eip = cpu_context->eip;
+
     context.Edi = cpu_context->edi;
     context.Esi = cpu_context->esi;
     context.Ebp = cpu_context->ebp;
@@ -94,6 +97,26 @@ gum_windows_backtracer_generate (GumBacktracer * backtracer,
     context.Edx = cpu_context->edx;
     context.Ecx = cpu_context->ecx;
     context.Eax = cpu_context->eax;
+#else
+    context.Rip = cpu_context->rip;
+
+    context.R15 = cpu_context->r15;
+    context.R14 = cpu_context->r14;
+    context.R13 = cpu_context->r13;
+    context.R12 = cpu_context->r12;
+    context.R11 = cpu_context->r11;
+    context.R10 = cpu_context->r10;
+    context.R9  = cpu_context->r9;
+    context.R8  = cpu_context->r8;
+
+    context.Rdi = cpu_context->rdi;
+    context.Rsi = cpu_context->rsi;
+    context.Rbp = cpu_context->rbp;
+    context.Rsp = cpu_context->rsp;
+    context.Rbx = cpu_context->rbx;
+    context.Rdx = cpu_context->rdx;
+    context.Rcx = cpu_context->rcx;
+    context.Rax = cpu_context->rax;
 #endif
 
 #if GLIB_SIZEOF_VOID_P == 8
@@ -108,10 +131,14 @@ gum_windows_backtracer_generate (GumBacktracer * backtracer,
   }
   else
   {
-#ifndef _WIN64
+#if GLIB_SIZEOF_VOID_P == 4
     frame.AddrPC.Offset = context.Eip;
     frame.AddrFrame.Offset = context.Ebp;
     frame.AddrStack.Offset = context.Esp;
+#else
+    frame.AddrPC.Offset = context.Rip;
+    frame.AddrFrame.Offset = context.Rbp;
+    frame.AddrStack.Offset = context.Rsp;
 #endif
 
 #ifdef _DEBUG

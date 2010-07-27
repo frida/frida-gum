@@ -27,7 +27,7 @@
     void test_code_writer_ ## NAME ( \
         TestCodeWriterFixture * fixture, gconstpointer data)
 #define CODEWRITER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (CodeWriter, test_code_writer, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Core/CodeWriter", test_code_writer, NAME, \
         TestCodeWriterFixture)
 
 typedef struct _TestCodeWriterFixture

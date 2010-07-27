@@ -3,14 +3,15 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>GUM_EXPORTS;GUM_DISABLE_SYMBOL_UTIL;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)ext\udis86;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUM_STATIC;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)ext\udis86;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
 
   <ItemGroup>
     <ClInclude Include="gum\gum.h" />
     <ClInclude Include="gum\gumarray.h" />
+    <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumeventsink.h" />
@@ -20,6 +21,7 @@
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
+    <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
@@ -31,6 +33,7 @@
   <ItemGroup>
     <ClCompile Include="gum\gum.c" />
     <ClCompile Include="gum\gumarray.c" />
+    <ClCompile Include="gum\gumbacktracer.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumeventsink.c" />
     <ClCompile Include="gum\gumhash.c" />
@@ -38,6 +41,7 @@
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumlist.c" />
+    <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.c" />
     <ClCompile Include="gum\gumstalker.c" />
     <ClCompile Include="gum\gumtracer.c" />
@@ -67,6 +71,42 @@
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c" />
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="gum\backend-dbghelp\gumdbghelp.h" />
+    <ClInclude Include="gum\backend-dbghelp\gumdbghelpbacktracer.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\backend-dbghelp\gumdbghelp.c" />
+    <ClCompile Include="gum\backend-dbghelp\gumdbghelpbacktracer.c" />
+    <ClCompile Include="gum\backend-dbghelp\gumsymbolutil-dbghelp.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="libs\gum\gum-heap.h" />
+    <ClInclude Include="libs\gum\heap\gumallocationblock.h" />
+    <ClInclude Include="libs\gum\heap\gumallocationgroup.h" />
+    <ClInclude Include="libs\gum\heap\gumallocationtracker.h" />
+    <ClInclude Include="libs\gum\heap\gumallocatorprobe.h" />
+    <ClInclude Include="libs\gum\heap\gumboundschecker.h" />
+    <ClInclude Include="libs\gum\heap\gumcobject.h" />
+    <ClInclude Include="libs\gum\heap\gumcobjecttracker.h" />
+    <ClInclude Include="libs\gum\heap\guminstancetracker.h" />
+    <ClInclude Include="libs\gum\heap\gumpagepool.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="libs\gum\heap\gumallocationblock.c" />
+    <ClCompile Include="libs\gum\heap\gumallocationgroup.c" />
+    <ClCompile Include="libs\gum\heap\gumallocationtracker.c" />
+    <ClCompile Include="libs\gum\heap\gumallocatorprobe.c" />
+    <ClCompile Include="libs\gum\heap\gumboundschecker.c" />
+    <ClCompile Include="libs\gum\heap\gumcobject.c" />
+    <ClCompile Include="libs\gum\heap\gumcobjecttracker.c" />
+    <ClCompile Include="libs\gum\heap\guminstancetracker.c" />
+    <ClCompile Include="libs\gum\heap\gumpagepool.c" />
   </ItemGroup>
 
   <ItemGroup>

@@ -23,18 +23,16 @@
 #define SYMUTIL_TESTCASE(NAME) \
     void test_symbolutil_ ## NAME (void)
 #define SYMUTIL_TESTENTRY(NAME) \
-    TEST_ENTRY_SIMPLE (SymbolUtil, test_symbolutil, NAME)
+    TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
 TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_modules)
   SYMUTIL_TESTENTRY (module_exports)
-#ifndef GUM_DISABLE_SYMBOL_UTIL
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
   SYMUTIL_TESTENTRY (find_external_public_function)
   SYMUTIL_TESTENTRY (find_local_static_function)
   SYMUTIL_TESTENTRY (find_functions_matching)
-#endif
 TEST_LIST_END ()
 
 #ifdef G_OS_WIN32
@@ -53,10 +51,8 @@ static gboolean module_found_cb (const gchar * name, gpointer address,
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 
-#ifndef GUM_DISABLE_SYMBOL_UTIL
 static void GUM_CDECL dummy_function_0 (void);
 static void GUM_STDCALL dummy_function_1 (void);
-#endif
 
 SYMUTIL_TESTCASE (process_modules)
 {
@@ -113,8 +109,6 @@ export_found_cb (const gchar * name,
   return ctx->value_to_return;
 }
 
-#ifndef GUM_DISABLE_SYMBOL_UTIL
-
 SYMUTIL_TESTCASE (symbol_details_from_address)
 {
   GumSymbolDetails details;
@@ -123,7 +117,7 @@ SYMUTIL_TESTCASE (symbol_details_from_address)
 
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
       GPOINTER_TO_SIZE (dummy_function_0));
-  g_assert (g_str_has_prefix (details.module_name, "gumtest"));
+  g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "dummy_function_0");
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
@@ -176,5 +170,3 @@ dummy_function_1 (void)
 {
   g_print ("%s\n", G_STRFUNC);
 }
-
-#endif /* GUM_DISABLE_SYMBOL_UTIL */
