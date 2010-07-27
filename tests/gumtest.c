@@ -65,6 +65,8 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (allocator_probe);
   TEST_RUN_LIST (allocator_probe_cxx);
 
+  TEST_RUN_LIST (pagepool);
+
 #ifdef _MSC_VER
 #pragma warning (pop)
 #endif

@@ -135,6 +135,9 @@
     <ClCompile Include="core\backtracer-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="heap\pagepool-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
