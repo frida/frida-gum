@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -58,20 +58,11 @@ static void gum_bounds_checker_get_property (GObject * object,
 static void gum_bounds_checker_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
 
-typedef gpointer (* MallocFunc) (gsize size);
-typedef gpointer (* CallocFunc) (gsize num, gsize size);
-typedef gpointer (* ReallocFunc) (gpointer old_address, gsize new_size);
-typedef void (* FreeFunc) (gpointer mem);
-
-static gpointer replacement_malloc (MallocFunc malloc_impl,
-    GumBoundsChecker * self, gpointer caller_ret_addr, gsize size);
-static gpointer replacement_calloc (CallocFunc calloc_impl,
-    GumBoundsChecker * self, gpointer caller_ret_addr, gsize num, gsize size);
-static gpointer replacement_realloc (ReallocFunc realloc_impl,
-    GumBoundsChecker * self, gpointer caller_ret_addr, gpointer old_address,
+static gpointer replacement_malloc (gsize size);
+static gpointer replacement_calloc (gsize num, gsize size);
+static gpointer replacement_realloc (gpointer old_address,
     gsize new_size);
-static void replacement_free (FreeFunc free_impl, GumBoundsChecker * self,
-    gpointer caller_ret_addr, gpointer address);
+static void replacement_free (gpointer address);
 
 static void
 gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
@@ -230,13 +221,14 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
 }
 
 static gpointer
-replacement_malloc (MallocFunc malloc_impl,
-                    GumBoundsChecker * self,
-                    gpointer caller_ret_addr,
-                    gsize size)
+replacement_malloc (gsize size)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+  GumInvocationContext * ctx;
+  GumBoundsCheckerPrivate * priv;
   gpointer result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  priv = GUM_BOUNDS_CHECKER_CAST (ctx->instance_data)->priv;
 
   if (priv->detaching)
     goto fallback;
@@ -248,18 +240,19 @@ replacement_malloc (MallocFunc malloc_impl,
   return result;
 
 fallback:
-  return malloc_impl (size);
+  return malloc (size);
 }
 
 static gpointer
-replacement_calloc (CallocFunc calloc_impl,
-                    GumBoundsChecker * self,
-                    gpointer caller_ret_addr,
-                    gsize num,
+replacement_calloc (gsize num,
                     gsize size)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+  GumInvocationContext * ctx;
+  GumBoundsCheckerPrivate * priv;
   gpointer result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  priv = GUM_BOUNDS_CHECKER_CAST (ctx->instance_data)->priv;
 
   if (priv->detaching)
     goto fallback;
@@ -273,20 +266,21 @@ replacement_calloc (CallocFunc calloc_impl,
   return result;
 
 fallback:
-  return calloc_impl (num, size);
+  return calloc (num, size);
 }
 
 static gpointer
-replacement_realloc (ReallocFunc realloc_impl,
-                     GumBoundsChecker * self,
-                     gpointer caller_ret_addr,
-                     gpointer old_address,
+replacement_realloc (gpointer old_address,
                      gsize new_size)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+  GumInvocationContext * ctx;
+  GumBoundsCheckerPrivate * priv;
   gpointer result = NULL;
   guint old_size;
   gboolean success;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  priv = GUM_BOUNDS_CHECKER_CAST (ctx->instance_data)->priv;
 
   if (old_address == NULL)
     return malloc (new_size);
@@ -308,17 +302,18 @@ replacement_realloc (ReallocFunc realloc_impl,
   return result;
 
 fallback:
-  return realloc_impl (old_address, new_size);
+  return realloc (old_address, new_size);
 }
 
 static void
-replacement_free (FreeFunc free_impl,
-                  GumBoundsChecker * self,
-                  gpointer caller_ret_addr,
-                  gpointer address)
+replacement_free (gpointer address)
 {
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+  GumInvocationContext * ctx;
+  GumBoundsCheckerPrivate * priv;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  priv = GUM_BOUNDS_CHECKER_CAST (ctx->instance_data)->priv;
 
   if (!gum_page_pool_try_free (priv->page_pool, address))
-    free_impl (address);
+    free (address);
 }

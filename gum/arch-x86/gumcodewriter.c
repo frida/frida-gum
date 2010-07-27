@@ -19,6 +19,8 @@
 
 #include "gumcodewriter.h"
 
+#include "gummemory.h"
+
 #include <string.h>
 
 #define GUM_MAX_LABEL_COUNT (10 * 1000)
@@ -103,8 +105,8 @@ void
 gum_code_writer_init (GumCodeWriter * writer,
                       gpointer code_address)
 {
-  writer->id_to_address = g_new (GumLabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = g_new (GumLabelRef, GUM_MAX_LREF_COUNT);
+  writer->id_to_address = gum_new (GumLabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = gum_new (GumLabelRef, GUM_MAX_LREF_COUNT);
 
   gum_code_writer_reset (writer, code_address);
 }
@@ -131,8 +133,8 @@ gum_code_writer_free (GumCodeWriter * writer)
 {
   gum_code_writer_flush (writer);
 
-  g_free (writer->id_to_address);
-  g_free (writer->label_refs);
+  gum_free (writer->id_to_address);
+  gum_free (writer->label_refs);
 }
 
 void

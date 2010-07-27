@@ -18,6 +18,8 @@
  */
 
 #include "gumrelocator.h"
+
+#include "gummemory.h"
 #include "gumudis86.h"
 
 #include <string.h>
@@ -52,7 +54,7 @@ gum_relocator_init (GumRelocator * relocator,
                     const guint8 * input_code,
                     GumCodeWriter * output)
 {
-  relocator->input_insns = g_new (ud_t, GUM_MAX_INPUT_INSN_COUNT);
+  relocator->input_insns = gum_new (ud_t, GUM_MAX_INPUT_INSN_COUNT);
 
   gum_relocator_reset (relocator, input_code, output);
 }
@@ -74,7 +76,7 @@ gum_relocator_reset (GumRelocator * relocator,
 void
 gum_relocator_free (GumRelocator * relocator)
 {
-  g_free (relocator->input_insns);
+  gum_free (relocator->input_insns);
 }
 
 static guint

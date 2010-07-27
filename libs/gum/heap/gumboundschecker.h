@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -26,6 +26,7 @@
 #define GUM_TYPE_BOUNDS_CHECKER (gum_bounds_checker_get_type ())
 #define GUM_BOUNDS_CHECKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_BOUNDS_CHECKER, GumBoundsChecker))
+#define GUM_BOUNDS_CHECKER_CAST(obj) ((GumBoundsChecker *) (obj))
 #define GUM_BOUNDS_CHECKER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_BOUNDS_CHECKER, GumBoundsCheckerClass))
 #define GUM_IS_BOUNDS_CHECKER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
