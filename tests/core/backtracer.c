@@ -64,7 +64,7 @@ BACKTRACER_TESTCASE (full_cycle)
 {
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
-  guint expected_line_number;
+  guint expected_line_number, alternate_line_number;
   gpointer a;
   GumList * blocks;
   GumAllocationBlock * block;
@@ -82,6 +82,7 @@ BACKTRACER_TESTCASE (full_cycle)
 
   /* TODO: Remove this once reentrancy protection has been implemented to also
    *       cover AllocationTracker's methods */
+  alternate_line_number = __LINE__ + 1;
   gum_allocator_probe_detach (probe);
 
   blocks = gum_allocation_tracker_peek_block_list (tracker);
@@ -101,7 +102,8 @@ BACKTRACER_TESTCASE (full_cycle)
   g_assert (g_str_has_prefix (first_address->module_name, "gum-tests"));
   g_assert_cmpstr (first_address->function_name, ==, __FUNCTION__);
   g_assert (g_str_has_suffix (first_address->file_name, "backtracer.c"));
-  g_assert_cmpuint (first_address->line_number, ==, expected_line_number);
+  if (first_address->line_number != alternate_line_number)
+    g_assert_cmpuint (first_address->line_number, ==, expected_line_number);
 
   gum_allocation_block_list_free (blocks);
 

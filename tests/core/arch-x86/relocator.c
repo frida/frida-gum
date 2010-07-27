@@ -27,6 +27,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
   RELOCATOR_TESTENTRY (jcc_short_within_block);
   RELOCATOR_TESTENTRY (jcc_short_outside_block);
+  RELOCATOR_TESTENTRY (jcc_near_outside_block);
   RELOCATOR_TESTENTRY (peek_next_write);
   RELOCATOR_TESTENTRY (skip_instruction);
   RELOCATOR_TESTENTRY (eob_and_eoi_on_jmp)
@@ -221,6 +222,27 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
   g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
       (gssize) (input - 1) - (gssize) (fixture->output + 6));
   g_assert_cmphex (fixture->output[6], ==, input[2]);
+}
+
+RELOCATOR_TESTCASE (jcc_near_outside_block)
+{
+  const guint8 input[] = {
+    0x0f, 0x84, 0xda, 0x00, 0x00, 0x00, /* jz +218 */
+    0xc3                                /* retn    */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_relocator_read_one (&fixture->rl, NULL);
+  gum_relocator_read_one (&fixture->rl, NULL);
+  gum_relocator_write_all (&fixture->rl);
+
+  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, 6 + 1);
+  g_assert_cmphex (fixture->output[0], ==, 0x0f);
+  g_assert_cmphex (fixture->output[1], ==, 0x84);
+  g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
+      (gssize) (input + 6 + 218) - (gssize) (fixture->output + 6));
+  g_assert_cmphex (fixture->output[6], ==, input[6]);
 }
 
 RELOCATOR_TESTCASE (peek_next_write)

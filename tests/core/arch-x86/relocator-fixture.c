@@ -44,8 +44,18 @@ static void
 test_relocator_fixture_setup (TestRelocatorFixture * fixture,
                               gconstpointer data)
 {
-  fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  memset (fixture->output, 0, gum_query_page_size ());
+  guint page_size;
+  const guint8 stack_data[1] = { 42 };
+  GumAddressSpec as;
+
+  page_size = gum_query_page_size ();
+
+  as.near_address = (gpointer) stack_data;
+  as.max_distance = G_MAXINT32 - page_size;
+
+  fixture->output = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
+  memset (fixture->output, 0, page_size);
+
   gum_code_writer_init (&fixture->cw, fixture->output);
 }
 

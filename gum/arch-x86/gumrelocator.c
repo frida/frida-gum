@@ -355,12 +355,12 @@ gum_relocator_rewrite_unconditional_branch (GumRelocator * self,
   ud_operand_t * op = &ctx->insn->operand[0];
   if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
-    gconstpointer target = NULL;
+    const guint8 * target = NULL;
 
-    if (op->size == 32)
-      target = ctx->end + op->lval.sdword;
-    else if (op->size == 8)
+    if (op->size == 8)
       target = ctx->end + op->lval.sbyte;
+    else if (op->size == 32)
+      target = ctx->end + op->lval.sdword;
     else
       g_assert_not_reached ();
 
@@ -389,11 +389,17 @@ gum_relocator_rewrite_conditional_branch (GumRelocator * self,
                                           GumCodeGenCtx * ctx)
 {
   ud_operand_t * op = &ctx->insn->operand[0];
-  if (op->type == UD_OP_JIMM && op->size == 8 && op->base == UD_NONE)
+  if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
-    const guint8 * target = ctx->end + op->lval.sbyte;
+    const guint8 * target = NULL;
 
-    /* FIXME */
+    if (op->size == 8)
+      target = ctx->end + op->lval.sbyte;
+    else if (op->size == 32)
+      target = ctx->end + op->lval.sdword;
+    else
+      g_assert_not_reached ();
+
     if (target >= self->input_start && target < self->input_cur)
     {
       gum_code_writer_put_jcc_short_label (ctx->code_writer, ctx->start[0],

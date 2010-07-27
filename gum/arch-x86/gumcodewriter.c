@@ -444,9 +444,10 @@ gum_code_writer_put_jcc_near (GumCodeWriter * self,
                               guint8 opcode,
                               gconstpointer target)
 {
-  gint32 distance;
+  gint64 distance;
 
-  distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 6);
+  distance = (gint64) target - (gint64) (self->code + 6);
+  g_assert (IS_WITHIN_INT32_RANGE (distance));
 
   self->code[0] = 0x0f;
   self->code[1] = opcode;
