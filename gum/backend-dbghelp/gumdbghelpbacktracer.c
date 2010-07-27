@@ -21,6 +21,12 @@
 
 #include "gumdbghelp.h"
 
+#if GLIB_SIZEOF_VOID_P == 4
+# define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_I386
+#else
+# define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
+#endif
+
 static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
@@ -143,6 +149,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
 #ifdef _DEBUG
     skip_count = 1; /* leave out this function */
+# if GLIB_SIZEOF_VOID_P == 8
+    skip_count++;
+# endif
 #endif
   }
 
@@ -150,7 +159,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
   for (i = 0; i < GUM_MAX_BACKTRACE_DEPTH + skip_count; i++)
   {
-    success = dbghelp->StackWalk64 (IMAGE_FILE_MACHINE_I386,
+    success = dbghelp->StackWalk64 (GUM_BACKTRACER_MACHINE_TYPE,
         GetCurrentProcess (), GetCurrentThread (), &frame, &context, NULL,
         dbghelp->SymFunctionTableAccess64, dbghelp->SymGetModuleBase64, NULL);
     if (!success)

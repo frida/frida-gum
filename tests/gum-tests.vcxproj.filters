@@ -129,6 +129,12 @@
     <ClCompile Include="heap\allocationtracker-fixture.c">
       <Filter>Tests\heap</Filter>
     </ClCompile>
+    <ClCompile Include="core\backtracer.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\backtracer-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

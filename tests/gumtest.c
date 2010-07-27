@@ -59,6 +59,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (script);
   TEST_RUN_LIST (tracer);
+  TEST_RUN_LIST (backtracer);
 
   TEST_RUN_LIST (allocation_tracker);
   TEST_RUN_LIST (allocator_probe);

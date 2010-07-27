@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,30 +17,31 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <stdlib.h>
-#include <gum/gum.h>
+#include "backtracer-fixture.c"
 
 #define PRINT_BACKTRACES        0
 #define ENABLE_PERFORMANCE_TEST 0
 
-static GumBacktracer * make_backtracer (void);
+TEST_LIST_BEGIN (backtracer)
+  BACKTRACER_TESTENTRY (basics)
+  BACKTRACER_TESTENTRY (full_cycle)
+#if ENABLE_PERFORMANCE_TEST
+  BACKTRACER_TESTENTRY (performance)
+#endif
+TEST_LIST_END ()
 
 #if PRINT_BACKTRACES
 static void print_backtrace (GumReturnAddressArray * ret_addrs);
 #endif
 
-static void
-test_basics (void)
+BACKTRACER_TESTCASE (basics)
 {
-  GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs = { 0, };
   GumReturnAddress * first_address;
   guint expected_line_number;
 
-  backtracer = make_backtracer ();
-
   expected_line_number = __LINE__ + 1;
-  gum_backtracer_generate (backtracer, NULL, &ret_addrs);
+  gum_backtracer_generate (fixture->backtracer, NULL, &ret_addrs);
   g_assert_cmpuint (ret_addrs.len, >=, 2);
 
   gum_return_address_array_load_symbols (&ret_addrs);
@@ -52,29 +53,24 @@ test_basics (void)
   first_address = &ret_addrs.items[0];
   g_assert (first_address->address != NULL);
 
-  g_assert (g_str_has_prefix (first_address->module_name, "gumtest"));
+  g_assert (g_str_has_prefix (first_address->module_name, "gum-tests"));
   g_assert_cmpstr (first_address->function_name, ==, __FUNCTION__);
   g_assert (g_str_has_suffix (first_address->file_name, "backtracer.c"));
   g_assert (first_address->line_number == expected_line_number
       || first_address->line_number == expected_line_number + 1);
-
-  g_object_unref (backtracer);
 }
 
-static void
-test_full_cycle (void)
+BACKTRACER_TESTCASE (full_cycle)
 {
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
-  GumBacktracer * backtracer;
   guint expected_line_number;
   gpointer a;
   GumList * blocks;
   GumAllocationBlock * block;
   GumReturnAddress * first_address;
 
-  backtracer = make_backtracer ();
-  tracker = gum_allocation_tracker_new_with_backtracer (backtracer);
+  tracker = gum_allocation_tracker_new_with_backtracer (fixture->backtracer);
   gum_allocation_tracker_begin (tracker);
 
   probe = gum_allocator_probe_new ();
@@ -91,7 +87,7 @@ test_full_cycle (void)
   blocks = gum_allocation_tracker_peek_block_list (tracker);
   g_assert_cmpuint (gum_list_length (blocks), ==, 1);
 
-  block = blocks->data;
+  block = (GumAllocationBlock *) blocks->data;
 
 #if PRINT_BACKTRACES
   print_backtrace (&block->return_addresses);
@@ -102,7 +98,7 @@ test_full_cycle (void)
   first_address = &block->return_addresses.items[0];
   g_assert (first_address->address != NULL);
 
-  g_assert (g_str_has_prefix (first_address->module_name, "gumtest"));
+  g_assert (g_str_has_prefix (first_address->module_name, "gum-tests"));
   g_assert_cmpstr (first_address->function_name, ==, __FUNCTION__);
   g_assert (g_str_has_suffix (first_address->file_name, "backtracer.c"));
   g_assert_cmpuint (first_address->line_number, ==, expected_line_number);
@@ -112,19 +108,15 @@ test_full_cycle (void)
   free (a);
   g_object_unref (probe);
   g_object_unref (tracker);
-  g_object_unref (backtracer);
 }
 
 #if ENABLE_PERFORMANCE_TEST
-static void
-test_performance (void)
+
+BACKTRACER_TESTCASE (performance)
 {
-  GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs = { 0, };
   GTimer * timer;
   guint count = 0;
-
-  backtracer = make_backtracer ();
 
   timer = g_timer_new ();
 
@@ -134,7 +126,7 @@ test_performance (void)
 
     for (i = 0; i < 100; i++)
     {
-      gum_backtracer_generate (backtracer, NULL, &ret_addrs);
+      gum_backtracer_generate (fixture->backtracer, NULL, &ret_addrs);
       ret_addrs.len = 0;
     }
 
@@ -145,22 +137,12 @@ test_performance (void)
   g_print ("(%d backtraces per second) ", count);
 
   g_timer_destroy (timer);
-
-  g_object_unref (backtracer);
 }
-#endif
 
-static GumBacktracer *
-make_backtracer (void)
-{
-#ifdef G_OS_WIN32
-  return gum_windows_backtracer_new ();
-#else
-  return gum_gnu_backtracer_new ();
 #endif
-}
 
 #if PRINT_BACKTRACES
+
 static void
 print_backtrace (GumReturnAddressArray * ret_addrs)
 {
@@ -178,15 +160,5 @@ print_backtrace (GumReturnAddressArray * ret_addrs)
 
   g_print ("\n\n");
 }
-#endif
 
-void
-gum_test_register_backtracer_tests (void)
-{
-  g_test_add_func ("/Gum/Backtracer/test-basics", &test_basics);
-  g_test_add_func ("/Gum/Backtracer/test-full-cycle", &test_full_cycle);
-#if ENABLE_PERFORMANCE_TEST
-  g_test_add_func ("/Gum/Backtracer/test-performance", &test_performance);
 #endif
-}
-
