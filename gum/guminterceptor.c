@@ -44,7 +44,7 @@ typedef pthread_key_t GumTlsKey;
 # define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
 #endif
 
-#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     384
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     400
 #define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE  5
 #define GUM_INTERCEPTOR_GUARD_MAGIC         0x47756D21
 

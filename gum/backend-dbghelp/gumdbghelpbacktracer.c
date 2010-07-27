@@ -149,9 +149,9 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 
 #ifdef _DEBUG
     skip_count = 1; /* leave out this function */
-# if GLIB_SIZEOF_VOID_P == 8
+#endif
+#if GLIB_SIZEOF_VOID_P == 8
     skip_count++;
-# endif
 #endif
   }
 

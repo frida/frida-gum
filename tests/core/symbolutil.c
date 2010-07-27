@@ -134,7 +134,7 @@ SYMUTIL_TESTCASE (symbol_name_from_address)
 
 SYMUTIL_TESTCASE (find_external_public_function)
 {
-  g_assert (gum_find_function ("g_hash_table_new") != NULL);
+  g_assert (gum_find_function ("g_object_new") != NULL);
 }
 
 SYMUTIL_TESTCASE (find_local_static_function)

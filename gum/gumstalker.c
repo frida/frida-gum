@@ -1492,8 +1492,9 @@ gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
     return GUM_REG_XIP;
   else if (reg == GUM_REG_NONE)
     return GUM_REG_NONE;
-  else
-    g_assert_not_reached ();
+
+  g_assert_not_reached ();
+  return GUM_REG_NONE;
 }
 
 static GumCpuReg
