@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -20,8 +20,21 @@
 
 #include "gumcyclesampler.h"
 
+#include "gumcodewriter.h"
+#include "gummemory.h"
+
+typedef void (GUM_THUNK * ReadTimestampCounterFunc) (GumSample * sample);
+
+struct _GumCycleSamplerPrivate
+{
+  ReadTimestampCounterFunc read_timestamp_counter;
+
+  gpointer code;
+};
+
 static void gum_cycle_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_cycle_sampler_finalize (GObject * object);
 static GumSample gum_cycle_sampler_sample (GumSampler * sampler);
 
 G_DEFINE_TYPE_EXTENDED (GumCycleSampler,
@@ -34,11 +47,16 @@ G_DEFINE_TYPE_EXTENDED (GumCycleSampler,
 static void
 gum_cycle_sampler_class_init (GumCycleSamplerClass * klass)
 {
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = gum_cycle_sampler_finalize;
+
+  g_type_class_add_private (klass, sizeof (GumCycleSamplerPrivate));
 }
 
 static void
 gum_cycle_sampler_iface_init (gpointer g_iface,
-                                gpointer iface_data)
+                              gpointer iface_data)
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
 
@@ -48,42 +66,49 @@ gum_cycle_sampler_iface_init (gpointer g_iface,
 static void
 gum_cycle_sampler_init (GumCycleSampler * self)
 {
+  GumCycleSamplerPrivate * priv;
+  GumCodeWriter cw;
+
+  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_CYCLE_SAMPLER,
+      GumCycleSamplerPrivate);
+  priv = self->priv;
+
+  priv->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  gum_code_writer_init (&cw, priv->code);
+  gum_code_writer_put_lfence (&cw);
+  gum_code_writer_put_rdtsc (&cw);
+  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
+  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw, GUM_REG_XCX, 4,
+      GUM_REG_EDX);
+  gum_code_writer_put_ret (&cw);
+  gum_code_writer_free (&cw);
+
+  priv->read_timestamp_counter = (ReadTimestampCounterFunc) priv->code;
+}
+
+static void
+gum_cycle_sampler_finalize (GObject * object)
+{
+  GumCycleSampler * self = GUM_CYCLE_SAMPLER (object);
+
+  gum_free_pages (self->priv->code);
+
+  G_OBJECT_CLASS (gum_cycle_sampler_parent_class)->finalize (object);
 }
 
 GumSampler *
 gum_cycle_sampler_new (void)
 {
-  GumCycleSampler * sampler;
-
-  sampler = g_object_new (GUM_TYPE_CYCLE_SAMPLER, NULL);
-
-  return GUM_SAMPLER (sampler);
+  return GUM_SAMPLER_CAST (g_object_new (GUM_TYPE_CYCLE_SAMPLER, NULL));
 }
 
 static GumSample
 gum_cycle_sampler_sample (GumSampler * sampler)
 {
-#ifdef _MSC_VER
-  GumSample result = 0;
+  GumCycleSampler * self = GUM_CYCLE_SAMPLER_CAST (sampler);
+  GumSample result;
 
-#ifndef _WIN64
-  __asm
-  {
-    /* flush pipeline */
-    xor eax, eax;
-    cpuid;
-
-    /* read it out */
-    rdtsc;
-    mov dword ptr [result + 0], eax;
-    mov dword ptr [result + 4], edx;
-  }
-#endif
-
-#else
-  register GumSample result asm ("eax");
-  asm volatile (".byte 0x0f, 0x31" : : : "eax", "edx");
-#endif
+  self->priv->read_timestamp_counter (&result);
 
   return result;
 }

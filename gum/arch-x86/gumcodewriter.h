@@ -218,6 +218,9 @@ void gum_code_writer_put_cmp_imm_ptr_imm_u32 (GumCodeWriter * self, gconstpointe
 void gum_code_writer_put_clc (GumCodeWriter * self);
 void gum_code_writer_put_stc (GumCodeWriter * self);
 
+void gum_code_writer_put_cpuid (GumCodeWriter * self);
+void gum_code_writer_put_lfence (GumCodeWriter * self);
+void gum_code_writer_put_rdtsc (GumCodeWriter * self);
 void gum_code_writer_put_pause (GumCodeWriter * self);
 void gum_code_writer_put_nop (GumCodeWriter * self);
 void gum_code_writer_put_int3 (GumCodeWriter * self);

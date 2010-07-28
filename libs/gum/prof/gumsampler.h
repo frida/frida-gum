@@ -27,6 +27,7 @@
 #define GUM_TYPE_SAMPLER (gum_sampler_get_type ())
 #define GUM_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_SAMPLER, GumSampler))
+#define GUM_SAMPLER_CAST(obj) ((GumSampler *) (obj))
 #define GUM_IS_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
     GUM_TYPE_SAMPLER))
 #define GUM_SAMPLER_GET_INTERFACE(inst) (G_TYPE_INSTANCE_GET_INTERFACE (\

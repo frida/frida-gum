@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -27,6 +27,7 @@
 #define GUM_TYPE_CYCLE_SAMPLER (gum_cycle_sampler_get_type ())
 #define GUM_CYCLE_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_CYCLE_SAMPLER, GumCycleSampler))
+#define GUM_CYCLE_SAMPLER_CAST(obj) ((GumCycleSampler *) (obj))
 #define GUM_CYCLE_SAMPLER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_CYCLE_SAMPLER, GumCycleSamplerClass))
 #define GUM_IS_CYCLE_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
@@ -38,10 +39,13 @@
 
 typedef struct _GumCycleSampler GumCycleSampler;
 typedef struct _GumCycleSamplerClass GumCycleSamplerClass;
+typedef struct _GumCycleSamplerPrivate GumCycleSamplerPrivate;
 
 struct _GumCycleSampler
 {
   GObject parent;
+
+  GumCycleSamplerPrivate * priv;
 };
 
 struct _GumCycleSamplerClass

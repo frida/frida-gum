@@ -50,6 +50,7 @@ main (gint argc, gchar * argv[])
 #pragma warning (disable: 4210)
 #endif
 
+  /* Core */
   TEST_RUN_LIST (testutil);
   TEST_RUN_LIST (symbolutil);
   TEST_RUN_LIST (codewriter);
@@ -61,6 +62,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (tracer);
   TEST_RUN_LIST (backtracer);
 
+  /* Heap */
   TEST_RUN_LIST (allocation_tracker);
   TEST_RUN_LIST (allocator_probe);
   TEST_RUN_LIST (allocator_probe_cxx);
@@ -68,6 +70,9 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (instancetracker);
   TEST_RUN_LIST (pagepool);
   TEST_RUN_LIST (boundschecker);
+
+  /* Prof */
+  TEST_RUN_LIST (sampler);
 
 #ifdef _MSC_VER
 #pragma warning (pop)

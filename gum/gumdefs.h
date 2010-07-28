@@ -130,8 +130,10 @@ struct _GumCpuContext
 
 #if GLIB_SIZEOF_VOID_P == 8
 #define GUM_CPU_MODE 64
+#define GUM_THUNK
 #else
 #define GUM_CPU_MODE 32
+#define GUM_THUNK GUM_FASTCALL
 #endif
 
 #ifdef _MSC_VER

@@ -1552,6 +1552,31 @@ gum_code_writer_put_stc (GumCodeWriter * self)
 }
 
 void
+gum_code_writer_put_cpuid (GumCodeWriter * self)
+{
+  self->code[0] = 0x0f;
+  self->code[1] = 0xa2;
+  self->code += 2;
+}
+
+void
+gum_code_writer_put_lfence (GumCodeWriter * self)
+{
+  self->code[0] = 0x0f;
+  self->code[1] = 0xae;
+  self->code[2] = 0xe8;
+  self->code += 3;
+}
+
+void
+gum_code_writer_put_rdtsc (GumCodeWriter * self)
+{
+  self->code[0] = 0x0f;
+  self->code[1] = 0x31;
+  self->code += 2;
+}
+
+void
 gum_code_writer_put_pause (GumCodeWriter * self)
 {
   self->code[0] = 0xf3;

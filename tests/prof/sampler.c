@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -18,44 +18,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumsampler.h"
-
-#include "testutil.h"
-
-#include <stdlib.h>
-
-#ifdef G_OS_WIN32
-static void spin_for_one_tenth_second (void);
-#endif
-static gpointer malloc_count_helper_thread (gpointer data);
-static void nop_function_a (void);
-static void nop_function_b (void);
-
-#define SAMPLER_TESTCASE(NAME) \
-    void test_sampler_ ## NAME ( \
-        TestSamplerFixture * fixture, gconstpointer data)
-#define SAMPLER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Prof/Sampler", test_sampler, NAME, \
-        TestSamplerFixture)
-
-typedef struct _TestSamplerFixture
-{
-  GumSampler * sampler;
-} TestSamplerFixture;
-
-static void
-test_sampler_fixture_setup (TestSamplerFixture * fixture,
-                            gconstpointer data)
-{
-}
-
-static void
-test_sampler_fixture_teardown (TestSamplerFixture * fixture,
-                               gconstpointer data)
-{
-  if (fixture->sampler != NULL)
-    g_object_unref (fixture->sampler);
-}
+#include "sampler-fixture.c"
 
 TEST_LIST_BEGIN (sampler)
   SAMPLER_TESTENTRY (cycle)
@@ -66,6 +29,13 @@ TEST_LIST_BEGIN (sampler)
   SAMPLER_TESTENTRY (multiple_call_counters)
   SAMPLER_TESTENTRY (wallclock)
 TEST_LIST_END ()
+
+#ifdef G_OS_WIN32
+static void spin_for_one_tenth_second (void);
+#endif
+static gpointer malloc_count_helper_thread (gpointer data);
+static void nop_function_a (void);
+static void nop_function_b (void);
 
 SAMPLER_TESTCASE (cycle)
 {
@@ -78,6 +48,7 @@ SAMPLER_TESTCASE (cycle)
 }
 
 #ifdef G_OS_WIN32
+
 SAMPLER_TESTCASE (busy_cycle)
 {
   GumSample spin_start, spin_diff;
@@ -103,6 +74,7 @@ SAMPLER_TESTCASE (busy_cycle)
     g_test_message ("skipping test because of unsupported OS");
   }
 }
+
 #endif
 
 typedef struct _MallocCountHelperContext MallocCountHelperContext;
@@ -174,6 +146,7 @@ SAMPLER_TESTCASE (wallclock)
 }
 
 #ifdef G_OS_WIN32
+
 static void
 spin_for_one_tenth_second (void)
 {
@@ -192,12 +165,13 @@ spin_for_one_tenth_second (void)
 
   g_timer_destroy (timer);
 }
+
 #endif
 
 static gpointer
 malloc_count_helper_thread (gpointer data)
 {
-  MallocCountHelperContext * helper = data;
+  MallocCountHelperContext * helper = (MallocCountHelperContext *) data;
   GumSample sample_a, sample_b;
   gpointer p;
 

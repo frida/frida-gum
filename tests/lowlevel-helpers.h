@@ -22,12 +22,6 @@
 
 #include <gum/gumdefs.h>
 
-#if GLIB_SIZEOF_VOID_P == 4
-#define GUM_THUNK GUM_FASTCALL
-#else
-#define GUM_THUNK
-#endif
-
 typedef struct _UnsupportedFunction UnsupportedFunction;
 
 typedef void (GUM_THUNK * ClobberTestFunc) (gpointer data);

@@ -168,6 +168,9 @@
     <ClCompile Include="prof\fakesampler.c">
       <Filter>Tests\prof\stubs</Filter>
     </ClCompile>
+    <ClCompile Include="prof\sampler-fixture.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
