@@ -46,15 +46,25 @@ G_DEFINE_TYPE_EXTENDED (TestParentDataListener,
                             test_parent_data_listener_iface_init));
 
 static void
+fill_invocation_context (GumInvocationContext * ctx,
+                         const GumInvocationContext * src)
+{
+  if (src != NULL)
+    memcpy (ctx, src, sizeof (GumInvocationContext));
+  else
+    memset (ctx, 0, sizeof (GumInvocationContext));
+}
+
+static void
 test_parent_data_listener_on_enter (GumInvocationListener * listener,
                                     GumInvocationContext * ctx)
 {
   TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
 
   if (strcmp ((gchar *) ctx->instance_data, "a") == 0)
-    self->a_on_enter_parent_ctx = *ctx->parent;
+    fill_invocation_context (&self->a_on_enter_parent_ctx, ctx->parent);
   else if (strcmp ((gchar *) ctx->instance_data, "c") == 0)
-    self->c_on_enter_parent_ctx = *ctx->parent;
+    fill_invocation_context (&self->c_on_enter_parent_ctx, ctx->parent);
 }
 
 static void
@@ -64,9 +74,9 @@ test_parent_data_listener_on_leave (GumInvocationListener * listener,
   TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
 
   if (strcmp ((gchar *) ctx->instance_data, "a") == 0)
-    self->a_on_leave_parent_ctx = *ctx->parent;
+    fill_invocation_context (&self->a_on_leave_parent_ctx, ctx->parent);
   else if (strcmp ((gchar *) ctx->instance_data, "c") == 0)
-    self->c_on_leave_parent_ctx = *ctx->parent;
+    fill_invocation_context (&self->c_on_leave_parent_ctx, ctx->parent);
 }
 
 static gpointer

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -28,6 +28,7 @@
 #define GUM_TYPE_INTERCEPTOR (gum_interceptor_get_type ())
 #define GUM_INTERCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_INTERCEPTOR, GumInterceptor))
+#define GUM_INTERCEPTOR_CAST(obj) ((GumInterceptor *) (obj))
 #define GUM_INTERCEPTOR_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_INTERCEPTOR, GumInterceptorClass))
 #define GUM_IS_INTERCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\

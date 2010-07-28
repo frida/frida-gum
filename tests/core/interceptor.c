@@ -49,6 +49,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (parent_data)
 
   INTERCEPTOR_TESTENTRY (replace_function)
+  INTERCEPTOR_TESTENTRY (two_replaced_functions)
 TEST_LIST_END ()
 
 static gpointer hit_target_function_repeatedly (gpointer data);
@@ -57,6 +58,9 @@ static gpointer target_nop_function_a (gpointer data);
 static gpointer target_nop_function_b (gpointer data);
 static gpointer target_nop_function_c (gpointer data);
 static gpointer replacement_malloc (gsize size);
+static gpointer replacement_malloc_calling_malloc_and_replaced_free (
+    gsize size);
+static void replacement_free_doing_nothing (gpointer mem);
 
 INTERCEPTOR_TESTCASE (attach_one)
 {
@@ -489,6 +493,28 @@ INTERCEPTOR_TESTCASE (replace_function)
   free (ret);
 }
 
+INTERCEPTOR_TESTCASE (two_replaced_functions)
+{
+  guint malloc_counter = 0, free_counter = 0;
+  gpointer ret;
+
+  gum_interceptor_replace_function (fixture->interceptor,
+      malloc, replacement_malloc_calling_malloc_and_replaced_free,
+      &malloc_counter);
+  gum_interceptor_replace_function (fixture->interceptor,
+      free, replacement_free_doing_nothing, &free_counter);
+
+  ret = malloc (0x42);
+  g_assert (ret != NULL);
+
+  gum_interceptor_revert_function (fixture->interceptor, malloc);
+  gum_interceptor_revert_function (fixture->interceptor, free);
+  g_assert_cmpint (malloc_counter, ==, 1);
+  g_assert_cmpint (free_counter, ==, 1);
+
+  g_free (ret);
+}
+
 static gpointer
 hit_target_function_repeatedly (gpointer data)
 {
@@ -564,8 +590,44 @@ replacement_malloc (gsize size)
   a = malloc_impl (1);
   free (a);
 
+  /* equivalent to the above */
+  a = malloc (1);
+  free (a);
+
   g_assert_cmpuint ((gsize) gum_invocation_context_get_nth_argument (ctx, 0),
       ==, size);
 
   return GSIZE_TO_POINTER (size);
+}
+
+static gpointer
+replacement_malloc_calling_malloc_and_replaced_free (gsize size)
+{
+  GumInvocationContext * ctx;
+  guint * counter;
+  gpointer result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  counter = (guint *) ctx->instance_data;
+  (*counter)++;
+
+  result = malloc (1);
+  free (result); /* should do nothing because we replace free */
+
+  return result;
+}
+
+static void
+replacement_free_doing_nothing (gpointer mem)
+{
+  GumInvocationContext * ctx;
+  guint * counter;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  counter = (guint *) ctx->instance_data;
+  (*counter)++;
 }
