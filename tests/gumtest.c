@@ -65,6 +65,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (allocator_probe);
   TEST_RUN_LIST (allocator_probe_cxx);
   TEST_RUN_LIST (cobjecttracker);
+  TEST_RUN_LIST (instancetracker);
   TEST_RUN_LIST (pagepool);
   TEST_RUN_LIST (boundschecker);
 

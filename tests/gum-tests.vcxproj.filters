@@ -144,6 +144,9 @@
     <ClCompile Include="heap\cobjecttracker-fixture.c">
       <Filter>Tests\heap</Filter>
     </ClCompile>
+    <ClCompile Include="heap\instancetracker-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
