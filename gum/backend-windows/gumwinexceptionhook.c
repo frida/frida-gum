@@ -146,7 +146,7 @@ gum_win_exception_hook_remove (GumWinExceptionHandler handler)
 
     *hook_instance->dispatcher_impl_call_immediate =
         (gssize) hook_instance->system_handler -
-        (gssize) hook_instance->dispatcher_impl_call_immediate;
+        (gssize) (hook_instance->dispatcher_impl_call_immediate + 1);
     VirtualProtect (hook_instance->dispatcher_impl, 4096,
         hook_instance->previous_page_protection, &page_prot);
 
