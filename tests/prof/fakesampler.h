@@ -22,7 +22,7 @@
 #define __FAKE_SAMPLER_H__
 
 #include <glib-object.h>
-#include <gum/gum.h>
+#include <gum/prof/gumsampler.h>
 
 #define GUM_TYPE_FAKE_SAMPLER (gum_fake_sampler_get_type ())
 #define GUM_FAKE_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

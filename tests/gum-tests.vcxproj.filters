@@ -28,6 +28,12 @@
     <Filter Include="Tests\heap">
       <UniqueIdentifier>{d8565679-3ce6-4e4f-993f-88ead8a3aa7c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests\prof">
+      <UniqueIdentifier>{55ed774a-2dad-4fb4-9143-5a31041104e0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tests\prof\stubs">
+      <UniqueIdentifier>{31ab9fea-fdc5-44d8-8014-ffd845923747}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gumtest.c">
@@ -147,6 +153,21 @@
     <ClCompile Include="heap\instancetracker-fixture.c">
       <Filter>Tests\heap</Filter>
     </ClCompile>
+    <ClCompile Include="prof\profiler.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="prof\profilereportharness.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="prof\profilerharness.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="prof\sampler.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="prof\fakesampler.c">
+      <Filter>Tests\prof\stubs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
@@ -163,6 +184,15 @@
     </ClInclude>
     <ClInclude Include="stubs\fakebacktracer.h">
       <Filter>Source Files\stubs</Filter>
+    </ClInclude>
+    <ClInclude Include="prof\profilereportharness.h">
+      <Filter>Tests\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="prof\profilerharness.h">
+      <Filter>Tests\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="prof\fakesampler.h">
+      <Filter>Tests\prof\stubs</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

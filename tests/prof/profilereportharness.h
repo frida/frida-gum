@@ -21,6 +21,8 @@
 #ifndef __PROFILE_REPORT_HARNESS_H__
 #define __PROFILE_REPORT_HARNESS_H__
 
+#include "gumprofiler.h"
+
 #include "fakesampler.h"
 
 typedef struct _ProfileReportHarness ProfileReportHarness;
@@ -29,11 +31,8 @@ struct _ProfileReportHarness
 {
   GumProfiler * profiler;
 
-  union
-  {
-    GumSampler * sampler;
-    GumFakeSampler * fake_sampler;
-  };
+  GumSampler * sampler;
+  GumFakeSampler * fake_sampler;
 
   GumProfileReport * report;
   const GPtrArray * root_nodes;

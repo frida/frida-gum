@@ -66,7 +66,8 @@ GUM_API GumScript * gum_script_from_string (const gchar * script_text,
 GUM_API void gum_script_set_message_handler (GumScript * self,
     GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
 
-GUM_API void gum_script_execute (GumScript * self, GumInvocationContext * ctx);
+GUM_API void gum_script_execute (GumScript * self,
+    GumInvocationContext * context);
 
 GUM_API gpointer gum_script_get_code_address (GumScript * self);
 GUM_API guint gum_script_get_code_size (GumScript * self);

@@ -46,37 +46,43 @@ G_DEFINE_TYPE_EXTENDED (TestParentDataListener,
                             test_parent_data_listener_iface_init));
 
 static void
-fill_invocation_context (GumInvocationContext * ctx,
+fill_invocation_context (GumInvocationContext * context,
                          const GumInvocationContext * src)
 {
   if (src != NULL)
-    memcpy (ctx, src, sizeof (GumInvocationContext));
+    memcpy (context, src, sizeof (GumInvocationContext));
   else
-    memset (ctx, 0, sizeof (GumInvocationContext));
+    memset (context, 0, sizeof (GumInvocationContext));
 }
 
 static void
 test_parent_data_listener_on_enter (GumInvocationListener * listener,
-                                    GumInvocationContext * ctx)
+                                    GumInvocationContext * context)
 {
   TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
+  GumInvocationContext * parent_context;
 
-  if (strcmp ((gchar *) ctx->instance_data, "a") == 0)
-    fill_invocation_context (&self->a_on_enter_parent_ctx, ctx->parent);
-  else if (strcmp ((gchar *) ctx->instance_data, "c") == 0)
-    fill_invocation_context (&self->c_on_enter_parent_ctx, ctx->parent);
+  parent_context = gum_invocation_context_get_parent (context);
+
+  if (strcmp ((gchar *) context->instance_data, "a") == 0)
+    fill_invocation_context (&self->a_on_enter_parent_ctx, parent_context);
+  else if (strcmp ((gchar *) context->instance_data, "c") == 0)
+    fill_invocation_context (&self->c_on_enter_parent_ctx, parent_context);
 }
 
 static void
 test_parent_data_listener_on_leave (GumInvocationListener * listener,
-                                    GumInvocationContext * ctx)
+                                    GumInvocationContext * context)
 {
   TestParentDataListener * self = TEST_PARENT_DATA_LISTENER (listener);
+  GumInvocationContext * parent_context;
 
-  if (strcmp ((gchar *) ctx->instance_data, "a") == 0)
-    fill_invocation_context (&self->a_on_leave_parent_ctx, ctx->parent);
-  else if (strcmp ((gchar *) ctx->instance_data, "c") == 0)
-    fill_invocation_context (&self->c_on_leave_parent_ctx, ctx->parent);
+  parent_context = gum_invocation_context_get_parent (context);
+
+  if (strcmp ((gchar *) context->instance_data, "a") == 0)
+    fill_invocation_context (&self->a_on_leave_parent_ctx, parent_context);
+  else if (strcmp ((gchar *) context->instance_data, "c") == 0)
+    fill_invocation_context (&self->c_on_leave_parent_ctx, parent_context);
 }
 
 static gpointer

@@ -25,6 +25,9 @@
     <Filter Include="core\backend-dbghelp">
       <UniqueIdentifier>{7502d842-9b17-4269-b789-95d62d99860c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libs\prof">
+      <UniqueIdentifier>{fa7da979-98f4-4b4c-a916-25724d1fd31e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ext\udis86\libudis86\decode.c">
@@ -152,6 +155,30 @@
     </ClCompile>
     <ClCompile Include="gum\gumreturnaddress.c">
       <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumbusycyclesampler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumcallcountsampler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumcyclesampler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gummalloccountsampler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumprofiler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumprofilereport.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumsampler.c">
+      <Filter>libs\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="libs\gum\prof\gumwallclocksampler.c">
+      <Filter>libs\prof</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -286,6 +313,33 @@
     </ClInclude>
     <ClInclude Include="gum\gumreturnaddress.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\gum-prof.h">
+      <Filter>libs</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumwallclocksampler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumbusycyclesampler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumcallcountsampler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumcyclesampler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gummalloccountsampler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumprofiler.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumprofilereport.h">
+      <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\prof\gumsampler.h">
+      <Filter>libs\prof</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

@@ -155,6 +155,9 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="lowlevel-helpers.h" />
+    <ClInclude Include="prof\fakesampler.h" />
+    <ClInclude Include="prof\profilereportharness.h" />
+    <ClInclude Include="prof\profilerharness.h" />
     <ClInclude Include="stubs\dummyclasses.h" />
     <ClInclude Include="stubs\fakebacktracer.h" />
     <ClInclude Include="stubs\fakeeventsink.h" />
@@ -281,6 +284,11 @@
     </ClCompile>
     <ClCompile Include="core\tracer.c" />
     <ClCompile Include="gumtest.c" />
+    <ClCompile Include="prof\fakesampler.c" />
+    <ClCompile Include="prof\profiler.c" />
+    <ClCompile Include="prof\profilereportharness.c" />
+    <ClCompile Include="prof\profilerharness.c" />
+    <ClCompile Include="prof\sampler.c" />
     <ClCompile Include="stubs\dummyclasses.c" />
     <ClCompile Include="stubs\fakebacktracer.c" />
     <ClCompile Include="stubs\fakeeventsink.c" />

@@ -27,6 +27,7 @@
 #endif
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
+#include <tchar.h>
 #else
 #error This sampler is Windows (Vista+) only for now
 #endif
@@ -75,7 +76,7 @@ gum_busy_cycle_sampler_init (GumBusyCycleSampler * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_BUSY_CYCLE_SAMPLER,
       GumBusyCycleSamplerPrivate);
 
-  mod = GetModuleHandle ("kernel32.dll");
+  mod = GetModuleHandle (_T ("kernel32.dll"));
   g_assert (mod != NULL);
 
   self->priv->query_thread_cycle_time =

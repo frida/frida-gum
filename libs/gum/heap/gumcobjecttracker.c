@@ -116,9 +116,9 @@ static void gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
     gpointer context);
 
 static void gum_cobject_tracker_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * ctx);
+    GumInvocationContext * context);
 static void gum_cobject_tracker_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * ctx);
+    GumInvocationContext * context);
 static gpointer gum_cobject_tracker_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
@@ -477,31 +477,31 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
 
 static void
 gum_cobject_tracker_on_enter (GumInvocationListener * listener,
-                              GumInvocationContext * ctx)
+                              GumInvocationContext * context)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
   CObjectFunctionContext * function_ctx =
-      (CObjectFunctionContext *) ctx->instance_data;
+      (CObjectFunctionContext *) context->instance_data;
 
   if (function_ctx->handlers.enter_handler != NULL)
   {
     function_ctx->handlers.enter_handler (self, function_ctx->context,
-        (CObjectThreadContext *) ctx->thread_data, ctx);
+        (CObjectThreadContext *) context->thread_data, context);
   }
 }
 
 static void
 gum_cobject_tracker_on_leave (GumInvocationListener * listener,
-                              GumInvocationContext * ctx)
+                              GumInvocationContext * context)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
   CObjectFunctionContext * function_ctx =
-      (CObjectFunctionContext *) ctx->instance_data;
+      (CObjectFunctionContext *) context->instance_data;
 
   if (function_ctx->handlers.leave_handler != NULL)
   {
     function_ctx->handlers.leave_handler (self, function_ctx->context,
-        (CObjectThreadContext *) ctx->thread_data, ctx);
+        (CObjectThreadContext *) context->thread_data, context);
   }
 }
 

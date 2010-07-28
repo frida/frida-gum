@@ -25,6 +25,7 @@ profiler_harness_setup (ProfilerHarness * h)
 {
   h->profiler = gum_profiler_new ();
   h->sampler = gum_fake_sampler_new ();
+  h->fake_sampler = GUM_FAKE_SAMPLER (h->sampler);
 }
 
 void

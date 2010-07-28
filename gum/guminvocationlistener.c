@@ -41,16 +41,16 @@ gum_invocation_listener_get_type (void)
 
 void
 gum_invocation_listener_on_enter (GumInvocationListener * self,
-                                  GumInvocationContext * ctx)
+                                  GumInvocationContext * context)
 {
-  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_enter (self, ctx);
+  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_enter (self, context);
 }
 
 void
 gum_invocation_listener_on_leave (GumInvocationListener * self,
-                                  GumInvocationContext * ctx)
+                                  GumInvocationContext * context)
 {
-  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_leave (self, ctx);
+  GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_leave (self, context);
 }
 
 gpointer
@@ -58,6 +58,11 @@ gum_invocation_listener_provide_thread_data (GumInvocationListener * self,
                                              gpointer function_instance_data,
                                              guint thread_id)
 {
-  return GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->provide_thread_data (
-      self, function_instance_data, thread_id);
+  GumInvocationListenerIface * iface =
+      GUM_INVOCATION_LISTENER_GET_INTERFACE (self);
+
+  if (iface->provide_thread_data == NULL)
+    return NULL;
+
+  return iface->provide_thread_data (self, function_instance_data, thread_id);
 }

@@ -59,6 +59,7 @@ typedef struct _FunctionContext          FunctionContext;
 typedef struct _FunctionThreadContext    FunctionThreadContext;
 typedef GumArray                         ThreadContextStack;
 typedef struct _ThreadContextStackEntry  ThreadContextStackEntry;
+typedef struct _ListenerInvocationData   ListenerInvocationData;
 
 struct _GumInterceptorPrivate
 {
@@ -91,6 +92,7 @@ struct _FunctionThreadContext
 
   gpointer listener_data[GUM_MAX_LISTENERS_PER_FUNCTION];
   guint listener_data_count;
+  GumInvocationBackend invocation_backend;
 };
 
 struct _FunctionContext
@@ -122,6 +124,12 @@ struct _ThreadContextStackEntry
   GumCpuContext cpu_context;
 
   FunctionThreadContext * thread_ctx;
+};
+
+struct _ListenerInvocationData
+{
+  ThreadContextStack * stack;
+  GumInvocationListener * listener;
 };
 
 #define GUM_INTERCEPTOR_GET_PRIVATE(o) ((o)->priv)
@@ -692,11 +700,24 @@ gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 #endif
 }
 
+GumInvocationContext *
+gum_interceptor_invocation_get_parent (GumInvocationContext * context)
+{
+  ListenerInvocationData * lid;
+
+  lid = (ListenerInvocationData *) context->backend->user_data;
+  if (lid == NULL)
+    return NULL;
+
+  return find_and_fill_parent_context_for_listener (lid->stack, lid->listener);
+}
+
 static GumInvocationBackend gum_interceptor_invocation_backend =
 {
   gum_interceptor_invocation_get_nth_argument,
   gum_interceptor_invocation_replace_nth_argument,
   gum_interceptor_invocation_get_return_value,
+  gum_interceptor_invocation_get_parent,
 
   NULL
 };
@@ -724,8 +745,8 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
   if (interceptor_ctx->ignore_level == 0)
   {
     ThreadContextStackEntry * stack_entry;
-    GumInvocationContext * invocation_ctx;
     FunctionThreadContext * thread_ctx;
+    GumInvocationContext * invocation_ctx;
     guint i;
 
     stack_entry = thread_context_stack_push (interceptor_ctx->stack,
@@ -735,11 +756,12 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
     *caller_ret_addr = function_ctx->on_leave_trampoline;
     will_trap_on_leave = TRUE;
 
-    invocation_ctx = &stack_entry->invocation_context;
-    invocation_ctx->cpu_context = cpu_context;
-
     thread_ctx = get_function_thread_context (function_ctx);
     stack_entry->thread_ctx = thread_ctx;
+
+    invocation_ctx = &stack_entry->invocation_context;
+    invocation_ctx->cpu_context = cpu_context;
+    invocation_ctx->backend = &thread_ctx->invocation_backend;
 
     gum_spinlock_acquire (&function_ctx->listener_lock);
 
@@ -747,6 +769,7 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
     {
       ListenerEntry * entry = (ListenerEntry *)
           g_ptr_array_index (function_ctx->listener_entries, i);
+      ListenerInvocationData listener_invocation_data;
 
       invocation_ctx->instance_data = entry->function_instance_data;
 
@@ -756,11 +779,18 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
       }
       else
       {
-        invocation_ctx->thread_data =
-            entry->listener_interface->provide_thread_data (
-                entry->listener_instance,
-                entry->function_instance_data,
-                get_current_thread_id ());
+        if (entry->listener_interface->provide_thread_data != NULL)
+        {
+          invocation_ctx->thread_data =
+              entry->listener_interface->provide_thread_data (
+                  entry->listener_instance,
+                  entry->function_instance_data,
+                  get_current_thread_id ());
+        }
+        else
+        {
+          invocation_ctx->thread_data = NULL;
+        }
 
         thread_ctx->listener_data_count++;
         g_assert (thread_ctx->listener_data_count <=
@@ -769,8 +799,9 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
         thread_ctx->listener_data[i] = invocation_ctx->thread_data;
       }
 
-      invocation_ctx->parent = find_and_fill_parent_context_for_listener (
-          interceptor_ctx->stack, entry->listener_instance);
+      listener_invocation_data.stack = interceptor_ctx->stack;
+      listener_invocation_data.listener = entry->listener_instance;
+      thread_ctx->invocation_backend.user_data = &listener_invocation_data;
 
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
@@ -809,9 +840,12 @@ gum_function_context_on_leave (FunctionContext * function_ctx,
 
   stack_entry = thread_context_stack_peek_top (interceptor_ctx->stack);
   caller_ret_addr = stack_entry->caller_ret_addr;
+
+  thread_ctx = stack_entry->thread_ctx;
+
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
-  thread_ctx = stack_entry->thread_ctx;
+  invocation_ctx->backend = &thread_ctx->invocation_backend;
 
 #if GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = (guint32) caller_ret_addr;
@@ -825,12 +859,14 @@ gum_function_context_on_leave (FunctionContext * function_ctx,
   {
     ListenerEntry * entry = (ListenerEntry *)
         g_ptr_array_index (function_ctx->listener_entries, i);
+    ListenerInvocationData listener_invocation_data;
 
     invocation_ctx->instance_data = entry->function_instance_data;
     invocation_ctx->thread_data = thread_ctx->listener_data[i];
 
-    invocation_ctx->parent = find_and_fill_parent_context_for_listener (
-        interceptor_ctx->stack, entry->listener_instance);
+    listener_invocation_data.stack = interceptor_ctx->stack;
+    listener_invocation_data.listener = entry->listener_instance;
+    thread_ctx->invocation_backend.user_data = &listener_invocation_data;
 
     entry->listener_interface->on_leave (entry->listener_instance,
         invocation_ctx);
@@ -935,6 +971,8 @@ get_function_thread_context (FunctionContext * function_ctx)
   thread_ctx->function_ctx = function_ctx;
 
   thread_ctx->thread_id = thread_id;
+
+  thread_ctx->invocation_backend = gum_interceptor_invocation_backend;
 
   return thread_ctx;
 }

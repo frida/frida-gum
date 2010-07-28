@@ -18,7 +18,7 @@
  */
 
 typedef void (* TestCallbackListenerFunc) (gpointer user_data,
-    GumInvocationContext * ctx);
+    GumInvocationContext * context);
 
 typedef struct {
   GObject parent;
@@ -49,30 +49,22 @@ G_DEFINE_TYPE_EXTENDED (TestCallbackListener,
 
 static void
 test_callback_listener_on_enter (GumInvocationListener * listener,
-                                 GumInvocationContext * ctx)
+                                 GumInvocationContext * context)
 {
   TestCallbackListener * self = TEST_CALLBACK_LISTENER (listener);
 
   if (self->on_enter != NULL)
-    self->on_enter (self->user_data, ctx);
+    self->on_enter (self->user_data, context);
 }
 
 static void
 test_callback_listener_on_leave (GumInvocationListener * listener,
-                                 GumInvocationContext * ctx)
+                                 GumInvocationContext * context)
 {
   TestCallbackListener * self = TEST_CALLBACK_LISTENER (listener);
 
   if (self->on_leave != NULL)
-    self->on_leave (self->user_data, ctx);
-}
-
-static gpointer
-test_callback_listener_provide_thread_data (GumInvocationListener * listener,
-                                            gpointer function_instance_data,
-                                            guint thread_id)
-{
-  return NULL;
+    self->on_leave (self->user_data, context);
 }
 
 static void
@@ -83,7 +75,6 @@ test_callback_listener_iface_init (gpointer g_iface,
 
   iface->on_enter = test_callback_listener_on_enter;
   iface->on_leave = test_callback_listener_on_leave;
-  iface->provide_thread_data = test_callback_listener_provide_thread_data;
 }
 
 static void

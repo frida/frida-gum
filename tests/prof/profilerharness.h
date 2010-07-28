@@ -21,6 +21,8 @@
 #ifndef __PROFILER_HARNESS_H__
 #define __PROFILER_HARNESS_H__
 
+#include "gumprofiler.h"
+
 #include "fakesampler.h"
 
 typedef struct _ProfilerHarness ProfilerHarness;
@@ -29,11 +31,8 @@ struct _ProfilerHarness
 {
   GumProfiler * profiler;
 
-  union
-  {
-    GumSampler * sampler;
-    GumFakeSampler * fake_sampler;
-  };
+  GumSampler * sampler;
+  GumFakeSampler * fake_sampler;
 };
 
 G_BEGIN_DECLS

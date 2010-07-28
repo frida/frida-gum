@@ -166,9 +166,9 @@ static void gum_allocator_probe_apply_default_suppressions (
     GumAllocatorProbe * self);
 
 static void gum_allocator_probe_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * ctx);
+    GumInvocationContext * context);
 static void gum_allocator_probe_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * ctx);
+    GumInvocationContext * context);
 static gpointer gum_allocator_probe_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
@@ -420,12 +420,12 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
 static void
 gum_allocator_probe_on_enter (GumInvocationListener * listener,
-                              GumInvocationContext * ctx)
+                              GumInvocationContext * context)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
-  FunctionContext * function_ctx = (FunctionContext *) ctx->instance_data;
-  ThreadContext * base_thread_ctx = (ThreadContext *) ctx->thread_data;
+  FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
+  ThreadContext * base_thread_ctx = (ThreadContext *) context->thread_data;
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
@@ -435,25 +435,28 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 
     base_thread_ctx->ignored = FALSE;
 
-    function_ctx->handlers.enter_handler (self, ctx->thread_data, ctx);
+    function_ctx->handlers.enter_handler (self, context->thread_data, context);
   }
 }
 
 static void
 gum_allocator_probe_on_leave (GumInvocationListener * listener,
-                              GumInvocationContext * ctx)
+                              GumInvocationContext * context)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
-  FunctionContext * function_ctx = (FunctionContext *) ctx->instance_data;
-  ThreadContext * base_ctx = (ThreadContext *) ctx->thread_data;
+  FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
+  ThreadContext * base_ctx = (ThreadContext *) context->thread_data;
 
   if (function_ctx != NULL)
   {
     if (!base_ctx->ignored)
     {
       if (function_ctx->handlers.leave_handler != NULL)
-        function_ctx->handlers.leave_handler (self, ctx->thread_data, ctx);
+      {
+        function_ctx->handlers.leave_handler (self, context->thread_data,
+            context);
+      }
     }
 
     GUM_ALLOCATOR_PROBE_UNLOCK ();

@@ -39,3 +39,9 @@ gum_invocation_context_get_return_value (GumInvocationContext * context)
 {
   return context->backend->get_return_value (context);
 }
+
+GumInvocationContext *
+gum_invocation_context_get_parent (GumInvocationContext * context)
+{
+  return context->backend->get_parent (context);
+}

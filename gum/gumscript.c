@@ -43,7 +43,7 @@ typedef struct _GumVariable GumVariable;
 typedef struct _GumSendArgItem GumSendArgItem;
 
 typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
-    (GumInvocationContext * ctx);
+    (GumInvocationContext * context);
 
 struct _GumScriptPrivate
 {
@@ -288,9 +288,9 @@ gum_script_set_message_handler (GumScript * self,
 
 void
 gum_script_execute (GumScript * self,
-                    GumInvocationContext * ctx)
+                    GumInvocationContext * context)
 {
-  self->priv->entrypoint (ctx);
+  self->priv->entrypoint (context);
 }
 
 gpointer
@@ -307,7 +307,7 @@ gum_script_get_code_size (GumScript * self)
 
 static void
 gum_script_send_item_commit (GumScript * self,
-                             GumInvocationContext * ctx,
+                             GumInvocationContext * context,
                              guint argument_index,
                              ...)
 {
@@ -328,7 +328,7 @@ gum_script_send_item_commit (GumScript * self,
     GVariant * value;
 
     argument_value =
-        gum_invocation_context_get_nth_argument (ctx, argument_index);
+        gum_invocation_context_get_nth_argument (context, argument_index);
     var_type = va_arg (args, GumVariableType);
 
     switch (var_type)

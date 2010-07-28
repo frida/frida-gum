@@ -18,9 +18,11 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <stdlib.h>
-#include <gum/gum.h>
+#include "gumsampler.h"
+
 #include "testutil.h"
+
+#include <stdlib.h>
 
 #ifdef G_OS_WIN32
 static void spin_for_one_tenth_second (void);
@@ -33,7 +35,7 @@ static void nop_function_b (void);
     void test_sampler_ ## NAME ( \
         TestSamplerFixture * fixture, gconstpointer data)
 #define SAMPLER_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE (Sampler, test_sampler, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("Prof/Sampler", test_sampler, NAME, \
         TestSamplerFixture)
 
 typedef struct _TestSamplerFixture

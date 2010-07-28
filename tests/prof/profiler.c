@@ -18,14 +18,15 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "profilerharness.h"
+#include "profilereportharness.h"
+
+#include "lowlevel-helpers.h" /* for uninstrumentable function */
+#include "testutil.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <gum/gum.h>
-#include "profilerharness.h"
-#include "profilereportharness.h"
-#include "interceptor-lowlevel.h" /* for uninstrumentable function */
-#include "testutil.h"
 
 static void sleepy_function (GumFakeSampler * sampler);
 static void example_a (GumFakeSampler * sampler);
@@ -53,9 +54,9 @@ static void example_worst_case_info (GumFakeSampler * sampler, GumSample cost,
     const gchar * magic);
 static void example_worst_case_recursive (gint count,
     GumFakeSampler * sampler);
-static void inspect_worst_case_info (gpointer function_arguments,
+static void inspect_worst_case_info (GumInvocationContext * context,
     gchar * output_buf, guint output_buf_len);
-static void inspect_recursive_worst_case_info (gpointer function_arguments,
+static void inspect_recursive_worst_case_info (GumInvocationContext * context,
     gchar * output_buf, guint output_buf_len);
 static void simple_1 (GumFakeSampler * sampler);
 static void simple_2 (GumFakeSampler * sampler);
@@ -676,34 +677,36 @@ example_worst_case_recursive (gint count,
     example_worst_case_recursive (count - 1, sampler);
 }
 
-#pragma pack (push, 1)
-
-typedef struct _ExampleWorstCaseInfoArgs ExampleWorstCaseInfoArgs;
-
-struct _ExampleWorstCaseInfoArgs
-{
-  GumFakeSampler * sampler;
-  GumSample cost;
-  const gchar * magic;
-};
-
-#pragma pack (pop)
-
 static void
-inspect_worst_case_info (gpointer function_arguments,
+inspect_worst_case_info (GumInvocationContext * context,
                          gchar * output_buf,
                          guint output_buf_len)
 {
-  ExampleWorstCaseInfoArgs * args = function_arguments;
-  strcpy (output_buf, args->magic);
+  const gchar * magic;
+
+  magic = (gchar *) gum_invocation_context_get_nth_argument (context, 2);
+
+#ifdef _MSC_VER
+  strcpy_s (output_buf, output_buf_len, magic);
+#else
+  strcpy (output_buf, magic);
+#endif
 }
 
 static void
-inspect_recursive_worst_case_info (gpointer function_arguments,
+inspect_recursive_worst_case_info (GumInvocationContext * context,
                                    gchar * output_buf,
                                    guint output_buf_len)
 {
-  sprintf (output_buf, "%d", *((gint *) function_arguments));
+  gint count;
+
+  count = (gint) gum_invocation_context_get_nth_argument (context, 0);
+
+#ifdef _MSC_VER
+  sprintf_s (output_buf, output_buf_len, "%d", count);
+#else
+  sprintf (output_buf, "%d", count);
+#endif
 }
 
 /* These three should be kept in this order to make the function addresses

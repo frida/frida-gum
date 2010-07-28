@@ -110,6 +110,29 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClInclude Include="libs\gum\gum-prof.h" />
+    <ClInclude Include="libs\gum\prof\gumbusycyclesampler.h" />
+    <ClInclude Include="libs\gum\prof\gumcallcountsampler.h" />
+    <ClInclude Include="libs\gum\prof\gumcyclesampler.h" />
+    <ClInclude Include="libs\gum\prof\gummalloccountsampler.h" />
+    <ClInclude Include="libs\gum\prof\gumprofiler.h" />
+    <ClInclude Include="libs\gum\prof\gumprofilereport.h" />
+    <ClInclude Include="libs\gum\prof\gumsampler.h" />
+    <ClInclude Include="libs\gum\prof\gumwallclocksampler.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="libs\gum\prof\gumbusycyclesampler.c" />
+    <ClCompile Include="libs\gum\prof\gumcallcountsampler.c" />
+    <ClCompile Include="libs\gum\prof\gumcyclesampler.c" />
+    <ClCompile Include="libs\gum\prof\gummalloccountsampler.c" />
+    <ClCompile Include="libs\gum\prof\gumprofiler.c" />
+    <ClCompile Include="libs\gum\prof\gumprofilereport.c" />
+    <ClCompile Include="libs\gum\prof\gumsampler.c" />
+    <ClCompile Include="libs\gum\prof\gumwallclocksampler.c" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\decode.h" />
     <ClInclude Include="ext\udis86\libudis86\extern.h" />
     <ClInclude Include="ext\udis86\libudis86\input.h" />

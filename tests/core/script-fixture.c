@@ -60,21 +60,13 @@ test_script_fixture_replace_nth_argument (GumInvocationContext * context,
   ((gpointer *) fixture->argument_list)[n] = value;
 }
 
-static gpointer
-test_script_fixture_get_return_value (GumInvocationContext * context)
-{
-  g_assert_not_reached ();
-  return NULL;
-}
-
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
-                            gconstpointer data)
+                           gconstpointer data)
 {
   GumInvocationContext * ctx = &fixture->invocation_context;
   GumInvocationBackend * backend = &fixture->invocation_backend;
 
-  ctx->parent = NULL;
   ctx->instance_data = NULL;
   ctx->thread_data = NULL;
   ctx->cpu_context = &fixture->cpu_context;
@@ -82,7 +74,6 @@ test_script_fixture_setup (TestScriptFixture * fixture,
 
   backend->get_nth_argument = test_script_fixture_get_nth_argument;
   backend->replace_nth_argument = test_script_fixture_replace_nth_argument;
-  backend->get_return_value = test_script_fixture_get_return_value;
   backend->user_data = fixture;
 
   memset (&fixture->cpu_context, 0, sizeof (GumCpuContext));
@@ -90,6 +81,6 @@ test_script_fixture_setup (TestScriptFixture * fixture,
 
 static void
 test_script_fixture_teardown (TestScriptFixture * fixture,
-                               gconstpointer data)
+                              gconstpointer data)
 {
 }

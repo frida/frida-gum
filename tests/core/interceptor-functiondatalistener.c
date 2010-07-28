@@ -54,22 +54,22 @@ G_DEFINE_TYPE_EXTENDED (TestFunctionDataListener,
 
 static void
 test_function_data_listener_on_enter (GumInvocationListener * listener,
-                                      GumInvocationContext * ctx)
+                                      GumInvocationContext * context)
 {
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
 
   self->on_enter_call_count++;
-  self->last_on_enter_ctx = *ctx;
+  self->last_on_enter_ctx = *context;
 }
 
 static void
 test_function_data_listener_on_leave (GumInvocationListener * listener,
-                                      GumInvocationContext * ctx)
+                                      GumInvocationContext * context)
 {
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
 
   self->on_leave_call_count++;
-  self->last_on_leave_ctx = *ctx;
+  self->last_on_leave_ctx = *context;
 }
 
 static gpointer

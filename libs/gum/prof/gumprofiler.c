@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -94,11 +94,9 @@ static void gum_profiler_invocation_listener_iface_init (gpointer g_iface,
 static void gum_profiler_finalize (GObject * object);
 
 static void gum_profiler_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    GumCpuContext * cpu_context, gpointer function_arguments);
+    GumInvocationContext * context);
 static void gum_profiler_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context, GumInvocationContext * parent_context,
-    gpointer function_return_value);
+    GumInvocationContext * context);
 static gpointer gum_profiler_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
@@ -185,12 +183,10 @@ gum_profiler_finalize (GObject * object)
 
 static void
 gum_profiler_on_enter (GumInvocationListener * listener,
-                       GumInvocationContext * context,
-                       GumInvocationContext * parent_context,
-                       GumCpuContext * cpu_context,
-                       gpointer function_arguments)
+                       GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx = context->thread_data;
+  GumFunctionThreadContext * thread_ctx =
+      (GumFunctionThreadContext *) context->thread_data;
   GumFunctionContext * function_ctx = thread_ctx->function_ctx;
   GumWorstCaseInspectorFunc inspector_func;
 
@@ -200,7 +196,7 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   {
     if ((inspector_func = function_ctx->inspector_func) != NULL)
     {
-      inspector_func (function_arguments, thread_ctx->potential_info.buf,
+      inspector_func (context, thread_ctx->potential_info.buf,
           sizeof (thread_ctx->potential_info.buf));
     }
 
@@ -213,18 +209,18 @@ gum_profiler_on_enter (GumInvocationListener * listener,
 
 static void
 gum_profiler_on_leave (GumInvocationListener * listener,
-                       GumInvocationContext * context,
-                       GumInvocationContext * parent_context,
-                       gpointer function_return_value)
+                       GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx = context->thread_data;
-  GumFunctionContext * function_ctx = thread_ctx->function_ctx;
-  GumFunctionThreadContext * parent_thread_ctx = parent_context->thread_data;
+  GumFunctionThreadContext * thread_ctx =
+      (GumFunctionThreadContext *) context->thread_data;
   GumSample duration;
   GumSample now;
 
   if (thread_ctx->recurse_count == 1)
   {
+    GumFunctionContext * function_ctx = thread_ctx->function_ctx;
+    GumInvocationContext * parent_context;
+
     now = function_ctx->sampler_interface->sample (
         function_ctx->sampler_instance);
     duration = now - thread_ctx->start_time;
@@ -238,10 +234,17 @@ gum_profiler_on_leave (GumInvocationListener * listener,
           sizeof (thread_ctx->potential_info));
     }
 
-    if (parent_thread_ctx == NULL)
+    parent_context = gum_invocation_context_get_parent (context);
+    if (parent_context == NULL)
+    {
       thread_ctx->is_root_node = TRUE;
+    }
     else
-      thread_context_register_child_timing (parent_thread_ctx, thread_ctx);
+    {
+      thread_context_register_child_timing (
+          (GumFunctionThreadContext *) parent_context->thread_data,
+          thread_ctx);
+    }
   }
 
   thread_ctx->recurse_count--;
@@ -252,7 +255,8 @@ gum_profiler_provide_thread_data (GumInvocationListener * listener,
                                   gpointer function_instance_data,
                                   guint thread_id)
 {
-  GumFunctionContext * function_ctx = function_instance_data;
+  GumFunctionContext * function_ctx =
+      (GumFunctionContext *) function_instance_data;
   GumFunctionThreadContext * thread_ctx;
   guint i;
 
@@ -389,9 +393,9 @@ add_to_report_if_root_node (gpointer key,
 
   if (function_ctx->thread_context_count > 0)
   {
-    guint i;
+    gint i;
 
-    for (i = 0; i < function_ctx->thread_context_count; i++)
+    for (i = 0; i != function_ctx->thread_context_count; i++)
     {
       GumFunctionThreadContext * thread_ctx =
           &function_ctx->thread_contexts[i];
@@ -499,12 +503,12 @@ gum_profiler_get_total_duration_of (GumProfiler * self,
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
-  function_ctx =
+  function_ctx = (GumFunctionContext *)
       g_hash_table_lookup (priv->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
-      && thread_index < function_ctx->thread_context_count)
+      && (gint) thread_index < function_ctx->thread_context_count)
     return function_ctx->thread_contexts[thread_index].total_duration;
   else
     return 0;
@@ -519,12 +523,12 @@ gum_profiler_get_worst_case_duration_of (GumProfiler * self,
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
-  function_ctx =
+  function_ctx = (GumFunctionContext *)
       g_hash_table_lookup (priv->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
-      && thread_index < function_ctx->thread_context_count)
+      && (gint) thread_index < function_ctx->thread_context_count)
     return function_ctx->thread_contexts[thread_index].worst_case.duration;
   else
     return 0;
@@ -539,12 +543,12 @@ gum_profiler_get_worst_case_info_of (GumProfiler * self,
   GumFunctionContext * function_ctx;
 
   GUM_PROFILER_LOCK ();
-  function_ctx =
+  function_ctx = (GumFunctionContext *)
       g_hash_table_lookup (priv->function_by_address, function_address);
   GUM_PROFILER_UNLOCK ();
 
   if (function_ctx != NULL
-      && thread_index < function_ctx->thread_context_count)
+      && (gint) thread_index < function_ctx->thread_context_count)
     return function_ctx->thread_contexts[thread_index].worst_case.info.buf;
   else
     return "";

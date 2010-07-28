@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -32,15 +32,9 @@ static void gum_call_count_sampler_dispose (GObject * object);
 static GumSample gum_call_count_sampler_sample (GumSampler * sampler);
 
 static void gum_call_count_sampler_on_enter (
-    GumInvocationListener * listener, GumInvocationContext * context,
-    GumInvocationContext * parent_context, GumCpuContext * cpu_context,
-    gpointer function_arguments);
+    GumInvocationListener * listener, GumInvocationContext * context);
 static void gum_call_count_sampler_on_leave (
-    GumInvocationListener * listener, GumInvocationContext * context,
-    GumInvocationContext * parent_context, gpointer function_return_value);
-static gpointer gum_call_count_sampler_provide_thread_data (
-    GumInvocationListener * listener, gpointer function_instance_data,
-    guint thread_id);
+    GumInvocationListener * listener, GumInvocationContext * context);
 
 struct _GumCallCountSamplerPrivate
 {
@@ -82,13 +76,12 @@ gum_call_count_sampler_sampler_iface_init (gpointer g_iface,
 
 static void
 gum_call_count_sampler_listener_iface_init (gpointer g_iface,
-                                              gpointer iface_data)
+                                            gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
   iface->on_enter = gum_call_count_sampler_on_enter;
   iface->on_leave = gum_call_count_sampler_on_leave;
-  iface->provide_thread_data = gum_call_count_sampler_provide_thread_data;
 }
 
 static void
@@ -224,10 +217,7 @@ gum_call_count_sampler_sample (GumSampler * sampler)
 
 static void
 gum_call_count_sampler_on_enter (GumInvocationListener * listener,
-                                 GumInvocationContext * context,
-                                 GumInvocationContext * parent_context,
-                                 GumCpuContext * cpu_context,
-                                 gpointer function_arguments)
+                                 GumInvocationContext * context)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (listener);
   GumCallCountSamplerPrivate * priv =
@@ -249,21 +239,11 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
 
 static void
 gum_call_count_sampler_on_leave (GumInvocationListener * listener,
-                                 GumInvocationContext * context,
-                                 GumInvocationContext * parent_context,
-                                 gpointer function_return_value)
+                                 GumInvocationContext * context)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (listener);
   GumCallCountSamplerPrivate * priv =
       GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
 
   gum_interceptor_unignore_caller (priv->interceptor);
-}
-
-static gpointer
-gum_call_count_sampler_provide_thread_data (GumInvocationListener * listener,
-                                            gpointer function_instance_data,
-                                            guint thread_id)
-{
-  return NULL;
 }

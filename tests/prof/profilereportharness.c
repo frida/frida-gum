@@ -19,7 +19,9 @@
  */
 
 #include "profilereportharness.h"
+
 #include "testutil.h"
+
 #include <string.h>
 
 static const GPtrArray * profile_report_harness_get_root_nodes (
@@ -37,6 +39,7 @@ profile_report_harness_setup_full (ProfileReportHarness * h,
 {
   h->profiler = gum_profiler_new ();
   h->sampler = gum_fake_sampler_new ();
+  h->fake_sampler = GUM_FAKE_SAMPLER (h->sampler);
   h->report = NULL;
   h->root_nodes = NULL;
 

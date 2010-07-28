@@ -32,6 +32,7 @@ struct _GumInvocationBackend
   void (* replace_nth_argument) (GumInvocationContext * context, guint n,
       gpointer value);
   gpointer (* get_return_value) (GumInvocationContext * context);
+  GumInvocationContext * (* get_parent) (GumInvocationContext * context);
 
   gpointer user_data;
 };
@@ -44,8 +45,6 @@ struct _GumInvocationContext
   gpointer instance_data;
   gpointer thread_data;
 
-  GumInvocationContext * parent;
-
   /*< private */
   GumInvocationBackend * backend;
 };
@@ -57,6 +56,8 @@ GUM_API gpointer gum_invocation_context_get_nth_argument (
 GUM_API void gum_invocation_context_replace_nth_argument (
     GumInvocationContext * context, guint n, gpointer value);
 GUM_API gpointer gum_invocation_context_get_return_value (
+    GumInvocationContext * context);
+GUM_API GumInvocationContext * gum_invocation_context_get_parent (
     GumInvocationContext * context);
 
 G_END_DECLS

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -23,6 +23,7 @@
 
 #include <glib-object.h>
 #include <gum/gumdefs.h>
+#include <gum/guminvocationcontext.h>
 #include <gum/prof/gumsampler.h>
 #include <gum/prof/gumprofilereport.h>
 
@@ -65,7 +66,7 @@ struct _GumProfilerClass
 G_BEGIN_DECLS
 
 typedef gboolean (* GumFunctionMatchFilterFunc) (const gchar * function_name);
-typedef void (* GumWorstCaseInspectorFunc) (gpointer function_arguments,
+typedef void (* GumWorstCaseInspectorFunc) (GumInvocationContext * context,
     gchar * output_buf, guint output_buf_len);
 
 GUM_API GType gum_profiler_get_type (void) G_GNUC_CONST;
