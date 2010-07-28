@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,122 +17,90 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <string.h>
-#include <gum/gum.h>
+#include "cobjecttracker-fixture.c"
 
-typedef struct _CObjectTrackerHarness CObjectTrackerHarness;
-typedef struct _MyObject MyObject;
+TEST_LIST_BEGIN (cobjecttracker)
+  COBJTRACKER_TESTENTRY (total_count_increase)
+  COBJTRACKER_TESTENTRY (total_count_decrease)
+  COBJTRACKER_TESTENTRY (object_list)
+TEST_LIST_END ()
 
-struct _CObjectTrackerHarness
+COBJTRACKER_TESTCASE (total_count_increase)
 {
-  GumCObjectTracker * tracker;
-  GHashTable * ht1;
-  GHashTable * ht2;
-  MyObject * mo;
-};
+  GumCObjectTracker * t = fixture->tracker;
 
-static void cobject_tracker_harness_setup (CObjectTrackerHarness * h);
-static void cobject_tracker_harness_setup_with_backtracer (
-    CObjectTrackerHarness * h);
-static void cobject_tracker_harness_setup_full (CObjectTrackerHarness * h,
-    GumBacktracer * backtracer);
-static void cobject_tracker_harness_teardown (CObjectTrackerHarness * h);
-static MyObject * my_object_new (void);
-static void my_object_free (MyObject * obj);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 0);
 
-static void
-test_total_count_increase (void)
-{
-  CObjectTrackerHarness h;
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 0);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "MyObject"),
+      ==, 0);
+  fixture->ht1 = g_hash_table_new (NULL, NULL);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 1);
+  fixture->ht2 = g_hash_table_new (NULL, NULL);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 2);
 
-  cobject_tracker_harness_setup (&h);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 2);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 0);
+  fixture->mo = my_object_new ();
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "MyObject"),
+      ==, 1);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 0);
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "MyObject"), ==, 0);
-  h.ht1 = g_hash_table_new (NULL, NULL);
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 1);
-  h.ht2 = g_hash_table_new (NULL, NULL);
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 2);
-
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 2);
-
-  h.mo = my_object_new ();
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "MyObject"), ==, 1);
-
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 3);
-
-  cobject_tracker_harness_teardown (&h);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 3);
 }
 
-static void
-test_total_count_decrease (void)
+COBJTRACKER_TESTCASE (total_count_decrease)
 {
-  CObjectTrackerHarness h;
+  GumCObjectTracker * t = fixture->tracker;
 
-  cobject_tracker_harness_setup (&h);
+  fixture->ht1 = g_hash_table_new (NULL, NULL);
+  fixture->ht2 = g_hash_table_new (NULL, NULL);
+  fixture->mo = my_object_new ();
 
-  h.ht1 = g_hash_table_new (NULL, NULL);
-  h.ht2 = g_hash_table_new (NULL, NULL);
-  h.mo = my_object_new ();
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 3);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 3);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 2);
+  g_hash_table_unref (fixture->ht1); fixture->ht1 = NULL;
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 1);
+  g_hash_table_unref (fixture->ht2); fixture->ht2 = NULL;
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "GHashTable"),
+      ==, 0);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 2);
-  g_hash_table_unref (h.ht1); h.ht1 = NULL;
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 1);
-  g_hash_table_unref (h.ht2); h.ht2 = NULL;
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "GHashTable"), ==, 0);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 1);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 1);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "MyObject"),
+      ==, 1);
+  my_object_free (fixture->mo); fixture->mo = NULL;
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, "MyObject"),
+      ==, 0);
 
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "MyObject"), ==, 1);
-  my_object_free (h.mo); h.mo = NULL;
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      "MyObject"), ==, 0);
-
-  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (h.tracker,
-      NULL), ==, 0);
-
-  cobject_tracker_harness_teardown (&h);
+  g_assert_cmpuint (gum_cobject_tracker_peek_total_count (t, NULL), ==, 0);
 }
 
-static void
-test_object_list (void)
+COBJTRACKER_TESTCASE (object_list)
 {
-  CObjectTrackerHarness h;
   GumList * cobjects, * walk;
 
-  cobject_tracker_harness_setup_with_backtracer (&h);
+  test_cobject_tracker_fixture_enable_backtracer (fixture);
 
-  h.ht1 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
-  h.mo = my_object_new ();
+  fixture->ht1 = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+  fixture->mo = my_object_new ();
 
-  cobjects = gum_cobject_tracker_peek_object_list (h.tracker);
+  cobjects = gum_cobject_tracker_peek_object_list (fixture->tracker);
   g_assert_cmpint (gum_list_length (cobjects), ==, 2);
 
   for (walk = cobjects; walk != NULL; walk = walk->next)
   {
-    GumCObject * cobject = walk->data;
+    GumCObject * cobject = (GumCObject *) walk->data;
 
-    g_assert (cobject->address == h.ht1 || cobject->address == h.mo);
+    g_assert (cobject->address == fixture->ht1 ||
+        cobject->address == fixture->mo);
 
-    if (cobject->address == h.ht1)
+    if (cobject->address == fixture->ht1)
       g_assert_cmpstr (cobject->type_name, ==, "GHashTable");
     else
       g_assert_cmpstr (cobject->type_name, ==, "MyObject");
@@ -143,76 +111,6 @@ test_object_list (void)
     g_assert_cmpint (cobject->return_addresses.items[0].line_number, >,
         0);
   }
+
   gum_cobject_list_free (cobjects);
-
-  cobject_tracker_harness_teardown (&h);
-}
-
-static void
-cobject_tracker_harness_setup (CObjectTrackerHarness * h)
-{
-  cobject_tracker_harness_setup_full (h, NULL);
-}
-
-static void
-cobject_tracker_harness_setup_with_backtracer (CObjectTrackerHarness * h)
-{
-  GumBacktracer * backtracer;
-
-#ifdef G_OS_WIN32
-  backtracer = gum_windows_backtracer_new ();
-#else
-  backtracer = gum_gnu_backtracer_new ();
-#endif
-  cobject_tracker_harness_setup_full (h, backtracer);
-  g_object_unref (backtracer);
-}
-
-static void
-cobject_tracker_harness_setup_full (CObjectTrackerHarness * h,
-                                    GumBacktracer * backtracer)
-{
-  memset (h, 0, sizeof (CObjectTrackerHarness));
-  if (backtracer != NULL)
-    h->tracker = gum_cobject_tracker_new_with_backtracer (backtracer);
-  else
-    h->tracker = gum_cobject_tracker_new ();
-  gum_cobject_tracker_track (h->tracker, "GHashTable", g_hash_table_new_full);
-  gum_cobject_tracker_track (h->tracker, "MyObject", my_object_new);
-  gum_cobject_tracker_begin (h->tracker);
-}
-
-static void
-cobject_tracker_harness_teardown (CObjectTrackerHarness * h)
-{
-  if (h->ht1 != NULL)
-    g_hash_table_unref (h->ht1);
-  if (h->ht2 != NULL)
-    g_hash_table_unref (h->ht2);
-  if (h->mo != NULL)
-    my_object_free (h->mo);
-  g_object_unref (h->tracker);
-}
-
-static MyObject *
-my_object_new (void)
-{
-  return g_malloc (1);
-}
-
-static void
-my_object_free (MyObject * obj)
-{
-  g_free (obj);
-}
-
-void
-gum_test_register_cobject_tracker_tests (void)
-{
-  g_test_add_func ("/Gum/CObjectTracker/test-total-count-increase",
-      &test_total_count_increase);
-  g_test_add_func ("/Gum/CObjectTracker/test-total-count-decrease",
-      &test_total_count_decrease);
-  g_test_add_func ("/Gum/CObjectTracker/test-object-list",
-      &test_object_list);
 }

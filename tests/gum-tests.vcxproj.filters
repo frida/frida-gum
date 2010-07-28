@@ -141,6 +141,9 @@
     <ClCompile Include="heap\boundschecker-fixture.c">
       <Filter>Tests\heap</Filter>
     </ClCompile>
+    <ClCompile Include="heap\cobjecttracker-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
