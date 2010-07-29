@@ -28,6 +28,13 @@
 #define TESTUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
+TEST_LIST_BEGIN (testutil)
+  TESTUTIL_TESTENTRY (binary_diff)
+  TESTUTIL_TESTENTRY (xml_line_diff)
+  TESTUTIL_TESTENTRY (xml_pretty_split)
+  TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
+TEST_LIST_END ()
+
 static gchar * byte_array_to_hex_string (const guint8 * bytes, guint length);
 static gchar * byte_array_to_bin_string (const guint8 * bytes, guint length);
 static gchar * prettify_xml (const gchar * input_xml);
@@ -42,13 +49,6 @@ static void on_text (GMarkupParseContext * context, const gchar * text,
 static gchar * diff_line (const gchar * expected_line,
     const gchar * actual_line);
 static void append_indent (GString * str, guint indent_level);
-
-TEST_LIST_BEGIN (testutil)
-  TESTUTIL_TESTENTRY (binary_diff)
-  TESTUTIL_TESTENTRY (xml_line_diff)
-  TESTUTIL_TESTENTRY (xml_pretty_split)
-  TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
-TEST_LIST_END ()
 
 TESTUTIL_TESTCASE (binary_diff)
 {
