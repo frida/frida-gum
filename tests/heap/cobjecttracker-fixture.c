@@ -32,13 +32,13 @@
 
 typedef struct _MyObject MyObject;
 
-static MyObject *
+GUM_NOINLINE static MyObject *
 my_object_new (void)
 {
   return (MyObject *) g_malloc (1);
 }
 
-static void
+GUM_NOINLINE static void
 my_object_free (MyObject * obj)
 {
   g_free (obj);

@@ -221,6 +221,8 @@ static void deep_recursive_caller (gint count);
 static void GUM_NOINLINE example_b_dynamic (GumFakeSampler * sampler,
     guint cost);
 
+gint dummy_variable_to_trick_optimizer = 0;
+
 static void GUM_NOINLINE
 sleepy_function (GumFakeSampler * sampler)
 {
@@ -320,16 +322,27 @@ static void
 recursive_function (gint count)
 {
   if (--count > 0)
+  {
     recursive_function (count);
+    dummy_variable_to_trick_optimizer += 3;
+  }
+  else
+  {
+    dummy_variable_to_trick_optimizer += 5;
+  }
 }
 
 static void
 deep_recursive_function (gint count)
 {
+  dummy_variable_to_trick_optimizer += 42;
+
   if (--count > 0)
   {
     deep_recursive_function (count);
     deep_recursive_caller (count);
+
+    dummy_variable_to_trick_optimizer += 1337;
   }
 }
 
@@ -362,8 +375,6 @@ spin_for_one_tenth_second (void)
 }
 
 #endif
-
-gint dummy_variable_to_trick_optimizer = 0;
 
 static void GUM_NOINLINE
 example_a_calls_b_thrice (GumFakeSampler * sampler)
@@ -437,16 +448,22 @@ static void GUM_NOINLINE
 simple_2 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 2);
+
+  dummy_variable_to_trick_optimizer += 2;
 }
 
 static void GUM_NOINLINE
 simple_1 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 1);
+
+  dummy_variable_to_trick_optimizer += 1;
 }
 
 static void GUM_NOINLINE
 simple_3 (GumFakeSampler * sampler)
 {
   gum_fake_sampler_advance (sampler, 3);
+
+  dummy_variable_to_trick_optimizer += 3;
 }
