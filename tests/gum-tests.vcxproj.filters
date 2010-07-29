@@ -156,12 +156,6 @@
     <ClCompile Include="prof\profiler.c">
       <Filter>Tests\prof</Filter>
     </ClCompile>
-    <ClCompile Include="prof\profilereportharness.c">
-      <Filter>Tests\prof</Filter>
-    </ClCompile>
-    <ClCompile Include="prof\profilerharness.c">
-      <Filter>Tests\prof</Filter>
-    </ClCompile>
     <ClCompile Include="prof\sampler.c">
       <Filter>Tests\prof</Filter>
     </ClCompile>
@@ -169,6 +163,9 @@
       <Filter>Tests\prof\stubs</Filter>
     </ClCompile>
     <ClCompile Include="prof\sampler-fixture.c">
+      <Filter>Tests\prof</Filter>
+    </ClCompile>
+    <ClCompile Include="prof\profiler-fixture.c">
       <Filter>Tests\prof</Filter>
     </ClCompile>
   </ItemGroup>
@@ -187,12 +184,6 @@
     </ClInclude>
     <ClInclude Include="stubs\fakebacktracer.h">
       <Filter>Source Files\stubs</Filter>
-    </ClInclude>
-    <ClInclude Include="prof\profilereportharness.h">
-      <Filter>Tests\prof</Filter>
-    </ClInclude>
-    <ClInclude Include="prof\profilerharness.h">
-      <Filter>Tests\prof</Filter>
     </ClInclude>
     <ClInclude Include="prof\fakesampler.h">
       <Filter>Tests\prof\stubs</Filter>

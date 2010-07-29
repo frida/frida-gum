@@ -73,6 +73,7 @@ main (gint argc, gchar * argv[])
 
   /* Prof */
   TEST_RUN_LIST (sampler);
+  TEST_RUN_LIST (profiler);
 
 #ifdef _MSC_VER
 #pragma warning (pop)
