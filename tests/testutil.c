@@ -130,12 +130,10 @@ TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
 GumSampler *
 heap_access_counter_new (void)
 {
-  /*
   return gum_call_count_sampler_new (malloc, calloc, realloc, free,
       g_slice_alloc, g_slice_alloc0, g_slice_copy, g_slice_free1,
       g_slice_free_chain_with_offset, g_malloc, g_malloc0, g_free,
-      g_memdup, NULL);*/
-  return NULL;
+      g_memdup, NULL);
 }
 
 void

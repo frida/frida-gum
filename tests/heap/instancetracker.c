@@ -182,7 +182,6 @@ INSTRACKER_TESTCASE (stale_instances)
 
 INSTRACKER_TESTCASE (avoid_heap)
 {
-#if 0
   GumInstanceTracker * t = fixture->tracker;
   GumSampler * heap_access_counter;
   GumList * stale;
@@ -197,7 +196,6 @@ INSTRACKER_TESTCASE (avoid_heap)
   g_assert_cmpint (gum_sampler_sample (heap_access_counter), ==, 0);
 
   g_object_unref (heap_access_counter);
-#endif
 }
 
 static gboolean

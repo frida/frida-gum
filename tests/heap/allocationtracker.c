@@ -39,12 +39,10 @@ TEST_LIST_BEGIN (allocation_tracker)
 
   ALLOCTRACKER_TESTENTRY (backtracer_gtype_interop)
 
-#if 0
   ALLOCTRACKER_TESTENTRY (avoid_heap_priv)
   ALLOCTRACKER_TESTENTRY (avoid_heap_public)
   ALLOCTRACKER_TESTENTRY (hashtable_resize)
   ALLOCTRACKER_TESTENTRY (hashtable_life)
-#endif
 TEST_LIST_END ()
 
 static gboolean filter_cb (GumAllocationTracker * tracker, gpointer address,
@@ -430,8 +428,6 @@ ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)
   g_object_unref (backtracer);
 }
 
-#if 0
-
 ALLOCTRACKER_TESTCASE (avoid_heap_priv)
 {
   GumAllocationTracker * t = fixture->tracker;
@@ -508,5 +504,3 @@ ALLOCTRACKER_TESTCASE (hashtable_life)
 
   g_object_unref (heap_access_counter);
 }
-
-#endif
