@@ -247,9 +247,9 @@ PROFILEREPORT_TESTCASE (xml_worst_case_info)
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_info, fixture->sampler, inspect_worst_case_info);
 
-  example_worst_case_info (fixture->fake_sampler, 1, "early");
-  example_worst_case_info (fixture->fake_sampler, 3, "mid");
-  example_worst_case_info (fixture->fake_sampler, 2, "late");
+  example_worst_case_info (fixture->fake_sampler, "early", 1);
+  example_worst_case_info (fixture->fake_sampler, "mid", 3);
+  example_worst_case_info (fixture->fake_sampler, "late", 2);
 
   assert_same_xml (fixture,
       "<ProfileReport>"
@@ -349,9 +349,9 @@ PROFILER_TESTCASE (worst_case_info)
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_info), ==, "");
 
-  example_worst_case_info (fixture->fake_sampler, 1, "early");
-  example_worst_case_info (fixture->fake_sampler, 3, "mid");
-  example_worst_case_info (fixture->fake_sampler, 2, "late");
+  example_worst_case_info (fixture->fake_sampler, "early", 1);
+  example_worst_case_info (fixture->fake_sampler, "mid", 3);
+  example_worst_case_info (fixture->fake_sampler, "late", 2);
 
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_info), ==, "mid");

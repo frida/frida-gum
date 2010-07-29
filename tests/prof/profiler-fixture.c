@@ -382,8 +382,8 @@ example_b_dynamic (GumFakeSampler * sampler,
 
 static void GUM_NOINLINE
 example_worst_case_info (GumFakeSampler * sampler,
-                         GumSample cost,
-                         const gchar * magic)
+                         const gchar * magic,
+                         GumSample cost)
 {
   gum_fake_sampler_advance (sampler, cost);
 }
@@ -405,7 +405,7 @@ inspect_worst_case_info (GumInvocationContext * context,
 {
   const gchar * magic;
 
-  magic = (gchar *) gum_invocation_context_get_nth_argument (context, 2);
+  magic = (gchar *) gum_invocation_context_get_nth_argument (context, 1);
 
 #ifdef _MSC_VER
   strcpy_s (output_buf, output_buf_len, magic);
