@@ -145,13 +145,17 @@ simulation (gpointer user_data)
 
   fixture->first_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
   fixture->second_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  g_object_ref (fixture->second_pony);
   fixture->first_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
   fixture->second_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
 
   if ((fixture->leak_flags & LEAK_FIRST_PONY) == 0)
     forget_object (&fixture->first_pony);
   if ((fixture->leak_flags & LEAK_SECOND_PONY) == 0)
+  {
+    g_object_unref (fixture->second_pony);
     forget_object (&fixture->second_pony);
+  }
 
   if ((fixture->leak_flags & LEAK_FIRST_ZEBRA) == 0)
     forget_object (&fixture->first_zebra);
@@ -178,8 +182,11 @@ test_sanity_checker_fixture_do_cleanup (TestSanityCheckerFixture * fixture)
   forget_block (&fixture->first_block);
 
   forget_object (&fixture->first_pony);
-  forget_object (&fixture->second_pony);
-
+  if (fixture->second_pony != NULL)
+  {
+    g_object_unref (fixture->second_pony);
+    forget_object (&fixture->second_pony);
+  }
   forget_object (&fixture->first_zebra);
   forget_object (&fixture->second_zebra);
 }

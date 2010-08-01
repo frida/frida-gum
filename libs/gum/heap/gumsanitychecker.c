@@ -26,21 +26,39 @@
 #include "gumhash.h"
 #include "gummemory.h"
 
+#include <string.h>
+
+typedef struct _GumInstanceDetails GumInstanceDetails;
+
 struct _GumSanityCheckerPrivate
 {
   GumSanityOutputFunc output;
   gpointer output_user_data;
 };
 
+struct _GumInstanceDetails
+{
+  gsize address;
+  GType type;
+  const gchar * type_name;
+  gint ref_count;
+};
+
 static void gum_sanity_checker_print_instance_leaks_summary (
+    GumSanityChecker * self, GumList * stale);
+static void gum_sanity_checker_print_instance_leaks_details (
     GumSanityChecker * self, GumList * stale);
 static void gum_sanity_checker_print_block_leaks_summary (
     GumSanityChecker * self, GumList * stale);
 
-static GumHashTable * gum_sanity_checker_count_leaks_by_type (
+static GumHashTable * gum_sanity_checker_count_leaks_by_type_name (
     GumList * instances);
+static void gum_sanity_checker_details_from_instance (
+    GumInstanceDetails * details, gconstpointer instance);
 
 static gint gum_sanity_checker_compare_type_names (gconstpointer a,
+    gconstpointer b, gpointer user_data);
+static gint gum_sanity_checker_compare_instances (gconstpointer a,
     gconstpointer b, gpointer user_data);
 static gint gum_sanity_checker_compare_blocks (gconstpointer a,
     gconstpointer b, gpointer user_data);
@@ -91,6 +109,8 @@ gum_sanity_checker_run (GumSanityChecker * self,
   {
     gum_sanity_checker_printf (self, "Instance leaks detected:\n\n");
     gum_sanity_checker_print_instance_leaks_summary (self, stale_instances);
+    gum_sanity_checker_print (self, "\n");
+    gum_sanity_checker_print_instance_leaks_details (self, stale_instances);
     gum_list_free (stale_instances);
   }
 
@@ -133,13 +153,13 @@ gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
   GumHashTable * count_by_type;
   GumList * walk, * keys;
 
-  count_by_type = gum_sanity_checker_count_leaks_by_type (stale);
+  count_by_type = gum_sanity_checker_count_leaks_by_type_name (stale);
 
   keys = gum_hash_table_get_keys (count_by_type);
   keys = gum_list_sort_with_data (keys,
       gum_sanity_checker_compare_type_names, count_by_type);
 
-  gum_sanity_checker_print (self, "\tGType\tCount\n");
+  gum_sanity_checker_print (self, "\tCount\tGType\n");
   gum_sanity_checker_print (self, "\t-----\t-----\n");
 
   for (walk = keys; walk != NULL; walk = walk->next)
@@ -149,12 +169,42 @@ gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
 
     count = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type,
         type_name));
-    gum_sanity_checker_printf (self, "\t%s\t%u\n", type_name, count);
+    gum_sanity_checker_printf (self, "\t%u\t%s\n", count, type_name);
   }
 
   gum_list_free (keys);
 
   gum_hash_table_unref (count_by_type);
+}
+
+static void
+gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
+                                                 GumList * stale)
+{
+  GumSanityCheckerPrivate * priv = self->priv;
+  GumList * instances, * walk;
+
+  instances = gum_list_copy (stale);
+  instances = gum_list_sort_with_data (instances,
+      gum_sanity_checker_compare_instances, self);
+
+  gum_sanity_checker_print (self, "\tAddress\t\tRefCount\tGType\n");
+  gum_sanity_checker_print (self, "\t--------\t--------\t-----\n");
+
+  for (walk = instances; walk != NULL; walk = walk->next)
+  {
+    GumInstanceDetails details;
+
+    gum_sanity_checker_details_from_instance (&details, walk->data);
+
+    gum_sanity_checker_printf (self, "\t%p\t%d%s\t%s\n",
+        details.address,
+        details.ref_count,
+        details.ref_count <= 9 ? "\t" : "",
+        details.type_name);
+  }
+
+  gum_list_free (instances);
 }
 
 static void
@@ -168,8 +218,8 @@ gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
   blocks = gum_list_sort_with_data (blocks,
       gum_sanity_checker_compare_blocks, self);
 
-  gum_sanity_checker_print (self, "\tAddress\tSize\n");
-  gum_sanity_checker_print (self, "\t-------\t----\n");
+  gum_sanity_checker_print (self, "\tAddress\t\tSize\n");
+  gum_sanity_checker_print (self, "\t--------\t----\n");
 
   for (walk = blocks; walk != NULL; walk = walk->next)
   {
@@ -183,7 +233,7 @@ gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
 }
 
 static GumHashTable *
-gum_sanity_checker_count_leaks_by_type (GumList * instances)
+gum_sanity_checker_count_leaks_by_type_name (GumList * instances)
 {
   GumHashTable * count_by_type;
   GumList * walk;
@@ -207,6 +257,19 @@ gum_sanity_checker_count_leaks_by_type (GumList * instances)
   return count_by_type;
 }
 
+static void
+gum_sanity_checker_details_from_instance (GumInstanceDetails * details,
+                                          gconstpointer instance)
+{
+  details->address = GPOINTER_TO_SIZE (instance);
+  details->type = G_TYPE_FROM_INSTANCE (instance);
+  details->type_name = g_type_name (details->type);
+  if (g_type_is_a (details->type, G_TYPE_OBJECT))
+    details->ref_count = ((GObject *) instance)->ref_count;
+  else
+    details->ref_count = 1;
+}
+
 static gint
 gum_sanity_checker_compare_type_names (gconstpointer a,
                                        gconstpointer b,
@@ -224,7 +287,44 @@ gum_sanity_checker_compare_type_names (gconstpointer a,
   else if (count_a < count_b)
     return 1;
   else
-    return g_ascii_strcasecmp (name_a, name_b);
+    return strcmp (name_a, name_b);
+}
+
+static gint
+gum_sanity_checker_compare_instances (gconstpointer a,
+                                      gconstpointer b,
+                                      gpointer user_data)
+{
+  GumInstanceDetails da, db;
+  gint name_equality;
+
+  gum_sanity_checker_details_from_instance (&da, a);
+  gum_sanity_checker_details_from_instance (&db, b);
+
+  if (da.type == db.type)
+  {
+    if (da.ref_count > db.ref_count)
+    {
+      return -1;
+    }
+    else if (da.ref_count < db.ref_count)
+    {
+      return 1;
+    }
+    else
+    {
+      if (da.address > db.address)
+        return -1;
+      else if (da.address < db.address)
+        return 1;
+      else
+        return 0;
+    }
+  }
+  else
+  {
+    return strcmp (da.type_name, db.type_name);
+  }
 }
 
 static gint
