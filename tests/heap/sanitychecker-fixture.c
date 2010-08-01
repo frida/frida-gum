@@ -36,6 +36,9 @@ typedef struct _TestSanityCheckerFixture
   GumSanityChecker * checker;
   GString * output;
 
+  gboolean run_returned_true;
+  guint output_call_count;
+
   MyPony * first_pony;
   MyPony * second_pony;
   ZooZebra * first_zebra;
@@ -50,6 +53,7 @@ test_sanity_checker_fixture_do_output (const gchar * text,
 {
   TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
 
+  fixture->output_call_count++;
   g_string_append (fixture->output, text);
 }
 
@@ -128,7 +132,8 @@ run_simulation (TestSanityCheckerFixture * fixture,
                 guint leak_flags)
 {
   fixture->leak_flags = leak_flags;
-  gum_sanity_checker_run (fixture->checker, simulation, fixture);
+  fixture->run_returned_true =
+      gum_sanity_checker_run (fixture->checker, simulation, fixture);
 }
 
 static void

@@ -20,14 +20,24 @@
 #include "sanitychecker-fixture.c"
 
 TEST_LIST_BEGIN (sanitychecker)
+  SANITYCHECKER_TESTENTRY (no_leaks)
   SANITYCHECKER_TESTENTRY (three_leaked_instances)
   SANITYCHECKER_TESTENTRY (sort_instances_by_count_then_name)
 TEST_LIST_END ()
+
+SANITYCHECKER_TESTCASE (no_leaks)
+{
+  run_simulation (fixture, 0);
+  g_assert (fixture->run_returned_true);
+  g_assert_cmpuint (fixture->output_call_count, ==, 0);
+}
 
 SANITYCHECKER_TESTCASE (three_leaked_instances)
 {
   run_simulation (fixture,
       LEAK_FIRST_PONY | LEAK_SECOND_PONY | LEAK_FIRST_ZEBRA);
+  g_assert (!fixture->run_returned_true);
+  g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
       "Instance leaks detected:\n\n"
       "\tGType\tCount\n"
@@ -40,6 +50,8 @@ SANITYCHECKER_TESTCASE (sort_instances_by_count_then_name)
 {
   run_simulation (fixture,
     LEAK_FIRST_PONY | LEAK_FIRST_ZEBRA | LEAK_SECOND_ZEBRA);
+  g_assert (!fixture->run_returned_true);
+  g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
       "Instance leaks detected:\n\n"
       "\tGType\tCount\n"

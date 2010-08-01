@@ -39,7 +39,7 @@ GUM_API GumSanityChecker * gum_sanity_checker_new (GumSanityOutputFunc func,
     gpointer user_data);
 GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 
-GUM_API void gum_sanity_checker_run (GumSanityChecker * self,
+GUM_API gboolean gum_sanity_checker_run (GumSanityChecker * self,
     GumSanitySequenceFunc func, gpointer user_data);
 
 G_END_DECLS

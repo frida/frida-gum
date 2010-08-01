@@ -66,7 +66,7 @@ gum_sanity_checker_destroy (GumSanityChecker * checker)
   gum_free (checker);
 }
 
-void
+gboolean
 gum_sanity_checker_run (GumSanityChecker * self,
                         GumSanitySequenceFunc func,
                         gpointer user_data)
@@ -85,6 +85,8 @@ gum_sanity_checker_run (GumSanityChecker * self,
     gum_sanity_checker_print_instance_leaks_summary (self, stale);
     gum_list_free (stale);
   }
+
+  return stale == NULL;
 }
 
 static void
