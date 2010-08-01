@@ -28,6 +28,9 @@
     <Filter Include="libs\prof">
       <UniqueIdentifier>{522faf23-12b7-44ee-b0bc-824103cd5a73}</UniqueIdentifier>
     </Filter>
+    <Filter Include="vapi">
+      <UniqueIdentifier>{c9fdd7fd-d1cb-41ce-a511-b326acab51f1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ext\udis86\libudis86\udis86.c">
@@ -341,5 +344,10 @@
     <ClInclude Include="libs\gum\prof\gumsampler.h">
       <Filter>libs\prof</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="vapi\gum.vapi">
+      <Filter>vapi</Filter>
+    </None>
   </ItemGroup>
 </Project>
