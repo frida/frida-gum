@@ -285,7 +285,7 @@ gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
   blocks = gum_hash_table_get_values (priv->known_blocks_ht);
   for (cur = blocks; cur != NULL; cur = cur->next)
   {
-    GumAllocationBlock * block = cur->data;
+    GumAllocationBlock * block = (GumAllocationBlock *) cur->data;
     gum_return_address_array_load_symbols (&block->return_addresses);
     cur->data = gum_allocation_block_copy (block);
   }

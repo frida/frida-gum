@@ -44,18 +44,33 @@ typedef struct _TestSanityCheckerFixture
   ZooZebra * first_zebra;
   ZooZebra * second_zebra;
 
+  gpointer first_block;
+  gpointer second_block;
+  gpointer third_block;
+
   guint leak_flags;
 } TestSanityCheckerFixture;
 
-static void
-test_sanity_checker_fixture_do_output (const gchar * text,
-                                       gpointer user_data)
+typedef enum _LeakFlags
 {
-  TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
+  LEAK_FIRST_PONY     = (1 << 0),
+  LEAK_SECOND_PONY    = (1 << 1),
+  LEAK_FIRST_ZEBRA    = (1 << 2),
+  LEAK_SECOND_ZEBRA   = (1 << 3),
 
-  fixture->output_call_count++;
-  g_string_append (fixture->output, text);
-}
+  LEAK_FIRST_BLOCK    = (1 << 4),
+  LEAK_SECOND_BLOCK   = (1 << 5),
+  LEAK_THIRD_BLOCK    = (1 << 6),
+} LeakFlags;
+
+static void simulation (gpointer user_data);
+static void test_sanity_checker_fixture_do_cleanup (
+    TestSanityCheckerFixture * fixture);
+static void test_sanity_checker_fixture_do_output (const gchar * text,
+    gpointer user_data);
+
+static void forget_block (gpointer * block);
+static void forget_object (gpointer object);
 
 static void
 test_sanity_checker_fixture_setup (TestSanityCheckerFixture * fixture,
@@ -71,60 +86,11 @@ static void
 test_sanity_checker_fixture_teardown (TestSanityCheckerFixture * fixture,
                                       gconstpointer data)
 {
-  if (fixture->first_pony != NULL)
-    g_object_unref (fixture->first_pony);
-  if (fixture->second_pony != NULL)
-    g_object_unref (fixture->second_pony);
-
-  if (fixture->first_zebra != NULL)
-    g_object_unref (fixture->first_zebra);
-  if (fixture->second_zebra != NULL)
-    g_object_unref (fixture->second_zebra);
+  test_sanity_checker_fixture_do_cleanup (fixture);
 
   gum_sanity_checker_destroy (fixture->checker);
 
   g_string_free (fixture->output, TRUE);
-}
-
-typedef enum _LeakFlags
-{
-  LEAK_FIRST_PONY     = (1 << 0),
-  LEAK_SECOND_PONY    = (1 << 1),
-  LEAK_FIRST_ZEBRA    = (1 << 2),
-  LEAK_SECOND_ZEBRA   = (1 << 3)
-} LeakFlags;
-
-static void
-simulation (gpointer user_data)
-{
-  TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
-
-  fixture->first_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  fixture->second_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  fixture->first_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
-  fixture->second_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
-
-  if ((fixture->leak_flags & LEAK_FIRST_PONY) == 0)
-  {
-    g_object_unref (fixture->first_pony);
-    fixture->first_pony = NULL;
-  }
-  if ((fixture->leak_flags & LEAK_SECOND_PONY) == 0)
-  {
-    g_object_unref (fixture->second_pony);
-    fixture->second_pony = NULL;
-  }
-
-  if ((fixture->leak_flags & LEAK_FIRST_ZEBRA) == 0)
-  {
-    g_object_unref (fixture->first_zebra);
-    fixture->first_zebra = NULL;
-  }
-  if ((fixture->leak_flags & LEAK_SECOND_ZEBRA) == 0)
-  {
-    g_object_unref (fixture->second_zebra);
-    fixture->second_zebra = NULL;
-  }
 }
 
 static void
@@ -138,9 +104,16 @@ run_simulation (TestSanityCheckerFixture * fixture,
 
 static void
 assert_same_output (TestSanityCheckerFixture * fixture,
-                    const gchar * expected_output)
+                    const gchar * expected_output_format,
+                    ...)
 {
   gboolean is_exact_match;
+  va_list args;
+  gchar * expected_output;
+
+  va_start (args, expected_output_format);
+  expected_output = g_strdup_vprintf (expected_output_format, args);
+  va_end (args);
 
   is_exact_match = strcmp (fixture->output->str, expected_output) == 0;
   if (!is_exact_match)
@@ -158,5 +131,84 @@ assert_same_output (TestSanityCheckerFixture * fixture,
         message->str);
 
     g_string_free (message, TRUE);
+  }
+
+  g_free (expected_output);
+}
+
+static void
+simulation (gpointer user_data)
+{
+  TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
+
+  test_sanity_checker_fixture_do_cleanup (fixture);
+
+  fixture->first_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  fixture->second_pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
+  fixture->first_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+  fixture->second_zebra = ZOO_ZEBRA (g_object_new (ZOO_TYPE_ZEBRA, NULL));
+
+  if ((fixture->leak_flags & LEAK_FIRST_PONY) == 0)
+    forget_object (&fixture->first_pony);
+  if ((fixture->leak_flags & LEAK_SECOND_PONY) == 0)
+    forget_object (&fixture->second_pony);
+
+  if ((fixture->leak_flags & LEAK_FIRST_ZEBRA) == 0)
+    forget_object (&fixture->first_zebra);
+  if ((fixture->leak_flags & LEAK_SECOND_ZEBRA) == 0)
+    forget_object (&fixture->second_zebra);
+
+  fixture->first_block = g_malloc (5);
+  fixture->second_block = g_malloc (10);
+  fixture->third_block = g_malloc (15);
+
+  if ((fixture->leak_flags & LEAK_FIRST_BLOCK) == 0)
+    forget_block (&fixture->first_block);
+  if ((fixture->leak_flags & LEAK_SECOND_BLOCK) == 0)
+    forget_block (&fixture->second_block);
+  if ((fixture->leak_flags & LEAK_THIRD_BLOCK) == 0)
+    forget_block (&fixture->third_block);
+}
+
+static void
+test_sanity_checker_fixture_do_cleanup (TestSanityCheckerFixture * fixture)
+{
+  forget_block (&fixture->first_block);
+  forget_block (&fixture->second_block);
+  forget_block (&fixture->first_block);
+
+  forget_object (&fixture->first_pony);
+  forget_object (&fixture->second_pony);
+
+  forget_object (&fixture->first_zebra);
+  forget_object (&fixture->second_zebra);
+}
+
+static void
+test_sanity_checker_fixture_do_output (const gchar * text,
+                                       gpointer user_data)
+{
+  TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
+
+  fixture->output_call_count++;
+  g_string_append (fixture->output, text);
+}
+
+static void
+forget_block (gpointer * block)
+{
+  g_free (*block);
+  *block = NULL;
+}
+
+static void
+forget_object (gpointer object)
+{
+  gpointer * ptr = (gpointer *) object;
+
+  if (*ptr != NULL)
+  {
+    g_object_unref (*ptr);
+    *ptr = NULL;
   }
 }

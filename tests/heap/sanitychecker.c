@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (sanitychecker)
   SANITYCHECKER_TESTENTRY (no_leaks)
   SANITYCHECKER_TESTENTRY (three_leaked_instances)
   SANITYCHECKER_TESTENTRY (sort_instances_by_count_then_name)
+  SANITYCHECKER_TESTENTRY (three_leaked_blocks)
 TEST_LIST_END ()
 
 SANITYCHECKER_TESTCASE (no_leaks)
@@ -49,7 +50,7 @@ SANITYCHECKER_TESTCASE (three_leaked_instances)
 SANITYCHECKER_TESTCASE (sort_instances_by_count_then_name)
 {
   run_simulation (fixture,
-    LEAK_FIRST_PONY | LEAK_FIRST_ZEBRA | LEAK_SECOND_ZEBRA);
+      LEAK_FIRST_PONY | LEAK_FIRST_ZEBRA | LEAK_SECOND_ZEBRA);
   g_assert (!fixture->run_returned_true);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
@@ -58,4 +59,22 @@ SANITYCHECKER_TESTCASE (sort_instances_by_count_then_name)
       "\t-----\t-----\n"
       "\tZooZebra\t2\n"
       "\tMyPony\t1\n");
+}
+
+SANITYCHECKER_TESTCASE (three_leaked_blocks)
+{
+  run_simulation (fixture,
+      LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK | LEAK_THIRD_BLOCK);
+  g_assert (!fixture->run_returned_true);
+  g_assert_cmpuint (fixture->output_call_count, >, 0);
+  assert_same_output (fixture,
+      "Block leaks detected:\n\n"
+      "\tAddress\tSize\n"
+      "\t-------\t----\n"
+      "\t%p\t15\n"
+      "\t%p\t10\n"
+      "\t%p\t5\n",
+      fixture->third_block,
+      fixture->second_block,
+      fixture->first_block);
 }

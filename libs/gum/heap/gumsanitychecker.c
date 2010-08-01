@@ -19,6 +19,9 @@
 
 #include "gumsanitychecker.h"
 
+#include "gumallocatorprobe.h"
+#include "gumallocationtracker.h"
+#include "gumallocationblock.h"
 #include "guminstancetracker.h"
 #include "gumhash.h"
 #include "gummemory.h"
@@ -31,10 +34,15 @@ struct _GumSanityCheckerPrivate
 
 static void gum_sanity_checker_print_instance_leaks_summary (
     GumSanityChecker * self, GumList * stale);
+static void gum_sanity_checker_print_block_leaks_summary (
+    GumSanityChecker * self, GumList * stale);
+
 static GumHashTable * gum_sanity_checker_count_leaks_by_type (
     GumList * instances);
 
 static gint gum_sanity_checker_compare_type_names (gconstpointer a,
+    gconstpointer b, gpointer user_data);
+static gint gum_sanity_checker_compare_blocks (gconstpointer a,
     gconstpointer b, gpointer user_data);
 
 static void gum_sanity_checker_printf (GumSanityChecker * self,
@@ -72,21 +80,49 @@ gum_sanity_checker_run (GumSanityChecker * self,
                         gpointer user_data)
 {
   GumInstanceTracker * instance_tracker;
-  GumList * stale;
+  GumList * stale_instances = NULL, * stale_blocks = NULL;
 
   instance_tracker = gum_instance_tracker_new ();
   func (user_data);
-  stale = gum_instance_tracker_peek_stale (instance_tracker);
+  stale_instances = gum_instance_tracker_peek_stale (instance_tracker);
   g_object_unref (instance_tracker);
 
-  if (stale != NULL)
+  if (stale_instances != NULL)
   {
     gum_sanity_checker_printf (self, "Instance leaks detected:\n\n");
-    gum_sanity_checker_print_instance_leaks_summary (self, stale);
-    gum_list_free (stale);
+    gum_sanity_checker_print_instance_leaks_summary (self, stale_instances);
+    gum_list_free (stale_instances);
   }
 
-  return stale == NULL;
+  if (stale_instances == NULL)
+  {
+    GumAllocationTracker * alloc_tracker;
+    GumAllocatorProbe * alloc_probe;
+
+    alloc_tracker = gum_allocation_tracker_new ();
+    gum_allocation_tracker_begin (alloc_tracker);
+
+    alloc_probe = gum_allocator_probe_new ();
+    g_object_set (alloc_probe, "allocation-tracker", alloc_tracker, NULL);
+    gum_allocator_probe_attach (alloc_probe);
+
+    func (user_data);
+
+    gum_allocator_probe_detach (alloc_probe);
+
+    stale_blocks = gum_allocation_tracker_peek_block_list (alloc_tracker);
+    if (stale_blocks != NULL)
+    {
+      gum_sanity_checker_printf (self, "Block leaks detected:\n\n");
+      gum_sanity_checker_print_block_leaks_summary (self, stale_blocks);
+      gum_allocation_block_list_free (stale_blocks);
+    }
+
+    g_object_unref (alloc_probe);
+    g_object_unref (alloc_tracker);
+  }
+
+  return (stale_instances == NULL && stale_blocks == NULL);
 }
 
 static void
@@ -119,6 +155,31 @@ gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
   gum_list_free (keys);
 
   gum_hash_table_unref (count_by_type);
+}
+
+static void
+gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
+                                              GumList * stale)
+{
+  GumSanityCheckerPrivate * priv = self->priv;
+  GumList * blocks, * walk;
+
+  blocks = gum_list_copy (stale);
+  blocks = gum_list_sort_with_data (blocks,
+      gum_sanity_checker_compare_blocks, self);
+
+  gum_sanity_checker_print (self, "\tAddress\tSize\n");
+  gum_sanity_checker_print (self, "\t-------\t----\n");
+
+  for (walk = blocks; walk != NULL; walk = walk->next)
+  {
+    GumAllocationBlock * block = (GumAllocationBlock *) walk->data;
+
+    gum_sanity_checker_printf (self, "\t%p\t%u\n",
+        block->address, block->size);
+  }
+
+  gum_list_free (blocks);
 }
 
 static GumHashTable *
@@ -164,6 +225,37 @@ gum_sanity_checker_compare_type_names (gconstpointer a,
     return 1;
   else
     return g_ascii_strcasecmp (name_a, name_b);
+}
+
+static gint
+gum_sanity_checker_compare_blocks (gconstpointer a,
+                                   gconstpointer b,
+                                   gpointer user_data)
+{
+  GumAllocationBlock * block_a = (GumAllocationBlock *) a;
+  GumAllocationBlock * block_b = (GumAllocationBlock *) b;
+
+  if (block_a->size > block_b->size)
+  {
+    return -1;
+  }
+  else if (block_a->size < block_b->size)
+  {
+    return 1;
+  }
+  else
+  {
+    gsize addr_a, addr_b;
+
+    addr_a = GPOINTER_TO_SIZE (block_a->address);
+    addr_b = GPOINTER_TO_SIZE (block_b->address);
+    if (addr_a > addr_b)
+      return -1;
+    else if (addr_a < addr_b)
+      return 1;
+    else
+      return 0;
+  }
 }
 
 static void
