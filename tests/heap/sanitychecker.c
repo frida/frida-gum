@@ -61,7 +61,8 @@ SANITYCHECKER_TESTCASE (three_leaked_blocks)
   g_assert (!fixture->run_returned_true);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
-      "Block leaks detected:\n\n"
+      "Block leaks detected:\n"
+      "\n"
       "\tAddress\t\tSize\n"
       "\t--------\t----\n"
       "\t%p\t15\n"
