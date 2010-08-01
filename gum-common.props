@@ -133,6 +133,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="vapi\gum.vapi" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\decode.h" />
     <ClInclude Include="ext\udis86\libudis86\extern.h" />
     <ClInclude Include="ext\udis86\libudis86\input.h" />
