@@ -95,6 +95,7 @@
     <ClInclude Include="libs\gum\heap\gumcobjecttracker.h" />
     <ClInclude Include="libs\gum\heap\guminstancetracker.h" />
     <ClInclude Include="libs\gum\heap\gumpagepool.h" />
+    <ClInclude Include="libs\gum\heap\gumsanitychecker.h" />
   </ItemGroup>
 
   <ItemGroup>
@@ -107,6 +108,7 @@
     <ClCompile Include="libs\gum\heap\gumcobjecttracker.c" />
     <ClCompile Include="libs\gum\heap\guminstancetracker.c" />
     <ClCompile Include="libs\gum\heap\gumpagepool.c" />
+    <ClCompile Include="libs\gum\heap\gumsanitychecker.c" />
   </ItemGroup>
 
   <ItemGroup>

@@ -183,6 +183,9 @@
     <ClCompile Include="libs\gum\prof\gumwallclocksampler.c">
       <Filter>libs\prof</Filter>
     </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumsanitychecker.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -343,6 +346,9 @@
     </ClInclude>
     <ClInclude Include="libs\gum\prof\gumsampler.h">
       <Filter>libs\prof</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumsanitychecker.h">
+      <Filter>libs\heap</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

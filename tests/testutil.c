@@ -29,8 +29,9 @@
     TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
 TEST_LIST_BEGIN (testutil)
+  TESTUTIL_TESTENTRY (line_diff)
   TESTUTIL_TESTENTRY (binary_diff)
-  TESTUTIL_TESTENTRY (xml_line_diff)
+  TESTUTIL_TESTENTRY (text_diff)
   TESTUTIL_TESTENTRY (xml_pretty_split)
   TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
 TEST_LIST_END ()
@@ -75,17 +76,20 @@ TESTUTIL_TESTCASE (binary_diff)
   g_free (diff);
 }
 
-TESTUTIL_TESTCASE (xml_line_diff)
+TESTUTIL_TESTCASE (text_diff)
 {
-  const gchar * expected_xml = "<tag/>";
-  const gchar * bad_xml = "<taG/>";
-  const gchar * expected_diff = "\n"
-                                "<tag/>  <-- Expected\n"
-                                "   #\n"
-                                "<taG/>  <-- Wrong\n";
+  const gchar * expected_text = "Badger\nSnake\nMushroom";
+  const gchar * bad_text      = "Badger\nSnakE\nMushroom";
+  const gchar * expected_diff = "Badger\n"
+                                "\n"
+                                "Snake  <-- Expected\n"
+                                "    #\n"
+                                "SnakE  <-- Wrong\n"
+                                "\n"
+                                "Mushroom\n";
   gchar * diff;
 
-  diff = diff_line (expected_xml, bad_xml);
+  diff = test_util_diff_text (expected_text, bad_text);
   g_assert_cmpstr (diff, ==, expected_diff);
   g_free (diff);
 }
@@ -121,6 +125,21 @@ TESTUTIL_TESTCASE (xml_multiline_diff_same_size)
   gchar * diff;
 
   diff = test_util_diff_xml (expected_xml, bad_xml);
+  g_assert_cmpstr (diff, ==, expected_diff);
+  g_free (diff);
+}
+
+TESTUTIL_TESTCASE (line_diff)
+{
+  const gchar * expected_xml = "<tag/>";
+  const gchar * bad_xml = "<taG/>";
+  const gchar * expected_diff = "\n"
+                                "<tag/>  <-- Expected\n"
+                                "   #\n"
+                                "<taG/>  <-- Wrong\n";
+  gchar * diff;
+
+  diff = diff_line (expected_xml, bad_xml);
   g_assert_cmpstr (diff, ==, expected_diff);
   g_free (diff);
 }
@@ -186,24 +205,17 @@ test_util_diff_binary (const guint8 * expected_bytes,
 }
 
 gchar *
-test_util_diff_xml (const gchar * expected_xml,
-                    const gchar * actual_xml)
+test_util_diff_text (const gchar * expected_text,
+                     const gchar * actual_text)
 {
   GString * full_diff;
-  gchar * expected_xml_pretty, ** expected_lines;
-  gchar * actual_xml_pretty, ** actual_lines;
+  gchar ** expected_lines, ** actual_lines;
   guint i;
 
-  expected_xml_pretty = prettify_xml (expected_xml);
-  actual_xml_pretty = prettify_xml (actual_xml);
+  expected_lines = g_strsplit (expected_text, "\n", 0);
+  actual_lines = g_strsplit (actual_text, "\n", 0);
 
-  expected_lines = g_strsplit (expected_xml_pretty, "\n", 0);
-  actual_lines = g_strsplit (actual_xml_pretty, "\n", 0);
-
-  full_diff = g_string_sized_new (strlen (expected_xml_pretty));
-
-  g_free (expected_xml_pretty);
-  g_free (actual_xml_pretty);
+  full_diff = g_string_sized_new (strlen (expected_text));
 
   for (i = 0; expected_lines[i] != NULL && actual_lines[i] != NULL; i++)
   {
@@ -222,6 +234,23 @@ test_util_diff_xml (const gchar * expected_xml,
   g_strfreev (actual_lines);
 
   return g_string_free (full_diff, FALSE);
+}
+
+gchar *
+test_util_diff_xml (const gchar * expected_xml,
+                    const gchar * actual_xml)
+{
+  gchar * expected_xml_pretty, * actual_xml_pretty, * diff;
+
+  expected_xml_pretty = prettify_xml (expected_xml);
+  actual_xml_pretty = prettify_xml (actual_xml);
+
+  diff = test_util_diff_text (expected_xml_pretty, actual_xml_pretty);
+
+  g_free (expected_xml_pretty);
+  g_free (actual_xml_pretty);
+
+  return diff;
 }
 
 static gchar *

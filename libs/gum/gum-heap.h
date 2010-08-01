@@ -30,5 +30,6 @@
 #include <gum/heap/gumcobject.h>
 #include <gum/heap/gumcobjecttracker.h>
 #include <gum/heap/guminstancetracker.h>
+#include <gum/heap/gumsanitychecker.h>
 
 #endif

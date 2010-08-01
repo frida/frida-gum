@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  * Copyright (C) 2009 Haakon Sporsheim <haakon.sporsheim@tandberg.com>
  *
@@ -67,6 +67,8 @@ void assert_basename_equals (const gchar * expected_filename,
 gchar * test_util_diff_binary (const guint8 * expected_bytes,
     guint expected_length, const guint8 * actual_bytes,
     guint actual_length);
+gchar * test_util_diff_text (const gchar * expected_text,
+    const gchar * actual_text);
 gchar * test_util_diff_xml (const gchar * expected_xml,
     const gchar * actual_xml);
 

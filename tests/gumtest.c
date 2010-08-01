@@ -70,6 +70,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (instancetracker);
   TEST_RUN_LIST (pagepool);
   TEST_RUN_LIST (boundschecker);
+  TEST_RUN_LIST (sanitychecker);
 
   /* Prof */
   TEST_RUN_LIST (sampler);

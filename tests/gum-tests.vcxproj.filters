@@ -168,6 +168,12 @@
     <ClCompile Include="prof\profiler-fixture.c">
       <Filter>Tests\prof</Filter>
     </ClCompile>
+    <ClCompile Include="heap\sanitychecker.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="heap\sanitychecker-fixture.c">
+      <Filter>Tests\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
