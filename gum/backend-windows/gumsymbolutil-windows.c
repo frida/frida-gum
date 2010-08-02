@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -91,7 +91,7 @@ gum_module_enumerate_exports (const gchar * module_name,
   guint8 * exp_begin, * exp_end;
 
   wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = GetModuleHandleW (wide_name);
+  module = GetModuleHandleW ((LPCWSTR) wide_name);
   g_free (wide_name);
 
   if (module == NULL)
@@ -131,4 +131,21 @@ gum_module_enumerate_exports (const gchar * module_name,
       }
     }
   }
+}
+
+gpointer
+gum_module_find_export_by_name (const gchar * module_name,
+                                const gchar * export_name)
+{
+  gunichar2 * wide_name;
+  HMODULE module;
+
+  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
+  module = GetModuleHandleW ((LPCWSTR) wide_name);
+  g_free (wide_name);
+
+  if (module == NULL)
+    return NULL;
+
+  return GetProcAddress (module, export_name);
 }
