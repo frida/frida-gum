@@ -29,6 +29,7 @@ SANITYCHECKER_TESTCASE (no_leaks)
 {
   run_simulation (fixture, 0);
   g_assert (fixture->run_returned_true);
+  g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }
 
@@ -37,6 +38,7 @@ SANITYCHECKER_TESTCASE (three_leaked_instances)
   run_simulation (fixture,
       LEAK_FIRST_PONY | LEAK_SECOND_PONY | LEAK_FIRST_ZEBRA);
   g_assert (!fixture->run_returned_true);
+  g_assert_cmpuint (fixture->simulation_call_count, ==, 2);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
       "Instance leaks detected:\n"
@@ -59,6 +61,7 @@ SANITYCHECKER_TESTCASE (three_leaked_blocks)
   run_simulation (fixture,
       LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK | LEAK_THIRD_BLOCK);
   g_assert (!fixture->run_returned_true);
+  g_assert_cmpuint (fixture->simulation_call_count, ==, 3);
   g_assert_cmpuint (fixture->output_call_count, >, 0);
   assert_same_output (fixture,
       "Block leaks detected:\n"

@@ -23,6 +23,7 @@
 #include "gumallocationtracker.h"
 #include "gumallocationblock.h"
 #include "gumallocationgroup.h"
+#include "gumboundschecker.h"
 #include "guminstancetracker.h"
 #include "gumhash.h"
 #include "gummemory.h"
@@ -104,6 +105,14 @@ gum_sanity_checker_run (GumSanityChecker * self,
 {
   GumInstanceTracker * instance_tracker;
   GumList * stale_instances = NULL, * stale_blocks = NULL;
+  gboolean no_leaks_of_any_kind;
+
+  /*
+   * First run without any instrumentation
+   *
+   * This also warms up any static allocations.
+   */
+  func (user_data);
 
   instance_tracker = gum_instance_tracker_new ();
   func (user_data);
@@ -155,7 +164,23 @@ gum_sanity_checker_run (GumSanityChecker * self,
     g_object_unref (alloc_tracker);
   }
 
-  return (stale_instances == NULL && stale_blocks == NULL);
+  no_leaks_of_any_kind = (stale_instances == NULL && stale_blocks == NULL);
+
+  if (no_leaks_of_any_kind)
+  {
+    GumBoundsChecker * bounds_checker;
+
+    bounds_checker = gum_bounds_checker_new ();
+    g_object_set (bounds_checker, "front-alignment", 1, NULL);
+    gum_bounds_checker_attach (bounds_checker);
+
+    func (user_data);
+
+    gum_bounds_checker_detach (bounds_checker);
+    g_object_unref (bounds_checker);
+  }
+
+  return no_leaks_of_any_kind;
 }
 
 static void

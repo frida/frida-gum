@@ -36,6 +36,7 @@ typedef struct _TestSanityCheckerFixture
   GumSanityChecker * checker;
   GString * output;
 
+  guint simulation_call_count;
   gboolean run_returned_true;
   guint output_call_count;
 
@@ -98,6 +99,7 @@ run_simulation (TestSanityCheckerFixture * fixture,
                 guint leak_flags)
 {
   fixture->leak_flags = leak_flags;
+  fixture->simulation_call_count = 0;
   fixture->run_returned_true =
       gum_sanity_checker_run (fixture->checker, simulation, fixture);
 }
@@ -140,6 +142,8 @@ static void
 simulation (gpointer user_data)
 {
   TestSanityCheckerFixture * fixture = (TestSanityCheckerFixture *) user_data;
+
+  fixture->simulation_call_count++;
 
   test_sanity_checker_fixture_do_cleanup (fixture);
 
