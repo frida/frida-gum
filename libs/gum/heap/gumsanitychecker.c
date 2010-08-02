@@ -22,6 +22,7 @@
 #include "gumallocatorprobe.h"
 #include "gumallocationtracker.h"
 #include "gumallocationblock.h"
+#include "gumallocationgroup.h"
 #include "guminstancetracker.h"
 #include "gumhash.h"
 #include "gummemory.h"
@@ -49,6 +50,8 @@ static void gum_sanity_checker_print_instance_leaks_summary (
 static void gum_sanity_checker_print_instance_leaks_details (
     GumSanityChecker * self, GumList * stale);
 static void gum_sanity_checker_print_block_leaks_summary (
+    GumSanityChecker * self, GumList * block_groups);
+static void gum_sanity_checker_print_block_leaks_details (
     GumSanityChecker * self, GumList * stale);
 
 static GumHashTable * gum_sanity_checker_count_leaks_by_type_name (
@@ -59,6 +62,8 @@ static void gum_sanity_checker_details_from_instance (
 static gint gum_sanity_checker_compare_type_names (gconstpointer a,
     gconstpointer b, gpointer user_data);
 static gint gum_sanity_checker_compare_instances (gconstpointer a,
+    gconstpointer b, gpointer user_data);
+static gint gum_sanity_checker_compare_groups (gconstpointer a,
     gconstpointer b, gpointer user_data);
 static gint gum_sanity_checker_compare_blocks (gconstpointer a,
     gconstpointer b, gpointer user_data);
@@ -133,8 +138,16 @@ gum_sanity_checker_run (GumSanityChecker * self,
     stale_blocks = gum_allocation_tracker_peek_block_list (alloc_tracker);
     if (stale_blocks != NULL)
     {
+      GumList * block_groups;
+
+      block_groups = gum_allocation_tracker_peek_block_groups (alloc_tracker);
+
       gum_sanity_checker_printf (self, "Block leaks detected:\n\n");
-      gum_sanity_checker_print_block_leaks_summary (self, stale_blocks);
+      gum_sanity_checker_print_block_leaks_summary (self, block_groups);
+      gum_sanity_checker_print (self, "\n");
+      gum_sanity_checker_print_block_leaks_details (self, stale_blocks);
+
+      gum_allocation_group_list_free (block_groups);
       gum_allocation_block_list_free (stale_blocks);
     }
 
@@ -209,6 +222,30 @@ gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
 
 static void
 gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
+                                              GumList * block_groups)
+{
+  GumList * groups, * walk;
+
+  groups = gum_list_copy (block_groups);
+  groups = gum_list_sort_with_data (groups,
+      gum_sanity_checker_compare_groups, self);
+
+  gum_sanity_checker_print (self, "\tCount\tSize\n");
+  gum_sanity_checker_print (self, "\t-----\t----\n");
+
+  for (walk = groups; walk != NULL; walk = walk->next)
+  {
+    GumAllocationGroup * group = (GumAllocationGroup *) walk->data;
+
+    gum_sanity_checker_printf (self, "\t%u\t%u\n",
+        group->alive_now, group->size);
+  }
+
+  gum_list_free (groups);
+}
+
+static void
+gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
                                               GumList * stale)
 {
   GumSanityCheckerPrivate * priv = self->priv;
@@ -304,27 +341,42 @@ gum_sanity_checker_compare_instances (gconstpointer a,
   if (da.type == db.type)
   {
     if (da.ref_count > db.ref_count)
-    {
       return -1;
-    }
     else if (da.ref_count < db.ref_count)
-    {
       return 1;
-    }
+
+    if (da.address > db.address)
+      return -1;
+    else if (da.address < db.address)
+      return 1;
     else
-    {
-      if (da.address > db.address)
-        return -1;
-      else if (da.address < db.address)
-        return 1;
-      else
-        return 0;
-    }
+      return 0;
   }
   else
   {
     return strcmp (da.type_name, db.type_name);
   }
+}
+
+static gint
+gum_sanity_checker_compare_groups (gconstpointer a,
+                                   gconstpointer b,
+                                   gpointer user_data)
+{
+  GumAllocationGroup * group_a = (GumAllocationGroup *) a;
+  GumAllocationGroup * group_b = (GumAllocationGroup *) b;
+
+  if (group_a->alive_now > group_b->alive_now)
+    return -1;
+  else if (group_a->alive_now < group_b->alive_now)
+    return 1;
+
+  if (group_a->size > group_b->size)
+    return -1;
+  else if (group_a->size < group_b->size)
+    return 1;
+  else
+    return 0;
 }
 
 static gint
@@ -334,28 +386,21 @@ gum_sanity_checker_compare_blocks (gconstpointer a,
 {
   GumAllocationBlock * block_a = (GumAllocationBlock *) a;
   GumAllocationBlock * block_b = (GumAllocationBlock *) b;
+  gsize addr_a, addr_b;
 
   if (block_a->size > block_b->size)
-  {
     return -1;
-  }
   else if (block_a->size < block_b->size)
-  {
     return 1;
-  }
-  else
-  {
-    gsize addr_a, addr_b;
 
-    addr_a = GPOINTER_TO_SIZE (block_a->address);
-    addr_b = GPOINTER_TO_SIZE (block_b->address);
-    if (addr_a > addr_b)
-      return -1;
-    else if (addr_a < addr_b)
-      return 1;
-    else
-      return 0;
-  }
+  addr_a = GPOINTER_TO_SIZE (block_a->address);
+  addr_b = GPOINTER_TO_SIZE (block_b->address);
+  if (addr_a > addr_b)
+    return -1;
+  else if (addr_a < addr_b)
+    return 1;
+  else
+    return 0;
 }
 
 static void

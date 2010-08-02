@@ -63,6 +63,12 @@ SANITYCHECKER_TESTCASE (three_leaked_blocks)
   assert_same_output (fixture,
       "Block leaks detected:\n"
       "\n"
+      "\tCount\tSize\n"
+      "\t-----\t----\n"
+      "\t1\t15\n"
+      "\t1\t10\n"
+      "\t1\t5\n"
+      "\n"
       "\tAddress\t\tSize\n"
       "\t--------\t----\n"
       "\t%p\t15\n"
