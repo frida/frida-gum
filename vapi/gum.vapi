@@ -58,12 +58,43 @@ namespace Gum {
 		public abstract void process (void * opaque_event);
 	}
 
+	namespace Process {
+		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
+
+		public delegate bool FoundModuleFunc (string name, void * address, string path);
+	}
+
+	namespace Module {
+		public void * find_export_by_name (string module_name, string function_name);
+	}
+
 	[CCode (cheader_filename = "gum/gum-heap.h")]
 	public class InstanceTracker : GLib.Object {
 		public InstanceTracker ();
 
+		public void begin (Gum.InstanceVTable? vtable = null);
+		public void end ();
+
 		public uint peek_total_count (string type_name);
-		public Gum.List peek_stale ();
+		public Gum.List peek_instances ();
+		public void walk_instances (Gum.WalkInstanceFunc func);
+	}
+
+	public delegate void WalkInstanceFunc (Gum.InstanceDetails id);
+
+	public struct InstanceVTable
+	{
+		void * create_instance;
+		void * free_instance;
+
+		void * type_id_to_name;
+	}
+
+	public struct InstanceDetails
+	{
+		public void * address;
+		public uint ref_count;
+		public string type_name;
 	}
 
 	/* Copied from glib-2.0.vapi */
