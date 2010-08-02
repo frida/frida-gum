@@ -58,6 +58,69 @@ namespace Gum {
 		public abstract void process (void * opaque_event);
 	}
 
+	[CCode (cheader_filename = "gum/gum-heap.h")]
+	public class InstanceTracker : GLib.Object {
+		public InstanceTracker ();
+
+		public uint peek_total_count (string type_name);
+		public Gum.List peek_stale ();
+	}
+
+	/* Copied from glib-2.0.vapi */
+	[Compact]
+	[CCode (dup_function = "gum_list_copy", free_function = "gum_list_free")]
+	public class List<G> {
+		public List ();
+
+		[ReturnsModifiedPointer ()]
+		public void append (owned G data);
+		[ReturnsModifiedPointer ()]
+		public void prepend (owned G data);
+		[ReturnsModifiedPointer ()]
+		public void insert (owned G data, int position);
+		[ReturnsModifiedPointer ()]
+		public void insert_before (List<G> sibling, owned G data);
+		[ReturnsModifiedPointer ()]
+		public void insert_sorted (owned G data, GLib.CompareFunc compare_func);
+		[ReturnsModifiedPointer ()]
+		public void remove (G data);
+		[ReturnsModifiedPointer ()]
+		public void remove_link (List<G> llink);
+		[ReturnsModifiedPointer ()]
+		public void delete_link (List<G> link_);
+		[ReturnsModifiedPointer ()]
+		public void remove_all (G data);
+
+		public uint length ();
+		public List<unowned G> copy ();
+		[ReturnsModifiedPointer ()]
+		public void reverse ();
+		[ReturnsModifiedPointer ()]
+		public void sort (GLib.CompareFunc compare_func);
+		[ReturnsModifiedPointer ()]
+		public void insert_sorted_with_data (owned G data, GLib.CompareDataFunc compare_func);
+		[ReturnsModifiedPointer ()]
+		public void sort_with_data (GLib.CompareDataFunc compare_func);
+		[ReturnsModifiedPointer ()]
+		public void concat (owned List<G> list2);
+		public void @foreach (GLib.Func func);
+
+		public unowned List<G> first ();
+		public unowned List<G> last ();
+		public unowned List<G> nth (uint n);
+		public unowned G nth_data (uint n);
+		public unowned List<G> nth_prev (uint n);
+
+		public unowned List<G> find (G data);
+		public unowned List<G> find_custom (G data, GLib.CompareFunc func);
+		public int position (List<G> llink);
+		public int index (G data);
+
+		public G data;
+		public List<G> next;
+		public unowned List<G> prev;
+	}
+
 	[CCode (cprefix = "GUM_ATTACH_")]
 	public enum AttachReturn {
 		OK               =  0,
