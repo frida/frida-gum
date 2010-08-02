@@ -763,15 +763,24 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
     invocation_ctx->cpu_context = cpu_context;
     invocation_ctx->backend = &thread_ctx->invocation_backend;
 
-    gum_spinlock_acquire (&function_ctx->listener_lock);
-
-    for (i = 0; i != function_ctx->listener_entries->len; i++)
+    for (i = 0; TRUE; i++)
     {
-      ListenerEntry * entry = (ListenerEntry *)
-          g_ptr_array_index (function_ctx->listener_entries, i);
+      ListenerEntry entry = { 0, };
       ListenerInvocationData listener_invocation_data;
 
-      invocation_ctx->instance_data = entry->function_instance_data;
+      gum_spinlock_acquire (&function_ctx->listener_lock);
+      if (i < function_ctx->listener_entries->len)
+      {
+        entry = *((ListenerEntry *)
+            g_ptr_array_index (function_ctx->listener_entries, i));
+        g_object_ref (entry.listener_instance);
+      }
+      gum_spinlock_release (&function_ctx->listener_lock);
+
+      if (entry.listener_instance == NULL)
+        break;
+
+      invocation_ctx->instance_data = entry.function_instance_data;
 
       if (i < thread_ctx->listener_data_count)
       {
@@ -779,12 +788,12 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
       }
       else
       {
-        if (entry->listener_interface->provide_thread_data != NULL)
+        if (entry.listener_interface->provide_thread_data != NULL)
         {
           invocation_ctx->thread_data =
-              entry->listener_interface->provide_thread_data (
-                  entry->listener_instance,
-                  entry->function_instance_data,
+              entry.listener_interface->provide_thread_data (
+                  entry.listener_instance,
+                  entry.function_instance_data,
                   get_current_thread_id ());
         }
         else
@@ -800,14 +809,14 @@ gum_function_context_on_enter (FunctionContext * function_ctx,
       }
 
       listener_invocation_data.stack = interceptor_ctx->stack;
-      listener_invocation_data.listener = entry->listener_instance;
+      listener_invocation_data.listener = entry.listener_instance;
       thread_ctx->invocation_backend.user_data = &listener_invocation_data;
 
-      entry->listener_interface->on_enter (entry->listener_instance,
+      entry.listener_interface->on_enter (entry.listener_instance,
           invocation_ctx);
-    }
 
-    gum_spinlock_release (&function_ctx->listener_lock);
+      g_object_unref (entry.listener_instance);
+    }
 
     stack_entry->cpu_context = *cpu_context;
     invocation_ctx->cpu_context = &stack_entry->cpu_context;
@@ -853,26 +862,35 @@ gum_function_context_on_leave (FunctionContext * function_ctx,
   cpu_context->rip = (guint64) caller_ret_addr;
 #endif
 
-  gum_spinlock_acquire (&function_ctx->listener_lock);
-
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  for (i = 0; TRUE; i++)
   {
-    ListenerEntry * entry = (ListenerEntry *)
-        g_ptr_array_index (function_ctx->listener_entries, i);
+    ListenerEntry entry = { 0, };
     ListenerInvocationData listener_invocation_data;
 
-    invocation_ctx->instance_data = entry->function_instance_data;
+    gum_spinlock_acquire (&function_ctx->listener_lock);
+    if (i < function_ctx->listener_entries->len)
+    {
+      entry = *((ListenerEntry *)
+        g_ptr_array_index (function_ctx->listener_entries, i));
+      g_object_ref (entry.listener_instance);
+    }
+    gum_spinlock_release (&function_ctx->listener_lock);
+
+    if (entry.listener_instance == NULL)
+      break;
+
+    invocation_ctx->instance_data = entry.function_instance_data;
     invocation_ctx->thread_data = thread_ctx->listener_data[i];
 
     listener_invocation_data.stack = interceptor_ctx->stack;
-    listener_invocation_data.listener = entry->listener_instance;
+    listener_invocation_data.listener = entry.listener_instance;
     thread_ctx->invocation_backend.user_data = &listener_invocation_data;
 
-    entry->listener_interface->on_leave (entry->listener_instance,
+    entry.listener_interface->on_leave (entry.listener_instance,
         invocation_ctx);
-  }
 
-  gum_spinlock_release (&function_ctx->listener_lock);
+    g_object_unref (entry.listener_instance);
+  }
 
   thread_context_stack_pop (interceptor_ctx->stack);
 
