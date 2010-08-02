@@ -39,11 +39,13 @@ test_instance_tracker_fixture_setup (TestInstanceTrackerFixture * fixture,
                                     gconstpointer data)
 {
   fixture->tracker = gum_instance_tracker_new ();
+  gum_instance_tracker_begin (fixture->tracker, NULL);
 }
 
 static void
 test_instance_tracker_fixture_teardown (TestInstanceTrackerFixture * fixture,
                                        gconstpointer data)
 {
+  gum_instance_tracker_end (fixture->tracker);
   g_object_unref (fixture->tracker);
 }

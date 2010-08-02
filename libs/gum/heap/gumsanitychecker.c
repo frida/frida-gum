@@ -38,14 +38,6 @@ struct _GumSanityCheckerPrivate
   gpointer output_user_data;
 };
 
-struct _GumInstanceDetails
-{
-  gsize address;
-  GType type;
-  const gchar * type_name;
-  gint ref_count;
-};
-
 static void gum_sanity_checker_print_instance_leaks_summary (
     GumSanityChecker * self, GumList * stale);
 static void gum_sanity_checker_print_instance_leaks_details (
@@ -115,8 +107,10 @@ gum_sanity_checker_run (GumSanityChecker * self,
   func (user_data);
 
   instance_tracker = gum_instance_tracker_new ();
+  gum_instance_tracker_begin (instance_tracker, NULL);
   func (user_data);
-  stale_instances = gum_instance_tracker_peek_stale (instance_tracker);
+  gum_instance_tracker_end (instance_tracker);
+  stale_instances = gum_instance_tracker_peek_instances (instance_tracker);
   g_object_unref (instance_tracker);
 
   if (stale_instances != NULL)
@@ -323,10 +317,12 @@ static void
 gum_sanity_checker_details_from_instance (GumInstanceDetails * details,
                                           gconstpointer instance)
 {
-  details->address = GPOINTER_TO_SIZE (instance);
-  details->type = G_TYPE_FROM_INSTANCE (instance);
-  details->type_name = g_type_name (details->type);
-  if (g_type_is_a (details->type, G_TYPE_OBJECT))
+  GType type;
+
+  details->address = instance;
+  type = G_TYPE_FROM_INSTANCE (instance);
+  details->type_name = g_type_name (type);
+  if (g_type_is_a (type, G_TYPE_OBJECT))
     details->ref_count = ((GObject *) instance)->ref_count;
   else
     details->ref_count = 1;
@@ -363,24 +359,21 @@ gum_sanity_checker_compare_instances (gconstpointer a,
   gum_sanity_checker_details_from_instance (&da, a);
   gum_sanity_checker_details_from_instance (&db, b);
 
-  if (da.type == db.type)
-  {
-    if (da.ref_count > db.ref_count)
-      return -1;
-    else if (da.ref_count < db.ref_count)
-      return 1;
+  name_equality = strcmp (da.type_name, db.type_name);
+  if (name_equality != 0)
+    return name_equality;
 
-    if (da.address > db.address)
-      return -1;
-    else if (da.address < db.address)
-      return 1;
-    else
-      return 0;
-  }
+  if (da.ref_count > db.ref_count)
+    return -1;
+  else if (da.ref_count < db.ref_count)
+    return 1;
+
+  if (da.address > db.address)
+    return -1;
+  else if (da.address < db.address)
+    return 1;
   else
-  {
-    return strcmp (da.type_name, db.type_name);
-  }
+    return 0;
 }
 
 static gint

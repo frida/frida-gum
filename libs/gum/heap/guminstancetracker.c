@@ -36,10 +36,15 @@ typedef enum _FunctionId FunctionId;
 struct _GumInstanceTrackerPrivate
 {
   gboolean disposed;
+
   GMutex * mutex;
   GumHashTable * counter_ht;
   GumHashTable * instances_ht;
   GumInterceptor * interceptor;
+
+  gboolean is_active;
+  GumInstanceVTable vtable;
+
   GumInstanceTrackerTypeFilterFunction type_filter_func;
   gpointer type_filter_func_user_data;
 };
@@ -97,7 +102,6 @@ static void
 gum_instance_tracker_init (GumInstanceTracker * self)
 {
   GumInstanceTrackerPrivate * priv;
-  GumAttachReturn attach_ret;
 
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_INSTANCE_TRACKER, GumInstanceTrackerPrivate);
@@ -114,16 +118,6 @@ gum_instance_tracker_init (GumInstanceTracker * self)
       g_direct_equal, NULL, NULL);
 
   priv->interceptor = gum_interceptor_obtain ();
-
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      g_type_create_instance, GUM_INVOCATION_LISTENER (self),
-      GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
-  g_assert (attach_ret == GUM_ATTACH_OK);
-
-  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      g_type_free_instance, GUM_INVOCATION_LISTENER (self),
-      GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
-  g_assert (attach_ret == GUM_ATTACH_OK);
 }
 
 static void
@@ -136,8 +130,9 @@ gum_instance_tracker_dispose (GObject * object)
   {
     priv->disposed = TRUE;
 
-    gum_interceptor_detach_listener (priv->interceptor,
-        GUM_INVOCATION_LISTENER (self));
+    if (priv->is_active)
+      gum_instance_tracker_end (self);
+
     g_object_unref (priv->interceptor);
 
     gum_hash_table_unref (priv->counter_ht);
@@ -166,6 +161,52 @@ GumInstanceTracker *
 gum_instance_tracker_new (void)
 {
   return GUM_INSTANCE_TRACKER (g_object_new (GUM_TYPE_INSTANCE_TRACKER, NULL));
+}
+
+void
+gum_instance_tracker_begin (GumInstanceTracker * self,
+                            GumInstanceVTable * vtable)
+{
+  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumAttachReturn attach_ret;
+
+  g_assert (!priv->is_active);
+
+  if (vtable != NULL)
+  {
+    priv->vtable = *vtable;
+  }
+  else
+  {
+    priv->vtable.create_instance = g_type_create_instance;
+    priv->vtable.free_instance = g_type_free_instance;
+    priv->vtable.type_id_to_name = g_type_name;
+  }
+
+  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+      priv->vtable.create_instance, GUM_INVOCATION_LISTENER (self),
+      GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
+  g_assert (attach_ret == GUM_ATTACH_OK);
+
+  attach_ret = gum_interceptor_attach_listener (priv->interceptor,
+      priv->vtable.free_instance, GUM_INVOCATION_LISTENER (self),
+      GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
+  g_assert (attach_ret == GUM_ATTACH_OK);
+
+  priv->is_active = TRUE;
+}
+
+void
+gum_instance_tracker_end (GumInstanceTracker * self)
+{
+  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+
+  g_assert (priv->is_active);
+
+  gum_interceptor_detach_listener (priv->interceptor,
+      GUM_INVOCATION_LISTENER (self));
+
+  priv->is_active = FALSE;
 }
 
 void
@@ -208,7 +249,7 @@ gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
 }
 
 GumList *
-gum_instance_tracker_peek_stale (GumInstanceTracker * self)
+gum_instance_tracker_peek_instances (GumInstanceTracker * self)
 {
   GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
   GumList * result;
@@ -218,6 +259,42 @@ gum_instance_tracker_peek_stale (GumInstanceTracker * self)
   GUM_INSTANCE_TRACKER_UNLOCK ();
 
   return result;
+}
+
+void
+gum_instance_tracker_walk_instances (GumInstanceTracker * self,
+                                     GumWalkInstanceFunc func,
+                                     gpointer user_data)
+{
+  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumHashTableIter iter;
+  gpointer key, value;
+  GType gobject_type;
+
+  gobject_type = G_TYPE_OBJECT;
+
+  GUM_INSTANCE_TRACKER_LOCK ();
+
+  gum_hash_table_iter_init (&iter, priv->instances_ht);
+  while (gum_hash_table_iter_next (&iter, &key, &value))
+  {
+    const GTypeInstance * instance = (const GTypeInstance *) key;
+    GType type;
+    GumInstanceDetails details;
+
+    type = G_TYPE_FROM_INSTANCE (instance);
+
+    details.address = instance;
+    if (g_type_is_a (type, gobject_type))
+      details.ref_count = ((const GObject *) instance)->ref_count;
+    else
+      details.ref_count = 1;
+    details.type_name = priv->vtable.type_id_to_name (type);
+
+    func (&details, user_data);
+  }
+
+  GUM_INSTANCE_TRACKER_UNLOCK ();
 }
 
 void
