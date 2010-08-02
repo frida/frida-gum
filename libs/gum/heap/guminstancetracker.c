@@ -45,7 +45,7 @@ struct _GumInstanceTrackerPrivate
   gboolean is_active;
   GumInstanceVTable vtable;
 
-  GumInstanceTrackerTypeFilterFunction type_filter_func;
+  GumFilterInstanceTypeFunc type_filter_func;
   gpointer type_filter_func_user_data;
 };
 
@@ -211,7 +211,7 @@ gum_instance_tracker_end (GumInstanceTracker * self)
 
 void
 gum_instance_tracker_set_type_filter_function (GumInstanceTracker * self,
-                                               GumInstanceTrackerTypeFilterFunction filter,
+                                               GumFilterInstanceTypeFunc filter,
                                                gpointer user_data)
 {
   GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);

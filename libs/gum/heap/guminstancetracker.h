@@ -42,6 +42,8 @@ typedef struct _GumInstanceTrackerPrivate GumInstanceTrackerPrivate;
 typedef struct _GumInstanceVTable GumInstanceVTable;
 typedef struct _GumInstanceDetails GumInstanceDetails;
 
+typedef gboolean (* GumFilterInstanceTypeFunc) (
+    GumInstanceTracker * tracker, GType gtype, gpointer user_data);
 typedef void (* GumWalkInstanceFunc) (GumInstanceDetails * id,
     gpointer user_data);
 
@@ -74,9 +76,6 @@ struct _GumInstanceDetails
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumInstanceTrackerTypeFilterFunction) (
-    GumInstanceTracker * tracker, GType gtype, gpointer user_data);
-
 GUM_API GType gum_instance_tracker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumInstanceTracker * gum_instance_tracker_new (void);
@@ -86,7 +85,7 @@ GUM_API void gum_instance_tracker_begin (GumInstanceTracker * self,
 GUM_API void gum_instance_tracker_end (GumInstanceTracker * self);
 
 GUM_API void gum_instance_tracker_set_type_filter_function (
-    GumInstanceTracker * self, GumInstanceTrackerTypeFilterFunction filter,
+    GumInstanceTracker * self, GumFilterInstanceTypeFunc filter,
     gpointer user_data);
 
 GUM_API guint gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
