@@ -97,6 +97,17 @@ namespace Gum {
 		public string type_name;
 	}
 
+	[CCode (cheader_filename = "gum/gum-heap.h")]
+	public class BoundsChecker : GLib.Object {
+		public BoundsChecker ();
+
+		public uint pool_size { get; set; }
+		public uint front_alignment { get; set; }
+
+		public void attach ();
+		public void detach ();
+	}
+
 	/* Copied from glib-2.0.vapi */
 	[Compact]
 	[CCode (dup_function = "gum_list_copy", free_function = "gum_list_free")]

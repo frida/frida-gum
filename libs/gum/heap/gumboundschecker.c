@@ -132,10 +132,10 @@ gum_bounds_checker_get_property (GObject * object,
   switch (property_id)
   {
     case PROP_POOL_SIZE:
-      g_value_set_uint (value, priv->pool_size);
+      g_value_set_uint (value, gum_bounds_checker_get_pool_size (self));
       break;
     case PROP_FRONT_ALIGNMENT:
-      g_value_set_uint (value, priv->front_alignment);
+      g_value_set_uint (value, gum_bounds_checker_get_front_alignment (self));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -154,12 +154,10 @@ gum_bounds_checker_set_property (GObject * object,
   switch (property_id)
   {
     case PROP_POOL_SIZE:
-      g_assert (priv->page_pool == NULL);
-      priv->pool_size = g_value_get_uint (value);
+      gum_bounds_checker_set_pool_size (self, g_value_get_uint (value));
       break;
     case PROP_FRONT_ALIGNMENT:
-      g_assert (priv->page_pool == NULL);
-      priv->front_alignment = g_value_get_uint (value);
+      gum_bounds_checker_set_front_alignment (self, g_value_get_uint (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -169,7 +167,35 @@ gum_bounds_checker_set_property (GObject * object,
 GumBoundsChecker *
 gum_bounds_checker_new (void)
 {
-  return g_object_new (GUM_TYPE_BOUNDS_CHECKER, NULL);
+  return GUM_BOUNDS_CHECKER (g_object_new (GUM_TYPE_BOUNDS_CHECKER, NULL));
+}
+
+guint
+gum_bounds_checker_get_pool_size (GumBoundsChecker * self)
+{
+  return self->priv->pool_size;
+}
+
+void
+gum_bounds_checker_set_pool_size (GumBoundsChecker * self,
+                                  guint pool_size)
+{
+  g_assert (self->priv->page_pool == NULL);
+  self->priv->pool_size = pool_size;
+}
+
+guint
+gum_bounds_checker_get_front_alignment (GumBoundsChecker * self)
+{
+  return self->priv->front_alignment;
+}
+
+void
+gum_bounds_checker_set_front_alignment (GumBoundsChecker * self,
+                                        guint pool_size)
+{
+  g_assert (self->priv->page_pool == NULL);
+  self->priv->front_alignment = pool_size;
 }
 
 void
