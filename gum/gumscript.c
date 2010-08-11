@@ -42,6 +42,8 @@ typedef struct _GumVariable GumVariable;
 
 typedef struct _GumSendArgItem GumSendArgItem;
 
+typedef struct _GumFormatStringToken GumFormatStringToken;
+
 typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
     (GumInvocationContext * context);
 
@@ -66,7 +68,9 @@ enum _GumVariableType
 {
   GUM_VARIABLE_INT32,
   GUM_VARIABLE_ANSI_STRING,
-  GUM_VARIABLE_WIDE_STRING
+  GUM_VARIABLE_WIDE_STRING,
+  GUM_VARIABLE_ANSI_FORMAT_STRING,
+  GUM_VARIABLE_WIDE_FORMAT_STRING
 };
 
 struct _GumVariable
@@ -85,6 +89,18 @@ struct _GumSendArgItem
 {
   guint index;
   GumVariableType type;
+};
+
+struct _GumFormatStringToken
+{
+  const gchar * begin;
+  const gchar * end;
+  guint length;
+
+  gboolean width_in_argument;
+  gboolean precision_in_argument;
+  gchar specifier;
+  guint value_size;
 };
 
 static void gum_script_finalize (GObject * object);
@@ -113,6 +129,25 @@ static void gum_variable_free (GumVariable * var);
 static void gum_script_handle_parse_error (GScanner * scanner, gchar * message,
     gboolean error);
 static void gum_script_init_scanner_config (GScannerConfig * scanner_config);
+
+static void gum_script_expand_format_string (gchar ** format_str,
+    gboolean is_wide, GumInvocationContext * context,
+    guint first_format_argument_index);
+static guint64 gum_consume_format_string_arg_value (
+    const GumFormatStringToken * token, GumInvocationContext * context,
+    guint * arg_index, gpointer * temporary_storage);
+
+static void gum_describe_format_string_token (const gchar * token_start,
+    GumFormatStringToken * token);
+static void gum_format_string_pointer_skip_flags (const gchar ** p);
+static void gum_format_string_pointer_skip_width (const gchar ** p,
+    gboolean * specified_in_argument);
+static void gum_format_string_pointer_skip_precision (const gchar ** p,
+    gboolean * specified_in_argument);
+static void gum_format_string_pointer_skip_length (const gchar ** p,
+    guint * value_size);
+
+static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi);
 
 G_DEFINE_TYPE (GumScript, gum_script, G_TYPE_OBJECT);
 
@@ -338,34 +373,43 @@ gum_script_send_item_commit (GumScript * self,
         break;
 
       case GUM_VARIABLE_ANSI_STRING:
+      case GUM_VARIABLE_ANSI_FORMAT_STRING:
       {
         gchar * str_ansi;
-        guint str_wide_size;
-        WCHAR * str_wide;
         gchar * str_utf8;
 
         str_ansi = (gchar *) argument_value;
+        str_utf8 = gum_ansi_string_to_utf8 (str_ansi);
 
-        str_wide_size = (guint) (strlen (str_ansi) + 1) * sizeof (WCHAR);
-        str_wide = (WCHAR *) g_malloc (str_wide_size);
-        MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_wide, str_wide_size);
-        str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_wide, -1, NULL, NULL, NULL);
+        if (var_type == GUM_VARIABLE_ANSI_FORMAT_STRING)
+        {
+          gum_script_expand_format_string (&str_utf8, FALSE,
+              context, argument_index + 1);
+        }
 
         value = g_variant_new_string (str_utf8);
 
         g_free (str_utf8);
-        g_free (str_wide);
 
         break;
       }
 
       case GUM_VARIABLE_WIDE_STRING:
+      case GUM_VARIABLE_WIDE_FORMAT_STRING:
       {
         gchar * str_utf8;
 
         str_utf8 = g_utf16_to_utf8 ((gunichar2 *) argument_value, -1,
             NULL, NULL, NULL);
+
+        if (var_type == GUM_VARIABLE_WIDE_FORMAT_STRING)
+        {
+          gum_script_expand_format_string (&str_utf8, TRUE,
+              context, argument_index + 1);
+        }
+
         value = g_variant_new_string (str_utf8);
+
         g_free (str_utf8);
 
         break;
@@ -562,6 +606,16 @@ gum_script_handle_send_statement (GumScript * self,
     item.type = GUM_VARIABLE_WIDE_STRING;
     type_char = 's';
   }
+  else if (strcmp (statement_type, "SendAnsiFormatStringFromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_ANSI_FORMAT_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "SendWideFormatStringFromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_WIDE_FORMAT_STRING;
+    type_char = 's';
+  }
   else
   {
     g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
@@ -745,4 +799,323 @@ gum_script_init_scanner_config (GScannerConfig * scanner_config)
   scanner_config->symbol_2_token = FALSE;
   scanner_config->scope_0_fallback = FALSE;
   scanner_config->store_int64 = FALSE;
+}
+
+static void
+gum_script_expand_format_string (gchar ** format_str,
+                                 gboolean is_wide,
+                                 GumInvocationContext * context,
+                                 guint first_format_argument_index)
+{
+  GString * str;
+  const gchar * p;
+  guint arg_index = first_format_argument_index;
+
+  str = g_string_sized_new (2 * strlen (*format_str));
+
+  for (p = *format_str; *p != '\0';)
+  {
+    GumFormatStringToken t;
+
+    if (p[0] != '%')
+    {
+      g_string_append_c (str, p[0]);
+      p++;
+      continue;
+    }
+    else if (p[1] == '%')
+    {
+      g_string_append_c (str, p[0]);
+      p += 2;
+      continue;
+    }
+
+    gum_describe_format_string_token (p, &t);
+
+    if (t.specifier == 's' && is_wide)
+      t.specifier = 'S';
+    else if (t.specifier == 'S' && is_wide)
+      t.specifier = 's';
+
+    if (t.specifier == 'n')
+    {
+      gint * n_characters_written_so_far;
+
+      n_characters_written_so_far = (gint *)
+          gum_invocation_context_get_nth_argument (context, arg_index);
+      *n_characters_written_so_far = (gint) g_utf8_strlen (str->str, -1);
+
+      arg_index++;
+    }
+    else
+    {
+      gchar temp_format[16];
+      guint64 value;
+      gpointer temporary_storage;
+
+      memcpy (temp_format, t.begin, t.length);
+      temp_format[t.length] = '\0';
+
+      if (t.width_in_argument && t.precision_in_argument)
+      {
+        gint width, precision;
+
+        width = (gint)
+            gum_invocation_context_get_nth_argument (context, arg_index + 0);
+        precision = (gint)
+            gum_invocation_context_get_nth_argument (context, arg_index + 1);
+        arg_index += 2;
+
+        value = gum_consume_format_string_arg_value (&t, context, &arg_index,
+            &temporary_storage);
+
+        g_string_append_printf (str, temp_format, width, precision, value);
+      }
+      else if (t.width_in_argument || t.precision_in_argument)
+      {
+        gint width_or_precision;
+
+        width_or_precision = (gint)
+            gum_invocation_context_get_nth_argument (context, arg_index + 0);
+        arg_index++;
+
+        value = gum_consume_format_string_arg_value (&t, context, &arg_index,
+            &temporary_storage);
+        g_string_append_printf (str, temp_format, width_or_precision, value);
+      }
+      else
+      {
+        value = gum_consume_format_string_arg_value (&t, context, &arg_index,
+            &temporary_storage);
+        g_string_append_printf (str, temp_format, value);
+      }
+
+      g_free (temporary_storage);
+    }
+
+    p = t.end;
+  }
+
+  g_free (*format_str);
+  *format_str = g_string_free (str, FALSE);
+}
+
+static guint64
+gum_consume_format_string_arg_value (const GumFormatStringToken * token,
+                                     GumInvocationContext * context,
+                                     guint * arg_index,
+                                     gpointer * temporary_storage)
+{
+  guint64 value;
+
+  value = (guint64)
+      gum_invocation_context_get_nth_argument (context, *arg_index);
+  (*arg_index)++;
+
+  switch (token->value_size)
+  {
+    case 1: value &= 0x000000ff; break;
+    case 2: value &= 0x0000ffff; break;
+    case 4: value &= 0xffffffff; break;
+
+    case 8:
+#if GLIB_SIZEOF_VOID_P == 4
+      {
+        guint64 high_value;
+
+        high_value = (guint64)
+            gum_invocation_context_get_nth_argument (context, *arg_index);
+        (*arg_index)++;
+
+        value |= (high_value << 32);
+      }
+#endif
+      break;
+
+    default:
+      g_assert_not_reached ();
+  }
+
+  if (token->specifier == 's')
+  {
+    const gchar * str_ansi;
+
+    str_ansi = (const gchar *) value;
+    *temporary_storage = gum_ansi_string_to_utf8 (str_ansi);
+    value = (guint64) *temporary_storage;
+  }
+  else if (token->specifier == 'S')
+  {
+    const gunichar2 * str_utf16;
+
+    str_utf16 = (const gunichar2 *) value;
+    *temporary_storage = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
+    value = (guint64) *temporary_storage;
+  }
+  else
+  {
+    *temporary_storage = NULL;
+  }
+
+  return value;
+}
+
+static void
+gum_describe_format_string_token (const gchar * token_start,
+                                  GumFormatStringToken * token)
+{
+  const gchar * p;
+
+  g_assert (*token_start == '%');
+
+  p = token_start + 1;
+  gum_format_string_pointer_skip_flags (&p);
+  gum_format_string_pointer_skip_width (&p, &token->width_in_argument);
+  gum_format_string_pointer_skip_precision (&p, &token->precision_in_argument);
+  gum_format_string_pointer_skip_length (&p, &token->value_size);
+  token->specifier = *p;
+
+  token->begin = token_start;
+  token->end = p + 1;
+  token->length = token->end - token->begin;
+
+  switch (token->specifier)
+  {
+    case 'c':
+      token->value_size = 1;
+      break;
+
+    case 'd':
+    case 'e':
+    case 'E':
+    case 'f':
+    case 'g':
+    case 'G':
+    case 'o':
+    case 'u':
+    case 'x':
+    case 'X':
+      if (token->value_size == 0)
+        token->value_size = 4;
+      break;
+
+    case 'p':        
+    case 's':
+    case 'n':
+      token->value_size = GLIB_SIZEOF_VOID_P;
+      break;
+
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+static void
+gum_format_string_pointer_skip_flags (const gchar ** p)
+{
+  switch (**p)
+  {
+    case '-':
+    case '+':
+    case ' ':
+    case '#':
+    case '0':
+      (*p)++;
+
+    default:
+      break;
+  }
+}
+
+static void
+gum_format_string_pointer_skip_width (const gchar ** p,
+                                      gboolean * specified_in_argument)
+{
+  const gchar * cur = *p;
+
+  if (*cur == '*')
+  {
+    *specified_in_argument = TRUE;
+
+    cur++;
+  }
+  else
+  {
+    *specified_in_argument = FALSE;
+
+    while (g_ascii_isdigit (*cur))
+      cur++;
+  }
+
+  *p = cur;
+}
+
+static void
+gum_format_string_pointer_skip_precision (const gchar ** p,
+                                          gboolean * specified_in_argument)
+{
+  const gchar * cur = *p;
+
+  *specified_in_argument = FALSE;
+
+  if (*cur != '.')
+    return;
+  cur++;
+
+  if (*cur == '*')
+  {
+    *specified_in_argument = TRUE;
+
+    cur++;
+  }
+  else
+  {
+    while (g_ascii_isdigit (*cur))
+      cur++;
+  }
+
+  *p = cur;
+}
+
+static void
+gum_format_string_pointer_skip_length (const gchar ** p,
+                                       guint * value_size)
+{
+  switch (**p)
+  {
+    case 'h':
+      *value_size = 2;
+      break;
+
+    case 'l':
+      *value_size = 4;
+      break;
+
+    case 'L':
+      *value_size = 8;
+      break;
+
+    default:
+      *value_size = 0;
+      break;
+  }
+
+  if (*value_size != 0)
+    (*p)++;
+}
+
+static gchar *
+gum_ansi_string_to_utf8 (const gchar * str_ansi)
+{
+  guint str_wide_size;
+  WCHAR * str_wide;
+  gchar * str_utf8;
+
+  str_wide_size = (guint) (strlen (str_ansi) + 1) * sizeof (WCHAR);
+  str_wide = (WCHAR *) g_malloc (str_wide_size);
+  MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_wide, str_wide_size);
+  str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_wide, -1, NULL, NULL, NULL);
+  g_free (str_wide);
+
+  return str_utf8;
 }

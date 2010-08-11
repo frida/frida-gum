@@ -22,10 +22,14 @@
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (replace_string_and_length_arguments)
   SCRIPT_TESTENTRY (send_string_from_argument)
+  SCRIPT_TESTENTRY (send_ansi_format_string_from_argument)
+  SCRIPT_TESTENTRY (send_wide_format_string_from_argument)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
 typedef struct _StringsAndLengthArgs StringsAndLengthArgs;
+typedef struct _AnsiFormatStringArgs AnsiFormatStringArgs;
+typedef struct _WideFormatStringArgs WideFormatStringArgs;
 
 struct _StringAndLengthArgs {
   gunichar2 * text;
@@ -36,6 +40,18 @@ struct _StringsAndLengthArgs {
   gchar * text_ansi;
   gunichar2 * text_wide;
   guint length;
+};
+
+struct _AnsiFormatStringArgs {
+  gchar * format;
+  gchar * name;
+  guint age;
+};
+
+struct _WideFormatStringArgs {
+  gunichar2 * format;
+  gunichar2 * name;
+  guint age;
 };
 
 static void store_message (GumScript * script, GVariant * msg,
@@ -116,6 +132,71 @@ SCRIPT_TESTCASE (send_string_from_argument)
 
   g_free (args.text_wide);
   g_free (args.text_ansi);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (send_ansi_format_string_from_argument)
+{
+  const gchar * script_text = "SendAnsiFormatStringFromArgument 0";
+  GumScript * script;
+  GError * error = NULL;
+  AnsiFormatStringArgs args;
+  GVariant * msg = NULL;
+  gchar * msg_str;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (script != NULL);
+  g_assert (error == NULL);
+  args.format =
+    ansi_string_from_utf8 ("My name is %s and I æm %%%03d");
+  args.name = ansi_string_from_utf8 ("Bøggvald");
+  args.age = 7;
+  fixture->argument_list = &args;
+
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
+  g_variant_get (msg, "(s)", &msg_str);
+  g_assert_cmpstr (msg_str, ==, "My name is Bøggvald and I æm %007");
+
+  g_variant_unref (msg);
+
+  g_free (args.name);
+  g_free (args.format);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (send_wide_format_string_from_argument)
+{
+  const gchar * script_text = "SendWideFormatStringFromArgument 0";
+  GumScript * script;
+  GError * error = NULL;
+  WideFormatStringArgs args;
+  GVariant * msg = NULL;
+  gchar * msg_str;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (script != NULL);
+  g_assert (error == NULL);
+  args.format =
+      g_utf8_to_utf16 ("My name is %s and I æm %%%03d", -1, NULL, NULL, NULL);
+  args.name =
+      g_utf8_to_utf16 ("Bøggvald", -1, NULL, NULL, NULL);
+  args.age = 7;
+  fixture->argument_list = &args;
+
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
+  g_variant_get (msg, "(s)", &msg_str);
+  g_assert_cmpstr (msg_str, ==, "My name is Bøggvald and I æm %007");
+
+  g_variant_unref (msg);
+
+  g_free (args.name);
+  g_free (args.format);
   g_object_unref (script);
 }
 
