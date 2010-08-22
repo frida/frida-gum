@@ -306,6 +306,8 @@ gum_stalker_init (GumStalker * self)
     HMODULE ntmod, usermod;
     MODULEINFO mi;
     BOOL success;
+    gboolean found_user32_code = FALSE;
+    guint8 * p;
 
     ntmod = GetModuleHandle (_T ("ntdll.dll"));
     usermod = GetModuleHandle (_T ("user32.dll"));
@@ -316,6 +318,28 @@ gum_stalker_init (GumStalker * self)
     g_assert (success);
     priv->user32_start = mi.lpBaseOfDll;
     priv->user32_end = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
+
+    for (p = (guint8 *) priv->user32_start; p < (guint8 *) priv->user32_end;)
+    {
+      MEMORY_BASIC_INFORMATION mbi;
+
+      success = VirtualQuery (p, &mbi, sizeof (mbi)) == sizeof (mbi);
+      g_assert (success);
+
+      if (mbi.Protect == PAGE_EXECUTE_READ ||
+          mbi.Protect == PAGE_EXECUTE_READWRITE ||
+          mbi.Protect == PAGE_EXECUTE_WRITECOPY)
+      {
+        priv->user32_start = mbi.BaseAddress;
+        priv->user32_end = (guint8 *) mbi.BaseAddress + mbi.RegionSize;
+
+        found_user32_code = TRUE;
+      }
+
+      p = (guint8 *) mbi.BaseAddress + mbi.RegionSize;
+    }
+
+    g_assert (found_user32_code);
 
     priv->ki_user_callback_dispatcher_impl =
         GetProcAddress (ntmod, "KiUserCallbackDispatcher");
@@ -1569,7 +1593,7 @@ static gboolean
 gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
     CONTEXT * context, gpointer user_data)
 {
-  GumStalker * self = GUM_STALKER (user_data);
+  GumStalker * self = GUM_STALKER_CAST (user_data);
   GumExecCtx * ctx;
   GumExecBlock * block;
 
