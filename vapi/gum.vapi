@@ -14,7 +14,7 @@ namespace Gum {
 	public interface InvocationListener : GLib.Object {
 		public abstract void on_enter (Gum.InvocationContext ctx);
 		public abstract void on_leave (Gum.InvocationContext ctx);
-		public void * provide_thread_data (void * function_instance_data, uint thread_id);
+		public virtual void * provide_thread_data (void * function_instance_data, uint thread_id);
 	}
 
 	[Compact]
