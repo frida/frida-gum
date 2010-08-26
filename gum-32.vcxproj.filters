@@ -57,19 +57,19 @@
     <ClCompile Include="gum\guminterceptor.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumcodereader.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumfunctionparser.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumcodewriter.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumrelocator.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\arch-x86\gumudis86.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86functionparser.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86reader.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86relocator.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86writer.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c">
@@ -206,16 +206,16 @@
     <ClInclude Include="gum\arch-x86\gumudis86.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumrelocator.h">
+    <ClInclude Include="gum\arch-x86\gumx86functionparser.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumfunctionparser.h">
+    <ClInclude Include="gum\arch-x86\gumx86reader.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumcodewriter.h">
+    <ClInclude Include="gum\arch-x86\gumx86relocator.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumcodereader.h">
+    <ClInclude Include="gum\arch-x86\gumx86writer.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
     <ClInclude Include="gum\guminterceptor.h">

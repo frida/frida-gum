@@ -19,7 +19,7 @@
 
 #include "gumscript.h"
 
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
 
 #include <string.h>
@@ -54,7 +54,7 @@ struct _GumScriptPrivate
   GumScriptEntrypoint entrypoint;
 
   guint8 * code;
-  GumCodeWriter code_writer;
+  GumX86Writer code_writer;
 
   GString * send_arg_type_signature;
   GArray * send_arg_items;
@@ -173,7 +173,7 @@ gum_script_init (GumScript * self)
       g_free, (GDestroyNotify) gum_variable_free);
 
   priv->code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_code_writer_init (&priv->code_writer, priv->code);
+  gum_x86_writer_init (&priv->code_writer, priv->code);
 
   priv->send_arg_items = g_array_new (FALSE, FALSE, sizeof (GumSendArgItem));
   priv->send_arg_type_signature = g_string_new ("");
@@ -191,7 +191,7 @@ gum_script_finalize (GObject * object)
   g_string_free (priv->send_arg_type_signature, TRUE);
   g_array_free (priv->send_arg_items, TRUE);
 
-  gum_code_writer_free (&priv->code_writer);
+  gum_x86_writer_free (&priv->code_writer);
   gum_free_pages (priv->code);
 
   g_hash_table_unref (priv->variable_by_name);
@@ -205,7 +205,7 @@ gum_script_from_string (const gchar * script_text,
 {
   GumScript * script;
   GumScriptPrivate * priv;
-  GumCodeWriter * cw;
+  GumX86Writer * cw;
   GScannerConfig scanner_config = { 0, };
   GScanner * scanner;
   GString * parse_messages;
@@ -225,14 +225,14 @@ gum_script_from_string (const gchar * script_text,
 
   g_scanner_input_text (scanner, script_text, (guint) strlen (script_text));
 
-  gum_code_writer_put_push_reg (cw, GUM_REG_XBP);
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_XBP, GUM_REG_XSP);
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, sizeof (gpointer));
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XBP);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBP, GUM_REG_XSP);
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, sizeof (gpointer));
 
-  gum_code_writer_put_push_reg (cw, GUM_REG_XBX);
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XCX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XCX);
 
-  start_offset = gum_code_writer_offset (cw);
+  start_offset = gum_x86_writer_offset (cw);
 
   while (!g_scanner_eof (scanner))
   {
@@ -277,17 +277,17 @@ gum_script_from_string (const gchar * script_text,
 
   gum_script_generate_call_to_send_item_commit (script, scanner);
 
-  if (gum_code_writer_offset (&priv->code_writer) == start_offset)
+  if (gum_x86_writer_offset (&priv->code_writer) == start_offset)
   {
     g_scanner_error (scanner, "script without any statements");
     goto parse_error;
   }
 
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XBX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XBX);
 
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_XSP, GUM_REG_XBP);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XBP);
-  gum_code_writer_put_ret (cw);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XSP, GUM_REG_XBP);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XBP);
+  gum_x86_writer_put_ret (cw);
 
   priv->entrypoint = (GumScriptEntrypoint) priv->code;
 
@@ -337,7 +337,7 @@ gum_script_get_code_address (GumScript * self)
 guint
 gum_script_get_code_size (GumScript * self)
 {
-  return gum_code_writer_offset (&self->priv->code_writer);
+  return gum_x86_writer_offset (&self->priv->code_writer);
 }
 
 static void
@@ -505,7 +505,7 @@ static gboolean
 gum_script_handle_replace_argument (GumScript * self,
                                     GScanner * scanner)
 {
-  GumCodeWriter * cw = &self->priv->code_writer;
+  GumX86Writer * cw = &self->priv->code_writer;
   gulong argument_index;
   gchar * operation_name = NULL;
 
@@ -547,26 +547,26 @@ gum_script_handle_replace_argument (GumScript * self,
 
     g_assert (var->type == GUM_VARIABLE_WIDE_STRING);
 
-    gum_code_writer_put_push_reg (cw, GUM_REG_XSI);
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XSI);
 
     if (operation_name[0] == 'A')
     {
-      gum_code_writer_put_mov_reg_address (cw, GUM_REG_XSI,
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XSI,
           GUM_ADDRESS (var->value.wide_string));
     }
     else
     {
-      gum_code_writer_put_mov_reg_address (cw, GUM_REG_XSI,
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XSI,
           GUM_ADDRESS (var->value.string_length));
     }
 
-    gum_code_writer_put_call_with_arguments (cw,
+    gum_x86_writer_put_call_with_arguments (cw,
         gum_invocation_context_replace_nth_argument, 3,
         GUM_ARG_REGISTER, GUM_REG_XBX,
         GUM_ARG_POINTER, GSIZE_TO_POINTER (argument_index),
         GUM_ARG_REGISTER, GUM_REG_XSI);
 
-    gum_code_writer_put_pop_reg (cw, GUM_REG_XSI);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XSI);
   }
   else
   {
@@ -586,7 +586,7 @@ static gboolean
 gum_script_handle_send_statement (GumScript * self,
                                   GScanner * scanner)
 {
-  GumCodeWriter * cw = &self->priv->code_writer;
+  GumX86Writer * cw = &self->priv->code_writer;
   const gchar * statement_type = scanner->value.v_string;
   GumSendArgItem item;
   gchar type_char;
@@ -643,7 +643,7 @@ static void
 gum_script_generate_call_to_send_item_commit (GumScript * self,
                                               GScanner * scanner)
 {
-  GumCodeWriter * cw = &self->priv->code_writer;
+  GumX86Writer * cw = &self->priv->code_writer;
   GArray * items = self->priv->send_arg_items;
   gint item_index;
 
@@ -653,8 +653,8 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
   g_string_insert_c (self->priv->send_arg_type_signature, 0, '(');
   g_string_append_c (self->priv->send_arg_type_signature, ')');
 
-  gum_code_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
-  gum_code_writer_put_push_u32 (cw, G_MAXUINT);
+  gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
+  gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
 
   for (item_index = items->len - 1; item_index >= 0; item_index--)
   {
@@ -663,29 +663,29 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
 #if GLIB_SIZEOF_VOID_P == 8
     if (item_index == 0)
     {
-      gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_R9D, item->type);
-      gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, item->index);
+      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R9D, item->type);
+      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, item->index);
     }
     else
 #endif
     {
-      gum_code_writer_put_push_u32 (cw, item->type);
-      gum_code_writer_put_push_u32 (cw, item->index);
+      gum_x86_writer_put_push_u32 (cw, item->type);
+      gum_x86_writer_put_push_u32 (cw, item->index);
     }
   }
 
 #if GLIB_SIZEOF_VOID_P == 8
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RBX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (self));
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_RSP, 4 * sizeof (gpointer));
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RBX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (self));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_RSP, 4 * sizeof (gpointer));
 #else
-  gum_code_writer_put_push_reg (cw, GUM_REG_EBX);
-  gum_code_writer_put_push_u32 (cw, (guint32) self);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_EBX);
+  gum_x86_writer_put_push_u32 (cw, (guint32) self);
 #endif
 
-  gum_code_writer_put_call (cw, gum_script_send_item_commit);
+  gum_x86_writer_put_call (cw, gum_script_send_item_commit);
 
-  gum_code_writer_put_add_reg_imm (cw, GUM_REG_XSP,
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       (2 + (items->len * 2) + 2) * sizeof (gpointer));
 }
 

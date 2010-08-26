@@ -21,7 +21,7 @@
 #include "gumstalker.h"
 
 #include "fakeeventsink.h"
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
 #include "testutil.h"
 
@@ -125,36 +125,36 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 {
   gint ret;
   guint8 * code;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   GCallback invoke_func;
 
   code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
 
-  gum_code_writer_init (&cw, code);
+  gum_x86_writer_init (&cw, code);
 
-  gum_code_writer_put_pushax (&cw);
+  gum_x86_writer_put_pushax (&cw);
 
-  gum_code_writer_put_call_with_arguments (&cw,
+  gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
 
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
-  fixture->last_invoke_calladdr = (guint8 *) gum_code_writer_cur (&cw);
-  gum_code_writer_put_call (&cw, func);
-  fixture->last_invoke_retaddr = (guint8 *) gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
-  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
+  fixture->last_invoke_calladdr = (guint8 *) gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_call (&cw, func);
+  fixture->last_invoke_retaddr = (guint8 *) gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
 
-  gum_code_writer_put_call_with_arguments (&cw,
+  gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
 
-  gum_code_writer_put_popax (&cw);
+  gum_x86_writer_put_popax (&cw);
 
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   invoke_func = (GCallback) code;
   invoke_func ();

@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 
 #include "testutil.h"
 
@@ -33,23 +33,23 @@
 typedef struct _TestCodeWriterFixture
 {
   guint8 output[32];
-  GumCodeWriter cw;
+  GumX86Writer cw;
 } TestCodeWriterFixture;
 
 static void
 test_code_writer_fixture_setup (TestCodeWriterFixture * fixture,
                                 gconstpointer data)
 {
-  gum_code_writer_init (&fixture->cw, fixture->output);
+  gum_x86_writer_init (&fixture->cw, fixture->output);
 
-  gum_code_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
 }
 
 static void
 test_code_writer_fixture_teardown (TestCodeWriterFixture * fixture,
                                    gconstpointer data)
 {
-  gum_code_writer_free (&fixture->cw);
+  gum_x86_writer_free (&fixture->cw);
 }
 
 static void
@@ -59,9 +59,9 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
 {
   gboolean same_length, same_content;
 
-  gum_code_writer_flush (&fixture->cw);
+  gum_x86_writer_flush (&fixture->cw);
 
-  same_length = (gum_code_writer_offset (&fixture->cw) == expected_length);
+  same_length = (gum_x86_writer_offset (&fixture->cw) == expected_length);
   if (same_length)
   {
     same_content =
@@ -77,7 +77,7 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
     gchar * diff;
 
     diff = test_util_diff_binary (expected_code, expected_length,
-        fixture->output, gum_code_writer_offset (&fixture->cw));
+        fixture->output, gum_x86_writer_offset (&fixture->cw));
     g_print ("\n\nGenerated code is not equal to expected code:\n\n%s\n",
         diff);
     g_free (diff);

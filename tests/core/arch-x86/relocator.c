@@ -52,24 +52,24 @@ RELOCATOR_TESTCASE (one_to_one)
   SETUP_RELOCATOR_WITH (input);
 
   insn = NULL;
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, &insn), ==, 1);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, &insn), ==, 1);
   g_assert_cmpint (insn->mnemonic, ==, UD_Ipush);
   assert_outbuf_still_zeroed_from_offset (0);
 
   insn = NULL;
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, &insn), ==, 3);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, &insn), ==, 3);
   g_assert_cmpint (insn->mnemonic, ==, UD_Imov);
   assert_outbuf_still_zeroed_from_offset (0);
 
-  g_assert (gum_relocator_write_one (&fixture->rl));
+  g_assert (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, 1), ==, 0);
   assert_outbuf_still_zeroed_from_offset (1);
 
-  g_assert (gum_relocator_write_one (&fixture->rl));
+  g_assert (gum_x86_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output + 1, input + 1, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (3);
 
-  g_assert (!gum_relocator_write_one (&fixture->rl));
+  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
 }
 
 RELOCATOR_TESTCASE (call_near_relative)
@@ -89,11 +89,11 @@ RELOCATOR_TESTCASE (call_near_relative)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_read_one (&fixture->rl, NULL);
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 8);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 8);
 
-  gum_relocator_write_all (&fixture->rl);
+  gum_x86_relocator_write_all (&fixture->rl);
   g_assert_cmpint (memcmp (fixture->output + 3, input + 3, 5), !=, 0);
   reloc_distance = *((gint32 *) (fixture->output + 4));
   expected_distance =
@@ -109,8 +109,8 @@ RELOCATOR_TESTCASE (call_near_indirect)
 
   SETUP_RELOCATOR_WITH (input);
 
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 6);
-  gum_relocator_write_one (&fixture->rl);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  gum_x86_relocator_write_one (&fixture->rl);
   g_assert_cmpint (memcmp (fixture->output, input, 6), ==, 0);
 }
 
@@ -123,10 +123,10 @@ RELOCATOR_TESTCASE (jmp_short_outside_block)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
 
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, 5);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 5);
 
   g_assert_cmphex (fixture->output[0], !=, input[0]);
   g_assert_cmphex (fixture->output[0], ==, 0xe9);
@@ -146,10 +146,10 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
 
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, sizeof (input));
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, sizeof (input));
 
   g_assert_cmphex (fixture->output[0], ==, input[0]);
 
@@ -173,24 +173,24 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_read_one (&fixture->rl, NULL);
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 10);
-  gum_relocator_read_one (&fixture->rl, NULL);
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==,
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 10);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==,
       sizeof (input));
 
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_code_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
-  gum_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
+  gum_x86_relocator_write_one (&fixture->rl);
 
-  gum_code_writer_flush (&fixture->cw);
+  gum_x86_writer_flush (&fixture->cw);
 
   /* output should have one extra instruction of 2 bytes */
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (input) + 2);
 
   /* the first 9 bytes should be the same */
@@ -212,11 +212,11 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_all (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_all (&fixture->rl);
 
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, 6 + 1);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 6 + 1);
   g_assert_cmphex (fixture->output[0], ==, 0x0f);
   g_assert_cmphex (fixture->output[1], ==, 0x85);
   g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
@@ -233,11 +233,11 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_all (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_all (&fixture->rl);
 
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==, 6 + 1);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 6 + 1);
   g_assert_cmphex (fixture->output[0], ==, 0x0f);
   g_assert_cmphex (fixture->output[1], ==, 0x84);
   g_assert_cmpint (*((gint32 *) (fixture->output + 2)), ==,
@@ -254,22 +254,22 @@ RELOCATOR_TESTCASE (peek_next_write)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
 
-  g_assert_cmpint (gum_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
       ==, UD_Ixor);
-  gum_relocator_write_one (&fixture->rl);
-  g_assert_cmpint (gum_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
+  gum_x86_relocator_write_one (&fixture->rl);
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
       ==, UD_Iinc);
-  g_assert_cmpint (gum_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
       ==, UD_Iinc);
-  g_assert (gum_relocator_peek_next_write_source (&fixture->rl)
+  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl)
       == input + 2);
-  g_assert (gum_relocator_write_one (&fixture->rl));
-  g_assert (gum_relocator_peek_next_write_insn (&fixture->rl) == NULL);
-  g_assert (gum_relocator_peek_next_write_source (&fixture->rl) == NULL);
-  g_assert (!gum_relocator_write_one (&fixture->rl));
+  g_assert (gum_x86_relocator_write_one (&fixture->rl));
+  g_assert (gum_x86_relocator_peek_next_write_insn (&fixture->rl) == NULL);
+  g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl) == NULL);
+  g_assert (!gum_x86_relocator_write_one (&fixture->rl));
 }
 
 RELOCATOR_TESTCASE (skip_instruction)
@@ -286,21 +286,21 @@ RELOCATOR_TESTCASE (skip_instruction)
 
   SETUP_RELOCATOR_WITH (input);
 
-  while (!gum_relocator_eoi (&fixture->rl))
-    gum_relocator_read_one (&fixture->rl, NULL);
+  while (!gum_x86_relocator_eoi (&fixture->rl))
+    gum_x86_relocator_read_one (&fixture->rl, NULL);
 
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_write_one (&fixture->rl);
-  gum_relocator_skip_one (&fixture->rl); /* skip retn */
-  gum_code_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX); /* put "inc eax"
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_skip_one (&fixture->rl); /* skip retn */
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX); /* put "inc eax"
                                                             * there instead */
 
-  gum_code_writer_flush (&fixture->cw);
+  gum_x86_writer_flush (&fixture->cw);
 
   /* output should be of almost the same size */
-  g_assert_cmpuint (gum_code_writer_offset (&fixture->cw), ==,
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
       sizeof (input) + 1);
 
   /* the first n - 1 bytes should be the same */
@@ -315,10 +315,10 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
 
   SETUP_RELOCATOR_WITH (input);
 
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_relocator_eob (&fixture->rl));
-  g_assert (gum_relocator_eoi (&fixture->rl));
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert (gum_x86_relocator_eob (&fixture->rl));
+  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
 RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
@@ -329,9 +329,9 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
 
   SETUP_RELOCATOR_WITH (input);
 
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 5);
-  g_assert (gum_relocator_eob (&fixture->rl));
-  g_assert (!gum_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+  g_assert (gum_x86_relocator_eob (&fixture->rl));
+  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
 }
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
@@ -342,10 +342,10 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
 
   SETUP_RELOCATOR_WITH (input);
 
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_relocator_eob (&fixture->rl));
-  g_assert (gum_relocator_eoi (&fixture->rl));
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  g_assert (gum_x86_relocator_eob (&fixture->rl));
+  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
 RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
@@ -357,12 +357,12 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
 
   SETUP_RELOCATOR_WITH (input);
 
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 2);
-  g_assert (gum_relocator_eob (&fixture->rl));
-  g_assert (!gum_relocator_eoi (&fixture->rl));
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 3);
-  g_assert (gum_relocator_eoi (&fixture->rl));
-  g_assert_cmpuint (gum_relocator_read_one (&fixture->rl, NULL), ==, 0);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert (gum_x86_relocator_eob (&fixture->rl));
+  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
@@ -386,8 +386,8 @@ RELOCATOR_TESTCASE (rip_relative_different_target)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }
@@ -411,8 +411,8 @@ RELOCATOR_TESTCASE (rip_relative_same_target)
 
   SETUP_RELOCATOR_WITH (input);
 
-  gum_relocator_read_one (&fixture->rl, NULL);
-  gum_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }

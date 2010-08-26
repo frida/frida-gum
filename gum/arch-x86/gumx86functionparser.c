@@ -17,19 +17,19 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumfunctionparser.h"
+#include "gumx86functionparser.h"
 
 #include <udis86.h>
 
 void
-gum_function_parser_init (GumFunctionParser * fp)
+gum_x86_function_parser_init (GumX86FunctionParser * fp)
 {
 }
 
 void
-gum_function_parser_parse (GumFunctionParser * fp,
-                           gpointer func_address,
-                           GumFunctionDetails * details)
+gum_x86_function_parser_parse (GumX86FunctionParser * fp,
+                               gpointer func_address,
+                               GumFunctionDetails * details)
 {
   ud_t ud_obj;
   guint insn_size;

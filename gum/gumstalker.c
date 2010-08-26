@@ -20,9 +20,9 @@
 
 #include "gumstalker.h"
 
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
-#include "gumrelocator.h"
+#include "gumx86relocator.h"
 #include "gumspinlock.h"
 #include "gumudis86.h"
 
@@ -82,8 +82,8 @@ struct _GumExecCtx
 {
   GumStalker * stalker;
 
-  GumCodeWriter code_writer;
-  GumRelocator relocator;
+  GumX86Writer code_writer;
+  GumX86Relocator relocator;
 
   GumEventSink * sink;
   GumEventType sink_mask;
@@ -146,8 +146,8 @@ enum _GumExecState
 struct _GumGeneratorContext
 {
   GumInstruction * instruction;
-  GumRelocator * relocator;
-  GumCodeWriter * code_writer;
+  GumX86Relocator * relocator;
+  GumX86Writer * code_writer;
   gpointer continuation_real_address;
 };
 
@@ -213,23 +213,23 @@ static void gum_exec_ctx_destroy_block_pool (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     gpointer address);
 static void gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
-    gpointer location, const GumBranchTarget * target, GumCodeWriter * cw);
+    gpointer location, const GumBranchTarget * target, GumX86Writer * cw);
 static void gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
-    gpointer location, GumCodeWriter * cw);
+    gpointer location, GumX86Writer * cw);
 static void gum_exec_ctx_write_exec_event_code (GumExecCtx * ctx,
-    gpointer location, GumCodeWriter * cw);
+    gpointer location, GumX86Writer * cw);
 static void gum_exec_ctx_write_event_init_code (GumExecCtx * ctx,
-    GumEventType type, GumCodeWriter * cw);
+    GumEventType type, GumX86Writer * cw);
 static void gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
-    GumCodeWriter * cw);
+    GumX86Writer * cw);
 static void gum_exec_ctx_write_state_preserve_prolog (GumExecCtx * ctx,
-    GumCodeWriter * cw);
+    GumX86Writer * cw);
 static void gum_exec_ctx_write_state_preserve_epilog (GumExecCtx * ctx,
-    GumCodeWriter * cw);
+    GumX86Writer * cw);
 static void gum_exec_ctx_write_depth_increment_code (GumExecCtx * ctx,
-    GumCodeWriter * cw);
+    GumX86Writer * cw);
 static void gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
-    GumCodeWriter * cw);
+    GumX86Writer * cw);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static void gum_exec_block_free (GumExecBlock * block);
@@ -239,11 +239,11 @@ static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
 static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
-    GumInstruction * insn, const GumBranchTarget * target, GumCodeWriter * cw);
+    GumInstruction * insn, const GumBranchTarget * target, GumX86Writer * cw);
 static void gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
-    const GumBranchTarget * target, GumCodeWriter * cw);
+    const GumBranchTarget * target, GumX86Writer * cw);
 static void gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
-    gpointer orig_ret_insn, GumCodeWriter * cw);
+    gpointer orig_ret_insn, GumX86Writer * cw);
 static void gum_exec_block_write_single_step_transfer_code (
     GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_call_probe_code (GumExecBlock * block,
@@ -257,11 +257,11 @@ static gpointer gum_exec_block_get_real_address_of_last_instruction (
 
 static void gum_write_push_branch_target_address (
     const GumBranchTarget * target, guint state_preserve_stack_offset,
-    guint accumulated_stack_delta, GumCodeWriter * cw);
+    guint accumulated_stack_delta, GumX86Writer * cw);
 static void gum_load_real_register_into (GumCpuReg target_register,
     GumCpuReg source_register, guint state_preserve_stack_offset,
-    guint accumulated_stack_delta, gpointer ip, GumCodeWriter * cw);
-static void gum_write_segment_prefix (uint8_t segment, GumCodeWriter * cw);
+    guint accumulated_stack_delta, gpointer ip, GumX86Writer * cw);
+static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_ud (enum ud_type reg);
@@ -512,8 +512,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   ctx->stalker = g_object_ref (self);
 
-  gum_code_writer_init (&ctx->code_writer, NULL);
-  gum_relocator_init (&ctx->relocator, NULL, &ctx->code_writer);
+  gum_x86_writer_init (&ctx->code_writer, NULL);
+  gum_x86_relocator_init (&ctx->relocator, NULL, &ctx->code_writer);
 
   ctx->sink = g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
@@ -536,8 +536,8 @@ gum_stalker_destroy_exec_ctx (GumStalker * self,
 
   g_object_unref (ctx->sink);
 
-  gum_relocator_free (&ctx->relocator);
-  gum_code_writer_free (&ctx->code_writer);
+  gum_x86_relocator_free (&ctx->relocator);
+  gum_x86_writer_free (&ctx->code_writer);
 
   g_object_unref (ctx->stalker);
 
@@ -571,51 +571,51 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 static void
 gum_exec_ctx_create_thunks (GumExecCtx * ctx)
 {
-  GumCodeWriter cw;
+  GumX86Writer cw;
 
   g_assert (ctx->thunks == NULL);
 
   ctx->thunks = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_code_writer_init (&cw, ctx->thunks);
+  gum_x86_writer_init (&cw, ctx->thunks);
 
-  ctx->jmp_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
+  ctx->jmp_block_thunk = gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE,
       GUM_REG_XAX);
   gum_exec_ctx_write_state_preserve_epilog (ctx, &cw);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  ctx->ret_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
+  ctx->ret_block_thunk = gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, sizeof (gpointer) + STATE_PRESERVE_SIZE,
       GUM_REG_XAX);
   gum_exec_ctx_write_state_preserve_epilog (ctx, &cw);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  ctx->replace_block_thunk = gum_code_writer_cur (&cw);
-  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder */
+  ctx->replace_block_thunk = gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder */
   gum_exec_ctx_write_state_preserve_prolog (ctx, &cw);
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XDX,
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XDX,
       GUM_ADDRESS (&ctx->replacement_address));
-  gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XDX, GUM_REG_XDX);
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XDX, GUM_REG_XDX);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
       GUM_ADDRESS (ctx));
-  gum_code_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_code_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
+  gum_x86_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE,
       GUM_REG_XAX);
   gum_exec_ctx_write_state_preserve_epilog (ctx, &cw);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 }
 
 static void
@@ -664,13 +664,13 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
                                gpointer address)
 {
   GumExecBlock * block;
-  GumCodeWriter * cw = &ctx->code_writer;
-  GumRelocator * rl = &ctx->relocator;
+  GumX86Writer * cw = &ctx->code_writer;
+  GumX86Relocator * rl = &ctx->relocator;
   GumGeneratorContext gc;
 
   block = gum_exec_block_new (ctx);
-  gum_code_writer_reset (cw, block->code_begin);
-  gum_relocator_reset (rl, address, cw);
+  gum_x86_writer_reset (cw, block->code_begin);
+  gum_x86_relocator_reset (rl, address, cw);
 
   gc.instruction = NULL;
   gc.relocator = rl;
@@ -683,11 +683,11 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     GumInstruction insn;
     GumVirtualizationRequirements requirements = GUM_REQUIRE_NOTHING;
 
-    n_read = gum_relocator_read_one (rl, NULL);
+    n_read = gum_x86_relocator_read_one (rl, NULL);
     g_assert_cmpuint (n_read, !=, 0);
 
-    insn.ud = gum_relocator_peek_next_write_insn (rl);
-    insn.begin = gum_relocator_peek_next_write_source (rl);
+    insn.ud = gum_x86_relocator_peek_next_write_insn (rl);
+    insn.begin = gum_x86_relocator_peek_next_write_source (rl);
     insn.end = insn.begin + ud_insn_len (insn.ud);
 
     g_assert (insn.ud != NULL && insn.begin != NULL);
@@ -718,25 +718,25 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     {
       if ((requirements & GUM_REQUIRE_MAPPING) != 0)
       {
-        gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
+        gum_exec_block_add_address_mapping (block, gum_x86_writer_cur (cw),
             insn.begin);
       }
 
-      gum_relocator_write_one_no_label (rl);
+      gum_x86_relocator_write_one_no_label (rl);
 
       if ((requirements & GUM_REQUIRE_MAPPING) != 0)
       {
-        gum_exec_block_add_address_mapping (block, gum_code_writer_cur (cw),
+        gum_exec_block_add_address_mapping (block, gum_x86_writer_cur (cw),
             insn.end);
       }
     }
     else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
     {
-      gum_relocator_skip_one_no_label (rl);
+      gum_x86_relocator_skip_one_no_label (rl);
       gum_exec_block_write_single_step_transfer_code (block, &gc);
     }
 
-    block->code_end = gum_code_writer_cur (cw);
+    block->code_end = gum_x86_writer_cur (cw);
 
     if (gum_exec_block_full (block))
     {
@@ -744,7 +744,7 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
       break;
     }
   }
-  while (!gum_relocator_eob (rl));
+  while (!gum_x86_relocator_eob (rl));
 
   if (gc.continuation_real_address != NULL)
   {
@@ -756,16 +756,16 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
     gum_exec_block_write_jmp_transfer_code (block, &continue_target, cw);
   }
 
-  gum_code_writer_put_int3 (cw); /* should never get here */
+  gum_x86_writer_put_int3 (cw); /* should never get here */
 
-  gum_code_writer_flush (cw);
+  gum_x86_writer_flush (cw);
 
-  block->code_end = (guint8 *) gum_code_writer_cur (cw);
+  block->code_end = (guint8 *) gum_x86_writer_cur (cw);
 
   block->real_begin = (guint8 *) rl->input_start;
   block->real_end = (guint8 *) rl->input_cur;
 
-  g_assert_cmpuint (gum_code_writer_offset (cw), <=, ctx->block_code_maxsize);
+  g_assert_cmpuint (gum_x86_writer_offset (cw), <=, ctx->block_code_maxsize);
 
   block->code_end--; /* pretend the INT3 guard isn't part of the block */
 
@@ -776,27 +776,27 @@ static void
 gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
                                     gpointer location,
                                     const GumBranchTarget * target,
-                                    GumCodeWriter * cw)
+                                    GumX86Writer * cw)
 {
   gum_exec_ctx_write_state_preserve_prolog (ctx, cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_CALL, cw);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (location));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, location),
       GUM_REG_XCX);
 
   gum_write_push_branch_target_address (target, 0, STATE_PRESERVE_SIZE, cw);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XCX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, target),
       GUM_REG_XCX);
 
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (&ctx->call_depth));
-  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XCX, GUM_REG_XCX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XCX, GUM_REG_XCX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, depth),
       GUM_REG_XCX);
 
@@ -808,33 +808,33 @@ gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
 static void
 gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
                                    gpointer location,
-                                   GumCodeWriter * cw)
+                                   GumX86Writer * cw)
 {
   gum_exec_ctx_write_state_preserve_prolog (ctx, cw);
 
-  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX,
       GUM_REG_XSP, STATE_PRESERVE_SIZE);
-  gum_code_writer_put_call_with_arguments (cw,
+  gum_x86_writer_put_call_with_arguments (cw,
       gum_exec_ctx_resolve_code_address, 2,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_XDX, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDX, GUM_REG_XAX);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_RET, cw);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (location));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumRetEvent, location),
       GUM_REG_XCX);
 
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumRetEvent, target),
       GUM_REG_XDX);
 
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (&ctx->call_depth));
-  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_XCX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_XCX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumCallEvent, depth),
       GUM_REG_ECX);
 
@@ -846,14 +846,14 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
 static void
 gum_exec_ctx_write_exec_event_code (GumExecCtx * ctx,
                                     gpointer location,
-                                    GumCodeWriter * cw)
+                                    GumX86Writer * cw)
 {
   gum_exec_ctx_write_state_preserve_prolog (ctx, cw);
 
   gum_exec_ctx_write_event_init_code (ctx, GUM_EXEC, cw);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (location));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumExecEvent, location),
       GUM_REG_XCX);
 
@@ -865,20 +865,20 @@ gum_exec_ctx_write_exec_event_code (GumExecCtx * ctx,
 static void
 gum_exec_ctx_write_event_init_code (GumExecCtx * ctx,
                                     GumEventType type,
-                                    GumCodeWriter * cw)
+                                    GumX86Writer * cw)
 {
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (&ctx->tmp_event));
-  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,
       GUM_REG_XAX, G_STRUCT_OFFSET (GumAnyEvent, type),
       type);
 }
 
 static void
 gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
-                                      GumCodeWriter * cw)
+                                      GumX86Writer * cw)
 {
-  gum_code_writer_put_call_with_arguments (cw,
+  gum_x86_writer_put_call_with_arguments (cw,
       ctx->sink_process_impl, 2,
       GUM_ARG_POINTER, ctx->sink,
       GUM_ARG_REGISTER, GUM_REG_XAX);
@@ -886,64 +886,64 @@ gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
 
 static void
 gum_exec_ctx_write_state_preserve_prolog (GumExecCtx * ctx,
-                                          GumCodeWriter * cw)
+                                          GumX86Writer * cw)
 {
-  gum_code_writer_put_pushfx (cw);
+  gum_x86_writer_put_pushfx (cw);
 
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_push_reg (cw, GUM_REG_XCX);
-  gum_code_writer_put_push_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
 
 #if GLIB_SIZEOF_VOID_P == 8
-  gum_code_writer_put_push_reg (cw, GUM_REG_R8);
-  gum_code_writer_put_push_reg (cw, GUM_REG_R9);
-  gum_code_writer_put_push_reg (cw, GUM_REG_R10);
-  gum_code_writer_put_push_reg (cw, GUM_REG_R11);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_R8);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_R9);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_R10);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_R11);
 #endif
 }
 
 static void
 gum_exec_ctx_write_state_preserve_epilog (GumExecCtx * ctx,
-                                          GumCodeWriter * cw)
+                                          GumX86Writer * cw)
 {
 #if GLIB_SIZEOF_VOID_P == 8
-  gum_code_writer_put_pop_reg (cw, GUM_REG_R11);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_R10);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_R9);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_R8);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_R11);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_R10);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_R9);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_R8);
 #endif
 
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XCX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XCX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
 
-  gum_code_writer_put_popfx (cw);
+  gum_x86_writer_put_popfx (cw);
 }
 
 static void
 gum_exec_ctx_write_depth_increment_code (GumExecCtx * ctx,
-    GumCodeWriter * cw)
+    GumX86Writer * cw)
 {
-  gum_code_writer_put_pushfx (cw);
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_pushfx (cw);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (&ctx->call_depth));
-  gum_code_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_popfx (cw);
+  gum_x86_writer_put_inc_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_popfx (cw);
 }
 
 static void
 gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
-    GumCodeWriter * cw)
+    GumX86Writer * cw)
 {
-  gum_code_writer_put_pushfx (cw);
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_pushfx (cw);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (&ctx->call_depth));
-  gum_code_writer_put_dec_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_popfx (cw);
+  gum_x86_writer_put_dec_reg_ptr (cw, GUM_PTR_DWORD, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_popfx (cw);
 }
 
 static GumExecBlock *
@@ -1002,7 +1002,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
                                        GumGeneratorContext * gc)
 {
   GumInstruction * insn = gc->instruction;
-  GumCodeWriter * cw = gc->code_writer;
+  GumX86Writer * cw = gc->code_writer;
   gboolean is_conditional;
   ud_operand_t * op = &insn->ud->operand[0];
   GumBranchTarget target = { 0, };
@@ -1072,7 +1072,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     g_assert_not_reached ();
   }
 
-  gum_relocator_skip_one_no_label (gc->relocator);
+  gum_x86_relocator_skip_one_no_label (gc->relocator);
 
   if (insn->ud->mnemonic == UD_Icall)
   {
@@ -1098,7 +1098,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     {
       g_assert (!target.is_indirect);
 
-      gum_code_writer_put_jcc_short_label (cw,
+      gum_x86_writer_put_jcc_short_label (cw,
           gum_jcc_opcode_negate (gum_jcc_insn_to_short_opcode (insn->begin)),
           cond_false_lbl_id);
     }
@@ -1112,7 +1112,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       cond_target.is_indirect = FALSE;
       cond_target.absolute_address = insn->end;
 
-      gum_code_writer_put_label (cw, cond_false_lbl_id);
+      gum_x86_writer_put_label (cw, cond_false_lbl_id);
       gum_exec_block_write_jmp_transfer_code (block, &cond_target, cw);
     }
   }
@@ -1128,13 +1128,13 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
   {
     guint8 * insn_start;
 
-    insn_start = gum_relocator_peek_next_write_source (gc->relocator);
+    insn_start = gum_x86_relocator_peek_next_write_source (gc->relocator);
 
     gum_exec_ctx_write_ret_event_code (block->ctx, insn_start,
         gc->code_writer);
   }
 
-  gum_relocator_skip_one_no_label (gc->relocator);
+  gum_x86_relocator_skip_one_no_label (gc->relocator);
 
   if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) != 0)
     gum_exec_ctx_write_depth_decrement_code (block->ctx, gc->code_writer);
@@ -1149,101 +1149,101 @@ static void
 gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        GumInstruction * insn,
                                        const GumBranchTarget * target,
-                                       GumCodeWriter * cw)
+                                       GumX86Writer * cw)
 {
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: retaddr */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: retaddr */
 
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: blockaddr */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: blockaddr */
   gum_exec_ctx_write_state_preserve_prolog (block->ctx, cw);
 
   /* fill in retaddr placeholder now that we can safely clobber CPU state */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (insn->end));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE + sizeof (gpointer),
       GUM_REG_XAX);
 
   /* arguments, fastcall-style */
   gum_write_push_branch_target_address (target, 0,
       STATE_PRESERVE_SIZE + 2 * sizeof (gpointer), cw);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to jmp_block_thunk */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (block->ctx->jmp_block_thunk));
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 
   /* jump */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
-  gum_code_writer_put_jmp_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_jmp_reg (cw, GUM_REG_XAX);
 }
 
 static void
 gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
                                         const GumBranchTarget * target,
-                                        GumCodeWriter * cw)
+                                        GumX86Writer * cw)
 {
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: blockaddr */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: blockaddr */
   gum_exec_ctx_write_state_preserve_prolog (block->ctx, cw);
 
   /* arguments, fastcall-style */
   gum_write_push_branch_target_address (target, 0,
       STATE_PRESERVE_SIZE + sizeof (gpointer), cw);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to jmp_block_thunk */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (block->ctx->jmp_block_thunk));
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 
   /* jump */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
-  gum_code_writer_put_jmp_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_jmp_reg (cw, GUM_REG_XAX);
 }
 
 static void
 gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
                                         gpointer orig_ret_insn,
-                                        GumCodeWriter * cw)
+                                        GumX86Writer * cw)
 {
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder */
   gum_exec_ctx_write_state_preserve_prolog (block->ctx, cw);
 
   /* fill in placeholder now that we can safely clobber CPU state */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (orig_ret_insn));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XSP, STATE_PRESERVE_SIZE,
       GUM_REG_XAX);
 
   /* arguments, fastcall-style */
-  gum_code_writer_put_mov_reg_reg_offset_ptr (cw,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw,
       GUM_REG_XDX,
       GUM_REG_XSP, STATE_PRESERVE_SIZE + sizeof (gpointer));
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (block->ctx));
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
   /* push fake return address so we chain to ret_block_thunk */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (block->ctx->ret_block_thunk));
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 
   /* jump */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (gum_exec_ctx_replace_current_block_with));
-  gum_code_writer_put_jmp_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_jmp_reg (cw, GUM_REG_XAX);
 }
 
 static void
@@ -1259,8 +1259,8 @@ gum_exec_block_write_single_step_transfer_code (GumExecBlock * block,
   };
 
   *((guint8 **) (code + 2)) = &block->state;
-  gum_code_writer_put_bytes (gc->code_writer, code, sizeof (code));
-  gum_code_writer_put_jmp (gc->code_writer, gc->instruction->begin);
+  gum_x86_writer_put_bytes (gc->code_writer, code, sizeof (code));
+  gum_x86_writer_put_jmp (gc->code_writer, gc->instruction->begin);
 }
 
 static void
@@ -1304,7 +1304,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
                                       const GumBranchTarget * target,
                                       GumGeneratorContext * gc)
 {
-  GumCodeWriter * cw = gc->code_writer;
+  GumX86Writer * cw = gc->code_writer;
   guint state_preserve_stack_offset, accumulated_stack_delta = 0;
 
 #if GLIB_SIZEOF_VOID_P == 4
@@ -1313,30 +1313,30 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, rsi);
 #endif
 
-  gum_code_writer_put_pushfx (cw);
+  gum_x86_writer_put_pushfx (cw);
   accumulated_stack_delta += sizeof (gpointer);
 
-  gum_code_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+  gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (gc->instruction->begin));
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* GumCpuContext.xip */
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* GumCpuContext.xip */
   accumulated_stack_delta += sizeof (GumCpuContext);
 
   gum_write_push_branch_target_address (target, state_preserve_stack_offset,
       accumulated_stack_delta, cw);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XSI);
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_XDI, GUM_REG_XSP);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XSI);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDI, GUM_REG_XSP);
 
-  gum_code_writer_put_call_with_arguments (cw,
+  gum_x86_writer_put_call_with_arguments (cw,
       gum_exec_block_invoke_call_probes_for_target, 3,
       GUM_ARG_POINTER, block,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI);
 
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX); /* discard
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX); /* discard
                                                     GumCpuContext.xip */
-  gum_code_writer_put_popax (cw);
-  gum_code_writer_put_popfx (cw);
+  gum_x86_writer_put_popax (cw);
+  gum_x86_writer_put_popfx (cw);
 }
 
 static void
@@ -1377,27 +1377,27 @@ static void
 gum_write_push_branch_target_address (const GumBranchTarget * target,
                                       guint state_preserve_stack_offset,
                                       guint accumulated_stack_delta,
-                                      GumCodeWriter * cw)
+                                      GumX86Writer * cw)
 {
   if (!target->is_indirect)
   {
     if (target->base == UD_NONE)
     {
-      gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
-      gum_code_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
           GUM_ADDRESS (target->absolute_address));
-      gum_code_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
     }
     else
     {
-      gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+      gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
       gum_load_real_register_into (GUM_REG_XAX,
           gum_cpu_reg_from_ud (target->base),
           state_preserve_stack_offset + sizeof (gpointer),
           accumulated_stack_delta + sizeof (gpointer),
           target->origin_ip,
           cw);
-      gum_code_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
     }
   }
   else if (target->base == UD_NONE && target->index == UD_NONE)
@@ -1407,17 +1407,17 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
     g_assert (target->relative_offset == 0);
 
     gum_write_segment_prefix (target->pfx_seg, cw);
-    gum_code_writer_put_byte (cw, 0xff);
-    gum_code_writer_put_byte (cw, 0x35);
-    gum_code_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
+    gum_x86_writer_put_byte (cw, 0xff);
+    gum_x86_writer_put_byte (cw, 0x35);
+    gum_x86_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
         sizeof (target->absolute_address));
   }
   else
   {
-    gum_code_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder */
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder */
 
-    gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
-    gum_code_writer_put_push_reg (cw, GUM_REG_XDX);
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
 
     gum_load_real_register_into (GUM_REG_XAX,
         gum_cpu_reg_from_ud (target->base),
@@ -1431,15 +1431,15 @@ gum_write_push_branch_target_address (const GumBranchTarget * target,
         accumulated_stack_delta + 3 * sizeof (gpointer),
         target->origin_ip,
         cw);
-    gum_code_writer_put_mov_reg_base_index_scale_offset_ptr (cw, GUM_REG_XAX,
+    gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (cw, GUM_REG_XAX,
         GUM_REG_XAX, GUM_REG_XDX, target->scale ? target->scale : 1,
         target->relative_offset);
-    gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+    gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
         GUM_REG_XSP, 2 * sizeof (gpointer),
         GUM_REG_XAX);
 
-    gum_code_writer_put_pop_reg (cw, GUM_REG_XDX);
-    gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XDX);
+    gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
   }
 }
 
@@ -1449,7 +1449,7 @@ gum_load_real_register_into (GumCpuReg target_register,
                              guint state_preserve_stack_offset,
                              guint accumulated_stack_delta,
                              gpointer ip,
-                             GumCodeWriter * cw)
+                             GumX86Writer * cw)
 {
   GumCpuReg source_meta;
 
@@ -1457,45 +1457,45 @@ gum_load_real_register_into (GumCpuReg target_register,
 
   if (source_meta >= GUM_REG_XAX && source_meta <= GUM_REG_XDX)
   {
-    gum_code_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XSP, state_preserve_stack_offset +
         STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
         ((source_meta - GUM_REG_XAX) * sizeof (gpointer)));
   }
   else if (source_meta == GUM_REG_XSP)
   {
-    gum_code_writer_put_lea_reg_reg_offset (cw, target_register,
+    gum_x86_writer_put_lea_reg_reg_offset (cw, target_register,
         source_register, accumulated_stack_delta);
   }
   else if (source_meta == GUM_REG_XIP)
   {
-    gum_code_writer_put_mov_reg_address (cw, target_register,
+    gum_x86_writer_put_mov_reg_address (cw, target_register,
         GUM_ADDRESS (ip));
   }
   else if (source_meta == GUM_REG_NONE)
   {
-    gum_code_writer_put_xor_reg_reg (cw, target_register, target_register);
+    gum_x86_writer_put_xor_reg_reg (cw, target_register, target_register);
   }
   else
   {
-    gum_code_writer_put_mov_reg_reg (cw, target_register, source_register);
+    gum_x86_writer_put_mov_reg_reg (cw, target_register, source_register);
   }
 }
 
 static void
 gum_write_segment_prefix (uint8_t segment,
-                          GumCodeWriter * cw)
+                          GumX86Writer * cw)
 {
   switch (segment)
   {
     case UD_NONE: break;
 
-    case UD_R_CS: gum_code_writer_put_byte (cw, 0x2e); break;
-    case UD_R_SS: gum_code_writer_put_byte (cw, 0x36); break;
-    case UD_R_DS: gum_code_writer_put_byte (cw, 0x3e); break;
-    case UD_R_ES: gum_code_writer_put_byte (cw, 0x26); break;
-    case UD_R_FS: gum_code_writer_put_byte (cw, 0x64); break;
-    case UD_R_GS: gum_code_writer_put_byte (cw, 0x65); break;
+    case UD_R_CS: gum_x86_writer_put_byte (cw, 0x2e); break;
+    case UD_R_SS: gum_x86_writer_put_byte (cw, 0x36); break;
+    case UD_R_DS: gum_x86_writer_put_byte (cw, 0x3e); break;
+    case UD_R_ES: gum_x86_writer_put_byte (cw, 0x26); break;
+    case UD_R_FS: gum_x86_writer_put_byte (cw, 0x64); break;
+    case UD_R_GS: gum_x86_writer_put_byte (cw, 0x65); break;
 
     default:
       g_assert_not_reached ();

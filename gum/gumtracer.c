@@ -19,11 +19,11 @@
 
 #include "gumtracer.h"
 
-#include "gumcodereader.h"
+#include "gumx86reader.h"
 #include "gumcodeallocator.h"
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
-#include "gumrelocator.h"
+#include "gumx86relocator.h"
 #include "gumsysinternals.h"
 
 #include <string.h>
@@ -119,11 +119,11 @@ static guint8 * gum_tracer_create_enter_trampoline (GumTracer * self,
 static guint8 * gum_tracer_create_leave_trampoline (GumTracer * self,
     GumTracerFunction * func);
 static void gum_tracer_write_logging_code (GumTracer * self,
-    GumTracerFunction * func, GumTrampolineKind kind, GumCodeWriter * cw);
+    GumTracerFunction * func, GumTrampolineKind kind, GumX86Writer * cw);
 static void gum_tracer_write_conversion_from_xax_index_to_address (
-    GumTracer * self, GumCodeWriter * cw);
+    GumTracer * self, GumX86Writer * cw);
 static void gum_tracer_write_load_teb_pointer_into_register (GumTracer * self,
-    GumCpuReg reg, GumCodeWriter * cw);
+    GumCpuReg reg, GumX86Writer * cw);
 
 static gpointer gum_tracer_resolve (GumTracer * self, gpointer address);
 
@@ -217,7 +217,7 @@ gum_tracer_add_function_with (GumTracer * self,
   GumTracerFunction func;
   gchar * name_copy;
   guint8 * enter_trampoline, * leave_trampoline;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   guint i;
 
   g_assert_cmpint (details->num_arguments, <, 32);
@@ -228,7 +228,7 @@ gum_tracer_add_function_with (GumTracer * self,
   if (func.details.address == NULL)
     return FALSE;
 
-  if (!gum_relocator_can_relocate (func.details.address, REDIRECT_SIZE))
+  if (!gum_x86_relocator_can_relocate (func.details.address, REDIRECT_SIZE))
     return FALSE;
 
   func.name_id = priv->names->len;
@@ -244,11 +244,11 @@ gum_tracer_add_function_with (GumTracer * self,
       func.disp_size);
 
   gum_mprotect (func.details.address, REDIRECT_SIZE, GUM_PAGE_RWX);
-  gum_code_writer_init (&cw, func.details.address);
-  gum_code_writer_put_jmp (&cw, enter_trampoline);
+  gum_x86_writer_init (&cw, func.details.address);
+  gum_x86_writer_put_jmp (&cw, enter_trampoline);
   for (i = 0; i < func.disp_size - REDIRECT_SIZE; i++)
-    gum_code_writer_put_int3 (&cw);
-  gum_code_writer_free (&cw);
+    gum_x86_writer_put_int3 (&cw);
+  gum_x86_writer_free (&cw);
 
   return TRUE;
 }
@@ -371,18 +371,18 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   const gchar * setup_stack_lbl = "setup_stack";
   const gchar * stack_acq_lbl = "stack_acquired";
   GumCodeSlice * code_slice;
-  GumCodeWriter cw;
-  GumRelocator rl;
+  GumX86Writer cw;
+  GumX86Relocator rl;
   guint reloc_size;
 
   code_slice = gum_code_allocator_new_slice_near (&priv->allocator,
       func->details.address);
-  gum_code_writer_init (&cw, code_slice->data);
+  gum_x86_writer_init (&cw, code_slice->data);
 
   /* save state */
-  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX);
-  gum_code_writer_put_push_reg (&cw, GUM_REG_XCX);
-  gum_code_writer_put_push_reg (&cw, GUM_REG_XDX);
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_XCX);
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_XDX);
 
   /* first, logging */
   gum_tracer_write_logging_code (self, func, GUM_TRAMPOLINE_ENTER, &cw);
@@ -390,67 +390,67 @@ gum_tracer_create_enter_trampoline (GumTracer * self,
   gum_tracer_write_load_teb_pointer_into_register (self, GUM_REG_XDX, &cw);
 
   /* get hold of our stack */
-  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XAX,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_STACK);
-  gum_code_writer_put_test_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
-  gum_code_writer_put_jz_label (&cw, setup_stack_lbl, GUM_UNLIKELY);
+  gum_x86_writer_put_test_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
+  gum_x86_writer_put_jz_label (&cw, setup_stack_lbl, GUM_UNLIKELY);
 
   /* push return address onto our stack */
-  gum_code_writer_put_label (&cw, stack_acq_lbl);
-  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XCX,
+  gum_x86_writer_put_label (&cw, stack_acq_lbl);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XCX,
       GUM_REG_XSP, GUM_TRACER_STACK_OFFSET);
-  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XAX, GUM_REG_XCX);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_XAX, sizeof (gpointer));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XAX, GUM_REG_XCX);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XAX, sizeof (gpointer));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_STACK,
       GUM_REG_XAX);
 
   /* overwrite caller's return address so we can trap the return */
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
       GUM_ADDRESS (leave_trampoline));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, GUM_TRACER_STACK_OFFSET,
       GUM_REG_XAX);
 
   /* restore state */
-  gum_code_writer_put_pop_reg (&cw, GUM_REG_XDX);
-  gum_code_writer_put_pop_reg (&cw, GUM_REG_XCX);
-  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XDX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XCX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
 
   /* finally execute the original instructions and resume execution */
-  gum_relocator_init (&rl, (guint8 *) func->details.address, &cw);
+  gum_x86_relocator_init (&rl, (guint8 *) func->details.address, &cw);
   do
   {
-    reloc_size = gum_relocator_read_one (&rl, NULL);
+    reloc_size = gum_x86_relocator_read_one (&rl, NULL);
     g_assert_cmpuint (reloc_size, !=, 0);
   }
   while (reloc_size < REDIRECT_SIZE);
-  gum_relocator_write_all (&rl);
-  gum_relocator_free (&rl);
+  gum_x86_relocator_write_all (&rl);
+  gum_x86_relocator_free (&rl);
   func->disp_size = reloc_size;
 
-  if (!gum_relocator_eoi (&rl))
+  if (!gum_x86_relocator_eoi (&rl))
   {
-    gum_code_writer_put_jmp (&cw,
+    gum_x86_writer_put_jmp (&cw,
         (guint8 *) func->details.address + func->disp_size);
   }
 
   /* setup_stack: allocate a new stack */
-  gum_code_writer_put_label (&cw, setup_stack_lbl);
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
+  gum_x86_writer_put_label (&cw, setup_stack_lbl);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
       GUM_ADDRESS (&priv->next_stack));
-  gum_code_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
       GUM_ADDRESS (sizeof (gpointer)));
-  gum_code_writer_put_lock_xadd_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XAX, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_lock_xadd_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XAX, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_STACK,
       GUM_REG_XAX);
-  gum_code_writer_put_jmp_short_label (&cw, stack_acq_lbl);
+  gum_x86_writer_put_jmp_short_label (&cw, stack_acq_lbl);
 
-  g_assert_cmpuint (gum_code_writer_offset (&cw), <=, code_slice->size);
+  g_assert_cmpuint (gum_x86_writer_offset (&cw), <=, code_slice->size);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   return (guint8 *) code_slice->data;
 }
@@ -461,13 +461,13 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
 {
   GumTracerPrivate * priv = GUM_TRACER_GET_PRIVATE (self);
   GumCodeSlice * code_slice;
-  GumCodeWriter cw;
+  GumX86Writer cw;
 
   code_slice = gum_code_allocator_new_slice_near (&priv->allocator,
       func->details.address);
-  gum_code_writer_init (&cw, code_slice->data);
+  gum_x86_writer_init (&cw, code_slice->data);
 
-  gum_code_writer_put_push_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX);
   /* FIXME: we should also store edx for 64 bit return type */
 
   /* log */
@@ -476,20 +476,20 @@ gum_tracer_create_leave_trampoline (GumTracer * self,
   gum_tracer_write_load_teb_pointer_into_register (self, GUM_REG_XDX, &cw);
 
   /* then jump back to caller */
-  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_XCX,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_STACK);
-  gum_code_writer_put_sub_reg_imm (&cw, GUM_REG_XCX, sizeof (gpointer));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XCX, sizeof (gpointer));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_STACK,
       GUM_REG_XCX);
 
-  gum_code_writer_put_pop_reg (&cw, GUM_REG_XAX);
+  gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
 
-  gum_code_writer_put_jmp_reg_ptr (&cw, GUM_REG_XCX);
+  gum_x86_writer_put_jmp_reg_ptr (&cw, GUM_REG_XCX);
 
-  g_assert_cmpuint (gum_code_writer_offset (&cw), <=, code_slice->size);
+  g_assert_cmpuint (gum_x86_writer_offset (&cw), <=, code_slice->size);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   return (guint8 *) code_slice->data;
 }
@@ -498,7 +498,7 @@ static void
 gum_tracer_write_logging_code (GumTracer * self,
                                GumTracerFunction * func,
                                GumTrampolineKind kind,
-                               GumCodeWriter * cw)
+                               GumX86Writer * cw)
 {
   GumTracerPrivate * priv = GUM_TRACER_GET_PRIVATE (self);
   GumRingBuffer * rb = priv->ringbuf;
@@ -516,20 +516,20 @@ gum_tracer_write_logging_code (GumTracer * self,
       GUM_TRACER_SIZE_TO_BLOCKS (num_arguments * sizeof (gpointer));
 
   /* atomically increment writepos */
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (&rb->writepos));
-  gum_code_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, 1 + num_data_blocks);
-  gum_code_writer_put_lock_xadd_reg_ptr_reg (cw, GUM_REG_XCX, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_EAX, 1 + num_data_blocks);
+  gum_x86_writer_put_lock_xadd_reg_ptr_reg (cw, GUM_REG_XCX, GUM_REG_EAX);
 
   /* make sure we write behind readpos */
-  gum_code_writer_put_label (cw, check_can_write_lbl);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_XCX,
+  gum_x86_writer_put_label (cw, check_can_write_lbl);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XCX,
       GUM_ADDRESS (&rb->readpos));
-  gum_code_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_XCX);
-  gum_code_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
-  gum_code_writer_put_cmp_reg_i32 (cw, GUM_REG_ECX,
+  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_ECX, GUM_REG_XCX);
+  gum_x86_writer_put_sub_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
+  gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_ECX,
       -(GUM_TRACER_BUFFER_SIZE - (gint) num_data_blocks));
-  gum_code_writer_put_jle_label (cw, check_can_write_lbl, GUM_UNLIKELY);
+  gum_x86_writer_put_jle_label (cw, check_can_write_lbl, GUM_UNLIKELY);
 
   if (num_data_blocks > 0)
   {
@@ -537,7 +537,7 @@ gum_tracer_write_logging_code (GumTracer * self,
     gint8 sp_offset = GUM_TRACER_STACK_OFFSET + sizeof (gpointer);
 
     /* save starting index for later */
-    gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EDX, GUM_REG_EAX);
+    gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_EDX, GUM_REG_EAX);
 
     register_offset = 0;
 #if GLIB_SIZEOF_VOID_P == 4
@@ -560,11 +560,11 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       /* restore starting index */
       if (block_idx > 0)
-        gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
+        gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
 
       /* adjust to the current block index -- block 0 is used for header */
       for (inc_idx = 0; inc_idx < block_idx + 1; inc_idx++)
-        gum_code_writer_put_inc_reg (cw, GUM_REG_EAX);
+        gum_x86_writer_put_inc_reg (cw, GUM_REG_EAX);
 
       gum_tracer_write_conversion_from_xax_index_to_address (self, cw);
 
@@ -586,12 +586,12 @@ gum_tracer_write_logging_code (GumTracer * self,
 
         if (src_offset >= 0)
         {
-          gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XCX,
+          gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XCX,
               GUM_REG_XSP, src_offset);
           src_reg = GUM_REG_XCX;
         }
 
-        gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+        gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
             GUM_REG_XAX, block_offset,
             src_reg);
 
@@ -604,8 +604,8 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       while (block_remainder >= 16)
       {
-        gum_code_writer_put_movdqu_xmm0_esp_offset_ptr (cw, sp_offset);
-        gum_code_writer_put_movdqu_eax_offset_ptr_xmm0 (cw, block_offset);
+        gum_x86_writer_put_movdqu_xmm0_esp_offset_ptr (cw, sp_offset);
+        gum_x86_writer_put_movdqu_eax_offset_ptr_xmm0 (cw, block_offset);
 
         sp_offset += 16;
         block_offset += 16;
@@ -615,8 +615,8 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       if (block_remainder >= 8)
       {
-        gum_code_writer_put_movq_xmm0_esp_offset_ptr (cw, sp_offset);
-        gum_code_writer_put_movq_eax_offset_ptr_xmm0 (cw, block_offset);
+        gum_x86_writer_put_movq_xmm0_esp_offset_ptr (cw, sp_offset);
+        gum_x86_writer_put_movq_eax_offset_ptr_xmm0 (cw, block_offset);
 
         sp_offset += 8;
         block_offset += 8;
@@ -626,9 +626,9 @@ gum_tracer_write_logging_code (GumTracer * self,
 
       if (block_remainder >= 4)
       {
-        gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
+        gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
             GUM_REG_XSP, sp_offset);
-        gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+        gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
             GUM_REG_XAX, block_offset, GUM_REG_ECX);
 
         sp_offset += 4;
@@ -639,7 +639,7 @@ gum_tracer_write_logging_code (GumTracer * self,
     }
 
     /* restore starting index */
-    gum_code_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
+    gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_EAX, GUM_REG_EDX);
   }
 
   gum_tracer_write_conversion_from_xax_index_to_address (self, cw);
@@ -647,59 +647,59 @@ gum_tracer_write_logging_code (GumTracer * self,
   gum_tracer_write_load_teb_pointer_into_register (self, GUM_REG_XDX, cw);
 
   /* fill in name_id */
-  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (name_id), func->name_id);
 
   /* fill in thread_id */
-  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
       GUM_REG_XDX, GUM_TEB_OFFSET_TID);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (thread_id),
       GUM_REG_ECX);
 
   /* fill in depth and modify it */
-  gum_code_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_ECX,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_DEPTH);
   if (kind == GUM_TRAMPOLINE_LEAVE)
-    gum_code_writer_put_dec_reg (cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+    gum_x86_writer_put_dec_reg (cw, GUM_REG_ECX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (depth),
       GUM_REG_ECX);
   if (kind == GUM_TRAMPOLINE_ENTER)
-    gum_code_writer_put_inc_reg (cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+    gum_x86_writer_put_inc_reg (cw, GUM_REG_ECX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XDX, GUM_TEB_OFFSET_TRACER_DEPTH,
       GUM_REG_ECX);
 
   /* fill in timestamp */
-  gum_code_writer_put_push_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 #if GLIB_SIZEOF_VOID_P == 8
-  gum_code_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 64);
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 64);
 #endif
-  gum_code_writer_put_call (cw, priv->get_time_impl);
+  gum_x86_writer_put_call (cw, priv->get_time_impl);
 #if GLIB_SIZEOF_VOID_P == 8
-  gum_code_writer_put_add_reg_imm (cw, GUM_REG_XSP, 64);
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, 64);
 #endif
-  gum_code_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_XAX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (cw,
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_ECX, GUM_REG_EAX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (timestamp),
       GUM_REG_ECX);
 
   /* fill in arglist_size */
-  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (arglist_size),
       num_arguments * sizeof (gpointer));
 
   /* fill in type, which implicitly seals off the entry */
-  gum_code_writer_put_mov_reg_offset_ptr_u32 (cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,
       GUM_REG_XAX, GT_ENTRY_OFFSET (type),
       (kind == GUM_TRAMPOLINE_ENTER) ? GUM_ENTRY_ENTER : GUM_ENTRY_LEAVE);
 }
 
 static void
 gum_tracer_write_conversion_from_xax_index_to_address (GumTracer * self,
-                                                       GumCodeWriter * cw)
+                                                       GumX86Writer * cw)
 {
   /*
    * xax % GUM_TRACER_BUFFER_SIZE, avoiding idiv to save a few cycles
@@ -707,37 +707,37 @@ gum_tracer_write_conversion_from_xax_index_to_address (GumTracer * self,
    * Note that on 64 bit this also serves the purpose of zeroing out
    * the 32 upper bits...
    */
-  gum_code_writer_put_and_reg_u32 (cw, GUM_REG_XAX,
+  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XAX,
       GUM_TRACER_BUFFER_SIZE - 1);
 
   /* multiply by sizeof (GumTraceEntry) */
-  gum_code_writer_put_shl_reg_u8 (cw, GUM_REG_EAX,
+  gum_x86_writer_put_shl_reg_u8 (cw, GUM_REG_EAX,
       GUM_TRACE_ENTRY_SIZE_IN_POT);
 
   /* add base address */
 #if GLIB_SIZEOF_VOID_P == 4
-  gum_code_writer_put_add_reg_imm (cw, GUM_REG_EAX,
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_EAX,
       (gint32) self->priv->ringbuf->entries);
 #else
-  gum_code_writer_put_push_reg (cw, GUM_REG_RCX);
-  gum_code_writer_put_mov_reg_address (cw, GUM_REG_RCX,
+  gum_x86_writer_put_push_reg (cw, GUM_REG_RCX);
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX,
       GUM_ADDRESS (self->priv->ringbuf->entries));
-  gum_code_writer_put_add_reg_reg (cw, GUM_REG_RAX, GUM_REG_RCX);
-  gum_code_writer_put_pop_reg (cw, GUM_REG_RCX);
+  gum_x86_writer_put_add_reg_reg (cw, GUM_REG_RAX, GUM_REG_RCX);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_RCX);
 #endif
 }
 
 static void
 gum_tracer_write_load_teb_pointer_into_register (GumTracer * self,
                                                  GumCpuReg reg,
-                                                 GumCodeWriter * cw)
+                                                 GumX86Writer * cw)
 {
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
-  gum_code_writer_put_mov_reg_fs_u32_ptr (cw, reg,
+  gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, reg,
       GUM_TEB_OFFSET_SELF);
 # else
-  gum_code_writer_put_mov_reg_gs_u32_ptr (cw, reg,
+  gum_x86_writer_put_mov_reg_gs_u32_ptr (cw, reg,
       GUM_TEB_OFFSET_SELF);
 # endif
 #else
@@ -756,9 +756,9 @@ gum_tracer_resolve (GumTracer * self,
     if (gum_tracer_knows_function_at (self, address))
       return NULL;
 
-    target = gum_code_reader_try_get_relative_jump_target (address);
+    target = gum_x86_reader_try_get_relative_jump_target (address);
     if (target == NULL)
-      target = gum_code_reader_try_get_indirect_jump_target (address);
+      target = gum_x86_reader_try_get_indirect_jump_target (address);
 
     if (target != NULL)
       address = target;

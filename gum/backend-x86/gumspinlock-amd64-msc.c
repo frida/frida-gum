@@ -19,7 +19,7 @@
 
 #include "gumspinlock.h"
 
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
 
 typedef struct _GumSpinlockImpl GumSpinlockImpl;
@@ -38,7 +38,7 @@ void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
   GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   gpointer try_again_label = "gum_spinlock_try_again";
   gpointer beach_label = "gum_spinlock_beach";
 
@@ -46,23 +46,23 @@ gum_spinlock_init (GumSpinlock * spinlock)
 
   self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
 
-  gum_code_writer_init (&cw, self->code);
+  gum_x86_writer_init (&cw, self->code);
 
-  self->acquire_impl = (GumSpinlockAcquireFunc) gum_code_writer_cur (&cw);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 1);
+  self->acquire_impl = (GumSpinlockAcquireFunc) gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 1);
 
-  gum_code_writer_put_label (&cw, try_again_label);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0);
-  gum_code_writer_put_lock_cmpxchg_reg_ptr_reg (&cw, GUM_REG_RCX, GUM_REG_EDX);
-  gum_code_writer_put_jz_label (&cw, beach_label, GUM_NO_HINT);
+  gum_x86_writer_put_label (&cw, try_again_label);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0);
+  gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (&cw, GUM_REG_RCX, GUM_REG_EDX);
+  gum_x86_writer_put_jz_label (&cw, beach_label, GUM_NO_HINT);
 
-  gum_code_writer_put_pause (&cw);
-  gum_code_writer_put_jmp_short_label (&cw, try_again_label);
+  gum_x86_writer_put_pause (&cw);
+  gum_x86_writer_put_jmp_short_label (&cw, try_again_label);
 
-  gum_code_writer_put_label (&cw, beach_label);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_label (&cw, beach_label);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 }
 
 void

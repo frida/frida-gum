@@ -20,7 +20,7 @@
 
 #include "gumcyclesampler.h"
 
-#include "gumcodewriter.h"
+#include "gumx86writer.h"
 #include "gummemory.h"
 
 typedef void (GUM_THUNK * ReadTimestampCounterFunc) (GumSample * sample);
@@ -67,21 +67,21 @@ static void
 gum_cycle_sampler_init (GumCycleSampler * self)
 {
   GumCycleSamplerPrivate * priv;
-  GumCodeWriter cw;
+  GumX86Writer cw;
 
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_CYCLE_SAMPLER,
       GumCycleSamplerPrivate);
   priv = self->priv;
 
   priv->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_code_writer_init (&cw, priv->code);
-  gum_code_writer_put_lfence (&cw);
-  gum_code_writer_put_rdtsc (&cw);
-  gum_code_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw, GUM_REG_XCX, 4,
+  gum_x86_writer_init (&cw, priv->code);
+  gum_x86_writer_put_lfence (&cw);
+  gum_x86_writer_put_rdtsc (&cw);
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw, GUM_REG_XCX, 4,
       GUM_REG_EDX);
-  gum_code_writer_put_ret (&cw);
-  gum_code_writer_free (&cw);
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_free (&cw);
 
   priv->read_timestamp_counter = (ReadTimestampCounterFunc) priv->code;
 }

@@ -17,16 +17,25 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_CODE_READER_H__
-#define __GUM_CODE_READER_H__
+#ifndef __GUM_X86_FUNCTION_PARSER_H__
+#define __GUM_X86_FUNCTION_PARSER_H__
 
 #include "gumdefs.h"
+#include "gumfunction.h"
 
 G_BEGIN_DECLS
 
-gpointer gum_code_reader_try_get_relative_call_target (gconstpointer address);
-gpointer gum_code_reader_try_get_relative_jump_target (gconstpointer address);
-gpointer gum_code_reader_try_get_indirect_jump_target (gconstpointer address);
+typedef struct _GumX86FunctionParser   GumX86FunctionParser;
+
+struct _GumX86FunctionParser
+{
+  gpointer reserved;
+};
+
+void gum_x86_function_parser_init (GumX86FunctionParser * fp);
+
+void gum_x86_function_parser_parse (GumX86FunctionParser * fp,
+    gpointer func_address, GumFunctionDetails * details);
 
 G_END_DECLS
 

@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumcodereader.h"
+#include "gumx86reader.h"
 
 #include <udis86.h>
 
@@ -26,19 +26,19 @@ static gpointer try_get_relative_call_or_jump_target (gconstpointer address,
 static guint disassemble_instruction_at (gconstpointer address, ud_t * ud_obj);
 
 gpointer
-gum_code_reader_try_get_relative_call_target (gconstpointer address)
+gum_x86_reader_try_get_relative_call_target (gconstpointer address)
 {
   return try_get_relative_call_or_jump_target (address, UD_Icall);
 }
 
 gpointer
-gum_code_reader_try_get_relative_jump_target (gconstpointer address)
+gum_x86_reader_try_get_relative_jump_target (gconstpointer address)
 {
   return try_get_relative_call_or_jump_target (address, UD_Ijmp);
 }
 
 gpointer
-gum_code_reader_try_get_indirect_jump_target (gconstpointer address)
+gum_x86_reader_try_get_indirect_jump_target (gconstpointer address)
 {
   ud_t ud_obj;
   guint insn_size;

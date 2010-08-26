@@ -481,28 +481,28 @@ static void
 invoke_follow_return_code (TestStalkerFixture * fixture)
 {
   guint8 * code;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   const gchar * start_following_lbl = "start_following";
   GCallback invoke_func;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
 
-  gum_code_writer_init (&cw, code);
+  gum_x86_writer_init (&cw, code);
 
-  gum_code_writer_put_call_near_label (&cw, start_following_lbl);
-  gum_code_writer_put_nop (&cw);
-  gum_code_writer_put_call_with_arguments (&cw,
+  gum_x86_writer_put_call_near_label (&cw, start_following_lbl);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_put_label (&cw, start_following_lbl);
-  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
+  gum_x86_writer_put_label (&cw, start_following_lbl);
+  gum_x86_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   invoke_func = (GCallback) code;
   invoke_func ();
@@ -559,7 +559,7 @@ static void
 invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 {
   guint8 * code;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   const gchar * func_a_lbl = "func_a";
   const gchar * func_b_lbl = "func_b";
   const gchar * func_c_lbl = "func_c";
@@ -567,28 +567,28 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
 
-  gum_code_writer_init (&cw, code);
+  gum_x86_writer_init (&cw, code);
 
-  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
+  gum_x86_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
-  gum_code_writer_put_call_near_label (&cw, func_a_lbl);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_call_near_label (&cw, func_a_lbl);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_put_label (&cw, func_a_lbl);
-  gum_code_writer_put_call_near_label (&cw, func_b_lbl);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_label (&cw, func_a_lbl);
+  gum_x86_writer_put_call_near_label (&cw, func_b_lbl);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_put_label (&cw, func_b_lbl);
-  gum_code_writer_put_call_near_label (&cw, func_c_lbl);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_label (&cw, func_b_lbl);
+  gum_x86_writer_put_call_near_label (&cw, func_c_lbl);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_put_label (&cw, func_c_lbl);
-  gum_code_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me, 1,
+  gum_x86_writer_put_label (&cw, func_c_lbl);
+  gum_x86_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   invoke_func = (GCallback) code;
   invoke_func ();
@@ -1064,75 +1064,75 @@ typedef void (* ClobberFunc) (GumCpuContext * ctx);
 STALKER_TESTCASE (no_clobber)
 {
   guint8 * code;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   const gchar * my_func_lbl = "my_func";
   const gchar * my_beach_lbl = "my_beach";
   ClobberFunc func;
   GumCpuContext ctx;
 
   code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  gum_code_writer_init (&cw, code);
+  gum_x86_writer_init (&cw, code);
 
-  gum_code_writer_put_pushax (&cw);
+  gum_x86_writer_put_pushax (&cw);
 
-  gum_code_writer_put_pushax (&cw);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->sink);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
-  gum_code_writer_put_popax (&cw);
+  gum_x86_writer_put_pushax (&cw);
+  gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->sink);
+  gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
+  gum_x86_writer_put_call (&cw, gum_stalker_follow_me);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+  gum_x86_writer_put_popax (&cw);
 
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0xcafebabe);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, 0xbeefbabe);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 0xb00bbabe);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, 0xf001babe);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EBP, 0xababe);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_ESI, 0x1337);
-  gum_code_writer_put_mov_reg_u32 (&cw, GUM_REG_EDI, 0x1227);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0xcafebabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, 0xbeefbabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 0xb00bbabe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBX, 0xf001babe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EBP, 0xababe);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ESI, 0x1337);
+  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDI, 0x1227);
 
-  gum_code_writer_put_call_near_label (&cw, my_func_lbl);
+  gum_x86_writer_put_call_near_label (&cw, my_func_lbl);
 
-  gum_code_writer_put_pushax (&cw);
-  gum_code_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
-  gum_code_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_code_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
-  gum_code_writer_put_popax (&cw);
+  gum_x86_writer_put_pushax (&cw);
+  gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
+  gum_x86_writer_put_call (&cw, gum_stalker_unfollow_me);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
+  gum_x86_writer_put_popax (&cw);
 
-  gum_code_writer_put_push_reg (&cw, GUM_REG_ECX);
-  gum_code_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
+  gum_x86_writer_put_push_reg (&cw, GUM_REG_ECX);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
       GUM_REG_ESP, sizeof (gpointer) + (8 * sizeof (gpointer))
       + sizeof (gpointer));
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax), GUM_REG_EAX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edx), GUM_REG_EDX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebx), GUM_REG_EBX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ebp), GUM_REG_EBP);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, esi), GUM_REG_ESI);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, edi), GUM_REG_EDI);
-  gum_code_writer_put_pop_reg (&cw, GUM_REG_EAX);
-  gum_code_writer_put_mov_reg_offset_ptr_reg (&cw,
+  gum_x86_writer_put_pop_reg (&cw, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx), GUM_REG_EAX);
 
-  gum_code_writer_put_popax (&cw);
+  gum_x86_writer_put_popax (&cw);
 
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_put_label (&cw, my_func_lbl);
-  gum_code_writer_put_nop (&cw);
-  gum_code_writer_put_jmp_short_label (&cw, my_beach_lbl);
-  gum_code_writer_put_int3 (&cw);
+  gum_x86_writer_put_label (&cw, my_func_lbl);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_jmp_short_label (&cw, my_beach_lbl);
+  gum_x86_writer_put_int3 (&cw);
 
-  gum_code_writer_put_label (&cw, my_beach_lbl);
-  gum_code_writer_put_nop (&cw);
-  gum_code_writer_put_nop (&cw);
-  gum_code_writer_put_ret (&cw);
+  gum_x86_writer_put_label (&cw, my_beach_lbl);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
   func = (ClobberFunc) code;
@@ -1155,25 +1155,25 @@ STALKER_TESTCASE (big_block)
 {
   const guint nop_instruction_count = 1000000;
   guint8 * code;
-  GumCodeWriter cw;
+  GumX86Writer cw;
   guint i;
   StalkerTestFunc func;
 
   code = gum_alloc_n_pages (
       (nop_instruction_count / gum_query_page_size ()) + 1,
       GUM_PAGE_RWX);
-  gum_code_writer_init (&cw, code);
+  gum_x86_writer_init (&cw, code);
 
   for (i = 0; i != nop_instruction_count; i++)
-    gum_code_writer_put_nop (&cw);
-  gum_code_writer_put_ret (&cw);
+    gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_ret (&cw);
 
-  gum_code_writer_flush (&cw);
+  gum_x86_writer_flush (&cw);
 
   func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, gum_code_writer_offset (&cw));
+      code, gum_x86_writer_offset (&cw));
 
-  gum_code_writer_free (&cw);
+  gum_x86_writer_free (&cw);
   gum_free_pages (code);
 
   test_stalker_fixture_follow_and_invoke (fixture, func, -1);

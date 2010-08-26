@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumfunctionparser.h"
+#include "gumx86functionparser.h"
 
 #include "testutil.h"
 
@@ -35,14 +35,14 @@
 
 typedef struct _TestFunctionParserFixture
 {
-  GumFunctionParser fp;
+  GumX86FunctionParser fp;
 } TestFunctionParserFixture;
 
 static void
 test_function_parser_fixture_setup (TestFunctionParserFixture * fixture,
                                     gconstpointer data)
 {
-  gum_function_parser_init (&fixture->fp);
+  gum_x86_function_parser_init (&fixture->fp);
 }
 
 static void
