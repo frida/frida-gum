@@ -1,7 +1,14 @@
 lib_LTLIBRARIES = libgum.la
 
+backend_sources =
+
+if OS_DARWIN
+backend_sources += backend-darwin/gumsymbolutil-darwin.c
+endif
+
 libgum_la_SOURCES = \
-	gum.c
+	gum.c \
+	$(backend_sources)
 libgum_la_LIBADD = \
 	$(GUM_LIBS)
 

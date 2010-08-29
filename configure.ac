@@ -9,6 +9,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AM_MAINTAINER_MODE
 
+AC_CANONICAL_SYSTEM
 AC_PROG_CC
 AC_PROG_CC_STDC
 AC_PROG_LIBTOOL
@@ -20,8 +21,14 @@ PKG_CHECK_MODULES(GUM, [$pkg_modules])
 AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LIBS)
 
-case $host in
-  i?86-*) HAVE_I386=yes ;;
+case $target_os in
+  darwin) OS_DARWIN=yes ;;
+  *)      OS_DARWIN=no  ;;
+esac
+AM_CONDITIONAL(OS_DARWIN, test "$OS_DARWIN" = "yes")
+
+case $target_cpu in
+  i?86) HAVE_I386=yes ;;
   *)      HAVE_I386=no  ;;
 esac
 if [[ "$HAVE_I386" = "yes" ]]; then

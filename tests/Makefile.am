@@ -17,4 +17,4 @@ AM_CPPFLAGS = \
 	$(GUM_CFLAGS)
 
 all-local: gum-tests
-	codesign -f -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<"
+	codesign -f -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$(builddir)/.libs/gum-tests"
