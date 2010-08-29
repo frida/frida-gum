@@ -23,7 +23,7 @@ AC_SUBST(GUM_LIBS)
 
 AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
 if [[ "$HAVE_BFD" = "yes" ]]; then
-  AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define if symbol backend is available.])
+  AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if symbol backend is available.])
 fi
 
 case $target_os in
@@ -43,10 +43,10 @@ case $target_cpu in
   ;;
 esac
 if [[ "$HAVE_I386" = "yes" ]]; then
-  AC_DEFINE(HAVE_I386, 1, [Define if target is x86 based.])
+  AC_DEFINE(HAVE_I386, 1, [Define to 1 if target is x86 based.])
 fi
 if [[ "$HAVE_ARM" = "yes" ]]; then
-  AC_DEFINE(HAVE_ARM, 1, [Define if target is ARM based.])
+  AC_DEFINE(HAVE_ARM, 1, [Define to 1 if target is ARM based.])
 fi
 AM_CONDITIONAL(HAVE_I386, test "$HAVE_I386" = "yes")
 AM_CONDITIONAL(HAVE_ARM, test "$HAVE_ARM" = "yes")
