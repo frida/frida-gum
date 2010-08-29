@@ -12,7 +12,7 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = $(pcfiles)
 
 RURL := root@${IOS_IPADDR}
-RPFX := ${prefix}
+RPFX := /Developer/Frida
 
 check: all
 	ssh "${RURL}" "mkdir -p ${RPFX}/tests/"
