@@ -8,9 +8,10 @@ pushd $srcdir &>/dev/null
 if [ "$1" = "clean" ]; then
   [ -f "Makefile" ] && make maintainer-clean
 
-  rm -f aclocal.m4 configure missing install-sh \
-    depcomp ltmain.sh config.guess config.sub \
-    config.h.in `find . -name Makefile.in` compile
+  rm -f INSTALL README aclocal.m4 compile config.guess config.h \
+    config.h.in config.log config.status config.sub configure depcomp \
+    gum-1.0.pc install-sh libtool ltmain.sh missing stamp-h1 \
+    `find . -name Makefile` `find . -name Makefile.in`
   rm -rf autom4te.cache
 
   popd &>/dev/null
