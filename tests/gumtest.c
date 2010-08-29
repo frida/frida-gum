@@ -19,7 +19,9 @@
 
 #include "testutil.h"
 
+#ifdef HAVE_I386
 #include "lowlevel-helpers.h"
+#endif
 
 #include <glib.h>
 #include <gum/gum.h>
@@ -35,7 +37,6 @@ gint
 main (gint argc, gchar * argv[])
 {
   gint result;
-  guint i;
   GTimer * timer;
   guint num_tests;
   gdouble t;
@@ -43,7 +44,9 @@ main (gint argc, gchar * argv[])
   g_test_init (&argc, &argv, NULL);
   gum_init ();
 
+#ifdef HAVE_I386
   lowlevel_helpers_init ();
+#endif
 
 #ifdef _MSC_VER
 #pragma warning (push)
@@ -53,6 +56,7 @@ main (gint argc, gchar * argv[])
   /* Core */
   TEST_RUN_LIST (testutil);
   TEST_RUN_LIST (symbolutil);
+#ifdef HAVE_I386
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (functionparser);
   TEST_RUN_LIST (relocator);
@@ -75,6 +79,7 @@ main (gint argc, gchar * argv[])
   /* Prof */
   TEST_RUN_LIST (sampler);
   TEST_RUN_LIST (profiler);
+#endif
 
 #ifdef _MSC_VER
 #pragma warning (pop)
@@ -88,7 +93,9 @@ main (gint argc, gchar * argv[])
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
 
+#ifdef HAVE_I386
   lowlevel_helpers_deinit ();
+#endif
 
 #ifdef G_OS_WIN32
   if (IsDebuggerPresent ())

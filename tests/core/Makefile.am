@@ -5,5 +5,6 @@ libgum_tests_core_la_SOURCES = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/tests \
 	$(GUM_CFLAGS)

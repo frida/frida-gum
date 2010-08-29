@@ -28,11 +28,13 @@
 TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_modules)
   SYMUTIL_TESTENTRY (module_exports)
+#ifdef HAVE_I386
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
   SYMUTIL_TESTENTRY (find_external_public_function)
   SYMUTIL_TESTENTRY (find_local_static_function)
   SYMUTIL_TESTENTRY (find_functions_matching)
+#endif
 TEST_LIST_END ()
 
 #ifdef G_OS_WIN32
@@ -51,8 +53,10 @@ static gboolean module_found_cb (const gchar * name, gpointer address,
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 
+#ifdef HAVE_I386
 static void GUM_CDECL dummy_function_0 (void);
 static void GUM_STDCALL dummy_function_1 (void);
+#endif
 
 SYMUTIL_TESTCASE (process_modules)
 {
@@ -108,6 +112,8 @@ export_found_cb (const gchar * name,
 
   return ctx->value_to_return;
 }
+
+#ifdef HAVE_I386
 
 SYMUTIL_TESTCASE (symbol_details_from_address)
 {
@@ -170,3 +176,6 @@ dummy_function_1 (void)
 {
   g_print ("%s\n", G_STRFUNC);
 }
+
+#endif
+

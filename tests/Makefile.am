@@ -3,7 +3,9 @@ SUBDIRS = core
 noinst_PROGRAMS = gum-tests
 
 gum_tests_SOURCES = \
-	gumtest.c
+	gumtest.c \
+	testutil.c \
+	testutil.h
 gum_tests_LDADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(top_builddir)/gum/libgum.la \

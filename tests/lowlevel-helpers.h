@@ -38,7 +38,7 @@ struct _UnsupportedFunction
 extern ClobberTestFunc clobber_test_function;
 
 void lowlevel_helpers_init (void);
-void lowlevel_helpers_deinit (void);  
+void lowlevel_helpers_deinit (void);
 
 void fill_cpu_context_with_magic_values (GumCpuContext * ctx);
 void assert_cpu_contexts_are_equal (GumCpuContext * input,

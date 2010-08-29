@@ -20,6 +20,15 @@ PKG_CHECK_MODULES(GUM, [$pkg_modules])
 AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LIBS)
 
+case $host in
+  i?86-*) HAVE_I386=yes ;;
+  *)      HAVE_I386=no  ;;
+esac
+if [[ "$HAVE_I386" = "yes" ]]; then
+  AC_DEFINE(HAVE_I386, 1, [Define if target is x86 based.])
+fi
+AM_CONDITIONAL(HAVE_I386, test "$HAVE_I386" = "yes")
+
 AC_CONFIG_FILES([
 	Makefile
 	gum/Makefile
