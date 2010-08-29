@@ -135,7 +135,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="vapi\gum.vapi" />
+    <None Include="vapi\gum-1.0.vapi" />
   </ItemGroup>
 
   <ItemGroup>
