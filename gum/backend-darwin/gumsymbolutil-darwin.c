@@ -28,6 +28,10 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
+  func ("BadgerFoundation.dylib", GUINT_TO_POINTER (0x1000),
+      "/usr/lib/libBadgerFoundation.dylib", user_data);
+  func ("SnakeFoundation.dylib", GUINT_TO_POINTER (0x2000),
+      "/usr/lib/libSnakeFoundation.dylib", user_data);
 }
 
 void
@@ -35,6 +39,16 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
+  if (g_str_has_prefix (module_name, "Badger"))
+  {
+    func ("badger_create", GUINT_TO_POINTER (0x1010), user_data);
+    func ("badger_destroy", GUINT_TO_POINTER (0x1020), user_data);
+  }
+  else if (g_str_has_prefix (module_name, "Snake"))
+  {
+    func ("snake_create", GUINT_TO_POINTER (0x2010), user_data);
+    func ("snake_destroy", GUINT_TO_POINTER (0x2020), user_data);
+  }
 }
 
 gpointer
