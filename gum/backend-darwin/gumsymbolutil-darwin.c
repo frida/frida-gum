@@ -19,6 +19,15 @@
 
 #include "gumsymbolutil.h"
 
+#include <dlfcn.h>
+#include <mach-o/dyld.h>
+#include <mach-o/dyld_images.h>
+
+typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
+    void);
+
+static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
+
 void
 gum_symbol_util_init (void)
 {
@@ -28,10 +37,36 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  func ("BadgerFoundation.dylib", GUINT_TO_POINTER (0x1000),
-      "/usr/lib/libBadgerFoundation.dylib", user_data);
-  func ("SnakeFoundation.dylib", GUINT_TO_POINTER (0x2000),
-      "/usr/lib/libSnakeFoundation.dylib", user_data);
+  const struct dyld_all_image_infos * all_info;
+  guint count, i;
+
+  if (get_all_image_infos_impl == NULL)
+  {
+    void * syslib;
+
+    syslib = dlopen ("/usr/lib/libSystem.dylib", RTLD_LAZY | RTLD_GLOBAL);
+    get_all_image_infos_impl = dlsym (syslib, "_dyld_get_all_image_infos");
+    g_assert (get_all_image_infos_impl != NULL);
+    dlclose (syslib);
+  }
+
+  all_info = get_all_image_infos_impl ();
+
+  count = all_info->infoArrayCount;
+  for (i = 0; i != count; i++)
+  {
+    const struct dyld_image_info * info = &all_info->infoArray[i];
+    gchar * name;
+    gboolean carry_on;
+
+    name = g_path_get_basename (info->imageFilePath);
+    carry_on = func (name, (gpointer) info->imageLoadAddress,
+        info->imageFilePath, user_data);
+    g_free (name);
+
+    if (!carry_on)
+      break;
+  }
 }
 
 void
@@ -39,16 +74,8 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  if (g_str_has_prefix (module_name, "Badger"))
-  {
-    func ("badger_create", GUINT_TO_POINTER (0x1010), user_data);
-    func ("badger_destroy", GUINT_TO_POINTER (0x1020), user_data);
-  }
-  else if (g_str_has_prefix (module_name, "Snake"))
-  {
-    func ("snake_create", GUINT_TO_POINTER (0x2010), user_data);
-    func ("snake_destroy", GUINT_TO_POINTER (0x2020), user_data);
-  }
+  func ("badger_create", GUINT_TO_POINTER (0x1010), user_data);
+  func ("badger_destroy", GUINT_TO_POINTER (0x1020), user_data);
 }
 
 gpointer
