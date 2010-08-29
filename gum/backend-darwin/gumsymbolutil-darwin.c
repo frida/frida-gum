@@ -20,6 +20,11 @@
 #include "gumsymbolutil.h"
 
 void
+gum_symbol_util_init (void)
+{
+}
+
+void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {

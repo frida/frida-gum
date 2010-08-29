@@ -1,9 +1,18 @@
-RURL := root@${IOS_IPADDR}
-RPFX := ${prefix}
-
 SUBDIRS = \
 	gum \
-	tests
+	tests \
+	vapi
+
+pcfiles = \
+        gum-1.0.pc
+
+all-local: $(pcfiles)
+
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = $(pcfiles)
+
+RURL := root@${IOS_IPADDR}
+RPFX := ${prefix}
 
 check: all
 	ssh "${RURL}" "mkdir -p ${RPFX}/tests/"

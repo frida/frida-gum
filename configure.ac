@@ -1,6 +1,7 @@
-AC_INIT([libgum], [0.1])
+AC_INIT([libgum], [1.0.0])
 AC_CONFIG_SRCDIR([gum/gum.c])
 AC_CONFIG_HEADERS([config.h])
+AC_CANONICAL_SYSTEM
 
 AM_INIT_AUTOMAKE([-Wall -Werror no-dist-gzip dist-bzip2 foreign])
 
@@ -9,7 +10,6 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AM_MAINTAINER_MODE
 
-AC_CANONICAL_SYSTEM
 AC_PROG_CC
 AC_PROG_CC_STDC
 AC_PROG_LIBTOOL
@@ -37,9 +37,11 @@ fi
 AM_CONDITIONAL(HAVE_I386, test "$HAVE_I386" = "yes")
 
 AC_CONFIG_FILES([
+	gum-1.0.pc
 	Makefile
 	gum/Makefile
 	tests/Makefile
 	tests/core/Makefile
+	vapi/Makefile
 ])
 AC_OUTPUT
