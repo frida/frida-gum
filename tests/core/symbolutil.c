@@ -28,7 +28,7 @@
 TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_modules)
   SYMUTIL_TESTENTRY (module_exports)
-#ifdef HAVE_I386
+#ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
   SYMUTIL_TESTENTRY (find_external_public_function)
@@ -53,7 +53,7 @@ static gboolean module_found_cb (const gchar * name, gpointer address,
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 
-#ifdef HAVE_I386
+#ifdef HAVE_SYMBOL_BACKEND
 static void GUM_CDECL dummy_function_0 (void);
 static void GUM_STDCALL dummy_function_1 (void);
 #endif
@@ -113,7 +113,7 @@ export_found_cb (const gchar * name,
   return ctx->value_to_return;
 }
 
-#ifdef HAVE_I386
+#ifdef HAVE_SYMBOL_BACKEND
 
 SYMUTIL_TESTCASE (symbol_details_from_address)
 {
