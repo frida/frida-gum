@@ -14,7 +14,9 @@
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
+    <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
+    <ClInclude Include="gum\gumfunction.h" />
     <ClInclude Include="gum\gumhash.h" />
     <ClInclude Include="gum\guminterceptor.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />

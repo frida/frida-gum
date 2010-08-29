@@ -7,7 +7,9 @@ guminclude_HEADERS = \
 	gumbacktracer.h \
 	gumcodeallocator.h \
 	gumdefs.h \
+	gumevent.h \
 	gumeventsink.h \
+	gumfunction.h \
 	gumhash.h \
 	guminterceptor.h \
 	guminvocationcontext.h \
