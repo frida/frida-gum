@@ -68,6 +68,13 @@ struct _GumTracerClass
   GObjectClass parent_class;
 };
 
+enum _GumEntryType
+{
+  GUM_ENTRY_INVALID,
+  GUM_ENTRY_ENTER,
+  GUM_ENTRY_LEAVE
+};
+
 struct _GumTraceEntry
 {
   union
@@ -87,13 +94,6 @@ struct _GumTraceEntry
       gchar buf[32];
     } data;
   } entry;
-};
-
-enum _GumEntryType
-{
-  GUM_ENTRY_INVALID,
-  GUM_ENTRY_ENTER,
-  GUM_ENTRY_LEAVE
 };
 
 GUM_API GType gum_tracer_get_type (void) G_GNUC_CONST;

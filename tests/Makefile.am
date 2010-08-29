@@ -1,14 +1,17 @@
+SUBDIRS = core
+
 noinst_PROGRAMS = gum-tests
 
 gum_tests_SOURCES = \
 	gumtest.c
 gum_tests_LDADD = \
+	$(builddir)/core/libgum-tests-core.la \
 	$(top_builddir)/gum/libgum.la \
 	$(GUM_LIBS)
 
 AM_CPPFLAGS = \
 	-include config.h \
-	-I $(top_builddir) \
+	-I $(top_srcdir)/libs \
 	$(GUM_CFLAGS)
 
 all-local: gum-tests
