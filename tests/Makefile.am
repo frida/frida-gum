@@ -8,7 +8,7 @@ gum_tests_SOURCES = \
 	testutil.h
 gum_tests_LDADD = \
 	$(builddir)/core/libgum-tests-core.la \
-	$(top_builddir)/gum/libgum.la \
+	$(top_builddir)/gum/libgum-1.0.la \
 	$(GUM_LIBS)
 
 AM_CPPFLAGS = \
