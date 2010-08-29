@@ -65,7 +65,10 @@ namespace Gum {
 	}
 
 	namespace Module {
+		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
 		public void * find_export_by_name (string module_name, string function_name);
+
+		public delegate bool FoundExportFunc (string name, void * address);
 	}
 
 	[CCode (cheader_filename = "gum/gum-heap.h")]
