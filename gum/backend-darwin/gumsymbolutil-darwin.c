@@ -22,9 +22,22 @@
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
+#include <mach-o/nlist.h>
+
+#define SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL(S) \
+      (S->n_value == 0 || \
+       S->n_type >= N_PEXT || \
+       (S->n_type & N_EXT) == 0)
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
+
+static gboolean find_image_address_and_slide (const gchar * image_name,
+    gpointer * address, gpointer * slide);
+static gboolean find_image_vmaddr_and_fileoff (gpointer address,
+    guint32 * vmaddr, guint32 * fileoff);
+static gboolean find_image_symtab_command (gpointer address,
+    struct symtab_command ** sc);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
@@ -74,8 +87,46 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  func ("badger_create", GUINT_TO_POINTER (0x1010), user_data);
-  func ("badger_destroy", GUINT_TO_POINTER (0x1020), user_data);
+  gpointer address, slide;
+  guint32 vmaddr, fileoff;
+  struct symtab_command * sc;
+  gsize table_offset;
+  struct nlist * symbase, * sym;
+  gchar * strbase;
+  guint symbol_count, symbol_idx;
+
+  if (!find_image_address_and_slide (module_name, &address, &slide))
+    return;
+
+  if (!find_image_vmaddr_and_fileoff (address, &vmaddr, &fileoff))
+    return;
+
+  if (!find_image_symtab_command (address, &sc))
+    return;
+
+  table_offset = vmaddr - fileoff + GPOINTER_TO_SIZE (slide);
+  symbase = (struct nlist *) (sc->symoff + table_offset);
+  strbase = (gchar *) (sc->stroff + table_offset);
+
+  symbol_count = sc->nsyms;
+  for (symbol_idx = 0, sym = symbase;
+      symbol_idx != symbol_count;
+      symbol_idx++, sym++)
+  {
+    gchar * symbol_name;
+    guint8 * symbol_address;
+
+    if (SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
+      continue;
+
+    symbol_name = strbase + sym->n_un.n_strx;
+    symbol_address = (guint8 *) sym->n_value;
+    if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
+      symbol_address++;
+
+    if (!func (symbol_name, symbol_address, user_data))
+      return;
+  }
 }
 
 gpointer
@@ -84,3 +135,89 @@ gum_module_find_export_by_name (const gchar * module_name,
 {
   return NULL;
 }
+
+static gboolean
+find_image_address_and_slide (const gchar * image_name,
+                              gpointer * address,
+                              gpointer * slide)
+{
+  guint count, idx;
+
+  count = _dyld_image_count ();
+
+  for (idx = 0; idx != count; idx++)
+  {
+    const gchar * name, * s;
+
+    name = _dyld_get_image_name (idx);
+    if ((s = strrchr (name, '/')) != NULL)
+      name = s + 1;
+
+    if (strcmp (name, image_name) == 0)
+    {
+      *address = (gpointer) _dyld_get_image_header (idx);
+      *slide = (gpointer) _dyld_get_image_vmaddr_slide (idx);
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+find_image_vmaddr_and_fileoff (gpointer address,
+                               guint32 * vmaddr,
+                               guint32 * fileoff)
+{
+  struct mach_header * header = address;
+  guint8 * p;
+  guint cmd_index;
+
+  p = (guint8 *) (header + 1);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == LC_SEGMENT)
+    {
+      struct segment_command * segcmd = (struct segment_command *) lc;
+
+      if (strcmp (segcmd->segname, "__LINKEDIT") == 0)
+      {
+        *vmaddr = segcmd->vmaddr;
+        *fileoff = segcmd->fileoff;
+        return TRUE;
+      }
+    }
+
+    p += lc->cmdsize;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+find_image_symtab_command (gpointer address,
+                           struct symtab_command ** sc)
+{
+  struct mach_header * header = address;
+  guint8 * p;
+  guint cmd_index;
+
+  p = (guint8 *) (header + 1);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == LC_SYMTAB)
+    {
+      *sc = (struct symtab_command *) lc;
+      return TRUE;
+    }
+
+    p += lc->cmdsize;
+  }
+
+  return FALSE;
+}
+

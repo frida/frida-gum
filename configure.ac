@@ -27,10 +27,13 @@ if [[ "$HAVE_BFD" = "yes" ]]; then
 fi
 
 case $target_os in
-  darwin) OS_DARWIN=yes ;;
-  *)      OS_DARWIN=no  ;;
+  darwin) HAVE_DARWIN=yes ;;
+  *)      HAVE_DARWIN=no  ;;
 esac
-AM_CONDITIONAL(OS_DARWIN, test "$OS_DARWIN" = "yes")
+if [[ "$HAVE_DARWIN" = "yes" ]]; then
+  AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
+fi
+AM_CONDITIONAL(OS_DARWIN, test "$HAVE_DARWIN" = "yes")
 
 HAVE_I386=no
 HAVE_ARM=no

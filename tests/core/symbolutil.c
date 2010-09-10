@@ -38,9 +38,13 @@ TEST_LIST_BEGIN (symbolutil)
 TEST_LIST_END ()
 
 #ifdef G_OS_WIN32
-#define SYSTEM_MODULE_NAME "kernel32.dll"
+# define SYSTEM_MODULE_NAME "kernel32.dll"
 #else
-#define SYSTEM_MODULE_NAME "libc.so.6"
+# ifdef HAVE_DARWIN
+#  define SYSTEM_MODULE_NAME "libSystem.B.dylib"
+# else
+# define SYSTEM_MODULE_NAME "libc.so.6"
+# endif
 #endif
 
 typedef struct _TestForEachContext {
