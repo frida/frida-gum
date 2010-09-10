@@ -19,8 +19,10 @@
 
 #include "guminterceptor.h"
 
+#ifdef HAVE_I386
 #include "interceptor-callbacklistener.c"
 #include "lowlevel-helpers.h"
+#endif
 #include "testutil.h"
 
 #include <stdlib.h>

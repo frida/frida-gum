@@ -26,15 +26,6 @@ if [[ "$HAVE_BFD" = "yes" ]]; then
   AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if symbol backend is available.])
 fi
 
-case $target_os in
-  darwin) HAVE_DARWIN=yes ;;
-  *)      HAVE_DARWIN=no  ;;
-esac
-if [[ "$HAVE_DARWIN" = "yes" ]]; then
-  AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
-fi
-AM_CONDITIONAL(OS_DARWIN, test "$HAVE_DARWIN" = "yes")
-
 HAVE_I386=no
 HAVE_ARM=no
 case $target_cpu in
@@ -51,8 +42,17 @@ fi
 if [[ "$HAVE_ARM" = "yes" ]]; then
   AC_DEFINE(HAVE_ARM, 1, [Define to 1 if target is ARM based.])
 fi
-AM_CONDITIONAL(HAVE_I386, test "$HAVE_I386" = "yes")
-AM_CONDITIONAL(HAVE_ARM, test "$HAVE_ARM" = "yes")
+AM_CONDITIONAL(ARCH_I386, test "$HAVE_I386" = "yes")
+AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
+
+case $target_os in
+  darwin) HAVE_DARWIN=yes ;;
+  *)      HAVE_DARWIN=no  ;;
+esac
+if [[ "$HAVE_DARWIN" = "yes" ]]; then
+  AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
+fi
+AM_CONDITIONAL(OS_DARWIN, test "$HAVE_DARWIN" = "yes")
 
 AC_CONFIG_FILES([
 	gum-1.0.pc

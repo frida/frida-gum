@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -31,7 +31,7 @@
 
 #include <mach/mach.h>
 
-static gint gum_page_protection_to_unix (GumPageProtection page_prot);
+static vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
 
 void
 gum_memory_init (void)
@@ -48,34 +48,7 @@ gboolean
 gum_memory_is_readable (gpointer address,
                         guint len)
 {
-  gboolean result = FALSE;
-  FILE * fp;
-  gchar line[1024 + 1];
-
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
-
-  while (fgets (line, sizeof (line), fp) != NULL)
-  {
-    gint n;
-    gpointer start, end;
-    gchar protection[16];
-
-    n = sscanf (line, "%p-%p %s ", &start, &end, protection);
-    g_assert (n == 3);
-
-    if (start > address)
-      break;
-    else if (address >= start && address + len <= end)
-    {
-      if (protection[0] == 'r')
-        result = TRUE;
-      break;
-    }
-  }
-
-  fclose (fp);
-  return result;
+  g_assert_not_reached (); /* FIXME */
 }
 
 void
@@ -84,17 +57,17 @@ gum_mprotect (gpointer address,
               GumPageProtection page_prot)
 {
   gpointer aligned_address;
-  guint unix_page_prot;
+  vm_prot_t mach_page_prot;
   gint result;
 
   g_assert (size != 0);
 
   aligned_address = GSIZE_TO_POINTER (
       GPOINTER_TO_SIZE (address) & ~(gum_query_page_size () - 1));
-  unix_page_prot = gum_page_protection_to_unix (page_prot);
+  mach_page_prot = gum_page_protection_to_mach (page_prot);
 
-  //result = mprotect (aligned_address, size, unix_page_prot);
-  result = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+  result = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size,
+      FALSE, mach_page_prot);
   g_assert_cmpint (result, ==, 0);
 }
 
@@ -143,7 +116,7 @@ gum_alloc_n_pages (guint n_pages,
   guint page_size, size, alloc_size;
   gint ret;
 
-  /* sbrk() or mmap() would probably be better choices here */
+  /* vm_* would probably be better */
   page_size = gum_query_page_size ();
   size = n_pages * page_size;
   alloc_size = page_size + size;
@@ -173,17 +146,17 @@ gum_free_pages (gpointer mem)
   free (start);
 }
 
-static gint
-gum_page_protection_to_unix (GumPageProtection page_prot)
+static vm_prot_t
+gum_page_protection_to_mach (GumPageProtection page_prot)
 {
-  gint unix_page_prot = PROT_NONE;
+  vm_prot_t mach_page_prot = VM_PROT_NONE;
 
   if ((page_prot & GUM_PAGE_READ) != 0)
-    unix_page_prot |= PROT_READ;
+    mach_page_prot |= VM_PROT_READ;
   if ((page_prot & GUM_PAGE_WRITE) != 0)
-    unix_page_prot |= PROT_WRITE;
+    mach_page_prot |= VM_PROT_WRITE | VM_PROT_COPY;
   if ((page_prot & GUM_PAGE_EXECUTE) != 0)
-    unix_page_prot |= PROT_EXEC;
+    mach_page_prot |= VM_PROT_EXECUTE;
 
-  return unix_page_prot;
+  return mach_page_prot;
 }

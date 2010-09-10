@@ -21,6 +21,7 @@
 #include "interceptor-fixture.c"
 
 TEST_LIST_BEGIN (interceptor)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (cpu_register_clobber)
   INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
 
@@ -30,8 +31,10 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
   INTERCEPTOR_TESTENTRY (two_indirects_to_function)
   INTERCEPTOR_TESTENTRY (relocation_of_early_call)
+#endif
 
   INTERCEPTOR_TESTENTRY (attach_one)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
@@ -50,10 +53,12 @@ TEST_LIST_BEGIN (interceptor)
 
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
+#endif
 TEST_LIST_END ()
 
-static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer target_function (GString * str);
+#ifdef HAVE_I386
+static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer target_nop_function_a (gpointer data);
 static gpointer target_nop_function_b (gpointer data);
 static gpointer target_nop_function_c (gpointer data);
@@ -61,6 +66,7 @@ static gpointer replacement_malloc (gsize size);
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
+#endif
 
 INTERCEPTOR_TESTCASE (attach_one)
 {
@@ -68,6 +74,8 @@ INTERCEPTOR_TESTCASE (attach_one)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
+
+#ifdef HAVE_I386
 
 INTERCEPTOR_TESTCASE (attach_two)
 {
@@ -534,6 +542,8 @@ hit_target_function_repeatedly (gpointer data)
   return NULL;
 }
 
+#endif
+
 static gpointer GUM_NOINLINE
 target_function (GString * str)
 {
@@ -544,6 +554,8 @@ target_function (GString * str)
 
   return NULL;
 }
+
+#ifdef HAVE_I386
 
 static guint counter = 0;
 
@@ -631,3 +643,6 @@ replacement_free_doing_nothing (gpointer mem)
   counter = (guint *) ctx->instance_data;
   (*counter)++;
 }
+
+#endif
+

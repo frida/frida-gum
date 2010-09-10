@@ -24,18 +24,38 @@ guminclude_HEADERS = \
 	gumsysinternals.h \
 	gumtracer.h
 
+container_sources = \
+	gumarray.c \
+	gumhash.c \
+	gumlist.c
+
 backend_sources =
 
-if OS_DARWIN
-backend_sources += backend-darwin/gumsymbolutil-darwin.c
+if ARCH_I386
+backend_sources += backend-x86/guminterceptor-x86.c
 endif
 
-unix_sources = \
-	backend-unix/dlmalloc.c \
-	backend-unix/gummemory-unix.c
+if ARCH_ARM
+backend_sources += \
+	backend-arm/guminterceptor-arm.c \
+	backend-arm/gumspinlock-arm.c
+endif
+
+if OS_DARWIN
+backend_sources += \
+	backend-darwin/gummemory-darwin.c \
+	backend-darwin/gumsymbolutil-darwin.c
+endif
+
+unix_sources = dlmalloc.c
 
 libgum_1_0_la_SOURCES = \
 	gum.c \
+	gumcodeallocator.c \
+	guminterceptor.c \
+	guminvocationcontext.c \
+	guminvocationlistener.c \
+	$(container_sources) \
 	$(backend_sources) \
 	$(unix_sources)
 libgum_1_0_la_LIBADD = \
