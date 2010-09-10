@@ -19,6 +19,7 @@
     <ClInclude Include="gum\gumfunction.h" />
     <ClInclude Include="gum\gumhash.h" />
     <ClInclude Include="gum\guminterceptor.h" />
+    <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumlist.h" />
@@ -63,6 +64,10 @@
     <ClCompile Include="gum\arch-x86\gumx86reader.c" />
     <ClCompile Include="gum\arch-x86\gumx86relocator.c" />
     <ClCompile Include="gum\arch-x86\gumx86writer.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
   </ItemGroup>
 
   <ItemGroup>

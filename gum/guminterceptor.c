@@ -1040,7 +1040,6 @@ make_function_prologue_at_least_read_write (gpointer prologue_address)
 static void
 make_function_prologue_read_execute (gpointer prologue_address)
 {
-  g_print ("%s: prot=0x%08x\n", G_STRFUNC, GUM_PAGE_READ | GUM_PAGE_EXECUTE);
   gum_mprotect (prologue_address, 16, GUM_PAGE_READ | GUM_PAGE_EXECUTE);
 }
 

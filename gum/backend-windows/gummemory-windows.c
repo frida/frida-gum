@@ -200,6 +200,8 @@ gum_page_protection_to_windows (GumPageProtection page_prot)
       return PAGE_READONLY;
     case GUM_PAGE_READ | GUM_PAGE_WRITE:
       return PAGE_READWRITE;
+    case GUM_PAGE_READ | GUM_PAGE_EXECUTE:
+      return PAGE_EXECUTE_READ;
     case GUM_PAGE_EXECUTE | GUM_PAGE_READ | GUM_PAGE_WRITE:
       return PAGE_EXECUTE_READWRITE;
   }

@@ -20,9 +20,12 @@
 
 #include "guminterceptor-priv.h"
 
+#include "gummemory.h"
 #include "gumsysinternals.h"
 #include "gumx86reader.h"
 #include "gumx86relocator.h"
+
+#include <string.h>
 
 #define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE  5
 #define GUM_INTERCEPTOR_GUARD_MAGIC         0x47756D21
