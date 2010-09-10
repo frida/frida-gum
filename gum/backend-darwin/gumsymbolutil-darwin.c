@@ -120,6 +120,9 @@ gum_module_enumerate_exports (const gchar * module_name,
       continue;
 
     symbol_name = strbase + sym->n_un.n_strx;
+    if (symbol_name[0] == '_')
+      symbol_name++;
+
     symbol_address = (guint8 *) sym->n_value;
     if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
       symbol_address++;
