@@ -135,10 +135,8 @@ dump_thumb_code (guint8 * address,
   {
     guint16 insn = *((guint16 *) (address + total_offset));
 
-    g_string_append_printf (s, "%08x  %02x %02x\n",
-        GPOINTER_TO_UINT (address + total_offset),
-        (guint) ((insn & 0xff00) >> 8),
-        (guint) ((insn & 0x00ff) >> 0));
+    g_string_append_printf (s, "%08x  %04x\n",
+        GPOINTER_TO_UINT (address + total_offset), (guint) insn);
   }
 
   g_string_append_c (s, '\n');
