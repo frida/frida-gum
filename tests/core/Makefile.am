@@ -1,8 +1,13 @@
-noinst_LTLIBRARIES = libgum-tests-core.la
+noinst_LTLIBRARIES = libgum-tests-core.la libgum-targetfunctions.la
 
 libgum_tests_core_la_SOURCES = \
 	interceptor.c \
 	symbolutil.c
+
+libgum_targetfunctions_la_SOURCES = \
+	targetfunctions.c
+libgum_targetfunctions_la_LDFLAGS = \
+	-rpath /nowhere
 
 AM_CPPFLAGS = \
 	-include config.h \

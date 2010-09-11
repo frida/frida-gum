@@ -20,13 +20,19 @@
 #include "guminterceptor.h"
 
 #ifdef HAVE_I386
-#include "interceptor-callbacklistener.c"
-#include "lowlevel-helpers.h"
+# include "interceptor-callbacklistener.c"
+# include "lowlevel-helpers.h"
 #endif
 #include "testutil.h"
 
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef G_OS_WIN32
+# include "targetfunctions.c"
+#else
+# include <dlfcn.h>
+#endif
 
 #define INTERCEPTOR_TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
@@ -34,6 +40,12 @@
 #define INTERCEPTOR_TESTENTRY(NAME) \
     TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", test_interceptor, NAME, \
         TestInterceptorFixture)
+
+/* TODO: fix this in GLib */
+#ifdef HAVE_DARWIN
+# undef G_MODULE_SUFFIX
+# define G_MODULE_SUFFIX "dylib"
+#endif
 
 typedef struct _TestInterceptorFixture   TestInterceptorFixture;
 typedef struct _ListenerContext      ListenerContext;
@@ -76,6 +88,8 @@ G_DEFINE_TYPE_EXTENDED (ListenerContext,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             listener_context_iface_init));
 
+gpointer (* target_function) (GString * str) = NULL;
+
 static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
@@ -83,6 +97,28 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_new ("");
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
+
+  if (target_function == NULL)
+  {
+#ifdef G_OS_WIN32
+    target_function = gum_test_target_function;
+#else
+    gchar * testdir, * filename;
+    void * lib;
+
+    testdir = test_util_get_filesystem_path_of_self ();
+    filename = g_build_filename (testdir, "targetfunctions." G_MODULE_SUFFIX,
+        NULL);
+    lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
+    g_assert (lib != NULL);
+
+    target_function = dlsym (lib, "gum_test_target_function");
+    g_assert (target_function != NULL);
+
+    g_free (filename);
+    g_free (testdir);
+#endif
+  }
 }
 
 static void

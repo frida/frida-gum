@@ -72,6 +72,8 @@ gchar * test_util_diff_text (const gchar * expected_text,
 gchar * test_util_diff_xml (const gchar * expected_xml,
     const gchar * actual_xml);
 
+gchar * test_util_get_filesystem_path_of_self (void);
+
 G_END_DECLS
 
 #endif

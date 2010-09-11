@@ -60,6 +60,8 @@ libgum_1_0_la_SOURCES = \
 	$(unix_sources)
 libgum_1_0_la_LIBADD = \
 	$(GUM_LIBS)
+libgum_1_0_la_LIBTOOLFLAGS = \
+	--tag=disable-shared
 
 AM_CPPFLAGS = \
 	-include config.h \

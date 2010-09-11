@@ -23,6 +23,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef HAVE_DARWIN
+#include <mach-o/dyld.h>
+#endif
+
 #define TESTUTIL_TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
 #define TESTUTIL_TESTENTRY(NAME) \
@@ -251,6 +255,28 @@ test_util_diff_xml (const gchar * expected_xml,
   g_free (actual_xml_pretty);
 
   return diff;
+}
+
+gchar *
+test_util_get_filesystem_path_of_self (void)
+{
+#ifdef HAVE_DARWIN
+  guint image_count, image_idx;
+
+  image_count = _dyld_image_count ();
+  for (image_idx = 0; image_idx != image_count; image_idx++)
+  {
+    const gchar * image_path = _dyld_get_image_name (image_idx);
+
+    if (g_str_has_suffix (image_path, "/gum-tests"))
+      return g_path_get_dirname (image_path);
+  }
+
+  g_assert_not_reached ();
+  return NULL;
+#else
+  return NULL; /* FIXME */
+#endif
 }
 
 static gchar *

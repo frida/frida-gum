@@ -56,7 +56,6 @@ TEST_LIST_BEGIN (interceptor)
 #endif
 TEST_LIST_END ()
 
-static gpointer target_function (GString * str);
 #ifdef HAVE_I386
 static gpointer hit_target_function_repeatedly (gpointer data);
 static gpointer target_nop_function_a (gpointer data);
@@ -70,7 +69,7 @@ static void replacement_free_doing_nothing (gpointer mem);
 
 INTERCEPTOR_TESTCASE (attach_one)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
@@ -79,8 +78,8 @@ INTERCEPTOR_TESTCASE (attach_one)
 
 INTERCEPTOR_TESTCASE (attach_two)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
-  interceptor_fixture_attach_listener (fixture, 1, &target_function, 'c', 'd');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 }
@@ -156,7 +155,7 @@ INTERCEPTOR_TESTCASE (thread_id)
 {
   guint first_thread_id, second_thread_id;
 
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
 
   target_function (fixture->result);
   first_thread_id = fixture->listener_context[0]->last_thread_id;
@@ -211,7 +210,7 @@ INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 
 INTERCEPTOR_TESTCASE (ignore_caller)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>',
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
 
   target_function (fixture->result);
@@ -232,7 +231,7 @@ INTERCEPTOR_TESTCASE (ignore_caller)
 
 INTERCEPTOR_TESTCASE (ignore_caller_nested)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>',
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
 
   gum_interceptor_ignore_caller (fixture->interceptor);
@@ -245,8 +244,8 @@ INTERCEPTOR_TESTCASE (ignore_caller_nested)
 
 INTERCEPTOR_TESTCASE (detach)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
-  interceptor_fixture_attach_listener (fixture, 1, &target_function, 'c', 'd');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
@@ -260,7 +259,7 @@ INTERCEPTOR_TESTCASE (detach)
 
 INTERCEPTOR_TESTCASE (listener_ref_count)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
   g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
 }
 
@@ -417,9 +416,9 @@ INTERCEPTOR_TESTCASE (i_can_has_attachability)
 
 INTERCEPTOR_TESTCASE (already_attached)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_function, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      &target_function, GUM_INVOCATION_LISTENER (fixture->listener_context[0]),
+      target_function, GUM_INVOCATION_LISTENER (fixture->listener_context[0]),
       NULL), ==, GUM_ATTACH_ALREADY_ATTACHED);
 }
 
@@ -427,7 +426,7 @@ INTERCEPTOR_TESTCASE (relative_proxy_function)
 {
   ProxyFunc proxy_func;
 
-  proxy_func = proxy_func_new_relative_with_target (&target_function);
+  proxy_func = proxy_func_new_relative_with_target (target_function);
 
   interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
@@ -440,7 +439,7 @@ INTERCEPTOR_TESTCASE (absolute_indirect_proxy_function)
 {
   ProxyFunc proxy_func;
 
-  proxy_func = proxy_func_new_absolute_indirect_with_target (&target_function);
+  proxy_func = proxy_func_new_absolute_indirect_with_target (target_function);
 
   interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
@@ -453,7 +452,7 @@ INTERCEPTOR_TESTCASE (two_indirects_to_function)
 {
   ProxyFunc proxy_func;
 
-  proxy_func = proxy_func_new_two_jumps_with_target (&target_function);
+  proxy_func = proxy_func_new_two_jumps_with_target (target_function);
 
   interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
@@ -466,7 +465,7 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 {
   ProxyFunc proxy_func;
 
-  proxy_func = proxy_func_new_early_call_with_target (&target_function);
+  proxy_func = proxy_func_new_early_call_with_target (target_function);
 
   interceptor_fixture_attach_listener (fixture, 0, proxy_func, '>', '<');
   proxy_func (fixture->result);
@@ -541,21 +540,6 @@ hit_target_function_repeatedly (gpointer data)
 
   return NULL;
 }
-
-#endif
-
-static gpointer GUM_NOINLINE
-target_function (GString * str)
-{
-  if (str != NULL)
-    g_string_append_c (str, '|');
-  else
-    g_usleep (G_USEC_PER_SEC / 100);
-
-  return NULL;
-}
-
-#ifdef HAVE_I386
 
 static guint counter = 0;
 
