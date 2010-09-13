@@ -41,7 +41,13 @@ gum_memory_init (void)
 guint
 gum_query_page_size (void)
 {
-  return sysconf (_SC_PAGE_SIZE);
+  vm_size_t page_size;
+  kern_return_t kr;
+
+  kr = host_page_size (mach_host_self (), &page_size);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  return page_size;
 }
 
 gboolean
@@ -58,7 +64,7 @@ gum_mprotect (gpointer address,
 {
   gpointer aligned_address;
   vm_prot_t mach_page_prot;
-  gint result;
+  kern_return_t kr;
 
   g_assert (size != 0);
 
@@ -66,9 +72,9 @@ gum_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(gum_query_page_size () - 1));
   mach_page_prot = gum_page_protection_to_mach (page_prot);
 
-  result = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size,
+  kr = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size,
       FALSE, mach_page_prot);
-  g_assert_cmpint (result, ==, 0);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
 gpointer
@@ -112,38 +118,91 @@ gpointer
 gum_alloc_n_pages (guint n_pages,
                    GumPageProtection page_prot)
 {
-  guint8 * result = NULL;
-  guint page_size, size, alloc_size;
-  gint ret;
+  vm_address_t result = 0;
+  gsize page_size, size;
+  kern_return_t kr;
 
-  /* vm_* would probably be better */
   page_size = gum_query_page_size ();
   size = n_pages * page_size;
-  alloc_size = page_size + size;
-  ret = posix_memalign ((void **) &result, page_size, alloc_size);
-  g_assert (ret == 0);
 
-  *((guint *) result) = size;
+  kr = vm_allocate (mach_task_self (), &result, size, TRUE);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  result += page_size;
-  memset (result, 0, size);
-  gum_mprotect (result, size, page_prot);
+  gum_mprotect ((gpointer) result, size, page_prot);
 
-  return result;
+  return (gpointer) result;
+}
+
+gpointer
+gum_alloc_n_pages_near (guint n_pages,
+                        GumPageProtection page_prot,
+                        GumAddressSpec * address_spec)
+{
+  vm_address_t result = 0;
+  gsize page_size, size;
+  vm_address_t low_address, high_address;
+  mach_port_t self;
+
+  page_size = gum_query_page_size ();
+  size = n_pages * page_size;
+
+  low_address =
+      (GPOINTER_TO_SIZE (address_spec->near_address) & ~(page_size - 1));
+  high_address = low_address;
+
+  self = mach_task_self ();
+
+  do
+  {
+    gsize cur_distance;
+    kern_return_t kr;
+
+    low_address -= page_size;
+    high_address += page_size;
+    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
+    if (cur_distance > address_spec->max_distance)
+      break;
+
+    kr = vm_allocate (self, &low_address, size, FALSE);
+    if (kr == KERN_SUCCESS)
+    {
+      result = low_address;
+    }
+    else
+    {
+      kr = vm_allocate (self, &high_address, size, FALSE);
+      if (kr == KERN_SUCCESS)
+        result = high_address;
+    }
+  }
+  while (result == 0);
+
+  g_assert (result != 0);
+
+  gum_mprotect ((gpointer) result, size, page_prot);
+
+  return (gpointer) result;
 }
 
 void
 gum_free_pages (gpointer mem)
 {
-  guint8 * start;
-  guint page_size, size;
+  mach_port_t self;
+  vm_address_t address = 0;
+  vm_size_t size = 0;
+  vm_region_basic_info_data_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT;
+  memory_object_name_t obj;
+  kern_return_t kr;
 
-  page_size = gum_query_page_size ();
-  start = (guint8 *) mem - page_size;
-  size = *((guint *) start);
+  self = mach_task_self ();
 
-  gum_mprotect (mem, size, GUM_PAGE_READ | GUM_PAGE_WRITE);
-  free (start);
+  kr = vm_region (self, &address, &size, VM_REGION_BASIC_INFO,
+      (vm_region_info_t) &info, &info_count, &obj);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  kr = vm_deallocate (self, address, size);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
 static vm_prot_t
