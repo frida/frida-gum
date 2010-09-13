@@ -21,6 +21,13 @@
 
 #include <string.h>
 
+typedef struct _GumSpinlockImpl GumSpinlockImpl;
+
+struct _GumSpinlockImpl
+{
+  volatile int is_held;
+};
+
 void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
@@ -35,11 +42,16 @@ gum_spinlock_free (GumSpinlock * spinlock)
 void
 gum_spinlock_acquire (GumSpinlock * spinlock)
 {
-  g_assert_not_reached ();
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  while (__sync_lock_test_and_set (&self->is_held, 1))
+    ;
 }
 
 void
 gum_spinlock_release (GumSpinlock * spinlock)
 {
-  g_assert_not_reached ();
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  __sync_lock_release (&self->is_held);
 }
