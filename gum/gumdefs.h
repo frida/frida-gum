@@ -38,12 +38,14 @@ typedef struct _GumCpuContext GumCpuContext;
 enum _GumCpuType
 {
   GUM_CPU_IA32,
-  GUM_CPU_AMD64
+  GUM_CPU_AMD64,
+  GUM_CPU_ARM
 };
 
 struct _GumCpuContext
 {
-#if GLIB_SIZEOF_VOID_P == 8
+#ifndef __arm__
+# if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
   guint64 r15;
@@ -63,7 +65,7 @@ struct _GumCpuContext
   guint64 rdx;
   guint64 rcx;
   guint64 rax;
-#else
+# else
   guint32 eip;
 
   guint32 edi;
@@ -74,47 +76,56 @@ struct _GumCpuContext
   guint32 edx;
   guint32 ecx;
   guint32 eax;
+# endif
+#else
+  guint32 pc;
+  guint32 sp;
+
+  guint32 r[8];
+  guint32 lr;
 #endif
 };
 
-#if GLIB_SIZEOF_VOID_P == 8
-# define GUM_CPU_CONTEXT_XAX(c) ((c)->rax)
-# define GUM_CPU_CONTEXT_XCX(c) ((c)->rcx)
-# define GUM_CPU_CONTEXT_XDX(c) ((c)->rdx)
-# define GUM_CPU_CONTEXT_XBX(c) ((c)->rbx)
-# define GUM_CPU_CONTEXT_XSP(c) ((c)->rsp)
-# define GUM_CPU_CONTEXT_XBP(c) ((c)->rbp)
-# define GUM_CPU_CONTEXT_XSI(c) ((c)->rsi)
-# define GUM_CPU_CONTEXT_XDI(c) ((c)->rdi)
-# define GUM_CPU_CONTEXT_XIP(c) ((c)->rip)
-# define GUM_CPU_CONTEXT_OFFSET_XAX (G_STRUCT_OFFSET (GumCpuContext, rax))
-# define GUM_CPU_CONTEXT_OFFSET_XCX (G_STRUCT_OFFSET (GumCpuContext, rcx))
-# define GUM_CPU_CONTEXT_OFFSET_XDX (G_STRUCT_OFFSET (GumCpuContext, rdx))
-# define GUM_CPU_CONTEXT_OFFSET_XBX (G_STRUCT_OFFSET (GumCpuContext, rbx))
-# define GUM_CPU_CONTEXT_OFFSET_XSP (G_STRUCT_OFFSET (GumCpuContext, rsp))
-# define GUM_CPU_CONTEXT_OFFSET_XBP (G_STRUCT_OFFSET (GumCpuContext, rbp))
-# define GUM_CPU_CONTEXT_OFFSET_XSI (G_STRUCT_OFFSET (GumCpuContext, rsi))
-# define GUM_CPU_CONTEXT_OFFSET_XDI (G_STRUCT_OFFSET (GumCpuContext, rdi))
-# define GUM_CPU_CONTEXT_OFFSET_XIP (G_STRUCT_OFFSET (GumCpuContext, rip))
-#else
-# define GUM_CPU_CONTEXT_XAX(c) ((c)->eax)
-# define GUM_CPU_CONTEXT_XCX(c) ((c)->ecx)
-# define GUM_CPU_CONTEXT_XDX(c) ((c)->edx)
-# define GUM_CPU_CONTEXT_XBX(c) ((c)->ebx)
-# define GUM_CPU_CONTEXT_XSP(c) ((c)->esp)
-# define GUM_CPU_CONTEXT_XBP(c) ((c)->ebp)
-# define GUM_CPU_CONTEXT_XSI(c) ((c)->esi)
-# define GUM_CPU_CONTEXT_XDI(c) ((c)->edi)
-# define GUM_CPU_CONTEXT_XIP(c) ((c)->eip)
-# define GUM_CPU_CONTEXT_OFFSET_XAX (G_STRUCT_OFFSET (GumCpuContext, eax))
-# define GUM_CPU_CONTEXT_OFFSET_XCX (G_STRUCT_OFFSET (GumCpuContext, ecx))
-# define GUM_CPU_CONTEXT_OFFSET_XDX (G_STRUCT_OFFSET (GumCpuContext, edx))
-# define GUM_CPU_CONTEXT_OFFSET_XBX (G_STRUCT_OFFSET (GumCpuContext, ebx))
-# define GUM_CPU_CONTEXT_OFFSET_XSP (G_STRUCT_OFFSET (GumCpuContext, esp))
-# define GUM_CPU_CONTEXT_OFFSET_XBP (G_STRUCT_OFFSET (GumCpuContext, ebp))
-# define GUM_CPU_CONTEXT_OFFSET_XSI (G_STRUCT_OFFSET (GumCpuContext, esi))
-# define GUM_CPU_CONTEXT_OFFSET_XDI (G_STRUCT_OFFSET (GumCpuContext, edi))
-# define GUM_CPU_CONTEXT_OFFSET_XIP (G_STRUCT_OFFSET (GumCpuContext, eip))
+#ifndef __arm__
+# if GLIB_SIZEOF_VOID_P == 8
+#  define GUM_CPU_CONTEXT_XAX(c) ((c)->rax)
+#  define GUM_CPU_CONTEXT_XCX(c) ((c)->rcx)
+#  define GUM_CPU_CONTEXT_XDX(c) ((c)->rdx)
+#  define GUM_CPU_CONTEXT_XBX(c) ((c)->rbx)
+#  define GUM_CPU_CONTEXT_XSP(c) ((c)->rsp)
+#  define GUM_CPU_CONTEXT_XBP(c) ((c)->rbp)
+#  define GUM_CPU_CONTEXT_XSI(c) ((c)->rsi)
+#  define GUM_CPU_CONTEXT_XDI(c) ((c)->rdi)
+#  define GUM_CPU_CONTEXT_XIP(c) ((c)->rip)
+#  define GUM_CPU_CONTEXT_OFFSET_XAX (G_STRUCT_OFFSET (GumCpuContext, rax))
+#  define GUM_CPU_CONTEXT_OFFSET_XCX (G_STRUCT_OFFSET (GumCpuContext, rcx))
+#  define GUM_CPU_CONTEXT_OFFSET_XDX (G_STRUCT_OFFSET (GumCpuContext, rdx))
+#  define GUM_CPU_CONTEXT_OFFSET_XBX (G_STRUCT_OFFSET (GumCpuContext, rbx))
+#  define GUM_CPU_CONTEXT_OFFSET_XSP (G_STRUCT_OFFSET (GumCpuContext, rsp))
+#  define GUM_CPU_CONTEXT_OFFSET_XBP (G_STRUCT_OFFSET (GumCpuContext, rbp))
+#  define GUM_CPU_CONTEXT_OFFSET_XSI (G_STRUCT_OFFSET (GumCpuContext, rsi))
+#  define GUM_CPU_CONTEXT_OFFSET_XDI (G_STRUCT_OFFSET (GumCpuContext, rdi))
+#  define GUM_CPU_CONTEXT_OFFSET_XIP (G_STRUCT_OFFSET (GumCpuContext, rip))
+# else
+#  define GUM_CPU_CONTEXT_XAX(c) ((c)->eax)
+#  define GUM_CPU_CONTEXT_XCX(c) ((c)->ecx)
+#  define GUM_CPU_CONTEXT_XDX(c) ((c)->edx)
+#  define GUM_CPU_CONTEXT_XBX(c) ((c)->ebx)
+#  define GUM_CPU_CONTEXT_XSP(c) ((c)->esp)
+#  define GUM_CPU_CONTEXT_XBP(c) ((c)->ebp)
+#  define GUM_CPU_CONTEXT_XSI(c) ((c)->esi)
+#  define GUM_CPU_CONTEXT_XDI(c) ((c)->edi)
+#  define GUM_CPU_CONTEXT_XIP(c) ((c)->eip)
+#  define GUM_CPU_CONTEXT_OFFSET_XAX (G_STRUCT_OFFSET (GumCpuContext, eax))
+#  define GUM_CPU_CONTEXT_OFFSET_XCX (G_STRUCT_OFFSET (GumCpuContext, ecx))
+#  define GUM_CPU_CONTEXT_OFFSET_XDX (G_STRUCT_OFFSET (GumCpuContext, edx))
+#  define GUM_CPU_CONTEXT_OFFSET_XBX (G_STRUCT_OFFSET (GumCpuContext, ebx))
+#  define GUM_CPU_CONTEXT_OFFSET_XSP (G_STRUCT_OFFSET (GumCpuContext, esp))
+#  define GUM_CPU_CONTEXT_OFFSET_XBP (G_STRUCT_OFFSET (GumCpuContext, ebp))
+#  define GUM_CPU_CONTEXT_OFFSET_XSI (G_STRUCT_OFFSET (GumCpuContext, esi))
+#  define GUM_CPU_CONTEXT_OFFSET_XDI (G_STRUCT_OFFSET (GumCpuContext, edi))
+#  define GUM_CPU_CONTEXT_OFFSET_XIP (G_STRUCT_OFFSET (GumCpuContext, eip))
+# endif
 #endif
 
 #define GUM_MAX_PATH                 260

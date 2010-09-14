@@ -82,5 +82,12 @@ void _gum_function_context_deactivate_trampoline (FunctionContext * ctx);
 gpointer _gum_interceptor_resolve_redirect (gpointer address);
 gboolean _gum_interceptor_can_intercept (gpointer function_address);
 
+gpointer _gum_interceptor_invocation_get_nth_argument (
+    GumInvocationContext * context, guint n);
+void _gum_interceptor_invocation_replace_nth_argument (
+    GumInvocationContext * context, guint n, gpointer value);
+gpointer _gum_interceptor_invocation_get_return_value (
+    GumInvocationContext * context);
+
 #endif
 

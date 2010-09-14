@@ -587,66 +587,6 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
   return NULL;
 }
 
-static gpointer
-gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
-                                             guint n)
-{
-  gpointer * stack_argument;
-
-#if GLIB_SIZEOF_VOID_P == 4
-  stack_argument = (gpointer *) context->cpu_context->esp;
-#else
-  stack_argument = (gpointer *) context->cpu_context->rsp;
-
-  switch (n)
-  {
-    case 0:   return (gpointer) context->cpu_context->rcx;
-    case 1:   return (gpointer) context->cpu_context->rdx;
-    case 2:   return (gpointer) context->cpu_context->r8;
-    case 3:   return (gpointer) context->cpu_context->r9;
-    default:  break;
-  }
-#endif
-
-  return stack_argument[n];
-}
-
-static void
-gum_interceptor_invocation_replace_nth_argument (
-    GumInvocationContext * context,
-    guint n,
-    gpointer value)
-{
-  gpointer * stack_argument;
-
-#if GLIB_SIZEOF_VOID_P == 4
-  stack_argument = (gpointer *) context->cpu_context->esp;
-#else
-  stack_argument = (gpointer *) context->cpu_context->rsp;
-
-  switch (n)
-  {
-    case 0:   context->cpu_context->rcx = (guint64) value; return;
-    case 1:   context->cpu_context->rdx = (guint64) value; return;
-    case 2:   context->cpu_context->r8  = (guint64) value; return;
-    case 3:   context->cpu_context->r9  = (guint64) value; return;
-    default:  break;
-  }
-#endif
-
-  stack_argument[n] = value;
-}
-
-static gpointer
-gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
-{
-#if GLIB_SIZEOF_VOID_P == 4
-  return (gpointer) context->cpu_context->eax;
-#else
-  return (gpointer) context->cpu_context->rax;
-#endif
-}
-
 GumInvocationContext *
 gum_interceptor_invocation_get_parent (GumInvocationContext * context)
 {
@@ -661,9 +601,9 @@ gum_interceptor_invocation_get_parent (GumInvocationContext * context)
 
 static GumInvocationBackend gum_interceptor_invocation_backend =
 {
-  gum_interceptor_invocation_get_nth_argument,
-  gum_interceptor_invocation_replace_nth_argument,
-  gum_interceptor_invocation_get_return_value,
+  _gum_interceptor_invocation_get_nth_argument,
+  _gum_interceptor_invocation_replace_nth_argument,
+  _gum_interceptor_invocation_get_return_value,
   gum_interceptor_invocation_get_parent,
 
   NULL
@@ -682,10 +622,16 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   previous_last_error = GetLastError ();
 #endif
 
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = (guint32) *caller_ret_addr;
-#else
+# else
   cpu_context->rip = (guint64) *caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = (guint32) *caller_ret_addr;
+#else
+# error Unsupported architecture
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
@@ -803,10 +749,16 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   invocation_ctx->cpu_context = cpu_context;
   invocation_ctx->backend = &thread_ctx->invocation_backend;
 
-#if GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = (guint32) caller_ret_addr;
-#else
+# else
   cpu_context->rip = (guint64) caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = (guint32) caller_ret_addr;
+#else
+# error Unsupported architecture
 #endif
 
   for (i = 0; TRUE; i++)

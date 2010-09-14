@@ -304,6 +304,66 @@ _gum_interceptor_can_intercept (gpointer function_address)
       GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
 }
 
+gpointer
+_gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
+                                              guint n)
+{
+  gpointer * stack_argument;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  stack_argument = (gpointer *) context->cpu_context->esp;
+#else
+  stack_argument = (gpointer *) context->cpu_context->rsp;
+
+  switch (n)
+  {
+    case 0:   return (gpointer) context->cpu_context->rcx;
+    case 1:   return (gpointer) context->cpu_context->rdx;
+    case 2:   return (gpointer) context->cpu_context->r8;
+    case 3:   return (gpointer) context->cpu_context->r9;
+    default:  break;
+  }
+#endif
+
+  return stack_argument[n];
+}
+
+void
+_gum_interceptor_invocation_replace_nth_argument (
+    GumInvocationContext * context,
+    guint n,
+    gpointer value)
+{
+  gpointer * stack_argument;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  stack_argument = (gpointer *) context->cpu_context->esp;
+#else
+  stack_argument = (gpointer *) context->cpu_context->rsp;
+
+  switch (n)
+  {
+    case 0:   context->cpu_context->rcx = (guint64) value; return;
+    case 1:   context->cpu_context->rdx = (guint64) value; return;
+    case 2:   context->cpu_context->r8  = (guint64) value; return;
+    case 3:   context->cpu_context->r9  = (guint64) value; return;
+    default:  break;
+  }
+#endif
+
+  stack_argument[n] = value;
+}
+
+gpointer
+_gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  return (gpointer) context->cpu_context->eax;
+#else
+  return (gpointer) context->cpu_context->rax;
+#endif
+}
+
 static void
 gum_function_context_write_guard_enter_code (FunctionContext * ctx,
                                              gconstpointer skip_label,
