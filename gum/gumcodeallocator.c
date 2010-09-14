@@ -45,11 +45,17 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
 {
   allocator->pages = NULL;
   allocator->page_size = gum_query_page_size ();
+
+#if defined (HAVE_DARWIN) && defined (HAVE_ARM)
+  allocator->header_size = 16;
+  allocator->slice_size = allocator->page_size - allocator->header_size;
+#else
   allocator->header_size = 256;
   allocator->slice_size = slice_size;
+#endif
+
   allocator->slices_per_page =
       (allocator->page_size - allocator->header_size) / allocator->slice_size;
-
   g_assert_cmpuint (allocator->header_size, >=,
       allocator->slices_per_page * sizeof (GumCodeSlice));
 }
@@ -132,14 +138,21 @@ static GumCodePage *
 gum_code_allocator_new_page_near (GumCodeAllocator * self,
                                   gpointer address)
 {
+  GumPageProtection prot;
   GumAddressSpec spec;
   GumCodePage * cp;
   guint slice_idx;
 
+#if defined (HAVE_DARWIN) && defined (HAVE_ARM)
+  prot = GUM_PAGE_READ | GUM_PAGE_WRITE; /* RWX is not allowed */
+#else
+  prot = GUM_PAGE_RWX;
+#endif
+
   spec.near_address = address;
   spec.max_distance = GUM_CODE_ALLOCATOR_MAX_DISTANCE;
 
-  cp = (GumCodePage *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  cp = (GumCodePage *) gum_alloc_n_pages_near (1, prot, &spec);
 
   for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
   {
