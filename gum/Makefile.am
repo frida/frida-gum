@@ -24,6 +24,10 @@ guminclude_HEADERS = \
 	gumsysinternals.h \
 	gumtracer.h
 
+arch_sources = \
+	arch-arm/gumthumbwriter.c \
+	arch-arm/gumthumbwriter.h
+
 container_sources = \
 	gumarray.c \
 	gumhash.c \
@@ -55,6 +59,7 @@ libgum_1_0_la_SOURCES = \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
+	$(arch_sources) \
 	$(container_sources) \
 	$(backend_sources) \
 	$(unix_sources)

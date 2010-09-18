@@ -1,6 +1,7 @@
 noinst_LTLIBRARIES = libgum-tests-core.la libgum-targetfunctions.la
 
 libgum_tests_core_la_SOURCES = \
+	arch-arm/thumbwriter.c \
 	interceptor.c \
 	symbolutil.c
 
@@ -12,6 +13,7 @@ libgum_targetfunctions_la_LDFLAGS = \
 AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir)/gum \
+	-I $(top_srcdir)/gum/arch-arm \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/tests \
 	$(GUM_CFLAGS)
