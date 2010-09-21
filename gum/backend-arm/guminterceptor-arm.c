@@ -67,13 +67,40 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_TREG_R1, GUM_TREG_SP, 9 * 4);
   gum_thumb_writer_put_push_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_R1);
 
-  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R0, GUM_ADDRESS (ctx));
+  /* invoke on_enter */
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_mov_reg_reg (&tw, GUM_TREG_R1, GUM_TREG_SP);
   gum_thumb_writer_put_mov_reg_u8 (&tw, GUM_TREG_R2, 4 + 4 + (8 * 4));
   gum_thumb_writer_put_add_reg_reg (&tw, GUM_TREG_R2, GUM_TREG_R1);
-  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R3,
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R3,
       GUM_ADDRESS (_gum_function_context_on_enter));
   gum_thumb_writer_put_blx_reg (&tw, GUM_TREG_R3);
+
+  /* restore LR */
+  gum_thumb_writer_put_ldr_reg_reg_offset (&tw, GUM_TREG_R0,
+      GUM_TREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_TREG_LR, GUM_TREG_R0);
+
+  /* clear PC and SP from GumCpuContext */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_TREG_SP, 8);
+  /* restore r[0-8] */
+  gum_thumb_writer_put_pop_regs (&tw, 8,
+      GUM_TREG_R0, GUM_TREG_R1, GUM_TREG_R2, GUM_TREG_R3,
+      GUM_TREG_R4, GUM_TREG_R5, GUM_TREG_R6, GUM_TREG_R7);
+  /* clear LR */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_TREG_SP, 4);
+
+  /* stack is now restored, let's execute the overwritten prologue */
+  gum_thumb_writer_put_bytes (&tw, ctx->overwritten_prologue,
+      ctx->overwritten_prologue_len);
+
+  /* and finally, jump back to the next instruction where prologue was */
+  gum_thumb_writer_put_push_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_R1);
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0,
+      GUM_ADDRESS (function_address + ctx->overwritten_prologue_len));
+  gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_TREG_R0,
+      GUM_TREG_SP, 4);
+  gum_thumb_writer_put_pop_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_PC);
 
   gum_thumb_writer_free (&tw);
 
@@ -117,7 +144,7 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
       GUM_TREG_LR);
 
   /* jump to stage2 */
-  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R0,
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0,
       GUM_ADDRESS (ctx->on_enter_trampoline + 1));
   gum_thumb_writer_put_bx_reg (&tw, GUM_TREG_R0);
   gum_thumb_writer_free (&tw);
