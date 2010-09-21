@@ -20,10 +20,12 @@
 #include "guminterceptor-priv.h"
 
 #include "gummemory.h"
+#include "gumthumbwriter.h"
 
 #include <string.h>
 #include <unistd.h>
 
+#define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE (8 + 4)
 #define FUNCTION_CONTEXT_ADDRESS(ctx) (GSIZE_TO_POINTER ( \
     GPOINTER_TO_SIZE (ctx->function_address) & ~0x1))
 
@@ -33,38 +35,11 @@ extern void __clear_cache (guint8 * begin, guint8 * end);
 static void dump_bytes (guint8 * address, guint size);
 static void dump_thumb_code (guint8 * address, guint size);
 
-static const guint16 thumb_enter_stage1_code[] =
-{
-  /* build high part of GumCpuContext */
-  0xb5ff, /* push {r0, r1, r2, r3, r4, r5, r6, r7, lr} */
-
-  /* jump to stage2 */
-  0x4801, /* ldr r0, [pc, #4] */
-  0x4700, /* bx r0 */
-  0x46c0, /* nop (alignment padding) */
-};
-
-static const guint16 thumb_enter_stage2_code[] =
-{
-  /* build low part of GumCpuContext */
-  0xa909, /* add r1, sp, #(9 * 4) */
-  0xb403, /* push {r0, r1} */
-
-  0x4803, /* ldr r0, [pc, #12] */
-  0x4669, /* mov r1, sp */
-  0x2228, /* movs r2, #(4 + 4 + (8 * 4)) */
-  0x1852, /* adds r2, r2, r1 */
-  0x4b00, /* ldr r3, [pc, #0] */
-  0x4798, /* blx r3 */
-
-  /* TODO */
-};
-
 void
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   gpointer function_address;
-  gpointer * data;
+  GumThumbWriter tw;
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (ctx->function_address) & 0x1, ==, 0x1);
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
@@ -74,21 +49,33 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   dump_bytes (function_address, 32);
   dump_thumb_code (function_address, 32);
 
-  ctx->overwritten_prologue_len = sizeof (thumb_enter_stage1_code) +
-      sizeof (gpointer);
+  ctx->overwritten_prologue_len = GUM_INTERCEPTOR_REDIRECT_CODE_SIZE;
   memcpy (ctx->overwritten_prologue, function_address,
       ctx->overwritten_prologue_len);
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       function_address);
 
-  ctx->on_enter_trampoline = ctx->trampoline_slice->data;
-  memcpy (ctx->on_enter_trampoline, thumb_enter_stage2_code,
-      sizeof (thumb_enter_stage2_code));
-  data = (gpointer *) ((guint8 *) ctx->on_enter_trampoline +
-      sizeof (thumb_enter_stage2_code));
-  data[0] = _gum_function_context_on_enter;
-  data[1] = ctx;
+  gum_thumb_writer_init (&tw, ctx->trampoline_slice->data);
+
+  /*
+   * Generate on_enter trampoline
+   */
+  ctx->on_enter_trampoline = gum_thumb_writer_cur (&tw);
+
+  /* build low part of GumCpuContext */
+  gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_TREG_R1, GUM_TREG_SP, 9 * 4);
+  gum_thumb_writer_put_push_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_R1);
+
+  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R0, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_TREG_R1, GUM_TREG_SP);
+  gum_thumb_writer_put_mov_reg_u8 (&tw, GUM_TREG_R2, 4 + 4 + (8 * 4));
+  gum_thumb_writer_put_add_reg_reg (&tw, GUM_TREG_R2, GUM_TREG_R1);
+  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R3,
+      GUM_ADDRESS (_gum_function_context_on_enter));
+  gum_thumb_writer_put_blx_reg (&tw, GUM_TREG_R3);
+
+  gum_thumb_writer_free (&tw);
 
 #if defined (HAVE_DARWIN) && defined (HAVE_ARM)
   gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
@@ -119,12 +106,22 @@ _gum_function_context_destroy_trampoline (FunctionContext * ctx)
 void
 _gum_function_context_activate_trampoline (FunctionContext * ctx)
 {
-  guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  GumThumbWriter tw;
 
-  memcpy (function_address, thumb_enter_stage1_code,
-      sizeof (thumb_enter_stage1_code));
-  *((gpointer *) (function_address + sizeof (thumb_enter_stage1_code))) =
-      ctx->on_enter_trampoline + 1;
+  gum_thumb_writer_init (&tw, FUNCTION_CONTEXT_ADDRESS (ctx));
+
+  /* build high part of GumCpuContext */
+  gum_thumb_writer_put_push_regs (&tw, 8 + 1,
+      GUM_TREG_R0, GUM_TREG_R1, GUM_TREG_R2, GUM_TREG_R3,
+      GUM_TREG_R4, GUM_TREG_R5, GUM_TREG_R6, GUM_TREG_R7,
+      GUM_TREG_LR);
+
+  /* jump to stage2 */
+  gum_thumb_writer_put_ldr_address (&tw, GUM_TREG_R0,
+      GUM_ADDRESS (ctx->on_enter_trampoline + 1));
+  gum_thumb_writer_put_bx_reg (&tw, GUM_TREG_R0);
+  gum_thumb_writer_free (&tw);
+
   gum_function_context_clear_cache (ctx);
 }
 
@@ -144,7 +141,7 @@ gum_function_context_clear_cache (FunctionContext * ctx)
   guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
 
   __clear_cache (function_address, function_address +
-      sizeof (thumb_enter_stage1_code) + sizeof (gpointer));
+      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
 }
 
 gpointer

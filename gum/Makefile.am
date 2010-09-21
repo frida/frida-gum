@@ -70,4 +70,5 @@ libgum_1_0_la_LIBTOOLFLAGS = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(srcdir)/arch-arm \
 	$(GUM_CFLAGS)
