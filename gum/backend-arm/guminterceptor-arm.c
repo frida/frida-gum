@@ -97,7 +97,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   /* and finally, jump back to the next instruction where prologue was */
   gum_thumb_writer_put_push_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_R1);
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0,
-      GUM_ADDRESS (function_address + ctx->overwritten_prologue_len));
+      GUM_ADDRESS (function_address + ctx->overwritten_prologue_len + 1));
   gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_TREG_R0,
       GUM_TREG_SP, 4);
   gum_thumb_writer_put_pop_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_PC);
