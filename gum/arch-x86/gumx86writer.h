@@ -33,10 +33,6 @@ typedef enum _GumBranchHint   GumBranchHint;
 typedef struct _GumLabelMapping GumLabelMapping;
 typedef struct _GumLabelRef GumLabelRef;
 
-typedef guint64 GumAddress;
-
-#define GUM_ADDRESS(a) ((GumAddress) a)
-
 struct _GumX86Writer
 {
   GumCpuType target_cpu;

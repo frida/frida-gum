@@ -204,6 +204,14 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_ldr_address (GumThumbWriter * self,
+                                  GumThumbReg reg,
+                                  GumAddress address)
+{
+  gum_thumb_writer_put_ldr_u32 (self, reg, (guint32) address);
+}
+
+void
 gum_thumb_writer_put_ldr_u32 (GumThumbWriter * self,
                               GumThumbReg reg,
                               guint32 val)
@@ -276,6 +284,14 @@ gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
   }
 
   gum_thumb_writer_put_instruction (self, insn);
+}
+
+void
+gum_thumb_writer_put_add_reg_reg (GumThumbWriter * self,
+                                  GumThumbReg dst_reg,
+                                  GumThumbReg src_reg)
+{
+  gum_thumb_writer_put_add_reg_reg_reg (self, dst_reg, dst_reg, src_reg);
 }
 
 void

@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (mov_reg_u8)
   THUMBWRITER_TESTENTRY (add_reg_imm)
   THUMBWRITER_TESTENTRY (add_reg_reg_reg)
+  THUMBWRITER_TESTENTRY (add_reg_reg)
   THUMBWRITER_TESTENTRY (add_reg_reg_imm)
   THUMBWRITER_TESTENTRY (sub_reg_imm)
   THUMBWRITER_TESTENTRY (sub_reg_reg_reg)
@@ -176,6 +177,12 @@ THUMBWRITER_TESTCASE (add_reg_reg_reg)
   gum_thumb_writer_put_add_reg_reg_reg (&fixture->tw, GUM_TREG_R0, GUM_TREG_R1,
       GUM_TREG_R7);
   assert_output_n_equals (3, 0x19c8);
+}
+
+THUMBWRITER_TESTCASE (add_reg_reg)
+{
+  gum_thumb_writer_put_add_reg_reg (&fixture->tw, GUM_TREG_R0, GUM_TREG_R1);
+  assert_output_equals (0x1840);
 }
 
 THUMBWRITER_TESTCASE (add_reg_reg_imm)
