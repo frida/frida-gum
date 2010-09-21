@@ -466,8 +466,10 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
                             const guint8 * data,
                             guint n)
 {
+  g_assert (n % 2 == 0);
+
   memcpy (self->code, data, n);
-  self->code += n;
+  self->code += n / sizeof (guint16);
 }
 
 static void
