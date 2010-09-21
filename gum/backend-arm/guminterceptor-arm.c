@@ -32,9 +32,6 @@
 static void gum_function_context_clear_cache (FunctionContext * ctx);
 extern void __clear_cache (guint8 * begin, guint8 * end);
 
-static void dump_bytes (guint8 * address, guint size);
-static void dump_thumb_code (guint8 * address, guint size);
-
 void
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
@@ -44,10 +41,6 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   g_assert_cmpuint (GPOINTER_TO_SIZE (ctx->function_address) & 0x1, ==, 0x1);
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   g_assert ((GPOINTER_TO_SIZE (function_address) & 0x2) == 0);
-
-  g_print ("\n\nbuilding trampoline for function_ctx=%p\n\n", ctx);
-  dump_bytes (function_address, 32);
-  dump_thumb_code (function_address, 32);
 
   ctx->overwritten_prologue_len = GUM_INTERCEPTOR_REDIRECT_CODE_SIZE;
   memcpy (ctx->overwritten_prologue, function_address,
@@ -101,6 +94,39 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_TREG_R0,
       GUM_TREG_SP, 4);
   gum_thumb_writer_put_pop_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_PC);
+
+  gum_thumb_writer_flush (&tw);
+
+  /*
+   * Generate on_leave trampoline
+   */
+  ctx->on_leave_trampoline = gum_thumb_writer_cur (&tw) + 1;
+
+  /* build GumCpuContext */
+  gum_thumb_writer_put_push_regs (&tw, 8 + 1,
+      GUM_TREG_R0, GUM_TREG_R1, GUM_TREG_R2, GUM_TREG_R3,
+      GUM_TREG_R4, GUM_TREG_R5, GUM_TREG_R6, GUM_TREG_R7,
+      GUM_TREG_LR);
+  gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_TREG_R1, GUM_TREG_SP, 9 * 4);
+  gum_thumb_writer_put_push_regs (&tw, 2, GUM_TREG_R0, GUM_TREG_R1);
+
+  /* invoke on_leave */
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_TREG_R1, GUM_TREG_SP);
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R2,
+      GUM_ADDRESS (_gum_function_context_on_leave));
+  gum_thumb_writer_put_blx_reg (&tw, GUM_TREG_R2);
+
+  /* poke into GumCpuContext and replace LR */
+  gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_TREG_R0,
+      GUM_TREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+  /* clear PC and SP from GumCpuContext */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_TREG_SP, 8);
+  /* restore r[0-8] and jump straight to LR */
+  gum_thumb_writer_put_pop_regs (&tw, 9,
+      GUM_TREG_R0, GUM_TREG_R1, GUM_TREG_R2, GUM_TREG_R3,
+      GUM_TREG_R4, GUM_TREG_R5, GUM_TREG_R6, GUM_TREG_R7,
+      GUM_TREG_PC);
 
   gum_thumb_writer_free (&tw);
 
@@ -208,70 +234,3 @@ _gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 {
   return (gpointer) context->cpu_context->r[0];
 }
-
-static void
-dump_bytes (guint8 * address,
-            guint size)
-{
-  GString * s;
-  guint total_offset, line_offset;
-
-  s = g_string_sized_new (1024);
-
-  g_string_append (s, "Bytes:\n");
-
-  for (total_offset = 0, line_offset = 0; total_offset != size; total_offset++)
-  {
-    if (line_offset == 0)
-    {
-      g_string_append_printf (s, "%08x ",
-          GPOINTER_TO_UINT (address + total_offset));
-    }
-    else if (line_offset == 8)
-    {
-      g_string_append_c (s, ' ');
-    }
-
-    g_string_append_printf (s, " %02x", address[total_offset]);
-
-    line_offset++;
-    if (line_offset == 16)
-    {
-      g_string_append_c (s, '\n');
-      line_offset = 0;
-    }
-  }
-
-  g_string_append_c (s, '\n');
-
-  write (1, s->str, s->len);
-  g_string_free (s, TRUE);
-}
-
-static void
-dump_thumb_code (guint8 * address,
-                 guint size)
-{
-  GString * s;
-  guint total_offset;
-
-  g_assert_cmpuint (size % 2, ==, 0);
-
-  s = g_string_sized_new (1024);
-
-  g_string_append (s, "Thumb code:\n");
-
-  for (total_offset = 0; total_offset != size; total_offset += 2)
-  {
-    guint16 insn = *((guint16 *) (address + total_offset));
-
-    g_string_append_printf (s, "%08x  %04x\n",
-        GPOINTER_TO_UINT (address + total_offset), (guint) insn);
-  }
-
-  g_string_append_c (s, '\n');
-
-  write (1, s->str, s->len);
-  g_string_free (s, TRUE);
-}
-

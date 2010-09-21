@@ -488,7 +488,9 @@ detach_if_matching_listener (gpointer key,
 
     if (function_ctx->listener_entries->len == 0)
     {
+      make_function_prologue_at_least_read_write (function_address);
       function_context_destroy (function_ctx);
+      make_function_prologue_read_execute (function_address);
 
       detach_ctx->pending_removals =
           g_list_prepend (detach_ctx->pending_removals, function_address);
