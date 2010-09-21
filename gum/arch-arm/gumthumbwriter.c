@@ -31,6 +31,8 @@ struct _GumThumbU32Ref
   guint32 val;
 };
 
+static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
+    GumThumbReg left_reg, GumThumbReg right_reg, guint8 right_offset);
 static void gum_thumb_writer_put_instruction (GumThumbWriter * self,
     guint16 insn);
 
@@ -238,20 +240,9 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
 {
   guint16 insn;
 
-  g_assert (src_offset % 4 == 0);
-
-  if (src_reg == GUM_TREG_SP)
-  {
-    g_assert_cmpuint (src_offset, <=, 1020);
-
-    insn = 0x9800 | (dst_reg << 8) | (src_offset / 4);
-  }
-  else
-  {
-    g_assert_cmpuint (src_offset, <=, 124);
-
-    insn = 0x6800 | (src_offset / 4) << 6 | (src_reg << 3) | dst_reg;
-  }
+  insn = gum_thumb_writer_make_ldr_or_str_reg_reg_offset (dst_reg,
+      src_reg, src_offset);
+  insn |= 0x0800;
 
   gum_thumb_writer_put_instruction (self, insn);
 }
@@ -272,22 +263,35 @@ gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self,
 {
   guint16 insn;
 
-  g_assert (dst_offset % 4 == 0);
+  insn = gum_thumb_writer_make_ldr_or_str_reg_reg_offset (src_reg,
+      dst_reg, dst_offset);
 
-  if (dst_reg == GUM_TREG_SP)
+  gum_thumb_writer_put_instruction (self, insn);
+}
+
+static guint16
+gum_thumb_writer_make_ldr_or_str_reg_reg_offset (GumThumbReg left_reg,
+                                                 GumThumbReg right_reg,
+                                                 guint8 right_offset)
+{
+  guint16 insn;
+
+  g_assert (right_offset % 4 == 0);
+
+  if (right_reg == GUM_TREG_SP)
   {
-    g_assert_cmpuint (dst_offset, <=, 1020);
+    g_assert_cmpuint (right_offset, <=, 1020);
 
-    insn = 0x9000 | (src_reg << 8) | (dst_offset / 4);
+    insn = 0x9000 | (left_reg << 8) | (right_offset / 4);
   }
   else
   {
-    g_assert_cmpuint (dst_offset, <=, 124);
+    g_assert_cmpuint (right_offset, <=, 124);
 
-    insn = 0x6000 | (dst_offset / 4) << 6 | (dst_reg << 3) | src_reg;
+    insn = 0x6000 | (right_offset / 4) << 6 | (right_reg << 3) | left_reg;
   }
 
-  gum_thumb_writer_put_instruction (self, insn);
+  return insn;
 }
 
 void
