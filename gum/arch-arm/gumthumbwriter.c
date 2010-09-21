@@ -238,10 +238,20 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
 {
   guint16 insn;
 
-  g_assert_cmpuint (src_offset, <=, 124);
   g_assert (src_offset % 4 == 0);
 
-  insn = 0x6800 | (src_offset / 4) << 6 | (src_reg << 3) | dst_reg;
+  if (src_reg == GUM_TREG_SP)
+  {
+    g_assert_cmpuint (src_offset, <=, 1020);
+
+    insn = 0x9800 | (dst_reg << 8) | (src_offset / 4);
+  }
+  else
+  {
+    g_assert_cmpuint (src_offset, <=, 124);
+
+    insn = 0x6800 | (src_offset / 4) << 6 | (src_reg << 3) | dst_reg;
+  }
 
   gum_thumb_writer_put_instruction (self, insn);
 }

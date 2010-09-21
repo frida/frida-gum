@@ -116,6 +116,18 @@ THUMBWRITER_TESTCASE (ldr_reg_reg_offset)
   gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
       GUM_TREG_R0, 12);
   assert_output_n_equals (3, 0x68c0);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_SP, 0);
+  assert_output_n_equals (4, 0x9800);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R5,
+      GUM_TREG_SP, 0);
+  assert_output_n_equals (5, 0x9d00);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_SP, 12);
+  assert_output_n_equals (6, 0x9803);
 }
 
 THUMBWRITER_TESTCASE (ldr_reg_reg)
