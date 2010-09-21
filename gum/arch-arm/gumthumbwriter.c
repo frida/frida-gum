@@ -19,6 +19,8 @@
 
 #include "gumthumbwriter.h"
 
+#include <string.h>
+
 #define GUM_THUMB_WRITER_NUM_RESERVED_U32_REFS (16)
 
 typedef struct _GumThumbU32Ref GumThumbU32Ref;
@@ -204,20 +206,44 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
 }
 
 void
-gum_thumb_writer_put_ldr_address (GumThumbWriter * self,
-                                  GumThumbReg reg,
-                                  GumAddress address)
+gum_thumb_writer_put_ldr_reg_address (GumThumbWriter * self,
+                                      GumThumbReg reg,
+                                      GumAddress address)
 {
-  gum_thumb_writer_put_ldr_u32 (self, reg, (guint32) address);
+  gum_thumb_writer_put_ldr_reg_u32 (self, reg, (guint32) address);
 }
 
 void
-gum_thumb_writer_put_ldr_u32 (GumThumbWriter * self,
-                              GumThumbReg reg,
-                              guint32 val)
+gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
+                                  GumThumbReg reg,
+                                  guint32 val)
 {
   gum_thumb_writer_mark_u32_reference_here (self, val);
   gum_thumb_writer_put_instruction (self, 0x4800 | (reg << 8));
+}
+
+void
+gum_thumb_writer_put_ldr_reg_reg (GumThumbWriter * self,
+                                  GumThumbReg dst_reg,
+                                  GumThumbReg src_reg)
+{
+  gum_thumb_writer_put_ldr_reg_reg_offset (self, dst_reg, src_reg, 0);
+}
+
+void
+gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
+                                         GumThumbReg dst_reg,
+                                         GumThumbReg src_reg,
+                                         guint8 src_offset)
+{
+  guint16 insn;
+
+  g_assert_cmpuint (src_offset, <=, 124);
+  g_assert (src_offset % 4 == 0);
+
+  insn = 0x6800 | (src_offset / 4) << 6 | (src_reg << 3) | dst_reg;
+
+  gum_thumb_writer_put_instruction (self, insn);
 }
 
 void
@@ -385,6 +411,15 @@ void
 gum_thumb_writer_put_nop (GumThumbWriter * self)
 {
   gum_thumb_writer_put_instruction (self, 0x46c0);
+}
+
+void
+gum_thumb_writer_put_bytes (GumThumbWriter * self,
+                            const guint8 * data,
+                            guint n)
+{
+  memcpy (self->code, data, n);
+  self->code += n;
 }
 
 static void

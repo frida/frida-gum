@@ -26,6 +26,8 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (push_regs)
   THUMBWRITER_TESTENTRY (pop_regs)
   THUMBWRITER_TESTENTRY (ldr_u32)
+  THUMBWRITER_TESTENTRY (ldr_reg_reg_offset)
+  THUMBWRITER_TESTENTRY (ldr_reg_reg)
   THUMBWRITER_TESTENTRY (mov_reg_reg)
   THUMBWRITER_TESTENTRY (mov_reg_u8)
   THUMBWRITER_TESTENTRY (add_reg_imm)
@@ -84,9 +86,9 @@ THUMBWRITER_TESTCASE (pop_regs)
 
 THUMBWRITER_TESTCASE (ldr_u32)
 {
-  gum_thumb_writer_put_ldr_u32 (&fixture->tw, GUM_TREG_R0, 0x1337);
-  gum_thumb_writer_put_ldr_u32 (&fixture->tw, GUM_TREG_R1, 0x1227);
-  gum_thumb_writer_put_ldr_u32 (&fixture->tw, GUM_TREG_R2, 0x1337);
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, GUM_TREG_R0, 0x1337);
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, GUM_TREG_R1, 0x1227);
+  gum_thumb_writer_put_ldr_reg_u32 (&fixture->tw, GUM_TREG_R2, 0x1337);
   gum_thumb_writer_flush (&fixture->tw);
   assert_output_n_equals (0, 0x4801);
   assert_output_n_equals (1, 0x4902);
@@ -95,6 +97,31 @@ THUMBWRITER_TESTCASE (ldr_u32)
       0))), ==, 0x1337);
   g_assert_cmphex (GUINT32_FROM_LE (*((guint32 *) (fixture->output + 3 + 1 +
       2))), ==, 0x1227);
+}
+
+THUMBWRITER_TESTCASE (ldr_reg_reg_offset)
+{
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R0, 0);
+  assert_output_n_equals (0, 0x6800);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R3,
+      GUM_TREG_R0, 0);
+  assert_output_n_equals (1, 0x6803);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R3, 0);
+  assert_output_n_equals (2, 0x6818);
+
+  gum_thumb_writer_put_ldr_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R0, 12);
+  assert_output_n_equals (3, 0x68c0);
+}
+
+THUMBWRITER_TESTCASE (ldr_reg_reg)
+{
+  gum_thumb_writer_put_ldr_reg_reg (&fixture->tw, GUM_TREG_R0, GUM_TREG_R0);
+  assert_output_equals (0x6800);
 }
 
 THUMBWRITER_TESTCASE (mov_reg_reg)
