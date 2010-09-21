@@ -47,7 +47,7 @@ enum _GumThumbReg
   GUM_TREG_R6,
   GUM_TREG_R7,
 
-  GUM_TREG_SP,
+  GUM_TREG_SP = 13,
   GUM_TREG_LR,
   GUM_TREG_PC,
 
@@ -63,8 +63,22 @@ guint gum_thumb_writer_offset (GumThumbWriter * self);
 
 void gum_thumb_writer_flush (GumThumbWriter * self);
 
+void gum_thumb_writer_put_bx_reg (GumThumbWriter * self, GumThumbReg reg);
+void gum_thumb_writer_put_blx_reg (GumThumbWriter * self, GumThumbReg reg);
+
 void gum_thumb_writer_put_push_regs (GumThumbWriter * self, guint n_regs, GumThumbReg first_reg, ...);
+void gum_thumb_writer_put_pop_regs (GumThumbWriter * self, guint n_regs, GumThumbReg first_reg, ...);
 void gum_thumb_writer_put_ldr_u32 (GumThumbWriter * self, GumThumbReg reg, guint32 val);
+void gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg src_reg);
+void gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self, GumThumbReg dst_reg, guint8 imm_value);
+void gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self, GumThumbReg dst_reg, gssize imm_value);
+void gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg left_reg, GumThumbReg right_reg);
+void gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg left_reg, gssize right_value);
+void gum_thumb_writer_put_sub_reg_imm (GumThumbWriter * self, GumThumbReg dst_reg, gssize imm_value);
+void gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg left_reg, GumThumbReg right_reg);
+void gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg left_reg, gssize right_value);
+
+void gum_thumb_writer_put_nop (GumThumbWriter * self);
 
 G_END_DECLS
 
