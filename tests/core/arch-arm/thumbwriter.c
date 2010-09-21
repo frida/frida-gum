@@ -28,6 +28,8 @@ TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (ldr_u32)
   THUMBWRITER_TESTENTRY (ldr_reg_reg_offset)
   THUMBWRITER_TESTENTRY (ldr_reg_reg)
+  THUMBWRITER_TESTENTRY (str_reg_reg_offset)
+  THUMBWRITER_TESTENTRY (str_reg_reg)
   THUMBWRITER_TESTENTRY (mov_reg_reg)
   THUMBWRITER_TESTENTRY (mov_reg_u8)
   THUMBWRITER_TESTENTRY (add_reg_imm)
@@ -134,6 +136,43 @@ THUMBWRITER_TESTCASE (ldr_reg_reg)
 {
   gum_thumb_writer_put_ldr_reg_reg (&fixture->tw, GUM_TREG_R0, GUM_TREG_R0);
   assert_output_equals (0x6800);
+}
+
+THUMBWRITER_TESTCASE (str_reg_reg_offset)
+{
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R0, 0);
+  assert_output_n_equals (0, 0x6000);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R7,
+      GUM_TREG_R0, 0);
+  assert_output_n_equals (1, 0x6007);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R7, 0);
+  assert_output_n_equals (2, 0x6038);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_R0, 24);
+  assert_output_n_equals (3, 0x6180);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_SP, 0);
+  assert_output_n_equals (4, 0x9000);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R3,
+      GUM_TREG_SP, 0);
+  assert_output_n_equals (5, 0x9300);
+
+  gum_thumb_writer_put_str_reg_reg_offset (&fixture->tw, GUM_TREG_R0,
+      GUM_TREG_SP, 24);
+  assert_output_n_equals (6, 0x9006);
+}
+
+THUMBWRITER_TESTCASE (str_reg_reg)
+{
+  gum_thumb_writer_put_str_reg_reg (&fixture->tw, GUM_TREG_R0, GUM_TREG_R0);
+  assert_output_equals (0x6000);
 }
 
 THUMBWRITER_TESTCASE (mov_reg_reg)

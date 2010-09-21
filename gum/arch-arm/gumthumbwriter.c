@@ -257,6 +257,40 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self,
+                                  GumThumbReg src_reg,
+                                  GumThumbReg dst_reg)
+{
+  gum_thumb_writer_put_str_reg_reg_offset (self, src_reg, dst_reg, 0);
+}
+
+void
+gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self,
+                                         GumThumbReg src_reg,
+                                         GumThumbReg dst_reg,
+                                         guint8 dst_offset)
+{
+  guint16 insn;
+
+  g_assert (dst_offset % 4 == 0);
+
+  if (dst_reg == GUM_TREG_SP)
+  {
+    g_assert_cmpuint (dst_offset, <=, 1020);
+
+    insn = 0x9000 | (src_reg << 8) | (dst_offset / 4);
+  }
+  else
+  {
+    g_assert_cmpuint (dst_offset, <=, 124);
+
+    insn = 0x6000 | (dst_offset / 4) << 6 | (dst_reg << 3) | src_reg;
+  }
+
+  gum_thumb_writer_put_instruction (self, insn);
+}
+
+void
 gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self,
                                   GumThumbReg dst_reg,
                                   GumThumbReg src_reg)

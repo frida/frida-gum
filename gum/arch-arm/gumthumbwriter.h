@@ -72,6 +72,8 @@ void gum_thumb_writer_put_ldr_reg_address (GumThumbWriter * self, GumThumbReg re
 void gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self, GumThumbReg reg, guint32 val);
 void gum_thumb_writer_put_ldr_reg_reg (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg src_reg);
 void gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg src_reg, guint8 src_offset);
+void gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self, GumThumbReg src_reg, GumThumbReg dst_reg);
+void gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self, GumThumbReg src_reg, GumThumbReg dst_reg, guint8 dst_offset);
 void gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self, GumThumbReg dst_reg, GumThumbReg src_reg);
 void gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self, GumThumbReg dst_reg, guint8 imm_value);
 void gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self, GumThumbReg dst_reg, gssize imm_value);
