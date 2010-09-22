@@ -10,3 +10,27 @@ gum_test_target_function (GString * str)
 
   return NULL;
 }
+
+static guint counter = 0;
+
+gpointer
+gum_test_target_nop_function_a (gpointer data)
+{
+  counter++;
+  return GSIZE_TO_POINTER (0x1337);
+}
+
+gpointer
+gum_test_target_nop_function_b (gpointer data)
+{
+  counter += 2;
+  return GSIZE_TO_POINTER (2);
+}
+
+gpointer
+gum_test_target_nop_function_c (gpointer data)
+{
+  counter += 3;
+  target_nop_function_a (data);
+  return GSIZE_TO_POINTER (3);
+}

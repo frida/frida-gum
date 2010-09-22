@@ -39,18 +39,24 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
+#endif
   INTERCEPTOR_TESTENTRY (thread_id)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
   INTERCEPTOR_TESTENTRY (function_arguments)
   INTERCEPTOR_TESTENTRY (function_return_value)
   INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
+#endif
   INTERCEPTOR_TESTENTRY (ignore_caller)
   INTERCEPTOR_TESTENTRY (ignore_caller_nested)
   INTERCEPTOR_TESTENTRY (detach)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (function_data)
   INTERCEPTOR_TESTENTRY (parent_data)
+#endif
 
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
 #endif
@@ -58,9 +64,6 @@ TEST_LIST_END ()
 
 #ifdef HAVE_I386
 static gpointer hit_target_function_repeatedly (gpointer data);
-static gpointer target_nop_function_a (gpointer data);
-static gpointer target_nop_function_b (gpointer data);
-static gpointer target_nop_function_c (gpointer data);
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
@@ -88,8 +91,8 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   void * p;
 
-  interceptor_fixture_attach_listener (fixture, 0, &malloc, '>', '<');
-  interceptor_fixture_attach_listener (fixture, 1, &free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
+  interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
   p = malloc (1);
   free (p);
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
@@ -151,6 +154,8 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
   g_thread_join (th);
 }
 
+#endif
+
 INTERCEPTOR_TESTCASE (thread_id)
 {
   guint first_thread_id, second_thread_id;
@@ -167,15 +172,17 @@ INTERCEPTOR_TESTCASE (thread_id)
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
 }
 
+#ifdef HAVE_I386
+
 INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &free, 'a', 'b');
+  interceptor_fixture_attach_listener (fixture, 0, free, 'a', 'b');
   g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
 }
 
 INTERCEPTOR_TESTCASE (function_arguments)
 {
-  interceptor_fixture_attach_listener (fixture, 0, &target_nop_function_a, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
       'b');
   target_nop_function_a (GSIZE_TO_POINTER (0x12349876));
   g_assert_cmphex (fixture->listener_context[0]->last_seen_argument,
@@ -186,7 +193,7 @@ INTERCEPTOR_TESTCASE (function_return_value)
 {
   gpointer return_value;
 
-  interceptor_fixture_attach_listener (fixture, 0, &target_nop_function_a, 'a',
+  interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
       'b');
   return_value = target_nop_function_a (NULL);
   g_assert_cmphex (
@@ -207,6 +214,8 @@ INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
   assert_cpu_contexts_are_equal (&input,
       &fixture->listener_context[0]->last_on_enter_cpu_context);
 }
+
+#endif
 
 INTERCEPTOR_TESTCASE (ignore_caller)
 {
@@ -263,6 +272,8 @@ INTERCEPTOR_TESTCASE (listener_ref_count)
   g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
 }
 
+#ifdef HAVE_I386
+
 #include "interceptor-functiondatalistener.c"
 
 INTERCEPTOR_TESTCASE (function_data)
@@ -274,9 +285,9 @@ INTERCEPTOR_TESTCASE (function_data)
       g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      &target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
+      target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      &target_nop_function_b, listener, "b"), ==, GUM_ATTACH_OK);
+      target_nop_function_b, listener, "b"), ==, GUM_ATTACH_OK);
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 0);
@@ -351,9 +362,9 @@ INTERCEPTOR_TESTCASE (parent_data)
   pd_listener = g_object_new (TEST_TYPE_PARENT_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (pd_listener);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      &target_nop_function_c, listener, "c"), ==, GUM_ATTACH_OK);
+      target_nop_function_c, listener, "c"), ==, GUM_ATTACH_OK);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      &target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
+      target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
 
   target_nop_function_c (NULL);
 
@@ -400,7 +411,7 @@ INTERCEPTOR_TESTCASE (i_can_has_attachability)
 {
   UnsupportedFunction * unsupported_functions;
   guint count, i;
-  
+
   unsupported_functions = unsupported_function_list_new (&count);
 
   for (i = 0; i < count; i++)
@@ -410,7 +421,7 @@ INTERCEPTOR_TESTCASE (i_can_has_attachability)
     g_assert_cmpint (interceptor_fixture_try_attaching_listener (fixture, 0,
         func->code, '>', '<'), ==, GUM_ATTACH_WRONG_SIGNATURE);
   }
-  
+
   unsupported_function_list_free (unsupported_functions);
 }
 
@@ -539,30 +550,6 @@ hit_target_function_repeatedly (gpointer data)
   g_string_free (str, TRUE);
 
   return NULL;
-}
-
-static guint counter = 0;
-
-static gpointer GUM_NOINLINE
-target_nop_function_a (gpointer data)
-{
-  counter++;
-  return GSIZE_TO_POINTER (0x1337);
-}
-
-static gpointer GUM_NOINLINE
-target_nop_function_b (gpointer data)
-{
-  counter += 2;
-  return GSIZE_TO_POINTER (2);
-}
-
-static gpointer GUM_NOINLINE
-target_nop_function_c (gpointer data)
-{
-  counter += 3;
-  target_nop_function_a (data);
-  return GSIZE_TO_POINTER (3);
 }
 
 typedef gpointer (* MallocFunc) (gsize size);

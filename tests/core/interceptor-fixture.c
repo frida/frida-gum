@@ -89,6 +89,9 @@ G_DEFINE_TYPE_EXTENDED (ListenerContext,
                             listener_context_iface_init));
 
 gpointer (* target_function) (GString * str) = NULL;
+gpointer (* target_nop_function_a) (gpointer data);
+gpointer (* target_nop_function_b) (gpointer data);
+gpointer (* target_nop_function_c) (gpointer data);
 
 static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
@@ -102,6 +105,9 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   {
 #ifdef G_OS_WIN32
     target_function = gum_test_target_function;
+    target_nop_function_a = gum_test_target_nop_function_a;
+    target_nop_function_b = gum_test_target_nop_function_b;
+    target_nop_function_c = gum_test_target_nop_function_c;
 #else
     gchar * testdir, * filename;
     void * lib;
@@ -114,6 +120,15 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
 
     target_function = dlsym (lib, "gum_test_target_function");
     g_assert (target_function != NULL);
+
+    target_nop_function_a = dlsym (lib, "gum_test_target_nop_function_a");
+    g_assert (target_nop_function_a != NULL);
+
+    target_nop_function_b = dlsym (lib, "gum_test_target_nop_function_b");
+    g_assert (target_nop_function_b != NULL);
+
+    target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
+    g_assert (target_nop_function_c != NULL);
 
     g_free (filename);
     g_free (testdir);
