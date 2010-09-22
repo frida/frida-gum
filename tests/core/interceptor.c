@@ -34,8 +34,8 @@ TEST_LIST_BEGIN (interceptor)
 #endif
 
   INTERCEPTOR_TESTENTRY (attach_one)
-#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (attach_two)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
@@ -74,8 +74,6 @@ INTERCEPTOR_TESTCASE (attach_one)
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-#ifdef HAVE_I386
-
 INTERCEPTOR_TESTCASE (attach_two)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
@@ -83,6 +81,8 @@ INTERCEPTOR_TESTCASE (attach_two)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
 }
+
+#ifdef HAVE_I386
 
 INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
