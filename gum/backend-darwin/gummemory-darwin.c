@@ -62,18 +62,24 @@ gum_mprotect (gpointer address,
               guint size,
               GumPageProtection page_prot)
 {
+  guint page_size;
   gpointer aligned_address;
+  guint aligned_size;
   vm_prot_t mach_page_prot;
   kern_return_t kr;
 
   g_assert (size != 0);
 
+  page_size = gum_query_page_size ();
   aligned_address = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (address) & ~(gum_query_page_size () - 1));
+      GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+  aligned_size = size;
+  if (aligned_size % page_size != 0)
+    aligned_size = (aligned_size + page_size) & ~(page_size - 1);
   mach_page_prot = gum_page_protection_to_mach (page_prot);
 
-  kr = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size,
-      FALSE, mach_page_prot);
+  kr = vm_protect (mach_task_self (), (vm_address_t) aligned_address,
+      aligned_size, FALSE, mach_page_prot);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
@@ -128,7 +134,8 @@ gum_alloc_n_pages (guint n_pages,
   kr = vm_allocate (mach_task_self (), &result, size, TRUE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  gum_mprotect ((gpointer) result, size, page_prot);
+  if (page_prot != GUM_PAGE_RW)
+    gum_mprotect ((gpointer) result, size, page_prot);
 
   return (gpointer) result;
 }
@@ -179,7 +186,8 @@ gum_alloc_n_pages_near (guint n_pages,
 
   g_assert (result != 0);
 
-  gum_mprotect ((gpointer) result, size, page_prot);
+  if (page_prot != GUM_PAGE_RW)
+    gum_mprotect ((gpointer) result, size, page_prot);
 
   return (gpointer) result;
 }
@@ -196,6 +204,8 @@ gum_free_pages (gpointer mem)
   kern_return_t kr;
 
   self = mach_task_self ();
+
+  address = (vm_address_t) mem;
 
   kr = vm_region (self, &address, &size, VM_REGION_BASIC_INFO,
       (vm_region_info_t) &info, &info_count, &obj);
