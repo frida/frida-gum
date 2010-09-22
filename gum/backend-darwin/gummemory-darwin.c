@@ -81,6 +81,8 @@ gum_mprotect (gpointer address,
   kr = vm_protect (mach_task_self (), (vm_address_t) aligned_address,
       aligned_size, FALSE, mach_page_prot);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  g_usleep (G_USEC_PER_SEC / 1000);
 }
 
 gpointer
