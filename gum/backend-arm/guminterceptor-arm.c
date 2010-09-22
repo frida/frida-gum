@@ -54,7 +54,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   /*
    * Generate on_enter trampoline
    */
-  ctx->on_enter_trampoline = gum_thumb_writer_cur (&tw);
+  ctx->on_enter_trampoline = gum_thumb_writer_cur (&tw) + 1;
 
   /* build low part of GumCpuContext */
   gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_TREG_R1, GUM_TREG_SP, 9 * 4);
@@ -171,7 +171,7 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 
   /* jump to stage2 */
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_TREG_R0,
-      GUM_ADDRESS (ctx->on_enter_trampoline + 1));
+      GUM_ADDRESS (ctx->on_enter_trampoline));
   gum_thumb_writer_put_bx_reg (&tw, GUM_TREG_R0);
   gum_thumb_writer_free (&tw);
 
