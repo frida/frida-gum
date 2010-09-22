@@ -272,8 +272,7 @@ test_util_get_filesystem_path_of_self (void)
       return g_path_get_dirname (image_path);
   }
 
-  g_assert_not_reached ();
-  return NULL;
+  return g_strdup ("/Library/Frida/tests");
 #else
   return NULL; /* FIXME */
 #endif
