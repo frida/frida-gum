@@ -20,6 +20,7 @@
 #include "guminterceptor-priv.h"
 
 #include "gummemory.h"
+#include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
 
 #include <string.h>
@@ -37,19 +38,18 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   gpointer function_address;
   GumThumbWriter tw;
+  GumThumbRelocator rl;
+  guint reloc_bytes;
 
   g_assert_cmpuint (GPOINTER_TO_SIZE (ctx->function_address) & 0x1, ==, 0x1);
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   g_assert ((GPOINTER_TO_SIZE (function_address) & 0x2) == 0);
 
-  ctx->overwritten_prologue_len = GUM_INTERCEPTOR_REDIRECT_CODE_SIZE;
-  memcpy (ctx->overwritten_prologue, function_address,
-      ctx->overwritten_prologue_len);
-
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       function_address);
 
   gum_thumb_writer_init (&tw, ctx->trampoline_slice->data);
+  gum_thumb_relocator_init (&rl, function_address, &tw);
 
   /*
    * Generate on_enter trampoline
@@ -84,18 +84,26 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 4);
 
   /* stack is now restored, let's execute the overwritten prologue */
-  gum_thumb_writer_put_bytes (&tw, ctx->overwritten_prologue,
-      ctx->overwritten_prologue_len);
+  do
+  {
+    reloc_bytes = gum_thumb_relocator_read_one (&rl, NULL);
+    g_assert_cmpuint (reloc_bytes, !=, 0);
+  }
+  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+  gum_thumb_relocator_write_all (&rl);
 
   /* and finally, jump back to the next instruction where prologue was */
   gum_thumb_writer_put_push_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_R1);
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0,
-      GUM_ADDRESS (function_address + ctx->overwritten_prologue_len + 1));
+      GUM_ADDRESS (function_address + reloc_bytes + 1));
   gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_AREG_R0,
       GUM_AREG_SP, 4);
   gum_thumb_writer_put_pop_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_PC);
 
   gum_thumb_writer_flush (&tw);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   /*
    * Generate on_leave trampoline
@@ -128,6 +136,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
       GUM_AREG_PC);
 
+  gum_thumb_relocator_free (&rl);
   gum_thumb_writer_free (&tw);
 
 #if defined (HAVE_DARWIN) && defined (HAVE_ARM)
@@ -194,7 +203,7 @@ gum_function_context_clear_cache (FunctionContext * ctx)
   guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
 
   __clear_cache (function_address, function_address +
-      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+      ctx->overwritten_prologue_len);
 }
 
 gpointer
