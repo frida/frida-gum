@@ -48,7 +48,7 @@ RELOCATOR_TESTCASE (one_to_one)
   assert_outbuf_still_zeroed_from_offset (2);
 
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert_cmpint (memcmp (fixture->output + 2, input + 2, 2), ==, 0);
+  g_assert_cmpint (memcmp (fixture->output + 2, input + 1, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));

@@ -48,7 +48,7 @@ void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
     gconstpointer input_code, GumThumbWriter * output);
 void gum_thumb_relocator_free (GumThumbRelocator * relocator);
 
-guint gum_thumb_relocator_read_one (GumThumbRelocator * self, const GumArmInstruction ** insn);
+guint gum_thumb_relocator_read_one (GumThumbRelocator * self, const GumArmInstruction ** instruction);
 
 GumArmInstruction * gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self);
 gpointer gum_thumb_relocator_peek_next_write_source (GumThumbRelocator * self);

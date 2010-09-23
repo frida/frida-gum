@@ -58,6 +58,8 @@ enum _GumArmReg
 struct _GumArmInstruction
 {
   GumArmMnemonic mnemonic;
+
+  gconstpointer address;
 };
 
 G_END_DECLS

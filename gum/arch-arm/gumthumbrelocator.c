@@ -27,9 +27,9 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 
 struct _GumCodeGenCtx
 {
-  GumArmInstruction * insn;
-  guint8 * start;
-  guint8 * end;
+  const GumArmInstruction * insn;
+  const guint8 * start;
+  const guint8 * end;
   guint len;
 
   GumThumbWriter * code_writer;
@@ -96,21 +96,46 @@ gum_thumb_relocator_increment_outpos (GumThumbRelocator * self)
 
 guint
 gum_thumb_relocator_read_one (GumThumbRelocator * self,
-                              const GumArmInstruction ** insn)
+                              const GumArmInstruction ** instruction)
 {
-  GumArmInstruction * ud;
-  guint in_size = 0;
+  guint16 raw_insn;
+  guint group, operation;
+  GumArmInstruction * insn;
 
   if (self->eoi)
     return 0;
 
-  ud = &self->input_insns[gum_thumb_relocator_inpos (self)];
+  raw_insn = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
+  insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
+
+  group = (raw_insn >> 12) & 0xf;
+  operation = (raw_insn >> 8) & 0xf;
+
+  switch (group)
+  {
+    case 0xa:
+      insn->mnemonic = GUM_ARM_ADD;
+      break;
+
+    case 0xb:
+      if (operation == 4 || operation == 5)
+      {
+        insn->mnemonic = GUM_ARM_PUSH;
+        break;
+      }
+
+    default:
+      return 0;
+  }
+
+  insn->address = self->input_cur;
+
   gum_thumb_relocator_increment_inpos (self);
 
-  if (insn != NULL)
-    *insn = ud;
+  if (instruction != NULL)
+    *instruction = insn;
 
-  self->input_cur += in_size;
+  self->input_cur += sizeof (guint16);
 
   return self->input_cur - self->input_start;
 }
@@ -168,8 +193,8 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
     return FALSE;
   gum_thumb_relocator_increment_outpos (self);
 
-  ctx.len = 42;
-  ctx.start = NULL;
+  ctx.len = sizeof (guint16);
+  ctx.start = ctx.insn->address;
   ctx.end = ctx.start + ctx.len;
 
   ctx.code_writer = self->output;
