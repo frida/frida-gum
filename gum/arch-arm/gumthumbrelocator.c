@@ -214,7 +214,7 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
     return FALSE;
   gum_thumb_relocator_increment_outpos (self);
 
-  ctx.len = sizeof (guint16);
+  ctx.len = ctx.insn->length;
   ctx.raw_insn = ctx.insn->address;
   ctx.start = ctx.insn->address;
   ctx.end = ctx.start + ctx.len;
