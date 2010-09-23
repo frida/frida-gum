@@ -64,6 +64,7 @@ struct _GumArmInstruction
   GumArmMnemonic mnemonic;
 
   gconstpointer address;
+  guint length;
 };
 
 G_END_DECLS

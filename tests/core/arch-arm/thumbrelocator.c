@@ -21,6 +21,7 @@
 
 TEST_LIST_BEGIN (thumbrelocator)
   RELOCATOR_TESTENTRY (one_to_one)
+  RELOCATOR_TESTENTRY (skip_extended_instructions)
 
   RELOCATOR_TESTENTRY (ldrpc_should_be_rewritten)
   RELOCATOR_TESTENTRY (addh_should_be_rewritten_if_pc_relative)
@@ -54,6 +55,19 @@ RELOCATOR_TESTCASE (one_to_one)
   g_assert_cmpint (memcmp (fixture->output + 2, input + 1, 2), ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
+  g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
+}
+
+RELOCATOR_TESTCASE (skip_extended_instructions)
+{
+  const guint16 input[] = {
+    0xf241, 0x3037,           /* movw r0, #4919 */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
 }
 

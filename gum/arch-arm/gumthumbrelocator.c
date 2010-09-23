@@ -118,6 +118,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   operation = (raw_insn >> 8) & 0xf;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
+  insn->length = 2;
 
   switch (group)
   {
@@ -140,6 +141,10 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
         insn->mnemonic = GUM_ARM_PUSH;
       break;
 
+    case 0xf:
+      insn->length = 4;
+      break;
+
     default:
       break;
   }
@@ -151,7 +156,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += sizeof (guint16);
+  self->input_cur += insn->length;
 
   return self->input_cur - self->input_start;
 }
