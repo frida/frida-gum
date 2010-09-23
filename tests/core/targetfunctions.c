@@ -1,6 +1,8 @@
+#include "gumdefs.h"
+
 #include <glib.h>
 
-gpointer
+gpointer GUM_NOINLINE
 gum_test_target_function (GString * str)
 {
   if (str != NULL)
@@ -13,24 +15,24 @@ gum_test_target_function (GString * str)
 
 static guint counter = 0;
 
-gpointer
+gpointer GUM_NOINLINE
 gum_test_target_nop_function_a (gpointer data)
 {
   counter++;
   return GSIZE_TO_POINTER (0x1337);
 }
 
-gpointer
+gpointer GUM_NOINLINE
 gum_test_target_nop_function_b (gpointer data)
 {
   counter += 2;
   return GSIZE_TO_POINTER (2);
 }
 
-gpointer
+gpointer GUM_NOINLINE
 gum_test_target_nop_function_c (gpointer data)
 {
   counter += 3;
-  target_nop_function_a (data);
+  gum_test_target_nop_function_a (data);
   return GSIZE_TO_POINTER (3);
 }

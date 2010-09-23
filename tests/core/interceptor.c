@@ -43,18 +43,18 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (thread_id)
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
+#endif
   INTERCEPTOR_TESTENTRY (function_arguments)
   INTERCEPTOR_TESTENTRY (function_return_value)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
 #endif
   INTERCEPTOR_TESTENTRY (ignore_caller)
   INTERCEPTOR_TESTENTRY (ignore_caller_nested)
   INTERCEPTOR_TESTENTRY (detach)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
-#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (function_data)
   INTERCEPTOR_TESTENTRY (parent_data)
-#endif
 
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (replace_function)
@@ -180,6 +180,8 @@ INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
   g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
 }
 
+#endif
+
 INTERCEPTOR_TESTCASE (function_arguments)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_nop_function_a, 'a',
@@ -200,6 +202,8 @@ INTERCEPTOR_TESTCASE (function_return_value)
       GPOINTER_TO_SIZE (fixture->listener_context[0]->last_return_value),
       ==, GPOINTER_TO_SIZE (return_value));
 }
+
+#ifdef HAVE_I386
 
 INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 {
@@ -271,8 +275,6 @@ INTERCEPTOR_TESTCASE (listener_ref_count)
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
   g_assert_cmpuint (G_OBJECT (fixture->listener_context[0])->ref_count, ==, 1);
 }
-
-#ifdef HAVE_I386
 
 #include "interceptor-functiondatalistener.c"
 
@@ -381,6 +383,8 @@ INTERCEPTOR_TESTCASE (parent_data)
   gum_interceptor_detach_listener (fixture->interceptor, listener);
   g_object_unref (pd_listener);
 }
+
+#ifdef HAVE_I386
 
 INTERCEPTOR_TESTCASE (cpu_register_clobber)
 {

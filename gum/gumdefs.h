@@ -158,8 +158,7 @@ struct _GumCpuContext
 #define GUM_CDECL __attribute__((cdecl))
 #define GUM_STDCALL __attribute__((stdcall))
 #define GUM_FASTCALL __attribute__((fastcall))
-/* FIXME: */
-#define GUM_NOINLINE
+#define GUM_NOINLINE __attribute__((noinline))
 #endif
 
 #endif
