@@ -26,7 +26,9 @@ guminclude_HEADERS = \
 
 arch_sources = \
 	arch-arm/gumthumbwriter.c \
-	arch-arm/gumthumbwriter.h
+	arch-arm/gumthumbwriter.h \
+	arch-arm/gumthumbrelocator.c \
+	arch-arm/gumthumbrelocator.h
 
 container_sources = \
 	gumarray.c \
