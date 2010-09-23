@@ -33,10 +33,13 @@ struct _GumCodeGenCtx
   const guint8 * end;
   guint len;
 
-  GumThumbWriter * thumb_writer;
+  GumThumbWriter * output;
 };
 
-static gboolean gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self);
+static gboolean gum_thumb_relocator_write_one_instruction (
+    GumThumbRelocator * self);
+static gboolean gum_thumb_relocator_rewrite_addh_if_pc_relative (
+    GumThumbRelocator * self, GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 
@@ -114,31 +117,31 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   group = (raw_insn >> 12) & 0xf;
   operation = (raw_insn >> 8) & 0xf;
 
+  insn->mnemonic = GUM_ARM_UNKNOWN;
+
   switch (group)
   {
     case 0x4:
-      if (operation >= 8)
-      {
-        insn->mnemonic = GUM_ARM_LDR_PC;
-        break;
-      }
+      if (operation == 4)
+        insn->mnemonic = GUM_ARM_ADDH;
+      else if (operation >= 8)
+        insn->mnemonic = GUM_ARM_LDRPC;
+      break;
 
     case 0xa:
       if (operation < 8)
-        insn->mnemonic = GUM_ARM_ADD_PC;
+        insn->mnemonic = GUM_ARM_ADDPC;
       else
-        insn->mnemonic = GUM_ARM_ADD_SP;
+        insn->mnemonic = GUM_ARM_ADDSP;
       break;
 
     case 0xb:
       if (operation == 4 || operation == 5)
-      {
         insn->mnemonic = GUM_ARM_PUSH;
-        break;
-      }
+      break;
 
     default:
-      return 0;
+      break;
   }
 
   insn->address = self->input_cur;
@@ -211,11 +214,15 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
   ctx.start = ctx.insn->address;
   ctx.end = ctx.start + ctx.len;
 
-  ctx.thumb_writer = self->output;
+  ctx.output = self->output;
 
   switch (ctx.insn->mnemonic)
   {
-    case GUM_ARM_LDR_PC:
+    case GUM_ARM_ADDH:
+      rewritten = gum_thumb_relocator_rewrite_addh_if_pc_relative (self, &ctx);
+      break;
+
+    case GUM_ARM_LDRPC:
       rewritten = gum_thumb_relocator_rewrite_ldr_pc (self, &ctx);
       break;
 
@@ -224,7 +231,7 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
   }
 
   if (!rewritten)
-    gum_thumb_writer_put_bytes (ctx.thumb_writer, ctx.start, ctx.len);
+    gum_thumb_writer_put_bytes (ctx.output, ctx.start, ctx.len);
 
   return TRUE;
 }
@@ -310,6 +317,43 @@ gum_thumb_relocator_relocate (gpointer from,
 }
 
 static gboolean
+gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
+                                                 GumCodeGenCtx * ctx)
+{
+  guint16 raw_insn;
+  GumArmReg src_reg, dst_reg, temp_reg;
+  gboolean dst_reg_is_upper;
+  GumAddress absolute_pc;
+
+  raw_insn = *ctx->raw_insn;
+
+  src_reg = (raw_insn & 0x78) >> 3;
+  if (src_reg != GUM_AREG_PC)
+    return FALSE;
+
+  dst_reg = raw_insn & 0x7;
+  dst_reg_is_upper = (raw_insn & 0x80) != 0;
+  if (dst_reg_is_upper)
+    dst_reg += 8;
+
+  if (dst_reg != GUM_AREG_R0)
+    temp_reg = GUM_AREG_R0;
+  else
+    temp_reg = GUM_AREG_R1;
+
+  absolute_pc = GPOINTER_TO_SIZE (ctx->end);
+  if (absolute_pc % 4 != 0)
+    absolute_pc += 2;
+
+  gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, absolute_pc);
+  gum_thumb_writer_put_add_reg_reg (ctx->output, dst_reg, temp_reg);
+  gum_thumb_writer_put_pop_regs (ctx->output, 1, temp_reg);
+
+  return TRUE;
+}
+
+static gboolean
 gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
@@ -326,7 +370,7 @@ gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
   if (absolute_pc % 4 != 0)
     absolute_pc += 2;
 
-  gum_thumb_writer_put_ldr_reg_address (ctx->thumb_writer, reg, absolute_pc);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
 
   return TRUE;
 }

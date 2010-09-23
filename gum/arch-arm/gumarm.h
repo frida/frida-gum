@@ -30,12 +30,15 @@ typedef struct _GumArmInstruction GumArmInstruction;
 
 enum _GumArmMnemonic
 {
-  GUM_ARM_ADD_PC,
-  GUM_ARM_ADD_SP,
+  GUM_ARM_UNKNOWN,
+
+  GUM_ARM_ADDH,
+  GUM_ARM_ADDPC,
+  GUM_ARM_ADDSP,
   GUM_ARM_SUB,
   GUM_ARM_PUSH,
   GUM_ARM_POP,
-  GUM_ARM_LDR_PC
+  GUM_ARM_LDRPC,
 };
 
 enum _GumArmReg
