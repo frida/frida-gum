@@ -28,14 +28,17 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 struct _GumCodeGenCtx
 {
   const GumArmInstruction * insn;
+  const guint16 * raw_insn;
   const guint8 * start;
   const guint8 * end;
   guint len;
 
-  GumThumbWriter * code_writer;
+  GumThumbWriter * thumb_writer;
 };
 
 static gboolean gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self);
+static gboolean gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_thumb_relocator_init (GumThumbRelocator * relocator,
@@ -105,7 +108,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (self->eoi)
     return 0;
 
-  raw_insn = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
+  raw_insn = *((guint16 *) self->input_cur);
   insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
   group = (raw_insn >> 12) & 0xf;
@@ -113,8 +116,18 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
   switch (group)
   {
+    case 0x4:
+      if (operation >= 8)
+      {
+        insn->mnemonic = GUM_ARM_LDR_PC;
+        break;
+      }
+
     case 0xa:
-      insn->mnemonic = GUM_ARM_ADD;
+      if (operation < 8)
+        insn->mnemonic = GUM_ARM_ADD_PC;
+      else
+        insn->mnemonic = GUM_ARM_ADD_SP;
       break;
 
     case 0xb:
@@ -194,15 +207,24 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
   gum_thumb_relocator_increment_outpos (self);
 
   ctx.len = sizeof (guint16);
+  ctx.raw_insn = ctx.insn->address;
   ctx.start = ctx.insn->address;
   ctx.end = ctx.start + ctx.len;
 
-  ctx.code_writer = self->output;
+  ctx.thumb_writer = self->output;
 
-  /* ... */
+  switch (ctx.insn->mnemonic)
+  {
+    case GUM_ARM_LDR_PC:
+      rewritten = gum_thumb_relocator_rewrite_ldr_pc (self, &ctx);
+      break;
+
+    default:
+      break;
+  }
 
   if (!rewritten)
-    gum_thumb_writer_put_bytes (ctx.code_writer, ctx.start, ctx.len);
+    gum_thumb_writer_put_bytes (ctx.thumb_writer, ctx.start, ctx.len);
 
   return TRUE;
 }
@@ -287,3 +309,24 @@ gum_thumb_relocator_relocate (gpointer from,
   return reloc_bytes;
 }
 
+static gboolean
+gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
+                                    GumCodeGenCtx * ctx)
+{
+  guint16 raw_insn;
+  GumArmReg reg;
+  GumAddress absolute_pc;
+
+  raw_insn = *ctx->raw_insn;
+
+  reg = (raw_insn & 0x0700) >> 8;
+
+  absolute_pc = (raw_insn & 0x00ff) * 4;
+  absolute_pc += GPOINTER_TO_SIZE (ctx->end);
+  if (absolute_pc % 4 != 0)
+    absolute_pc += 2;
+
+  gum_thumb_writer_put_ldr_reg_address (ctx->thumb_writer, reg, absolute_pc);
+
+  return TRUE;
+}

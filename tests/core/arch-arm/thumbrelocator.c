@@ -21,6 +21,8 @@
 
 TEST_LIST_BEGIN (thumbrelocator)
   RELOCATOR_TESTENTRY (one_to_one)
+
+  RELOCATOR_TESTENTRY (pc_relative_ldr_should_be_rewritten)
 TEST_LIST_END ()
 
 RELOCATOR_TESTCASE (one_to_one)
@@ -40,7 +42,7 @@ RELOCATOR_TESTCASE (one_to_one)
 
   insn = NULL;
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADD);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADD_SP);
   assert_outbuf_still_zeroed_from_offset (0);
 
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
@@ -52,4 +54,33 @@ RELOCATOR_TESTCASE (one_to_one)
   assert_outbuf_still_zeroed_from_offset (4);
 
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
+}
+
+RELOCATOR_TESTCASE (pc_relative_ldr_should_be_rewritten)
+{
+  const guint16 input[] = {
+    0x4a03,                   /* ldr r2, [pc, #12] */
+  };
+  guint16 expected_output[] = {
+    0x4a00,                   /* ldr r2, [pc, #0] */
+    0x0000,                   /* <padding>        */
+    0xffff,                   /* <calculated PC   */
+    0xffff,                   /*  goes here>      */
+  };
+  gsize calculated_pc;
+  const GumArmInstruction * insn = NULL;
+
+  calculated_pc = GPOINTER_TO_SIZE (input) + 2 + 12;
+  if (calculated_pc % 4 != 0)
+    calculated_pc += 2;
+  *((gsize *) (expected_output + 2)) = calculated_pc;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_LDR_PC);
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
 }
