@@ -20,6 +20,7 @@
 #include "gumscriptcompiler.h"
 
 #include "guminvocationcontext.h"
+#include "gumscript-priv.h"
 #include "gumthumbwriter.h"
 
 #define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerImpl *) (c))
@@ -103,12 +104,68 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
 
 void
 gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
+                                           GumScript * script,
                                            const GArray * send_arg_items)
 {
-  /*
   GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumThumbWriter * cw = &self->code_writer;
-  */
+  guint stack_reserve;
+  gint arg_index, item_index;
 
-  g_assert_not_reached ();
+  stack_reserve = ((2 * (send_arg_items->len - 1)) + 1) * 4;
+
+  gum_thumb_writer_put_sub_reg_imm (cw, GUM_AREG_SP, stack_reserve);
+
+  gum_thumb_writer_put_ldr_reg_address (cw, GUM_AREG_R0, GUM_ADDRESS (script));
+  gum_thumb_writer_put_mov_reg_reg (cw, GUM_AREG_R1, GUM_AREG_R7);
+
+  arg_index = 2;
+
+  for (item_index = 0; item_index != send_arg_items->len; item_index++)
+  {
+    GumSendArgItem * item;
+    guint i;
+
+    item = &g_array_index (send_arg_items, GumSendArgItem, item_index);
+
+    for (i = 0; i != 2; i++, arg_index++)
+    {
+      guint32 arg_value;
+
+      arg_value = (i == 0) ? item->index : item->type;
+
+      switch (arg_index)
+      {
+        case 0:
+        case 1:
+          g_assert_not_reached ();
+
+        case 2:
+          gum_thumb_writer_put_ldr_reg_u32 (cw, GUM_AREG_R2, arg_value);
+          break;
+
+        case 3:
+          gum_thumb_writer_put_ldr_reg_u32 (cw, GUM_AREG_R3, arg_value);
+          break;
+
+        default:
+          gum_thumb_writer_put_ldr_reg_u32 (cw, GUM_AREG_R4, arg_value);
+          gum_thumb_writer_put_str_reg_reg_offset (cw, GUM_AREG_R4,
+              GUM_AREG_SP, (arg_index - 4) * 4);
+          break;
+      }
+    }
+  }
+
+  g_assert_cmpint (arg_index, >=, 4);
+  gum_thumb_writer_put_ldr_reg_u32 (cw, GUM_AREG_R4, G_MAXUINT);
+  gum_thumb_writer_put_str_reg_reg_offset (cw, GUM_AREG_R4,
+      GUM_AREG_SP, (arg_index - 4) * 4);
+  arg_index++;
+
+  gum_thumb_writer_put_ldr_reg_address (cw, GUM_AREG_R4,
+      GUM_ADDRESS (_gum_script_send_item_commit));
+  gum_thumb_writer_put_blx_reg (cw, GUM_AREG_R4);
+
+  gum_thumb_writer_put_add_reg_imm (cw, GUM_AREG_SP, stack_reserve);
 }

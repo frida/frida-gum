@@ -114,6 +114,7 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
 
 void
 gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
+                                           GumScript * script,
                                            const GArray * send_arg_items)
 {
   GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);

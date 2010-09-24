@@ -604,7 +604,7 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
   g_string_insert_c (self->priv->send_arg_type_signature, 0, '(');
   g_string_append_c (self->priv->send_arg_type_signature, ')');
 
-  gum_script_compiler_emit_send_item_commit (compiler,
+  gum_script_compiler_emit_send_item_commit (compiler, self,
       self->priv->send_arg_items);
 }
 

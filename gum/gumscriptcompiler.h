@@ -21,6 +21,7 @@
 #define __GUM_SCRIPT_COMPILER_H__
 
 #include "guminvocationcontext.h"
+#include "gumscript.h"
 
 #ifdef _MSC_VER
 # if GLIB_SIZEOF_VOID_P == 4
@@ -56,7 +57,7 @@ void gum_script_compiler_emit_epilogue (GumScriptCompiler * compiler);
 void gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
     guint index, GumAddress value);
 void gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
-    const GArray * send_arg_items);
+    GumScript * script, const GArray * send_arg_items);
 
 G_END_DECLS
 
