@@ -28,6 +28,7 @@
 #include <gum/guminterceptor.h>
 #include <gum/guminvocationlistener.h>
 #include <gum/gumlist.h>
+#include <gum/gummemory.h>
 #include <gum/gumreturnaddress.h>
 #include <gum/gumscript.h>
 #include <gum/gumstalker.h>

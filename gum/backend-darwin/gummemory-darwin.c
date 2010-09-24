@@ -57,6 +57,27 @@ gum_memory_is_readable (gpointer address,
   g_assert_not_reached (); /* FIXME */
 }
 
+guint8 *
+gum_memory_read (gpointer address,
+                 guint len,
+                 gint * n_bytes_read)
+{
+  guint8 * result;
+  vm_size_t result_size = len;
+  kern_return_t kr;
+
+  result = g_malloc (len);
+
+  kr = vm_read_overwrite (mach_task_self (), (vm_address_t) address, len,
+      (vm_address_t) result, &result_size);
+  if (kr == KERN_SUCCESS)
+    *n_bytes_read = result_size;
+  else
+    *n_bytes_read = 0;
+
+  return result;
+}
+
 void
 gum_mprotect (gpointer address,
               guint size,

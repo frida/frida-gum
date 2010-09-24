@@ -71,6 +71,10 @@ namespace Gum {
 		public delegate bool FoundExportFunc (string name, void * address);
 	}
 
+	namespace Memory {
+		public uint8[] read (void * address, uint len);
+	}
+
 	[CCode (cheader_filename = "gum/gum-heap.h")]
 	public class InstanceTracker : GLib.Object {
 		public InstanceTracker ();
