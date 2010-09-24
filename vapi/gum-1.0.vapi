@@ -8,6 +8,9 @@ namespace Gum {
 		public Gum.AttachReturn attach_listener (void * function_address, Gum.InvocationListener listener, void * function_instance_data);
 		public void detach_listener (Gum.InvocationListener listener);
 
+		public void ignore_caller ();
+		public void unignore_caller ();
+
 		/* TODO: bind the rest if needed */
 	}
 
