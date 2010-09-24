@@ -16,7 +16,8 @@ AC_PROG_LIBTOOL
 AC_PROG_INSTALL
 
 GLIB_VERSION=2.25.13
-pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION"
+pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
+    gio-2.0 >= $GLIB_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LIBS)

@@ -64,9 +64,9 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
   TEST_RUN_LIST (interceptor);
+  TEST_RUN_LIST (script);
 #ifdef HAVE_I386
   TEST_RUN_LIST (stalker);
-  TEST_RUN_LIST (script);
   TEST_RUN_LIST (tracer);
   TEST_RUN_LIST (backtracer);
 

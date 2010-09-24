@@ -22,13 +22,13 @@
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (replace_string_and_length_arguments)
   SCRIPT_TESTENTRY (send_string_from_argument)
-  SCRIPT_TESTENTRY (send_ansi_format_string_from_argument)
+  SCRIPT_TESTENTRY (send_narrow_format_string_from_argument)
   SCRIPT_TESTENTRY (send_wide_format_string_from_argument)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
 typedef struct _StringsAndLengthArgs StringsAndLengthArgs;
-typedef struct _AnsiFormatStringArgs AnsiFormatStringArgs;
+typedef struct _NarrowFormatStringArgs NarrowFormatStringArgs;
 typedef struct _WideFormatStringArgs WideFormatStringArgs;
 
 struct _StringAndLengthArgs {
@@ -37,12 +37,12 @@ struct _StringAndLengthArgs {
 };
 
 struct _StringsAndLengthArgs {
-  gchar * text_ansi;
+  gchar * text_narrow;
   gunichar2 * text_wide;
   guint length;
 };
 
-struct _AnsiFormatStringArgs {
+struct _NarrowFormatStringArgs {
   gchar * format;
   gchar * name;
   guint age;
@@ -57,9 +57,7 @@ struct _WideFormatStringArgs {
 static void store_message (GumScript * script, GVariant * msg,
     gpointer user_data);
 
-static gchar * ansi_string_from_utf8 (const gchar * str_utf8);
-
-static GumCpuContext fake_cpu_ctx = { 0, };
+static gchar * narrow_string_from_utf8 (const gchar * str_utf8);
 
 SCRIPT_TESTCASE (replace_string_and_length_arguments)
 {
@@ -86,7 +84,8 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
 
   gum_script_execute (script, &fixture->invocation_context);
 
-  g_assert_cmphex ((guint64) args.text, !=, (guint64) previous_text);
+  g_assert_cmphex (GPOINTER_TO_SIZE (args.text), !=,
+      GPOINTER_TO_SIZE (previous_text));
   g_assert_cmpuint (args.length, !=, previous_length);
   new_text = g_utf16_to_utf8 (args.text, -1, NULL, NULL, NULL);
   g_assert_cmpstr (new_text, ==, "No, not me!");
@@ -101,20 +100,20 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
 SCRIPT_TESTCASE (send_string_from_argument)
 {
   const gchar * script_text =
-    "SendAnsiStringFromArgument 0\n"
+    "SendNarrowStringFromArgument 0\n"
     "SendWideStringFromArgument 1\n"
     "SendInt32FromArgument 2\n";
   GumScript * script;
   GError * error = NULL;
   StringsAndLengthArgs args;
   GVariant * msg = NULL;
-  gchar * msg_str_ansi, * msg_str_wide;
+  gchar * msg_str_narrow, * msg_str_wide;
   gint32 msg_int;
 
   script = gum_script_from_string (script_text, &error);
   g_assert (script != NULL);
   g_assert (error == NULL);
-  args.text_ansi = ansi_string_from_utf8 ("ÆØÅæøå");
+  args.text_narrow = narrow_string_from_utf8 ("ÆØÅæøå");
   args.text_wide = g_utf8_to_utf16 ("ÆØÅæøå", -1, NULL, NULL, NULL);
   args.length = 42;
   fixture->argument_list = &args;
@@ -123,24 +122,24 @@ SCRIPT_TESTCASE (send_string_from_argument)
   gum_script_execute (script, &fixture->invocation_context);
   g_assert (msg != NULL);
   g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(ssi)")));
-  g_variant_get (msg, "(ssi)", &msg_str_ansi, &msg_str_wide, &msg_int);
-  g_assert_cmpstr (msg_str_ansi, ==, "ÆØÅæøå");
+  g_variant_get (msg, "(ssi)", &msg_str_narrow, &msg_str_wide, &msg_int);
+  g_assert_cmpstr (msg_str_narrow, ==, "ÆØÅæøå");
   g_assert_cmpstr (msg_str_wide, ==, "ÆØÅæøå");
   g_assert_cmpint (msg_int, ==, 42);
 
   g_variant_unref (msg);
 
   g_free (args.text_wide);
-  g_free (args.text_ansi);
+  g_free (args.text_narrow);
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (send_ansi_format_string_from_argument)
+SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
 {
-  const gchar * script_text = "SendAnsiFormatStringFromArgument 0";
+  const gchar * script_text = "SendNarrowFormatStringFromArgument 0";
   GumScript * script;
   GError * error = NULL;
-  AnsiFormatStringArgs args;
+  NarrowFormatStringArgs args;
   GVariant * msg = NULL;
   gchar * msg_str;
 
@@ -148,8 +147,8 @@ SCRIPT_TESTCASE (send_ansi_format_string_from_argument)
   g_assert (script != NULL);
   g_assert (error == NULL);
   args.format =
-    ansi_string_from_utf8 ("My name is %s and I æm %%%03d");
-  args.name = ansi_string_from_utf8 ("Bøggvald");
+    narrow_string_from_utf8 ("My name is %s and I æm %%%03d");
+  args.name = narrow_string_from_utf8 ("Bøggvald");
   args.age = 7;
   fixture->argument_list = &args;
 
@@ -212,17 +211,21 @@ store_message (GumScript * script,
 }
 
 static gchar *
-ansi_string_from_utf8 (const gchar * str_utf8)
+narrow_string_from_utf8 (const gchar * str_utf8)
 {
+#ifdef G_OS_WIN32
   glong len;
   gunichar2 * str_utf16;
-  gchar * str_ansi;
+  gchar * str_narrow;
 
   str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, &len, NULL);
-  str_ansi = (gchar *) g_malloc0 (len * 2);
-  WideCharToMultiByte (CP_ACP, 0, (LPCWSTR) str_utf16, -1, str_ansi, len * 2,
+  str_narrow = (gchar *) g_malloc0 (len * 2);
+  WideCharToMultiByte (CP_ACP, 0, (LPCWSTR) str_utf16, -1, str_narrow, len * 2,
       NULL, NULL);
   g_free (str_utf16);
 
-  return str_ansi;
+  return str_narrow;
+#else
+  return g_strdup (str_utf8);
+#endif
 }

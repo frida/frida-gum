@@ -144,7 +144,7 @@ gum_code_allocator_new_page_near (GumCodeAllocator * self,
   guint slice_idx;
 
 #if defined (HAVE_DARWIN) && defined (HAVE_ARM)
-  prot = GUM_PAGE_READ | GUM_PAGE_WRITE; /* RWX is not allowed */
+  prot = GUM_PAGE_RW; /* RWX is not allowed */
 #else
   prot = GUM_PAGE_RWX;
 #endif

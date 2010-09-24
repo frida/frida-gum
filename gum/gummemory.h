@@ -43,6 +43,7 @@ struct _GumAddressSpec
 };
 
 #define GUM_PAGE_RW ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE))
+#define GUM_PAGE_RX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_EXECUTE))
 #define GUM_PAGE_RWX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE | GUM_PAGE_EXECUTE))
 
 G_BEGIN_DECLS

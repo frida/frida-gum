@@ -38,12 +38,15 @@ container_sources = \
 backend_sources =
 
 if ARCH_I386
-backend_sources += backend-x86/guminterceptor-x86.c
+backend_sources += \
+	backend-x86/guminterceptor-x86.c \
+	backend-x86/gumscriptcompiler-x86.c
 endif
 
 if ARCH_ARM
 backend_sources += \
 	backend-arm/guminterceptor-arm.c \
+	backend-arm/gumscriptcompiler-arm.c \
 	backend-arm/gumspinlock-arm.c
 endif
 
@@ -61,6 +64,9 @@ libgum_1_0_la_SOURCES = \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
+	gumscript.c \
+	gumscript-priv.h \
+	gumscriptcompiler.h \
 	$(arch_sources) \
 	$(container_sources) \
 	$(backend_sources) \
