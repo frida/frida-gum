@@ -50,6 +50,14 @@ gum_script_compiler_free (GumScriptCompiler * compiler)
   gum_x86_writer_free (&self->code_writer);
 }
 
+void
+gum_script_compiler_flush (GumScriptCompiler * compiler)
+{
+  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
+
+  gum_x86_writer_flush (&self->code_writer);
+}
+
 guint
 gum_script_compiler_current_offset (GumScriptCompiler * compiler)
 {

@@ -252,7 +252,9 @@ gum_script_from_string (const gchar * script_text,
 
   gum_script_compiler_emit_epilogue (&compiler);
 
+  gum_script_compiler_flush (&compiler);
   priv->entrypoint = gum_script_compiler_get_entrypoint (&compiler);
+  priv->code_size = gum_script_compiler_current_offset (&compiler);
 
   gum_script_compiler_free (&compiler);
 

@@ -48,6 +48,8 @@ struct _GumScriptCompiler
 void gum_script_compiler_init (GumScriptCompiler * compiler, gpointer code_address);
 void gum_script_compiler_free (GumScriptCompiler * compiler);
 
+void gum_script_compiler_flush (GumScriptCompiler * compiler);
+
 guint gum_script_compiler_current_offset (GumScriptCompiler * compiler);
 GumScriptEntrypoint gum_script_compiler_get_entrypoint (GumScriptCompiler * compiler);
 
