@@ -186,6 +186,12 @@
     <ClCompile Include="libs\gum\heap\gumsanitychecker.c">
       <Filter>libs\heap</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-x86\guminterceptor-x86.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-x86\gumscriptcompiler-x86.c">
+      <Filter>core\backend-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -349,6 +355,21 @@
     </ClInclude>
     <ClInclude Include="libs\gum\heap\gumsanitychecker.h">
       <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumfunction.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumevent.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\guminterceptor-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscript-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptcompiler.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

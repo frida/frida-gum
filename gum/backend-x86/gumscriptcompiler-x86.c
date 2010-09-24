@@ -20,6 +20,7 @@
 #include "gumscriptcompiler.h"
 
 #include "guminvocationcontext.h"
+#include "gumscript-priv.h"
 #include "gumx86writer.h"
 
 #define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerImpl *) (c))
@@ -106,7 +107,7 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
   gum_x86_writer_put_call_with_arguments (cw,
       gum_invocation_context_replace_nth_argument, 3,
       GUM_ARG_REGISTER, GUM_REG_XBX,
-      GUM_ARG_POINTER, GSIZE_TO_POINTER (argument_index),
+      GUM_ARG_POINTER, GSIZE_TO_POINTER (index),
       GUM_ARG_REGISTER, GUM_REG_XSI);
 
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XSI);
@@ -124,9 +125,11 @@ gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
   gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
   gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
 
-  for (item_index = items->len - 1; item_index >= 0; item_index--)
+  for (item_index = send_arg_items->len - 1; item_index >= 0; item_index--)
   {
-    GumSendArgItem * item = &g_array_index (items, GumSendArgItem, item_index);
+    GumSendArgItem * item;
+
+    item = &g_array_index (send_arg_items, GumSendArgItem, item_index);
 
 #if GLIB_SIZEOF_VOID_P == 8
     if (item_index == 0)
@@ -144,15 +147,15 @@ gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
 
 #if GLIB_SIZEOF_VOID_P == 8
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RBX);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (self));
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (script));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_RSP, 4 * sizeof (gpointer));
 #else
   gum_x86_writer_put_push_reg (cw, GUM_REG_EBX);
-  gum_x86_writer_put_push_u32 (cw, (guint32) self);
+  gum_x86_writer_put_push_u32 (cw, (guint32) script);
 #endif
 
   gum_x86_writer_put_call (cw, _gum_script_send_item_commit);
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
-      (2 + (items->len * 2) + 2) * sizeof (gpointer));
+      (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer));
 }

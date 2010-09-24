@@ -61,8 +61,10 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (functionparser);
   TEST_RUN_LIST (relocator);
 #endif
+#ifdef HAVE_ARM
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
+#endif
   TEST_RUN_LIST (interceptor);
   TEST_RUN_LIST (script);
 #ifdef HAVE_I386
