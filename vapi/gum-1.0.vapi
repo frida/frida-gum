@@ -37,7 +37,7 @@ namespace Gum {
 	}
 
 	public class Script : GLib.Object {
-		public delegate void MessageHandler (Gum.Script script, owned GLib.Variant msg);
+		public delegate void MessageHandler (Gum.Script script, GLib.Variant msg);
 
 		public static Script from_string (string script_text) throws GLib.IOError;
 
