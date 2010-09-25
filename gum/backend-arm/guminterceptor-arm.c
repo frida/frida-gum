@@ -222,9 +222,16 @@ gpointer
 _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
                                               guint n)
 {
-  g_assert_cmpuint (n, <=, 3); /* FIXME */
+  if (n < 4)
+  {
+    return (gpointer) context->cpu_context->r[n];
+  }
+  else
+  {
+    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
 
-  return (gpointer) context->cpu_context->r[n];
+    return stack_argument[n - 4];
+  }
 }
 
 void
@@ -233,9 +240,16 @@ _gum_interceptor_invocation_replace_nth_argument (
     guint n,
     gpointer value)
 {
-  g_assert_cmpuint (n, <=, 3); /* FIXME */
+  if (n < 4)
+  {
+    context->cpu_context->r[n] = (guint32) value;
+  }
+  else
+  {
+    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
 
-  context->cpu_context->r[n] = (guint32) value;
+    stack_argument[n - 4] = value;
+  }
 }
 
 gpointer
