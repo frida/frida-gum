@@ -207,7 +207,7 @@ store_message (GumScript * script,
   GVariant ** testcase_msg_ptr = (GVariant **) user_data;
 
   g_assert (*testcase_msg_ptr == NULL);
-  *testcase_msg_ptr = msg;
+  *testcase_msg_ptr = g_variant_ref (msg);
 }
 
 static gchar *

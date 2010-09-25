@@ -319,6 +319,7 @@ _gum_script_send_item_commit (GumScript * self,
   GumScriptPrivate * priv = self->priv;
   GVariantType * variant_type;
   GVariantBuilder * builder;
+  GVariant * message;
   va_list args;
 
   variant_type = g_variant_type_new (priv->send_arg_type_signature->str);
@@ -397,8 +398,9 @@ _gum_script_send_item_commit (GumScript * self,
 
   va_end (args);
 
-  priv->message_handler_func (self, g_variant_builder_end (builder),
-      priv->message_handler_data);
+  message = g_variant_ref_sink (g_variant_builder_end (builder));
+  priv->message_handler_func (self, message, priv->message_handler_data);
+  g_variant_unref (message);
 
   g_variant_type_free (variant_type);
 }
