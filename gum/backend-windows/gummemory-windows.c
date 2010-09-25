@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -63,6 +63,27 @@ gum_memory_is_readable (gpointer address,
       || mbi.Protect == PAGE_READONLY
       || mbi.Protect == PAGE_EXECUTE_READ
       || mbi.Protect == PAGE_EXECUTE_READWRITE);
+}
+
+guint8 *
+gum_memory_read (gpointer address,
+                 guint len,
+                 gint * n_bytes_read)
+{
+  guint8 * result;
+  SIZE_T number_of_bytes_read = 0;
+  BOOL success;
+
+  result = (guint8 *) g_malloc (len);
+
+  success = ReadProcessMemory (GetCurrentProcess (), address, result, len,
+      &number_of_bytes_read);
+  if (success)
+    *n_bytes_read = number_of_bytes_read;
+  else
+    *n_bytes_read = 0;
+
+  return result;
 }
 
 void
