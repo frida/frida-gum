@@ -18,6 +18,8 @@
  */
 
 #include "gum.h"
+
+#include "guminterceptor-priv.h"
 #include "gummemory.h"
 
 #include <glib-object.h>
@@ -35,6 +37,12 @@ gum_init_with_features (GumFeatureFlags features)
 {
   static GOnce init_once = G_ONCE_INIT;
   g_once (&init_once, do_init, GINT_TO_POINTER (features));
+}
+
+void
+gum_deinit (void)
+{
+  _gum_interceptor_deinit ();
 }
 
 static gpointer

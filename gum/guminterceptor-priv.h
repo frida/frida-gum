@@ -62,6 +62,8 @@ struct _FunctionContext
   volatile gint thread_context_count;
 };
 
+void _gum_interceptor_deinit (void);
+
 gboolean _gum_function_context_on_enter (FunctionContext * function_ctx,
     GumCpuContext * cpu_context, gpointer * caller_ret_addr);
 gpointer _gum_function_context_on_leave (FunctionContext * function_ctx,

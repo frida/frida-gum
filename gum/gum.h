@@ -50,6 +50,7 @@ enum _GumFeatureFlags
 
 GUM_API void gum_init (void);
 GUM_API void gum_init_with_features (GumFeatureFlags features);
+GUM_API void gum_deinit (void);
 
 G_END_DECLS
 

@@ -1,6 +1,7 @@
 [CCode (cheader_filename = "gum/gum.h")]
 namespace Gum {
 	public void init ();
+	public void deinit ();
 
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();

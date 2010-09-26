@@ -151,6 +151,7 @@ static void gum_function_context_wait_for_idle_trampoline (
 static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
 static GumInterceptor * _the_interceptor = NULL;
 
+static gboolean _gum_interceptor_initialized = FALSE;
 static GumTlsKey _gum_interceptor_tls_key;
 
 #ifndef G_OS_WIN32
@@ -169,10 +170,27 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
   pthread_key_create (&_gum_interceptor_tls_key, NULL);
   pthread_key_create (&_gum_interceptor_tid_key, NULL);
 #endif
+  _gum_interceptor_initialized = TRUE;
 
   g_type_class_add_private (klass, sizeof (GumInterceptorPrivate));
 
   object_class->finalize = gum_interceptor_finalize;
+}
+
+void
+_gum_interceptor_deinit (void)
+{
+  if (_gum_interceptor_initialized)
+  {
+#ifdef G_OS_WIN32
+    TlsFree (_gum_interceptor_tls_key);
+#else
+    pthread_key_delete (_gum_interceptor_tls_key);
+    pthread_key_delete (_gum_interceptor_tid_key);
+#endif
+
+    _gum_interceptor_initialized = FALSE;
+  }
 }
 
 static void
