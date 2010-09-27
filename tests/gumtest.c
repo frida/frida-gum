@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#define DEBUG_HEAP_LEAKS 0
+
 #include "testutil.h"
 
 #ifdef HAVE_I386
@@ -29,6 +31,7 @@
 #ifdef G_OS_WIN32
 #include <windows.h>
 #include <conio.h>
+#include <crtdbg.h>
 #endif
 
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
@@ -40,6 +43,25 @@ main (gint argc, gchar * argv[])
   GTimer * timer;
   guint num_tests;
   gdouble t;
+
+#if DEBUG_HEAP_LEAKS
+  {
+    int tmp_flag;
+
+    /*_CrtSetBreakAlloc (204);*/
+
+    _CrtSetReportMode (_CRT_ERROR, _CRTDBG_MODE_FILE);
+    _CrtSetReportFile (_CRT_ERROR, _CRTDBG_FILE_STDERR);
+
+    tmp_flag = _CrtSetDbgFlag (_CRTDBG_REPORT_FLAG);
+
+    tmp_flag |= _CRTDBG_ALLOC_MEM_DF;
+    tmp_flag |= _CRTDBG_LEAK_CHECK_DF;
+    tmp_flag &= ~_CRTDBG_CHECK_CRT_DF;
+
+    _CrtSetDbgFlag (tmp_flag);
+  }
+#endif
 
   g_setenv ("G_SLICE", "always-malloc", TRUE);
   g_test_init (&argc, &argv, NULL);
@@ -107,7 +129,7 @@ main (gint argc, gchar * argv[])
   gum_deinit ();
   g_thread_deinit ();
 
-#ifdef G_OS_WIN32
+#if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())
   {
     g_print ("\nPress a key to exit.\n");
