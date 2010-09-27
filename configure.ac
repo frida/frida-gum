@@ -5,7 +5,7 @@ AC_CANONICAL_SYSTEM
 
 AM_INIT_AUTOMAKE([-Wall -Werror no-dist-gzip dist-bzip2 foreign])
 
-# Enable silent rules is available
+# Enable silent rules if available
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AM_MAINTAINER_MODE
