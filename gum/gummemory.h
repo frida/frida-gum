@@ -48,8 +48,6 @@ struct _GumAddressSpec
 
 G_BEGIN_DECLS
 
-void gum_memory_init (void);
-
 guint gum_query_page_size (void);
 gboolean gum_memory_is_readable (gpointer address, guint len);
 guint8 * gum_memory_read (gpointer address, guint len, gint * n_bytes_read);

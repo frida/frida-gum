@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -47,6 +47,7 @@ gum_dbghelp_impl_obtain (void)
 
   INIT_IMPL_FUNC (StackWalk64);
   INIT_IMPL_FUNC (SymInitialize);
+  INIT_IMPL_FUNC (SymCleanup);
   INIT_IMPL_FUNC (SymEnumSymbols);
   INIT_IMPL_FUNC (SymFromAddr);
   INIT_IMPL_FUNC (SymFunctionTableAccess64);

@@ -19,6 +19,8 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
+
 #include <unistd.h>
 #define __USE_GNU     1
 #include <sys/mman.h>
@@ -34,7 +36,12 @@
 static vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
 
 void
-gum_memory_init (void)
+_gum_memory_init (void)
+{
+}
+
+void
+_gum_memory_deinit (void)
 {
 }
 

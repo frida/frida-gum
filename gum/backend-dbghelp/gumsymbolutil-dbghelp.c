@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,6 +20,7 @@
 #include "gumsymbolutil.h"
 
 #include "gumdbghelp.h"
+#include "gumsymbolutil-priv.h"
 
 #include <psapi.h>
 
@@ -53,13 +54,20 @@ static gboolean is_function (SYMBOL_INFO * sym_info);
 static GumDbgHelpImpl * dbghelp = NULL;
 
 void
-gum_symbol_util_init (void)
+_gum_symbol_util_init (void)
 {
   dbghelp = gum_dbghelp_impl_obtain ();
 
-  dbghelp->Lock ();
   dbghelp->SymInitialize (GetCurrentProcess (), NULL, TRUE);
-  dbghelp->Unlock ();
+}
+
+void
+_gum_symbol_util_deinit (void)
+{
+  dbghelp->SymCleanup (GetCurrentProcess ());
+
+  gum_dbghelp_impl_release (dbghelp);
+  dbghelp = NULL;
 }
 
 gboolean

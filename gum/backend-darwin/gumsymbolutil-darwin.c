@@ -19,6 +19,8 @@
 
 #include "gumsymbolutil.h"
 
+#include "gumsymbolutil-priv.h"
+
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
@@ -42,8 +44,14 @@ static gboolean find_image_symtab_command (gpointer address,
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
 void
-gum_symbol_util_init (void)
+_gum_symbol_util_init (void)
 {
+}
+
+void
+_gum_symbol_util_deinit (void)
+{
+  get_all_image_infos_impl = NULL;
 }
 
 void

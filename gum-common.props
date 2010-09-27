@@ -24,6 +24,7 @@
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
+    <ClInclude Include="gum\gummemory-priv.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumscriptcompiler.h" />
@@ -31,6 +32,7 @@
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
+    <ClInclude Include="gum\gumsymbolutil-priv.h" />
     <ClInclude Include="gum\gumsysinternals.h" />
     <ClInclude Include="gum\gumtracer.h" />
   </ItemGroup>

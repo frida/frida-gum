@@ -19,6 +19,8 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
+
 #include <unistd.h>
 #define __USE_GNU     1
 #include <sys/mman.h>
@@ -29,12 +31,15 @@
 #define USE_DL_PREFIX 1
 #include "dlmalloc.c"
 
-#include <mach/mach.h>
-
 static gint gum_page_protection_to_unix (GumPageProtection page_prot);
 
 void
-gum_memory_init (void)
+_gum_memory_init (void)
+{
+}
+
+void
+_gum_memory_deinit (void)
 {
 }
 
@@ -93,8 +98,7 @@ gum_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(gum_query_page_size () - 1));
   unix_page_prot = gum_page_protection_to_unix (page_prot);
 
-  //result = mprotect (aligned_address, size, unix_page_prot);
-  result = vm_protect (mach_task_self (), (vm_address_t) aligned_address, size, FALSE, VM_PROT_READ | VM_PROT_WRITE | VM_PROT_COPY);
+  result = mprotect (aligned_address, size, unix_page_prot);
   g_assert_cmpint (result, ==, 0);
 }
 

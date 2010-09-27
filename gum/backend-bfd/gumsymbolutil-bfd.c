@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,13 +17,16 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#include "gumsymbolutil.h"
+
+#include "gummemory.h"
+#include "gumsymbolutil-priv.h"
+
 #define _GNU_SOURCE
 #include <bfd.h>
 #include <link.h>
 #include <string.h>
 #include <strings.h>
-#include "gummemory.h"
-#include "gumsymbolutil.h"
 
 typedef struct _SymbolCollection SymbolCollection;
 
@@ -52,12 +55,19 @@ static void close_bfd_and_release_symbols (bfd * abfd, SymbolCollection * sc);
 static GHashTable * function_address_by_name_ht = NULL;
 
 void
-gum_symbol_util_init (void)
+_gum_symbol_util_init (void)
 {
   function_address_by_name_ht = g_hash_table_new_full (g_str_hash,
       g_str_equal, g_free, NULL);
 
   build_symbols_database ();
+}
+
+void
+_gum_symbol_util_deinit (void)
+{
+  g_hash_table_unref (function_address_by_name_ht);
+  function_address_by_name_ht = NULL;
 }
 
 gboolean

@@ -41,8 +41,6 @@ typedef gboolean (* GumFoundModuleFunc) (const gchar * name, gpointer address,
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
     gpointer user_data);
 
-GUM_API void gum_symbol_util_init (void);
-
 GUM_API gboolean gum_symbol_details_from_address (gpointer address,
     GumSymbolDetails * details);
 GUM_API gchar * gum_symbol_name_from_address (gpointer address);

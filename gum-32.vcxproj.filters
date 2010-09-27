@@ -371,6 +371,12 @@
     <ClInclude Include="gum\gumscriptcompiler.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gummemory-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumsymbolutil-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi">

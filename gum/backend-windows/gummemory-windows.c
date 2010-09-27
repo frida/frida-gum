@@ -19,6 +19,9 @@
  */
 
 #include "gummemory.h"
+
+#include "gummemory-priv.h"
+
 #define VC_EXTRALEAN
 #include <windows.h>
 
@@ -27,7 +30,7 @@ static DWORD gum_page_protection_to_windows (GumPageProtection page_prot);
 static HANDLE _gum_memory_heap = INVALID_HANDLE_VALUE;
 
 void
-gum_memory_init (void)
+_gum_memory_init (void)
 {
   ULONG heap_frag_value = 2;
 
@@ -35,6 +38,13 @@ gum_memory_init (void)
 
   HeapSetInformation (_gum_memory_heap, HeapCompatibilityInformation,
       &heap_frag_value, sizeof (heap_frag_value));
+}
+
+void
+_gum_memory_deinit (void)
+{
+  HeapDestroy (_gum_memory_heap);
+  _gum_memory_heap = INVALID_HANDLE_VALUE;
 }
 
 guint

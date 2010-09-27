@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,7 +20,8 @@
 #include "gum.h"
 
 #include "guminterceptor-priv.h"
-#include "gummemory.h"
+#include "gummemory-priv.h"
+#include "gumsymbolutil-priv.h"
 
 #include <glib-object.h>
 
@@ -43,14 +44,16 @@ void
 gum_deinit (void)
 {
   _gum_interceptor_deinit ();
+
+  _gum_symbol_util_deinit ();
+
+  _gum_memory_deinit ();
 }
 
 static gpointer
 do_init (gpointer data)
 {
   GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
-
-  g_setenv ("G_SLICE", "always-malloc", TRUE);
 
   g_type_init ();
 
@@ -61,10 +64,10 @@ do_init (gpointer data)
     g_thread_init (NULL);
 #endif
 
-  gum_memory_init ();
+  _gum_memory_init ();
 
   if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
-    gum_symbol_util_init ();
+    _gum_symbol_util_init ();
 
   return NULL;
 }

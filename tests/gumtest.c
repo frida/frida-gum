@@ -41,6 +41,7 @@ main (gint argc, gchar * argv[])
   guint num_tests;
   gdouble t;
 
+  g_setenv ("G_SLICE", "always-malloc", TRUE);
   g_test_init (&argc, &argv, NULL);
   gum_init ();
 

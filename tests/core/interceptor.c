@@ -91,8 +91,10 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   void * p;
 
+  gum_interceptor_ignore_caller (fixture->interceptor);
   interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
   interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
+  gum_interceptor_unignore_caller (fixture->interceptor);
   p = malloc (1);
   free (p);
   g_assert_cmpstr (fixture->result->str, ==, "><ab");

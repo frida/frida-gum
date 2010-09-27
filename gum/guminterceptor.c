@@ -204,6 +204,7 @@ _gum_interceptor_deinit (void)
       interceptor_thread_context_destroy (thread_ctx);
     }
     gum_array_free (_gum_interceptor_thread_contexts, TRUE);
+    _gum_interceptor_thread_contexts = NULL;
     gum_spinlock_free (&_gum_interceptor_thread_context_lock);
 
 #ifdef G_OS_WIN32

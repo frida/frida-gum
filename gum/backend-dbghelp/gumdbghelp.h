@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -39,6 +39,7 @@ struct _GumDbgHelpImpl
       PTRANSLATE_ADDRESS_ROUTINE64 TranslateAddress);
   BOOL (WINAPI * SymInitialize) (HANDLE hProcess, PCSTR UserSearchPath,
       BOOL fInvadeProcess);
+  BOOL (WINAPI * SymCleanup) (HANDLE hProcess);
   BOOL (WINAPI * SymEnumSymbols) (HANDLE hProcess, ULONG64 BaseOfDll,
       PCSTR Mask, PSYM_ENUMERATESYMBOLS_CALLBACK EnumSymbolsCallback,
       PVOID UserContext);
