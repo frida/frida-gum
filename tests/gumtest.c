@@ -103,6 +103,9 @@ main (gint argc, gchar * argv[])
   lowlevel_helpers_deinit ();
 #endif
 
+  gum_deinit ();
+  g_thread_deinit ();
+
 #ifdef G_OS_WIN32
   if (IsDebuggerPresent ())
   {
