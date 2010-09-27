@@ -168,6 +168,12 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
   GumAttachReturn result;
   ListenerContext * ctx;
 
+  if (h->listener_context[listener_index] != NULL)
+  {
+    g_object_unref (h->listener_context[listener_index]);
+    h->listener_context[listener_index] = NULL;
+  }
+
   ctx = (ListenerContext *) g_object_new (listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
