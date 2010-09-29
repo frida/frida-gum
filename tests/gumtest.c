@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2009 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -48,7 +48,7 @@ main (gint argc, gchar * argv[])
   {
     int tmp_flag;
 
-    /*_CrtSetBreakAlloc (204);*/
+    /*_CrtSetBreakAlloc (1337);*/
 
     _CrtSetReportMode (_CRT_ERROR, _CRTDBG_MODE_FILE);
     _CrtSetReportFile (_CRT_ERROR, _CRTDBG_FILE_STDERR);
@@ -127,7 +127,9 @@ main (gint argc, gchar * argv[])
 #endif
 
   gum_deinit ();
+  g_type_deinit ();
   g_thread_deinit ();
+  g_test_deinit ();
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())

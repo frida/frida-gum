@@ -141,6 +141,9 @@ test_function_data_listener_finalize (GObject * object)
 {
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (object);
 
+  g_slist_free (self->a_threads_seen);
+  g_slist_free (self->b_threads_seen);
+
   while (self->provided_thread_data != NULL)
   {
     gchar * entry = (gchar *) self->provided_thread_data->data;
