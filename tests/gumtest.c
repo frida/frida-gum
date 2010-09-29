@@ -130,6 +130,7 @@ main (gint argc, gchar * argv[])
   g_type_deinit ();
   g_thread_deinit ();
   g_test_deinit ();
+  g_mem_deinit ();
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())
