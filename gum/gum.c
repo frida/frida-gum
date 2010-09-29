@@ -55,14 +55,14 @@ do_init (gpointer data)
 {
   GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
 
-  g_type_init ();
-
   if (!g_thread_supported ())
 #ifdef _DEBUG
     g_thread_init_with_errorcheck_mutexes (NULL);
 #else
     g_thread_init (NULL);
 #endif
+
+  g_type_init ();
 
   _gum_memory_init ();
 
