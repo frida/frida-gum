@@ -317,13 +317,12 @@ _gum_script_send_item_commit (GumScript * self,
                               ...)
 {
   GumScriptPrivate * priv = self->priv;
-  GVariantType * variant_type;
-  GVariantBuilder * builder;
+  GVariantBuilder builder;
   GVariant * message;
   va_list args;
 
-  variant_type = g_variant_type_new (priv->send_arg_type_signature->str);
-  builder = g_variant_builder_new (variant_type);
+  g_variant_builder_init (&builder,
+      G_VARIANT_TYPE (priv->send_arg_type_signature->str));
 
   va_start (args, argument_index);
 
@@ -391,18 +390,16 @@ _gum_script_send_item_commit (GumScript * self,
         g_assert_not_reached ();
     }
 
-    g_variant_builder_add_value (builder, value);
+    g_variant_builder_add_value (&builder, value);
 
     argument_index = va_arg (args, guint);
   }
 
   va_end (args);
 
-  message = g_variant_ref_sink (g_variant_builder_end (builder));
+  message = g_variant_ref_sink (g_variant_builder_end (&builder));
   priv->message_handler_func (self, message, priv->message_handler_data);
   g_variant_unref (message);
-
-  g_variant_type_free (variant_type);
 }
 
 static gboolean
