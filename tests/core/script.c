@@ -126,6 +126,8 @@ SCRIPT_TESTCASE (send_string_from_argument)
   g_assert_cmpstr (msg_str_narrow, ==, "ÆØÅæøå");
   g_assert_cmpstr (msg_str_wide, ==, "ÆØÅæøå");
   g_assert_cmpint (msg_int, ==, 42);
+  g_free (msg_str_narrow);
+  g_free (msg_str_wide);
 
   g_variant_unref (msg);
 
@@ -158,6 +160,7 @@ SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
   g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
   g_variant_get (msg, "(s)", &msg_str);
   g_assert_cmpstr (msg_str, ==, "My name is Bøggvald and I æm %007");
+  g_free (msg_str);
 
   g_variant_unref (msg);
 
@@ -191,6 +194,7 @@ SCRIPT_TESTCASE (send_wide_format_string_from_argument)
   g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
   g_variant_get (msg, "(s)", &msg_str);
   g_assert_cmpstr (msg_str, ==, "My name is Bøggvald and I æm %007");
+  g_free (msg_str);
 
   g_variant_unref (msg);
 
