@@ -36,9 +36,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="gumtest.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="testutil.c">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -173,6 +170,9 @@
     </ClCompile>
     <ClCompile Include="heap\sanitychecker-fixture.c">
       <Filter>Tests\heap</Filter>
+    </ClCompile>
+    <ClCompile Include="gumtest.c">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
