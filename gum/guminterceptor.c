@@ -25,21 +25,9 @@
 #include "gumarray.h"
 #include "gumhash.h"
 #include "gummemory.h"
+#include "gumtls.h"
 
 #include <string.h>
-
-#ifdef G_OS_WIN32
-# define VC_EXTRALEAN
-# include <windows.h>
-typedef DWORD GumTlsKey;
-# define GUM_TLS_KEY_GET_VALUE(k)    TlsGetValue (k)
-# define GUM_TLS_KEY_SET_VALUE(k, v) TlsSetValue (k, v)
-#else
-# include <pthread.h>
-typedef pthread_key_t GumTlsKey;
-# define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
-# define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
-#endif
 
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE     400
 
@@ -170,11 +158,9 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-#ifdef G_OS_WIN32
-  _gum_interceptor_tls_key = TlsAlloc ();
-#else
-  pthread_key_create (&_gum_interceptor_tls_key, NULL);
-  pthread_key_create (&_gum_interceptor_tid_key, NULL);
+  GUM_TLS_KEY_INIT (&_gum_interceptor_tls_key);
+#ifndef G_OS_WIN32
+  GUM_TLS_KEY_INIT (&_gum_interceptor_tid_key);
 #endif
 
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
@@ -207,11 +193,9 @@ _gum_interceptor_deinit (void)
     _gum_interceptor_thread_contexts = NULL;
     gum_spinlock_free (&_gum_interceptor_thread_context_lock);
 
-#ifdef G_OS_WIN32
-    TlsFree (_gum_interceptor_tls_key);
-#else
-    pthread_key_delete (_gum_interceptor_tls_key);
-    pthread_key_delete (_gum_interceptor_tid_key);
+    GUM_TLS_KEY_FREE (_gum_interceptor_tls_key);
+#ifndef G_OS_WIN32
+    GUM_TLS_KEY_FREE (_gum_interceptor_tid_key);
 #endif
 
     _gum_interceptor_initialized = FALSE;
@@ -753,6 +737,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       entry.listener_interface->on_enter (entry.listener_instance,
           invocation_ctx);
 
+      thread_ctx->listener_data[i] = invocation_ctx->thread_data;
+
       g_object_unref (entry.listener_instance);
     }
 
@@ -832,6 +818,8 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
     entry.listener_interface->on_leave (entry.listener_instance,
         invocation_ctx);
+
+    thread_ctx->listener_data[i] = invocation_ctx->thread_data;
 
     g_object_unref (entry.listener_instance);
   }

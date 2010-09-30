@@ -329,6 +329,8 @@ gum_allocator_probe_finalize (GObject * object)
 
   g_mutex_free (priv->mutex);
 
+  g_ptr_array_free (priv->function_contexts, TRUE);
+
   G_OBJECT_CLASS (gum_allocator_probe_parent_class)->finalize (object);
 }
 

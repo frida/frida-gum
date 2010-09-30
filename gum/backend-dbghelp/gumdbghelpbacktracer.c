@@ -27,6 +27,11 @@
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_AMD64
 #endif
 
+struct _GumDbghelpBacktracerPrivate
+{
+  GumDbgHelpImpl * dbghelp;
+};
+
 static void gum_dbghelp_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
@@ -40,15 +45,19 @@ G_DEFINE_TYPE_EXTENDED (GumDbghelpBacktracer,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
                                                gum_dbghelp_backtracer_iface_init));
 
+static void gum_dbghelp_backtracer_finalize (GObject * object);
+
 static void gum_dbghelp_backtracer_fill_address_details (
     GumDbghelpBacktracer * self, GumReturnAddress * ret_addr);
-
-static GumDbgHelpImpl * dbghelp = NULL;
 
 static void
 gum_dbghelp_backtracer_class_init (GumDbghelpBacktracerClass * klass)
 {
-  dbghelp = gum_dbghelp_impl_obtain ();
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  g_type_class_add_private (klass, sizeof (GumDbghelpBacktracerPrivate));
+
+  object_class->finalize = gum_dbghelp_backtracer_finalize;
 }
 
 static void
@@ -63,6 +72,20 @@ gum_dbghelp_backtracer_iface_init (gpointer g_iface,
 static void
 gum_dbghelp_backtracer_init (GumDbghelpBacktracer * self)
 {
+  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
+        GUM_TYPE_DBGHELP_BACKTRACER, GumDbghelpBacktracerPrivate);
+
+  self->priv->dbghelp = gum_dbghelp_impl_obtain ();
+}
+
+static void
+gum_dbghelp_backtracer_finalize (GObject * object)
+{
+  GumDbghelpBacktracer * self = GUM_DBGHELP_BACKTRACER (object);
+
+  gum_dbghelp_impl_release (self->priv->dbghelp);
+
+  G_OBJECT_CLASS (gum_dbghelp_backtracer_parent_class)->finalize (object);
 }
 
 GumBacktracer *
@@ -77,6 +100,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
                                  const GumCpuContext * cpu_context,
                                  GumReturnAddressArray * return_addresses)
 {
+  GumDbghelpBacktracer * self = GUM_DBGHELP_BACKTRACER_CAST (backtracer);
+  GumDbgHelpImpl * dbghelp = self->priv->dbghelp;
   guint i;
   guint skip_count = 0;
   STACKFRAME64 frame = { 0, };

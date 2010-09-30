@@ -19,8 +19,10 @@
  */
 
 #include "gumcallcountsampler.h"
+
 #include "guminterceptor.h"
 #include "gumsymbolutil.h"
+#include "gumtls.h"
 
 static void gum_call_count_sampler_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -28,6 +30,7 @@ static void gum_call_count_sampler_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
 static void gum_call_count_sampler_dispose (GObject * object);
+static void gum_call_count_sampler_finalize (GObject * object);
 
 static GumSample gum_call_count_sampler_sample (GumSampler * sampler);
 
@@ -39,12 +42,15 @@ static void gum_call_count_sampler_on_leave (
 struct _GumCallCountSamplerPrivate
 {
   gboolean disposed;
-  GumInterceptor * interceptor;
-  volatile gint total_count;
-  GPrivate * tls_key;
-};
 
-#define GUM_CALL_COUNT_SAMPLER_GET_PRIVATE(o) ((o)->priv)
+  GumInterceptor * interceptor;
+
+  volatile gint total_count;
+
+  GumTlsKey tls_key;
+  GMutex * mutex;
+  GSList * counters;
+};
 
 G_DEFINE_TYPE_EXTENDED (GumCallCountSampler,
                         gum_call_count_sampler,
@@ -63,11 +69,12 @@ gum_call_count_sampler_class_init (GumCallCountSamplerClass * klass)
   g_type_class_add_private (klass, sizeof (GumCallCountSamplerPrivate));
 
   gobject_class->dispose = gum_call_count_sampler_dispose;
+  gobject_class->finalize = gum_call_count_sampler_finalize;
 }
 
 static void
 gum_call_count_sampler_sampler_iface_init (gpointer g_iface,
-                                             gpointer iface_data)
+                                           gpointer iface_data)
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
 
@@ -91,20 +98,19 @@ gum_call_count_sampler_init (GumCallCountSampler * self)
 
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_CALL_COUNT_SAMPLER, GumCallCountSamplerPrivate);
-
-  priv = GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
+  priv = self->priv;
 
   priv->interceptor = gum_interceptor_obtain ();
 
-  priv->tls_key = g_private_new (g_free);
+  GUM_TLS_KEY_INIT (&priv->tls_key);
+  priv->mutex = g_mutex_new ();
 }
 
 static void
 gum_call_count_sampler_dispose (GObject * object)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER (object);
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
+  GumCallCountSamplerPrivate * priv = self->priv;
 
   if (!priv->disposed)
   {
@@ -118,6 +124,20 @@ gum_call_count_sampler_dispose (GObject * object)
   G_OBJECT_CLASS (gum_call_count_sampler_parent_class)->dispose (object);
 }
 
+static void
+gum_call_count_sampler_finalize (GObject * object)
+{
+  GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER (object);
+  GumCallCountSamplerPrivate * priv = self->priv;
+
+  g_mutex_free (priv->mutex);
+
+  g_slist_foreach (priv->counters, (GFunc) g_free, NULL);
+  g_slist_free (priv->counters);
+
+  G_OBJECT_CLASS (gum_call_count_sampler_parent_class)->finalize (object);
+}
+
 GumSampler *
 gum_call_count_sampler_new (gpointer first_function,
                             ...)
@@ -128,7 +148,8 @@ gum_call_count_sampler_new (gpointer first_function,
 
   g_assert (first_function != NULL);
 
-  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
+  sampler = GUM_CALL_COUNT_SAMPLER (
+      g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
 
   va_start (args, first_function);
   for (function = first_function; function != NULL;
@@ -158,7 +179,7 @@ gum_call_count_sampler_new_by_name (const gchar * first_function_name,
   }
 
   g_assert (arg_count > 0);
-  addresses = alloca (arg_count * sizeof (gpointer));
+  addresses = (gpointer *) alloca (arg_count * sizeof (gpointer));
 
   va_start (args, first_function_name);
   i = 0;
@@ -171,7 +192,8 @@ gum_call_count_sampler_new_by_name (const gchar * first_function_name,
     i++;
   }
 
-  sampler = g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL);
+  sampler = GUM_CALL_COUNT_SAMPLER (
+      g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
   for (i = 0; i < arg_count; i++)
     gum_call_count_sampler_add_function (sampler, addresses[i]);
 
@@ -182,8 +204,7 @@ void
 gum_call_count_sampler_add_function (GumCallCountSampler * self,
                                      gpointer function)
 {
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
+  GumCallCountSamplerPrivate * priv = self->priv;
   GumAttachReturn attach_ret;
 
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
@@ -194,21 +215,16 @@ gum_call_count_sampler_add_function (GumCallCountSampler * self,
 GumSample
 gum_call_count_sampler_peek_total_count (GumCallCountSampler * self)
 {
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
-
-  return g_atomic_int_get (&priv->total_count);
+  return g_atomic_int_get (&self->priv->total_count);
 }
 
 static GumSample
 gum_call_count_sampler_sample (GumSampler * sampler)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (sampler);
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
   GumSample * counter;
 
-  counter = g_private_get (priv->tls_key);
+  counter = (GumSample *) GUM_TLS_KEY_GET_VALUE (self->priv->tls_key);
   if (counter != NULL)
     return *counter;
   else
@@ -220,17 +236,21 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
                                  GumInvocationContext * context)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (listener);
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
+  GumCallCountSamplerPrivate * priv = self->priv;
   GumSample * counter;
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
-  counter = g_private_get (priv->tls_key);
+  counter = (GumSample *) GUM_TLS_KEY_GET_VALUE (priv->tls_key);
   if (counter == NULL)
   {
     counter = g_new0 (GumSample, 1);
-    g_private_set (priv->tls_key, counter);
+
+    g_mutex_lock (priv->mutex);
+    priv->counters = g_slist_prepend (priv->counters, counter);
+    g_mutex_unlock (priv->mutex);
+
+    GUM_TLS_KEY_SET_VALUE (priv->tls_key, counter);
   }
 
   g_atomic_int_inc (&priv->total_count);
@@ -242,8 +262,6 @@ gum_call_count_sampler_on_leave (GumInvocationListener * listener,
                                  GumInvocationContext * context)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (listener);
-  GumCallCountSamplerPrivate * priv =
-      GUM_CALL_COUNT_SAMPLER_GET_PRIVATE (self);
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_caller (self->priv->interceptor);
 }

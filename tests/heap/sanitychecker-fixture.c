@@ -191,7 +191,7 @@ test_sanity_checker_fixture_do_cleanup (TestSanityCheckerFixture * fixture)
 {
   forget_block (&fixture->first_block);
   forget_block (&fixture->second_block);
-  forget_block (&fixture->first_block);
+  forget_block (&fixture->third_block);
 
   forget_object (&fixture->first_pony);
   if (fixture->second_pony != NULL)

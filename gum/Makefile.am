@@ -67,6 +67,7 @@ libgum_1_0_la_SOURCES = \
 	gumscript.c \
 	gumscript-priv.h \
 	gumscriptcompiler.h \
+	gumtls.h \
 	$(arch_sources) \
 	$(container_sources) \
 	$(backend_sources) \

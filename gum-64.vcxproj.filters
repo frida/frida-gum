@@ -377,6 +377,9 @@
     <ClInclude Include="gum\gumsymbolutil-priv.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumtls.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi">

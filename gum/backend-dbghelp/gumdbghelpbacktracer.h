@@ -38,10 +38,13 @@
 
 typedef struct _GumDbghelpBacktracer GumDbghelpBacktracer;
 typedef struct _GumDbghelpBacktracerClass GumDbghelpBacktracerClass;
+typedef struct _GumDbghelpBacktracerPrivate GumDbghelpBacktracerPrivate;
 
 struct _GumDbghelpBacktracer
 {
   GObject parent;
+
+  GumDbghelpBacktracerPrivate * priv;
 };
 
 struct _GumDbghelpBacktracerClass
