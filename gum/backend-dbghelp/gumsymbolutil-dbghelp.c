@@ -64,6 +64,9 @@ _gum_symbol_util_init (void)
 void
 _gum_symbol_util_deinit (void)
 {
+  if (dbghelp == NULL)
+    return;
+
   dbghelp->SymCleanup (GetCurrentProcess ());
 
   gum_dbghelp_impl_release (dbghelp);
