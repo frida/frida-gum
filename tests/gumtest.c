@@ -32,6 +32,7 @@
 #include <windows.h>
 #include <conio.h>
 #include <crtdbg.h>
+#include <stdio.h>
 #endif
 
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
@@ -143,7 +144,7 @@ main (gint argc, gchar * argv[])
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())
   {
-    g_print ("\nPress a key to exit.\n");
+    printf ("\nPress a key to exit.\n");
     _getch ();
   }
 #endif
