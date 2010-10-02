@@ -341,12 +341,11 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
 }
 
 void
-gum_x86_writer_put_call_reg_offset_with_arguments (GumX86Writer * self,
-                                                   GumCallingConvention conv,
-                                                   GumCpuReg reg,
-                                                   gssize offset,
-                                                   guint n_args,
-                                                   ...)
+gum_x86_writer_put_call_reg_with_arguments (GumX86Writer * self,
+                                            GumCallingConvention conv,
+                                            GumCpuReg reg,
+                                            guint n_args,
+                                            ...)
 {
   va_list vl;
 
@@ -354,7 +353,26 @@ gum_x86_writer_put_call_reg_offset_with_arguments (GumX86Writer * self,
   gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
   va_end (vl);
 
-  gum_x86_writer_put_call_reg_offset (self, reg, offset);
+  gum_x86_writer_put_call_reg (self, reg);
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+}
+
+void
+gum_x86_writer_put_call_reg_offset_ptr_with_arguments (GumX86Writer * self,
+                                                       GumCallingConvention conv,
+                                                       GumCpuReg reg,
+                                                       gssize offset,
+                                                       guint n_args,
+                                                       ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  va_end (vl);
+
+  gum_x86_writer_put_call_reg_offset_ptr (self, reg, offset);
 
   gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
 }
@@ -405,9 +423,9 @@ gum_x86_writer_put_call_reg (GumX86Writer * self,
 }
 
 void
-gum_x86_writer_put_call_reg_offset (GumX86Writer * self,
-                                    GumCpuReg reg,
-                                    gssize offset)
+gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
+                                        GumCpuReg reg,
+                                        gssize offset)
 {
   GumCpuRegInfo ri;
   gboolean offset_fits_in_i8;

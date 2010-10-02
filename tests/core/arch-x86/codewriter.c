@@ -22,11 +22,12 @@
 TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (jump_label)
   CODEWRITER_TESTENTRY (call_label)
-  CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
-  CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
-  CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
-  CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
-  CODEWRITER_TESTENTRY (call_sysapi_r12_plus_i32_offset_with_xcx_argument_for_amd64)
+  CODEWRITER_TESTENTRY (call_capi_eax_with_xdi_argument_for_ia32)
+  CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
+  CODEWRITER_TESTENTRY (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
+  CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
+  CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
+  CODEWRITER_TESTENTRY (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_amd64)
   CODEWRITER_TESTENTRY (flush_on_free)
 
   CODEWRITER_TESTENTRY (jmp_rcx)
@@ -115,7 +116,24 @@ CODEWRITER_TESTCASE (call_label)
   assert_output_equals (expected_code);
 }
 
-CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
+CODEWRITER_TESTCASE (call_capi_eax_with_xdi_argument_for_ia32)
+{
+  const guint8 expected_code[] = {
+    0x57,                         /* push edi   */
+    0xff, 0xd0,                   /* call eax   */
+    0x83, 0xc4, 0x04              /* add esp, 4 */
+  };
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_call_reg_with_arguments (&fixture->cw,
+      GUM_CALL_CAPI, GUM_REG_XAX,
+      1,
+      GUM_ARG_REGISTER, GUM_REG_XDI);
+
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
 {
   const guint8 expected_code[] = {
     0x51,                         /* push ecx                   */
@@ -124,7 +142,7 @@ CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
   };
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
-  gum_x86_writer_put_call_reg_offset_with_arguments (&fixture->cw,
+  gum_x86_writer_put_call_reg_offset_ptr_with_arguments (&fixture->cw,
       GUM_CALL_CAPI, GUM_REG_XBX, 21,
       1,
       GUM_ARG_REGISTER, GUM_REG_XCX);
@@ -132,7 +150,7 @@ CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
   assert_output_equals (expected_code);
 }
 
-CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
+CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
 {
   const guint8 expected_code[] = {
     0x48, 0x83, 0xec, 0x20,       /* sub rsp, 32                */
@@ -141,7 +159,7 @@ CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
   };
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_call_reg_offset_with_arguments (&fixture->cw,
+  gum_x86_writer_put_call_reg_offset_ptr_with_arguments (&fixture->cw,
       GUM_CALL_CAPI, GUM_REG_XBX, 21,
       1,
       GUM_ARG_REGISTER, GUM_REG_XCX);
@@ -149,7 +167,7 @@ CODEWRITER_TESTCASE (call_capi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
   assert_output_equals (expected_code);
 }
 
-CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
+CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
 {
   const guint8 expected_code[] = {
     0x51,                         /* push ecx                   */
@@ -157,7 +175,7 @@ CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
   };
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
-  gum_x86_writer_put_call_reg_offset_with_arguments (&fixture->cw,
+  gum_x86_writer_put_call_reg_offset_ptr_with_arguments (&fixture->cw,
       GUM_CALL_SYSAPI, GUM_REG_XBX, 42,
       1,
       GUM_ARG_REGISTER, GUM_REG_XCX);
@@ -165,7 +183,7 @@ CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_ia32)
   assert_output_equals (expected_code);
 }
 
-CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
+CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
 {
   const guint8 expected_code[] = {
     0x48, 0x83, 0xec, 0x20,       /* sub rsp, 32                */
@@ -174,7 +192,7 @@ CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
   };
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_call_reg_offset_with_arguments (&fixture->cw,
+  gum_x86_writer_put_call_reg_offset_ptr_with_arguments (&fixture->cw,
       GUM_CALL_SYSAPI, GUM_REG_XBX, 42,
       1,
       GUM_ARG_REGISTER, GUM_REG_XCX);
@@ -182,7 +200,7 @@ CODEWRITER_TESTCASE (call_sysapi_xbx_plus_i8_offset_with_xcx_argument_for_amd64)
   assert_output_equals (expected_code);
 }
 
-CODEWRITER_TESTCASE (call_sysapi_r12_plus_i32_offset_with_xcx_argument_for_amd64)
+CODEWRITER_TESTCASE (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_amd64)
 {
   const guint8 expected_code[] = {
     0x48, 0x83, 0xec, 0x20,       /* sub rsp, 32                */
@@ -192,7 +210,7 @@ CODEWRITER_TESTCASE (call_sysapi_r12_plus_i32_offset_with_xcx_argument_for_amd64
   };
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
-  gum_x86_writer_put_call_reg_offset_with_arguments (&fixture->cw,
+  gum_x86_writer_put_call_reg_offset_ptr_with_arguments (&fixture->cw,
       GUM_CALL_SYSAPI, GUM_REG_R12, -0xf00d,
       1,
       GUM_ARG_REGISTER, GUM_REG_XCX);
