@@ -20,12 +20,14 @@
 #ifndef __GUM_X86_WRITER_H__
 #define __GUM_X86_WRITER_H__
 
-#include "gumdefs.h"
+#include <gum/gumdefs.h>
 
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
+/* FIXME: not all of these are x86 specific, should be moved */
 typedef enum _GumArgType      GumArgType;
+typedef enum _GumCallingConvention GumCallingConvention;
 typedef enum _GumCpuReg       GumCpuReg;
 typedef enum _GumPtrTarget    GumPtrTarget;
 typedef enum _GumBranchHint   GumBranchHint;
@@ -51,6 +53,12 @@ enum _GumArgType
 {
   GUM_ARG_POINTER,
   GUM_ARG_REGISTER
+};
+
+enum _GumCallingConvention
+{
+  GUM_CALL_CAPI,
+  GUM_CALL_SYSAPI
 };
 
 enum _GumCpuReg
@@ -140,8 +148,10 @@ void gum_x86_writer_flush (GumX86Writer * self);
 void gum_x86_writer_put_label (GumX86Writer * self, gconstpointer id);
 
 void gum_x86_writer_put_call_with_arguments (GumX86Writer * self, gpointer func, guint n_args, ...);
+void gum_x86_writer_put_call_reg_offset_with_arguments (GumX86Writer * self, GumCallingConvention conv, GumCpuReg reg, gssize offset, guint n_args, ...);
 void gum_x86_writer_put_call (GumX86Writer * self, gconstpointer target);
 void gum_x86_writer_put_call_reg (GumX86Writer * self, GumCpuReg reg);
+void gum_x86_writer_put_call_reg_offset (GumX86Writer * self, GumCpuReg reg, gssize offset);
 void gum_x86_writer_put_call_indirect (GumX86Writer * self, gconstpointer * addr);
 void gum_x86_writer_put_call_near_label (GumX86Writer * self, gconstpointer label_id);
 void gum_x86_writer_put_ret (GumX86Writer * self);

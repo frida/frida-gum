@@ -237,19 +237,17 @@ gum_x86_writer_add_label_reference_here (GumX86Writer * self,
   r->size = size;
 }
 
-void
-gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
-                                        gpointer func,
+static void
+gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
+                                        GumCallingConvention conv,
                                         guint n_args,
-                                        ...)
+                                        va_list vl)
 {
   GumArgument args[4];
-  va_list vl;
   gint arg_index;
 
   g_return_if_fail (n_args <= 4);
 
-  va_start (vl, n_args);
   for (arg_index = 0; arg_index != n_args; arg_index++)
   {
     GumArgument * arg = &args[arg_index];
@@ -262,7 +260,6 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
     else
       g_assert_not_reached ();
   }
-  va_end (vl);
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
@@ -274,14 +271,6 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
         gum_x86_writer_put_push_u32 (self, (guint32) arg->value.pointer);
       else
         gum_x86_writer_put_push_reg (self, arg->value.reg);
-    }
-
-    gum_x86_writer_put_call (self, func);
-
-    if (n_args != 0)
-    {
-      gum_x86_writer_put_add_reg_imm (self, GUM_REG_ESP,
-          n_args * sizeof (guint32));
     }
   }
   else
@@ -302,7 +291,8 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
         gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
             (guint64) arg->value.pointer);
       }
-      else
+      else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
+          gum_meta_reg_from_cpu_reg (reg_for_arg[arg_index]))
       {
         gum_x86_writer_put_mov_reg_reg (self, reg_for_arg[arg_index],
             arg->value.reg);
@@ -310,9 +300,63 @@ gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
     }
 
     gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
-    gum_x86_writer_put_call (self, func);
+  }
+}
+
+static void
+gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
+                                           GumCallingConvention conv,
+                                           guint n_args)
+{
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    if (conv == GUM_CALL_CAPI && n_args != 0)
+    {
+      gum_x86_writer_put_add_reg_imm (self, GUM_REG_ESP,
+          n_args * sizeof (guint32));
+    }
+  }
+  else
+  {
     gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);
   }
+}
+
+void
+gum_x86_writer_put_call_with_arguments (GumX86Writer * self,
+                                        gpointer func,
+                                        guint n_args,
+                                        ...)
+{
+  GumCallingConvention conv = GUM_CALL_CAPI;
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  va_end (vl);
+
+  gum_x86_writer_put_call (self, func);
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
+}
+
+void
+gum_x86_writer_put_call_reg_offset_with_arguments (GumX86Writer * self,
+                                                   GumCallingConvention conv,
+                                                   GumCpuReg reg,
+                                                   gssize offset,
+                                                   guint n_args,
+                                                   ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_x86_writer_put_argument_list_setup (self, conv, n_args, vl);
+  va_end (vl);
+
+  gum_x86_writer_put_call_reg_offset (self, reg, offset);
+
+  gum_x86_writer_put_argument_list_teardown (self, conv, n_args);
 }
 
 void
@@ -358,6 +402,43 @@ gum_x86_writer_put_call_reg (GumX86Writer * self,
   self->code[0] = 0xff;
   self->code[1] = 0xd0 | ri.index;
   self->code += 2;
+}
+
+void
+gum_x86_writer_put_call_reg_offset (GumX86Writer * self,
+                                    GumCpuReg reg,
+                                    gssize offset)
+{
+  GumCpuRegInfo ri;
+  gboolean offset_fits_in_i8;
+
+  gum_x86_writer_describe_cpu_reg (self, reg, &ri);
+
+  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+
+  if (self->target_cpu == GUM_CPU_IA32)
+    g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
+  else
+    g_return_if_fail (ri.width == 64);
+
+  if (ri.index_is_extended)
+    *self->code++ = 0x41;
+  self->code[0] = 0xff;
+  self->code[1] = (offset_fits_in_i8 ? 0x50 : 0x90) | ri.index;
+  self->code += 2;
+  if (ri.index_is_extended || ri.meta == GUM_META_REG_XSP)
+    *self->code++ = 0x24;
+
+  if (offset_fits_in_i8)
+  {
+    *((gint8 *) self->code) = offset;
+    self->code++;
+  }
+  else
+  {
+    *((gint32 *) self->code) = offset;
+    self->code += 4;
+  }
 }
 
 void
@@ -1669,6 +1750,8 @@ gum_meta_reg_from_cpu_reg (GumCpuReg reg)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_EAX);
   else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
     return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_RAX);
+  else if (reg >= GUM_REG_XAX && reg <= GUM_REG_XDI)
+    return (GumMetaReg) (GUM_META_REG_XAX + reg - GUM_REG_XAX);
   else
     g_assert_not_reached ();
 }
