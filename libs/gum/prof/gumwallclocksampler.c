@@ -39,13 +39,16 @@ G_DEFINE_TYPE_EXTENDED (GumWallclockSampler,
 static void
 gum_wallclock_sampler_class_init (GumWallclockSamplerClass * klass)
 {
+  (void) klass;
 }
 
 static void
 gum_wallclock_sampler_iface_init (gpointer g_iface,
-                                gpointer iface_data)
+                                  gpointer iface_data)
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
+
+  (void) iface_data;
 
   iface->sample = gum_wallclock_sampler_sample;
 }
@@ -53,22 +56,21 @@ gum_wallclock_sampler_iface_init (gpointer g_iface,
 static void
 gum_wallclock_sampler_init (GumWallclockSampler * self)
 {
+  (void) self;
 }
 
 GumSampler *
 gum_wallclock_sampler_new (void)
 {
-  GumWallclockSampler * sampler;
-
-  sampler = g_object_new (GUM_TYPE_WALLCLOCK_SAMPLER, NULL);
-
-  return GUM_SAMPLER (sampler);
+  return GUM_SAMPLER (g_object_new (GUM_TYPE_WALLCLOCK_SAMPLER, NULL));
 }
 
 static GumSample
 gum_wallclock_sampler_sample (GumSampler * sampler)
 {
 #ifdef G_OS_WIN32
+  (void) sampler;
+
   return GetTickCount ();
 #else
   #error FIXME

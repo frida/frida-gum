@@ -24,6 +24,7 @@
 void
 gum_x86_function_parser_init (GumX86FunctionParser * fp)
 {
+  (void) fp;
 }
 
 void
@@ -34,6 +35,8 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
   ud_t ud_obj;
   guint insn_size;
   const guint buf_size = 4096;
+
+  (void) fp;
 
   ud_init (&ud_obj);
   ud_set_mode (&ud_obj, GUM_CPU_MODE);

@@ -147,5 +147,5 @@ gum_module_find_export_by_name (const gchar * module_name,
   if (module == NULL)
     return NULL;
 
-  return GetProcAddress (module, export_name);
+  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, export_name));
 }

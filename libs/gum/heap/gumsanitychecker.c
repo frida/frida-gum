@@ -181,7 +181,6 @@ static void
 gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
                                                  GumList * stale)
 {
-  GumSanityCheckerPrivate * priv = self->priv;
   GumHashTable * count_by_type;
   GumList * walk, * keys;
 
@@ -213,7 +212,6 @@ static void
 gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
                                                  GumList * stale)
 {
-  GumSanityCheckerPrivate * priv = self->priv;
   GumList * instances, * walk;
 
   instances = gum_list_copy (stale);
@@ -267,7 +265,6 @@ static void
 gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
                                               GumList * stale)
 {
-  GumSanityCheckerPrivate * priv = self->priv;
   GumList * blocks, * walk;
 
   blocks = gum_list_copy (stale);
@@ -356,6 +353,8 @@ gum_sanity_checker_compare_instances (gconstpointer a,
   GumInstanceDetails da, db;
   gint name_equality;
 
+  (void) user_data;
+
   gum_sanity_checker_details_from_instance (&da, a);
   gum_sanity_checker_details_from_instance (&db, b);
 
@@ -384,6 +383,8 @@ gum_sanity_checker_compare_groups (gconstpointer a,
   GumAllocationGroup * group_a = (GumAllocationGroup *) a;
   GumAllocationGroup * group_b = (GumAllocationGroup *) b;
 
+  (void) user_data;
+
   if (group_a->alive_now > group_b->alive_now)
     return -1;
   else if (group_a->alive_now < group_b->alive_now)
@@ -405,6 +406,8 @@ gum_sanity_checker_compare_blocks (gconstpointer a,
   GumAllocationBlock * block_a = (GumAllocationBlock *) a;
   GumAllocationBlock * block_b = (GumAllocationBlock *) b;
   gsize addr_a, addr_b;
+
+  (void) user_data;
 
   if (block_a->size > block_b->size)
     return -1;

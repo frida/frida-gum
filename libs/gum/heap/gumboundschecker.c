@@ -127,7 +127,6 @@ gum_bounds_checker_get_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
 
   switch (property_id)
   {
@@ -149,7 +148,6 @@ gum_bounds_checker_set_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
-  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
 
   switch (property_id)
   {
@@ -209,14 +207,18 @@ gum_bounds_checker_attach (GumBoundsChecker * self)
   g_object_set (priv->page_pool, "front-alignment", priv->front_alignment,
       NULL);
 
-  gum_interceptor_replace_function (priv->interceptor, malloc,
-      replacement_malloc, self);
-  gum_interceptor_replace_function (priv->interceptor, calloc,
-      replacement_calloc, self);
-  gum_interceptor_replace_function (priv->interceptor, realloc,
-      replacement_realloc, self);
-  gum_interceptor_replace_function (priv->interceptor, free,
-      replacement_free, self);
+  gum_interceptor_replace_function (priv->interceptor,
+      GUM_FUNCPTR_TO_POINTER (malloc),
+      GUM_FUNCPTR_TO_POINTER (replacement_malloc), self);
+  gum_interceptor_replace_function (priv->interceptor,
+      GUM_FUNCPTR_TO_POINTER (calloc),
+      GUM_FUNCPTR_TO_POINTER (replacement_calloc), self);
+  gum_interceptor_replace_function (priv->interceptor,
+      GUM_FUNCPTR_TO_POINTER (realloc),
+      GUM_FUNCPTR_TO_POINTER (replacement_realloc), self);
+  gum_interceptor_replace_function (priv->interceptor,
+      GUM_FUNCPTR_TO_POINTER (free),
+      GUM_FUNCPTR_TO_POINTER (replacement_free), self);
 
   priv->attached = TRUE;
 }
@@ -236,10 +238,14 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
       g_usleep (G_USEC_PER_SEC / 20);
     }
 
-    gum_interceptor_revert_function (priv->interceptor, malloc);
-    gum_interceptor_revert_function (priv->interceptor, calloc);
-    gum_interceptor_revert_function (priv->interceptor, realloc);
-    gum_interceptor_revert_function (priv->interceptor, free);
+    gum_interceptor_revert_function (priv->interceptor,
+        GUM_FUNCPTR_TO_POINTER (malloc));
+    gum_interceptor_revert_function (priv->interceptor,
+        GUM_FUNCPTR_TO_POINTER (calloc));
+    gum_interceptor_revert_function (priv->interceptor,
+        GUM_FUNCPTR_TO_POINTER (realloc));
+    gum_interceptor_revert_function (priv->interceptor,
+        GUM_FUNCPTR_TO_POINTER (free));
 
     g_object_unref (priv->page_pool);
     priv->page_pool = NULL;

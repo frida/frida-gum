@@ -83,7 +83,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XDI, GUM_REG_XSP,
       sizeof (GumCpuContext) + sizeof (gpointer));
 
-  gum_x86_writer_put_call_with_arguments (&cw, _gum_function_context_on_enter,
+  gum_x86_writer_put_call_with_arguments (&cw,
+      GUM_FUNCPTR_TO_POINTER (_gum_function_context_on_enter),
       3,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI,
@@ -139,7 +140,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
 
-  gum_x86_writer_put_call_with_arguments (&cw, _gum_function_context_on_leave,
+  gum_x86_writer_put_call_with_arguments (&cw,
+      GUM_FUNCPTR_TO_POINTER (_gum_function_context_on_leave),
       2,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI);
@@ -184,7 +186,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX);
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XDX);
   gum_x86_writer_put_call_with_arguments (&cw,
-      _gum_function_context_end_invocation, 0);
+      GUM_FUNCPTR_TO_POINTER (_gum_function_context_end_invocation), 0);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, 2 * sizeof (gpointer),
       GUM_REG_XAX);
@@ -208,7 +210,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
       GUM_REG_XSP, sizeof (GumCpuContext));
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XDI, GUM_REG_XSP);
   gum_x86_writer_put_call_with_arguments (&cw,
-      _gum_function_context_try_begin_invocation, 4,
+      GUM_FUNCPTR_TO_POINTER (_gum_function_context_try_begin_invocation), 4,
       GUM_ARG_POINTER, ctx->function_address,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI,
@@ -369,6 +371,8 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
                                              gconstpointer skip_label,
                                              GumX86Writer * cw)
 {
+  (void) ctx;
+
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_EBX,
@@ -397,6 +401,8 @@ static void
 gum_function_context_write_guard_leave_code (FunctionContext * ctx,
                                              GumX86Writer * cw)
 {
+  (void) ctx;
+
 #ifdef G_OS_WIN32
   gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,

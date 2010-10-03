@@ -26,5 +26,9 @@
 GumSampler *
 gum_malloc_count_sampler_new (void)
 {
-  return gum_call_count_sampler_new (malloc, calloc, realloc, NULL);
+  return gum_call_count_sampler_new (
+      GUM_FUNCPTR_TO_POINTER (malloc),
+      GUM_FUNCPTR_TO_POINTER (calloc),
+      GUM_FUNCPTR_TO_POINTER (realloc),
+      NULL);
 }

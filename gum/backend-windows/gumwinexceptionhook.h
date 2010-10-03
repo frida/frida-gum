@@ -20,6 +20,8 @@
 #ifndef __GUM_WIN_EXCEPTION_HOOK_H__
 #define __GUM_WIN_EXCEPTION_HOOK_H__
 
+#include "gumdefs.h"
+
 #include <glib.h>
 #define VC_EXTRALEAN
 #include <windows.h>

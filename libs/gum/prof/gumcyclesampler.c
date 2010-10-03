@@ -60,6 +60,8 @@ gum_cycle_sampler_iface_init (gpointer g_iface,
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->sample = gum_cycle_sampler_sample;
 }
 
@@ -83,7 +85,8 @@ gum_cycle_sampler_init (GumCycleSampler * self)
   gum_x86_writer_put_ret (&cw);
   gum_x86_writer_free (&cw);
 
-  priv->read_timestamp_counter = (ReadTimestampCounterFunc) priv->code;
+  priv->read_timestamp_counter =
+      GUM_POINTER_TO_FUNCPTR (ReadTimestampCounterFunc, priv->code);
 }
 
 static void

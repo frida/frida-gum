@@ -183,7 +183,7 @@ TRACER_TESTCASE (relocation)
   guint num_entries;
 
   code = test_tracer_fixture_dup_code (fixture, tpl_code, sizeof (tpl_code));
-  func = G_CALLBACK (code);
+  func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
 
   g_assert (gum_tracer_add_function (fixture->tracer, "foo", code) == TRUE);
 
@@ -223,7 +223,7 @@ TRACER_TESTCASE (follow_redirects)
 
   g_assert (gum_tracer_add_function (fixture->tracer, "foo", code) == TRUE);
 
-  func = G_CALLBACK (code + code_impl_offset);
+  func = GUM_POINTER_TO_FUNCPTR (GCallback, code + code_impl_offset);
   func ();
 
   entries = gum_tracer_drain (fixture->tracer, &num_entries);
@@ -381,7 +381,7 @@ struct _RingWriterContext
   gchar base;
 };
 
-static void
+void
 test_ringbuffer (void)
 {
   RingBuffer rb;

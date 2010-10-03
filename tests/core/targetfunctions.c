@@ -18,14 +18,20 @@ static guint counter = 0;
 gpointer GUM_NOINLINE
 gum_test_target_nop_function_a (gpointer data)
 {
+  (void) data;
+
   counter++;
+
   return GSIZE_TO_POINTER (0x1337);
 }
 
 gpointer GUM_NOINLINE
 gum_test_target_nop_function_b (gpointer data)
 {
+  (void) data;
+
   counter += 2;
+
   return GSIZE_TO_POINTER (2);
 }
 
@@ -33,6 +39,8 @@ gpointer GUM_NOINLINE
 gum_test_target_nop_function_c (gpointer data)
 {
   counter += 3;
+
   gum_test_target_nop_function_a (data);
+
   return GSIZE_TO_POINTER (3);
 }

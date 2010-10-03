@@ -236,7 +236,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
   gum_x86_relocator_increment_outpos (self);
 
   ctx.len = ud_insn_len (ctx.insn);
-  ctx.start = (guint8 *) ud_insn_off (ctx.insn);
+  ctx.start = (guint8 *) GPOINTER_TO_SIZE (ud_insn_off (ctx.insn));
   ctx.end = ctx.start + ctx.len;
 
   ctx.code_writer = self->output;
@@ -355,6 +355,10 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
                                                 GumCodeGenCtx * ctx)
 {
   ud_operand_t * op = &ctx->insn->operand[0];
+
+  (void) self;
+  (void) ctx;
+
   if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
     const guint8 * target = NULL;
@@ -427,6 +431,9 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
                                            GumCodeGenCtx * ctx)
 {
 #if GLIB_SIZEOF_VOID_P == 4
+  (void) self;
+  (void) ctx;
+
   return FALSE;
 #else
   ud_t * insn = ctx->insn;
@@ -434,6 +441,8 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   gboolean is_rip_relative;
   GumCpuReg target_reg, rip_reg;
   guint8 code[16];
+
+  (void) self;
 
   if (!insn->have_modrm)
     return FALSE;

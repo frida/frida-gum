@@ -175,6 +175,8 @@ enum_functions_callback (SYMBOL_INFO * sym_info,
 {
   GArray * result = user_context;
 
+  (void) symbol_size;
+
   if (is_function (sym_info))
   {
     gpointer address = GSIZE_TO_POINTER (sym_info->Address);

@@ -66,6 +66,8 @@ gum_dbghelp_backtracer_iface_init (gpointer g_iface,
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->generate = gum_dbghelp_backtracer_generate;
 }
 

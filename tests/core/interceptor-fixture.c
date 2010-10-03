@@ -97,6 +97,8 @@ static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
 {
+  (void) data;
+
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_new ("");
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
@@ -141,6 +143,8 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
                                    gconstpointer data)
 {
   guint i;
+
+  (void) data;
 
   for (i = 0; i < G_N_ELEMENTS (fixture->listener_context); i++)
   {
@@ -243,13 +247,18 @@ listener_context_provide_thread_data (GumInvocationListener * listener,
                                       guint thread_id)
 {
   ListenerContext * self = (ListenerContext *) listener;
+
+  (void) function_instance_data;
+
   self->last_thread_id = thread_id;
+
   return NULL;
 }
 
 static void
 listener_context_class_init (ListenerContextClass * klass)
 {
+  (void) klass;
 }
 
 static void
@@ -257,6 +266,8 @@ listener_context_iface_init (gpointer g_iface,
                              gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
 
   iface->on_enter = listener_context_on_enter;
   iface->on_leave = listener_context_on_leave;
@@ -266,4 +277,5 @@ listener_context_iface_init (gpointer g_iface,
 static void
 listener_context_init (ListenerContext * self)
 {
+  (void) self;
 }

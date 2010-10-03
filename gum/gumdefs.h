@@ -161,4 +161,7 @@ struct _GumCpuContext
 #define GUM_NOINLINE __attribute__((noinline))
 #endif
 
+#define GUM_FUNCPTR_TO_POINTER(f) (GSIZE_TO_POINTER (f))
+#define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
+
 #endif

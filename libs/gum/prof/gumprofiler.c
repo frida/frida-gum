@@ -141,6 +141,8 @@ gum_profiler_invocation_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->on_enter = gum_profiler_on_enter;
   iface->on_leave = gum_profiler_on_leave;
   iface->provide_thread_data = gum_profiler_provide_thread_data;
@@ -190,6 +192,8 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   GumFunctionContext * function_ctx = thread_ctx->function_ctx;
   GumWorstCaseInspectorFunc inspector_func;
 
+  (void) listener;
+
   thread_ctx->total_calls++;
 
   if (thread_ctx->recurse_count == 0)
@@ -215,6 +219,8 @@ gum_profiler_on_leave (GumInvocationListener * listener,
       (GumFunctionThreadContext *) context->thread_data;
   GumSample duration;
   GumSample now;
+
+  (void) listener;
 
   if (thread_ctx->recurse_count == 1)
   {
@@ -259,6 +265,8 @@ gum_profiler_provide_thread_data (GumInvocationListener * listener,
       (GumFunctionContext *) function_instance_data;
   GumFunctionThreadContext * thread_ctx;
   guint i;
+
+  (void) listener;
 
   i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
   g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
@@ -363,7 +371,10 @@ unstrument_and_free_function (gpointer key,
                               gpointer value,
                               gpointer user_data)
 {
-  GumFunctionContext * function_ctx = value;
+  GumFunctionContext * function_ctx = (GumFunctionContext *) value;
+
+  (void) key;
+  (void) user_data;
 
   g_object_unref (function_ctx->sampler_instance);
   g_free (function_ctx);
@@ -388,8 +399,10 @@ add_to_report_if_root_node (gpointer key,
                             gpointer value,
                             gpointer user_data)
 {
-  GumProfileReport * report = user_data;
-  GumFunctionContext * function_ctx = value;
+  GumProfileReport * report = GUM_PROFILE_REPORT (user_data);
+  GumFunctionContext * function_ctx = (GumFunctionContext *) value;
+
+  (void) key;
 
   if (function_ctx->thread_context_count > 0)
   {
@@ -580,6 +593,8 @@ get_number_of_threads_foreach (gpointer key,
   GHashTable * unique_thread_id_set = user_data;
   guint thread_count = function_ctx->thread_context_count;
   guint i;
+
+  (void) key;
 
   for (i = 0; i < thread_count; i++)
   {

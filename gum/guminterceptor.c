@@ -264,6 +264,8 @@ static void
 the_interceptor_weak_notify (gpointer data,
                              GObject * where_the_object_was)
 {
+  (void) data;
+
   g_static_mutex_lock (&_gum_interceptor_mutex);
 
   g_assert (_the_interceptor == (GumInterceptor *) where_the_object_was);
@@ -424,6 +426,8 @@ gum_interceptor_ignore_caller (GumInterceptor * self)
 {
   InterceptorThreadContext * interceptor_ctx;
 
+  (void) self;
+
   interceptor_ctx = get_interceptor_thread_context ();
   interceptor_ctx->ignore_level++;
 }
@@ -432,6 +436,8 @@ void
 gum_interceptor_unignore_caller (GumInterceptor * self)
 {
   InterceptorThreadContext * interceptor_ctx;
+
+  (void) self;
 
   interceptor_ctx = get_interceptor_thread_context ();
   interceptor_ctx->ignore_level--;
@@ -672,7 +678,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
     guint i;
 
     stack_entry = thread_context_stack_push (interceptor_ctx->stack,
-        G_CALLBACK (function_ctx->function_address),
+        GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
         *caller_ret_addr,
         NULL);
     *caller_ret_addr = function_ctx->on_leave_trampoline;

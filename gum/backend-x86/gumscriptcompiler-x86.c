@@ -71,7 +71,7 @@ gum_script_compiler_get_entrypoint (GumScriptCompiler * compiler)
 {
   GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
 
-  return (GumScriptEntrypoint) self->code_address;
+  return GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint, self->code_address);
 }
 
 void
@@ -113,7 +113,7 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
 
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XSI, value);
   gum_x86_writer_put_call_with_arguments (cw,
-      gum_invocation_context_replace_nth_argument, 3,
+      GUM_FUNCPTR_TO_POINTER (gum_invocation_context_replace_nth_argument), 3,
       GUM_ARG_REGISTER, GUM_REG_XBX,
       GUM_ARG_POINTER, GSIZE_TO_POINTER (index),
       GUM_ARG_REGISTER, GUM_REG_XSI);
@@ -162,7 +162,8 @@ gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
   gum_x86_writer_put_push_u32 (cw, (guint32) script);
 #endif
 
-  gum_x86_writer_put_call (cw, _gum_script_send_item_commit);
+  gum_x86_writer_put_call (cw,
+      GUM_FUNCPTR_TO_POINTER (_gum_script_send_item_commit));
 
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer));

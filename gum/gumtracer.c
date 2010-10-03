@@ -151,7 +151,8 @@ gum_tracer_init (GumTracer * self)
   priv = GUM_TRACER_GET_PRIVATE (self);
 
   kmod = GetModuleHandleA ("kernel32.dll");
-  priv->get_time_impl = GetProcAddress (kmod, "GetTickCount");
+  priv->get_time_impl =
+      GUM_FUNCPTR_TO_POINTER (GetProcAddress (kmod, "GetTickCount"));
 
   priv->names = g_ptr_array_new ();
   priv->address_to_name = g_hash_table_new (NULL, NULL);
@@ -351,6 +352,8 @@ gum_tracer_register_patched_fragment (GumTracer * self,
 static gboolean
 gum_tracer_has_patched_address (GumTracer * self)
 {
+  (void) self;
+
   return FALSE;
 }
 
@@ -732,6 +735,8 @@ gum_tracer_write_load_teb_pointer_into_register (GumTracer * self,
                                                  GumCpuReg reg,
                                                  GumX86Writer * cw)
 {
+  (void) self;
+
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, reg,

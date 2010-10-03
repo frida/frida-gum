@@ -492,6 +492,8 @@ resolve_gpr32(struct ud* u, enum ud_operand_code gpr_op)
 static enum ud_type 
 resolve_reg(struct ud* u, unsigned int type, unsigned char i)
 {
+  (void) u;
+
   switch (type) {
     case T_MMX :    return UD_R_MM0  + (i & 7);
     case T_XMM :    return UD_R_XMM0 + i;

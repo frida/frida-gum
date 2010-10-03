@@ -162,6 +162,8 @@ gum_cobject_tracker_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->on_enter = gum_cobject_tracker_on_enter;
   iface->on_leave = gum_cobject_tracker_on_leave;
   iface->provide_thread_data = gum_cobject_tracker_provide_thread_data;
@@ -199,9 +201,11 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
 
   priv->function_contexts = g_ptr_array_new ();
 
-  gum_cobject_tracker_attach_to_function (self, free,
+  gum_cobject_tracker_attach_to_function (self,
+      GUM_FUNCPTR_TO_POINTER (free),
       &free_cobject_handlers, NULL);
-  gum_cobject_tracker_attach_to_function (self, g_slice_free1,
+  gum_cobject_tracker_attach_to_function (self,
+      GUM_FUNCPTR_TO_POINTER (g_slice_free1),
       &g_slice_free1_cobject_handlers, NULL);
 }
 
@@ -341,11 +345,13 @@ gum_cobject_tracker_track (GumCObjectTracker * self,
 void
 gum_cobject_tracker_begin (GumCObjectTracker * self)
 {
+  (void) self;
 }
 
 void
 gum_cobject_tracker_end (GumCObjectTracker * self)
 {
+  (void) self;
 }
 
 guint
@@ -514,6 +520,9 @@ gum_cobject_tracker_provide_thread_data (GumInvocationListener * listener,
       (CObjectFunctionContext *) function_instance_data;
   guint i;
 
+  (void) listener;
+  (void) thread_id;
+
   i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
   g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
 
@@ -549,6 +558,8 @@ on_constructor_leave_handler (GumCObjectTracker * self,
 {
   GumCObject * cobject = (GumCObject *) thread_context->data;
 
+  (void) object_type;
+
   cobject->address =
       gum_invocation_context_get_return_value (invocation_context);
   gum_cobject_tracker_add_object (self, cobject);
@@ -562,6 +573,9 @@ on_free_enter_handler (GumCObjectTracker * self,
 {
   gpointer address;
 
+  (void) handler_context;
+  (void) thread_context;
+
   address = gum_invocation_context_get_nth_argument (invocation_context, 0);
 
   gum_cobject_tracker_maybe_remove_object (self, address);
@@ -574,6 +588,9 @@ on_g_slice_free1_enter_handler (GumCObjectTracker * self,
                                 GumInvocationContext * invocation_context)
 {
   gpointer mem_block;
+
+  (void) handler_context;
+  (void) thread_context;
 
   mem_block = gum_invocation_context_get_nth_argument (invocation_context, 1);
 

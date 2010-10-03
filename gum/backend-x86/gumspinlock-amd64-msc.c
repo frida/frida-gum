@@ -48,7 +48,8 @@ gum_spinlock_init (GumSpinlock * spinlock)
 
   gum_x86_writer_init (&cw, self->code);
 
-  self->acquire_impl = (GumSpinlockAcquireFunc) gum_x86_writer_cur (&cw);
+  self->acquire_impl = GUM_POINTER_TO_FUNCPTR (GumSpinlockAcquireFunc,
+      gum_x86_writer_cur (&cw));
   gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 1);
 
   gum_x86_writer_put_label (&cw, try_again_label);

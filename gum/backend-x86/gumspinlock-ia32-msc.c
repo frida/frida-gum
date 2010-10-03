@@ -30,11 +30,14 @@ gum_spinlock_init (GumSpinlock * spinlock)
 void
 gum_spinlock_free (GumSpinlock * spinlock)
 {
+  (void) spinlock;
 }
 
 __declspec (naked) void
 gum_spinlock_acquire (GumSpinlock * spinlock)
 {
+  (void) spinlock;
+
   __asm
   {
     mov ecx, [esp + 4];
@@ -56,6 +59,8 @@ beach:
 __declspec (naked) void
 gum_spinlock_release (GumSpinlock * spinlock)
 {
+  (void) spinlock;
+
   __asm
   {
     mov ecx, [esp + 4];

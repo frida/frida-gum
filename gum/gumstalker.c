@@ -341,8 +341,8 @@ gum_stalker_init (GumStalker * self)
 
     g_assert (found_user32_code);
 
-    priv->ki_user_callback_dispatcher_impl =
-        GetProcAddress (ntmod, "KiUserCallbackDispatcher");
+    priv->ki_user_callback_dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (ntmod, "KiUserCallbackDispatcher"));
     g_assert (priv->ki_user_callback_dispatcher_impl != NULL);
   }
 #endif
@@ -472,7 +472,8 @@ gum_stalker_remove_call_probe (GumStalker * self,
   }
   else
   {
-    gint i, match_index = -1;
+    gint match_index = -1;
+    guint i;
 
     for (i = 0; i != probes->len; i++)
     {
@@ -517,7 +518,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   ctx->sink = g_object_ref (sink);
   ctx->sink_mask = gum_event_sink_query_mask (sink);
-  ctx->sink_process_impl = GUM_EVENT_SINK_GET_INTERFACE (sink)->process;
+  ctx->sink_process_impl = GUM_FUNCPTR_TO_POINTER (
+      GUM_EVENT_SINK_GET_INTERFACE (sink)->process);
 
   gum_exec_ctx_create_thunks (ctx);
   gum_exec_ctx_create_block_pool (ctx);
@@ -606,7 +608,8 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
       GUM_ADDRESS (ctx));
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_x86_writer_put_call (&cw, gum_exec_ctx_replace_current_block_with);
+  gum_x86_writer_put_call (&cw,
+      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with));
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
@@ -815,7 +818,7 @@ gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
   gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_XAX,
       GUM_REG_XSP, STATE_PRESERVE_SIZE);
   gum_x86_writer_put_call_with_arguments (cw,
-      gum_exec_ctx_resolve_code_address, 2,
+      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_resolve_code_address), 2,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XAX);
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDX, GUM_REG_XAX);
@@ -888,6 +891,8 @@ static void
 gum_exec_ctx_write_state_preserve_prolog (GumExecCtx * ctx,
                                           GumX86Writer * cw)
 {
+  (void) ctx;
+
   gum_x86_writer_put_pushfx (cw);
 
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
@@ -906,6 +911,8 @@ static void
 gum_exec_ctx_write_state_preserve_epilog (GumExecCtx * ctx,
                                           GumX86Writer * cw)
 {
+  (void) ctx;
+
 #if GLIB_SIZEOF_VOID_P == 8
   gum_x86_writer_put_pop_reg (cw, GUM_REG_R11);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_R10);
@@ -1328,7 +1335,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDI, GUM_REG_XSP);
 
   gum_x86_writer_put_call_with_arguments (cw,
-      gum_exec_block_invoke_call_probes_for_target, 3,
+      GUM_FUNCPTR_TO_POINTER (gum_exec_block_invoke_call_probes_for_target), 3,
       GUM_ARG_POINTER, block,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI);
@@ -1664,6 +1671,8 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
     default:
       g_assert_not_reached ();
   }
+#else
+  (void) context;
 #endif
 
   return TRUE;

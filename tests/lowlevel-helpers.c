@@ -46,8 +46,8 @@ lowlevel_helpers_init (void)
 
   g_assert (clobber_test_function == NULL);
 
-  clobber_test_function =
-      (ClobberTestFunc) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  clobber_test_function = GUM_POINTER_TO_FUNCPTR (ClobberTestFunc,
+      gum_alloc_n_pages (1, GUM_PAGE_RWX));
   gum_x86_writer_init (&cw, (gpointer) (gsize) clobber_test_function);
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_nop (&cw);
@@ -63,7 +63,7 @@ lowlevel_helpers_deinit (void)
 {
   g_assert (clobber_test_function != NULL);
 
-  gum_free_pages (clobber_test_function);
+  gum_free_pages (GUM_FUNCPTR_TO_POINTER (clobber_test_function));
   clobber_test_function = NULL;
 }
 
@@ -139,7 +139,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   GumX86Writer cw;
   InvokeWithCpuContextFunc func;
 
-  addr_spec.near_address = clobber_test_function;
+  addr_spec.near_address = GUM_FUNCPTR_TO_POINTER (clobber_test_function);
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
   code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
   gum_x86_writer_init (&cw, code);
@@ -200,7 +200,8 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx));
 #endif
 
-  gum_x86_writer_put_call (&cw, clobber_test_function);
+  gum_x86_writer_put_call (&cw,
+      GUM_FUNCPTR_TO_POINTER (clobber_test_function));
 
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XCX);
 
@@ -293,7 +294,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
 
   gum_x86_writer_free (&cw);
 
-  func = (InvokeWithCpuContextFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuContextFunc, code);
   func (input, output);
 
   gum_free_pages (code);
@@ -329,7 +330,7 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
 
   gum_x86_writer_free (&cw);
 
-  func = (InvokeWithCpuFlagsFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (InvokeWithCpuFlagsFunc, code);
   func (flags_input, flags_output);
 
   gum_free_pages (code);
@@ -371,7 +372,7 @@ proxy_func_new_relative_with_target (TargetFunc target_func)
   *((gint32 *) (func + 1)) =
       ((gssize) target_func) - (gssize) (func + 5);
 
-  return (ProxyFunc) func;
+  return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
 ProxyFunc
@@ -389,7 +390,7 @@ proxy_func_new_absolute_indirect_with_target (TargetFunc target_func)
 #endif
   *((TargetFunc *) (func + 6)) = target_func;
 
-  return (ProxyFunc) func;
+  return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
 ProxyFunc
@@ -410,7 +411,7 @@ proxy_func_new_two_jumps_with_target (TargetFunc target_func)
 #endif
   *((TargetFunc *) (func + 30)) = target_func;
 
-  return (ProxyFunc) func;
+  return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
 ProxyFunc
@@ -458,7 +459,7 @@ proxy_func_new_early_call_with_target (TargetFunc target_func)
 
   *code++ = 0xc3; /* ret */
 
-  return (ProxyFunc) func;
+  return GUM_POINTER_TO_FUNCPTR (ProxyFunc, func);
 }
 
 void

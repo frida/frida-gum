@@ -73,6 +73,8 @@ test_callback_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->on_enter = test_callback_listener_on_enter;
   iface->on_leave = test_callback_listener_on_leave;
 }
@@ -80,11 +82,13 @@ test_callback_listener_iface_init (gpointer g_iface,
 static void
 test_callback_listener_class_init (TestCallbackListenerClass * klass)
 {
+  (void) klass;
 }
 
 static void
 test_callback_listener_init (TestCallbackListener * self)
 {
+  (void) self;
 }
 
 static TestCallbackListener *

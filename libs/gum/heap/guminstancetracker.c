@@ -90,9 +90,11 @@ gum_instance_tracker_class_init (GumInstanceTrackerClass * klass)
 
 static void
 gum_instance_tracker_listener_iface_init (gpointer g_iface,
-                                              gpointer iface_data)
+                                          gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
 
   iface->on_enter = gum_instance_tracker_on_enter;
   iface->on_leave = gum_instance_tracker_on_leave;
@@ -184,12 +186,14 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
   }
 
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      priv->vtable.create_instance, GUM_INVOCATION_LISTENER (self),
+      GUM_FUNCPTR_TO_POINTER (priv->vtable.create_instance),
+      GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_CREATE_INSTANCE));
   g_assert (attach_ret == GUM_ATTACH_OK);
 
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
-      priv->vtable.free_instance, GUM_INVOCATION_LISTENER (self),
+      GUM_FUNCPTR_TO_POINTER (priv->vtable.free_instance),
+      GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
   g_assert (attach_ret == GUM_ATTACH_OK);
 

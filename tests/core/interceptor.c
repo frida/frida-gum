@@ -209,7 +209,7 @@ INTERCEPTOR_TESTCASE (function_return_value)
 
 INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 {
-  GumCpuContext input, output, * ctx;
+  GumCpuContext input, output;
 
   interceptor_fixture_attach_listener (fixture, 0, clobber_test_function, 'a',
       'b');

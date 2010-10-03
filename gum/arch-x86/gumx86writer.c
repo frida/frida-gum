@@ -248,7 +248,9 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
 
   g_return_if_fail (n_args <= 4);
 
-  for (arg_index = 0; arg_index != n_args; arg_index++)
+  (void) conv;
+
+  for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
   {
     GumArgument * arg = &args[arg_index];
 

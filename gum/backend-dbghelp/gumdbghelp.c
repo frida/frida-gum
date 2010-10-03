@@ -30,7 +30,8 @@ static void gum_dbghelp_impl_lock (void);
 static void gum_dbghelp_impl_unlock (void);
 
 #define INIT_IMPL_FUNC(func) \
-    impl->##func = GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func)));\
+    *((gpointer *) (&impl->##func)) = \
+        GSIZE_TO_POINTER (GetProcAddress (mod, G_STRINGIFY (func)));\
     g_assert (impl->##func != NULL)
 
 GumDbgHelpImpl *

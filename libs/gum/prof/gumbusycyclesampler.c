@@ -65,6 +65,8 @@ gum_busy_cycle_sampler_iface_init (gpointer g_iface,
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->sample = gum_busy_cycle_sampler_sample;
 }
 

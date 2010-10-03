@@ -97,8 +97,8 @@ invoke_flat (TestStalkerFixture * fixture,
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      flat_code, sizeof (flat_code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, flat_code, sizeof (flat_code)));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, -1);
@@ -175,8 +175,8 @@ STALKER_TESTCASE (call_depth)
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, sizeof (code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
 
   fixture->sink->mask = GUM_CALL | GUM_RET;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -239,8 +239,9 @@ STALKER_TESTCASE (call_probe)
   CallProbeContext probe_ctx, secondary_probe_ctx;
   GumProbeId probe_id, secondary_probe_id;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code_template, sizeof (code_template));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code_template,
+          sizeof (code_template)));
 
   func_a_address = fixture->code + 52;
 
@@ -305,8 +306,8 @@ invoke_jumpy (TestStalkerFixture * fixture,
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      jumpy_code, sizeof (jumpy_code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, jumpy_code, sizeof (jumpy_code)));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, -1);
@@ -351,8 +352,8 @@ invoke_short_condy (TestStalkerFixture * fixture,
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, sizeof (code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, arg);
@@ -444,8 +445,8 @@ invoke_long_condy (TestStalkerFixture * fixture,
 
   g_assert (arg == FALSE || arg == TRUE);
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, sizeof (code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
 
   fixture->sink->mask = mask;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, arg);
@@ -504,7 +505,7 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_free (&cw);
 
-  invoke_func = (GCallback) code;
+  invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
 
   gum_free_pages (code);
@@ -527,8 +528,9 @@ STALKER_TESTCASE (follow_stdcall)
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      stdcall_code, sizeof (stdcall_code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, stdcall_code,
+          sizeof (stdcall_code)));
 
   fixture->sink->mask = GUM_EXEC;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -590,7 +592,7 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_free (&cw);
 
-  invoke_func = (GCallback) code;
+  invoke_func = GUM_POINTER_TO_FUNCPTR (GCallback, code);
   invoke_func ();
 
   gum_free_pages (code);
@@ -610,8 +612,8 @@ STALKER_TESTCASE (call_followed_by_junk)
   StalkerTestFunc func;
   gint ret;
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, sizeof (code));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
 
   fixture->sink->mask = GUM_EXEC;
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
@@ -651,7 +653,7 @@ invoke_call_from_template (TestStalkerFixture * fixture,
 
   code = test_stalker_fixture_dup_code (fixture,
       call_template->code_template, call_template->code_size);
-  func = (StalkerTestFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   target_func_address = code + call_template->target_func_offset;
   if (call_template->target_address_offset_points_directly_to_function)
@@ -969,7 +971,7 @@ invoke_jump (TestStalkerFixture * fixture,
 
   code = test_stalker_fixture_dup_code (fixture, jump_template->code_template,
       jump_template->code_size);
-  func = (StalkerTestFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   target_address = code + jump_template->offset_of_target;
   if (jump_template->offset_of_target_pointer_points_directly)
@@ -1135,7 +1137,7 @@ STALKER_TESTCASE (no_clobber)
   gum_x86_writer_free (&cw);
 
   fixture->sink->mask = GUM_CALL | GUM_RET | GUM_EXEC;
-  func = (ClobberFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (ClobberFunc, code);
   func (&ctx);
 
   g_assert_cmphex (ctx.eax, ==, 0xcafebabe);
@@ -1170,8 +1172,9 @@ STALKER_TESTCASE (big_block)
 
   gum_x86_writer_flush (&cw);
 
-  func = (StalkerTestFunc) test_stalker_fixture_dup_code (fixture,
-      code, gum_x86_writer_offset (&cw));
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code,
+          gum_x86_writer_offset (&cw)));
 
   gum_x86_writer_free (&cw);
   gum_free_pages (code);
@@ -1236,7 +1239,7 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
 
   code = test_stalker_fixture_dup_code (fixture, code_template,
       sizeof (code_template));
-  func = (StalkerTestFunc) code;
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
 
   *((gpointer *) (code + 14)) = code + sizeof (code_template) - 1 - 5;
 

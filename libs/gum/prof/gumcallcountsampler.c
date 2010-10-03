@@ -78,6 +78,8 @@ gum_call_count_sampler_sampler_iface_init (gpointer g_iface,
 {
   GumSamplerIface * iface = (GumSamplerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->sample = gum_call_count_sampler_sample;
 }
 
@@ -86,6 +88,8 @@ gum_call_count_sampler_listener_iface_init (gpointer g_iface,
                                             gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
 
   iface->on_enter = gum_call_count_sampler_on_enter;
   iface->on_leave = gum_call_count_sampler_on_leave;
@@ -239,6 +243,8 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
   GumCallCountSamplerPrivate * priv = self->priv;
   GumSample * counter;
 
+  (void) context;
+
   gum_interceptor_ignore_caller (priv->interceptor);
 
   counter = (GumSample *) GUM_TLS_KEY_GET_VALUE (priv->tls_key);
@@ -262,6 +268,8 @@ gum_call_count_sampler_on_leave (GumInvocationListener * listener,
                                  GumInvocationContext * context)
 {
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (listener);
+
+  (void) context;
 
   gum_interceptor_unignore_caller (self->priv->interceptor);
 }

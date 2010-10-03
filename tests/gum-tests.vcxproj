@@ -85,6 +85,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -102,6 +103,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -119,6 +121,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -136,6 +139,7 @@
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

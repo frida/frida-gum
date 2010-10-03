@@ -264,7 +264,6 @@ walk_instance (GumInstanceDetails * id, gpointer user_data)
   WalkInstancesContext * ctx = (WalkInstancesContext *) user_data;
   GSList * entry;
   const GTypeInstance * expected_instance, * cur_instance;
-  GType type;
 
   entry = g_slist_find (ctx->expected_instances, id->address);
   g_assert (entry != NULL);

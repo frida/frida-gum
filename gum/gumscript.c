@@ -599,6 +599,8 @@ gum_script_generate_call_to_send_item_commit (GumScript * self,
                                               GScanner * scanner,
                                               GumScriptCompiler * compiler)
 {
+  (void) scanner;
+
   if (self->priv->send_arg_items->len == 0)
     return;
 
@@ -678,6 +680,8 @@ gum_script_handle_parse_error (GScanner * scanner,
                                gboolean error)
 {
   GString * parse_messages = (GString *) scanner->user_data;
+
+  (void) error;
 
   if (parse_messages->len != 0)
     g_string_append_c (parse_messages, '\n');

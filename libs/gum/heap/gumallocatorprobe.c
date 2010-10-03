@@ -270,6 +270,8 @@ gum_allocator_probe_listener_iface_init (gpointer g_iface,
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
+  (void) iface_data;
+
   iface->on_enter = gum_allocator_probe_on_enter;
   iface->on_leave = gum_allocator_probe_on_leave;
   iface->provide_thread_data = gum_allocator_probe_provide_thread_data;
@@ -398,14 +400,21 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
   if (function_address != NULL)
     gum_allocator_probe_suppress (self, function_address);
 
-  gum_allocator_probe_suppress (self, g_quark_from_string);
-  gum_allocator_probe_suppress (self, g_quark_from_static_string);
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_quark_from_string));
+  gum_allocator_probe_suppress (self, 
+      GUM_FUNCPTR_TO_POINTER (g_quark_from_static_string));
 
-  gum_allocator_probe_suppress (self, g_signal_connect_data);
-  gum_allocator_probe_suppress (self, g_signal_handlers_destroy);
-  gum_allocator_probe_suppress (self, g_type_register_static);
-  gum_allocator_probe_suppress (self, g_type_add_interface_static);
-  gum_allocator_probe_suppress (self, g_param_spec_pool_insert);
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_signal_connect_data));
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_signal_handlers_destroy));
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_type_register_static));
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_type_add_interface_static));
+  gum_allocator_probe_suppress (self,
+      GUM_FUNCPTR_TO_POINTER (g_param_spec_pool_insert));
 
   function_address = gum_find_function ("instance_real_class_set");
   if (function_address != NULL)
@@ -475,6 +484,9 @@ gum_allocator_probe_provide_thread_data (GumInvocationListener * listener,
   FunctionContext * function_ctx = (FunctionContext *) function_instance_data;
   guint i;
 
+  (void) listener;
+  (void) thread_id;
+
   if (function_ctx == NULL)
     return NULL;
 
@@ -500,7 +512,7 @@ typedef struct
 static const ProbeHandler probe_handlers[] =
 {
   {
-    "malloc", malloc,
+    "malloc", GUM_FUNCPTR_TO_POINTER (malloc),
     {
       (HeapEnterHandler) on_malloc_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -508,7 +520,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "calloc", calloc,
+    "calloc", GUM_FUNCPTR_TO_POINTER (calloc),
     {
       (HeapEnterHandler) on_calloc_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -516,7 +528,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "realloc", realloc,
+    "realloc", GUM_FUNCPTR_TO_POINTER (realloc),
     {
       (HeapEnterHandler) on_realloc_enter_handler,
       (HeapLeaveHandler) on_realloc_leave_handler
@@ -524,7 +536,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "free", free,
+    "free", GUM_FUNCPTR_TO_POINTER (free),
     {
       (HeapEnterHandler) on_free_enter_handler,
       NULL
@@ -533,7 +545,7 @@ static const ProbeHandler probe_handlers[] =
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
   {
-    "_malloc_dbg", _malloc_dbg,
+    "_malloc_dbg", GUM_FUNCPTR_TO_POINTER (_malloc_dbg),
     {
       (HeapEnterHandler) on_malloc_dbg_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -541,7 +553,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_calloc_dbg", _calloc_dbg,
+    "_calloc_dbg", GUM_FUNCPTR_TO_POINTER (_calloc_dbg),
     {
       (HeapEnterHandler) on_calloc_dbg_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -549,7 +561,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_realloc_dbg", _realloc_dbg,
+    "_realloc_dbg", GUM_FUNCPTR_TO_POINTER (_realloc_dbg),
     {
       (HeapEnterHandler) on_realloc_dbg_enter_handler,
       (HeapLeaveHandler) on_realloc_leave_handler
@@ -557,7 +569,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_free_dbg", _free_dbg,
+    "_free_dbg", GUM_FUNCPTR_TO_POINTER (_free_dbg),
     {
       (HeapEnterHandler) on_free_dbg_enter_handler,
       NULL
@@ -736,6 +748,8 @@ on_malloc_enter_handler (GumAllocatorProbe * self,
                          AllocThreadContext * thread_ctx,
                          GumInvocationContext * invocation_ctx)
 {
+  (void) self;
+
   thread_ctx->cpu_context = *invocation_ctx->cpu_context;
   thread_ctx->size =
       (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
@@ -747,6 +761,8 @@ on_calloc_enter_handler (GumAllocatorProbe * self,
                          GumInvocationContext * invocation_ctx)
 {
   gsize num, size;
+
+  (void) self;
 
   num = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 0);
   size = (gsize) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
@@ -776,6 +792,8 @@ on_realloc_enter_handler (GumAllocatorProbe * self,
                           ReallocThreadContext * thread_ctx,
                           GumInvocationContext * invocation_ctx)
 {
+  (void) self;
+
   thread_ctx->cpu_context = *invocation_ctx->cpu_context;
   thread_ctx->old_address =
       gum_invocation_context_get_nth_argument (invocation_ctx, 0);
@@ -806,6 +824,8 @@ on_free_enter_handler (GumAllocatorProbe * self,
 {
   gpointer address;
 
+  (void) thread_ctx;
+
   address = gum_invocation_context_get_nth_argument (invocation_ctx, 0);
 
   gum_allocator_probe_on_free (self, address, invocation_ctx->cpu_context);
@@ -820,8 +840,8 @@ on_malloc_dbg_enter_handler (GumAllocatorProbe * self,
 {
   gint block_type;
 
-  block_type =
-      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
+  block_type = (gint) GPOINTER_TO_SIZE (
+      gum_invocation_context_get_nth_argument (invocation_ctx, 1));
 
   decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
@@ -836,8 +856,8 @@ on_calloc_dbg_enter_handler (GumAllocatorProbe * self,
 {
   gint block_type;
 
-  block_type =
-      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 2);
+  block_type = (gint) GPOINTER_TO_SIZE (
+      gum_invocation_context_get_nth_argument (invocation_ctx, 2));
 
   decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
@@ -852,8 +872,8 @@ on_realloc_dbg_enter_handler (GumAllocatorProbe * self,
 {
   gint block_type;
 
-  block_type =
-      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 2);
+  block_type = (gint) GPOINTER_TO_SIZE (
+      gum_invocation_context_get_nth_argument (invocation_ctx, 2));
 
   decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 
@@ -868,8 +888,8 @@ on_free_dbg_enter_handler (GumAllocatorProbe * self,
 {
   gint block_type;
 
-  block_type =
-      (gint) gum_invocation_context_get_nth_argument (invocation_ctx, 1);
+  block_type = (gint) GPOINTER_TO_SIZE (
+      gum_invocation_context_get_nth_argument (invocation_ctx, 1));
 
   decide_ignore_from_block_type ((ThreadContext *) thread_ctx, block_type);
 

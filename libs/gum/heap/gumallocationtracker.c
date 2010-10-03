@@ -378,6 +378,8 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
       GUM_ALLOCATION_TRACKER_GET_PRIVATE (self);
   GumAllocationBlock * block;
 
+  (void) cpu_context;
+
   if (!g_atomic_int_get (&priv->enabled))
     return;
 

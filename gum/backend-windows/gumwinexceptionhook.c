@@ -73,14 +73,15 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
     ntdll_mod = GetModuleHandle (_T ("ntdll.dll"));
     g_assert (ntdll_mod != NULL);
 
-    hook_instance->dispatcher_impl =
-        GetProcAddress (ntdll_mod, "KiUserExceptionDispatcher");
+    hook_instance->dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
+        GetProcAddress (ntdll_mod, "KiUserExceptionDispatcher"));
     g_assert (hook_instance->dispatcher_impl != NULL);
 
     ud_init (&ud_obj);
     ud_set_mode (&ud_obj, 32);
 
-    ud_set_input_buffer (&ud_obj, hook_instance->dispatcher_impl, 4096);
+    ud_set_input_buffer (&ud_obj, (uint8_t *) hook_instance->dispatcher_impl,
+        4096);
 
     do
     {
@@ -97,8 +98,8 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
         (guint8 *) hook_instance->dispatcher_impl + ud_insn_off (&ud_obj);
     call_end = call_begin + ud_insn_len (&ud_obj);
 
-    hook_instance->system_handler = (GumSystemExceptionHandler)
-        (call_end + op->lval.sdword);
+    hook_instance->system_handler = GUM_POINTER_TO_FUNCPTR (
+        GumSystemExceptionHandler, call_end + op->lval.sdword);
 
     VirtualProtect (hook_instance->dispatcher_impl, 4096,
         PAGE_EXECUTE_READWRITE, &hook_instance->previous_page_protection);
