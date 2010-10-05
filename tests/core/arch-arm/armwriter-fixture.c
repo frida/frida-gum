@@ -33,21 +33,21 @@
 typedef struct _TestArmWriterFixture
 {
   guint32 output[16];
-  GumArmWriter tw;
+  GumArmWriter aw;
 } TestArmWriterFixture;
 
 static void
 test_arm_writer_fixture_setup (TestArmWriterFixture * fixture,
                                gconstpointer data)
 {
-  gum_arm_writer_init (&fixture->tw, fixture->output);
+  gum_arm_writer_init (&fixture->aw, fixture->output);
 }
 
 static void
 test_arm_writer_fixture_teardown (TestArmWriterFixture * fixture,
                                   gconstpointer data)
 {
-  gum_arm_writer_free (&fixture->tw);
+  gum_arm_writer_free (&fixture->aw);
 }
 
 #define assert_output_n_equals(n, v) \

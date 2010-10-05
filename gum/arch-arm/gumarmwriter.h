@@ -44,6 +44,9 @@ guint gum_arm_writer_offset (GumArmWriter * self);
 
 void gum_arm_writer_flush (GumArmWriter * self);
 
+void gum_arm_writer_put_ldr_reg_address (GumArmWriter * self, GumArmReg reg, GumAddress address);
+void gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self, GumArmReg reg, guint32 val);
+
 void gum_arm_writer_put_nop (GumArmWriter * self);
 
 void gum_arm_writer_put_bytes (GumArmWriter * self, const guint8 * data, guint n);
