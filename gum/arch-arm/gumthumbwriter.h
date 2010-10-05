@@ -41,6 +41,7 @@ void gum_thumb_writer_free (GumThumbWriter * writer);
 
 gpointer gum_thumb_writer_cur (GumThumbWriter * self);
 guint gum_thumb_writer_offset (GumThumbWriter * self);
+void gum_thumb_writer_skip (GumThumbWriter * self, guint n_bytes);
 
 void gum_thumb_writer_flush (GumThumbWriter * self);
 

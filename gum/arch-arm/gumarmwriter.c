@@ -73,6 +73,13 @@ gum_arm_writer_offset (GumArmWriter * self)
 }
 
 void
+gum_arm_writer_skip (GumArmWriter * self,
+                     guint n_bytes)
+{
+  self->code = (guint32 *) (((guint8 *) self->code) + n_bytes);
+}
+
+void
 gum_arm_writer_flush (GumArmWriter * self)
 {
   guint32 * first_slot, * last_slot;

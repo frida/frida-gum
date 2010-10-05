@@ -41,6 +41,7 @@ void gum_arm_writer_free (GumArmWriter * writer);
 
 gpointer gum_arm_writer_cur (GumArmWriter * self);
 guint gum_arm_writer_offset (GumArmWriter * self);
+void gum_arm_writer_skip (GumArmWriter * self, guint n_bytes);
 
 void gum_arm_writer_flush (GumArmWriter * self);
 

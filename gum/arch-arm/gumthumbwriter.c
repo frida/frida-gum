@@ -75,6 +75,13 @@ gum_thumb_writer_offset (GumThumbWriter * self)
 }
 
 void
+gum_thumb_writer_skip (GumThumbWriter * self,
+                       guint n_bytes)
+{
+  self->code = (guint16 *) (((guint8 *) self->code) + n_bytes);
+}
+
+void
 gum_thumb_writer_flush (GumThumbWriter * self)
 {
   guint32 * first_slot, * last_slot;
