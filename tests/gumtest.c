@@ -94,6 +94,8 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (relocator);
 #endif
 #ifdef HAVE_ARM
+  TEST_RUN_LIST (armwriter);
+  TEST_RUN_LIST (armrelocator);
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
 #endif

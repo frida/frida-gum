@@ -25,6 +25,11 @@ guminclude_HEADERS = \
 	gumtracer.h
 
 arch_sources = \
+	arch-arm/gumarm.h \
+	arch-arm/gumarmwriter.c \
+	arch-arm/gumarmwriter.h \
+	arch-arm/gumarmrelocator.c \
+	arch-arm/gumarmrelocator.h \
 	arch-arm/gumthumbwriter.c \
 	arch-arm/gumthumbwriter.h \
 	arch-arm/gumthumbrelocator.c \

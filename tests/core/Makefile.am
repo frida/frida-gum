@@ -1,6 +1,8 @@
 noinst_LTLIBRARIES = libgum-tests-core.la libgum-targetfunctions.la
 
 libgum_tests_core_la_SOURCES = \
+	arch-arm/armwriter.c \
+	arch-arm/armrelocator.c \
 	arch-arm/thumbwriter.c \
 	arch-arm/thumbrelocator.c \
 	symbolutil.c \
