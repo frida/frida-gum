@@ -93,6 +93,8 @@ gpointer (* target_nop_function_a) (gpointer data);
 gpointer (* target_nop_function_b) (gpointer data);
 gpointer (* target_nop_function_c) (gpointer data);
 
+gpointer (* special_function) (GString * str) = NULL;
+
 static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
                                 gconstpointer data)
@@ -107,6 +109,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   {
 #ifdef G_OS_WIN32
     target_function = gum_test_target_function;
+    special_function = gum_test_target_function;
     target_nop_function_a = gum_test_target_nop_function_a;
     target_nop_function_b = gum_test_target_nop_function_b;
     target_nop_function_c = gum_test_target_nop_function_c;
@@ -115,10 +118,12 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     void * lib;
 
     testdir = test_util_get_filesystem_path_of_self ();
+
     filename = g_build_filename (testdir, "targetfunctions." G_MODULE_SUFFIX,
         NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
     g_assert (lib != NULL);
+    g_free (filename);
 
     target_function = dlsym (lib, "gum_test_target_function");
     g_assert (target_function != NULL);
@@ -132,7 +137,15 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
     g_assert (target_nop_function_c != NULL);
 
+    filename = g_build_filename (testdir, "specialfunctions." G_MODULE_SUFFIX,
+        NULL);
+    lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
+    g_assert (lib != NULL);
     g_free (filename);
+
+    special_function = dlsym (lib, "gum_test_special_function");
+    g_assert (special_function != NULL);
+
     g_free (testdir);
 #endif
   }
