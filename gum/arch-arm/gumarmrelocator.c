@@ -100,45 +100,34 @@ guint
 gum_arm_relocator_read_one (GumArmRelocator * self,
                             const GumArmInstruction ** instruction)
 {
-  guint16 raw_insn;
+  guint32 raw_insn;
   guint group, operation;
   GumArmInstruction * insn;
 
   if (self->eoi)
     return 0;
 
-  raw_insn = *((guint16 *) self->input_cur);
+  raw_insn = *((guint32 *) self->input_cur);
   insn = &self->input_insns[gum_arm_relocator_inpos (self)];
 
-  group = (raw_insn >> 12) & 0xf;
-  operation = (raw_insn >> 8) & 0xf;
+  group = (raw_insn >> 20) & 0xff;
+  operation = (raw_insn >> 4) & 0xf;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->length = 4;
 
   switch (group)
   {
-    case 0x4:
-      if (operation == 4)
-        insn->mnemonic = GUM_ARM_ADDH;
-      else if (operation >= 8)
-        insn->mnemonic = GUM_ARM_LDRPC;
+    case 0x1a:
+      if (operation <= 8 || operation == 10 || operation == 12 ||
+          operation == 14)
+      {
+        insn->mnemonic = GUM_ARM_MOV;
+      }
       break;
 
-    case 0xa:
-      if (operation < 8)
-        insn->mnemonic = GUM_ARM_ADDPC;
-      else
-        insn->mnemonic = GUM_ARM_ADDSP;
-      break;
-
-    case 0xb:
-      if (operation == 4 || operation == 5)
-        insn->mnemonic = GUM_ARM_PUSH;
-      break;
-
-    case 0xf:
-      insn->length = 4;
+    case 0x92:
+      insn->mnemonic = GUM_ARM_PUSH;
       break;
 
     default:
