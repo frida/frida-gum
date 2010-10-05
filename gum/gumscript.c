@@ -328,13 +328,20 @@ _gum_script_send_item_commit (GumScript * self,
 
   while (argument_index != G_MAXUINT)
   {
+    guint byte_array_length_argument_index = 0;
     gpointer argument_value;
     GumVariableType var_type;
     GVariant * value;
 
+    var_type = va_arg (args, GumVariableType);
+    if (var_type == GUM_VARIABLE_BYTE_ARRAY)
+    {
+      byte_array_length_argument_index = argument_index & 0xffff;
+      argument_index >>= 16;
+    }
+
     argument_value =
         gum_invocation_context_get_nth_argument (context, argument_index);
-    var_type = va_arg (args, GumVariableType);
 
     switch (var_type)
     {
@@ -381,6 +388,24 @@ _gum_script_send_item_commit (GumScript * self,
         value = g_variant_new_string (str_utf8);
 
         g_free (str_utf8);
+
+        break;
+      }
+
+      case GUM_VARIABLE_BYTE_ARRAY:
+      {
+        gpointer byte_array_data = argument_value;
+        gssize byte_array_length;
+        gconstpointer byte_array_copy;
+
+        byte_array_length = (gssize) GPOINTER_TO_SIZE (
+            gum_invocation_context_get_nth_argument (context,
+                byte_array_length_argument_index));
+
+        byte_array_copy = g_memdup (byte_array_data, byte_array_length);
+
+        value = g_variant_new_from_data (G_VARIANT_TYPE ("ay"),
+            byte_array_copy, byte_array_length, TRUE, g_free, NULL);
 
         break;
       }
@@ -571,6 +596,11 @@ gum_script_handle_send_statement (GumScript * self,
     item.type = GUM_VARIABLE_WIDE_FORMAT_STRING;
     type_char = 's';
   }
+  else if (strcmp (statement_type, "SendByteArrayFromArgument") == 0)
+  {
+    item.type = GUM_VARIABLE_BYTE_ARRAY;
+    type_char = ' ';
+  }
   else
   {
     g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
@@ -585,7 +615,21 @@ gum_script_handle_send_statement (GumScript * self,
   }
   item.index = scanner->value.v_int;
 
-  g_string_append_c (self->priv->send_arg_type_signature, type_char);
+  if (item.type == GUM_VARIABLE_BYTE_ARRAY)
+  {
+    if (g_scanner_get_next_token (scanner) != G_TOKEN_INT)
+    {
+      g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
+          "expected argument index for byte array length", TRUE);
+      goto error;
+    }
+    item.index = (item.index << 16) | scanner->value.v_int;
+  }
+
+  if (type_char == ' ')
+    g_string_append (self->priv->send_arg_type_signature, "ay");
+  else
+    g_string_append_c (self->priv->send_arg_type_signature, type_char);
   g_array_append_val (self->priv->send_arg_items, item);
 
   return TRUE;

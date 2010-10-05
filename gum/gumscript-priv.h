@@ -35,12 +35,13 @@ enum _GumVariableType
   GUM_VARIABLE_ANSI_STRING,
   GUM_VARIABLE_WIDE_STRING,
   GUM_VARIABLE_ANSI_FORMAT_STRING,
-  GUM_VARIABLE_WIDE_FORMAT_STRING
+  GUM_VARIABLE_WIDE_FORMAT_STRING,
+  GUM_VARIABLE_BYTE_ARRAY
 };
 
 struct _GumSendArgItem
 {
-  guint index;
+  guint32 index;
   GumVariableType type;
 };
 

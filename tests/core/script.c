@@ -24,12 +24,14 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (send_string_from_argument)
   SCRIPT_TESTENTRY (send_narrow_format_string_from_argument)
   SCRIPT_TESTENTRY (send_wide_format_string_from_argument)
+  SCRIPT_TESTENTRY (send_byte_array_from_argument)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
 typedef struct _StringsAndLengthArgs StringsAndLengthArgs;
 typedef struct _NarrowFormatStringArgs NarrowFormatStringArgs;
 typedef struct _WideFormatStringArgs WideFormatStringArgs;
+typedef struct _ByteArrayAndLengthArgs ByteArrayAndLengthArgs;
 
 struct _StringAndLengthArgs {
   gunichar2 * text;
@@ -54,6 +56,12 @@ struct _WideFormatStringArgs {
   guint age;
 };
 
+struct _ByteArrayAndLengthArgs {
+  gint socket;
+  gpointer buffer;
+  gsize length;
+};
+
 static void store_message (GumScript * script, GVariant * msg,
     gpointer user_data);
 
@@ -73,8 +81,8 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
   gchar * new_text;
 
   script = gum_script_from_string (script_text, &error);
-  g_assert (script != NULL);
   g_assert (error == NULL);
+  g_assert (script != NULL);
 
   previous_text = g_utf8_to_utf16 ("Hey you", -1, NULL, NULL, NULL);
   previous_length = 7;
@@ -111,8 +119,8 @@ SCRIPT_TESTCASE (send_string_from_argument)
   gint32 msg_int;
 
   script = gum_script_from_string (script_text, &error);
-  g_assert (script != NULL);
   g_assert (error == NULL);
+  g_assert (script != NULL);
   args.text_narrow = narrow_string_from_utf8 ("ÆØÅæøå");
   args.text_wide = g_utf8_to_utf16 ("ÆØÅæøå", -1, NULL, NULL, NULL);
   args.length = 42;
@@ -146,8 +154,8 @@ SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
   gchar * msg_str;
 
   script = gum_script_from_string (script_text, &error);
-  g_assert (script != NULL);
   g_assert (error == NULL);
+  g_assert (script != NULL);
   args.format =
     narrow_string_from_utf8 ("My name is %s and I æm %%%03d");
   args.name = narrow_string_from_utf8 ("Bøggvald");
@@ -179,8 +187,8 @@ SCRIPT_TESTCASE (send_wide_format_string_from_argument)
   gchar * msg_str;
 
   script = gum_script_from_string (script_text, &error);
-  g_assert (script != NULL);
   g_assert (error == NULL);
+  g_assert (script != NULL);
   args.format =
       g_utf8_to_utf16 ("My name is %s and I æm %%%03d", -1, NULL, NULL, NULL);
   args.name =
@@ -200,6 +208,45 @@ SCRIPT_TESTCASE (send_wide_format_string_from_argument)
 
   g_free (args.name);
   g_free (args.format);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (send_byte_array_from_argument)
+{
+  const gchar * script_text = "SendByteArrayFromArgument 1 2";
+  GumScript * script;
+  GError * error = NULL;
+  ByteArrayAndLengthArgs args;
+  guint8 bytes[5] = { 'H', 'E', 'L', 'L', 'O' };
+  GVariant * msg = NULL;
+  GVariantIter * iter;
+  guint i;
+  guint8 element;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (error == NULL);
+  g_assert (script != NULL);
+  args.socket = 1337;
+  args.buffer = bytes;
+  args.length = sizeof (bytes);
+  fixture->argument_list = &args;
+
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(ay)")));
+  g_variant_get (msg, "(ay)", &iter);
+  g_assert_cmpuint (g_variant_iter_n_children (iter), ==, 5);
+  for (i = 0; g_variant_iter_loop (iter, "y", &element); i++)
+  {
+    g_assert_cmpuint (i, <, 5);
+    g_assert (element == bytes[i]);
+  }
+  g_assert_cmpuint (i, ==, 5);
+  g_variant_iter_free (iter);
+
+  g_variant_unref (msg);
+
   g_object_unref (script);
 }
 
