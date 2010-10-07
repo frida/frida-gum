@@ -1,4 +1,7 @@
+ACLOCAL_AMFLAGS = -I m4
+
 SUBDIRS = \
+	ext \
 	gum \
 	tests \
 	vapi

@@ -163,6 +163,15 @@ gum_alloc_n_pages (guint n_pages,
   return result;
 }
 
+gpointer
+gum_alloc_n_pages_near (guint n_pages,
+                        GumPageProtection page_prot,
+                        GumAddressSpec * address_spec)
+{
+  /* FIXME */
+  return gum_alloc_n_pages (n_pages, page_prot);
+}
+
 void
 gum_free_pages (gpointer mem)
 {

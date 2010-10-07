@@ -1,6 +1,7 @@
 AC_INIT([libgum], [1.0.0])
 AC_CONFIG_SRCDIR([gum/gum.c])
 AC_CONFIG_HEADERS([config.h])
+AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_SYSTEM
 
 AM_INIT_AUTOMAKE([-Wall -Werror no-dist-gzip dist-bzip2 foreign])
@@ -12,10 +13,11 @@ AM_MAINTAINER_MODE
 
 AC_PROG_CC
 AC_PROG_CC_STDC
+AC_PROG_CXX
 AC_PROG_LIBTOOL
 AC_PROG_INSTALL
 
-GLIB_VERSION=2.25.13
+GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
@@ -26,6 +28,7 @@ AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
 if [[ "$HAVE_BFD" = "yes" ]]; then
   AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if symbol backend is available.])
 fi
+AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
 HAVE_I386=no
 HAVE_ARM=no
@@ -47,17 +50,25 @@ AM_CONDITIONAL(ARCH_I386, test "$HAVE_I386" = "yes")
 AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 
 case $target_os in
+  linux*)  HAVE_LINUX=yes  ;;
   darwin) HAVE_DARWIN=yes ;;
-  *)      HAVE_DARWIN=no  ;;
+  *)                      ;;
 esac
-if [[ "$HAVE_DARWIN" = "yes" ]]; then
+if [[ "x$HAVE_LINUX" = "xyes" ]]; then
+  AC_DEFINE(HAVE_LINUX, 1, [Define to 1 if OS is Linux based.])
+fi
+if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
   AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
 fi
-AM_CONDITIONAL(OS_DARWIN, test "$HAVE_DARWIN" = "yes")
+AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
+AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
 
 AC_CONFIG_FILES([
 	gum-1.0.pc
 	Makefile
+	ext/Makefile
+	ext/udis86/Makefile
+	ext/udis86/libudis86/Makefile
 	gum/Makefile
 	tests/Makefile
 	tests/core/Makefile

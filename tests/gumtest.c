@@ -101,7 +101,7 @@ main (gint argc, gchar * argv[])
 #endif
   TEST_RUN_LIST (interceptor);
   TEST_RUN_LIST (script);
-#ifdef HAVE_I386
+#if defined (HAVE_I386) && defined (G_OS_WIN32) /* for now */
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (tracer);
   TEST_RUN_LIST (backtracer);
@@ -138,10 +138,12 @@ main (gint argc, gchar * argv[])
 #endif
 
   gum_deinit ();
+#if GLIB_CHECK_VERSION (2, 27, 1)
   g_test_deinit ();
   g_type_deinit ();
   g_thread_deinit ();
   g_mem_deinit ();
+#endif
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
   if (IsDebuggerPresent ())

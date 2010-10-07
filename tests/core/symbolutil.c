@@ -26,8 +26,10 @@
     TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
 TEST_LIST_BEGIN (symbolutil)
+#ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (process_modules)
   SYMUTIL_TESTENTRY (module_exports)
+#endif
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
@@ -52,16 +54,19 @@ typedef struct _TestForEachContext {
   guint number_of_calls;
 } TestForEachContext;
 
+#ifndef HAVE_LINUX
 static gboolean module_found_cb (const gchar * name, gpointer address,
     const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
+#endif
 
 #ifdef HAVE_SYMBOL_BACKEND
 static void GUM_CDECL dummy_function_0 (void);
 static void GUM_STDCALL dummy_function_1 (void);
 #endif
 
+#ifndef HAVE_LINUX
 SYMUTIL_TESTCASE (process_modules)
 {
   TestForEachContext ctx;
@@ -91,6 +96,9 @@ SYMUTIL_TESTCASE (module_exports)
   gum_module_enumerate_exports (SYSTEM_MODULE_NAME, export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
+#endif
+
+#ifndef HAVE_LINUX
 
 static gboolean
 module_found_cb (const gchar * name,
@@ -116,6 +124,8 @@ export_found_cb (const gchar * name,
 
   return ctx->value_to_return;
 }
+
+#endif
 
 #ifdef HAVE_SYMBOL_BACKEND
 
