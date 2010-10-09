@@ -33,7 +33,7 @@ AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 HAVE_I386=no
 HAVE_ARM=no
 case $target_cpu in
-  i?86)
+  i?86|x86*)
     HAVE_I386=yes
   ;;
   arm)
@@ -51,8 +51,8 @@ AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 
 case $target_os in
   linux*)  HAVE_LINUX=yes  ;;
-  darwin) HAVE_DARWIN=yes ;;
-  *)                      ;;
+  darwin*) HAVE_DARWIN=yes ;;
+  *)                       ;;
 esac
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_DEFINE(HAVE_LINUX, 1, [Define to 1 if OS is Linux based.])
@@ -62,6 +62,21 @@ if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
 fi
 AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
+
+case $target_os in
+  darwin10\.*) HAVE_OSX=yes ;;
+  *)                      ;;
+esac
+if [[ "x$HAVE_OSX" = "xyes" ]]; then
+  AC_DEFINE(HAVE_OSX, 1, [Define to 1 if OS is Mac OS X.])
+fi
+AM_CONDITIONAL(OS_OSX, test "x$HAVE_OSX" = "xyes")
+
+if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
+  HAVE_IOS=yes
+  AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
+fi
+AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
 AC_CONFIG_FILES([
 	gum-1.0.pc

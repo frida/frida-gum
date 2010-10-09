@@ -150,15 +150,19 @@ struct _GumCpuContext
 #endif
 
 #ifdef _MSC_VER
-#define GUM_CDECL __cdecl
-#define GUM_STDCALL __stdcall
-#define GUM_FASTCALL __fastcall
-#define GUM_NOINLINE __declspec (noinline)
+# define GUM_CDECL __cdecl
+# define GUM_STDCALL __stdcall
+# define GUM_FASTCALL __fastcall
+# define GUM_NOINLINE __declspec (noinline)
 #else
-#define GUM_CDECL __attribute__((cdecl))
-#define GUM_STDCALL __attribute__((stdcall))
-#define GUM_FASTCALL __attribute__((fastcall))
-#define GUM_NOINLINE __attribute__((noinline))
+# define GUM_CDECL __attribute__((cdecl))
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_STDCALL __attribute__((stdcall))
+# else
+#  define GUM_STDCALL
+# endif
+# define GUM_FASTCALL __attribute__((fastcall))
+# define GUM_NOINLINE __attribute__((noinline))
 #endif
 
 #define GUM_FUNCPTR_TO_POINTER(f) (GSIZE_TO_POINTER (f))

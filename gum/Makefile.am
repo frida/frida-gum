@@ -25,6 +25,7 @@ guminclude_HEADERS = \
 	gumtracer.h
 
 arch_sources = $(NULL)
+arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
 backend_libs = $(NULL)
@@ -41,6 +42,9 @@ arch_sources += \
 	arch-x86/gumx86functionparser.c \
 	arch-x86/gumudis86.h \
 	arch-x86/gumudis86.c
+arch_includes += \
+	-I $(srcdir)/arch-x86 \
+	-I $(top_srcdir)/ext/udis86
 arch_libs += \
 	$(top_builddir)/ext/udis86/libudis86/libudis86.la
 backend_sources += \
@@ -60,6 +64,8 @@ arch_sources += \
 	arch-arm/gumthumbwriter.h \
 	arch-arm/gumthumbrelocator.c \
 	arch-arm/gumthumbrelocator.h
+arch_includes += \
+	-I $(srcdir)/arch-arm
 backend_sources += \
 	backend-arm/guminterceptor-arm.c \
 	backend-arm/gumscriptcompiler-arm.c \
@@ -114,6 +120,5 @@ libgum_1_0_la_LIBTOOLFLAGS = \
 
 AM_CPPFLAGS = \
 	-include config.h \
-	-I $(srcdir)/arch-arm \
-	-I $(srcdir)/arch-x86 \
+	$(arch_includes) \
 	$(GUM_CFLAGS)

@@ -131,7 +131,7 @@ gum_module_enumerate_exports (const gchar * module_name,
     if (symbol_name[0] == '_')
       symbol_name++;
 
-    symbol_address = (guint8 *) sym->n_value;
+    symbol_address = (guint8 *) GSIZE_TO_POINTER (sym->n_value);
     if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
       symbol_address++;
 

@@ -346,7 +346,8 @@ _gum_script_send_item_commit (GumScript * self,
     switch (var_type)
     {
       case GUM_VARIABLE_INT32:
-        value = g_variant_new_int32 ((gint32) argument_value);
+        value = g_variant_new_int32 ((gint32)
+            GPOINTER_TO_SIZE (argument_value));
         break;
 
       case GUM_VARIABLE_ANSI_STRING:
@@ -828,10 +829,10 @@ gum_script_expand_format_string (gchar ** format_str,
       {
         gint width, precision;
 
-        width = (gint)
-            gum_invocation_context_get_nth_argument (context, arg_index + 0);
-        precision = (gint)
-            gum_invocation_context_get_nth_argument (context, arg_index + 1);
+        width = (gint) GPOINTER_TO_SIZE (
+            gum_invocation_context_get_nth_argument (context, arg_index + 0));
+        precision = (gint) GPOINTER_TO_SIZE (
+            gum_invocation_context_get_nth_argument (context, arg_index + 1));
         arg_index += 2;
 
         value = gum_consume_format_string_arg_value (&t, context, &arg_index,
@@ -843,8 +844,8 @@ gum_script_expand_format_string (gchar ** format_str,
       {
         gint width_or_precision;
 
-        width_or_precision = (gint)
-            gum_invocation_context_get_nth_argument (context, arg_index + 0);
+        width_or_precision = (gint) GPOINTER_TO_SIZE (
+            gum_invocation_context_get_nth_argument (context, arg_index + 0));
         arg_index++;
 
         value = gum_consume_format_string_arg_value (&t, context, &arg_index,

@@ -270,9 +270,14 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       GumArgument * arg = &args[arg_index];
 
       if (arg->type == GUM_ARG_POINTER)
-        gum_x86_writer_put_push_u32 (self, (guint32) arg->value.pointer);
+      {
+        gum_x86_writer_put_push_u32 (self, (guint32) GPOINTER_TO_SIZE (
+            arg->value.pointer));
+      }
       else
+      {
         gum_x86_writer_put_push_reg (self, arg->value.reg);
+      }
     }
   }
   else
@@ -879,7 +884,7 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    *((guint32 *) (self->code + 3)) = (guint32) target;
+    *((guint32 *) (self->code + 3)) = (guint32) GPOINTER_TO_SIZE (target);
   }
   else
   {

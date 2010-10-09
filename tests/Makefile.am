@@ -41,7 +41,7 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/libs \
 	$(GUM_CFLAGS)
 
-if OS_DARWIN
+if OS_IOS
 all-local: gum-tests
 	codesign -f -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<"
 endif
