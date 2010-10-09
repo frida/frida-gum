@@ -228,9 +228,9 @@ gum_free_pages (gpointer mem)
 {
   mach_port_t self;
   mach_vm_address_t address = (mach_vm_address_t) mem;
-  mach_vm_size_t size = 0;
-  vm_region_basic_info_data_t info;
-  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT;
+  mach_vm_size_t size = (mach_vm_size_t) 0;
+  vm_region_basic_info_data_64_t info;
+  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
   memory_object_name_t obj;
   kern_return_t kr;
 
