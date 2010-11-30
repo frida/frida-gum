@@ -36,6 +36,13 @@ struct _GumSanityCheckerPrivate
 {
   GumSanityOutputFunc output;
   gpointer output_user_data;
+
+  GumInstanceTracker * instance_tracker;
+
+  GumAllocatorProbe * alloc_probe;
+  GumAllocationTracker * alloc_tracker;
+
+  GumBoundsChecker * bounds_checker;
 };
 
 static void gum_sanity_checker_print_instance_leaks_summary (
@@ -95,8 +102,6 @@ gum_sanity_checker_run (GumSanityChecker * self,
                         GumSanitySequenceFunc func,
                         gpointer user_data)
 {
-  GumInstanceTracker * instance_tracker;
-  GumList * stale_instances = NULL, * stale_blocks = NULL;
   gboolean no_leaks_of_any_kind;
 
   /*
@@ -106,75 +111,136 @@ gum_sanity_checker_run (GumSanityChecker * self,
    */
   func (user_data);
 
-  instance_tracker = gum_instance_tracker_new ();
-  gum_instance_tracker_begin (instance_tracker, NULL);
+  gum_sanity_checker_begin (self, GUM_CHECK_INSTANCE_LEAKS);
   func (user_data);
-  gum_instance_tracker_end (instance_tracker);
-  stale_instances = gum_instance_tracker_peek_instances (instance_tracker);
-  g_object_unref (instance_tracker);
-
-  if (stale_instances != NULL)
-  {
-    gum_sanity_checker_printf (self, "Instance leaks detected:\n\n");
-    gum_sanity_checker_print_instance_leaks_summary (self, stale_instances);
-    gum_sanity_checker_print (self, "\n");
-    gum_sanity_checker_print_instance_leaks_details (self, stale_instances);
-    gum_list_free (stale_instances);
-  }
-
-  if (stale_instances == NULL)
-  {
-    GumAllocationTracker * alloc_tracker;
-    GumAllocatorProbe * alloc_probe;
-
-    alloc_tracker = gum_allocation_tracker_new ();
-    gum_allocation_tracker_begin (alloc_tracker);
-
-    alloc_probe = gum_allocator_probe_new ();
-    g_object_set (alloc_probe, "allocation-tracker", alloc_tracker, NULL);
-    gum_allocator_probe_attach (alloc_probe);
-
-    func (user_data);
-
-    gum_allocator_probe_detach (alloc_probe);
-
-    stale_blocks = gum_allocation_tracker_peek_block_list (alloc_tracker);
-    if (stale_blocks != NULL)
-    {
-      GumList * block_groups;
-
-      block_groups = gum_allocation_tracker_peek_block_groups (alloc_tracker);
-
-      gum_sanity_checker_printf (self, "Block leaks detected:\n\n");
-      gum_sanity_checker_print_block_leaks_summary (self, block_groups);
-      gum_sanity_checker_print (self, "\n");
-      gum_sanity_checker_print_block_leaks_details (self, stale_blocks);
-
-      gum_allocation_group_list_free (block_groups);
-      gum_allocation_block_list_free (stale_blocks);
-    }
-
-    g_object_unref (alloc_probe);
-    g_object_unref (alloc_tracker);
-  }
-
-  no_leaks_of_any_kind = (stale_instances == NULL && stale_blocks == NULL);
+  no_leaks_of_any_kind = gum_sanity_checker_end (self);
 
   if (no_leaks_of_any_kind)
   {
-    GumBoundsChecker * bounds_checker;
-
-    bounds_checker = gum_bounds_checker_new ();
-    g_object_set (bounds_checker, "front-alignment", 1, NULL);
-    gum_bounds_checker_attach (bounds_checker);
-
+    gum_sanity_checker_begin (self, GUM_CHECK_BLOCK_LEAKS);
     func (user_data);
+    no_leaks_of_any_kind = gum_sanity_checker_end (self);
+  }
 
-    gum_bounds_checker_detach (bounds_checker);
-    g_object_unref (bounds_checker);
+  if (no_leaks_of_any_kind)
+  {
+    gum_sanity_checker_begin (self, GUM_CHECK_BOUNDS);
+    func (user_data);
+    no_leaks_of_any_kind = gum_sanity_checker_end (self);
   }
 
   return no_leaks_of_any_kind;
+}
+
+void
+gum_sanity_checker_begin (GumSanityChecker * self,
+                          GumSanityCheckFlags flags)
+{
+  GumSanityCheckerPrivate * priv = self->priv;
+
+  if ((flags & GUM_CHECK_INSTANCE_LEAKS) != 0)
+  {
+    priv->instance_tracker = gum_instance_tracker_new ();
+    gum_instance_tracker_begin (priv->instance_tracker, NULL);
+  }
+
+  if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
+  {
+    priv->alloc_tracker = gum_allocation_tracker_new ();
+    gum_allocation_tracker_begin (priv->alloc_tracker);
+
+    priv->alloc_probe = gum_allocator_probe_new ();
+    g_object_set (priv->alloc_probe, "allocation-tracker", priv->alloc_tracker,
+        NULL);
+    gum_allocator_probe_attach (priv->alloc_probe);
+  }
+
+  if ((flags & GUM_CHECK_BOUNDS) != 0)
+  {
+    priv->bounds_checker = gum_bounds_checker_new ();
+    g_object_set (priv->bounds_checker, "front-alignment", 1, NULL);
+    gum_bounds_checker_attach (priv->bounds_checker);
+  }
+}
+
+gboolean
+gum_sanity_checker_end (GumSanityChecker * self)
+{
+  GumSanityCheckerPrivate * priv = self->priv;
+  gboolean all_checks_passed = TRUE;
+
+  if (priv->instance_tracker != NULL)
+  {
+    GumList * stale_instances;
+
+    gum_instance_tracker_end (priv->instance_tracker);
+
+    stale_instances =
+        gum_instance_tracker_peek_instances (priv->instance_tracker);
+
+    g_object_unref (priv->instance_tracker);
+    priv->instance_tracker = NULL;
+
+    if (stale_instances != NULL)
+    {
+      all_checks_passed = FALSE;
+
+      gum_sanity_checker_printf (self, "Instance leaks detected:\n\n");
+      gum_sanity_checker_print_instance_leaks_summary (self, stale_instances);
+      gum_sanity_checker_print (self, "\n");
+      gum_sanity_checker_print_instance_leaks_details (self, stale_instances);
+
+      gum_list_free (stale_instances);
+    }
+  }
+
+  if (priv->alloc_probe != NULL)
+  {
+    GumList * stale_blocks;
+
+    gum_allocator_probe_detach (priv->alloc_probe);
+
+    stale_blocks =
+        gum_allocation_tracker_peek_block_list (priv->alloc_tracker);
+
+    if (stale_blocks != NULL)
+    {
+      if (all_checks_passed)
+      {
+        GumList * block_groups;
+
+        block_groups =
+            gum_allocation_tracker_peek_block_groups (priv->alloc_tracker);
+
+        gum_sanity_checker_printf (self, "Block leaks detected:\n\n");
+        gum_sanity_checker_print_block_leaks_summary (self, block_groups);
+        gum_sanity_checker_print (self, "\n");
+        gum_sanity_checker_print_block_leaks_details (self, stale_blocks);
+
+        gum_allocation_group_list_free (block_groups);
+      }
+
+      all_checks_passed = FALSE;
+
+      gum_allocation_block_list_free (stale_blocks);
+    }
+
+    g_object_unref (priv->alloc_probe);
+    priv->alloc_probe = NULL;
+
+    g_object_unref (priv->alloc_tracker);
+    priv->alloc_tracker = NULL;
+  }
+
+  if (priv->bounds_checker != NULL)
+  {
+    gum_bounds_checker_detach (priv->bounds_checker);
+
+    g_object_unref (priv->bounds_checker);
+    priv->bounds_checker = NULL;
+  }
+
+  return all_checks_passed;
 }
 
 static void

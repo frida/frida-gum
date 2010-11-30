@@ -22,11 +22,20 @@
 
 #include <gum/gumdefs.h>
 
+typedef enum _GumSanityCheckFlags GumSanityCheckFlags;
+
 typedef struct _GumSanityChecker GumSanityChecker;
 typedef struct _GumSanityCheckerPrivate GumSanityCheckerPrivate;
 
 typedef void (* GumSanityOutputFunc) (const gchar * text, gpointer user_data);
 typedef void (* GumSanitySequenceFunc) (gpointer user_data);
+
+enum _GumSanityCheckFlags
+{
+  GUM_CHECK_INSTANCE_LEAKS  = (1 << 0),
+  GUM_CHECK_BLOCK_LEAKS     = (1 << 1),
+  GUM_CHECK_BOUNDS          = (1 << 2)
+};
 
 struct _GumSanityChecker
 {
@@ -41,6 +50,10 @@ GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 
 GUM_API gboolean gum_sanity_checker_run (GumSanityChecker * self,
     GumSanitySequenceFunc func, gpointer user_data);
+
+GUM_API void gum_sanity_checker_begin (GumSanityChecker * self,
+    GumSanityCheckFlags flags);
+GUM_API gboolean gum_sanity_checker_end (GumSanityChecker * self);
 
 G_END_DECLS
 
