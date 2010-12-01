@@ -262,6 +262,12 @@ gum_instance_tracker_end (GumInstanceTracker * self)
   priv->is_active = FALSE;
 }
 
+const GumInstanceVTable *
+gum_instance_tracker_get_current_vtable (GumInstanceTracker * self)
+{
+  return &self->priv->vtable;
+}
+
 void
 gum_instance_tracker_set_type_filter_function (GumInstanceTracker * self,
                                                GumFilterInstanceTypeFunc filter,

@@ -84,6 +84,9 @@ GUM_API void gum_instance_tracker_begin (GumInstanceTracker * self,
     GumInstanceVTable * vtable);
 GUM_API void gum_instance_tracker_end (GumInstanceTracker * self);
 
+GUM_API const GumInstanceVTable * gum_instance_tracker_get_current_vtable (
+    GumInstanceTracker * self);
+
 GUM_API void gum_instance_tracker_set_type_filter_function (
     GumInstanceTracker * self, GumFilterInstanceTypeFunc filter,
     gpointer user_data);

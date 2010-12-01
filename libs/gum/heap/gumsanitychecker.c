@@ -55,8 +55,9 @@ static void gum_sanity_checker_print_block_leaks_details (
     GumSanityChecker * self, GumList * stale);
 
 static GumHashTable * gum_sanity_checker_count_leaks_by_type_name (
-    GumList * instances);
-static void gum_sanity_checker_details_from_instance (
+    GumSanityChecker * self, GumList * instances);
+
+static void gum_sanity_checker_details_from_instance (GumSanityChecker * self,
     GumInstanceDetails * details, gconstpointer instance);
 
 static gint gum_sanity_checker_compare_type_names (gconstpointer a,
@@ -178,9 +179,6 @@ gum_sanity_checker_end (GumSanityChecker * self)
     stale_instances =
         gum_instance_tracker_peek_instances (priv->instance_tracker);
 
-    g_object_unref (priv->instance_tracker);
-    priv->instance_tracker = NULL;
-
     if (stale_instances != NULL)
     {
       all_checks_passed = FALSE;
@@ -192,6 +190,9 @@ gum_sanity_checker_end (GumSanityChecker * self)
 
       gum_list_free (stale_instances);
     }
+
+    g_object_unref (priv->instance_tracker);
+    priv->instance_tracker = NULL;
   }
 
   if (priv->alloc_probe != NULL)
@@ -250,7 +251,7 @@ gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
   GumHashTable * count_by_type;
   GumList * walk, * keys;
 
-  count_by_type = gum_sanity_checker_count_leaks_by_type_name (stale);
+  count_by_type = gum_sanity_checker_count_leaks_by_type_name (self, stale);
 
   keys = gum_hash_table_get_keys (count_by_type);
   keys = gum_list_sort_with_data (keys,
@@ -291,7 +292,7 @@ gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
   {
     GumInstanceDetails details;
 
-    gum_sanity_checker_details_from_instance (&details, walk->data);
+    gum_sanity_checker_details_from_instance (self, &details, walk->data);
 
     gum_sanity_checker_printf (self, "\t%p\t%d%s\t%s\n",
         details.address,
@@ -355,20 +356,25 @@ gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
 }
 
 static GumHashTable *
-gum_sanity_checker_count_leaks_by_type_name (GumList * instances)
+gum_sanity_checker_count_leaks_by_type_name (GumSanityChecker * self,
+                                             GumList * instances)
 {
   GumHashTable * count_by_type;
+  const GumInstanceVTable * vtable;
   GumList * walk;
 
   count_by_type =
       gum_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
+
+  vtable =
+      gum_instance_tracker_get_current_vtable (self->priv->instance_tracker);
 
   for (walk = instances; walk != NULL; walk = walk->next)
   {
     const gchar * type_name;
     guint count;
 
-    type_name = g_type_name (G_TYPE_FROM_INSTANCE (walk->data));
+    type_name = vtable->type_id_to_name (G_TYPE_FROM_INSTANCE (walk->data));
     count = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type,
         type_name));
     count++;
@@ -380,14 +386,19 @@ gum_sanity_checker_count_leaks_by_type_name (GumList * instances)
 }
 
 static void
-gum_sanity_checker_details_from_instance (GumInstanceDetails * details,
+gum_sanity_checker_details_from_instance (GumSanityChecker * self,
+                                          GumInstanceDetails * details,
                                           gconstpointer instance)
 {
+  const GumInstanceVTable * vtable;
   GType type;
+
+  vtable =
+      gum_instance_tracker_get_current_vtable (self->priv->instance_tracker);
 
   details->address = instance;
   type = G_TYPE_FROM_INSTANCE (instance);
-  details->type_name = g_type_name (type);
+  details->type_name = vtable->type_id_to_name (type);
   if (g_type_is_a (type, G_TYPE_OBJECT))
     details->ref_count = ((GObject *) instance)->ref_count;
   else
@@ -419,13 +430,12 @@ gum_sanity_checker_compare_instances (gconstpointer a,
                                       gconstpointer b,
                                       gpointer user_data)
 {
+  GumSanityChecker * self = (GumSanityChecker *) user_data;
   GumInstanceDetails da, db;
   gint name_equality;
 
-  (void) user_data;
-
-  gum_sanity_checker_details_from_instance (&da, a);
-  gum_sanity_checker_details_from_instance (&db, b);
+  gum_sanity_checker_details_from_instance (self, &da, a);
+  gum_sanity_checker_details_from_instance (self, &db, b);
 
   name_equality = strcmp (da.type_name, db.type_name);
   if (name_equality != 0)
