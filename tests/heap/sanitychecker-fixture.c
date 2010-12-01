@@ -177,6 +177,9 @@ simulation (gpointer user_data)
     fixture->second_block = g_malloc (10);
     fixture->third_block = g_malloc (15);
 
+    /* just to get a group of size 42 with 0 objects alive: */
+    g_free (g_malloc (42));
+
     if ((fixture->leak_flags & LEAK_FIRST_BLOCK) == 0)
       forget_block (&fixture->first_block);
     if ((fixture->leak_flags & LEAK_SECOND_BLOCK) == 0)

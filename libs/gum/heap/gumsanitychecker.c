@@ -320,6 +320,9 @@ gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
   {
     GumAllocationGroup * group = (GumAllocationGroup *) walk->data;
 
+    if (group->alive_now == 0)
+      continue;
+
     gum_sanity_checker_printf (self, "\t%u\t%u\n",
         group->alive_now, group->size);
   }
