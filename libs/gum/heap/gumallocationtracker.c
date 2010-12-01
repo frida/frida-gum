@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -93,13 +93,25 @@ gum_allocation_tracker_class_init (GumAllocationTrackerClass * klass)
 static void
 gum_allocation_tracker_init (GumAllocationTracker * self)
 {
+  GumAllocationTrackerPrivate * priv;
+
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_ALLOCATION_TRACKER,
       GumAllocationTrackerPrivate);
+  priv = self->priv;
 
-  self->priv->mutex = g_mutex_new ();
-  self->priv->known_blocks_ht = gum_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_allocation_block_free);
-  self->priv->block_groups_ht = gum_hash_table_new_full (NULL, NULL, NULL,
+  priv->mutex = g_mutex_new ();
+
+  if (priv->backtracer_instance != NULL)
+  {
+    priv->known_blocks_ht = gum_hash_table_new_full (NULL, NULL, NULL,
+        (GDestroyNotify) gum_allocation_block_free);
+  }
+  else
+  {
+    priv->known_blocks_ht = gum_hash_table_new (NULL, NULL);
+  }
+
+  priv->block_groups_ht = gum_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_allocation_group_free);
 }
 
@@ -279,15 +291,27 @@ gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
 {
   GumAllocationTrackerPrivate * priv =
       GUM_ALLOCATION_TRACKER_GET_PRIVATE (self);
-  GumList * blocks, * cur;
+  GumList * blocks = NULL;
+  GumHashTableIter iter;
+  gpointer key, value;
 
   GUM_ALLOCATION_TRACKER_LOCK (priv);
-  blocks = gum_hash_table_get_values (priv->known_blocks_ht);
-  for (cur = blocks; cur != NULL; cur = cur->next)
+  gum_hash_table_iter_init (&iter, priv->known_blocks_ht);
+  while (gum_hash_table_iter_next (&iter, &key, &value))
   {
-    GumAllocationBlock * block = (GumAllocationBlock *) cur->data;
-    gum_return_address_array_load_symbols (&block->return_addresses);
-    cur->data = gum_allocation_block_copy (block);
+    if (priv->backtracer_instance != NULL)
+    {
+      GumAllocationBlock * block = (GumAllocationBlock *) value;
+
+      gum_return_address_array_load_symbols (&block->return_addresses);
+
+      blocks = gum_list_prepend (blocks, gum_allocation_block_copy (block));
+    }
+    else
+    {
+      blocks = gum_list_prepend (blocks,
+          gum_allocation_block_new (key, GPOINTER_TO_UINT (value)));
+    }
   }
   GUM_ALLOCATION_TRACKER_UNLOCK (priv);
 
@@ -343,7 +367,7 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
 {
   GumAllocationTrackerPrivate * priv =
       GUM_ALLOCATION_TRACKER_GET_PRIVATE (self);
-  GumAllocationBlock * block;
+  gpointer value;
 
   if (!g_atomic_int_get (&priv->enabled))
     return;
@@ -354,15 +378,24 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
       return;
   }
 
-  block = gum_allocation_block_new (address, size);
-
   if (priv->backtracer_instance != NULL)
+  {
+    GumAllocationBlock * block;
+
+    block = gum_allocation_block_new (address, size);
     priv->backtracer_interface->generate (priv->backtracer_instance,
         cpu_context, &block->return_addresses);
 
+    value = block;
+  }
+  else
+  {
+    value = GUINT_TO_POINTER (size);
+  }
+
   GUM_ALLOCATION_TRACKER_LOCK (priv);
 
-  gum_hash_table_insert (priv->known_blocks_ht, address, block);
+  gum_hash_table_insert (priv->known_blocks_ht, address, value);
 
   gum_allocation_tracker_size_stats_add_block (self, size);
 
@@ -376,7 +409,7 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
 {
   GumAllocationTrackerPrivate * priv =
       GUM_ALLOCATION_TRACKER_GET_PRIVATE (self);
-  GumAllocationBlock * block;
+  gpointer value;
 
   (void) cpu_context;
 
@@ -385,10 +418,17 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
 
   GUM_ALLOCATION_TRACKER_LOCK (priv);
 
-  block = gum_hash_table_lookup (priv->known_blocks_ht, address);
-  if (block != NULL)
+  value = gum_hash_table_lookup (priv->known_blocks_ht, address);
+  if (value != NULL)
   {
-    gum_allocation_tracker_size_stats_remove_block (self, block->size);
+    guint size;
+
+    if (priv->backtracer_instance != NULL)
+      size = ((GumAllocationBlock *) value)->size;
+    else
+      size = GPOINTER_TO_UINT (value);
+
+    gum_allocation_tracker_size_stats_remove_block (self, size);
 
     gum_hash_table_remove (priv->known_blocks_ht, address);
   }
@@ -405,7 +445,6 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
 {
   GumAllocationTrackerPrivate * priv =
       GUM_ALLOCATION_TRACKER_GET_PRIVATE (self);
-  GumAllocationBlock * block;
 
   if (!g_atomic_int_get (&priv->enabled))
     return;
@@ -421,16 +460,35 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
   {
     if (new_size != 0)
     {
+      gpointer value;
+
       GUM_ALLOCATION_TRACKER_LOCK (priv);
 
-      block = gum_hash_table_lookup (priv->known_blocks_ht, old_address);
-      if (block != NULL)
+      value = gum_hash_table_lookup (priv->known_blocks_ht, old_address);
+      if (value != NULL)
       {
-        gum_hash_table_steal (priv->known_blocks_ht, old_address);
-        gum_hash_table_insert (priv->known_blocks_ht, new_address, block);
+        guint old_size;
 
-        gum_allocation_tracker_size_stats_remove_block (self, block->size);
-        block->size = new_size;
+        gum_hash_table_steal (priv->known_blocks_ht, old_address);
+
+        if (priv->backtracer_instance != NULL)
+        {
+          GumAllocationBlock * block = (GumAllocationBlock *) value;
+
+          gum_hash_table_insert (priv->known_blocks_ht, new_address, block);
+
+          old_size = block->size;
+          block->size = new_size;
+        }
+        else
+        {
+          gum_hash_table_insert (priv->known_blocks_ht, new_address,
+              GUINT_TO_POINTER (new_size));
+
+          old_size = GPOINTER_TO_UINT (value);
+        }
+
+        gum_allocation_tracker_size_stats_remove_block (self, old_size);
         gum_allocation_tracker_size_stats_add_block (self, new_size);
       }
 

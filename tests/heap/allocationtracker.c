@@ -37,6 +37,8 @@ TEST_LIST_BEGIN (allocation_tracker)
   ALLOCTRACKER_TESTENTRY (realloc_zero_size)
   ALLOCTRACKER_TESTENTRY (realloc_backtrace)
 
+  ALLOCTRACKER_TESTENTRY (memory_usage)
+
   ALLOCTRACKER_TESTENTRY (backtracer_gtype_interop)
 
   ALLOCTRACKER_TESTENTRY (avoid_heap_priv)
@@ -403,6 +405,24 @@ ALLOCTRACKER_TESTCASE (realloc_backtrace)
 
   g_object_unref (t);
   g_object_unref (backtracer);
+}
+
+ALLOCTRACKER_TESTCASE (memory_usage)
+{
+  GumAllocationTracker * t = fixture->tracker;
+  const guint num_allocations = 10000;
+  guint bytes_before, bytes_after, i, bytes_per_allocation;
+
+  gum_allocation_tracker_begin (t);
+
+  bytes_before = gum_peek_private_memory_usage ();
+  for (i = 0; i != num_allocations; i++)
+    gum_allocation_tracker_on_malloc (t, GUINT_TO_POINTER (0x50000 + (i * 64)),
+        64);
+  bytes_after = gum_peek_private_memory_usage ();
+
+  bytes_per_allocation = (bytes_after - bytes_before) / num_allocations;
+  g_assert_cmpuint (bytes_per_allocation, <=, 32);
 }
 
 ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)

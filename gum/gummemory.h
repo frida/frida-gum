@@ -59,6 +59,8 @@ void gum_mprotect (gpointer address, guint size, GumPageProtection page_prot);
 #define gum_new0(struct_type, n_structs) \
     ((struct_type *) gum_malloc0 (n_structs * sizeof (struct_type)))
 
+guint gum_peek_private_memory_usage (void);
+
 gpointer gum_malloc (gsize size);
 gpointer gum_malloc0 (gsize size);
 gpointer gum_realloc (gpointer mem, gsize size);
