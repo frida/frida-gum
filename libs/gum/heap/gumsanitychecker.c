@@ -134,7 +134,7 @@ gum_sanity_checker_run (GumSanityChecker * self,
 
 void
 gum_sanity_checker_begin (GumSanityChecker * self,
-                          GumSanityCheckFlags flags)
+                          guint flags)
 {
   GumSanityCheckerPrivate * priv = self->priv;
 

@@ -51,8 +51,7 @@ GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 GUM_API gboolean gum_sanity_checker_run (GumSanityChecker * self,
     GumSanitySequenceFunc func, gpointer user_data);
 
-GUM_API void gum_sanity_checker_begin (GumSanityChecker * self,
-    GumSanityCheckFlags flags);
+GUM_API void gum_sanity_checker_begin (GumSanityChecker * self, guint flags);
 GUM_API gboolean gum_sanity_checker_end (GumSanityChecker * self);
 
 G_END_DECLS
