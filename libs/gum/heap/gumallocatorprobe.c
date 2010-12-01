@@ -72,31 +72,6 @@ struct _GumAllocatorProbePrivate
   guint free_count;
 };
 
-/*
- * Use the Debug CRT's recursive locks to avoid deadlocks.
- *
- * The problem is that on_enter() might get called with the CRT's heap lock
- * held, so if we then use our own lock we could deadlock because some other
- * thread might have taken our lock and is waiting for the CRT heap lock that
- * we're holding... This happens for C++ operator delete, which is implemented
- * using _free_dbg().
- */
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-#define LOCK_INDEX_HEAP (4)
-#ifdef GUM_STATIC
-void _lock   (gint lock_index);
-void _unlock (gint lock_index);
-#else
-__declspec(dllimport) void _lock   (gint lock_index);
-__declspec(dllimport) void _unlock (gint lock_index);
-#endif
-#define GUM_ALLOCATOR_PROBE_LOCK()   _lock   (LOCK_INDEX_HEAP)
-#define GUM_ALLOCATOR_PROBE_UNLOCK() _unlock (LOCK_INDEX_HEAP)
-#else
-#define GUM_ALLOCATOR_PROBE_LOCK()   g_mutex_lock   (priv->mutex)
-#define GUM_ALLOCATOR_PROBE_UNLOCK() g_mutex_unlock (priv->mutex)
-#endif
-
 struct _ThreadContext
 {
   gboolean ignored;
@@ -426,8 +401,6 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 
   if (function_ctx != NULL)
   {
-    GUM_ALLOCATOR_PROBE_LOCK ();
-
     base_thread_ctx->ignored = FALSE;
 
     function_ctx->handlers.enter_handler (self, context->thread_data, context);
@@ -453,8 +426,6 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
             context);
       }
     }
-
-    GUM_ALLOCATOR_PROBE_UNLOCK ();
   }
 
   gum_interceptor_unignore_caller (priv->interceptor);
