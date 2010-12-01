@@ -45,6 +45,9 @@ struct _GumSanityCheckerPrivate
   GumBoundsChecker * bounds_checker;
 };
 
+static gboolean gum_sanity_checker_filter_out_gparam (
+    GumInstanceTracker * tracker, GType gtype, gpointer user_data);
+
 static void gum_sanity_checker_print_instance_leaks_summary (
     GumSanityChecker * self, GumList * stale);
 static void gum_sanity_checker_print_instance_leaks_details (
@@ -142,6 +145,8 @@ gum_sanity_checker_begin (GumSanityChecker * self,
   if ((flags & GUM_CHECK_INSTANCE_LEAKS) != 0)
   {
     priv->instance_tracker = gum_instance_tracker_new ();
+    gum_instance_tracker_set_type_filter_function (priv->instance_tracker,
+        gum_sanity_checker_filter_out_gparam, self);
     gum_instance_tracker_begin (priv->instance_tracker, NULL);
   }
 
@@ -242,6 +247,21 @@ gum_sanity_checker_end (GumSanityChecker * self)
   }
 
   return all_checks_passed;
+}
+
+static gboolean
+gum_sanity_checker_filter_out_gparam (GumInstanceTracker * tracker,
+                                      GType gtype,
+                                      gpointer user_data)
+{
+  GumSanityChecker * self = (GumSanityChecker *) user_data;
+  const GumInstanceVTable * vtable;
+
+  (void) tracker;
+
+  vtable =
+      gum_instance_tracker_get_current_vtable (self->priv->instance_tracker);
+  return !g_str_has_prefix (vtable->type_id_to_name (gtype), "GParam");
 }
 
 static void

@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (sanitychecker)
   SANITYCHECKER_TESTENTRY (no_leaks)
   SANITYCHECKER_TESTENTRY (three_leaked_instances)
   SANITYCHECKER_TESTENTRY (three_leaked_blocks)
+  SANITYCHECKER_TESTENTRY (ignore_gparam_instances)
 TEST_LIST_END ()
 
 SANITYCHECKER_TESTCASE (no_leaks)
@@ -80,4 +81,12 @@ SANITYCHECKER_TESTCASE (three_leaked_blocks)
       fixture->third_block,
       fixture->second_block,
       fixture->first_block);
+}
+
+SANITYCHECKER_TESTCASE (ignore_gparam_instances)
+{
+  run_simulation (fixture, LEAK_GPARAM_ONCE);
+  g_assert (fixture->run_returned_true);
+  g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
+  g_assert_cmpuint (fixture->output_call_count, ==, 0);
 }

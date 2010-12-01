@@ -49,6 +49,8 @@ typedef struct _TestSanityCheckerFixture
   gpointer second_block;
   gpointer third_block;
 
+  GParamSpec * pspec;
+
   guint leak_flags;
 } TestSanityCheckerFixture;
 
@@ -62,6 +64,8 @@ typedef enum _LeakFlags
   LEAK_FIRST_BLOCK    = (1 << 4),
   LEAK_SECOND_BLOCK   = (1 << 5),
   LEAK_THIRD_BLOCK    = (1 << 6),
+
+  LEAK_GPARAM_ONCE    = (1 << 7),
 } LeakFlags;
 
 static void simulation (gpointer user_data);
@@ -187,11 +191,26 @@ simulation (gpointer user_data)
     if ((fixture->leak_flags & LEAK_THIRD_BLOCK) == 0)
       forget_block (&fixture->third_block);
   }
+
+  if ((fixture->leak_flags & LEAK_GPARAM_ONCE) != 0 &&
+      fixture->simulation_call_count > 1)
+  {
+    fixture->pspec = g_param_spec_int ("badger", "Badger", "Badger", 1, 10, 7,
+        (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+    fixture->leak_flags &= ~LEAK_GPARAM_ONCE;
+  }
 }
 
 static void
 test_sanity_checker_fixture_do_cleanup (TestSanityCheckerFixture * fixture)
 {
+  if (fixture->pspec != NULL)
+  {
+    g_param_spec_unref (fixture->pspec);
+    fixture->pspec = NULL;
+  }
+
   forget_block (&fixture->first_block);
   forget_block (&fixture->second_block);
   forget_block (&fixture->third_block);
