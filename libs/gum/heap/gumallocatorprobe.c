@@ -24,24 +24,14 @@
 #include "gumsymbolutil.h"
 
 #include <gmodule.h>
-#ifdef G_OS_WIN32
-# ifdef _DEBUG
-#  include <crtdbg.h>
-#  define CRT_MODULE_NAME_EXT "d.dll"
-# else
-#  define CRT_MODULE_NAME_EXT ".dll"
-# endif
-# if _MSC_VER >= 1500
-#  define CRT_MODULE_MS_VER "90"
-# elif _MSC_VER >= 1400
-#  define CRT_MODULE_MS_VER "80"
-# else
-#  error "Unsupported MS compiler"
-# endif
-# define CRT_MODULE_NAME "msvcr" CRT_MODULE_MS_VER CRT_MODULE_NAME_EXT
+#include <string.h>
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+# include <crtdbg.h>
+# define GUM_DBGCRT_FUNCPTR(name) (GUM_FUNCPTR_TO_POINTER (name))
 #else
-# define CRT_MODULE_NAME "libc.so.6"
+# define GUM_DBGCRT_FUNCPTR(name) (NULL)
 #endif
+#define GUM_DBGCRT_NORMAL_BLOCK (1)
 
 #define DEFAULT_ENABLE_COUNTERS FALSE
 
@@ -81,8 +71,6 @@ struct _GumAllocatorProbePrivate
   guint realloc_count;
   guint free_count;
 };
-
-#define GUM_ALLOCATOR_PROBE_GET_PRIVATE(o) ((o)->priv)
 
 /*
  * Use the Debug CRT's recursive locks to avoid deadlocks.
@@ -200,8 +188,6 @@ static void on_realloc_leave_handler (GumAllocatorProbe * self,
 static void on_free_enter_handler (GumAllocatorProbe * self,
     gpointer thread_ctx, GumInvocationContext * invocation_ctx);
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-
 static void on_malloc_dbg_enter_handler (GumAllocatorProbe * self,
     AllocThreadContext * thread_ctx, GumInvocationContext * invocation_ctx);
 static void on_calloc_dbg_enter_handler (GumAllocatorProbe * self,
@@ -213,8 +199,6 @@ static void on_free_dbg_enter_handler (GumAllocatorProbe * self,
 
 static void decide_ignore_from_block_type (ThreadContext * thread_ctx,
     gint block_type);
-
-#endif
 
 G_DEFINE_TYPE_EXTENDED (GumAllocatorProbe,
                         gum_allocator_probe,
@@ -285,7 +269,7 @@ gum_allocator_probe_init (GumAllocatorProbe * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_ALLOCATOR_PROBE,
       GumAllocatorProbePrivate);
 
-  priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  priv = self->priv;
 
   priv->mutex = g_mutex_new ();
 
@@ -299,7 +283,7 @@ static void
 gum_allocator_probe_dispose (GObject * object)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   if (!priv->disposed)
   {
@@ -327,7 +311,7 @@ static void
 gum_allocator_probe_finalize (GObject * object)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   g_mutex_free (priv->mutex);
 
@@ -343,7 +327,7 @@ gum_allocator_probe_set_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   switch (property_id)
   {
@@ -367,7 +351,7 @@ gum_allocator_probe_get_property (GObject * object,
                                   GParamSpec * pspec)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   switch (property_id)
   {
@@ -434,7 +418,7 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
   FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
   ThreadContext * base_thread_ctx = (ThreadContext *) context->thread_data;
 
@@ -455,7 +439,7 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
   FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
   ThreadContext * base_ctx = (ThreadContext *) context->thread_data;
 
@@ -509,7 +493,7 @@ typedef struct
   HeapHandlers handlers;
 } ProbeHandler;
 
-static const ProbeHandler probe_handlers[] =
+static const ProbeHandler regular_probe_handlers[] =
 {
   {
     "malloc", GUM_FUNCPTR_TO_POINTER (malloc),
@@ -541,11 +525,13 @@ static const ProbeHandler probe_handlers[] =
       (HeapEnterHandler) on_free_enter_handler,
       NULL
     }
-  },
+  }
+};
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+static const ProbeHandler debug_probe_handlers[] =
+{
   {
-    "_malloc_dbg", GUM_FUNCPTR_TO_POINTER (_malloc_dbg),
+    "_malloc_dbg", GUM_DBGCRT_FUNCPTR (_malloc_dbg),
     {
       (HeapEnterHandler) on_malloc_dbg_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -553,7 +539,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_calloc_dbg", GUM_FUNCPTR_TO_POINTER (_calloc_dbg),
+    "_calloc_dbg", GUM_DBGCRT_FUNCPTR (_calloc_dbg),
     {
       (HeapEnterHandler) on_calloc_dbg_enter_handler,
       (HeapLeaveHandler) on_shared_xalloc_leave_handler
@@ -561,7 +547,7 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_realloc_dbg", GUM_FUNCPTR_TO_POINTER (_realloc_dbg),
+    "_realloc_dbg", GUM_DBGCRT_FUNCPTR (_realloc_dbg),
     {
       (HeapEnterHandler) on_realloc_dbg_enter_handler,
       (HeapLeaveHandler) on_realloc_leave_handler
@@ -569,46 +555,76 @@ static const ProbeHandler probe_handlers[] =
   },
 
   {
-    "_free_dbg", GUM_FUNCPTR_TO_POINTER (_free_dbg),
+    "_free_dbg", GUM_DBGCRT_FUNCPTR (_free_dbg),
     {
       (HeapEnterHandler) on_free_dbg_enter_handler,
       NULL
     }
   }
-#endif
 };
 
-void
-gum_allocator_probe_attach (GumAllocatorProbe * self)
+static gboolean
+gum_allocator_probe_instrument_module_if_crt (const gchar * name,
+                                              gpointer address,
+                                              const gchar * path,
+                                              gpointer user_data)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
-  GModule * module;
-  guint i;
+  GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (user_data);
 
-  gum_interceptor_ignore_caller (priv->interceptor);
+  (void) address;
 
-  /*
-   * TODO: we only intercept the CRT currently in use for now.
-   */
-  module = g_module_open (CRT_MODULE_NAME, (GModuleFlags) 0);
-  if (module != NULL)
+  if (g_strncasecmp (name, "msvcr", 5) == 0)
   {
-    for (i = 0; i != G_N_ELEMENTS (probe_handlers); i++)
+    GModule * module;
+    guint i;
+
+    module = g_module_open (path, (GModuleFlags) 0);
+
+    for (i = 0; i != G_N_ELEMENTS (regular_probe_handlers); i++)
     {
-      attach_to_function_by_name (self, module, probe_handlers[i].name,
-          &probe_handlers[i].handlers);
+      attach_to_function_by_name (self, module, regular_probe_handlers[i].name,
+          &regular_probe_handlers[i].handlers);
+    }
+
+    if (g_strncasecmp (name + strlen (name) - 5, "d.dll", 5) == 0)
+    {
+      for (i = 0; i != G_N_ELEMENTS (debug_probe_handlers); i++)
+      {
+        attach_to_function_by_name (self, module, debug_probe_handlers[i].name,
+            &debug_probe_handlers[i].handlers);
+      }
     }
 
     g_module_close (module);
   }
-  else
+
+  return TRUE;
+}
+
+void
+gum_allocator_probe_attach (GumAllocatorProbe * self)
+{
+  GumAllocatorProbePrivate * priv = self->priv;
+  guint i;
+
+  gum_interceptor_ignore_caller (priv->interceptor);
+
+  gum_process_enumerate_modules (gum_allocator_probe_instrument_module_if_crt,
+      self);
+
+  for (i = 0; i != G_N_ELEMENTS (regular_probe_handlers); i++)
   {
-    for (i = 0; i != G_N_ELEMENTS (probe_handlers); i++)
-    {
-      attach_to_function (self, probe_handlers[i].local_address,
-          &probe_handlers[i].handlers);
-    }
+    attach_to_function (self, regular_probe_handlers[i].local_address,
+        &regular_probe_handlers[i].handlers);
   }
+
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+  for (i = 0; i != G_N_ELEMENTS (debug_probe_handlers); i++)
+  {
+    attach_to_function (self, debug_probe_handlers[i].local_address,
+        &debug_probe_handlers[i].handlers);
+  }
+#endif
 
   gum_allocator_probe_apply_default_suppressions (self);
 
@@ -618,7 +634,7 @@ gum_allocator_probe_attach (GumAllocatorProbe * self)
 void
 gum_allocator_probe_detach (GumAllocatorProbe * self)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
   gum_interceptor_ignore_caller (priv->interceptor);
@@ -662,7 +678,7 @@ attach_to_function (GumAllocatorProbe * self,
                     gpointer function_address,
                     const HeapHandlers * function_handlers)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   FunctionContext * function_ctx;
   GumAttachReturn attach_ret;
@@ -680,7 +696,7 @@ void
 gum_allocator_probe_suppress (GumAllocatorProbe * self,
                               gpointer function_address)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
   GumInvocationListener * listener = GUM_INVOCATION_LISTENER (self);
   GumAttachReturn attach_ret;
 
@@ -695,7 +711,7 @@ gum_allocator_probe_on_malloc (GumAllocatorProbe * self,
                                guint size,
                                const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   if (priv->enable_counters)
     priv->malloc_count++;
@@ -712,7 +728,7 @@ gum_allocator_probe_on_free (GumAllocatorProbe * self,
                              gpointer address,
                              const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   if (priv->enable_counters)
     priv->free_count++;
@@ -731,7 +747,7 @@ gum_allocator_probe_on_realloc (GumAllocatorProbe * self,
                                 guint new_size,
                                 const GumCpuContext * cpu_context)
 {
-  GumAllocatorProbePrivate * priv = GUM_ALLOCATOR_PROBE_GET_PRIVATE (self);
+  GumAllocatorProbePrivate * priv = self->priv;
 
   if (priv->enable_counters)
     priv->realloc_count++;
@@ -831,8 +847,6 @@ on_free_enter_handler (GumAllocatorProbe * self,
   gum_allocator_probe_on_free (self, address, invocation_ctx->cpu_context);
 }
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-
 static void
 on_malloc_dbg_enter_handler (GumAllocatorProbe * self,
                              AllocThreadContext * thread_ctx,
@@ -901,7 +915,5 @@ static void
 decide_ignore_from_block_type (ThreadContext * thread_ctx,
                                gint block_type)
 {
-  thread_ctx->ignored = (block_type != _NORMAL_BLOCK);
+  thread_ctx->ignored = (block_type != GUM_DBGCRT_NORMAL_BLOCK);
 }
-
-#endif /* defined (G_OS_WIN32) && defined (_DEBUG) */
