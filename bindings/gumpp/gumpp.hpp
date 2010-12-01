@@ -21,15 +21,15 @@ namespace Gum
 
   struct Object
   {
-    virtual void Retain () = 0;
-    virtual void Release () = 0;
-    virtual void * GetHandle () const = 0;
+    virtual void ref () = 0;
+    virtual void unref () = 0;
+    virtual void * get_handle () const = 0;
   };
 
   struct PtrArray : public Object
   {
-    virtual int Length () = 0;
-    virtual void * Nth (int n) = 0;
+    virtual int length () = 0;
+    virtual void * nth (int n) = 0;
   };
 
   template <typename T> class RefPtr
@@ -45,27 +45,27 @@ namespace Gum
     template <class O> RefPtr (const RefPtr<O> & other) : ptr (other.operator->())
     {
       if (ptr)
-        ptr->Retain ();
+        ptr->ref ();
     }
 
     RefPtr () : ptr (0) {}
 
-    bool IsNull () const
+    bool is_null () const
     {
-      return ptr == 0 || ptr->GetHandle () == 0;
+      return ptr == 0 || ptr->get_handle () == 0;
     }
 
     RefPtr & operator = (const RefPtr & other)
     {
       RefPtr tmp (other);
-      Swap (*this, tmp);
+      swap (*this, tmp);
       return *this;
     }
 
     RefPtr & operator = (T * other)
     {
       RefPtr tmp (other);
-      Swap (*this, tmp);
+      swap (*this, tmp);
       return *this;
     }
 
@@ -84,7 +84,7 @@ namespace Gum
       return ptr;
     }
 
-    static void Swap (RefPtr & a, RefPtr & b)
+    static void swap (RefPtr & a, RefPtr & b)
     {
       T * tmp = a.ptr;
       a.ptr = b.ptr;
@@ -94,21 +94,20 @@ namespace Gum
     ~RefPtr ()
     {
       if (ptr)
-        ptr->Release ();
+        ptr->unref ();
     }
 
   private:
     T * ptr;
   };
 
-  struct SanityChecker
+  struct SanityChecker : public Object
   {
-    virtual void Begin (unsigned int flags) = 0;
-    virtual bool End () = 0;
+    virtual void begin (unsigned int flags) = 0;
+    virtual bool end () = 0;
   };
 
-  GUMPP_CAPI SanityChecker * SanityCheckerCreate (void);
-  GUMPP_CAPI void SanityCheckerDestroy (SanityChecker * checker);
+  GUMPP_CAPI SanityChecker * SanityChecker_new (void);
 
   enum SanityCheckFlags
   {
@@ -119,43 +118,43 @@ namespace Gum
 
   struct Interceptor : public Object
   {
-    virtual bool AttachListener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
-    virtual void DetachListener (InvocationListener * listener) = 0;
+    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
+    virtual void detach_listener (InvocationListener * listener) = 0;
   };
 
-  GUMPP_CAPI Interceptor * InterceptorObtain (void);
+  GUMPP_CAPI Interceptor * Interceptor_obtain (void);
 
   struct InvocationListener : public Object
   {
-    virtual void OnEnter (void * user_data) = 0;
-    virtual void OnLeave (void * user_data) = 0;
+    virtual void on_enter (void * user_data) = 0;
+    virtual void on_leave (void * user_data) = 0;
   };
 
   struct InvocationListenerCallbacks
   {
-    virtual void OnEnter (void * user_data) = 0;
-    virtual void OnLeave (void * user_data) = 0;
+    virtual void on_enter (void * user_data) = 0;
+    virtual void on_leave (void * user_data) = 0;
   };
 
-  GUMPP_CAPI InvocationListener * InvocationListenerProxyCreate (InvocationListenerCallbacks * callbacks);
+  GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);
 
-  GUMPP_CAPI void * FindFunctionAsPtr (const char * str);
-  GUMPP_CAPI PtrArray * FindFunctionsMatchingAsPtrArray (const char * str);
+  GUMPP_CAPI void * find_function_ptr (const char * str);
+  GUMPP_CAPI PtrArray * find_matching_functions_array (const char * str);
 
   class SymbolUtil
   {
   public:
-    static void * FindFunction (const char * name)
+    static void * find_function (const char * name)
     {
-      return FindFunctionAsPtr (name);
+      return find_function_ptr (name);
     }
 
-    static std::vector<void *> FindFunctionsMatching (const char * str)
+    static std::vector<void *> find_matching_functions (const char * str)
     {
-      RefPtr<PtrArray> functions = RefPtr<PtrArray> (FindFunctionsMatchingAsPtrArray (str));
+      RefPtr<PtrArray> functions = RefPtr<PtrArray> (find_matching_functions_array (str));
       std::vector<void *> result;
-      for (int i = functions->Length () - 1; i >= 0; i--)
-        result.push_back (functions->Nth (i));
+      for (int i = functions->length () - 1; i >= 0; i--)
+        result.push_back (functions->nth (i));
       return result;
     }
   };

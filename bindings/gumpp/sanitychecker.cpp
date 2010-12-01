@@ -16,7 +16,8 @@ namespace Gum
   {
   public:
     SanityCheckerImpl ()
-      : checker (gum_sanity_checker_new (output_to_stderr, NULL))
+      : refcount (1),
+        checker (gum_sanity_checker_new (output_to_stderr, NULL))
     {
     }
 
@@ -25,20 +26,36 @@ namespace Gum
       gum_sanity_checker_destroy (checker);
     }
 
-    virtual void Begin (unsigned int flags)
+    virtual void ref ()
+    {
+      g_atomic_int_add (&refcount, 1);
+    }
+
+    virtual void unref ()
+    {
+      if (g_atomic_int_dec_and_test (&refcount))
+        delete this;
+    }
+
+    virtual void * get_handle () const
+    {
+      return checker;
+    } 
+
+    virtual void begin (unsigned int flags)
     {
       gum_sanity_checker_begin (checker, flags);
     }
 
-    virtual bool End ()
+    virtual bool end ()
     {
       return gum_sanity_checker_end (checker) != FALSE;
     }
 
   private:
+    volatile gint refcount;
     GumSanityChecker * checker;
   };
 
-  extern "C" SanityChecker * SanityCheckerCreate (void) { gum_init (); return new SanityCheckerImpl; }
-  extern "C" void SanityCheckerDestroy (SanityChecker * checker) { delete static_cast<SanityCheckerImpl *> (checker); }
+  extern "C" SanityChecker * SanityChecker_new (void) { gum_init (); return new SanityCheckerImpl; }
 }

@@ -13,28 +13,28 @@ namespace Gum
     {
     }
 
-    virtual void Retain ()
+    virtual void ref ()
     {
       g_atomic_int_add (&refcount, 1);
     }
 
-    virtual void Release ()
+    virtual void unref ()
     {
       if (g_atomic_int_dec_and_test (&refcount))
         delete this;
     }
 
-    virtual void * GetHandle () const
+    virtual void * get_handle () const
     {
       return arr;
     }
 
-    virtual int Length ()
+    virtual int length ()
     {
       return arr->len;
     }
 
-    virtual void * Nth (int n)
+    virtual void * nth (int n)
     {
       return g_array_index (arr, gpointer, n);
     }
@@ -44,6 +44,6 @@ namespace Gum
     GArray * arr;
   };
 
-  extern "C" void * FindFunctionAsPtr (const char * name) { gum_init (); return gum_find_function (name); }
-  extern "C" PtrArray * FindFunctionsMatchingAsPtrArray (const char * str) { gum_init (); return new SymbolPtrArray (gum_find_functions_matching (str)); }
+  extern "C" void * find_function_ptr (const char * name) { gum_init (); return gum_find_function (name); }
+  extern "C" PtrArray * find_matching_functions_array (const char * str) { gum_init (); return new SymbolPtrArray (gum_find_functions_matching (str)); }
 }

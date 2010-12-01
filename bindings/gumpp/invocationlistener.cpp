@@ -31,29 +31,29 @@ namespace Gum
       cproxy->proxy = this;
     }
 
-    virtual void Retain ()
+    virtual void ref ()
     {
       g_object_ref (cproxy);
     }
 
-    virtual void Release ()
+    virtual void unref ()
     {
       g_object_unref (cproxy);
     }
 
-    virtual void * GetHandle () const
+    virtual void * get_handle () const
     {
       return cproxy;
     }
 
-    virtual void OnEnter (void * user_data)
+    virtual void on_enter (void * user_data)
     {
-      callbacks->OnEnter (user_data);
+      callbacks->on_enter (user_data);
     }
 
-    virtual void OnLeave (void * user_data)
+    virtual void on_leave (void * user_data)
     {
-      callbacks->OnLeave (user_data);
+      callbacks->on_leave (user_data);
     }
 
   protected:
@@ -61,7 +61,7 @@ namespace Gum
     InvocationListenerCallbacks * callbacks;
   };
 
-  extern "C" GUMPP_CAPI InvocationListener * InvocationListenerProxyCreate (InvocationListenerCallbacks * callbacks) { gum_init (); return new InvocationListenerProxy (callbacks); }
+  extern "C" GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks) { gum_init (); return new InvocationListenerProxy (callbacks); }
 
   G_DEFINE_TYPE_EXTENDED (GumInvocationListenerProxy,
                           gum_invocation_listener_proxy,
@@ -94,14 +94,14 @@ namespace Gum
   gum_invocation_listener_proxy_on_enter (GumInvocationListener * listener,
                                           GumInvocationContext * context)
   {
-    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->OnEnter (context->instance_data);
+    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_enter (context->instance_data);
   }
 
   static void
   gum_invocation_listener_proxy_on_leave (GumInvocationListener * listener,
                                           GumInvocationContext * context)
   {
-    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->OnLeave (context->instance_data);
+    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_leave (context->instance_data);
   }
 
   static gpointer
