@@ -350,14 +350,97 @@ gum_allocator_probe_get_property (GObject * object,
   }
 }
 
+static gboolean
+gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
+                                                       gpointer address,
+                                                       const gchar * path,
+                                                       gpointer user_data)
+{
+  static const gchar * glib_function_name[] = {
+    "g_quark_from_string",
+    "g_quark_from_static_string",
+    NULL
+  };
+  static const gchar * gobject_function_name[] = {
+    "g_signal_connect_data",
+    "g_signal_handlers_destroy",
+    "g_type_register_static",
+    "g_type_add_interface_static",
+    "g_param_spec_pool_insert",
+    NULL
+  };
+  GArray * ignored = (GArray *) user_data;
+  gchar * name_lowercase;
+  static const gchar ** function_name;
+
+  (void) address;
+
+  name_lowercase = g_ascii_strdown (name, -1);
+
+  if (g_strstr_len (name_lowercase, -1, "glib-2.0") != NULL)
+    function_name = glib_function_name;
+  else if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
+    function_name = gobject_function_name;
+  else
+    function_name = NULL;
+
+  if (function_name != NULL)
+  {
+    GModule * module;
+    guint i;
+
+    module = g_module_open (path, (GModuleFlags) 0);
+
+    for (i = 0; function_name[i] != NULL; i++)
+    {
+      gpointer address;
+      gboolean found;
+
+      found = g_module_symbol (module, function_name[i], &address);
+      g_assert (found);
+
+      g_array_append_val (ignored, address);
+    }
+
+    g_module_close (module);
+  }
+
+  g_free (name_lowercase);
+
+  return TRUE;
+}
+
 static void
 gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 {
-  gpointer function_address;
+  static GArray * ignored = NULL;
+  guint i;
 
-  function_address = gum_find_function ("g_quark_new");
-  if (function_address != NULL)
-    gum_allocator_probe_suppress (self, function_address);
+  if (ignored == NULL)
+  {
+    static const gchar * internal_function_name[] = {
+        "g_quark_new",
+        "instance_real_class_set",
+        "instance_real_class_remove",
+        "gst_object_set_name_default"
+    };
+
+    ignored = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+    for (i = 0; i != G_N_ELEMENTS (internal_function_name); i++)
+    {
+      GArray * addrs = gum_find_functions_matching (internal_function_name[i]);
+      if (addrs->len != 0)
+        g_array_append_vals (ignored, addrs->data, addrs->len);
+      g_array_free (addrs, TRUE);
+    }
+
+    gum_process_enumerate_modules (
+        gum_allocator_probe_add_suppression_addresses_if_glib, ignored);
+  }
+
+  for (i = 0; i != ignored->len; i++)
+    gum_allocator_probe_suppress (self, g_array_index (ignored, gpointer, i));
 
   gum_allocator_probe_suppress (self,
       GUM_FUNCPTR_TO_POINTER (g_quark_from_string));
@@ -374,18 +457,6 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
       GUM_FUNCPTR_TO_POINTER (g_type_add_interface_static));
   gum_allocator_probe_suppress (self,
       GUM_FUNCPTR_TO_POINTER (g_param_spec_pool_insert));
-
-  function_address = gum_find_function ("instance_real_class_set");
-  if (function_address != NULL)
-    gum_allocator_probe_suppress (self, function_address);
-
-  function_address = gum_find_function ("instance_real_class_remove");
-  if (function_address != NULL)
-    gum_allocator_probe_suppress (self, function_address);
-
-  function_address = gum_find_function ("gst_object_set_name_default");
-  if (function_address != NULL)
-    gum_allocator_probe_suppress (self, function_address);
 }
 
 static void
