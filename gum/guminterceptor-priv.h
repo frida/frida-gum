@@ -54,7 +54,6 @@ struct _FunctionContext
 
   gpointer on_leave_trampoline;
 
-  GumSpinlock listener_lock;
   GPtrArray * listener_entries;
 
   /* state */

@@ -542,8 +542,6 @@ function_context_new (gpointer function_address,
 
   ctx->allocator = allocator;
 
-  gum_spinlock_init (&ctx->listener_lock);
-
   return ctx;
 }
 
@@ -559,7 +557,6 @@ function_context_destroy (FunctionContext * function_ctx)
 
   if (function_ctx->listener_entries != NULL)
     g_ptr_array_free (function_ctx->listener_entries, TRUE);
-  gum_spinlock_free (&function_ctx->listener_lock);
 
   gum_free (function_ctx);
 }
@@ -576,9 +573,7 @@ function_context_add_listener (FunctionContext * function_ctx,
   entry->listener_instance = listener;
   entry->function_instance_data = function_instance_data;
 
-  gum_spinlock_acquire (&function_ctx->listener_lock);
   g_ptr_array_add (function_ctx->listener_entries, entry);
-  gum_spinlock_release (&function_ctx->listener_lock);
 }
 
 static void
@@ -590,9 +585,7 @@ function_context_remove_listener (FunctionContext * function_ctx,
   entry = function_context_find_listener_entry (function_ctx, listener);
   g_assert (entry != NULL);
 
-  gum_spinlock_acquire (&function_ctx->listener_lock);
   g_ptr_array_remove (function_ctx->listener_entries, entry);
-  gum_spinlock_release (&function_ctx->listener_lock);
 
   g_free (entry);
 }
@@ -696,14 +689,12 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       ListenerEntry entry = { 0, };
       ListenerInvocationData listener_invocation_data;
 
-      gum_spinlock_acquire (&function_ctx->listener_lock);
       if (i < function_ctx->listener_entries->len)
       {
         entry = *((ListenerEntry *)
             g_ptr_array_index (function_ctx->listener_entries, i));
         g_object_ref (entry.listener_instance);
       }
-      gum_spinlock_release (&function_ctx->listener_lock);
 
       if (entry.listener_instance == NULL)
         break;
@@ -803,14 +794,12 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     ListenerEntry entry = { 0, };
     ListenerInvocationData listener_invocation_data;
 
-    gum_spinlock_acquire (&function_ctx->listener_lock);
     if (i < function_ctx->listener_entries->len)
     {
       entry = *((ListenerEntry *)
         g_ptr_array_index (function_ctx->listener_entries, i));
       g_object_ref (entry.listener_instance);
     }
-    gum_spinlock_release (&function_ctx->listener_lock);
 
     if (entry.listener_instance == NULL)
       break;
@@ -854,8 +843,6 @@ find_and_fill_parent_context_for_listener (ThreadContextStack * stack,
 
   parent_func_ctx = parent_entry->thread_ctx->function_ctx;
 
-  gum_spinlock_acquire (&parent_func_ctx->listener_lock);
-
   for (i = 0; i != parent_func_ctx->listener_entries->len; i++)
   {
     ListenerEntry * entry = (ListenerEntry *)
@@ -872,8 +859,6 @@ find_and_fill_parent_context_for_listener (ThreadContextStack * stack,
       break;
     }
   }
-
-  gum_spinlock_release (&parent_func_ctx->listener_lock);
 
   return parent_invocation_ctx;
 }
