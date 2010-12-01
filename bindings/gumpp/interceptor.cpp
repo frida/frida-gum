@@ -1,7 +1,6 @@
 #include "gumpp.hpp"
 
 #include <gum/gum.h>
-#include <stdexcept>
 
 namespace Gum
 {

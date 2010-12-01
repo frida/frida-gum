@@ -24,6 +24,9 @@
     <ClCompile Include="sanitychecker.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="symbolutil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gumpp.hpp">

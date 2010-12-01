@@ -13,6 +13,8 @@
 
 #define GUMPP_CAPI extern "C" GUMPP_API
 
+#include <vector>
+
 namespace Gum
 {
   struct InvocationListener;
@@ -22,6 +24,12 @@ namespace Gum
     virtual void Retain () = 0;
     virtual void Release () = 0;
     virtual void * GetHandle () const = 0;
+  };
+
+  struct PtrArray : public Object
+  {
+    virtual int Length () = 0;
+    virtual void * Nth (int n) = 0;
   };
 
   template <typename T> class RefPtr
@@ -130,6 +138,27 @@ namespace Gum
   };
 
   GUMPP_CAPI InvocationListener * InvocationListenerProxyCreate (InvocationListenerCallbacks * callbacks);
+
+  GUMPP_CAPI void * FindFunctionAsPtr (const char * str);
+  GUMPP_CAPI PtrArray * FindFunctionsMatchingAsPtrArray (const char * str);
+
+  class SymbolUtil
+  {
+  public:
+    static void * FindFunction (const char * name)
+    {
+      return FindFunctionAsPtr (name);
+    }
+
+    static std::vector<void *> FindFunctionsMatching (const char * str)
+    {
+      RefPtr<PtrArray> functions = RefPtr<PtrArray> (FindFunctionsMatchingAsPtrArray (str));
+      std::vector<void *> result;
+      for (int i = functions->Length () - 1; i >= 0; i--)
+        result.push_back (functions->Nth (i));
+      return result;
+    }
+  };
 }
 
 #endif
