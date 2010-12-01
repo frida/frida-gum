@@ -18,8 +18,12 @@
  */
 
 #include "guminstancetracker.h"
+
 #include "guminterceptor.h"
 #include "gumhash.h"
+#include "gumsymbolutil.h"
+
+#include <gmodule.h>
 
 static void gum_instance_tracker_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -54,8 +58,6 @@ enum _FunctionId
   FUNCTION_ID_CREATE_INSTANCE,
   FUNCTION_ID_FREE_INSTANCE
 };
-
-#define GUM_INSTANCE_TRACKER_GET_PRIVATE(o) ((o)->priv)
 
 #define GUM_INSTANCE_TRACKER_LOCK()   g_mutex_lock   (priv->mutex)
 #define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (priv->mutex)
@@ -108,7 +110,7 @@ gum_instance_tracker_init (GumInstanceTracker * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_INSTANCE_TRACKER, GumInstanceTrackerPrivate);
 
-  priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  priv = self->priv;
 
   priv->mutex = g_mutex_new ();
 
@@ -126,7 +128,7 @@ static void
 gum_instance_tracker_dispose (GObject * object)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER (object);
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
 
   if (!priv->disposed)
   {
@@ -152,7 +154,7 @@ gum_instance_tracker_finalize (GObject * object)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER (object);
   GumInstanceTrackerPrivate * priv =
-      GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+      self->priv;
 
   g_mutex_free (priv->mutex);
 
@@ -165,11 +167,52 @@ gum_instance_tracker_new (void)
   return GUM_INSTANCE_TRACKER (g_object_new (GUM_TYPE_INSTANCE_TRACKER, NULL));
 }
 
+static gboolean
+gum_instance_tracker_fill_vtable_if_module_is_gobject (const gchar * name,
+                                                       gpointer address,
+                                                       const gchar * path,
+                                                       gpointer user_data)
+{
+  GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (user_data);
+  GumInstanceVTable * vtable = &self->priv->vtable;
+  gchar * name_lowercase;
+
+  (void) address;
+
+  name_lowercase = g_ascii_strdown (name, -1);
+
+  if (g_strstr_len (name_lowercase, -1, "gobject-2.0") != NULL)
+  {
+    GModule * module;
+    gboolean found;
+
+    module = g_module_open (path, (GModuleFlags) 0);
+
+    found = g_module_symbol (module, "g_type_create_instance",
+        (gpointer *) &vtable->create_instance);
+    g_assert (found);
+
+    found = g_module_symbol (module, "g_type_free_instance",
+        (gpointer *) &vtable->free_instance);
+    g_assert (found);
+
+    found = g_module_symbol (module, "g_type_name",
+        (gpointer *) &vtable->type_id_to_name);
+    g_assert (found);
+
+    g_module_close (module);
+  }
+
+  g_free (name_lowercase);
+
+  return TRUE;
+}
+
 void
 gum_instance_tracker_begin (GumInstanceTracker * self,
                             GumInstanceVTable * vtable)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   GumAttachReturn attach_ret;
 
   g_assert (!priv->is_active);
@@ -180,9 +223,15 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
   }
   else
   {
-    priv->vtable.create_instance = g_type_create_instance;
-    priv->vtable.free_instance = g_type_free_instance;
-    priv->vtable.type_id_to_name = g_type_name;
+    gum_process_enumerate_modules (
+        gum_instance_tracker_fill_vtable_if_module_is_gobject, self);
+
+    if (priv->vtable.create_instance == NULL)
+    {
+      priv->vtable.create_instance = g_type_create_instance;
+      priv->vtable.free_instance = g_type_free_instance;
+      priv->vtable.type_id_to_name = g_type_name;
+    }
   }
 
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
@@ -203,7 +252,7 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
 void
 gum_instance_tracker_end (GumInstanceTracker * self)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
 
   g_assert (priv->is_active);
 
@@ -218,7 +267,7 @@ gum_instance_tracker_set_type_filter_function (GumInstanceTracker * self,
                                                GumFilterInstanceTypeFunc filter,
                                                gpointer user_data)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
 
   priv->type_filter_func = filter;
   priv->type_filter_func_user_data = user_data;
@@ -228,7 +277,7 @@ guint
 gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
                                        const gchar * type_name)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   guint result = 0;
 
   if (type_name != NULL)
@@ -255,7 +304,7 @@ gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
 GumList *
 gum_instance_tracker_peek_instances (GumInstanceTracker * self)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   GumList * result;
 
   GUM_INSTANCE_TRACKER_LOCK ();
@@ -270,7 +319,7 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
                                      GumWalkInstanceFunc func,
                                      gpointer user_data)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   GumHashTableIter iter;
   gpointer key, value;
   GType gobject_type;
@@ -306,7 +355,7 @@ gum_instance_tracker_add_instance (GumInstanceTracker * self,
                                    gpointer instance,
                                    GType instance_type)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   guint count;
 
   if (instance_type == G_TYPE_FROM_INSTANCE (self))
@@ -337,7 +386,7 @@ gum_instance_tracker_remove_instance (GumInstanceTracker * self,
                                       gpointer instance,
                                       GType instance_type)
 {
-  GumInstanceTrackerPrivate * priv = GUM_INSTANCE_TRACKER_GET_PRIVATE (self);
+  GumInstanceTrackerPrivate * priv = self->priv;
   guint count;
 
   GUM_INSTANCE_TRACKER_LOCK ();
