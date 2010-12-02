@@ -40,7 +40,7 @@ typedef gboolean (* GumFoundModuleFunc) (const gchar * name, gpointer address,
     const gchar * path, gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
     gpointer user_data);
-typedef gboolean (* GumFoundRangeFunc) (gpointer address, guint size,
+typedef gboolean (* GumFoundRangeFunc) (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 
 GUM_API gboolean gum_symbol_details_from_address (gpointer address,

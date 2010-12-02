@@ -168,7 +168,12 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
       if ((cur_prot & prot) != 0)
       {
-        if (!func (cur_base_address, mbi.RegionSize, cur_prot, user_data))
+        GumMemoryRange range;
+
+        range.base_address = cur_base_address;
+        range.size = mbi.RegionSize;
+
+        if (!func (&range, cur_prot, user_data))
           return;
       }
     }

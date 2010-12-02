@@ -22,6 +22,28 @@
 
 #include <gum/gumdefs.h>
 
+typedef struct _GumMatchToken GumMatchToken;
+typedef enum _GumMatchType GumMatchType;
+
+struct _GumMatchPattern
+{
+  GPtrArray * tokens;
+  guint size;
+};
+
+struct _GumMatchToken
+{
+  GumMatchType type;
+  GArray * bytes;
+  guint offset;
+};
+
+enum _GumMatchType
+{
+  GUM_MATCH_EXACT,
+  GUM_MATCH_WILDCARD
+};
+
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _gum_memory_init (void);

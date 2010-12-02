@@ -60,7 +60,7 @@ static gboolean module_found_cb (const gchar * name, gpointer address,
     const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
-static gboolean range_found_cb (gpointer address, guint size,
+static gboolean range_found_cb (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 #endif
 
@@ -144,8 +144,7 @@ export_found_cb (const gchar * name,
 }
 
 static gboolean
-range_found_cb (gpointer address,
-                guint size,
+range_found_cb (const GumMemoryRange * range,
                 GumPageProtection prot,
                 gpointer user_data)
 {

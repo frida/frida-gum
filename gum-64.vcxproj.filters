@@ -192,6 +192,9 @@
     <ClCompile Include="gum\backend-x86\gumscriptcompiler-x86.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gummemory.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">

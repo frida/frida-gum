@@ -49,6 +49,7 @@
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumlist.c" />
+    <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.c" />
     <ClCompile Include="gum\gumstalker.c" />

@@ -87,6 +87,7 @@ main (gint argc, gchar * argv[])
 
   /* Core */
   TEST_RUN_LIST (testutil);
+  TEST_RUN_LIST (memory);
   TEST_RUN_LIST (symbolutil);
 #ifdef HAVE_I386
   TEST_RUN_LIST (codewriter);
