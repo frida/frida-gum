@@ -20,6 +20,30 @@ namespace Gum
     }
   };
 
+  class CallCountSamplerImpl : public ObjectWrapper<CallCountSamplerImpl, CallCountSampler, GumCallCountSampler>
+  {
+  public:
+    CallCountSamplerImpl (GumCallCountSampler * handle)
+    {
+      assign_handle (handle);
+    }
+
+    virtual Sample sample () const
+    {
+      return gum_sampler_sample (GUM_SAMPLER (handle));
+    }
+
+    virtual void add_function (void * function_address)
+    {
+      gum_call_count_sampler_add_function (handle, function_address);
+    }
+
+    virtual Sample peek_total_count () const
+    {
+      return gum_call_count_sampler_peek_total_count (handle);
+    }
+  };
+
   extern "C" Sampler * BusyCycleSampler_new () { gum_init (); return new SamplerImpl (gum_busy_cycle_sampler_new ()); }
   extern "C" Sampler * CycleSampler_new () { gum_init (); return new SamplerImpl (gum_cycle_sampler_new ()); }
   extern "C" Sampler * MallocCountSampler_new () { gum_init (); return new SamplerImpl (gum_malloc_count_sampler_new ()); }
@@ -31,15 +55,21 @@ namespace Gum
 
     va_list args;
     va_start (args, first_function);
-    GumCallCountSampler * sampler = gum_call_count_sampler_new_valist (first_function, args);
+    GumSampler * sampler = gum_call_count_sampler_new_valist (first_function, args);
     va_end (args);
 
-    return new CallCountSamplerImpl (sampler);
+    return new CallCountSamplerImpl (GUM_CALL_COUNT_SAMPLER (sampler));
   }
 
   extern "C" CallCountSampler * CallCountSampler_new_by_name (char * first_function_name, ...)
   {
     gum_init ();
-    return NULL;
+
+    va_list args;
+    va_start (args, first_function_name);
+    GumSampler * sampler = gum_call_count_sampler_new_by_name_valist (first_function_name, args);
+    va_end (args);
+
+    return new CallCountSamplerImpl (GUM_CALL_COUNT_SAMPLER (sampler));
   }
 }

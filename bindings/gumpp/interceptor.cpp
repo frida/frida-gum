@@ -1,5 +1,6 @@
 #include "gumpp.hpp"
 
+#include "invocationcontext.hpp"
 #include "objectwrapper.hpp"
 
 #include <gum/gum.h>
@@ -23,6 +24,34 @@ namespace Gum
     virtual void detach_listener (InvocationListener * listener)
     {
       gum_interceptor_detach_listener (handle, GUM_INVOCATION_LISTENER (listener->get_handle ()));
+    }
+
+    virtual void replace_function (void * function_address, void * replacement_address, void * user_data)
+    {
+      gum_interceptor_replace_function (handle, function_address, replacement_address, user_data);
+    }
+
+    virtual void revert_function (void * function_address)
+    {
+      gum_interceptor_revert_function (handle, function_address);
+    }
+
+    virtual InvocationContext * get_current_invocation ()
+    {
+      GumInvocationContext * context = gum_interceptor_get_current_invocation ();
+      if (context == NULL)
+        return NULL;
+      return new InvocationContextImpl (context);
+    }
+
+    virtual void ignore_caller ()
+    {
+      gum_interceptor_ignore_caller (handle);
+    }
+
+    virtual void unignore_caller ()
+    {
+      gum_interceptor_unignore_caller (handle);
     }
   };
 

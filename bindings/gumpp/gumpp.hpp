@@ -17,6 +17,7 @@
 
 namespace Gum
 {
+  struct InvocationContext;
   struct InvocationListener;
 
   struct Object
@@ -42,6 +43,14 @@ namespace Gum
   {
     virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
     virtual void detach_listener (InvocationListener * listener) = 0;
+
+    virtual void replace_function (void * function_address, void * replacement_address, void * user_data) = 0;
+    virtual void revert_function (void * function_address) = 0;
+
+    virtual InvocationContext * get_current_invocation () = 0;
+
+    virtual void ignore_caller () = 0;
+    virtual void unignore_caller () = 0;
   };
 
   GUMPP_CAPI Interceptor * Interceptor_obtain (void);
@@ -92,8 +101,8 @@ namespace Gum
 
   struct CallCountSampler : public Sampler
   {
-    virtual void add_function (void * function_address);
-    virtual Sample peek_total_count () const;
+    virtual void add_function (void * function_address) = 0;
+    virtual Sample peek_total_count () const = 0;
   };
 
   GUMPP_CAPI Sampler * BusyCycleSampler_new ();
