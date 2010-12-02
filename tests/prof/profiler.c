@@ -245,7 +245,8 @@ PROFILEREPORT_TESTCASE (xml_multiple_threads)
 PROFILEREPORT_TESTCASE (xml_worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
-      &example_worst_case_info, fixture->sampler, inspect_worst_case_info);
+      &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
+      NULL);
 
   example_worst_case_info (fixture->fake_sampler, "early", 1);
   example_worst_case_info (fixture->fake_sampler, "mid", 3);
@@ -264,7 +265,7 @@ PROFILEREPORT_TESTCASE (xml_worst_case_info)
 PROFILEREPORT_TESTCASE (xml_thread_ordering)
 {
   gum_profiler_instrument_functions_matching (fixture->profiler, "simple_*",
-      fixture->sampler, NULL);
+      fixture->sampler, NULL, NULL);
 
   simple_1 (fixture->fake_sampler);
   g_thread_join (g_thread_create ((GThreadFunc) simple_2,
@@ -295,7 +296,7 @@ PROFILEREPORT_TESTCASE (xml_thread_ordering)
 PROFILER_TESTCASE (profile_matching_functions)
 {
   gum_profiler_instrument_functions_matching (fixture->profiler, "simple_*",
-      fixture->sampler, exclude_simple_stdcall_50);
+      fixture->sampler, exclude_simple_stdcall_50, NULL);
 
   simple_cdecl_42 (fixture->fake_sampler);
   simple_stdcall_48 (fixture->fake_sampler);
@@ -344,7 +345,8 @@ PROFILER_TESTCASE (worst_case_duration)
 PROFILER_TESTCASE (worst_case_info)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
-      &example_worst_case_info, fixture->sampler, inspect_worst_case_info);
+      &example_worst_case_info, fixture->sampler, inspect_worst_case_info,
+      NULL);
 
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_info), ==, "");
@@ -361,7 +363,7 @@ PROFILER_TESTCASE (worst_case_info_on_recursion)
 {
   gum_profiler_instrument_function_with_inspector (fixture->profiler,
       &example_worst_case_recursive, fixture->sampler,
-      inspect_recursive_worst_case_info);
+      inspect_recursive_worst_case_info, NULL);
 
   example_worst_case_recursive (2, fixture->fake_sampler);
 

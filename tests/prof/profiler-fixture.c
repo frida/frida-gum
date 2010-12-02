@@ -115,7 +115,7 @@ static void
 instrument_example_functions (TestProfileReportFixture * fixture)
 {
   gum_profiler_instrument_functions_matching (fixture->profiler, "example_*",
-      fixture->sampler, NULL);
+      fixture->sampler, NULL, NULL);
 }
 
 static void
@@ -295,7 +295,8 @@ example_cyclic_b (GumFakeSampler * sampler,
 }
 
 static gboolean
-exclude_simple_stdcall_50 (const gchar * match)
+exclude_simple_stdcall_50 (const gchar * match,
+                           gpointer user_data)
 {
   return strcmp (match, "simple_stdcall_50") != 0;
 }
@@ -412,7 +413,8 @@ example_worst_case_recursive (gint count,
 static void
 inspect_worst_case_info (GumInvocationContext * context,
                          gchar * output_buf,
-                         guint output_buf_len)
+                         guint output_buf_len,
+                         gpointer user_data)
 {
   const gchar * magic;
 
@@ -428,7 +430,8 @@ inspect_worst_case_info (GumInvocationContext * context,
 static void
 inspect_recursive_worst_case_info (GumInvocationContext * context,
                                    gchar * output_buf,
-                                   guint output_buf_len)
+                                   guint output_buf_len,
+                                   gpointer user_data)
 {
   gint count;
 

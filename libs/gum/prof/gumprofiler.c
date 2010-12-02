@@ -76,6 +76,7 @@ struct _GumFunctionContext
   GumSamplerIface * sampler_interface;
   GumSampler * sampler_instance;
   GumWorstCaseInspectorFunc inspector_func;
+  gpointer inspector_user_data;
 
   GumFunctionThreadContext thread_contexts[GUM_MAX_THREADS];
   volatile gint thread_context_count;
@@ -201,7 +202,8 @@ gum_profiler_on_enter (GumInvocationListener * listener,
     if ((inspector_func = function_ctx->inspector_func) != NULL)
     {
       inspector_func (context, thread_ctx->potential_info.buf,
-          sizeof (thread_ctx->potential_info.buf));
+          sizeof (thread_ctx->potential_info.buf),
+          function_ctx->inspector_user_data);
     }
 
     thread_ctx->start_time = function_ctx->sampler_interface->sample (
@@ -287,7 +289,8 @@ void
 gum_profiler_instrument_functions_matching (GumProfiler * self,
                                             const gchar * match_str,
                                             GumSampler * sampler,
-                                            GumFunctionMatchFilterFunc filter)
+                                            GumFunctionMatchFilterFunc filter,
+                                            gpointer user_data)
 {
   GArray * matches;
   guint i;
@@ -304,7 +307,7 @@ gum_profiler_instrument_functions_matching (GumProfiler * self,
       gchar * func_name;
 
       func_name = gum_symbol_name_from_address (address);
-      approved = filter (func_name);
+      approved = filter (func_name, user_data);
       g_free (func_name);
     }
 
@@ -321,14 +324,15 @@ gum_profiler_instrument_function (GumProfiler * self,
                                   GumSampler * sampler)
 {
   return gum_profiler_instrument_function_with_inspector (self,
-      function_address, sampler, NULL);
+      function_address, sampler, NULL, NULL);
 }
 
 GumInstrumentReturn
 gum_profiler_instrument_function_with_inspector (GumProfiler * self,
                                                  gpointer function_address,
                                                  GumSampler * sampler,
-                                                 GumWorstCaseInspectorFunc inspector_func)
+                                                 GumWorstCaseInspectorFunc inspector_func,
+                                                 gpointer user_data)
 {
   GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
   GumInstrumentReturn result = GUM_INSTRUMENT_OK;
@@ -346,6 +350,7 @@ gum_profiler_instrument_function_with_inspector (GumProfiler * self,
   ctx->sampler_interface = GUM_SAMPLER_GET_INTERFACE (sampler);
   ctx->sampler_instance = g_object_ref (sampler);
   ctx->inspector_func = inspector_func;
+  ctx->inspector_user_data = user_data;
 
   GUM_PROFILER_LOCK ();
   g_hash_table_insert (priv->function_by_address, function_address, ctx);

@@ -65,9 +65,10 @@ struct _GumProfilerClass
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumFunctionMatchFilterFunc) (const gchar * function_name);
+typedef gboolean (* GumFunctionMatchFilterFunc) (const gchar * function_name,
+    gpointer user_data);
 typedef void (* GumWorstCaseInspectorFunc) (GumInvocationContext * context,
-    gchar * output_buf, guint output_buf_len);
+    gchar * output_buf, guint output_buf_len, gpointer user_data);
 
 GUM_API GType gum_profiler_get_type (void) G_GNUC_CONST;
 
@@ -75,12 +76,12 @@ GUM_API GumProfiler * gum_profiler_new (void);
 
 GUM_API void gum_profiler_instrument_functions_matching (GumProfiler * self,
     const gchar * match_str, GumSampler * sampler,
-    GumFunctionMatchFilterFunc filter_func);
+    GumFunctionMatchFilterFunc filter_func, gpointer user_data);
 GUM_API GumInstrumentReturn gum_profiler_instrument_function (
     GumProfiler * self, gpointer function_address, GumSampler * sampler);
 GUM_API GumInstrumentReturn gum_profiler_instrument_function_with_inspector (
     GumProfiler * self, gpointer function_address, GumSampler * sampler,
-    GumWorstCaseInspectorFunc inspector_func);
+    GumWorstCaseInspectorFunc inspector_func, gpointer user_data);
 
 GUM_API GumProfileReport * gum_profiler_generate_report (GumProfiler * self);
 
