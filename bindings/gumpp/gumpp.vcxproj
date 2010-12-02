@@ -125,11 +125,17 @@
   <ItemGroup>
     <ClCompile Include="interceptor.cpp" />
     <ClCompile Include="invocationlistener.cpp" />
+    <ClCompile Include="profiler.cpp" />
+    <ClCompile Include="sampler.cpp" />
     <ClCompile Include="sanitychecker.cpp" />
     <ClCompile Include="symbolutil.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gumpp.hpp" />
+    <ClInclude Include="invocationcontext.hpp" />
+    <ClInclude Include="objectwrapper.hpp" />
+    <ClInclude Include="podwrapper.hpp" />
+    <ClInclude Include="string.hpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\gum-32.vcxproj">

@@ -26,6 +26,12 @@ namespace Gum
     virtual void * get_handle () const = 0;
   };
 
+  struct String : public Object
+  {
+    virtual const char * c_str () = 0;
+    virtual size_t length () const = 0;
+  };
+
   struct PtrArray : public Object
   {
     virtual int length () = 0;
@@ -40,16 +46,24 @@ namespace Gum
 
   GUMPP_CAPI Interceptor * Interceptor_obtain (void);
 
+  struct InvocationContext
+  {
+    virtual void * get_nth_argument (unsigned int n) = 0;
+    virtual void replace_nth_argument (unsigned int n, void * value) = 0;
+    virtual void * get_return_value () = 0;
+    virtual InvocationContext * get_parent () = 0;
+  };
+
   struct InvocationListener : public Object
   {
-    virtual void on_enter (void * user_data) = 0;
-    virtual void on_leave (void * user_data) = 0;
+    virtual void on_enter (InvocationContext * context, void * user_data) = 0;
+    virtual void on_leave (InvocationContext * context, void * user_data) = 0;
   };
 
   struct InvocationListenerCallbacks
   {
-    virtual void on_enter (void * user_data) = 0;
-    virtual void on_leave (void * user_data) = 0;
+    virtual void on_enter (InvocationContext * context, void * user_data) = 0;
+    virtual void on_leave (InvocationContext * context, void * user_data) = 0;
   };
 
   GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);
@@ -68,6 +82,53 @@ namespace Gum
     CHECK_BLOCK_LEAKS     = (1 << 1),
     CHECK_BOUNDS          = (1 << 2)
   };
+
+  typedef unsigned long long Sample;
+
+  struct Sampler : public Object
+  {
+    virtual Sample sample () const = 0;
+  };
+
+  struct CallCountSampler : public Sampler
+  {
+    virtual void add_function (void * function_address);
+    virtual Sample peek_total_count () const;
+  };
+
+  GUMPP_CAPI Sampler * BusyCycleSampler_new ();
+  GUMPP_CAPI Sampler * CycleSampler_new ();
+  GUMPP_CAPI Sampler * MallocCountSampler_new ();
+  GUMPP_CAPI Sampler * WallClockSampler_new ();
+
+  GUMPP_CAPI CallCountSampler * CallCountSampler_new (void * first_function, ...);
+  GUMPP_CAPI CallCountSampler * CallCountSampler_new_by_name (char * first_function_name, ...);
+
+  struct FunctionMatchCallbacks
+  {
+    virtual bool match_should_include (const char * function_name) = 0;
+  };
+
+  struct InspectorCallbacks
+  {
+    virtual void inspect_worst_case (InvocationContext * context, char * output_buf, unsigned int output_buf_len) = 0;
+  };
+
+  struct ProfileReport : public Object
+  {
+    virtual String * emit_xml () = 0;
+  };
+
+  struct Profiler : public Object
+  {
+    virtual void instrument_functions_matching (const char * match_str, Sampler * sampler, FunctionMatchCallbacks * match_callbacks = 0) = 0;
+    virtual bool instrument_function (void * function_address, Sampler * sampler) = 0;
+    virtual bool instrument_function_with_inspector (void * function_address, Sampler * sampler, InspectorCallbacks * inspector_callbacks) = 0;
+
+    virtual ProfileReport * generate_report () = 0;
+  };
+
+  GUMPP_CAPI Profiler * Profiler_new (void);
 
   GUMPP_CAPI void * find_function_ptr (const char * str);
   GUMPP_CAPI PtrArray * find_matching_functions_array (const char * str);
