@@ -19,9 +19,11 @@
 
 #include "gumsymbolutil.h"
 
-#define VC_EXTRALEAN
-#include <windows.h>
+#include "gumwindows.h"
+
 #include <psapi.h>
+
+static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
@@ -82,7 +84,6 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  gunichar2 * wide_name;
   gpointer module;
   guint8 * mod_base;
   IMAGE_DOS_HEADER * dos_hdr;
@@ -90,10 +91,7 @@ gum_module_enumerate_exports (const gchar * module_name,
   IMAGE_EXPORT_DIRECTORY * exp;
   guint8 * exp_begin, * exp_end;
 
-  wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
-  module = GetModuleHandleW ((LPCWSTR) wide_name);
-  g_free (wide_name);
-
+  module = get_module_handle_utf8 (module_name);
   if (module == NULL)
     return;
 
@@ -133,19 +131,75 @@ gum_module_enumerate_exports (const gchar * module_name,
   }
 }
 
+void
+gum_module_enumerate_ranges (const gchar * module_name,
+                             GumPageProtection prot,
+                             GumFoundRangeFunc func,
+                             gpointer user_data)
+{
+  HANDLE this_process = GetCurrentProcess ();
+  HMODULE module;
+  MODULEINFO mi;
+  guint8 * cur_base_address, * end_address;
+
+  module = get_module_handle_utf8 (module_name);
+  if (module == NULL)
+    return;
+
+  if (!GetModuleInformation (this_process, module, &mi, sizeof (mi)))
+    return;
+
+  cur_base_address = (guint8 *) mi.lpBaseOfDll;
+  end_address = (guint8 *) mi.lpBaseOfDll + mi.SizeOfImage;
+
+  do
+  {
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T ret;
+
+    ret = VirtualQuery (cur_base_address, &mbi, sizeof (mbi));
+    g_assert (ret != 0);
+
+    if (mbi.Protect != 0)
+    {
+      GumPageProtection cur_prot;
+
+      cur_prot = gum_page_protection_from_windows (mbi.Protect);
+
+      if ((cur_prot & prot) != 0)
+      {
+        if (!func (cur_base_address, mbi.RegionSize, cur_prot, user_data))
+          return;
+      }
+    }
+
+    cur_base_address += mbi.RegionSize;
+  }
+  while (cur_base_address < end_address);
+}
+
 gpointer
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * export_name)
 {
-  gunichar2 * wide_name;
   HMODULE module;
+
+  module = get_module_handle_utf8 (module_name);
+  if (module == NULL)
+    return NULL;
+
+  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, export_name));
+}
+
+static HMODULE
+get_module_handle_utf8 (const gchar * module_name)
+{
+  HMODULE module;
+  gunichar2 * wide_name;
 
   wide_name = g_utf8_to_utf16 (module_name, -1, NULL, NULL, NULL);
   module = GetModuleHandleW ((LPCWSTR) wide_name);
   g_free (wide_name);
 
-  if (module == NULL)
-    return NULL;
-
-  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, export_name));
+  return module;
 }

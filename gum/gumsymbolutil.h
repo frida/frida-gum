@@ -21,7 +21,7 @@
 #ifndef __GUM_SYMBOL_UTIL_H__
 #define __GUM_SYMBOL_UTIL_H__
 
-#include <gum/gumdefs.h>
+#include <gum/gummemory.h>
 
 typedef struct _GumSymbolDetails GumSymbolDetails;
 
@@ -40,6 +40,8 @@ typedef gboolean (* GumFoundModuleFunc) (const gchar * name, gpointer address,
     const gchar * path, gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
     gpointer user_data);
+typedef gboolean (* GumFoundRangeFunc) (gpointer address, guint size,
+    GumPageProtection prot, gpointer user_data);
 
 GUM_API gboolean gum_symbol_details_from_address (gpointer address,
     GumSymbolDetails * details);
@@ -52,6 +54,8 @@ GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
+GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
+    GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 GUM_API gpointer gum_module_find_export_by_name (const gchar * module_name,
     const gchar * export_name);
 

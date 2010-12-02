@@ -17,20 +17,21 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_WIN_EXCEPTION_HOOK_H__
-#define __GUM_WIN_EXCEPTION_HOOK_H__
+#ifndef __GUM_WINDOWS_H__
+#define __GUM_WINDOWS_H__
 
-#include "gumwindows.h"
+#include "gummemory.h"
+
+#include <glib.h>
+#ifndef VC_EXTRALEAN
+#define VC_EXTRALEAN
+#endif
+#include <windows.h>
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumWinExceptionHandler) (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context,
-    gpointer user_data);
-
-void gum_win_exception_hook_add (GumWinExceptionHandler handler,
-    gpointer user_data);
-void gum_win_exception_hook_remove (GumWinExceptionHandler handler);
+GumPageProtection gum_page_protection_from_windows (DWORD native_prot);
+DWORD gum_page_protection_to_windows (GumPageProtection page_prot);
 
 G_END_DECLS
 

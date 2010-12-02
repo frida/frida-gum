@@ -21,11 +21,7 @@
 #include "gummemory.h"
 
 #include "gummemory-priv.h"
-
-#define VC_EXTRALEAN
-#include <windows.h>
-
-static DWORD gum_page_protection_to_windows (GumPageProtection page_prot);
+#include "gumwindows.h"
 
 static HANDLE _gum_memory_heap = INVALID_HANDLE_VALUE;
 
@@ -243,7 +239,31 @@ gum_free_pages (gpointer mem)
   g_assert (success);
 }
 
-static DWORD
+GumPageProtection
+gum_page_protection_from_windows (DWORD native_prot)
+{
+  switch (native_prot & 0xff)
+  {
+    case PAGE_NOACCESS:
+      return GUM_PAGE_NO_ACCESS;
+    case PAGE_READONLY:
+      return GUM_PAGE_READ;
+    case PAGE_READWRITE:
+    case PAGE_WRITECOPY:
+      return GUM_PAGE_RW;
+    case PAGE_EXECUTE:
+      return GUM_PAGE_EXECUTE;
+    case PAGE_EXECUTE_READ:
+      return GUM_PAGE_RX;
+    case PAGE_EXECUTE_READWRITE:
+    case PAGE_EXECUTE_WRITECOPY:
+      return GUM_PAGE_RWX;
+  }
+
+  g_assert_not_reached ();
+}
+
+DWORD
 gum_page_protection_to_windows (GumPageProtection page_prot)
 {
   switch (page_prot)

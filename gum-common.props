@@ -77,6 +77,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClInclude Include="gum\backend-windows\gumwindows.h" />
     <ClInclude Include="gum\backend-windows\gumwinexceptionhook.h" />
   </ItemGroup>
 
