@@ -32,6 +32,46 @@ namespace Gum
     virtual void * nth (int n) = 0;
   };
 
+  struct SanityChecker : public Object
+  {
+    virtual void begin (unsigned int flags) = 0;
+    virtual bool end () = 0;
+  };
+
+  GUMPP_CAPI SanityChecker * SanityChecker_new (void);
+
+  enum SanityCheckFlags
+  {
+    CHECK_INSTANCE_LEAKS  = (1 << 0),
+    CHECK_BLOCK_LEAKS     = (1 << 1),
+    CHECK_BOUNDS          = (1 << 2)
+  };
+
+  struct Interceptor : public Object
+  {
+    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
+    virtual void detach_listener (InvocationListener * listener) = 0;
+  };
+
+  GUMPP_CAPI Interceptor * Interceptor_obtain (void);
+
+  struct InvocationListener : public Object
+  {
+    virtual void on_enter (void * user_data) = 0;
+    virtual void on_leave (void * user_data) = 0;
+  };
+
+  struct InvocationListenerCallbacks
+  {
+    virtual void on_enter (void * user_data) = 0;
+    virtual void on_leave (void * user_data) = 0;
+  };
+
+  GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);
+
+  GUMPP_CAPI void * find_function_ptr (const char * str);
+  GUMPP_CAPI PtrArray * find_matching_functions_array (const char * str);
+
   template <typename T> class RefPtr
   {
   public:
@@ -100,46 +140,6 @@ namespace Gum
   private:
     T * ptr;
   };
-
-  struct SanityChecker : public Object
-  {
-    virtual void begin (unsigned int flags) = 0;
-    virtual bool end () = 0;
-  };
-
-  GUMPP_CAPI SanityChecker * SanityChecker_new (void);
-
-  enum SanityCheckFlags
-  {
-    CHECK_INSTANCE_LEAKS  = (1 << 0),
-    CHECK_BLOCK_LEAKS     = (1 << 1),
-    CHECK_BOUNDS          = (1 << 2)
-  };
-
-  struct Interceptor : public Object
-  {
-    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
-    virtual void detach_listener (InvocationListener * listener) = 0;
-  };
-
-  GUMPP_CAPI Interceptor * Interceptor_obtain (void);
-
-  struct InvocationListener : public Object
-  {
-    virtual void on_enter (void * user_data) = 0;
-    virtual void on_leave (void * user_data) = 0;
-  };
-
-  struct InvocationListenerCallbacks
-  {
-    virtual void on_enter (void * user_data) = 0;
-    virtual void on_leave (void * user_data) = 0;
-  };
-
-  GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);
-
-  GUMPP_CAPI void * find_function_ptr (const char * str);
-  GUMPP_CAPI PtrArray * find_matching_functions_array (const char * str);
 
   class SymbolUtil
   {
