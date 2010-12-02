@@ -146,8 +146,21 @@ GumSampler *
 gum_call_count_sampler_new (gpointer first_function,
                             ...)
 {
-  GumCallCountSampler * sampler;
+  GumSampler * sampler;
   va_list args;
+
+  va_start (args, first_function);
+  sampler = gum_call_count_sampler_new_valist (first_function, args);
+  va_end (args);
+
+  return sampler;
+}
+
+GumSampler *
+gum_call_count_sampler_new_valist (gpointer first_function,
+                                   va_list var_args)
+{
+  GumCallCountSampler * sampler;
   gpointer function;
 
   g_assert (first_function != NULL);
@@ -155,9 +168,8 @@ gum_call_count_sampler_new (gpointer first_function,
   sampler = GUM_CALL_COUNT_SAMPLER (
       g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
 
-  va_start (args, first_function);
   for (function = first_function; function != NULL;
-      function = va_arg (args, gpointer))
+      function = va_arg (var_args, gpointer))
   {
     gum_call_count_sampler_add_function (sampler, function);
   }
@@ -169,39 +181,44 @@ GumSampler *
 gum_call_count_sampler_new_by_name (const gchar * first_function_name,
                                     ...)
 {
-  guint arg_count = 0, i;
-  gpointer * addresses;
+  GumSampler * sampler;
   va_list args;
+
+  va_start (args, first_function_name);
+  sampler = gum_call_count_sampler_new_by_name_valist (first_function_name,
+      args);
+  va_end (args);
+
+  return sampler;
+}
+
+GumSampler *
+gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
+                                           va_list var_args)
+{
+  GumInterceptor * interceptor;
   const gchar * function_name;
   GumCallCountSampler * sampler;
 
-  va_start (args, first_function_name);
-  for (function_name = first_function_name; function_name != NULL;
-      function_name = va_arg (args, const gchar *))
-  {
-    arg_count++;
-  }
-
-  g_assert (arg_count > 0);
-  addresses = (gpointer *) alloca (arg_count * sizeof (gpointer));
-
-  va_start (args, first_function_name);
-  i = 0;
-  for (function_name = first_function_name; function_name != NULL;
-      function_name = va_arg (args, const gchar *))
-  {
-    addresses[i] = gum_find_function (function_name);
-    g_assert (addresses[i] != NULL);
-
-    i++;
-  }
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_caller (interceptor);
 
   sampler = GUM_CALL_COUNT_SAMPLER (
       g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
-  for (i = 0; i < arg_count; i++)
-    gum_call_count_sampler_add_function (sampler, addresses[i]);
 
-  return GUM_SAMPLER (sampler);
+  for (function_name = first_function_name; function_name != NULL;
+      function_name = va_arg (var_args, const gchar *))
+  {
+    gpointer address = gum_find_function (function_name);
+    g_assert (address != NULL);
+
+    gum_call_count_sampler_add_function (sampler, address);
+  }
+
+  gum_interceptor_unignore_caller (interceptor);
+  g_object_unref (interceptor);
+
+  return GUM_SAMPLER_CAST (sampler);
 }
 
 void
