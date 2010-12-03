@@ -15,6 +15,12 @@ namespace Gum
       assign_handle (gum_sanity_checker_new (output_to_stderr, NULL));
     }
 
+    virtual void destroy_handle ()
+    {
+      gum_sanity_checker_destroy (handle);
+      handle = NULL;
+    }
+
     virtual void enable_backtraces_for_blocks_of_size (int size)
     {
       gum_sanity_checker_enable_backtraces_for_blocks_of_size (handle, size);
@@ -31,11 +37,6 @@ namespace Gum
     }
 
   protected:
-    virtual void destroy_handle ()
-    {
-      gum_sanity_checker_destroy (handle);
-    }
-
     static void output_to_stderr (const gchar * text, gpointer user_data)
     {
       (void) user_data;

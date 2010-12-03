@@ -14,6 +14,12 @@ namespace Gum
       assign_handle (arr);
     }
 
+    virtual void destroy_handle ()
+    {
+      g_array_free (handle, TRUE);
+      handle = NULL;
+    }
+
     virtual int length ()
     {
       return handle->len;
@@ -22,12 +28,6 @@ namespace Gum
     virtual void * nth (int n)
     {
       return g_array_index (handle, gpointer, n);
-    }
-
-  protected:
-    virtual void destroy_handle ()
-    {
-      g_array_free (handle, TRUE);
     }
   };
 

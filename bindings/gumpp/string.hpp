@@ -12,6 +12,12 @@ namespace Gum
       assign_handle (str);
     }
 
+    virtual void destroy_handle ()
+    {
+      g_free (handle);
+      handle = NULL;
+    }
+
     virtual const char * c_str ()
     {
       return handle;
@@ -20,12 +26,6 @@ namespace Gum
     virtual size_t length () const
     {
       return strlen (handle);
-    }
-
-  protected:
-    virtual void destroy_handle ()
-    {
-      g_free (handle);
     }
   };
 }
