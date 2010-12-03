@@ -1113,6 +1113,7 @@ enum SymTagEnum
     SymTagCustomType,
     SymTagManagedType,
     SymTagDimension,
+    SymTagCallSite,
     SymTagMax
 };
 
@@ -1139,6 +1140,7 @@ enum SymTagEnum
 #define SYMFLAG_ILREL            0x00010000
 #define SYMFLAG_METADATA         0x00020000
 #define SYMFLAG_CLR_TOKEN        0x00040000
+#define SYMFLAG_NULL             0x00080000
 
 // this resets SymNext/Prev to the beginning
 // of the module passed in the address field
@@ -1266,6 +1268,9 @@ typedef struct _IMAGEHLP_MODULE64 {
     // new elements: 17-Dec-2003
     BOOL     SourceIndexed;          // pdb supports source server
     BOOL     Publics;                // contains public symbols
+    // new element: 15-Jul-2009
+    DWORD    MachineType;            // IMAGE_FILE_MACHINE_XXX from ntimage.h and winnt.h
+    DWORD    Reserved;               // Padding - don't remove.
 } IMAGEHLP_MODULE64, *PIMAGEHLP_MODULE64;
 
 typedef struct _IMAGEHLP_MODULEW64 {
@@ -1294,6 +1299,9 @@ typedef struct _IMAGEHLP_MODULEW64 {
     // new elements: 17-Dec-2003
     BOOL     SourceIndexed;          // pdb supports source server
     BOOL     Publics;                // contains public symbols
+    // new element: 15-Jul-2009
+    DWORD    MachineType;            // IMAGE_FILE_MACHINE_XXX from ntimage.h and winnt.h
+    DWORD    Reserved;               // Padding - don't remove.
 } IMAGEHLP_MODULEW64, *PIMAGEHLP_MODULEW64;
 
 #if !defined(_IMAGEHLP_SOURCE_) && defined(_IMAGEHLP64)
@@ -2682,6 +2690,7 @@ typedef enum _IMAGEHLP_SYMBOL_TYPE_INFO {
     TI_GET_VIRTUALBASEDISPINDEX,
     TI_GET_IS_REFERENCE,
     TI_GET_INDIRECTVIRTUALBASECLASS,
+    TI_GET_VIRTUALBASETABLETYPE,
     IMAGEHLP_SYMBOL_TYPE_INFO_MAX,
 } IMAGEHLP_SYMBOL_TYPE_INFO;
 
