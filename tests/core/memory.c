@@ -129,17 +129,20 @@ MEMORY_TESTCASE (scan_range_with_three_exact_matches)
   pattern = gum_match_pattern_new_from_string ("13 37");
   g_assert (pattern != NULL);
 
-  ctx.number_of_calls = 0;
-  ctx.value_to_return = TRUE;
-
   ctx.expected_address[0] = buf + 0;
   ctx.expected_address[1] = buf + 2 + 1;
   ctx.expected_address[2] = buf + 2 + 1 + 2;
   ctx.expected_size = 2;
 
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
   gum_memory_scan (&range, pattern, match_found_cb, &ctx);
-
   g_assert_cmpuint (ctx.number_of_calls, ==, 3);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_memory_scan (&range, pattern, match_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   gum_match_pattern_free (pattern);
 }
