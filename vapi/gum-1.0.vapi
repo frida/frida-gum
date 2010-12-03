@@ -81,13 +81,43 @@ namespace Gum {
 
 	namespace Module {
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
+		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.Module.FoundRangeFunc func);
 		public void * find_export_by_name (string module_name, string function_name);
 
 		public delegate bool FoundExportFunc (string name, void * address);
+		public delegate bool FoundRangeFunc (Gum.MemoryRange range, Gum.PageProtection prot);
 	}
 
 	namespace Memory {
 		public uint8[] read (void * address, uint len);
+		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
+
+		public delegate bool ScanMatchFunc (void * address, uint size);
+	}
+
+	public struct MemoryRange {
+		public MemoryRange (void * base_address, uint size) {
+			this.base_address = base_address;
+			this.size = size;
+		}
+
+		void * base_address;
+		uint size;
+	}
+
+	[Compact]
+	[CCode (free_function = "gum_match_pattern_free")]
+	public class MatchPattern {
+		public MatchPattern.from_string (string match_str);
+	}
+
+	[Flags]
+	[CCode (cprefix = "GUM_PAGE_")]
+	public enum PageProtection {
+		NO_ACCESS = 0,
+		READ      = (1 << 0),
+		WRITE     = (1 << 1),
+		EXECUTE   = (1 << 2)
 	}
 
 	[CCode (cheader_filename = "gum/gum-heap.h")]
@@ -187,17 +217,17 @@ namespace Gum {
 
 	[CCode (cprefix = "GUM_ATTACH_")]
 	public enum AttachReturn {
-		OK               =  0,
-		WRONG_SIGNATURE  = -1,
-		ALREADY_ATTACHED = -2
+		OK		  =  0,
+		WRONG_SIGNATURE	  = -1,
+		ALREADY_ATTACHED  = -2
 	}
 
 	[CCode (cprefix = "GUM_")]
 	public enum EventType {
-		NOTHING = 0,
-		CALL    = 1 << 0,
-		RET     = 1 << 1,
-		EXEC    = 1 << 2,
+		NOTHING	= 0,
+		CALL	= (1 << 0),
+		RET	= (1 << 1),
+		EXEC	= (1 << 2)
 	}
 
 	[Compact]
