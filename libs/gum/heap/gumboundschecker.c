@@ -40,6 +40,9 @@ struct _GumBoundsCheckerPrivate
 {
   gboolean disposed;
 
+  GSList * malloc_functions;
+  GSList * free_functions;
+
   GumInterceptor * interceptor;
   gboolean attached;
   volatile gboolean detaching;
@@ -52,6 +55,7 @@ struct _GumBoundsCheckerPrivate
 #define GUM_BOUNDS_CHECKER_GET_PRIVATE(o) ((o)->priv)
 
 static void gum_bounds_checker_dispose (GObject * object);
+static void gum_bounds_checker_finalize (GObject * object);
 
 static void gum_bounds_checker_get_property (GObject * object,
     guint property_id, GValue * value, GParamSpec * pspec);
@@ -72,6 +76,7 @@ gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
   g_type_class_add_private (klass, sizeof (GumBoundsCheckerPrivate));
 
   object_class->dispose = gum_bounds_checker_dispose;
+  object_class->finalize = gum_bounds_checker_finalize;
   object_class->get_property = gum_bounds_checker_get_property;
   object_class->set_property = gum_bounds_checker_set_property;
 
@@ -100,6 +105,11 @@ gum_bounds_checker_init (GumBoundsChecker * self)
   priv->interceptor = gum_interceptor_obtain ();
   priv->pool_size = DEFAULT_POOL_SIZE;
   priv->front_alignment = DEFAULT_FRONT_ALIGNMENT;
+
+  priv->malloc_functions = g_slist_append (priv->malloc_functions,
+      GUM_FUNCPTR_TO_POINTER (malloc));
+  priv->free_functions = g_slist_append (priv->free_functions,
+      GUM_FUNCPTR_TO_POINTER (free));
 }
 
 static void
@@ -118,6 +128,18 @@ gum_bounds_checker_dispose (GObject * object)
   }
 
   G_OBJECT_CLASS (gum_bounds_checker_parent_class)->dispose (object);
+}
+
+static void
+gum_bounds_checker_finalize (GObject * object)
+{
+  GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
+  GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+
+  g_slist_free (priv->free_functions);
+  g_slist_free (priv->malloc_functions);
+
+  G_OBJECT_CLASS (gum_bounds_checker_parent_class)->finalize (object);
 }
 
 static void
@@ -197,9 +219,26 @@ gum_bounds_checker_set_front_alignment (GumBoundsChecker * self,
 }
 
 void
+gum_bounds_checker_add_malloc_function (GumBoundsChecker * self,
+    gpointer malloc_func)
+{
+  self->priv->malloc_functions =
+      g_slist_append (self->priv->malloc_functions, malloc_func);
+}
+
+void
+gum_bounds_checker_add_free_function (GumBoundsChecker * self,
+    gpointer free_func)
+{
+  self->priv->free_functions =
+      g_slist_append (self->priv->free_functions, free_func);
+}
+
+void
 gum_bounds_checker_attach (GumBoundsChecker * self)
 {
   GumBoundsCheckerPrivate * priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
+  GSList * walk;
 
   g_assert (priv->page_pool == NULL);
   priv->page_pool = gum_page_pool_new (GUM_PROTECT_MODE_ABOVE,
@@ -207,18 +246,27 @@ gum_bounds_checker_attach (GumBoundsChecker * self)
   g_object_set (priv->page_pool, "front-alignment", priv->front_alignment,
       NULL);
 
-  gum_interceptor_replace_function (priv->interceptor,
-      GUM_FUNCPTR_TO_POINTER (malloc),
-      GUM_FUNCPTR_TO_POINTER (replacement_malloc), self);
+  for (walk = priv->malloc_functions; walk != NULL; walk = walk->next)
+  {
+    gpointer malloc_function = walk->data;
+    gum_interceptor_replace_function (priv->interceptor, malloc_function,
+        GUM_FUNCPTR_TO_POINTER (replacement_malloc), self);
+  }
+
   gum_interceptor_replace_function (priv->interceptor,
       GUM_FUNCPTR_TO_POINTER (calloc),
       GUM_FUNCPTR_TO_POINTER (replacement_calloc), self);
+
   gum_interceptor_replace_function (priv->interceptor,
       GUM_FUNCPTR_TO_POINTER (realloc),
       GUM_FUNCPTR_TO_POINTER (replacement_realloc), self);
-  gum_interceptor_replace_function (priv->interceptor,
-      GUM_FUNCPTR_TO_POINTER (free),
-      GUM_FUNCPTR_TO_POINTER (replacement_free), self);
+
+  for (walk = priv->free_functions; walk != NULL; walk = walk->next)
+  {
+    gpointer free_function = walk->data;
+    gum_interceptor_replace_function (priv->interceptor, free_function,
+        GUM_FUNCPTR_TO_POINTER (replacement_free), self);
+  }
 
   priv->attached = TRUE;
 }

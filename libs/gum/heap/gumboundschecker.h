@@ -66,6 +66,11 @@ GUM_API guint gum_bounds_checker_get_front_alignment (GumBoundsChecker * self);
 GUM_API void gum_bounds_checker_set_front_alignment (GumBoundsChecker * self,
   guint pool_size);
 
+GUM_API void gum_bounds_checker_add_malloc_function (GumBoundsChecker * self,
+    gpointer malloc_func);
+GUM_API void gum_bounds_checker_add_free_function (GumBoundsChecker * self,
+    gpointer free_func);
+
 GUM_API void gum_bounds_checker_attach (GumBoundsChecker * self);
 GUM_API void gum_bounds_checker_detach (GumBoundsChecker * self);
 
