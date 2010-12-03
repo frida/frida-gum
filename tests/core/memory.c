@@ -46,13 +46,14 @@ static gboolean match_found_cb (gpointer address, guint size,
 #define GUM_PATTERN_NTH_TOKEN(p, n) \
     ((GumMatchToken *) g_ptr_array_index (p->tokens, n))
 #define GUM_PATTERN_NTH_TOKEN_NTH_BYTE(p, n, b) \
-    (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, n))->bytes, guint8, b))
+    (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, \
+        n))->bytes, guint8, b))
 
 MEMORY_TESTCASE (match_pattern_validation)
 {
   GumMatchPattern * pattern;
 
-  pattern = gum_match_pattern_from_string ("1337");
+  pattern = gum_match_pattern_new_from_string ("1337");
   g_assert (pattern != NULL);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 1);
@@ -61,7 +62,7 @@ MEMORY_TESTCASE (match_pattern_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 1), ==, 0x37);
   gum_match_pattern_free (pattern);
 
-  pattern = gum_match_pattern_from_string ("13 37");
+  pattern = gum_match_pattern_new_from_string ("13 37");
   g_assert (pattern != NULL);
   g_assert_cmpuint (pattern->size, ==, 2);
   g_assert_cmpuint (pattern->tokens->len, ==, 1);
@@ -70,16 +71,16 @@ MEMORY_TESTCASE (match_pattern_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 0, 1), ==, 0x37);
   gum_match_pattern_free (pattern);
 
-  pattern = gum_match_pattern_from_string ("1 37");
+  pattern = gum_match_pattern_new_from_string ("1 37");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("13 3");
+  pattern = gum_match_pattern_new_from_string ("13 3");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("13+37");
+  pattern = gum_match_pattern_new_from_string ("13+37");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("13 ?? 37");
+  pattern = gum_match_pattern_new_from_string ("13 ?? 37");
   g_assert (pattern != NULL);
   g_assert_cmpuint (pattern->size, ==, 3);
   g_assert_cmpuint (pattern->tokens->len, ==, 3);
@@ -91,22 +92,22 @@ MEMORY_TESTCASE (match_pattern_validation)
   g_assert_cmphex (GUM_PATTERN_NTH_TOKEN_NTH_BYTE (pattern, 2, 0), ==, 0x37);
   gum_match_pattern_free (pattern);
 
-  pattern = gum_match_pattern_from_string ("13 ? 37");
+  pattern = gum_match_pattern_new_from_string ("13 ? 37");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("??");
+  pattern = gum_match_pattern_new_from_string ("??");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("?? 13");
+  pattern = gum_match_pattern_new_from_string ("?? 13");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("13 ??");
+  pattern = gum_match_pattern_new_from_string ("13 ??");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string (" ");
+  pattern = gum_match_pattern_new_from_string (" ");
   g_assert (pattern == NULL);
 
-  pattern = gum_match_pattern_from_string ("");
+  pattern = gum_match_pattern_new_from_string ("");
   g_assert (pattern == NULL);
 }
 
@@ -125,7 +126,7 @@ MEMORY_TESTCASE (scan_range_with_three_exact_matches)
   range.base_address = buf;
   range.size = sizeof (buf);
 
-  pattern = gum_match_pattern_from_string ("13 37");
+  pattern = gum_match_pattern_new_from_string ("13 37");
   g_assert (pattern != NULL);
 
   ctx.number_of_calls = 0;
@@ -158,7 +159,7 @@ MEMORY_TESTCASE (scan_range_with_three_wildcarded_matches)
   range.base_address = buf;
   range.size = sizeof (buf);
 
-  pattern = gum_match_pattern_from_string ("12 ?? 13 37");
+  pattern = gum_match_pattern_new_from_string ("12 ?? 13 37");
   g_assert (pattern != NULL);
 
   ctx.number_of_calls = 0;

@@ -33,9 +33,9 @@ typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
 enum _GumPageProtection
 {
   GUM_PAGE_NO_ACCESS = 0,
-  GUM_PAGE_READ      = 1,
-  GUM_PAGE_WRITE     = 2,
-  GUM_PAGE_EXECUTE   = 4
+  GUM_PAGE_READ      = (1 << 0),
+  GUM_PAGE_WRITE     = (1 << 1),
+  GUM_PAGE_EXECUTE   = (1 << 2)
 };
 
 struct _GumAddressSpec
@@ -56,7 +56,7 @@ struct _GumMemoryRange
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumScanMatchFunc) (gpointer address, guint size,
+typedef gboolean (* GumMemoryScanMatchFunc) (gpointer address, guint size,
     gpointer user_data);
 
 guint gum_query_page_size (void);
@@ -65,9 +65,9 @@ guint8 * gum_memory_read (gpointer address, guint len, gint * n_bytes_read);
 
 void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern,
-    GumScanMatchFunc func, gpointer user_data);
+    GumMemoryScanMatchFunc func, gpointer user_data);
 
-GumMatchPattern * gum_match_pattern_from_string (const gchar * match_str);
+GumMatchPattern * gum_match_pattern_new_from_string (const gchar * match_str);
 void gum_match_pattern_free (GumMatchPattern * pattern);
 
 void gum_mprotect (gpointer address, guint size, GumPageProtection page_prot);

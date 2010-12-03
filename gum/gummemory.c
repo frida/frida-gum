@@ -40,7 +40,7 @@ static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 void
 gum_memory_scan (const GumMemoryRange * range,
                  const GumMatchPattern * pattern,
-                 GumScanMatchFunc func,
+                 GumMemoryScanMatchFunc func,
                  gpointer user_data)
 {
   GumMatchToken * needle;
@@ -74,7 +74,7 @@ gum_memory_scan (const GumMemoryRange * range,
 }
 
 GumMatchPattern *
-gum_match_pattern_from_string (const gchar * match_str)
+gum_match_pattern_new_from_string (const gchar * match_str)
 {
   GumMatchPattern * pattern;
   GumMatchToken * token = NULL;
