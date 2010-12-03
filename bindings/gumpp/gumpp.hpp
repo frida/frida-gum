@@ -93,7 +93,7 @@ namespace Gum
   {
     CHECK_INSTANCE_LEAKS  = (1 << 0),
     CHECK_BLOCK_LEAKS     = (1 << 1),
-    CHECK_BOUNDS          = (1 << 2)
+    CHECK_BOUNDS          = (1 << 2)    // FIXME: currently broken
   };
 
   typedef unsigned long long Sample;
