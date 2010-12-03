@@ -36,6 +36,7 @@ struct _GumSanityCheckerPrivate
 {
   GumSanityOutputFunc output;
   gpointer output_user_data;
+  gint backtrace_block_size;
 
   GumInstanceTracker * instance_tracker;
 
@@ -47,6 +48,9 @@ struct _GumSanityCheckerPrivate
 
 static gboolean gum_sanity_checker_filter_out_gparam (
     GumInstanceTracker * tracker, GType gtype, gpointer user_data);
+static gboolean gum_sanity_checker_filter_backtrace_block_size (
+    GumAllocationTracker * tracker, gpointer address, guint size,
+    gpointer user_data);
 
 static void gum_sanity_checker_print_instance_leaks_summary (
     GumSanityChecker * self, GumList * stale);
@@ -91,6 +95,7 @@ gum_sanity_checker_new (GumSanityOutputFunc func,
   priv = checker->priv;
   priv->output = func;
   priv->output_user_data = user_data;
+  priv->backtrace_block_size = 0;
 
   return checker;
 }
@@ -99,6 +104,14 @@ void
 gum_sanity_checker_destroy (GumSanityChecker * checker)
 {
   gum_free (checker);
+}
+
+void
+gum_sanity_checker_enable_backtraces_for_blocks_of_size (
+    GumSanityChecker * checker,
+    gint size)
+{
+  checker->priv->backtrace_block_size = size;
 }
 
 gboolean
@@ -152,7 +165,23 @@ gum_sanity_checker_begin (GumSanityChecker * self,
 
   if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
   {
-    priv->alloc_tracker = gum_allocation_tracker_new ();
+    GumBacktracer * backtracer = NULL;
+
+    if (priv->backtrace_block_size != 0)
+      backtracer = gum_backtracer_make_default ();
+
+    priv->alloc_tracker =
+        gum_allocation_tracker_new_with_backtracer (backtracer);
+
+    if (backtracer != NULL)
+      g_object_unref (backtracer);
+
+    if (priv->backtrace_block_size > 0)
+    {
+      gum_allocation_tracker_set_filter_function (priv->alloc_tracker,
+          gum_sanity_checker_filter_backtrace_block_size, self);
+    }
+
     gum_allocation_tracker_begin (priv->alloc_tracker);
 
     priv->alloc_probe = gum_allocator_probe_new ();
@@ -264,6 +293,20 @@ gum_sanity_checker_filter_out_gparam (GumInstanceTracker * tracker,
   return !g_str_has_prefix (vtable->type_id_to_name (gtype), "GParam");
 }
 
+static gboolean
+gum_sanity_checker_filter_backtrace_block_size (GumAllocationTracker * tracker,
+                                                gpointer address,
+                                                guint size,
+                                                gpointer user_data)
+{
+  GumSanityChecker * self = (GumSanityChecker *) user_data;
+
+  (void) tracker;
+  (void) address;
+
+  return ((gint) size == self->priv->backtrace_block_size);
+}
+
 static void
 gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
                                                  GumList * stale)
@@ -367,9 +410,23 @@ gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
   for (walk = blocks; walk != NULL; walk = walk->next)
   {
     GumAllocationBlock * block = (GumAllocationBlock *) walk->data;
+    guint i;
 
     gum_sanity_checker_printf (self, "\t%p\t%u\n",
         block->address, block->size);
+
+    for (i = 0; i != block->return_addresses.len; i++)
+    {
+      GumReturnAddress * ra = &block->return_addresses.items[i];
+      gchar * file_basename;
+
+      file_basename = g_path_get_basename (ra->file_name);
+      gum_sanity_checker_printf (self, "\t    %p %s!%s %s:%u\n",
+          ra->address,
+          ra->module_name, ra->function_name,
+          file_basename, ra->line_number);
+      g_free (file_basename);
+    }
   }
 
   gum_list_free (blocks);

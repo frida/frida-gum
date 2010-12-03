@@ -48,6 +48,9 @@ GUM_API GumSanityChecker * gum_sanity_checker_new (GumSanityOutputFunc func,
     gpointer user_data);
 GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 
+GUM_API void gum_sanity_checker_enable_backtraces_for_blocks_of_size (
+    GumSanityChecker * checker, gint size);
+
 GUM_API gboolean gum_sanity_checker_run (GumSanityChecker * self,
     GumSanitySequenceFunc func, gpointer user_data);
 

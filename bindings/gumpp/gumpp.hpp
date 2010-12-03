@@ -81,6 +81,8 @@ namespace Gum
 
   struct SanityChecker : public Object
   {
+    virtual void enable_backtraces_for_blocks_of_size (int size) = 0;
+
     virtual void begin (unsigned int flags) = 0;
     virtual bool end () = 0;
   };
