@@ -372,19 +372,24 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
   if (!g_atomic_int_get (&priv->enabled))
     return;
 
-  if (priv->filter_func != NULL)
-  {
-    if (!priv->filter_func (self, address, size, priv->filter_func_user_data))
-      return;
-  }
-
   if (priv->backtracer_instance != NULL)
   {
     GumAllocationBlock * block;
+    gboolean do_backtrace = TRUE;
 
     block = gum_allocation_block_new (address, size);
-    priv->backtracer_interface->generate (priv->backtracer_instance,
-        cpu_context, &block->return_addresses);
+
+    if (priv->filter_func != NULL)
+    {
+      do_backtrace = priv->filter_func (self, address, size,
+          priv->filter_func_user_data);
+    }
+
+    if (do_backtrace)
+    {
+      priv->backtracer_interface->generate (priv->backtracer_instance,
+          cpu_context, &block->return_addresses);
+    }
 
     value = block;
   }
@@ -448,13 +453,6 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
 
   if (!g_atomic_int_get (&priv->enabled))
     return;
-
-  if (priv->filter_func != NULL)
-  {
-    if (!priv->filter_func (self, new_address, new_size,
-        priv->filter_func_user_data))
-      return;
-  }
 
   if (old_address != NULL)
   {

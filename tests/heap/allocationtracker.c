@@ -305,8 +305,13 @@ ALLOCTRACKER_TESTCASE (block_groups)
 
 ALLOCTRACKER_TESTCASE (filter_function)
 {
-  GumAllocationTracker * t = fixture->tracker;
+  GumBacktracer * backtracer;
+  GumAllocationTracker * t;
   guint counter = 0;
+
+  backtracer = gum_fake_backtracer_new (dummy_return_addresses_a,
+      G_N_ELEMENTS (dummy_return_addresses_a));
+  t = gum_allocation_tracker_new_with_backtracer (backtracer);
 
   gum_allocation_tracker_set_filter_function (t, filter_cb, &counter);
 
@@ -318,11 +323,13 @@ ALLOCTRACKER_TESTCASE (filter_function)
 
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_B, 42);
   g_assert_cmpuint (counter, ==, 2);
-  g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 1);
+  g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 2);
 
   gum_allocation_tracker_on_realloc (t, DUMMY_BLOCK_B, DUMMY_BLOCK_C, 84);
-  g_assert_cmpuint (counter, ==, 3);
-  g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 1);
+  g_assert_cmpuint (counter, ==, 2);
+  g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 2);
+
+  g_object_unref (t);
 }
 
 static gboolean
