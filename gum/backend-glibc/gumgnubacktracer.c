@@ -86,6 +86,8 @@ gum_gnu_backtracer_generate (GumBacktracer * backtracer,
 
   addr_count = backtrace (addresses, G_N_ELEMENTS (addresses));
 
+  return_addresses->len = 0;
+
   /* HACK: see above. Here we assume that we're called from on_leave... */
   if (cpu_context != NULL)
   {

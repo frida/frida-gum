@@ -116,6 +116,8 @@ gum_generic_backtracer_generate (GumBacktracer * backtracer,
   else
     g_assert_not_reached (); /* FIXME */
 
+  return_addresses->len = 0;
+
   for (i = 0, p = start_address; i < G_N_ELEMENTS (return_addresses->items) &&
       p < start_address + 8192; p++)
   {

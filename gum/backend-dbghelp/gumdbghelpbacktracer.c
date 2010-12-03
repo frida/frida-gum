@@ -182,6 +182,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
 #endif
   }
 
+  return_addresses->len = 0;
+
   dbghelp->Lock ();
 
   for (i = 0; i < GUM_MAX_BACKTRACE_DEPTH + skip_count; i++)
@@ -199,6 +201,8 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
       {
         GumReturnAddress * ret_addr;
 
+        g_assert_cmpuint (return_addresses->len, <,
+            G_N_ELEMENTS (return_addresses->items));
         ret_addr = &return_addresses->items[return_addresses->len++];
         memset (ret_addr, 0, sizeof (GumReturnAddress));
         ret_addr->address = GSIZE_TO_POINTER (frame.AddrPC.Offset);
