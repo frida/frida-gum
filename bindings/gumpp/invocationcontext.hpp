@@ -46,6 +46,11 @@ namespace Gum
       return parent;
     }
 
+    virtual void * get_user_data ()
+    {
+      return context->instance_data;
+    }
+
   private:
     GumInvocationContext * context;
     InvocationContextImpl * parent;

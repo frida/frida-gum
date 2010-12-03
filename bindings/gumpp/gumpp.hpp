@@ -61,18 +61,20 @@ namespace Gum
     virtual void replace_nth_argument (unsigned int n, void * value) = 0;
     virtual void * get_return_value () = 0;
     virtual InvocationContext * get_parent () = 0;
+
+    virtual void * get_user_data () = 0;
   };
 
   struct InvocationListener : public Object
   {
-    virtual void on_enter (InvocationContext * context, void * user_data) = 0;
-    virtual void on_leave (InvocationContext * context, void * user_data) = 0;
+    virtual void on_enter (InvocationContext * context) = 0;
+    virtual void on_leave (InvocationContext * context) = 0;
   };
 
   struct InvocationListenerCallbacks
   {
-    virtual void on_enter (InvocationContext * context, void * user_data) = 0;
-    virtual void on_leave (InvocationContext * context, void * user_data) = 0;
+    virtual void on_enter (InvocationContext * context) = 0;
+    virtual void on_leave (InvocationContext * context) = 0;
   };
 
   GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);

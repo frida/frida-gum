@@ -48,14 +48,14 @@ namespace Gum
       return cproxy;
     }
 
-    virtual void on_enter (InvocationContext * context, void * user_data)
+    virtual void on_enter (InvocationContext * context)
     {
-      callbacks->on_enter (context, user_data);
+      callbacks->on_enter (context);
     }
 
-    virtual void on_leave (InvocationContext * context, void * user_data)
+    virtual void on_leave (InvocationContext * context)
     {
-      callbacks->on_leave (context, user_data);
+      callbacks->on_leave (context);
     }
 
   protected:
@@ -97,7 +97,7 @@ namespace Gum
                                           GumInvocationContext * context)
   {
     InvocationContextImpl ic (context);
-    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_enter (&ic, context->instance_data);
+    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_enter (&ic);
   }
 
   static void
@@ -105,7 +105,7 @@ namespace Gum
                                           GumInvocationContext * context)
   {
     InvocationContextImpl ic (context);
-    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_leave (&ic, context->instance_data);
+    reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_leave (&ic);
   }
 
   static gpointer
