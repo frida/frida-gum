@@ -134,7 +134,7 @@ struct _GumCpuContext
 #define GUM_MAX_TYPE_NAME             16
 #define GUM_MAX_SYMBOL_NAME         2000
 
-#define GUM_MAX_THREADS              128
+#define GUM_MAX_THREADS              768
 #define GUM_MAX_CALL_DEPTH            32
 #define GUM_MAX_BACKTRACE_DEPTH       16
 #define GUM_MAX_WORST_CASE_INFO_SIZE 128
