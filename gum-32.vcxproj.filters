@@ -195,6 +195,9 @@
     <ClCompile Include="gum\gummemory.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gummemoryaccessmonitor.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -385,6 +388,9 @@
     </ClInclude>
     <ClInclude Include="gum\backend-windows\gumwindows.h">
       <Filter>core\backend-windows</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gummemoryaccessmonitor.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

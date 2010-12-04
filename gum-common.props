@@ -25,6 +25,7 @@
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
     <ClInclude Include="gum\gummemory-priv.h" />
+    <ClInclude Include="gum\gummemoryaccessmonitor.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumscriptcompiler.h" />
@@ -50,6 +51,7 @@
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumlist.c" />
     <ClCompile Include="gum\gummemory.c" />
+    <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.c" />
     <ClCompile Include="gum\gumstalker.c" />

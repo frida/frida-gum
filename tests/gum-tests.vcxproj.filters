@@ -177,6 +177,12 @@
     <ClCompile Include="core\memory.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
+    <ClCompile Include="core\memoryaccessmonitor.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\memoryaccessmonitor-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">

@@ -103,6 +103,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (interceptor);
   TEST_RUN_LIST (script);
 #if defined (HAVE_I386) && defined (G_OS_WIN32) /* for now */
+  TEST_RUN_LIST (memoryaccessmonitor);
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (tracer);
   TEST_RUN_LIST (backtracer);
