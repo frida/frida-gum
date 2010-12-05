@@ -108,13 +108,13 @@ MAMONITOR_TESTCASE (notify_should_include_progress)
 
   ENABLE_MONITOR ();
 
-  bytes[fixture->offset_in_first_page] = 0x13;
-  g_assert_cmpuint (d->page_index, ==, 0);
+  bytes[fixture->offset_in_second_page] = 0x37;
+  g_assert_cmpuint (d->page_index, ==, 1);
   g_assert_cmpuint (d->pages_completed, ==, 1);
   g_assert_cmpuint (d->pages_remaining, ==, 1);
 
-  bytes[fixture->offset_in_second_page] = 0x37;
-  g_assert_cmpuint (d->page_index, ==, 1);
+  bytes[fixture->offset_in_first_page] = 0x13;
+  g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 2);
   g_assert_cmpuint (d->pages_remaining, ==, 0);
 }
