@@ -141,23 +141,28 @@ gum_memory_access_monitor_handle_exception_if_ours (
 {
   GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR_CAST (user_data);
   GumMemoryAccessMonitorPrivate * priv = self->priv;
-  gpointer address, accessed_from;
+  GumMemoryAccessDetails details;
 
   (void) context;
 
   if (exception_record->ExceptionCode != STATUS_GUARD_PAGE_VIOLATION)
     return FALSE;
 
-  address = (gpointer) exception_record->ExceptionInformation[1];
-  if (address < priv->range.base_address || address >= (gpointer)
-      ((guint8 *) priv->range.base_address + priv->range.size))
+  switch (exception_record->ExceptionInformation[0])
   {
-    return FALSE;
+    case 0: details.operation = GUM_MEMOP_READ; break;
+    case 1: details.operation = GUM_MEMOP_WRITE; break;
+    case 8: details.operation = GUM_MEMOP_EXECUTE; break;
+    default:
+      g_assert_not_reached ();
   }
+  details.from = exception_record->ExceptionAddress;
+  details.address = (gpointer) exception_record->ExceptionInformation[1];
 
-  accessed_from = exception_record->ExceptionAddress;
-  if (accessed_from != address)
-    priv->notify_func (self, accessed_from, priv->notify_data);
+  if (!GUM_MEMORY_RANGE_INCLUDES (&priv->range, details.address))
+    return FALSE;
+
+  priv->notify_func (self, &details, priv->notify_data);
 
   return TRUE;
 }

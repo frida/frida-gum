@@ -38,6 +38,7 @@ typedef struct _TestMAMonitorFixture
   GCallback nop_function_in_first_page;
 
   guint number_of_notifies;
+  GumMemoryAccessDetails last_details;
 } TestMAMonitorFixture;
 
 static void
@@ -69,17 +70,18 @@ test_memory_access_monitor_fixture_teardown (TestMAMonitorFixture * fixture,
 
 static void
 memory_access_notify_cb (GumMemoryAccessMonitor * monitor,
-                         gpointer accessed_from_address,
+                         const GumMemoryAccessDetails * details,
                          gpointer user_data)
 {
-  guint8 * number_of_notifies = (guint8 *) user_data;
+  TestMAMonitorFixture * fixture = (TestMAMonitorFixture *) user_data;
 
-  (*number_of_notifies)++;
+  fixture->number_of_notifies++;
+  fixture->last_details = *details;
 }
 
 #define ENABLE_MONITOR() \
     gum_memory_access_monitor_enable (fixture->monitor, &fixture->range, \
-        memory_access_notify_cb, &fixture->number_of_notifies); \
+        memory_access_notify_cb, fixture); \
     g_assert_cmpuint (fixture->number_of_notifies, ==, 0)
 #define DISABLE_MONITOR() \
     gum_memory_access_monitor_disable (fixture->monitor)

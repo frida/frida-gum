@@ -42,9 +42,11 @@ G_BEGIN_DECLS
 typedef struct _GumMemoryAccessMonitor        GumMemoryAccessMonitor;
 typedef struct _GumMemoryAccessMonitorClass   GumMemoryAccessMonitorClass;
 typedef struct _GumMemoryAccessMonitorPrivate GumMemoryAccessMonitorPrivate;
+typedef struct _GumMemoryAccessDetails        GumMemoryAccessDetails;
+typedef enum _GumMemoryOperation              GumMemoryOperation;
 
 typedef void (* GumMemoryAccessNotify) (GumMemoryAccessMonitor * monitor,
-    gpointer accessed_from_address, gpointer user_data);
+    const GumMemoryAccessDetails * details, gpointer user_data);
 
 struct _GumMemoryAccessMonitor
 {
@@ -56,6 +58,20 @@ struct _GumMemoryAccessMonitor
 struct _GumMemoryAccessMonitorClass
 {
   GObjectClass parent_class;
+};
+
+struct _GumMemoryAccessDetails
+{
+  GumMemoryOperation operation;
+  gpointer from;
+  gpointer address;
+};
+
+enum _GumMemoryOperation
+{
+  GUM_MEMOP_READ,
+  GUM_MEMOP_WRITE,
+  GUM_MEMOP_EXECUTE
 };
 
 GUM_API GType gum_memory_access_monitor_get_type (void) G_GNUC_CONST;
