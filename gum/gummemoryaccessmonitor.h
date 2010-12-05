@@ -65,6 +65,10 @@ struct _GumMemoryAccessDetails
   GumMemoryOperation operation;
   gpointer from;
   gpointer address;
+
+  guint page_index;
+  guint pages_completed;
+  guint pages_remaining;
 };
 
 enum _GumMemoryOperation

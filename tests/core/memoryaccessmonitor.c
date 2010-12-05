@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (memoryaccessmonitor)
   MAMONITOR_TESTENTRY (notify_on_read_access)
   MAMONITOR_TESTENTRY (notify_on_write_access)
   MAMONITOR_TESTENTRY (notify_on_execute_access)
+  MAMONITOR_TESTENTRY (notify_should_include_progress)
   MAMONITOR_TESTENTRY (disable)
 TEST_LIST_END ()
 
@@ -94,6 +95,28 @@ MAMONITOR_TESTCASE (notify_on_execute_access)
 
   fixture->nop_function_in_first_page ();
   g_assert_cmpuint (fixture->number_of_notifies, ==, 1);
+}
+
+MAMONITOR_TESTCASE (notify_should_include_progress)
+{
+  GumMemoryAccessDetails * d = &fixture->last_details;
+  guint8 * bytes = (guint8 *) fixture->range.base_address;
+
+  g_assert_cmpuint (d->page_index, ==, 0);
+  g_assert_cmpuint (d->pages_completed, ==, 0);
+  g_assert_cmpuint (d->pages_remaining, ==, 0);
+
+  ENABLE_MONITOR ();
+
+  bytes[fixture->offset_in_first_page] = 0x13;
+  g_assert_cmpuint (d->page_index, ==, 0);
+  g_assert_cmpuint (d->pages_completed, ==, 1);
+  g_assert_cmpuint (d->pages_remaining, ==, 1);
+
+  bytes[fixture->offset_in_second_page] = 0x37;
+  g_assert_cmpuint (d->page_index, ==, 1);
+  g_assert_cmpuint (d->pages_completed, ==, 2);
+  g_assert_cmpuint (d->pages_remaining, ==, 0);
 }
 
 MAMONITOR_TESTCASE (disable)

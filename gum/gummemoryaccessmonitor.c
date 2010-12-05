@@ -27,10 +27,13 @@
 
 struct _GumMemoryAccessMonitorPrivate
 {
+  guint page_size;
+
   gboolean enabled;
   GumMemoryRange range;
   GumMemoryAccessNotify notify_func;
   gpointer notify_data;
+  volatile gint pages_completed;
 
   DWORD old_protect;
 };
@@ -59,6 +62,8 @@ gum_memory_access_monitor_init (GumMemoryAccessMonitor * self)
 {
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_MEMORY_ACCESS_MONITOR, GumMemoryAccessMonitorPrivate);
+
+  self->priv->page_size = gum_query_page_size ();
 }
 
 static void
@@ -86,15 +91,13 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
                                   gpointer data)
 {
   GumMemoryAccessMonitorPrivate * priv = self->priv;
-  guint page_size;
   MEMORY_BASIC_INFORMATION mbi;
   SIZE_T ret;
   BOOL success;
 
   g_assert (!priv->enabled);
 
-  page_size = gum_query_page_size ();
-  g_assert (range->size % page_size == 0);
+  g_assert (range->size % priv->page_size == 0);
 
   ret = VirtualQuery (range->base_address, &mbi, sizeof (mbi));
   g_assert (ret != 0);
@@ -105,6 +108,7 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
   priv->range = *range;
   priv->notify_func = func;
   priv->notify_data = data;
+  priv->pages_completed = 0;
 
   gum_win_exception_hook_add (
       gum_memory_access_monitor_handle_exception_if_ours, self);
@@ -161,6 +165,13 @@ gum_memory_access_monitor_handle_exception_if_ours (
 
   if (!GUM_MEMORY_RANGE_INCLUDES (&priv->range, details.address))
     return FALSE;
+
+  details.page_index = ((guint8 *) details.address -
+      (guint8 *) priv->range.base_address) / priv->page_size;
+  details.pages_completed =
+      g_atomic_int_exchange_and_add (&priv->pages_completed, 1) + 1;
+  details.pages_remaining = (priv->range.size / priv->page_size) -
+      details.pages_completed;
 
   priv->notify_func (self, &details, priv->notify_data);
 
