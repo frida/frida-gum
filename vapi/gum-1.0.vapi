@@ -61,6 +61,32 @@ namespace Gum {
 		public uint get_code_size ();
 	}
 
+	public class MemoryAccessMonitor : GLib.Object {
+		public MemoryAccessMonitor ();
+
+		public void enable (Gum.MemoryRange range, Gum.MemoryAccessNotify func);
+		public void disable ();
+	}
+
+	public delegate void MemoryAccessNotify (Gum.MemoryAccessMonitor monitor, Gum.MemoryAccessDetails details);
+
+	public struct MemoryAccessDetails {
+		public Gum.MemoryOperation operation;
+		public void * from;
+		public void * address;
+
+		public uint page_index;
+		public uint pages_completed;
+		public uint pages_remaining;
+	}
+
+	[CCode (cprefix = "GUM_MEMOP_")]
+	public enum MemoryOperation {
+		READ,
+		WRITE,
+		EXECUTE
+	}
+
 	public class Stalker : GLib.Object {
 		public Stalker ();
 
@@ -101,8 +127,8 @@ namespace Gum {
 			this.size = size;
 		}
 
-		void * base_address;
-		uint size;
+		public void * base_address;
+		public uint size;
 	}
 
 	[Compact]
