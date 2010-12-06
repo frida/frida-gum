@@ -12,13 +12,6 @@ namespace Gum
     {
     }
 
-    ~PodWrapper ()
-    {
-      static_cast<D *> (this)->destroy_handle ();
-    }
-
-    virtual void destroy_handle () = 0;
-
     virtual void ref ()
     {
       g_atomic_int_add (&refcount, 1);

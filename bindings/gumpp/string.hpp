@@ -12,10 +12,9 @@ namespace Gum
       assign_handle (str);
     }
 
-    virtual void destroy_handle ()
+    ~StringImpl ()
     {
       g_free (handle);
-      handle = NULL;
     }
 
     virtual const char * c_str ()

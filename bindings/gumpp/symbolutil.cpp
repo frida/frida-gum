@@ -14,10 +14,9 @@ namespace Gum
       assign_handle (arr);
     }
 
-    virtual void destroy_handle ()
+    ~SymbolPtrArray ()
     {
       g_array_free (handle, TRUE);
-      handle = NULL;
     }
 
     virtual int length ()
