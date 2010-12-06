@@ -37,25 +37,53 @@
 typedef struct _TestAllocatorProbeFixture
 {
   GumAllocatorProbe * ap;
+  GumHeapApiList * apis;
 } TestAllocatorProbeFixture;
 
 static void
 test_allocator_probe_fixture_setup (TestAllocatorProbeFixture * fixture,
                                     gconstpointer data)
 {
+  GumHeapApi api = { 0, };
+
   fixture->ap = gum_allocator_probe_new ();
+
+  api.malloc = malloc;
+  api.calloc = calloc;
+  api.realloc = realloc;
+  api.free = free;
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+  api._malloc_dbg = _malloc_dbg;
+  api._calloc_dbg = _calloc_dbg;
+  api._realloc_dbg = _realloc_dbg;
+  api._free_dbg = _free_dbg;
+#endif
+
+  fixture->apis = gum_heap_api_list_new ();
+  gum_heap_api_list_add (fixture->apis, &api);
 }
 
 static void
 test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
                                        gconstpointer data)
 {
+  gum_heap_api_list_free (fixture->apis);
+
   g_object_unref (fixture->ap);
 }
 
+#define ATTACH_PROBE()                  \
+  gum_allocator_probe_attach_to_apis (fixture->ap, fixture->apis)
+#define DETACH_PROBE()                  \
+  gum_allocator_probe_detach (fixture->ap)
 #define READ_PROBE_COUNTERS()           \
-  g_object_get (fixture->ap,            \
-      "malloc-count", &malloc_count,    \
-      "realloc-count", &realloc_count,  \
-      "free-count", &free_count,        \
-      NULL);
+    g_object_get (fixture->ap,            \
+        "malloc-count", &malloc_count,    \
+        "realloc-count", &realloc_count,  \
+        "free-count", &free_count,        \
+        NULL);
+
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
+    gint block_type, gint factor);
+#endif

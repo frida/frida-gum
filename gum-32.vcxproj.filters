@@ -198,6 +198,9 @@
     <ClCompile Include="gum\gummemoryaccessmonitor.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="libs\gum\heap\gumheapapi.c">
+      <Filter>libs\heap</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">
@@ -391,6 +394,9 @@
     </ClInclude>
     <ClInclude Include="gum\gummemoryaccessmonitor.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumheapapi.h">
+      <Filter>libs\heap</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

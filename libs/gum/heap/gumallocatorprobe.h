@@ -23,6 +23,7 @@
 
 #include <glib-object.h>
 #include <gum/heap/gumallocationtracker.h>
+#include <gum/heap/gumheapapi.h>
 
 #define GUM_TYPE_ALLOCATOR_PROBE (gum_allocator_probe_get_type ())
 #define GUM_ALLOCATOR_PROBE(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -61,6 +62,8 @@ GUM_API GType gum_allocator_probe_get_type (void) G_GNUC_CONST;
 GUM_API GumAllocatorProbe * gum_allocator_probe_new (void);
 
 GUM_API void gum_allocator_probe_attach (GumAllocatorProbe * self);
+GUM_API void gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
+    const GumHeapApiList * apis);
 GUM_API void gum_allocator_probe_detach (GumAllocatorProbe * self);
 
 GUM_API void gum_allocator_probe_suppress (GumAllocatorProbe * self,

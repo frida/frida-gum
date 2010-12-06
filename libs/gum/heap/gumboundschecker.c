@@ -41,6 +41,8 @@ struct _GumBoundsCheckerPrivate
   gboolean disposed;
 
   GSList * malloc_functions;
+  GSList * calloc_functions;
+  GSList * realloc_functions;
   GSList * free_functions;
 
   GumInterceptor * interceptor;

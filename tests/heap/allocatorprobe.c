@@ -28,11 +28,6 @@ TEST_LIST_BEGIN (allocator_probe)
   ALLOCPROBE_TESTENTRY (gtype_interop)
 TEST_LIST_END ()
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
-    gint block_type, gint factor);
-#endif
-
 ALLOCPROBE_TESTCASE (basics)
 {
   guint malloc_count, realloc_count, free_count;
@@ -52,7 +47,7 @@ ALLOCPROBE_TESTCASE (basics)
   g_assert_cmpuint (free_count, ==, 0);
   free (a);
 
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
 
   a = malloc (42);
   READ_PROBE_COUNTERS ();
@@ -79,7 +74,7 @@ ALLOCPROBE_TESTCASE (basics)
   g_assert_cmpuint (realloc_count, ==, 1);
   g_assert_cmpuint (free_count, ==, 2);
 
-  gum_allocator_probe_detach (fixture->ap);
+  DETACH_PROBE ();
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);
@@ -92,7 +87,7 @@ ALLOCPROBE_TESTCASE (ignore_gquark)
   guint malloc_count, realloc_count, free_count;
 
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
 
   g_quark_from_static_string ("gumtestquark1");
   g_quark_from_string ("gumtestquark2");
@@ -102,7 +97,7 @@ ALLOCPROBE_TESTCASE (ignore_gquark)
   g_assert_cmpuint (realloc_count, ==, 0);
   g_assert_cmpuint (free_count, ==, 0);
 
-  gum_allocator_probe_detach (fixture->ap);
+  DETACH_PROBE ();
 }
 
 ALLOCPROBE_TESTCASE (nonstandard_basics)
@@ -110,9 +105,9 @@ ALLOCPROBE_TESTCASE (nonstandard_basics)
 #if defined (G_OS_WIN32) && defined (_DEBUG)
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
   do_nonstandard_heap_calls (fixture, _NORMAL_BLOCK, 1);
-  gum_allocator_probe_detach (fixture->ap);
+  DETACH_PROBE ();
 #endif
 }
 
@@ -120,11 +115,11 @@ ALLOCPROBE_TESTCASE (nonstandard_ignored)
 {
 #if defined (G_OS_WIN32) && defined (_DEBUG)
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
 
   do_nonstandard_heap_calls (fixture, _CRT_BLOCK, 0);
 
-  gum_allocator_probe_detach (fixture->ap);
+  DETACH_PROBE ();
 #endif
 }
 
@@ -138,7 +133,7 @@ ALLOCPROBE_TESTCASE (full_cycle)
 
   g_object_set (fixture->ap, "allocation-tracker", t, NULL);
 
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
 
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
 
@@ -181,7 +176,7 @@ ALLOCPROBE_TESTCASE (gtype_interop)
 {
   MyPony * pony;
 
-  gum_allocator_probe_attach (fixture->ap);
+  ATTACH_PROBE ();
 
   pony = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
   g_object_unref (pony);

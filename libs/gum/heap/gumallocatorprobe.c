@@ -24,13 +24,7 @@
 #include "gumsymbolutil.h"
 
 #include <gmodule.h>
-#include <string.h>
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-# include <crtdbg.h>
-# define GUM_DBGCRT_FUNCPTR(name) (GUM_FUNCPTR_TO_POINTER (name))
-#else
-# define GUM_DBGCRT_FUNCPTR(name) (NULL)
-#endif
+
 #define GUM_DBGCRT_NORMAL_BLOCK (1)
 
 #define DEFAULT_ENABLE_COUNTERS FALSE
@@ -136,9 +130,6 @@ static gpointer gum_allocator_probe_provide_thread_data (
     GumInvocationListener * listener, gpointer function_instance_data,
     guint thread_id);
 
-static void attach_to_function_by_name (GumAllocatorProbe * self,
-    GModule * module, const gchar * function_name,
-    const HeapHandlers * function_handlers);
 static void attach_to_function (GumAllocatorProbe * self,
     gpointer function_address, const HeapHandlers * function_handlers);
 
@@ -528,145 +519,94 @@ gum_allocator_probe_new (void)
       g_object_new (GUM_TYPE_ALLOCATOR_PROBE, NULL));
 }
 
-typedef struct
+static const HeapHandlers gum_malloc_handlers =
 {
-  const gchar * name;
-  gpointer local_address;
-  HeapHandlers handlers;
-} ProbeHandler;
-
-static const ProbeHandler regular_probe_handlers[] =
-{
-  {
-    "malloc", GUM_FUNCPTR_TO_POINTER (malloc),
-    {
-      (HeapEnterHandler) on_malloc_enter_handler,
-      (HeapLeaveHandler) on_shared_xalloc_leave_handler
-    }
-  },
-
-  {
-    "calloc", GUM_FUNCPTR_TO_POINTER (calloc),
-    {
-      (HeapEnterHandler) on_calloc_enter_handler,
-      (HeapLeaveHandler) on_shared_xalloc_leave_handler
-    }
-  },
-
-  {
-    "realloc", GUM_FUNCPTR_TO_POINTER (realloc),
-    {
-      (HeapEnterHandler) on_realloc_enter_handler,
-      (HeapLeaveHandler) on_realloc_leave_handler
-    }
-  },
-
-  {
-    "free", GUM_FUNCPTR_TO_POINTER (free),
-    {
-      (HeapEnterHandler) on_free_enter_handler,
-      NULL
-    }
-  }
+  (HeapEnterHandler) on_malloc_enter_handler,
+  (HeapLeaveHandler) on_shared_xalloc_leave_handler
 };
 
-static const ProbeHandler debug_probe_handlers[] =
+static const HeapHandlers gum_calloc_handlers =
 {
-  {
-    "_malloc_dbg", GUM_DBGCRT_FUNCPTR (_malloc_dbg),
-    {
-      (HeapEnterHandler) on_malloc_dbg_enter_handler,
-      (HeapLeaveHandler) on_shared_xalloc_leave_handler
-    }
-  },
-
-  {
-    "_calloc_dbg", GUM_DBGCRT_FUNCPTR (_calloc_dbg),
-    {
-      (HeapEnterHandler) on_calloc_dbg_enter_handler,
-      (HeapLeaveHandler) on_shared_xalloc_leave_handler
-    }
-  },
-
-  {
-    "_realloc_dbg", GUM_DBGCRT_FUNCPTR (_realloc_dbg),
-    {
-      (HeapEnterHandler) on_realloc_dbg_enter_handler,
-      (HeapLeaveHandler) on_realloc_leave_handler
-    }
-  },
-
-  {
-    "_free_dbg", GUM_DBGCRT_FUNCPTR (_free_dbg),
-    {
-      (HeapEnterHandler) on_free_dbg_enter_handler,
-      NULL
-    }
-  }
+  (HeapEnterHandler) on_calloc_enter_handler,
+  (HeapLeaveHandler) on_shared_xalloc_leave_handler
 };
 
-static gboolean
-gum_allocator_probe_instrument_module_if_crt (const gchar * name,
-                                              gpointer address,
-                                              const gchar * path,
-                                              gpointer user_data)
+static const HeapHandlers gum_realloc_handlers =
 {
-  GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (user_data);
+  (HeapEnterHandler) on_realloc_enter_handler,
+  (HeapLeaveHandler) on_realloc_leave_handler
+};
 
-  (void) address;
+static const HeapHandlers gum_free_handlers =
+{
+  (HeapEnterHandler) on_free_enter_handler,
+  NULL
+};
 
-  if (g_strncasecmp (name, "msvcr", 5) == 0)
-  {
-    GModule * module;
-    guint i;
+static const HeapHandlers gum__malloc_dbg_handlers =
+{
+  (HeapEnterHandler) on_malloc_dbg_enter_handler,
+  (HeapLeaveHandler) on_shared_xalloc_leave_handler
+};
 
-    module = g_module_open (path, (GModuleFlags) 0);
+static const HeapHandlers gum__calloc_dbg_handlers =
+{
+  (HeapEnterHandler) on_calloc_dbg_enter_handler,
+  (HeapLeaveHandler) on_shared_xalloc_leave_handler
+};
 
-    for (i = 0; i != G_N_ELEMENTS (regular_probe_handlers); i++)
-    {
-      attach_to_function_by_name (self, module, regular_probe_handlers[i].name,
-          &regular_probe_handlers[i].handlers);
-    }
+static const HeapHandlers gum__realloc_dbg_handlers =
+{
+  (HeapEnterHandler) on_realloc_dbg_enter_handler,
+  (HeapLeaveHandler) on_realloc_leave_handler
+};
 
-    if (g_strncasecmp (name + strlen (name) - 5, "d.dll", 5) == 0)
-    {
-      for (i = 0; i != G_N_ELEMENTS (debug_probe_handlers); i++)
-      {
-        attach_to_function_by_name (self, module, debug_probe_handlers[i].name,
-            &debug_probe_handlers[i].handlers);
-      }
-    }
-
-    g_module_close (module);
-  }
-
-  return TRUE;
-}
+static const HeapHandlers gum__free_dbg_handlers =
+{
+  (HeapEnterHandler) on_free_dbg_enter_handler,
+  NULL
+};
 
 void
 gum_allocator_probe_attach (GumAllocatorProbe * self)
+{
+  GumHeapApiList * apis;
+
+  apis = gum_process_find_heap_apis ();
+  gum_allocator_probe_attach_to_apis (self, apis);
+  gum_heap_api_list_free (apis);
+}
+
+#define GUM_ATTACH_TO_API_FUNC(name) \
+    attach_to_function (self, GUM_FUNCPTR_TO_POINTER (&api->##name), \
+        &gum_##name##_handlers)
+
+void
+gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
+                                    const GumHeapApiList * apis)
 {
   GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
-  gum_process_enumerate_modules (gum_allocator_probe_instrument_module_if_crt,
-      self);
-
-  for (i = 0; i != G_N_ELEMENTS (regular_probe_handlers); i++)
+  for (i = 0; i != apis->len; i++)
   {
-    attach_to_function (self, regular_probe_handlers[i].local_address,
-        &regular_probe_handlers[i].handlers);
-  }
+    const GumHeapApi * api = gum_heap_api_list_get_nth (apis, i);
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
-  for (i = 0; i != G_N_ELEMENTS (debug_probe_handlers); i++)
-  {
-    attach_to_function (self, debug_probe_handlers[i].local_address,
-        &debug_probe_handlers[i].handlers);
+    GUM_ATTACH_TO_API_FUNC (malloc);
+    GUM_ATTACH_TO_API_FUNC (calloc);
+    GUM_ATTACH_TO_API_FUNC (realloc);
+    GUM_ATTACH_TO_API_FUNC (free);
+
+    if (api->_malloc_dbg != NULL)
+    {
+      GUM_ATTACH_TO_API_FUNC (_malloc_dbg);
+      GUM_ATTACH_TO_API_FUNC (_calloc_dbg);
+      GUM_ATTACH_TO_API_FUNC (_realloc_dbg);
+      GUM_ATTACH_TO_API_FUNC (_free_dbg);
+    }
   }
-#endif
 
   gum_allocator_probe_apply_default_suppressions (self);
 
@@ -686,7 +626,7 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
 
   for (i = 0; i < priv->function_contexts->len; i++)
   {
-    FunctionContext * function_ctx =
+    FunctionContext * function_ctx = (FunctionContext *)
         g_ptr_array_index (priv->function_contexts, i);
     g_free (function_ctx);
   }
@@ -698,21 +638,6 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
   priv->free_count = 0;
 
   gum_interceptor_unignore_caller (priv->interceptor);
-}
-
-static void
-attach_to_function_by_name (GumAllocatorProbe * self,
-                            GModule * module,
-                            const gchar * function_name,
-                            const HeapHandlers * function_handlers)
-{
-  gboolean success;
-  gpointer function_address;
-
-  success = g_module_symbol (module, function_name, &function_address);
-  g_assert (success);
-
-  attach_to_function (self, function_address, function_handlers);
 }
 
 static void
