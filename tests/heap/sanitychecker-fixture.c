@@ -83,8 +83,8 @@ test_sanity_checker_fixture_setup (TestSanityCheckerFixture * fixture,
 {
   fixture->output = g_string_new ("");
 
-  fixture->checker = gum_sanity_checker_new (
-      test_sanity_checker_fixture_do_output, fixture);
+  fixture->checker = gum_sanity_checker_new_with_heap_apis (
+      test_util_heap_apis (), test_sanity_checker_fixture_do_output, fixture);
 }
 
 static void

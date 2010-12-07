@@ -74,6 +74,11 @@ gchar * test_util_diff_xml (const gchar * expected_xml,
 
 gchar * test_util_get_filesystem_path_of_self (void);
 
+const GumHeapApiList * test_util_heap_apis (void);
+
+guint8 try_read_and_write_at (guint8 * a, guint i,
+    gboolean * exception_raised_on_read, gboolean * exception_raised_on_write);
+
 G_END_DECLS
 
 #endif

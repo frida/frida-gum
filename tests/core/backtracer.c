@@ -75,7 +75,7 @@ BACKTRACER_TESTCASE (full_cycle)
 
   probe = gum_allocator_probe_new ();
   g_object_set (probe, "allocation-tracker", tracker, NULL);
-  gum_allocator_probe_attach (probe);
+  gum_allocator_probe_attach_to_apis (probe, test_util_heap_apis ());
 
   expected_line_number = __LINE__ + 1;
   a = malloc (1337);

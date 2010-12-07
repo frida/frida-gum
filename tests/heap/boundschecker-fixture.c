@@ -22,14 +22,7 @@
 #include "gummemory.h"
 #include "testutil.h"
 
-#include <stdlib.h>
 #include <string.h>
-#ifdef G_OS_WIN32
-#include <excpt.h>
-#else
-#include <setjmp.h>
-#include <signal.h>
-#endif
 
 #define BOUNDSCHECKER_TESTCASE(NAME) \
     void test_bounds_checker_ ## NAME ( \
@@ -57,83 +50,8 @@ test_bounds_checker_fixture_teardown (TestBoundsCheckerFixture * fixture,
   g_object_unref (fixture->checker);
 }
 
-#ifdef G_OS_WIN32
-
-static guint8
-try_read_and_write_at (guint8 * a,
-                       guint i,
-                       gboolean * exception_raised_on_read,
-                       gboolean * exception_raised_on_write)
-{
-  guint8 dummy_value_to_trick_optimizer = 0;
-  *exception_raised_on_read = FALSE;
-  *exception_raised_on_write = FALSE;
-
-  __try
-  {
-    dummy_value_to_trick_optimizer = a[i];
-  }
-  __except (EXCEPTION_EXECUTE_HANDLER)
-  {
-    *exception_raised_on_read = TRUE;
-  }
-
-  __try
-  {
-    a[i] = 42;
-  }
-  __except (EXCEPTION_EXECUTE_HANDLER)
-  {
-    *exception_raised_on_write = TRUE;
-  }
-
-  return dummy_value_to_trick_optimizer;
-}
-
-#else
-
-static sigjmp_buf try_read_and_write_context;
-
-static void
-on_sigsegv (int arg)
-{
-  siglongjmp (try_read_and_write_context, 1337);
-}
-
-static guint8
-try_read_and_write_at (guint8 * a,
-                       guint i,
-                       gboolean * exception_raised_on_read,
-                       gboolean * exception_raised_on_write)
-{
-  guint8 dummy_value_to_trick_optimizer = 0;
-
-  *exception_raised_on_read = FALSE;
-  *exception_raised_on_write = FALSE;
-
-  signal (SIGSEGV, on_sigsegv);
-
-  if (sigsetjmp (try_read_and_write_context, 1) == 0)
-  {
-    dummy_value_to_trick_optimizer = a[i];
-  }
-  else
-  {
-    *exception_raised_on_read = TRUE;
-  }
-
-  if (sigsetjmp (try_read_and_write_context, 1) == 0)
-  {
-    a[i] = 42;
-  }
-  else
-  {
-    *exception_raised_on_write = TRUE;
-  }
-
-  signal (SIGSEGV, SIG_DFL);
-
-  return dummy_value_to_trick_optimizer;
-}
-
-#endif
+#define ATTACH_CHECKER() \
+    gum_bounds_checker_attach_to_apis (fixture->checker, \
+        test_util_heap_apis ())
+#define DETACH_CHECKER() \
+    gum_bounds_checker_detach (fixture->checker)

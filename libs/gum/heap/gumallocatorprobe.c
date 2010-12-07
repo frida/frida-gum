@@ -570,15 +570,13 @@ static const HeapHandlers gum__free_dbg_handlers =
 void
 gum_allocator_probe_attach (GumAllocatorProbe * self)
 {
-  GumHeapApiList * apis;
-
-  apis = gum_process_find_heap_apis ();
+  GumHeapApiList * apis = gum_process_find_heap_apis ();
   gum_allocator_probe_attach_to_apis (self, apis);
   gum_heap_api_list_free (apis);
 }
 
 #define GUM_ATTACH_TO_API_FUNC(name) \
-    attach_to_function (self, GUM_FUNCPTR_TO_POINTER (&api->##name), \
+    attach_to_function (self, GUM_FUNCPTR_TO_POINTER (api->name), \
         &gum_##name##_handlers)
 
 void

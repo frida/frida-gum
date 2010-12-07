@@ -100,28 +100,30 @@ ALLOCPROBE_TESTCASE (ignore_gquark)
   DETACH_PROBE ();
 }
 
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+
+#include <crtdbg.h>
+
 ALLOCPROBE_TESTCASE (nonstandard_basics)
 {
-#if defined (G_OS_WIN32) && defined (_DEBUG)
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
 
   ATTACH_PROBE ();
   do_nonstandard_heap_calls (fixture, _NORMAL_BLOCK, 1);
   DETACH_PROBE ();
-#endif
 }
 
 ALLOCPROBE_TESTCASE (nonstandard_ignored)
 {
-#if defined (G_OS_WIN32) && defined (_DEBUG)
   g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
   ATTACH_PROBE ();
 
   do_nonstandard_heap_calls (fixture, _CRT_BLOCK, 0);
 
   DETACH_PROBE ();
-#endif
 }
+
+#endif
 
 ALLOCPROBE_TESTCASE (full_cycle)
 {

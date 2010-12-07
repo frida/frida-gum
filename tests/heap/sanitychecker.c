@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (sanitychecker)
   SANITYCHECKER_TESTENTRY (three_leaked_instances)
   SANITYCHECKER_TESTENTRY (three_leaked_blocks)
   SANITYCHECKER_TESTENTRY (ignore_gparam_instances)
+  SANITYCHECKER_TESTENTRY (array_access_out_of_bounds_causes_exception)
 TEST_LIST_END ()
 
 SANITYCHECKER_TESTCASE (no_leaks)
@@ -89,4 +90,20 @@ SANITYCHECKER_TESTCASE (ignore_gparam_instances)
   g_assert (fixture->run_returned_true);
   g_assert_cmpuint (fixture->simulation_call_count, ==, 4);
   g_assert_cmpuint (fixture->output_call_count, ==, 0);
+}
+
+SANITYCHECKER_TESTCASE (array_access_out_of_bounds_causes_exception)
+{
+  guint8 * bytes;
+  gboolean exception_on_read = FALSE, exception_on_write = FALSE;
+
+  gum_sanity_checker_begin (fixture->checker, GUM_CHECK_BOUNDS);
+  bytes = (guint8 *) malloc (1);
+  bytes[0] = 42;
+  try_read_and_write_at (bytes, 1, &exception_on_read, &exception_on_write);
+  free (bytes);
+  gum_sanity_checker_end (fixture->checker);
+
+  g_assert (exception_on_read);
+  g_assert (exception_on_write);
 }

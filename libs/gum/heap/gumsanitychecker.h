@@ -20,7 +20,7 @@
 #ifndef __GUM_SANITY_CHECKER_H__
 #define __GUM_SANITY_CHECKER_H__
 
-#include <gum/gumdefs.h>
+#include "gumheapapi.h"
 
 typedef enum _GumSanityCheckFlags GumSanityCheckFlags;
 
@@ -45,6 +45,9 @@ struct _GumSanityChecker
 G_BEGIN_DECLS
 
 GUM_API GumSanityChecker * gum_sanity_checker_new (GumSanityOutputFunc func,
+    gpointer user_data);
+GUM_API GumSanityChecker * gum_sanity_checker_new_with_heap_apis (
+    const GumHeapApiList * heap_apis, GumSanityOutputFunc func,
     gpointer user_data);
 GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 

@@ -20,8 +20,9 @@
 #ifndef __GUM_BOUNDS_CHECKER_H__
 #define __GUM_BOUNDS_CHECKER_H__
 
+#include "gumheapapi.h"
+
 #include <glib-object.h>
-#include <gum/gumdefs.h>
 
 #define GUM_TYPE_BOUNDS_CHECKER (gum_bounds_checker_get_type ())
 #define GUM_BOUNDS_CHECKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -66,12 +67,9 @@ GUM_API guint gum_bounds_checker_get_front_alignment (GumBoundsChecker * self);
 GUM_API void gum_bounds_checker_set_front_alignment (GumBoundsChecker * self,
   guint pool_size);
 
-GUM_API void gum_bounds_checker_add_malloc_function (GumBoundsChecker * self,
-    gpointer malloc_func);
-GUM_API void gum_bounds_checker_add_free_function (GumBoundsChecker * self,
-    gpointer free_func);
-
 GUM_API void gum_bounds_checker_attach (GumBoundsChecker * self);
+GUM_API void gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
+    const GumHeapApiList * apis);
 GUM_API void gum_bounds_checker_detach (GumBoundsChecker * self);
 
 G_END_DECLS

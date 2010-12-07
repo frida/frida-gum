@@ -34,6 +34,7 @@ typedef struct _GumInstanceDetails GumInstanceDetails;
 
 struct _GumSanityCheckerPrivate
 {
+  GumHeapApiList * heap_apis;
   GumSanityOutputFunc output;
   gpointer output_user_data;
   gint backtrace_block_size;
@@ -85,6 +86,21 @@ GumSanityChecker *
 gum_sanity_checker_new (GumSanityOutputFunc func,
                         gpointer user_data)
 {
+  GumHeapApiList * apis;
+  GumSanityChecker * checker;
+
+  apis = gum_process_find_heap_apis ();
+  checker = gum_sanity_checker_new_with_heap_apis (apis, func, user_data);
+  gum_heap_api_list_free (apis);
+
+  return checker;
+}
+
+GumSanityChecker *
+gum_sanity_checker_new_with_heap_apis (const GumHeapApiList * heap_apis,
+                                       GumSanityOutputFunc func,
+                                       gpointer user_data)
+{
   GumSanityChecker * checker;
   GumSanityCheckerPrivate * priv;
 
@@ -93,6 +109,7 @@ gum_sanity_checker_new (GumSanityOutputFunc func,
   checker->priv = (GumSanityCheckerPrivate *) (checker + 1);
 
   priv = checker->priv;
+  priv->heap_apis = gum_heap_api_list_copy (heap_apis);
   priv->output = func;
   priv->output_user_data = user_data;
   priv->backtrace_block_size = 0;
@@ -103,6 +120,7 @@ gum_sanity_checker_new (GumSanityOutputFunc func,
 void
 gum_sanity_checker_destroy (GumSanityChecker * checker)
 {
+  gum_heap_api_list_free (checker->priv->heap_apis);
   gum_free (checker);
 }
 
@@ -187,14 +205,14 @@ gum_sanity_checker_begin (GumSanityChecker * self,
     priv->alloc_probe = gum_allocator_probe_new ();
     g_object_set (priv->alloc_probe, "allocation-tracker", priv->alloc_tracker,
         NULL);
-    gum_allocator_probe_attach (priv->alloc_probe);
+    gum_allocator_probe_attach_to_apis (priv->alloc_probe, priv->heap_apis);
   }
 
   if ((flags & GUM_CHECK_BOUNDS) != 0)
   {
     priv->bounds_checker = gum_bounds_checker_new ();
     g_object_set (priv->bounds_checker, "front-alignment", 1, NULL);
-    gum_bounds_checker_attach (priv->bounds_checker);
+    gum_bounds_checker_attach_to_apis (priv->bounds_checker, priv->heap_apis);
   }
 }
 

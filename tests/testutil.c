@@ -20,12 +20,20 @@
 
 #include "testutil.h"
 
-#include <stdlib.h>
-#include <string.h>
-
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+#include <crtdbg.h>
+#endif
+#ifdef G_OS_WIN32
+#include <excpt.h>
+#else
+#include <setjmp.h>
+#include <signal.h>
+#endif
 #ifdef HAVE_DARWIN
 #include <mach-o/dyld.h>
 #endif
+#include <stdlib.h>
+#include <string.h>
 
 #define TESTUTIL_TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
@@ -281,6 +289,115 @@ test_util_get_filesystem_path_of_self (void)
   return NULL; /* FIXME */
 #endif
 }
+
+const GumHeapApiList *
+test_util_heap_apis (void)
+{
+  static GumHeapApiList * heap_apis = NULL;
+
+  if (heap_apis == NULL)
+  {
+    GumHeapApi api = { 0 };
+
+    api.malloc = malloc;
+    api.calloc = calloc;
+    api.realloc = realloc;
+    api.free = free;
+
+#if defined (G_OS_WIN32) && defined (_DEBUG)
+    api._malloc_dbg = _malloc_dbg;
+    api._calloc_dbg = _calloc_dbg;
+    api._realloc_dbg = _realloc_dbg;
+    api._free_dbg = _free_dbg;
+#endif
+
+    heap_apis = gum_heap_api_list_new ();
+    gum_heap_api_list_add (heap_apis, &api);
+  }
+
+  return heap_apis;
+}
+
+#ifdef G_OS_WIN32
+
+guint8
+try_read_and_write_at (guint8 * a,
+                       guint i,
+                       gboolean * exception_raised_on_read,
+                       gboolean * exception_raised_on_write)
+{
+  guint8 dummy_value_to_trick_optimizer = 0;
+  *exception_raised_on_read = FALSE;
+  *exception_raised_on_write = FALSE;
+
+  __try
+  {
+    dummy_value_to_trick_optimizer = a[i];
+  }
+  __except (EXCEPTION_EXECUTE_HANDLER)
+  {
+    *exception_raised_on_read = TRUE;
+  }
+
+  __try
+  {
+    a[i] = 42;
+  }
+  __except (EXCEPTION_EXECUTE_HANDLER)
+  {
+    *exception_raised_on_write = TRUE;
+  }
+
+  return dummy_value_to_trick_optimizer;
+}
+
+#else
+
+static sigjmp_buf try_read_and_write_context;
+
+static void
+on_sigsegv (int arg)
+{
+  siglongjmp (try_read_and_write_context, 1337);
+}
+
+static guint8
+try_read_and_write_at (guint8 * a,
+                       guint i,
+                       gboolean * exception_raised_on_read,
+                       gboolean * exception_raised_on_write)
+{
+  guint8 dummy_value_to_trick_optimizer = 0;
+
+  *exception_raised_on_read = FALSE;
+  *exception_raised_on_write = FALSE;
+
+  signal (SIGSEGV, on_sigsegv);
+
+  if (sigsetjmp (try_read_and_write_context, 1) == 0)
+  {
+    dummy_value_to_trick_optimizer = a[i];
+  }
+  else
+  {
+    *exception_raised_on_read = TRUE;
+  }
+
+  if (sigsetjmp (try_read_and_write_context, 1) == 0)
+  {
+    a[i] = 42;
+  }
+  else
+  {
+    *exception_raised_on_write = TRUE;
+  }
+
+  signal (SIGSEGV, SIG_DFL);
+
+  return dummy_value_to_trick_optimizer;
+}
+
+#endif
 
 static gchar *
 byte_array_to_hex_string (const guint8 * bytes,
