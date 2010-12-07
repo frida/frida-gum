@@ -132,7 +132,7 @@ namespace Gum
   GUMPP_CAPI Sampler * WallClockSampler_new ();
 
   GUMPP_CAPI CallCountSampler * CallCountSampler_new (void * first_function, ...);
-  GUMPP_CAPI CallCountSampler * CallCountSampler_new_by_name (char * first_function_name, ...);
+  GUMPP_CAPI CallCountSampler * CallCountSampler_new_by_name (const char * first_function_name, ...);
 
   struct FunctionMatchCallbacks
   {
@@ -170,10 +170,10 @@ namespace Gum
     explicit RefPtr (const RefPtr<T> & other) : ptr (other.ptr)
     {
       if (ptr)
-        ptr->Retain ();
+        ptr->ref ();
     }
 
-    template <class O> RefPtr (const RefPtr<O> & other) : ptr (other.operator->())
+    template <class U> RefPtr (const RefPtr<U> & other) : ptr (other.operator->())
     {
       if (ptr)
         ptr->ref ();

@@ -61,7 +61,7 @@ namespace Gum
     return new CallCountSamplerImpl (GUM_CALL_COUNT_SAMPLER (sampler));
   }
 
-  extern "C" CallCountSampler * CallCountSampler_new_by_name (char * first_function_name, ...)
+  extern "C" CallCountSampler * CallCountSampler_new_by_name (const char * first_function_name, ...)
   {
     gum_init ();
 
