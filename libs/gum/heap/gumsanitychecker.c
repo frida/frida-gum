@@ -127,10 +127,19 @@ gum_sanity_checker_destroy (GumSanityChecker * checker)
 }
 
 void
+gum_sanity_checker_enable_backtraces_for_blocks_of_all_sizes (
+    GumSanityChecker * self)
+{
+  self->priv->backtrace_block_size = -1;
+}
+
+void
 gum_sanity_checker_enable_backtraces_for_blocks_of_size (
     GumSanityChecker * self,
-    gint size)
+    guint size)
 {
+  g_assert (size != 0);
+
   self->priv->backtrace_block_size = size;
 }
 

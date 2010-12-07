@@ -23,7 +23,12 @@ namespace Gum
       gum_sanity_checker_destroy (handle);
     }
 
-    virtual void enable_backtraces_for_blocks_of_size (int size)
+    virtual void enable_backtraces_for_blocks_of_all_sizes ()
+    {
+      gum_sanity_checker_enable_backtraces_for_blocks_of_all_sizes (handle);
+    }
+
+    virtual void enable_backtraces_for_blocks_of_size (unsigned int size)
     {
       gum_sanity_checker_enable_backtraces_for_blocks_of_size (handle, size);
     }
