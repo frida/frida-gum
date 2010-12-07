@@ -65,6 +65,7 @@ typedef gboolean (* GumMemoryScanMatchFunc) (gpointer address, guint size,
 guint gum_query_page_size (void);
 gboolean gum_memory_is_readable (gpointer address, guint len);
 guint8 * gum_memory_read (gpointer address, guint len, gint * n_bytes_read);
+gboolean gum_memory_write (gpointer address, guint8 * bytes, guint len);
 
 void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern,

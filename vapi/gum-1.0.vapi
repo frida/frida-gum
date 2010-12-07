@@ -116,6 +116,7 @@ namespace Gum {
 
 	namespace Memory {
 		public uint8[] read (void * address, uint len);
+		public bool write (void * address, uint8[] bytes);
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
 
 		public delegate bool ScanMatchFunc (void * address, uint size);

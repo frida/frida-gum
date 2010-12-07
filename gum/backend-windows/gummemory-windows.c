@@ -92,6 +92,14 @@ gum_memory_read (gpointer address,
   return result;
 }
 
+gboolean
+gum_memory_write (gpointer address,
+                  guint8 * bytes,
+                  guint len)
+{
+  return WriteProcessMemory (GetCurrentProcess (), address, bytes, len, NULL);
+}
+
 void
 gum_mprotect (gpointer address,
               guint size,
