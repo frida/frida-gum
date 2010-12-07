@@ -12,10 +12,17 @@ namespace Gum
   public:
     explicit SanityCheckerImpl (const HeapApi * heap_api)
     {
-      GumHeapApiList * heap_apis = gum_heap_api_list_new ();
-      gum_heap_api_list_add (heap_apis, reinterpret_cast<const GumHeapApi *> (heap_api));
-      assign_handle (gum_sanity_checker_new_with_heap_apis (heap_apis, output_to_stderr, NULL));
-      gum_heap_api_list_free (heap_apis);
+      if (heap_api != 0)
+      {
+        GumHeapApiList * heap_apis = gum_heap_api_list_new ();
+        gum_heap_api_list_add (heap_apis, reinterpret_cast<const GumHeapApi *> (heap_api));
+        assign_handle (gum_sanity_checker_new_with_heap_apis (heap_apis, output_to_stderr, NULL));
+        gum_heap_api_list_free (heap_apis);
+      }
+      else
+      {
+        assign_handle (gum_sanity_checker_new (output_to_stderr, NULL));
+      }
     }
 
     ~SanityCheckerImpl ()
