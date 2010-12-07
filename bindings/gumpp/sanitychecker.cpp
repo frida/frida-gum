@@ -10,9 +10,12 @@ namespace Gum
   class SanityCheckerImpl : public PodWrapper<SanityCheckerImpl, SanityChecker, GumSanityChecker>
   {
   public:
-    SanityCheckerImpl ()
+    explicit SanityCheckerImpl (const HeapApi * heap_api)
     {
-      assign_handle (gum_sanity_checker_new (output_to_stderr, NULL));
+      GumHeapApiList * heap_apis = gum_heap_api_list_new ();
+      gum_heap_api_list_add (heap_apis, reinterpret_cast<const GumHeapApi *> (heap_api));
+      assign_handle (gum_sanity_checker_new_with_heap_apis (heap_apis, output_to_stderr, NULL));
+      gum_heap_api_list_free (heap_apis);
     }
 
     ~SanityCheckerImpl ()
@@ -44,5 +47,6 @@ namespace Gum
     }
   };
 
-  extern "C" SanityChecker * SanityChecker_new (void) { gum_init (); return new SanityCheckerImpl; }
+  extern "C" SanityChecker * SanityChecker_new (void) { gum_init (); return new SanityCheckerImpl (0); }
+  extern "C" SanityChecker * SanityChecker_new_with_heap_api (const HeapApi * api)  { gum_init (); return new SanityCheckerImpl (api); }
 }

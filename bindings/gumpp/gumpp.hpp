@@ -87,13 +87,28 @@ namespace Gum
     virtual bool end () = 0;
   };
 
+  struct HeapApi
+  {
+    void * (* malloc) (size_t size);
+    void * (* calloc) (size_t num, size_t size);
+    void * (* realloc) (void * old_address, size_t new_size);
+    void (* free) (void * address);
+
+    /* for Microsoft's Debug CRT: */
+    void * (* _malloc_dbg) (size_t size, int block_type, const char * filename, int linenumber);
+    void * (* _calloc_dbg) (size_t num, size_t size, int block_type, const char * filename, int linenumber);
+    void * (* _realloc_dbg) (void * old_address, size_t new_size, int block_type, const char * filename, int linenumber);
+    void (* _free_dbg) (void * address, int block_type);
+  };
+
   GUMPP_CAPI SanityChecker * SanityChecker_new (void);
+  GUMPP_CAPI SanityChecker * SanityChecker_new_with_heap_api (const HeapApi * api);
 
   enum SanityCheckFlags
   {
     CHECK_INSTANCE_LEAKS  = (1 << 0),
     CHECK_BLOCK_LEAKS     = (1 << 1),
-    CHECK_BOUNDS          = (1 << 2)    // FIXME: currently broken
+    CHECK_BOUNDS          = (1 << 2)
   };
 
   typedef unsigned long long Sample;
