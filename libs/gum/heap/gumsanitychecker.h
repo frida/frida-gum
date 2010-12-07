@@ -52,7 +52,9 @@ GUM_API GumSanityChecker * gum_sanity_checker_new_with_heap_apis (
 GUM_API void gum_sanity_checker_destroy (GumSanityChecker * checker);
 
 GUM_API void gum_sanity_checker_enable_backtraces_for_blocks_of_size (
-    GumSanityChecker * checker, gint size);
+    GumSanityChecker * self, gint size);
+GUM_API void gum_sanity_checker_set_front_alignment_granularity (
+    GumSanityChecker * self, guint granularity);
 
 GUM_API gboolean gum_sanity_checker_run (GumSanityChecker * self,
     GumSanitySequenceFunc func, gpointer user_data);

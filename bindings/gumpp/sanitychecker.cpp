@@ -28,6 +28,11 @@ namespace Gum
       gum_sanity_checker_enable_backtraces_for_blocks_of_size (handle, size);
     }
 
+    virtual void set_front_alignment_granularity (unsigned int granularity)
+    {
+      gum_sanity_checker_set_front_alignment_granularity (handle, granularity);
+    }
+
     virtual void begin (unsigned int flags)
     {
       gum_sanity_checker_begin (handle, flags);

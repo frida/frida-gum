@@ -38,6 +38,7 @@ struct _GumSanityCheckerPrivate
   GumSanityOutputFunc output;
   gpointer output_user_data;
   gint backtrace_block_size;
+  guint front_alignment_granularity;
 
   GumInstanceTracker * instance_tracker;
 
@@ -113,6 +114,7 @@ gum_sanity_checker_new_with_heap_apis (const GumHeapApiList * heap_apis,
   priv->output = func;
   priv->output_user_data = user_data;
   priv->backtrace_block_size = 0;
+  priv->front_alignment_granularity = 1;
 
   return checker;
 }
@@ -126,10 +128,17 @@ gum_sanity_checker_destroy (GumSanityChecker * checker)
 
 void
 gum_sanity_checker_enable_backtraces_for_blocks_of_size (
-    GumSanityChecker * checker,
+    GumSanityChecker * self,
     gint size)
 {
-  checker->priv->backtrace_block_size = size;
+  self->priv->backtrace_block_size = size;
+}
+
+void
+gum_sanity_checker_set_front_alignment_granularity (GumSanityChecker * self,
+                                                    guint granularity)
+{
+  self->priv->front_alignment_granularity = granularity;
 }
 
 gboolean
@@ -211,7 +220,8 @@ gum_sanity_checker_begin (GumSanityChecker * self,
   if ((flags & GUM_CHECK_BOUNDS) != 0)
   {
     priv->bounds_checker = gum_bounds_checker_new ();
-    g_object_set (priv->bounds_checker, "front-alignment", 1, NULL);
+    g_object_set (priv->bounds_checker,
+        "front-alignment", priv->front_alignment_granularity, NULL);
     gum_bounds_checker_attach_to_apis (priv->bounds_checker, priv->heap_apis);
   }
 }
