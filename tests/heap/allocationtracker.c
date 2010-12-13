@@ -37,7 +37,8 @@ TEST_LIST_BEGIN (allocation_tracker)
   ALLOCTRACKER_TESTENTRY (realloc_zero_size)
   ALLOCTRACKER_TESTENTRY (realloc_backtrace)
 
-  ALLOCTRACKER_TESTENTRY (memory_usage)
+  ALLOCTRACKER_TESTENTRY (memory_usage_without_backtracer_should_be_sensible)
+  ALLOCTRACKER_TESTENTRY (memory_usage_with_backtracer_should_be_sensible)
 
   ALLOCTRACKER_TESTENTRY (backtracer_gtype_interop)
 
@@ -414,12 +415,16 @@ ALLOCTRACKER_TESTCASE (realloc_backtrace)
   g_object_unref (backtracer);
 }
 
-ALLOCTRACKER_TESTCASE (memory_usage)
+ALLOCTRACKER_TESTCASE (memory_usage_without_backtracer_should_be_sensible)
 {
+  guint total_bytes_before, total_bytes_after;
   GumAllocationTracker * t = fixture->tracker;
   const guint num_allocations = 10000;
   guint bytes_before, bytes_after, i, bytes_per_allocation;
 
+  total_bytes_before = gum_peek_private_memory_usage ();
+
+  t = gum_allocation_tracker_new ();
   gum_allocation_tracker_begin (t);
 
   bytes_before = gum_peek_private_memory_usage ();
@@ -430,6 +435,42 @@ ALLOCTRACKER_TESTCASE (memory_usage)
 
   bytes_per_allocation = (bytes_after - bytes_before) / num_allocations;
   g_assert_cmpuint (bytes_per_allocation, <=, 32);
+
+  g_object_unref (t);
+
+  total_bytes_after = gum_peek_private_memory_usage ();
+  g_assert_cmpuint (total_bytes_after, ==, total_bytes_before);
+}
+
+ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
+{
+  guint total_bytes_before, total_bytes_after;
+  GumBacktracer * backtracer;
+  GumAllocationTracker * t;
+  const guint num_allocations = 10;
+  guint bytes_before, bytes_after, i, bytes_per_allocation;
+
+  total_bytes_before = gum_peek_private_memory_usage ();
+
+  backtracer = gum_fake_backtracer_new (dummy_return_addresses_a,
+      G_N_ELEMENTS (dummy_return_addresses_a));
+  t = gum_allocation_tracker_new_with_backtracer (backtracer);
+  gum_allocation_tracker_begin (t);
+
+  bytes_before = gum_peek_private_memory_usage ();
+  for (i = 0; i != num_allocations; i++)
+    gum_allocation_tracker_on_malloc (t, GUINT_TO_POINTER (0x50000 + (i * 64)),
+        64);
+  bytes_after = gum_peek_private_memory_usage ();
+
+  bytes_per_allocation = (bytes_after - bytes_before) / num_allocations;
+  g_assert_cmpuint (bytes_per_allocation, <=, 42 * 1024);
+
+  g_object_unref (backtracer);
+  g_object_unref (t);
+
+  total_bytes_after = gum_peek_private_memory_usage ();
+  g_assert_cmpuint (total_bytes_after, ==, total_bytes_before);
 }
 
 ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)
