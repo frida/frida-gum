@@ -396,9 +396,7 @@ gum_cobject_tracker_peek_object_list (GumCObjectTracker * self)
   result = gum_hash_table_get_values (priv->objects_ht);
   for (walk = result; walk != NULL; walk = walk->next)
   {
-    GumCObject * cobject = walk->data;
-    gum_return_address_array_load_symbols (&cobject->return_addresses);
-    walk->data = gum_cobject_copy (cobject);
+    walk->data = gum_cobject_copy ((GumCObject *) walk->data);
   }
 
   gum_interceptor_unignore_caller (priv->interceptor);

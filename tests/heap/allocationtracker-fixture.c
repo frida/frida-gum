@@ -60,14 +60,15 @@ test_allocation_tracker_fixture_teardown (
 
 static const GumReturnAddress dummy_return_addresses_a[] =
 {
-  { GUINT_TO_POINTER (0x1234), "libpony.so", "my_pony_new", "mypony.c", 236 },
-  { GUINT_TO_POINTER (0x4321), "libstable.so", "my_stable_populate",
-    "mystable.c", 555 }
+  GUINT_TO_POINTER (0x1234),
+  GUINT_TO_POINTER (0x4321)
 };
 
 static const GumReturnAddress dummy_return_addresses_b[] =
 {
-  { GUINT_TO_POINTER (0x1250), "libpony.so", "my_pony_new", "mypony.c", 236 },
-  { GUINT_TO_POINTER (0x4321), "libstable.so", "my_stable_populate",
-    "mystable.c", 555 }
+  GUINT_TO_POINTER (0x1250),
+  GUINT_TO_POINTER (0x4321),
 };
+
+static gboolean filter_cb (GumAllocationTracker * tracker, gpointer address,
+    guint size, gpointer user_data);

@@ -454,15 +454,24 @@ gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
 
     for (i = 0; i != block->return_addresses.len; i++)
     {
-      GumReturnAddress * ra = &block->return_addresses.items[i];
-      gchar * file_basename;
+      GumReturnAddress addr = block->return_addresses.items[i];
+      GumReturnAddressDetails rad;
 
-      file_basename = g_path_get_basename (ra->file_name);
-      gum_sanity_checker_printf (self, "\t    %p %s!%s %s:%u\n",
-          ra->address,
-          ra->module_name, ra->function_name,
-          file_basename, ra->line_number);
-      g_free (file_basename);
+      if (gum_return_address_details_from_address (addr, &rad))
+      {
+        gchar * file_basename;
+
+        file_basename = g_path_get_basename (rad.file_name);
+        gum_sanity_checker_printf (self, "\t    %p %s!%s %s:%u\n",
+            rad.address,
+            rad.module_name, rad.function_name,
+            file_basename, rad.line_number);
+        g_free (file_basename);
+      }
+      else
+      {
+        gum_sanity_checker_printf (self, "\t    %p\n", addr);
+      }
     }
   }
 

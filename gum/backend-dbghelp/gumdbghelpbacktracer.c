@@ -199,13 +199,10 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     {
       if (i >= skip_count)
       {
-        GumReturnAddress * ret_addr;
-
         g_assert_cmpuint (return_addresses->len, <,
             G_N_ELEMENTS (return_addresses->items));
-        ret_addr = &return_addresses->items[return_addresses->len++];
-        memset (ret_addr, 0, sizeof (GumReturnAddress));
-        ret_addr->address = GSIZE_TO_POINTER (frame.AddrPC.Offset);
+        return_addresses->items[return_addresses->len++] =
+            GSIZE_TO_POINTER (frame.AddrPC.Offset);
       }
     }
   }

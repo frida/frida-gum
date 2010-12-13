@@ -48,9 +48,6 @@ TEST_LIST_BEGIN (allocation_tracker)
   ALLOCTRACKER_TESTENTRY (hashtable_life)
 TEST_LIST_END ()
 
-static gboolean filter_cb (GumAllocationTracker * tracker, gpointer address,
-    guint size, gpointer user_data);
-
 ALLOCTRACKER_TESTCASE (begin)
 {
   GumAllocationTracker * t = fixture->tracker;
@@ -237,12 +234,8 @@ ALLOCTRACKER_TESTCASE (block_list_backtraces)
   g_assert (block->address == DUMMY_BLOCK_A);
 
   g_assert_cmpuint (block->return_addresses.len, ==, 2);
-
-  g_assert (gum_return_address_is_equal (&block->return_addresses.items[0],
-      &dummy_return_addresses_a[0]));
-
-  g_assert (gum_return_address_is_equal (&block->return_addresses.items[1],
-      &dummy_return_addresses_a[1]));
+  g_assert (block->return_addresses.items[0] == dummy_return_addresses_a[0]);
+  g_assert (block->return_addresses.items[1] == dummy_return_addresses_a[1]);
 
   gum_allocation_block_list_free (blocks);
 
@@ -464,7 +457,7 @@ ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
   bytes_after = gum_peek_private_memory_usage ();
 
   bytes_per_allocation = (bytes_after - bytes_before) / num_allocations;
-  g_assert_cmpuint (bytes_per_allocation, <=, 42 * 1024);
+  g_assert_cmpuint (bytes_per_allocation, <=, 48);
 
   g_object_unref (backtracer);
   g_object_unref (t);

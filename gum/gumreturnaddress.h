@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -22,12 +22,13 @@
 
 #include <gum/gumdefs.h>
 
-typedef struct _GumReturnAddress GumReturnAddress;
+typedef struct _GumReturnAddressDetails GumReturnAddressDetails;
+typedef gpointer GumReturnAddress;
 typedef struct _GumReturnAddressArray GumReturnAddressArray;
 
-struct _GumReturnAddress
+struct _GumReturnAddressDetails
 {
-  gpointer address;
+  GumReturnAddress address;
   gchar module_name[GUM_MAX_PATH + 1];
   gchar function_name[GUM_MAX_SYMBOL_NAME + 1];
   gchar file_name[GUM_MAX_PATH + 1];
@@ -42,15 +43,12 @@ struct _GumReturnAddressArray
 
 G_BEGIN_DECLS
 
+GUM_API gboolean gum_return_address_details_from_address (
+    GumReturnAddress address, GumReturnAddressDetails * details);
+
 GUM_API gboolean gum_return_address_array_is_equal (
     const GumReturnAddressArray * array1,
     const GumReturnAddressArray * array2);
-GUM_API void gum_return_address_array_load_symbols (
-    GumReturnAddressArray * array);
-
-GUM_API gboolean gum_return_address_is_equal (const GumReturnAddress * addr1,
-    const GumReturnAddress * addr2);
-GUM_API void gum_return_address_load_symbols (GumReturnAddress * addr);
 
 G_END_DECLS
 

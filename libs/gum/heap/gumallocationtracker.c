@@ -20,13 +20,17 @@
 #include "gumallocationtracker.h"
 
 #include <string.h>
+
 #include "gumallocationblock.h"
 #include "gumallocationgroup.h"
+#include "gummemory.h"
 #include "gumreturnaddress.h"
 #include "gumbacktracer.h"
 #include "gumhash.h"
 
 G_DEFINE_TYPE (GumAllocationTracker, gum_allocation_tracker, G_TYPE_OBJECT);
+
+typedef struct _GumAllocationTrackerBlock GumAllocationTrackerBlock;
 
 enum
 {
@@ -52,6 +56,12 @@ struct _GumAllocationTrackerPrivate
 
   GumBacktracerIface * backtracer_interface;
   GumBacktracer * backtracer_instance;
+};
+
+struct _GumAllocationTrackerBlock
+{
+  guint size;
+  GumReturnAddress return_addresses[1];
 };
 
 #define GUM_ALLOCATION_TRACKER_LOCK(t) g_mutex_lock (t->priv->mutex)
@@ -111,7 +121,7 @@ gum_allocation_tracker_constructed (GObject * object)
   if (priv->backtracer_instance != NULL)
   {
     priv->known_blocks_ht = gum_hash_table_new_full (NULL, NULL, NULL,
-        (GDestroyNotify) gum_allocation_block_free);
+        gum_free);
   }
   else
   {
@@ -292,11 +302,17 @@ gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
   {
     if (self->priv->backtracer_instance != NULL)
     {
-      GumAllocationBlock * block = (GumAllocationBlock *) value;
+      GumAllocationTrackerBlock * tb = (GumAllocationTrackerBlock *) value;
+      GumAllocationBlock * block;
+      guint i;
 
-      gum_return_address_array_load_symbols (&block->return_addresses);
+      block = gum_allocation_block_new (key, tb->size);
 
-      blocks = gum_list_prepend (blocks, gum_allocation_block_copy (block));
+      for (i = 0; tb->return_addresses[i] != NULL; i++)
+        block->return_addresses.items[i] = tb->return_addresses[i];
+      block->return_addresses.len = i;
+
+      blocks = gum_list_prepend (blocks, block);
     }
     else
     {
@@ -362,10 +378,9 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
 
   if (priv->backtracer_instance != NULL)
   {
-    GumAllocationBlock * block;
     gboolean do_backtrace = TRUE;
-
-    block = gum_allocation_block_new (address, size);
+    GumReturnAddressArray return_addresses;
+    GumAllocationTrackerBlock * block;
 
     if (priv->filter_func != NULL)
     {
@@ -376,7 +391,23 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
     if (do_backtrace)
     {
       priv->backtracer_interface->generate (priv->backtracer_instance,
-          cpu_context, &block->return_addresses);
+          cpu_context, &return_addresses);
+    }
+    else
+    {
+      return_addresses.len = 0;
+    }
+
+    block = (GumAllocationTrackerBlock *)
+        gum_malloc (sizeof (GumAllocationTrackerBlock) +
+            (return_addresses.len * sizeof (GumReturnAddress)));
+    block->size = size;
+    block->return_addresses[return_addresses.len] = NULL;
+
+    if (return_addresses.len > 0)
+    {
+      memcpy (block->return_addresses, &return_addresses.items,
+          return_addresses.len * sizeof (GumReturnAddress));
     }
 
     value = block;
@@ -416,7 +447,7 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
     guint size;
 
     if (priv->backtracer_instance != NULL)
-      size = ((GumAllocationBlock *) value)->size;
+      size = ((GumAllocationTrackerBlock *) value)->size;
     else
       size = GPOINTER_TO_UINT (value);
 
@@ -457,7 +488,9 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
 
         if (priv->backtracer_instance != NULL)
         {
-          GumAllocationBlock * block = (GumAllocationBlock *) value;
+          GumAllocationTrackerBlock * block;
+
+          block = (GumAllocationTrackerBlock *) value;
 
           gum_hash_table_insert (priv->known_blocks_ht, new_address, block);
 

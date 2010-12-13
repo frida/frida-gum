@@ -71,10 +71,8 @@ gum_fake_backtracer_generate (GumBacktracer * backtracer,
                               GumReturnAddressArray * return_addresses)
 {
   GumFakeBacktracer * self = GUM_FAKE_BACKTRACER (backtracer);
-  GumReturnAddress * slot;
 
-  slot = &return_addresses->items[return_addresses->len];
-  memcpy (slot, self->ret_addrs, self->num_ret_addrs
-      * sizeof (GumReturnAddress));
-  return_addresses->len += self->num_ret_addrs;
+  memcpy (return_addresses->items, self->ret_addrs, self->num_ret_addrs *
+      sizeof (GumReturnAddress));
+  return_addresses->len = self->num_ret_addrs;
 }
