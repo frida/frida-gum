@@ -57,12 +57,13 @@ namespace Gum
 
   struct InvocationContext
   {
-    virtual void * get_nth_argument (unsigned int n) = 0;
+    virtual void * get_function () const = 0;
+    virtual void * get_nth_argument (unsigned int n) const = 0;
     virtual void replace_nth_argument (unsigned int n, void * value) = 0;
-    virtual void * get_return_value () = 0;
+    virtual void * get_return_value () const = 0;
     virtual InvocationContext * get_parent () = 0;
 
-    virtual void * get_user_data () = 0;
+    virtual void * get_user_data () const = 0;
   };
 
   struct InvocationListener : public Object
