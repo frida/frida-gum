@@ -51,7 +51,7 @@ namespace Gum
       return parent;
     }
 
-    virtual void * get_user_data () const
+    virtual void * get_user_data_ptr () const
     {
       return context->instance_data;
     }

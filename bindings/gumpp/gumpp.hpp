@@ -63,7 +63,12 @@ namespace Gum
     virtual void * get_return_value () const = 0;
     virtual InvocationContext * get_parent () = 0;
 
-    virtual void * get_user_data () const = 0;
+    template <typename T>
+    T get_user_data () const
+    {
+      return static_cast<T> (reinterpret_cast <int> (get_user_data_ptr ()));
+    }
+    virtual void * get_user_data_ptr () const = 0;
   };
 
   struct InvocationListener : public Object
