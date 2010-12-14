@@ -22,8 +22,10 @@
 TEST_LIST_BEGIN (allocator_probe)
   ALLOCPROBE_TESTENTRY (basics)
   ALLOCPROBE_TESTENTRY (ignore_gquark)
+#if defined (G_OS_WIN32) && defined (_DEBUG)
   ALLOCPROBE_TESTENTRY (nonstandard_basics)
   ALLOCPROBE_TESTENTRY (nonstandard_ignored)
+#endif
   ALLOCPROBE_TESTENTRY (full_cycle)
   ALLOCPROBE_TESTENTRY (gtype_interop)
 TEST_LIST_END ()
