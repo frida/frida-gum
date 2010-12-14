@@ -23,7 +23,7 @@ namespace Gum
       return context->function;
     }
 
-    virtual void * get_nth_argument (unsigned int n) const
+    virtual void * get_nth_argument_ptr (unsigned int n) const
     {
       return gum_invocation_context_get_nth_argument (context, n);
     }
@@ -33,7 +33,7 @@ namespace Gum
       gum_invocation_context_replace_nth_argument (context, n, value);
     }
 
-    virtual void * get_return_value () const
+    virtual void * get_return_value_ptr () const
     {
       return gum_invocation_context_get_return_value (context);
     }

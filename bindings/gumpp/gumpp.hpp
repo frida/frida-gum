@@ -58,9 +58,23 @@ namespace Gum
   struct InvocationContext
   {
     virtual void * get_function () const = 0;
-    virtual void * get_nth_argument (unsigned int n) const = 0;
+
+    template <typename T>
+    T get_nth_argument (unsigned int n) const
+    {
+      return static_cast<T> (get_nth_argument_ptr (n));
+    }
+    virtual void * get_nth_argument_ptr (unsigned int n) const = 0;
+
     virtual void replace_nth_argument (unsigned int n, void * value) = 0;
-    virtual void * get_return_value () const = 0;
+
+    template <typename T>
+    T get_return_value () const
+    {
+      return static_cast<T> (get_return_value_ptr ());
+    }
+    virtual void * get_return_value_ptr () const = 0;
+
     virtual InvocationContext * get_parent () = 0;
 
     template <typename T>
