@@ -241,6 +241,8 @@ listener_context_on_enter (GumInvocationListener * listener,
   self->last_seen_argument = (gsize)
       gum_invocation_context_get_nth_argument (context, 0);
   self->last_on_enter_cpu_context = *context->cpu_context;
+
+  self->last_thread_id = gum_invocation_context_get_thread_id (context);
 }
 
 static void
@@ -252,20 +254,6 @@ listener_context_on_leave (GumInvocationListener * listener,
   g_string_append_c (self->harness->result, self->leave_char);
 
   self->last_return_value = gum_invocation_context_get_return_value (context);
-}
-
-static gpointer
-listener_context_provide_thread_data (GumInvocationListener * listener,
-                                      gpointer function_instance_data,
-                                      guint thread_id)
-{
-  ListenerContext * self = (ListenerContext *) listener;
-
-  (void) function_instance_data;
-
-  self->last_thread_id = thread_id;
-
-  return NULL;
 }
 
 static void
@@ -284,7 +272,6 @@ listener_context_iface_init (gpointer g_iface,
 
   iface->on_enter = listener_context_on_enter;
   iface->on_leave = listener_context_on_leave;
-  iface->provide_thread_data = listener_context_provide_thread_data;
 }
 
 static void

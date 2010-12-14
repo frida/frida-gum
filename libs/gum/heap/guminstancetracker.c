@@ -412,8 +412,10 @@ gum_instance_tracker_on_enter (GumInvocationListener * listener,
                                GumInvocationContext * context)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
-  FunctionId function_id =
-      (FunctionId) GPOINTER_TO_INT (context->instance_data);
+  FunctionId function_id;
+
+  function_id = (FunctionId) GPOINTER_TO_INT (
+      gum_invocation_context_get_listener_function_data (context));
 
   if (function_id == FUNCTION_ID_FREE_INSTANCE)
   {
@@ -433,8 +435,10 @@ gum_instance_tracker_on_leave (GumInvocationListener * listener,
                                GumInvocationContext * context)
 {
   GumInstanceTracker * self = GUM_INSTANCE_TRACKER_CAST (listener);
-  FunctionId function_id =
-      (FunctionId) GPOINTER_TO_INT (context->instance_data);
+  FunctionId function_id;
+
+  function_id = (FunctionId) GPOINTER_TO_INT (
+      gum_invocation_context_get_listener_function_data (context));
 
   if (function_id == FUNCTION_ID_CREATE_INSTANCE)
   {

@@ -75,9 +75,6 @@
     <ClCompile Include="core\interceptor-functiondatalistener.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\interceptor-parentdatalistener.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\interceptor-callbacklistener.c">
       <Filter>Tests\core</Filter>
     </ClCompile>

@@ -119,9 +119,6 @@ static void gum_cobject_tracker_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
 static void gum_cobject_tracker_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
-static gpointer gum_cobject_tracker_provide_thread_data (
-    GumInvocationListener * listener, gpointer function_instance_data,
-    guint thread_id);
 
 static void on_constructor_enter_handler (GumCObjectTracker * self,
     ObjectType * object_type, CObjectThreadContext * thread_context,
@@ -166,7 +163,6 @@ gum_cobject_tracker_listener_iface_init (gpointer g_iface,
 
   iface->on_enter = gum_cobject_tracker_on_enter;
   iface->on_leave = gum_cobject_tracker_on_leave;
-  iface->provide_thread_data = gum_cobject_tracker_provide_thread_data;
 }
 
 static const CObjectHandlers free_cobject_handlers =
@@ -484,13 +480,15 @@ gum_cobject_tracker_on_enter (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
-  CObjectFunctionContext * function_ctx =
-      (CObjectFunctionContext *) context->instance_data;
+  CObjectFunctionContext * function_ctx;
+
+  function_ctx = (CObjectFunctionContext *)
+      gum_invocation_context_get_listener_function_data (context);
 
   if (function_ctx->handlers.enter_handler != NULL)
   {
     function_ctx->handlers.enter_handler (self, function_ctx->context,
-        (CObjectThreadContext *) context->thread_data, context);
+        (CObjectThreadContext *) NULL, context);
   }
 }
 
@@ -499,32 +497,16 @@ gum_cobject_tracker_on_leave (GumInvocationListener * listener,
                               GumInvocationContext * context)
 {
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
-  CObjectFunctionContext * function_ctx =
-      (CObjectFunctionContext *) context->instance_data;
+  CObjectFunctionContext * function_ctx;
+
+  function_ctx = (CObjectFunctionContext *)
+      gum_invocation_context_get_listener_function_data (context);
 
   if (function_ctx->handlers.leave_handler != NULL)
   {
     function_ctx->handlers.leave_handler (self, function_ctx->context,
-        (CObjectThreadContext *) context->thread_data, context);
+        (CObjectThreadContext *) NULL, context);
   }
-}
-
-static gpointer
-gum_cobject_tracker_provide_thread_data (GumInvocationListener * listener,
-                                         gpointer function_instance_data,
-                                         guint thread_id)
-{
-  CObjectFunctionContext * function_ctx =
-      (CObjectFunctionContext *) function_instance_data;
-  guint i;
-
-  (void) listener;
-  (void) thread_id;
-
-  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
-  g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
-
-  return &function_ctx->thread_contexts[i];
 }
 
 static void

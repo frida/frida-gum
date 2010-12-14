@@ -32,7 +32,12 @@ struct _GumInvocationBackend
   void (* replace_nth_argument) (GumInvocationContext * context, guint n,
       gpointer value);
   gpointer (* get_return_value) (GumInvocationContext * context);
-  GumInvocationContext * (* get_parent) (GumInvocationContext * context);
+  guint (* get_thread_id) (GumInvocationContext * context);
+  gpointer (* get_listener_thread_data) (GumInvocationContext * context,
+      gsize required_size);
+  gpointer (* get_listener_function_data) (GumInvocationContext * context);
+  gpointer (* get_listener_function_invocation_data) (
+      GumInvocationContext * context, gsize required_size);
 
   gpointer user_data;
 };
@@ -41,9 +46,6 @@ struct _GumInvocationContext
 {
   GCallback function;
   GumCpuContext * cpu_context;
-
-  gpointer instance_data;
-  gpointer thread_data;
 
   /*< private */
   GumInvocationBackend * backend;
@@ -57,8 +59,14 @@ GUM_API void gum_invocation_context_replace_nth_argument (
     GumInvocationContext * context, guint n, gpointer value);
 GUM_API gpointer gum_invocation_context_get_return_value (
     GumInvocationContext * context);
-GUM_API GumInvocationContext * gum_invocation_context_get_parent (
+GUM_API guint gum_invocation_context_get_thread_id (
     GumInvocationContext * context);
+GUM_API gpointer gum_invocation_context_get_listener_thread_data (
+    GumInvocationContext * context, gsize required_size);
+GUM_API gpointer gum_invocation_context_get_listener_function_data (
+    GumInvocationContext * context);
+GUM_API gpointer gum_invocation_context_get_listener_function_invocation_data (
+    GumInvocationContext * context, gsize required_size);
 
 G_END_DECLS
 

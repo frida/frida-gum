@@ -126,9 +126,6 @@ static void gum_allocator_probe_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
 static void gum_allocator_probe_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
-static gpointer gum_allocator_probe_provide_thread_data (
-    GumInvocationListener * listener, gpointer function_instance_data,
-    guint thread_id);
 
 static void attach_to_function (GumAllocatorProbe * self,
     gpointer function_address, const HeapHandlers * function_handlers);
@@ -224,7 +221,6 @@ gum_allocator_probe_listener_iface_init (gpointer g_iface,
 
   iface->on_enter = gum_allocator_probe_on_enter;
   iface->on_leave = gum_allocator_probe_on_leave;
-  iface->provide_thread_data = gum_allocator_probe_provide_thread_data;
 }
 
 static void
@@ -456,8 +452,8 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = self->priv;
-  FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
-  ThreadContext * base_thread_ctx = (ThreadContext *) context->thread_data;
+  FunctionContext * function_ctx = NULL;
+  ThreadContext * base_thread_ctx = NULL;
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
@@ -465,7 +461,7 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
   {
     base_thread_ctx->ignored = FALSE;
 
-    function_ctx->handlers.enter_handler (self, context->thread_data, context);
+    function_ctx->handlers.enter_handler (self, base_thread_ctx, context);
   }
 }
 
@@ -475,41 +471,22 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = self->priv;
-  FunctionContext * function_ctx = (FunctionContext *) context->instance_data;
-  ThreadContext * base_ctx = (ThreadContext *) context->thread_data;
+  FunctionContext * function_ctx = NULL;
+  ThreadContext * base_thread_ctx = NULL;
 
   if (function_ctx != NULL)
   {
-    if (!base_ctx->ignored)
+    if (!base_thread_ctx->ignored)
     {
       if (function_ctx->handlers.leave_handler != NULL)
       {
-        function_ctx->handlers.leave_handler (self, context->thread_data,
+        function_ctx->handlers.leave_handler (self, base_thread_ctx,
             context);
       }
     }
   }
 
   gum_interceptor_unignore_caller (priv->interceptor);
-}
-
-static gpointer
-gum_allocator_probe_provide_thread_data (GumInvocationListener * listener,
-                                         gpointer function_instance_data,
-                                         guint thread_id)
-{
-  FunctionContext * function_ctx = (FunctionContext *) function_instance_data;
-  guint i;
-
-  (void) listener;
-  (void) thread_id;
-
-  if (function_ctx == NULL)
-    return NULL;
-
-  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
-  g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
-  return &function_ctx->thread_contexts[i];
 }
 
 GumAllocatorProbe *

@@ -35,7 +35,7 @@ struct _FunctionThreadContext
 
   guint thread_id;
 
-  gpointer listener_data[GUM_MAX_LISTENERS_PER_FUNCTION];
+  guint8 listener_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
   guint listener_data_count;
   GumInvocationBackend invocation_backend;
 };

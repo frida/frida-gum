@@ -40,8 +40,32 @@ gum_invocation_context_get_return_value (GumInvocationContext * context)
   return context->backend->get_return_value (context);
 }
 
-GumInvocationContext *
-gum_invocation_context_get_parent (GumInvocationContext * context)
+guint
+gum_invocation_context_get_thread_id (GumInvocationContext * context)
 {
-  return context->backend->get_parent (context);
+  return context->backend->get_thread_id (context);
+}
+
+gpointer
+gum_invocation_context_get_listener_thread_data (
+    GumInvocationContext * context,
+    gsize required_size)
+{
+  return context->backend->get_listener_thread_data (context, required_size);
+}
+
+gpointer
+gum_invocation_context_get_listener_function_data (
+    GumInvocationContext * context)
+{
+  return context->backend->get_listener_function_data (context);
+}
+
+gpointer
+gum_invocation_context_get_listener_function_invocation_data (
+    GumInvocationContext * context,
+    gsize required_size)
+{
+  return context->backend->get_listener_function_invocation_data (context,
+      required_size);
 }

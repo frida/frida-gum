@@ -98,9 +98,6 @@ static void gum_profiler_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
 static void gum_profiler_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
-static gpointer gum_profiler_provide_thread_data (
-    GumInvocationListener * listener, gpointer function_instance_data,
-    guint thread_id);
 
 static void unstrument_and_free_function (gpointer key, gpointer value,
     gpointer user_data);
@@ -146,7 +143,6 @@ gum_profiler_invocation_listener_iface_init (gpointer g_iface,
 
   iface->on_enter = gum_profiler_on_enter;
   iface->on_leave = gum_profiler_on_leave;
-  iface->provide_thread_data = gum_profiler_provide_thread_data;
 }
 
 static void
@@ -188,8 +184,7 @@ static void
 gum_profiler_on_enter (GumInvocationListener * listener,
                        GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx =
-      (GumFunctionThreadContext *) context->thread_data;
+  GumFunctionThreadContext * thread_ctx = NULL;
   GumFunctionContext * function_ctx = thread_ctx->function_ctx;
   GumWorstCaseInspectorFunc inspector_func;
 
@@ -217,12 +212,12 @@ static void
 gum_profiler_on_leave (GumInvocationListener * listener,
                        GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx =
-      (GumFunctionThreadContext *) context->thread_data;
+  GumFunctionThreadContext * thread_ctx = NULL;
   GumSample duration;
   GumSample now;
 
   (void) listener;
+  (void) context;
 
   if (thread_ctx->recurse_count == 1)
   {
@@ -242,7 +237,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
           sizeof (thread_ctx->potential_info));
     }
 
-    parent_context = gum_invocation_context_get_parent (context);
+    parent_context = NULL;
     if (parent_context == NULL)
     {
       thread_ctx->is_root_node = TRUE;
@@ -250,33 +245,12 @@ gum_profiler_on_leave (GumInvocationListener * listener,
     else
     {
       thread_context_register_child_timing (
-          (GumFunctionThreadContext *) parent_context->thread_data,
+          (GumFunctionThreadContext *) NULL,
           thread_ctx);
     }
   }
 
   thread_ctx->recurse_count--;
-}
-
-static gpointer
-gum_profiler_provide_thread_data (GumInvocationListener * listener,
-                                  gpointer function_instance_data,
-                                  guint thread_id)
-{
-  GumFunctionContext * function_ctx =
-      (GumFunctionContext *) function_instance_data;
-  GumFunctionThreadContext * thread_ctx;
-  guint i;
-
-  (void) listener;
-
-  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
-  g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
-  thread_ctx = &function_ctx->thread_contexts[i];
-  thread_ctx->function_ctx = function_ctx;
-  thread_ctx->thread_id = thread_id;
-
-  return thread_ctx;
 }
 
 GumProfiler *

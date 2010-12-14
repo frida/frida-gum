@@ -67,8 +67,6 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   GumInvocationContext * ctx = &fixture->invocation_context;
   GumInvocationBackend * backend = &fixture->invocation_backend;
 
-  ctx->instance_data = NULL;
-  ctx->thread_data = NULL;
   ctx->cpu_context = &fixture->cpu_context;
   ctx->backend = backend;
 

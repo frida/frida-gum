@@ -44,8 +44,6 @@ struct _GumInvocationListenerIface
       GumInvocationContext * context);
   void (*on_leave) (GumInvocationListener * self,
       GumInvocationContext * context);
-  gpointer (*provide_thread_data) (GumInvocationListener * self,
-      gpointer function_instance_data, guint thread_id);
 };
 
 G_BEGIN_DECLS
@@ -56,9 +54,6 @@ GUM_API void gum_invocation_listener_on_enter (GumInvocationListener * self,
     GumInvocationContext * context);
 GUM_API void gum_invocation_listener_on_leave (GumInvocationListener * self,
     GumInvocationContext * context);
-GUM_API gpointer gum_invocation_listener_provide_thread_data (
-    GumInvocationListener * self, gpointer function_instance_data,
-    guint thread_id);
 
 G_END_DECLS
 

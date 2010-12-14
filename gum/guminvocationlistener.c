@@ -52,17 +52,3 @@ gum_invocation_listener_on_leave (GumInvocationListener * self,
 {
   GUM_INVOCATION_LISTENER_GET_INTERFACE (self)->on_leave (self, context);
 }
-
-gpointer
-gum_invocation_listener_provide_thread_data (GumInvocationListener * self,
-                                             gpointer function_instance_data,
-                                             guint thread_id)
-{
-  GumInvocationListenerIface * iface =
-      GUM_INVOCATION_LISTENER_GET_INTERFACE (self);
-
-  if (iface->provide_thread_data == NULL)
-    return NULL;
-
-  return iface->provide_thread_data (self, function_instance_data, thread_id);
-}

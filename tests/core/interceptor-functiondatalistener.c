@@ -19,12 +19,16 @@
  */
 
 typedef struct {
+  gpointer function_data;
+  gpointer thread_data;
+} TestFunctionInvocationData;
+
+typedef struct {
   GObject parent;
   guint on_enter_call_count;
   guint on_leave_call_count;
-  guint provide_thread_data_call_count;
-  GumInvocationContext last_on_enter_ctx;
-  GumInvocationContext last_on_leave_ctx;
+  TestFunctionInvocationData last_on_enter_data;
+  TestFunctionInvocationData last_on_leave_data;
   GSList * a_threads_seen;
   guint a_thread_index;
   GSList * b_threads_seen;
@@ -59,7 +63,10 @@ test_function_data_listener_on_enter (GumInvocationListener * listener,
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
 
   self->on_enter_call_count++;
-  self->last_on_enter_ctx = *context;
+
+  self->last_on_enter_data.function_data =
+      gum_invocation_context_get_listener_function_data (context);
+  self->last_on_enter_data.thread_data = NULL;
 }
 
 static void
@@ -69,47 +76,9 @@ test_function_data_listener_on_leave (GumInvocationListener * listener,
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
 
   self->on_leave_call_count++;
-  self->last_on_leave_ctx = *context;
-}
-
-static gpointer
-test_context_provide_thread_data (GumInvocationListener * listener,
-                                  gpointer function_instance_data,
-                                  guint thread_id)
-{
-  TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
-  GSList ** threads_seen = NULL;
-  guint * thread_index = 0;
-  GThread * cur_thread;
-  gchar * thread_data;
-
-  self->provide_thread_data_call_count++;
-
-  if (strcmp ((gchar *) function_instance_data, "a") == 0)
-  {
-    threads_seen = &self->a_threads_seen;
-    thread_index = &self->a_thread_index;
-  }
-  else if (strcmp ((gchar *) function_instance_data, "b") == 0)
-  {
-    threads_seen = &self->b_threads_seen;
-    thread_index = &self->b_thread_index;
-  }
-  else
-    g_assert_not_reached ();
-
-  cur_thread = g_thread_self ();
-  if (g_slist_find (*threads_seen, cur_thread) == NULL)
-  {
-    *threads_seen = g_slist_prepend (*threads_seen, cur_thread);
-    (*thread_index)++;
-  }
-
-  thread_data =
-      g_strdup_printf ("%s%d", (gchar *) function_instance_data, *thread_index);
-  self->provided_thread_data = g_slist_prepend (self->provided_thread_data,
-      thread_data);
-  return thread_data;
+  self->last_on_leave_data.function_data =
+      gum_invocation_context_get_listener_function_data (context);
+  self->last_on_leave_data.thread_data = NULL;
 }
 
 static void
@@ -120,7 +89,6 @@ test_function_data_listener_iface_init (gpointer g_iface,
 
   iface->on_enter = test_function_data_listener_on_enter;
   iface->on_leave = test_function_data_listener_on_leave;
-  iface->provide_thread_data = test_context_provide_thread_data;
 }
 
 static void
@@ -160,7 +128,6 @@ test_function_data_listener_reset (TestFunctionDataListener * self)
 {
   self->on_enter_call_count = 0;
   self->on_leave_call_count = 0;
-  self->provide_thread_data_call_count = 0;
-  memset (&self->last_on_enter_ctx, 0, sizeof (GumInvocationContext));
-  memset (&self->last_on_leave_ctx, 0, sizeof (GumInvocationContext));
+  memset (&self->last_on_enter_data, 0, sizeof (TestFunctionInvocationData));
+  memset (&self->last_on_leave_data, 0, sizeof (TestFunctionInvocationData));
 }
