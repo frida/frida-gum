@@ -86,9 +86,6 @@ struct _CObjectFunctionContext
 {
   CObjectHandlers handlers;
   gpointer context;
-
-  CObjectThreadContext thread_contexts[GUM_MAX_THREADS];
-  volatile gint thread_context_count;
 };
 
 #define GUM_COBJECT_TRACKER_GET_PRIVATE(o) ((o)->priv)
@@ -467,7 +464,6 @@ gum_cobject_tracker_attach_to_function (GumCObjectTracker * self,
   function_ctx = g_new (CObjectFunctionContext, 1);
   function_ctx->handlers = *handlers;
   function_ctx->context = context;
-  function_ctx->thread_context_count = 0;
   g_ptr_array_add (priv->function_contexts, function_ctx);
 
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
@@ -487,7 +483,7 @@ gum_cobject_tracker_on_enter (GumInvocationListener * listener,
   if (function_ctx->handlers.enter_handler != NULL)
   {
     function_ctx->handlers.enter_handler (self, function_ctx->context,
-        (CObjectThreadContext *) NULL, context);
+        GUM_LINCTX_GET_FUNC_INVDATA (context, CObjectThreadContext), context);
   }
 }
 
@@ -503,7 +499,7 @@ gum_cobject_tracker_on_leave (GumInvocationListener * listener,
   if (function_ctx->handlers.leave_handler != NULL)
   {
     function_ctx->handlers.leave_handler (self, function_ctx->context,
-        (CObjectThreadContext *) NULL, context);
+        GUM_LINCTX_GET_FUNC_INVDATA (context, CObjectThreadContext), context);
   }
 }
 
