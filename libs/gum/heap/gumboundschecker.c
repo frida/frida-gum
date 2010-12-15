@@ -287,8 +287,7 @@ replacement_malloc (gsize size)
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  priv = GUM_BOUNDS_CHECKER_CAST (
-      gum_invocation_context_get_listener_function_data (ctx))->priv;
+  priv = GUM_LINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *)->priv;
 
   if (priv->detaching)
     goto fallback;
@@ -312,8 +311,7 @@ replacement_calloc (gsize num,
   gpointer result;
 
   ctx = gum_interceptor_get_current_invocation ();
-  priv = GUM_BOUNDS_CHECKER_CAST (
-      gum_invocation_context_get_listener_function_data (ctx))->priv;
+  priv = GUM_LINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *)->priv;
 
   if (priv->detaching)
     goto fallback;
@@ -341,8 +339,7 @@ replacement_realloc (gpointer old_address,
   gboolean success;
 
   ctx = gum_interceptor_get_current_invocation ();
-  priv = GUM_BOUNDS_CHECKER_CAST (
-      gum_invocation_context_get_listener_function_data (ctx))->priv;
+  priv = GUM_LINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *)->priv;
 
   if (old_address == NULL)
     return malloc (new_size);
@@ -374,8 +371,7 @@ replacement_free (gpointer address)
   GumBoundsCheckerPrivate * priv;
 
   ctx = gum_interceptor_get_current_invocation ();
-  priv = GUM_BOUNDS_CHECKER_CAST (
-      gum_invocation_context_get_listener_function_data (ctx))->priv;
+  priv = GUM_LINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *)->priv;
 
   if (!gum_page_pool_try_free (priv->page_pool, address))
     free (address);

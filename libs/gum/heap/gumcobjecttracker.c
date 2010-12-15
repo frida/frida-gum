@@ -482,8 +482,7 @@ gum_cobject_tracker_on_enter (GumInvocationListener * listener,
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
   CObjectFunctionContext * function_ctx;
 
-  function_ctx = (CObjectFunctionContext *)
-      gum_invocation_context_get_listener_function_data (context);
+  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.enter_handler != NULL)
   {
@@ -499,8 +498,7 @@ gum_cobject_tracker_on_leave (GumInvocationListener * listener,
   GumCObjectTracker * self = GUM_COBJECT_TRACKER_CAST (listener);
   CObjectFunctionContext * function_ctx;
 
-  function_ctx = (CObjectFunctionContext *)
-      gum_invocation_context_get_listener_function_data (context);
+  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, CObjectFunctionContext *);
 
   if (function_ctx->handlers.leave_handler != NULL)
   {

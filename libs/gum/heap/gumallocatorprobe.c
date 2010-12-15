@@ -452,13 +452,17 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = self->priv;
-  FunctionContext * function_ctx = NULL;
-  ThreadContext * base_thread_ctx = NULL;
+  FunctionContext * function_ctx;
+
+  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
 
   gum_interceptor_ignore_caller (priv->interceptor);
 
   if (function_ctx != NULL)
   {
+    ThreadContext * base_thread_ctx;
+
+    base_thread_ctx = GUM_LINCTX_GET_FUNC_INVDATA (context, ThreadContext);
     base_thread_ctx->ignored = FALSE;
 
     function_ctx->handlers.enter_handler (self, base_thread_ctx, context);
@@ -471,11 +475,16 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE_CAST (listener);
   GumAllocatorProbePrivate * priv = self->priv;
-  FunctionContext * function_ctx = NULL;
-  ThreadContext * base_thread_ctx = NULL;
+  FunctionContext * function_ctx;
+
+  function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
 
   if (function_ctx != NULL)
   {
+    ThreadContext * base_thread_ctx;
+
+    base_thread_ctx = GUM_LINCTX_GET_FUNC_INVDATA (context, ThreadContext);
+
     if (!base_thread_ctx->ignored)
     {
       if (function_ctx->handlers.leave_handler != NULL)

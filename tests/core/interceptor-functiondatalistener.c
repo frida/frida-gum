@@ -21,16 +21,16 @@
 typedef struct {
   gboolean initialized;
   gchar name[8];
-} TestFunctionThreadState;
+} TestFuncThreadState;
 
 typedef struct {
   gchar arg[16];
-} TestFunctionInvocationState;
+} TestFuncInvState;
 
 typedef struct {
   gpointer function_data;
-  TestFunctionThreadState thread_data;
-  TestFunctionInvocationState invocation_data;
+  TestFuncThreadState thread_data;
+  TestFuncInvState invocation_data;
 } TestFunctionInvocationData;
 
 typedef struct {
@@ -68,7 +68,7 @@ G_DEFINE_TYPE_EXTENDED (TestFunctionDataListener,
 
 static void
 test_function_data_listener_init_thread_state (TestFunctionDataListener * self,
-                                               TestFunctionThreadState * state,
+                                               TestFuncThreadState * state,
                                                gpointer function_data)
 {
   GSList ** threads_seen = NULL;
@@ -109,23 +109,19 @@ test_function_data_listener_on_enter (GumInvocationListener * listener,
 {
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
   gpointer function_data;
-  TestFunctionThreadState * thread_state;
-  TestFunctionInvocationState * invocation_state;
+  TestFuncThreadState * thread_state;
+  TestFuncInvState * invocation_state;
 
-  function_data = gum_invocation_context_get_listener_function_data (context);
+  function_data = GUM_LINCTX_GET_FUNC_DATA (context, gpointer);
 
-  thread_state = (TestFunctionThreadState *)
-      gum_invocation_context_get_listener_thread_data (context,
-          sizeof (TestFunctionThreadState));
+  thread_state = GUM_LINCTX_GET_THREAD_DATA (context, TestFuncThreadState);
   if (!thread_state->initialized)
   {
     test_function_data_listener_init_thread_state (self, thread_state,
         function_data);
   }
 
-  invocation_state = (TestFunctionInvocationState *)
-      gum_invocation_context_get_listener_function_invocation_data (context,
-          sizeof (TestFunctionInvocationState));
+  invocation_state = GUM_LINCTX_GET_FUNC_INVDATA (context, TestFuncInvState);
   g_strlcpy (invocation_state->arg,
       (const gchar *) gum_invocation_context_get_nth_argument (context, 0),
       sizeof (invocation_state->arg));
@@ -142,19 +138,16 @@ test_function_data_listener_on_leave (GumInvocationListener * listener,
                                       GumInvocationContext * context)
 {
   TestFunctionDataListener * self = TEST_FUNCTION_DATA_LISTENER (listener);
-  TestFunctionThreadState * thread_state;
-  TestFunctionInvocationState * invocation_state;
+  TestFuncThreadState * thread_state;
+  TestFuncInvState * invocation_state;
 
-  thread_state = (TestFunctionThreadState *)
-      gum_invocation_context_get_listener_thread_data (context,
-          sizeof (TestFunctionThreadState));
-  invocation_state = (TestFunctionInvocationState *)
-      gum_invocation_context_get_listener_function_invocation_data (context,
-          sizeof (TestFunctionInvocationState));
+  thread_state = GUM_LINCTX_GET_THREAD_DATA (context, TestFuncThreadState);
+
+  invocation_state = GUM_LINCTX_GET_FUNC_INVDATA (context, TestFuncInvState);
 
   self->on_leave_call_count++;
   self->last_on_leave_data.function_data =
-      gum_invocation_context_get_listener_function_data (context);
+      GUM_LINCTX_GET_FUNC_DATA (context, gpointer);
   self->last_on_leave_data.thread_data = *thread_state;
   self->last_on_leave_data.invocation_data = *invocation_state;
 }
