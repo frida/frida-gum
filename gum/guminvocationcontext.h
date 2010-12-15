@@ -33,6 +33,9 @@
         gum_invocation_context_get_listener_function_invocation_data (ctx, \
             sizeof (data_type)))
 
+#define GUM_RINCTX_GET_FUNC_DATA(ctx, data_type) \
+    ((data_type) gum_invocation_context_get_replacement_function_data (ctx))
+
 typedef struct _GumInvocationBackend GumInvocationBackend;
 typedef struct _GumInvocationContext GumInvocationContext;
 
