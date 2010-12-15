@@ -45,8 +45,7 @@ static gpointer
 test_script_fixture_get_nth_argument (GumInvocationContext * context,
                                       guint n)
 {
-  TestScriptFixture * fixture = (TestScriptFixture *)
-      context->backend->user_data;
+  TestScriptFixture * fixture = (TestScriptFixture *) context->backend->data;
   return ((gpointer *) fixture->argument_list)[n];
 }
 
@@ -55,8 +54,7 @@ test_script_fixture_replace_nth_argument (GumInvocationContext * context,
                                           guint n,
                                           gpointer value)
 {
-  TestScriptFixture * fixture = (TestScriptFixture *)
-      context->backend->user_data;
+  TestScriptFixture * fixture = (TestScriptFixture *) context->backend->data;
   ((gpointer *) fixture->argument_list)[n] = value;
 }
 
@@ -72,7 +70,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
 
   backend->get_nth_argument = test_script_fixture_get_nth_argument;
   backend->replace_nth_argument = test_script_fixture_replace_nth_argument;
-  backend->user_data = fixture;
+  backend->data = fixture;
 
   memset (&fixture->cpu_context, 0, sizeof (GumCpuContext));
 }

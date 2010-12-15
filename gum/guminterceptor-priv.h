@@ -27,20 +27,6 @@
 #include "gumspinlock.h"
 
 typedef struct _FunctionContext          FunctionContext;
-typedef struct _FunctionThreadContext    FunctionThreadContext;
-
-struct _FunctionThreadContext
-{
-  FunctionContext * function_ctx;
-
-  guint thread_id;
-
-  guint8 listener_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
-  guint listener_data_count;
-  GumInvocationBackend listener_backend;
-
-  GumInvocationBackend replacement_backend;
-};
 
 struct _FunctionContext
 {
@@ -59,10 +45,6 @@ struct _FunctionContext
   GPtrArray * listener_entries;
 
   gpointer replacement_function_data;
-
-  /* state */
-  FunctionThreadContext thread_contexts[GUM_MAX_THREADS];
-  volatile gint thread_context_count;
 };
 
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);

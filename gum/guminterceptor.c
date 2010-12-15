@@ -36,11 +36,12 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 #define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (priv->mutex))
 #define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (priv->mutex))
 
-typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef struct _ListenerEntry            ListenerEntry;
+typedef struct _InterceptorThreadContext InterceptorThreadContext;
 typedef GumArray                         ThreadContextStack;
 typedef struct _ThreadContextStackEntry  ThreadContextStackEntry;
-typedef struct _ListenerInvocationData   ListenerInvocationData;
+typedef struct _ListenerDataSlot         ListenerDataSlot;
+typedef struct _ListenerInvocationState  ListenerInvocationState;
 
 struct _GumInterceptorPrivate
 {
@@ -52,12 +53,6 @@ struct _GumInterceptorPrivate
   GumCodeAllocator allocator;
 };
 
-struct _InterceptorThreadContext
-{
-  guint ignore_level;
-  ThreadContextStack * stack;
-};
-
 struct _ListenerEntry
 {
   GumInvocationListenerIface * listener_interface;
@@ -65,20 +60,36 @@ struct _ListenerEntry
   gpointer function_data;
 };
 
+struct _InterceptorThreadContext
+{
+  GumInvocationBackend listener_backend;
+  GumInvocationBackend replacement_backend;
+
+  guint ignore_level;
+
+  ThreadContextStack * stack;
+
+  GumArray * listener_data_slots;
+};
+
 struct _ThreadContextStackEntry
 {
   gpointer caller_ret_addr;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
-  guint8 listener_invocation_data[GUM_MAX_LISTENER_DATA];
-
-  FunctionThreadContext * thread_ctx;
+  guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
 };
 
-struct _ListenerInvocationData
+struct _ListenerDataSlot
+{
+  GumInvocationListener * owner;
+  guint8 data[GUM_MAX_LISTENER_DATA];
+};
+
+struct _ListenerInvocationState
 {
   ListenerEntry * entry;
-  guint8 * thread_data;
+  InterceptorThreadContext * interceptor_ctx;
   guint8 * invocation_data;
 };
 
@@ -110,12 +121,15 @@ static gboolean function_context_has_listener (FunctionContext * function_ctx,
 static ListenerEntry * function_context_find_listener_entry (
     FunctionContext * function_ctx, GumInvocationListener * listener);
 
-FunctionThreadContext * get_function_thread_context (
-    FunctionContext * function_ctx);
 static InterceptorThreadContext * get_interceptor_thread_context (void);
 static InterceptorThreadContext * interceptor_thread_context_new (void);
 static void interceptor_thread_context_destroy (
     InterceptorThreadContext * context);
+static gpointer interceptor_thread_context_get_listener_data (
+    InterceptorThreadContext * self, GumInvocationListener * listener,
+    gsize required_size);
+static void interceptor_thread_context_forget_listener_data (
+    InterceptorThreadContext * self, GumInvocationListener * listener);
 static ThreadContextStackEntry * thread_context_stack_push (
     ThreadContextStack * stack, GCallback function, gpointer caller_ret_addr,
     const GumCpuContext * cpu_context);
@@ -345,6 +359,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
   DetachContext ctx;
   GList * walk;
+  guint i;
 
   gum_interceptor_ignore_caller (self);
   GUM_INTERCEPTOR_LOCK ();
@@ -363,6 +378,20 @@ gum_interceptor_detach_listener (GumInterceptor * self,
         function_address);
     ctx.pending_removals =
         g_list_remove_all (ctx.pending_removals, function_address);
+  }
+
+  /*
+   * We don't do any locking here because this array is grow-only, so we won't
+   * do anything else than just mark the slot as available.
+   */
+  for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
+  {
+    InterceptorThreadContext * interceptor_ctx;
+
+    interceptor_ctx = (InterceptorThreadContext *) gum_array_index (
+        _gum_interceptor_thread_contexts, InterceptorThreadContext *, i);
+    interceptor_thread_context_forget_listener_data (interceptor_ctx,
+        listener);
   }
 
   GUM_INTERCEPTOR_UNLOCK ();
@@ -615,6 +644,193 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
   return NULL;
 }
 
+gboolean
+_gum_function_context_on_enter (FunctionContext * function_ctx,
+                                GumCpuContext * cpu_context,
+                                gpointer * caller_ret_addr)
+{
+  gboolean will_trap_on_leave = FALSE;
+  InterceptorThreadContext * interceptor_ctx;
+#ifdef G_OS_WIN32
+  DWORD previous_last_error;
+
+  previous_last_error = GetLastError ();
+#endif
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->eip = (guint32) *caller_ret_addr;
+# else
+  cpu_context->rip = (guint64) *caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = (guint32) *caller_ret_addr;
+#else
+# error Unsupported architecture
+#endif
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  if (interceptor_ctx->ignore_level == 0)
+  {
+    ThreadContextStackEntry * stack_entry;
+    GumInvocationContext * invocation_ctx;
+    guint i;
+
+    stack_entry = thread_context_stack_push (interceptor_ctx->stack,
+        GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
+        *caller_ret_addr,
+        NULL);
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
+    will_trap_on_leave = TRUE;
+
+    invocation_ctx = &stack_entry->invocation_context;
+    invocation_ctx->cpu_context = cpu_context;
+    invocation_ctx->backend = &interceptor_ctx->listener_backend;
+
+    for (i = 0; i != function_ctx->listener_entries->len; i++)
+    {
+      ListenerEntry * entry;
+      ListenerInvocationState state;
+
+      entry = (ListenerEntry *)
+          g_ptr_array_index (function_ctx->listener_entries, i);
+
+      state.entry = entry;
+      state.interceptor_ctx = interceptor_ctx;
+      state.invocation_data = stack_entry->listener_invocation_data[i];
+      invocation_ctx->backend->data = &state;
+
+      entry->listener_interface->on_enter (entry->listener_instance,
+          invocation_ctx);
+    }
+  }
+
+#ifdef G_OS_WIN32
+  SetLastError (previous_last_error);
+#endif
+
+  return will_trap_on_leave;
+}
+
+gpointer
+_gum_function_context_on_leave (FunctionContext * function_ctx,
+                                GumCpuContext * cpu_context)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  ThreadContextStackEntry * stack_entry;
+  gpointer caller_ret_addr;
+  GumInvocationContext * invocation_ctx;
+  guint i;
+#ifdef G_OS_WIN32
+  DWORD previous_last_error;
+
+  previous_last_error = GetLastError ();
+#endif
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+  stack_entry = thread_context_stack_peek_top (interceptor_ctx->stack);
+  caller_ret_addr = stack_entry->caller_ret_addr;
+
+  invocation_ctx = &stack_entry->invocation_context;
+  invocation_ctx->cpu_context = cpu_context;
+  invocation_ctx->backend = &interceptor_ctx->listener_backend;
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->eip = (guint32) caller_ret_addr;
+# else
+  cpu_context->rip = (guint64) caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = (guint32) caller_ret_addr;
+#else
+# error Unsupported architecture
+#endif
+
+  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  {
+    ListenerEntry * entry;
+    ListenerInvocationState state;
+
+    entry = (ListenerEntry *)
+        g_ptr_array_index (function_ctx->listener_entries, i);
+
+    state.entry = entry;
+    state.interceptor_ctx = interceptor_ctx;
+    state.invocation_data = stack_entry->listener_invocation_data[i];
+    invocation_ctx->backend->data = &state;
+
+    entry->listener_interface->on_leave (entry->listener_instance,
+        invocation_ctx);
+  }
+
+  thread_context_stack_pop (interceptor_ctx->stack);
+
+#ifdef G_OS_WIN32
+  SetLastError (previous_last_error);
+#endif
+
+  return caller_ret_addr;
+}
+
+gboolean
+_gum_function_context_try_begin_invocation (FunctionContext * function_ctx,
+                                            gpointer caller_ret_addr,
+                                            const GumCpuContext * cpu_context)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  ThreadContextStack * stack;
+  ThreadContextStackEntry * entry;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+  stack = interceptor_ctx->stack;
+
+  entry = thread_context_stack_peek_top (stack);
+  if (entry != NULL &&
+      entry->invocation_context.function == function_ctx->function_address)
+  {
+    return FALSE;
+  }
+
+  entry = thread_context_stack_push (stack,
+      GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
+      caller_ret_addr, cpu_context);
+
+  entry->invocation_context.backend = &interceptor_ctx->replacement_backend;
+  entry->invocation_context.backend->data =
+      function_ctx->replacement_function_data;
+
+  return TRUE;
+}
+
+gpointer
+_gum_function_context_end_invocation (void)
+{
+  return thread_context_stack_pop (get_interceptor_thread_context ()->stack);
+}
+
+static InterceptorThreadContext *
+get_interceptor_thread_context (void)
+{
+  InterceptorThreadContext * context;
+
+  context = (InterceptorThreadContext *)
+      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
+  if (context == NULL)
+  {
+    context = interceptor_thread_context_new ();
+
+    gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
+    gum_array_append_val (_gum_interceptor_thread_contexts, context);
+    gum_spinlock_release (&_gum_interceptor_thread_context_lock);
+
+    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tls_key, context);
+  }
+
+  return context;
+}
+
 guint
 gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
 {
@@ -628,22 +844,19 @@ gum_interceptor_invocation_get_listener_thread_data (
     GumInvocationContext * context,
     gsize required_size)
 {
-  ListenerInvocationData * data;
+  ListenerInvocationState * data =
+      (ListenerInvocationState *) context->backend->data;
 
-  data = (ListenerInvocationData *) context->backend->user_data;
-
-  if (required_size > GUM_MAX_LISTENER_DATA)
-    return NULL;
-
-  return data->thread_data;
+  return interceptor_thread_context_get_listener_data (data->interceptor_ctx,
+      data->entry->listener_instance, required_size);
 }
 
 static gpointer
 gum_interceptor_invocation_get_listener_function_data (
     GumInvocationContext * context)
 {
-  return ((ListenerInvocationData *)
-      context->backend->user_data)->entry->function_data;
+  return ((ListenerInvocationState *)
+      context->backend->data)->entry->function_data;
 }
 
 static gpointer
@@ -651,9 +864,9 @@ gum_interceptor_invocation_get_listener_function_invocation_data (
     GumInvocationContext * context,
     gsize required_size)
 {
-  ListenerInvocationData * data;
+  ListenerInvocationState * data;
 
-  data = (ListenerInvocationData *) context->backend->user_data;
+  data = (ListenerInvocationState *) context->backend->data;
 
   if (required_size > GUM_MAX_LISTENER_DATA)
     return NULL;
@@ -665,7 +878,7 @@ static gpointer
 gum_interceptor_invocation_get_replacement_function_data (
     GumInvocationContext * context)
 {
-  return context->backend->user_data;
+  return context->backend->data;
 }
 
 static const GumInvocationBackend
@@ -704,247 +917,25 @@ gum_interceptor_replacement_invocation_backend =
   NULL
 };
 
-gboolean
-_gum_function_context_on_enter (FunctionContext * function_ctx,
-                                GumCpuContext * cpu_context,
-                                gpointer * caller_ret_addr)
-{
-  gboolean will_trap_on_leave = FALSE;
-  InterceptorThreadContext * interceptor_ctx;
-#ifdef G_OS_WIN32
-  DWORD previous_last_error;
-
-  previous_last_error = GetLastError ();
-#endif
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) *caller_ret_addr;
-# else
-  cpu_context->rip = (guint64) *caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) *caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
-
-  interceptor_ctx = get_interceptor_thread_context ();
-  if (interceptor_ctx->ignore_level == 0)
-  {
-    ThreadContextStackEntry * stack_entry;
-    FunctionThreadContext * thread_ctx;
-    GumInvocationContext * invocation_ctx;
-    guint i;
-
-    stack_entry = thread_context_stack_push (interceptor_ctx->stack,
-        GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
-        *caller_ret_addr,
-        NULL);
-    *caller_ret_addr = function_ctx->on_leave_trampoline;
-    will_trap_on_leave = TRUE;
-
-    thread_ctx = get_function_thread_context (function_ctx);
-    stack_entry->thread_ctx = thread_ctx;
-
-    invocation_ctx = &stack_entry->invocation_context;
-    invocation_ctx->cpu_context = cpu_context;
-    invocation_ctx->backend = &thread_ctx->listener_backend;
-
-    for (i = 0; i != function_ctx->listener_entries->len; i++)
-    {
-      ListenerEntry * entry;
-      ListenerInvocationData listener_invocation_data;
-
-      entry = (ListenerEntry *)
-          g_ptr_array_index (function_ctx->listener_entries, i);
-
-      listener_invocation_data.entry = entry;
-      listener_invocation_data.thread_data = thread_ctx->listener_data[i];
-      listener_invocation_data.invocation_data =
-          stack_entry->listener_invocation_data;
-      thread_ctx->listener_backend.user_data = &listener_invocation_data;
-
-      entry->listener_interface->on_enter (entry->listener_instance,
-          invocation_ctx);
-    }
-
-    stack_entry->cpu_context = *cpu_context;
-    invocation_ctx->cpu_context = &stack_entry->cpu_context;
-  }
-
-#ifdef G_OS_WIN32
-  SetLastError (previous_last_error);
-#endif
-
-  return will_trap_on_leave;
-}
-
-gpointer
-_gum_function_context_on_leave (FunctionContext * function_ctx,
-                                GumCpuContext * cpu_context)
-{
-  InterceptorThreadContext * interceptor_ctx;
-  ThreadContextStackEntry * stack_entry;
-  gpointer caller_ret_addr;
-  GumInvocationContext * invocation_ctx;
-  FunctionThreadContext * thread_ctx;
-  guint i;
-#ifdef G_OS_WIN32
-  DWORD previous_last_error;
-
-  previous_last_error = GetLastError ();
-#endif
-
-  interceptor_ctx = get_interceptor_thread_context ();
-
-  stack_entry = thread_context_stack_peek_top (interceptor_ctx->stack);
-  caller_ret_addr = stack_entry->caller_ret_addr;
-
-  thread_ctx = stack_entry->thread_ctx;
-
-  invocation_ctx = &stack_entry->invocation_context;
-  invocation_ctx->cpu_context = cpu_context;
-  invocation_ctx->backend = &thread_ctx->listener_backend;
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) caller_ret_addr;
-# else
-  cpu_context->rip = (guint64) caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
-
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
-  {
-    ListenerEntry * entry;
-    ListenerInvocationData listener_invocation_data;
-
-    entry = (ListenerEntry *)
-        g_ptr_array_index (function_ctx->listener_entries, i);
-
-    listener_invocation_data.entry = entry;
-    listener_invocation_data.thread_data = thread_ctx->listener_data[i];
-    listener_invocation_data.invocation_data =
-        stack_entry->listener_invocation_data;
-    thread_ctx->listener_backend.user_data = &listener_invocation_data;
-
-    entry->listener_interface->on_leave (entry->listener_instance,
-        invocation_ctx);
-  }
-
-  thread_context_stack_pop (interceptor_ctx->stack);
-
-#ifdef G_OS_WIN32
-  SetLastError (previous_last_error);
-#endif
-
-  return caller_ret_addr;
-}
-
-gboolean
-_gum_function_context_try_begin_invocation (FunctionContext * function_ctx,
-                                            gpointer caller_ret_addr,
-                                            const GumCpuContext * cpu_context)
-{
-  ThreadContextStack * stack;
-  ThreadContextStackEntry * entry;
-
-  stack = get_interceptor_thread_context ()->stack;
-  entry = thread_context_stack_peek_top (stack);
-  if (entry != NULL &&
-      entry->invocation_context.function == function_ctx->function_address)
-  {
-    return FALSE;
-  }
-
-  entry = thread_context_stack_push (stack,
-      GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
-      caller_ret_addr, cpu_context);
-
-  entry->thread_ctx = get_function_thread_context (function_ctx);
-
-  entry->invocation_context.backend =
-      &entry->thread_ctx->replacement_backend;
-  entry->invocation_context.backend->user_data =
-      function_ctx->replacement_function_data;
-
-  return TRUE;
-}
-
-gpointer
-_gum_function_context_end_invocation (void)
-{
-  return thread_context_stack_pop (get_interceptor_thread_context ()->stack);
-}
-
-FunctionThreadContext *
-get_function_thread_context (FunctionContext * function_ctx)
-{
-  guint32 thread_id;
-  guint thread_count;
-  guint i;
-  FunctionThreadContext * thread_ctx;
-
-  thread_id = get_current_thread_id ();
-
-  thread_count = g_atomic_int_get (&function_ctx->thread_context_count);
-  for (i = 0; i != thread_count; i++)
-  {
-    thread_ctx = &function_ctx->thread_contexts[i];
-    if (thread_ctx->thread_id == thread_id)
-      return thread_ctx;
-  }
-
-  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
-  g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
-  thread_ctx = &function_ctx->thread_contexts[i];
-  thread_ctx->function_ctx = function_ctx;
-
-  thread_ctx->thread_id = thread_id;
-
-  thread_ctx->listener_backend =
-      gum_interceptor_listener_invocation_backend;
-  thread_ctx->replacement_backend =
-      gum_interceptor_replacement_invocation_backend;
-
-  return thread_ctx;
-}
-
-static InterceptorThreadContext *
-get_interceptor_thread_context (void)
-{
-  InterceptorThreadContext * context;
-
-  context = (InterceptorThreadContext *)
-      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
-  if (context == NULL)
-  {
-    context = interceptor_thread_context_new ();
-
-    gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
-    gum_array_append_val (_gum_interceptor_thread_contexts, context);
-    gum_spinlock_release (&_gum_interceptor_thread_context_lock);
-
-    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tls_key, context);
-  }
-
-  return context;
-}
-
 static InterceptorThreadContext *
 interceptor_thread_context_new (void)
 {
   InterceptorThreadContext * context;
 
   context = gum_new0 (InterceptorThreadContext, 1);
+
+  context->listener_backend =
+      gum_interceptor_listener_invocation_backend;
+  context->replacement_backend =
+      gum_interceptor_replacement_invocation_backend;
+
   context->ignore_level = 0;
+
   context->stack = gum_array_sized_new (FALSE, TRUE,
       sizeof (ThreadContextStackEntry), GUM_MAX_CALL_DEPTH);
+
+  context->listener_data_slots = gum_array_sized_new (FALSE, TRUE,
+      sizeof (ListenerDataSlot), GUM_MAX_LISTENERS_PER_FUNCTION);
 
   return context;
 }
@@ -952,8 +943,66 @@ interceptor_thread_context_new (void)
 static void
 interceptor_thread_context_destroy (InterceptorThreadContext * context)
 {
+  gum_array_free (context->listener_data_slots, TRUE);
+
   gum_array_free (context->stack, TRUE);
+
   gum_free (context);
+}
+
+static gpointer
+interceptor_thread_context_get_listener_data (InterceptorThreadContext * self,
+                                              GumInvocationListener * listener,
+                                              gsize required_size)
+{
+  guint i;
+  ListenerDataSlot * available_slot = NULL;
+
+  if (required_size > GUM_MAX_LISTENER_DATA)
+    return NULL;
+
+  for (i = 0; i != self->listener_data_slots->len; i++)
+  {
+    ListenerDataSlot * slot;
+
+    slot = &gum_array_index (self->listener_data_slots, ListenerDataSlot, i);
+    if (slot->owner == listener)
+      return slot->data;
+    else if (slot->owner == NULL)
+      available_slot = slot;
+  }
+
+  if (available_slot == NULL)
+  {
+    gum_array_set_size (self->listener_data_slots,
+        self->listener_data_slots->len + 1);
+    available_slot = &gum_array_index (self->listener_data_slots,
+        ListenerDataSlot, self->listener_data_slots->len - 1);
+  }
+
+  available_slot->owner = listener;
+
+  return available_slot->data;
+}
+
+static void
+interceptor_thread_context_forget_listener_data (
+    InterceptorThreadContext * self,
+    GumInvocationListener * listener)
+{
+  guint i;
+
+  for (i = 0; i != self->listener_data_slots->len; i++)
+  {
+    ListenerDataSlot * slot;
+
+    slot = &gum_array_index (self->listener_data_slots, ListenerDataSlot, i);
+    if (slot->owner == listener)
+    {
+      slot->owner = NULL;
+      return;
+    }
+  }
 }
 
 static ThreadContextStackEntry *

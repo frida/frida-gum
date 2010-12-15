@@ -23,14 +23,14 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
-#define GUM_LINCTX_GET_THREAD_DATA(ctx, data_type) \
-    ((data_type *) gum_invocation_context_get_listener_thread_data (ctx, \
+#define GUM_LINCTX_GET_THREAD_DATA(context, data_type) \
+    ((data_type *) gum_invocation_context_get_listener_thread_data (context, \
         sizeof (data_type)))
-#define GUM_LINCTX_GET_FUNC_DATA(ctx, data_type) \
-    ((data_type) gum_invocation_context_get_listener_function_data (ctx))
-#define GUM_LINCTX_GET_FUNC_INVDATA(ctx, data_type) \
+#define GUM_LINCTX_GET_FUNC_DATA(context, data_type) \
+    ((data_type) gum_invocation_context_get_listener_function_data (context))
+#define GUM_LINCTX_GET_FUNC_INVDATA(context, data_type) \
     ((data_type *) \
-        gum_invocation_context_get_listener_function_invocation_data (ctx, \
+        gum_invocation_context_get_listener_function_invocation_data (context,\
             sizeof (data_type)))
 
 #define GUM_RINCTX_GET_FUNC_DATA(ctx, data_type) \
@@ -56,7 +56,7 @@ struct _GumInvocationBackend
 
   gpointer (* get_replacement_function_data) (GumInvocationContext * context);
 
-  gpointer user_data;
+  gpointer data;
 };
 
 struct _GumInvocationContext

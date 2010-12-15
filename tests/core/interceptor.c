@@ -303,6 +303,7 @@ INTERCEPTOR_TESTCASE (function_data)
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 0);
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 0);
 
   target_nop_function_a ("badger");
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
@@ -335,11 +336,11 @@ INTERCEPTOR_TESTCASE (function_data)
   target_nop_function_b ("mushroom");
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
-  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 0);
   g_assert (fd_listener->last_on_enter_data.function_data == b_data);
   g_assert (fd_listener->last_on_leave_data.function_data == b_data);
-  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "b1");
-  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "b1");
+  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
   g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
       ==, "mushroom");
   g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
