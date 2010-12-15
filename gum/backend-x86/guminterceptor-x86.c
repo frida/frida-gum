@@ -169,8 +169,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
 void
 _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
-                                               gpointer replacement_address,
-                                               gpointer user_data)
+                                               gpointer replacement_function)
 {
   gconstpointer skip_label = "gum_interceptor_replacement_skip";
   GumX86Writer cw;
@@ -210,11 +209,10 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
       GUM_REG_XSP, sizeof (GumCpuContext));
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XDI, GUM_REG_XSP);
   gum_x86_writer_put_call_with_arguments (&cw,
-      GUM_FUNCPTR_TO_POINTER (_gum_function_context_try_begin_invocation), 4,
-      GUM_ARG_POINTER, ctx->function_address,
+      GUM_FUNCPTR_TO_POINTER (_gum_function_context_try_begin_invocation), 3,
+      GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI,
-      GUM_ARG_REGISTER, GUM_REG_XDI,
-      GUM_ARG_POINTER, user_data);
+      GUM_ARG_REGISTER, GUM_REG_XDI);
   gum_x86_writer_put_test_reg_reg (&cw, GUM_REG_EAX, GUM_REG_EAX);
   gum_x86_writer_put_jz_label (&cw, skip_label, GUM_NO_HINT);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
@@ -223,7 +221,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
       GUM_ADDRESS (ctx->on_leave_trampoline));
   gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XSP, GUM_REG_XAX);
-  gum_x86_writer_put_jmp (&cw, replacement_address);
+  gum_x86_writer_put_jmp (&cw, replacement_function);
 
   gum_x86_writer_put_label (&cw, skip_label);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);

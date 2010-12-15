@@ -291,69 +291,74 @@ INTERCEPTOR_TESTCASE (function_data)
 {
   TestFunctionDataListener * fd_listener;
   GumInvocationListener * listener;
+  gpointer a_data = "a", b_data = "b";
 
   fd_listener = (TestFunctionDataListener *)
       g_object_new (TEST_TYPE_FUNCTION_DATA_LISTENER, NULL);
   listener = GUM_INVOCATION_LISTENER (fd_listener);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      target_nop_function_a, listener, "a"), ==, GUM_ATTACH_OK);
+      target_nop_function_a, listener, a_data), ==, GUM_ATTACH_OK);
   g_assert_cmpint (gum_interceptor_attach_listener (fixture->interceptor,
-      target_nop_function_b, listener, "b"), ==, GUM_ATTACH_OK);
+      target_nop_function_b, listener, b_data), ==, GUM_ATTACH_OK);
 
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 0);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 0);
 
-  target_nop_function_a (NULL);
+  target_nop_function_a ("badger");
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.thread_data,
-    ==, "a1");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.thread_data,
-    ==, "a1");
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
+  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
+  g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
+      ==, "badger");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
+      ==, "badger");
 
-  target_nop_function_a (NULL);
+  target_nop_function_a ("snake");
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 2);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 2);
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.thread_data,
-    ==, "a1");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.thread_data,
-    ==, "a1");
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
+  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a1");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a1");
+  g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
+      ==, "snake");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
+      ==, "snake");
 
   test_function_data_listener_reset (fd_listener);
 
-  target_nop_function_b (NULL);
+  target_nop_function_b ("mushroom");
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.function_data,
-    ==, "b");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.function_data,
-    ==, "b");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.thread_data,
-    ==, "b1");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.thread_data,
-    ==, "b1");
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
+  g_assert (fd_listener->last_on_enter_data.function_data == b_data);
+  g_assert (fd_listener->last_on_leave_data.function_data == b_data);
+  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "b1");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "b1");
+  g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
+      ==, "mushroom");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
+      ==, "mushroom");
 
   test_function_data_listener_reset (fd_listener);
 
-  g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
+  g_thread_join (g_thread_create (target_nop_function_a, "bdgr", TRUE, NULL));
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.function_data,
-    ==, "a");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_enter_data.thread_data,
-    ==, "a2");
-  g_assert_cmpstr ((gchar *) fd_listener->last_on_leave_data.thread_data,
-    ==, "a2");
+  g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);
+  g_assert (fd_listener->last_on_enter_data.function_data == a_data);
+  g_assert (fd_listener->last_on_leave_data.function_data == a_data);
+  g_assert_cmpstr (fd_listener->last_on_enter_data.thread_data.name, ==, "a2");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.thread_data.name, ==, "a2");
+  g_assert_cmpstr (fd_listener->last_on_enter_data.invocation_data.arg,
+      ==, "bdgr");
+  g_assert_cmpstr (fd_listener->last_on_leave_data.invocation_data.arg,
+      ==, "bdgr");
 
   gum_interceptor_detach_listener (fixture->interceptor, listener);
   g_object_unref (fd_listener);
@@ -545,7 +550,8 @@ replacement_malloc (gsize size)
   g_assert (ctx != NULL);
 
   malloc_impl = (MallocFunc) ctx->function;
-  counter = (guint *) gum_invocation_context_get_listener_function_data (ctx);
+  counter = (guint *)
+      gum_invocation_context_get_replacement_function_data (ctx);
 
   (*counter)++;
 
@@ -572,7 +578,8 @@ replacement_malloc_calling_malloc_and_replaced_free (gsize size)
   ctx = gum_interceptor_get_current_invocation ();
   g_assert (ctx != NULL);
 
-  counter = (guint *) gum_invocation_context_get_listener_function_data (ctx);
+  counter = (guint *)
+      gum_invocation_context_get_replacement_function_data (ctx);
   (*counter)++;
 
   result = malloc (1);
@@ -590,7 +597,8 @@ replacement_free_doing_nothing (gpointer mem)
   ctx = gum_interceptor_get_current_invocation ();
   g_assert (ctx != NULL);
 
-  counter = (guint *) gum_invocation_context_get_listener_function_data (ctx);
+  counter = (guint *)
+      gum_invocation_context_get_replacement_function_data (ctx);
   (*counter)++;
 }
 

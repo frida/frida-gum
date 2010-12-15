@@ -70,13 +70,13 @@ GUM_API GumInterceptor * gum_interceptor_obtain (void);
 
 GUM_API GumAttachReturn gum_interceptor_attach_listener (GumInterceptor * self,
     gpointer function_address, GumInvocationListener * listener,
-    gpointer function_instance_data);
+    gpointer function_data);
 GUM_API void gum_interceptor_detach_listener (GumInterceptor * self,
     GumInvocationListener * listener);
 
 GUM_API void gum_interceptor_replace_function (GumInterceptor * self,
-    gpointer function_address, gpointer replacement_address,
-    gpointer user_data);
+    gpointer function_address, gpointer replacement_function,
+    gpointer replacement_function_data);
 GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
     gpointer function_address);
 

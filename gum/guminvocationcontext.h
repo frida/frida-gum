@@ -32,12 +32,16 @@ struct _GumInvocationBackend
   void (* replace_nth_argument) (GumInvocationContext * context, guint n,
       gpointer value);
   gpointer (* get_return_value) (GumInvocationContext * context);
+
   guint (* get_thread_id) (GumInvocationContext * context);
+
   gpointer (* get_listener_thread_data) (GumInvocationContext * context,
       gsize required_size);
   gpointer (* get_listener_function_data) (GumInvocationContext * context);
   gpointer (* get_listener_function_invocation_data) (
       GumInvocationContext * context, gsize required_size);
+
+  gpointer (* get_replacement_function_data) (GumInvocationContext * context);
 
   gpointer user_data;
 };
@@ -59,14 +63,19 @@ GUM_API void gum_invocation_context_replace_nth_argument (
     GumInvocationContext * context, guint n, gpointer value);
 GUM_API gpointer gum_invocation_context_get_return_value (
     GumInvocationContext * context);
+
 GUM_API guint gum_invocation_context_get_thread_id (
     GumInvocationContext * context);
+
 GUM_API gpointer gum_invocation_context_get_listener_thread_data (
     GumInvocationContext * context, gsize required_size);
 GUM_API gpointer gum_invocation_context_get_listener_function_data (
     GumInvocationContext * context);
 GUM_API gpointer gum_invocation_context_get_listener_function_invocation_data (
     GumInvocationContext * context, gsize required_size);
+
+GUM_API gpointer gum_invocation_context_get_replacement_function_data (
+    GumInvocationContext * context);
 
 G_END_DECLS
 

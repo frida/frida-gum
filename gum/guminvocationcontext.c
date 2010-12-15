@@ -69,3 +69,10 @@ gum_invocation_context_get_listener_function_invocation_data (
   return context->backend->get_listener_function_invocation_data (context,
       required_size);
 }
+
+gpointer
+gum_invocation_context_get_replacement_function_data (
+    GumInvocationContext * context)
+{
+  return context->backend->get_replacement_function_data (context);
+}

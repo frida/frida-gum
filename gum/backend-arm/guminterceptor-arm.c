@@ -206,8 +206,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
 void
 _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
-                                               gpointer replacement_address,
-                                               gpointer user_data)
+                                               gpointer replacement_function)
 {
   g_assert_not_reached ();
 }

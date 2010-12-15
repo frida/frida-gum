@@ -37,7 +37,9 @@ struct _FunctionThreadContext
 
   guint8 listener_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
   guint listener_data_count;
-  GumInvocationBackend invocation_backend;
+  GumInvocationBackend listener_backend;
+
+  GumInvocationBackend replacement_backend;
 };
 
 struct _FunctionContext
@@ -56,6 +58,8 @@ struct _FunctionContext
 
   GPtrArray * listener_entries;
 
+  gpointer replacement_function_data;
+
   /* state */
   FunctionThreadContext thread_contexts[GUM_MAX_THREADS];
   volatile gint thread_context_count;
@@ -68,14 +72,14 @@ gboolean _gum_function_context_on_enter (FunctionContext * function_ctx,
 gpointer _gum_function_context_on_leave (FunctionContext * function_ctx,
     GumCpuContext * cpu_context);
 
-gboolean _gum_function_context_try_begin_invocation (GCallback function,
-    gpointer caller_ret_addr, const GumCpuContext * cpu_context,
-    gpointer user_data);
+gboolean _gum_function_context_try_begin_invocation (
+    FunctionContext * function_ctx, gpointer caller_ret_addr,
+    const GumCpuContext * cpu_context);
 gpointer _gum_function_context_end_invocation (void);
 
 void _gum_function_context_make_monitor_trampoline (FunctionContext * ctx);
 void _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
-    gpointer replacement_address, gpointer user_data);
+    gpointer replacement_function);
 void _gum_function_context_destroy_trampoline (FunctionContext * ctx);
 void _gum_function_context_activate_trampoline (FunctionContext * ctx);
 void _gum_function_context_deactivate_trampoline (FunctionContext * ctx);

@@ -70,14 +70,16 @@ struct _ThreadContextStackEntry
   gpointer caller_ret_addr;
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
+  guint8 listener_invocation_data[GUM_MAX_LISTENER_DATA];
 
   FunctionThreadContext * thread_ctx;
 };
 
 struct _ListenerInvocationData
 {
-  ThreadContextStack * stack;
   ListenerEntry * entry;
+  guint8 * thread_data;
+  guint8 * invocation_data;
 };
 
 #define GUM_INTERCEPTOR_GET_PRIVATE(o) ((o)->priv)
@@ -370,8 +372,8 @@ gum_interceptor_detach_listener (GumInterceptor * self,
 void
 gum_interceptor_replace_function (GumInterceptor * self,
                                   gpointer function_address,
-                                  gpointer replacement_address,
-                                  gpointer user_data)
+                                  gpointer replacement_function,
+                                  gpointer replacement_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
 
@@ -380,7 +382,8 @@ gum_interceptor_replace_function (GumInterceptor * self,
   function_address = maybe_follow_redirect_at (self, function_address);
 
   make_function_prologue_at_least_read_write (function_address);
-  replace_function_at (self, function_address, replacement_address, user_data);
+  replace_function_at (self, function_address, replacement_function,
+      replacement_function_data);
   make_function_prologue_read_execute (function_address);
 
   GUM_INTERCEPTOR_UNLOCK ();
@@ -462,16 +465,17 @@ intercept_function_at (GumInterceptor * self,
 static void
 replace_function_at (GumInterceptor * self,
                      gpointer function_address,
-                     gpointer replacement_address,
-                     gpointer user_data)
+                     gpointer replacement_function,
+                     gpointer replacement_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
   FunctionContext * ctx;
 
   ctx = function_context_new (function_address, &priv->allocator);
 
-  _gum_function_context_make_replace_trampoline (ctx, replacement_address,
-      user_data);
+  ctx->replacement_function_data = replacement_function_data;
+
+  _gum_function_context_make_replace_trampoline (ctx, replacement_function);
   _gum_function_context_activate_trampoline (ctx);
 
   gum_hash_table_insert (priv->replaced_function_by_address, function_address,
@@ -624,8 +628,14 @@ gum_interceptor_invocation_get_listener_thread_data (
     GumInvocationContext * context,
     gsize required_size)
 {
-  g_assert_not_reached ();
-  return NULL;
+  ListenerInvocationData * data;
+
+  data = (ListenerInvocationData *) context->backend->user_data;
+
+  if (required_size > GUM_MAX_LISTENER_DATA)
+    return NULL;
+
+  return data->thread_data;
 }
 
 static gpointer
@@ -641,19 +651,55 @@ gum_interceptor_invocation_get_listener_function_invocation_data (
     GumInvocationContext * context,
     gsize required_size)
 {
-  g_assert_not_reached ();
-  return NULL;
+  ListenerInvocationData * data;
+
+  data = (ListenerInvocationData *) context->backend->user_data;
+
+  if (required_size > GUM_MAX_LISTENER_DATA)
+    return NULL;
+
+  return data->invocation_data;
 }
 
-static GumInvocationBackend gum_interceptor_invocation_backend =
+static gpointer
+gum_interceptor_invocation_get_replacement_function_data (
+    GumInvocationContext * context)
+{
+  return context->backend->user_data;
+}
+
+static const GumInvocationBackend
+gum_interceptor_listener_invocation_backend =
 {
   _gum_interceptor_invocation_get_nth_argument,
   _gum_interceptor_invocation_replace_nth_argument,
   _gum_interceptor_invocation_get_return_value,
+
   gum_interceptor_invocation_get_thread_id,
+
   gum_interceptor_invocation_get_listener_thread_data,
   gum_interceptor_invocation_get_listener_function_data,
   gum_interceptor_invocation_get_listener_function_invocation_data,
+
+  NULL,
+
+  NULL
+};
+
+static const GumInvocationBackend
+gum_interceptor_replacement_invocation_backend =
+{
+  _gum_interceptor_invocation_get_nth_argument,
+  _gum_interceptor_invocation_replace_nth_argument,
+  _gum_interceptor_invocation_get_return_value,
+
+  gum_interceptor_invocation_get_thread_id,
+
+  NULL,
+  NULL,
+  NULL,
+
+  gum_interceptor_invocation_get_replacement_function_data,
 
   NULL
 };
@@ -703,7 +749,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
     invocation_ctx = &stack_entry->invocation_context;
     invocation_ctx->cpu_context = cpu_context;
-    invocation_ctx->backend = &thread_ctx->invocation_backend;
+    invocation_ctx->backend = &thread_ctx->listener_backend;
 
     for (i = 0; i != function_ctx->listener_entries->len; i++)
     {
@@ -713,9 +759,11 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       entry = (ListenerEntry *)
           g_ptr_array_index (function_ctx->listener_entries, i);
 
-      listener_invocation_data.stack = interceptor_ctx->stack;
       listener_invocation_data.entry = entry;
-      thread_ctx->invocation_backend.user_data = &listener_invocation_data;
+      listener_invocation_data.thread_data = thread_ctx->listener_data[i];
+      listener_invocation_data.invocation_data =
+          stack_entry->listener_invocation_data;
+      thread_ctx->listener_backend.user_data = &listener_invocation_data;
 
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
@@ -757,7 +805,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
-  invocation_ctx->backend = &thread_ctx->invocation_backend;
+  invocation_ctx->backend = &thread_ctx->listener_backend;
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
@@ -779,9 +827,11 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     entry = (ListenerEntry *)
         g_ptr_array_index (function_ctx->listener_entries, i);
 
-    listener_invocation_data.stack = interceptor_ctx->stack;
     listener_invocation_data.entry = entry;
-    thread_ctx->invocation_backend.user_data = &listener_invocation_data;
+    listener_invocation_data.thread_data = thread_ctx->listener_data[i];
+    listener_invocation_data.invocation_data =
+        stack_entry->listener_invocation_data;
+    thread_ctx->listener_backend.user_data = &listener_invocation_data;
 
     entry->listener_interface->on_leave (entry->listener_instance,
         invocation_ctx);
@@ -797,23 +847,31 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 }
 
 gboolean
-_gum_function_context_try_begin_invocation (GCallback function,
+_gum_function_context_try_begin_invocation (FunctionContext * function_ctx,
                                             gpointer caller_ret_addr,
-                                            const GumCpuContext * cpu_context,
-                                            gpointer user_data)
+                                            const GumCpuContext * cpu_context)
 {
   ThreadContextStack * stack;
   ThreadContextStackEntry * entry;
 
   stack = get_interceptor_thread_context ()->stack;
   entry = thread_context_stack_peek_top (stack);
-  if (entry != NULL && entry->invocation_context.function == function)
+  if (entry != NULL &&
+      entry->invocation_context.function == function_ctx->function_address)
+  {
     return FALSE;
+  }
 
-  entry = thread_context_stack_push (stack, function, caller_ret_addr,
-      cpu_context);
+  entry = thread_context_stack_push (stack,
+      GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
+      caller_ret_addr, cpu_context);
 
-  (void) user_data;
+  entry->thread_ctx = get_function_thread_context (function_ctx);
+
+  entry->invocation_context.backend =
+      &entry->thread_ctx->replacement_backend;
+  entry->invocation_context.backend->user_data =
+      function_ctx->replacement_function_data;
 
   return TRUE;
 }
@@ -828,12 +886,13 @@ FunctionThreadContext *
 get_function_thread_context (FunctionContext * function_ctx)
 {
   guint32 thread_id;
-  guint thread_count = function_ctx->thread_context_count;
+  guint thread_count;
   guint i;
   FunctionThreadContext * thread_ctx;
 
   thread_id = get_current_thread_id ();
 
+  thread_count = g_atomic_int_get (&function_ctx->thread_context_count);
   for (i = 0; i != thread_count; i++)
   {
     thread_ctx = &function_ctx->thread_contexts[i];
@@ -848,7 +907,10 @@ get_function_thread_context (FunctionContext * function_ctx)
 
   thread_ctx->thread_id = thread_id;
 
-  thread_ctx->invocation_backend = gum_interceptor_invocation_backend;
+  thread_ctx->listener_backend =
+      gum_interceptor_listener_invocation_backend;
+  thread_ctx->replacement_backend =
+      gum_interceptor_replacement_invocation_backend;
 
   return thread_ctx;
 }
@@ -912,7 +974,7 @@ thread_context_stack_push (ThreadContextStack * stack,
   ctx = &entry->invocation_context;
   ctx->function = function;
 
-  ctx->backend = &gum_interceptor_invocation_backend;
+  ctx->backend = NULL;
 
   if (cpu_context != NULL)
   {
@@ -1033,4 +1095,3 @@ gum_function_context_wait_for_idle_trampoline (FunctionContext * ctx)
     g_thread_yield ();
   g_thread_yield ();
 }
-
