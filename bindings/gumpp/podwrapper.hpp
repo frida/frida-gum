@@ -1,3 +1,6 @@
+#ifndef __GUMPP_POD_WRAPPER_HPP__
+#define __GUMPP_POD_WRAPPER_HPP__
+
 #include <glib.h>
 
 namespace Gum
@@ -38,3 +41,5 @@ namespace Gum
     T * handle;
   };
 }
+
+#endif

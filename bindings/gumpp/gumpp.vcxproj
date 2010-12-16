@@ -141,6 +141,7 @@
   <ItemGroup>
     <ClInclude Include="gumpp.hpp" />
     <ClInclude Include="invocationcontext.hpp" />
+    <ClInclude Include="invocationlistener.hpp" />
     <ClInclude Include="objectwrapper.hpp" />
     <ClInclude Include="podwrapper.hpp" />
     <ClInclude Include="string.hpp" />

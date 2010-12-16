@@ -1,3 +1,6 @@
+#ifndef __GUMPP_INVOCATION_CONTEXT_HPP__
+#define __GUMPP_INVOCATION_CONTEXT_HPP__
+
 #include "gumpp.hpp"
 
 #include <gum/gum.h>
@@ -68,3 +71,5 @@ namespace Gum
     InvocationContextImpl * parent;
   };
 }
+
+#endif

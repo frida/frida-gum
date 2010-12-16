@@ -1,3 +1,6 @@
+#ifndef __GUMPP_STRING_HPP__
+#define __GUMPP_STRING_HPP__
+
 #include "gumpp.hpp"
 
 #include "podwrapper.hpp"
@@ -28,3 +31,5 @@ namespace Gum
     }
   };
 }
+
+#endif

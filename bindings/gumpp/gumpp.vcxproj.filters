@@ -53,5 +53,8 @@
     <ClInclude Include="string.hpp">
       <Filter>Header Files\Private</Filter>
     </ClInclude>
+    <ClInclude Include="invocationlistener.hpp">
+      <Filter>Header Files\Private</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

@@ -102,19 +102,11 @@ namespace Gum
     virtual void * get_replacement_function_data_ptr () const = 0;
   };
 
-  struct InvocationListener : public Object
+  struct InvocationListener
   {
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
   };
-
-  struct InvocationListenerCallbacks
-  {
-    virtual void on_enter (InvocationContext * context) = 0;
-    virtual void on_leave (InvocationContext * context) = 0;
-  };
-
-  GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks);
 
   struct SanityChecker : public Object
   {

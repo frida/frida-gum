@@ -1,4 +1,4 @@
-#include "gumpp.hpp"
+#include "invocationlistener.hpp"
 
 #include "invocationcontext.hpp"
 
@@ -6,13 +6,14 @@
 
 namespace Gum
 {
-  typedef struct _GumInvocationListenerProxy GumInvocationListenerProxy;
+  class InvocationListenerProxy;
+
   typedef struct _GumInvocationListenerProxyClass GumInvocationListenerProxyClass;
 
   struct _GumInvocationListenerProxy
   {
     GObject parent;
-    InvocationListener * proxy;
+    InvocationListenerProxy * proxy;
   };
 
   struct _GumInvocationListenerProxyClass
@@ -23,47 +24,37 @@ namespace Gum
   static GType gum_invocation_listener_proxy_get_type ();
   static void gum_invocation_listener_proxy_iface_init (gpointer g_iface, gpointer iface_data);
 
-  class InvocationListenerProxy : public InvocationListener
+  InvocationListenerProxy::InvocationListenerProxy (InvocationListener * listener)
+    : cproxy (static_cast<GumInvocationListenerProxy *> (g_object_new (gum_invocation_listener_proxy_get_type (), NULL))),
+      listener (listener)
   {
-  public:
-    InvocationListenerProxy (InvocationListenerCallbacks * callbacks)
-      : cproxy (static_cast<GumInvocationListenerProxy *> (g_object_new (gum_invocation_listener_proxy_get_type (), NULL))),
-        callbacks (callbacks)
-    {
-      cproxy->proxy = this;
-    }
+    cproxy->proxy = this;
+  }
 
-    virtual void ref ()
-    {
-      g_object_ref (cproxy);
-    }
+  void InvocationListenerProxy::ref ()
+  {
+    g_object_ref (cproxy);
+  }
 
-    virtual void unref ()
-    {
-      g_object_unref (cproxy);
-    }
+  void InvocationListenerProxy::unref ()
+  {
+    g_object_unref (cproxy);
+  }
 
-    virtual void * get_handle () const
-    {
-      return cproxy;
-    }
+  void * InvocationListenerProxy::get_handle () const
+  {
+    return cproxy;
+  }
 
-    virtual void on_enter (InvocationContext * context)
-    {
-      callbacks->on_enter (context);
-    }
+  void InvocationListenerProxy::on_enter (InvocationContext * context)
+  {
+    listener->on_enter (context);
+  }
 
-    virtual void on_leave (InvocationContext * context)
-    {
-      callbacks->on_leave (context);
-    }
-
-  protected:
-    GumInvocationListenerProxy * cproxy;
-    InvocationListenerCallbacks * callbacks;
-  };
-
-  extern "C" GUMPP_CAPI InvocationListener * InvocationListenerProxy_new (InvocationListenerCallbacks * callbacks) { gum_init (); return new InvocationListenerProxy (callbacks); }
+  void InvocationListenerProxy::on_leave (InvocationContext * context)
+  {
+    listener->on_leave (context);
+  }
 
   G_DEFINE_TYPE_EXTENDED (GumInvocationListenerProxy,
                           gum_invocation_listener_proxy,
