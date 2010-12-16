@@ -262,9 +262,12 @@ gum_interceptor_obtain (void)
   }
   else
   {
-    interceptor = _the_interceptor = g_object_new (GUM_TYPE_INTERCEPTOR, NULL);
+    _the_interceptor =
+        GUM_INTERCEPTOR_CAST (g_object_new (GUM_TYPE_INTERCEPTOR, NULL));
     g_object_weak_ref (G_OBJECT (_the_interceptor),
         the_interceptor_weak_notify, NULL);
+
+    interceptor = _the_interceptor;
   }
 
   g_static_mutex_unlock (&_gum_interceptor_mutex);
@@ -290,7 +293,7 @@ GumAttachReturn
 gum_interceptor_attach_listener (GumInterceptor * self,
                                  gpointer function_address,
                                  GumInvocationListener * listener,
-                                 gpointer function_data)
+                                 gpointer listener_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
   GumAttachReturn result = GUM_ATTACH_OK;
@@ -337,7 +340,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   }
 
   function_context_add_listener (function_ctx, listener,
-      function_data);
+      listener_function_data);
 
 beach:
   GUM_INTERCEPTOR_UNLOCK ();

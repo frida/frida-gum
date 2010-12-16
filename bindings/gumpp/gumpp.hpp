@@ -41,10 +41,10 @@ namespace Gum
 
   struct Interceptor : public Object
   {
-    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data = 0) = 0;
+    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * listener_function_data = 0) = 0;
     virtual void detach_listener (InvocationListener * listener) = 0;
 
-    virtual void replace_function (void * function_address, void * replacement_address, void * user_data) = 0;
+    virtual void replace_function (void * function_address, void * replacement_address, void * replacement_function_data = 0) = 0;
     virtual void revert_function (void * function_address) = 0;
 
     virtual InvocationContext * get_current_invocation () = 0;

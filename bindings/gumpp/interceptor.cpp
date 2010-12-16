@@ -15,9 +15,9 @@ namespace Gum
       assign_handle (gum_interceptor_obtain ());
     }
 
-    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * user_data)
+    virtual bool attach_listener (void * function_address, InvocationListener * listener, void * listener_function_data)
     {
-      GumAttachReturn attach_ret = gum_interceptor_attach_listener (handle, function_address, GUM_INVOCATION_LISTENER (listener->get_handle ()), user_data);
+      GumAttachReturn attach_ret = gum_interceptor_attach_listener (handle, function_address, GUM_INVOCATION_LISTENER (listener->get_handle ()), listener_function_data);
       return (attach_ret == GUM_ATTACH_OK);
     }
 
@@ -26,9 +26,9 @@ namespace Gum
       gum_interceptor_detach_listener (handle, GUM_INVOCATION_LISTENER (listener->get_handle ()));
     }
 
-    virtual void replace_function (void * function_address, void * replacement_address, void * user_data)
+    virtual void replace_function (void * function_address, void * replacement_address, void * replacement_function_data)
     {
-      gum_interceptor_replace_function (handle, function_address, replacement_address, user_data);
+      gum_interceptor_replace_function (handle, function_address, replacement_address, replacement_function_data);
     }
 
     virtual void revert_function (void * function_address)

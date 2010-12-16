@@ -70,7 +70,7 @@ GUM_API GumInterceptor * gum_interceptor_obtain (void);
 
 GUM_API GumAttachReturn gum_interceptor_attach_listener (GumInterceptor * self,
     gpointer function_address, GumInvocationListener * listener,
-    gpointer function_data);
+    gpointer listener_function_data);
 GUM_API void gum_interceptor_detach_listener (GumInterceptor * self,
     GumInvocationListener * listener);
 
