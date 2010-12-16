@@ -38,22 +38,29 @@ namespace Gum
       return gum_invocation_context_get_return_value (context);
     }
 
-    virtual InvocationContext * get_parent ()
+    virtual unsigned int get_thread_id () const
     {
-      if (parent == NULL)
-      {
-        GumInvocationContext * parent_context = gum_invocation_context_get_parent (context);
-        if (parent_context == NULL)
-          return NULL;
-        parent = new InvocationContextImpl (parent_context);
-      }
-
-      return parent;
+      return gum_invocation_context_get_thread_id (context);
     }
 
-    virtual void * get_user_data_ptr () const
+    virtual void * get_listener_thread_data_ptr (size_t required_size) const
     {
-      return context->instance_data;
+      return gum_invocation_context_get_listener_thread_data (context, required_size);
+    }
+
+    virtual void * get_listener_function_data_ptr () const
+    {
+      return gum_invocation_context_get_listener_function_data (context);
+    }
+
+    virtual void * get_listener_function_invocation_data_ptr (size_t required_size) const
+    {
+      return gum_invocation_context_get_listener_function_invocation_data (context, required_size);
+    }
+
+    virtual void * get_replacement_function_data_ptr () const
+    {
+      return gum_invocation_context_get_replacement_function_data (context);
     }
 
   private:

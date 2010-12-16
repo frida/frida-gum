@@ -65,9 +65,7 @@ namespace Gum
       return static_cast<T> (get_nth_argument_ptr (n));
     }
     virtual void * get_nth_argument_ptr (unsigned int n) const = 0;
-
     virtual void replace_nth_argument (unsigned int n, void * value) = 0;
-
     template <typename T>
     T get_return_value () const
     {
@@ -75,14 +73,33 @@ namespace Gum
     }
     virtual void * get_return_value_ptr () const = 0;
 
-    virtual InvocationContext * get_parent () = 0;
+    virtual unsigned int get_thread_id () const = 0;
 
     template <typename T>
-    T get_user_data () const
+    T * get_listener_thread_data () const
     {
-      return static_cast<T> (reinterpret_cast <int> (get_user_data_ptr ()));
+      return static_cast<T *> (get_listener_thread_data_ptr (sizeof (T)));
     }
-    virtual void * get_user_data_ptr () const = 0;
+    virtual void * get_listener_thread_data_ptr (size_t required_size) const = 0;
+    template <typename T>
+    T * get_listener_function_data () const
+    {
+      return static_cast<T *> (get_listener_function_data_ptr ());
+    }
+    virtual void * get_listener_function_data_ptr () const = 0;
+    template <typename T>
+    T * get_listener_function_invocation_data () const
+    {
+      return static_cast<T *> (get_listener_function_invocation_data_ptr (sizeof (T)));
+    }
+    virtual void * get_listener_function_invocation_data_ptr (size_t required_size) const = 0;
+
+    template <typename T>
+    T * get_replacement_function_data () const
+    {
+      return static_cast<T *> (get_replacement_function_data_ptr ());
+    }
+    virtual void * get_replacement_function_data_ptr () const = 0;
   };
 
   struct InvocationListener : public Object

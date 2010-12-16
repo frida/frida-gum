@@ -108,18 +108,6 @@ namespace Gum
     reinterpret_cast<GumInvocationListenerProxy *> (listener)->proxy->on_leave (&ic);
   }
 
-  static gpointer
-  gum_invocation_listener_proxy_provide_thread_data (GumInvocationListener * listener,
-                                                     gpointer function_instance_data,
-                                                     guint thread_id)
-  {
-    (void) listener;
-    (void) function_instance_data;
-    (void) thread_id;
-
-    return NULL;
-  }
-
   static void
   gum_invocation_listener_proxy_iface_init (gpointer g_iface,
                                             gpointer iface_data)
@@ -130,6 +118,5 @@ namespace Gum
 
     iface->on_enter = gum_invocation_listener_proxy_on_enter;
     iface->on_leave = gum_invocation_listener_proxy_on_leave;
-    iface->provide_thread_data = gum_invocation_listener_proxy_provide_thread_data;
   }
 }
