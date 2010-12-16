@@ -18,13 +18,24 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "guminterceptor.h"
 #include "gumprofiler.h"
+
+#include "gumarray.h"
+#include "guminterceptor.h"
+#include "gumhash.h"
 #include "gumsymbolutil.h"
+
 #include <string.h>
 
 #define GUM_PROFILER_LOCK()   (g_mutex_lock (priv->mutex))
 #define GUM_PROFILER_UNLOCK() (g_mutex_unlock (priv->mutex))
+
+typedef struct _GumProfilerInvocation GumProfilerInvocation;
+typedef struct _GumProfilerContext GumProfilerContext;
+typedef struct _GumFunctionContext GumFunctionContext;
+typedef struct _GumWorstCaseInfo GumWorstCaseInfo;
+typedef struct _GumWorstCase GumWorstCase;
+typedef struct _GumFunctionThreadContext GumFunctionThreadContext;
 
 struct _GumProfilerPrivate
 {
@@ -32,12 +43,22 @@ struct _GumProfilerPrivate
 
   GumInterceptor * interceptor;
   GHashTable * function_by_address;
+  GumList * stacks;
 };
 
-typedef struct _GumWorstCaseInfo GumWorstCaseInfo;
-typedef struct _GumWorstCase GumWorstCase;
-typedef struct _GumFunctionThreadContext GumFunctionThreadContext;
-typedef struct _GumFunctionContext GumFunctionContext;
+struct _GumProfilerInvocation
+{
+  GumProfilerContext * profiler;
+  GumFunctionContext * function;
+  GumFunctionThreadContext * thread;
+
+  GumSample start_time;
+};
+
+struct _GumProfilerContext
+{
+  GumArray * stack;
+};
 
 struct _GumWorstCaseInfo
 {
@@ -63,7 +84,6 @@ struct _GumFunctionThreadContext
   /* state */
   gboolean is_root_node;
   gint recurse_count;
-  GumSample start_time;
   GumWorstCaseInfo potential_info;
 
   GumFunctionThreadContext * child_ctx;
@@ -80,12 +100,6 @@ struct _GumFunctionContext
 
   GumFunctionThreadContext thread_contexts[GUM_MAX_THREADS];
   volatile gint thread_context_count;
-};
-
-struct _ThreadContextStackEntry
-{
-  GumFunctionThreadContext * thread_ctx;
-  gpointer caller_ret_addr;
 };
 
 #define GUM_PROFILER_GET_PRIVATE(o) ((o)->priv)
@@ -115,6 +129,9 @@ static void thread_context_register_child_timing (
 
 static void get_number_of_threads_foreach (gpointer key, gpointer value,
     gpointer user_data);
+
+static GumFunctionThreadContext * gum_function_context_get_current_thread (
+    GumFunctionContext * function_ctx, GumInvocationContext * context);
 
 G_DEFINE_TYPE_EXTENDED (GumProfiler,
                         gum_profiler,
@@ -177,6 +194,13 @@ gum_profiler_finalize (GObject * object)
   g_object_unref (priv->interceptor);
   g_hash_table_unref (priv->function_by_address);
 
+  while (priv->stacks != NULL)
+  {
+    GumArray * stack = (GumArray *) priv->stacks->data;
+    gum_array_free (stack, TRUE);
+    priv->stacks = gum_list_delete_link (priv->stacks, priv->stacks);
+  }
+
   G_OBJECT_CLASS (gum_profiler_parent_class)->finalize (object);
 }
 
@@ -184,79 +208,114 @@ static void
 gum_profiler_on_enter (GumInvocationListener * listener,
                        GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx = NULL;
-  GumFunctionContext * function_ctx = thread_ctx->function_ctx;
-  GumWorstCaseInspectorFunc inspector_func;
+  GumProfilerInvocation * inv;
+  GumFunctionContext * fctx;
+  GumFunctionThreadContext * tctx;
 
-  (void) listener;
+  inv = GUM_LINCTX_GET_FUNC_INVDATA (context, GumProfilerInvocation);
 
-  thread_ctx->total_calls++;
-
-  if (thread_ctx->recurse_count == 0)
+  inv->profiler = GUM_LINCTX_GET_THREAD_DATA (context, GumProfilerContext);
+  if (inv->profiler->stack == NULL)
   {
-    if ((inspector_func = function_ctx->inspector_func) != NULL)
-    {
-      inspector_func (context, thread_ctx->potential_info.buf,
-          sizeof (thread_ctx->potential_info.buf),
-          function_ctx->inspector_user_data);
-    }
+    GumProfilerPrivate * priv = GUM_PROFILER_CAST (listener)->priv;
 
-    thread_ctx->start_time = function_ctx->sampler_interface->sample (
-        function_ctx->sampler_instance);
+    inv->profiler->stack = gum_array_sized_new (FALSE, FALSE,
+        sizeof (GumFunctionThreadContext *), GUM_MAX_CALL_DEPTH);
+
+    GUM_PROFILER_LOCK ();
+    priv->stacks = gum_list_prepend (priv->stacks, inv->profiler->stack);
+    GUM_PROFILER_UNLOCK ();
   }
 
-  thread_ctx->recurse_count++;
+  inv->function = GUM_LINCTX_GET_FUNC_DATA (context, GumFunctionContext *);
+  inv->thread = gum_function_context_get_current_thread (inv->function,
+      context);
+
+  fctx = inv->function;
+  tctx = inv->thread;
+
+  gum_array_append_val (inv->profiler->stack, tctx);
+
+  tctx->total_calls++;
+
+  if (tctx->recurse_count == 0)
+  {
+    GumWorstCaseInspectorFunc inspector_func;
+
+    if ((inspector_func = fctx->inspector_func) != NULL)
+    {
+      inspector_func (context, tctx->potential_info.buf,
+          sizeof (tctx->potential_info.buf), fctx->inspector_user_data);
+    }
+
+    inv->start_time = fctx->sampler_interface->sample (fctx->sampler_instance);
+  }
+
+  tctx->recurse_count++;
 }
 
 static void
 gum_profiler_on_leave (GumInvocationListener * listener,
                        GumInvocationContext * context)
 {
-  GumFunctionThreadContext * thread_ctx = NULL;
-  GumSample duration;
-  GumSample now;
+  GumProfilerInvocation * inv;
+  GumFunctionContext * fctx;
+  GumFunctionThreadContext * tctx;
+  GumArray * stack;
 
   (void) listener;
-  (void) context;
 
-  if (thread_ctx->recurse_count == 1)
+  inv = GUM_LINCTX_GET_FUNC_INVDATA (context, GumProfilerInvocation);
+
+  fctx = inv->function;
+  tctx = inv->thread;
+  stack = inv->profiler->stack;
+
+  if (tctx->recurse_count == 1)
   {
-    GumFunctionContext * function_ctx = thread_ctx->function_ctx;
-    GumInvocationContext * parent_context;
+    GumSample now, duration;
+    GumFunctionThreadContext * parent;
+    guint i;
 
-    now = function_ctx->sampler_interface->sample (
-        function_ctx->sampler_instance);
-    duration = now - thread_ctx->start_time;
+    now = fctx->sampler_interface->sample (fctx->sampler_instance);
+    duration = now - inv->start_time;
 
-    thread_ctx->total_duration += duration;
+    tctx->total_duration += duration;
 
-    if (duration > thread_ctx->worst_case.duration)
+    if (duration > tctx->worst_case.duration)
     {
-      thread_ctx->worst_case.duration = duration;
-      memcpy (&thread_ctx->worst_case.info, &thread_ctx->potential_info,
-          sizeof (thread_ctx->potential_info));
+      tctx->worst_case.duration = duration;
+      memcpy (&tctx->worst_case.info, &tctx->potential_info,
+          sizeof (tctx->potential_info));
     }
 
-    parent_context = NULL;
-    if (parent_context == NULL)
+    parent = NULL;
+    for (i = 0; i != stack->len; i++)
     {
-      thread_ctx->is_root_node = TRUE;
+      GumFunctionThreadContext * cur;
+
+      cur = gum_array_index (stack, GumFunctionThreadContext *, i);
+      if (cur != tctx)
+        parent = cur;
+      else
+        break;
     }
+
+    if (parent == NULL)
+      tctx->is_root_node = TRUE;
     else
-    {
-      thread_context_register_child_timing (
-          (GumFunctionThreadContext *) NULL,
-          thread_ctx);
-    }
+      thread_context_register_child_timing (parent, tctx);
   }
 
-  thread_ctx->recurse_count--;
+  tctx->recurse_count--;
+
+  gum_array_set_size (stack, stack->len - 1);
 }
 
 GumProfiler *
 gum_profiler_new (void)
 {
-  return g_object_new (GUM_TYPE_PROFILER, NULL);
+  return GUM_PROFILER (g_object_new (GUM_TYPE_PROFILER, NULL));
 }
 
 void
@@ -580,4 +639,33 @@ get_number_of_threads_foreach (gpointer key,
     g_hash_table_insert (unique_thread_id_set,
         GUINT_TO_POINTER (function_ctx->thread_contexts[i].thread_id), NULL);
   }
+}
+
+GumFunctionThreadContext *
+gum_function_context_get_current_thread (GumFunctionContext * function_ctx,
+                                         GumInvocationContext * context)
+{
+  guint32 current_thread_id;
+  guint thread_count;
+  guint i;
+  GumFunctionThreadContext * thread_ctx;
+
+  current_thread_id = gum_invocation_context_get_thread_id (context);
+
+  thread_count = g_atomic_int_get (&function_ctx->thread_context_count);
+  for (i = 0; i != thread_count; i++)
+  {
+    thread_ctx = &function_ctx->thread_contexts[i];
+
+    if (thread_ctx->thread_id == current_thread_id)
+      return thread_ctx;
+  }
+
+  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
+  g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
+  thread_ctx = &function_ctx->thread_contexts[i];
+  thread_ctx->function_ctx = function_ctx;
+  thread_ctx->thread_id = current_thread_id;
+
+  return thread_ctx;
 }

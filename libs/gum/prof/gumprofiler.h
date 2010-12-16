@@ -30,6 +30,7 @@
 #define GUM_TYPE_PROFILER (gum_profiler_get_type ())
 #define GUM_PROFILER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_PROFILER, GumProfiler))
+#define GUM_PROFILER_CAST(obj) ((GumProfiler *) (obj))
 #define GUM_PROFILER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_PROFILER, GumProfilerClass))
 #define GUM_IS_PROFILER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
