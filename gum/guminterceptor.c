@@ -979,9 +979,12 @@ interceptor_thread_context_get_listener_data (InterceptorThreadContext * self,
     available_slot = &gum_array_index (self->listener_data_slots,
         ListenerDataSlot, self->listener_data_slots->len - 1);
   }
+  else
+  {
+    memset (available_slot->data, 0, sizeof (available_slot->data));
+  }
 
   available_slot->owner = listener;
-  memset (available_slot->data, 0, sizeof (available_slot->data));
 
   return available_slot->data;
 }
