@@ -25,6 +25,8 @@ TEST_LIST_BEGIN (sanitychecker)
   SANITYCHECKER_TESTENTRY (three_leaked_blocks)
   SANITYCHECKER_TESTENTRY (ignore_gparam_instances)
   SANITYCHECKER_TESTENTRY (array_access_out_of_bounds_causes_exception)
+  SANITYCHECKER_TESTENTRY (multiple_checks_at_once_should_not_collide)
+  SANITYCHECKER_TESTENTRY (checker_itself_does_not_leak)
 TEST_LIST_END ()
 
 SANITYCHECKER_TESTCASE (no_leaks)
@@ -106,4 +108,26 @@ SANITYCHECKER_TESTCASE (array_access_out_of_bounds_causes_exception)
 
   g_assert (exception_on_read);
   g_assert (exception_on_write);
+}
+
+SANITYCHECKER_TESTCASE (multiple_checks_at_once_should_not_collide)
+{
+  gboolean all_checks_pass;
+
+  gum_sanity_checker_begin (fixture->checker,
+      GUM_CHECK_BLOCK_LEAKS | GUM_CHECK_INSTANCE_LEAKS | GUM_CHECK_BOUNDS);
+  all_checks_pass = gum_sanity_checker_end (fixture->checker);
+  g_assert (all_checks_pass);
+  g_assert_cmpuint (fixture->output->len, ==, 0);
+}
+
+SANITYCHECKER_TESTCASE (checker_itself_does_not_leak)
+{
+  GumSanityChecker * checker;
+
+  checker = gum_sanity_checker_new (test_sanity_checker_fixture_do_output,
+      fixture);
+  gum_sanity_checker_begin (fixture->checker,
+      GUM_CHECK_BLOCK_LEAKS | GUM_CHECK_INSTANCE_LEAKS | GUM_CHECK_BOUNDS);
+  gum_sanity_checker_destroy (checker);
 }

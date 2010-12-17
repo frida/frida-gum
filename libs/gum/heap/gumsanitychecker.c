@@ -122,7 +122,31 @@ gum_sanity_checker_new_with_heap_apis (const GumHeapApiList * heap_apis,
 void
 gum_sanity_checker_destroy (GumSanityChecker * checker)
 {
+  GumSanityCheckerPrivate * priv = checker->priv;
+
+  if (priv->bounds_checker != NULL)
+  {
+    g_object_unref (priv->bounds_checker);
+    priv->bounds_checker = NULL;
+  }
+
+  if (priv->instance_tracker != NULL)
+  {
+    g_object_unref (priv->instance_tracker);
+    priv->instance_tracker = NULL;
+  }
+
+  if (priv->alloc_probe != NULL)
+  {
+    g_object_unref (priv->alloc_probe);
+    priv->alloc_probe = NULL;
+
+    g_object_unref (priv->alloc_tracker);
+    priv->alloc_tracker = NULL;
+  }
+
   gum_heap_api_list_free (checker->priv->heap_apis);
+
   gum_free (checker);
 }
 
@@ -191,14 +215,6 @@ gum_sanity_checker_begin (GumSanityChecker * self,
 {
   GumSanityCheckerPrivate * priv = self->priv;
 
-  if ((flags & GUM_CHECK_INSTANCE_LEAKS) != 0)
-  {
-    priv->instance_tracker = gum_instance_tracker_new ();
-    gum_instance_tracker_set_type_filter_function (priv->instance_tracker,
-        gum_sanity_checker_filter_out_gparam, self);
-    gum_instance_tracker_begin (priv->instance_tracker, NULL);
-  }
-
   if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
   {
     GumBacktracer * backtracer = NULL;
@@ -218,11 +234,22 @@ gum_sanity_checker_begin (GumSanityChecker * self,
           gum_sanity_checker_filter_backtrace_block_size, self);
     }
 
-    gum_allocation_tracker_begin (priv->alloc_tracker);
-
     priv->alloc_probe = gum_allocator_probe_new ();
     g_object_set (priv->alloc_probe, "allocation-tracker", priv->alloc_tracker,
         NULL);
+  }
+
+  if ((flags & GUM_CHECK_INSTANCE_LEAKS) != 0)
+  {
+    priv->instance_tracker = gum_instance_tracker_new ();
+    gum_instance_tracker_set_type_filter_function (priv->instance_tracker,
+        gum_sanity_checker_filter_out_gparam, self);
+    gum_instance_tracker_begin (priv->instance_tracker, NULL);
+  }
+
+  if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
+  {
+    gum_allocation_tracker_begin (priv->alloc_tracker);
     gum_allocator_probe_attach_to_apis (priv->alloc_probe, priv->heap_apis);
   }
 
@@ -240,6 +267,14 @@ gum_sanity_checker_end (GumSanityChecker * self)
 {
   GumSanityCheckerPrivate * priv = self->priv;
   gboolean all_checks_passed = TRUE;
+
+  if (priv->bounds_checker != NULL)
+  {
+    gum_bounds_checker_detach (priv->bounds_checker);
+
+    g_object_unref (priv->bounds_checker);
+    priv->bounds_checker = NULL;
+  }
 
   if (priv->instance_tracker != NULL)
   {
@@ -302,14 +337,6 @@ gum_sanity_checker_end (GumSanityChecker * self)
 
     g_object_unref (priv->alloc_tracker);
     priv->alloc_tracker = NULL;
-  }
-
-  if (priv->bounds_checker != NULL)
-  {
-    gum_bounds_checker_detach (priv->bounds_checker);
-
-    g_object_unref (priv->bounds_checker);
-    priv->bounds_checker = NULL;
   }
 
   return all_checks_passed;

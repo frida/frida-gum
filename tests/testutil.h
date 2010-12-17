@@ -59,6 +59,8 @@
 
 G_BEGIN_DECLS
 
+G_GNUC_INTERNAL void _test_util_deinit (void);
+
 GumSampler * heap_access_counter_new (void);
 
 void assert_basename_equals (const gchar * expected_filename,

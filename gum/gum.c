@@ -19,6 +19,7 @@
 
 #include "gum.h"
 
+#include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gummemory-priv.h"
 #include "gumsymbolutil-priv.h"
@@ -43,6 +44,8 @@ gum_init_with_features (GumFeatureFlags features)
 void
 gum_deinit (void)
 {
+  _gum_allocator_probe_deinit ();
+
   _gum_interceptor_deinit ();
 
   _gum_symbol_util_deinit ();

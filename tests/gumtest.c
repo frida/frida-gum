@@ -135,6 +135,8 @@ main (gint argc, gchar * argv[])
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
 
+  _test_util_deinit ();
+
 #ifdef HAVE_I386
   lowlevel_helpers_deinit ();
 #endif

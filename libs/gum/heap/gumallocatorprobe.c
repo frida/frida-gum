@@ -20,6 +20,7 @@
 
 #include "gumallocatorprobe.h"
 
+#include "gumallocatorprobe-priv.h"
 #include "guminterceptor.h"
 #include "gumsymbolutil.h"
 
@@ -170,6 +171,9 @@ G_DEFINE_TYPE_EXTENDED (GumAllocatorProbe,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_allocator_probe_listener_iface_init));
 
+G_LOCK_DEFINE (_gum_allocator_probe_ignored_functions);
+static GArray * _gum_allocator_probe_ignored_functions = NULL;
+
 static void
 gum_allocator_probe_class_init (GumAllocatorProbeClass * klass)
 {
@@ -209,6 +213,16 @@ gum_allocator_probe_class_init (GumAllocatorProbeClass * klass)
       "Number of free() calls seen so far", 0, G_MAXUINT, 0,
       (GParamFlags) (G_PARAM_READABLE | G_PARAM_STATIC_STRINGS));
   g_object_class_install_property (object_class, PROP_FREE_COUNT, pspec);
+}
+
+void
+_gum_allocator_probe_deinit (void)
+{
+  if (_gum_allocator_probe_ignored_functions != NULL)
+  {
+    g_array_free (_gum_allocator_probe_ignored_functions, TRUE);
+    _gum_allocator_probe_ignored_functions = NULL;
+  }
 }
 
 static void
@@ -400,10 +414,12 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
 static void
 gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 {
-  static GArray * ignored = NULL;
+  GArray * ignored;
   guint i;
 
-  if (ignored == NULL)
+  G_LOCK (_gum_allocator_probe_ignored_functions);
+
+  if (_gum_allocator_probe_ignored_functions == NULL)
   {
     static const gchar * internal_function_name[] = {
         "g_quark_new",
@@ -424,7 +440,15 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
     gum_process_enumerate_modules (
         gum_allocator_probe_add_suppression_addresses_if_glib, ignored);
+
+    _gum_allocator_probe_ignored_functions = ignored;
   }
+  else
+  {
+    ignored = _gum_allocator_probe_ignored_functions;
+  }
+
+  G_UNLOCK (_gum_allocator_probe_ignored_functions);
 
   for (i = 0; i != ignored->len; i++)
     gum_allocator_probe_suppress (self, g_array_index (ignored, gpointer, i));

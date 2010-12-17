@@ -398,6 +398,9 @@
     <ClInclude Include="libs\gum\heap\gumheapapi.h">
       <Filter>libs\heap</Filter>
     </ClInclude>
+    <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
+      <Filter>libs\heap</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi">

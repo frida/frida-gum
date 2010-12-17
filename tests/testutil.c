@@ -158,6 +158,18 @@ TESTUTIL_TESTCASE (line_diff)
 
 /* Implementation */
 
+static GumHeapApiList * _test_util_heap_apis = NULL;
+
+void
+_test_util_deinit (void)
+{
+  if (_test_util_heap_apis != NULL)
+  {
+    gum_heap_api_list_free (_test_util_heap_apis);
+    _test_util_heap_apis = NULL;
+  }
+}
+
 GumSampler *
 heap_access_counter_new (void)
 {
@@ -293,9 +305,7 @@ test_util_get_filesystem_path_of_self (void)
 const GumHeapApiList *
 test_util_heap_apis (void)
 {
-  static GumHeapApiList * heap_apis = NULL;
-
-  if (heap_apis == NULL)
+  if (_test_util_heap_apis == NULL)
   {
     GumHeapApi api = { 0 };
 
@@ -311,11 +321,11 @@ test_util_heap_apis (void)
     api._free_dbg = _free_dbg;
 #endif
 
-    heap_apis = gum_heap_api_list_new ();
-    gum_heap_api_list_add (heap_apis, &api);
+    _test_util_heap_apis = gum_heap_api_list_new ();
+    gum_heap_api_list_add (_test_util_heap_apis, &api);
   }
 
-  return heap_apis;
+  return _test_util_heap_apis;
 }
 
 #ifdef G_OS_WIN32
