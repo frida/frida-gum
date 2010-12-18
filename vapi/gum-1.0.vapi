@@ -17,35 +17,41 @@ namespace Gum {
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();
 
-		public Gum.AttachReturn attach_listener (void * function_address, Gum.InvocationListener listener, void * function_instance_data);
+		public Gum.AttachReturn attach_listener (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
 		public void detach_listener (Gum.InvocationListener listener);
+
+		public void replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
+		public void revert_function (void * function_address);
+
+		public static Gum.InvocationContext get_current_invocation ();
 
 		public void ignore_caller ();
 		public void unignore_caller ();
-
-		/* TODO: bind the rest if needed */
 	}
 
 	public interface InvocationListener : GLib.Object {
-		public abstract void on_enter (Gum.InvocationContext ctx);
-		public abstract void on_leave (Gum.InvocationContext ctx);
-		public virtual void * provide_thread_data (void * function_instance_data, uint thread_id);
+		public abstract void on_enter (Gum.InvocationContext context);
+		public abstract void on_leave (Gum.InvocationContext context);
 	}
 
 	[Compact]
 	public class InvocationContext {
-		public InvocationContext parent;
-
-		public void * instance_data;
-		public void * thread_data;
-
+		public void * function;
 		public void * cpu_context;
 
-		private void * backend;
+		public void * backend;
 
 		public void * get_nth_argument (uint n);
 		public void replace_nth_argument (uint n, void * val);
 		public void * get_return_value ();
+
+		public uint get_thread_id ();
+
+		public void * get_listener_thread_data (size_t required_size);
+		public void * get_listener_function_data ();
+		public void * get_listener_function_invocation_data (size_t required_size);
+
+		public void * get_replacement_function_data ();
 	}
 
 	public class Script : GLib.Object {
