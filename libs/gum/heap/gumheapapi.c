@@ -41,7 +41,7 @@ gum_process_find_heap_apis (void)
 }
 
 #define GUM_API_INIT_FIELD(name) \
-    gum_init_field_from_module_symbol ((gpointer *) &(api.##name), module, \
+    gum_init_field_from_module_symbol ((gpointer *) &api.name, module, \
         G_STRINGIFY (name))
 
 static gboolean

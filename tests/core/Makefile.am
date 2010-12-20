@@ -27,14 +27,14 @@ endif
 
 libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
+	memory.c \
 	symbolutil.c \
 	interceptor.c \
 	script.c
 
-libgum_targetfunctions_la_SOURCES = \
-	targetfunctions.c
-libgum_targetfunctions_la_LDFLAGS = \
-	-rpath /nowhere
+libgum_targetfunctions_la_SOURCES = targetfunctions.c
+libgum_targetfunctions_la_LDFLAGS = -rpath /nowhere
+libgum_targetfunctions_la_LIBADD = $(GUM_LIBS)
 
 AM_CPPFLAGS = \
 	-include config.h \

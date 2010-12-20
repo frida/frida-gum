@@ -21,8 +21,7 @@
 #ifndef __GUM_WALLCLOCK_SAMPLER_H__
 #define __GUM_WALLCLOCK_SAMPLER_H__
 
-#include <glib-object.h>
-#include <gum/prof/gumsampler.h>
+#include "gumsampler.h"
 
 #define GUM_TYPE_WALLCLOCK_SAMPLER (gum_wallclock_sampler_get_type ())
 #define GUM_WALLCLOCK_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

@@ -21,11 +21,10 @@
 #ifndef __GUM_PROFILER_H__
 #define __GUM_PROFILER_H__
 
-#include <glib-object.h>
-#include <gum/gumdefs.h>
+#include "gumsampler.h"
+#include "gumprofilereport.h"
+
 #include <gum/guminvocationcontext.h>
-#include <gum/prof/gumsampler.h>
-#include <gum/prof/gumprofilereport.h>
 
 #define GUM_TYPE_PROFILER (gum_profiler_get_type ())
 #define GUM_PROFILER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

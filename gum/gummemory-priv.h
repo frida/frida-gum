@@ -31,17 +31,17 @@ struct _GumMatchPattern
   guint size;
 };
 
+enum _GumMatchType
+{
+  GUM_MATCH_EXACT,
+  GUM_MATCH_WILDCARD
+};
+
 struct _GumMatchToken
 {
   GumMatchType type;
   GArray * bytes;
   guint offset;
-};
-
-enum _GumMatchType
-{
-  GUM_MATCH_EXACT,
-  GUM_MATCH_WILDCARD
 };
 
 G_BEGIN_DECLS

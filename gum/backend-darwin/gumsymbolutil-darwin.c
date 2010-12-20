@@ -140,6 +140,14 @@ gum_module_enumerate_exports (const gchar * module_name,
   }
 }
 
+void
+gum_module_enumerate_ranges (const gchar * module_name,
+                             GumPageProtection prot,
+                             GumFoundRangeFunc func,
+                             gpointer user_data)
+{
+}
+
 gpointer
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * export_name)

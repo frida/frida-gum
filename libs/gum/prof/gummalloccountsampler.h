@@ -21,7 +21,7 @@
 #ifndef __GUM_MALLOC_COUNT_SAMPLER_H__
 #define __GUM_MALLOC_COUNT_SAMPLER_H__
 
-#include <gum/prof/gumcallcountsampler.h>
+#include "gumsampler.h"
 
 G_BEGIN_DECLS
 

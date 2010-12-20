@@ -84,6 +84,10 @@ AC_CONFIG_FILES([
 	ext/Makefile
 	ext/udis86/Makefile
 	ext/udis86/libudis86/Makefile
+        libs/Makefile
+        libs/gum/Makefile
+        libs/gum/heap/Makefile
+        libs/gum/prof/Makefile
 	gum/Makefile
 	tests/Makefile
 	tests/core/Makefile

@@ -18,11 +18,10 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __BUSY_CYCLE_SAMPLER_H__
-#define __BUSY_CYCLE_SAMPLER_H__
+#ifndef __GUM_BUSY_CYCLE_SAMPLER_H__
+#define __GUM_BUSY_CYCLE_SAMPLER_H__
 
-#include <glib-object.h>
-#include <gum/prof/gumsampler.h>
+#include "gumsampler.h"
 
 #define GUM_TYPE_BUSY_CYCLE_SAMPLER (gum_busy_cycle_sampler_get_type ())
 #define GUM_BUSY_CYCLE_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

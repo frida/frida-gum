@@ -133,7 +133,8 @@ gum_match_pattern_new (void)
   GumMatchPattern * pattern;
 
   pattern = g_slice_new (GumMatchPattern);
-  pattern->tokens = g_ptr_array_new ();
+  pattern->tokens =
+      g_ptr_array_new_with_free_func ((GDestroyNotify) gum_match_token_free);
   pattern->size = 0;
 
   return pattern;
@@ -143,6 +144,7 @@ void
 gum_match_pattern_free (GumMatchPattern * pattern)
 {
   g_ptr_array_free (pattern->tokens, TRUE);
+
   g_slice_free (GumMatchPattern, pattern);
 }
 

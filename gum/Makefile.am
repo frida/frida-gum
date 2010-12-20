@@ -16,6 +16,7 @@ guminclude_HEADERS = \
 	guminvocationlistener.h \
 	gumlist.h \
 	gummemory.h \
+	gummemoryaccessmonitor.h \
 	gumreturnaddress.h \
 	gumscript.h \
 	gumspinlock.h \
@@ -104,6 +105,7 @@ libgum_1_0_la_SOURCES = \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
+	gummemory.c \
 	gumscript.c \
 	gumscript-priv.h \
 	gumscriptcompiler.h \
@@ -112,6 +114,8 @@ libgum_1_0_la_SOURCES = \
 	$(container_sources) \
 	$(backend_sources)
 libgum_1_0_la_LIBADD = \
+	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \
+	$(top_builddir)/libs/gum/prof/libgum-prof-1.0.la \
 	$(arch_libs) \
 	$(backend_libs) \
 	$(GUM_LIBS)

@@ -21,9 +21,7 @@
 #ifndef __GUM_PROFILE_REPORT_H__
 #define __GUM_PROFILE_REPORT_H__
 
-#include <glib-object.h>
-#include <gum/gumdefs.h>
-#include <gum/prof/gumsampler.h>
+#include "gumsampler.h"
 
 #define GUM_TYPE_PROFILE_REPORT (gum_profile_report_get_type ())
 #define GUM_PROFILE_REPORT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

@@ -18,6 +18,7 @@
  */
 
 #include "gumallocationblock.h"
+
 #include "gummemory.h"
 #include "gumreturnaddress.h"
 

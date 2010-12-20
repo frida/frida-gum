@@ -73,6 +73,12 @@ gum_wallclock_sampler_sample (GumSampler * sampler)
 
   return GetTickCount ();
 #else
-  #error FIXME
+  GTimeVal tv;
+
+  (void) sampler;
+
+  g_get_current_time (&tv);
+
+  return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 #endif
 }

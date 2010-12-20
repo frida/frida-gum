@@ -30,8 +30,6 @@
 
 #include <string.h>
 
-typedef struct _GumInstanceDetails GumInstanceDetails;
-
 struct _GumSanityCheckerPrivate
 {
   GumHeapApiList * heap_apis;

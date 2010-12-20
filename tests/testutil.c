@@ -371,7 +371,7 @@ on_sigsegv (int arg)
   siglongjmp (try_read_and_write_context, 1337);
 }
 
-static guint8
+guint8
 try_read_and_write_at (guint8 * a,
                        guint i,
                        gboolean * exception_raised_on_read,

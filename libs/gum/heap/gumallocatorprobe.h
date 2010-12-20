@@ -21,9 +21,8 @@
 #ifndef __GUM_ALLOCATOR_PROBE_H__
 #define __GUM_ALLOCATOR_PROBE_H__
 
-#include <glib-object.h>
-#include <gum/heap/gumallocationtracker.h>
-#include <gum/heap/gumheapapi.h>
+#include "gumallocationtracker.h"
+#include "gumheapapi.h"
 
 #define GUM_TYPE_ALLOCATOR_PROBE (gum_allocator_probe_get_type ())
 #define GUM_ALLOCATOR_PROBE(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

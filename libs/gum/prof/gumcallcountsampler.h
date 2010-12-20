@@ -21,8 +21,7 @@
 #ifndef __GUM_CALL_COUNT_SAMPLER_H__
 #define __GUM_CALL_COUNT_SAMPLER_H__
 
-#include <glib-object.h>
-#include <gum/prof/gumsampler.h>
+#include "gumsampler.h"
 
 #define GUM_TYPE_CALL_COUNT_SAMPLER (gum_call_count_sampler_get_type ())
 #define GUM_CALL_COUNT_SAMPLER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
