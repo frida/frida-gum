@@ -19,6 +19,7 @@
 
 #include "gummemory.h"
 
+#include "gumdarwin.h"
 #include "gummemory-priv.h"
 
 #include <unistd.h>
@@ -32,9 +33,6 @@
 #include "dlmalloc.c"
 
 #include <mach/mach.h>
-#include <mach/mach_vm.h>
-
-static vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
 
 void
 _gum_memory_init (void)
@@ -231,20 +229,35 @@ gum_free_pages (gpointer mem)
   mach_vm_size_t size = (mach_vm_size_t) 0;
   vm_region_basic_info_data_64_t info;
   mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
-  memory_object_name_t obj;
+  mach_port_t unused_port = MACH_PORT_NULL;
   kern_return_t kr;
 
   self = mach_task_self ();
 
   kr = mach_vm_region (self, &address, &size, VM_REGION_BASIC_INFO,
-      (vm_region_info_t) &info, &info_count, &obj);
+      (vm_region_info_t) &info, &info_count, &unused_port);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   kr = mach_vm_deallocate (self, address, size);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
-static vm_prot_t
+GumPageProtection
+gum_page_protection_from_mach (vm_prot_t native_prot)
+{
+  GumPageProtection page_prot = 0;
+
+  if ((native_prot & VM_PROT_READ) == VM_PROT_READ)
+    page_prot |= GUM_PAGE_READ;
+  if ((native_prot & VM_PROT_WRITE) == VM_PROT_WRITE)
+    page_prot |= GUM_PAGE_WRITE;
+  if ((native_prot & VM_PROT_EXECUTE) == VM_PROT_EXECUTE)
+    page_prot |= GUM_PAGE_EXECUTE;
+
+  return page_prot;
+}
+
+vm_prot_t
 gum_page_protection_to_mach (GumPageProtection page_prot)
 {
   vm_prot_t mach_page_prot = VM_PROT_NONE;

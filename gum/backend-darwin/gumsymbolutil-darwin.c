@@ -19,6 +19,7 @@
 
 #include "gumsymbolutil.h"
 
+#include "gumdarwin.h"
 #include "gumsymbolutil-priv.h"
 
 #include <dlfcn.h>
@@ -146,6 +147,41 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
+  gpointer address, slide;
+  struct mach_header * header;
+  guint8 * p;
+  guint cmd_index;
+
+  if (!find_image_address_and_slide (module_name, &address, &slide))
+    return;
+
+  header = address;
+  p = (guint8 *) (header + 1);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == LC_SEGMENT)
+    {
+      struct segment_command * segcmd = (struct segment_command *) lc;
+      GumPageProtection cur_prot;
+
+      cur_prot = gum_page_protection_from_mach (segcmd->initprot);
+
+      if ((cur_prot & prot) != 0)
+      {
+        GumMemoryRange range;
+
+        range.base_address = GSIZE_TO_POINTER (segcmd->vmaddr);
+        range.size = segcmd->vmsize;
+
+        if (!func (&range, cur_prot, user_data))
+          return;
+      }
+    }
+
+    p += lc->cmdsize;
+  }
 }
 
 gpointer
