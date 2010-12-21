@@ -27,6 +27,8 @@
     TEST_ENTRY_SIMPLE ("Core/Memory", test_memory, NAME)
 
 TEST_LIST_BEGIN (memory)
+  MEMORY_TESTENTRY (read)
+  MEMORY_TESTENTRY (write)
   MEMORY_TESTENTRY (match_pattern_validation)
   MEMORY_TESTENTRY (scan_range_with_three_exact_matches)
   MEMORY_TESTENTRY (scan_range_with_three_wildcarded_matches)
@@ -42,6 +44,37 @@ typedef struct _TestForEachContext {
 
 static gboolean match_found_cb (gpointer address, guint size,
     gpointer user_data);
+
+MEMORY_TESTCASE (read)
+{
+  guint8 magic[2] = { 0x13, 0x37 };
+  gint n_bytes_read;
+  guint8 * result;
+
+  result = gum_memory_read (magic, sizeof (magic), &n_bytes_read);
+  g_assert (result != NULL);
+
+  g_assert_cmpint (n_bytes_read, ==, sizeof (magic));
+
+  g_assert_cmphex (result[0], ==, magic[0]);
+  g_assert_cmphex (result[1], ==, magic[1]);
+
+  g_free (result);
+}
+
+MEMORY_TESTCASE (write)
+{
+  guint8 bytes[3] = { 0x00, 0x00, 0x12 };
+  guint8 magic[2] = { 0x13, 0x37 };
+  gboolean success;
+
+  success = gum_memory_write (bytes, magic, sizeof (magic));
+  g_assert (success);
+
+  g_assert_cmphex (bytes[0], ==, 0x13);
+  g_assert_cmphex (bytes[1], ==, 0x37);
+  g_assert_cmphex (bytes[2], ==, 0x12);
+}
 
 #define GUM_PATTERN_NTH_TOKEN(p, n) \
     ((GumMatchToken *) g_ptr_array_index (p->tokens, n))

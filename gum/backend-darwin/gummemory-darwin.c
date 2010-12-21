@@ -84,6 +84,19 @@ gum_memory_read (gpointer address,
   return result;
 }
 
+gboolean
+gum_memory_write (gpointer address,
+                  guint8 * bytes,
+                  guint len)
+{
+  kern_return_t kr;
+
+  kr = mach_vm_write (mach_task_self (), (mach_vm_address_t) address,
+      (vm_offset_t) bytes, len);
+
+  return (kr == KERN_SUCCESS);
+}
+
 void
 gum_mprotect (gpointer address,
               guint size,
