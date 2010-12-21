@@ -68,6 +68,4 @@ static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
     gint block_type, gint factor);
 #endif
 
-static gpointer concurrency_torture_helper (gpointer data);
-
 G_END_DECLS

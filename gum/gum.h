@@ -38,7 +38,7 @@
 
 G_BEGIN_DECLS
 
-typedef enum _GumFeatureFlags GumFeatureFlags;
+typedef guint GumFeatureFlags;
 
 enum _GumFeatureFlags
 {

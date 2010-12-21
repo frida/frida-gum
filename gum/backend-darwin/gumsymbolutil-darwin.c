@@ -55,6 +55,31 @@ _gum_symbol_util_deinit (void)
   get_all_image_infos_impl = NULL;
 }
 
+gboolean
+gum_symbol_details_from_address (gpointer address,
+                                 GumSymbolDetails * details)
+{
+  return FALSE;
+}
+
+gchar *
+gum_symbol_name_from_address (gpointer address)
+{
+  return NULL;
+}
+
+gpointer
+gum_find_function (const gchar * name)
+{
+  return NULL;
+}
+
+GArray *
+gum_find_functions_matching (const gchar * str)
+{
+  return g_array_new (FALSE, FALSE, sizeof (gpointer));
+}
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)

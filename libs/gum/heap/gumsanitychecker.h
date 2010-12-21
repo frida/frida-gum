@@ -22,7 +22,7 @@
 
 #include "gumheapapi.h"
 
-typedef enum _GumSanityCheckFlags GumSanityCheckFlags;
+typedef guint GumSanityCheckFlags;
 
 typedef struct _GumSanityChecker GumSanityChecker;
 typedef struct _GumSanityCheckerPrivate GumSanityCheckerPrivate;

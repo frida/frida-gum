@@ -101,11 +101,13 @@ container_sources = \
 
 libgum_1_0_la_SOURCES = \
 	gum.c \
+	gumbacktracer.c \
 	gumcodeallocator.c \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
 	gummemory.c \
+	gumreturnaddress.c \
 	gumscript.c \
 	gumscript-priv.h \
 	gumscriptcompiler.h \

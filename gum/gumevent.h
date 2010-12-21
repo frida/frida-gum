@@ -25,7 +25,7 @@
 
 G_BEGIN_DECLS
 
-typedef enum _GumEventType GumEventType;
+typedef guint GumEventType;
 
 typedef union _GumEvent GumEvent;
 

@@ -43,7 +43,7 @@ typedef struct _GumMemoryAccessMonitor        GumMemoryAccessMonitor;
 typedef struct _GumMemoryAccessMonitorClass   GumMemoryAccessMonitorClass;
 typedef struct _GumMemoryAccessMonitorPrivate GumMemoryAccessMonitorPrivate;
 typedef struct _GumMemoryAccessDetails        GumMemoryAccessDetails;
-typedef enum _GumMemoryOperation              GumMemoryOperation;
+typedef guint                                 GumMemoryOperation;
 
 typedef void (* GumMemoryAccessNotify) (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, gpointer user_data);

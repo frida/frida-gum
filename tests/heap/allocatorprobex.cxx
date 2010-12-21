@@ -26,6 +26,8 @@ TEST_LIST_BEGIN (allocator_probe_cxx)
   ALLOCPROBE_TESTENTRY (concurrency)
 TEST_LIST_END ()
 
+static gpointer concurrency_torture_helper (gpointer data);
+
 ALLOCPROBE_TESTCASE (new_delete)
 {
   guint malloc_count, realloc_count, free_count;

@@ -1,4 +1,6 @@
-SUBDIRS = core
+SUBDIRS = \
+	core \
+	heap
 
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
@@ -22,15 +24,23 @@ gum_tests_SOURCES = \
 gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
 	$(top_builddir)/gum/libgum-1.0.la \
-	$(backend_libs)
+	$(backend_libs) \
+	-lstdc++
 
 libgum_tests_la_SOURCES = \
 	gumtest.c \
 	testutil.c \
 	testutil.h \
+	stubs/dummyclasses.c \
+	stubs/dummyclasses.h \
+	stubs/fakebacktracer.c \
+	stubs/fakebacktracer.h \
+	stubs/fakeeventsink.c \
+	stubs/fakeeventsink.h \
 	$(arch_sources)
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
+	$(builddir)/heap/libgum-tests-heap.la \
 	$(top_builddir)/gum/libgum-1.0.la \
 	$(GUM_LIBS)
 

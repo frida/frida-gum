@@ -54,7 +54,7 @@ typedef struct _GumTracerClass      GumTracerClass;
 typedef struct _GumTracerPrivate    GumTracerPrivate;
 
 typedef struct _GumTraceEntry       GumTraceEntry;
-typedef enum _GumEntryType          GumEntryType;
+typedef guint                       GumEntryType;
 
 struct _GumTracer
 {

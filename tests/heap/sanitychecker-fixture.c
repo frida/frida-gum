@@ -22,6 +22,7 @@
 #include "dummyclasses.h"
 #include "testutil.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #define SANITYCHECKER_TESTCASE(NAME) \

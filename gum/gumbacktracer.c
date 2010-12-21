@@ -47,10 +47,12 @@ gum_backtracer_get_type (void)
 GumBacktracer *
 gum_backtracer_make_default (void)
 {
-#ifdef G_OS_WIN32
+#if defined (G_OS_WIN32)
   return gum_dbghelp_backtracer_new ();
-#else
+#elif defined (HAVE_LINUX)
   return gum_gnu_backtracer_new ();
+#else
+  return NULL;
 #endif
 }
 

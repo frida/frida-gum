@@ -91,6 +91,7 @@ AC_CONFIG_FILES([
 	gum/Makefile
 	tests/Makefile
 	tests/core/Makefile
+	tests/heap/Makefile
 	vapi/Makefile
 ])
 AC_OUTPUT

@@ -22,6 +22,7 @@
 #include "gummemory.h"
 #include "testutil.h"
 
+#include <stdlib.h>
 #include <string.h>
 
 #define BOUNDSCHECKER_TESTCASE(NAME) \

@@ -23,7 +23,7 @@
 
 #include <gum/gumdefs.h>
 
-typedef enum _GumPageProtection GumPageProtection;
+typedef guint GumPageProtection;
 typedef struct _GumAddressSpec GumAddressSpec;
 typedef struct _GumMemoryRange GumMemoryRange;
 typedef struct _GumMatchPattern GumMatchPattern;
