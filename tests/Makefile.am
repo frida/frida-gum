@@ -1,6 +1,7 @@
 SUBDIRS = \
 	core \
-	heap
+	heap \
+	prof
 
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
@@ -41,6 +42,7 @@ libgum_tests_la_SOURCES = \
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(builddir)/heap/libgum-tests-heap.la \
+	$(builddir)/prof/libgum-tests-prof.la \
 	$(top_builddir)/gum/libgum-1.0.la \
 	$(GUM_LIBS)
 
