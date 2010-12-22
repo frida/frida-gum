@@ -77,12 +77,22 @@ struct _GumFormatStringToken
 
 static void gum_script_finalize (GObject * object);
 
-static gboolean gum_script_handle_variable_declaration (GumScript * self,
-    GScanner * scanner);
 static gboolean gum_script_handle_replace_argument (GumScript * self,
-    GScanner * scanner, GumScriptCompiler * compiler);
+    guint argument_index, GScanner * scanner, GumScriptCompiler * compiler);
 static gboolean gum_script_handle_send_statement (GumScript * self,
     GScanner * scanner);
+static gboolean gum_script_handle_variable_declaration (GumScript * self,
+    GScanner * scanner);
+static gboolean gum_script_handle_assignment (GumScript * self,
+    const gchar * variable_name, GScanner * scanner,
+    GumScriptCompiler * compiler);
+static gboolean gum_script_handle_arg_variable_reference (GumScript * self,
+    GScanner * scanner, guint * argument_index);
+static gboolean gum_script_handle_open_parentheses (GumScript * self,
+    GScanner * scanner);
+static gboolean gum_script_handle_close_parentheses (GumScript * self,
+    GScanner * scanner);
+static gboolean gum_script_handle_comma (GumScript * self, GScanner * scanner);
 static void gum_script_generate_call_to_send_item_commit (GumScript * self,
     GScanner * scanner, GumScriptCompiler * compiler);
 
@@ -203,7 +213,6 @@ gum_script_from_string (const gchar * script_text,
   while (!g_scanner_eof (scanner))
   {
     GTokenType token_type;
-    const gchar * statement_type;
     gboolean statement_is_valid;
 
     token_type = g_scanner_get_next_token (scanner);
@@ -217,25 +226,35 @@ gum_script_from_string (const gchar * script_text,
       goto parse_error;
     }
 
-    statement_type = scanner->value.v_string;
+    if (g_scanner_peek_next_token (scanner) == G_TOKEN_EQUAL_SIGN)
+    {
+      gchar * variable_name;
 
-    if (strcmp (statement_type, "var") == 0)
-    {
-      statement_is_valid = gum_script_handle_variable_declaration (script, scanner);
-    }
-    else if (strcmp (statement_type, "ReplaceArgument") == 0)
-    {
-      statement_is_valid = gum_script_handle_replace_argument (script, scanner,
-          &compiler);
-    }
-    else if (g_str_has_prefix (statement_type, "Send"))
-    {
-      statement_is_valid = gum_script_handle_send_statement (script, scanner);
+      variable_name = g_strdup (scanner->value.v_string);
+      g_scanner_get_next_token (scanner);
+      statement_is_valid = gum_script_handle_assignment (script, variable_name,
+          scanner, &compiler);
+      g_free (variable_name);
     }
     else
     {
-      g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
-      statement_is_valid = FALSE;
+      const gchar * statement_type;
+
+      statement_type = scanner->value.v_string;
+      if (strcmp (statement_type, "var") == 0)
+      {
+        statement_is_valid = gum_script_handle_variable_declaration (script,
+            scanner);
+      }
+      else if (g_str_has_prefix (statement_type, "send_"))
+      {
+        statement_is_valid = gum_script_handle_send_statement (script, scanner);
+      }
+      else
+      {
+        g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
+        statement_is_valid = FALSE;
+      }
     }
 
     if (!statement_is_valid)
@@ -429,6 +448,152 @@ _gum_script_send_item_commit (GumScript * self,
 }
 
 static gboolean
+gum_script_handle_replace_argument (GumScript * self,
+                                    guint argument_index,
+                                    GScanner * scanner,
+                                    GumScriptCompiler * compiler)
+{
+  GTokenType operation_token;
+  gboolean is_address_of = FALSE;
+  GumVariable * var;
+  GumAddress value;
+
+  operation_token = g_scanner_get_next_token (scanner);
+  if (operation_token == '&')
+  {
+    is_address_of = TRUE;
+  }
+  else
+  {
+    if (operation_token != G_TOKEN_IDENTIFIER)
+    {
+      g_scanner_unexp_token (scanner, G_TOKEN_IDENTIFIER, NULL, NULL, NULL,
+          "expected operation to follow argument assignment", TRUE);
+      goto error;
+    }
+
+    if (strcmp (scanner->value.v_identifier, "len") != 0)
+    {
+      g_scanner_error (scanner, "unknown operation");
+      goto error;
+    }
+  }
+
+  if (!is_address_of && !gum_script_handle_open_parentheses (self, scanner))
+    goto error;
+
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_IDENTIFIER)
+  {
+    g_scanner_unexp_token (scanner, G_TOKEN_IDENTIFIER, NULL, NULL, NULL,
+        "expected variable name", TRUE);
+    goto error;
+  }
+
+  var = gum_script_find_variable_named (self, scanner->value.v_string);
+  if (var == NULL)
+  {
+    g_scanner_error (scanner, "referenced variable %s does not exist",
+        scanner->value.v_string);
+    goto error;
+  }
+
+  g_assert (var->type == GUM_VARIABLE_WIDE_STRING);
+
+  if (is_address_of)
+    value = GUM_ADDRESS (var->value.wide_string);
+  else
+    value = GUM_ADDRESS (var->value.string_length);
+
+  gum_script_compiler_emit_replace_argument (compiler, argument_index,
+      value);
+
+  if (!is_address_of && !gum_script_handle_close_parentheses (self, scanner))
+    goto error;
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
+gum_script_handle_send_statement (GumScript * self,
+                                  GScanner * scanner)
+{
+  const gchar * statement_type = scanner->value.v_string;
+  GumSendArgItem item;
+  gchar type_char;
+
+  if (strcmp (statement_type, "send_int32") == 0)
+  {
+    item.type = GUM_VARIABLE_INT32;
+    type_char = 'i';
+  }
+  else if (strcmp (statement_type, "send_narrow_string") == 0)
+  {
+    item.type = GUM_VARIABLE_ANSI_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "send_wide_string") == 0)
+  {
+    item.type = GUM_VARIABLE_WIDE_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "send_narrow_format_string") == 0)
+  {
+    item.type = GUM_VARIABLE_ANSI_FORMAT_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "send_wide_format_string") == 0)
+  {
+    item.type = GUM_VARIABLE_WIDE_FORMAT_STRING;
+    type_char = 's';
+  }
+  else if (strcmp (statement_type, "send_byte_array") == 0)
+  {
+    item.type = GUM_VARIABLE_BYTE_ARRAY;
+    type_char = ' ';
+  }
+  else
+  {
+    g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
+    goto error;
+  }
+
+  if (!gum_script_handle_open_parentheses (self, scanner))
+    goto error;
+
+  if (!gum_script_handle_arg_variable_reference (self, scanner, &item.index))
+    goto error;
+
+  if (item.type == GUM_VARIABLE_BYTE_ARRAY)
+  {
+    guint len_arg;
+
+    if (!gum_script_handle_comma (self, scanner))
+      goto error;
+
+    if (!gum_script_handle_arg_variable_reference (self, scanner, &len_arg))
+      goto error;
+    item.index = (item.index << 16) | len_arg;
+  }
+
+  if (!gum_script_handle_close_parentheses (self, scanner))
+    goto error;
+
+  if (type_char == ' ')
+    g_string_append (self->priv->send_arg_type_signature, "ay");
+  else
+    g_string_append_c (self->priv->send_arg_type_signature, type_char);
+  g_array_append_val (self->priv->send_arg_items, item);
+
+  return TRUE;
+
+error:
+  return FALSE;
+}
+
+static gboolean
 gum_script_handle_variable_declaration (GumScript * self,
                                         GScanner * scanner)
 {
@@ -497,146 +662,94 @@ error:
 }
 
 static gboolean
-gum_script_handle_replace_argument (GumScript * self,
-                                    GScanner * scanner,
-                                    GumScriptCompiler * compiler)
+gum_script_handle_assignment (GumScript * self,
+                              const gchar * variable_name,
+                              GScanner * scanner,
+                              GumScriptCompiler * compiler)
 {
-  gulong argument_index;
-  gchar * operation_name = NULL;
+  guint argument_index;
 
-  if (g_scanner_get_next_token (scanner) != G_TOKEN_INT)
+  if (!g_str_has_prefix (variable_name, "arg"))
   {
-    g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
-        "expected argument index", TRUE);
-    goto error;
+    g_scanner_error (scanner, "only arguments can be assigned to");
+    return FALSE;
   }
-  argument_index = scanner->value.v_int;
+  argument_index = atoi (variable_name + 3);
 
-  if (g_scanner_get_next_token (scanner) != G_TOKEN_IDENTIFIER)
-  {
-    g_scanner_unexp_token (scanner, G_TOKEN_IDENTIFIER, NULL, NULL, NULL,
-        "expected operation name to follow argument index", TRUE);
-    goto error;
-  }
-  operation_name = g_strdup (scanner->value.v_string);
-
-  if (strcmp (operation_name, "AddressOf") == 0 ||
-      strcmp (operation_name, "LengthOf") == 0)
-  {
-    GumVariable * var;
-    GumAddress value;
-
-    if (g_scanner_get_next_token (scanner) != G_TOKEN_IDENTIFIER)
-    {
-      g_scanner_unexp_token (scanner, G_TOKEN_IDENTIFIER, NULL, NULL, NULL,
-          "expected variable name", TRUE);
-      goto error;
-    }
-
-    var = gum_script_find_variable_named (self, scanner->value.v_string);
-    if (var == NULL)
-    {
-      g_scanner_error (scanner, "referenced variable %s does not exist",
-          scanner->value.v_string);
-      goto error;
-    }
-
-    g_assert (var->type == GUM_VARIABLE_WIDE_STRING);
-
-    if (operation_name[0] == 'A')
-      value = GUM_ADDRESS (var->value.wide_string);
-    else
-      value = GUM_ADDRESS (var->value.string_length);
-
-    gum_script_compiler_emit_replace_argument (compiler, argument_index, value);
-  }
-  else
-  {
-    g_scanner_error (scanner, "unknown operation");
-    goto error;
-  }
-
-  g_free (operation_name);
-  return TRUE;
-
-error:
-  g_free (operation_name);
-  return FALSE;
+  return gum_script_handle_replace_argument (self, argument_index, scanner,
+      compiler);
 }
 
 static gboolean
-gum_script_handle_send_statement (GumScript * self,
-                                  GScanner * scanner)
+gum_script_handle_arg_variable_reference (GumScript * self,
+                                          GScanner * scanner,
+                                          guint * argument_index)
 {
-  const gchar * statement_type = scanner->value.v_string;
-  GumSendArgItem item;
-  gchar type_char;
+  (void) self;
 
-  if (strcmp (statement_type, "SendInt32FromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_INT32;
-    type_char = 'i';
-  }
-  else if (strcmp (statement_type, "SendNarrowStringFromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_ANSI_STRING;
-    type_char = 's';
-  }
-  else if (strcmp (statement_type, "SendWideStringFromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_WIDE_STRING;
-    type_char = 's';
-  }
-  else if (strcmp (statement_type, "SendNarrowFormatStringFromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_ANSI_FORMAT_STRING;
-    type_char = 's';
-  }
-  else if (strcmp (statement_type, "SendWideFormatStringFromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_WIDE_FORMAT_STRING;
-    type_char = 's';
-  }
-  else if (strcmp (statement_type, "SendByteArrayFromArgument") == 0)
-  {
-    item.type = GUM_VARIABLE_BYTE_ARRAY;
-    type_char = ' ';
-  }
-  else
-  {
-    g_scanner_error (scanner, "unexpected statement: '%s'", statement_type);
-    goto error;
-  }
-
-  if (g_scanner_get_next_token (scanner) != G_TOKEN_INT)
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_IDENTIFIER)
   {
     g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
-        "expected argument index", TRUE);
-    goto error;
+        "expected variable name", TRUE);
+    return FALSE;
   }
-  item.index = scanner->value.v_int;
-
-  if (item.type == GUM_VARIABLE_BYTE_ARRAY)
+  if (!g_str_has_prefix (scanner->value.v_identifier, "arg"))
   {
-    if (g_scanner_get_next_token (scanner) != G_TOKEN_INT)
-    {
-      g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
-          "expected argument index for byte array length", TRUE);
-      goto error;
-    }
-    item.index = (item.index << 16) | scanner->value.v_int;
+    g_scanner_error (scanner, "referenced variable %s does not exist",
+        scanner->value.v_identifier);
+    return FALSE;
   }
 
-  if (type_char == ' ')
-    g_string_append (self->priv->send_arg_type_signature, "ay");
-  else
-    g_string_append_c (self->priv->send_arg_type_signature, type_char);
-  g_array_append_val (self->priv->send_arg_items, item);
+  *argument_index = atoi (scanner->value.v_identifier + 3);
+  return TRUE;
+}
+
+static gboolean
+gum_script_handle_open_parentheses (GumScript * self,
+                                    GScanner * scanner)
+{
+  (void) self;
+
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_LEFT_PAREN)
+  {
+    g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
+        "expected opening parentheses", TRUE);
+    return FALSE;
+  }
 
   return TRUE;
+}
 
-error:
-  return FALSE;
+static gboolean
+gum_script_handle_close_parentheses (GumScript * self,
+                                     GScanner * scanner)
+{
+  (void) self;
+
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_RIGHT_PAREN)
+  {
+    g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
+        "expected closing parentheses", TRUE);
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_script_handle_comma (GumScript * self,
+                         GScanner * scanner)
+{
+  (void) self;
+
+  if (g_scanner_get_next_token (scanner) != G_TOKEN_COMMA)
+  {
+    g_scanner_unexp_token (scanner, G_TOKEN_INT, NULL, NULL, NULL,
+        "expected byte array length variable name", TRUE);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void

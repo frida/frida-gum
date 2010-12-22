@@ -71,8 +71,8 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
 {
   const gchar * script_text =
     "var new_text = \"No, not me!\"\n"
-    "ReplaceArgument 0 AddressOf new_text\n"
-    "ReplaceArgument 1 LengthOf new_text\n";
+    "arg0 = &new_text\n"
+    "arg1 = len (new_text)\n";
   GumScript * script;
   GError * error = NULL;
   gunichar2 * previous_text;
@@ -108,9 +108,9 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
 SCRIPT_TESTCASE (send_string_from_argument)
 {
   const gchar * script_text =
-    "SendNarrowStringFromArgument 0\n"
-    "SendWideStringFromArgument 1\n"
-    "SendInt32FromArgument 2\n";
+    "send_narrow_string (arg0)\n"
+    "send_wide_string (arg1)\n"
+    "send_int32 (arg2)\n";
   GumScript * script;
   GError * error = NULL;
   StringsAndLengthArgs args;
@@ -146,7 +146,7 @@ SCRIPT_TESTCASE (send_string_from_argument)
 
 SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
 {
-  const gchar * script_text = "SendNarrowFormatStringFromArgument 0";
+  const gchar * script_text = "send_narrow_format_string (arg0)";
   GumScript * script;
   GError * error = NULL;
   NarrowFormatStringArgs args;
@@ -179,7 +179,7 @@ SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
 
 SCRIPT_TESTCASE (send_wide_format_string_from_argument)
 {
-  const gchar * script_text = "SendWideFormatStringFromArgument 0";
+  const gchar * script_text = "send_wide_format_string (arg0)";
   GumScript * script;
   GError * error = NULL;
   WideFormatStringArgs args;
@@ -213,7 +213,7 @@ SCRIPT_TESTCASE (send_wide_format_string_from_argument)
 
 SCRIPT_TESTCASE (send_byte_array_from_argument)
 {
-  const gchar * script_text = "SendByteArrayFromArgument 1 2";
+  const gchar * script_text = "send_byte_array (arg1, arg2)";
   GumScript * script;
   GError * error = NULL;
   ByteArrayAndLengthArgs args;
