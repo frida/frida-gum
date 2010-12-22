@@ -26,6 +26,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (wide_format_string_can_be_sent)
   SCRIPT_TESTENTRY (byte_array_can_be_sent)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
+  SCRIPT_TESTENTRY (bottom_half_executed_on_leave)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
@@ -275,6 +276,45 @@ SCRIPT_TESTCASE (return_value_can_be_sent)
   g_variant_get (msg, "(s)", &msg_str);
   g_assert_cmpstr (msg_str, ==, "I was returned");
   g_free (msg_str);
+  g_variant_unref (msg);
+
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (bottom_half_executed_on_leave)
+{
+  const gchar * script_text = "send_narrow_string (arg0)\n---\nsend_int32 (retval)";
+  GumScript * script;
+  GError * error = NULL;
+  GVariant * msg = NULL;
+  StringsAndLengthArgs args = { 0, };
+  gchar * str;
+  gint val;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (error == NULL);
+  g_assert (script != NULL);
+
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+
+  args.text_narrow = "Hey";
+  fixture->argument_list = &args;
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
+  g_variant_get (msg, "(s)", &str);
+  g_assert_cmpstr (str, ==, "Hey");
+  g_free (str);
+  g_variant_unref (msg);
+  msg = NULL;
+
+  fixture->point_cut = GUM_POINT_LEAVE;
+  fixture->return_value = GSIZE_TO_POINTER ((gsize) -42);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(i)")));
+  g_variant_get (msg, "(i)", &val);
+  g_assert_cmpint (val, ==, -42);
   g_variant_unref (msg);
 
   g_object_unref (script);

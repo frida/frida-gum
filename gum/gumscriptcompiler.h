@@ -21,45 +21,54 @@
 #define __GUM_SCRIPT_COMPILER_H__
 
 #include "guminvocationcontext.h"
-#include "gumscript.h"
-
-#ifdef _MSC_VER
-# if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_SCRIPT_ENTRYPOINT_API __fastcall
-# else
-#  define GUM_SCRIPT_ENTRYPOINT_API
-# endif
-#else
-# define GUM_SCRIPT_ENTRYPOINT_API
-#endif
+#include "gumscript-priv.h"
 
 G_BEGIN_DECLS
 
-typedef struct _GumScriptCompiler           GumScriptCompiler;
+typedef struct _GumScriptCompilerBackend GumScriptCompilerBackend;
 
-typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
-    (GumInvocationContext * context);
+typedef enum _GumVariableType GumVariableType;
+typedef struct _GumSendArgItem GumSendArgItem;
 
-struct _GumScriptCompiler
+enum _GumVariableType
 {
-  gpointer impl[16];
+  GUM_VARIABLE_INT32,
+  GUM_VARIABLE_ANSI_STRING,
+  GUM_VARIABLE_WIDE_STRING,
+  GUM_VARIABLE_ANSI_FORMAT_STRING,
+  GUM_VARIABLE_WIDE_FORMAT_STRING,
+  GUM_VARIABLE_BYTE_ARRAY
 };
 
-void gum_script_compiler_init (GumScriptCompiler * compiler, gpointer code_address);
-void gum_script_compiler_free (GumScriptCompiler * compiler);
+struct _GumSendArgItem
+{
+  guint32 index;
+  GumVariableType type;
+};
 
-void gum_script_compiler_flush (GumScriptCompiler * compiler);
+GumScript * gum_script_compiler_compile (const gchar * script_text,
+    GError ** error);
 
-guint gum_script_compiler_current_offset (GumScriptCompiler * compiler);
-GumScriptEntrypoint gum_script_compiler_get_entrypoint (GumScriptCompiler * compiler);
+void gum_script_code_free (GumScriptCode * code);
+void gum_script_data_free (GumScriptData * data);
 
-void gum_script_compiler_emit_prologue (GumScriptCompiler * compiler);
-void gum_script_compiler_emit_epilogue (GumScriptCompiler * compiler);
+GumScriptCompilerBackend * gum_script_compiler_backend_new (
+    gpointer code_address);
+void gum_script_compiler_backend_free (GumScriptCompilerBackend * backend);
 
-void gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
-    guint index, GumAddress value);
-void gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
-    GumScript * script, const GArray * send_arg_items);
+void gum_script_compiler_backend_flush (GumScriptCompilerBackend * self);
+guint gum_script_compiler_backend_current_offset (
+    GumScriptCompilerBackend * self);
+
+void gum_script_compiler_backend_emit_prologue (
+    GumScriptCompilerBackend * self);
+void gum_script_compiler_backend_emit_epilogue (
+    GumScriptCompilerBackend * self);
+void gum_script_compiler_backend_emit_replace_argument (
+    GumScriptCompilerBackend * self, guint index, GumAddress value);
+void gum_script_compiler_backend_emit_send_item_commit (
+    GumScriptCompilerBackend * self, GumScript * script,
+    const GArray * send_arg_items);
 
 G_END_DECLS
 

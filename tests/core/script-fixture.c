@@ -35,12 +35,19 @@
 
 typedef struct _TestScriptFixture
 {
+  GumPointCut point_cut;
   gpointer argument_list;
   gpointer return_value;
   GumInvocationContext invocation_context;
   GumInvocationBackend invocation_backend;
   GumCpuContext cpu_context;
 } TestScriptFixture;
+
+static GumPointCut
+test_script_fixture_get_point_cut (GumInvocationContext * context)
+{
+  return ((TestScriptFixture *) context->backend->data)->point_cut;
+}
 
 static gpointer
 test_script_fixture_get_nth_argument (GumInvocationContext * context,
@@ -72,9 +79,12 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   GumInvocationContext * ctx = &fixture->invocation_context;
   GumInvocationBackend * backend = &fixture->invocation_backend;
 
+  fixture->point_cut = GUM_POINT_ENTER;
+
   ctx->cpu_context = &fixture->cpu_context;
   ctx->backend = backend;
 
+  backend->get_point_cut = test_script_fixture_get_point_cut;
   backend->get_nth_argument = test_script_fixture_get_nth_argument;
   backend->replace_nth_argument = test_script_fixture_replace_nth_argument;
   backend->get_return_value = test_script_fixture_get_return_value;

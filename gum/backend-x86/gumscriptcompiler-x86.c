@@ -23,61 +23,48 @@
 #include "gumscript-priv.h"
 #include "gumx86writer.h"
 
-#define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerImpl *) (c))
+#define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerBackend *) (c))
 
-typedef struct _GumScriptCompilerImpl GumScriptCompilerImpl;
-
-struct _GumScriptCompilerImpl
+struct _GumScriptCompilerBackend
 {
   gpointer code_address;
   GumX86Writer code_writer;
 };
 
-void
-gum_script_compiler_init (GumScriptCompiler * compiler, gpointer code_address)
+GumScriptCompilerBackend *
+gum_script_compiler_backend_new (gpointer code_address)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
+  GumScriptCompilerBackend * backend;
 
-  self->code_address = code_address;
-  gum_x86_writer_init (&self->code_writer, code_address);
+  backend = g_slice_new (GumScriptCompilerBackend);
+  backend->code_address = code_address;
+  gum_x86_writer_init (&backend->code_writer, code_address);
+
+  return backend;
 }
 
 void
-gum_script_compiler_free (GumScriptCompiler * compiler)
+gum_script_compiler_backend_free (GumScriptCompilerBackend * backend)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
-  gum_x86_writer_free (&self->code_writer);
+  gum_x86_writer_free (&backend->code_writer);
+  g_slice_free (GumScriptCompilerBackend, backend);
 }
 
 void
-gum_script_compiler_flush (GumScriptCompiler * compiler)
+gum_script_compiler_backend_flush (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
   gum_x86_writer_flush (&self->code_writer);
 }
 
 guint
-gum_script_compiler_current_offset (GumScriptCompiler * compiler)
+gum_script_compiler_backend_current_offset (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
   return gum_x86_writer_offset (&self->code_writer);
 }
 
-GumScriptEntrypoint
-gum_script_compiler_get_entrypoint (GumScriptCompiler * compiler)
-{
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
-  return GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint, self->code_address);
-}
-
 void
-gum_script_compiler_emit_prologue (GumScriptCompiler * compiler)
+gum_script_compiler_backend_emit_prologue (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumX86Writer * cw = &self->code_writer;
 
   gum_x86_writer_put_push_reg (cw, GUM_REG_XBP);
@@ -89,9 +76,8 @@ gum_script_compiler_emit_prologue (GumScriptCompiler * compiler)
 }
 
 void
-gum_script_compiler_emit_epilogue (GumScriptCompiler * compiler)
+gum_script_compiler_backend_emit_epilogue (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumX86Writer * cw = &self->code_writer;
 
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XBX);
@@ -102,11 +88,11 @@ gum_script_compiler_emit_epilogue (GumScriptCompiler * compiler)
 }
 
 void
-gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
-                                           guint index,
-                                           GumAddress value)
+gum_script_compiler_backend_emit_replace_argument (
+    GumScriptCompilerBackend * self,
+    guint index,
+    GumAddress value)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumX86Writer * cw = &self->code_writer;
 
   gum_x86_writer_put_push_reg (cw, GUM_REG_XSI);
@@ -122,11 +108,11 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
 }
 
 void
-gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
-                                           GumScript * script,
-                                           const GArray * send_arg_items)
+gum_script_compiler_backend_emit_send_item_commit (
+    GumScriptCompilerBackend * self,
+    GumScript * script,
+    const GArray * send_arg_items)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumX86Writer * cw = &self->code_writer;
   gint item_index;
 

@@ -23,27 +23,48 @@
 #include "guminvocationcontext.h"
 #include "gumscript.h"
 
+#ifdef _MSC_VER
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_SCRIPT_ENTRYPOINT_API __fastcall
+# else
+#  define GUM_SCRIPT_ENTRYPOINT_API
+# endif
+#else
+# define GUM_SCRIPT_ENTRYPOINT_API
+#endif
+
+typedef struct _GumScriptCode GumScriptCode;
+typedef struct _GumScriptData GumScriptData;
+
+typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
+    (GumInvocationContext * context);
+
+struct _GumScriptCode
+{
+  GumScriptEntrypoint enter_entrypoint;
+  GumScriptEntrypoint leave_entrypoint;
+
+  guint8 * start;
+  guint size;
+};
+
+struct _GumScriptData
+{
+  GHashTable * variable_by_name;
+  gchar * send_arg_type_signature[2];
+};
+
+struct _GumScriptPrivate
+{
+  GumScriptCode * code;
+  GumScriptData * data;
+
+  GumScriptMessageHandler message_handler_func;
+  gpointer message_handler_data;
+  GDestroyNotify message_handler_notify;
+};
+
 G_BEGIN_DECLS
-
-typedef enum _GumVariableType GumVariableType;
-
-typedef struct _GumSendArgItem GumSendArgItem;
-
-enum _GumVariableType
-{
-  GUM_VARIABLE_INT32,
-  GUM_VARIABLE_ANSI_STRING,
-  GUM_VARIABLE_WIDE_STRING,
-  GUM_VARIABLE_ANSI_FORMAT_STRING,
-  GUM_VARIABLE_WIDE_FORMAT_STRING,
-  GUM_VARIABLE_BYTE_ARRAY
-};
-
-struct _GumSendArgItem
-{
-  guint32 index;
-  GumVariableType type;
-};
 
 void _gum_script_send_item_commit (GumScript * self,
     GumInvocationContext * context, guint argument_index, ...);

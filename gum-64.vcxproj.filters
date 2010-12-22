@@ -201,6 +201,9 @@
     <ClCompile Include="libs\gum\heap\gumheapapi.c">
       <Filter>libs\heap</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscriptcompiler.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ext\udis86\libudis86\extern.h">

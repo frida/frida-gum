@@ -54,6 +54,7 @@
     <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.c" />
+    <ClCompile Include="gum\gumscriptcompiler.c" />
     <ClCompile Include="gum\gumstalker.c" />
     <ClCompile Include="gum\gumtracer.c" />
   </ItemGroup>
