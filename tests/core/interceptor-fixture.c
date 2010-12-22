@@ -236,6 +236,9 @@ listener_context_on_enter (GumInvocationListener * listener,
 {
   ListenerContext * self = (ListenerContext *) listener;
 
+  g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
+      GUM_POINT_ENTER);
+
   g_string_append_c (self->harness->result, self->enter_char);
 
   self->last_seen_argument = (gsize)
@@ -250,6 +253,9 @@ listener_context_on_leave (GumInvocationListener * listener,
                            GumInvocationContext * context)
 {
   ListenerContext * self = (ListenerContext *) listener;
+
+  g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
+      GUM_POINT_LEAVE);
 
   g_string_append_c (self->harness->result, self->leave_char);
 

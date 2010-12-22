@@ -19,6 +19,12 @@
 
 #include "guminvocationcontext.h"
 
+GumPointCut
+gum_invocation_context_get_point_cut (GumInvocationContext * context)
+{
+  return context->backend->get_point_cut (context);
+}
+
 gpointer
 gum_invocation_context_get_nth_argument (GumInvocationContext * context,
                                          guint n)

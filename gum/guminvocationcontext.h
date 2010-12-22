@@ -38,9 +38,12 @@
 
 typedef struct _GumInvocationBackend GumInvocationBackend;
 typedef struct _GumInvocationContext GumInvocationContext;
+typedef guint GumPointCut;
 
 struct _GumInvocationBackend
 {
+  GumPointCut (* get_point_cut) (GumInvocationContext * context);
+
   gpointer (* get_nth_argument) (GumInvocationContext * context, guint n);
   void (* replace_nth_argument) (GumInvocationContext * context, guint n,
       gpointer value);
@@ -68,7 +71,16 @@ struct _GumInvocationContext
   GumInvocationBackend * backend;
 };
 
+enum _GumPointCut
+{
+  GUM_POINT_ENTER,
+  GUM_POINT_LEAVE
+};
+
 G_BEGIN_DECLS
+
+GUM_API GumPointCut gum_invocation_context_get_point_cut (
+    GumInvocationContext * context);
 
 GUM_API gpointer gum_invocation_context_get_nth_argument (
     GumInvocationContext * context, guint n);

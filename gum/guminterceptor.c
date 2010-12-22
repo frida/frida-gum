@@ -88,6 +88,7 @@ struct _ListenerDataSlot
 
 struct _ListenerInvocationState
 {
+  GumPointCut point_cut;
   ListenerEntry * entry;
   InterceptorThreadContext * interceptor_ctx;
   guint8 * invocation_data;
@@ -698,6 +699,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       entry = (ListenerEntry *)
           g_ptr_array_index (function_ctx->listener_entries, i);
 
+      state.point_cut = GUM_POINT_ENTER;
       state.entry = entry;
       state.interceptor_ctx = interceptor_ctx;
       state.invocation_data = stack_entry->listener_invocation_data[i];
@@ -759,6 +761,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     entry = (ListenerEntry *)
         g_ptr_array_index (function_ctx->listener_entries, i);
 
+    state.point_cut = GUM_POINT_LEAVE;
     state.entry = entry;
     state.interceptor_ctx = interceptor_ctx;
     state.invocation_data = stack_entry->listener_invocation_data[i];
@@ -834,7 +837,23 @@ get_interceptor_thread_context (void)
   return context;
 }
 
-guint
+static GumPointCut
+gum_interceptor_invocation_get_listener_point_cut (
+    GumInvocationContext * context)
+{
+  return ((ListenerInvocationState *) context->backend->data)->point_cut;
+}
+
+static GumPointCut
+gum_interceptor_invocation_get_replacement_point_cut (
+    GumInvocationContext * context)
+{
+  (void) context;
+
+  return GUM_POINT_ENTER;
+}
+
+static guint
 gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
 {
   (void) context;
@@ -887,6 +906,8 @@ gum_interceptor_invocation_get_replacement_function_data (
 static const GumInvocationBackend
 gum_interceptor_listener_invocation_backend =
 {
+  gum_interceptor_invocation_get_listener_point_cut,
+
   _gum_interceptor_invocation_get_nth_argument,
   _gum_interceptor_invocation_replace_nth_argument,
   _gum_interceptor_invocation_get_return_value,
@@ -905,6 +926,8 @@ gum_interceptor_listener_invocation_backend =
 static const GumInvocationBackend
 gum_interceptor_replacement_invocation_backend =
 {
+  gum_interceptor_invocation_get_replacement_point_cut,
+
   _gum_interceptor_invocation_get_nth_argument,
   _gum_interceptor_invocation_replace_nth_argument,
   _gum_interceptor_invocation_get_return_value,
