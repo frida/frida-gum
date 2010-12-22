@@ -27,6 +27,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (byte_array_can_be_sent)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
   SCRIPT_TESTENTRY (bottom_half_executed_on_leave)
+  SCRIPT_TESTENTRY (empty_script_is_executable_in_both_point_cuts)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
@@ -283,7 +284,10 @@ SCRIPT_TESTCASE (return_value_can_be_sent)
 
 SCRIPT_TESTCASE (bottom_half_executed_on_leave)
 {
-  const gchar * script_text = "send_narrow_string (arg0)\n---\nsend_int32 (retval)";
+  const gchar * script_text =
+      "send_narrow_string (arg0)\n"
+      "---\n"
+      "send_int32 (retval)";
   GumScript * script;
   GError * error = NULL;
   GVariant * msg = NULL;
@@ -316,6 +320,24 @@ SCRIPT_TESTCASE (bottom_half_executed_on_leave)
   g_variant_get (msg, "(i)", &val);
   g_assert_cmpint (val, ==, -42);
   g_variant_unref (msg);
+
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (empty_script_is_executable_in_both_point_cuts)
+{
+  const gchar * script_text = "";
+  GumScript * script;
+  GError * error = NULL;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (error == NULL);
+  g_assert (script != NULL);
+
+  gum_script_execute (script, &fixture->invocation_context);
+
+  fixture->point_cut = GUM_POINT_LEAVE;
+  gum_script_execute (script, &fixture->invocation_context);
 
   g_object_unref (script);
 }

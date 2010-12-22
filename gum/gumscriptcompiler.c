@@ -280,6 +280,12 @@ gum_script_compiler_process (GumScriptCompiler * self,
 
   gum_script_compiler_close_function (self);
 
+  if (self->code->leave_entrypoint == NULL)
+  {
+    self->code->leave_entrypoint = gum_script_compiler_open_function (self);
+    gum_script_compiler_close_function (self);
+  }
+
   return GUM_SCRIPT (g_object_ref (self->script));
 
   /* ERRORS */
