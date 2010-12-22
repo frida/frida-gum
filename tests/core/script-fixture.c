@@ -36,6 +36,7 @@
 typedef struct _TestScriptFixture
 {
   gpointer argument_list;
+  gpointer return_value;
   GumInvocationContext invocation_context;
   GumInvocationBackend invocation_backend;
   GumCpuContext cpu_context;
@@ -58,6 +59,12 @@ test_script_fixture_replace_nth_argument (GumInvocationContext * context,
   ((gpointer *) fixture->argument_list)[n] = value;
 }
 
+static gpointer
+test_script_fixture_get_return_value (GumInvocationContext * context)
+{
+  return ((TestScriptFixture *) context->backend->data)->return_value;
+}
+
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
@@ -70,6 +77,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
 
   backend->get_nth_argument = test_script_fixture_get_nth_argument;
   backend->replace_nth_argument = test_script_fixture_replace_nth_argument;
+  backend->get_return_value = test_script_fixture_get_return_value;
   backend->data = fixture;
 
   memset (&fixture->cpu_context, 0, sizeof (GumCpuContext));

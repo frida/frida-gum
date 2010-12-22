@@ -355,12 +355,19 @@ _gum_script_send_item_commit (GumScript * self,
     var_type = va_arg (args, GumVariableType);
     if (var_type == GUM_VARIABLE_BYTE_ARRAY)
     {
-      byte_array_length_argument_index = argument_index & 0xffff;
+      byte_array_length_argument_index = (argument_index & 0xffff) - 1;
       argument_index >>= 16;
     }
 
-    argument_value =
-        gum_invocation_context_get_nth_argument (context, argument_index);
+    if (argument_index == 0)
+    {
+      argument_value = gum_invocation_context_get_return_value (context);
+    }
+    else
+    {
+      argument_value = gum_invocation_context_get_nth_argument (context,
+          argument_index - 1);
+    }
 
     switch (var_type)
     {
@@ -381,7 +388,7 @@ _gum_script_send_item_commit (GumScript * self,
         if (var_type == GUM_VARIABLE_ANSI_FORMAT_STRING)
         {
           gum_script_expand_format_string (&str_utf8, FALSE,
-              context, argument_index + 1);
+              context, argument_index);
         }
 
         value = g_variant_new_string (str_utf8);
@@ -402,7 +409,7 @@ _gum_script_send_item_commit (GumScript * self,
         if (var_type == GUM_VARIABLE_WIDE_FORMAT_STRING)
         {
           gum_script_expand_format_string (&str_utf8, TRUE,
-              context, argument_index + 1);
+              context, argument_index);
         }
 
         value = g_variant_new_string (str_utf8);
@@ -693,15 +700,23 @@ gum_script_handle_arg_variable_reference (GumScript * self,
         "expected variable name", TRUE);
     return FALSE;
   }
-  if (!g_str_has_prefix (scanner->value.v_identifier, "arg"))
+
+  if (g_str_has_prefix (scanner->value.v_identifier, "arg"))
+    *argument_index = 1 + atoi (scanner->value.v_identifier + 3);
+  else if (strcmp (scanner->value.v_identifier, "retval") == 0)
+    *argument_index = 0;
+  else
+    goto variable_does_not_exist;
+
+  return TRUE;
+
+  /* ERRORS */
+variable_does_not_exist:
   {
     g_scanner_error (scanner, "referenced variable %s does not exist",
         scanner->value.v_identifier);
     return FALSE;
   }
-
-  *argument_index = atoi (scanner->value.v_identifier + 3);
-  return TRUE;
 }
 
 static gboolean

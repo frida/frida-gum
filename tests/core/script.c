@@ -25,6 +25,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (narrow_format_string_can_be_sent)
   SCRIPT_TESTENTRY (wide_format_string_can_be_sent)
   SCRIPT_TESTENTRY (byte_array_can_be_sent)
+  SCRIPT_TESTENTRY (return_value_can_be_sent)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
@@ -245,6 +246,35 @@ SCRIPT_TESTCASE (byte_array_can_be_sent)
   g_assert_cmpuint (i, ==, 5);
   g_variant_iter_free (iter);
 
+  g_variant_unref (msg);
+
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (return_value_can_be_sent)
+{
+  const gchar * script_text = "send_narrow_string (retval)";
+  GumScript * script;
+  GError * error = NULL;
+  GVariant * msg = NULL;
+  gchar buf[] = "I was returned";
+  gchar * msg_str;
+
+  script = gum_script_from_string (script_text, &error);
+  g_assert (error == NULL);
+  g_assert (script != NULL);
+
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+
+  fixture->return_value = buf;
+  gum_script_execute (script, &fixture->invocation_context);
+  memset (buf, 0, sizeof (buf));
+
+  g_assert (msg != NULL);
+  g_assert (g_variant_is_of_type (msg, G_VARIANT_TYPE ("(s)")));
+  g_variant_get (msg, "(s)", &msg_str);
+  g_assert_cmpstr (msg_str, ==, "I was returned");
+  g_free (msg_str);
   g_variant_unref (msg);
 
   g_object_unref (script);
