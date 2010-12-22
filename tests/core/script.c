@@ -20,11 +20,11 @@
 #include "script-fixture.c"
 
 TEST_LIST_BEGIN (script)
-  SCRIPT_TESTENTRY (replace_string_and_length_arguments)
-  SCRIPT_TESTENTRY (send_string_from_argument)
-  SCRIPT_TESTENTRY (send_narrow_format_string_from_argument)
-  SCRIPT_TESTENTRY (send_wide_format_string_from_argument)
-  SCRIPT_TESTENTRY (send_byte_array_from_argument)
+  SCRIPT_TESTENTRY (arg_assignment_replaces_argument)
+  SCRIPT_TESTENTRY (multiple_send_calls_produce_gvariant)
+  SCRIPT_TESTENTRY (narrow_format_string_can_be_sent)
+  SCRIPT_TESTENTRY (wide_format_string_can_be_sent)
+  SCRIPT_TESTENTRY (byte_array_can_be_sent)
 TEST_LIST_END ()
 
 typedef struct _StringAndLengthArgs StringAndLengthArgs;
@@ -67,7 +67,7 @@ static void store_message (GumScript * script, GVariant * msg,
 
 static gchar * narrow_string_from_utf8 (const gchar * str_utf8);
 
-SCRIPT_TESTCASE (replace_string_and_length_arguments)
+SCRIPT_TESTCASE (arg_assignment_replaces_argument)
 {
   const gchar * script_text =
     "var new_text = \"No, not me!\"\n"
@@ -105,7 +105,7 @@ SCRIPT_TESTCASE (replace_string_and_length_arguments)
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (send_string_from_argument)
+SCRIPT_TESTCASE (multiple_send_calls_produce_gvariant)
 {
   const gchar * script_text =
     "send_narrow_string (arg0)\n"
@@ -144,7 +144,7 @@ SCRIPT_TESTCASE (send_string_from_argument)
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
+SCRIPT_TESTCASE (narrow_format_string_can_be_sent)
 {
   const gchar * script_text = "send_narrow_format_string (arg0)";
   GumScript * script;
@@ -177,7 +177,7 @@ SCRIPT_TESTCASE (send_narrow_format_string_from_argument)
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (send_wide_format_string_from_argument)
+SCRIPT_TESTCASE (wide_format_string_can_be_sent)
 {
   const gchar * script_text = "send_wide_format_string (arg0)";
   GumScript * script;
@@ -211,7 +211,7 @@ SCRIPT_TESTCASE (send_wide_format_string_from_argument)
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (send_byte_array_from_argument)
+SCRIPT_TESTCASE (byte_array_can_be_sent)
 {
   const gchar * script_text = "send_byte_array (arg1, arg2)";
   GumScript * script;
