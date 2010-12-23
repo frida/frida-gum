@@ -20,64 +20,60 @@
 #include "gumscriptcompiler.h"
 
 #include "guminvocationcontext.h"
-#include "gumscript-priv.h"
 #include "gumthumbwriter.h"
 
-#define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerImpl *) (c))
-
-typedef struct _GumScriptCompilerImpl GumScriptCompilerImpl;
-
-struct _GumScriptCompilerImpl
+struct _GumScriptCompilerBackend
 {
-  gpointer code_address;
+  guint8 * code_address;
   GumThumbWriter code_writer;
 };
 
-void
-gum_script_compiler_init (GumScriptCompiler * compiler, gpointer code_address)
+GumScriptCompilerBackend *
+gum_script_compiler_backend_new (gpointer code_address)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
+  GumScriptCompilerBackend * backend;
 
-  self->code_address = code_address;
-  gum_thumb_writer_init (&self->code_writer, code_address);
+  backend = g_slice_new (GumScriptCompilerBackend);
+  backend->code_address = code_address;
+  gum_thumb_writer_init (&backend->code_writer, code_address);
+
+  return backend;
 }
 
 void
-gum_script_compiler_free (GumScriptCompiler * compiler)
+gum_script_compiler_backend_free (GumScriptCompilerBackend * backend)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
-  gum_thumb_writer_free (&self->code_writer);
+  gum_thumb_writer_free (&backend->code_writer);
+  g_slice_free (GumScriptCompilerBackend, backend);
 }
 
 void
-gum_script_compiler_flush (GumScriptCompiler * compiler)
+gum_script_compiler_backend_flush (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
   gum_thumb_writer_flush (&self->code_writer);
 }
 
 guint
-gum_script_compiler_current_offset (GumScriptCompiler * compiler)
+gum_script_compiler_backend_current_offset (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-
   return gum_thumb_writer_offset (&self->code_writer);
 }
 
 GumScriptEntrypoint
-gum_script_compiler_get_entrypoint (GumScriptCompiler * compiler)
+gum_script_compiler_backend_entrypoint_at (GumScriptCompilerBackend * self,
+                                           guint offset)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
+  g_assert_cmpuint (offset, <=,
+      gum_script_compiler_backend_current_offset (self));
+  g_assert_cmpuint (offset % 2, ==, 0);
 
-  return (GumScriptEntrypoint) (self->code_address + 1);
+  return GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint,
+      self->code_address + offset + 1);
 }
 
 void
-gum_script_compiler_emit_prologue (GumScriptCompiler * compiler)
+gum_script_compiler_backend_emit_prologue (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumThumbWriter * cw = &self->code_writer;
 
   gum_thumb_writer_put_push_regs (cw, 3, GUM_AREG_R4, GUM_AREG_R7, GUM_AREG_LR);
@@ -86,20 +82,18 @@ gum_script_compiler_emit_prologue (GumScriptCompiler * compiler)
 }
 
 void
-gum_script_compiler_emit_epilogue (GumScriptCompiler * compiler)
+gum_script_compiler_backend_emit_epilogue (GumScriptCompilerBackend * self)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
-  GumThumbWriter * cw = &self->code_writer;
-
-  gum_thumb_writer_put_pop_regs (cw, 3, GUM_AREG_R4, GUM_AREG_R7, GUM_AREG_PC);
+  gum_thumb_writer_put_pop_regs (&self->code_writer, 3,
+      GUM_AREG_R4, GUM_AREG_R7, GUM_AREG_PC);
 }
 
 void
-gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
-                                           guint index,
-                                           GumAddress value)
+gum_script_compiler_backend_emit_replace_argument (
+    GumScriptCompilerBackend * self,
+    guint index,
+    GumAddress value)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumThumbWriter * cw = &self->code_writer;
 
   gum_thumb_writer_put_mov_reg_reg (cw, GUM_AREG_R0, GUM_AREG_R7);
@@ -111,11 +105,11 @@ gum_script_compiler_emit_replace_argument (GumScriptCompiler * compiler,
 }
 
 void
-gum_script_compiler_emit_send_item_commit (GumScriptCompiler * compiler,
-                                           GumScript * script,
-                                           const GArray * send_arg_items)
+gum_script_compiler_backend_emit_send_item_commit (
+    GumScriptCompilerBackend * self,
+    GumScript * script,
+    const GArray * send_arg_items)
 {
-  GumScriptCompilerImpl * self = GUM_SCRIPT_COMPILER_IMPL (compiler);
   GumThumbWriter * cw = &self->code_writer;
   guint stack_reserve;
   gint arg_index, item_index;

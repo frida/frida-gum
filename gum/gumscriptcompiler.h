@@ -59,6 +59,8 @@ void gum_script_compiler_backend_free (GumScriptCompilerBackend * backend);
 void gum_script_compiler_backend_flush (GumScriptCompilerBackend * self);
 guint gum_script_compiler_backend_current_offset (
     GumScriptCompilerBackend * self);
+GumScriptEntrypoint gum_script_compiler_backend_entrypoint_at (
+    GumScriptCompilerBackend * self, guint offset);
 
 void gum_script_compiler_backend_emit_prologue (
     GumScriptCompilerBackend * self);

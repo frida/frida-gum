@@ -20,10 +20,7 @@
 #include "gumscriptcompiler.h"
 
 #include "guminvocationcontext.h"
-#include "gumscript-priv.h"
 #include "gumx86writer.h"
-
-#define GUM_SCRIPT_COMPILER_IMPL(c) ((GumScriptCompilerBackend *) (c))
 
 struct _GumScriptCompilerBackend
 {
@@ -60,6 +57,17 @@ guint
 gum_script_compiler_backend_current_offset (GumScriptCompilerBackend * self)
 {
   return gum_x86_writer_offset (&self->code_writer);
+}
+
+GumScriptEntrypoint
+gum_script_compiler_backend_entrypoint_at (GumScriptCompilerBackend * self,
+                                           guint offset)
+{
+  g_assert_cmpuint (offset, <=,
+      gum_script_compiler_backend_current_offset (self));
+
+  return GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint,
+      self->code_address + offset);
 }
 
 void

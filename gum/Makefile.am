@@ -108,8 +108,9 @@ libgum_1_0_la_SOURCES = \
 	guminvocationlistener.c \
 	gummemory.c \
 	gumreturnaddress.c \
-	gumscript.c \
 	gumscript-priv.h \
+	gumscript.c \
+	gumscriptcompiler.c \
 	gumscriptcompiler.h \
 	gumtls.h \
 	$(arch_sources) \

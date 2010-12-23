@@ -307,7 +307,7 @@ gum_script_compiler_open_function (GumScriptCompiler * self)
   g_assert (self->send_arg_type_signature == NULL);
   self->send_arg_type_signature = g_string_new ("");
 
-  entrypoint = GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint, self->code->start +
+  entrypoint = gum_script_compiler_backend_entrypoint_at (self->backend,
       gum_script_compiler_backend_current_offset (self->backend));
   gum_script_compiler_backend_emit_prologue (self->backend);
 
