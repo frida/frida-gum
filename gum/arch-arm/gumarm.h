@@ -20,7 +20,7 @@
 #ifndef __GUM_ARM_H__
 #define __GUM_ARM_H__
 
-#include "gumdefs.h"
+#include <gum/gumdefs.h>
 
 G_BEGIN_DECLS
 

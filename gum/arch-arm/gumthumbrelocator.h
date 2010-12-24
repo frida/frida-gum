@@ -20,8 +20,6 @@
 #ifndef __GUM_THUMB_RELOCATOR_H__
 #define __GUM_THUMB_RELOCATOR_H__
 
-#include "gumdefs.h"
-
 #include "gumthumbwriter.h"
 
 G_BEGIN_DECLS

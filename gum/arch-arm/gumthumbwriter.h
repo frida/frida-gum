@@ -21,7 +21,8 @@
 #define __GUM_THUMB_WRITER_H__
 
 #include "gumarm.h"
-#include "gumarray.h"
+
+#include <gum/gumarray.h>
 
 G_BEGIN_DECLS
 
