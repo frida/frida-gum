@@ -32,14 +32,16 @@ backend_sources = $(NULL)
 backend_libs = $(NULL)
 
 if ARCH_I386
-arch_sources += \
+archincludedir = $(includedir)/gum-1.0/gum/arch-x86
+archinclude_HEADERS = \
 	arch-x86/gumx86writer.h \
-	arch-x86/gumx86writer.c \
 	arch-x86/gumx86relocator.h \
-	arch-x86/gumx86relocator.c \
 	arch-x86/gumx86reader.h \
+	arch-x86/gumx86functionparser.h
+arch_sources += \
+	arch-x86/gumx86writer.c \
+	arch-x86/gumx86relocator.c \
 	arch-x86/gumx86reader.c \
-	arch-x86/gumx86functionparser.h \
 	arch-x86/gumx86functionparser.c \
 	arch-x86/gumudis86.h \
 	arch-x86/gumudis86.c
@@ -55,16 +57,18 @@ backend_sources += \
 endif
 
 if ARCH_ARM
-arch_sources += \
+archincludedir = $(includedir)/gum-1.0/gum/arch-arm
+archinclude_HEADERS = \
 	arch-arm/gumarm.h \
-	arch-arm/gumarmwriter.c \
 	arch-arm/gumarmwriter.h \
-	arch-arm/gumarmrelocator.c \
 	arch-arm/gumarmrelocator.h \
-	arch-arm/gumthumbwriter.c \
 	arch-arm/gumthumbwriter.h \
-	arch-arm/gumthumbrelocator.c \
 	arch-arm/gumthumbrelocator.h
+arch_sources += \
+	arch-arm/gumarmwriter.c \
+	arch-arm/gumarmrelocator.c \
+	arch-arm/gumthumbwriter.c \
+	arch-arm/gumthumbrelocator.c
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \
