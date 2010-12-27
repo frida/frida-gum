@@ -67,7 +67,7 @@ gum_script_compiler_backend_entrypoint_at (GumScriptCompilerBackend * self,
       gum_script_compiler_backend_current_offset (self));
 
   return GUM_POINTER_TO_FUNCPTR (GumScriptEntrypoint,
-      self->code_address + offset);
+      (guint8 *) self->code_address + offset);
 }
 
 void
