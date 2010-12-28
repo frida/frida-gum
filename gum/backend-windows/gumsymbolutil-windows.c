@@ -166,7 +166,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
       cur_prot = gum_page_protection_from_windows (mbi.Protect);
 
-      if ((cur_prot & prot) != 0)
+      if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
 
