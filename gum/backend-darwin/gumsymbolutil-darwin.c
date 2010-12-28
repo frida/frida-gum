@@ -122,7 +122,6 @@ gum_process_enumerate_ranges (GumPageProtection prot,
                               gpointer user_data)
 {
   mach_port_t self;
-  guint count = 0;
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
   mach_vm_size_t size = (mach_vm_size_t) 0;
   natural_t depth = 0;
@@ -168,8 +167,6 @@ gum_process_enumerate_ranges (GumPageProtection prot,
 
       if (!func (&range, cur_prot, user_data))
         return;
-
-      count++;
     }
 
     address += size;
