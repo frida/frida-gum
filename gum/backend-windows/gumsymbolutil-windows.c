@@ -80,6 +80,46 @@ beach:
 }
 
 void
+gum_process_enumerate_ranges (GumPageProtection prot,
+                              GumFoundRangeFunc func,
+                              gpointer user_data)
+{
+  guint8 * cur_base_address;
+
+  cur_base_address = NULL;
+
+  while (TRUE)
+  {
+    MEMORY_BASIC_INFORMATION mbi;
+    SIZE_T ret;
+
+    ret = VirtualQuery (cur_base_address, &mbi, sizeof (mbi));
+    if (ret == 0)
+      break;
+
+    if (mbi.Protect != 0)
+    {
+      GumPageProtection cur_prot;
+
+      cur_prot = gum_page_protection_from_windows (mbi.Protect);
+
+      if ((cur_prot & prot) == prot)
+      {
+        GumMemoryRange range;
+
+        range.base_address = cur_base_address;
+        range.size = mbi.RegionSize;
+
+        if (!func (&range, cur_prot, user_data))
+          return;
+      }
+    }
+
+    cur_base_address += mbi.RegionSize;
+  }
+}
+
+void
 gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
