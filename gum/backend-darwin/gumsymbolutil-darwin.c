@@ -117,6 +117,67 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 void
+gum_process_enumerate_ranges (GumPageProtection prot,
+                              GumFoundRangeFunc func,
+                              gpointer user_data)
+{
+  mach_port_t self;
+  guint count = 0;
+  mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
+  mach_vm_size_t size = (mach_vm_size_t) 0;
+  natural_t depth = 0;
+
+  self = mach_task_self ();
+
+  while (TRUE)
+  {
+    vm_region_submap_info_data_64_t info;
+    mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    kern_return_t kr;
+    GumPageProtection cur_prot;
+
+    while (TRUE)
+    {
+      kr = mach_vm_region_recurse (self, &address, &size, &depth,
+          (vm_region_recurse_info_t) &info, &info_count);
+      if (kr != KERN_SUCCESS)
+        break;
+
+      if (info.is_submap)
+      {
+        depth++;
+        continue;
+      }
+      else
+      {
+        break;
+      }
+    }
+
+    if (kr != KERN_SUCCESS)
+      break;
+
+    cur_prot = gum_page_protection_from_mach (info.protection);
+
+    if ((cur_prot & prot) == prot)
+    {
+      GumMemoryRange range;
+
+      range.base_address = GSIZE_TO_POINTER (address);
+      range.size = size;
+
+      if (!func (&range, cur_prot, user_data))
+        return;
+
+      count++;
+    }
+
+    address += size;
+    size = 0;
+  }
+}
+
+void
 gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
@@ -193,7 +254,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
       cur_prot = gum_page_protection_from_mach (segcmd->initprot);
 
-      if ((cur_prot & prot) != 0)
+      if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
 

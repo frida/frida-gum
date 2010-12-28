@@ -52,6 +52,8 @@ GUM_API GArray * gum_find_functions_matching (const gchar * str);
 
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
+GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,
+    GumFoundRangeFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (const gchar * module_name,

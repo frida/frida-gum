@@ -28,6 +28,7 @@
 TEST_LIST_BEGIN (symbolutil)
 #ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (process_modules)
+  SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges)
 #endif
@@ -83,6 +84,21 @@ SYMUTIL_TESTCASE (process_modules)
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
   gum_process_enumerate_modules (module_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+SYMUTIL_TESTCASE (process_ranges)
+{
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
