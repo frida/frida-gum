@@ -97,7 +97,7 @@ gum_process_enumerate_ranges (GumPageProtection prot,
     if (ret == 0)
       break;
 
-    if (mbi.Protect != 0)
+    if (mbi.Protect != 0 && (mbi.Protect & PAGE_GUARD) == 0)
     {
       GumPageProtection cur_prot;
 
