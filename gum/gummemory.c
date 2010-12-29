@@ -199,8 +199,11 @@ gum_match_pattern_try_match_on (const GumMatchPattern * self,
     token = (GumMatchToken *) g_ptr_array_index (self->tokens, i);
     if (token->type == GUM_MATCH_EXACT)
     {
-      if (memcmp (bytes + token->offset, token->bytes->data,
-          token->bytes->len) != 0)
+      gchar * p;
+
+      p = (gchar *) bytes + token->offset;
+      if (p == token->bytes->data ||
+          memcmp (p, token->bytes->data, token->bytes->len) != 0)
       {
         return FALSE;
       }
