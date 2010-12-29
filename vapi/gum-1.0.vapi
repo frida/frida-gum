@@ -107,18 +107,20 @@ namespace Gum {
 
 	namespace Process {
 		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
+		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
 		public delegate bool FoundModuleFunc (string name, void * address, string path);
 	}
 
 	namespace Module {
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
-		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.Module.FoundRangeFunc func);
+		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
 		public void * find_export_by_name (string module_name, string function_name);
 
 		public delegate bool FoundExportFunc (string name, void * address);
-		public delegate bool FoundRangeFunc (Gum.MemoryRange range, Gum.PageProtection prot);
 	}
+
+	public delegate bool FoundRangeFunc (Gum.MemoryRange range, Gum.PageProtection prot);
 
 	namespace Memory {
 		public uint8[] read (void * address, uint len);
