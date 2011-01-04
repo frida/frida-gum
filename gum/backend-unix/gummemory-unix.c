@@ -83,6 +83,22 @@ gum_memory_is_readable (gpointer address,
   return result;
 }
 
+guint8 *
+gum_memory_read (gpointer address,
+                 guint len,
+                 gint * n_bytes_read)
+{
+  return NULL;
+}
+
+gboolean
+gum_memory_write (gpointer address,
+                  guint8 * bytes,
+                  guint len)
+{
+  return FALSE;
+}
+
 void
 gum_mprotect (gpointer address,
               guint size,

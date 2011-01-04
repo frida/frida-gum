@@ -3,6 +3,8 @@ SUBDIRS = \
 	heap \
 	prof
 
+TESTS = gum-tests
+
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
 

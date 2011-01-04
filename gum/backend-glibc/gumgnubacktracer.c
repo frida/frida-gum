@@ -43,7 +43,7 @@ static void
 gum_gnu_backtracer_iface_init (gpointer g_iface,
                                gpointer iface_data)
 {
-  GumBacktracerInterface * iface = (GumBacktracerInterface *) g_iface;
+  GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
 
   iface->generate = gum_gnu_backtracer_generate;
 }
@@ -67,7 +67,6 @@ gum_gnu_backtracer_generate (GumBacktracer * backtracer,
   guint skip_count = 0;
   gpointer addresses[8 + GUM_MAX_BACKTRACE_DEPTH - 1];
   guint addr_count;
-  GumReturnAddress * ret_addr;
   guint i;
 
   if (cpu_context == NULL)
@@ -91,17 +90,16 @@ gum_gnu_backtracer_generate (GumBacktracer * backtracer,
   /* HACK: see above. Here we assume that we're called from on_leave... */
   if (cpu_context != NULL)
   {
-    ret_addr = &return_addresses->items[return_addresses->len++];
-    memset (ret_addr, 0, sizeof (GumReturnAddress));
-    ret_addr->address = GSIZE_TO_POINTER (cpu_context->eip);
+    return_addresses->items[return_addresses->len++] =
+        GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
   }
 
   for (i = skip_count; i < addr_count; i++)
   {
-    ret_addr = &return_addresses->items[return_addresses->len++];
-    g_assert (return_addresses->len <= G_N_ELEMENTS (return_addresses->items));
-    memset (ret_addr, 0, sizeof (GumReturnAddress));
-    ret_addr->address = addresses[i];
+    g_assert_cmpuint (return_addresses->len, <,
+        G_N_ELEMENTS (return_addresses->items));
+    return_addresses->items[return_addresses->len++] =
+        addresses[i];
   }
 }
 

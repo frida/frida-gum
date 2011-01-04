@@ -79,6 +79,7 @@ endif
 
 if OS_LINUX
 backend_sources += \
+	backend-glibc/gumgnubacktracer.c \
 	backend-linux/gumsymbolutil-linux.c
 endif
 

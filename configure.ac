@@ -17,19 +17,6 @@ AC_PROG_CXX
 AC_PROG_LIBTOOL
 AC_PROG_INSTALL
 
-GLIB_VERSION=2.24.1
-pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
-    gio-2.0 >= $GLIB_VERSION"
-PKG_CHECK_MODULES(GUM, [$pkg_modules])
-AC_SUBST(GUM_CFLAGS)
-AC_SUBST(GUM_LIBS)
-
-AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
-if [[ "$HAVE_BFD" = "yes" ]]; then
-  AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if symbol backend is available.])
-fi
-AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
-
 HAVE_I386=no
 HAVE_ARM=no
 case $target_cpu in
@@ -77,6 +64,21 @@ if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
   AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
+
+GLIB_VERSION=2.24.1
+pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
+    gio-2.0 >= $GLIB_VERSION"
+PKG_CHECK_MODULES(GUM, [$pkg_modules])
+AC_SUBST(GUM_CFLAGS)
+AC_SUBST(GUM_LIBS)
+
+if [[ "x$HAVE_LINUX" = "xyes" ]]; then
+  AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr]), AC_ERROR([*** Header file bfd.h not found; please install the binutils headers  ***]))
+  HAVE_BFD=yes
+else
+  AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
+fi
+AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
 AC_CONFIG_FILES([
 	gum-1.0.pc
