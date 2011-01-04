@@ -27,11 +27,13 @@
     TEST_ENTRY_SIMPLE ("Core/Memory", test_memory, NAME)
 
 TEST_LIST_BEGIN (memory)
-  MEMORY_TESTENTRY (read)
-  MEMORY_TESTENTRY (write)
-  MEMORY_TESTENTRY (match_pattern_validation)
-  MEMORY_TESTENTRY (scan_range_with_three_exact_matches)
-  MEMORY_TESTENTRY (scan_range_with_three_wildcarded_matches)
+  MEMORY_TESTENTRY (read_from_valid_address_should_succeed)
+  MEMORY_TESTENTRY (read_from_invalid_address_should_fail)
+  MEMORY_TESTENTRY (write_to_valid_address_should_succeed)
+  MEMORY_TESTENTRY (write_to_invalid_address_should_fail)
+  MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
+  MEMORY_TESTENTRY (scan_range_finds_three_exact_matches)
+  MEMORY_TESTENTRY (scan_range_finds_three_wildcarded_matches)
 TEST_LIST_END ()
 
 typedef struct _TestForEachContext {
@@ -45,7 +47,7 @@ typedef struct _TestForEachContext {
 static gboolean match_found_cb (gpointer address, guint size,
     gpointer user_data);
 
-MEMORY_TESTCASE (read)
+MEMORY_TESTCASE (read_from_valid_address_should_succeed)
 {
   guint8 magic[2] = { 0x13, 0x37 };
   gint n_bytes_read;
@@ -62,7 +64,13 @@ MEMORY_TESTCASE (read)
   g_free (result);
 }
 
-MEMORY_TESTCASE (write)
+MEMORY_TESTCASE (read_from_invalid_address_should_fail)
+{
+  gpointer invalid_address = GSIZE_TO_POINTER (0x42);
+  g_assert (gum_memory_read (invalid_address, 1, NULL) == NULL);
+}
+
+MEMORY_TESTCASE (write_to_valid_address_should_succeed)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
   guint8 magic[2] = { 0x13, 0x37 };
@@ -76,13 +84,20 @@ MEMORY_TESTCASE (write)
   g_assert_cmphex (bytes[2], ==, 0x12);
 }
 
+MEMORY_TESTCASE (write_to_invalid_address_should_fail)
+{
+  guint8 bytes[3] = { 0x00, 0x00, 0x12 };
+  gpointer invalid_address = GSIZE_TO_POINTER (0x42);
+  g_assert (gum_memory_write (invalid_address, bytes, sizeof (bytes)) == FALSE);
+}
+
 #define GUM_PATTERN_NTH_TOKEN(p, n) \
     ((GumMatchToken *) g_ptr_array_index (p->tokens, n))
 #define GUM_PATTERN_NTH_TOKEN_NTH_BYTE(p, n, b) \
     (g_array_index (((GumMatchToken *) g_ptr_array_index (p->tokens, \
         n))->bytes, guint8, b))
 
-MEMORY_TESTCASE (match_pattern_validation)
+MEMORY_TESTCASE (match_pattern_from_string_does_proper_validation)
 {
   GumMatchPattern * pattern;
 
@@ -144,7 +159,7 @@ MEMORY_TESTCASE (match_pattern_validation)
   g_assert (pattern == NULL);
 }
 
-MEMORY_TESTCASE (scan_range_with_three_exact_matches)
+MEMORY_TESTCASE (scan_range_finds_three_exact_matches)
 {
   guint8 buf[] = {
     0x13, 0x37,
@@ -180,7 +195,7 @@ MEMORY_TESTCASE (scan_range_with_three_exact_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (scan_range_with_three_wildcarded_matches)
+MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
 {
   guint8 buf[] = {
     0x12, 0x11, 0x13, 0x37,

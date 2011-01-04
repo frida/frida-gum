@@ -49,11 +49,11 @@ gum_query_page_size (void)
   return sysconf (_SC_PAGE_SIZE);
 }
 
-gboolean
-gum_memory_is_readable (gpointer address,
-                        guint len)
+static GumPageProtection
+gum_memory_get_protection (gpointer address,
+                           guint len)
 {
-  gboolean result = FALSE;
+  GumPageProtection result = GUM_PAGE_NO_ACCESS;
   FILE * fp;
   gchar line[1024 + 1];
 
@@ -67,20 +67,39 @@ gum_memory_is_readable (gpointer address,
     gchar protection[16];
 
     n = sscanf (line, "%p-%p %s ", &start, &end, protection);
-    g_assert (n == 3);
+    g_assert_cmpint (n, ==, 3);
 
     if (start > address)
       break;
     else if (address >= start && address + len <= end)
     {
       if (protection[0] == 'r')
-        result = TRUE;
+        result |= GUM_PAGE_READ;
+      if (protection[1] == 'w')
+        result |= GUM_PAGE_WRITE;
+      if (protection[2] == 'x')
+        result |= GUM_PAGE_EXECUTE;
       break;
     }
   }
 
   fclose (fp);
+
   return result;
+}
+
+gboolean
+gum_memory_is_readable (gpointer address,
+                        guint len)
+{
+  return (gum_memory_get_protection (address, len) & GUM_PAGE_READ) != 0;
+}
+
+static gboolean
+gum_memory_is_writable (gpointer address,
+                        guint len)
+{
+  return (gum_memory_get_protection (address, len) & GUM_PAGE_WRITE) != 0;
 }
 
 guint8 *
@@ -88,7 +107,19 @@ gum_memory_read (gpointer address,
                  guint len,
                  gint * n_bytes_read)
 {
-  return NULL;
+  guint8 * result = NULL;
+  gint result_len = 0;
+
+  if (gum_memory_is_readable (address, len))
+  {
+    result = g_memdup (address, len);
+    result_len = len;
+  }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = result_len;
+
+  return result;
 }
 
 gboolean
@@ -96,7 +127,15 @@ gum_memory_write (gpointer address,
                   guint8 * bytes,
                   guint len)
 {
-  return FALSE;
+  gboolean result = FALSE;
+
+  if (gum_memory_is_writable (address, len))
+  {
+    memcpy (address, bytes, len);
+    result = TRUE;
+  }
+
+  return result;
 }
 
 void
