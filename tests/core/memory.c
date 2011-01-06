@@ -34,8 +34,8 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
   MEMORY_TESTENTRY (scan_range_finds_three_exact_matches)
   MEMORY_TESTENTRY (scan_range_finds_three_wildcarded_matches)
-  MEMORY_TESTENTRY (alloc_n_pages_near_returns_page_within_range)
-  MEMORY_TESTENTRY (alloc_n_pages_near_returns_page_that_can_be_made_executable)
+  MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_address)
+  MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_address_within_range)
 TEST_LIST_END ()
 
 typedef struct _TestForEachContext {
@@ -230,7 +230,16 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (alloc_n_pages_near_returns_page_within_range)
+MEMORY_TESTCASE (alloc_n_pages_returns_aligned_address)
+{
+  gpointer page;
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  g_assert (GPOINTER_TO_SIZE (page) % gum_query_page_size () == 0);
+  gum_free_pages (page);
+}
+
+MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_address_within_range)
 {
   GumAddressSpec as;
   guint variable_on_stack;
@@ -243,24 +252,10 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_page_within_range)
   page = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
   g_assert (page != NULL);
 
+  g_assert (GPOINTER_TO_SIZE (page) % gum_query_page_size () == 0);
+
   actual_distance = ABS (page - as.near_address);
   g_assert_cmpuint (actual_distance, <=, as.max_distance);
-
-  gum_free_pages (page);
-}
-
-MEMORY_TESTCASE (alloc_n_pages_near_returns_page_that_can_be_made_executable)
-{
-  GumAddressSpec as;
-  guint variable_on_stack;
-  gpointer page;
-
-  as.near_address = &variable_on_stack;
-  as.max_distance = G_MAXINT32;
-
-  page = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
-
-  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_RWX);
 
   gum_free_pages (page);
 }

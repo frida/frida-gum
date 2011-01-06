@@ -31,6 +31,9 @@
 #define USE_DL_PREFIX 1
 #include "dlmalloc.c"
 
+#define GUM_MEMRANGE_IS_NOT_MAPPED(address, size) \
+    (msync (address, size, MS_SYNC) == -1 && errno == ENOMEM)
+
 static gint gum_page_protection_to_unix (GumPageProtection page_prot);
 
 void
@@ -150,7 +153,7 @@ gum_mprotect (gpointer address,
   g_assert (size != 0);
 
   aligned_address = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (address) & ~(gum_query_page_size () - 1));
+      GPOINTER_TO_SIZE (address) & ~((gsize) gum_query_page_size () - 1));
   unix_page_prot = gum_page_protection_to_unix (page_prot);
 
   result = mprotect (aligned_address, size, unix_page_prot);
@@ -199,23 +202,22 @@ gum_alloc_n_pages (guint n_pages,
                    GumPageProtection page_prot)
 {
   guint8 * result = NULL;
-  guint page_size, size, alloc_size;
-  gint ret;
+  guint page_size, size;
+  gint unix_page_prot;
+  const gint flags = MAP_PRIVATE | MAP_ANONYMOUS;
 
-  /* sbrk() or mmap() would probably be better choices here */
   page_size = gum_query_page_size ();
-  size = n_pages * page_size;
-  alloc_size = page_size + size;
-  ret = posix_memalign ((void **) &result, page_size, alloc_size);
-  g_assert (ret == 0);
+  size = (1 + n_pages) * page_size;
+  unix_page_prot = gum_page_protection_to_unix (page_prot);
 
-  *((guint *) result) = size;
+  result = mmap (NULL, size, unix_page_prot, flags, -1, 0);
+  g_assert (result != NULL);
 
-  result += page_size;
-  memset (result, 0, size);
-  gum_mprotect (result, size, page_prot);
+  gum_mprotect (result, page_size, GUM_PAGE_RW);
+  *((gsize *) result) = size;
+  gum_mprotect (result, page_size, GUM_PAGE_READ);
 
-  return result;
+  return result + page_size;
 }
 
 gpointer
@@ -248,9 +250,14 @@ gum_alloc_n_pages_near (guint n_pages,
     if (cur_distance > address_spec->max_distance)
       break;
 
-    result = mmap (low_address, size, unix_page_prot, flags, -1, 0);
+    if (GUM_MEMRANGE_IS_NOT_MAPPED (low_address, size))
+      result = mmap (low_address, size, unix_page_prot, flags, -1, 0);
+
     if (result == NULL)
-      result = mmap (high_address, size, unix_page_prot, flags, -1, 0);
+    {
+      if (GUM_MEMRANGE_IS_NOT_MAPPED (high_address, size))
+        result = mmap (high_address, size, unix_page_prot, flags, -1, 0);
+    }
   }
   while (result == NULL);
 
@@ -258,6 +265,7 @@ gum_alloc_n_pages_near (guint n_pages,
 
   gum_mprotect (result, page_size, GUM_PAGE_RW);
   *((gsize *) result) = size;
+  gum_mprotect (result, page_size, GUM_PAGE_READ);
 
   return result + page_size;
 }
