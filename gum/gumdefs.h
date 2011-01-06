@@ -157,10 +157,11 @@ struct _GumCpuContext
 # define GUM_NOINLINE __declspec (noinline)
 #else
 # ifndef __arm__
-#  define GUM_CDECL __attribute__((cdecl))
 #  if GLIB_SIZEOF_VOID_P == 4
+#   define GUM_CDECL __attribute__((cdecl))
 #   define GUM_STDCALL __attribute__((stdcall))
 #  else
+#   define GUM_CDECL
 #   define GUM_STDCALL
 #  endif
 #  define GUM_FASTCALL __attribute__((fastcall))

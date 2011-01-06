@@ -435,7 +435,8 @@ inspect_recursive_worst_case_info (GumInvocationContext * context,
 {
   gint count;
 
-  count = (gint) gum_invocation_context_get_nth_argument (context, 0);
+  count = GPOINTER_TO_INT (
+      gum_invocation_context_get_nth_argument (context, 0));
 
 #ifdef _MSC_VER
   sprintf_s (output_buf, output_buf_len, "%d", count);
