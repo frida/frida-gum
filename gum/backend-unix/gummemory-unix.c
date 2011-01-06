@@ -230,7 +230,7 @@ gum_alloc_n_pages_near (guint n_pages,
   guint8 * low_address, * high_address;
 
   page_size = gum_query_page_size ();
-  size = n_pages * page_size;
+  size = (1 + n_pages) * page_size;
   unix_page_prot = gum_page_protection_to_unix (page_prot);
 
   low_address = (guint8 *)
@@ -243,7 +243,8 @@ gum_alloc_n_pages_near (guint n_pages,
 
     low_address -= page_size;
     high_address += page_size;
-    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
+    cur_distance = (gsize) high_address + page_size -
+        (gsize) address_spec->near_address;
     if (cur_distance > address_spec->max_distance)
       break;
 
@@ -255,21 +256,24 @@ gum_alloc_n_pages_near (guint n_pages,
 
   g_assert (result != NULL);
 
-  return result;
+  gum_mprotect (result, page_size, GUM_PAGE_RW);
+  *((gsize *) result) = size;
+
+  return result + page_size;
 }
 
 void
 gum_free_pages (gpointer mem)
 {
   guint8 * start;
-  guint page_size, size;
+  guint size;
+  gint result;
 
-  page_size = gum_query_page_size ();
-  start = (guint8 *) mem - page_size;
-  size = *((guint *) start);
+  start = mem - gum_query_page_size ();
+  size = *((gsize *) start);
 
-  gum_mprotect (mem, size, GUM_PAGE_READ | GUM_PAGE_WRITE);
-  free (start);
+  result = munmap (start, size);
+  g_assert_cmpint (result, ==, 0);
 }
 
 static gint
