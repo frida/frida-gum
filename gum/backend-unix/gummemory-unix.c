@@ -144,7 +144,7 @@ gum_mprotect (gpointer address,
               GumPageProtection page_prot)
 {
   gpointer aligned_address;
-  guint unix_page_prot;
+  gint unix_page_prot;
   gint result;
 
   g_assert (size != 0);
@@ -223,8 +223,39 @@ gum_alloc_n_pages_near (guint n_pages,
                         GumPageProtection page_prot,
                         GumAddressSpec * address_spec)
 {
-  /* FIXME */
-  return gum_alloc_n_pages (n_pages, page_prot);
+  gpointer result = NULL;
+  gsize page_size, size;
+  gint unix_page_prot;
+  const gint flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED;
+  guint8 * low_address, * high_address;
+
+  page_size = gum_query_page_size ();
+  size = n_pages * page_size;
+  unix_page_prot = gum_page_protection_to_unix (page_prot);
+
+  low_address = (guint8 *)
+      (GPOINTER_TO_SIZE (address_spec->near_address) & ~(page_size - 1));
+  high_address = low_address;
+
+  do
+  {
+    gsize cur_distance;
+
+    low_address -= page_size;
+    high_address += page_size;
+    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
+    if (cur_distance > address_spec->max_distance)
+      break;
+
+    result = mmap (low_address, size, unix_page_prot, flags, -1, 0);
+    if (result == NULL)
+      result = mmap (high_address, size, unix_page_prot, flags, -1, 0);
+  }
+  while (result == NULL);
+
+  g_assert (result != NULL);
+
+  return result;
 }
 
 void
