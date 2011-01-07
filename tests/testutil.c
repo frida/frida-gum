@@ -284,7 +284,7 @@ test_util_diff_xml (const gchar * expected_xml,
 gchar *
 test_util_get_filesystem_path_of_self (void)
 {
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN)
   guint image_count, image_idx;
 
   image_count = _dyld_image_count ();
@@ -297,8 +297,16 @@ test_util_get_filesystem_path_of_self (void)
   }
 
   return g_strdup ("/Library/Frida/tests");
+#elif defined (HAVE_LINUX)
+  gchar * exe_path, * result;
+
+  exe_path = g_file_read_link ("/proc/self/exe", NULL);
+  result = g_path_get_dirname (exe_path);
+  g_free (exe_path);
+
+  return result;
 #else
-  return NULL; /* FIXME */
+# error Implement support for your OS here
 #endif
 }
 
