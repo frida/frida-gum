@@ -74,7 +74,7 @@ gchar * test_util_diff_text (const gchar * expected_text,
 gchar * test_util_diff_xml (const gchar * expected_xml,
     const gchar * actual_xml);
 
-gchar * test_util_get_filesystem_path_of_self (void);
+gchar * test_util_get_data_dir (void);
 
 const GumHeapApiList * test_util_heap_apis (void);
 

@@ -1,6 +1,4 @@
-noinst_LTLIBRARIES = \
-	libgum-tests-core.la \
-	libgum-targetfunctions.la
+noinst_LTLIBRARIES = libgum-tests-core.la
 
 arch_sources = $(NULL)
 arch_includes = $(NULL)
@@ -32,9 +30,9 @@ libgum_tests_core_la_SOURCES = \
 	interceptor.c \
 	script.c
 
-libgum_targetfunctions_la_SOURCES = targetfunctions.c
-libgum_targetfunctions_la_LDFLAGS = -rpath /nowhere
-libgum_targetfunctions_la_LIBADD = $(GUM_LIBS)
+EXTRA_DIST = \
+             targetfunctions.c \
+             specialfunctions.c
 
 AM_CPPFLAGS = \
 	-include config.h \

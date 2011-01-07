@@ -34,8 +34,9 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
   MEMORY_TESTENTRY (scan_range_finds_three_exact_matches)
   MEMORY_TESTENTRY (scan_range_finds_three_wildcarded_matches)
-  MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_address)
-  MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_address_within_range)
+  MEMORY_TESTENTRY (is_memory_readable_handles_mixed_page_protections)
+  MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
+  MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 TEST_LIST_END ()
 
 typedef struct _TestForEachContext {
@@ -230,20 +231,69 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
   gum_match_pattern_free (pattern);
 }
 
-MEMORY_TESTCASE (alloc_n_pages_returns_aligned_address)
+MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
+{
+  guint8 * pages, * left_guard, * first_page, * second_page, * right_guard;
+  guint page_size;
+
+  pages = gum_alloc_n_pages (4, GUM_PAGE_RW);
+
+  page_size = gum_query_page_size ();
+
+  left_guard = pages;
+  first_page = left_guard + page_size;
+  second_page = first_page + page_size;
+  right_guard = second_page + page_size;
+
+  gum_mprotect (left_guard, page_size, GUM_PAGE_NO_ACCESS);
+  gum_mprotect (second_page, page_size, GUM_PAGE_RWX);
+  gum_mprotect (right_guard, page_size, GUM_PAGE_NO_ACCESS);
+
+  g_assert (gum_memory_is_readable (first_page, 1));
+  g_assert (gum_memory_is_readable (first_page + page_size - 1, 1));
+  g_assert (gum_memory_is_readable (first_page, page_size));
+
+  g_assert (gum_memory_is_readable (second_page, 1));
+  g_assert (gum_memory_is_readable (second_page + page_size - 1, 1));
+  g_assert (gum_memory_is_readable (second_page, page_size));
+
+  g_assert (gum_memory_is_readable (first_page + page_size - 1, 2));
+  g_assert (gum_memory_is_readable (first_page, 2 * page_size));
+
+  g_assert (!gum_memory_is_readable (first_page - 1, 1));
+  g_assert (!gum_memory_is_readable (second_page + page_size, 1));
+  g_assert (!gum_memory_is_readable (first_page - 1, 2));
+  g_assert (!gum_memory_is_readable (second_page + page_size - 1, 2));
+
+  gum_free_pages (pages);
+}
+
+MEMORY_TESTCASE (alloc_n_pages_returns_aligned_rw_address)
 {
   gpointer page;
+  guint page_size;
 
   page = gum_alloc_n_pages (1, GUM_PAGE_RW);
-  g_assert (GPOINTER_TO_SIZE (page) % gum_query_page_size () == 0);
+
+  page_size = gum_query_page_size ();
+
+  g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
+
+  g_assert (gum_memory_is_readable (page, page_size));
+
+  g_assert_cmpuint (*((gsize *) page), ==, 0);
+  *((gsize *) page) = 42;
+  g_assert_cmpuint (*((gsize *) page), ==, 42);
+
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_address_within_range)
+MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 {
   GumAddressSpec as;
   guint variable_on_stack;
   gpointer page;
+  guint page_size;
   gsize actual_distance;
 
   as.near_address = &variable_on_stack;
@@ -252,7 +302,15 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_address_within_range)
   page = gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
   g_assert (page != NULL);
 
-  g_assert (GPOINTER_TO_SIZE (page) % gum_query_page_size () == 0);
+  page_size = gum_query_page_size ();
+
+  g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
+
+  g_assert (gum_memory_is_readable (page, page_size));
+
+  g_assert_cmpuint (*((gsize *) page), ==, 0);
+  *((gsize *) page) = 42;
+  g_assert_cmpuint (*((gsize *) page), ==, 42);
 
   actual_distance = ABS (page - as.near_address);
   g_assert_cmpuint (actual_distance, <=, as.max_distance);

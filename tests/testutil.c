@@ -282,7 +282,7 @@ test_util_diff_xml (const gchar * expected_xml,
 }
 
 gchar *
-test_util_get_filesystem_path_of_self (void)
+test_util_get_data_dir (void)
 {
 #if defined (HAVE_DARWIN)
   guint image_count, image_idx;
@@ -298,11 +298,13 @@ test_util_get_filesystem_path_of_self (void)
 
   return g_strdup ("/Library/Frida/tests");
 #elif defined (HAVE_LINUX)
-  gchar * exe_path, * result;
+  gchar * exe_path, * exe_dir, * result;
 
   exe_path = g_file_read_link ("/proc/self/exe", NULL);
-  result = g_path_get_dirname (exe_path);
+  exe_dir = g_path_get_dirname (exe_path);
   g_free (exe_path);
+  result = g_build_filename (exe_dir, "data", NULL);
+  g_free (exe_dir);
 
   return result;
 #else

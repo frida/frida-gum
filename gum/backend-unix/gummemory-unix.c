@@ -32,7 +32,7 @@
 #include "dlmalloc.c"
 
 #define GUM_MEMRANGE_IS_NOT_MAPPED(address, size) \
-    (msync (address, size, MS_SYNC) == -1 && errno == ENOMEM)
+    (gum_memory_get_protection (address, size, NULL) == FALSE)
 
 static gint gum_page_protection_to_unix (GumPageProtection page_prot);
 
@@ -52,13 +52,52 @@ gum_query_page_size (void)
   return sysconf (_SC_PAGE_SIZE);
 }
 
-static GumPageProtection
+static gboolean
 gum_memory_get_protection (gpointer address,
-                           guint len)
+                           guint len,
+                           GumPageProtection * prot)
 {
-  GumPageProtection result = GUM_PAGE_NO_ACCESS;
+  gboolean success = FALSE;
   FILE * fp;
   gchar line[1024 + 1];
+
+  if (prot == NULL)
+  {
+    GumPageProtection ignored_prot;
+
+    return gum_memory_get_protection (address, len, &ignored_prot);
+  }
+
+  *prot = GUM_PAGE_NO_ACCESS;
+
+  if (len > 1)
+  {
+    gsize page_size;
+    guint8 * start_page, * end_page, * cur_page;
+
+    page_size = gum_query_page_size ();
+
+    start_page = GSIZE_TO_POINTER (
+        GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+    end_page = GSIZE_TO_POINTER (
+        GPOINTER_TO_SIZE (address + len - 1) & ~(page_size - 1));
+
+    if (!gum_memory_get_protection (start_page, 1, prot))
+      return FALSE;
+
+    for (cur_page = start_page + page_size;
+        cur_page != end_page + page_size;
+        cur_page += page_size)
+    {
+      GumPageProtection cur_prot;
+
+      if (!gum_memory_get_protection (cur_page, 1, &cur_prot))
+        return FALSE;
+      *prot &= cur_prot;
+    }
+
+    return TRUE;
+  }
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
@@ -74,35 +113,51 @@ gum_memory_get_protection (gpointer address,
 
     if (start > address)
       break;
-    else if (address >= start && address + len <= end)
+    else if (address >= start && address + len - 1 < end)
     {
-      if (protection[0] == 'r')
-        result |= GUM_PAGE_READ;
-      if (protection[1] == 'w')
-        result |= GUM_PAGE_WRITE;
-      if (protection[2] == 'x')
-        result |= GUM_PAGE_EXECUTE;
+      success = TRUE;
+
+      if (prot != NULL)
+      {
+        if (protection[0] == 'r')
+          *prot |= GUM_PAGE_READ;
+        if (protection[1] == 'w')
+          *prot |= GUM_PAGE_WRITE;
+        if (protection[2] == 'x')
+          *prot |= GUM_PAGE_EXECUTE;
+      }
+
       break;
     }
   }
 
   fclose (fp);
 
-  return result;
+  return success;
 }
 
 gboolean
 gum_memory_is_readable (gpointer address,
                         guint len)
 {
-  return (gum_memory_get_protection (address, len) & GUM_PAGE_READ) != 0;
+  GumPageProtection prot;
+
+  if (!gum_memory_get_protection (address, len, &prot))
+    return FALSE;
+
+  return (prot & GUM_PAGE_READ) != 0;
 }
 
 static gboolean
 gum_memory_is_writable (gpointer address,
                         guint len)
 {
-  return (gum_memory_get_protection (address, len) & GUM_PAGE_WRITE) != 0;
+  GumPageProtection prot;
+
+  if (!gum_memory_get_protection (address, len, &prot))
+    return FALSE;
+
+  return (prot & GUM_PAGE_WRITE) != 0;
 }
 
 guint8 *
@@ -274,7 +329,7 @@ void
 gum_free_pages (gpointer mem)
 {
   guint8 * start;
-  guint size;
+  gsize size;
   gint result;
 
   start = mem - gum_query_page_size ();

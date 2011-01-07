@@ -35,7 +35,7 @@ enum _GumPageProtection
   GUM_PAGE_NO_ACCESS = 0,
   GUM_PAGE_READ      = (1 << 0),
   GUM_PAGE_WRITE     = (1 << 1),
-  GUM_PAGE_EXECUTE   = (1 << 2)
+  GUM_PAGE_EXECUTE   = (1 << 2),
 };
 
 struct _GumAddressSpec

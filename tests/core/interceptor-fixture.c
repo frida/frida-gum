@@ -47,6 +47,18 @@
 # define G_MODULE_SUFFIX "dylib"
 #endif
 
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_TEST_SHLIB_FLAVOR "ia32"
+# else
+#  define GUM_TEST_SHLIB_FLAVOR "amd64"
+# endif
+#elif defined (HAVE_ARM)
+# define GUM_TEST_SHLIB_FLAVOR "arm"
+#else
+# error Unknown CPU
+#endif
+
 typedef struct _TestInterceptorFixture   TestInterceptorFixture;
 typedef struct _ListenerContext      ListenerContext;
 typedef struct _ListenerContextClass ListenerContextClass;
@@ -117,9 +129,10 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     gchar * testdir, * filename;
     void * lib;
 
-    testdir = test_util_get_filesystem_path_of_self ();
+    testdir = test_util_get_data_dir ();
 
-    filename = g_build_filename (testdir, "targetfunctions." G_MODULE_SUFFIX,
+    filename = g_build_filename (testdir,
+        "targetfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
         NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
     g_assert (lib != NULL);
@@ -137,7 +150,8 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
     g_assert (target_nop_function_c != NULL);
 
-    filename = g_build_filename (testdir, "specialfunctions." G_MODULE_SUFFIX,
+    filename = g_build_filename (testdir,
+        "specialfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
         NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
     g_assert (lib != NULL);
