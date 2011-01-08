@@ -38,6 +38,7 @@ typedef struct _GumLabelRef GumLabelRef;
 struct _GumX86Writer
 {
   GumCpuType target_cpu;
+  GumAbiType target_abi;
 
   guint8 * base;
   guint8 * code;
@@ -139,6 +140,7 @@ void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_free (GumX86Writer * writer);
 
 void gum_x86_writer_set_target_cpu (GumX86Writer * writer, GumCpuType cpu_type);
+void gum_x86_writer_set_target_abi (GumX86Writer * writer, GumAbiType abi_type);
 
 gpointer gum_x86_writer_cur (GumX86Writer * self);
 guint gum_x86_writer_offset (GumX86Writer * self);

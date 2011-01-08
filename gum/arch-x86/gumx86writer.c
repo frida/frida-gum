@@ -121,6 +121,12 @@ gum_x86_writer_reset (GumX86Writer * writer,
   writer->target_cpu = GUM_CPU_AMD64;
 #endif
 
+#ifdef G_OS_WIN32
+  writer->target_abi = GUM_ABI_WINDOWS;
+#else
+  writer->target_abi = GUM_ABI_UNIX;
+#endif
+
   writer->base = code_address;
   writer->code = code_address;
 
@@ -142,6 +148,13 @@ gum_x86_writer_set_target_cpu (GumX86Writer * writer,
                                GumCpuType cpu_type)
 {
   writer->target_cpu = cpu_type;
+}
+
+void
+gum_x86_writer_set_target_abi (GumX86Writer * writer,
+                               GumAbiType abi_type)
+{
+  writer->target_abi = abi_type;
 }
 
 gpointer
@@ -282,12 +295,24 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
   }
   else
   {
-    GumCpuReg reg_for_arg[4] = {
+    static const GumCpuReg reg_for_arg_unix[4] = {
+      GUM_REG_RDI,
+      GUM_REG_RSI,
+      GUM_REG_RDX,
+      GUM_REG_RCX
+    };
+    static const GumCpuReg reg_for_arg_windows[4] = {
       GUM_REG_RCX,
       GUM_REG_RDX,
       GUM_REG_R8,
       GUM_REG_R9
     };
+    const GumCpuReg * reg_for_arg;
+
+    if (self->target_abi == GUM_ABI_UNIX)
+      reg_for_arg = reg_for_arg_unix;
+    else
+      reg_for_arg = reg_for_arg_windows;
 
     for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
     {

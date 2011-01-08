@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -28,6 +28,7 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
   CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
   CODEWRITER_TESTENTRY (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_amd64)
+  CODEWRITER_TESTENTRY (call_with_arguments_should_be_compatible_with_native_abi)
   CODEWRITER_TESTENTRY (flush_on_free)
 
   CODEWRITER_TESTENTRY (jmp_rcx)
@@ -216,6 +217,31 @@ CODEWRITER_TESTCASE (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_a
       GUM_ARG_REGISTER, GUM_REG_XCX);
 
   assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
+{
+  gpointer page;
+  GumX86Writer cw;
+  GCallback func;
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+
+  gum_x86_writer_init (&cw, page);
+  gum_x86_writer_put_call_with_arguments (&cw, gum_test_native_function, 4,
+      GUM_ARG_POINTER, "red",
+      GUM_ARG_POINTER, "green",
+      GUM_ARG_POINTER, "blue",
+      GUM_ARG_POINTER, "you");
+  gum_x86_writer_put_ret (&cw);
+  gum_x86_writer_free (&cw);
+
+  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_RX);
+
+  func = G_CALLBACK (page);
+  func ();
+
+  gum_free_pages (page);
 }
 
 CODEWRITER_TESTCASE (flush_on_free)
@@ -440,4 +466,16 @@ CODEWRITER_TESTCASE (cmp_r9_i32)
   const guint8 expected_code[] = { 0x49, 0x81, 0xf9, 0x37, 0x13, 0x00, 0x00 };
   gum_x86_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_R9, 0x1337);
   assert_output_equals (expected_code);
+}
+
+static void
+gum_test_native_function (const gchar * arg1,
+                          const gchar * arg2,
+                          const gchar * arg3,
+                          const gchar * arg4)
+{
+  g_assert_cmpstr (arg1, ==, "red");
+  g_assert_cmpstr (arg2, ==, "green");
+  g_assert_cmpstr (arg3, ==, "blue");
+  g_assert_cmpstr (arg4, ==, "you");
 }

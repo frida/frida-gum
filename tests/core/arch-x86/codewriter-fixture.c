@@ -43,6 +43,7 @@ test_code_writer_fixture_setup (TestCodeWriterFixture * fixture,
   gum_x86_writer_init (&fixture->cw, fixture->output);
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
 }
 
 static void
@@ -95,5 +96,8 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
   g_assert (same_length);
   g_assert (same_content);
 }
+
+static void gum_test_native_function (const gchar * arg1, const gchar * arg2,
+    const gchar * arg3, const gchar * arg4);
 
 #define assert_output_equals(e) test_code_writer_fixture_assert_output_equals (fixture, e, sizeof (e))

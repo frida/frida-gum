@@ -34,8 +34,15 @@
 
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
+typedef guint GumAbiType;
 typedef guint GumCpuType;
 typedef struct _GumCpuContext GumCpuContext;
+
+enum _GumAbiType
+{
+  GUM_ABI_UNIX,
+  GUM_ABI_WINDOWS
+};
 
 enum _GumCpuType
 {
