@@ -194,6 +194,53 @@ gum_x86_writer_flush (GumX86Writer * self)
   self->label_refs_len = 0;
 }
 
+GumCpuReg
+gum_x86_writer_get_cpu_register_for_nth_argument (GumX86Writer * self,
+                                                  guint n)
+{
+  if (self->target_cpu == GUM_CPU_AMD64)
+  {
+    if (self->target_abi == GUM_ABI_UNIX)
+    {
+      static const GumCpuReg amd64_unix_reg_by_index[] = {
+        GUM_REG_RDI,
+        GUM_REG_RSI,
+        GUM_REG_RDX,
+        GUM_REG_RCX,
+        GUM_REG_R8,
+        GUM_REG_R9
+      };
+
+      if (n < G_N_ELEMENTS (amd64_unix_reg_by_index))
+        return amd64_unix_reg_by_index[n];
+    }
+    else if (self->target_abi == GUM_ABI_WINDOWS)
+    {
+      static const GumCpuReg amd64_windows_reg_by_index[] = {
+        GUM_REG_RCX,
+        GUM_REG_RDX,
+        GUM_REG_R8,
+        GUM_REG_R9
+      };
+
+      if (n < G_N_ELEMENTS (amd64_windows_reg_by_index))
+        return amd64_windows_reg_by_index[n];
+    }
+  }
+  else if (self->target_cpu == GUM_CPU_IA32)
+  {
+    static const GumCpuReg fastcall_reg_by_index[] = {
+      GUM_REG_XCX,
+      GUM_REG_XDX,
+    };
+
+    if (n < G_N_ELEMENTS (fastcall_reg_by_index))
+      return fastcall_reg_by_index[n];
+  }
+
+  return GUM_REG_NONE;
+}
+
 static guint8 *
 gum_x86_writer_lookup_address_for_label_id (GumX86Writer * self,
                                             gconstpointer id)

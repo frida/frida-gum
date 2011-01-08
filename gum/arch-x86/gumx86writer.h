@@ -147,6 +147,9 @@ guint gum_x86_writer_offset (GumX86Writer * self);
 
 void gum_x86_writer_flush (GumX86Writer * self);
 
+GumCpuReg gum_x86_writer_get_cpu_register_for_nth_argument (GumX86Writer * self,
+    guint n);
+
 void gum_x86_writer_put_label (GumX86Writer * self, gconstpointer id);
 
 void gum_x86_writer_put_call_with_arguments (GumX86Writer * self, gpointer func, guint n_args, ...);

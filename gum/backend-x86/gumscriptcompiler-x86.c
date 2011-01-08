@@ -80,7 +80,8 @@ gum_script_compiler_backend_emit_prologue (GumScriptCompilerBackend * self)
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, sizeof (gpointer));
 
   gum_x86_writer_put_push_reg (cw, GUM_REG_XBX);
-  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XCX);
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX,
+      gum_x86_writer_get_cpu_register_for_nth_argument (cw, 0));
 }
 
 void
