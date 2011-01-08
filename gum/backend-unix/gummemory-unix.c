@@ -82,8 +82,7 @@ gum_memory_get_protection (gpointer address,
     end_page = GSIZE_TO_POINTER (
         GPOINTER_TO_SIZE (address + len - 1) & ~(page_size - 1));
 
-    if (!gum_memory_get_protection (start_page, 1, prot))
-      return FALSE;
+    success = gum_memory_get_protection (start_page, 1, prot);
 
     for (cur_page = start_page + page_size;
         cur_page != end_page + page_size;
@@ -91,12 +90,19 @@ gum_memory_get_protection (gpointer address,
     {
       GumPageProtection cur_prot;
 
-      if (!gum_memory_get_protection (cur_page, 1, &cur_prot))
-        return FALSE;
-      *prot &= cur_prot;
+      if (gum_memory_get_protection (cur_page, 1, &cur_prot))
+      {
+        success = TRUE;
+        *prot &= cur_prot;
+      }
+      else
+      {
+        *prot = GUM_PAGE_NO_ACCESS;
+        break;
+      }
     }
 
-    return TRUE;
+    return success;
   }
 
   fp = fopen ("/proc/self/maps", "r");
@@ -306,12 +312,20 @@ gum_alloc_n_pages_near (guint n_pages,
       break;
 
     if (GUM_MEMRANGE_IS_NOT_MAPPED (low_address, size))
+    {
       result = mmap (low_address, size, unix_page_prot, flags, -1, 0);
+      if (result == MAP_FAILED)
+        result = NULL;
+    }
 
     if (result == NULL)
     {
       if (GUM_MEMRANGE_IS_NOT_MAPPED (high_address, size))
+      {
         result = mmap (high_address, size, unix_page_prot, flags, -1, 0);
+        if (result == MAP_FAILED)
+          result = NULL;
+      }
     }
   }
   while (result == NULL);
