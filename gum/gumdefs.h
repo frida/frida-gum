@@ -32,6 +32,12 @@
 #  define GUM_API
 #endif
 
+#ifdef G_OS_WIN32
+# define GUM_NATIVE_ABI GUM_ABI_WINDOWS
+#else
+# define GUM_NATIVE_ABI GUM_ABI_UNIX
+#endif
+
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
 typedef guint GumAbiType;

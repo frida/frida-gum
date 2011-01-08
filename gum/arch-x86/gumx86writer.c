@@ -120,12 +120,7 @@ gum_x86_writer_reset (GumX86Writer * writer,
 #else
   writer->target_cpu = GUM_CPU_AMD64;
 #endif
-
-#ifdef G_OS_WIN32
-  writer->target_abi = GUM_ABI_WINDOWS;
-#else
-  writer->target_abi = GUM_ABI_UNIX;
-#endif
+  writer->target_abi = GUM_NATIVE_ABI;
 
   writer->base = code_address;
   writer->code = code_address;
