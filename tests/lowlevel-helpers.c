@@ -165,6 +165,9 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx));
 #else
+  if (cw.target_abi == GUM_ABI_UNIX)
+    gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_RCX, GUM_REG_RDI);
+
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RAX,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rax));
   /* leave GUM_REG_RCX for last */
@@ -308,23 +311,36 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   guint8 * code;
   GumX86Writer cw;
   InvokeWithCpuFlagsFunc func;
+  GumCpuReg first_arg_reg, second_arg_reg;
 
   addr_spec.near_address = clobber_test_function;
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
   code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &addr_spec);
   gum_x86_writer_init (&cw, code);
 
+  if (cw.target_cpu == GUM_CPU_AMD64 && cw.target_abi == GUM_ABI_UNIX)
+  {
+    first_arg_reg = GUM_REG_RDI;
+    second_arg_reg = GUM_REG_RSI;
+  }
+  else
+  {
+    /* Common to ia32 fastcall and amd64 Windows ABI */
+    first_arg_reg = GUM_REG_XCX;
+    second_arg_reg = GUM_REG_XDX;
+  }
+
   gum_x86_writer_put_stc (&cw); /* set carry flag, likely to get clobbered */
 
   gum_x86_writer_put_pushfx (&cw);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
-  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, first_arg_reg, GUM_REG_XAX);
 
   gum_x86_writer_put_call (&cw, clobber_test_function);
 
   gum_x86_writer_put_pushfx (&cw);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
-  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XDX, GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, second_arg_reg, GUM_REG_XAX);
 
   gum_x86_writer_put_ret (&cw);
 
