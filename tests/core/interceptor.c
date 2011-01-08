@@ -38,6 +38,8 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
+#endif
+#ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
 #endif
@@ -62,8 +64,10 @@ TEST_LIST_BEGIN (interceptor)
 #endif
 TEST_LIST_END ()
 
-#ifdef HAVE_I386
+#ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
+#endif
+#ifdef HAVE_I386
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
@@ -111,6 +115,8 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
+
+# ifdef G_OS_WIN32
 
 INTERCEPTOR_TESTCASE (attach_to_own_api)
 {
@@ -162,6 +168,8 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
 
   g_thread_join (th);
 }
+
+# endif
 
 #endif
 
@@ -518,6 +526,8 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_free (ret);
 }
 
+#ifdef G_OS_WIN32
+
 static gpointer
 hit_target_function_repeatedly (gpointer data)
 {
@@ -536,6 +546,8 @@ hit_target_function_repeatedly (gpointer data)
 
   return NULL;
 }
+
+#endif
 
 typedef gpointer (* MallocFunc) (gsize size);
 
