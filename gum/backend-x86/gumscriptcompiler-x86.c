@@ -125,41 +125,90 @@ gum_script_compiler_backend_emit_send_item_commit (
   GumX86Writer * cw = &self->code_writer;
   gint item_index;
 
-  gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
-  gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
-
-  for (item_index = send_arg_items->len - 1; item_index >= 0; item_index--)
+  if (cw->target_cpu == GUM_CPU_AMD64 && cw->target_abi == GUM_ABI_UNIX)
   {
-    GumSendArgItem * item;
-
-    item = &g_array_index (send_arg_items, GumSendArgItem, item_index);
-
-#if GLIB_SIZEOF_VOID_P == 8
-    if (item_index == 0)
-    {
-      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R9D, item->type);
-      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, item->index);
-    }
+    if (send_arg_items->len >= 2)
+      gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
     else
-#endif
+      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, G_MAXUINT);
+
+    for (item_index = send_arg_items->len - 1; item_index >= 0; item_index--)
     {
-      gum_x86_writer_put_push_u32 (cw, item->type);
-      gum_x86_writer_put_push_u32 (cw, item->index);
+      GumSendArgItem * item;
+
+      item = &g_array_index (send_arg_items, GumSendArgItem, item_index);
+
+      if (item_index == 0)
+      {
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_ECX, item->type);
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_EDX, item->index);
+      }
+      else if (item_index == 1)
+      {
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R9D, item->type);
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, item->index);
+      }
+      else
+      {
+        gum_x86_writer_put_push_u32 (cw, item->type);
+        gum_x86_writer_put_push_u32 (cw, item->index);
+      }
+    }
+
+    gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_RSI, GUM_REG_RBX);
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RDI, GUM_ADDRESS (script));
+
+    gum_x86_writer_put_xor_reg_reg (cw, GUM_REG_EAX, GUM_REG_EAX);
+
+    gum_x86_writer_put_mov_reg_address (cw, GUM_REG_R10,
+        GUM_ADDRESS (GUM_FUNCPTR_TO_POINTER (_gum_script_send_item_commit)));
+    gum_x86_writer_put_call_reg (cw, GUM_REG_R10);
+
+    if (send_arg_items->len >= 2)
+    {
+      gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
+          (((send_arg_items->len - 2) * 2) + 1) * sizeof (gpointer));
     }
   }
+  else
+  {
+    gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
+    gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
 
-#if GLIB_SIZEOF_VOID_P == 8
-  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RBX);
-  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (script));
-  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_RSP, 4 * sizeof (gpointer));
-#else
-  gum_x86_writer_put_push_reg (cw, GUM_REG_EBX);
-  gum_x86_writer_put_push_u32 (cw, (guint32) script);
-#endif
+    for (item_index = send_arg_items->len - 1; item_index >= 0; item_index--)
+    {
+      GumSendArgItem * item;
 
-  gum_x86_writer_put_call (cw,
-      GUM_FUNCPTR_TO_POINTER (_gum_script_send_item_commit));
+      item = &g_array_index (send_arg_items, GumSendArgItem, item_index);
 
-  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
-      (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer));
+      if (cw->target_cpu == GUM_CPU_AMD64 && item_index == 0)
+      {
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R9D, item->type);
+        gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, item->index);
+      }
+      else
+      {
+        gum_x86_writer_put_push_u32 (cw, item->type);
+        gum_x86_writer_put_push_u32 (cw, item->index);
+      }
+    }
+
+    if (cw->target_cpu == GUM_CPU_AMD64)
+    {
+      gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_RDX, GUM_REG_RBX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_RCX, GUM_ADDRESS (script));
+      gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_RSP, 4 * sizeof (gpointer));
+    }
+    else
+    {
+      gum_x86_writer_put_push_reg (cw, GUM_REG_EBX);
+      gum_x86_writer_put_push_u32 (cw, (guint32) GPOINTER_TO_SIZE (script));
+    }
+
+    gum_x86_writer_put_call (cw,
+        GUM_FUNCPTR_TO_POINTER (_gum_script_send_item_commit));
+
+    gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
+        (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer));
+  }
 }
