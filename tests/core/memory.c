@@ -312,7 +312,7 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   *((gsize *) page) = 42;
   g_assert_cmpuint (*((gsize *) page), ==, 42);
 
-  actual_distance = ABS (page - as.near_address);
+  actual_distance = ABS ((guint8 *) page - (guint8 *) as.near_address);
   g_assert_cmpuint (actual_distance, <=, as.max_distance);
 
   gum_free_pages (page);

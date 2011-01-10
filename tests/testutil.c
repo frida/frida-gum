@@ -307,6 +307,9 @@ test_util_get_data_dir (void)
   g_free (exe_dir);
 
   return result;
+#elif defined (G_OS_WIN32)
+  g_assert_not_reached (); /* FIXME: once this is needed on Windows */
+  return NULL;
 #else
 # error Implement support for your OS here
 #endif
