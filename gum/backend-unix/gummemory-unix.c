@@ -26,7 +26,7 @@
 #include <sys/mman.h>
 #undef __USE_GNU
 #define INSECURE      0
-#define NO_MALLINFO   1
+#define NO_MALLINFO   0
 #define USE_LOCKS     1
 #define USE_DL_PREFIX 1
 #include "dlmalloc.c"
@@ -277,6 +277,16 @@ gum_mprotect (gpointer address,
 
   result = mprotect (aligned_address, size, unix_page_prot);
   g_assert_cmpint (result, ==, 0);
+}
+
+guint
+gum_peek_private_memory_usage (void)
+{
+  struct mallinfo info;
+
+  info = dlmallinfo ();
+
+  return info.uordblks;
 }
 
 gpointer

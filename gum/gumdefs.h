@@ -153,7 +153,7 @@ struct _GumCpuContext
 #define GUM_MAX_WORST_CASE_INFO_SIZE 128
 
 #define GUM_MAX_LISTENERS_PER_FUNCTION 2
-#define GUM_MAX_LISTENER_DATA        128
+#define GUM_MAX_LISTENER_DATA        256
 
 #if GLIB_SIZEOF_VOID_P == 8
 #define GUM_CPU_MODE 64

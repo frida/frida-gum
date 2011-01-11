@@ -457,7 +457,7 @@ ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
   bytes_after = gum_peek_private_memory_usage ();
 
   bytes_per_allocation = (bytes_after - bytes_before) / num_allocations;
-  g_assert_cmpuint (bytes_per_allocation, <=, 60);
+  g_assert_cmpuint (bytes_per_allocation, <=, 128);
 
   g_object_unref (backtracer);
   g_object_unref (t);

@@ -1,5 +1,15 @@
 noinst_LTLIBRARIES = libgum-prof-1.0.la
 
+arch_sources = $(NULL)
+arch_includes = $(NULL)
+
+if ARCH_I386
+arch_sources += \
+	gumcyclesampler.c
+arch_includes += \
+	-I $(top_srcdir)/gum/arch-x86
+endif
+
 gumincludedir = $(includedir)/gum-1.0/gum/prof
 guminclude_HEADERS = \
 	gumbusycyclesampler.h \
@@ -12,6 +22,7 @@ guminclude_HEADERS = \
 	gumwallclocksampler.h
 
 libgum_prof_1_0_la_SOURCES = \
+	$(arch_sources) \
 	gumcallcountsampler.c \
 	gummalloccountsampler.c \
 	gumprofiler.c \
@@ -22,4 +33,5 @@ libgum_prof_1_0_la_SOURCES = \
 AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir)/gum \
+	$(arch_includes) \
 	$(GUM_CFLAGS)
