@@ -237,8 +237,16 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx),
       GUM_REG_EDX);
 #else
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
-      GUM_REG_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rdx));
+  if (cw.target_abi == GUM_ABI_UNIX)
+  {
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
+        GUM_REG_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rsi));
+  }
+  else
+  {
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
+        GUM_REG_RSP, 8 + G_STRUCT_OFFSET (GumCpuContext, rdx));
+  }
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rax),

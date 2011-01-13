@@ -60,7 +60,14 @@ gboolean
 gum_memory_is_readable (gpointer address,
                         guint len)
 {
-  g_assert_not_reached (); /* FIXME */
+  gboolean is_readable;
+  guint8 * bytes;
+
+  bytes = gum_memory_read (address, len, NULL);
+  is_readable = bytes != NULL;
+  g_free (bytes);
+
+  return is_readable;
 }
 
 guint8 *
@@ -69,17 +76,22 @@ gum_memory_read (gpointer address,
                  gint * n_bytes_read)
 {
   guint8 * result;
-  mach_vm_size_t result_size = len;
+  mach_vm_size_t result_len = 0;
   kern_return_t kr;
 
   result = g_malloc (len);
 
   kr = mach_vm_read_overwrite (mach_task_self (),
-      (mach_vm_address_t) address, len, (vm_address_t) result, &result_size);
-  if (kr == KERN_SUCCESS)
-    *n_bytes_read = result_size;
-  else
-    *n_bytes_read = 0;
+      (mach_vm_address_t) address, len, (vm_address_t) result, &result_len);
+
+  if (kr != KERN_SUCCESS)
+  {
+    g_free (result);
+    result = NULL;
+  }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = result_len;
 
   return result;
 }
@@ -102,9 +114,9 @@ gum_mprotect (gpointer address,
               guint size,
               GumPageProtection page_prot)
 {
-  guint page_size;
+  gsize page_size;
   gpointer aligned_address;
-  guint aligned_size;
+  gsize aligned_size;
   vm_prot_t mach_page_prot;
   kern_return_t kr;
 
@@ -184,7 +196,7 @@ gum_alloc_n_pages (guint n_pages,
   page_size = gum_query_page_size ();
   size = n_pages * page_size;
 
-  kr = mach_vm_allocate (mach_task_self (), &result, size, TRUE);
+  kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   if (page_prot != GUM_PAGE_RW)
@@ -223,14 +235,14 @@ gum_alloc_n_pages_near (guint n_pages,
     if (cur_distance > address_spec->max_distance)
       break;
 
-    kr = mach_vm_allocate (self, &low_address, size, FALSE);
+    kr = mach_vm_allocate (self, &low_address, size, VM_FLAGS_FIXED);
     if (kr == KERN_SUCCESS)
     {
       result = low_address;
     }
     else
     {
-      kr = mach_vm_allocate (self, &high_address, size, FALSE);
+      kr = mach_vm_allocate (self, &high_address, size, VM_FLAGS_FIXED);
       if (kr == KERN_SUCCESS)
         result = high_address;
     }

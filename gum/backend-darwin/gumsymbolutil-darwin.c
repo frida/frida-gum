@@ -32,13 +32,23 @@
        S->n_type >= N_PEXT || \
        (S->n_type & N_EXT) == 0)
 
+#if GLIB_SIZEOF_VOID_P == 4
+# define GUM_LC_SEGMENT LC_SEGMENT
+typedef struct mach_header gum_mach_header_t;
+typedef struct segment_command gum_segment_command_t;
+#else
+# define GUM_LC_SEGMENT LC_SEGMENT_64
+typedef struct mach_header_64 gum_mach_header_t;
+typedef struct segment_command_64 gum_segment_command_t;
+#endif
+
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
 static gboolean find_image_vmaddr_and_fileoff (gpointer address,
-    guint32 * vmaddr, guint32 * fileoff);
+    gsize * vmaddr, gsize * fileoff);
 static gboolean find_image_symtab_command (gpointer address,
     struct symtab_command ** sc);
 
@@ -180,7 +190,7 @@ gum_module_enumerate_exports (const gchar * module_name,
                               gpointer user_data)
 {
   gpointer address, slide;
-  guint32 vmaddr, fileoff;
+  gsize vmaddr, fileoff;
   struct symtab_command * sc;
   gsize table_offset;
   struct nlist * symbase, * sym;
@@ -231,7 +241,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              gpointer user_data)
 {
   gpointer address, slide;
-  struct mach_header * header;
+  gum_mach_header_t * header;
   guint8 * p;
   guint cmd_index;
 
@@ -244,9 +254,9 @@ gum_module_enumerate_ranges (const gchar * module_name,
   {
     struct load_command * lc = (struct load_command *) p;
 
-    if (lc->cmd == LC_SEGMENT)
+    if (lc->cmd == GUM_LC_SEGMENT)
     {
-      struct segment_command * segcmd = (struct segment_command *) lc;
+      gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
       GumPageProtection cur_prot;
 
       cur_prot = gum_page_protection_from_mach (segcmd->initprot);
@@ -304,10 +314,10 @@ find_image_address_and_slide (const gchar * image_name,
 
 static gboolean
 find_image_vmaddr_and_fileoff (gpointer address,
-                               guint32 * vmaddr,
-                               guint32 * fileoff)
+                               gsize * vmaddr,
+                               gsize * fileoff)
 {
-  struct mach_header * header = address;
+  gum_mach_header_t * header = address;
   guint8 * p;
   guint cmd_index;
 
@@ -316,9 +326,9 @@ find_image_vmaddr_and_fileoff (gpointer address,
   {
     struct load_command * lc = (struct load_command *) p;
 
-    if (lc->cmd == LC_SEGMENT)
+    if (lc->cmd == GUM_LC_SEGMENT)
     {
-      struct segment_command * segcmd = (struct segment_command *) lc;
+      gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
 
       if (strcmp (segcmd->segname, "__LINKEDIT") == 0)
       {
@@ -338,7 +348,7 @@ static gboolean
 find_image_symtab_command (gpointer address,
                            struct symtab_command ** sc)
 {
-  struct mach_header * header = address;
+  gum_mach_header_t * header = address;
   guint8 * p;
   guint cmd_index;
 

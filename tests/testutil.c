@@ -293,10 +293,18 @@ test_util_get_data_dir (void)
     const gchar * image_path = _dyld_get_image_name (image_idx);
 
     if (g_str_has_suffix (image_path, "/gum-tests"))
-      return g_path_get_dirname (image_path);
+    {
+      gchar * exe_dir, * result;
+
+      exe_dir = g_path_get_dirname (image_path);
+      result = g_build_filename (exe_dir, "data", NULL);
+      g_free (exe_dir);
+
+      return result;
+    }
   }
 
-  return g_strdup ("/Library/Frida/tests");
+  return g_strdup ("/Library/Frida/tests/data");
 #elif defined (HAVE_LINUX)
   gchar * exe_path, * exe_dir, * result;
 

@@ -43,7 +43,7 @@ TEST_LIST_END ()
 
 RELOCATOR_TESTCASE (one_to_one)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x55,                         /* push ebp     */
     0x8b, 0xec,                   /* mov ebp, esp */
   };
@@ -74,7 +74,7 @@ RELOCATOR_TESTCASE (one_to_one)
 
 RELOCATOR_TESTCASE (call_near_relative)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x55,                         /* push ebp     */
     0x8b, 0xec,                   /* mov ebp, esp */
     0xe8, 0x04, 0x00, 0x00, 0x00, /* call dummy   */
@@ -103,7 +103,7 @@ RELOCATOR_TESTCASE (call_near_relative)
 
 RELOCATOR_TESTCASE (call_near_indirect)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xff, 0x15, 0x78, 0x56, 0x34, 0x12 /* call ds:012345678h */
   };
 
@@ -116,7 +116,7 @@ RELOCATOR_TESTCASE (call_near_indirect)
 
 RELOCATOR_TESTCASE (jmp_short_outside_block)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xeb, 0x01  /* jmp +1 */
   };
   gint32 reloc_distance, expected_distance;
@@ -139,7 +139,7 @@ RELOCATOR_TESTCASE (jmp_short_outside_block)
 
 RELOCATOR_TESTCASE (jmp_near_outside_block)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xe9, 0x01, 0x00, 0x00, 0x00, /* jmp +1 */
   };
   gint32 reloc_distance, expected_distance;
@@ -161,7 +161,7 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
 
 RELOCATOR_TESTCASE (jcc_short_within_block)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
     0x81, 0xfb, 0x2a, 0x00, 0x00, 0x00, /* cmp ebx, 42 */
     0x75, 0x02,                         /* jnz beach   */
@@ -205,7 +205,7 @@ RELOCATOR_TESTCASE (jcc_short_within_block)
 
 RELOCATOR_TESTCASE (jcc_short_outside_block)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x75, 0xfd, /* jnz -3 */
     0xc3        /* retn   */
   };
@@ -226,7 +226,7 @@ RELOCATOR_TESTCASE (jcc_short_outside_block)
 
 RELOCATOR_TESTCASE (jcc_near_outside_block)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x0f, 0x84, 0xda, 0x00, 0x00, 0x00, /* jz +218 */
     0xc3                                /* retn    */
   };
@@ -247,7 +247,7 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
 
 RELOCATOR_TESTCASE (peek_next_write)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x31, 0xc0, /* xor eax,eax */
     0xff, 0xc0  /* inc eax     */
   };
@@ -274,7 +274,7 @@ RELOCATOR_TESTCASE (peek_next_write)
 
 RELOCATOR_TESTCASE (skip_instruction)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x31, 0xc0,                         /* xor eax,eax */
     0x81, 0xfb, 0x2a, 0x00, 0x00, 0x00, /* cmp ebx, 42 */
     0x75, 0x02,                         /* jnz beach   */
@@ -309,7 +309,7 @@ RELOCATOR_TESTCASE (skip_instruction)
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xeb, 0x01  /* jmp +1 */
   };
 
@@ -323,7 +323,7 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_jmp)
 
 RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xe8, 0x42, 0x00, 0x00, 0x00  /* call +0x42 */
   };
 
@@ -336,7 +336,7 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_call)
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0xc2, 0x04, 0x00  /* retn 4 */
   };
 
@@ -350,7 +350,7 @@ RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
 
 RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x74, 0x01, /* jz +1  */
     0xc3        /* ret    */
   };
@@ -369,7 +369,7 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
 
 RELOCATOR_TESTCASE (rip_relative_different_target)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
     0xc3,                               /* ret                */
     0x01, 0x02, 0x03, 0x04
@@ -394,7 +394,7 @@ RELOCATOR_TESTCASE (rip_relative_different_target)
 
 RELOCATOR_TESTCASE (rip_relative_same_target)
 {
-  const guint8 input[] = {
+  guint8 input[] = {
     0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
     0xc3,                               /* ret                */
     0x01, 0x02, 0x03, 0x04
