@@ -3,7 +3,13 @@ SUBDIRS = \
 	heap \
 	prof
 
+if OS_ANDROID
+else
+if OS_IOS
+else
 TESTS = gum-tests
+endif
+endif
 
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la

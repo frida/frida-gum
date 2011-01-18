@@ -36,7 +36,7 @@ fi
 AM_CONDITIONAL(ARCH_I386, test "$HAVE_I386" = "yes")
 AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 
-case $target_os in
+case $host_os in
   linux*)  HAVE_LINUX=yes  ;;
   darwin*) HAVE_DARWIN=yes ;;
   *)                       ;;
@@ -50,14 +50,19 @@ fi
 AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
 
-case $target_os in
-  darwin10\.*) HAVE_OSX=yes ;;
-  *)                      ;;
+case $host_os in
+  darwin10\.*) HAVE_OSX=yes     ;;
+  *-android*)  HAVE_ANDROID=yes ;;
+  *)                            ;;
 esac
 if [[ "x$HAVE_OSX" = "xyes" ]]; then
   AC_DEFINE(HAVE_OSX, 1, [Define to 1 if OS is Mac OS X.])
 fi
 AM_CONDITIONAL(OS_OSX, test "x$HAVE_OSX" = "xyes")
+if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
+  AC_DEFINE(HAVE_ANDROID, 1, [Define to 1 if OS is Android based.])
+fi
+AM_CONDITIONAL(OS_ANDROID, test "x$HAVE_ANDROID" = "xyes")
 
 if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
   HAVE_IOS=yes

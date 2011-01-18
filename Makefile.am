@@ -15,6 +15,19 @@ all-local: $(pcfiles)
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = $(pcfiles)
 
+if OS_ANDROID
+RPFX := /data/local/tmp
+MKDIR := busybox mkdir
+RM := busybox rm
+
+check: all
+	adb shell "${MKDIR} -p \"${RPFX}/tests/data/\" && ${RM} -f \"${RPFX}/tests/gum-tests\" && ${RM} -f \"${RPFX}/tests/data/targetfunctions-arm.so\" && ${RM} -f \"${RPFX}/tests/data/specialfunctions-arm.so\""
+	adb push "$(top_builddir)/tests/gum-tests" "${RPFX}/tests/"
+	adb push "$(top_builddir)/tests/data/targetfunctions-arm.so" "${RPFX}/tests/data/"
+	adb push "$(top_builddir)/tests/data/specialfunctions-arm.so" "${RPFX}/tests/data/"
+	adb shell "\"${RPFX}/tests/gum-tests\""
+endif
+
 if OS_IOS
 RURL := root@${IOS_IPADDR}
 RPFX := /Library/Frida
