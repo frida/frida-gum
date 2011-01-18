@@ -49,7 +49,7 @@ gum_backtracer_make_default (void)
 {
 #if defined (G_OS_WIN32)
   return gum_dbghelp_backtracer_new ();
-#elif defined (HAVE_LINUX)
+#elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
 #else
   return NULL;

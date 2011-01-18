@@ -21,7 +21,9 @@
 #include "profiler-fixture.c"
 
 TEST_LIST_BEGIN (profiler)
+#ifdef HAVE_I386
   PROFILER_TESTENTRY (i_can_has_instrumentability)
+#endif
   PROFILER_TESTENTRY (already_instrumented)
 
   PROFILER_TESTENTRY (flat_function)
@@ -45,6 +47,8 @@ TEST_LIST_BEGIN (profiler)
   PROFILEREPORT_TESTENTRY (xml_thread_ordering)
 TEST_LIST_END ()
 
+#ifdef HAVE_I386
+
 PROFILER_TESTCASE (i_can_has_instrumentability)
 {
   UnsupportedFunction * unsupported_functions;
@@ -58,6 +62,8 @@ PROFILER_TESTCASE (i_can_has_instrumentability)
 
   unsupported_function_list_free (unsupported_functions);
 }
+
+#endif
 
 PROFILER_TESTCASE (already_instrumented)
 {

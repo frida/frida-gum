@@ -26,7 +26,9 @@
 
 #include <bfd.h>
 #include <dlfcn.h>
+#ifdef HAVE_GLIBC
 #include <link.h>
+#endif
 #include <string.h>
 #include <strings.h>
 
@@ -41,8 +43,10 @@ struct _SymbolCollection
 };
 
 static void build_symbols_database (void);
+#ifdef HAVE_GLIBC
 static int add_symbols_for_shared_object (struct dl_phdr_info * info,
     size_t size, void * data);
+#endif
 static void add_symbols_for_file (const gchar * filename,
     gpointer base_address);
 static void add_interesting_symbols (bfd * abfd, asymbol ** symbols,
@@ -202,8 +206,12 @@ build_symbols_database (void)
 
   add_symbols_for_file ("/proc/self/exe", NULL);
 
+#ifdef HAVE_GLIBC
   dl_iterate_phdr (add_symbols_for_shared_object, NULL);
+#endif
 }
+
+#ifdef HAVE_GLIBC
 
 static int
 add_symbols_for_shared_object (struct dl_phdr_info * info,
@@ -218,6 +226,8 @@ add_symbols_for_shared_object (struct dl_phdr_info * info,
 
   return 0;
 }
+
+#endif
 
 static void
 add_symbols_for_file (const gchar * filename,

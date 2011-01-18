@@ -70,6 +70,9 @@ AC_TRY_LINK(
     [ backtrace (NULL, 0); ],
     HAVE_GLIBC=yes,
     HAVE_GLIBC=no)
+if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
+fi
 AM_CONDITIONAL(HAVE_GLIBC, test "$HAVE_GLIBC" = "yes")
 
 AC_CHECK_MEMBER([struct mallinfo.arena],

@@ -21,7 +21,9 @@
 #include "sampler-fixture.c"
 
 TEST_LIST_BEGIN (sampler)
+#ifdef HAVE_I386
   SAMPLER_TESTENTRY (cycle)
+#endif
 #ifdef G_OS_WIN32
   SAMPLER_TESTENTRY (busy_cycle)
 #endif
@@ -37,6 +39,8 @@ static gpointer malloc_count_helper_thread (gpointer data);
 static void nop_function_a (void);
 static void nop_function_b (void);
 
+#ifdef HAVE_I386
+
 SAMPLER_TESTCASE (cycle)
 {
   GumSample sample_a, sample_b;
@@ -46,6 +50,8 @@ SAMPLER_TESTCASE (cycle)
   sample_b = gum_sampler_sample (fixture->sampler);
   g_assert_cmpuint (sample_a, !=, sample_b);
 }
+
+#endif
 
 #ifdef G_OS_WIN32
 
