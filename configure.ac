@@ -72,6 +72,9 @@ AC_TRY_LINK(
     HAVE_GLIBC=no)
 AM_CONDITIONAL(HAVE_GLIBC, test "$HAVE_GLIBC" = "yes")
 
+AC_CHECK_MEMBER([struct mallinfo.arena],
+    [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
+
 GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION"
