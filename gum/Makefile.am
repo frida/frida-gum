@@ -79,7 +79,6 @@ endif
 
 if OS_LINUX
 backend_sources += \
-	backend-glibc/gumgnubacktracer.c \
 	backend-linux/gumsymbolutil-linux.c
 endif
 
@@ -90,6 +89,11 @@ backend_sources += \
 else
 backend_sources += \
 	backend-unix/gummemory-unix.c
+endif
+
+if HAVE_GLIBC
+backend_sources += \
+	backend-glibc/gumgnubacktracer.c
 endif
 
 if HAVE_BFD

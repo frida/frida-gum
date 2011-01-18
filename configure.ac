@@ -65,6 +65,13 @@ if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
+AC_TRY_LINK(
+    [ #include <execinfo.h> ],
+    [ backtrace (NULL, 0); ],
+    HAVE_GLIBC=yes,
+    HAVE_GLIBC=no)
+AM_CONDITIONAL(HAVE_GLIBC, test "$HAVE_GLIBC" = "yes")
+
 GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION"
