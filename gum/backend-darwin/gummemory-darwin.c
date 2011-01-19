@@ -134,7 +134,7 @@ gum_mprotect (gpointer address,
       aligned_size, FALSE, mach_page_prot);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  /* FIXME: cache invalidation? */
+  /* FIXME: is __clear_cache() a nop? */
   g_usleep (G_USEC_PER_SEC / 1000);
 }
 

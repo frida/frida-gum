@@ -277,6 +277,9 @@ gum_mprotect (gpointer address,
 
   result = mprotect (aligned_address, size, unix_page_prot);
   g_assert_cmpint (result, ==, 0);
+
+  /* FIXME: is __clear_cache() a nop? */
+  g_usleep (G_USEC_PER_SEC / 100);
 }
 
 guint
