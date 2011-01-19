@@ -376,6 +376,7 @@ gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
     absolute_pc += 2;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
+  gum_thumb_writer_put_ldr_reg_reg (ctx->output, reg, reg);
 
   return TRUE;
 }

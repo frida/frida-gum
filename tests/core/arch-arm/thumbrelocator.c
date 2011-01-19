@@ -79,7 +79,7 @@ RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
   };
   guint16 expected_output[] = {
     0x4a00,                   /* ldr r2, [pc, #0] */
-    0x0000,                   /* <padding>        */
+    0x6812,                   /* ldr r2, r2       */
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
   };
