@@ -136,7 +136,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     filename = g_build_filename (testdir,
         "targetfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
         NULL);
-    lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
+    lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
     g_assert (lib != NULL);
     g_free (filename);
 
