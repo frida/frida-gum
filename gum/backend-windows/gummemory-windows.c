@@ -51,24 +51,75 @@ gum_query_page_size (void)
   return si.dwPageSize;
 }
 
+static gboolean
+gum_memory_get_protection (gpointer address,
+                           guint len,
+                           GumPageProtection * prot)
+{
+  gboolean success = FALSE;
+  MEMORY_BASIC_INFORMATION mbi;
+
+  if (prot == NULL)
+  {
+    GumPageProtection ignored_prot;
+
+    return gum_memory_get_protection (address, len, &ignored_prot);
+  }
+
+  *prot = GUM_PAGE_NO_ACCESS;
+
+  if (len > 1)
+  {
+    gsize page_size;
+    guint8 * start_page, * end_page, * cur_page;
+
+    page_size = gum_query_page_size ();
+
+    start_page = (guint8 *) GSIZE_TO_POINTER (
+        GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+    end_page = (guint8 *) GSIZE_TO_POINTER (
+        GPOINTER_TO_SIZE ((guint8 *) address + len - 1) & ~(page_size - 1));
+
+    success = gum_memory_get_protection (start_page, 1, prot);
+
+    for (cur_page = start_page + page_size;
+        cur_page != end_page + page_size;
+        cur_page += page_size)
+    {
+      GumPageProtection cur_prot;
+
+      if (gum_memory_get_protection (cur_page, 1, &cur_prot))
+      {
+        success = TRUE;
+        *prot &= cur_prot;
+      }
+      else
+      {
+        *prot = GUM_PAGE_NO_ACCESS;
+        break;
+      }
+    }
+
+    return success;
+  }
+
+  success = VirtualQuery (address, &mbi, sizeof (mbi)) != 0;
+  if (success)
+    *prot = gum_page_protection_from_windows (mbi.Protect);
+
+  return success;
+}
+
 gboolean
 gum_memory_is_readable (gpointer address,
                         guint len)
 {
-  MEMORY_BASIC_INFORMATION mbi;
-  SIZE_T ret;
+  GumPageProtection prot;
 
-  ret = VirtualQuery (address, &mbi, sizeof (mbi));
-  g_assert (ret != 0);
+  if (!gum_memory_get_protection (address, len, &prot))
+    return FALSE;
 
-  /* FIXME: this will do for now: */
-  g_assert ((guint8 *) address + len <=
-      (guint8 *) mbi.BaseAddress + mbi.RegionSize);
-
-  return (mbi.Protect == PAGE_READWRITE
-      || mbi.Protect == PAGE_READONLY
-      || mbi.Protect == PAGE_EXECUTE_READ
-      || mbi.Protect == PAGE_EXECUTE_READWRITE);
+  return (prot & GUM_PAGE_READ) != 0;
 }
 
 guint8 *
@@ -77,17 +128,21 @@ gum_memory_read (gpointer address,
                  gint * n_bytes_read)
 {
   guint8 * result;
-  SIZE_T number_of_bytes_read = 0;
+  SIZE_T result_len = 0;
   BOOL success;
 
   result = (guint8 *) g_malloc (len);
 
   success = ReadProcessMemory (GetCurrentProcess (), address, result, len,
-      &number_of_bytes_read);
-  if (success)
-    *n_bytes_read = number_of_bytes_read;
-  else
-    *n_bytes_read = 0;
+      &result_len);
+  if (!success)
+  {
+    g_free (result);
+    result = NULL;
+  }
+
+  if (n_bytes_read != NULL)
+    *n_bytes_read = result_len;
 
   return result;
 }
