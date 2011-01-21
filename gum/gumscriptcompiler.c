@@ -291,8 +291,11 @@ gum_script_compiler_process (GumScriptCompiler * self,
   /* ERRORS */
 parse_error:
   {
+    gum_script_compiler_close_function (self);
+
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_INVALID_ARGUMENT,
         "Parse error: %s", self->parse_messages->str);
+
     return NULL;
   }
 }
@@ -438,6 +441,11 @@ gum_script_compiler_handle_send_statement (GumScriptCompiler * self)
   {
     item.type = GUM_VARIABLE_BYTE_ARRAY;
     type_char = ' ';
+  }
+  else if (strcmp (statement_type, "send_guid") == 0)
+  {
+    item.type = GUM_VARIABLE_GUID;
+    type_char = 's';
   }
   else
   {

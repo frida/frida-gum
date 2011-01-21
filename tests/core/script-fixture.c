@@ -19,6 +19,7 @@
 
 #include "gumscript.h"
 
+#include "gumscript-priv.h"
 #include "testutil.h"
 
 #include <string.h>

@@ -249,6 +249,23 @@ _gum_script_send_item_commit (GumScript * self,
         break;
       }
 
+      case GUM_VARIABLE_GUID:
+      {
+        GumGuid * guid = (GumGuid *) argument_value;
+        guint8 * p = (guint8 *) &guid->data4;
+        gchar * guid_str;
+
+        guid_str = g_strdup_printf (
+            "{%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X}",
+            guid->data1, guid->data2, guid->data3,
+            p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+
+        value = g_variant_new_from_data (G_VARIANT_TYPE_STRING, guid_str, 39,
+            TRUE, g_free, guid_str);
+
+        break;
+      }
+
       default:
         value = NULL;
         g_assert_not_reached ();

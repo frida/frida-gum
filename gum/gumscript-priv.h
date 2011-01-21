@@ -35,6 +35,7 @@
 
 typedef struct _GumScriptCode GumScriptCode;
 typedef struct _GumScriptData GumScriptData;
+typedef struct _GumGuid GumGuid;
 
 typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
     (GumInvocationContext * context);
@@ -62,6 +63,14 @@ struct _GumScriptPrivate
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
+};
+
+struct _GumGuid
+{
+  guint32 data1;
+  guint16 data2;
+  guint16 data3;
+  guint64 data4;
 };
 
 G_BEGIN_DECLS
