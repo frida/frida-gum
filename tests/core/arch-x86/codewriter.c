@@ -238,7 +238,7 @@ CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
 
   gum_mprotect (page, gum_query_page_size (), GUM_PAGE_RX);
 
-  func = G_CALLBACK (page);
+  func = GUM_POINTER_TO_FUNCPTR (GCallback, page);
   func ();
 
   gum_free_pages (page);
