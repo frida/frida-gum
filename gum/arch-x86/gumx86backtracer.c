@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,22 +17,20 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <stdio.h>
-#include <string.h>
-#include "gumgenericbacktracer.h"
+#include "gumx86backtracer.h"
 
-static void gum_generic_backtracer_iface_init (gpointer g_iface,
+static void gum_x86_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_generic_backtracer_finalize (GObject * object);
-static void gum_generic_backtracer_generate (GumBacktracer * backtracer,
+static void gum_x86_backtracer_finalize (GObject * object);
+static void gum_x86_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
 
-static void update_code_ranges (GumGenericBacktracer * self);
-static gboolean is_valid_code_address (GumGenericBacktracer * self, gsize address,
+static void update_code_ranges (GumX86Backtracer * self);
+static gboolean is_valid_code_address (GumX86Backtracer * self, gsize address,
     guint size);
 
-struct _GumGenericBacktracerPrivate
+struct _GumX86BacktracerPrivate
 {
   gboolean disposed;
 
@@ -41,39 +39,39 @@ struct _GumGenericBacktracerPrivate
   gsize code_ranges_max;
 };
 
-#define GUM_GENERIC_BACKTRACER_GET_PRIVATE(o) ((o)->priv)
+#define GUM_X86_BACKTRACER_GET_PRIVATE(o) ((o)->priv)
 
-G_DEFINE_TYPE_EXTENDED (GumGenericBacktracer,
-                        gum_generic_backtracer,
+G_DEFINE_TYPE_EXTENDED (GumX86Backtracer,
+                        gum_x86_backtracer,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_BACKTRACER,
-                                               gum_generic_backtracer_iface_init));
+                                               gum_x86_backtracer_iface_init));
 
 static void
-gum_generic_backtracer_class_init (GumGenericBacktracerClass * klass)
+gum_x86_backtracer_class_init (GumX86BacktracerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  g_type_class_add_private (klass, sizeof (GumGenericBacktracerPrivate));
+  g_type_class_add_private (klass, sizeof (GumX86BacktracerPrivate));
 
-  object_class->finalize = gum_generic_backtracer_finalize;
+  object_class->finalize = gum_x86_backtracer_finalize;
 }
 
 static void
-gum_generic_backtracer_iface_init (gpointer g_iface,
+gum_x86_backtracer_iface_init (gpointer g_iface,
                                    gpointer iface_data)
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
 
-  iface->generate = gum_generic_backtracer_generate;
+  iface->generate = gum_x86_backtracer_generate;
 }
 
 static void
-gum_generic_backtracer_init (GumGenericBacktracer * self)
+gum_x86_backtracer_init (GumX86Backtracer * self)
 {
-  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_GENERIC_BACKTRACER,
-      GumGenericBacktracerPrivate);
+  self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_X86_BACKTRACER,
+      GumX86BacktracerPrivate);
 
   self->priv->code_ranges = g_ptr_array_new ();
 
@@ -81,32 +79,32 @@ gum_generic_backtracer_init (GumGenericBacktracer * self)
 }
 
 static void
-gum_generic_backtracer_finalize (GObject * object)
+gum_x86_backtracer_finalize (GObject * object)
 {
-  GumGenericBacktracer * self = GUM_GENERIC_BACKTRACER (object);
-  GumGenericBacktracerPrivate * priv =
-      GUM_GENERIC_BACKTRACER_GET_PRIVATE (self);
+  GumX86Backtracer * self = GUM_X86_BACKTRACER (object);
+  GumX86BacktracerPrivate * priv =
+      GUM_X86_BACKTRACER_GET_PRIVATE (self);
 
   g_ptr_array_free (priv->code_ranges, TRUE);
 
-  G_OBJECT_CLASS (gum_generic_backtracer_parent_class)->finalize (object);
+  G_OBJECT_CLASS (gum_x86_backtracer_parent_class)->finalize (object);
 }
 
 GumBacktracer *
-gum_generic_backtracer_new (void)
+gum_x86_backtracer_new (void)
 {
-  return g_object_new (GUM_TYPE_GENERIC_BACKTRACER, NULL);
+  return g_object_new (GUM_TYPE_X86_BACKTRACER, NULL);
 }
 
 #define OPCODE_CALL_NEAR_RELATIVE     0xE8
 #define OPCODE_CALL_NEAR_ABS_INDIRECT 0xFF
 
 static void
-gum_generic_backtracer_generate (GumBacktracer * backtracer,
+gum_x86_backtracer_generate (GumBacktracer * backtracer,
                              const GumCpuContext * cpu_context,
                              GumReturnAddressArray * return_addresses)
 {
-  GumGenericBacktracer * self = GUM_GENERIC_BACKTRACER_CAST (backtracer);
+  GumX86Backtracer * self = GUM_X86_BACKTRACER_CAST (backtracer);
   gsize * start_address;
   guint i;
   gsize * p;
@@ -168,10 +166,10 @@ memory_range_new (gsize start,
 }
 
 static void
-update_code_ranges (GumGenericBacktracer * self)
+update_code_ranges (GumX86Backtracer * self)
 {
-  GumGenericBacktracerPrivate * priv =
-      GUM_GENERIC_BACKTRACER_GET_PRIVATE (self);
+  GumX86BacktracerPrivate * priv =
+      GUM_X86_BACKTRACER_GET_PRIVATE (self);
   FILE * fp;
   gchar line[1024 + 1];
   MemoryRange * cur_range = NULL;
@@ -221,12 +219,12 @@ update_code_ranges (GumGenericBacktracer * self)
 }
 
 static gboolean
-is_valid_code_address (GumGenericBacktracer * self,
+is_valid_code_address (GumX86Backtracer * self,
                        gsize address,
                        guint size)
 {
-  GumGenericBacktracerPrivate * priv =
-      GUM_GENERIC_BACKTRACER_GET_PRIVATE (self);
+  GumX86BacktracerPrivate * priv =
+      GUM_X86_BACKTRACER_GET_PRIVATE (self);
   guint i;
 
   if (address < priv->code_ranges_min)
