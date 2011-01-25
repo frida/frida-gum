@@ -20,9 +20,11 @@
 #include "gumbacktracer.h"
 
 #ifdef G_OS_WIN32
-#include "backend-dbghelp/gumdbghelpbacktracer.h"
-#else
-#include "backend-glibc/gumgnubacktracer.h"
+# include "backend-dbghelp/gumdbghelpbacktracer.h"
+#elif defined (HAVE_GLIBC)
+# include "backend-glibc/gumgnubacktracer.h"
+#elif defined (HAVE_I386)
+# include "arch-x86/gumx86backtracer.h"
 #endif
 
 GType
@@ -51,6 +53,8 @@ gum_backtracer_make_default (void)
   return gum_dbghelp_backtracer_new ();
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
+#elif defined (HAVE_I386)
+  return gum_x86_backtracer_new ();
 #else
   return NULL;
 #endif
