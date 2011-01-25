@@ -70,6 +70,7 @@ gum_cycle_sampler_init (GumCycleSampler * self)
 {
   GumCycleSamplerPrivate * priv;
   GumX86Writer cw;
+  GumCpuReg first_arg_reg;
 
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_CYCLE_SAMPLER,
       GumCycleSamplerPrivate);
@@ -79,8 +80,9 @@ gum_cycle_sampler_init (GumCycleSampler * self)
   gum_x86_writer_init (&cw, priv->code);
   gum_x86_writer_put_lfence (&cw);
   gum_x86_writer_put_rdtsc (&cw);
-  gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
-  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw, GUM_REG_XCX, 4,
+  first_arg_reg = gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0);
+  gum_x86_writer_put_mov_reg_ptr_reg (&cw, first_arg_reg, GUM_REG_EAX);
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw, first_arg_reg, 4,
       GUM_REG_EDX);
   gum_x86_writer_put_ret (&cw);
   gum_x86_writer_free (&cw);
