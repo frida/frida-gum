@@ -4,9 +4,9 @@
  *     class-dump is Copyright (C) 1997-1998, 2000-2001, 2004-2010 by Steve Nygard.
  */
 
-#import "NSObject.h"
+#import "VMUSymbol.h"
 
-@class NSArray, NSMutableArray, NSString, VMUMachTaskContainer;
+@class VMUMachTaskContainer;
 
 @interface VMUSymbolicator : NSObject
 {
@@ -31,7 +31,7 @@
 - (id)regionForAddress:(unsigned long long)arg1;
 - (id)regionsInAddressRange:(struct _VMURange)arg1;
 - (id)regionsForName:(id)arg1;
-- (id)symbolForAddress:(unsigned long long)arg1;
+- (VMUSymbol *)symbolForAddress:(unsigned long long)arg1;
 - (id)sourceInfoForAddress:(unsigned long long)arg1;
 - (id)symbolOwnerForAddress:(unsigned long long)arg1;
 - (id)symbolOwnersInAddressRange:(struct _VMURange)arg1;
