@@ -19,6 +19,32 @@
 
 #include "gumx86backtracer.h"
 
+#include "gumsymbolutil.h"
+
+typedef struct _GumCodeRange GumCodeRange;
+typedef struct _GumUpdateCodeRangesCtx GumUpdateCodeRangesCtx;
+
+struct _GumX86BacktracerPrivate
+{
+  gboolean disposed;
+
+  GArray * code_ranges;
+  gsize code_ranges_min;
+  gsize code_ranges_max;
+};
+
+struct _GumCodeRange
+{
+  gsize start;
+  gsize end;
+};
+
+struct _GumUpdateCodeRangesCtx
+{
+  GumX86Backtracer * self;
+  gint prev_range_index;
+};
+
 static void gum_x86_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
 static void gum_x86_backtracer_finalize (GObject * object);
@@ -26,20 +52,11 @@ static void gum_x86_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
 
-static void update_code_ranges (GumX86Backtracer * self);
-static gboolean is_valid_code_address (GumX86Backtracer * self, gsize address,
-    guint size);
-
-struct _GumX86BacktracerPrivate
-{
-  gboolean disposed;
-
-  GPtrArray * code_ranges;
-  gsize code_ranges_min;
-  gsize code_ranges_max;
-};
-
-#define GUM_X86_BACKTRACER_GET_PRIVATE(o) ((o)->priv)
+static void gum_x86_backtracer_update_code_ranges (GumX86Backtracer * self);
+static gboolean gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
+    GumPageProtection prot, gpointer user_data);
+static gboolean gum_is_valid_code_address (GumX86Backtracer * self,
+    gsize address, guint size);
 
 G_DEFINE_TYPE_EXTENDED (GumX86Backtracer,
                         gum_x86_backtracer,
@@ -73,19 +90,17 @@ gum_x86_backtracer_init (GumX86Backtracer * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_X86_BACKTRACER,
       GumX86BacktracerPrivate);
 
-  self->priv->code_ranges = g_ptr_array_new ();
+  self->priv->code_ranges = g_array_new (FALSE, FALSE, sizeof (GumCodeRange));
 
-  update_code_ranges (self);
+  gum_x86_backtracer_update_code_ranges (self);
 }
 
 static void
 gum_x86_backtracer_finalize (GObject * object)
 {
   GumX86Backtracer * self = GUM_X86_BACKTRACER (object);
-  GumX86BacktracerPrivate * priv =
-      GUM_X86_BACKTRACER_GET_PRIVATE (self);
 
-  g_ptr_array_free (priv->code_ranges, TRUE);
+  g_array_free (self->priv->code_ranges, TRUE);
 
   G_OBJECT_CLASS (gum_x86_backtracer_parent_class)->finalize (object);
 }
@@ -110,25 +125,15 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
   gsize * p;
 
   if (cpu_context != NULL)
-    start_address = GSIZE_TO_POINTER (cpu_context->esp);
+    start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
   else
-    g_assert_not_reached (); /* FIXME */
+    start_address = (gsize *) &return_addresses + 1;
 
-  return_addresses->len = 0;
-
-  for (i = 0, p = start_address; i < G_N_ELEMENTS (return_addresses->items) &&
-      p < start_address + 8192; p++)
+  for (i = 0, p = start_address; p < start_address + 8192; p++)
   {
-    gsize value;
+    gsize value = *p;
 
-    /*
-    if (!is_valid_read_ptr (self, p, 4))
-      break;
-    */
-
-    value = *p;
-
-    if (value > 6 && is_valid_code_address (self, value - 6, 6))
+    if (value > 6 && gum_is_valid_code_address (self, value - 6, 6))
     {
       guint8 * code_ptr = GSIZE_TO_POINTER (value);
 
@@ -137,94 +142,70 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
           *(code_ptr - 3) == OPCODE_CALL_NEAR_ABS_INDIRECT ||
           *(code_ptr - 2) == OPCODE_CALL_NEAR_ABS_INDIRECT)
       {
-        g_print ("value: 0x%08x\n", value);
-        i++;
+        return_addresses->items[i++] = GSIZE_TO_POINTER (value);
+        if (i == G_N_ELEMENTS (return_addresses->items))
+          break;
       }
     }
   }
-}
 
-typedef struct _MemoryRange MemoryRange;
-
-struct _MemoryRange
-{
-  gsize start;
-  gsize end;
-};
-
-static MemoryRange *
-memory_range_new (gsize start,
-                  gsize end)
-{
-  MemoryRange * range;
-
-  range = g_new (MemoryRange, 1);
-  range->start = start;
-  range->end = end;
-
-  return range;
+  return_addresses->len = i;
 }
 
 static void
-update_code_ranges (GumX86Backtracer * self)
+gum_x86_backtracer_update_code_ranges (GumX86Backtracer * self)
 {
-  GumX86BacktracerPrivate * priv =
-      GUM_X86_BACKTRACER_GET_PRIVATE (self);
-  FILE * fp;
-  gchar line[1024 + 1];
-  MemoryRange * cur_range = NULL;
-  MemoryRange * first_range, * last_range;
+  GumX86BacktracerPrivate * priv = self->priv;
+  GumUpdateCodeRangesCtx ctx;
+  GumCodeRange * first_range, * last_range;
 
-  g_ptr_array_set_size (priv->code_ranges, 0);
+  ctx.self = self;
+  ctx.prev_range_index = -1;
 
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
+  g_array_set_size (priv->code_ranges, 0);
 
-  while (fgets (line, sizeof (line), fp) != NULL)
-  {
-    gint n;
-    gpointer start_ptr, end_ptr;
-    gsize start_address, end_address;
-    gchar protection[16];
+  gum_process_enumerate_ranges (GUM_PAGE_EXECUTE,
+      gum_x86_backtracer_add_code_range, &ctx);
 
-    n = sscanf (line, "%p-%p %s ", &start_ptr, &end_ptr, protection);
-    g_assert (n == 3);
-
-    start_address = GPOINTER_TO_SIZE (start_ptr);
-    end_address = GPOINTER_TO_SIZE (end_ptr);
-
-    g_assert (strlen (protection) == 4);
-    if (protection[0] == 'r' && protection[2] == 'x')
-    {
-      if (cur_range != NULL && start_address == cur_range->end)
-      {
-        cur_range->end = end_address;
-      }
-      else
-      {
-        cur_range = memory_range_new (start_address, end_address);
-        g_ptr_array_add (priv->code_ranges, cur_range);
-      }
-    }
-  }
-
-  first_range = g_ptr_array_index (priv->code_ranges, 0);
-  last_range = g_ptr_array_index (priv->code_ranges,
+  first_range = &g_array_index (priv->code_ranges, GumCodeRange, 0);
+  last_range = &g_array_index (priv->code_ranges, GumCodeRange,
       priv->code_ranges->len - 1);
 
   priv->code_ranges_min = first_range->start;
   priv->code_ranges_max = last_range->end;
-
-  fclose (fp);
 }
 
 static gboolean
-is_valid_code_address (GumX86Backtracer * self,
-                       gsize address,
-                       guint size)
+gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
+                                   GumPageProtection prot,
+                                   gpointer user_data)
 {
-  GumX86BacktracerPrivate * priv =
-      GUM_X86_BACKTRACER_GET_PRIVATE (self);
+  GumUpdateCodeRangesCtx * ctx = (GumUpdateCodeRangesCtx *) user_data;
+  GArray * ranges = ctx->self->priv->code_ranges;
+  GumCodeRange cur_range, * prev_range;
+
+  cur_range.start = GPOINTER_TO_SIZE (range->base_address);
+  cur_range.end = cur_range.start + range->size;
+
+  if (ctx->prev_range_index >= 0)
+    prev_range = &g_array_index (ranges, GumCodeRange, ctx->prev_range_index);
+  else
+    prev_range = NULL;
+
+  if (prev_range != NULL && cur_range.start == prev_range->end)
+    prev_range->end = cur_range.end;
+  else
+    g_array_append_val (ranges, cur_range);
+
+  return TRUE;
+}
+
+static gboolean
+gum_is_valid_code_address (GumX86Backtracer * self,
+                           gsize address,
+                           guint size)
+{
+  GumX86BacktracerPrivate * priv = self->priv;
   guint i;
 
   if (address < priv->code_ranges_min)
@@ -234,7 +215,7 @@ is_valid_code_address (GumX86Backtracer * self,
 
   for (i = 0; i < priv->code_ranges->len; i++)
   {
-    MemoryRange * range = g_ptr_array_index (priv->code_ranges, i);
+    GumCodeRange * range = &g_array_index (priv->code_ranges, GumCodeRange, i);
 
     if (address >= range->start && address + size <= range->end)
       return TRUE;
@@ -242,4 +223,3 @@ is_valid_code_address (GumX86Backtracer * self,
 
   return FALSE;
 }
-
