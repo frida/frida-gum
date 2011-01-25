@@ -230,8 +230,8 @@ gum_x86_writer_get_cpu_register_for_nth_argument (GumX86Writer * self,
   else if (self->target_cpu == GUM_CPU_IA32)
   {
     static const GumCpuReg fastcall_reg_by_index[] = {
-      GUM_REG_XCX,
-      GUM_REG_XDX,
+      GUM_REG_ECX,
+      GUM_REG_EDX,
     };
 
     if (n < G_N_ELEMENTS (fastcall_reg_by_index))
