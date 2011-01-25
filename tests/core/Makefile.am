@@ -24,17 +24,12 @@ arch_includes += \
 	-I $(top_srcdir)/gum/arch-arm
 endif
 
-if OS_DARWIN
-else
-os_sources += \
-	backtracer.c
-endif
-
 libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
 	memory.c \
 	symbolutil.c \
+	backtracer.c \
 	interceptor.c \
 	script.c
 

@@ -107,7 +107,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (tracer);
 #endif
-#if !defined (HAVE_ANDROID) && !defined (HAVE_DARWIN)
+#ifndef HAVE_ANDROID
   TEST_RUN_LIST (backtracer);
 
   /* Heap */
