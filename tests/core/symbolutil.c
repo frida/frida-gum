@@ -215,14 +215,14 @@ SYMUTIL_TESTCASE (find_local_static_function)
 SYMUTIL_TESTCASE (find_functions_matching)
 {
   GArray * functions;
-  gpointer * a, * b;
+  gpointer a, b;
 
   functions = gum_find_functions_matching ("gum_dummy_function_*");
   g_assert_cmpuint (functions->len, ==, 2);
 
   a = g_array_index (functions, gpointer, 0);
   b = g_array_index (functions, gpointer, 1);
-  if (a != gum_dummy_function_0)
+  if (a != GUM_FUNCPTR_TO_POINTER (gum_dummy_function_0))
   {
     gpointer hold = a;
 
