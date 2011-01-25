@@ -108,6 +108,10 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
+if [[ "x$HAVE_BFD" = "xyes" -o "x$HAVE_DARWIN" = "xyes" ]]; then
+  AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if a symbol backend is available.])
+fi
+
 AC_CONFIG_FILES([
 	gum-1.0.pc
 	Makefile

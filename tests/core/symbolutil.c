@@ -66,8 +66,8 @@ static gboolean range_found_cb (const GumMemoryRange * range,
 #endif
 
 #ifdef HAVE_SYMBOL_BACKEND
-static void GUM_CDECL dummy_function_0 (void);
-static void GUM_STDCALL dummy_function_1 (void);
+static void GUM_CDECL gum_dummy_function_0 (void);
+static void GUM_STDCALL gum_dummy_function_1 (void);
 #endif
 
 #ifndef HAVE_LINUX
@@ -179,12 +179,12 @@ SYMUTIL_TESTCASE (symbol_details_from_address)
 {
   GumSymbolDetails details;
 
-  g_assert (gum_symbol_details_from_address (dummy_function_0, &details));
+  g_assert (gum_symbol_details_from_address (gum_dummy_function_0, &details));
 
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
-      GPOINTER_TO_SIZE (dummy_function_0));
+      GPOINTER_TO_SIZE (gum_dummy_function_0));
   g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
-  g_assert_cmpstr (details.symbol_name, ==, "dummy_function_0");
+  g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
 }
@@ -193,8 +193,8 @@ SYMUTIL_TESTCASE (symbol_name_from_address)
 {
   gchar * symbol_name;
 
-  symbol_name = gum_symbol_name_from_address (dummy_function_1);
-  g_assert_cmpstr (symbol_name, ==, "dummy_function_1");
+  symbol_name = gum_symbol_name_from_address (gum_dummy_function_1);
+  g_assert_cmpstr (symbol_name, ==, "gum_dummy_function_1");
   g_free (symbol_name);
 }
 
@@ -207,32 +207,45 @@ SYMUTIL_TESTCASE (find_local_static_function)
 {
   gpointer function_address;
 
-  function_address = gum_find_function ("dummy_function_0");
+  function_address = gum_find_function ("gum_dummy_function_0");
   g_assert_cmphex (GPOINTER_TO_SIZE (function_address), ==,
-      GPOINTER_TO_SIZE (dummy_function_0));
+      GPOINTER_TO_SIZE (gum_dummy_function_0));
 }
 
 SYMUTIL_TESTCASE (find_functions_matching)
 {
   GArray * functions;
+  gpointer * a, * b;
 
-  functions = gum_find_functions_matching ("dummy_function_*");
+  functions = gum_find_functions_matching ("gum_dummy_function_*");
   g_assert_cmpuint (functions->len, ==, 2);
-  g_assert_cmphex (GPOINTER_TO_SIZE (g_array_index (functions, gpointer, 0)),
-      ==, GPOINTER_TO_SIZE (dummy_function_0));
-  g_assert_cmphex (GPOINTER_TO_SIZE (g_array_index (functions, gpointer, 1)),
-      ==, GPOINTER_TO_SIZE (dummy_function_1));
+
+  a = g_array_index (functions, gpointer, 0);
+  b = g_array_index (functions, gpointer, 1);
+  if (a != gum_dummy_function_0)
+  {
+    gpointer hold = a;
+
+    a = b;
+    b = hold;
+  }
+
+  g_assert_cmphex (GPOINTER_TO_SIZE (a),
+      ==, GPOINTER_TO_SIZE (gum_dummy_function_0));
+  g_assert_cmphex (GPOINTER_TO_SIZE (b),
+      ==, GPOINTER_TO_SIZE (gum_dummy_function_1));
+
   g_array_free (functions, TRUE);
 }
 
 static void GUM_CDECL
-dummy_function_0 (void)
+gum_dummy_function_0 (void)
 {
   g_print ("%s\n", G_STRFUNC);
 }
 
 static void GUM_STDCALL
-dummy_function_1 (void)
+gum_dummy_function_1 (void)
 {
   g_print ("%s\n", G_STRFUNC);
 }

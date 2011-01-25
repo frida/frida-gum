@@ -114,19 +114,84 @@ gum_symbol_details_from_address (gpointer address,
 gchar *
 gum_symbol_name_from_address (gpointer address)
 {
-  return NULL;
+  gchar * result = NULL;
+  VMUSymbol * symbol;
+
+  GUM_POOL_ALLOC ();
+
+  symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
+  if (symbol != nil)
+    result = g_strdup ([[symbol name] UTF8String]);
+
+  GUM_POOL_RELEASE ();
+
+  return result;
 }
 
 gpointer
 gum_find_function (const gchar * name)
 {
-  return NULL;
+  gpointer result = NULL;
+  NSArray * symbols;
+  NSUInteger i;
+
+  GUM_POOL_ALLOC ();
+
+  symbols = [symbolicator symbolsForName:[NSString stringWithUTF8String:name]];
+  for (i = 0; i != [symbols count]; i++)
+  {
+    VMUSymbol * symbol = [symbols objectAtIndex:i];
+
+    if ([symbol isFunction] || [symbol isObjcMethod] || [symbol isJavaMethod])
+    {
+      result = GSIZE_TO_POINTER ([symbol addressRange].location);
+      break;
+    }
+  }
+
+  GUM_POOL_RELEASE ();
+
+  return result;
 }
 
 GArray *
 gum_find_functions_matching (const gchar * str)
 {
-  return g_array_new (FALSE, FALSE, sizeof (gpointer));
+  GArray * result;
+  GPatternSpec * pspec;
+  NSArray * symbols;
+  NSUInteger count, i;
+
+  GUM_POOL_ALLOC ();
+
+  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+  pspec = g_pattern_spec_new (str);
+
+  symbols = [symbolicator symbols];
+  count = [symbols count];
+  for (i = 0; i != count; i++)
+  {
+    VMUSymbol * symbol = [symbols objectAtIndex:i];
+
+    if ([symbol isFunction] || [symbol isObjcMethod] || [symbol isJavaMethod])
+    {
+      const gchar * name = [[symbol name] UTF8String];
+
+      if (g_pattern_match_string (pspec, name))
+      {
+        gpointer address = GSIZE_TO_POINTER ([symbol addressRange].location);
+
+        g_array_append_val (result, address);
+      }
+    }
+  }
+
+  g_pattern_spec_free (pspec);
+
+  GUM_POOL_RELEASE ();
+
+  return result;
 }
 
 void
