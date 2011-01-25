@@ -179,7 +179,7 @@ gum_code_page_is_near (GumCodePage * self,
 {
   gssize distance;
 
-  distance = (gssize) address - (gssize) self;
+  distance = ABS ((gssize) address - (gssize) self);
 
   return distance <= GUM_CODE_ALLOCATOR_MAX_DISTANCE;
 }
