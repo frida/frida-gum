@@ -69,6 +69,7 @@ gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumSymbolDetails * details)
 {
+  g_assert_not_reached ();
   return FALSE;
 }
 

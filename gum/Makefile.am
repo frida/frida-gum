@@ -87,7 +87,7 @@ endif
 if OS_DARWIN
 backend_sources += \
 	backend-darwin/gummemory-darwin.c \
-	backend-darwin/gumsymbolutil-darwin.c
+	backend-darwin/gumsymbolutil-darwin.m
 else
 backend_sources += \
 	backend-unix/gummemory-unix.c
