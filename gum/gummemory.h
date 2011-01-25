@@ -47,7 +47,7 @@ struct _GumAddressSpec
 struct _GumMemoryRange
 {
   gpointer base_address;
-  guint size;
+  gsize size;
 };
 
 #define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \

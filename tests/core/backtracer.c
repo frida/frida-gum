@@ -154,12 +154,20 @@ print_backtrace (GumReturnAddressArray * ret_addrs)
 
   g_print ("\n\nBacktrace (%d return addresses):\n", ret_addrs->len);
 
-  for (i = 0; i < ret_addrs->len; i++)
+  for (i = 0; i != ret_addrs->len; i++)
   {
-    GumReturnAddress * ra = &ret_addrs->items[i];
+    GumReturnAddress * ra = ret_addrs->items[i];
+    GumReturnAddressDetails rad;
 
-    g_print ("  %p %s!%s %s:%d\n", ra->address, ra->module_name,
-        ra->function_name, ra->file_name, ra->line_number);
+    if (gum_return_address_details_from_address (ra, &rad))
+    {
+      g_print ("  %p %s!%s %s:%d\n", rad.address, rad.module_name,
+          rad.function_name, rad.file_name, rad.line_number);
+    }
+    else
+    {
+      g_print ("  %p <unknown>\n", ra);
+    }
   }
 
   g_print ("\n\n");

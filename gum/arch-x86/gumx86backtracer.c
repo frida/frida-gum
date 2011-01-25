@@ -56,7 +56,7 @@ static void gum_x86_backtracer_update_code_ranges (GumX86Backtracer * self);
 static gboolean gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 static gboolean gum_is_valid_code_address (GumX86Backtracer * self,
-    gsize address, guint size);
+    gsize address, gsize size);
 
 G_DEFINE_TYPE_EXTENDED (GumX86Backtracer,
                         gum_x86_backtracer,
@@ -121,19 +121,21 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
 {
   GumX86Backtracer * self = GUM_X86_BACKTRACER_CAST (backtracer);
   gsize * start_address;
+  gsize first_address = 0;
   guint i;
   gsize * p;
 
   if (cpu_context != NULL)
     start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
   else
-    start_address = (gsize *) &return_addresses + 1;
+    start_address = ((gsize *) &return_addresses) + 1;
 
-  for (i = 0, p = start_address; p < start_address + 8192; p++)
+  for (i = 0, p = start_address; p < start_address + 2048; p++)
   {
     gsize value = *p;
 
-    if (value > 6 && gum_is_valid_code_address (self, value - 6, 6))
+    if (value != first_address && value > 6 &&
+        gum_is_valid_code_address (self, value - 6, 6))
     {
       guint8 * code_ptr = GSIZE_TO_POINTER (value);
 
@@ -145,6 +147,9 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
         return_addresses->items[i++] = GSIZE_TO_POINTER (value);
         if (i == G_N_ELEMENTS (return_addresses->items))
           break;
+
+        if (first_address == 0)
+          first_address = value;
       }
     }
   }
@@ -203,21 +208,21 @@ gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
 static gboolean
 gum_is_valid_code_address (GumX86Backtracer * self,
                            gsize address,
-                           guint size)
+                           gsize size)
 {
   GumX86BacktracerPrivate * priv = self->priv;
   guint i;
 
   if (address < priv->code_ranges_min)
     return FALSE;
-  else if (address + size > priv->code_ranges_max)
+  else if (address + size >= priv->code_ranges_max)
     return FALSE;
 
   for (i = 0; i < priv->code_ranges->len; i++)
   {
     GumCodeRange * range = &g_array_index (priv->code_ranges, GumCodeRange, i);
 
-    if (address >= range->start && address + size <= range->end)
+    if (address >= range->start && address + size < range->end)
       return TRUE;
   }
 

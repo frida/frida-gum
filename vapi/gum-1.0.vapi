@@ -131,13 +131,13 @@ namespace Gum {
 	}
 
 	public struct MemoryRange {
-		public MemoryRange (void * base_address, uint size) {
+		public MemoryRange (void * base_address, size_t size) {
 			this.base_address = base_address;
 			this.size = size;
 		}
 
 		public void * base_address;
-		public uint size;
+		public size_t size;
 	}
 
 	[Compact]

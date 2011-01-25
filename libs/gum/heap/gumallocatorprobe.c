@@ -455,7 +455,7 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
   gum_allocator_probe_suppress (self,
       GUM_FUNCPTR_TO_POINTER (g_quark_from_string));
-  gum_allocator_probe_suppress (self, 
+  gum_allocator_probe_suppress (self,
       GUM_FUNCPTR_TO_POINTER (g_quark_from_static_string));
 
   gum_allocator_probe_suppress (self,

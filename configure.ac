@@ -88,16 +88,25 @@ GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
-AC_SUBST(GUM_CFLAGS)
-AC_SUBST(GUM_LIBS)
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr]), AC_ERROR([*** Header file bfd.h not found; please install the binutils headers  ***]))
   HAVE_BFD=yes
+
+  GUM_LIBS="$GUM_LIBS -lbfd"
 else
   AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
+
+if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
+  GUM_LDFLAGS="$GUM_LDFLAGS -Wl,-framework,Foundation"
+  GUM_LIBS="$GUM_LIBS /System/Library/PrivateFrameworks/Symbolication.framework/Symbolication"
+fi
+
+AC_SUBST(GUM_CFLAGS)
+AC_SUBST(GUM_LDFLAGS)
+AC_SUBST(GUM_LIBS)
 
 AC_CONFIG_FILES([
 	gum-1.0.pc

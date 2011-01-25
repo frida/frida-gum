@@ -22,10 +22,18 @@
 #include "gumdarwin.h"
 #include "gumsymbolutil-priv.h"
 
+#import <Foundation/Foundation.h>
+#import "VMUSymbolicator.h"
+
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
+
+#define GUM_POOL_ALLOC() \
+  NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init]
+#define GUM_POOL_RELEASE() \
+  [pool release]
 
 #define SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL(S) \
       (S->n_value == 0 || \
@@ -52,16 +60,25 @@ static gboolean find_image_vmaddr_and_fileoff (gpointer address,
 static gboolean find_image_symtab_command (gpointer address,
     struct symtab_command ** sc);
 
+static VMUSymbolicator * symbolicator = nil;
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
 void
 _gum_symbol_util_init (void)
 {
+  GUM_POOL_ALLOC ();
+  symbolicator = [[VMUSymbolicator symbolicatorForTask: mach_task_self ()] retain];
+  GUM_POOL_RELEASE ();
 }
 
 void
 _gum_symbol_util_deinit (void)
 {
+  GUM_POOL_ALLOC ();
+  [symbolicator release];
+  symbolicator = nil;
+  GUM_POOL_RELEASE ();
+
   get_all_image_infos_impl = NULL;
 }
 
@@ -69,8 +86,29 @@ gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumSymbolDetails * details)
 {
-  g_assert_not_reached ();
-  return FALSE;
+  gboolean result = FALSE;
+  VMUSymbol * symbol;
+  VMUSourceInfo * info = nil;
+
+  GUM_POOL_ALLOC ();
+
+  symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
+  if (symbol != nil)
+    info = [symbol sourceInfoForAddress:GPOINTER_TO_SIZE (address)];
+  if (info != nil)
+  {
+    details->address = address;
+    strcpy (details->module_name, [[[symbol owner] name] UTF8String]);
+    strcpy (details->symbol_name, [[symbol name] UTF8String]);
+    strcpy (details->file_name, [[info fileName] UTF8String]);
+    details->line_number = [info lineNumber];
+
+    result = TRUE;
+  }
+
+  GUM_POOL_RELEASE ();
+
+  return result;
 }
 
 gchar *

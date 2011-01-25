@@ -29,7 +29,6 @@ arch_sources = $(NULL)
 arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
-backend_libs = $(NULL)
 
 if ARCH_I386
 archincludedir = $(includedir)/gum-1.0/gum/arch-x86
@@ -101,8 +100,6 @@ endif
 if HAVE_BFD
 backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
-backend_libs += \
-	-lbfd
 endif
 
 container_sources = \
@@ -131,7 +128,6 @@ libgum_1_0_la_LIBADD = \
 	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \
 	$(top_builddir)/libs/gum/prof/libgum-prof-1.0.la \
 	$(arch_libs) \
-	$(backend_libs) \
 	$(GUM_LIBS)
 libgum_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
