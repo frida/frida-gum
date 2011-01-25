@@ -271,8 +271,12 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 
   gum_x86_writer_init (&cw, ctx->function_address);
   gum_x86_writer_put_jmp (&cw, ctx->on_enter_trampoline);
+  gum_x86_writer_flush (&cw);
+  g_assert_cmpint (gum_x86_writer_offset (&cw),
+      <=, GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+
   padding = ctx->overwritten_prologue_len - gum_x86_writer_offset (&cw);
-  for (; padding > 0; padding--)
+  for (; padding != 0; padding--)
     gum_x86_writer_put_nop (&cw);
   gum_x86_writer_free (&cw);
 }
