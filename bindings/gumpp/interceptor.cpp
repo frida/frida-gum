@@ -82,14 +82,24 @@ namespace Gum
       return new InvocationContextImpl (context);
     }
 
-    virtual void ignore_caller ()
+    virtual void ignore_current_thread ()
     {
-      gum_interceptor_ignore_caller (handle);
+      gum_interceptor_ignore_current_thread (handle);
     }
 
-    virtual void unignore_caller ()
+    virtual void unignore_current_thread ()
     {
-      gum_interceptor_unignore_caller (handle);
+      gum_interceptor_unignore_current_thread (handle);
+    }
+
+    virtual void ignore_other_threads ()
+    {
+      gum_interceptor_ignore_other_threads (handle);
+    }
+
+    virtual void unignore_other_threads ()
+    {
+      gum_interceptor_unignore_other_threads (handle);
     }
 
   private:

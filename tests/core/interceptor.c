@@ -52,8 +52,9 @@ TEST_LIST_BEGIN (interceptor)
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (function_cpu_context_on_enter)
 #endif
-  INTERCEPTOR_TESTENTRY (ignore_caller)
-  INTERCEPTOR_TESTENTRY (ignore_caller_nested)
+  INTERCEPTOR_TESTENTRY (ignore_current_thread)
+  INTERCEPTOR_TESTENTRY (ignore_current_thread_nested)
+  INTERCEPTOR_TESTENTRY (ignore_other_threads)
   INTERCEPTOR_TESTENTRY (detach)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
   INTERCEPTOR_TESTENTRY (function_data)
@@ -102,10 +103,10 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   void * p;
 
-  gum_interceptor_ignore_caller (fixture->interceptor);
+  gum_interceptor_ignore_current_thread (fixture->interceptor);
   interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
   interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
-  gum_interceptor_unignore_caller (fixture->interceptor);
+  gum_interceptor_unignore_current_thread (fixture->interceptor);
   p = malloc (1);
   free (p);
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
@@ -238,7 +239,7 @@ INTERCEPTOR_TESTCASE (function_cpu_context_on_enter)
 
 #endif
 
-INTERCEPTOR_TESTCASE (ignore_caller)
+INTERCEPTOR_TESTCASE (ignore_current_thread)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
@@ -246,30 +247,50 @@ INTERCEPTOR_TESTCASE (ignore_caller)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
-  gum_interceptor_ignore_caller (fixture->interceptor);
+  gum_interceptor_ignore_current_thread (fixture->interceptor);
   g_string_truncate (fixture->result, 0);
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "|");
 
-  gum_interceptor_unignore_caller (fixture->interceptor);
+  gum_interceptor_unignore_current_thread (fixture->interceptor);
   g_string_truncate (fixture->result, 0);
 
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-INTERCEPTOR_TESTCASE (ignore_caller_nested)
+INTERCEPTOR_TESTCASE (ignore_current_thread_nested)
 {
   interceptor_fixture_attach_listener (fixture, 0, target_function, '>',
       '<');
 
-  gum_interceptor_ignore_caller (fixture->interceptor);
-  gum_interceptor_ignore_caller (fixture->interceptor);
-  gum_interceptor_unignore_caller (fixture->interceptor);
+  gum_interceptor_ignore_current_thread (fixture->interceptor);
+  gum_interceptor_ignore_current_thread (fixture->interceptor);
+  gum_interceptor_unignore_current_thread (fixture->interceptor);
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "|");
-  gum_interceptor_unignore_caller (fixture->interceptor);
+  gum_interceptor_unignore_current_thread (fixture->interceptor);
+}
+
+INTERCEPTOR_TESTCASE (ignore_other_threads)
+{
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
+
+  gum_interceptor_ignore_other_threads (fixture->interceptor);
+
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">|<");
+
+  g_thread_join (g_thread_create ((GThreadFunc) target_function,
+      fixture->result, TRUE, NULL));
+  g_assert_cmpstr (fixture->result->str, ==, ">|<|");
+
+  gum_interceptor_unignore_other_threads (fixture->interceptor);
+
+  g_thread_join (g_thread_create ((GThreadFunc) target_function,
+      fixture->result, TRUE, NULL));
+  g_assert_cmpstr (fixture->result->str, ==, ">|<|>|<");
 }
 
 INTERCEPTOR_TESTCASE (detach)

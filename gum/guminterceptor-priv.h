@@ -30,6 +30,8 @@ typedef struct _FunctionContext          FunctionContext;
 
 struct _FunctionContext
 {
+  GumInterceptor * interceptor;
+
   gpointer function_address;
 
   GumCodeAllocator * allocator;

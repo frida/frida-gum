@@ -49,8 +49,11 @@ namespace Gum
 
     virtual InvocationContext * get_current_invocation () = 0;
 
-    virtual void ignore_caller () = 0;
-    virtual void unignore_caller () = 0;
+    virtual void ignore_current_thread () = 0;
+    virtual void unignore_current_thread () = 0;
+
+    virtual void ignore_other_threads () = 0;
+    virtual void unignore_other_threads () = 0;
   };
 
   GUMPP_CAPI Interceptor * Interceptor_obtain (void);

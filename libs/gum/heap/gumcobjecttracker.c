@@ -355,7 +355,7 @@ gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
   guint result;
 
   GUM_COBJECT_TRACKER_LOCK ();
-  gum_interceptor_ignore_caller (priv->interceptor);
+  gum_interceptor_ignore_current_thread (priv->interceptor);
 
   if (type_name != NULL)
   {
@@ -371,7 +371,7 @@ gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
     result = gum_hash_table_size (priv->objects_ht);
   }
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_current_thread (priv->interceptor);
   GUM_COBJECT_TRACKER_UNLOCK ();
 
   return result;
@@ -384,7 +384,7 @@ gum_cobject_tracker_peek_object_list (GumCObjectTracker * self)
   GumList * result = NULL, * walk;
 
   GUM_COBJECT_TRACKER_LOCK ();
-  gum_interceptor_ignore_caller (priv->interceptor);
+  gum_interceptor_ignore_current_thread (priv->interceptor);
 
   result = gum_hash_table_get_values (priv->objects_ht);
   for (walk = result; walk != NULL; walk = walk->next)
@@ -392,7 +392,7 @@ gum_cobject_tracker_peek_object_list (GumCObjectTracker * self)
     walk->data = gum_cobject_copy ((GumCObject *) walk->data);
   }
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_current_thread (priv->interceptor);
   GUM_COBJECT_TRACKER_UNLOCK ();
 
   return result;

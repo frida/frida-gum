@@ -480,7 +480,7 @@ gum_allocator_probe_on_enter (GumInvocationListener * listener,
 
   function_ctx = GUM_LINCTX_GET_FUNC_DATA (context, FunctionContext *);
 
-  gum_interceptor_ignore_caller (priv->interceptor);
+  gum_interceptor_ignore_current_thread (priv->interceptor);
 
   if (function_ctx != NULL)
   {
@@ -519,7 +519,7 @@ gum_allocator_probe_on_leave (GumInvocationListener * listener,
     }
   }
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_current_thread (priv->interceptor);
 }
 
 GumAllocatorProbe *
@@ -596,7 +596,7 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
   GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
-  gum_interceptor_ignore_caller (priv->interceptor);
+  gum_interceptor_ignore_current_thread (priv->interceptor);
 
   for (i = 0; i != apis->len; i++)
   {
@@ -618,7 +618,7 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
 
   gum_allocator_probe_apply_default_suppressions (self);
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_current_thread (priv->interceptor);
 }
 
 void
@@ -627,7 +627,7 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
   GumAllocatorProbePrivate * priv = self->priv;
   guint i;
 
-  gum_interceptor_ignore_caller (priv->interceptor);
+  gum_interceptor_ignore_current_thread (priv->interceptor);
 
   gum_interceptor_detach_listener (priv->interceptor,
       GUM_INVOCATION_LISTENER (self));
@@ -645,7 +645,7 @@ gum_allocator_probe_detach (GumAllocatorProbe * self)
   priv->realloc_count = 0;
   priv->free_count = 0;
 
-  gum_interceptor_unignore_caller (priv->interceptor);
+  gum_interceptor_unignore_current_thread (priv->interceptor);
 }
 
 static void

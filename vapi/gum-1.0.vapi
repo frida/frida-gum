@@ -25,8 +25,11 @@ namespace Gum {
 
 		public static Gum.InvocationContext get_current_invocation ();
 
-		public void ignore_caller ();
-		public void unignore_caller ();
+		public void ignore_current_thread ();
+		public void unignore_current_thread ();
+
+		public void ignore_other_threads ();
+		public void unignore_other_threads ();
 	}
 
 	public interface InvocationListener : GLib.Object {

@@ -51,6 +51,8 @@ struct _GumInterceptorPrivate
   GumHashTable * replaced_function_by_address;
 
   GumCodeAllocator allocator;
+
+  volatile guint selected_thread_id;
 };
 
 struct _ListenerEntry
@@ -110,8 +112,8 @@ static void revert_function_at (GumInterceptor * self,
     gpointer function_address);
 static void detach_if_matching_listener (gpointer key, gpointer value,
     gpointer user_data);
-static FunctionContext * function_context_new (gpointer function_address,
-    GumCodeAllocator * allocator);
+static FunctionContext * function_context_new (GumInterceptor * interceptor,
+    gpointer function_address, GumCodeAllocator * allocator);
 static void function_context_destroy (FunctionContext * function_ctx);
 static void function_context_add_listener (FunctionContext * function_ctx,
     GumInvocationListener * listener, gpointer function_data);
@@ -147,7 +149,7 @@ static gpointer maybe_follow_redirect_at (GumInterceptor * self,
 static gboolean is_patched_function (GumInterceptor * self,
     gpointer function_address);
 
-static guint get_current_thread_id (void);
+static guint gum_get_current_thread_id (void);
 
 static void gum_function_context_wait_for_idle_trampoline (
     FunctionContext * ctx);
@@ -301,7 +303,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   gpointer next_hop;
   FunctionContext * function_ctx;
 
-  gum_interceptor_ignore_caller (self);
+  gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
 
   while (TRUE)
@@ -345,7 +347,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
 
 beach:
   GUM_INTERCEPTOR_UNLOCK ();
-  gum_interceptor_unignore_caller (self);
+  gum_interceptor_unignore_current_thread (self);
 
   return result;
 }
@@ -365,7 +367,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   GList * walk;
   guint i;
 
-  gum_interceptor_ignore_caller (self);
+  gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
 
   ctx.self = self;
@@ -399,7 +401,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   }
 
   GUM_INTERCEPTOR_UNLOCK ();
-  gum_interceptor_unignore_caller (self);
+  gum_interceptor_unignore_current_thread (self);
 }
 
 void
@@ -454,7 +456,7 @@ gum_interceptor_get_current_invocation (void)
 }
 
 void
-gum_interceptor_ignore_caller (GumInterceptor * self)
+gum_interceptor_ignore_current_thread (GumInterceptor * self)
 {
   InterceptorThreadContext * interceptor_ctx;
 
@@ -465,7 +467,7 @@ gum_interceptor_ignore_caller (GumInterceptor * self)
 }
 
 void
-gum_interceptor_unignore_caller (GumInterceptor * self)
+gum_interceptor_unignore_current_thread (GumInterceptor * self)
 {
   InterceptorThreadContext * interceptor_ctx;
 
@@ -475,13 +477,28 @@ gum_interceptor_unignore_caller (GumInterceptor * self)
   interceptor_ctx->ignore_level--;
 }
 
+void
+gum_interceptor_ignore_other_threads (GumInterceptor * self)
+{
+  self->priv->selected_thread_id = gum_get_current_thread_id ();
+}
+
+void
+gum_interceptor_unignore_other_threads (GumInterceptor * self)
+{
+  GumInterceptorPrivate * priv = self->priv;
+
+  g_assert_cmpuint (priv->selected_thread_id, ==, gum_get_current_thread_id ());
+  priv->selected_thread_id = 0;
+}
+
 static FunctionContext *
 intercept_function_at (GumInterceptor * self,
                        gpointer function_address)
 {
   FunctionContext * ctx;
 
-  ctx = function_context_new (function_address, &self->priv->allocator);
+  ctx = function_context_new (self, function_address, &self->priv->allocator);
 
   ctx->listener_entries = g_ptr_array_sized_new (2);
 
@@ -504,7 +521,7 @@ replace_function_at (GumInterceptor * self,
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
   FunctionContext * ctx;
 
-  ctx = function_context_new (function_address, &priv->allocator);
+  ctx = function_context_new (self, function_address, &priv->allocator);
 
   ctx->replacement_function_data = replacement_function_data;
 
@@ -565,12 +582,14 @@ detach_if_matching_listener (gpointer key,
 }
 
 static FunctionContext *
-function_context_new (gpointer function_address,
+function_context_new (GumInterceptor * interceptor,
+                      gpointer function_address,
                       GumCodeAllocator * allocator)
 {
   FunctionContext * ctx;
 
   ctx = gum_new0 (FunctionContext, 1);
+  ctx->interceptor = interceptor;
   ctx->function_address = function_address;
 
   ctx->allocator = allocator;
@@ -653,32 +672,44 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
                                 GumCpuContext * cpu_context,
                                 gpointer * caller_ret_addr)
 {
+  GumInterceptorPrivate * priv = function_ctx->interceptor->priv;
+  gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave = FALSE;
-  InterceptorThreadContext * interceptor_ctx;
+  InterceptorThreadContext * interceptor_ctx = NULL;
 #ifdef G_OS_WIN32
   DWORD previous_last_error;
 
   previous_last_error = GetLastError ();
 #endif
 
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) *caller_ret_addr;
-# else
-  cpu_context->rip = (guint64) *caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) *caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
+  if (G_UNLIKELY (priv->selected_thread_id != 0))
+  {
+    invoke_listeners = gum_get_current_thread_id () == priv->selected_thread_id;
+  }
 
-  interceptor_ctx = get_interceptor_thread_context ();
-  if (interceptor_ctx->ignore_level == 0)
+  if (G_LIKELY (invoke_listeners))
+  {
+    interceptor_ctx = get_interceptor_thread_context ();
+    invoke_listeners = (interceptor_ctx->ignore_level == 0);
+  }
+
+  if (G_LIKELY (invoke_listeners))
   {
     ThreadContextStackEntry * stack_entry;
     GumInvocationContext * invocation_ctx;
     guint i;
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+    cpu_context->eip = (guint32) *caller_ret_addr;
+# else
+    cpu_context->rip = (guint64) *caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+    cpu_context->pc = (guint32) *caller_ret_addr;
+#else
+# error Unsupported architecture
+#endif
 
     stack_entry = thread_context_stack_push (interceptor_ctx->stack,
         GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
@@ -858,7 +889,7 @@ gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
 {
   (void) context;
 
-  return get_current_thread_id ();
+  return gum_get_current_thread_id ();
 }
 
 static gpointer
@@ -1146,7 +1177,7 @@ is_patched_function (GumInterceptor * self,
 }
 
 static guint
-get_current_thread_id (void)
+gum_get_current_thread_id (void)
 {
 #ifdef G_OS_WIN32
   return GetCurrentThreadId ();
