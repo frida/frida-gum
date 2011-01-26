@@ -34,6 +34,7 @@
 typedef struct _TestAllocatorProbeFixture
 {
   GumAllocatorProbe * ap;
+  GumInterceptor * interceptor;
 } TestAllocatorProbeFixture;
 
 static void
@@ -41,12 +42,18 @@ test_allocator_probe_fixture_setup (TestAllocatorProbeFixture * fixture,
                                     gconstpointer data)
 {
   fixture->ap = gum_allocator_probe_new ();
+
+  fixture->interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_other_threads (fixture->interceptor);
 }
 
 static void
 test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
                                        gconstpointer data)
 {
+  gum_interceptor_unignore_other_threads (fixture->interceptor);
+  g_object_unref (fixture->interceptor);
+
   g_object_unref (fixture->ap);
 }
 

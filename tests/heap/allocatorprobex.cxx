@@ -72,6 +72,8 @@ ALLOCPROBE_TESTCASE (new_delete)
 
 ALLOCPROBE_TESTCASE (concurrency)
 {
+  gum_interceptor_unignore_other_threads (fixture->interceptor);
+
   gum_allocator_probe_attach (fixture->ap);
 
   GThread * thread = g_thread_create (concurrency_torture_helper, NULL, TRUE,
@@ -86,6 +88,8 @@ ALLOCPROBE_TESTCASE (concurrency)
   }
 
   g_thread_join (thread);
+
+  gum_interceptor_ignore_other_threads (fixture->interceptor);
 }
 
 static gpointer

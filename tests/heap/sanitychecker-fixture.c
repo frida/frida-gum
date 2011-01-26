@@ -35,6 +35,7 @@
 typedef struct _TestSanityCheckerFixture
 {
   GumSanityChecker * checker;
+  GumInterceptor * interceptor;
   GString * output;
 
   guint simulation_call_count;
@@ -84,6 +85,9 @@ test_sanity_checker_fixture_setup (TestSanityCheckerFixture * fixture,
 {
   fixture->output = g_string_new ("");
 
+  fixture->interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_other_threads (fixture->interceptor);
+
   fixture->checker = gum_sanity_checker_new_with_heap_apis (
       test_util_heap_apis (), test_sanity_checker_fixture_do_output, fixture);
 }
@@ -95,6 +99,9 @@ test_sanity_checker_fixture_teardown (TestSanityCheckerFixture * fixture,
   test_sanity_checker_fixture_do_cleanup (fixture);
 
   gum_sanity_checker_destroy (fixture->checker);
+
+  gum_interceptor_unignore_other_threads (fixture->interceptor);
+  g_object_unref (fixture->interceptor);
 
   g_string_free (fixture->output, TRUE);
 }

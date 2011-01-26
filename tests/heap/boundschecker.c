@@ -40,7 +40,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_malloc)
   ATTACH_CHECKER ();
   a = (guint8 *) malloc (1);
   a[0] = 1;
-  try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
   free (a);
   DETACH_CHECKER ();
 
@@ -55,7 +55,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_calloc)
   ATTACH_CHECKER ();
   a = calloc (1, 1);
   a[0] = 1;
-  try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
   free (a);
   DETACH_CHECKER ();
 
@@ -71,7 +71,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_realloc)
   a = (guint8 *) malloc (1);
   a = (guint8 *) realloc (a, 2);
   a[0] = 1;
-  try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
   free (a);
   DETACH_CHECKER ();
 
@@ -97,7 +97,7 @@ BOUNDSCHECKER_TESTCASE (tail_checking_realloc_null)
   ATTACH_CHECKER ();
   a = (guint8 *) realloc (NULL, 1);
   a[0] = 1;
-  try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 16, &exception_on_read, &exception_on_write);
   free (a);
   DETACH_CHECKER ();
 
@@ -147,7 +147,7 @@ BOUNDSCHECKER_TESTCASE (protected_after_free)
   a = (guint8 *) malloc (1);
   a[0] = 1;
   free (a);
-  try_read_and_write_at (a, 0, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 0, &exception_on_read, &exception_on_write);
   DETACH_CHECKER ();
 
   g_assert (exception_on_read && exception_on_write);
@@ -179,7 +179,7 @@ BOUNDSCHECKER_TESTCASE (custom_front_alignment)
   ATTACH_CHECKER ();
   a = (guint8 *) malloc (1);
   a[0] = 1;
-  try_read_and_write_at (a, 1, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (a, 1, &exception_on_read, &exception_on_write);
   free (a);
   DETACH_CHECKER ();
 

@@ -99,10 +99,18 @@ SANITYCHECKER_TESTCASE (array_access_out_of_bounds_causes_exception)
   guint8 * bytes;
   gboolean exception_on_read = FALSE, exception_on_write = FALSE;
 
+#ifndef G_OS_WIN32
+  if (gum_is_debugger_present ())
+  {
+    g_print ("<skipping, test must be run without debugger attached> ");
+    return;
+  }
+#endif
+
   gum_sanity_checker_begin (fixture->checker, GUM_CHECK_BOUNDS);
   bytes = (guint8 *) malloc (1);
   bytes[0] = 42;
-  try_read_and_write_at (bytes, 1, &exception_on_read, &exception_on_write);
+  gum_try_read_and_write_at (bytes, 1, &exception_on_read, &exception_on_write);
   free (bytes);
   gum_sanity_checker_end (fixture->checker);
 

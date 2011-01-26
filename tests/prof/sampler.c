@@ -97,6 +97,7 @@ SAMPLER_TESTCASE (malloc_count)
   GumSample sample_a, sample_b;
   MallocCountHelperContext helper = { 0, };
   GThread * helper_thread;
+  GumInterceptor * interceptor;
   gpointer a, b, c = NULL;
 
   fixture->sampler = gum_malloc_count_sampler_new ();
@@ -105,16 +106,22 @@ SAMPLER_TESTCASE (malloc_count)
   helper_thread = g_thread_create (malloc_count_helper_thread, &helper, TRUE,
       NULL);
 
+  interceptor = gum_interceptor_obtain ();
+
   sample_a = gum_sampler_sample (fixture->sampler);
   a = malloc (1);
   helper.allowed_to_start = TRUE;
+  gum_interceptor_ignore_current_thread (interceptor);
   g_thread_join (helper_thread);
+  gum_interceptor_unignore_current_thread (interceptor);
   b = calloc (2, 2);
   c = realloc (c, 6);
   free (c);
   free (b);
   free (a);
   sample_b = gum_sampler_sample (fixture->sampler);
+
+  g_object_unref (interceptor);
 
   g_assert_cmpuint (sample_b, ==, sample_a + 3);
   g_assert_cmpuint (helper.count, ==, 1);
@@ -182,7 +189,7 @@ malloc_count_helper_thread (gpointer data)
   gpointer p;
 
   while (!helper->allowed_to_start)
-    ;
+    g_thread_yield ();
 
   sample_a = gum_sampler_sample (helper->sampler);
   p = malloc (3);

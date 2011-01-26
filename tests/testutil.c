@@ -21,16 +21,24 @@
 #include "testutil.h"
 
 #if defined (G_OS_WIN32) && defined (_DEBUG)
-#include <crtdbg.h>
+# include <crtdbg.h>
 #endif
 #ifdef G_OS_WIN32
-#include <excpt.h>
+# include <excpt.h>
+# define VC_EXTRALEAN
+# include <windows.h>
 #else
-#include <setjmp.h>
-#include <signal.h>
-#endif
-#ifdef HAVE_DARWIN
-#include <mach-o/dyld.h>
+# include <setjmp.h>
+# include <signal.h>
+# ifdef HAVE_DARWIN
+#  include <unistd.h>
+#  include <mach-o/dyld.h>
+#  include <sys/sysctl.h>
+#  include <sys/types.h>
+#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
+# else
+#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+# endif
 #endif
 #include <stdlib.h>
 #include <string.h>
@@ -347,11 +355,17 @@ test_util_heap_apis (void)
 
 #ifdef G_OS_WIN32
 
+gboolean
+gum_is_debugger_present (void)
+{
+  return IsDebuggerPresent ();
+}
+
 guint8
-try_read_and_write_at (guint8 * a,
-                       guint i,
-                       gboolean * exception_raised_on_read,
-                       gboolean * exception_raised_on_write)
+gum_try_read_and_write_at (guint8 * a,
+                           guint i,
+                           gboolean * exception_raised_on_read,
+                           gboolean * exception_raised_on_write)
 {
   guint8 dummy_value_to_trick_optimizer = 0;
   *exception_raised_on_read = FALSE;
@@ -380,6 +394,30 @@ try_read_and_write_at (guint8 * a,
 
 #else
 
+gboolean
+gum_is_debugger_present (void)
+{
+#ifdef HAVE_DARWIN
+  int mib[4];
+  struct kinfo_proc info;
+  size_t size;
+
+  info.kp_proc.p_flag = 0;
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PID;
+  mib[3] = getpid ();
+
+  size = sizeof (info);
+  sysctl (mib, G_N_ELEMENTS (mib), &info, &size, NULL, 0);
+
+  return (info.kp_proc.p_flag & P_TRACED) != 0;
+#else
+  /* FIXME */
+  return FALSE;
+#endif
+}
+
 static sigjmp_buf try_read_and_write_context;
 
 static void
@@ -389,17 +427,17 @@ on_sigsegv (int arg)
 }
 
 guint8
-try_read_and_write_at (guint8 * a,
-                       guint i,
-                       gboolean * exception_raised_on_read,
-                       gboolean * exception_raised_on_write)
+gum_try_read_and_write_at (guint8 * a,
+                           guint i,
+                           gboolean * exception_raised_on_read,
+                           gboolean * exception_raised_on_write)
 {
   guint8 dummy_value_to_trick_optimizer = 0;
 
   *exception_raised_on_read = FALSE;
   *exception_raised_on_write = FALSE;
 
-  signal (SIGSEGV, on_sigsegv);
+  signal (GUM_INVALID_ACCESS_SIGNAL, on_sigsegv);
 
   if (sigsetjmp (try_read_and_write_context, 1) == 0)
   {
@@ -419,7 +457,7 @@ try_read_and_write_at (guint8 * a,
     *exception_raised_on_write = TRUE;
   }
 
-  signal (SIGSEGV, SIG_DFL);
+  signal (GUM_INVALID_ACCESS_SIGNAL, SIG_DFL);
 
   return dummy_value_to_trick_optimizer;
 }

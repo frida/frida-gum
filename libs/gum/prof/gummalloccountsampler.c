@@ -18,10 +18,11 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include <stdlib.h>
 #include "gummalloccountsampler.h"
+
 #include "gumcallcountsampler.h"
-#include "gumsymbolutil.h"
+
+#include <stdlib.h>
 
 GumSampler *
 gum_malloc_count_sampler_new (void)
