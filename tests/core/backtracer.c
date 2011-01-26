@@ -70,7 +70,6 @@ BACKTRACER_TESTCASE (full_cycle)
   GumList * blocks;
   GumAllocationBlock * block;
   GumReturnAddress first_address;
-  GumReturnAddressDetails rad;
 
   tracker = gum_allocation_tracker_new_with_backtracer (fixture->backtracer);
   gum_allocation_tracker_begin (tracker);
@@ -103,12 +102,20 @@ BACKTRACER_TESTCASE (full_cycle)
   first_address = block->return_addresses.items[0];
   g_assert (first_address != NULL);
 
-  g_assert (gum_return_address_details_from_address (first_address, &rad));
-  g_assert (g_str_has_prefix (rad.module_name, "gum-tests"));
-  g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
-  g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
-  if (rad.line_number != alternate_line_number)
-    g_assert_cmpuint (rad.line_number, ==, expected_line_number);
+  {
+#ifdef G_OS_WIN32
+    GumReturnAddressDetails rad;
+
+    g_assert (gum_return_address_details_from_address (first_address, &rad));
+    g_assert (g_str_has_prefix (rad.module_name, "gum-tests"));
+    g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
+    g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
+    if (rad.line_number != alternate_line_number)
+      g_assert_cmpuint (rad.line_number, ==, expected_line_number);
+#else
+    g_assert (first_address != NULL);
+#endif
+  }
 
   gum_allocation_block_list_free (blocks);
 

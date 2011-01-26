@@ -96,7 +96,6 @@ COBJTRACKER_TESTCASE (object_list)
   for (walk = cobjects; walk != NULL; walk = walk->next)
   {
     GumCObject * cobject = (GumCObject *) walk->data;
-    GumReturnAddressDetails rad;
 
     g_assert (cobject->address == fixture->ht1 ||
         cobject->address == fixture->mo);
@@ -106,10 +105,18 @@ COBJTRACKER_TESTCASE (object_list)
     else
       g_assert_cmpstr (cobject->type_name, ==, "MyObject");
 
-    g_assert (gum_return_address_details_from_address (
-        cobject->return_addresses.items[0], &rad));
-    g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
-    g_assert_cmpint (rad.line_number, >, 0);
+    {
+#ifdef G_OS_WIN32
+      GumReturnAddressDetails rad;
+
+      g_assert (gum_return_address_details_from_address (
+          cobject->return_addresses.items[0], &rad));
+      g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
+      g_assert_cmpint (rad.line_number, >, 0);
+#else
+      g_assert (cobject->return_addresses.items[0] != NULL);
+#endif
+    }
   }
 
   gum_cobject_list_free (cobjects);
