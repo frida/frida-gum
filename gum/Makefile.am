@@ -102,6 +102,9 @@ backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
 endif
 
+backend_sources += backend-gcc/gumgccbacktracer.c
+guminclude_HEADERS += backend-gcc/gumgccbacktracer.h
+
 container_sources = \
 	gumarray.c \
 	gumhash.c \

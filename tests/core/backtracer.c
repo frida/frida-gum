@@ -64,6 +64,7 @@ BACKTRACER_TESTCASE (full_cycle)
 {
   GumAllocatorProbe * probe;
   GumAllocationTracker * tracker;
+  GumInterceptor * interceptor;
   guint expected_line_number, alternate_line_number;
   gpointer a;
   GumList * blocks;
@@ -76,6 +77,8 @@ BACKTRACER_TESTCASE (full_cycle)
 
   probe = gum_allocator_probe_new ();
   g_object_set (probe, "allocation-tracker", tracker, NULL);
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_other_threads (interceptor);
   gum_allocator_probe_attach_to_apis (probe, test_util_heap_apis ());
 
   expected_line_number = __LINE__ + 1;
@@ -110,6 +113,8 @@ BACKTRACER_TESTCASE (full_cycle)
   gum_allocation_block_list_free (blocks);
 
   free (a);
+  gum_interceptor_unignore_other_threads (interceptor);
+  g_object_unref (interceptor);
   g_object_unref (probe);
   g_object_unref (tracker);
 }

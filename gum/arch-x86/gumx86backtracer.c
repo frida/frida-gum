@@ -26,8 +26,6 @@ typedef struct _GumUpdateCodeRangesCtx GumUpdateCodeRangesCtx;
 
 struct _GumX86BacktracerPrivate
 {
-  gboolean disposed;
-
   GArray * code_ranges;
   gsize code_ranges_min;
   gsize code_ranges_max;

@@ -23,8 +23,8 @@
 # include "backend-dbghelp/gumdbghelpbacktracer.h"
 #elif defined (HAVE_GLIBC)
 # include "backend-glibc/gumgnubacktracer.h"
-#elif defined (HAVE_I386)
-# include "arch-x86/gumx86backtracer.h"
+#else
+# include "backend-gcc/gumgccbacktracer.h"
 #endif
 
 GType
@@ -53,10 +53,8 @@ gum_backtracer_make_default (void)
   return gum_dbghelp_backtracer_new ();
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
-#elif defined (HAVE_I386)
-  return gum_x86_backtracer_new ();
 #else
-  return NULL;
+  return gum_gcc_backtracer_new ();
 #endif
 }
 
