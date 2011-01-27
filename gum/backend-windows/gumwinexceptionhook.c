@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,8 +19,12 @@
 
 #include "gumwinexceptionhook.h"
 
+#include "gumx86writer.h"
+
 #include <tchar.h>
 #include <udis86.h>
+
+#define GUM_IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
 
 typedef struct _GumWinExceptionHook GumWinExceptionHook;
 typedef struct _GumWinExceptionHandlerEntry GumWinExceptionHandlerEntry;
@@ -36,6 +40,8 @@ struct _GumWinExceptionHook
   gpointer dispatcher_impl;
   gint32 * dispatcher_impl_call_immediate;
   DWORD previous_page_protection;
+
+  gpointer trampoline;
 };
 
 struct _GumWinExceptionHandlerEntry
@@ -67,6 +73,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
     ud_t ud_obj;
     ud_operand_t * op;
     guint8 * call_begin, * call_end;
+    gssize distance;
 
     hook_instance = g_new0 (GumWinExceptionHook, 1);
 
@@ -78,7 +85,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
     g_assert (hook_instance->dispatcher_impl != NULL);
 
     ud_init (&ud_obj);
-    ud_set_mode (&ud_obj, 32);
+    ud_set_mode (&ud_obj, GUM_CPU_MODE);
 
     ud_set_input_buffer (&ud_obj, (uint8_t *) hook_instance->dispatcher_impl,
         4096);
@@ -105,8 +112,27 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
         PAGE_EXECUTE_READWRITE, &hook_instance->previous_page_protection);
     hook_instance->dispatcher_impl_call_immediate =
         (gint32 *) (call_begin + 1);
-    *hook_instance->dispatcher_impl_call_immediate =
-        (gssize) gum_win_exception_dispatch - (gssize) call_end;
+
+    distance = (gssize) gum_win_exception_dispatch - (gssize) call_end;
+    if (!GUM_IS_WITHIN_INT32_RANGE (distance))
+    {
+      GumAddressSpec as;
+      GumX86Writer cw;
+
+      as.near_address = hook_instance->dispatcher_impl;
+      as.max_distance = (G_MAXINT32 - 16384);
+      hook_instance->trampoline =
+          gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
+
+      gum_x86_writer_init (&cw, hook_instance->trampoline);
+      gum_x86_writer_put_jmp (&cw,
+          GUM_FUNCPTR_TO_POINTER (gum_win_exception_dispatch));
+      gum_x86_writer_free (&cw);
+
+      distance = (gssize) hook_instance->trampoline - (gssize) call_end;
+    }
+
+    *hook_instance->dispatcher_impl_call_immediate = distance;
   }
 
   hook_instance->client_handlers =
@@ -150,6 +176,9 @@ gum_win_exception_hook_remove (GumWinExceptionHandler handler)
         (gssize) (hook_instance->dispatcher_impl_call_immediate + 1);
     VirtualProtect (hook_instance->dispatcher_impl, 4096,
         hook_instance->previous_page_protection, &page_prot);
+
+    if (hook_instance->trampoline != NULL)
+      gum_free_pages (hook_instance->trampoline);
 
     g_free (hook_instance);
     hook_instance = NULL;

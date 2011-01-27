@@ -321,7 +321,7 @@ _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
 
   switch (n)
   {
-#if GUM_NATIVE_ABI == GUM_ABI_UNIX
+#if GUM_NATIVE_ABI_IS_UNIX
     case 0:   return (gpointer) context->cpu_context->rdi;
     case 1:   return (gpointer) context->cpu_context->rsi;
     case 2:   return (gpointer) context->cpu_context->rdx;
@@ -356,7 +356,7 @@ _gum_interceptor_invocation_replace_nth_argument (
 
   switch (n)
   {
-#if GUM_NATIVE_ABI == GUM_ABI_UNIX
+#if GUM_NATIVE_ABI_IS_UNIX
     case 0:   context->cpu_context->rdi = (guint64) value; return;
     case 1:   context->cpu_context->rsi = (guint64) value; return;
     case 2:   context->cpu_context->rdx = (guint64) value; return;

@@ -122,8 +122,8 @@ gum_x86_writer_reset (GumX86Writer * writer,
 #endif
   writer->target_abi = GUM_NATIVE_ABI;
 
-  writer->base = code_address;
-  writer->code = code_address;
+  writer->base = (guint8 *) code_address;
+  writer->code = (guint8 *) code_address;
 
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;

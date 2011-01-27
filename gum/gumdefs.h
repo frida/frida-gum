@@ -33,9 +33,13 @@
 #endif
 
 #ifdef G_OS_WIN32
-# define GUM_NATIVE_ABI GUM_ABI_WINDOWS
+# define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
+# define GUM_NATIVE_ABI_IS_WINDOWS 1
+# define GUM_NATIVE_ABI_IS_UNIX    0
 #else
-# define GUM_NATIVE_ABI GUM_ABI_UNIX
+# define GUM_NATIVE_ABI            GUM_ABI_UNIX
+# define GUM_NATIVE_ABI_IS_WINDOWS 0
+# define GUM_NATIVE_ABI_IS_UNIX    1
 #endif
 
 typedef guint64 GumAddress;
