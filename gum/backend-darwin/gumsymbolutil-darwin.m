@@ -53,7 +53,9 @@ typedef struct segment_command_64 gum_segment_command_t;
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
 
+#ifdef HAVE_SYMBOL_BACKEND
 static gboolean gum_symbol_is_function (VMUSymbol * symbol);
+#endif
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -62,27 +64,35 @@ static gboolean find_image_vmaddr_and_fileoff (gpointer address,
 static gboolean find_image_symtab_command (gpointer address,
     struct symtab_command ** sc);
 
+#ifdef HAVE_SYMBOL_BACKEND
 static VMUSymbolicator * symbolicator = nil;
+#endif
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
 void
 _gum_symbol_util_init (void)
 {
+#ifdef HAVE_SYMBOL_BACKEND
   GUM_POOL_ALLOC ();
   symbolicator = [[VMUSymbolicator symbolicatorForTask: mach_task_self ()] retain];
   GUM_POOL_RELEASE ();
+#endif
 }
 
 void
 _gum_symbol_util_deinit (void)
 {
+#ifdef HAVE_SYMBOL_BACKEND
   GUM_POOL_ALLOC ();
   [symbolicator release];
   symbolicator = nil;
   GUM_POOL_RELEASE ();
 
   get_all_image_infos_impl = NULL;
+#endif
 }
+
+#ifdef HAVE_SYMBOL_BACKEND
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
@@ -231,6 +241,8 @@ gum_symbol_is_function (VMUSymbol * symbol)
   return ([symbol isFunction] || [symbol isObjcMethod] ||
       [symbol isJavaMethod]);
 }
+
+#endif /* HAVE_SYMBOL_BACKEND */
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
