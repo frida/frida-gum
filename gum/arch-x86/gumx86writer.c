@@ -982,6 +982,26 @@ gum_x86_writer_put_lock_dec_imm32_ptr (GumX86Writer * self,
 }
 
 void
+gum_x86_writer_put_and_reg_reg (GumX86Writer * self,
+                                GumCpuReg dst_reg,
+                                GumCpuReg src_reg)
+{
+  GumCpuRegInfo dst, src;
+
+  gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
+  gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
+
+  g_return_if_fail (dst.width == src.width);
+  g_return_if_fail (!dst.index_is_extended && !src.index_is_extended);
+
+  gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
+
+  self->code[0] = 0x21;
+  self->code[1] = 0xc0 | (src.index << 3) | dst.index;
+  self->code += 2;
+}
+
+void
 gum_x86_writer_put_and_reg_u32 (GumX86Writer * self,
                                 GumCpuReg reg,
                                 guint32 imm_value)

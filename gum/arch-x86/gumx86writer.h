@@ -185,6 +185,7 @@ void gum_x86_writer_put_lock_cmpxchg_reg_ptr_reg (GumX86Writer * self, GumCpuReg
 void gum_x86_writer_put_lock_inc_imm32_ptr (GumX86Writer * self, gpointer target);
 void gum_x86_writer_put_lock_dec_imm32_ptr (GumX86Writer * self, gpointer target);
 
+void gum_x86_writer_put_and_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_x86_writer_put_and_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
 void gum_x86_writer_put_shl_reg_u8 (GumX86Writer * self, GumCpuReg reg, guint8 imm_value);
 void gum_x86_writer_put_xor_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);

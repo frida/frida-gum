@@ -45,6 +45,8 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (lock_xadd_r15_ptr_eax)
   CODEWRITER_TESTENTRY (lock_inc_dec_imm32_ptr)
 
+  CODEWRITER_TESTENTRY (and_ecx_edx)
+  CODEWRITER_TESTENTRY (and_rdx_rsi)
   CODEWRITER_TESTENTRY (and_eax_u32)
   CODEWRITER_TESTENTRY (and_rax_u32)
   CODEWRITER_TESTENTRY (and_r13_u32)
@@ -355,6 +357,20 @@ CODEWRITER_TESTCASE (lock_inc_dec_imm32_ptr)
 
   expected_code[2] = 0x0d;
   gum_x86_writer_put_lock_dec_imm32_ptr (&fixture->cw, target);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (and_ecx_edx)
+{
+  const guint8 expected_code[] = { 0x21, 0xd1 };
+  gum_x86_writer_put_and_reg_reg (&fixture->cw, GUM_REG_ECX, GUM_REG_EDX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (and_rdx_rsi)
+{
+  const guint8 expected_code[] = { 0x48, 0x21, 0xf2 };
+  gum_x86_writer_put_and_reg_reg (&fixture->cw, GUM_REG_RDX, GUM_REG_RSI);
   assert_output_equals (expected_code);
 }
 
