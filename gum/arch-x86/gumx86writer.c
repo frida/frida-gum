@@ -373,7 +373,8 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       }
     }
 
-    gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
+    if (self->target_abi == GUM_ABI_WINDOWS)
+      gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
   }
 }
 
@@ -392,7 +393,8 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
   }
   else
   {
-    gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);
+    if (self->target_abi == GUM_ABI_WINDOWS)
+      gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);
   }
 }
 
