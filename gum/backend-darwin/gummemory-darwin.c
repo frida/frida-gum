@@ -162,7 +162,7 @@ gum_memory_read (gpointer address,
   result = g_malloc (len);
 
   kr = mach_vm_read_overwrite (mach_task_self (),
-      (mach_vm_address_t) address, len, (vm_address_t) result, &result_len);
+      GPOINTER_TO_SIZE (address), len, (vm_address_t) result, &result_len);
 
   if (kr != KERN_SUCCESS)
   {
@@ -183,7 +183,7 @@ gum_memory_write (gpointer address,
 {
   kern_return_t kr;
 
-  kr = mach_vm_write (mach_task_self (), (mach_vm_address_t) address,
+  kr = mach_vm_write (mach_task_self (), GPOINTER_TO_SIZE (address),
       (vm_offset_t) bytes, len);
 
   return (kr == KERN_SUCCESS);
@@ -210,7 +210,7 @@ gum_mprotect (gpointer address,
     aligned_size = (aligned_size + page_size) & ~(page_size - 1);
   mach_page_prot = gum_page_protection_to_mach (page_prot);
 
-  kr = mach_vm_protect (mach_task_self (), (mach_vm_address_t) aligned_address,
+  kr = mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (aligned_address),
       aligned_size, FALSE, mach_page_prot);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
@@ -280,9 +280,9 @@ gum_alloc_n_pages (guint n_pages,
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   if (page_prot != GUM_PAGE_RW)
-    gum_mprotect ((gpointer) result, size, page_prot);
+    gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
 
-  return (gpointer) result;
+  return GSIZE_TO_POINTER (result);
 }
 
 gpointer
@@ -345,7 +345,7 @@ void
 gum_free_pages (gpointer mem)
 {
   mach_port_t self;
-  mach_vm_address_t address = (mach_vm_address_t) mem;
+  mach_vm_address_t address = GPOINTER_TO_SIZE (mem);
   mach_vm_size_t size = (mach_vm_size_t) 0;
   vm_region_basic_info_data_64_t info;
   mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;

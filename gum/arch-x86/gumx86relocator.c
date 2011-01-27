@@ -123,7 +123,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
   ud_set_mode (ud, GUM_CPU_MODE);
   /*ud_set_syntax (ud, UD_SYN_INTEL);*/
 
-  ud_set_pc (ud, (uint64_t) self->input_cur);
+  ud_set_pc (ud, GPOINTER_TO_SIZE (self->input_cur));
   ud_set_input_buffer (ud, (guint8 *) self->input_cur, buf_size);
 
   in_size = ud_disassemble (ud);

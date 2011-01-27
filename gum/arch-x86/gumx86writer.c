@@ -326,7 +326,7 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
 
       if (arg->type == GUM_ARG_POINTER)
       {
-        gum_x86_writer_put_push_u32 (self, (guint32) GPOINTER_TO_SIZE (
+        gum_x86_writer_put_push_u32 (self, GPOINTER_TO_SIZE (
             arg->value.pointer));
       }
       else
@@ -363,7 +363,7 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       if (arg->type == GUM_ARG_POINTER)
       {
         gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
-            (guint64) arg->value.pointer);
+            GPOINTER_TO_SIZE (arg->value.pointer));
       }
       else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
           gum_meta_reg_from_cpu_reg (reg_for_arg[arg_index]))
@@ -458,7 +458,7 @@ gum_x86_writer_put_call (GumX86Writer * self,
   gint64 distance;
   gboolean distance_fits_in_i32;
 
-  distance = (gint64) target - (gint64) (self->code + 5);
+  distance = (gssize) target - (gssize) (self->code + 5);
   distance_fits_in_i32 = (distance >= G_MININT32 && distance <= G_MAXINT32);
 
   if (distance_fits_in_i32)
@@ -471,7 +471,8 @@ gum_x86_writer_put_call (GumX86Writer * self,
   {
     g_assert (self->target_cpu == GUM_CPU_AMD64);
 
-    gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX, (guint64) target);
+    gum_x86_writer_put_mov_reg_u64 (self, GUM_REG_RAX,
+        GPOINTER_TO_SIZE (target));
     gum_x86_writer_put_call_reg (self, GUM_REG_RAX);
   }
 }
@@ -564,7 +565,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
 {
   gint64 distance;
 
-  distance = (gint64) target - (gint64) (self->code + 2);
+  distance = (gssize) target - (gssize) (self->code + 2);
 
   if (IS_WITHIN_INT8_RANGE (distance))
   {
@@ -574,7 +575,8 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
   }
   else
   {
-    distance = (gint64) target - (gint64) (self->code + 5);
+    distance = (gssize) target - (gssize) (self->code + 5);
+
     if (IS_WITHIN_INT32_RANGE (distance))
     {
       self->code[0] = 0xe9;
@@ -621,7 +623,7 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
 {
   gint64 distance;
 
-  distance = (gint64) target - (gint64) (self->code + 6);
+  distance = (gssize) target - (gssize) (self->code + 6);
   g_assert (IS_WITHIN_INT32_RANGE (distance));
 
   self->code[0] = 0x0f;
@@ -951,11 +953,11 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    *((guint32 *) (self->code + 3)) = (guint32) GPOINTER_TO_SIZE (target);
+    *((guint32 *) (self->code + 3)) = GPOINTER_TO_SIZE (target);
   }
   else
   {
-    gint64 distance = (gint64) target - (gint64) (self->code + 7);
+    gint64 distance = (gssize) target - (gssize) (self->code + 7);
     g_assert (IS_WITHIN_INT32_RANGE (distance));
     *((gint32 *) (self->code + 3)) = distance;
   }
