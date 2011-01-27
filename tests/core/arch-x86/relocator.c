@@ -131,7 +131,8 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
   g_assert (!gum_x86_relocator_eob (&fixture->rl));
   gum_x86_relocator_write_all (&fixture->rl);
-  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 5);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
+      sizeof (expected_output));
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }

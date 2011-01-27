@@ -357,21 +357,23 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
                                                 GumCodeGenCtx * ctx)
 {
   ud_operand_t * op = &ctx->insn->operand[0];
+  GumX86Writer * cw = ctx->code_writer;
 
   (void) self;
   (void) ctx;
 
   if (gum_x86_call_is_to_next_instruction (ctx->insn))
   {
-    if (ctx->code_writer->target_cpu == GUM_CPU_AMD64)
+    if (cw->target_cpu == GUM_CPU_AMD64)
     {
-      /* FIXME */
-      g_assert_not_reached ();
+      gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+          GUM_ADDRESS (ctx->end));
+      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
     }
     else
     {
-      gum_x86_writer_put_push_u32 (ctx->code_writer,
-          GPOINTER_TO_SIZE (ctx->end));
+      gum_x86_writer_put_push_u32 (cw, GPOINTER_TO_SIZE (ctx->end));
     }
 
     return TRUE;
@@ -389,9 +391,9 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
       g_assert_not_reached ();
 
     if (ctx->insn->mnemonic == UD_Icall)
-      gum_x86_writer_put_call (ctx->code_writer, target);
+      gum_x86_writer_put_call (cw, target);
     else
-      gum_x86_writer_put_jmp (ctx->code_writer, target);
+      gum_x86_writer_put_jmp (cw, target);
 
     return TRUE;
   }
