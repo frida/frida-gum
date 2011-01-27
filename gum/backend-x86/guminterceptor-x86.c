@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -154,7 +154,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
 
   /* align stack on 16 byte boundary */
-  gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XBX, GUM_REG_XSP);
+  gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XDI, GUM_REG_XSP);
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, 16 - 1);
 #if GLIB_SIZEOF_VOID_P == 8
   gum_x86_writer_put_mov_reg_u64 (&cw, GUM_REG_RDX,
@@ -173,7 +173,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI);
 
-  gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSP, GUM_REG_XBX);
+  gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSP, GUM_REG_XDI);
 
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer),
