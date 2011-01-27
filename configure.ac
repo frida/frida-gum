@@ -68,6 +68,8 @@ AM_CONDITIONAL(OS_ANDROID, test "x$HAVE_ANDROID" = "xyes")
 if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
   HAVE_IOS=yes
   AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
+else
+  HAVE_IOS=no
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
@@ -108,7 +110,7 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
-if [[ "x$HAVE_BFD" = "xyes" -o "x$HAVE_DARWIN" = "xyes" ]]; then
+if [[ "x$HAVE_BFD" = "xyes" -o "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_IOS" = "xno" ]]; then
   AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if a symbol backend is available.])
 fi
 

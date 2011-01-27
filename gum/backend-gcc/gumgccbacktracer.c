@@ -78,9 +78,17 @@ gum_gcc_backtracer_generate (GumBacktracer * backtracer,
 
   btctx.return_addresses = return_addresses;
   if (cpu_context != NULL)
+  {
+#ifdef HAVE_I386
     btctx.start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
+#else
+    btctx.start_address = GSIZE_TO_POINTER (cpu_context->sp);
+#endif
+  }
   else
+  {
     btctx.start_address = ((gsize *) &return_addresses) + 1;
+  }
 
   return_addresses->len = 0;
   _Unwind_Backtrace (gum_gcc_backtracer_append_address, &btctx);
