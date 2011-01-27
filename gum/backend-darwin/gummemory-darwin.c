@@ -34,6 +34,22 @@
 
 #include <mach/mach.h>
 
+typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
+    gpointer user_data);
+
+typedef struct _GumAllocNearContext GumAllocNearContext;
+
+struct _GumAllocNearContext
+{
+  gpointer result;
+  gsize size;
+  GumAddressSpec * address_spec;
+  mach_port_t task;
+};
+
+static gboolean gum_try_alloc_in_range_if_near_enough (
+    const GumMemoryRange * range, gpointer user_data);
+
 void
 _gum_memory_init (void)
 {
@@ -54,6 +70,70 @@ gum_query_page_size (void)
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   return page_size;
+}
+
+static void
+gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
+                                  gpointer user_data)
+{
+  mach_port_t self;
+  mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
+  mach_vm_size_t size = (mach_vm_size_t) 0;
+  natural_t depth = 0;
+  gpointer prev_end = NULL;
+
+  self = mach_task_self ();
+
+  while (TRUE)
+  {
+    vm_region_submap_info_data_64_t info;
+    mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    kern_return_t kr;
+
+    while (TRUE)
+    {
+      kr = mach_vm_region_recurse (self, &address, &size, &depth,
+          (vm_region_recurse_info_t) &info, &info_count);
+      if (kr != KERN_SUCCESS)
+        break;
+
+      if (info.is_submap)
+      {
+        depth++;
+        continue;
+      }
+      else
+      {
+        break;
+      }
+    }
+
+    if (kr != KERN_SUCCESS)
+      break;
+
+    if (prev_end != NULL)
+    {
+      gsize gap_size;
+
+      gap_size = GSIZE_TO_POINTER (address) - prev_end;
+
+      if (gap_size > 0)
+      {
+        GumMemoryRange r;
+
+        r.base_address = prev_end;
+        r.size = gap_size;
+
+        if (!func (&r, user_data))
+          return;
+      }
+    }
+
+    prev_end = GSIZE_TO_POINTER (address + size);
+
+    address += size;
+    size = 0;
+  }
 }
 
 gboolean
@@ -210,51 +290,55 @@ gum_alloc_n_pages_near (guint n_pages,
                         GumPageProtection page_prot,
                         GumAddressSpec * address_spec)
 {
-  mach_vm_address_t result = 0;
-  gsize page_size, size;
-  mach_vm_address_t low_address, high_address;
-  mach_port_t self;
+  GumAllocNearContext ctx;
 
-  page_size = gum_query_page_size ();
-  size = n_pages * page_size;
+  ctx.result = NULL;
+  ctx.size = n_pages * gum_query_page_size ();
+  ctx.address_spec = address_spec;
+  ctx.task = mach_task_self ();
 
-  low_address =
-      (GPOINTER_TO_SIZE (address_spec->near_address) & ~(page_size - 1));
-  high_address = low_address;
+  gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
+      &ctx);
 
-  self = mach_task_self ();
-
-  do
-  {
-    gsize cur_distance;
-    kern_return_t kr;
-
-    low_address -= page_size;
-    high_address += page_size;
-    cur_distance = (gsize) high_address - (gsize) address_spec->near_address;
-    if (cur_distance > address_spec->max_distance)
-      break;
-
-    kr = mach_vm_allocate (self, &low_address, size, VM_FLAGS_FIXED);
-    if (kr == KERN_SUCCESS)
-    {
-      result = low_address;
-    }
-    else
-    {
-      kr = mach_vm_allocate (self, &high_address, size, VM_FLAGS_FIXED);
-      if (kr == KERN_SUCCESS)
-        result = high_address;
-    }
-  }
-  while (result == 0);
-
-  g_assert (result != 0);
+  g_assert (ctx.result != NULL);
 
   if (page_prot != GUM_PAGE_RW)
-    gum_mprotect ((gpointer) result, size, page_prot);
+    gum_mprotect (ctx.result, ctx.size, page_prot);
 
-  return (gpointer) result;
+  return ctx.result;
+}
+
+static gboolean
+gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
+                                       gpointer user_data)
+{
+  GumAllocNearContext * ctx = user_data;
+  gpointer base_address;
+  gsize distance;
+  mach_vm_address_t address;
+  kern_return_t kr;
+
+  if (range->size < ctx->size)
+    return TRUE;
+
+  base_address = range->base_address;
+  distance = ABS (ctx->address_spec->near_address - base_address);
+  if (distance > ctx->address_spec->max_distance)
+  {
+    base_address = range->base_address + range->size - ctx->size;
+    distance = ABS (ctx->address_spec->near_address - base_address);
+  }
+
+  if (distance > ctx->address_spec->max_distance)
+    return TRUE;
+
+  address = GPOINTER_TO_SIZE (base_address);
+  kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
+  if (kr != KERN_SUCCESS)
+    return TRUE;
+
+  ctx->result = GSIZE_TO_POINTER (address);
+  return FALSE;
 }
 
 void
