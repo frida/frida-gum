@@ -105,10 +105,20 @@ RELOCATOR_TESTCASE (call_near_relative)
 RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
 {
   guint8 input[] = {
-    0xe8, 0x00, 0x00, 0x00, 0x00, /* call +0    */
-    0x59                          /* pop xcx    */
+    0xe8, 0x00, 0x00, 0x00, 0x00, /* call +0         */
+    0x59                          /* pop xcx         */
   };
-#if GLIB_SIZEOF_VOID_P == 4
+#if GLIB_SIZEOF_VOID_P == 8
+  guint8 expected_output[] = {
+    0x50,                         /* push rax        */
+    0x48, 0xb8,                   /* mov rax, <imm>  */
+          0x00, 0x00, 0x00, 0x00,
+          0x00, 0x00, 0x00, 0x00,
+    0x48, 0x87, 0x04, 0x24        /* xchg rax, [rsp] */
+  };
+
+  *((gpointer *) (expected_output + 3)) = input + 5;
+#else
   guint8 expected_output[] = {
     0x68, 0x00, 0x00, 0x00, 0x00  /* push <imm> */
   };
