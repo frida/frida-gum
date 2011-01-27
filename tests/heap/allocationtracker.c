@@ -324,6 +324,7 @@ ALLOCTRACKER_TESTCASE (filter_function)
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 2);
 
   g_object_unref (t);
+  g_object_unref (backtracer);
 }
 
 static gboolean
