@@ -158,7 +158,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, 16 - 1);
 #if GLIB_SIZEOF_VOID_P == 8
   gum_x86_writer_put_mov_reg_u64 (&cw, GUM_REG_RDX,
-      G_GINT64_CONSTANT (0xfffffffffffffff0));
+      G_GUINT64_CONSTANT (0xfffffffffffffff0));
 #else
   gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EDX, 0xfffffff0);
 #endif
