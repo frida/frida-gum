@@ -45,11 +45,10 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gconstpointer dont_increment_usage_counter_label =
       "gum_interceptor_on_enter_dont_increment_usage_counter";
   guint reloc_bytes;
-  guint align_correction_enter = 0;
+  guint align_correction_enter = 8;
   guint align_correction_leave = 0;
 
 #if GLIB_SIZEOF_VOID_P == 4
-  align_correction_enter = 8;
   align_correction_leave = 8;
 #endif
 

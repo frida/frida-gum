@@ -151,8 +151,6 @@ _gum_script_send_item_commit (GumScript * self,
   GVariant * message;
   va_list args;
 
-  g_assert_cmpint (GPOINTER_TO_SIZE (&self) % 16, ==, 0);
-
   point_cut = gum_invocation_context_get_point_cut (context);
   g_variant_builder_init (&builder, G_VARIANT_TYPE (
       priv->data->send_arg_type_signature[point_cut - GUM_POINT_ENTER]));

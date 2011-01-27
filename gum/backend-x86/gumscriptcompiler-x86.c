@@ -128,9 +128,14 @@ gum_script_compiler_backend_emit_send_item_commit (
   if (cw->target_cpu == GUM_CPU_AMD64 && cw->target_abi == GUM_ABI_UNIX)
   {
     if (send_arg_items->len >= 2)
+    {
+      gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
       gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
+    }
     else
+    {
       gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_R8D, G_MAXUINT);
+    }
 
     for (item_index = send_arg_items->len - 1; item_index >= 0; item_index--)
     {
@@ -167,7 +172,7 @@ gum_script_compiler_backend_emit_send_item_commit (
     if (send_arg_items->len >= 2)
     {
       gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
-          (((send_arg_items->len - 2) * 2) + 1) * sizeof (gpointer));
+          ((((send_arg_items->len - 2) * 2) + 2) * sizeof (gpointer)));
     }
   }
   else

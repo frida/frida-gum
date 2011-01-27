@@ -332,7 +332,9 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   InvokeWithCpuFlagsFunc func;
   guint align_correction = 0, i;
 
-#if GLIB_SIZEOF_VOID_P == 4
+#if GLIB_SIZEOF_VOID_P == 8
+  align_correction = 8;
+#else
   align_correction = 12;
 #endif
 
