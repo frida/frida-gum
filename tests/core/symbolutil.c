@@ -37,6 +37,7 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
   SYMUTIL_TESTENTRY (find_external_public_function)
   SYMUTIL_TESTENTRY (find_local_static_function)
+  SYMUTIL_TESTENTRY (find_functions_named)
   SYMUTIL_TESTENTRY (find_functions_matching)
 #endif
 TEST_LIST_END ()
@@ -210,6 +211,15 @@ SYMUTIL_TESTCASE (find_local_static_function)
   function_address = gum_find_function ("gum_dummy_function_0");
   g_assert_cmphex (GPOINTER_TO_SIZE (function_address), ==,
       GPOINTER_TO_SIZE (gum_dummy_function_0));
+}
+
+SYMUTIL_TESTCASE (find_functions_named)
+{
+  GArray * functions;
+
+  functions = gum_find_functions_named ("g_object_new");
+  g_assert_cmpuint (functions->len, >=, 1);
+  g_array_free (functions, TRUE);
 }
 
 SYMUTIL_TESTCASE (find_functions_matching)

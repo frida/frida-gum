@@ -270,8 +270,7 @@ PROFILEREPORT_TESTCASE (xml_worst_case_info)
 
 PROFILEREPORT_TESTCASE (xml_thread_ordering)
 {
-  gum_profiler_instrument_functions_matching (fixture->profiler, "simple_*",
-      fixture->sampler, NULL, NULL);
+  instrument_simple_functions (fixture);
 
   simple_1 (fixture->fake_sampler);
   g_thread_join (g_thread_create ((GThreadFunc) simple_2,

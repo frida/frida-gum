@@ -171,30 +171,40 @@ gum_find_function (const gchar * name)
 }
 
 GArray *
+gum_find_functions_named (const gchar * name)
+{
+  GArray * matches;
+  gpointer address;
+
+  matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
+  address = gum_find_function (name);
+  g_array_append_val (matches, address);
+
+  return matches;
+}
+
+GArray *
 gum_find_functions_matching (const gchar * str)
 {
   GArray * matches;
-  GRegex * regex;
+  GPatternSpec * pspec;
+  GHashTableIter iter;
+  const gchar * function_name;
+  gpointer function_address;
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
 
-  regex = g_regex_new (str, 0, G_REGEX_MATCH_ANCHORED, NULL);
-  if (regex != NULL)
+  pspec = g_pattern_spec_new (str);
+
+  g_hash_table_iter_init (&iter, function_address_by_name_ht);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &function_name,
+      &function_address))
   {
-    GHashTableIter iter;
-    const gchar * function_name;
-    gpointer function_address;
-
-    g_hash_table_iter_init (&iter, function_address_by_name_ht);
-    while (g_hash_table_iter_next (&iter, (gpointer *) &function_name,
-        &function_address))
-    {
-      if (g_regex_match (regex, function_name, 0, NULL))
-        g_array_append_val (matches, function_address);
-    }
-
-    g_regex_unref (regex);
+    if (g_pattern_match_string (pspec, function_name))
+      g_array_append_val (matches, function_address);
   }
+
+  g_pattern_spec_free (pspec);
 
   return matches;
 }

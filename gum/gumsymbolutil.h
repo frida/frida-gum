@@ -48,6 +48,7 @@ GUM_API gboolean gum_symbol_details_from_address (gpointer address,
 GUM_API gchar * gum_symbol_name_from_address (gpointer address);
 
 GUM_API gpointer gum_find_function (const gchar * name);
+GUM_API GArray * gum_find_functions_named (const gchar * name);
 GUM_API GArray * gum_find_functions_matching (const gchar * str);
 
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,

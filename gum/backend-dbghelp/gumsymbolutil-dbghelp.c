@@ -144,6 +144,12 @@ gum_find_function (const gchar * name)
 }
 
 GArray *
+gum_find_functions_named (const gchar * name)
+{
+  return gum_find_functions_matching (name);
+}
+
+GArray *
 gum_find_functions_matching (const gchar * str)
 {
   GArray * matches;

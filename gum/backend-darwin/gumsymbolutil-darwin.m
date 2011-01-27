@@ -53,6 +53,8 @@ typedef struct segment_command_64 gum_segment_command_t;
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
 
+static gboolean gum_symbol_is_function (VMUSymbol * symbol);
+
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
 static gboolean find_image_vmaddr_and_fileoff (gpointer address,
@@ -142,10 +144,39 @@ gum_find_function (const gchar * name)
   {
     VMUSymbol * symbol = [symbols objectAtIndex:i];
 
-    if ([symbol isFunction] || [symbol isObjcMethod] || [symbol isJavaMethod])
+    if (gum_symbol_is_function (symbol))
     {
       result = GSIZE_TO_POINTER ([symbol addressRange].location);
       break;
+    }
+  }
+
+  GUM_POOL_RELEASE ();
+
+  return result;
+}
+
+GArray *
+gum_find_functions_named (const gchar * name)
+{
+  GArray * result;
+  NSArray * symbols;
+  NSUInteger i;
+
+  GUM_POOL_ALLOC ();
+
+  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+  symbols = [symbolicator symbolsForName:[NSString stringWithUTF8String:name]];
+  for (i = 0; i != [symbols count]; i++)
+  {
+    VMUSymbol * symbol = [symbols objectAtIndex:i];
+
+    if (gum_symbol_is_function (symbol))
+    {
+      gpointer address = GSIZE_TO_POINTER ([symbol addressRange].location);
+
+      g_array_append_val (result, address);
     }
   }
 
@@ -174,7 +205,7 @@ gum_find_functions_matching (const gchar * str)
   {
     VMUSymbol * symbol = [symbols objectAtIndex:i];
 
-    if ([symbol isFunction] || [symbol isObjcMethod] || [symbol isJavaMethod])
+    if (gum_symbol_is_function (symbol))
     {
       const gchar * name = [[symbol name] UTF8String];
 
@@ -192,6 +223,13 @@ gum_find_functions_matching (const gchar * str)
   GUM_POOL_RELEASE ();
 
   return result;
+}
+
+static gboolean
+gum_symbol_is_function (VMUSymbol * symbol)
+{
+  return ([symbol isFunction] || [symbol isObjcMethod] ||
+      [symbol isJavaMethod]);
 }
 
 void

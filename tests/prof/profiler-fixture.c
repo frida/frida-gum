@@ -112,13 +112,6 @@ test_profile_report_fixture_get_root_nodes (TestProfileReportFixture * fixture)
 }
 
 static void
-instrument_example_functions (TestProfileReportFixture * fixture)
-{
-  gum_profiler_instrument_functions_matching (fixture->profiler, "example_*",
-      fixture->sampler, NULL, NULL);
-}
-
-static void
 assert_n_top_nodes (TestProfileReportFixture * fixture,
                     guint n,
                     ...)
@@ -445,8 +438,8 @@ inspect_recursive_worst_case_info (GumInvocationContext * context,
 #endif
 }
 
-/* These three should be kept in this order to make the function addresses
- * non-consecutive... */
+/* These three should be kept in this order to increase the likelihood of
+ * function addresses being non-consecutive... */
 
 static void GUM_NOINLINE
 simple_2 (GumFakeSampler * sampler)
@@ -470,4 +463,35 @@ simple_3 (GumFakeSampler * sampler)
   gum_fake_sampler_advance (sampler, 3);
 
   dummy_variable_to_trick_optimizer += 3;
+}
+
+#define INSTRUMENT_FUNCTION(f) \
+    gum_profiler_instrument_function (fixture->profiler, f, fixture->sampler)
+
+static void
+instrument_example_functions (TestProfileReportFixture * fixture)
+{
+  INSTRUMENT_FUNCTION (example_a);
+  INSTRUMENT_FUNCTION (example_b);
+  INSTRUMENT_FUNCTION (example_c);
+  INSTRUMENT_FUNCTION (example_d);
+  INSTRUMENT_FUNCTION (example_e);
+  INSTRUMENT_FUNCTION (example_f);
+  INSTRUMENT_FUNCTION (example_g);
+  INSTRUMENT_FUNCTION (example_cyclic_a);
+  INSTRUMENT_FUNCTION (example_cyclic_b);
+  INSTRUMENT_FUNCTION (example_a_calls_b_thrice);
+  INSTRUMENT_FUNCTION (example_b_dynamic);
+  INSTRUMENT_FUNCTION (example_worst_case_info);
+}
+
+static void
+instrument_simple_functions (TestProfileReportFixture * fixture)
+{
+  INSTRUMENT_FUNCTION (simple_cdecl_42);
+  INSTRUMENT_FUNCTION (simple_stdcall_48);
+  INSTRUMENT_FUNCTION (simple_stdcall_50);
+  INSTRUMENT_FUNCTION (simple_2);
+  INSTRUMENT_FUNCTION (simple_1);
+  INSTRUMENT_FUNCTION (simple_3);
 }

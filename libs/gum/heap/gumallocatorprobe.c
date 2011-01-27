@@ -432,7 +432,7 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
     for (i = 0; i != G_N_ELEMENTS (internal_function_name); i++)
     {
-      GArray * addrs = gum_find_functions_matching (internal_function_name[i]);
+      GArray * addrs = gum_find_functions_named (internal_function_name[i]);
       if (addrs->len != 0)
         g_array_append_vals (ignored, addrs->data, addrs->len);
       g_array_free (addrs, TRUE);
