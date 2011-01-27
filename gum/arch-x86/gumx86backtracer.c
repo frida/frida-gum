@@ -126,7 +126,7 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
   if (cpu_context != NULL)
     start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
   else
-    start_address = ((gsize *) &return_addresses) + 1;
+    start_address = ((gsize *) &backtracer) - 1;
 
   for (i = 0, p = start_address; p < start_address + 2048; p++)
   {

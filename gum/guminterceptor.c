@@ -682,6 +682,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   previous_last_error = GetLastError ();
 #endif
 
+  g_assert_cmpint (GPOINTER_TO_SIZE (&function_ctx) % 16, ==, 0);
+
   if (G_UNLIKELY (priv->selected_thread_id != 0))
   {
     invoke_listeners = gum_get_current_thread_id () == priv->selected_thread_id;
@@ -762,6 +764,8 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
   previous_last_error = GetLastError ();
 #endif
+
+  g_assert_cmpint (GPOINTER_TO_SIZE (&function_ctx) % 16, ==, 0);
 
   interceptor_ctx = get_interceptor_thread_context ();
 

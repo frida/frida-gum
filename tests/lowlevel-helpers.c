@@ -138,6 +138,11 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   guint8 * code;
   GumX86Writer cw;
   InvokeWithCpuContextFunc func;
+  guint align_correction = 0;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  align_correction = 8;
+#endif
 
   addr_spec.near_address = GUM_FUNCPTR_TO_POINTER (clobber_test_function);
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
@@ -203,8 +208,14 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx));
 #endif
 
+  if (align_correction != 0)
+    gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
+
   gum_x86_writer_put_call (&cw,
       GUM_FUNCPTR_TO_POINTER (clobber_test_function));
+
+  if (align_correction != 0)
+    gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
 
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XCX);
 
@@ -319,6 +330,11 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   guint8 * code;
   GumX86Writer cw;
   InvokeWithCpuFlagsFunc func;
+  guint align_correction = 0, i;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  align_correction = 12;
+#endif
 
   addr_spec.near_address = clobber_test_function;
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
@@ -332,7 +348,14 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   gum_x86_writer_put_mov_reg_ptr_reg (&cw,
       gum_x86_writer_get_cpu_register_for_nth_argument (&cw, 0), GUM_REG_XAX);
 
+  /* cannot use sub instruction here because it clobbers CPU flags */
+  for (i = 0; i != align_correction; i += sizeof (gpointer))
+    gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX);
+
   gum_x86_writer_put_call (&cw, clobber_test_function);
+
+  for (i = 0; i != align_correction; i += sizeof (gpointer))
+    gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
 
   gum_x86_writer_put_pushfx (&cw);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);

@@ -23,22 +23,11 @@
 #include "guminvocationcontext.h"
 #include "gumscript.h"
 
-#ifdef _MSC_VER
-# if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_SCRIPT_ENTRYPOINT_API __fastcall
-# else
-#  define GUM_SCRIPT_ENTRYPOINT_API
-# endif
-#else
-# define GUM_SCRIPT_ENTRYPOINT_API
-#endif
-
 typedef struct _GumScriptCode GumScriptCode;
 typedef struct _GumScriptData GumScriptData;
 typedef struct _GumGuid GumGuid;
 
-typedef void (GUM_SCRIPT_ENTRYPOINT_API * GumScriptEntrypoint)
-    (GumInvocationContext * context);
+typedef void (GUM_THUNK * GumScriptEntrypoint) (GumInvocationContext * context);
 
 struct _GumScriptCode
 {

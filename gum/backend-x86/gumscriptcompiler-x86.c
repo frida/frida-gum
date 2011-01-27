@@ -172,6 +172,15 @@ gum_script_compiler_backend_emit_send_item_commit (
   }
   else
   {
+    guint align_correction = 0;
+
+#if GLIB_SIZEOF_VOID_P == 4
+    align_correction = (send_arg_items->len % 2 == 0) ? 0 : 8;
+#endif
+
+    if (align_correction != 0)
+      gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
+
     gum_x86_writer_put_push_u32 (cw, 0x9ADD176); /* alignment padding */
     gum_x86_writer_put_push_u32 (cw, G_MAXUINT);
 
@@ -209,6 +218,7 @@ gum_script_compiler_backend_emit_send_item_commit (
         GUM_FUNCPTR_TO_POINTER (_gum_script_send_item_commit));
 
     gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
-        (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer));
+        (2 + (send_arg_items->len * 2) + 2) * sizeof (gpointer) +
+        align_correction);
   }
 }

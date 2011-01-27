@@ -45,6 +45,13 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gconstpointer dont_increment_usage_counter_label =
       "gum_interceptor_on_enter_dont_increment_usage_counter";
   guint reloc_bytes;
+  guint align_correction_enter = 0;
+  guint align_correction_leave = 0;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  align_correction_enter = 8;
+  align_correction_leave = 12;
+#endif
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       ctx->function_address);
@@ -83,12 +90,18 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XDI, GUM_REG_XSP,
       sizeof (GumCpuContext) + sizeof (gpointer));
 
+  if (align_correction_enter != 0)
+    gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_enter);
+
   gum_x86_writer_put_call_with_arguments (&cw,
       GUM_FUNCPTR_TO_POINTER (_gum_function_context_on_enter),
       3,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI);
+
+  if (align_correction_enter != 0)
+    gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_enter);
 
   gum_x86_writer_put_test_reg_reg (&cw, GUM_REG_EAX, GUM_REG_EAX);
   gum_x86_writer_put_jz_label (&cw, dont_increment_usage_counter_label,
@@ -140,11 +153,18 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
 
+  if (align_correction_leave != 0)
+    gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_leave);
+
   gum_x86_writer_put_call_with_arguments (&cw,
       GUM_FUNCPTR_TO_POINTER (_gum_function_context_on_leave),
       2,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI);
+
+  if (align_correction_leave != 0)
+    gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_leave);
+
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer),
       GUM_REG_XAX);
