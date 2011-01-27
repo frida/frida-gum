@@ -29,7 +29,7 @@
 
 #include <string.h>
 
-#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     400
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     450
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
