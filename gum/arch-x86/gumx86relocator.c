@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -48,6 +48,8 @@ static gboolean gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * 
     GumCodeGenCtx * ctx);
 static gboolean gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     GumCodeGenCtx * ctx);
+
+static gboolean gum_x86_call_is_to_next_instruction (ud_t * insn);
 
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
@@ -145,7 +147,7 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       break;
 
     case UD_Icall:
-      self->eob = TRUE;
+      self->eob = !gum_x86_call_is_to_next_instruction (ud);
       self->eoi = FALSE;
       break;
 
@@ -359,6 +361,22 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   (void) self;
   (void) ctx;
 
+  if (gum_x86_call_is_to_next_instruction (ctx->insn))
+  {
+    if (ctx->code_writer->target_cpu == GUM_CPU_AMD64)
+    {
+      /* FIXME */
+      g_assert_not_reached ();
+    }
+    else
+    {
+      gum_x86_writer_put_push_u32 (ctx->code_writer,
+          GPOINTER_TO_SIZE (ctx->end));
+    }
+
+    return TRUE;
+  }
+
   if (op->type == UD_OP_JIMM && op->base == UD_NONE)
   {
     const guint8 * target = NULL;
@@ -481,4 +499,13 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   return TRUE;
 #endif
+}
+
+static gboolean
+gum_x86_call_is_to_next_instruction (ud_t * insn)
+{
+  ud_operand_t * op = &insn->operand[0];
+
+  return (op->type == UD_OP_JIMM && op->base == UD_NONE &&
+      op->lval.sdword == 0);
 }

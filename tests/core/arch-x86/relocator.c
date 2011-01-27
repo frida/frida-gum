@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -22,6 +22,7 @@
 TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (one_to_one)
   RELOCATOR_TESTENTRY (call_near_relative)
+  RELOCATOR_TESTENTRY (call_near_relative_to_next_instruction)
   RELOCATOR_TESTENTRY (call_near_indirect)
   RELOCATOR_TESTENTRY (jmp_short_outside_block)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
@@ -99,6 +100,30 @@ RELOCATOR_TESTCASE (call_near_relative)
   expected_distance =
       ((gssize) (input + 12)) - ((gssize) (fixture->output + 8));
   g_assert_cmpint (reloc_distance, ==, expected_distance);
+}
+
+RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
+{
+  guint8 input[] = {
+    0xe8, 0x00, 0x00, 0x00, 0x00, /* call +0    */
+    0x59                          /* pop xcx    */
+  };
+#if GLIB_SIZEOF_VOID_P == 4
+  guint8 expected_output[] = {
+    0x68, 0x00, 0x00, 0x00, 0x00  /* push <imm> */
+  };
+
+  *((gpointer *) (expected_output + 1)) = input + 5;
+#endif
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  gum_x86_relocator_write_all (&fixture->rl);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, 5);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
 }
 
 RELOCATOR_TESTCASE (call_near_indirect)
