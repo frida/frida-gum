@@ -98,9 +98,10 @@ gum_busy_cycle_sampler_is_available (GumBusyCycleSampler * self)
 static GumSample
 gum_busy_cycle_sampler_sample (GumSampler * sampler)
 {
+  GumBusyCycleSamplerPrivate * priv = GUM_BUSY_CYCLE_SAMPLER_CAST (sampler)->priv;
   GumSample result = 0;
 
-  self->priv->query_thread_cycle_time (GetCurrentThread (), &result);
+  priv->query_thread_cycle_time (GetCurrentThread (), &result);
 
   return result;
 }
