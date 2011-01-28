@@ -24,7 +24,7 @@ TEST_LIST_BEGIN (sampler)
 #ifdef HAVE_I386
   SAMPLER_TESTENTRY (cycle)
 #endif
-#ifdef G_OS_WIN32
+#ifdef HAVE_BUSY_CYCLE_SAMPLER
   SAMPLER_TESTENTRY (busy_cycle)
 #endif
   SAMPLER_TESTENTRY (malloc_count)
@@ -32,7 +32,7 @@ TEST_LIST_BEGIN (sampler)
   SAMPLER_TESTENTRY (wallclock)
 TEST_LIST_END ()
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_BUSY_CYCLE_SAMPLER
 static void spin_for_one_tenth_second (void);
 #endif
 static gpointer malloc_count_helper_thread (gpointer data);
@@ -53,7 +53,7 @@ SAMPLER_TESTCASE (cycle)
 
 #endif
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_BUSY_CYCLE_SAMPLER
 
 SAMPLER_TESTCASE (busy_cycle)
 {
@@ -158,7 +158,7 @@ SAMPLER_TESTCASE (wallclock)
   g_assert_cmpuint (sample_b, >, sample_a);
 }
 
-#ifdef G_OS_WIN32
+#ifdef HAVE_BUSY_CYCLE_SAMPLER
 
 static void
 spin_for_one_tenth_second (void)

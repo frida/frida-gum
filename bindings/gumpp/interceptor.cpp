@@ -105,7 +105,7 @@ namespace Gum
   private:
     GMutex * mutex;
 
-    typedef std::map<InvocationListener *, RefPtr<InvocationListenerProxy>> ProxyMap;
+    typedef std::map<InvocationListener *, RefPtr<InvocationListenerProxy> > ProxyMap;
     ProxyMap proxy_by_listener;
   };
 

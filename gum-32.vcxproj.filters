@@ -159,7 +159,7 @@
     <ClCompile Include="gum\gumreturnaddress.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="libs\gum\prof\gumbusycyclesampler.c">
+    <ClCompile Include="libs\gum\prof\gumbusycyclesampler-windows.c">
       <Filter>libs\prof</Filter>
     </ClCompile>
     <ClCompile Include="libs\gum\prof\gumcallcountsampler.c">

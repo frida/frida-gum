@@ -24,6 +24,10 @@
 
 #include <stdlib.h>
 
+#if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
+# define HAVE_BUSY_CYCLE_SAMPLER
+#endif
+
 #define SAMPLER_TESTCASE(NAME) \
     void test_sampler_ ## NAME ( \
         TestSamplerFixture * fixture, gconstpointer data)

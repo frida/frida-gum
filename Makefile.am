@@ -4,6 +4,7 @@ SUBDIRS = \
 	ext \
 	libs \
 	gum \
+	bindings \
 	tests \
 	vapi
 

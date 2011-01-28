@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -20,17 +20,13 @@
 
 #include "gumbusycyclesampler.h"
 
-#ifdef G_OS_WIN32
 #define _WIN32_LEAN_AND_MEAN
 #ifdef _WIN32_WINNT
-#undef _WIN32_WINNT
+# undef _WIN32_WINNT
 #endif
 #define _WIN32_WINNT 0x0600
 #include <windows.h>
 #include <tchar.h>
-#else
-#error This sampler is Windows (Vista+) only for now
-#endif
 
 typedef BOOL (WINAPI * QueryThreadCycleTimeFunc) (HANDLE ThreadHandle,
     PULONG64 CycleTime);
@@ -39,8 +35,6 @@ struct _GumBusyCycleSamplerPrivate
 {
   QueryThreadCycleTimeFunc query_thread_cycle_time;
 };
-
-#define GUM_BUSY_CYCLE_SAMPLER_GET_PRIVATE(o) ((o)->priv)
 
 static void gum_busy_cycle_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -98,18 +92,15 @@ gum_busy_cycle_sampler_new (void)
 gboolean
 gum_busy_cycle_sampler_is_available (GumBusyCycleSampler * self)
 {
-  GumBusyCycleSamplerPrivate * priv =
-      GUM_BUSY_CYCLE_SAMPLER_GET_PRIVATE (self);
-  return (priv->query_thread_cycle_time != NULL);
+  return (self->priv->query_thread_cycle_time != NULL);
 }
 
 static GumSample
 gum_busy_cycle_sampler_sample (GumSampler * sampler)
 {
-  GumBusyCycleSampler * self = GUM_BUSY_CYCLE_SAMPLER_CAST (sampler);
-  GumBusyCycleSamplerPrivate * priv =
-      GUM_BUSY_CYCLE_SAMPLER_GET_PRIVATE (self);
   GumSample result = 0;
-  priv->query_thread_cycle_time (GetCurrentThread (), &result);
+
+  self->priv->query_thread_cycle_time (GetCurrentThread (), &result);
+
   return result;
 }

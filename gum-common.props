@@ -145,7 +145,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClCompile Include="libs\gum\prof\gumbusycyclesampler.c" />
+    <ClCompile Include="libs\gum\prof\gumbusycyclesampler-windows.c" />
     <ClCompile Include="libs\gum\prof\gumcallcountsampler.c" />
     <ClCompile Include="libs\gum\prof\gumcyclesampler.c" />
     <ClCompile Include="libs\gum\prof\gummalloccountsampler.c" />

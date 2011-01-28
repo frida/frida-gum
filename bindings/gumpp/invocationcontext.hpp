@@ -23,7 +23,7 @@ namespace Gum
 
     virtual void * get_function () const
     {
-      return context->function;
+      return GUM_FUNCPTR_TO_POINTER (context->function);
     }
 
     virtual void * get_nth_argument_ptr (unsigned int n) const

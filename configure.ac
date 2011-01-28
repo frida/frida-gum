@@ -40,7 +40,7 @@ AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 case $host_os in
   linux*)  HAVE_LINUX=yes  ;;
   darwin*) HAVE_DARWIN=yes ;;
-  *)                       ;;
+  *)			   ;;
 esac
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_DEFINE(HAVE_LINUX, 1, [Define to 1 if OS is Linux based.])
@@ -54,7 +54,7 @@ AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
 case $host_os in
   darwin10\.*) HAVE_OSX=yes     ;;
   *-android*)  HAVE_ANDROID=yes ;;
-  *)                            ;;
+  *)				;;
 esac
 if [[ "x$HAVE_OSX" = "xyes" ]]; then
   AC_DEFINE(HAVE_OSX, 1, [Define to 1 if OS is Mac OS X.])
@@ -102,8 +102,7 @@ fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
 if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
-  GUM_LDFLAGS="$GUM_LDFLAGS -Wl,-framework,Foundation"
-  GUM_LIBS="$GUM_LIBS /System/Library/PrivateFrameworks/Symbolication.framework/Symbolication"
+  GUM_LDFLAGS="$GUM_LDFLAGS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
 
 AC_SUBST(GUM_CFLAGS)
@@ -120,11 +119,13 @@ AC_CONFIG_FILES([
 	ext/Makefile
 	ext/udis86/Makefile
 	ext/udis86/libudis86/Makefile
-        libs/Makefile
-        libs/gum/Makefile
-        libs/gum/heap/Makefile
-        libs/gum/prof/Makefile
+	libs/Makefile
+	libs/gum/Makefile
+	libs/gum/heap/Makefile
+	libs/gum/prof/Makefile
 	gum/Makefile
+	bindings/Makefile
+	bindings/gumpp/Makefile
 	tests/Makefile
 	tests/core/Makefile
 	tests/heap/Makefile
