@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: GUM++
+Description: GUM++ library
+Version: @VERSION@
+Libs: -L${libdir} -lgumpp-1.0
+Cflags: -I${includedir}/gumpp-1.0

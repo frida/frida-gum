@@ -115,6 +115,7 @@ fi
 
 AC_CONFIG_FILES([
 	gum-1.0.pc
+	gumpp-1.0.pc
 	Makefile
 	ext/Makefile
 	ext/udis86/Makefile

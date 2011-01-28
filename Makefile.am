@@ -9,7 +9,8 @@ SUBDIRS = \
 	vapi
 
 pcfiles = \
-        gum-1.0.pc
+	gum-1.0.pc \
+	gumpp-1.0.pc
 
 all-local: $(pcfiles)
 
