@@ -4,7 +4,7 @@ gumppincludedir = $(includedir)/gumpp-1.0
 gumppinclude_HEADERS = gumpp.hpp
 
 ## FIXME: generate this
-libtool_export_options = -export-symbols-regex "^(Interceptor_obtain|SanityChecker_new|SanityChecker_new_with_heap_api|BusyCycleSampler_new|CycleSampler_new|MallocCountSampler_new|WallClockSampler_new|CallCountSampler_new|CallCountSampler_new_by_name|Profiler_new|find_function_ptr|find_matching_functions_array)$$"
+libtool_export_options = -export-symbols-regex "^(Interceptor_obtain|Backtracer_make_default|ReturnAddressDetails_from_address|SanityChecker_new|SanityChecker_new_with_heap_api|BusyCycleSampler_new|CycleSampler_new|MallocCountSampler_new|WallClockSampler_new|CallCountSampler_new|CallCountSampler_new_by_name|Profiler_new|find_function_ptr|find_matching_functions_array)$$"
 
 libgumpp_1_0_la_SOURCES =		\
 	backtracer.cpp			\

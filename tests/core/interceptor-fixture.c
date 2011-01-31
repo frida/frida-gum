@@ -137,6 +137,8 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
         "targetfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
         NULL);
     lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
+    if (lib == NULL)
+      g_print ("failed to open '%s'\n", filename);
     g_assert (lib != NULL);
     g_free (filename);
 

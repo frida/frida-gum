@@ -74,7 +74,7 @@ GUMPP_TESTCASE (can_get_stack_trace_from_invocation_context)
   BacktraceTestListener listener;
 
   GString * output = g_string_new ("");
-  interceptor->attach_listener (gumpp_test_target_function, &listener, output);
+  interceptor->attach_listener (reinterpret_cast<void *> (gumpp_test_target_function), &listener, output);
 
   gumpp_test_target_function (output);
   g_assert_cmpstr (output->str, ==, ">|<");
