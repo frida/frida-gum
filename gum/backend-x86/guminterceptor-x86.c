@@ -49,7 +49,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   guint align_correction_leave = 0;
 
 #if GLIB_SIZEOF_VOID_P == 4
-  align_correction_leave = 8;
+  align_correction_leave = 4;
 #endif
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
