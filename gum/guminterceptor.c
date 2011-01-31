@@ -715,8 +715,6 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
         GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address),
         *caller_ret_addr,
         NULL);
-    *caller_ret_addr = function_ctx->on_leave_trampoline;
-    will_trap_on_leave = TRUE;
 
     invocation_ctx = &stack_entry->invocation_context;
     invocation_ctx->cpu_context = cpu_context;
@@ -739,6 +737,9 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
     }
+
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
+    will_trap_on_leave = TRUE;
   }
 
 #ifdef G_OS_WIN32
@@ -748,13 +749,13 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   return will_trap_on_leave;
 }
 
-gpointer
+void
 _gum_function_context_on_leave (FunctionContext * function_ctx,
-                                GumCpuContext * cpu_context)
+                                GumCpuContext * cpu_context,
+                                gpointer * caller_ret_addr)
 {
   InterceptorThreadContext * interceptor_ctx;
   ThreadContextStackEntry * stack_entry;
-  gpointer caller_ret_addr;
   GumInvocationContext * invocation_ctx;
   guint i;
 #ifdef G_OS_WIN32
@@ -766,7 +767,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   interceptor_ctx = get_interceptor_thread_context ();
 
   stack_entry = thread_context_stack_peek_top (interceptor_ctx->stack);
-  caller_ret_addr = stack_entry->caller_ret_addr;
+  *caller_ret_addr = stack_entry->caller_ret_addr;
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -774,12 +775,12 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) caller_ret_addr;
+  cpu_context->eip = (guint32) *caller_ret_addr;
 # else
-  cpu_context->rip = (guint64) caller_ret_addr;
+  cpu_context->rip = (guint64) *caller_ret_addr;
 # endif
 #elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) caller_ret_addr;
+  cpu_context->pc = (guint32) *caller_ret_addr;
 #else
 # error Unsupported architecture
 #endif
@@ -807,8 +808,6 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 #ifdef G_OS_WIN32
   SetLastError (previous_last_error);
 #endif
-
-  return caller_ret_addr;
 }
 
 gboolean

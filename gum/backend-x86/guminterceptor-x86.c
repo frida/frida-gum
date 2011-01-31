@@ -152,6 +152,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_function_context_write_guard_enter_code (ctx, NULL, &cw);
 
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSI, GUM_REG_XSP);
+  gum_x86_writer_put_lea_reg_reg_offset (&cw, GUM_REG_XDI,
+      GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer));
 
   /* align stack on 16 byte boundary */
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XBP, GUM_REG_XSP);
@@ -169,15 +171,12 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   gum_x86_writer_put_call_with_arguments (&cw,
       GUM_FUNCPTR_TO_POINTER (_gum_function_context_on_leave),
-      2,
+      3,
       GUM_ARG_POINTER, ctx,
-      GUM_ARG_REGISTER, GUM_REG_XSI);
+      GUM_ARG_REGISTER, GUM_REG_XSI,
+      GUM_ARG_REGISTER, GUM_REG_XDI);
 
   gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_XSP, GUM_REG_XBP);
-
-  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_XSP, sizeof (GumCpuContext) + sizeof (gpointer),
-      GUM_REG_XAX);
 
   gum_function_context_write_guard_leave_code (ctx, &cw);
 

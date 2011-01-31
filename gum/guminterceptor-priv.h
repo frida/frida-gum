@@ -53,8 +53,8 @@ G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
 gboolean _gum_function_context_on_enter (FunctionContext * function_ctx,
     GumCpuContext * cpu_context, gpointer * caller_ret_addr);
-gpointer _gum_function_context_on_leave (FunctionContext * function_ctx,
-    GumCpuContext * cpu_context);
+void _gum_function_context_on_leave (FunctionContext * function_ctx,
+    GumCpuContext * cpu_context, gpointer * caller_ret_addr);
 
 gboolean _gum_function_context_try_begin_invocation (
     FunctionContext * function_ctx, gpointer caller_ret_addr,
