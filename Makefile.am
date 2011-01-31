@@ -4,9 +4,13 @@ SUBDIRS = \
 	ext \
 	libs \
 	gum \
-	bindings \
 	tests \
 	vapi
+
+if OS_IOS
+else
+SUBDIRS += bindings
+endif
 
 pcfiles = \
 	gum-1.0.pc \
