@@ -54,7 +54,8 @@ gum_collect_heap_api_if_crt_module (const gchar * name,
 
   (void) address;
 
-  if (g_strncasecmp (name, "msvcr", 5) == 0)
+  if (g_ascii_strncasecmp (name, "msvcr", 5) == 0 ||
+      g_ascii_strncasecmp (name, "libSystem.B", 11) == 0)
   {
     GumHeapApi api = { 0, };
     GModule * module;
