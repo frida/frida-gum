@@ -181,13 +181,12 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   /* invoke on_leave */
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_R1, GUM_AREG_SP);
-  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R2,
-      GUM_ADDRESS (_gum_function_context_on_leave));
-  gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R2);
-
-  /* poke into GumCpuContext and replace LR */
-  gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_AREG_R0,
+  gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_AREG_R2,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R3,
+      GUM_ADDRESS (_gum_function_context_on_leave));
+  gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R3);
+
   /* clear PC and SP from GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 8);
   /* restore r[0-8] and jump straight to LR */
