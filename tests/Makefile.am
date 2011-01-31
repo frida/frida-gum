@@ -1,7 +1,8 @@
 SUBDIRS = \
 	core \
 	heap \
-	prof
+	prof \
+	gumpp
 
 if OS_ANDROID
 else
@@ -46,7 +47,8 @@ libgum_tests_la_SOURCES = \
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(builddir)/heap/libgum-tests-heap.la \
-	$(builddir)/prof/libgum-tests-prof.la
+	$(builddir)/prof/libgum-tests-prof.la \
+	$(builddir)/prof/libgum-tests-gumpp.la
 
 AM_CPPFLAGS = \
 	-include config.h \

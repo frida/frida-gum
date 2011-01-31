@@ -139,6 +139,11 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (profiler);
 #endif
 
+  /* GUM++ */
+#if !defined (HAVE_ANDROID) && !defined (HAVE_IOS)
+  TEST_RUN_LIST (gumpp_backtracer);
+#endif
+
 #ifdef _MSC_VER
 #pragma warning (pop)
 #endif

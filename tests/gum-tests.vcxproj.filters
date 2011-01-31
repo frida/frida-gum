@@ -34,6 +34,9 @@
     <Filter Include="Tests\prof\stubs">
       <UniqueIdentifier>{31ab9fea-fdc5-44d8-8014-ffd845923747}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests\gumpp">
+      <UniqueIdentifier>{d5b54bac-c4d7-454d-b175-74936806c670}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="testutil.c">
@@ -179,6 +182,9 @@
     </ClCompile>
     <ClCompile Include="core\memoryaccessmonitor-fixture.c">
       <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="gumpp\backtracer.cxx">
+      <Filter>Tests\gumpp</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

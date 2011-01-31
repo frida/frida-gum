@@ -131,6 +131,7 @@ AC_CONFIG_FILES([
 	tests/core/Makefile
 	tests/heap/Makefile
 	tests/prof/Makefile
+	tests/gumpp/Makefile
 	vapi/Makefile
 ])
 AC_OUTPUT

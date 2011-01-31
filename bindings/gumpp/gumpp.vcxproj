@@ -131,9 +131,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="backtracer.cpp" />
     <ClCompile Include="interceptor.cpp" />
     <ClCompile Include="invocationlistener.cpp" />
     <ClCompile Include="profiler.cpp" />
+    <ClCompile Include="returnaddress.cpp" />
     <ClCompile Include="sampler.cpp" />
     <ClCompile Include="sanitychecker.cpp" />
     <ClCompile Include="symbolutil.cpp" />

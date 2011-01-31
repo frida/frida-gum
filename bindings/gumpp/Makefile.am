@@ -7,6 +7,7 @@ gumppinclude_HEADERS = gumpp.hpp
 libtool_export_options = -export-symbols-regex "^(Interceptor_obtain|SanityChecker_new|SanityChecker_new_with_heap_api|BusyCycleSampler_new|CycleSampler_new|MallocCountSampler_new|WallClockSampler_new|CallCountSampler_new|CallCountSampler_new_by_name|Profiler_new|find_function_ptr|find_matching_functions_array)$$"
 
 libgumpp_1_0_la_SOURCES =		\
+	backtracer.cpp			\
 	interceptor.cpp			\
 	invocationcontext.hpp		\
 	invocationlistener.cpp		\
@@ -14,6 +15,7 @@ libgumpp_1_0_la_SOURCES =		\
 	objectwrapper.hpp		\
 	podwrapper.hpp			\
 	profiler.cpp			\
+	returnaddress.cpp		\
 	sampler.cpp			\
 	sanitychecker.cpp		\
 	string.hpp			\

@@ -13,12 +13,18 @@
 
 #define GUMPP_CAPI extern "C" GUMPP_API
 
+#define GUMPP_MAX_BACKTRACE_DEPTH 16
+#define GUMPP_MAX_PATH            260
+#define GUMPP_MAX_SYMBOL_NAME     2000
+
 #include <vector>
 
 namespace Gum
 {
   struct InvocationContext;
   struct InvocationListener;
+  struct CpuContext;
+  struct ReturnAddressArray;
 
   struct Object
   {
@@ -103,6 +109,8 @@ namespace Gum
       return static_cast<T *> (get_replacement_function_data_ptr ());
     }
     virtual void * get_replacement_function_data_ptr () const = 0;
+
+    virtual CpuContext * get_cpu_context () const = 0;
   };
 
   struct InvocationListener
@@ -110,6 +118,32 @@ namespace Gum
     virtual void on_enter (InvocationContext * context) = 0;
     virtual void on_leave (InvocationContext * context) = 0;
   };
+
+  struct Backtracer : public Object
+  {
+    virtual void generate (const CpuContext * cpu_context, ReturnAddressArray & return_addresses) const = 0;
+  };
+
+  GUMPP_CAPI Backtracer * Backtracer_make_default ();
+
+  typedef void * ReturnAddress;
+
+  struct ReturnAddressArray
+  {
+    unsigned int len;
+    ReturnAddress items[GUMPP_MAX_BACKTRACE_DEPTH];
+  };
+
+  struct ReturnAddressDetails
+  {
+    ReturnAddress address;
+    char module_name[GUMPP_MAX_PATH + 1];
+    char function_name[GUMPP_MAX_SYMBOL_NAME + 1];
+    char file_name[GUMPP_MAX_PATH + 1];
+    unsigned int line_number;
+  };
+
+  GUMPP_CAPI bool ReturnAddressDetails_from_address (ReturnAddress address, ReturnAddressDetails & details);
 
   struct SanityChecker : public Object
   {

@@ -83,7 +83,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -93,15 +93,16 @@
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Copying dbghelp.dll into place</Message>
+      <Message>Copying dbghelp.dll and gumpp.dll into place</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -111,15 +112,16 @@
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Copying dbghelp.dll into place</Message>
+      <Message>Copying dbghelp.dll and gumpp.dll into place</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -129,15 +131,16 @@
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Copying dbghelp.dll into place</Message>
+      <Message>Copying dbghelp.dll and gumpp.dll into place</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
@@ -147,10 +150,11 @@
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
+copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(TargetDir)gumpp.dll"
 </Command>
     </PostBuildEvent>
     <PostBuildEvent>
-      <Message>Copying dbghelp.dll into place</Message>
+      <Message>Copying dbghelp.dll and gumpp.dll into place</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -210,6 +214,12 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="core\memoryaccessmonitor.c" />
+    <ClCompile Include="gumpp\backtracer.cxx">
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)gumpp\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)gumpp\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(IntDir)gumpp\</ObjectFileName>
+      <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(IntDir)gumpp\</ObjectFileName>
+    </ClCompile>
     <ClCompile Include="heap\allocationtracker-fixture.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -312,6 +322,14 @@
     <ClCompile Include="testutil.c" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\bindings\gumpp\gumpp.vcxproj">
+      <Project>{bb098fcf-d570-43ff-bb10-985189b2e1ab}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+      <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
+    </ProjectReference>
     <ProjectReference Include="..\gum-32.vcxproj">
       <Project>{b31c7d42-54b6-49bb-b30c-11745c48b062}</Project>
       <Private>false</Private>

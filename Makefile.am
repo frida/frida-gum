@@ -7,9 +7,12 @@ SUBDIRS = \
 	tests \
 	vapi
 
+if OS_ANDROID
+else
 if OS_IOS
 else
 SUBDIRS += bindings
+endif
 endif
 
 pcfiles = \

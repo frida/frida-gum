@@ -66,6 +66,11 @@ namespace Gum
       return gum_invocation_context_get_replacement_function_data (context);
     }
 
+    virtual CpuContext * get_cpu_context () const
+    {
+      return reinterpret_cast<CpuContext *> (context->cpu_context);
+    }
+
   private:
     GumInvocationContext * context;
     InvocationContextImpl * parent;
