@@ -50,6 +50,7 @@ public:
     backtracer->generate (context->get_cpu_context (), return_addresses);
     g_assert_cmpuint (return_addresses.len, >=, 1);
 
+#ifndef HAVE_DARWIN
     Gum::ReturnAddress first_address = return_addresses.items[0];
     Gum::ReturnAddressDetails rad;
     g_assert (Gum::ReturnAddressDetails_from_address (first_address, rad));
@@ -57,6 +58,7 @@ public:
     gchar * file_basename = g_path_get_basename (rad.file_name);
     g_assert_cmpstr (file_basename, ==, "backtracer.cxx");
     g_free (file_basename);
+#endif
   }
 
   virtual void on_leave (Gum::InvocationContext * context)
