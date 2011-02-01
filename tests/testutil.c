@@ -301,6 +301,12 @@ test_util_get_data_dir (void)
       gchar * exe_dir, * result;
 
       exe_dir = g_path_get_dirname (image_path);
+      if (g_str_has_suffix (exe_dir, "/.libs"))
+      {
+        gchar * tmp = g_path_get_dirname (exe_dir);
+        g_free (exe_dir);
+        exe_dir = tmp;
+      }
       result = g_build_filename (exe_dir, "data", NULL);
       g_free (exe_dir);
 
