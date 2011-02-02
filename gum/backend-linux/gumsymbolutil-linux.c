@@ -26,8 +26,30 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 void
+gum_process_enumerate_ranges (GumPageProtection prot,
+                              GumFoundRangeFunc func,
+                              gpointer user_data)
+{
+}
+
+void
 gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
+}
+
+void
+gum_module_enumerate_ranges (const gchar * module_name,
+                             GumPageProtection prot,
+                             GumFoundRangeFunc func,
+                             gpointer user_data)
+{
+}
+
+gpointer
+gum_module_find_export_by_name (const gchar * module_name,
+                                const gchar * export_name)
+{
+  return NULL;
 }
