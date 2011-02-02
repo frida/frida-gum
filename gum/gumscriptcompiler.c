@@ -188,6 +188,7 @@ gum_script_compiler_destroy (GumScriptCompiler * self)
   gum_mprotect (self->code->start, gum_query_page_size (), GUM_PAGE_RX);
   self->code->size =
       gum_script_compiler_backend_current_offset (self->backend);
+  gum_clear_cache (self->code->start, self->code->size);
   self->script->priv->code = self->code;
 
   gum_script_compiler_backend_free (self->backend);

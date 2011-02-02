@@ -285,10 +285,10 @@ _gum_function_context_deactivate_trampoline (FunctionContext * ctx)
 static void
 gum_function_context_clear_cache (FunctionContext * ctx)
 {
-  guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
-
-  __clear_cache (function_address, function_address +
+  gum_clear_cache (FUNCTION_CONTEXT_ADDRESS (ctx),
       ctx->overwritten_prologue_len);
+  gum_clear_cache (ctx->trampoline_slice->data,
+      ctx->trampoline_slice->size);
 }
 
 gpointer
