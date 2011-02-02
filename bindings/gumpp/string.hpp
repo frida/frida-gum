@@ -5,6 +5,8 @@
 
 #include "podwrapper.hpp"
 
+#include <cstring>
+
 namespace Gum
 {
   class StringImpl : public PodWrapper<StringImpl, String, gchar>
