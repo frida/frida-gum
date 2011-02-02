@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -216,6 +216,13 @@ gum_mprotect (gpointer address,
 
   /* FIXME: is __clear_cache() a nop? */
   g_usleep (G_USEC_PER_SEC / 1000);
+}
+
+void
+gum_clear_cache (gpointer address,
+                 guint size)
+{
+  /* FIXME */
 }
 
 guint
