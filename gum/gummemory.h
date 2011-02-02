@@ -76,6 +76,8 @@ void gum_match_pattern_free (GumMatchPattern * pattern);
 
 void gum_mprotect (gpointer address, guint size, GumPageProtection page_prot);
 
+void gum_clear_cache (gpointer address, guint size);
+
 #define gum_new(struct_type, n_structs) \
     ((struct_type *) gum_malloc (n_structs * sizeof (struct_type)))
 #define gum_new0(struct_type, n_structs) \
