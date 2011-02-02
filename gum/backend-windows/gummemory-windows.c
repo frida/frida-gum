@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2008-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  * Copyright (C) 2008 Christian Berentsen <christian.berentsen@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -166,6 +166,13 @@ gum_mprotect (gpointer address,
   win_page_prot = gum_page_protection_to_windows (page_prot);
   success = VirtualProtect (address, size, win_page_prot, &old_protect);
   g_assert (success);
+}
+
+void
+gum_clear_cache (gpointer address,
+                 guint size)
+{
+  FlushInstructionCache (GetCurrentProcess (), address, size);
 }
 
 guint
