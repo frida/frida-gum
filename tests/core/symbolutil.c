@@ -26,12 +26,10 @@
     TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
 TEST_LIST_BEGIN (symbolutil)
-#ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (process_modules)
   SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges)
-#endif
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
@@ -57,21 +55,17 @@ typedef struct _TestForEachContext {
   guint number_of_calls;
 } TestForEachContext;
 
-#ifndef HAVE_LINUX
 static gboolean module_found_cb (const gchar * name, gpointer address,
     const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
-#endif
 
 #ifdef HAVE_SYMBOL_BACKEND
 static void GUM_CDECL gum_dummy_function_0 (void);
 static void GUM_STDCALL gum_dummy_function_1 (void);
 #endif
-
-#ifndef HAVE_LINUX
 
 SYMUTIL_TESTCASE (process_modules)
 {
@@ -171,8 +165,6 @@ range_found_cb (const GumMemoryRange * range,
 
   return ctx->value_to_return;
 }
-
-#endif
 
 #ifdef HAVE_SYMBOL_BACKEND
 

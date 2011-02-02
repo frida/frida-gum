@@ -19,10 +19,58 @@
 
 #include "gumsymbolutil.h"
 
+#include <stdio.h>
+#include <string.h>
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
+  FILE * fp;
+  guint line_size;
+  gchar * line, * path, * prev_path;
+  gboolean carry_on = TRUE;
+
+  fp = fopen ("/proc/self/maps", "r");
+  g_assert (fp != NULL);
+
+  line_size = 1024 + PATH_MAX;
+  line = g_malloc (line_size);
+
+  path = g_malloc (PATH_MAX);
+  prev_path = g_malloc (PATH_MAX);
+  prev_path[0] = '\0';
+
+  while (carry_on && fgets (line, line_size, fp) != NULL)
+  {
+    const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
+    guint8 * start;
+    gint n;
+    gchar * name;
+
+    n = sscanf (line, "%p-%*p %*s %*x %*s %*s %s", &start, path);
+    if (n == 1)
+      continue;
+    g_assert_cmpint (n, ==, 2);
+
+    if (strcmp (path, prev_path) == 0 || path[0] == '[')
+      continue;
+    else if (memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
+      continue;
+
+    name = g_path_get_basename (path);
+    carry_on = func (name, start, path, user_data);
+    g_free (name);
+
+    strcpy (prev_path, path);
+  }
+
+  g_free (path);
+  g_free (prev_path);
+
+  g_free (line);
+
+  fclose (fp);
 }
 
 void
