@@ -113,8 +113,11 @@ backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
 endif
 
+if OS_ANDROID
+else
 backend_sources += backend-gcc/gumgccbacktracer.c
 guminclude_HEADERS += backend-gcc/gumgccbacktracer.h
+endif
 
 container_sources = \
 	gumarray.c \
