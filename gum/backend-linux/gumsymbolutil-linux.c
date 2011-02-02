@@ -22,19 +22,20 @@
 #include <stdio.h>
 #include <string.h>
 
+#define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
   FILE * fp;
-  guint line_size;
+  const guint line_size = GUM_MAPS_LINE_SIZE;
   gchar * line, * path, * prev_path;
   gboolean carry_on = TRUE;
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
 
-  line_size = 1024 + PATH_MAX;
   line = g_malloc (line_size);
 
   path = g_malloc (PATH_MAX);
@@ -78,6 +79,47 @@ gum_process_enumerate_ranges (GumPageProtection prot,
                               GumFoundRangeFunc func,
                               gpointer user_data)
 {
+  FILE * fp;
+  const guint line_size = GUM_MAPS_LINE_SIZE;
+  gchar * line;
+  gboolean carry_on = TRUE;
+
+  fp = fopen ("/proc/self/maps", "r");
+  g_assert (fp != NULL);
+
+  line = g_malloc (line_size);
+
+  while (carry_on && fgets (line, line_size, fp) != NULL)
+  {
+    guint8 * start, * end;
+    gchar perms[4 + 1] = { 0, };
+    gint n;
+    GumPageProtection cur_prot = GUM_PAGE_NO_ACCESS;
+
+    n = sscanf (line, "%p-%p %4s", &start, &end, perms);
+    g_assert_cmpint (n, ==, 3);
+
+    if (perms[0] == 'r')
+      cur_prot |= GUM_PAGE_READ;
+    if (perms[1] == 'w')
+      cur_prot |= GUM_PAGE_WRITE;
+    if (perms[2] == 'x')
+      cur_prot |= GUM_PAGE_EXECUTE;
+
+    if ((cur_prot & prot) == prot)
+    {
+      GumMemoryRange range;
+
+      range.base_address = start;
+      range.size = end - start;
+
+      carry_on = func (&range, cur_prot, user_data);
+    }
+  }
+
+  g_free (line);
+
+  fclose (fp);
 }
 
 void
