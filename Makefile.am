@@ -35,7 +35,7 @@ check: push
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
-	adb push "${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-4.4.3/prebuilt/gdbserver" "${RPFX}/tests/"
+	adb push "${ANDROID_TOOLCHAIN_ROOT}/prebuilt/gdbserver" "${RPFX}/tests/"
 	adb shell "${RPFX}/tests/gdbserver +${RPFX}/tests/debug-socket ${RPFX}/tests/gum-tests" &
 	sleep 1
 	adb forward tcp:${DEBUG_PORT} localfilesystem:${RPFX}/tests/debug-socket
@@ -49,8 +49,8 @@ pull:
 	adb pull /system/lib/libz.so "$(top_builddir)/tests"
 
 $(top_builddir)/tests/android-gdb.setup: $(top_builddir)/tests/gum-tests
-	echo "set solib-search-path $(abs_top_builddir)/tests:$(abs_top_srcdir)/tests/data:${ANDROID_NDK_ROOT}/platforms/android-8/arch-arm/usr/lib" > $@
-	echo "directory ${ANDROID_NDK_ROOT}/platforms/android-8/arch-arm/usr/include" >> $@
+	echo "set solib-search-path $(abs_top_builddir)/tests:$(abs_top_srcdir)/tests/data:${ANDROID_SYSROOT}/usr/lib" > $@
+	echo "directory ${ANDROID_SYSROOT}/usr/include" >> $@
 	echo "directory $(abs_top_srcdir)/gum" >> $@
 	echo "file $(abs_top_builddir)/tests/gum-tests" >> $@
 	echo "target remote :${DEBUG_PORT}" >> $@
