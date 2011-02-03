@@ -46,7 +46,7 @@ TEST_LIST_END ()
 # ifdef HAVE_DARWIN
 #  define SYSTEM_MODULE_NAME "libSystem.B.dylib"
 # else
-# define SYSTEM_MODULE_NAME "libc.so.6"
+# define SYSTEM_MODULE_NAME "libc-2.12.1.so"
 # endif
 #endif
 

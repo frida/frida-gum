@@ -19,10 +19,42 @@
 
 #include "gumsymbolutil.h"
 
+#include <elf.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+
+#if GLIB_SIZEOF_VOID_P == 4
+typedef Elf32_Ehdr GumElfEHeader;
+typedef Elf32_Shdr GumElfSHeader;
+typedef Elf32_Sym GumElfSymbol;
+# define GUM_ELF_ST_BIND(val) ELF32_ST_BIND(val)
+# define GUM_ELF_ST_TYPE(val) ELF32_ST_TYPE(val)
+#else
+typedef Elf64_Ehdr GumElfEHeader;
+typedef Elf64_Shdr GumElfSHeader;
+typedef Elf64_Sym GumElfSymbol;
+# define GUM_ELF_ST_BIND(val) ELF64_ST_BIND(val)
+# define GUM_ELF_ST_TYPE(val) ELF64_ST_TYPE(val)
+#endif
 
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
+
+typedef struct _GumFindModuleContext GumFindModuleContext;
+
+struct _GumFindModuleContext
+{
+  const gchar * module_name;
+  gpointer base;
+  gchar * path;
+};
+
+static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
+    gpointer address, const gchar * path, gpointer user_data);
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
@@ -127,6 +159,87 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
+  GumFindModuleContext ctx = { module_name, NULL, NULL };
+  gint fd = -1;
+  gsize file_size;
+  gpointer base_address = NULL;
+  GumElfEHeader * ehdr;
+  guint i;
+  gsize dynsym_section_offset = 0, dynsym_section_size = 0;
+  gsize dynsym_entry_size = 0;
+  const gchar * dynsym_strtab = NULL;
+
+  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches,
+      &ctx);
+  if (ctx.base == NULL)
+    goto beach;
+
+  fd = open (ctx.path, O_RDONLY);
+  if (fd == -1)
+    goto beach;
+
+  file_size = lseek (fd, 0, SEEK_END);
+  lseek (fd, 0, SEEK_SET);
+
+  base_address = mmap (NULL, file_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  g_assert (base_address != MAP_FAILED);
+
+  ehdr = base_address;
+  if (ehdr->e_type != ET_DYN)
+    goto beach;
+
+  for (i = 0; i != ehdr->e_shnum; i++)
+  {
+    GumElfSHeader * shdr;
+
+    shdr = base_address + ehdr->e_shoff + (i * ehdr->e_shentsize);
+    if (shdr->sh_type == SHT_DYNSYM)
+    {
+      GumElfSHeader * strtab_shdr;
+
+      dynsym_section_offset = shdr->sh_offset;
+      dynsym_section_size = shdr->sh_size;
+      dynsym_entry_size = shdr->sh_entsize;
+
+      strtab_shdr = base_address + ehdr->e_shoff +
+          (shdr->sh_link * ehdr->e_shentsize);
+      dynsym_strtab = base_address + strtab_shdr->sh_offset;
+
+      g_assert_cmpuint (dynsym_section_size % dynsym_entry_size, ==, 0);
+    }
+  }
+
+  if (dynsym_section_offset == 0)
+    goto beach;
+
+  for (i = 0; i != dynsym_section_size / dynsym_entry_size; i++)
+  {
+    GumElfSymbol * sym;
+
+    sym = base_address + dynsym_section_offset + (i * dynsym_entry_size);
+    if (GUM_ELF_ST_BIND (sym->st_info) == STB_GLOBAL &&
+        GUM_ELF_ST_TYPE (sym->st_info) == STT_FUNC &&
+        sym->st_shndx != SHN_UNDEF)
+    {
+      const gchar * name;
+      gpointer address;
+
+      name = dynsym_strtab + sym->st_name;
+      address = ctx.base + sym->st_value;
+
+      if (!func (name, address, user_data))
+        goto beach;
+    }
+  }
+
+beach:
+  if (base_address != NULL)
+    munmap (base_address, file_size);
+
+  if (fd != -1)
+    close (fd);
+
+  g_free (ctx.path);
 }
 
 void
@@ -142,4 +255,20 @@ gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * export_name)
 {
   return NULL;
+}
+
+static gboolean
+gum_store_base_and_path_if_name_matches (const gchar * name,
+                                         gpointer address,
+                                         const gchar * path,
+                                         gpointer user_data)
+{
+  GumFindModuleContext * ctx = user_data;
+
+  if (strcmp (name, ctx->module_name) != 0)
+    return TRUE;
+
+  ctx->base = address;
+  ctx->path = g_strdup (path);
+  return FALSE;
 }
