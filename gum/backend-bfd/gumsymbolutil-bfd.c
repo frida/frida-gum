@@ -72,8 +72,11 @@ _gum_symbol_util_init (void)
 void
 _gum_symbol_util_deinit (void)
 {
-  g_hash_table_unref (function_address_by_name_ht);
-  function_address_by_name_ht = NULL;
+  if (function_address_by_name_ht != NULL)
+  {
+    g_hash_table_unref (function_address_by_name_ht);
+    function_address_by_name_ht = NULL;
+  }
 }
 
 gboolean
