@@ -44,7 +44,16 @@ namespace Gum
     }
   };
 
-  extern "C" Sampler * BusyCycleSampler_new () { gum_init (); return new SamplerImpl (gum_busy_cycle_sampler_new ()); }
+  extern "C" Sampler * BusyCycleSampler_new ()
+  {
+    gum_init ();
+
+#ifndef HAVE_LINUX
+    return new SamplerImpl (gum_busy_cycle_sampler_new ());
+#else
+    return NULL;
+#endif
+  }
   extern "C" Sampler * CycleSampler_new () { gum_init (); return new SamplerImpl (gum_cycle_sampler_new ()); }
   extern "C" Sampler * MallocCountSampler_new () { gum_init (); return new SamplerImpl (gum_malloc_count_sampler_new ()); }
   extern "C" Sampler * WallClockSampler_new () { gum_init (); return new SamplerImpl (gum_wallclock_sampler_new ()); }
