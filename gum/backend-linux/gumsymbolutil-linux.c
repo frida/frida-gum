@@ -56,6 +56,9 @@ struct _GumFindModuleContext
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
     gpointer address, const gchar * path, gpointer user_data);
 
+static GumPageProtection gum_page_protection_from_proc_perms_string (
+    const gchar * perms);
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
@@ -126,17 +129,12 @@ gum_process_enumerate_ranges (GumPageProtection prot,
     guint8 * start, * end;
     gchar perms[4 + 1] = { 0, };
     gint n;
-    GumPageProtection cur_prot = GUM_PAGE_NO_ACCESS;
+    GumPageProtection cur_prot;
 
     n = sscanf (line, "%p-%p %4s", &start, &end, perms);
     g_assert_cmpint (n, ==, 3);
 
-    if (perms[0] == 'r')
-      cur_prot |= GUM_PAGE_READ;
-    if (perms[1] == 'w')
-      cur_prot |= GUM_PAGE_WRITE;
-    if (perms[2] == 'x')
-      cur_prot |= GUM_PAGE_EXECUTE;
+    cur_prot = gum_page_protection_from_proc_perms_string (perms);
 
     if ((cur_prot & prot) == prot)
     {
@@ -248,6 +246,56 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
+  FILE * fp;
+  const guint line_size = GUM_MAPS_LINE_SIZE;
+  gchar * line, * path;
+  gboolean carry_on = TRUE;
+
+  fp = fopen ("/proc/self/maps", "r");
+  g_assert (fp != NULL);
+
+  line = g_malloc (line_size);
+  path = g_malloc (PATH_MAX);
+
+  while (carry_on && fgets (line, line_size, fp) != NULL)
+  {
+    guint8 * start, * end;
+    gchar perms[4 + 1] = { 0, };
+    gint n;
+    gchar * name;
+
+    n = sscanf (line, "%p-%p %4s %*x %*s %*s %s", &start, &end, perms, path);
+    if (n == 3)
+      continue;
+    g_assert_cmpint (n, ==, 4);
+
+    if (path[0] == '[')
+      continue;
+
+    name = g_path_get_basename (path);
+    if (strcmp (name, module_name) == 0)
+    {
+      GumPageProtection cur_prot;
+
+      cur_prot = gum_page_protection_from_proc_perms_string (perms);
+
+      if ((cur_prot & prot) == prot)
+      {
+        GumMemoryRange range;
+
+        range.base_address = start;
+        range.size = end - start;
+
+        carry_on = func (&range, cur_prot, user_data);
+      }
+    }
+    g_free (name);
+  }
+
+  g_free (path);
+  g_free (line);
+
+  fclose (fp);
 }
 
 gpointer
@@ -271,4 +319,19 @@ gum_store_base_and_path_if_name_matches (const gchar * name,
   ctx->base = address;
   ctx->path = g_strdup (path);
   return FALSE;
+}
+
+static GumPageProtection
+gum_page_protection_from_proc_perms_string (const gchar * perms)
+{
+  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
+
+  if (perms[0] == 'r')
+    prot |= GUM_PAGE_READ;
+  if (perms[1] == 'w')
+    prot |= GUM_PAGE_WRITE;
+  if (perms[2] == 'x')
+    prot |= GUM_PAGE_EXECUTE;
+
+  return prot;
 }
