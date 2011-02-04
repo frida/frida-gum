@@ -68,6 +68,8 @@ void gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self, GumArmReg dst_
 void gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg left_reg, gssize right_value);
 
 void gum_thumb_writer_put_nop (GumThumbWriter * self);
+void gum_thumb_writer_put_bkpt_imm (GumThumbWriter * self, guint8 imm);
+void gum_thumb_writer_put_breakpoint (GumThumbWriter * self);
 
 void gum_thumb_writer_put_bytes (GumThumbWriter * self, const guint8 * data, guint n);
 

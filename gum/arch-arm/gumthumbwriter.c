@@ -469,6 +469,20 @@ gum_thumb_writer_put_nop (GumThumbWriter * self)
 }
 
 void
+gum_thumb_writer_put_bkpt_imm (GumThumbWriter * self,
+                               guint8 imm)
+{
+  gum_thumb_writer_put_instruction (self, 0xbe00 | imm);
+}
+
+void
+gum_thumb_writer_put_breakpoint (GumThumbWriter * self)
+{
+  gum_thumb_writer_put_bkpt_imm (self, 0);
+  gum_thumb_writer_put_bx_reg (self, GUM_AREG_LR);
+}
+
+void
 gum_thumb_writer_put_bytes (GumThumbWriter * self,
                             const guint8 * data,
                             guint n)
