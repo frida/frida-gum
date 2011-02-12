@@ -1107,7 +1107,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
       gum_x86_writer_put_jcc_short_label (cw,
           gum_jcc_opcode_negate (gum_jcc_insn_to_short_opcode (insn->begin)),
-          cond_false_lbl_id);
+          cond_false_lbl_id, GUM_NO_HINT);
     }
 
     gum_exec_block_write_jmp_transfer_code (block, &target, cw);

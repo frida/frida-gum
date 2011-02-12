@@ -74,15 +74,6 @@ gum_jcc_insn_to_short_opcode (guint8 * code)
 }
 
 guint8
-gum_jcc_insn_to_near_opcode (guint8 * code)
-{
-  if (code[0] == 0x0f)
-    return code[1];
-  else
-    return code[0] + 0x10;
-}
-
-guint8
 gum_jcc_opcode_negate (guint8 opcode)
 {
   if (opcode % 2 == 0)

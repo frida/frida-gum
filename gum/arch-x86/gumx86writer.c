@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -607,34 +607,6 @@ gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
 }
 
 void
-gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
-                                    guint8 opcode,
-                                    gconstpointer label_id)
-{
-  self->code[0] = opcode;
-  *((gint8 *) (self->code + 1)) = (gint8) -2;
-  self->code += 2;
-
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
-}
-
-void
-gum_x86_writer_put_jcc_near (GumX86Writer * self,
-                             guint8 opcode,
-                             gconstpointer target)
-{
-  gint64 distance;
-
-  distance = (gssize) target - (gssize) (self->code + 6);
-  g_assert (IS_WITHIN_INT32_RANGE (distance));
-
-  self->code[0] = 0x0f;
-  self->code[1] = opcode;
-  *((gint32 *) (self->code + 2)) = distance;
-  self->code += 6;
-}
-
-void
 gum_x86_writer_put_jmp_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
@@ -678,56 +650,88 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 }
 
 void
-gum_x86_writer_put_jz (GumX86Writer * self,
-                       gconstpointer target,
-                       GumBranchHint hint)
+gum_x86_writer_put_jcc (GumX86Writer * self,
+                        guint8 opcode,
+                        gconstpointer target,
+                        GumBranchHint hint)
 {
-  gint32 distance;
+  gsize short_instruction_size = 2, near_instruction_size = 6;
+  gint64 distance;
 
-  distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 3);
+  if (hint != GUM_NO_HINT)
+  {
+    short_instruction_size++;
+    near_instruction_size++;
+  }
 
-  g_assert (IS_WITHIN_INT8_RANGE (distance)); /* for now */
+  distance = (gssize) target - (gssize) (self->code + short_instruction_size);
+
+  if (IS_WITHIN_INT8_RANGE (distance))
+  {
+    gum_x86_writer_put_jcc_short (self, opcode, target, hint);
+  }
+  else
+  {
+    distance = (gssize) target - (gssize) (self->code + near_instruction_size);
+    g_assert (IS_WITHIN_INT32_RANGE (distance));
+
+    gum_x86_writer_put_jcc_near (self, opcode, target, hint);
+  }
+}
+
+void
+gum_x86_writer_put_jcc_short (GumX86Writer * self,
+                              guint8 opcode,
+                              gconstpointer target,
+                              GumBranchHint hint)
+{
+  gssize distance;
 
   if (hint != GUM_NO_HINT)
     *self->code++ = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
-  self->code[0] = 0x74;
-  self->code[1] = distance;
+  self->code[0] = opcode;
+  distance = (gssize) target - (gssize) (self->code + 2);
+  g_assert (IS_WITHIN_INT8_RANGE (distance));
+  *((gint8 *) (self->code + 1)) = distance;
   self->code += 2;
 }
 
 void
-gum_x86_writer_put_jz_label (GumX86Writer * self,
-                             gconstpointer label_id,
+gum_x86_writer_put_jcc_near (GumX86Writer * self,
+                             guint8 opcode,
+                             gconstpointer target,
                              GumBranchHint hint)
 {
-  gum_x86_writer_put_jz (self, self->code, hint);
+  gssize distance;
+
+  if (hint != GUM_NO_HINT)
+    *self->code++ = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
+  self->code[0] = 0x0f;
+  self->code[1] = 0x10 + opcode;
+  distance = (gssize) target - (gssize) (self->code + 6);
+  g_assert (IS_WITHIN_INT32_RANGE (distance));
+  *((gint32 *) (self->code + 2)) = distance;
+  self->code += 6;
+}
+
+void
+gum_x86_writer_put_jcc_short_label (GumX86Writer * self,
+                                    guint8 opcode,
+                                    gconstpointer label_id,
+                                    GumBranchHint hint)
+{
+  gum_x86_writer_put_jcc_short (self, opcode, self->code, hint);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
 }
 
 void
-gum_x86_writer_put_jle (GumX86Writer * self,
-                        gconstpointer target,
-                        GumBranchHint hint)
+gum_x86_writer_put_jcc_near_label (GumX86Writer * self,
+                                   guint8 opcode,
+                                   gconstpointer label_id,
+                                   GumBranchHint hint)
 {
-  gint32 distance;
-
-  distance = GPOINTER_TO_SIZE (target) - GPOINTER_TO_SIZE (self->code + 3);
-
-  g_assert (IS_WITHIN_INT8_RANGE (distance)); /* for now */
-
-  self->code[0] = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
-  self->code[1] = 0x7e;
-  self->code[2] = distance;
-  self->code += 3;
-}
-
-void
-gum_x86_writer_put_jle_label (GumX86Writer * self,
-                              gconstpointer label_id,
-                              GumBranchHint hint)
-{
-  gum_x86_writer_put_jle (self, self->code, hint);
-  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
+  gum_x86_writer_put_jcc_near (self, opcode, self->code, hint);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
 static void

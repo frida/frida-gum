@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -128,6 +128,24 @@ enum _GumPtrTarget
   GUM_PTR_QWORD
 };
 
+enum _GumX86JumpOpcode
+{
+  GUM_X86_JZ  = 0x74,
+  GUM_X86_JNZ = 0x75,
+
+  /* unsigned */
+  GUM_X86_JB  = 0x72,
+  GUM_X86_JAE = 0x73,
+  GUM_X86_JBE = 0x76,
+  GUM_X86_JA  = 0x77,
+
+  /* signed */
+  GUM_X86_JL  = 0x7c,
+  GUM_X86_JGE = 0x7d,
+  GUM_X86_JLE = 0x7e,
+  GUM_X86_JG  = 0x7f,
+};
+
 enum _GumBranchHint
 {
   GUM_NO_HINT,
@@ -163,14 +181,13 @@ void gum_x86_writer_put_call_near_label (GumX86Writer * self, gconstpointer labe
 void gum_x86_writer_put_ret (GumX86Writer * self);
 void gum_x86_writer_put_jmp (GumX86Writer * self, gconstpointer target);
 void gum_x86_writer_put_jmp_short_label (GumX86Writer * self, gconstpointer label_id);
-void gum_x86_writer_put_jcc_short_label (GumX86Writer * self, guint8 opcode, gconstpointer label_id);
-void gum_x86_writer_put_jcc_near (GumX86Writer * self, guint8 opcode, gconstpointer target);
 void gum_x86_writer_put_jmp_reg (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self, GumCpuReg reg);
-void gum_x86_writer_put_jz (GumX86Writer * self, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jz_label (GumX86Writer * self, gconstpointer label_id, GumBranchHint hint);
-void gum_x86_writer_put_jle (GumX86Writer * self, gconstpointer target, GumBranchHint hint);
-void gum_x86_writer_put_jle_label (GumX86Writer * self, gconstpointer label_id, GumBranchHint hint);
+void gum_x86_writer_put_jcc (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
+void gum_x86_writer_put_jcc_short (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
+void gum_x86_writer_put_jcc_near (GumX86Writer * self, guint8 opcode, gconstpointer target, GumBranchHint hint);
+void gum_x86_writer_put_jcc_short_label (GumX86Writer * self, guint8 opcode, gconstpointer label_id, GumBranchHint hint);
+void gum_x86_writer_put_jcc_near_label (GumX86Writer * self, guint8 opcode, gconstpointer label_id, GumBranchHint hint);
 
 void gum_x86_writer_put_add_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
 void gum_x86_writer_put_add_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);

@@ -104,8 +104,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
     gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_enter);
 
   gum_x86_writer_put_test_reg_reg (&cw, GUM_REG_EAX, GUM_REG_EAX);
-  gum_x86_writer_put_jz_label (&cw, dont_increment_usage_counter_label,
-      GUM_UNLIKELY);
+  gum_x86_writer_put_jcc_short_label (&cw, GUM_X86_JZ,
+      dont_increment_usage_counter_label, GUM_UNLIKELY);
   gum_x86_writer_put_lock_inc_imm32_ptr (&cw,
       (gpointer) ctx->trampoline_usage_counter);
   gum_x86_writer_put_label (&cw, dont_increment_usage_counter_label);
@@ -243,7 +243,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDI);
   gum_x86_writer_put_test_reg_reg (&cw, GUM_REG_EAX, GUM_REG_EAX);
-  gum_x86_writer_put_jz_label (&cw, skip_label, GUM_NO_HINT);
+  gum_x86_writer_put_jcc_short_label (&cw, GUM_X86_JZ, skip_label,
+      GUM_NO_HINT);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
   gum_x86_writer_put_popax (&cw);
 
@@ -437,7 +438,8 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
   {
     gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EBP,
         GUM_INTERCEPTOR_GUARD_MAGIC);
-    gum_x86_writer_put_jz_label (cw, skip_label, GUM_UNLIKELY);
+    gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ, skip_label,
+        GUM_UNLIKELY);
   }
 
   gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,

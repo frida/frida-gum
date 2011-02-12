@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2011 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tandberg.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -70,15 +70,19 @@ CODEWRITER_TESTCASE (jump_label)
 {
   const guint8 expected_code[] = {
   /* start: */
-    0x81, 0xf9, 0x39, 0x05, 0x00, 0x00, /* cmp ecx, 1337        */
-    0x2e, 0x74, 0x05,                   /* hnt je handle_error  */
-    0x2e, 0x7e, 0x02,                   /* hnt jle handle_error */
-    0xeb, 0x01,                         /* jmp beach            */
+    0x81, 0xf9, 0x39, 0x05, 0x00, 0x00, /* cmp ecx, 1337              */
+    0x2e, 0x74, 0x13,                   /* hnt je short handle_error  */
+    0x2e, 0x7e, 0x10,                   /* hnt jle short handle_error */
+    0x3e, 0x0f, 0x84,                   /* ht je near handle_error    */
+          0x09, 0x00, 0x00, 0x00,
+    0x2e, 0x0f, 0x8e,                   /* hnt jle near handle_error  */
+          0x02, 0x00, 0x00, 0x00,
+    0xeb, 0x01,                         /* jmp beach                  */
   /* handle_error: */
-    0xcc,                               /* int 3                */
+    0xcc,                               /* int 3                      */
   /* beach: */
-    0x90,                               /* nop                  */
-    0xeb, 0xee                          /* jmp start            */
+    0x90,                               /* nop                        */
+    0xeb, 0xe0                          /* jmp start                  */
   };
   const gchar * start_lbl = "start";
   const gchar * handle_error_lbl = "handle_error";
@@ -86,8 +90,14 @@ CODEWRITER_TESTCASE (jump_label)
 
   gum_x86_writer_put_label (&fixture->cw, start_lbl);
   gum_x86_writer_put_cmp_reg_i32 (&fixture->cw, GUM_REG_ECX, 1337);
-  gum_x86_writer_put_jz_label (&fixture->cw, handle_error_lbl, GUM_UNLIKELY);
-  gum_x86_writer_put_jle_label (&fixture->cw, handle_error_lbl, GUM_UNLIKELY);
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, GUM_X86_JZ,
+      handle_error_lbl, GUM_UNLIKELY);
+  gum_x86_writer_put_jcc_short_label (&fixture->cw, GUM_X86_JLE,
+      handle_error_lbl, GUM_UNLIKELY);
+  gum_x86_writer_put_jcc_near_label (&fixture->cw, GUM_X86_JZ,
+      handle_error_lbl, GUM_LIKELY);
+  gum_x86_writer_put_jcc_near_label (&fixture->cw, GUM_X86_JLE,
+      handle_error_lbl, GUM_UNLIKELY);
   gum_x86_writer_put_jmp_short_label (&fixture->cw, beach_lbl);
 
   gum_x86_writer_put_label (&fixture->cw, handle_error_lbl);

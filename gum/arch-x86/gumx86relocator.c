@@ -429,12 +429,12 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     if (target >= self->input_start && target < self->input_cur)
     {
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, ctx->start[0],
-          GUINT_TO_POINTER (target));
+          GUINT_TO_POINTER (target), GUM_NO_HINT);
     }
     else
     {
       gum_x86_writer_put_jcc_near (ctx->code_writer,
-          gum_jcc_insn_to_near_opcode (ctx->start), target);
+          gum_jcc_insn_to_short_opcode (ctx->start), target, GUM_NO_HINT);
     }
   }
   else
