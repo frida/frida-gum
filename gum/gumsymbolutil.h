@@ -59,8 +59,9 @@ GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
+GUM_API gpointer gum_module_find_base_address (const gchar * module_name);
 GUM_API gpointer gum_module_find_export_by_name (const gchar * module_name,
-    const gchar * export_name);
+    const gchar * symbol_name);
 
 G_END_DECLS
 

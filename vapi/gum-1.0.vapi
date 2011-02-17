@@ -118,7 +118,8 @@ namespace Gum {
 	namespace Module {
 		public void enumerate_exports (string module_name, Gum.Module.FoundExportFunc func);
 		public void enumerate_ranges (string module_name, Gum.PageProtection prot, Gum.FoundRangeFunc func);
-		public void * find_export_by_name (string module_name, string function_name);
+		public void * find_base_address (string module_name);
+		public void * find_export_by_name (string module_name, string symbol_name);
 
 		public delegate bool FoundExportFunc (string name, void * address);
 	}

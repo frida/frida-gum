@@ -432,8 +432,14 @@ gum_module_enumerate_ranges (const gchar * module_name,
 }
 
 gpointer
+gum_module_find_base_address (const gchar * module_name)
+{
+  return NULL;
+}
+
+gpointer
 gum_module_find_export_by_name (const gchar * module_name,
-                                const gchar * export_name)
+                                const gchar * symbol_name)
 {
   return NULL;
 }

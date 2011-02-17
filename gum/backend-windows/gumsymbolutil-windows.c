@@ -224,8 +224,14 @@ gum_module_enumerate_ranges (const gchar * module_name,
 }
 
 gpointer
+gum_module_find_base_address (const gchar * module_name)
+{
+  return get_module_handle_utf8 (module_name);
+}
+
+gpointer
 gum_module_find_export_by_name (const gchar * module_name,
-                                const gchar * export_name)
+                                const gchar * symbol_name)
 {
   HMODULE module;
 
@@ -233,7 +239,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   if (module == NULL)
     return NULL;
 
-  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, export_name));
+  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, symbol_name));
 }
 
 static HMODULE

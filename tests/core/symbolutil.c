@@ -30,6 +30,8 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges)
+  SYMUTIL_TESTENTRY (module_base)
+  SYMUTIL_TESTENTRY (module_export)
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
@@ -48,6 +50,11 @@ TEST_LIST_END ()
 # define SYSTEM_MODULE_NAME "libc.so"
 #else
 # define SYSTEM_MODULE_NAME "libc-2.12.1.so"
+#endif
+#if defined (G_OS_WIN32)
+# define SYSTEM_MODULE_EXPORT "Sleep"
+#else
+# define SYSTEM_MODULE_EXPORT "sendto"
 #endif
 
 typedef struct _TestForEachContext {
@@ -127,6 +134,17 @@ SYMUTIL_TESTCASE (module_ranges)
   gum_module_enumerate_ranges (SYSTEM_MODULE_NAME, GUM_PAGE_READ,
       range_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+SYMUTIL_TESTCASE (module_base)
+{
+  g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != NULL);
+}
+
+SYMUTIL_TESTCASE (module_export)
+{
+  g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
+      SYSTEM_MODULE_EXPORT) != NULL);
 }
 
 static gboolean
