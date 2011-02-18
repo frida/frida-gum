@@ -30,14 +30,9 @@ typedef struct _GumClosure GumClosure;
 typedef void (* GumClosureTarget) (void);
 #define GUM_CLOSURE_TARGET(f) ((GumClosureTarget) f)
 
-struct _GumClosure
-{
-  gpointer opaque[32];
-};
-
-GUM_API void gum_closure_init (GumClosure * closure, GumCallingConvention conv,
+GUM_API GumClosure * gum_closure_new (GumCallingConvention conv,
     GumClosureTarget target, GVariant * args);
-GUM_API void gum_closure_destroy (GumClosure * closure);
+GUM_API void gum_closure_free (GumClosure * closure);
 
 GUM_API void gum_closure_invoke (GumClosure * closure);
 

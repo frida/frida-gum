@@ -24,24 +24,19 @@
 
 #include <string.h>
 
-typedef struct _GumClosureImpl GumClosureImpl;
-
-#define GUM_CLOSURE_IMPL(c) ((GumClosureImpl *) c)
-
-struct _GumClosureImpl
+struct _GumClosure
 {
   GVariant * args;
   gpointer code;
   GCallback entrypoint;
 };
 
-void
-gum_closure_init (GumClosure * closure,
-                  GumCallingConvention conv,
-                  GumClosureTarget target,
-                  GVariant * args)
+GumClosure *
+gum_closure_new (GumCallingConvention conv,
+                 GumClosureTarget target,
+                 GVariant * args)
 {
-  GumClosureImpl * self = GUM_CLOSURE_IMPL (closure);
+  GumClosure * closure;
   GumX86Writer cw;
   gsize arg_count;
   gint arg_index;
@@ -49,11 +44,12 @@ gum_closure_init (GumClosure * closure,
 
   g_assert_cmpint (conv, ==, GUM_CALL_CAPI);
 
-  self->args = g_variant_ref_sink (args);
-  self->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-  self->entrypoint = GUM_POINTER_TO_FUNCPTR (GCallback, self->code);
+  closure = g_slice_new (GumClosure);
+  closure->args = g_variant_ref_sink (args);
+  closure->code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  closure->entrypoint = GUM_POINTER_TO_FUNCPTR (GCallback, closure->code);
 
-  gum_x86_writer_init (&cw, self->code);
+  gum_x86_writer_init (&cw, closure->code);
 
   arg_count = g_variant_n_children (args);
   g_assert_cmpuint (arg_count, <=, 4);
@@ -110,21 +106,21 @@ gum_closure_init (GumClosure * closure,
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_free (&cw);
+
+  return closure;
 }
 
 void
-gum_closure_destroy (GumClosure * closure)
+gum_closure_free (GumClosure * closure)
 {
-  GumClosureImpl * self = GUM_CLOSURE_IMPL (closure);
+  g_variant_unref (closure->args);
+  gum_free_pages (closure->code);
 
-  g_variant_unref (self->args);
-  gum_free_pages (self->code);
-
-  memset (self, 0, sizeof (GumClosureImpl));
+  g_slice_free (GumClosure, closure);
 }
 
 void
 gum_closure_invoke (GumClosure * closure)
 {
-  GUM_CLOSURE_IMPL (closure)->entrypoint ();
+  closure->entrypoint ();
 }

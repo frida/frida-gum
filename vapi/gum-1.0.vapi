@@ -14,6 +14,22 @@ namespace Gum {
 		DEFAULT
 	}
 
+	[CCode (cprefix = "GUM_CALL_")]
+	public enum CallingConvention {
+		CAPI,
+		SYSAPI
+	}
+
+	[Compact]
+	public class Closure {
+		public Closure (Gum.CallingConvention conv, Gum.ClosureTarget target, GLib.Variant args);
+
+		public void invoke ();
+	}
+
+	[CCode (has_target = false)]
+	public delegate void ClosureTarget ();
+
 	public class Interceptor : GLib.Object {
 		public static Interceptor obtain ();
 

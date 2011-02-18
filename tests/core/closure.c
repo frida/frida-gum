@@ -27,10 +27,10 @@ static gboolean gum_target_function_has_been_called = FALSE;
 
 CLOSURE_TESTCASE (can_invoke_capi_function_accepting_string_and_int)
 {
-  gum_closure_init (&fixture->closure, GUM_CALL_CAPI,
+  fixture->closure = gum_closure_new (GUM_CALL_CAPI,
       GUM_CLOSURE_TARGET (can_invoke_capi_function_accepting_string_and_int),
       g_variant_new ("(si)", "Hello Gum", -42));
-  gum_closure_invoke (&fixture->closure);
+  gum_closure_invoke (fixture->closure);
   g_assert (gum_target_function_has_been_called);
 }
 

@@ -30,7 +30,7 @@
 
 typedef struct _TestClosureFixture
 {
-  GumClosure closure;
+  GumClosure * closure;
 } TestClosureFixture;
 
 static void
@@ -43,7 +43,7 @@ static void
 test_closure_fixture_teardown (TestClosureFixture * fixture,
                                gconstpointer data)
 {
-  gum_closure_destroy (&fixture->closure);
+  gum_closure_free (fixture->closure);
 }
 
 static void can_invoke_capi_function_accepting_string_and_int (
