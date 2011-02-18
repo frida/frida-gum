@@ -12,6 +12,7 @@
     <ClInclude Include="gum\gum.h" />
     <ClInclude Include="gum\gumarray.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
+    <ClInclude Include="gum\gumclosure.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumevent.h" />
@@ -76,6 +77,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClCompile Include="gum\backend-x86\gumclosure-x86.c" />
     <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
     <ClCompile Include="gum\backend-x86\gumscriptcompiler-x86.c" />
   </ItemGroup>

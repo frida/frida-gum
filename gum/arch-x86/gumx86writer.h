@@ -27,7 +27,6 @@ G_BEGIN_DECLS
 typedef struct _GumX86Writer GumX86Writer;
 /* FIXME: not all of these are x86 specific, should be moved */
 typedef enum _GumArgType      GumArgType;
-typedef enum _GumCallingConvention GumCallingConvention;
 typedef enum _GumCpuReg       GumCpuReg;
 typedef enum _GumPtrTarget    GumPtrTarget;
 typedef enum _GumBranchHint   GumBranchHint;
@@ -54,12 +53,6 @@ enum _GumArgType
 {
   GUM_ARG_POINTER,
   GUM_ARG_REGISTER
-};
-
-enum _GumCallingConvention
-{
-  GUM_CALL_CAPI,
-  GUM_CALL_SYSAPI
 };
 
 enum _GumCpuReg

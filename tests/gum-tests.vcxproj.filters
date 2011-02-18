@@ -186,6 +186,12 @@
     <ClCompile Include="gumpp\backtracer.cxx">
       <Filter>Tests\gumpp</Filter>
     </ClCompile>
+    <ClCompile Include="core\closure.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\closure-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
