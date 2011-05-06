@@ -20,6 +20,10 @@
 
 #include "testutil.h"
 
+#ifndef G_OS_WIN32
+#include <dlfcn.h>
+#endif
+
 #define SYMUTIL_TESTCASE(NAME) \
     void test_symbolutil_ ## NAME (void)
 #define SYMUTIL_TESTENTRY(NAME) \
@@ -31,7 +35,8 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges)
   SYMUTIL_TESTENTRY (module_base)
-  SYMUTIL_TESTENTRY (module_export)
+  SYMUTIL_TESTENTRY (module_export_can_be_found)
+  SYMUTIL_TESTENTRY (module_export_matches_system_lookup);
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
@@ -141,10 +146,29 @@ SYMUTIL_TESTCASE (module_base)
   g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != NULL);
 }
 
-SYMUTIL_TESTCASE (module_export)
+SYMUTIL_TESTCASE (module_export_can_be_found)
 {
   g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
       SYSTEM_MODULE_EXPORT) != NULL);
+}
+
+SYMUTIL_TESTCASE (module_export_matches_system_lookup)
+{
+#ifndef G_OS_WIN32
+  gpointer gum_address;
+  void * lib, * system_address;
+
+  gum_address =
+      gum_module_find_export_by_name (SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+
+  lib = dlopen (SYSTEM_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
+  g_assert (lib != NULL);
+  system_address = dlsym (lib, SYSTEM_MODULE_EXPORT);
+  dlclose (lib);
+
+  g_assert_cmphex ((gint64) GPOINTER_TO_SIZE (gum_address), ==,
+      (gint64) GPOINTER_TO_SIZE (system_address));
+#endif
 }
 
 static gboolean
