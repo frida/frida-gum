@@ -466,7 +466,8 @@ gum_module_enumerate_ranges (const gchar * module_name,
       {
         GumMemoryRange range;
 
-        range.base_address = GSIZE_TO_POINTER (segcmd->vmaddr);
+        range.base_address =
+            GSIZE_TO_POINTER (segcmd->vmaddr) + GPOINTER_TO_SIZE (slide);
         range.size = segcmd->vmsize;
 
         if (!func (&range, cur_prot, user_data))
