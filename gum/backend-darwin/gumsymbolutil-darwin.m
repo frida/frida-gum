@@ -40,6 +40,14 @@
        S->n_type >= N_PEXT || \
        (S->n_type & N_EXT) == 0)
 
+typedef struct _GumFindExportContext GumFindExportContext;
+
+struct _GumFindExportContext
+{
+  gpointer result;
+  const gchar * symbol_name;
+};
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
@@ -52,6 +60,11 @@ typedef struct segment_command_64 gum_segment_command_t;
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
+
+static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
+    GumFoundExportFunc func, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (const gchar * name,
+    gpointer address, gpointer user_data);
 
 #ifdef HAVE_SYMBOL_BACKEND
 static gboolean gum_symbol_is_function (VMUSymbol * symbol);
@@ -343,6 +356,14 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
+  gum_module_do_enumerate_exports (module_name, func, user_data);
+}
+
+static gboolean
+gum_module_do_enumerate_exports (const gchar * module_name,
+                                 GumFoundExportFunc func,
+                                 gpointer user_data)
+{
   gpointer address, slide;
   gsize vmaddr, fileoff;
   struct symtab_command * sc;
@@ -352,13 +373,13 @@ gum_module_enumerate_exports (const gchar * module_name,
   guint symbol_count, symbol_idx;
 
   if (!find_image_address_and_slide (module_name, &address, &slide))
-    return;
+    return TRUE;
 
   if (!find_image_vmaddr_and_fileoff (address, &vmaddr, &fileoff))
-    return;
+    return TRUE;
 
   if (!find_image_symtab_command (address, &sc))
-    return;
+    return TRUE;
 
   table_offset = vmaddr - fileoff + GPOINTER_TO_SIZE (slide);
   symbase = (struct nlist *) (sc->symoff + table_offset);
@@ -384,8 +405,33 @@ gum_module_enumerate_exports (const gchar * module_name,
       symbol_address++;
 
     if (!func (symbol_name, symbol_address, user_data))
-      return;
+      return FALSE;
   }
+
+  {
+    gum_mach_header_t * header = address;
+    guint8 * p;
+    guint cmd_index;
+
+    p = (guint8 *) (header + 1);
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      struct load_command * lc = (struct load_command *) p;
+
+      if (lc->cmd == LC_REEXPORT_DYLIB)
+      {
+        struct dylib_command * dc = (struct dylib_command *) lc;
+        const char * name = (const char *)
+            (((guint8 *) dc) + dc->dylib.name.offset);
+        if (!gum_module_do_enumerate_exports (name, func, user_data))
+          return FALSE;
+      }
+
+      p += lc->cmdsize;
+    }
+  }
+
+  return TRUE;
 }
 
 void
@@ -434,14 +480,43 @@ gum_module_enumerate_ranges (const gchar * module_name,
 gpointer
 gum_module_find_base_address (const gchar * module_name)
 {
-  return NULL;
+  gpointer address, slide;
+
+  if (!find_image_address_and_slide (module_name, &address, &slide))
+    return NULL;
+
+  return address;
 }
 
 gpointer
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  return NULL;
+  GumFindExportContext ctx;
+
+  ctx.result = NULL;
+  ctx.symbol_name = symbol_name;
+
+  gum_module_enumerate_exports (module_name,
+      gum_store_address_if_export_name_matches, &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_store_address_if_export_name_matches (const gchar * name,
+                                          gpointer address,
+                                          gpointer user_data)
+{
+  GumFindExportContext * ctx = (GumFindExportContext *) user_data;
+
+  if (strcmp (name, ctx->symbol_name) == 0)
+  {
+    ctx->result = address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
@@ -449,7 +524,10 @@ find_image_address_and_slide (const gchar * image_name,
                               gpointer * address,
                               gpointer * slide)
 {
+  gboolean name_is_absolute;
   guint count, idx;
+
+  name_is_absolute = index (image_name, '/') != NULL;
 
   count = _dyld_image_count ();
 
@@ -458,7 +536,7 @@ find_image_address_and_slide (const gchar * image_name,
     const gchar * name, * s;
 
     name = _dyld_get_image_name (idx);
-    if ((s = strrchr (name, '/')) != NULL)
+    if (!name_is_absolute && (s = strrchr (name, '/')) != NULL)
       name = s + 1;
 
     if (strcmp (name, image_name) == 0)
