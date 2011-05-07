@@ -100,9 +100,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
 #endif
-#ifdef HAVE_I386
   TEST_RUN_LIST (closure);
-#endif
   TEST_RUN_LIST (interceptor);
   TEST_RUN_LIST (script);
 #if defined (HAVE_I386) && defined (G_OS_WIN32) /* for now */
