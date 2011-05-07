@@ -27,6 +27,7 @@ endif
 libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
+	closure.c \
 	memory.c \
 	symbolutil.c \
 	backtracer.c \

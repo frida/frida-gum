@@ -6,6 +6,7 @@ guminclude_HEADERS = \
 	gum.h \
 	gumarray.h \
 	gumbacktracer.h \
+	gumclosure.h \
 	gumcodeallocator.h \
 	gumdefs.h \
 	gumevent.h \
@@ -84,6 +85,7 @@ arch_sources += \
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \
+	backend-arm/gumclosure-arm.c \
 	backend-arm/guminterceptor-arm.c \
 	backend-arm/gumscriptcompiler-arm.c \
 	backend-arm/gumspinlock-arm.c
