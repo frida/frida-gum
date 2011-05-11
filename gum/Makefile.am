@@ -65,7 +65,6 @@ arch_libs += \
 	$(top_builddir)/ext/udis86/libudis86/libudis86.la
 backend_sources += \
 	backend-x86/guminterceptor-x86.c \
-	backend-x86/gumscriptcompiler-x86.c \
 	backend-x86/gumspinlock-x86.c
 endif
 
@@ -87,7 +86,6 @@ arch_includes += \
 backend_sources += \
 	backend-arm/gumclosure-arm.c \
 	backend-arm/guminterceptor-arm.c \
-	backend-arm/gumscriptcompiler-arm.c \
 	backend-arm/gumspinlock-arm.c
 endif
 
@@ -135,10 +133,7 @@ libgum_la_SOURCES = \
 	guminvocationlistener.c \
 	gummemory.c \
 	gumreturnaddress.c \
-	gumscript-priv.h \
-	gumscript.c \
-	gumscriptcompiler.c \
-	gumscriptcompiler.h \
+	gumscript.cpp \
 	gumtls.h \
 	$(arch_sources) \
 	$(container_sources) \

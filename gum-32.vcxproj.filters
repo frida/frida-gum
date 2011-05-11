@@ -105,9 +105,6 @@
     <ClCompile Include="gum\backend-x86\gumspinlock-ia32-msc.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gumscript.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gumtracer.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -189,9 +186,6 @@
     <ClCompile Include="gum\backend-x86\guminterceptor-x86.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
-    <ClCompile Include="gum\backend-x86\gumscriptcompiler-x86.c">
-      <Filter>core\backend-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gummemory.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -201,11 +195,11 @@
     <ClCompile Include="libs\gum\heap\gumheapapi.c">
       <Filter>libs\heap</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gumscriptcompiler.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="gum\backend-x86\gumclosure-x86.c">
       <Filter>core\backend-x86</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscript.cpp">
+      <Filter>core</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -378,12 +372,6 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\guminterceptor-priv.h">
-      <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\gumscript-priv.h">
-      <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\gumscriptcompiler.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummemory-priv.h">
