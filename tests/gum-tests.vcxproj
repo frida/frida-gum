@@ -90,6 +90,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
+      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
@@ -109,6 +110,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
@@ -128,6 +130,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
+      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
@@ -147,6 +150,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
+      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\$(PlatformName)\dbghelp.dll" "$(TargetDir)dbghelp.dll"
@@ -340,17 +344,17 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
     <ProjectReference Include="..\gum-32.vcxproj">
       <Project>{b31c7d42-54b6-49bb-b30c-11745c48b062}</Project>
       <Private>false</Private>
-      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
-      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
       <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
     </ProjectReference>
     <ProjectReference Include="..\gum-64.vcxproj">
       <Project>{dc30a450-95bc-4476-a2f9-45100562424e}</Project>
       <Private>false</Private>
-      <ReferenceOutputAssembly>true</ReferenceOutputAssembly>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
-      <LinkLibraryDependencies>true</LinkLibraryDependencies>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
       <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
     </ProjectReference>
   </ItemGroup>
