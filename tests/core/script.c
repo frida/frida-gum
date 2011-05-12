@@ -26,13 +26,20 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (json_can_be_sent)
   SCRIPT_TESTENTRY (runtime_error_is_caught_and_delivered_as_message)
   SCRIPT_TESTENTRY (can_read_int32_argument)
+  SCRIPT_TESTENTRY (can_read_utf16_string_argument)
 TEST_LIST_END ()
 
 typedef struct _TwoIntegersArgs TwoIntegersArgs;
+typedef struct _Utf16StringAndIntegerArgs Utf16StringAndIntegerArgs;
 
 struct _TwoIntegersArgs {
   gint a;
   gint b;
+};
+
+struct _Utf16StringAndIntegerArgs {
+  gunichar2 * str;
+  gint i;
 };
 
 static void store_message (GumScript * script, const gchar * msg,
@@ -129,6 +136,26 @@ SCRIPT_TESTCASE (can_read_int32_argument)
   g_assert_cmpstr (msg, ==, "{"
       "\"type\":\"send\","
       "\"payload\":1337"
+  "}");
+  g_free (msg);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (can_read_utf16_string_argument)
+{
+  GumScript * script;
+  Utf16StringAndIntegerArgs args;
+  gchar * msg = NULL;
+
+  script = gum_script_from_string ("send(Memory.readUtf16String(arg[0]));", NULL);
+  args.str = g_utf8_to_utf16 ("Bjørheimsbygd", -1, NULL, NULL, NULL);
+  args.i = 42;
+  fixture->argument_list = &args;
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert_cmpstr (msg, ==, "{"
+      "\"type\":\"send\","
+      "\"payload\":\"Bjørheimsbygd\""
   "}");
   g_free (msg);
   g_object_unref (script);

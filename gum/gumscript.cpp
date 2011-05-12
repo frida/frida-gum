@@ -41,6 +41,8 @@ static void gum_script_finalize (GObject * object);
 static Handle<Value> gum_script_on_get_nth_argument (uint32_t index,
     const AccessorInfo & info);
 static Handle<Value> gum_script_on_send (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_utf16_string (
+    const Arguments & args);
 
 G_DEFINE_TYPE (GumScript, gum_script, G_TYPE_OBJECT);
 
@@ -96,6 +98,12 @@ gum_script_from_string (const gchar * script_text,
 
   global_templ->Set (String::New ("_send"),
       FunctionTemplate::New (gum_script_on_send, External::Wrap (script)));
+
+  Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
+  memory_templ->Set (String::New ("readUtf16String"),
+      FunctionTemplate::New (gum_script_on_memory_read_utf16_string,
+      External::Wrap (script)));
+  global_templ->Set (String::New ("Memory"), memory_templ);
 
   Persistent<Context> context = Context::New (NULL, global_templ);
   Context::Scope context_scope (context);
@@ -185,7 +193,7 @@ gum_script_on_get_nth_argument (uint32_t index,
   gpointer raw_value = gum_invocation_context_get_nth_argument (
       self->priv->current_invocation_context, index);
 
-  return Int32::New (static_cast<int32_t> (GPOINTER_TO_SIZE (raw_value)));
+  return Number::New (GPOINTER_TO_SIZE (raw_value));
 }
 
 static Handle<Value>
@@ -201,4 +209,12 @@ gum_script_on_send (const Arguments & args)
   }
 
   return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_memory_read_utf16_string (const Arguments & args)
+{
+  const uint16_t * data = static_cast<const uint16_t *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+  return String::New (data);
 }
