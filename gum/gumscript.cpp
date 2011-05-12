@@ -26,12 +26,17 @@ using namespace v8;
 
 struct _GumScriptPrivate
 {
+  Persistent<Context> context;
+  Persistent<Script> raw_script;
+
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
 };
 
 static void gum_script_finalize (GObject * object);
+
+static Handle<Value> _gum_script_on_send (const Arguments & args);
 
 G_DEFINE_TYPE (GumScript, gum_script, G_TYPE_OBJECT);
 
@@ -63,6 +68,9 @@ gum_script_finalize (GObject * object)
   if (priv->message_handler_notify != NULL)
     priv->message_handler_notify (priv->message_handler_data);
 
+  priv->raw_script.Dispose ();
+  priv->context.Dispose ();
+
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
 
@@ -70,31 +78,38 @@ GumScript *
 gum_script_from_string (const gchar * script_text,
                         GError ** error)
 {
-  V8::Initialize ();
+  GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
 
+  Locker l;
   HandleScope handle_scope;
 
-  Persistent<Context> context = Context::New ();
+  Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
+  global_templ->Set (String::New ("send"), FunctionTemplate::New (_gum_script_on_send, External::Wrap (script)));
 
+  Persistent<Context> context = Context::New (NULL, global_templ);
   Context::Scope context_scope (context);
 
   Handle<String> source = String::New (script_text);
-
   TryCatch trycatch;
-  Handle<Script> script = Script::Compile (source);
-  if (script.IsEmpty())
+  Handle<Script> raw_script = Script::Compile (source);
+  if (raw_script.IsEmpty())
   {
+    context.Dispose ();
+    g_object_unref (script);
+
     Handle<Message> message = trycatch.Message ();
     Handle<Value> exception = trycatch.Exception ();
     String::AsciiValue exception_str (exception);
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
         message->GetLineNumber (), *exception_str);
+
     return NULL;
   }
 
-  context.Dispose ();
+  script->priv->context = context;
+  script->priv->raw_script = Persistent<Script>::New (raw_script);
 
-  return GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
+  return script;
 }
 
 void
@@ -112,6 +127,35 @@ void
 gum_script_execute (GumScript * self,
                     GumInvocationContext * context)
 {
-  (void) self;
+  GumScriptPrivate * priv = self->priv;
+
   (void) context;
+
+  Locker l;
+  HandleScope handle_scope;
+  Context::Scope context_scope (priv->context);
+
+  TryCatch trycatch;
+  priv->raw_script->Run ();
+  if (trycatch.HasCaught ())
+  {
+    Handle<Message> message = trycatch.Message ();
+    Handle<Value> exception = trycatch.Exception ();
+    String::AsciiValue exception_str (exception);
+
+    g_warning ("Script(line %d): %s",
+        message->GetLineNumber (), *exception_str);
+  }
+}
+
+static Handle<Value>
+_gum_script_on_send (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  String::Utf8Value message (args[0]);
+  self->priv->message_handler_func (self, *message,
+      self->priv->message_handler_data);
+
+  return Undefined ();
 }

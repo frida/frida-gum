@@ -43,8 +43,8 @@ typedef struct _GumScript           GumScript;
 typedef struct _GumScriptClass      GumScriptClass;
 typedef struct _GumScriptPrivate    GumScriptPrivate;
 
-typedef void (* GumScriptMessageHandler) (GumScript * script, GVariant * msg,
-    gpointer user_data);
+typedef void (* GumScriptMessageHandler) (GumScript * script,
+    const gchar * msg, gpointer user_data);
 
 struct _GumScript
 {
