@@ -32,11 +32,15 @@ struct _GumScriptPrivate
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
+
+  GumInvocationContext * current_invocation_context;
 };
 
 static void gum_script_finalize (GObject * object);
 
-static Handle<Value> _gum_script_on_send (const Arguments & args);
+static Handle<Value> gum_script_on_get_nth_argument (uint32_t index,
+    const AccessorInfo & info);
+static Handle<Value> gum_script_on_send (const Arguments & args);
 
 G_DEFINE_TYPE (GumScript, gum_script, G_TYPE_OBJECT);
 
@@ -84,7 +88,14 @@ gum_script_from_string (const gchar * script_text,
   HandleScope handle_scope;
 
   Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-  global_templ->Set (String::New ("_send"), FunctionTemplate::New (_gum_script_on_send, External::Wrap (script)));
+
+  Handle<ObjectTemplate> arg_templ = ObjectTemplate::New ();
+  arg_templ->SetIndexedPropertyHandler (gum_script_on_get_nth_argument,
+      0, 0, 0, 0, External::Wrap (script));
+  global_templ->Set (String::New ("arg"), arg_templ);
+
+  global_templ->Set (String::New ("_send"),
+      FunctionTemplate::New (gum_script_on_send, External::Wrap (script)));
 
   Persistent<Context> context = Context::New (NULL, global_templ);
   Context::Scope context_scope (context);
@@ -148,7 +159,10 @@ gum_script_execute (GumScript * self,
   Context::Scope context_scope (priv->context);
 
   TryCatch trycatch;
+  priv->current_invocation_context = context;
   priv->raw_script->Run ();
+  priv->current_invocation_context = NULL;
+
   if (trycatch.HasCaught () && priv->message_handler_func != NULL)
   {
     Handle<Message> message = trycatch.Message ();
@@ -163,7 +177,19 @@ gum_script_execute (GumScript * self,
 }
 
 static Handle<Value>
-_gum_script_on_send (const Arguments & args)
+gum_script_on_get_nth_argument (uint32_t index,
+                                const AccessorInfo & info)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+
+  gpointer raw_value = gum_invocation_context_get_nth_argument (
+      self->priv->current_invocation_context, index);
+
+  return Int32::New (static_cast<int32_t> (GPOINTER_TO_SIZE (raw_value)));
+}
+
+static Handle<Value>
+gum_script_on_send (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumScriptPrivate * priv = self->priv;
