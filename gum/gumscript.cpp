@@ -149,14 +149,16 @@ gum_script_execute (GumScript * self,
 
   TryCatch trycatch;
   priv->raw_script->Run ();
-  if (trycatch.HasCaught ())
+  if (trycatch.HasCaught () && priv->message_handler_func != NULL)
   {
     Handle<Message> message = trycatch.Message ();
     Handle<Value> exception = trycatch.Exception ();
     String::AsciiValue exception_str (exception);
-
-    g_warning ("Script(line %d): %s",
+    gchar * error = g_strdup_printf (
+        "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
         message->GetLineNumber (), *exception_str);
+    priv->message_handler_func (self, error, priv->message_handler_data);
+    g_free (error);
   }
 }
 
@@ -164,10 +166,13 @@ static Handle<Value>
 _gum_script_on_send (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
 
-  String::Utf8Value message (args[0]);
-  self->priv->message_handler_func (self, *message,
-      self->priv->message_handler_data);
+  if (priv->message_handler_func != NULL)
+  {
+    String::Utf8Value message (args[0]);
+    priv->message_handler_func (self, *message, priv->message_handler_data);
+  }
 
   return Undefined ();
 }

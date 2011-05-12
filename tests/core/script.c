@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (int_can_be_sent)
   SCRIPT_TESTENTRY (string_can_be_sent)
   SCRIPT_TESTENTRY (json_can_be_sent)
+  SCRIPT_TESTENTRY (runtime_error_is_caught_and_delivered_as_message)
 TEST_LIST_END ()
 
 static void store_message (GumScript * script, const gchar * msg,
@@ -84,6 +85,23 @@ SCRIPT_TESTCASE (json_can_be_sent)
   gum_script_execute (script, &fixture->invocation_context);
   g_assert_cmpstr (msg, ==,
       "{\"type\":\"send\",\"payload\":{\"color\":\"red\"}}");
+  g_free (msg);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (runtime_error_is_caught_and_delivered_as_message)
+{
+  GumScript * script;
+  gchar * msg = NULL;
+
+  script = gum_script_from_string ("badger();", NULL);
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert_cmpstr (msg, ==, "{"
+      "\"type\":\"error\","
+      "\"lineNumber\":1,"
+      "\"description\":\"ReferenceError: badger is not defined\""
+  "}");
   g_free (msg);
   g_object_unref (script);
 }
