@@ -20,6 +20,7 @@
 #include "gumscript.h"
 
 #include <gio/gio.h>
+#include <string.h>
 #include <v8.h>
 
 using namespace v8;
@@ -41,6 +42,8 @@ static void gum_script_finalize (GObject * object);
 static Handle<Value> gum_script_on_get_nth_argument (uint32_t index,
     const AccessorInfo & info);
 static Handle<Value> gum_script_on_send (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_utf8_string (
+    const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
     const Arguments & args);
 
@@ -100,9 +103,10 @@ gum_script_from_string (const gchar * script_text,
       FunctionTemplate::New (gum_script_on_send, External::Wrap (script)));
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
+  memory_templ->Set (String::New ("readUtf8String"),
+      FunctionTemplate::New (gum_script_on_memory_read_utf8_string));
   memory_templ->Set (String::New ("readUtf16String"),
-      FunctionTemplate::New (gum_script_on_memory_read_utf16_string,
-      External::Wrap (script)));
+      FunctionTemplate::New (gum_script_on_memory_read_utf16_string));
   global_templ->Set (String::New ("Memory"), memory_templ);
 
   Persistent<Context> context = Context::New (NULL, global_templ);
@@ -209,6 +213,14 @@ gum_script_on_send (const Arguments & args)
   }
 
   return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_memory_read_utf8_string (const Arguments & args)
+{
+  const char * data = static_cast<const char *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+  return String::New (data, strlen (data));
 }
 
 static Handle<Value>
