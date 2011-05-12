@@ -84,12 +84,24 @@ gum_script_from_string (const gchar * script_text,
   HandleScope handle_scope;
 
   Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-  global_templ->Set (String::New ("send"), FunctionTemplate::New (_gum_script_on_send, External::Wrap (script)));
+  global_templ->Set (String::New ("_send"), FunctionTemplate::New (_gum_script_on_send, External::Wrap (script)));
 
   Persistent<Context> context = Context::New (NULL, global_templ);
   Context::Scope context_scope (context);
 
-  Handle<String> source = String::New (script_text);
+  gchar * source_text = g_strconcat (script_text,
+      "\n"
+      "\n"
+      "function send(payload) {\n"
+      "  var message = {\n"
+      "    'type': 'send',\n"
+      "    'payload': payload\n"
+      "  };\n"
+      "  _send(JSON.stringify(message));\n"
+      "}\n",
+      NULL);
+  Handle<String> source = String::New (source_text);
+  g_free (source_text);
   TryCatch trycatch;
   Handle<Script> raw_script = Script::Compile (source);
   if (raw_script.IsEmpty())

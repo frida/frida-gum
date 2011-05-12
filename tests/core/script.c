@@ -21,6 +21,8 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
+  SCRIPT_TESTENTRY (int_can_be_sent)
+  SCRIPT_TESTENTRY (string_can_be_sent)
   SCRIPT_TESTENTRY (json_can_be_sent)
 TEST_LIST_END ()
 
@@ -39,26 +41,50 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
 }
 
-SCRIPT_TESTCASE (json_can_be_sent)
+SCRIPT_TESTCASE (int_can_be_sent)
 {
   GumScript * script;
   GError * err = NULL;
   gchar * msg = NULL;
 
-  script = gum_script_from_string (
-    "var message = {\n"
-    "  type: 'hello'\n"
-    "};\n"
-    "send(JSON.stringify(message));", &err);
+  script = gum_script_from_string ("send(1337);", &err);
   g_assert (script != NULL);
   g_assert (err == NULL);
 
   gum_script_set_message_handler (script, store_message, &msg, NULL);
   gum_script_execute (script, &fixture->invocation_context);
   g_assert (msg != NULL);
-  g_assert_cmpstr (msg, ==, "{\"type\":\"hello\"}");
+  g_assert_cmpstr (msg, ==,
+      "{\"type\":\"send\",\"payload\":1337}");
   g_free (msg);
 
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (string_can_be_sent)
+{
+  GumScript * script;
+  gchar * msg = NULL;
+
+  script = gum_script_from_string ("send('hey');", NULL);
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert_cmpstr (msg, ==, "{\"type\":\"send\",\"payload\":\"hey\"}");
+  g_free (msg);
+  g_object_unref (script);
+}
+
+SCRIPT_TESTCASE (json_can_be_sent)
+{
+  GumScript * script;
+  gchar * msg = NULL;
+
+  script = gum_script_from_string ("send({ 'color': 'red' });", NULL);
+  gum_script_set_message_handler (script, store_message, &msg, NULL);
+  gum_script_execute (script, &fixture->invocation_context);
+  g_assert_cmpstr (msg, ==,
+      "{\"type\":\"send\",\"payload\":{\"color\":\"red\"}}");
+  g_free (msg);
   g_object_unref (script);
 }
 
