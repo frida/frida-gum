@@ -21,33 +21,10 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
-  SCRIPT_TESTENTRY (int_can_be_sent)
-  SCRIPT_TESTENTRY (string_can_be_sent)
-  SCRIPT_TESTENTRY (json_can_be_sent)
-  SCRIPT_TESTENTRY (runtime_error_is_caught_and_delivered_as_message)
-  SCRIPT_TESTENTRY (can_read_int32_argument)
-  SCRIPT_TESTENTRY (can_read_utf8_string_argument)
-  SCRIPT_TESTENTRY (can_read_utf16_string_argument)
+  SCRIPT_TESTENTRY (int_argument_can_be_sent)
 TEST_LIST_END ()
 
-typedef struct _TwoIntegersArgs TwoIntegersArgs;
-typedef struct _Utf8StringAndIntegerArgs Utf8StringAndIntegerArgs;
-typedef struct _Utf16StringAndIntegerArgs Utf16StringAndIntegerArgs;
-
-struct _TwoIntegersArgs {
-  gint a;
-  gint b;
-};
-
-struct _Utf8StringAndIntegerArgs {
-  const gchar * str;
-  gint i;
-};
-
-struct _Utf16StringAndIntegerArgs {
-  const gunichar2 * str;
-  gint i;
-};
+static int target_function_int (int arg);
 
 static void store_message (GumScript * script, const gchar * msg,
     gpointer user_data);
@@ -64,129 +41,45 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
 }
 
-SCRIPT_TESTCASE (int_can_be_sent)
+SCRIPT_TESTCASE (int_argument_can_be_sent)
 {
+  gchar * source;
   GumScript * script;
   GError * err = NULL;
   gchar * msg = NULL;
 
-  script = gum_script_from_string ("send(1337);", &err);
+  source = g_strdup_printf (
+      "Interceptor.attach(0x%x, {\n"
+      "  onEnter: function(args) {\n"
+      "    send(args[0]);\n"
+      "  }\n"
+      "});", target_function_int);
+  script = gum_script_from_string (source, &err);
+  g_free (source);
   g_assert (script != NULL);
   g_assert (err == NULL);
 
   gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
+  gum_script_load (script);
+  g_assert (msg == NULL);
+  target_function_int (42);
   g_assert (msg != NULL);
-  g_assert_cmpstr (msg, ==,
-      "{\"type\":\"send\",\"payload\":1337}");
+  g_assert_cmpstr (msg, ==, "{\"type\":\"send\",\"payload\":42}");
   g_free (msg);
 
   g_object_unref (script);
 }
 
-SCRIPT_TESTCASE (string_can_be_sent)
+GUM_NOINLINE static int
+target_function_int (int arg)
 {
-  GumScript * script;
-  gchar * msg = NULL;
+  int result = 0;
+  int i;
 
-  script = gum_script_from_string ("send('hey');", NULL);
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_assert_cmpstr (msg, ==, "{\"type\":\"send\",\"payload\":\"hey\"}");
-  g_free (msg);
-  g_object_unref (script);
-}
+  for (i = 0; i != 10; i++)
+    result += i * arg;
 
-SCRIPT_TESTCASE (json_can_be_sent)
-{
-  GumScript * script;
-  gchar * msg = NULL;
-
-  script = gum_script_from_string ("send({ 'color': 'red' });", NULL);
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_assert_cmpstr (msg, ==,
-      "{\"type\":\"send\",\"payload\":{\"color\":\"red\"}}");
-  g_free (msg);
-  g_object_unref (script);
-}
-
-SCRIPT_TESTCASE (runtime_error_is_caught_and_delivered_as_message)
-{
-  GumScript * script;
-  gchar * msg = NULL;
-
-  script = gum_script_from_string ("badger();", NULL);
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_assert_cmpstr (msg, ==, "{"
-      "\"type\":\"error\","
-      "\"lineNumber\":1,"
-      "\"description\":\"ReferenceError: badger is not defined\""
-  "}");
-  g_free (msg);
-  g_object_unref (script);
-}
-
-SCRIPT_TESTCASE (can_read_int32_argument)
-{
-  GumScript * script;
-  TwoIntegersArgs args;
-  gchar * msg = NULL;
-
-  script = gum_script_from_string ("send(arg[1]);", NULL);
-  args.a = 1227;
-  args.b = 1337;
-  fixture->argument_list = &args;
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_assert_cmpstr (msg, ==, "{"
-      "\"type\":\"send\","
-      "\"payload\":1337"
-  "}");
-  g_free (msg);
-  g_object_unref (script);
-}
-
-SCRIPT_TESTCASE (can_read_utf8_string_argument)
-{
-  GumScript * script;
-  Utf8StringAndIntegerArgs args;
-  gchar * msg = NULL;
-
-  script = gum_script_from_string ("send(Memory.readUtf8String(arg[0]));", NULL);
-  args.str = "Bjørheimsbygd";
-  args.i = 42;
-  fixture->argument_list = &args;
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_assert_cmpstr (msg, ==, "{"
-      "\"type\":\"send\","
-      "\"payload\":\"Bjørheimsbygd\""
-  "}");
-  g_free (msg);
-  g_object_unref (script);
-}
-
-SCRIPT_TESTCASE (can_read_utf16_string_argument)
-{
-  GumScript * script;
-  Utf16StringAndIntegerArgs args;
-  gchar * msg = NULL;
-
-  script = gum_script_from_string ("send(Memory.readUtf16String(arg[0]));", NULL);
-  args.str = g_utf8_to_utf16 ("Bjørheimsbygd", -1, NULL, NULL, NULL);
-  args.i = 42;
-  fixture->argument_list = &args;
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_execute (script, &fixture->invocation_context);
-  g_free ((gpointer) args.str);
-  g_assert_cmpstr (msg, ==, "{"
-      "\"type\":\"send\","
-      "\"payload\":\"Bjørheimsbygd\""
-  "}");
-  g_free (msg);
-  g_object_unref (script);
+  return result;
 }
 
 static void
