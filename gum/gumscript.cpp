@@ -164,8 +164,6 @@ gum_script_execute (GumScript * self,
 {
   GumScriptPrivate * priv = self->priv;
 
-  (void) context;
-
   Locker l;
   HandleScope handle_scope;
   Context::Scope context_scope (priv->context);
