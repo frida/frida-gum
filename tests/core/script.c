@@ -21,8 +21,8 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
-  SCRIPT_TESTENTRY (argument_can_be_sent)
-  SCRIPT_TESTENTRY (return_value_can_be_sent)
+  SCRIPT_TESTENTRY (argument_can_be_read)
+  SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (sword_can_be_read)
   SCRIPT_TESTENTRY (uword_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_read)
@@ -49,7 +49,7 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
 }
 
-SCRIPT_TESTCASE (argument_can_be_sent)
+SCRIPT_TESTCASE (argument_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(0x%x, {"
@@ -63,7 +63,7 @@ SCRIPT_TESTCASE (argument_can_be_sent)
   EXPECT_SEND_MESSAGE_WITH ("42");
 }
 
-SCRIPT_TESTCASE (return_value_can_be_sent)
+SCRIPT_TESTCASE (return_value_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(0x%x, {"
