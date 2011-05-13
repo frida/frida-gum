@@ -69,6 +69,8 @@ static Handle<Value> gum_script_on_memory_read_s16 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u16 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s32 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u32 (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_s64 (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_u64 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
@@ -205,6 +207,10 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_memory_read_s32));
   memory_templ->Set (String::New ("readU32"),
       FunctionTemplate::New (gum_script_on_memory_read_u32));
+  memory_templ->Set (String::New ("readS64"),
+      FunctionTemplate::New (gum_script_on_memory_read_s64));
+  memory_templ->Set (String::New ("readU64"),
+      FunctionTemplate::New (gum_script_on_memory_read_u64));
   memory_templ->Set (String::New ("readUtf8String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf8_string));
   memory_templ->Set (String::New ("readUtf16String"),
@@ -447,6 +453,20 @@ static Handle<Value>
 gum_script_on_memory_read_u32 (const Arguments & args)
 {
   return Integer::NewFromUnsigned (*static_cast<const guint32 *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+}
+
+static Handle<Value>
+gum_script_on_memory_read_s64 (const Arguments & args)
+{
+  return Number::New (*static_cast<const gint64 *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+}
+
+static Handle<Value>
+gum_script_on_memory_read_u64 (const Arguments & args)
+{
+  return Number::New (*static_cast<const guint64 *> (
       GSIZE_TO_POINTER (args[0]->IntegerValue ())));
 }
 
