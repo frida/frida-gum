@@ -38,7 +38,28 @@ TEST_LIST_BEGIN (script)
 #ifdef G_OS_WIN32
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
 #endif
+  SCRIPT_TESTENTRY (can_resolve_export_by_name)
 TEST_LIST_END ()
+
+SCRIPT_TESTCASE (can_resolve_export_by_name)
+{
+#ifdef G_OS_WIN32
+  HMODULE mod;
+  gpointer actual_address;
+  char actual_address_str[64];
+
+  mod = GetModuleHandle (_T ("ws2_32.dll"));
+  g_assert (mod != NULL);
+  actual_address = GetProcAddress (mod, "recv");
+  g_assert (actual_address != NULL);
+  sprintf_s (actual_address_str, sizeof (actual_address_str),
+      "%" G_GSIZE_MODIFIER "d", GPOINTER_TO_SIZE (actual_address));
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.findModuleExportByName('ws2_32.dll', 'recv'));");
+  EXPECT_SEND_MESSAGE_WITH (actual_address_str);
+#endif
+}
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)
 {

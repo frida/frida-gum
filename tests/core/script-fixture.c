@@ -23,6 +23,8 @@
 
 #ifdef G_OS_WIN32
 # define VC_EXTRALEAN
+# include <stdio.h>
+# include <tchar.h>
 # include <windows.h>
 #endif
 
@@ -32,8 +34,8 @@
     TEST_ENTRY_WITH_FIXTURE ("Core/Script", test_script, NAME, \
         TestScriptFixture)
 
-#define COMPILE_AND_LOAD_SCRIPT(SOURCE, FUNC) \
-    test_script_fixture_compile_and_load_script (fixture, SOURCE, FUNC)
+#define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
+    test_script_fixture_compile_and_load_script (fixture, SOURCE, __VA_ARGS__)
 #define EXPECT_NO_MESSAGES() \
     g_assert_cmpuint (g_queue_get_length (fixture->messages), ==, 0)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \

@@ -20,6 +20,7 @@
 #include "gumscript.h"
 
 #include "guminterceptor.h"
+#include "gumsymbolutil.h"
 
 #include <gio/gio.h>
 #include <string.h>
@@ -64,6 +65,8 @@ static void gum_script_finalize (GObject * object);
 static void gum_script_create_context (GumScript * self);
 
 static Handle<Value> gum_script_on_send (const Arguments & args);
+static Handle<Value> gum_script_on_process_find_module_export_by_name (
+    const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
@@ -203,6 +206,12 @@ gum_script_create_context (GumScript * self)
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
       gum_script_on_interceptor_attach, External::Wrap (self)));
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
+
+  Handle<ObjectTemplate> process_templ = ObjectTemplate::New ();
+  process_templ->Set (String::New ("findModuleExportByName"),
+      FunctionTemplate::New (
+          gum_script_on_process_find_module_export_by_name));
+  global_templ->Set (String::New ("Process"), process_templ);
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
   memory_templ->Set (String::New ("readSWord"),
@@ -361,6 +370,37 @@ gum_script_on_send (const Arguments & args)
   }
 
   return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_process_find_module_export_by_name (const Arguments & args)
+{
+  Local<Value> module_name_val = args[0];
+  if (!module_name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Process.findModuleExportByName: first argument must be a string "
+        "specifying module name")));
+    return Undefined ();
+  }
+  String::Utf8Value module_name (module_name_val);
+
+  Local<Value> symbol_name_val = args[1];
+  if (!symbol_name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Process.findModuleExportByName: second argument must be a string "
+        "specifying name of exported symbol")));
+    return Undefined ();
+  }
+  String::Utf8Value symbol_name (symbol_name_val);
+
+  gpointer raw_address =
+      gum_module_find_export_by_name (*module_name, *symbol_name);
+  if (raw_address == NULL)
+    return Undefined ();
+
+  return Number::New (GPOINTER_TO_SIZE (raw_address));
 }
 
 static Handle<Value>
