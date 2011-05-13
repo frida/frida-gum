@@ -21,6 +21,11 @@
 
 #include "testutil.h"
 
+#ifdef G_OS_WIN32
+# define VC_EXTRALEAN
+# include <windows.h>
+#endif
+
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \

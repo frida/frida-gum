@@ -35,6 +35,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u64_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
+#ifdef G_OS_WIN32
+  SCRIPT_TESTENTRY (ansi_string_can_be_read)
+#endif
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)
@@ -162,6 +165,22 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
   g_free (str);
 }
+
+#ifdef G_OS_WIN32
+
+SCRIPT_TESTCASE (ansi_string_can_be_read)
+{
+  const gchar * str_utf8 = "Bjørheimsbygd";
+  gunichar2 * str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  gchar str[64];
+  WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
+      (LPSTR) str, sizeof (str), NULL, NULL);
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(0x%x));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+  g_free (str_utf16);
+}
+
+#endif
 
 GUM_NOINLINE static int
 target_function_int (int arg)

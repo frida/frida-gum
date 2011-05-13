@@ -24,6 +24,10 @@
 #include <gio/gio.h>
 #include <string.h>
 #include <v8.h>
+#ifdef G_OS_WIN32
+# define VC_EXTRALEAN
+# include <windows.h>
+#endif
 
 using namespace v8;
 
@@ -77,6 +81,10 @@ static Handle<Value> gum_script_on_memory_read_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
     const Arguments & args);
+#ifdef G_OS_WIN32
+static Handle<Value> gum_script_on_memory_read_ansi_string (
+    const Arguments & args);
+#endif
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -221,6 +229,10 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_memory_read_utf8_string));
   memory_templ->Set (String::New ("readUtf16String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf16_string));
+#ifdef G_OS_WIN32
+  memory_templ->Set (String::New ("readAnsiString"),
+      FunctionTemplate::New (gum_script_on_memory_read_ansi_string));
+#endif
   global_templ->Set (String::New ("Memory"), memory_templ);
 
   priv->context = Context::New (NULL, global_templ);
@@ -505,6 +517,40 @@ gum_script_on_memory_read_utf16_string (const Arguments & args)
       GSIZE_TO_POINTER (args[0]->IntegerValue ()));
   return String::New (data);
 }
+
+#ifdef G_OS_WIN32
+
+static gchar *
+gum_ansi_string_to_utf8 (const gchar * str_ansi)
+{
+  guint str_utf16_size;
+  WCHAR * str_utf16;
+  gchar * str_utf8;
+
+  str_utf16_size = (guint) (strlen (str_ansi) + 1) * sizeof (WCHAR);
+  str_utf16 = (WCHAR *) g_malloc (str_utf16_size);
+  MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, str_utf16_size);
+  str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_utf16, -1, NULL, NULL, NULL);
+  g_free (str_utf16);
+
+  return str_utf8;
+}
+
+static Handle<Value>
+gum_script_on_memory_read_ansi_string (const Arguments & args)
+{
+  const char * str_ansi = static_cast<const char *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+
+  gchar * str_utf8 = gum_ansi_string_to_utf8 (str_ansi);
+  Handle<Value> result (
+      String::New (str_utf8, static_cast<int> (strlen (str_utf8))));
+  g_free (str_utf8);
+
+  return result;
+}
+
+#endif
 
 static void
 gum_script_on_enter (GumInvocationListener * listener,
