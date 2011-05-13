@@ -90,8 +90,6 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   gum_script_set_message_handler (fixture->script,
       test_script_fixture_store_message, fixture, NULL);
   gum_script_load (fixture->script);
-
-  EXPECT_NO_MESSAGES ();
 }
 
 static void
@@ -111,3 +109,6 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
   g_free (expected_message);
   g_free (actual_message);
 }
+
+static int target_function_int (int arg);
+static int target_function_utf8_string (char * s);

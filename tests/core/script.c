@@ -21,14 +21,12 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
-  SCRIPT_TESTENTRY (int_argument_can_be_sent)
+  SCRIPT_TESTENTRY (argument_can_be_sent)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
+  SCRIPT_TESTENTRY (u8_can_be_read)
+  SCRIPT_TESTENTRY (utf8_string_can_be_read)
+  SCRIPT_TESTENTRY (utf16_string_can_be_read)
 TEST_LIST_END ()
-
-static int target_function_int (int arg);
-
-static void store_message (GumScript * script, const gchar * msg,
-    gpointer user_data);
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)
 {
@@ -42,7 +40,7 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
 }
 
-SCRIPT_TESTCASE (int_argument_can_be_sent)
+SCRIPT_TESTCASE (argument_can_be_sent)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(0x%x, {"
@@ -51,8 +49,8 @@ SCRIPT_TESTCASE (int_argument_can_be_sent)
       "  }"
       "});", target_function_int);
 
+  EXPECT_NO_MESSAGES ();
   target_function_int (42);
-
   EXPECT_SEND_MESSAGE_WITH ("42");
 }
 
@@ -65,9 +63,32 @@ SCRIPT_TESTCASE (return_value_can_be_sent)
       "  }"
       "});", target_function_int);
 
+  EXPECT_NO_MESSAGES ();
   target_function_int (7);
-
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (u8_can_be_read)
+{
+  guint8 val = 42;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU8(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+SCRIPT_TESTCASE (utf8_string_can_be_read)
+{
+  const gchar * str = "Bjørheimsbygd";
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(0x%x));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+}
+
+SCRIPT_TESTCASE (utf16_string_can_be_read)
+{
+  const gchar * str_utf8 = "Bjørheimsbygd";
+  gunichar2 * str = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(0x%x));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+  g_free (str);
 }
 
 GUM_NOINLINE static int

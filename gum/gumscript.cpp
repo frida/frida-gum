@@ -63,6 +63,7 @@ static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static Handle<Value> gum_script_on_memory_read_u8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
@@ -187,6 +188,8 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
+  memory_templ->Set (String::New ("readU8"),
+      FunctionTemplate::New (gum_script_on_memory_read_u8));
   memory_templ->Set (String::New ("readUtf8String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf8_string));
   memory_templ->Set (String::New ("readUtf16String"),
@@ -388,6 +391,14 @@ gum_script_attach_callbacks_get (Handle<Object> callbacks,
   }
 
   return TRUE;
+}
+
+static Handle<Value>
+gum_script_on_memory_read_u8 (const Arguments & args)
+{
+  const guint8 * data = static_cast<const guint8 *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+  return Integer::NewFromUnsigned (data[0]);
 }
 
 static Handle<Value>
