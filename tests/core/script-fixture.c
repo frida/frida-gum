@@ -21,80 +21,93 @@
 
 #include "testutil.h"
 
-#include <string.h>
-#ifdef G_OS_WIN32
-#define VC_EXTRALEAN
-#include <windows.h>
-#endif
-
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \
     TEST_ENTRY_WITH_FIXTURE ("Core/Script", test_script, NAME, \
         TestScriptFixture)
 
+#define COMPILE_AND_LOAD_SCRIPT(SOURCE, FUNC) \
+    test_script_fixture_compile_and_load_script (fixture, SOURCE, FUNC)
+#define EXPECT_NO_MESSAGES() \
+    g_assert_cmpuint (g_queue_get_length (fixture->messages), ==, 0)
+#define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \
+    test_script_fixture_expect_send_message_with (fixture, PAYLOAD)
+
 typedef struct _TestScriptFixture
 {
-  GumPointCut point_cut;
-  gpointer argument_list;
-  gpointer return_value;
-  GumInvocationContext invocation_context;
-  GumInvocationBackend invocation_backend;
-  GumCpuContext cpu_context;
+  GumScript * script;
+  GQueue * messages;
 } TestScriptFixture;
-
-static GumPointCut
-test_script_fixture_get_point_cut (GumInvocationContext * context)
-{
-  return ((TestScriptFixture *) context->backend->data)->point_cut;
-}
-
-static gpointer
-test_script_fixture_get_nth_argument (GumInvocationContext * context,
-                                      guint n)
-{
-  TestScriptFixture * fixture = (TestScriptFixture *) context->backend->data;
-  return ((gpointer *) fixture->argument_list)[n];
-}
-
-static void
-test_script_fixture_replace_nth_argument (GumInvocationContext * context,
-                                          guint n,
-                                          gpointer value)
-{
-  TestScriptFixture * fixture = (TestScriptFixture *) context->backend->data;
-  ((gpointer *) fixture->argument_list)[n] = value;
-}
-
-static gpointer
-test_script_fixture_get_return_value (GumInvocationContext * context)
-{
-  return ((TestScriptFixture *) context->backend->data)->return_value;
-}
 
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
 {
-  GumInvocationContext * ctx = &fixture->invocation_context;
-  GumInvocationBackend * backend = &fixture->invocation_backend;
-
-  fixture->point_cut = GUM_POINT_ENTER;
-
-  ctx->cpu_context = &fixture->cpu_context;
-  ctx->backend = backend;
-
-  backend->get_point_cut = test_script_fixture_get_point_cut;
-  backend->get_nth_argument = test_script_fixture_get_nth_argument;
-  backend->replace_nth_argument = test_script_fixture_replace_nth_argument;
-  backend->get_return_value = test_script_fixture_get_return_value;
-  backend->data = fixture;
-
-  memset (&fixture->cpu_context, 0, sizeof (GumCpuContext));
+  fixture->messages = g_queue_new ();
 }
 
 static void
 test_script_fixture_teardown (TestScriptFixture * fixture,
                               gconstpointer data)
 {
+  if (fixture->script != NULL)
+    g_object_unref (fixture->script);
+
+  EXPECT_NO_MESSAGES ();
+  g_queue_free (fixture->messages);
+}
+
+static void
+test_script_fixture_store_message (GumScript * script,
+                                   const gchar * msg,
+                                   gpointer user_data)
+{
+  TestScriptFixture * self = (TestScriptFixture *) user_data;
+
+  g_queue_push_tail (self->messages, g_strdup (msg));
+}
+
+static void
+test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
+                                             const gchar * source_template,
+                                             ...)
+{
+  va_list args;
+  gchar * source;
+  GError * err = NULL;
+
+  va_start (args, source_template);
+  source = g_strdup_vprintf (source_template, args);
+  va_end (args);
+
+  fixture->script = gum_script_from_string (source, &err);
+  g_assert (fixture->script != NULL);
+  g_assert (err == NULL);
+
+  g_free (source);
+
+  gum_script_set_message_handler (fixture->script,
+      test_script_fixture_store_message, fixture, NULL);
+  gum_script_load (fixture->script);
+
+  EXPECT_NO_MESSAGES ();
+}
+
+static void
+test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
+                                              const gchar * payload)
+{
+  gchar * actual_message, * expected_message;
+
+  g_assert_cmpuint (g_queue_get_length (fixture->messages), >=, 1);
+
+  actual_message = (gchar *) g_queue_pop_head (fixture->messages);
+  expected_message =
+      g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
+
+  g_assert_cmpstr (actual_message, ==, expected_message);
+
+  g_free (expected_message);
+  g_free (actual_message);
 }

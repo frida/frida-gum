@@ -22,6 +22,7 @@
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (int_argument_can_be_sent)
+  SCRIPT_TESTENTRY (return_value_can_be_sent)
 TEST_LIST_END ()
 
 static int target_function_int (int arg);
@@ -43,31 +44,30 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
 
 SCRIPT_TESTCASE (int_argument_can_be_sent)
 {
-  gchar * source;
-  GumScript * script;
-  GError * err = NULL;
-  gchar * msg = NULL;
-
-  source = g_strdup_printf (
-      "Interceptor.attach(0x%x, {\n"
-      "  onEnter: function(args) {\n"
-      "    send(args[0]);\n"
-      "  }\n"
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(0x%x, {"
+      "  onEnter: function(args) {"
+      "    send(args[0]);"
+      "  }"
       "});", target_function_int);
-  script = gum_script_from_string (source, &err);
-  g_free (source);
-  g_assert (script != NULL);
-  g_assert (err == NULL);
 
-  gum_script_set_message_handler (script, store_message, &msg, NULL);
-  gum_script_load (script);
-  g_assert (msg == NULL);
   target_function_int (42);
-  g_assert (msg != NULL);
-  g_assert_cmpstr (msg, ==, "{\"type\":\"send\",\"payload\":42}");
-  g_free (msg);
 
-  g_object_unref (script);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+SCRIPT_TESTCASE (return_value_can_be_sent)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(0x%x, {"
+      "  onLeave: function(retval) {"
+      "    send(retval);"
+      "  }"
+      "});", target_function_int);
+
+  target_function_int (7);
+
+  EXPECT_SEND_MESSAGE_WITH ("315");
 }
 
 GUM_NOINLINE static int
@@ -80,15 +80,4 @@ target_function_int (int arg)
     result += i * arg;
 
   return result;
-}
-
-static void
-store_message (GumScript * script,
-               const gchar * msg,
-               gpointer user_data)
-{
-  gchar ** testcase_msg_ptr = (gchar **) user_data;
-
-  g_assert (*testcase_msg_ptr == NULL);
-  *testcase_msg_ptr = g_strdup (msg);
 }

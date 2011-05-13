@@ -61,6 +61,8 @@ static void gum_script_create_context (GumScript * self);
 
 static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
+static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
+    const gchar * name, Local<Function> * callback_function);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
@@ -344,17 +346,10 @@ gum_script_on_interceptor_attach (const Arguments & args)
   Local<Function> on_enter, on_leave;
 
   Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  Local<Value> on_enter_value = callbacks->Get (String::New ("onEnter"));
-  if (!on_enter_value.IsEmpty ())
-  {
-    if (!on_enter_value->IsFunction ())
-    {
-      ThrowException (Exception::TypeError (String::New ("Interceptor.attach: "
-          "onEnter must be a function")));
-      return Undefined ();
-    }
-    on_enter = Local<Function>::Cast (on_enter_value);
-  }
+  if (!gum_script_attach_callbacks_get (callbacks, "onEnter", &on_enter))
+    return Undefined ();
+  if (!gum_script_attach_callbacks_get (callbacks, "onLeave", &on_leave))
+    return Undefined ();
 
   GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
   entry->on_enter = Persistent<Function>::New (on_enter);
@@ -369,6 +364,30 @@ gum_script_on_interceptor_attach (const Arguments & args)
   g_queue_push_tail (priv->attach_entries, entry);
 
   return (attach_ret == GUM_ATTACH_OK) ? True () : False ();
+}
+
+static gboolean
+gum_script_attach_callbacks_get (Handle<Object> callbacks,
+                                 const gchar * name,
+                                 Local<Function> * callback_function)
+{
+  Local<Value> val = callbacks->Get (String::New (name));
+  if (!val->IsUndefined ())
+  {
+    if (!val->IsFunction ())
+    {
+      gchar * message =
+          g_strdup_printf ("Interceptor.attach: %s must be a function", name);
+      ThrowException (Exception::TypeError (String::New (message)));
+      g_free (message);
+
+      return FALSE;
+    }
+
+    *callback_function = Local<Function>::Cast (val);
+  }
+
+  return TRUE;
 }
 
 static Handle<Value>
@@ -391,8 +410,6 @@ static void
 gum_script_on_enter (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
-  (void) listener;
-
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
   if (!entry->on_enter.IsEmpty ())
@@ -413,8 +430,20 @@ static void
 gum_script_on_leave (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
-  (void) listener;
-  (void) context;
+  GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
+      gum_invocation_context_get_listener_function_data (context));
+  if (!entry->on_leave.IsEmpty ())
+  {
+    GumScript * self = GUM_SCRIPT_CAST (listener);
+
+    ScriptScope scope (self);
+
+    gpointer raw_value = gum_invocation_context_get_return_value (context);
+    Local<Number> return_value (Number::New (GPOINTER_TO_SIZE (raw_value)));
+
+    Handle<Value> argv[] = { return_value };
+    entry->on_leave->Call (entry->receiver, 1, argv);
+  }
 }
 
 static Handle<Value>
