@@ -74,16 +74,14 @@ namespace Gum {
 	}
 
 	public class Script : GLib.Object {
-		public delegate void MessageHandler (Gum.Script script, GLib.Variant msg);
+		public delegate void MessageHandler (Gum.Script script, string msg);
 
 		public static Script from_string (string script_text) throws GLib.IOError;
 
 		public void set_message_handler (owned Gum.Script.MessageHandler func);
 
-		public void execute (Gum.InvocationContext ctx);
-
-		public void * get_code_address ();
-		public uint get_code_size ();
+		public void load ();
+		public void unload ();
 	}
 
 	public class MemoryAccessMonitor : GLib.Object {
