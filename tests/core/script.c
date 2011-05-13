@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (argument_can_be_sent)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
+  SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
@@ -66,6 +67,13 @@ SCRIPT_TESTCASE (return_value_can_be_sent)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (s8_can_be_read)
+{
+  gint8 val = -42;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS8(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
 SCRIPT_TESTCASE (u8_can_be_read)
