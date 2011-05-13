@@ -25,6 +25,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_read)
+  SCRIPT_TESTENTRY (s16_can_be_read)
+  SCRIPT_TESTENTRY (u16_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
 TEST_LIST_END ()
@@ -81,6 +83,20 @@ SCRIPT_TESTCASE (u8_can_be_read)
   guint8 val = 42;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU8(0x%x));", &val);
   EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+SCRIPT_TESTCASE (s16_can_be_read)
+{
+  gint16 val = -12123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS16(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-12123");
+}
+
+SCRIPT_TESTCASE (u16_can_be_read)
+{
+  guint16 val = 12123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU16(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_read)
