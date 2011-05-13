@@ -35,6 +35,7 @@ struct _GumScriptPrivate
 
   Persistent<Context> context;
   Persistent<Script> raw_script;
+  Persistent<ObjectTemplate> args_template;
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
@@ -56,9 +57,8 @@ static void gum_script_listener_iface_init (gpointer g_iface,
 
 static void gum_script_dispose (GObject * object);
 static void gum_script_finalize (GObject * object);
+static void gum_script_create_context (GumScript * self);
 
-static Handle<Value> gum_script_on_get_nth_argument (uint32_t index,
-    const AccessorInfo & info);
 static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
@@ -70,6 +70,9 @@ static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
 static void gum_script_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
+
+static Handle<Value> gum_script_args_on_get_nth (uint32_t index,
+    const AccessorInfo & info);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -112,6 +115,8 @@ gum_script_init (GumScript * self)
   priv->interceptor = gum_interceptor_obtain ();
 
   priv->attach_entries = g_queue_new ();
+
+  gum_script_create_context (self);
 }
 
 static void
@@ -137,8 +142,12 @@ gum_script_dispose (GObject * object)
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
+    priv->args_template.Dispose ();
+    priv->args_template.Clear ();
     priv->raw_script.Dispose ();
+    priv->raw_script.Clear ();
     priv->context.Dispose ();
+    priv->context.Clear ();
   }
 
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
@@ -158,28 +167,21 @@ gum_script_finalize (GObject * object)
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
 
-GumScript *
-gum_script_from_string (const gchar * source,
-                        GError ** error)
+static void
+gum_script_create_context (GumScript * self)
 {
-  GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
-
+  GumScriptPrivate * priv = self->priv;
   Locker l;
   HandleScope handle_scope;
 
   Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
 
-  Handle<ObjectTemplate> arg_templ = ObjectTemplate::New ();
-  arg_templ->SetIndexedPropertyHandler (gum_script_on_get_nth_argument,
-      0, 0, 0, 0, External::Wrap (script));
-  global_templ->Set (String::New ("arg"), arg_templ);
-
   global_templ->Set (String::New ("_send"),
-      FunctionTemplate::New (gum_script_on_send, External::Wrap (script)));
+      FunctionTemplate::New (gum_script_on_send, External::Wrap (self)));
 
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
-      gum_script_on_interceptor_attach, External::Wrap (script)));
+      gum_script_on_interceptor_attach, External::Wrap (self)));
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
@@ -189,8 +191,59 @@ gum_script_from_string (const gchar * source,
       FunctionTemplate::New (gum_script_on_memory_read_utf16_string));
   global_templ->Set (String::New ("Memory"), memory_templ);
 
-  Persistent<Context> context = Context::New (NULL, global_templ);
-  Context::Scope context_scope (context);
+  priv->context = Context::New (NULL, global_templ);
+
+  Context::Scope context_scope (priv->context);
+
+  Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
+  args_templ->SetInternalFieldCount (1);
+  args_templ->SetIndexedPropertyHandler (gum_script_args_on_get_nth);
+  priv->args_template = Persistent<ObjectTemplate>::New (args_templ);
+}
+
+class ScriptScope
+{
+public:
+  ScriptScope (GumScript * parent)
+    : parent (parent),
+      context_scope (parent->priv->context)
+  {
+  }
+
+  ~ScriptScope ()
+  {
+    GumScriptPrivate * priv = parent->priv;
+
+    if (trycatch.HasCaught () && priv->message_handler_func != NULL)
+    {
+      Handle<Message> message = trycatch.Message ();
+      Handle<Value> exception = trycatch.Exception ();
+      String::AsciiValue exception_str (exception);
+      gchar * error = g_strdup_printf (
+          "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
+          message->GetLineNumber (), *exception_str);
+      priv->message_handler_func (parent, error, priv->message_handler_data);
+      g_free (error);
+    }
+  }
+
+private:
+  GumScript * parent;
+  Locker l;
+  HandleScope handle_scope;
+  Context::Scope context_scope;
+  TryCatch trycatch;
+};
+
+GumScript *
+gum_script_from_string (const gchar * source,
+                        GError ** error)
+{
+  GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
+
+  Locker l;
+  HandleScope handle_scope;
+  Context::Scope context_scope (script->priv->context);
 
   gchar * combined_source = g_strconcat (source,
       "\n"
@@ -209,7 +262,6 @@ gum_script_from_string (const gchar * source,
   Handle<Script> raw_script = Script::Compile (source_value);
   if (raw_script.IsEmpty())
   {
-    context.Dispose ();
     g_object_unref (script);
 
     Handle<Message> message = trycatch.Message ();
@@ -221,7 +273,6 @@ gum_script_from_string (const gchar * source,
     return NULL;
   }
 
-  script->priv->context = context;
   script->priv->raw_script = Persistent<Script>::New (raw_script);
 
   return script;
@@ -241,26 +292,9 @@ gum_script_set_message_handler (GumScript * self,
 void
 gum_script_load (GumScript * self)
 {
-  GumScriptPrivate * priv = self->priv;
+  ScriptScope scope (self);
 
-  Locker l;
-  HandleScope handle_scope;
-  Context::Scope context_scope (priv->context);
-
-  TryCatch trycatch;
-  priv->raw_script->Run ();
-
-  if (trycatch.HasCaught () && priv->message_handler_func != NULL)
-  {
-    Handle<Message> message = trycatch.Message ();
-    Handle<Value> exception = trycatch.Exception ();
-    String::AsciiValue exception_str (exception);
-    gchar * error = g_strdup_printf (
-        "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-        message->GetLineNumber (), *exception_str);
-    priv->message_handler_func (self, error, priv->message_handler_data);
-    g_free (error);
-  }
+  self->priv->raw_script->Run ();
 }
 
 void
@@ -268,18 +302,6 @@ gum_script_unload (GumScript * self)
 {
   gum_interceptor_detach_listener (self->priv->interceptor,
       GUM_INVOCATION_LISTENER (self));
-}
-
-static Handle<Value>
-gum_script_on_get_nth_argument (uint32_t index,
-                                const AccessorInfo & info)
-{
-  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
-
-  gpointer raw_value = gum_invocation_context_get_nth_argument (
-      self->priv->current_invocation_context, index);
-
-  return Number::New (GPOINTER_TO_SIZE (raw_value));
 }
 
 static Handle<Value>
@@ -377,12 +399,13 @@ gum_script_on_enter (GumInvocationListener * listener,
   {
     GumScript * self = GUM_SCRIPT_CAST (listener);
 
-    Locker l;
-    HandleScope handle_scope;
-    Context::Scope context_scope (self->priv->context);
+    ScriptScope scope (self);
 
-    Handle<Value> args[] = { True () };
-    entry->on_enter->Call (entry->receiver, 1, args);
+    Local<Object> args = self->priv->args_template->NewInstance ();
+    args->SetPointerInInternalField (0, context);
+
+    Handle<Value> argv[] = { args };
+    entry->on_enter->Call (entry->receiver, 1, argv);
   }
 }
 
@@ -392,4 +415,16 @@ gum_script_on_leave (GumInvocationListener * listener,
 {
   (void) listener;
   (void) context;
+}
+
+static Handle<Value>
+gum_script_args_on_get_nth (uint32_t index,
+                            const AccessorInfo & info)
+{
+  GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
+      info.This ()->GetPointerFromInternalField (0));
+
+  gpointer raw_value = gum_invocation_context_get_nth_argument (ctx, index);
+
+  return Number::New (GPOINTER_TO_SIZE (raw_value));
 }
