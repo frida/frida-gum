@@ -63,6 +63,8 @@ static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s16 (const Arguments & args);
@@ -195,6 +197,10 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
+  memory_templ->Set (String::New ("readSWord"),
+      FunctionTemplate::New (gum_script_on_memory_read_sword));
+  memory_templ->Set (String::New ("readUWord"),
+      FunctionTemplate::New (gum_script_on_memory_read_uword));
   memory_templ->Set (String::New ("readS8"),
       FunctionTemplate::New (gum_script_on_memory_read_s8));
   memory_templ->Set (String::New ("readU8"),
@@ -412,6 +418,20 @@ gum_script_attach_callbacks_get (Handle<Object> callbacks,
   }
 
   return TRUE;
+}
+
+static Handle<Value>
+gum_script_on_memory_read_sword (const Arguments & args)
+{
+  return Integer::New (*static_cast<const int *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+}
+
+static Handle<Value>
+gum_script_on_memory_read_uword (const Arguments & args)
+{
+  return Integer::New (*static_cast<const unsigned int *> (
+      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
 }
 
 static Handle<Value>

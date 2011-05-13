@@ -23,6 +23,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (argument_can_be_sent)
   SCRIPT_TESTENTRY (return_value_can_be_sent)
+  SCRIPT_TESTENTRY (sword_can_be_read)
+  SCRIPT_TESTENTRY (uword_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_read)
   SCRIPT_TESTENTRY (s16_can_be_read)
@@ -73,6 +75,20 @@ SCRIPT_TESTCASE (return_value_can_be_sent)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (sword_can_be_read)
+{
+  int val = -1337000;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readSWord(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-1337000");
+}
+
+SCRIPT_TESTCASE (uword_can_be_read)
+{
+  unsigned int val = 1337000;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUWord(0x%x));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("1337000");
 }
 
 SCRIPT_TESTCASE (s8_can_be_read)
