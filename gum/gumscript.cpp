@@ -48,6 +48,7 @@ struct _GumScriptAttachEntry
 {
   Persistent<Function> on_enter;
   Persistent<Function> on_leave;
+  Persistent<Object> receiver;
 };
 
 static void gum_script_listener_iface_init (gpointer g_iface,
@@ -132,6 +133,7 @@ gum_script_dispose (GObject * object)
           g_queue_pop_tail (priv->attach_entries));
       entry->on_enter.Clear ();
       entry->on_leave.Clear ();
+      entry->receiver.Clear ();
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
@@ -335,6 +337,7 @@ gum_script_on_interceptor_attach (const Arguments & args)
   GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
   entry->on_enter = Persistent<Function>::New (on_enter);
   entry->on_leave = Persistent<Function>::New (on_leave);
+  entry->receiver = Persistent<Object>::New (callbacks);
 
   gpointer function_address = GSIZE_TO_POINTER (target_spec->IntegerValue ());
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
@@ -372,7 +375,14 @@ gum_script_on_enter (GumInvocationListener * listener,
       gum_invocation_context_get_listener_function_data (context));
   if (!entry->on_enter.IsEmpty ())
   {
-    g_assert (FALSE);
+    GumScript * self = GUM_SCRIPT_CAST (listener);
+
+    Locker l;
+    HandleScope handle_scope;
+    Context::Scope context_scope (self->priv->context);
+
+    Handle<Value> args[] = { True () };
+    entry->on_enter->Call (entry->receiver, 1, args);
   }
 }
 
