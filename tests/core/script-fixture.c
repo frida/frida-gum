@@ -118,4 +118,6 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
 }
 
 static int target_function_int (int arg);
-static int target_function_utf8_string (char * s);
+static const gchar * target_function_string (const gchar * arg);
+
+static gint gum_dummy_global_to_trick_optimizer = 0;

@@ -22,6 +22,7 @@
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (argument_can_be_read)
+  SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (sword_can_be_read)
   SCRIPT_TESTENTRY (uword_can_be_read)
@@ -85,6 +86,22 @@ SCRIPT_TESTCASE (argument_can_be_read)
   EXPECT_NO_MESSAGES ();
   target_function_int (42);
   EXPECT_SEND_MESSAGE_WITH ("42");
+}
+
+SCRIPT_TESTCASE (argument_can_be_replaced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var replacementString = Memory.allocUtf8String('Hei');"
+      "var unusedString = Memory.allocUtf8String('Hei');"
+      "Interceptor.attach(0x%x, {"
+      "  onEnter: function(args) {"
+      "    args[0] = replacementString;"
+      "  }"
+      "});", target_function_string);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (target_function_string ("Hello"), ==, "Hei");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (return_value_can_be_read)
@@ -213,4 +230,15 @@ target_function_int (int arg)
     result += i * arg;
 
   return result;
+}
+
+GUM_NOINLINE static const gchar *
+target_function_string (const gchar * arg)
+{
+  int i;
+
+  for (i = 0; i != 10; i++)
+    gum_dummy_global_to_trick_optimizer += i * arg[0];
+
+  return arg;
 }

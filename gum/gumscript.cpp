@@ -47,7 +47,7 @@ struct _GumScriptPrivate
   GDestroyNotify message_handler_notify;
 
   GQueue * attach_entries;
-  GumInvocationContext * current_invocation_context;
+  GQueue * heap_blocks;
 };
 
 struct _GumScriptAttachEntry
@@ -88,6 +88,8 @@ static Handle<Value> gum_script_on_memory_read_utf16_string (
 static Handle<Value> gum_script_on_memory_read_ansi_string (
     const Arguments & args);
 #endif
+static Handle<Value> gum_script_on_memory_alloc_utf8_string (
+    const Arguments & args);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -96,6 +98,8 @@ static void gum_script_on_leave (GumInvocationListener * listener,
 
 static Handle<Value> gum_script_args_on_get_nth (uint32_t index,
     const AccessorInfo & info);
+static Handle<Value> gum_script_args_on_set_nth (uint32_t index,
+    Local<Value> value, const AccessorInfo & info);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -138,6 +142,7 @@ gum_script_init (GumScript * self)
   priv->interceptor = gum_interceptor_obtain ();
 
   priv->attach_entries = g_queue_new ();
+  priv->heap_blocks = g_queue_new ();
 
   gum_script_create_context (self);
 }
@@ -165,6 +170,9 @@ gum_script_dispose (GObject * object)
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
+    while (!g_queue_is_empty (priv->heap_blocks))
+      g_free (g_queue_pop_tail (priv->heap_blocks));
+
     priv->args_template.Dispose ();
     priv->args_template.Clear ();
     priv->raw_script.Dispose ();
@@ -186,6 +194,7 @@ gum_script_finalize (GObject * object)
     priv->message_handler_notify (priv->message_handler_data);
 
   g_queue_free (priv->attach_entries);
+  g_queue_free (priv->heap_blocks);
 
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
@@ -242,6 +251,9 @@ gum_script_create_context (GumScript * self)
   memory_templ->Set (String::New ("readAnsiString"),
       FunctionTemplate::New (gum_script_on_memory_read_ansi_string));
 #endif
+  memory_templ->Set (String::New ("allocUtf8String"),
+      FunctionTemplate::New (gum_script_on_memory_alloc_utf8_string,
+          External::Wrap (self)));
   global_templ->Set (String::New ("Memory"), memory_templ);
 
   priv->context = Context::New (NULL, global_templ);
@@ -250,7 +262,8 @@ gum_script_create_context (GumScript * self)
 
   Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
   args_templ->SetInternalFieldCount (1);
-  args_templ->SetIndexedPropertyHandler (gum_script_args_on_get_nth);
+  args_templ->SetIndexedPropertyHandler (gum_script_args_on_get_nth,
+      gum_script_args_on_set_nth);
   priv->args_template = Persistent<ObjectTemplate>::New (args_templ);
 }
 
@@ -592,6 +605,18 @@ gum_script_on_memory_read_ansi_string (const Arguments & args)
 
 #endif
 
+static Handle<Value>
+gum_script_on_memory_alloc_utf8_string (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  String::Utf8Value str (args[0]);
+  gchar * str_heap = g_strdup (*str);
+  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+
+  return Number::New (GPOINTER_TO_SIZE (str_heap));
+}
+
 static void
 gum_script_on_enter (GumInvocationListener * listener,
                      GumInvocationContext * context)
@@ -642,4 +667,25 @@ gum_script_args_on_get_nth (uint32_t index,
   gpointer raw_value = gum_invocation_context_get_nth_argument (ctx, index);
 
   return Number::New (GPOINTER_TO_SIZE (raw_value));
+}
+
+static Handle<Value>
+gum_script_args_on_set_nth (uint32_t index,
+                            Local<Value> value,
+                            const AccessorInfo & info)
+{
+  GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
+      info.This ()->GetPointerFromInternalField (0));
+
+  if (!value->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (
+        String::New ("can only assign a number")));
+    return Undefined ();
+  }
+
+  gpointer raw_value = GSIZE_TO_POINTER (value->IntegerValue ());
+  gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
+
+  return value;
 }
