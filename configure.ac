@@ -88,7 +88,7 @@ AC_CHECK_MEMBER([struct mallinfo.arena],
 
 GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
-    gio-2.0 >= $GLIB_VERSION"
+    gio-2.0 >= $GLIB_VERSION, v8"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
