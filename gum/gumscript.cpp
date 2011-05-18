@@ -37,6 +37,7 @@
 
 using namespace v8;
 
+typedef struct _GumMessageDrainer GumMessageDrainer;
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
 typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
 typedef enum _GumMemoryValueType GumMemoryValueType;
@@ -53,10 +54,19 @@ struct _GumScriptPrivate
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
 
+  GQueue * incoming_messages;
+  GQueue * incoming_drainers;
+
   GQueue * attach_entries;
   GQueue * heap_blocks;
 
   GumTlsKey memory_access_scope_tls;
+};
+
+struct _GumMessageDrainer
+{
+  Persistent<Function> callback;
+  Persistent<Object> receiver;
 };
 
 struct _GumScriptAttachEntry
@@ -99,6 +109,12 @@ static void gum_script_create_context (GumScript * self);
 
 static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_recv (const Arguments & args);
+static void gum_script_dispatch_incoming_messages (GumScript * self);
+static GumMessageDrainer * gum_message_drainer_new (Handle<Function> callback,
+    Handle<Object> receiver);
+static void gum_message_drainer_free (GumMessageDrainer * drainer);
+static void gum_message_drainer_handle_message (GumMessageDrainer * self,
+    const gchar * msg);
 static Handle<Value> gum_script_on_process_find_module_export_by_name (
     const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
@@ -186,6 +202,9 @@ gum_script_init (GumScript * self)
 
   priv->interceptor = gum_interceptor_obtain ();
 
+  priv->incoming_messages = g_queue_new ();
+  priv->incoming_drainers = g_queue_new ();
+
   priv->attach_entries = g_queue_new ();
   priv->heap_blocks = g_queue_new ();
 
@@ -214,6 +233,12 @@ gum_script_dispose (GObject * object)
 
     g_object_unref (priv->interceptor);
     priv->interceptor = NULL;
+
+    g_queue_foreach (priv->incoming_messages, (GFunc) g_free, NULL);
+    g_queue_clear (priv->incoming_messages);
+    g_queue_foreach (priv->incoming_drainers, (GFunc) gum_message_drainer_free,
+        self);
+    g_queue_clear (priv->incoming_drainers);
 
     while (!g_queue_is_empty (priv->attach_entries))
     {
@@ -247,6 +272,9 @@ gum_script_finalize (GObject * object)
 
   if (priv->message_handler_notify != NULL)
     priv->message_handler_notify (priv->message_handler_data);
+
+  g_queue_free (priv->incoming_messages);
+  g_queue_free (priv->incoming_drainers);
 
   g_queue_free (priv->attach_entries);
   g_queue_free (priv->heap_blocks);
@@ -454,6 +482,17 @@ gum_script_unload (GumScript * self)
       GUM_INVOCATION_LISTENER (self));
 }
 
+void
+gum_script_post_message (GumScript * self,
+                         const gchar * msg)
+{
+  ScriptScope scope (self);
+
+  g_queue_push_tail (self->priv->incoming_messages, g_strdup (msg));
+
+  gum_script_dispatch_incoming_messages (self);
+}
+
 static Handle<Value>
 gum_script_on_send (const Arguments & args)
 {
@@ -472,9 +511,64 @@ gum_script_on_send (const Arguments & args)
 static Handle<Value>
 gum_script_on_recv (const Arguments & args)
 {
-  (void) args;
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  GumMessageDrainer * drainer =
+      gum_message_drainer_new (Local<Function>::Cast (args[0]), args.This ());
+  g_queue_push_tail (self->priv->incoming_drainers, drainer);
+
+  gum_script_dispatch_incoming_messages (self);
 
   return Undefined ();
+}
+
+static void
+gum_script_dispatch_incoming_messages (GumScript * self)
+{
+  GumScriptPrivate * priv = self->priv;
+
+  while (!g_queue_is_empty (priv->incoming_drainers) &&
+      !g_queue_is_empty (priv->incoming_messages))
+  {
+    GumMessageDrainer * drainer;
+    gchar * msg;
+
+    drainer = (GumMessageDrainer *) g_queue_pop_head (priv->incoming_drainers);
+    msg = (gchar *) g_queue_pop_head (priv->incoming_messages);
+    gum_message_drainer_handle_message (drainer, msg);
+    g_free (msg);
+    gum_message_drainer_free (drainer);
+  }
+}
+
+static GumMessageDrainer *
+gum_message_drainer_new (Handle<Function> callback,
+                         Handle<Object> receiver)
+{
+  GumMessageDrainer * drainer;
+
+  drainer = g_slice_new (GumMessageDrainer);
+  drainer->callback = Persistent<Function>::New (callback);
+  drainer->receiver = Persistent<Object>::New (receiver);
+
+  return drainer;
+}
+
+static void
+gum_message_drainer_free (GumMessageDrainer * drainer)
+{
+  drainer->callback.Clear ();
+  drainer->receiver.Clear ();
+
+  g_slice_free (GumMessageDrainer, drainer);
+}
+
+static void
+gum_message_drainer_handle_message (GumMessageDrainer * self,
+                                    const gchar * msg)
+{
+  Handle<Value> argv[] = { String::New (msg) };
+  self->callback->Call (self->receiver, 1, argv);
 }
 
 static Handle<Value>

@@ -94,6 +94,7 @@ SCRIPT_TESTCASE (message_can_be_received)
     "    send('pong');"
     "});");
   EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"ping\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
 }
 

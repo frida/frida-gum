@@ -69,6 +69,8 @@ GUM_API void gum_script_set_message_handler (GumScript * self,
 GUM_API void gum_script_load (GumScript * self);
 GUM_API void gum_script_unload (GumScript * self);
 
+GUM_API void gum_script_post_message (GumScript * self, const gchar * msg);
+
 G_END_DECLS
 
 #endif
