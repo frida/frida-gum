@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (message_can_be_sent)
   SCRIPT_TESTENTRY (message_can_be_received)
+  SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -89,10 +90,24 @@ SCRIPT_TESTCASE (message_can_be_sent)
 SCRIPT_TESTCASE (message_can_be_received)
 {
   COMPILE_AND_LOAD_SCRIPT (
-    "recv(function(message) {"
-    "  if (message.type == 'ping')"
-    "    send('pong');"
-    "});");
+      "recv(function(message) {"
+      "  if (message.type == 'ping')"
+      "    send('pong');"
+      "});");
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"ping\"}");
+  EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
+}
+
+SCRIPT_TESTCASE (recv_may_specify_desired_message_type)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "recv('wobble', function(message) {"
+      "  send('wibble');"
+      "});"
+      "recv('ping', function(message) {"
+      "  send('pong');"
+      "});");
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"ping\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
