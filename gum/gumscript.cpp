@@ -87,8 +87,12 @@ static Handle<Value> gum_script_on_memory_read_utf16_string (
 #ifdef G_OS_WIN32
 static Handle<Value> gum_script_on_memory_read_ansi_string (
     const Arguments & args);
+static Handle<Value> gum_script_on_memory_alloc_ansi_string (
+    const Arguments & args);
 #endif
 static Handle<Value> gum_script_on_memory_alloc_utf8_string (
+    const Arguments & args);
+static Handle<Value> gum_script_on_memory_alloc_utf16_string (
     const Arguments & args);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
@@ -250,9 +254,15 @@ gum_script_create_context (GumScript * self)
 #ifdef G_OS_WIN32
   memory_templ->Set (String::New ("readAnsiString"),
       FunctionTemplate::New (gum_script_on_memory_read_ansi_string));
+  memory_templ->Set (String::New ("allocAnsiString"),
+      FunctionTemplate::New (gum_script_on_memory_alloc_ansi_string,
+          External::Wrap (self)));
 #endif
   memory_templ->Set (String::New ("allocUtf8String"),
       FunctionTemplate::New (gum_script_on_memory_alloc_utf8_string,
+          External::Wrap (self)));
+  memory_templ->Set (String::New ("allocUtf16String"),
+      FunctionTemplate::New (gum_script_on_memory_alloc_utf16_string,
           External::Wrap (self)));
   global_templ->Set (String::New ("Memory"), memory_templ);
 
@@ -589,6 +599,24 @@ gum_ansi_string_to_utf8 (const gchar * str_ansi)
   return str_utf8;
 }
 
+static gchar *
+gum_ansi_string_from_utf8 (const gchar * str_utf8)
+{
+  gunichar2 * str_utf16;
+  gchar * str_ansi;
+  guint str_ansi_size;
+
+  str_utf16 = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+  str_ansi_size = WideCharToMultiByte (CP_ACP, 0, (LPCWSTR) str_utf16, -1,
+      NULL, 0, NULL, NULL);
+  str_ansi = (gchar *) g_malloc (str_ansi_size);
+  WideCharToMultiByte (CP_ACP, 0, (LPCWSTR) str_utf16, -1,
+      str_ansi, str_ansi_size, NULL, NULL);
+  g_free (str_utf16);
+
+  return str_ansi;
+}
+
 static Handle<Value>
 gum_script_on_memory_read_ansi_string (const Arguments & args)
 {
@@ -603,6 +631,18 @@ gum_script_on_memory_read_ansi_string (const Arguments & args)
   return result;
 }
 
+static Handle<Value>
+gum_script_on_memory_alloc_ansi_string (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  String::Utf8Value str (args[0]);
+  gchar * str_heap = gum_ansi_string_from_utf8 (*str);
+  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+
+  return Number::New (GPOINTER_TO_SIZE (str_heap));
+}
+
 #endif
 
 static Handle<Value>
@@ -612,6 +652,18 @@ gum_script_on_memory_alloc_utf8_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = g_strdup (*str);
+  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+
+  return Number::New (GPOINTER_TO_SIZE (str_heap));
+}
+
+static Handle<Value>
+gum_script_on_memory_alloc_utf16_string (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  String::Utf8Value str (args[0]);
+  gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, NULL, NULL);
   g_queue_push_tail (self->priv->heap_blocks, str_heap);
 
   return Number::New (GPOINTER_TO_SIZE (str_heap));

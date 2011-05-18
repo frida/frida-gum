@@ -35,9 +35,12 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (s64_can_be_read)
   SCRIPT_TESTENTRY (u64_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
+  SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
+  SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
 #ifdef G_OS_WIN32
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
+  SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
 #endif
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
 TEST_LIST_END ()
@@ -92,7 +95,6 @@ SCRIPT_TESTCASE (argument_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var replacementString = Memory.allocUtf8String('Hei');"
-      "var unusedString = Memory.allocUtf8String('Hei');"
       "Interceptor.attach(0x%x, {"
       "  onEnter: function(args) {"
       "    args[0] = replacementString;"
@@ -195,6 +197,13 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
+SCRIPT_TESTCASE (utf8_string_can_be_allocated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Memory.readUtf8String(Memory.allocUtf8String('Bjørheimsbygd')));");
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+}
+
 SCRIPT_TESTCASE (utf16_string_can_be_read)
 {
   const gchar * str_utf8 = "Bjørheimsbygd";
@@ -202,6 +211,13 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(0x%x));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
   g_free (str);
+}
+
+SCRIPT_TESTCASE (utf16_string_can_be_allocated)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String("
+      "Memory.allocUtf16String('Bjørheimsbygd')));");
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
 #ifdef G_OS_WIN32
@@ -216,6 +232,13 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(0x%x));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
   g_free (str_utf16);
+}
+
+SCRIPT_TESTCASE (ansi_string_can_be_allocated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Memory.readAnsiString(Memory.allocAnsiString('Bjørheimsbygd')));");
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 
 #endif
