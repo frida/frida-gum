@@ -40,6 +40,8 @@
     g_assert_cmpuint (g_queue_get_length (fixture->messages), ==, 0)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD)
+#define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
+    test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
 typedef struct _TestScriptFixture
 {
@@ -110,6 +112,29 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
   actual_message = (gchar *) g_queue_pop_head (fixture->messages);
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
+
+  g_assert_cmpstr (actual_message, ==, expected_message);
+
+  g_free (expected_message);
+  g_free (actual_message);
+}
+
+static void
+test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
+                                               gint line_number,
+                                               const gchar * description)
+{
+  gchar * actual_message, * expected_message;
+
+  g_assert_cmpuint (g_queue_get_length (fixture->messages), >=, 1);
+
+  actual_message = (gchar *) g_queue_pop_head (fixture->messages);
+  expected_message = g_strdup_printf ("{"
+          "\"type\":\"error\","
+          "\"lineNumber\":%d,"
+          "\"description\":\"%s\""
+      "}",
+      line_number, description);
 
   g_assert_cmpstr (actual_message, ==, expected_message);
 

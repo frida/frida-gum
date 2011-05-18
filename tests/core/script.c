@@ -42,6 +42,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
   SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
 #endif
+  SCRIPT_TESTENTRY (invalid_read_results_in_exception)
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
 TEST_LIST_END ()
 
@@ -242,6 +243,38 @@ SCRIPT_TESTCASE (ansi_string_can_be_allocated)
 }
 
 #endif
+
+SCRIPT_TESTCASE (invalid_read_results_in_exception)
+{
+  const gchar * type_name[] = {
+      "SWord",
+      "UWord",
+      "S8",
+      "U8",
+      "S16",
+      "U16",
+      "S32",
+      "U32",
+      "S64",
+      "U64",
+      "Utf8String",
+      "Utf16String",
+#ifdef G_OS_WIN32
+      "AnsiString"
+#endif
+  };
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (type_name); i++)
+  {
+    gchar * source;
+
+    source = g_strconcat ("Memory.read", type_name[i], "(1337);", NULL);
+    COMPILE_AND_LOAD_SCRIPT (source);
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x539");
+    g_free (source);
+  }
+}
 
 GUM_NOINLINE static int
 target_function_int (int arg)

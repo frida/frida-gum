@@ -21,8 +21,13 @@
 
 #include "guminterceptor.h"
 #include "gumsymbolutil.h"
+#include "gumtls.h"
+#ifdef G_OS_WIN32
+# include "backend-windows/gumwinexceptionhook.h"
+#endif
 
 #include <gio/gio.h>
+#include <setjmp.h>
 #include <string.h>
 #include <v8.h>
 #ifdef G_OS_WIN32
@@ -33,6 +38,8 @@
 using namespace v8;
 
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
+typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
+typedef enum _GumMemoryValueType GumMemoryValueType;
 
 struct _GumScriptPrivate
 {
@@ -48,6 +55,8 @@ struct _GumScriptPrivate
 
   GQueue * attach_entries;
   GQueue * heap_blocks;
+
+  GumTlsKey memory_access_scope_tls;
 };
 
 struct _GumScriptAttachEntry
@@ -55,6 +64,30 @@ struct _GumScriptAttachEntry
   Persistent<Function> on_enter;
   Persistent<Function> on_leave;
   Persistent<Object> receiver;
+};
+
+struct _GumMemoryAccessScope
+{
+  gboolean exception_occurred;
+  gpointer address;
+  jmp_buf env;
+};
+
+enum _GumMemoryValueType
+{
+  GUM_MEMORY_VALUE_SWORD,
+  GUM_MEMORY_VALUE_UWORD,
+  GUM_MEMORY_VALUE_S8,
+  GUM_MEMORY_VALUE_U8,
+  GUM_MEMORY_VALUE_S16,
+  GUM_MEMORY_VALUE_U16,
+  GUM_MEMORY_VALUE_S32,
+  GUM_MEMORY_VALUE_U32,
+  GUM_MEMORY_VALUE_S64,
+  GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_UTF8_STRING,
+  GUM_MEMORY_VALUE_UTF16_STRING,
+  GUM_MEMORY_VALUE_ANSI_STRING
 };
 
 static void gum_script_listener_iface_init (gpointer g_iface,
@@ -70,6 +103,11 @@ static Handle<Value> gum_script_on_process_find_module_export_by_name (
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+#ifdef G_OS_WIN32
+static gboolean gum_script_memory_on_exception (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context,
+    gpointer user_data);
+#endif
 static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
@@ -89,6 +127,8 @@ static Handle<Value> gum_script_on_memory_read_ansi_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_alloc_ansi_string (
     const Arguments & args);
+static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi);
+static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
 static Handle<Value> gum_script_on_memory_alloc_utf8_string (
     const Arguments & args);
@@ -148,6 +188,12 @@ gum_script_init (GumScript * self)
   priv->attach_entries = g_queue_new ();
   priv->heap_blocks = g_queue_new ();
 
+  GUM_TLS_KEY_INIT (&priv->memory_access_scope_tls);
+
+#ifdef G_OS_WIN32
+  gum_win_exception_hook_add (gum_script_memory_on_exception, self);
+#endif
+
   gum_script_create_context (self);
 }
 
@@ -156,6 +202,10 @@ gum_script_dispose (GObject * object)
 {
   GumScript * self = GUM_SCRIPT (object);
   GumScriptPrivate * priv = self->priv;
+
+#ifdef G_OS_WIN32
+  gum_win_exception_hook_remove (gum_script_memory_on_exception);
+#endif
 
   if (priv->interceptor != NULL)
   {
@@ -200,6 +250,8 @@ gum_script_finalize (GObject * object)
   g_queue_free (priv->attach_entries);
   g_queue_free (priv->heap_blocks);
 
+  GUM_TLS_KEY_FREE (priv->memory_access_scope_tls);
+
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
 
@@ -228,32 +280,45 @@ gum_script_create_context (GumScript * self)
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
   memory_templ->Set (String::New ("readSWord"),
-      FunctionTemplate::New (gum_script_on_memory_read_sword));
+      FunctionTemplate::New (gum_script_on_memory_read_sword,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readUWord"),
-      FunctionTemplate::New (gum_script_on_memory_read_uword));
+      FunctionTemplate::New (gum_script_on_memory_read_uword,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readS8"),
-      FunctionTemplate::New (gum_script_on_memory_read_s8));
+      FunctionTemplate::New (gum_script_on_memory_read_s8,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readU8"),
-      FunctionTemplate::New (gum_script_on_memory_read_u8));
+      FunctionTemplate::New (gum_script_on_memory_read_u8,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readS16"),
-      FunctionTemplate::New (gum_script_on_memory_read_s16));
+      FunctionTemplate::New (gum_script_on_memory_read_s16,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readU16"),
-      FunctionTemplate::New (gum_script_on_memory_read_u16));
+      FunctionTemplate::New (gum_script_on_memory_read_u16,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readS32"),
-      FunctionTemplate::New (gum_script_on_memory_read_s32));
+      FunctionTemplate::New (gum_script_on_memory_read_s32,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readU32"),
-      FunctionTemplate::New (gum_script_on_memory_read_u32));
+      FunctionTemplate::New (gum_script_on_memory_read_u32,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readS64"),
-      FunctionTemplate::New (gum_script_on_memory_read_s64));
+      FunctionTemplate::New (gum_script_on_memory_read_s64,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readU64"),
-      FunctionTemplate::New (gum_script_on_memory_read_u64));
+      FunctionTemplate::New (gum_script_on_memory_read_u64,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readUtf8String"),
-      FunctionTemplate::New (gum_script_on_memory_read_utf8_string));
+      FunctionTemplate::New (gum_script_on_memory_read_utf8_string,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readUtf16String"),
-      FunctionTemplate::New (gum_script_on_memory_read_utf16_string));
+      FunctionTemplate::New (gum_script_on_memory_read_utf16_string,
+          External::Wrap (self)));
 #ifdef G_OS_WIN32
   memory_templ->Set (String::New ("readAnsiString"),
-      FunctionTemplate::New (gum_script_on_memory_read_ansi_string));
+      FunctionTemplate::New (gum_script_on_memory_read_ansi_string,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("allocAnsiString"),
       FunctionTemplate::New (gum_script_on_memory_alloc_ansi_string,
           External::Wrap (self)));
@@ -495,93 +560,265 @@ gum_script_attach_callbacks_get (Handle<Object> callbacks,
   return TRUE;
 }
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4611)
+#endif
+
+static Handle<Value>
+gum_script_memory_do_read (const Arguments & args,
+                           GumMemoryValueType type)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumMemoryAccessScope scope;
+  Handle<Value> address = args[0];
+  Handle<Value> result;
+
+  scope.exception_occurred = FALSE;
+
+  GUM_TLS_KEY_SET_VALUE (self->priv->memory_access_scope_tls, &scope);
+
+  if (setjmp (scope.env) == 0)
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_SWORD:
+        result = Integer::New (*static_cast<const int *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_UWORD:
+        result = Integer::New (*static_cast<const unsigned int *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        result = Integer::New (*static_cast<const gint8 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        result = Integer::NewFromUnsigned (*static_cast<const guint8 *> (
+            GSIZE_TO_POINTER (address->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        result = Integer::New (*static_cast<const gint16 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        result = Integer::NewFromUnsigned (*static_cast<const guint16 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        result = Integer::New (*static_cast<const gint32 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        result = Integer::NewFromUnsigned (*static_cast<const guint32 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        result = Number::New (*static_cast<const gint64 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        result = Number::New (*static_cast<const guint64 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        break;
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        const char * data = static_cast<const char *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        result = String::New (data, static_cast<int> (strlen (data)));
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        gconstpointer data = static_cast<gconstpointer> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        /* trap bad pointer early: */
+        wcslen (static_cast<const wchar_t *> (data));
+        result = String::New (static_cast<const uint16_t *> (data));
+        break;
+      }
+#ifdef G_OS_WIN32
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+        const char * str_ansi = static_cast<const char *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        gchar * str_utf8 = gum_ansi_string_to_utf8 (str_ansi);
+        result = String::New (str_utf8, static_cast<int> (strlen (str_utf8)));
+        g_free (str_utf8);
+        break;
+      }
+#endif
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  GUM_TLS_KEY_SET_VALUE (self->priv->memory_access_scope_tls, NULL);
+
+  if (scope.exception_occurred)
+  {
+    gchar * message = g_strdup_printf (
+        "access violation reading 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (scope.address));
+    ThrowException (Exception::Error (String::New (message)));
+    g_free (message);
+
+    result = Undefined ();
+  }
+
+  return result;
+}
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
+
+#ifdef G_OS_WIN32
+
+static void
+gum_script_memory_do_longjmp (jmp_buf * env)
+{
+  longjmp (*env, 1);
+}
+
+static gboolean
+gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
+                                CONTEXT * context,
+                                gpointer user_data)
+{
+  GumScript * self = GUM_SCRIPT_CAST (user_data);
+  GumMemoryAccessScope * scope;
+
+  if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)
+    return FALSE;
+
+  /* must be a READ */
+  if (exception_record->ExceptionInformation[0] != 0)
+    return FALSE;
+
+  scope = (GumMemoryAccessScope *)
+      GUM_TLS_KEY_GET_VALUE (self->priv->memory_access_scope_tls);
+  if (scope == NULL)
+    return FALSE;
+
+  if (!scope->exception_occurred)
+  {
+    scope->exception_occurred = TRUE;
+
+    scope->address = (gpointer) exception_record->ExceptionInformation[1];
+
+#if GLIB_SIZEOF_VOID_P == 4
+    context->Esp -= 8;
+    *((jmp_buf **) (context->Esp + 4)) = &scope->env;
+    *((jmp_buf **) (context->Esp + 0)) = NULL;
+    context->Eip = (DWORD) gum_script_memory_do_longjmp;
+#else
+    context->Rsp -= 16;
+    context->Rcx = (DWORD64) &scope->env;
+    *((void **) (context->Rsp + 0)) = NULL;
+    context->Rip = (DWORD64) gum_script_memory_do_longjmp;
+#endif
+
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+#endif
+
 static Handle<Value>
 gum_script_on_memory_read_sword (const Arguments & args)
 {
-  return Integer::New (*static_cast<const int *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_SWORD);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_uword (const Arguments & args)
 {
-  return Integer::New (*static_cast<const unsigned int *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_UWORD);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_s8 (const Arguments & args)
 {
-  return Integer::New (*static_cast<const gint8 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_S8);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_u8 (const Arguments & args)
 {
-  return Integer::NewFromUnsigned (*static_cast<const guint8 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_U8);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_s16 (const Arguments & args)
 {
-  return Integer::New (*static_cast<const gint16 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_S16);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_u16 (const Arguments & args)
 {
-  return Integer::NewFromUnsigned (*static_cast<const guint16 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_U16);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_s32 (const Arguments & args)
 {
-  return Integer::New (*static_cast<const gint32 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_S32);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_u32 (const Arguments & args)
 {
-  return Integer::NewFromUnsigned (*static_cast<const guint32 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_U32);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_s64 (const Arguments & args)
 {
-  return Number::New (*static_cast<const gint64 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_S64);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_u64 (const Arguments & args)
 {
-  return Number::New (*static_cast<const guint64 *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_U64);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_utf8_string (const Arguments & args)
 {
-  const char * data = static_cast<const char *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-  return String::New (data, static_cast<int> (strlen (data)));
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_UTF8_STRING);
 }
 
 static Handle<Value>
 gum_script_on_memory_read_utf16_string (const Arguments & args)
 {
-  const uint16_t * data = static_cast<const uint16_t *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-  return String::New (data);
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_UTF16_STRING);
 }
 
 #ifdef G_OS_WIN32
+
+static Handle<Value>
+gum_script_on_memory_read_ansi_string (const Arguments & args)
+{
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_ANSI_STRING);
+}
+
+static Handle<Value>
+gum_script_on_memory_alloc_ansi_string (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  String::Utf8Value str (args[0]);
+  gchar * str_heap = gum_ansi_string_from_utf8 (*str);
+  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+
+  return Number::New (GPOINTER_TO_SIZE (str_heap));
+}
 
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi)
@@ -615,32 +852,6 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
   g_free (str_utf16);
 
   return str_ansi;
-}
-
-static Handle<Value>
-gum_script_on_memory_read_ansi_string (const Arguments & args)
-{
-  const char * str_ansi = static_cast<const char *> (
-      GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-
-  gchar * str_utf8 = gum_ansi_string_to_utf8 (str_ansi);
-  Handle<Value> result (
-      String::New (str_utf8, static_cast<int> (strlen (str_utf8))));
-  g_free (str_utf8);
-
-  return result;
-}
-
-static Handle<Value>
-gum_script_on_memory_alloc_ansi_string (const Arguments & args)
-{
-  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
-
-  String::Utf8Value str (args[0]);
-  gchar * str_heap = gum_ansi_string_from_utf8 (*str);
-  g_queue_push_tail (self->priv->heap_blocks, str_heap);
-
-  return Number::New (GPOINTER_TO_SIZE (str_heap));
 }
 
 #endif
