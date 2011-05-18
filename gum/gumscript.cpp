@@ -98,6 +98,7 @@ static void gum_script_finalize (GObject * object);
 static void gum_script_create_context (GumScript * self);
 
 static Handle<Value> gum_script_on_send (const Arguments & args);
+static Handle<Value> gum_script_on_recv (const Arguments & args);
 static Handle<Value> gum_script_on_process_find_module_export_by_name (
     const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
@@ -266,6 +267,8 @@ gum_script_create_context (GumScript * self)
 
   global_templ->Set (String::New ("_send"),
       FunctionTemplate::New (gum_script_on_send, External::Wrap (self)));
+  global_templ->Set (String::New ("_recv"),
+      FunctionTemplate::New (gum_script_on_recv, External::Wrap (self)));
 
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
@@ -395,6 +398,12 @@ gum_script_from_string (const gchar * source,
       "    'payload': payload\n"
       "  };\n"
       "  _send(JSON.stringify(message));\n"
+      "}\n"
+      "\n"
+      "function recv(callback) {\n"
+      "  _recv(function(rawMessage) {\n"
+      "    callback(JSON.parse(rawMessage));\n"
+      "  });\n"
       "}\n",
       NULL);
   Handle<String> source_value = String::New (combined_source);
@@ -456,6 +465,14 @@ gum_script_on_send (const Arguments & args)
     String::Utf8Value message (args[0]);
     priv->message_handler_func (self, *message, priv->message_handler_data);
   }
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_recv (const Arguments & args)
+{
+  (void) args;
 
   return Undefined ();
 }

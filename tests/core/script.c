@@ -21,6 +21,8 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
+  SCRIPT_TESTENTRY (message_can_be_sent)
+  SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -76,6 +78,23 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
   g_assert (err != NULL);
   g_assert_cmpstr (err->message, ==,
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
+}
+
+SCRIPT_TESTCASE (message_can_be_sent)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(1234);");
+  EXPECT_SEND_MESSAGE_WITH ("1234");
+}
+
+SCRIPT_TESTCASE (message_can_be_received)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+    "recv(function(message) {"
+    "  if (message.type == 'ping')"
+    "    send('pong');"
+    "});");
+  EXPECT_NO_MESSAGES ();
+  EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
 }
 
 SCRIPT_TESTCASE (argument_can_be_read)
