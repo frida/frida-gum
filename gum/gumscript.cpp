@@ -30,9 +30,17 @@
 #include <setjmp.h>
 #include <string.h>
 #include <v8.h>
+#include <wchar.h>
 #ifdef G_OS_WIN32
 # define VC_EXTRALEAN
 # include <windows.h>
+#else
+# include <signal.h>
+# ifdef HAVE_DARWIN
+#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
+# else
+#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+# endif
 #endif
 
 using namespace v8;
@@ -40,7 +48,7 @@ using namespace v8;
 typedef struct _GumMessageDrainer GumMessageDrainer;
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
 typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
-typedef enum _GumMemoryValueType GumMemoryValueType;
+typedef guint GumMemoryValueType;
 
 struct _GumScriptPrivate
 {
@@ -59,8 +67,6 @@ struct _GumScriptPrivate
 
   GQueue * attach_entries;
   GQueue * heap_blocks;
-
-  GumTlsKey memory_access_scope_tls;
 };
 
 struct _GumMessageDrainer
@@ -124,6 +130,9 @@ static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
 static gboolean gum_script_memory_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
     gpointer user_data);
+#else
+static void gum_script_memory_on_invalid_access (int sig, siginfo_t * siginfo,
+    void * context);
 #endif
 static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
@@ -169,6 +178,13 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
+G_LOCK_DEFINE_STATIC (gum_memaccess);
+static guint gum_memaccess_refcount = 0;
+static GumTlsKey gum_memaccess_scope_tls;
+#ifndef G_OS_WIN32
+static struct sigaction gum_memaccess_old_action;
+#endif
+
 static void
 gum_script_class_init (GumScriptClass * klass)
 {
@@ -208,7 +224,20 @@ gum_script_init (GumScript * self)
   priv->attach_entries = g_queue_new ();
   priv->heap_blocks = g_queue_new ();
 
-  GUM_TLS_KEY_INIT (&priv->memory_access_scope_tls);
+  G_LOCK (gum_memaccess);
+  if (gum_memaccess_refcount++ == 0)
+  {
+    GUM_TLS_KEY_INIT (&gum_memaccess_scope_tls);
+
+#ifndef G_OS_WIN32
+    struct sigaction action;
+    action.sa_sigaction = gum_script_memory_on_invalid_access;
+    sigemptyset (&action.sa_mask);
+    action.sa_flags = SA_SIGINFO;
+    sigaction (GUM_INVALID_ACCESS_SIGNAL, &action, &gum_memaccess_old_action);
+#endif
+  }
+  G_UNLOCK (gum_memaccess);
 
 #ifdef G_OS_WIN32
   gum_win_exception_hook_add (gum_script_memory_on_exception, self);
@@ -273,13 +302,24 @@ gum_script_finalize (GObject * object)
   if (priv->message_handler_notify != NULL)
     priv->message_handler_notify (priv->message_handler_data);
 
+  G_LOCK (gum_memaccess);
+  if (--gum_memaccess_refcount == 0)
+  {
+#ifndef G_OS_WIN32
+    sigaction (GUM_INVALID_ACCESS_SIGNAL, &gum_memaccess_old_action, NULL);
+    memset (&gum_memaccess_old_action, 0, sizeof (gum_memaccess_old_action));
+#endif
+
+    GUM_TLS_KEY_FREE (gum_memaccess_scope_tls);
+    gum_memaccess_scope_tls = 0;
+  }
+  G_UNLOCK (gum_memaccess);
+
   g_queue_free (priv->incoming_messages);
   g_queue_free (priv->incoming_drainers);
 
   g_queue_free (priv->attach_entries);
   g_queue_free (priv->heap_blocks);
-
-  GUM_TLS_KEY_FREE (priv->memory_access_scope_tls);
 
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
@@ -680,14 +720,13 @@ static Handle<Value>
 gum_script_memory_do_read (const Arguments & args,
                            GumMemoryValueType type)
 {
-  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumMemoryAccessScope scope;
   Handle<Value> address = args[0];
   Handle<Value> result;
 
   scope.exception_occurred = FALSE;
 
-  GUM_TLS_KEY_SET_VALUE (self->priv->memory_access_scope_tls, &scope);
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
   if (setjmp (scope.env) == 0)
   {
@@ -765,7 +804,7 @@ gum_script_memory_do_read (const Arguments & args,
     }
   }
 
-  GUM_TLS_KEY_SET_VALUE (self->priv->memory_access_scope_tls, NULL);
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
 
   if (scope.exception_occurred)
   {
@@ -781,11 +820,11 @@ gum_script_memory_do_read (const Arguments & args,
   return result;
 }
 
+#ifdef G_OS_WIN32
+
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
-
-#ifdef G_OS_WIN32
 
 static void
 gum_script_memory_do_longjmp (jmp_buf * env)
@@ -835,6 +874,32 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
   }
 
   return FALSE;
+}
+
+#else
+
+static void
+gum_script_memory_on_invalid_access (int sig,
+                                     siginfo_t * siginfo,
+                                     void * context)
+{
+  GumMemoryAccessScope * scope;
+
+  scope = (GumMemoryAccessScope *)
+      GUM_TLS_KEY_GET_VALUE (gum_memaccess_scope_tls);
+  if (scope == NULL)
+    goto not_our_fault;
+
+  if (!scope->exception_occurred)
+  {
+    scope->exception_occurred = TRUE;
+
+    scope->address = siginfo->si_addr;
+    longjmp (scope->env, 1);
+  }
+
+not_our_fault:
+  raise (GUM_INVALID_ACCESS_SIGNAL);
 }
 
 #endif
