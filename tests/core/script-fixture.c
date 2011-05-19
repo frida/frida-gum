@@ -35,7 +35,8 @@
         TestScriptFixture)
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
-    test_script_fixture_compile_and_load_script (fixture, SOURCE, __VA_ARGS__)
+    test_script_fixture_compile_and_load_script (fixture, SOURCE, \
+    ## __VA_ARGS__)
 #define POST_MESSAGE(MSG) \
     gum_script_post_message (fixture->script, MSG)
 #define EXPECT_NO_MESSAGES() \
