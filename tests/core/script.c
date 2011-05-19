@@ -304,9 +304,9 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
   {
     gchar * source;
 
-    source = g_strconcat ("Memory.read", type_name[i], "(1337);", NULL);
+    source = g_strconcat ("Memory.read", type_name[i], "(1336);", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x539");
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x538");
     g_free (source);
   }
 }
