@@ -52,10 +52,12 @@ struct _GumFindExportContext
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
 typedef struct segment_command gum_segment_command_t;
+typedef struct nlist gum_nlist_t;
 #else
 # define GUM_LC_SEGMENT LC_SEGMENT_64
 typedef struct mach_header_64 gum_mach_header_t;
 typedef struct segment_command_64 gum_segment_command_t;
+typedef struct nlist_64 gum_nlist_t;
 #endif
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
@@ -368,7 +370,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   gsize vmaddr, fileoff;
   struct symtab_command * sc;
   gsize table_offset;
-  struct nlist * symbase, * sym;
+  gum_nlist_t * symbase, * sym;
   gchar * strbase;
   guint symbol_count, symbol_idx;
 
@@ -382,7 +384,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
     return TRUE;
 
   table_offset = vmaddr - fileoff + GPOINTER_TO_SIZE (slide);
-  symbase = (struct nlist *) (sc->symoff + table_offset);
+  symbase = (gum_nlist_t *) (sc->symoff + table_offset);
   strbase = (gchar *) (sc->stroff + table_offset);
 
   symbol_count = sc->nsyms;
