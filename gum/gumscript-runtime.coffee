@@ -1,12 +1,14 @@
 class GumMessageDispatcher
   constructor: ->
     @messages = []
-    @callbacks = {}
+    @operations = {}
     _setIncomingMessageCallback(@handleMessage)
 
   registerCallback: (type, callback) ->
-    @callbacks[type] = callback
+    op = new GumMessageRecvOperation(callback)
+    @operations[type] = op
     @dispatchMessages()
+    return op
 
   handleMessage: (rawMessage) =>
     @messages.push(JSON.parse(rawMessage))
@@ -18,17 +20,29 @@ class GumMessageDispatcher
     return
 
   dispatch: (message) ->
-    if @callbacks[message.type]
+    if @operations[message.type]
       handlerType = message.type
-    else if @callbacks['*']
+    else if @operations['*']
       handlerType = '*'
     else
       @messages.push(message)
       return
-    callback = @callbacks[handlerType]
-    delete @callbacks[handlerType]
-    callback(message)
+    operation = @operations[handlerType]
+    delete @operations[handlerType]
+    operation._complete(message)
     return
+
+class GumMessageRecvOperation
+  constructor: (@callback) ->
+    @completed = false
+
+  wait: () ->
+    while !@completed
+      _waitForEvent()
+
+  _complete: (message) ->
+    @callback(message)
+    @completed = true
 
 _dispatcher = new GumMessageDispatcher()
 

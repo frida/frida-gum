@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (message_can_be_sent)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
+  SCRIPT_TESTENTRY (recv_can_be_waited_for)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -111,6 +112,64 @@ SCRIPT_TESTCASE (recv_may_specify_desired_message_type)
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"ping\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
+}
+
+typedef struct _GumInvokeTargetContext GumInvokeTargetContext;
+
+struct _GumInvokeTargetContext
+{
+  GumScript * script;
+  volatile gboolean started;
+  volatile gboolean finished;
+};
+
+SCRIPT_TESTCASE (recv_can_be_waited_for)
+{
+  GThread * worker_thread;
+  GumInvokeTargetContext ctx;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(0x%x, {"
+      "  onEnter: function(args) {"
+      "    op = recv('poke', function(pokeMessage) {"
+      "      send('pokeBack');"
+      "    });"
+      "    op.wait();"
+      "    send('pokeReceived');"
+      "  }"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  ctx.script = fixture->script;
+  ctx.started = FALSE;
+  ctx.finished = FALSE;
+  worker_thread = g_thread_create (invoke_target_function_int_worker,
+      &ctx, TRUE, NULL);
+  while (!ctx.started)
+    g_usleep (G_USEC_PER_SEC / 200);
+
+  g_usleep (G_USEC_PER_SEC / 25);
+  EXPECT_NO_MESSAGES ();
+  g_assert (!ctx.finished);
+
+  POST_MESSAGE ("{\"type\":\"poke\"}");
+  g_thread_join (worker_thread);
+  g_assert (ctx.finished);
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+static gpointer
+invoke_target_function_int_worker (gpointer data)
+{
+  GumInvokeTargetContext * ctx = (GumInvokeTargetContext *) data;
+
+  ctx->started = TRUE;
+  target_function_int (42);
+  ctx->finished = TRUE;
+
+  return NULL;
 }
 
 SCRIPT_TESTCASE (argument_can_be_read)

@@ -64,6 +64,10 @@ struct _GumScriptPrivate
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
 
+  GMutex * event_mutex;
+  GCond * event_cond;
+  guint event_count;
+
   GumMessageSink * incoming_message_sink;
 
   GQueue * attach_entries;
@@ -118,6 +122,7 @@ static Handle<Value> gum_script_on_console_log (const Arguments & args);
 static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_set_incoming_message_callback (
     const Arguments & args);
+static Handle<Value> gum_script_on_wait_for_event (const Arguments & args);
 static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
     Handle<Object> receiver);
 static void gum_message_sink_free (GumMessageSink * sink);
@@ -224,6 +229,9 @@ gum_script_init (GumScript * self)
 
   priv->interceptor = gum_interceptor_obtain ();
 
+  priv->event_mutex = g_mutex_new ();
+  priv->event_cond = g_cond_new ();
+
   priv->attach_entries = g_queue_new ();
   priv->heap_blocks = g_queue_new ();
 
@@ -315,6 +323,9 @@ gum_script_finalize (GObject * object)
   }
   G_UNLOCK (gum_memaccess);
 
+  g_mutex_free (priv->event_mutex);
+  g_cond_free (priv->event_cond);
+
   g_queue_free (priv->attach_entries);
   g_queue_free (priv->heap_blocks);
 
@@ -339,7 +350,10 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_send, External::Wrap (self)));
   global_templ->Set (String::New ("_setIncomingMessageCallback"),
       FunctionTemplate::New (gum_script_on_set_incoming_message_callback,
-        External::Wrap (self)));
+          External::Wrap (self)));
+  global_templ->Set (String::New ("_waitForEvent"),
+      FunctionTemplate::New (gum_script_on_wait_for_event,
+          External::Wrap (self)));
 
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
@@ -518,9 +532,17 @@ gum_script_post_message (GumScript * self,
 {
   if (self->priv->incoming_message_sink != NULL)
   {
-    ScriptScope scope (self);
+    GumScriptPrivate * priv = self->priv;
+    
+    {
+      ScriptScope scope (self);
+      gum_message_sink_handle_message (self->priv->incoming_message_sink, msg);
+      priv->event_count++;
+    }
 
-    gum_message_sink_handle_message (self->priv->incoming_message_sink, msg);
+    g_mutex_lock (priv->event_mutex);
+    g_cond_broadcast (priv->event_cond);
+    g_mutex_unlock (priv->event_mutex);
   }
 }
 
@@ -568,6 +590,26 @@ gum_script_on_set_incoming_message_callback (const Arguments & args)
   {
     priv->incoming_message_sink =
         gum_message_sink_new (Local<Function>::Cast (args[0]), args.This ());
+  }
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_wait_for_event (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+  guint start_count;
+
+  start_count = priv->event_count;
+  while (priv->event_count == start_count)
+  {
+    Unlocker ul;
+
+    g_mutex_lock (priv->event_mutex);
+    g_cond_wait (priv->event_cond, priv->event_mutex);
+    g_mutex_unlock (priv->event_mutex);
   }
 
   return Undefined ();

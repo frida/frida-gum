@@ -145,6 +145,8 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   g_free (actual_message);
 }
 
+static gpointer invoke_target_function_int_worker (gpointer data);
+
 static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
 
