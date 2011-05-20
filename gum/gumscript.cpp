@@ -43,6 +43,8 @@
 # endif
 #endif
 
+#define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
+
 using namespace v8;
 
 typedef struct _GumMessageDrainer GumMessageDrainer;
@@ -184,6 +186,10 @@ static GumTlsKey gum_memaccess_scope_tls;
 #ifndef G_OS_WIN32
 static struct sigaction gum_memaccess_old_action;
 #endif
+
+static const gchar * gum_script_runtime_source =
+#include "gumscript-runtime.h"
+;
 
 static void
 gum_script_class_init (GumScriptClass * klass)
@@ -433,7 +439,8 @@ public:
       String::AsciiValue exception_str (exception);
       gchar * error = g_strdup_printf (
           "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-          message->GetLineNumber (), *exception_str);
+          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
+          *exception_str);
       priv->message_handler_func (parent, error, priv->message_handler_data);
       g_free (error);
     }
@@ -457,23 +464,8 @@ gum_script_from_string (const gchar * source,
   HandleScope handle_scope;
   Context::Scope context_scope (script->priv->context);
 
-  gchar * combined_source = g_strconcat (source,
-      "\n"
-      "\n"
-      "function send(payload) {\n"
-      "  var message = {\n"
-      "    'type': 'send',\n"
-      "    'payload': payload\n"
-      "  };\n"
-      "  _send(JSON.stringify(message));\n"
-      "}\n"
-      "\n"
-      "function recv(callback) {\n"
-      "  _recv(function(rawMessage) {\n"
-      "    callback(JSON.parse(rawMessage));\n"
-      "  });\n"
-      "}\n",
-      NULL);
+  gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
+      source, NULL);
   Handle<String> source_value = String::New (combined_source);
   g_free (combined_source);
   TryCatch trycatch;
@@ -486,7 +478,8 @@ gum_script_from_string (const gchar * source,
     Handle<Value> exception = trycatch.Exception ();
     String::AsciiValue exception_str (exception);
     g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
-        message->GetLineNumber (), *exception_str);
+        message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
+        *exception_str);
 
     return NULL;
   }
