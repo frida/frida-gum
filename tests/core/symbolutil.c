@@ -34,7 +34,6 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges_can_be_enumerated)
-  SYMUTIL_TESTENTRY (module_ranges_are_within_module_region)
   SYMUTIL_TESTENTRY (module_base)
   SYMUTIL_TESTENTRY (module_export_can_be_found)
   SYMUTIL_TESTENTRY (module_export_matches_system_lookup);
@@ -73,8 +72,6 @@ static gboolean module_found_cb (const gchar * name, gpointer address,
 static gboolean export_found_cb (const gchar * name, gpointer address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
-static gboolean verify_range_is_within (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 
 #ifdef HAVE_SYMBOL_BACKEND
@@ -144,17 +141,6 @@ SYMUTIL_TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-SYMUTIL_TESTCASE (module_ranges_are_within_module_region)
-{
-  GumMemoryRange module_range;
-
-  module_range.base_address = gum_module_find_base_address (SYSTEM_MODULE_NAME);
-  module_range.size = 0; /* TODO */
-
-  gum_module_enumerate_ranges (SYSTEM_MODULE_NAME, GUM_PAGE_READ,
-      verify_range_is_within, &module_range);
-}
-
 SYMUTIL_TESTCASE (module_base)
 {
   g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != NULL);
@@ -220,19 +206,6 @@ range_found_cb (const GumMemoryRange * range,
   ctx->number_of_calls++;
 
   return ctx->value_to_return;
-}
-
-static gboolean
-verify_range_is_within (const GumMemoryRange * range,
-                        GumPageProtection prot,
-                        gpointer user_data)
-{
-  GumMemoryRange * module_range = (GumMemoryRange *) user_data;
-
-  g_assert_cmphex (GPOINTER_TO_SIZE (range->base_address), >=,
-      GPOINTER_TO_SIZE (module_range->base_address));
-
-  return TRUE;
 }
 
 #ifdef HAVE_SYMBOL_BACKEND
