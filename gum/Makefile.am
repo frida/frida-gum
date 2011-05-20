@@ -33,7 +33,7 @@ libgum_1_0_la_LDFLAGS = \
 	$(GUM_LDFLAGS)
 libgum_1_0_la_LIBADD = \
 	libgum.la \
-	$(GUM_LIBS)	
+	$(GUM_LIBS)
 libgum_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
@@ -64,6 +64,7 @@ arch_includes += \
 arch_libs += \
 	$(top_builddir)/ext/udis86/libudis86/libudis86.la
 backend_sources += \
+	backend-x86/gumclosure-x86.c \
 	backend-x86/guminterceptor-x86.c \
 	backend-x86/gumspinlock-x86.c
 endif
