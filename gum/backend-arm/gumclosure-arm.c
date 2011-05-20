@@ -38,6 +38,7 @@ gum_closure_new (GumCallingConvention conv,
   GumThumbWriter cw;
   gsize arg_count;
   gint arg_index;
+  guint code_size;
 
   g_assert_cmpint (conv, ==, GUM_CALL_CAPI);
 
@@ -88,7 +89,9 @@ gum_closure_new (GumCallingConvention conv,
 
   gum_thumb_writer_free (&cw);
 
-  gum_mprotect (closure->code, gum_query_page_size (), GUM_PAGE_RX);
+  code_size = gum_query_page_size ();
+  gum_mprotect (closure->code, code_size, GUM_PAGE_RX);
+  gum_clear_cache (closure->code, code_size);
 
   return closure;
 }
