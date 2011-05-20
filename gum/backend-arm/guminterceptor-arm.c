@@ -37,7 +37,6 @@
     (GPOINTER_TO_SIZE (ctx->function_address) & 0x1) == 0x1)
 
 static void gum_function_context_clear_cache (FunctionContext * ctx);
-extern void __clear_cache (guint8 * begin, guint8 * end);
 
 void
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
