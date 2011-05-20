@@ -32,6 +32,7 @@
 #define USE_DL_PREFIX 1
 #include "dlmalloc.c"
 
+#include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
 
 typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
@@ -213,16 +214,13 @@ gum_mprotect (gpointer address,
   kr = mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (aligned_address),
       aligned_size, FALSE, mach_page_prot);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
-
-  /* FIXME: is __clear_cache() a nop? */
-  g_usleep (G_USEC_PER_SEC / 1000);
 }
 
 void
 gum_clear_cache (gpointer address,
                  guint size)
 {
-  /* FIXME */
+  sys_icache_invalidate (address, size);
 }
 
 guint
