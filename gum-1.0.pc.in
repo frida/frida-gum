@@ -7,5 +7,5 @@ Name: GUM
 Description: GUM library
 Requires: glib-2.0 gobject-2.0 v8
 Version: @VERSION@
-Libs: -L${libdir} -lgum-1.0 -lstdc++
+Libs: -L${libdir} -lgum-1.0 @GUM_EXTRA_LIBS@
 Cflags: -I${includedir}/gum-1.0

@@ -101,9 +101,13 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
+GUM_EXTRA_LIBS="-lstdc++"
 if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
-  GUM_LDFLAGS="$GUM_LDFLAGS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
+  GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
+AC_SUBST(GUM_EXTRA_LIBS)
+
+GUM_LDFLAGS="$GUM_LDFLAGS $GUM_EXTRA_LIBS"
 
 AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
