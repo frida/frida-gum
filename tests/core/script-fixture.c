@@ -46,6 +46,8 @@
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
+#define GUM_PTR_FORMAT "0x%" G_GSIZE_MODIFIER "x"
+
 typedef struct _TestScriptFixture
 {
   GumScript * script;
