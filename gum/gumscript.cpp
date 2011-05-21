@@ -874,8 +874,9 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
                                 CONTEXT * context,
                                 gpointer user_data)
 {
-  GumScript * self = GUM_SCRIPT_CAST (user_data);
   GumMemoryAccessScope * scope;
+
+  (void) user_data;
 
   if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)
     return FALSE;
@@ -885,7 +886,7 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
     return FALSE;
 
   scope = (GumMemoryAccessScope *)
-      GUM_TLS_KEY_GET_VALUE (self->priv->memory_access_scope_tls);
+      GUM_TLS_KEY_GET_VALUE (gum_memaccess_scope_tls);
   if (scope == NULL)
     return FALSE;
 
