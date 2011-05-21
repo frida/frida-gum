@@ -36,7 +36,7 @@
 # include <windows.h>
 #else
 # include <signal.h>
-# ifdef HAVE_DARWIN
+# if defined (HAVE_DARWIN) && defined (HAVE_ARM)
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
 #  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
