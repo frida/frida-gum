@@ -57,15 +57,15 @@ SCRIPT_TESTCASE (can_resolve_export_by_name)
   gpointer actual_address;
   char actual_address_str[64];
 
-  mod = GetModuleHandle (_T ("ws2_32.dll"));
+  mod = GetModuleHandle (_T ("kernel32.dll"));
   g_assert (mod != NULL);
-  actual_address = GetProcAddress (mod, "recv");
+  actual_address = GetProcAddress (mod, "Sleep");
   g_assert (actual_address != NULL);
   sprintf_s (actual_address_str, sizeof (actual_address_str),
       "%" G_GSIZE_MODIFIER "d", GPOINTER_TO_SIZE (actual_address));
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.findModuleExportByName('ws2_32.dll', 'recv'));");
+      "send(Process.findModuleExportByName('kernel32.dll', 'Sleep'));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #endif
 }
@@ -381,6 +381,8 @@ target_function_int (int arg)
 
   for (i = 0; i != 10; i++)
     result += i * arg;
+
+  gum_dummy_global_to_trick_optimizer += result;
 
   return result;
 }
