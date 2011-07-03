@@ -51,7 +51,7 @@
   </PropertyGroup>
   <Import Project="gum-common.props" />
   <ItemGroup>
-    <ProjectReference Include="..\..\ext\sdk.vcxproj">
+    <ProjectReference Include="..\..\ext\builddeps.vcxproj">
       <Project>{4afce7c4-6d9a-4663-b43c-d2e518486910}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <Private>false</Private>
