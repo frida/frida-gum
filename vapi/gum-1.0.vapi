@@ -82,6 +82,8 @@ namespace Gum {
 
 		public void load ();
 		public void unload ();
+
+		public void post_message (string msg);
 	}
 
 	public class MemoryAccessMonitor : GLib.Object {
