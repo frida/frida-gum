@@ -76,7 +76,7 @@ namespace Gum {
 	public class Script : GLib.Object {
 		public delegate void MessageHandler (Gum.Script script, string msg);
 
-		public static Script from_string (string script_text) throws GLib.IOError;
+		public static Script from_string (string source) throws GLib.IOError;
 
 		public void set_message_handler (owned Gum.Script.MessageHandler func);
 
