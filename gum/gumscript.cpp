@@ -160,7 +160,7 @@ static Handle<Value> gum_script_on_memory_read_ansi_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_alloc_ansi_string (
     const Arguments & args);
-static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi);
+static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
 static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
 static Handle<Value> gum_script_on_memory_alloc_utf8_string (
@@ -813,16 +813,48 @@ gum_script_memory_do_read (const Arguments & args,
       {
         const char * data = static_cast<const char *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-        result = String::New (data, static_cast<int> (strlen (data)));
+
+        int64_t length = -1;
+        if (args.Length () > 1)
+          length = args[1]->IntegerValue();
+        if (length < 0)
+          length = g_utf8_strlen (data, -1);
+
+        if (length != 0)
+        {
+          int size = g_utf8_offset_to_pointer (data, length) - data;
+          result = String::New (data, size);
+        }
+        else
+        {
+          result = String::Empty ();
+        }
+
         break;
       }
       case GUM_MEMORY_VALUE_UTF16_STRING:
       {
         gconstpointer data = static_cast<gconstpointer> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-        /* trap bad pointer early: */
-        wcslen (static_cast<const wchar_t *> (data));
-        result = String::New (static_cast<const uint16_t *> (data));
+
+        int64_t length = -1;
+        if (args.Length () > 1)
+          length = args[1]->IntegerValue();
+        if (length < 0)
+          length = wcslen (static_cast<const wchar_t *> (data));
+
+        if (length != 0)
+        {
+          guint16 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint16));
+
+          result = String::New (static_cast<const uint16_t *> (data), length);
+        }
+        else
+        {
+          result = String::Empty ();
+        }
+
         break;
       }
 #ifdef G_OS_WIN32
@@ -830,9 +862,27 @@ gum_script_memory_do_read (const Arguments & args,
       {
         const char * str_ansi = static_cast<const char *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-        gchar * str_utf8 = gum_ansi_string_to_utf8 (str_ansi);
-        result = String::New (str_utf8, static_cast<int> (strlen (str_utf8)));
-        g_free (str_utf8);
+
+        int64_t length = -1;
+        if (args.Length () > 1)
+          length = args[1]->IntegerValue();
+
+        if (length != 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          memcpy (&dummy_to_trap_bad_pointer_early, str_ansi, sizeof (guint8));
+
+          gchar * str_utf8 = gum_ansi_string_to_utf8 (str_ansi, length);
+          int size = g_utf8_offset_to_pointer (str_utf8,
+              g_utf8_strlen (str_utf8, -1)) - str_utf8;
+          result = String::New (str_utf8, size);
+          g_free (str_utf8);
+        }
+        else
+        {
+          result = String::Empty ();
+        }
+
         break;
       }
 #endif
@@ -1035,15 +1085,20 @@ gum_script_on_memory_alloc_ansi_string (const Arguments & args)
 }
 
 static gchar *
-gum_ansi_string_to_utf8 (const gchar * str_ansi)
+gum_ansi_string_to_utf8 (const gchar * str_ansi,
+                         gint length)
 {
   guint str_utf16_size;
   WCHAR * str_utf16;
   gchar * str_utf8;
 
-  str_utf16_size = (guint) (strlen (str_ansi) + 1) * sizeof (WCHAR);
+  if (length < 0)
+    length = (gint) strlen (str_ansi);
+
+  str_utf16_size = (guint) (length + 1) * sizeof (WCHAR);
   str_utf16 = (WCHAR *) g_malloc (str_utf16_size);
-  MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, str_utf16_size);
+  MultiByteToWideChar (CP_ACP, 0, str_ansi, length, str_utf16, str_utf16_size);
+  str_utf16[length] = L'\0';
   str_utf8 = g_utf16_to_utf8 ((gunichar2 *) str_utf16, -1, NULL, NULL, NULL);
   g_free (str_utf16);
 

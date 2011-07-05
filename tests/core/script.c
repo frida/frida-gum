@@ -287,10 +287,23 @@ SCRIPT_TESTCASE (u64_can_be_read)
 
 SCRIPT_TESTCASE (utf8_string_can_be_read)
 {
-  const gchar * str = "Bjørheimsbygd";
+  const gchar * str = "Bjøærheimsbygd";
+
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT "));",
       str);
-  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT
+      ", 3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT
+      ", 0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT
+      "), -1);", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_allocated)
@@ -304,9 +317,23 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
 {
   const gchar * str_utf8 = "Bjørheimsbygd";
   gunichar2 * str = g_utf8_to_utf16 (str_utf8, -1, NULL, NULL, NULL);
+
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_FORMAT "));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_FORMAT
+      ", 3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_FORMAT
+      ", 0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_FORMAT
+      ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
   g_free (str);
 }
 
@@ -326,9 +353,23 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
   gchar str[64];
   WideCharToMultiByte (CP_THREAD_ACP, 0, (LPCWSTR) str_utf16, -1,
       (LPSTR) str, sizeof (str), NULL, NULL);
+
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_FORMAT "));",
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_FORMAT
+      ", 3));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_FORMAT
+      ", 0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_FORMAT
+      ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
   g_free (str_utf16);
 }
 
