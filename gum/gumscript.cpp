@@ -813,6 +813,11 @@ gum_script_memory_do_read (const Arguments & args,
       {
         const char * data = static_cast<const char *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        if (data == NULL)
+        {
+          result = Null ();
+          break;
+        }
 
         int64_t length = -1;
         if (args.Length () > 1)
@@ -836,6 +841,11 @@ gum_script_memory_do_read (const Arguments & args,
       {
         gconstpointer data = static_cast<gconstpointer> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        if (data == NULL)
+        {
+          result = Null ();
+          break;
+        }
 
         int64_t length = -1;
         if (args.Length () > 1)
@@ -862,6 +872,11 @@ gum_script_memory_do_read (const Arguments & args,
       {
         const char * str_ansi = static_cast<const char *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        if (str_ansi == NULL)
+        {
+          result = Null ();
+          break;
+        }
 
         int64_t length = -1;
         if (args.Length () > 1)

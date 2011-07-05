@@ -304,6 +304,9 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT
       "), -1);", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_allocated)
@@ -333,6 +336,9 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_FORMAT
       ", -1));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str);
 }
@@ -369,6 +375,9 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_FORMAT
       ", -1));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(0));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str_utf16);
 }
