@@ -177,13 +177,17 @@ SCRIPT_TESTCASE (argument_can_be_read)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_FORMAT ", {"
       "  onEnter: function(args) {"
-      "    send(args[0]);"
+      "    send(Int32(args[0]));"
       "  }"
       "});", target_function_int);
 
   EXPECT_NO_MESSAGES ();
+
   target_function_int (42);
   EXPECT_SEND_MESSAGE_WITH ("42");
+
+  target_function_int (-42);
+  EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
 SCRIPT_TESTCASE (argument_can_be_replaced)

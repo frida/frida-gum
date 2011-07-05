@@ -133,6 +133,7 @@ static Handle<Value> gum_script_on_process_find_module_export_by_name (
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static Handle<Value> gum_script_on_int32_cast (const Arguments & args);
 #ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
@@ -365,6 +366,9 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (
           gum_script_on_process_find_module_export_by_name));
   global_templ->Set (String::New ("Process"), process_templ);
+
+  global_templ->Set (String::New ("Int32"),
+      FunctionTemplate::New (gum_script_on_int32_cast, External::Wrap (self)));
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
   memory_templ->Set (String::New ("readSWord"),
@@ -746,6 +750,12 @@ gum_script_attach_callbacks_get (Handle<Object> callbacks,
   }
 
   return TRUE;
+}
+
+static Handle<Value>
+gum_script_on_int32_cast (const Arguments & args)
+{
+  return Number::New (args[0]->Int32Value ());
 }
 
 #ifdef _MSC_VER
