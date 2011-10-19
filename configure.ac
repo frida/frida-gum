@@ -52,8 +52,8 @@ AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
 
 case $host_os in
-  darwin10\.*) HAVE_OSX=yes     ;;
-  *-android*)  HAVE_ANDROID=yes ;;
+  darwin10\.*|darwin11\.*) HAVE_OSX=yes     ;;
+  *-android*)              HAVE_ANDROID=yes ;;
   *)				;;
 esac
 if [[ "x$HAVE_OSX" = "xyes" ]]; then
