@@ -849,31 +849,29 @@ gum_script_memory_do_read (const Arguments & args,
       }
       case GUM_MEMORY_VALUE_UTF16_STRING:
       {
-        gconstpointer data = static_cast<gconstpointer> (
+        const gunichar2 * str_utf16 = static_cast<const gunichar2 *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-        if (data == NULL)
+        guint16 dummy_to_trap_bad_pointer_early;
+        gchar * str_utf8;
+        glong length, size;
+
+        if (str_utf16 == NULL)
         {
           result = Null ();
           break;
         }
 
-        int64_t length = -1;
-        if (args.Length () > 1)
-          length = args[1]->IntegerValue();
-        if (length < 0)
-          length = wcslen (static_cast<const wchar_t *> (data));
+        memcpy (&dummy_to_trap_bad_pointer_early, str_utf16,
+            sizeof (gunichar2));
 
+        length = (args.Length () > 1) ? args[1]->IntegerValue() : -1;
+        str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+
+        length = size / sizeof (gunichar2);
         if (length != 0)
-        {
-          guint16 dummy_to_trap_bad_pointer_early;
-          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint16));
-
-          result = String::New (static_cast<const uint16_t *> (data), length);
-        }
+          result = String::New (str_utf8, size);
         else
-        {
           result = String::Empty ();
-        }
 
         break;
       }
