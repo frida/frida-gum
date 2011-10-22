@@ -47,7 +47,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
 #endif
   SCRIPT_TESTENTRY (invalid_read_results_in_exception)
+  SCRIPT_TESTENTRY (memory_can_be_scanned)
+  SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
+  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (can_resolve_export_by_name)
@@ -68,6 +71,22 @@ SCRIPT_TESTCASE (can_resolve_export_by_name)
       "send(Process.findModuleExportByName('kernel32.dll', 'Sleep'));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #endif
+}
+
+SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Process.enumerateRanges('--x', {"
+        "onMatch: function(address, size, prot) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)
@@ -217,6 +236,42 @@ SCRIPT_TESTCASE (return_value_can_be_read)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (memory_can_be_scanned)
+{
+  guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(" GUM_PTR_FORMAT ", 7, '13 37', {"
+        "onMatch: function(address, size) {"
+        "  send('onMatch offset=' + (address - " GUM_PTR_FORMAT
+             ") + ' size=' + size);"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
+{
+  guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(" GUM_PTR_FORMAT ", 7, '13 37', {"
+        "onMatch: function(address, size) {"
+        "  send('onMatch offset=' + (address - " GUM_PTR_FORMAT
+             ") + ' size=' + size);"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
 SCRIPT_TESTCASE (sword_can_be_read)

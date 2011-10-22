@@ -52,6 +52,8 @@ typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
 typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
 typedef guint GumMemoryValueType;
 
+typedef struct _GumScriptMatchContext GumScriptMatchContext;
+
 struct _GumScriptPrivate
 {
   GumInterceptor * interceptor;
@@ -111,6 +113,13 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
+struct _GumScriptMatchContext
+{
+  Local<Function> on_match;
+  Local<Function> on_complete;
+  Local<Object> receiver;
+};
+
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -130,9 +139,11 @@ static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * msg);
 static Handle<Value> gum_script_on_process_find_module_export_by_name (
     const Arguments & args);
+static Handle<Value> gum_script_on_process_enumerate_ranges (
+    const Arguments & args);
+static gboolean gum_script_process_range_match (const GumMemoryRange * range,
+    GumPageProtection prot, gpointer user_data);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
-static gboolean gum_script_attach_callbacks_get (Handle<Object> callbacks,
-    const gchar * name, Local<Function> * callback_function);
 static Handle<Value> gum_script_on_int32_cast (const Arguments & args);
 #ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
@@ -142,6 +153,9 @@ static gboolean gum_script_memory_on_exception (
 static void gum_script_memory_on_invalid_access (int sig, siginfo_t * siginfo,
     void * context);
 #endif
+static Handle<Value> gum_script_on_memory_scan (const Arguments & args);
+static gboolean gum_script_process_scan_match (gpointer address, guint size,
+    gpointer user_data);
 static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
@@ -178,6 +192,9 @@ static Handle<Value> gum_script_args_on_get_nth (uint32_t index,
     const AccessorInfo & info);
 static Handle<Value> gum_script_args_on_set_nth (uint32_t index,
     Local<Value> value, const AccessorInfo & info);
+
+static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
+    const gchar * name, Local<Function> * callback_function);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -365,12 +382,17 @@ gum_script_create_context (GumScript * self)
   process_templ->Set (String::New ("findModuleExportByName"),
       FunctionTemplate::New (
           gum_script_on_process_find_module_export_by_name));
+  process_templ->Set (String::New ("enumerateRanges"),
+      FunctionTemplate::New (gum_script_on_process_enumerate_ranges));
   global_templ->Set (String::New ("Process"), process_templ);
 
   global_templ->Set (String::New ("Int32"),
       FunctionTemplate::New (gum_script_on_int32_cast, External::Wrap (self)));
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
+  memory_templ->Set (String::New ("scan"),
+      FunctionTemplate::New (gum_script_on_memory_scan,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readSWord"),
       FunctionTemplate::New (gum_script_on_memory_read_sword,
           External::Wrap (self)));
@@ -684,6 +706,102 @@ gum_script_on_process_find_module_export_by_name (const Arguments & args)
 }
 
 static Handle<Value>
+gum_script_on_process_enumerate_ranges (const Arguments & args)
+{
+  Local<Value> prot_val = args[0];
+  if (!prot_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Process.enumerateRanges: first argument must be a string "
+        "specifying required memory protection")));
+    return Undefined ();
+  }
+  String::Utf8Value prot_str (prot_val);
+
+  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
+  for (const char *ch = *prot_str; *ch != '\0'; ch++)
+  {
+    switch (*ch)
+    {
+      case 'r':
+        prot |= GUM_PAGE_READ;
+        break;
+      case 'w':
+        prot |= GUM_PAGE_WRITE;
+        break;
+      case 'x':
+        prot |= GUM_PAGE_EXECUTE;
+        break;
+      case '-':
+        break;
+      default:
+        ThrowException (Exception::TypeError (String::New (
+            "Process.enumerateRanges: invalid character in memory protection "
+            "specifier string")));
+        return Undefined ();
+    }
+  }
+
+  GumScriptMatchContext ctx;
+
+  Local<Value> callbacks_value = args[1];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Process.enumerateRanges: second argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  gum_process_enumerate_ranges (prot, gum_script_process_range_match, &ctx);
+
+  Handle<Value> argv[] = {};
+  ctx.on_complete->Call (ctx.receiver, 0, argv);
+
+  return Undefined ();
+}
+
+static gboolean
+gum_script_process_range_match (const GumMemoryRange * range,
+                                GumPageProtection prot,
+                                gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+
+  char prot_str[4] = "---";
+  if ((prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  Handle<Value> argv[] = {
+    Number::New (GPOINTER_TO_SIZE (range->base_address)),
+    Integer::NewFromUnsigned (range->size),
+    String::New (prot_str)
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
+
+  gboolean proceed = TRUE;
+  if (result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+static Handle<Value>
 gum_script_on_interceptor_attach (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
@@ -708,9 +826,9 @@ gum_script_on_interceptor_attach (const Arguments & args)
   Local<Function> on_enter, on_leave;
 
   Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!gum_script_attach_callbacks_get (callbacks, "onEnter", &on_enter))
+  if (!gum_script_callbacks_get (callbacks, "onEnter", &on_enter))
     return Undefined ();
-  if (!gum_script_attach_callbacks_get (callbacks, "onLeave", &on_leave))
+  if (!gum_script_callbacks_get (callbacks, "onLeave", &on_leave))
     return Undefined ();
 
   GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
@@ -726,30 +844,6 @@ gum_script_on_interceptor_attach (const Arguments & args)
   g_queue_push_tail (priv->attach_entries, entry);
 
   return (attach_ret == GUM_ATTACH_OK) ? True () : False ();
-}
-
-static gboolean
-gum_script_attach_callbacks_get (Handle<Object> callbacks,
-                                 const gchar * name,
-                                 Local<Function> * callback_function)
-{
-  Local<Value> val = callbacks->Get (String::New (name));
-  if (!val->IsUndefined ())
-  {
-    if (!val->IsFunction ())
-    {
-      gchar * message =
-          g_strdup_printf ("Interceptor.attach: %s must be a function", name);
-      ThrowException (Exception::TypeError (String::New (message)));
-      g_free (message);
-
-      return FALSE;
-    }
-
-    *callback_function = Local<Function>::Cast (val);
-  }
-
-  return TRUE;
 }
 
 static Handle<Value>
@@ -1016,6 +1110,74 @@ not_our_fault:
 #endif
 
 static Handle<Value>
+gum_script_on_memory_scan (const Arguments & args)
+{
+  GumMemoryRange range;
+  range.base_address = GSIZE_TO_POINTER (args[0]->IntegerValue ());
+  range.size = args[1]->IntegerValue ();
+
+  String::Utf8Value match_str (args[2]);
+
+  GumScriptMatchContext ctx;
+
+  Local<Value> callbacks_value = args[3];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New ("Memory.scan: "
+        "fourth argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  GumMatchPattern * pattern = gum_match_pattern_new_from_string (*match_str);
+  if (pattern != NULL)
+  {
+    gum_memory_scan (&range, pattern, gum_script_process_scan_match, &ctx);
+    gum_match_pattern_free (pattern);
+
+    Handle<Value> argv[] = {};
+    ctx.on_complete->Call (ctx.receiver, 0, argv);
+  }
+  else
+  {
+    ThrowException (Exception::Error (String::New ("invalid match pattern")));
+  }
+
+  return Undefined ();
+}
+
+static gboolean
+gum_script_process_scan_match (gpointer address,
+                               guint size,
+                               gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+
+  Handle<Value> argv[] = {
+    Number::New (GPOINTER_TO_SIZE (address)),
+    Integer::NewFromUnsigned (size)
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
+
+  gboolean proceed = TRUE;
+  if (result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+static Handle<Value>
 gum_script_on_memory_read_sword (const Arguments & args)
 {
   return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_SWORD);
@@ -1243,4 +1405,27 @@ gum_script_args_on_set_nth (uint32_t index,
   gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
 
   return value;
+}
+
+static gboolean
+gum_script_callbacks_get (Handle<Object> callbacks,
+                          const gchar * name,
+                          Local<Function> * callback_function)
+{
+  Local<Value> val = callbacks->Get (String::New (name));
+  if (!val->IsUndefined ())
+  {
+    if (!val->IsFunction ())
+    {
+      gchar * message = g_strdup_printf ("%s must be a function", name);
+      ThrowException (Exception::TypeError (String::New (message)));
+      g_free (message);
+
+      return FALSE;
+    }
+
+    *callback_function = Local<Function>::Cast (val);
+  }
+
+  return TRUE;
 }
