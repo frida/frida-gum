@@ -36,11 +36,7 @@
 # include <windows.h>
 #else
 # include <signal.h>
-# if defined (HAVE_DARWIN) && defined (HAVE_ARM)
-#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
-# else
-#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
-# endif
+# define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
 #endif
 
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
