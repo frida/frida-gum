@@ -22,7 +22,17 @@
 
 #include "gummemory.h"
 
-#include <mach/mach_vm.h>
+#ifdef HAVE_IOS
+  /*
+   * HACK: the iOS 5.0 SDK provides a placeholder header containing nothing
+   *       but an #error stating that this API is not available. So we work
+   *       around it by taking a copy of the OS X SDK's header and putting it
+   *       in our SDK's include directory. ICK!
+   */
+# include "frida_mach_vm.h"
+#else
+# include <mach/mach_vm.h>
+#endif
 
 G_BEGIN_DECLS
 
