@@ -29,6 +29,8 @@
 # include <windows.h>
 #endif
 
+#define SCRIPT_MESSAGE_TIMEOUT_USEC (500000)
+
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \
@@ -41,7 +43,7 @@
 #define POST_MESSAGE(MSG) \
     gum_script_post_message (fixture->script, MSG)
 #define EXPECT_NO_MESSAGES() \
-    g_assert_cmpuint (g_queue_get_length (fixture->messages), ==, 0)
+    g_assert_cmpuint (g_async_queue_length (fixture->messages), ==, 0)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
@@ -52,14 +54,14 @@
 typedef struct _TestScriptFixture
 {
   GumScript * script;
-  GQueue * messages;
+  GAsyncQueue * messages;
 } TestScriptFixture;
 
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
 {
-  fixture->messages = g_queue_new ();
+  fixture->messages = g_async_queue_new ();
 }
 
 static void
@@ -70,7 +72,7 @@ test_script_fixture_teardown (TestScriptFixture * fixture,
     g_object_unref (fixture->script);
 
   EXPECT_NO_MESSAGES ();
-  g_queue_free (fixture->messages);
+  g_async_queue_unref (fixture->messages);
 }
 
 static void
@@ -80,7 +82,7 @@ test_script_fixture_store_message (GumScript * script,
 {
   TestScriptFixture * self = (TestScriptFixture *) user_data;
 
-  g_queue_push_tail (self->messages, g_strdup (msg));
+  g_async_queue_push (self->messages, g_strdup (msg));
 }
 
 static void
@@ -111,11 +113,13 @@ static void
 test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
                                               const gchar * payload)
 {
+  GTimeVal end_time;
   gchar * actual_message, * expected_message;
 
-  g_assert_cmpuint (g_queue_get_length (fixture->messages), >=, 1);
-
-  actual_message = (gchar *) g_queue_pop_head (fixture->messages);
+  g_get_current_time (&end_time);
+  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
+  actual_message = (gchar *) g_async_queue_timed_pop (fixture->messages,
+      &end_time);
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
 
@@ -130,11 +134,13 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
                                                gint line_number,
                                                const gchar * description)
 {
+  GTimeVal end_time;
   gchar * actual_message, * expected_message;
 
-  g_assert_cmpuint (g_queue_get_length (fixture->messages), >=, 1);
-
-  actual_message = (gchar *) g_queue_pop_head (fixture->messages);
+  g_get_current_time (&end_time);
+  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
+  actual_message = (gchar *) g_async_queue_timed_pop (fixture->messages,
+      &end_time);
   expected_message = g_strdup_printf ("{"
           "\"type\":\"error\","
           "\"lineNumber\":%d,"

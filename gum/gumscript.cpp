@@ -49,6 +49,7 @@ typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
 typedef guint GumMemoryValueType;
 
 typedef struct _GumScriptMatchContext GumScriptMatchContext;
+typedef struct _GumMemoryScanContext GumMemoryScanContext;
 
 struct _GumScriptPrivate
 {
@@ -116,6 +117,17 @@ struct _GumScriptMatchContext
   Local<Object> receiver;
 };
 
+struct _GumMemoryScanContext
+{
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  Persistent<Function> on_match;
+  Persistent<Function> on_complete;
+  Persistent<Object> receiver;
+
+  GumScript * script;
+};
+
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -149,9 +161,14 @@ static gboolean gum_script_memory_on_exception (
 static void gum_script_memory_on_invalid_access (int sig, siginfo_t * siginfo,
     void * context);
 #endif
+
 static Handle<Value> gum_script_on_memory_scan (const Arguments & args);
+static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
+static gboolean gum_script_do_memory_scan (GIOSchedulerJob * job,
+    GCancellable * cancellable, gpointer user_data);
 static gboolean gum_script_process_scan_match (gpointer address, guint size,
     gpointer user_data);
+
 static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
@@ -1169,8 +1186,6 @@ gum_script_on_memory_scan (const Arguments & args)
 
   String::Utf8Value match_str (args[2]);
 
-  GumScriptMatchContext ctx;
-
   Local<Value> callbacks_value = args[3];
   if (!callbacks_value->IsObject ())
   {
@@ -1180,21 +1195,29 @@ gum_script_on_memory_scan (const Arguments & args)
   }
 
   Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+  Local<Function> on_match;
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &on_match))
     return Undefined ();
-  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+  Local<Function> on_complete;
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &on_complete))
     return Undefined ();
-
-  ctx.receiver = args.This ();
 
   GumMatchPattern * pattern = gum_match_pattern_new_from_string (*match_str);
   if (pattern != NULL)
   {
-    gum_memory_scan (&range, pattern, gum_script_process_scan_match, &ctx);
-    gum_match_pattern_free (pattern);
+    GumMemoryScanContext * ctx = g_slice_new (GumMemoryScanContext);
+    ctx->range = range;
+    ctx->pattern = pattern;
+    ctx->on_match = Persistent<Function>::New (on_match);
+    ctx->on_complete = Persistent<Function>::New (on_complete);
+    ctx->receiver = Persistent<Object>::New (args.This ());
 
-    Handle<Value> argv[] = {};
-    ctx.on_complete->Call (ctx.receiver, 0, argv);
+    ctx->script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+    g_object_ref (ctx->script);
+
+    g_io_scheduler_push_job (gum_script_do_memory_scan, ctx,
+        reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free),
+        G_PRIORITY_DEFAULT, NULL);
   }
   else
   {
@@ -1204,13 +1227,48 @@ gum_script_on_memory_scan (const Arguments & args)
   return Undefined ();
 }
 
+static void
+gum_memory_scan_context_free (GumMemoryScanContext * ctx)
+{
+  if (ctx == NULL)
+    return;
+
+  gum_match_pattern_free (ctx->pattern);
+  ctx->on_match.Clear ();
+  ctx->on_complete.Clear ();
+  ctx->receiver.Clear ();
+
+  g_object_unref (ctx->script);
+
+  g_slice_free (GumMemoryScanContext, ctx);
+}
+
+static gboolean
+gum_script_do_memory_scan (GIOSchedulerJob * job,
+                           GCancellable * cancellable,
+                           gpointer user_data)
+{
+  GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
+
+  gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
+      ctx);
+
+  {
+    ScriptScope scope (ctx->script);
+    Handle<Value> argv[] = {};
+    ctx->on_complete->Call (ctx->receiver, 0, argv);
+  }
+
+  return FALSE;
+}
+
 static gboolean
 gum_script_process_scan_match (gpointer address,
                                guint size,
                                gpointer user_data)
 {
-  GumScriptMatchContext * ctx =
-      static_cast<GumScriptMatchContext *> (user_data);
+  GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
+  ScriptScope scope (ctx->script);
 
   Handle<Value> argv[] = {
     Number::New (GPOINTER_TO_SIZE (address)),
