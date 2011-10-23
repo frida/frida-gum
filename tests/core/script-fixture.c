@@ -21,6 +21,7 @@
 
 #include "testutil.h"
 
+#include <string.h>
 #ifdef G_OS_WIN32
 # define VC_EXTRALEAN
 # include <stdio.h>

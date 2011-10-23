@@ -32,6 +32,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (uword_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_read)
+  SCRIPT_TESTENTRY (u8_can_be_written)
   SCRIPT_TESTENTRY (s16_can_be_read)
   SCRIPT_TESTENTRY (u16_can_be_read)
   SCRIPT_TESTENTRY (s32_can_be_read)
@@ -39,6 +40,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (s64_can_be_read)
   SCRIPT_TESTENTRY (u64_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
+  SCRIPT_TESTENTRY (utf8_string_can_be_written)
   SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
   SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
@@ -47,6 +49,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
 #endif
   SCRIPT_TESTENTRY (invalid_read_results_in_exception)
+  SCRIPT_TESTENTRY (invalid_write_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
@@ -302,6 +305,13 @@ SCRIPT_TESTCASE (u8_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("42");
 }
 
+SCRIPT_TESTCASE (u8_can_be_written)
+{
+  guint8 val = 42;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(37, " GUM_PTR_FORMAT ");", &val);
+  g_assert_cmpint (val, ==, 37);
+}
+
 SCRIPT_TESTCASE (s16_can_be_read)
 {
   gint16 val = -12123;
@@ -366,6 +376,18 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(0));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
+}
+
+SCRIPT_TESTCASE (utf8_string_can_be_written)
+{
+  gchar str[6];
+
+  strcpy (str, "Hello");
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf8String('Bye', " GUM_PTR_FORMAT ");",
+      str);
+  g_assert_cmpstr (str, ==, "Bye");
+  g_assert_cmphex (str[4], ==, 'o');
+  g_assert_cmphex (str[5], ==, '\0');
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_allocated)
@@ -478,6 +500,39 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
     source = g_strconcat ("Memory.read", type_name[i], "(1328);", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x530");
+    g_free (source);
+  }
+}
+
+SCRIPT_TESTCASE (invalid_write_results_in_exception)
+{
+  const gchar * primitive_type_name[] = {
+      "U8",
+  };
+  const gchar * string_type_name[] = {
+      "Utf8String"
+  };
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (primitive_type_name); i++)
+  {
+    gchar * source;
+
+    source = g_strconcat ("Memory.write", primitive_type_name[i], "(13, 1328);",
+        NULL);
+    COMPILE_AND_LOAD_SCRIPT (source);
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
+    g_free (source);
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (string_type_name); i++)
+  {
+    gchar * source;
+
+    source = g_strconcat ("Memory.write", string_type_name[i], "('Hey', 1328);",
+        NULL);
+    COMPILE_AND_LOAD_SCRIPT (source);
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
     g_free (source);
   }
 }

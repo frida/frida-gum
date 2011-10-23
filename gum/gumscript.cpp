@@ -156,6 +156,7 @@ static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u8 (const Arguments & args);
+static Handle<Value> gum_script_on_memory_write_u8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s16 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u16 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s32 (const Arguments & args);
@@ -163,6 +164,8 @@ static Handle<Value> gum_script_on_memory_read_u32 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s64 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u64 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
+    const Arguments & args);
+static Handle<Value> gum_script_on_memory_write_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf16_string (
     const Arguments & args);
@@ -401,6 +404,9 @@ gum_script_create_context (GumScript * self)
   memory_templ->Set (String::New ("readU8"),
       FunctionTemplate::New (gum_script_on_memory_read_u8,
           External::Wrap (self)));
+  memory_templ->Set (String::New ("writeU8"),
+      FunctionTemplate::New (gum_script_on_memory_write_u8,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readS16"),
       FunctionTemplate::New (gum_script_on_memory_read_s16,
           External::Wrap (self)));
@@ -421,6 +427,9 @@ gum_script_create_context (GumScript * self)
           External::Wrap (self)));
   memory_templ->Set (String::New ("readUtf8String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf8_string,
+          External::Wrap (self)));
+  memory_templ->Set (String::New ("writeUtf8String"),
+      FunctionTemplate::New (gum_script_on_memory_write_utf8_string,
           External::Wrap (self)));
   memory_templ->Set (String::New ("readUtf16String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf16_string,
@@ -1020,6 +1029,52 @@ gum_script_memory_do_read (const Arguments & args,
   return result;
 }
 
+static Handle<Value>
+gum_script_memory_do_write (const Arguments & args,
+                            GumMemoryValueType type)
+{
+  GumMemoryAccessScope scope;
+  gpointer address = GSIZE_TO_POINTER (args[1]->IntegerValue ());
+
+  scope.exception_occurred = FALSE;
+
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
+
+  if (setjmp (scope.env) == 0)
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_U8:
+      {
+        guint8 value = args[0]->Uint32Value ();
+        *static_cast<guint8 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        String::Utf8Value str (args[0]);
+        strcpy (static_cast<char *> (address), *str);
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
+
+  if (scope.exception_occurred)
+  {
+    gchar * message = g_strdup_printf (
+        "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (scope.address));
+    ThrowException (Exception::Error (String::New (message)));
+    g_free (message);
+  }
+
+  return Undefined ();
+}
+
 #ifdef G_OS_WIN32
 
 #ifdef _MSC_VER
@@ -1198,6 +1253,12 @@ gum_script_on_memory_read_u8 (const Arguments & args)
 }
 
 static Handle<Value>
+gum_script_on_memory_write_u8 (const Arguments & args)
+{
+  return gum_script_memory_do_write (args, GUM_MEMORY_VALUE_U8);
+}
+
+static Handle<Value>
 gum_script_on_memory_read_s16 (const Arguments & args)
 {
   return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_S16);
@@ -1237,6 +1298,12 @@ static Handle<Value>
 gum_script_on_memory_read_utf8_string (const Arguments & args)
 {
   return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_UTF8_STRING);
+}
+
+static Handle<Value>
+gum_script_on_memory_write_utf8_string (const Arguments & args)
+{
+  return gum_script_memory_do_write (args, GUM_MEMORY_VALUE_UTF8_STRING);
 }
 
 static Handle<Value>
