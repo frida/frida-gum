@@ -66,7 +66,7 @@ BACKTRACER_TESTCASE (full_cycle)
   GumAllocationTracker * tracker;
   GumInterceptor * interceptor;
   guint expected_line_number, alternate_line_number;
-  gpointer a;
+  volatile gpointer a;
   GumList * blocks;
   GumAllocationBlock * block;
   GumReturnAddress first_address;
