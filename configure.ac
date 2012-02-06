@@ -88,8 +88,18 @@ AC_CHECK_MEMBER([struct mallinfo.arena],
 
 GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
-    gio-2.0 >= $GLIB_VERSION, v8"
+    gio-2.0 >= $GLIB_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
+
+PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
+if [[ "x$HAVE_V8" = "xyes" ]]; then
+  AC_DEFINE(HAVE_V8, 1, [Define to 1 if v8 is available.])
+fi
+AM_CONDITIONAL([HAVE_V8], [test "$HAVE_V8" = "xyes"])
+
+GUM_CFLAGS="$GUM_CFLAGS $V8_CFLAGS"
+GUM_LDFLAGS="$GUM_LDFLAGS $V8_LDFLAGS"
+GUM_LIBS="$GUM_LIBS $V8_LIBS"
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr]), AC_ERROR([*** Header file bfd.h not found; please install the binutils headers  ***]))

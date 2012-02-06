@@ -20,7 +20,6 @@ guminclude_HEADERS = \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
 	gumreturnaddress.h \
-	gumscript.h \
 	gumspinlock.h \
 	gumstalker.h \
 	gumsymbolutil.h \
@@ -41,6 +40,7 @@ arch_sources = $(NULL)
 arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
+script_sources = $(NULL)
 
 if ARCH_I386
 archincludedir = $(includedir)/gum-1.0/gum/arch-x86
@@ -120,6 +120,11 @@ backend_sources += backend-gcc/gumgccbacktracer.c
 guminclude_HEADERS += backend-gcc/gumgccbacktracer.h
 endif
 
+if HAVE_V8
+script_sources += gumscript.cpp
+guminclude_HEADERS += gumscript.h
+endif
+
 container_sources = \
 	gumarray.c \
 	gumhash.c \
@@ -134,10 +139,10 @@ libgum_la_SOURCES = \
 	guminvocationlistener.c \
 	gummemory.c \
 	gumreturnaddress.c \
-	gumscript.cpp \
 	gumtls.h \
 	$(arch_sources) \
 	$(container_sources) \
+	$(script_sources) \
 	$(backend_sources)
 libgum_la_LIBADD = \
 	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \

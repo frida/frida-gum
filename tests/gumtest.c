@@ -102,7 +102,9 @@ main (gint argc, gchar * argv[])
 #endif
   TEST_RUN_LIST (closure);
   TEST_RUN_LIST (interceptor);
+#if defined (HAVE_V8)
   TEST_RUN_LIST (script);
+#endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32) /* for now */
   TEST_RUN_LIST (memoryaccessmonitor);
   TEST_RUN_LIST (stalker);
