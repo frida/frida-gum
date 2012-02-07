@@ -55,9 +55,11 @@ BACKTRACER_TESTCASE (basics)
   g_assert (gum_return_address_details_from_address (first_address, &rad));
   g_assert (g_str_has_prefix (rad.module_name, "gum-tests"));
   g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
+#ifndef HAVE_DARWIN
   g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
   g_assert (rad.line_number == expected_line_number ||
       rad.line_number == expected_line_number + 1);
+#endif
 }
 
 BACKTRACER_TESTCASE (full_cycle)

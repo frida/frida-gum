@@ -115,22 +115,31 @@ gum_symbol_details_from_address (gpointer address,
 {
   gboolean result = FALSE;
   VMUSymbol * symbol;
-  VMUSourceInfo * info = nil;
 
   GUM_POOL_ALLOC ();
 
   symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
   if (symbol != nil)
-    info = [symbol sourceInfoForAddress:GPOINTER_TO_SIZE (address)];
-  if (info != nil)
   {
+    VMUSourceInfo * info = nil;
+
     details->address = address;
     strcpy (details->module_name, [[[symbol owner] name] UTF8String]);
     strcpy (details->symbol_name, [[symbol name] UTF8String]);
-    strcpy (details->file_name, [[info fileName] UTF8String]);
-    details->line_number = [info lineNumber];
 
     result = TRUE;
+
+    info = [symbol sourceInfoForAddress:GPOINTER_TO_SIZE (address)];
+    if (info != nil)
+    {
+      strcpy (details->file_name, [[info fileName] UTF8String]);
+      details->line_number = [info lineNumber];
+    }
+    else
+    {
+      strcpy (details->file_name, "<unknown>");
+      details->line_number = 0;
+    }
   }
 
   GUM_POOL_RELEASE ();
