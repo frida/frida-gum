@@ -34,9 +34,11 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges_can_be_enumerated)
+#ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (module_base)
   SYMUTIL_TESTENTRY (module_export_can_be_found)
   SYMUTIL_TESTENTRY (module_export_matches_system_lookup);
+#endif
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
@@ -141,6 +143,8 @@ SYMUTIL_TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
+#ifndef HAVE_LINUX
+
 SYMUTIL_TESTCASE (module_base)
 {
   g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != NULL);
@@ -170,6 +174,8 @@ SYMUTIL_TESTCASE (module_export_matches_system_lookup)
       GPOINTER_TO_SIZE (system_address));
 #endif
 }
+
+#endif
 
 static gboolean
 module_found_cb (const gchar * name,
