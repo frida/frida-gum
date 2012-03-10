@@ -1,13 +1,13 @@
 SUBDIRS = \
 	core \
 	heap \
-	prof \
-	gumpp
+	prof
 
 if OS_ANDROID
 else
 if OS_IOS
 else
+SUBDIRS += gumpp
 TESTS = gum-tests
 endif
 endif
