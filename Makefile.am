@@ -20,12 +20,12 @@ pkgconfig_DATA = $(pcfiles)
 
 if OS_ANDROID
 RPFX := /data/local/tmp
-MKDIR := busybox mkdir
-RM := busybox rm
+MKDIR := mkdir
+RM := rm
 DEBUG_PORT := 5042
 
 push: all
-	adb shell "${MKDIR} -p \"${RPFX}/tests/data/\" && ${RM} -f \"${RPFX}/tests/gum-tests\" && ${RM} -f \"${RPFX}/tests/data/targetfunctions-arm.so\" && ${RM} -f \"${RPFX}/tests/data/specialfunctions-arm.so\""
+	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-arm.so\""
 	adb push "$(top_builddir)/tests/gum-tests" "${RPFX}/tests/"
 	adb push "$(top_srcdir)/tests/data/targetfunctions-arm.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-arm.so" "${RPFX}/tests/data/"
