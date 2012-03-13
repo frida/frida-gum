@@ -95,7 +95,7 @@ PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
 if [[ "x$HAVE_V8" = "xyes" ]]; then
   AC_DEFINE(HAVE_V8, 1, [Define to 1 if v8 is available.])
 fi
-AM_CONDITIONAL([HAVE_V8], [test "$HAVE_V8" = "xyes"])
+AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 
 GUM_CFLAGS="$GUM_CFLAGS $V8_CFLAGS"
 GUM_LDFLAGS="$GUM_LDFLAGS $V8_LDFLAGS"
