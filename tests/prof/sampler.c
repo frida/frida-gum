@@ -98,7 +98,7 @@ SAMPLER_TESTCASE (malloc_count)
   MallocCountHelperContext helper = { 0, };
   GThread * helper_thread;
   GumInterceptor * interceptor;
-  gpointer a, b, c = NULL;
+  volatile gpointer a, b, c = NULL;
 
   fixture->sampler = gum_malloc_count_sampler_new ();
 
@@ -186,7 +186,7 @@ malloc_count_helper_thread (gpointer data)
 {
   MallocCountHelperContext * helper = (MallocCountHelperContext *) data;
   GumSample sample_a, sample_b;
-  gpointer p;
+  volatile gpointer p;
 
   while (!helper->allowed_to_start)
     g_thread_yield ();

@@ -101,7 +101,7 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
 
 INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
-  void * p;
+  volatile gpointer p;
 
   gum_interceptor_ignore_current_thread (fixture->interceptor);
   interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
