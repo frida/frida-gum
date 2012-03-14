@@ -111,7 +111,7 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-GUM_EXTRA_LIBS="-lstdc++"
+GUM_EXTRA_LIBS=""
 if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
   GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
