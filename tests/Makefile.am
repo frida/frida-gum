@@ -43,7 +43,7 @@ gum_tests_LDADD = \
 	$(top_builddir)/gum/libgum-1.0.la \
 	$(binding_ldadd) \
 	$(GUM_LIBS) \
-	$(LDFLAGS)
+	-lstdc++
 
 libgum_tests_la_SOURCES = \
 	gumtest.c \
