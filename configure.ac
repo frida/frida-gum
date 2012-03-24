@@ -52,9 +52,23 @@ AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
 
 case $host_os in
-  darwin10\.*|darwin11\.*) HAVE_OSX=yes     ;;
-  *-android*)              HAVE_ANDROID=yes ;;
-  *)				;;
+  darwin*)
+    case $host_cpu in
+      arm)
+        HAVE_OSX=no
+        HAVE_IOS=yes
+        ;;
+      *)
+        HAVE_OSX=yes
+        HAVE_IOS=no
+        ;;
+    esac
+    ;;
+  *-android*)
+    HAVE_ANDROID=yes
+    ;;
+  *)
+    ;;
 esac
 if [[ "x$HAVE_OSX" = "xyes" ]]; then
   AC_DEFINE(HAVE_OSX, 1, [Define to 1 if OS is Mac OS X.])
@@ -65,11 +79,8 @@ if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
 fi
 AM_CONDITIONAL(OS_ANDROID, test "x$HAVE_ANDROID" = "xyes")
 
-if [[ "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_OSX" != "xyes" ]]; then
-  HAVE_IOS=yes
+if [[ "x$HAVE_IOS" = "xyes" ]]; then
   AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
-else
-  HAVE_IOS=no
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
