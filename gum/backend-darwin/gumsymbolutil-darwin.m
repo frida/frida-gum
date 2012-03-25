@@ -79,6 +79,8 @@ static gboolean find_image_vmaddr_and_fileoff (gpointer address,
 static gboolean find_image_symtab_command (gpointer address,
     struct symtab_command ** sc);
 
+static const char * gum_symbol_name_from_darwin (const char * s);
+
 #ifdef HAVE_SYMBOL_BACKEND
 static VMUSymbolicator * symbolicator = nil;
 #endif
@@ -125,7 +127,8 @@ gum_symbol_details_from_address (gpointer address,
 
     details->address = address;
     strcpy (details->module_name, [[[symbol owner] name] UTF8String]);
-    strcpy (details->symbol_name, [[symbol name] UTF8String]);
+    strcpy (details->symbol_name,
+        gum_symbol_name_from_darwin ([[symbol name] UTF8String]));
 
     result = TRUE;
 
@@ -157,7 +160,10 @@ gum_symbol_name_from_address (gpointer address)
 
   symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
   if (symbol != nil)
-    result = g_strdup ([[symbol name] UTF8String]);
+  {
+    result =
+        g_strdup (gum_symbol_name_from_darwin ([[symbol name] UTF8String]));
+  }
 
   GUM_POOL_RELEASE ();
 
@@ -173,7 +179,8 @@ gum_find_function (const gchar * name)
 
   GUM_POOL_ALLOC ();
 
-  symbols = [symbolicator symbolsForName:[NSString stringWithUTF8String:name]];
+  symbols = [symbolicator symbolsForName:
+      [@"_" stringByAppendingString:[NSString stringWithUTF8String:name]]];
   for (i = 0; i != [symbols count]; i++)
   {
     VMUSymbol * symbol = [symbols objectAtIndex:i];
@@ -241,7 +248,9 @@ gum_find_functions_matching (const gchar * str)
 
     if (gum_symbol_is_function (symbol))
     {
-      const gchar * name = [[symbol name] UTF8String];
+      const gchar * name;
+
+      name = gum_symbol_name_from_darwin ([[symbol name] UTF8String]);
 
       if (g_pattern_match_string (pspec, name))
       {
@@ -401,15 +410,13 @@ gum_module_do_enumerate_exports (const gchar * module_name,
       symbol_idx != symbol_count;
       symbol_idx++, sym++)
   {
-    gchar * symbol_name;
+    const gchar * symbol_name;
     guint8 * symbol_address;
 
     if (SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       continue;
 
-    symbol_name = strbase + sym->n_un.n_strx;
-    if (symbol_name[0] == '_')
-      symbol_name++;
+    symbol_name = gum_symbol_name_from_darwin (strbase + sym->n_un.n_strx);
 
     symbol_address = (guint8 *)
         GSIZE_TO_POINTER (sym->n_value) + GPOINTER_TO_SIZE (slide);
@@ -620,3 +627,8 @@ find_image_symtab_command (gpointer address,
   return FALSE;
 }
 
+static const char *
+gum_symbol_name_from_darwin (const char * s)
+{
+  return (s[0] == '_') ? s + 1 : s;
+}
