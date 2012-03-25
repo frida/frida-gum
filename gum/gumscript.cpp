@@ -36,7 +36,11 @@
 # include <windows.h>
 #else
 # include <signal.h>
-# define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+# if defined (HAVE_OSX) && GLIB_SIZEOF_VOID_P == 4
+#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
+# else
+#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+#endif
 #endif
 
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
