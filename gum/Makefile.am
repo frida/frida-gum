@@ -154,5 +154,6 @@ libgum_la_LIBTOOLFLAGS = --tag=disable-shared
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir) \
 	$(arch_includes) \
 	$(GUM_CFLAGS)

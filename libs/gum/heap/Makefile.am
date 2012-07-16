@@ -32,5 +32,6 @@ libgum_heap_1_0_la_SOURCES = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
 	$(GUM_CFLAGS)

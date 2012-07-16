@@ -64,6 +64,7 @@ libgum_tests_la_LIBADD = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/gum/arch-x86 \
 	-I $(top_srcdir)/libs \

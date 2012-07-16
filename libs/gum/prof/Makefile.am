@@ -40,6 +40,7 @@ libgum_prof_1_0_la_SOURCES = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
 	$(arch_includes) \
 	$(GUM_CFLAGS)

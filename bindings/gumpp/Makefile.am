@@ -31,6 +31,7 @@ libgumpp_1_0_la_LIBTOOLFLAGS =		\
 
 AM_CPPFLAGS =				\
 	-include config.h		\
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/libs		\
 	-I $(top_srcdir)/libs/gum/heap	\
 	-I $(top_srcdir)/libs/gum/prof	\

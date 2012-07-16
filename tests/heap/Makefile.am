@@ -13,6 +13,7 @@ libgum_tests_heap_la_SOURCES = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/libs/gum/heap \

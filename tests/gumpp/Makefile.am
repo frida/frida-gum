@@ -6,6 +6,7 @@ libgum_tests_gumpp_la_SOURCES = \
 AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir)/bindings/gumpp \
+	-I $(top_srcdir) \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/tests \
 	$(GUM_CFLAGS)
