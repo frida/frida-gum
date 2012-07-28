@@ -128,7 +128,7 @@ namespace Gum {
 		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
-		public delegate bool FoundModuleFunc (string name, void * address, string path);
+		public delegate bool FoundModuleFunc (string name, Address address, string path);
 	}
 
 	namespace Module {
@@ -137,17 +137,20 @@ namespace Gum {
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string module_name, string symbol_name);
 
-		public delegate bool FoundExportFunc (string name, void * address);
+		public delegate bool FoundExportFunc (string name, Address address);
 	}
 
 	public delegate bool FoundRangeFunc (Gum.MemoryRange range, Gum.PageProtection prot);
 
 	namespace Memory {
-		public uint8[] read (void * address, uint len);
-		public bool write (void * address, uint8[] bytes);
+		public uint8[] read (Address address, size_t len);
+		public bool write (Address address, uint8[] bytes);
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
 
-		public delegate bool ScanMatchFunc (void * address, uint size);
+		public delegate bool ScanMatchFunc (Address address, size_t size);
+	}
+
+	public struct Address : uint64 {
 	}
 
 	public struct MemoryRange {
@@ -156,7 +159,7 @@ namespace Gum {
 			this.size = size;
 		}
 
-		public void * base_address;
+		public Address base_address;
 		public size_t size;
 	}
 

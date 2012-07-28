@@ -47,16 +47,16 @@ typedef struct _TestForEachContext {
   guint expected_size;
 } TestForEachContext;
 
-static gboolean match_found_cb (gpointer address, guint size,
+static gboolean match_found_cb (GumAddress address, gsize size,
     gpointer user_data);
 
 MEMORY_TESTCASE (read_from_valid_address_should_succeed)
 {
   guint8 magic[2] = { 0x13, 0x37 };
-  gint n_bytes_read;
+  gsize n_bytes_read;
   guint8 * result;
 
-  result = gum_memory_read (magic, sizeof (magic), &n_bytes_read);
+  result = gum_memory_read (GUM_ADDRESS (magic), sizeof (magic), &n_bytes_read);
   g_assert (result != NULL);
 
   g_assert_cmpint (n_bytes_read, ==, sizeof (magic));
@@ -69,7 +69,7 @@ MEMORY_TESTCASE (read_from_valid_address_should_succeed)
 
 MEMORY_TESTCASE (read_from_invalid_address_should_fail)
 {
-  gpointer invalid_address = GSIZE_TO_POINTER (0x42);
+  GumAddress invalid_address = 0x42;
   g_assert (gum_memory_read (invalid_address, 1, NULL) == NULL);
 }
 
@@ -79,7 +79,7 @@ MEMORY_TESTCASE (write_to_valid_address_should_succeed)
   guint8 magic[2] = { 0x13, 0x37 };
   gboolean success;
 
-  success = gum_memory_write (bytes, magic, sizeof (magic));
+  success = gum_memory_write (GUM_ADDRESS (bytes), magic, sizeof (magic));
   g_assert (success);
 
   g_assert_cmphex (bytes[0], ==, 0x13);
@@ -90,7 +90,7 @@ MEMORY_TESTCASE (write_to_valid_address_should_succeed)
 MEMORY_TESTCASE (write_to_invalid_address_should_fail)
 {
   guint8 bytes[3] = { 0x00, 0x00, 0x12 };
-  gpointer invalid_address = GSIZE_TO_POINTER (0x42);
+  GumAddress invalid_address = 0x42;
   g_assert (gum_memory_write (invalid_address, bytes, sizeof (bytes)) == FALSE);
 }
 
@@ -174,7 +174,7 @@ MEMORY_TESTCASE (scan_range_finds_three_exact_matches)
   GumMatchPattern * pattern;
   TestForEachContext ctx;
 
-  range.base_address = buf;
+  range.base_address = GUM_ADDRESS (buf);
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("13 37");
@@ -210,7 +210,7 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
   GumMatchPattern * pattern;
   TestForEachContext ctx;
 
-  range.base_address = buf;
+  range.base_address = GUM_ADDRESS (buf);
   range.size = sizeof (buf);
 
   pattern = gum_match_pattern_new_from_string ("12 ?? 13 37");
@@ -233,21 +233,22 @@ MEMORY_TESTCASE (scan_range_finds_three_wildcarded_matches)
 
 MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
 {
-  guint8 * pages, * left_guard, * first_page, * second_page, * right_guard;
+  guint8 * pages;
   guint page_size;
+  GumAddress left_guard, first_page, second_page, right_guard;
 
   pages = gum_alloc_n_pages (4, GUM_PAGE_RW);
 
   page_size = gum_query_page_size ();
 
-  left_guard = pages;
+  left_guard = GUM_ADDRESS (pages);
   first_page = left_guard + page_size;
   second_page = first_page + page_size;
   right_guard = second_page + page_size;
 
-  gum_mprotect (left_guard, page_size, GUM_PAGE_NO_ACCESS);
-  gum_mprotect (second_page, page_size, GUM_PAGE_RWX);
-  gum_mprotect (right_guard, page_size, GUM_PAGE_NO_ACCESS);
+  gum_mprotect (GSIZE_TO_POINTER (left_guard), page_size, GUM_PAGE_NO_ACCESS);
+  gum_mprotect (GSIZE_TO_POINTER (second_page), page_size, GUM_PAGE_RWX);
+  gum_mprotect (GSIZE_TO_POINTER (right_guard), page_size, GUM_PAGE_NO_ACCESS);
 
   g_assert (gum_memory_is_readable (first_page, 1));
   g_assert (gum_memory_is_readable (first_page + page_size - 1, 1));
@@ -279,7 +280,7 @@ MEMORY_TESTCASE (alloc_n_pages_returns_aligned_rw_address)
 
   g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
 
-  g_assert (gum_memory_is_readable (page, page_size));
+  g_assert (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;
@@ -306,7 +307,7 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 
   g_assert (GPOINTER_TO_SIZE (page) % page_size == 0);
 
-  g_assert (gum_memory_is_readable (page, page_size));
+  g_assert (gum_memory_is_readable (GUM_ADDRESS (page), page_size));
 
   g_assert_cmpuint (*((gsize *) page), ==, 0);
   *((gsize *) page) = 42;
@@ -319,15 +320,16 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
 }
 
 static gboolean
-match_found_cb (gpointer address,
-                guint size,
+match_found_cb (GumAddress address,
+                gsize size,
                 gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;
 
   g_assert_cmpuint (ctx->number_of_calls, <, 3);
 
-  g_assert (address == ctx->expected_address[ctx->number_of_calls]);
+  g_assert (address ==
+      GUM_ADDRESS (ctx->expected_address[ctx->number_of_calls]));
   g_assert_cmpuint (size, ==, ctx->expected_size);
 
   ctx->number_of_calls++;

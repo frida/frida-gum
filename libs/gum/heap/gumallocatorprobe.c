@@ -353,7 +353,7 @@ gum_allocator_probe_get_property (GObject * object,
 
 static gboolean
 gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
-                                                       gpointer address,
+                                                       GumAddress address,
                                                        const gchar * path,
                                                        gpointer user_data)
 {

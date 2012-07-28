@@ -66,7 +66,7 @@ gum_memory_scan (const GumMemoryRange * range,
 
     if (gum_match_pattern_try_match_on (pattern, start))
     {
-      if (!func (start, pattern->size, user_data))
+      if (!func (GUM_ADDRESS (start), pattern->size, user_data))
         return;
 
       cur = start + pattern->size - 1;

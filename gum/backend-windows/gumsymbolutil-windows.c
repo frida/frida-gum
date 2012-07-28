@@ -67,7 +67,8 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
         NULL, NULL, NULL);
     module_name = strrchr (module_path, '\\') + 1;
 
-    carry_on = func (module_name, mi.lpBaseOfDll, module_path, user_data);
+    carry_on = func (module_name, GUM_ADDRESS (mi.lpBaseOfDll), module_path,
+        user_data);
 
     g_free (module_path);
 
@@ -107,7 +108,7 @@ gum_process_enumerate_ranges (GumPageProtection prot,
       {
         GumMemoryRange range;
 
-        range.base_address = cur_base_address;
+        range.base_address = GUM_ADDRESS (cur_base_address);
         range.size = mbi.RegionSize;
 
         if (!func (&range, cur_prot, user_data))
@@ -164,7 +165,7 @@ gum_module_enumerate_exports (const gchar * module_name,
       {
         const gchar * func_name = (const gchar *) &mod_base[name_rvas[index]];
 
-        if (!func (func_name, func_address, user_data))
+        if (!func (func_name, GUM_ADDRESS (func_address), user_data))
           return;
       }
     }
@@ -210,7 +211,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
       {
         GumMemoryRange range;
 
-        range.base_address = cur_base_address;
+        range.base_address = GUM_ADDRESS (cur_base_address);
         range.size = mbi.RegionSize;
 
         if (!func (&range, cur_prot, user_data))
@@ -223,13 +224,13 @@ gum_module_enumerate_ranges (const gchar * module_name,
   while (cur_base_address < end_address);
 }
 
-gpointer
+GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {
-  return get_module_handle_utf8 (module_name);
+  return GUM_ADDRESS (get_module_handle_utf8 (module_name));
 }
 
-gpointer
+GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
@@ -239,7 +240,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   if (module == NULL)
     return NULL;
 
-  return GUM_FUNCPTR_TO_POINTER (GetProcAddress (module, symbol_name));
+  return GUM_ADDRESS (GetProcAddress (module, symbol_name));
 }
 
 static HMODULE

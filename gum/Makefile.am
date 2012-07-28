@@ -100,7 +100,9 @@ backend_sources += \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumnsbacktracer.m \
 	backend-darwin/gumsymbolutil-darwin.m
-guminclude_HEADERS += backend-darwin/gumnsbacktracer.h
+guminclude_HEADERS += \
+	backend-darwin/gumdarwin.h \
+	backend-darwin/gumnsbacktracer.h
 else
 backend_sources += \
 	backend-unix/gummemory-unix.c

@@ -81,7 +81,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
   mach_vm_size_t size = (mach_vm_size_t) 0;
   natural_t depth = 0;
-  gpointer prev_end = NULL;
+  GumAddress prev_end = 0;
 
   self = mach_task_self ();
 
@@ -112,11 +112,11 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
     if (kr != KERN_SUCCESS)
       break;
 
-    if (prev_end != NULL)
+    if (prev_end != 0)
     {
-      gsize gap_size;
+      gint64 gap_size;
 
-      gap_size = GSIZE_TO_POINTER (address) - prev_end;
+      gap_size = address - prev_end;
 
       if (gap_size > 0)
       {
@@ -130,7 +130,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
       }
     }
 
-    prev_end = GSIZE_TO_POINTER (address + size);
+    prev_end = address + size;
 
     address += size;
     size = 0;
@@ -138,8 +138,8 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 }
 
 gboolean
-gum_memory_is_readable (gpointer address,
-                        guint len)
+gum_memory_is_readable (GumAddress address,
+                        gsize len)
 {
   gboolean is_readable;
   guint8 * bytes;
@@ -152,9 +152,26 @@ gum_memory_is_readable (gpointer address,
 }
 
 guint8 *
-gum_memory_read (gpointer address,
-                 guint len,
-                 gint * n_bytes_read)
+gum_memory_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
+{
+  return gum_darwin_read (mach_task_self (), address, len, n_bytes_read);
+}
+
+gboolean
+gum_memory_write (GumAddress address,
+                  guint8 * bytes,
+                  gsize len)
+{
+  return gum_darwin_write (mach_task_self (), address, bytes, len);
+}
+
+guint8 *
+gum_darwin_read (mach_port_t task,
+                 GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
 {
   guint8 * result;
   mach_vm_size_t result_len = 0;
@@ -162,8 +179,8 @@ gum_memory_read (gpointer address,
 
   result = g_malloc (len);
 
-  kr = mach_vm_read_overwrite (mach_task_self (),
-      GPOINTER_TO_SIZE (address), len, (vm_address_t) result, &result_len);
+  kr = mach_vm_read_overwrite (task, address, len,
+      (vm_address_t) result, &result_len);
 
   if (kr != KERN_SUCCESS)
   {
@@ -178,21 +195,21 @@ gum_memory_read (gpointer address,
 }
 
 gboolean
-gum_memory_write (gpointer address,
+gum_darwin_write (mach_port_t task,
+                  GumAddress address,
                   guint8 * bytes,
-                  guint len)
+                  gsize len)
 {
   kern_return_t kr;
 
-  kr = mach_vm_write (mach_task_self (), GPOINTER_TO_SIZE (address),
-      (vm_offset_t) bytes, len);
+  kr = mach_vm_write (task, address, (vm_offset_t) bytes, len);
 
   return (kr == KERN_SUCCESS);
 }
 
 void
 gum_mprotect (gpointer address,
-              guint size,
+              gsize size,
               GumPageProtection page_prot)
 {
   gsize page_size;
@@ -218,7 +235,7 @@ gum_mprotect (gpointer address,
 
 void
 gum_clear_cache (gpointer address,
-                 guint size)
+                 gsize size)
 {
   sys_icache_invalidate (address, size);
 }
@@ -318,7 +335,7 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
                                        gpointer user_data)
 {
   GumAllocNearContext * ctx = user_data;
-  gpointer base_address;
+  GumAddress base_address;
   gsize distance;
   mach_vm_address_t address;
   kern_return_t kr;
@@ -327,17 +344,17 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
     return TRUE;
 
   base_address = range->base_address;
-  distance = ABS (ctx->address_spec->near_address - base_address);
+  distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
   if (distance > ctx->address_spec->max_distance)
   {
     base_address = range->base_address + range->size - ctx->size;
-    distance = ABS (ctx->address_spec->near_address - base_address);
+    distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
   }
 
   if (distance > ctx->address_spec->max_distance)
     return TRUE;
 
-  address = GPOINTER_TO_SIZE (base_address);
+  address = base_address;
   kr = mach_vm_allocate (ctx->task, &address, ctx->size, VM_FLAGS_FIXED);
   if (kr != KERN_SUCCESS)
     return TRUE;

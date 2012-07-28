@@ -49,12 +49,12 @@ typedef struct _GumFindModuleContext GumFindModuleContext;
 struct _GumFindModuleContext
 {
   const gchar * module_name;
-  gpointer base;
+  GumAddress base;
   gchar * path;
 };
 
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
-    gpointer address, const gchar * path, gpointer user_data);
+    GumAddress address, const gchar * path, gpointer user_data);
 
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
@@ -95,7 +95,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
       continue;
 
     name = g_path_get_basename (path);
-    carry_on = func (name, start, path, user_data);
+    carry_on = func (name, GUM_ADDRESS (start), path, user_data);
     g_free (name);
 
     strcpy (prev_path, path);
@@ -140,7 +140,7 @@ gum_process_enumerate_ranges (GumPageProtection prot,
     {
       GumMemoryRange range;
 
-      range.base_address = start;
+      range.base_address = GUM_ADDRESS (start);
       range.size = end - start;
 
       carry_on = func (&range, cur_prot, user_data);
@@ -157,7 +157,7 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  GumFindModuleContext ctx = { module_name, NULL, NULL };
+  GumFindModuleContext ctx = { module_name, 0, NULL };
   gint fd = -1;
   gsize file_size;
   gpointer base_address = NULL;
@@ -169,7 +169,7 @@ gum_module_enumerate_exports (const gchar * module_name,
 
   gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches,
       &ctx);
-  if (ctx.base == NULL)
+  if (ctx.base == 0)
     goto beach;
 
   fd = open (ctx.path, O_RDONLY);
@@ -220,7 +220,7 @@ gum_module_enumerate_exports (const gchar * module_name,
         sym->st_shndx != SHN_UNDEF)
     {
       const gchar * name;
-      gpointer address;
+      GumAddress address;
 
       name = dynsym_strtab + sym->st_name;
       address = ctx.base + sym->st_value;
@@ -283,7 +283,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
       {
         GumMemoryRange range;
 
-        range.base_address = start;
+        range.base_address = GUM_ADDRESS (start);
         range.size = end - start;
 
         carry_on = func (&range, cur_prot, user_data);
@@ -313,7 +313,7 @@ gum_module_find_export_by_name (const gchar * module_name,
 
 static gboolean
 gum_store_base_and_path_if_name_matches (const gchar * name,
-                                         gpointer address,
+                                         GumAddress address,
                                          const gchar * path,
                                          gpointer user_data)
 {

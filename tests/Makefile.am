@@ -44,6 +44,10 @@ gum_tests_LDADD = \
 	$(binding_ldadd) \
 	$(GUM_LIBS) \
 	-lstdc++
+if OS_OSX
+gum_tests_LDFLAGS += \
+	-sectcreate __TEXT __info_plist "$(srcdir)/gum-tests.plist"
+endif
 
 libgum_tests_la_SOURCES = \
 	gumtest.c \
@@ -70,7 +74,12 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/libs \
 	$(GUM_CFLAGS)
 
+if OS_OSX
+all-local: gum-tests
+	-codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests"
+endif
+
 if OS_IOS
 all-local: gum-tests
-	codesign -f -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<"
+	-codesign -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<"
 endif

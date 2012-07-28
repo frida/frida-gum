@@ -52,8 +52,8 @@ gum_query_page_size (void)
 }
 
 static gboolean
-gum_memory_get_protection (gpointer address,
-                           guint len,
+gum_memory_get_protection (GumAddress address,
+                           gsize len,
                            GumPageProtection * prot)
 {
   gboolean success = FALSE;
@@ -70,15 +70,12 @@ gum_memory_get_protection (gpointer address,
 
   if (len > 1)
   {
-    gsize page_size;
-    guint8 * start_page, * end_page, * cur_page;
+    GumAddress page_size, start_page, end_page, cur_page;
 
     page_size = gum_query_page_size ();
 
-    start_page = (guint8 *) GSIZE_TO_POINTER (
-        GPOINTER_TO_SIZE (address) & ~(page_size - 1));
-    end_page = (guint8 *) GSIZE_TO_POINTER (
-        GPOINTER_TO_SIZE ((guint8 *) address + len - 1) & ~(page_size - 1));
+    start_page = address & ~(page_size - 1);
+    end_page = (address + len - 1) & ~(page_size - 1);
 
     success = gum_memory_get_protection (start_page, 1, prot);
 
@@ -103,7 +100,7 @@ gum_memory_get_protection (gpointer address,
     return success;
   }
 
-  success = VirtualQuery (address, &mbi, sizeof (mbi)) != 0;
+  success = VirtualQuery (GSIZE_TO_POINTER (address), &mbi, sizeof (mbi)) != 0;
   if (success)
     *prot = gum_page_protection_from_windows (mbi.Protect);
 
@@ -111,8 +108,8 @@ gum_memory_get_protection (gpointer address,
 }
 
 gboolean
-gum_memory_is_readable (gpointer address,
-                        guint len)
+gum_memory_is_readable (GumAddress address,
+                        gsize len)
 {
   GumPageProtection prot;
 
@@ -123,9 +120,9 @@ gum_memory_is_readable (gpointer address,
 }
 
 guint8 *
-gum_memory_read (gpointer address,
-                 guint len,
-                 gint * n_bytes_read)
+gum_memory_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
 {
   guint8 * result;
   SIZE_T result_len = 0;
@@ -133,8 +130,8 @@ gum_memory_read (gpointer address,
 
   result = (guint8 *) g_malloc (len);
 
-  success = ReadProcessMemory (GetCurrentProcess (), address, result, len,
-      &result_len);
+  success = ReadProcessMemory (GetCurrentProcess (),
+      GSIZE_TO_POINTER (address), result, len, &result_len);
   if (!success)
   {
     g_free (result);
@@ -148,16 +145,17 @@ gum_memory_read (gpointer address,
 }
 
 gboolean
-gum_memory_write (gpointer address,
+gum_memory_write (GumAddress address,
                   guint8 * bytes,
-                  guint len)
+                  gsize len)
 {
-  return WriteProcessMemory (GetCurrentProcess (), address, bytes, len, NULL);
+  return WriteProcessMemory (GetCurrentProcess (), GSIZE_TO_POINTER (address),
+      bytes, len, NULL);
 }
 
 void
 gum_mprotect (gpointer address,
-              guint size,
+              gsize size,
               GumPageProtection page_prot)
 {
   DWORD win_page_prot, old_protect;
@@ -170,7 +168,7 @@ gum_mprotect (gpointer address,
 
 void
 gum_clear_cache (gpointer address,
-                 guint size)
+                 gsize size)
 {
   FlushInstructionCache (GetCurrentProcess (), address, size);
 }

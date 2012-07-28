@@ -46,7 +46,7 @@ struct _GumAddressSpec
 
 struct _GumMemoryRange
 {
-  gpointer base_address;
+  GumAddress base_address;
   gsize size;
 };
 
@@ -59,13 +59,13 @@ struct _GumMemoryRange
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumMemoryScanMatchFunc) (gpointer address, guint size,
+typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);
 
 guint gum_query_page_size (void);
-gboolean gum_memory_is_readable (gpointer address, guint len);
-guint8 * gum_memory_read (gpointer address, guint len, gint * n_bytes_read);
-gboolean gum_memory_write (gpointer address, guint8 * bytes, guint len);
+gboolean gum_memory_is_readable (GumAddress address, gsize len);
+guint8 * gum_memory_read (GumAddress address, gsize len, gsize * n_bytes_read);
+gboolean gum_memory_write (GumAddress address, guint8 * bytes, gsize len);
 
 void gum_memory_scan (const GumMemoryRange * range,
     const GumMatchPattern * pattern,
@@ -74,9 +74,9 @@ void gum_memory_scan (const GumMemoryRange * range,
 GumMatchPattern * gum_match_pattern_new_from_string (const gchar * match_str);
 void gum_match_pattern_free (GumMatchPattern * pattern);
 
-void gum_mprotect (gpointer address, guint size, GumPageProtection page_prot);
+void gum_mprotect (gpointer address, gsize size, GumPageProtection page_prot);
 
-void gum_clear_cache (gpointer address, guint size);
+void gum_clear_cache (gpointer address, gsize size);
 
 #define gum_new(struct_type, n_structs) \
     ((struct_type *) gum_malloc (n_structs * sizeof (struct_type)))

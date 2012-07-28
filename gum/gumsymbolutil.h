@@ -27,7 +27,7 @@ typedef struct _GumSymbolDetails GumSymbolDetails;
 
 struct _GumSymbolDetails
 {
-  gpointer address;
+  GumAddress address;
   gchar module_name[GUM_MAX_PATH + 1];
   gchar symbol_name[GUM_MAX_SYMBOL_NAME + 1];
   gchar file_name[GUM_MAX_PATH + 1];
@@ -36,9 +36,9 @@ struct _GumSymbolDetails
 
 G_BEGIN_DECLS
 
-typedef gboolean (* GumFoundModuleFunc) (const gchar * name, gpointer address,
+typedef gboolean (* GumFoundModuleFunc) (const gchar * name, GumAddress address,
     const gchar * path, gpointer user_data);
-typedef gboolean (* GumFoundExportFunc) (const gchar * name, gpointer address,
+typedef gboolean (* GumFoundExportFunc) (const gchar * name, GumAddress address,
     gpointer user_data);
 typedef gboolean (* GumFoundRangeFunc) (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
@@ -59,8 +59,8 @@ GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
-GUM_API gpointer gum_module_find_base_address (const gchar * module_name);
-GUM_API gpointer gum_module_find_export_by_name (const gchar * module_name,
+GUM_API GumAddress gum_module_find_base_address (const gchar * module_name);
+GUM_API GumAddress gum_module_find_export_by_name (const gchar * module_name,
     const gchar * symbol_name);
 
 G_END_DECLS

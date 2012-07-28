@@ -170,7 +170,7 @@ static Handle<Value> gum_script_on_memory_scan (const Arguments & args);
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static gboolean gum_script_do_memory_scan (GIOSchedulerJob * job,
     GCancellable * cancellable, gpointer user_data);
-static gboolean gum_script_process_scan_match (gpointer address, guint size,
+static gboolean gum_script_process_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 
 static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
@@ -723,12 +723,12 @@ gum_script_on_process_find_module_export_by_name (const Arguments & args)
   }
   String::Utf8Value symbol_name (symbol_name_val);
 
-  gpointer raw_address =
+  GumAddress raw_address =
       gum_module_find_export_by_name (*module_name, *symbol_name);
-  if (raw_address == NULL)
+  if (raw_address == 0)
     return Undefined ();
 
-  return Number::New (GPOINTER_TO_SIZE (raw_address));
+  return Number::New (raw_address);
 }
 
 static Handle<Value>
@@ -1185,7 +1185,7 @@ static Handle<Value>
 gum_script_on_memory_scan (const Arguments & args)
 {
   GumMemoryRange range;
-  range.base_address = GSIZE_TO_POINTER (args[0]->IntegerValue ());
+  range.base_address = args[0]->IntegerValue ();
   range.size = args[1]->IntegerValue ();
 
   String::Utf8Value match_str (args[2]);
@@ -1267,15 +1267,15 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
 }
 
 static gboolean
-gum_script_process_scan_match (gpointer address,
-                               guint size,
+gum_script_process_scan_match (GumAddress address,
+                               gsize size,
                                gpointer user_data)
 {
   GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
   ScriptScope scope (ctx->script);
 
   Handle<Value> argv[] = {
-    Number::New (GPOINTER_TO_SIZE (address)),
+    Number::New (address),
     Integer::NewFromUnsigned (size)
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);

@@ -37,7 +37,12 @@ TEST_LIST_BEGIN (symbolutil)
 #ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (module_base)
   SYMUTIL_TESTENTRY (module_export_can_be_found)
-  SYMUTIL_TESTENTRY (module_export_matches_system_lookup);
+  SYMUTIL_TESTENTRY (module_export_matches_system_lookup)
+#endif
+#ifdef HAVE_DARWIN
+  SYMUTIL_TESTENTRY (darwin_enumerate_modules)
+  SYMUTIL_TESTENTRY (darwin_enumerate_ranges)
+  SYMUTIL_TESTENTRY (darwin_module_exports)
 #endif
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
@@ -69,9 +74,9 @@ typedef struct _TestForEachContext {
   guint number_of_calls;
 } TestForEachContext;
 
-static gboolean module_found_cb (const gchar * name, gpointer address,
+static gboolean module_found_cb (const gchar * name, GumAddress address,
     const gchar * path, gpointer user_data);
-static gboolean export_found_cb (const gchar * name, gpointer address,
+static gboolean export_found_cb (const gchar * name, GumAddress address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
@@ -147,19 +152,19 @@ SYMUTIL_TESTCASE (module_ranges_can_be_enumerated)
 
 SYMUTIL_TESTCASE (module_base)
 {
-  g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != NULL);
+  g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
 }
 
 SYMUTIL_TESTCASE (module_export_can_be_found)
 {
   g_assert (gum_module_find_export_by_name (SYSTEM_MODULE_NAME,
-      SYSTEM_MODULE_EXPORT) != NULL);
+      SYSTEM_MODULE_EXPORT) != 0);
 }
 
 SYMUTIL_TESTCASE (module_export_matches_system_lookup)
 {
 #ifndef G_OS_WIN32
-  gpointer gum_address;
+  GumAddress gum_address;
   void * lib, * system_address;
 
   gum_address =
@@ -170,16 +175,88 @@ SYMUTIL_TESTCASE (module_export_matches_system_lookup)
   system_address = dlsym (lib, SYSTEM_MODULE_EXPORT);
   dlclose (lib);
 
-  g_assert_cmphex (GPOINTER_TO_SIZE (gum_address), ==,
-      GPOINTER_TO_SIZE (system_address));
+  g_assert_cmphex (gum_address, ==, GPOINTER_TO_SIZE (system_address));
 #endif
+}
+
+#endif
+
+#ifdef HAVE_DARWIN
+
+#include <gum/backend-darwin/gumdarwin.h>
+#include <mach/mach.h>
+
+static mach_port_t
+gum_test_get_target_task (void)
+{
+#if 1
+  return mach_task_self ();
+#else
+  mach_port_t task;
+  kern_return_t ret;
+
+  ret = task_for_pid (mach_task_self (), 12304, &task);
+  g_assert_cmpint (ret, ==, 0);
+
+  return task;
+#endif
+}
+
+SYMUTIL_TESTCASE (darwin_enumerate_modules)
+{
+  mach_port_t task = gum_test_get_target_task ();
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_darwin_enumerate_modules (task, module_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_darwin_enumerate_modules (task, module_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+SYMUTIL_TESTCASE (darwin_enumerate_ranges)
+{
+  mach_port_t task = gum_test_get_target_task ();
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX, range_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX, range_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
+
+SYMUTIL_TESTCASE (darwin_module_exports)
+{
+  mach_port_t task = gum_test_get_target_task ();
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
+      export_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
+      export_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
 #endif
 
 static gboolean
 module_found_cb (const gchar * name,
-                 gpointer address,
+                 GumAddress address,
                  const gchar * path,
                  gpointer user_data)
 {
@@ -192,7 +269,7 @@ module_found_cb (const gchar * name,
 
 static gboolean
 export_found_cb (const gchar * name,
-                 gpointer address,
+                 GumAddress address,
                  gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;

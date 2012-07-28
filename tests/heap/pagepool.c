@@ -79,15 +79,15 @@ PAGEPOOL_TESTCASE (alloc_alignment)
 PAGEPOOL_TESTCASE (alloc_protection)
 {
   GumPagePool * pool;
-  guint8 * p1, * p2;
+  GumAddress p1, p2;
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
 
-  p1 = (guint8 *) gum_page_pool_try_alloc (pool, 1);
+  p1 = GUM_ADDRESS (gum_page_pool_try_alloc (pool, 1));
   g_assert (gum_memory_is_readable (p1, 16));
   g_assert (!gum_memory_is_readable (p1 + 16, 1));
 
-  p2 = (guint8 *) gum_page_pool_try_alloc (pool, 17);
+  p2 = GUM_ADDRESS (gum_page_pool_try_alloc (pool, 17));
   g_assert (gum_memory_is_readable (p2, 32));
   g_assert (!gum_memory_is_readable (p2 + 32, 1));
 }
@@ -123,14 +123,16 @@ PAGEPOOL_TESTCASE (free)
 PAGEPOOL_TESTCASE (free_protection)
 {
   GumPagePool * pool;
-  guint8 * p;
+  gpointer p;
+  GumAddress address;
 
   SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 4);
 
-  p = (guint8 *) gum_page_pool_try_alloc (pool, 1);
+  p = gum_page_pool_try_alloc (pool, 1);
   g_assert (gum_page_pool_try_free (pool, p));
-  g_assert (!gum_memory_is_readable (p, 16));
-  g_assert (!gum_memory_is_readable (p + 16, 1));
+  address = GUM_ADDRESS (p);
+  g_assert (!gum_memory_is_readable (address, 16));
+  g_assert (!gum_memory_is_readable (address + 16, 1));
 }
 
 PAGEPOOL_TESTCASE (query_block_size)
@@ -188,9 +190,10 @@ PAGEPOOL_TESTCASE (alloc_and_fill_full_cycle)
 
   for (i = 0; i < pool_size - 1; i++)
   {
-    g_assert (gum_memory_is_readable (start + (i * page_size), page_size));
+    g_assert (gum_memory_is_readable (GUM_ADDRESS (
+        start + (i * page_size)), page_size));
   }
-  g_assert (!gum_memory_is_readable (end - page_size, page_size));
+  g_assert (!gum_memory_is_readable (GUM_ADDRESS (end - page_size), page_size));
 
   memset (p, 0, buffer_size);
 }

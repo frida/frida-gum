@@ -97,7 +97,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
       {
         GumMemoryRange r;
 
-        r.base_address = prev_end;
+        r.base_address = GUM_ADDRESS (prev_end);
         r.size = gap_size;
 
         carry_on = func (&r, user_data);
@@ -111,8 +111,8 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 }
 
 static gboolean
-gum_memory_get_protection (gpointer address,
-                           guint len,
+gum_memory_get_protection (GumAddress address,
+                           gsize len,
                            GumPageProtection * prot)
 {
   gboolean success = FALSE;
@@ -130,15 +130,12 @@ gum_memory_get_protection (gpointer address,
 
   if (len > 1)
   {
-    gsize page_size;
-    guint8 * start_page, * end_page, * cur_page;
+    GumAddress page_size, start_page, end_page, cur_page;
 
     page_size = gum_query_page_size ();
 
-    start_page = GSIZE_TO_POINTER (
-        GPOINTER_TO_SIZE (address) & ~(page_size - 1));
-    end_page = GSIZE_TO_POINTER (
-        GPOINTER_TO_SIZE (address + len - 1) & ~(page_size - 1));
+    start_page = address & ~(page_size - 1);
+    end_page = (address + len - 1) & ~(page_size - 1);
 
     success = gum_memory_get_protection (start_page, 1, prot);
 
@@ -175,9 +172,10 @@ gum_memory_get_protection (gpointer address,
     n = sscanf (line, "%p-%p %s ", &start, &end, protection);
     g_assert_cmpint (n, ==, 3);
 
-    if (start > address)
+    if (GUM_ADDRESS (start) > address)
       break;
-    else if (address >= start && address + len - 1 < end)
+    else if (address >= GUM_ADDRESS (start) &&
+        address + len - 1 < GUM_ADDRESS (end))
     {
       success = TRUE;
 
@@ -201,8 +199,8 @@ gum_memory_get_protection (gpointer address,
 }
 
 gboolean
-gum_memory_is_readable (gpointer address,
-                        guint len)
+gum_memory_is_readable (GumAddress address,
+                        gsize len)
 {
   GumPageProtection prot;
 
@@ -213,8 +211,8 @@ gum_memory_is_readable (gpointer address,
 }
 
 static gboolean
-gum_memory_is_writable (gpointer address,
-                        guint len)
+gum_memory_is_writable (GumAddress address,
+                        gsize len)
 {
   GumPageProtection prot;
 
@@ -225,16 +223,16 @@ gum_memory_is_writable (gpointer address,
 }
 
 guint8 *
-gum_memory_read (gpointer address,
-                 guint len,
-                 gint * n_bytes_read)
+gum_memory_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
 {
   guint8 * result = NULL;
-  gint result_len = 0;
+  gsize result_len = 0;
 
   if (gum_memory_is_readable (address, len))
   {
-    result = g_memdup (address, len);
+    result = g_memdup (GSIZE_TO_POINTER (address), len);
     result_len = len;
   }
 
@@ -245,15 +243,15 @@ gum_memory_read (gpointer address,
 }
 
 gboolean
-gum_memory_write (gpointer address,
+gum_memory_write (GumAddress address,
                   guint8 * bytes,
-                  guint len)
+                  gsize len)
 {
   gboolean result = FALSE;
 
   if (gum_memory_is_writable (address, len))
   {
-    memcpy (address, bytes, len);
+    memcpy (GSIZE_TO_POINTER (address), bytes, len);
     result = TRUE;
   }
 
@@ -262,7 +260,7 @@ gum_memory_write (gpointer address,
 
 void
 gum_mprotect (gpointer address,
-              guint size,
+              gsize size,
               GumPageProtection page_prot)
 {
   gpointer aligned_address;
@@ -281,7 +279,7 @@ gum_mprotect (gpointer address,
 
 void
 gum_clear_cache (gpointer address,
-                 guint size)
+                 gsize size)
 {
 #ifdef HAVE_ARM
   cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
@@ -390,25 +388,25 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
                                        gpointer user_data)
 {
   GumAllocNearContext * ctx = user_data;
-  gpointer base_address;
+  GumAddress base_address;
   gsize distance;
 
   if (range->size < ctx->size)
     return TRUE;
 
   base_address = range->base_address;
-  distance = ABS (ctx->address_spec->near_address - base_address);
+  distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
   if (distance > ctx->address_spec->max_distance)
   {
     base_address = range->base_address + range->size - ctx->size;
-    distance = ABS (ctx->address_spec->near_address - base_address);
+    distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
   }
 
   if (distance > ctx->address_spec->max_distance)
     return TRUE;
 
-  ctx->result = mmap (base_address, ctx->size, ctx->unix_page_prot,
-      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+  ctx->result = mmap (GSIZE_TO_POINTER (base_address), ctx->size,
+      ctx->unix_page_prot, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
   if (ctx->result == MAP_FAILED)
     ctx->result = NULL;
   else

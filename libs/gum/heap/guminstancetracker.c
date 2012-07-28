@@ -169,7 +169,7 @@ gum_instance_tracker_new (void)
 
 static gboolean
 gum_instance_tracker_fill_vtable_if_module_is_gobject (const gchar * name,
-                                                       gpointer address,
+                                                       GumAddress address,
                                                        const gchar * path,
                                                        gpointer user_data)
 {
