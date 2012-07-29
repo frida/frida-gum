@@ -44,11 +44,15 @@ gum_init_with_features (GumFeatureFlags features)
 void
 gum_deinit (void)
 {
+#ifdef HAVE_LIBS
   _gum_allocator_probe_deinit ();
+#endif
 
   _gum_interceptor_deinit ();
 
+#ifdef HAVE_SYMBOL_BACKEND
   _gum_symbol_util_deinit ();
+#endif
 
   _gum_memory_deinit ();
 }
@@ -57,6 +61,8 @@ static gpointer
 do_init (gpointer data)
 {
   GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
+
+  (void) features;
 
   if (!g_thread_supported ())
 #ifdef _DEBUG
@@ -69,8 +75,10 @@ do_init (gpointer data)
 
   _gum_memory_init ();
 
+#ifdef HAVE_SYMBOL_BACKEND
   if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
     _gum_symbol_util_init ();
+#endif
 
   return NULL;
 }

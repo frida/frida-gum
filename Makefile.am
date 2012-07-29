@@ -1,10 +1,21 @@
 ACLOCAL_AMFLAGS = -I m4
 
+libs =
+extras =
+
+if ENABLE_LIBS
+libs += libs
+endif
+
+if ENABLE_BINDINGS
+extras += bindings
+endif
+
 SUBDIRS = \
 	ext \
-	libs \
+	$(libs) \
 	gum \
-	bindings \
+	$(extras) \
 	tests \
 	vapi
 

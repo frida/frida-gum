@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,10 +20,6 @@
 #include "gumsymbolutil.h"
 
 #include "gumdarwin.h"
-#include "gumsymbolutil-priv.h"
-
-#import <Foundation/Foundation.h>
-#import "VMUSymbolicator.h"
 
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
@@ -31,11 +27,6 @@
 #include <mach-o/nlist.h>
 
 #define GUM_MAX_MACH_HEADER_SIZE (64 * 1024)
-
-#define GUM_POOL_ALLOC() \
-  NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init]
-#define GUM_POOL_RELEASE() \
-  [pool release]
 
 #define SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL(S) \
       (S->n_value == 0 || \
@@ -102,10 +93,6 @@ static gboolean gum_darwin_find_linkedit (guint8 * module, gsize module_size,
 static gboolean gum_darwin_find_symtab_command (guint8 * module,
     gsize module_size, struct symtab_command ** sc);
 
-#ifdef HAVE_SYMBOL_BACKEND
-static gboolean gum_symbol_is_function (VMUSymbol * symbol);
-#endif
-
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
 static gboolean find_image_vmaddr_and_fileoff (gpointer address,
@@ -115,201 +102,7 @@ static gboolean find_image_symtab_command (gpointer address,
 
 static const char * gum_symbol_name_from_darwin (const char * s);
 
-#ifdef HAVE_SYMBOL_BACKEND
-static VMUSymbolicator * symbolicator = nil;
-#endif
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
-
-void
-_gum_symbol_util_init (void)
-{
-#ifdef HAVE_SYMBOL_BACKEND
-  GUM_POOL_ALLOC ();
-  symbolicator = [[VMUSymbolicator symbolicatorForTask: mach_task_self ()] retain];
-  GUM_POOL_RELEASE ();
-#endif
-}
-
-void
-_gum_symbol_util_deinit (void)
-{
-#ifdef HAVE_SYMBOL_BACKEND
-  GUM_POOL_ALLOC ();
-  [symbolicator release];
-  symbolicator = nil;
-  GUM_POOL_RELEASE ();
-
-  get_all_image_infos_impl = NULL;
-#endif
-}
-
-#ifdef HAVE_SYMBOL_BACKEND
-
-gboolean
-gum_symbol_details_from_address (gpointer address,
-                                 GumSymbolDetails * details)
-{
-  gboolean result = FALSE;
-  VMUSymbol * symbol;
-
-  GUM_POOL_ALLOC ();
-
-  symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
-  if (symbol != nil)
-  {
-    VMUSourceInfo * info = nil;
-
-    details->address = GUM_ADDRESS (address);
-    strcpy (details->module_name, [[[symbol owner] name] UTF8String]);
-    strcpy (details->symbol_name,
-        gum_symbol_name_from_darwin ([[symbol name] UTF8String]));
-
-    result = TRUE;
-
-    info = [symbol sourceInfoForAddress:GPOINTER_TO_SIZE (address)];
-    if (info != nil)
-    {
-      strcpy (details->file_name, [[info fileName] UTF8String]);
-      details->line_number = [info lineNumber];
-    }
-    else
-    {
-      strcpy (details->file_name, "<unknown>");
-      details->line_number = 0;
-    }
-  }
-
-  GUM_POOL_RELEASE ();
-
-  return result;
-}
-
-gchar *
-gum_symbol_name_from_address (gpointer address)
-{
-  gchar * result = NULL;
-  VMUSymbol * symbol;
-
-  GUM_POOL_ALLOC ();
-
-  symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
-  if (symbol != nil)
-  {
-    result =
-        g_strdup (gum_symbol_name_from_darwin ([[symbol name] UTF8String]));
-  }
-
-  GUM_POOL_RELEASE ();
-
-  return result;
-}
-
-gpointer
-gum_find_function (const gchar * name)
-{
-  gpointer result = NULL;
-  NSArray * symbols;
-  NSUInteger i;
-
-  GUM_POOL_ALLOC ();
-
-  symbols = [symbolicator symbolsForName:
-      [@"_" stringByAppendingString:[NSString stringWithUTF8String:name]]];
-  for (i = 0; i != [symbols count]; i++)
-  {
-    VMUSymbol * symbol = [symbols objectAtIndex:i];
-
-    if (gum_symbol_is_function (symbol))
-    {
-      result = GSIZE_TO_POINTER ([symbol addressRange].location);
-      break;
-    }
-  }
-
-  GUM_POOL_RELEASE ();
-
-  return result;
-}
-
-GArray *
-gum_find_functions_named (const gchar * name)
-{
-  GArray * result;
-  NSArray * symbols;
-  NSUInteger i;
-
-  GUM_POOL_ALLOC ();
-
-  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
-
-  symbols = [symbolicator symbolsForName:[NSString stringWithUTF8String:name]];
-  for (i = 0; i != [symbols count]; i++)
-  {
-    VMUSymbol * symbol = [symbols objectAtIndex:i];
-
-    if (gum_symbol_is_function (symbol))
-    {
-      gpointer address = GSIZE_TO_POINTER ([symbol addressRange].location);
-
-      g_array_append_val (result, address);
-    }
-  }
-
-  GUM_POOL_RELEASE ();
-
-  return result;
-}
-
-GArray *
-gum_find_functions_matching (const gchar * str)
-{
-  GArray * result;
-  GPatternSpec * pspec;
-  NSArray * symbols;
-  NSUInteger count, i;
-
-  GUM_POOL_ALLOC ();
-
-  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
-
-  pspec = g_pattern_spec_new (str);
-
-  symbols = [symbolicator symbols];
-  count = [symbols count];
-  for (i = 0; i != count; i++)
-  {
-    VMUSymbol * symbol = [symbols objectAtIndex:i];
-
-    if (gum_symbol_is_function (symbol))
-    {
-      const gchar * name;
-
-      name = gum_symbol_name_from_darwin ([[symbol name] UTF8String]);
-
-      if (g_pattern_match_string (pspec, name))
-      {
-        gpointer address = GSIZE_TO_POINTER ([symbol addressRange].location);
-
-        g_array_append_val (result, address);
-      }
-    }
-  }
-
-  g_pattern_spec_free (pspec);
-
-  GUM_POOL_RELEASE ();
-
-  return result;
-}
-
-static gboolean
-gum_symbol_is_function (VMUSymbol * symbol)
-{
-  return ([symbol isFunction] || [symbol isObjcMethod] ||
-      [symbol isJavaMethod]);
-}
-
-#endif /* HAVE_SYMBOL_BACKEND */
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,

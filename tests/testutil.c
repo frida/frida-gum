@@ -166,16 +166,20 @@ TESTUTIL_TESTCASE (line_diff)
 
 /* Implementation */
 
+#ifdef HAVE_LIBS
 static GumHeapApiList * _test_util_heap_apis = NULL;
+#endif
 
 void
 _test_util_deinit (void)
 {
+#ifdef HAVE_LIBS
   if (_test_util_heap_apis != NULL)
   {
     gum_heap_api_list_free (_test_util_heap_apis);
     _test_util_heap_apis = NULL;
   }
+#endif
 }
 
 GumSampler *
@@ -336,6 +340,7 @@ test_util_get_data_dir (void)
 const GumHeapApiList *
 test_util_heap_apis (void)
 {
+#ifdef HAVE_LIBS
   if (_test_util_heap_apis == NULL)
   {
     GumHeapApi api = { 0 };
@@ -357,6 +362,9 @@ test_util_heap_apis (void)
   }
 
   return _test_util_heap_apis;
+#else
+  return NULL;
+#endif
 }
 
 #ifdef G_OS_WIN32

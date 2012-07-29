@@ -41,6 +41,7 @@ arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
 script_sources = $(NULL)
+libs_libadd = $(NULL)
 
 if ARCH_I386
 archincludedir = $(includedir)/gum-1.0/gum/arch-x86
@@ -96,10 +97,14 @@ backend_sources += \
 endif
 
 if OS_DARWIN
+if ENABLE_OBJC
+backend_sources += \
+	backend-darwin/gumnsbacktracer.m \
+	backend-darwin/gumsymbolbackend-darwin.m
+endif
 backend_sources += \
 	backend-darwin/gummemory-darwin.c \
-	backend-darwin/gumnsbacktracer.m \
-	backend-darwin/gumsymbolutil-darwin.m
+	backend-darwin/gumsymbolutil-darwin.c
 guminclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumnsbacktracer.h
@@ -114,8 +119,11 @@ backend_sources += \
 endif
 
 if HAVE_BFD
+if ENABLE_OBJC
+else
 backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
+endif
 endif
 
 if OS_ANDROID
@@ -127,6 +135,12 @@ endif
 if HAVE_V8
 script_sources += gumscript.cpp
 guminclude_HEADERS += gumscript.h
+endif
+
+if ENABLE_LIBS
+libs_libadd += \
+	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \
+	$(top_builddir)/libs/gum/prof/libgum-prof-1.0.la
 endif
 
 container_sources = \
@@ -149,8 +163,7 @@ libgum_la_SOURCES = \
 	$(script_sources) \
 	$(backend_sources)
 libgum_la_LIBADD = \
-	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \
-	$(top_builddir)/libs/gum/prof/libgum-prof-1.0.la \
+	$(libs_libadd) \
 	$(arch_libs)
 libgum_la_LIBTOOLFLAGS = --tag=disable-shared
 

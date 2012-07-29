@@ -21,7 +21,7 @@
 
 #ifdef G_OS_WIN32
 # include "backend-dbghelp/gumdbghelpbacktracer.h"
-#elif defined (HAVE_DARWIN)
+#elif defined (HAVE_DARWIN) && defined (HAVE_OBJC)
 # include "backend-darwin/gumnsbacktracer.h"
 #elif defined (HAVE_GLIBC)
 # include "backend-glibc/gumgnubacktracer.h"
@@ -53,7 +53,7 @@ gum_backtracer_make_default (void)
 {
 #if defined (G_OS_WIN32)
   return gum_dbghelp_backtracer_new ();
-#elif defined (HAVE_DARWIN)
+#elif defined (HAVE_DARWIN) && defined (HAVE_OBJC)
   return gum_ns_backtracer_new ();
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();

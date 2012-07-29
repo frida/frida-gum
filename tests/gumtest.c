@@ -112,7 +112,9 @@ main (gint argc, gchar * argv[])
 #endif
 #if !defined (HAVE_ANDROID) && !defined (HAVE_IOS)
   TEST_RUN_LIST (backtracer);
+#endif
 
+#ifdef HAVE_LIBS
   /* Heap */
   TEST_RUN_LIST (allocation_tracker);
   TEST_RUN_LIST (allocator_probe);
@@ -143,7 +145,7 @@ main (gint argc, gchar * argv[])
 #endif
 
   /* GUM++ */
-#if !defined (HAVE_ANDROID) && !defined (HAVE_IOS)
+#ifdef HAVE_BINDINGS
   TEST_RUN_LIST (gumpp_backtracer);
 #endif
 

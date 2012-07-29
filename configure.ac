@@ -122,8 +122,14 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
+AC_ARG_ENABLE(objc, [AC_HELP_STRING([--enable-objc], [enable Obj-C dependent code [default=no]])],, [enable_objc=no])
+if [[ "x$enable_objc" = "xyes" ]]; then
+  AC_DEFINE(HAVE_OBJC, 1, [Define to 1 if Obj-C dependent code is available.])
+fi
+AM_CONDITIONAL(ENABLE_OBJC, [test "x$enable_objc" = "xyes"])
+
 GUM_EXTRA_LIBS="-lstdc++"
-if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
+if [[ "x$enable_objc" = "xyes" ]]; then
   GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
 AC_SUBST(GUM_EXTRA_LIBS)
@@ -134,9 +140,30 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
-if [[ "x$HAVE_BFD" = "xyes" -o "x$HAVE_DARWIN" = "xyes" ]] && [[ "x$HAVE_IOS" = "xno" ]]; then
+if [[ "x$HAVE_BFD" = "xyes" ]] || [[ "x$enable_objc" = "xyes" ]]; then
+  enable_symbol_backend=yes
   AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if a symbol backend is available.])
+else
+  enable_symbol_backend=no
 fi
+
+if [[ "x$enable_symbol_backend" = "xyes" ]]; then
+  AC_DEFINE(HAVE_LIBS, 1, [Define to 1 if helper libs are available.])
+fi
+AM_CONDITIONAL(ENABLE_LIBS, [test "x$enable_symbol_backend" = "xyes" ])
+
+AC_ARG_ENABLE(bindings, [AC_HELP_STRING([--enable-bindings], [build bindings [default=auto]])],, [enable_bindings=auto])
+if [[ "x$enable_bindings" = "xauto" ]]; then
+  if [[ "x$enable_symbol_backend" = "xyes" ]]; then
+    enable_bindings=yes
+  else
+    enable_bindings=no
+  fi
+fi
+if [[ "x$enable_bindings" = "xyes" ]]; then
+  AC_DEFINE(HAVE_BINDINGS, 1, [Define to 1 if bindings are available.])
+fi
+AM_CONDITIONAL(ENABLE_BINDINGS, [test "x$enable_bindings" != "xno" -a "x$enable_symbol_backend" = "xyes" ])
 
 AC_CONFIG_FILES([
 	gum-1.0.pc

@@ -1,13 +1,20 @@
 SUBDIRS = \
-	core \
+	core
+
+if ENABLE_LIBS
+SUBDIRS +=
 	heap \
 	prof
+endif
+
+if ENABLE_BINDINGS
+SUBDIRS += gumpp
+endif
 
 if OS_ANDROID
 else
 if OS_IOS
 else
-SUBDIRS += gumpp
 TESTS = gum-tests
 endif
 endif
@@ -16,6 +23,7 @@ noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
 
 arch_sources = $(NULL)
+libs_libadd = $(NULL)
 binding_ldadd = $(NULL)
 binding_libadd = $(NULL)
 
@@ -25,13 +33,15 @@ arch_sources += \
 	lowlevel-helpers.h
 endif
 
-if OS_ANDROID
-else
-if OS_IOS
-else
+if ENABLE_LIBS
+libs_libadd += \
+	$(builddir)/heap/libgum-tests-heap.la \
+	$(builddir)/prof/libgum-tests-prof.la
+endif
+
+if ENABLE_BINDINGS
 binding_ldadd += $(top_builddir)/bindings/gumpp/libgumpp-1.0.la
 binding_libadd += $(builddir)/gumpp/libgum-tests-gumpp.la
-endif
 endif
 
 gum_tests_SOURCES = \
@@ -62,8 +72,7 @@ libgum_tests_la_SOURCES = \
 	$(arch_sources)
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
-	$(builddir)/heap/libgum-tests-heap.la \
-	$(builddir)/prof/libgum-tests-prof.la \
+	$(libs_libadd) \
 	$(binding_libadd)
 
 AM_CPPFLAGS = \
@@ -76,7 +85,13 @@ AM_CPPFLAGS = \
 
 if OS_OSX
 all-local: gum-tests
-	codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests" || true
+	( \
+		if [ -f "$(builddir)/.libs/gum-tests" ]; then \
+			codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests" || true; \
+		else \
+			codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/gum-tests" || true; \
+		fi \
+	)
 endif
 
 if OS_IOS
