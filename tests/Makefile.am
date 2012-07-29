@@ -76,10 +76,10 @@ AM_CPPFLAGS = \
 
 if OS_OSX
 all-local: gum-tests
-	-codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests"
+	codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests" || true
 endif
 
 if OS_IOS
 all-local: gum-tests
-	-codesign -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<"
+	codesign -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<" || true
 endif
