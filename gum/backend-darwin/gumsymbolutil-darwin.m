@@ -371,7 +371,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   gpointer address, slide;
   gsize vmaddr, fileoff;
   struct symtab_command * sc;
-  GumAddress table_base;
+  guint8 * table_base;
   gum_nlist_t * symbase, * sym;
   gchar * strbase;
   guint symbol_idx;
@@ -385,7 +385,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   if (!find_image_symtab_command (address, &sc))
     return TRUE;
 
-  table_base = vmaddr - fileoff + GPOINTER_TO_SIZE (slide);
+  table_base = GSIZE_TO_POINTER (vmaddr - fileoff + GPOINTER_TO_SIZE (slide));
   symbase = (gum_nlist_t *) (table_base + sc->symoff);
   strbase = (gchar *) (table_base + sc->stroff);
 

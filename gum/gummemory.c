@@ -52,7 +52,7 @@ gum_memory_scan (const GumMemoryRange * range,
   needle_data = (guint8 *) needle->bytes->data;
   needle_len = needle->bytes->len;
 
-  cur = (guint8 *) range->base_address;
+  cur = GSIZE_TO_POINTER (range->base_address);
   end_address = cur + range->size - (pattern->size - needle->offset) + 1;
 
   for (; cur < end_address; cur++)
