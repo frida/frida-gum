@@ -154,7 +154,7 @@ namespace Gum {
 	}
 
 	public struct MemoryRange {
-		public MemoryRange (void * base_address, size_t size) {
+		public MemoryRange (Address base_address, size_t size) {
 			this.base_address = base_address;
 			this.size = size;
 		}
