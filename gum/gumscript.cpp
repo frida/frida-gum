@@ -20,6 +20,7 @@
 #include "gumscript.h"
 
 #include "guminterceptor.h"
+#include "gumscript-priv.h"
 #include "gumsymbolutil.h"
 #include "gumtls.h"
 #ifdef G_OS_WIN32
@@ -233,6 +234,18 @@ static struct sigaction gum_memaccess_old_action;
 static const gchar * gum_script_runtime_source =
 #include "gumscript-runtime.h"
 ;
+
+void
+_gum_script_init (void)
+{
+  V8::Initialize ();
+}
+
+void
+_gum_script_deinit (void)
+{
+  V8::Dispose ();
+}
 
 static void
 gum_script_class_init (GumScriptClass * klass)

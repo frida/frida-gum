@@ -22,6 +22,7 @@
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gummemory-priv.h"
+#include "gumscript-priv.h"
 #include "gumsymbolutil-priv.h"
 
 #include <glib-object.h>
@@ -44,6 +45,10 @@ gum_init_with_features (GumFeatureFlags features)
 void
 gum_deinit (void)
 {
+#ifdef HAVE_V8
+  _gum_script_deinit ();
+#endif
+
 #ifdef HAVE_LIBS
   _gum_allocator_probe_deinit ();
 #endif
@@ -78,6 +83,10 @@ do_init (gpointer data)
 #ifdef HAVE_SYMBOL_BACKEND
   if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
     _gum_symbol_util_init ();
+#endif
+
+#ifdef HAVE_V8
+  _gum_script_init ();
 #endif
 
   return NULL;
