@@ -1132,8 +1132,8 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
   if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)
     return FALSE;
 
-  /* must be a READ */
-  if (exception_record->ExceptionInformation[0] != 0)
+  /* must be a READ or WRITE */
+  if (exception_record->ExceptionInformation[0] > 1)
     return FALSE;
 
   scope = (GumMemoryAccessScope *)
