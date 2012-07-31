@@ -87,9 +87,9 @@ if OS_OSX
 all-local: gum-tests
 	( \
 		if [ -f "$(builddir)/.libs/gum-tests" ]; then \
-			codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/.libs/gum-tests" || true; \
+			codesign -s "$$OSX_CERTID" -i "com.tillitech.GumTests" "$(builddir)/.libs/gum-tests" || true; \
 		else \
-			codesign -s "org.boblycat.Frida" -i "org.boblycat.Frida" "$(builddir)/gum-tests" || true; \
+			codesign -s "$$OSX_CERTID" -i "com.tillitech.GumTests" "$(builddir)/gum-tests" || true; \
 		fi \
 	)
 endif
