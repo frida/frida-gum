@@ -45,7 +45,7 @@ static void
 test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
                                           gconstpointer data)
 {
-  fixture->range.base_address = gum_alloc_n_pages (2, GUM_PAGE_RWX);
+  fixture->range.base_address = GUM_ADDRESS (gum_alloc_n_pages (2, GUM_PAGE_RWX));
   fixture->range.size = 2 * gum_query_page_size ();
   fixture->offset_in_first_page = gum_query_page_size () / 2;
   fixture->offset_in_second_page =
@@ -65,7 +65,7 @@ test_memory_access_monitor_fixture_teardown (TestMAMonitorFixture * fixture,
 {
   g_object_unref (fixture->monitor);
 
-  gum_free_pages (fixture->range.base_address);
+  gum_free_pages (GSIZE_TO_POINTER (fixture->range.base_address));
 }
 
 static void

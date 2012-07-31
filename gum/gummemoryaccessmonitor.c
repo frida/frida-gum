@@ -99,9 +99,10 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
 
   g_assert (range->size % priv->page_size == 0);
 
-  ret = VirtualQuery (range->base_address, &mbi, sizeof (mbi));
+  ret = VirtualQuery (GSIZE_TO_POINTER (range->base_address),
+      &mbi, sizeof (mbi));
   g_assert (ret != 0);
-  g_assert (range->base_address == mbi.BaseAddress);
+  g_assert (GSIZE_TO_POINTER (range->base_address) == mbi.BaseAddress);
   g_assert_cmpuint (range->size, ==, mbi.RegionSize);
 
   priv->enabled = TRUE;
@@ -113,8 +114,8 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
   gum_win_exception_hook_add (
       gum_memory_access_monitor_handle_exception_if_ours, self);
 
-  success = VirtualProtect (range->base_address, range->size,
-      mbi.Protect | PAGE_GUARD, &priv->old_protect);
+  success = VirtualProtect (GSIZE_TO_POINTER (range->base_address),
+      range->size, mbi.Protect | PAGE_GUARD, &priv->old_protect);
   g_assert (success);
 }
 
@@ -129,8 +130,8 @@ gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self)
 
   priv->enabled = FALSE;
 
-  success = VirtualProtect (priv->range.base_address, priv->range.size,
-      priv->old_protect, &old_protect);
+  success = VirtualProtect (GSIZE_TO_POINTER (priv->range.base_address),
+      priv->range.size, priv->old_protect, &old_protect);
   g_assert (success);
 
   gum_win_exception_hook_remove (
@@ -163,7 +164,7 @@ gum_memory_access_monitor_handle_exception_if_ours (
   details.from = exception_record->ExceptionAddress;
   details.address = (gpointer) exception_record->ExceptionInformation[1];
 
-  if (!GUM_MEMORY_RANGE_INCLUDES (&priv->range, details.address))
+  if (!GUM_MEMORY_RANGE_INCLUDES (&priv->range, GUM_ADDRESS (details.address)))
     return FALSE;
 
   details.page_index = ((guint8 *) details.address -

@@ -84,7 +84,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;HAVE_SYMBOL_BACKEND=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -104,7 +104,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;HAVE_SYMBOL_BACKEND=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -124,7 +124,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;HAVE_SYMBOL_BACKEND=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
@@ -144,7 +144,7 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;..\ext\udis86;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_SYMBOL_BACKEND=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_V8=1;HAVE_SYMBOL_BACKEND=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>

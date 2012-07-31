@@ -84,7 +84,7 @@ gum_symbol_details_from_address (gpointer address,
   BOOL has_sym_info, has_file_info;
 
   memset (details, 0, sizeof (GumSymbolDetails));
-  details->address = address;
+  details->address = GUM_ADDRESS (address);
 
   si.sym_info.SizeOfStruct = sizeof (SYMBOL_INFO);
   si.sym_info.MaxNameLen = sizeof (si.sym_name_buf);

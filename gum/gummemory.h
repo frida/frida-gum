@@ -51,7 +51,7 @@ struct _GumMemoryRange
 };
 
 #define GUM_MEMORY_RANGE_INCLUDES(r, a) ((a) >= (r)->base_address && \
-    (a) < (gpointer) ((guint8 *) (r)->base_address + (r)->size))
+    (a) < ((r)->base_address + (r)->size))
 
 #define GUM_PAGE_RW ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_WRITE))
 #define GUM_PAGE_RX ((GumPageProtection) (GUM_PAGE_READ | GUM_PAGE_EXECUTE))

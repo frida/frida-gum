@@ -238,7 +238,7 @@ gum_module_find_export_by_name (const gchar * module_name,
 
   module = get_module_handle_utf8 (module_name);
   if (module == NULL)
-    return NULL;
+    return 0;
 
   return GUM_ADDRESS (GetProcAddress (module, symbol_name));
 }

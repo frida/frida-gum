@@ -801,8 +801,7 @@ gum_script_on_process_enumerate_ranges (const Arguments & args)
 
   gum_process_enumerate_ranges (prot, gum_script_process_range_match, &ctx);
 
-  Handle<Value> argv[] = {};
-  ctx.on_complete->Call (ctx.receiver, 0, argv);
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
 
   return Undefined ();
 }
@@ -1267,13 +1266,15 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
 {
   GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
 
+  (void) job;
+  (void) cancellable;
+
   gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
       ctx);
 
   {
     ScriptScope scope (ctx->script);
-    Handle<Value> argv[] = {};
-    ctx->on_complete->Call (ctx->receiver, 0, argv);
+    ctx->on_complete->Call (ctx->receiver, 0, 0);
   }
 
   return FALSE;
