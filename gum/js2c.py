@@ -12,6 +12,8 @@ def find_indent_level(line):
     return int(level)
 
 for line in sys.stdin:
+    if line.lstrip().startswith("//"):
+        continue
     escaped_line = line.replace('\\', '\\\\').replace('"', '\\"').rstrip()
     level = find_indent_level(escaped_line)
     indent_str = '  ' * level

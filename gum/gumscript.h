@@ -44,7 +44,8 @@ typedef struct _GumScriptClass      GumScriptClass;
 typedef struct _GumScriptPrivate    GumScriptPrivate;
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
-    const gchar * msg, gpointer user_data);
+    const gchar * message, const guint8 * data, gint data_length,
+    gpointer user_data);
 
 struct _GumScript
 {
@@ -69,7 +70,7 @@ GUM_API void gum_script_set_message_handler (GumScript * self,
 GUM_API void gum_script_load (GumScript * self);
 GUM_API void gum_script_unload (GumScript * self);
 
-GUM_API void gum_script_post_message (GumScript * self, const gchar * msg);
+GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
 G_END_DECLS
 

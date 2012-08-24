@@ -46,11 +46,11 @@ class GumMessageRecvOperation
 
 _dispatcher = new GumMessageDispatcher()
 
-send = (payload) ->
+send = (payload, data=null) ->
   message =
     type: 'send'
     payload: payload
-  _send(JSON.stringify(message))
+  _send(JSON.stringify(message), data)
 
 recv = ->
   if arguments.length == 1

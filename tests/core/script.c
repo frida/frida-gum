@@ -39,6 +39,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u32_can_be_read)
   SCRIPT_TESTENTRY (s64_can_be_read)
   SCRIPT_TESTENTRY (u64_can_be_read)
+  SCRIPT_TESTENTRY (byte_array_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_written)
   SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
@@ -149,6 +150,8 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
 {
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
+
+  target_function_int (0);
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_FORMAT ", {"
@@ -354,6 +357,14 @@ SCRIPT_TESTCASE (u64_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("1201239876783");
 }
 
+SCRIPT_TESTCASE (byte_array_can_be_read)
+{
+  guint8 val[3] = { 0x13, 0x37, 0x42 };
+  COMPILE_AND_LOAD_SCRIPT ("send('stuff', Memory.readByteArray(" GUM_PTR_FORMAT
+      ", 3));", val);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"stuff\"", "13 37 42");
+}
+
 SCRIPT_TESTCASE (utf8_string_can_be_read)
 {
   const gchar * str = "Bjøærheimsbygd";
@@ -371,7 +382,7 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_FORMAT
-      "), -1);", str);
+      ", -1));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(0));", str);

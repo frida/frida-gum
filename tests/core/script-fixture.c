@@ -46,6 +46,9 @@
     g_assert_cmpuint (g_async_queue_length (fixture->messages), ==, 0)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD)
+#define EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA(PAYLOAD, DATA) \
+    test_script_fixture_expect_send_message_with_payload_and_data (fixture, \
+        PAYLOAD, DATA)
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
@@ -56,6 +59,12 @@ typedef struct _TestScriptFixture
   GumScript * script;
   GAsyncQueue * messages;
 } TestScriptFixture;
+
+typedef struct _TestScriptMessageItem
+{
+  gchar * message;
+  gchar * data;
+} TestScriptMessageItem;
 
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
@@ -76,13 +85,46 @@ test_script_fixture_teardown (TestScriptFixture * fixture,
 }
 
 static void
+test_script_message_item_free (TestScriptMessageItem * item)
+{
+  g_free (item->message);
+  g_free (item->data);
+  g_slice_free (TestScriptMessageItem, item);
+}
+
+static void
 test_script_fixture_store_message (GumScript * script,
-                                   const gchar * msg,
+                                   const gchar * message,
+                                   const guint8 * data,
+                                   gint data_length,
                                    gpointer user_data)
 {
   TestScriptFixture * self = (TestScriptFixture *) user_data;
+  TestScriptMessageItem * item;
 
-  g_async_queue_push (self->messages, g_strdup (msg));
+  item = g_slice_new (TestScriptMessageItem);
+  item->message = g_strdup (message);
+  if (data != NULL)
+  {
+    GString * s;
+    gint i;
+
+    s = g_string_sized_new (3 * data_length);
+    for (i = 0; i != data_length; i++)
+    {
+      if (i != 0)
+        g_string_append_c (s, ' ');
+      g_string_append_printf (s, "%02x", (int) data[i]);
+    }
+
+    item->data = g_string_free (s, FALSE);
+  }
+  else
+  {
+    item->data = NULL;
+  }
+
+  g_async_queue_push (self->messages, item);
 }
 
 static void
@@ -109,24 +151,52 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   gum_script_load (fixture->script);
 }
 
+static TestScriptMessageItem *
+test_script_fixture_pop_message (TestScriptFixture * fixture)
+{
+  GTimeVal end_time;
+  TestScriptMessageItem * item;
+
+  g_get_current_time (&end_time);
+  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
+  item = (TestScriptMessageItem *) g_async_queue_timed_pop (fixture->messages,
+      &end_time);
+
+  return item;
+}
+
 static void
 test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
                                               const gchar * payload)
 {
-  GTimeVal end_time;
-  gchar * actual_message, * expected_message;
+  TestScriptMessageItem * item;
+  gchar * expected_message;
 
-  g_get_current_time (&end_time);
-  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
-  actual_message = (gchar *) g_async_queue_timed_pop (fixture->messages,
-      &end_time);
+  item = test_script_fixture_pop_message (fixture);
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
-
-  g_assert_cmpstr (actual_message, ==, expected_message);
-
+  g_assert_cmpstr (item->message, ==, expected_message);
+  test_script_message_item_free (item);
   g_free (expected_message);
-  g_free (actual_message);
+}
+
+static void
+test_script_fixture_expect_send_message_with_payload_and_data (
+    TestScriptFixture * fixture,
+    const gchar * payload,
+    const gchar * data)
+{
+  TestScriptMessageItem * item;
+  gchar * expected_message;
+
+  item = test_script_fixture_pop_message (fixture);
+  expected_message =
+      g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
+  g_assert_cmpstr (item->message, ==, expected_message);
+  g_assert (item->data != NULL);
+  g_assert_cmpstr (item->data, ==, data);
+  test_script_message_item_free (item);
+  g_free (expected_message);
 }
 
 static void
@@ -134,24 +204,19 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
                                                gint line_number,
                                                const gchar * description)
 {
-  GTimeVal end_time;
-  gchar * actual_message, * expected_message;
+  TestScriptMessageItem * item;
+  gchar * expected_message;
 
-  g_get_current_time (&end_time);
-  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
-  actual_message = (gchar *) g_async_queue_timed_pop (fixture->messages,
-      &end_time);
+  item = test_script_fixture_pop_message (fixture);
   expected_message = g_strdup_printf ("{"
           "\"type\":\"error\","
           "\"lineNumber\":%d,"
           "\"description\":\"%s\""
       "}",
       line_number, description);
-
-  g_assert_cmpstr (actual_message, ==, expected_message);
-
+  g_assert_cmpstr (item->message, ==, expected_message);
+  test_script_message_item_free (item);
   g_free (expected_message);
-  g_free (actual_message);
 }
 
 static gpointer invoke_target_function_int_worker (gpointer data);

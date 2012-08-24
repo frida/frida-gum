@@ -110,6 +110,7 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_U32,
   GUM_MEMORY_VALUE_S64,
   GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_BYTE_ARRAY,
   GUM_MEMORY_VALUE_UTF8_STRING,
   GUM_MEMORY_VALUE_UTF16_STRING,
   GUM_MEMORY_VALUE_ANSI_STRING
@@ -149,7 +150,7 @@ static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
     Handle<Object> receiver);
 static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
-    const gchar * msg);
+    const gchar * message);
 static Handle<Value> gum_script_on_process_find_module_export_by_name (
     const Arguments & args);
 static Handle<Value> gum_script_on_process_enumerate_ranges (
@@ -185,6 +186,8 @@ static Handle<Value> gum_script_on_memory_read_s32 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u32 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s64 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u64 (const Arguments & args);
+static Handle<Value> gum_script_on_memory_read_byte_array (
+    const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_write_utf8_string (
@@ -459,6 +462,9 @@ gum_script_create_context (GumScript * self)
   memory_templ->Set (String::New ("readU64"),
       FunctionTemplate::New (gum_script_on_memory_read_u64,
           External::Wrap (self)));
+  memory_templ->Set (String::New ("readByteArray"),
+      FunctionTemplate::New (gum_script_on_memory_read_byte_array,
+          External::Wrap (self)));
   memory_templ->Set (String::New ("readUtf8String"),
       FunctionTemplate::New (gum_script_on_memory_read_utf8_string,
           External::Wrap (self)));
@@ -517,7 +523,8 @@ public:
           "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
           message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
           *exception_str);
-      priv->message_handler_func (parent, error, priv->message_handler_data);
+      priv->message_handler_func (parent, error, NULL, 0,
+          priv->message_handler_data);
       g_free (error);
     }
   }
@@ -593,15 +600,16 @@ gum_script_unload (GumScript * self)
 
 void
 gum_script_post_message (GumScript * self,
-                         const gchar * msg)
+                         const gchar * message)
 {
   if (self->priv->incoming_message_sink != NULL)
   {
     GumScriptPrivate * priv = self->priv;
-    
+
     {
       ScriptScope scope (self);
-      gum_message_sink_handle_message (self->priv->incoming_message_sink, msg);
+      gum_message_sink_handle_message (self->priv->incoming_message_sink,
+          message);
       priv->event_count++;
     }
 
@@ -629,7 +637,29 @@ gum_script_on_send (const Arguments & args)
   if (priv->message_handler_func != NULL)
   {
     String::Utf8Value message (args[0]);
-    priv->message_handler_func (self, *message, priv->message_handler_data);
+
+    const guint8 * data = NULL;
+    gint data_length = 0;
+    if (!args[1]->IsNull ())
+    {
+      Local<Object> array = args[1]->ToObject ();
+      if (array->HasIndexedPropertiesInExternalArrayData () &&
+          array->GetIndexedPropertiesExternalArrayDataType ()
+          == kExternalUnsignedByteArray)
+      {
+        data = static_cast<guint8 *> (
+            array->GetIndexedPropertiesExternalArrayData ());
+        data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
+      }
+      else
+      {
+        ThrowException (Exception::TypeError (String::New (
+            "unsupported data value")));
+      }
+    }
+
+    priv->message_handler_func (self, *message, data, data_length,
+        priv->message_handler_data);
   }
 
   return Undefined ();
@@ -707,9 +737,9 @@ gum_message_sink_free (GumMessageSink * sink)
 
 static void
 gum_message_sink_handle_message (GumMessageSink * self,
-                                 const gchar * msg)
+                                 const gchar * message)
 {
-  Handle<Value> argv[] = { String::New (msg) };
+  Handle<Value> argv[] = { String::New (message) };
   self->callback->Call (self->receiver, 1, argv);
 }
 
@@ -890,6 +920,17 @@ gum_script_on_int32_cast (const Arguments & args)
   return Number::New (args[0]->Int32Value ());
 }
 
+static void
+gum_script_array_free (Persistent<Value> object, void * data)
+{
+  int32_t length;
+
+  length = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
+  V8::AdjustAmountOfExternalAllocatedMemory (-length);
+  g_free (data);
+  object.Dispose ();
+}
+
 #ifdef _MSC_VER
 # pragma warning (push)
 # pragma warning (disable: 4611)
@@ -951,6 +992,45 @@ gum_script_memory_do_read (const Arguments & args,
         result = Number::New (*static_cast<const guint64 *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ())));
         break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        const guint8 * data = static_cast<const guint8 *> (
+            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        if (data == NULL)
+        {
+          result = Null ();
+          break;
+        }
+
+        int64_t length = args[1]->IntegerValue ();
+        Handle<Object> array;
+        if (length > 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          guint8 * buffer;
+
+          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
+
+          buffer = static_cast<guint8 *> (g_memdup (data, length));
+          V8::AdjustAmountOfExternalAllocatedMemory (length);
+
+          array = Object::New ();
+          array->SetIndexedPropertiesToExternalArrayData (buffer,
+              kExternalUnsignedByteArray, length);
+          Persistent<Object> persistent_array = Persistent<Object>::New (array);
+          persistent_array.MakeWeak (buffer, gum_script_array_free);
+          persistent_array.MarkIndependent ();
+        }
+        else
+        {
+          array = Object::New ();
+          length = 0;
+        }
+        array->Set (String::New ("length"), Int32::New (length), ReadOnly);
+
+        result = array;
+        break;
+      }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
         const char * data = static_cast<const char *> (
@@ -1368,6 +1448,12 @@ static Handle<Value>
 gum_script_on_memory_read_u64 (const Arguments & args)
 {
   return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_U64);
+}
+
+static Handle<Value>
+gum_script_on_memory_read_byte_array (const Arguments & args)
+{
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_BYTE_ARRAY);
 }
 
 static Handle<Value>
