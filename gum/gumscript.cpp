@@ -37,7 +37,7 @@
 # include <windows.h>
 #else
 # include <signal.h>
-# if defined (HAVE_OSX) && GLIB_SIZEOF_VOID_P == 4
+# if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
 #  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV

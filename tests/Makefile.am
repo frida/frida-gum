@@ -54,7 +54,7 @@ gum_tests_LDADD = \
 	$(binding_ldadd) \
 	$(GUM_LIBS) \
 	-lstdc++
-if OS_OSX
+if OS_MAC
 gum_tests_LDFLAGS += \
 	-sectcreate __TEXT __info_plist "$(srcdir)/gum-tests.plist"
 endif
@@ -83,13 +83,13 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/libs \
 	$(GUM_CFLAGS)
 
-if OS_OSX
+if OS_MAC
 all-local: gum-tests
 	( \
 		if [ -f "$(builddir)/.libs/gum-tests" ]; then \
-			codesign -s "$$OSX_CERTID" -i "com.tillitech.GumTests" "$(builddir)/.libs/gum-tests" || true; \
+			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/.libs/gum-tests" || true; \
 		else \
-			codesign -s "$$OSX_CERTID" -i "com.tillitech.GumTests" "$(builddir)/gum-tests" || true; \
+			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/gum-tests" || true; \
 		fi \
 	)
 endif

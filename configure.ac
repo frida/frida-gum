@@ -55,11 +55,11 @@ case $host_os in
   darwin*)
     case $host_cpu in
       arm)
-        HAVE_OSX=no
+        HAVE_MAC=no
         HAVE_IOS=yes
         ;;
       *)
-        HAVE_OSX=yes
+        HAVE_MAC=yes
         HAVE_IOS=no
         ;;
     esac
@@ -70,10 +70,10 @@ case $host_os in
   *)
     ;;
 esac
-if [[ "x$HAVE_OSX" = "xyes" ]]; then
-  AC_DEFINE(HAVE_OSX, 1, [Define to 1 if OS is Mac OS X.])
+if [[ "x$HAVE_MAC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_MAC, 1, [Define to 1 if OS is Mac OS X.])
 fi
-AM_CONDITIONAL(OS_OSX, test "x$HAVE_OSX" = "xyes")
+AM_CONDITIONAL(OS_MAC, test "x$HAVE_MAC" = "xyes")
 if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
   AC_DEFINE(HAVE_ANDROID, 1, [Define to 1 if OS is Android based.])
 fi
