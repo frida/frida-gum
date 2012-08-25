@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,7 +27,7 @@
   /*
    * HACK: the iOS 5.0 SDK provides a placeholder header containing nothing
    *       but an #error stating that this API is not available. So we work
-   *       around it by taking a copy of the OS X SDK's header and putting it
+   *       around it by taking a copy of the Mac SDK's header and putting it
    *       in our SDK's include directory. ICK!
    */
 # include "frida_mach_vm.h"
