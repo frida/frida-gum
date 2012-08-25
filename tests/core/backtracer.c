@@ -44,7 +44,7 @@ BACKTRACER_TESTCASE (basics)
   GumReturnAddress first_address;
   GumReturnAddressDetails rad;
 
-  expected_line_number = __LINE__ + 1;
+  expected_line_number = __LINE__ + 2;
 #endif
   gum_backtracer_generate (fixture->backtracer, NULL, &ret_addrs);
   g_assert_cmpuint (ret_addrs.len, >=, 2);
