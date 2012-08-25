@@ -71,7 +71,7 @@ case $host_os in
     ;;
 esac
 if [[ "x$HAVE_MAC" = "xyes" ]]; then
-  AC_DEFINE(HAVE_MAC, 1, [Define to 1 if OS is Mac OS X.])
+  AC_DEFINE(HAVE_MAC, 1, [Define to 1 if OS is Mac.])
 fi
 AM_CONDITIONAL(OS_MAC, test "x$HAVE_MAC" = "xyes")
 if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
