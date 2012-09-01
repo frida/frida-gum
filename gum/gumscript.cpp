@@ -35,8 +35,10 @@
 #ifdef G_OS_WIN32
 # define VC_EXTRALEAN
 # include <windows.h>
+# define GUM_SETJMP(env) setjmp (env)
 #else
 # include <signal.h>
+# define GUM_SETJMP(env) sigsetjmp (env, 1)
 # if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
@@ -945,7 +947,7 @@ gum_script_memory_do_read (const Arguments & args,
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (setjmp (scope.env) == 0)
+  if (GUM_SETJMP (scope.env) == 0)
   {
     switch (type)
     {
@@ -1150,7 +1152,7 @@ gum_script_memory_do_write (const Arguments & args,
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (setjmp (scope.env) == 0)
+  if (GUM_SETJMP (scope.env) == 0)
   {
     switch (type)
     {
