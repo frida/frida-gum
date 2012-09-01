@@ -88,7 +88,6 @@ struct _GumScriptAttachEntry
 {
   Persistent<Function> on_enter;
   Persistent<Function> on_leave;
-  Persistent<Object> receiver;
 };
 
 struct _GumMemoryAccessScope
@@ -337,7 +336,6 @@ gum_script_dispose (GObject * object)
           g_queue_pop_tail (priv->attach_entries));
       entry->on_enter.Clear ();
       entry->on_leave.Clear ();
-      entry->receiver.Clear ();
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
@@ -902,7 +900,6 @@ gum_script_on_interceptor_attach (const Arguments & args)
   GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
   entry->on_enter = Persistent<Function>::New (on_enter);
   entry->on_leave = Persistent<Function>::New (on_leave);
-  entry->receiver = Persistent<Object>::New (callbacks);
 
   gpointer function_address = GSIZE_TO_POINTER (target_spec->IntegerValue ());
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
@@ -1563,19 +1560,25 @@ static void
 gum_script_on_enter (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
+  GumScript * self = GUM_SCRIPT_CAST (listener);
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
+
+  ScriptScope scope (self);
+
+  Persistent<Object> receiver = Persistent<Object>::New (Object::New ());
+  receiver->Set (String::New ("threadId"),
+      Int32::New (gum_invocation_context_get_thread_id (context)),
+      ReadOnly);
+  *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *) = *receiver;
+
   if (!entry->on_enter.IsEmpty ())
   {
-    GumScript * self = GUM_SCRIPT_CAST (listener);
-
-    ScriptScope scope (self);
-
     Local<Object> args = self->priv->args_template->NewInstance ();
     args->SetPointerInInternalField (0, context);
 
     Handle<Value> argv[] = { args };
-    entry->on_enter->Call (entry->receiver, 1, argv);
+    entry->on_enter->Call (receiver, 1, argv);
   }
 }
 
@@ -1583,20 +1586,25 @@ static void
 gum_script_on_leave (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
+  GumScript * self = GUM_SCRIPT_CAST (listener);
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
+
+  ScriptScope scope (self);
+
+  Persistent<Object> receiver (
+      *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *));
+
   if (!entry->on_leave.IsEmpty ())
   {
-    GumScript * self = GUM_SCRIPT_CAST (listener);
-
-    ScriptScope scope (self);
-
     gpointer raw_value = gum_invocation_context_get_return_value (context);
     Local<Number> return_value (Number::New (GPOINTER_TO_SIZE (raw_value)));
 
     Handle<Value> argv[] = { return_value };
-    entry->on_leave->Call (entry->receiver, 1, argv);
+    entry->on_leave->Call (receiver, 1, argv);
   }
+
+  receiver.Dispose ();
 }
 
 static Handle<Value>

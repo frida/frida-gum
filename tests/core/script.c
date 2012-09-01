@@ -28,6 +28,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
+  SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (sword_can_be_read)
   SCRIPT_TESTENTRY (uword_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_read)
@@ -242,6 +243,28 @@ SCRIPT_TESTCASE (return_value_can_be_read)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_FORMAT ", {"
+      "  onEnter: function(args) {"
+      "    send(this.value || null);"
+      "    this.value = args[0];"
+      "  },"
+      "  onLeave: function(retval) {"
+      "    send(this.value || null);"
+      "  }"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  target_function_int (11);
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  EXPECT_SEND_MESSAGE_WITH ("11");
 }
 
 SCRIPT_TESTCASE (memory_can_be_scanned)
