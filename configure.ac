@@ -113,10 +113,8 @@ GUM_LDFLAGS="$GUM_LDFLAGS $V8_LDFLAGS"
 GUM_LIBS="$GUM_LIBS $V8_LIBS"
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
-  AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr]), AC_ERROR([*** Header file bfd.h not found; please install the binutils headers  ***]))
-  HAVE_BFD=yes
-
-  GUM_LIBS="$GUM_LIBS -lbfd"
+  AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr], HAVE_BFD=yes, HAVE_BFD=no), HAVE_BFD=no)
+  test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd"
 else
   AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
 fi
