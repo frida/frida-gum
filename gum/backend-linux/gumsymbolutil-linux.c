@@ -298,17 +298,17 @@ gum_module_enumerate_ranges (const gchar * module_name,
   fclose (fp);
 }
 
-gpointer
+GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {
-  return NULL;
+  return 0;
 }
 
-gpointer
+GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  return NULL;
+  return 0;
 }
 
 static gboolean
