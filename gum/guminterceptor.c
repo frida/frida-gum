@@ -27,6 +27,9 @@
 #include "gummemory.h"
 #include "gumtls.h"
 
+#ifndef G_OS_WIN32
+# include <errno.h>
+#endif
 #include <string.h>
 
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE     450
@@ -677,9 +680,9 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   gboolean will_trap_on_leave = FALSE;
   InterceptorThreadContext * interceptor_ctx = NULL;
 #ifdef G_OS_WIN32
-  DWORD previous_last_error;
-
-  previous_last_error = GetLastError ();
+  DWORD previous_last_error = GetLastError ();
+#else
+  gint previous_errno = errno;
 #endif
 
   if (G_UNLIKELY (priv->selected_thread_id != 0))
@@ -744,6 +747,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
 #ifdef G_OS_WIN32
   SetLastError (previous_last_error);
+#else
+  errno = previous_errno;
 #endif
 
   return will_trap_on_leave;
@@ -759,9 +764,9 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx;
   guint i;
 #ifdef G_OS_WIN32
-  DWORD previous_last_error;
-
-  previous_last_error = GetLastError ();
+  DWORD previous_last_error = GetLastError ();
+#else
+  gint previous_errno = errno;
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
@@ -807,6 +812,8 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
 #ifdef G_OS_WIN32
   SetLastError (previous_last_error);
+#else
+  errno = previous_errno;
 #endif
 }
 
