@@ -24,10 +24,14 @@
 #include <string.h>
 #include <gio/gio.h>
 #ifdef G_OS_WIN32
-# define VC_EXTRALEAN
+#ifndef WIN32_LEAN_AND_MEAN
+# define WIN32_LEAN_AND_MEAN
+#endif
 # include <stdio.h>
 # include <tchar.h>
 # include <windows.h>
+# include <winsock2.h>
+# include <ws2tcpip.h>
 #else
 # include <fcntl.h>
 # include <sys/socket.h>
@@ -60,6 +64,12 @@
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
 #define GUM_PTR_FORMAT "0x%" G_GSIZE_MODIFIER "x"
+
+#ifdef G_OS_WIN32
+# define GUM_CLOSE_SOCKET(s) closesocket (s)
+#else
+# define GUM_CLOSE_SOCKET(s) close (s)
+#endif
 
 typedef struct _TestScriptFixture
 {

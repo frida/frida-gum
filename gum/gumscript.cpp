@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -33,9 +33,15 @@
 #include <v8.h>
 #include <wchar.h>
 #ifdef G_OS_WIN32
-# define VC_EXTRALEAN
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
 # include <windows.h>
+# include <winsock2.h>
+# include <ws2tcpip.h>
 # define GUM_SETJMP(env) setjmp (env)
+# define GUM_SOCKOPT_OPTVAL(v) reinterpret_cast<char *> (v)
+  typedef int gum_socklen_t;
 #else
 # include <arpa/inet.h>
 # include <netinet/in.h>
@@ -47,6 +53,8 @@
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
 #  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+# define GUM_SOCKOPT_OPTVAL(v) (v)
+  typedef socklen_t gum_socklen_t;
 #endif
 #endif
 
@@ -1586,32 +1594,32 @@ gum_script_on_socket_type (const Arguments & args)
   int32_t socket = args[0]->ToInteger ()->Value ();
 
   int type;
-  socklen_t len = sizeof (int);
-  if (getsockopt (socket, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
+  gum_socklen_t len = sizeof (int);
+  if (getsockopt (socket, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
+      &len) == 0)
   {
-    struct sockaddr_in addr;
-    len = sizeof (addr);
-    if (getsockname (socket, reinterpret_cast<sockaddr *> (&addr), &len) == 0)
+    struct sockaddr_in invalid_sockaddr;
+    invalid_sockaddr.sin_family = AF_INET;
+    invalid_sockaddr.sin_port = htons (0);
+    invalid_sockaddr.sin_addr.s_addr = htonl (0xffffffff);
+    bind (socket,
+        reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
+        sizeof (invalid_sockaddr));
+    bool v4 = WSAGetLastError () == WSAEADDRNOTAVAIL;
+    if (v4)
     {
-      switch (addr.sin_family)
+      switch (type)
       {
-        case AF_INET:
-          switch (type)
-          {
-            case SOCK_STREAM: result = "tcp"; break;
-            case  SOCK_DGRAM: result = "udp"; break;
-          }
-          break;
-        case AF_INET6:
-          switch (type)
-          {
-            case SOCK_STREAM: result = "tcp6"; break;
-            case  SOCK_DGRAM: result = "udp6"; break;
-          }
-          break;
-        case AF_UNIX:
-          result = "unix";
-          break;
+        case SOCK_STREAM: result = "tcp"; break;
+        case  SOCK_DGRAM: result = "udp"; break;
+      }
+    }
+    else
+    {
+      switch (type)
+      {
+        case SOCK_STREAM: result = "tcp6"; break;
+        case  SOCK_DGRAM: result = "udp6"; break;
       }
     }
   }
@@ -1622,23 +1630,23 @@ gum_script_on_socket_type (const Arguments & args)
 static Handle<Value> gum_script_on_socket_local_address (
     const Arguments & args)
 {
-  struct sockaddr addr;
-  socklen_t len = sizeof (addr);
-  if (getsockname (args[0]->ToInteger ()->Value (), &addr, &len) != 0)
+  struct sockaddr_in6 large_addr;
+  struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
+  gum_socklen_t len = sizeof (large_addr);
+  if (getsockname (args[0]->ToInteger ()->Value (), addr, &len) != 0)
     return Null ();
-
-  return gum_script_socket_address_to_value (&addr);
+  return gum_script_socket_address_to_value (addr);
 }
 
 static Handle<Value>
 gum_script_on_socket_peer_address (const Arguments & args)
 {
-  struct sockaddr addr;
-  socklen_t len = sizeof (addr);
-  if (getpeername (args[0]->ToInteger ()->Value (), &addr, &len) != 0)
+  struct sockaddr_in6 large_addr;
+  struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
+  gum_socklen_t len = sizeof (large_addr);
+  if (getpeername (args[0]->ToInteger ()->Value (), addr, &len) != 0)
     return Null ();
-
-  return gum_script_socket_address_to_value (&addr);
+  return gum_script_socket_address_to_value (addr);
 }
 
 static Handle<Value>
@@ -1650,8 +1658,17 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
     {
       struct sockaddr_in * inet_addr =
           reinterpret_cast<struct sockaddr_in *> (addr);
+#ifdef G_OS_WIN32
+      gchar ip[15 + 1 + 5 + 1];
+      DWORD len = sizeof (ip);
+      WSAAddressToStringA (addr, sizeof (struct sockaddr_in), NULL, ip, &len);
+      gchar * p = strchr (ip, ':');
+      if (p != NULL)
+        *p = '\0';
+#else
       gchar ip[INET_ADDRSTRLEN];
       inet_ntop (AF_INET, &inet_addr->sin_addr, ip, sizeof (ip));
+#endif
       Local<Object> result (Object::New ());
       result->Set (String::New ("ip"), String::New (ip), ReadOnly);
       result->Set (String::New ("port"),
@@ -1662,8 +1679,17 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
     {
       struct sockaddr_in6 * inet_addr =
           reinterpret_cast<struct sockaddr_in6 *> (addr);
+#ifdef G_OS_WIN32
+      gchar ip[45 + 1 + 5 + 1];
+      DWORD len = sizeof (ip);
+      WSAAddressToStringA (addr, sizeof (struct sockaddr_in6), NULL, ip, &len);
+      gchar * p = strrchr (ip, ':');
+      if (p != NULL)
+        *p = '\0';
+#else
       gchar ip[INET6_ADDRSTRLEN];
       inet_ntop (AF_INET6, &inet_addr->sin6_addr, ip, sizeof (ip));
+#endif
       Local<Object> result (Object::New ());
       result->Set (String::New ("ip"), String::New (ip), ReadOnly);
       result->Set (String::New ("port"),

@@ -64,6 +64,17 @@ main (gint argc, gchar * argv[])
   }
 #endif
 
+#ifdef G_OS_WIN32
+  {
+    WORD version_requested = MAKEWORD (2, 2);
+    WSADATA wsa_data;
+    int err;
+
+    err = WSAStartup (version_requested, &wsa_data);
+    g_assert_cmpint (err, ==, 0);
+  }
+#endif
+
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
   /* needed for the above and GUM's heap library */
   g_setenv ("G_SLICE", "always-malloc", TRUE);
@@ -173,6 +184,10 @@ main (gint argc, gchar * argv[])
   g_type_deinit ();
   g_thread_deinit ();
   g_mem_deinit ();
+#endif
+
+#ifdef G_OS_WIN32
+  WSACleanup ();
 #endif
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS

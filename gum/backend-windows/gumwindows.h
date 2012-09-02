@@ -23,8 +23,8 @@
 #include "gummemory.h"
 
 #include <glib.h>
-#ifndef VC_EXTRALEAN
-#define VC_EXTRALEAN
+#ifndef WIN32_LEAN_AND_MEAN
+# define WIN32_LEAN_AND_MEAN
 #endif
 #include <windows.h>
 

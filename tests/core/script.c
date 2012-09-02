@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -62,37 +62,39 @@ TEST_LIST_END ()
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
 {
-#ifndef G_OS_WIN32
   int fd;
 
   fd = socket (AF_INET, SOCK_STREAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
-  close (fd);
+  GUM_CLOSE_SOCKET (fd);
 
   fd = socket (AF_INET, SOCK_DGRAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"udp\"");
-  close (fd);
+  GUM_CLOSE_SOCKET (fd);
 
   fd = socket (AF_INET6, SOCK_STREAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"tcp6\"");
-  close (fd);
+  GUM_CLOSE_SOCKET (fd);
 
   fd = socket (AF_INET6, SOCK_DGRAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"udp6\"");
-  close (fd);
+  GUM_CLOSE_SOCKET (fd);
 
+#ifndef G_OS_WIN32
   fd = socket (AF_UNIX, SOCK_STREAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"unix\"");
   close (fd);
+#endif
 
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(-1));");
   EXPECT_SEND_MESSAGE_WITH ("null");
 
+#ifndef G_OS_WIN32
   fd = open ("/etc/hosts", O_RDONLY);
   g_assert (fd >= 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
@@ -103,7 +105,6 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
 
 SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
 {
-#ifndef G_OS_WIN32
   GSocketFamily family[] = { G_SOCKET_FAMILY_IPV4, G_SOCKET_FAMILY_IPV6 };
   guint i;
   GMainContext * context;
@@ -170,6 +171,7 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     g_object_unref (service);
   }
 
+#ifndef G_OS_WIN32
   {
     struct sockaddr_un address;
     socklen_t len;

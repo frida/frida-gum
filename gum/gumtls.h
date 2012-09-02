@@ -23,7 +23,9 @@
 #include <glib.h>
 
 #ifdef G_OS_WIN32
-# define VC_EXTRALEAN
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
 # include <windows.h>
 typedef DWORD GumTlsKey;
 # define GUM_TLS_KEY_INIT(k)         *(k) = TlsAlloc ()
