@@ -56,10 +56,11 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (socket_can_be_inspected)
+  SCRIPT_TESTENTRY (socket_type_can_be_inspected)
+  SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 TEST_LIST_END ()
 
-SCRIPT_TESTCASE (socket_can_be_inspected)
+SCRIPT_TESTCASE (socket_type_can_be_inspected)
 {
 #ifndef G_OS_WIN32
   int fd;
@@ -98,6 +99,104 @@ SCRIPT_TESTCASE (socket_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("null");
   close (fd);
 #endif
+}
+
+SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
+{
+#ifndef G_OS_WIN32
+  GSocketFamily family[] = { G_SOCKET_FAMILY_IPV4, G_SOCKET_FAMILY_IPV6 };
+  guint i;
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
+  for (i = 0; i != G_N_ELEMENTS (family); i++)
+  {
+    GSocketService * service;
+    guint16 client_port, server_port;
+    GSocketAddress * client_address, * server_address;
+    GInetAddress * loopback;
+    GSocket * socket;
+    int fd;
+
+    service = g_socket_service_new ();
+    g_signal_connect (service, "incoming", G_CALLBACK (on_incoming_connection),
+        NULL);
+    server_port = g_socket_listener_add_any_inet_port (
+        G_SOCKET_LISTENER (service), NULL, NULL);
+    g_socket_service_start (service);
+    loopback = g_inet_address_new_loopback (family[i]);
+    server_address = g_inet_socket_address_new (loopback, server_port);
+    g_object_unref (loopback);
+
+    socket = g_socket_new (family[i], G_SOCKET_TYPE_STREAM,
+        G_SOCKET_PROTOCOL_TCP, NULL);
+    fd = g_socket_get_fd (socket);
+
+    COMPILE_AND_LOAD_SCRIPT ("send(Socket.peerAddress(%d));", fd);
+    EXPECT_SEND_MESSAGE_WITH ("null");
+
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
+
+    g_assert (g_socket_connect (socket, server_address, NULL, NULL));
+
+    g_object_get (socket, "local-address", &client_address, NULL);
+    client_port =
+        g_inet_socket_address_get_port (G_INET_SOCKET_ADDRESS (client_address));
+
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var addr = Socket.localAddress(%d);"
+        "send([typeof addr.ip, addr.port]);", fd);
+    EXPECT_SEND_MESSAGE_WITH ("[\"string\",%u]", client_port);
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var addr = Socket.peerAddress(%d);"
+        "send([typeof addr.ip, addr.port]);", fd);
+    EXPECT_SEND_MESSAGE_WITH ("[\"string\",%u]", server_port);
+
+    g_socket_close (socket, NULL);
+    g_socket_service_stop (service);
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
+
+    g_object_unref (socket);
+
+    g_object_unref (client_address);
+    g_object_unref (server_address);
+    g_object_unref (service);
+  }
+#endif
+}
+
+static gboolean
+on_incoming_connection (GSocketService * service,
+                        GSocketConnection * connection,
+                        GObject * source_object,
+                        gpointer user_data)
+{
+  GInputStream * input;
+  void * buf;
+
+  input = g_io_stream_get_input_stream (G_IO_STREAM (connection));
+  buf = g_malloc (1);
+  g_input_stream_read_async (input, buf, 1, G_PRIORITY_DEFAULT, NULL,
+      on_read_ready, NULL);
+
+  return TRUE;
+}
+
+static void
+on_read_ready (GObject * source_object,
+               GAsyncResult * res,
+               gpointer user_data)
+{
+  GError * error = NULL;
+  g_input_stream_read_finish (G_INPUT_STREAM (source_object), res, &error);
+  g_clear_error (&error);
 }
 
 SCRIPT_TESTCASE (can_resolve_export_by_name)

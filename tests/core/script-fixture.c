@@ -22,6 +22,7 @@
 #include "testutil.h"
 
 #include <string.h>
+#include <gio/gio.h>
 #ifdef G_OS_WIN32
 # define VC_EXTRALEAN
 # include <stdio.h>
@@ -48,8 +49,9 @@
     gum_script_post_message (fixture->script, MSG)
 #define EXPECT_NO_MESSAGES() \
     g_assert_cmpuint (g_async_queue_length (fixture->messages), ==, 0)
-#define EXPECT_SEND_MESSAGE_WITH(PAYLOAD) \
-    test_script_fixture_expect_send_message_with (fixture, PAYLOAD)
+#define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
+    test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
+    ## __VA_ARGS__)
 #define EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA(PAYLOAD, DATA) \
     test_script_fixture_expect_send_message_with_payload_and_data (fixture, \
         PAYLOAD, DATA)
@@ -171,10 +173,17 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
 
 static void
 test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
-                                              const gchar * payload)
+                                              const gchar * payload_template,
+                                              ...)
 {
+  va_list args;
+  gchar * payload;
   TestScriptMessageItem * item;
   gchar * expected_message;
+
+  va_start (args, payload_template);
+  payload = g_strdup_vprintf (payload_template, args);
+  va_end (args);
 
   item = test_script_fixture_pop_message (fixture);
   expected_message =
@@ -182,6 +191,8 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
   g_assert_cmpstr (item->message, ==, expected_message);
   test_script_message_item_free (item);
   g_free (expected_message);
+
+  g_free (payload);
 }
 
 static void
@@ -222,6 +233,12 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   test_script_message_item_free (item);
   g_free (expected_message);
 }
+
+static gboolean on_incoming_connection (GSocketService * service,
+    GSocketConnection * connection, GObject * source_object,
+    gpointer user_data);
+static void on_read_ready (GObject * source_object, GAsyncResult * res,
+    gpointer user_data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 

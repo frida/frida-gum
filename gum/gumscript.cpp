@@ -37,6 +37,7 @@
 # include <windows.h>
 # define GUM_SETJMP(env) setjmp (env)
 #else
+# include <arpa/inet.h>
 # include <netinet/in.h>
 # include <signal.h>
 # include <sys/socket.h>
@@ -210,6 +211,11 @@ static Handle<Value> gum_script_on_memory_alloc_utf8_string (
 static Handle<Value> gum_script_on_memory_alloc_utf16_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_socket_type (const Arguments & args);
+static Handle<Value> gum_script_on_socket_local_address (
+    const Arguments & args);
+static Handle<Value> gum_script_on_socket_peer_address (const Arguments & args);
+static Handle<Value> gum_script_socket_address_to_value (
+    struct sockaddr * addr);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -496,6 +502,10 @@ gum_script_create_context (GumScript * self)
   Handle<ObjectTemplate> socket_templ = ObjectTemplate::New ();
   socket_templ->Set (String::New ("type"),
       FunctionTemplate::New (gum_script_on_socket_type));
+  socket_templ->Set (String::New ("localAddress"),
+      FunctionTemplate::New (gum_script_on_socket_local_address));
+  socket_templ->Set (String::New ("peerAddress"),
+      FunctionTemplate::New (gum_script_on_socket_peer_address));
   global_templ->Set (String::New ("Socket"), socket_templ);
 
   priv->context = Context::New (NULL, global_templ);
@@ -1571,15 +1581,15 @@ gum_script_on_socket_type (const Arguments & args)
 {
   const gchar * result = NULL;
 
-  int32_t fd = args[0]->ToInteger ()->Value ();
+  int32_t socket = args[0]->ToInteger ()->Value ();
 
   int type;
   socklen_t len = sizeof (int);
-  if (getsockopt (fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
+  if (getsockopt (socket, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
   {
     struct sockaddr_in addr;
     len = sizeof (addr);
-    if (getsockname (fd, reinterpret_cast<sockaddr *> (&addr), &len) == 0)
+    if (getsockname (socket, reinterpret_cast<sockaddr *> (&addr), &len) == 0)
     {
       switch (addr.sin_family)
       {
@@ -1605,6 +1615,62 @@ gum_script_on_socket_type (const Arguments & args)
   }
 
   return (result != NULL) ? String::New (result) : Null ();
+}
+
+static Handle<Value> gum_script_on_socket_local_address (
+    const Arguments & args)
+{
+  struct sockaddr addr;
+  socklen_t len = sizeof (addr);
+  if (getsockname (args[0]->ToInteger ()->Value (), &addr, &len) != 0)
+    return Null ();
+
+  return gum_script_socket_address_to_value (&addr);
+}
+
+static Handle<Value>
+gum_script_on_socket_peer_address (const Arguments & args)
+{
+  struct sockaddr addr;
+  socklen_t len = sizeof (addr);
+  if (getpeername (args[0]->ToInteger ()->Value (), &addr, &len) != 0)
+    return Null ();
+
+  return gum_script_socket_address_to_value (&addr);
+}
+
+static Handle<Value>
+gum_script_socket_address_to_value (struct sockaddr * addr)
+{
+  switch (addr->sa_family)
+  {
+    case AF_INET:
+    {
+      struct sockaddr_in * inet_addr =
+          reinterpret_cast<struct sockaddr_in *> (addr);
+      gchar ip[INET_ADDRSTRLEN];
+      inet_ntop (AF_INET, &inet_addr->sin_addr, ip, sizeof (ip));
+      Local<Object> result (Object::New ());
+      result->Set (String::New ("ip"), String::New (ip), ReadOnly);
+      result->Set (String::New ("port"),
+          Int32::New (ntohs (inet_addr->sin_port)), ReadOnly);
+      return result;
+    }
+    case AF_INET6:
+    {
+      struct sockaddr_in6 * inet_addr =
+          reinterpret_cast<struct sockaddr_in6 *> (addr);
+      gchar ip[INET6_ADDRSTRLEN];
+      inet_ntop (AF_INET6, &inet_addr->sin6_addr, ip, sizeof (ip));
+      Local<Object> result (Object::New ());
+      result->Set (String::New ("ip"), String::New (ip), ReadOnly);
+      result->Set (String::New ("port"),
+          Int32::New (ntohs (inet_addr->sin6_port)), ReadOnly);
+      return result;
+    }
+  }
+
+  return Null ();
 }
 
 static void
