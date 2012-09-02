@@ -27,6 +27,10 @@
 # include <stdio.h>
 # include <tchar.h>
 # include <windows.h>
+#else
+# include <fcntl.h>
+# include <sys/socket.h>
+# include <unistd.h>
 #endif
 
 #define SCRIPT_MESSAGE_TIMEOUT_USEC (500000)

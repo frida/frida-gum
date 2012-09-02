@@ -37,7 +37,9 @@
 # include <windows.h>
 # define GUM_SETJMP(env) setjmp (env)
 #else
+# include <netinet/in.h>
 # include <signal.h>
+# include <sys/socket.h>
 # define GUM_SETJMP(env) sigsetjmp (env, 1)
 # if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
@@ -207,6 +209,7 @@ static Handle<Value> gum_script_on_memory_alloc_utf8_string (
     const Arguments & args);
 static Handle<Value> gum_script_on_memory_alloc_utf16_string (
     const Arguments & args);
+static Handle<Value> gum_script_on_socket_type (const Arguments & args);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -489,6 +492,11 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_memory_alloc_utf16_string,
           External::Wrap (self)));
   global_templ->Set (String::New ("Memory"), memory_templ);
+
+  Handle<ObjectTemplate> socket_templ = ObjectTemplate::New ();
+  socket_templ->Set (String::New ("type"),
+      FunctionTemplate::New (gum_script_on_socket_type));
+  global_templ->Set (String::New ("Socket"), socket_templ);
 
   priv->context = Context::New (NULL, global_templ);
 
@@ -1556,6 +1564,47 @@ gum_script_on_memory_alloc_utf16_string (const Arguments & args)
   g_queue_push_tail (self->priv->heap_blocks, str_heap);
 
   return Number::New (GPOINTER_TO_SIZE (str_heap));
+}
+
+static Handle<Value>
+gum_script_on_socket_type (const Arguments & args)
+{
+  const gchar * result = NULL;
+
+  int32_t fd = args[0]->ToInteger ()->Value ();
+
+  int type;
+  socklen_t len = sizeof (int);
+  if (getsockopt (fd, SOL_SOCKET, SO_TYPE, &type, &len) == 0)
+  {
+    struct sockaddr_in addr;
+    len = sizeof (addr);
+    if (getsockname (fd, reinterpret_cast<sockaddr *> (&addr), &len) == 0)
+    {
+      switch (addr.sin_family)
+      {
+        case AF_INET:
+          switch (type)
+          {
+            case SOCK_STREAM: result = "tcp"; break;
+            case  SOCK_DGRAM: result = "udp"; break;
+          }
+          break;
+        case AF_INET6:
+          switch (type)
+          {
+            case SOCK_STREAM: result = "tcp6"; break;
+            case  SOCK_DGRAM: result = "udp6"; break;
+          }
+          break;
+        case AF_UNIX:
+          result = "unix";
+          break;
+      }
+    }
+  }
+
+  return (result != NULL) ? String::New (result) : Null ();
 }
 
 static void

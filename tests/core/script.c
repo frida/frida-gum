@@ -56,7 +56,49 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (can_resolve_export_by_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
+  SCRIPT_TESTENTRY (socket_can_be_inspected)
 TEST_LIST_END ()
+
+SCRIPT_TESTCASE (socket_can_be_inspected)
+{
+#ifndef G_OS_WIN32
+  int fd;
+
+  fd = socket (AF_INET, SOCK_STREAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
+  close (fd);
+
+  fd = socket (AF_INET, SOCK_DGRAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"udp\"");
+  close (fd);
+
+  fd = socket (AF_INET6, SOCK_STREAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"tcp6\"");
+  close (fd);
+
+  fd = socket (AF_INET6, SOCK_DGRAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"udp6\"");
+  close (fd);
+
+  fd = socket (AF_UNIX, SOCK_STREAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"unix\"");
+  close (fd);
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(-1));");
+  EXPECT_SEND_MESSAGE_WITH ("null");
+
+  fd = open ("/etc/hosts", O_RDONLY);
+  g_assert (fd >= 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("null");
+  close (fd);
+#endif
+}
 
 SCRIPT_TESTCASE (can_resolve_export_by_name)
 {
