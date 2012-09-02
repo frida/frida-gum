@@ -41,6 +41,7 @@
 # include <netinet/in.h>
 # include <signal.h>
 # include <sys/socket.h>
+# include <sys/un.h>
 # define GUM_SETJMP(env) sigsetjmp (env, 1)
 # if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
@@ -1666,6 +1667,13 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
       result->Set (String::New ("ip"), String::New (ip), ReadOnly);
       result->Set (String::New ("port"),
           Int32::New (ntohs (inet_addr->sin6_port)), ReadOnly);
+      return result;
+    }
+    case AF_UNIX:
+    {
+      Local<Object> result (Object::New ());
+      result->Set (String::New ("path"), String::New ("") /* FIXME */,
+          ReadOnly);
       return result;
     }
   }

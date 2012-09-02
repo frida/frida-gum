@@ -107,6 +107,7 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
   GSocketFamily family[] = { G_SOCKET_FAMILY_IPV4, G_SOCKET_FAMILY_IPV6 };
   guint i;
   GMainContext * context;
+  int fd;
 
   context = g_main_context_get_thread_default ();
 
@@ -117,7 +118,6 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     GSocketAddress * client_address, * server_address;
     GInetAddress * loopback;
     GSocket * socket;
-    int fd;
 
     service = g_socket_service_new ();
     g_signal_connect (service, "incoming", G_CALLBACK (on_incoming_connection),
@@ -168,6 +168,27 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     g_object_unref (client_address);
     g_object_unref (server_address);
     g_object_unref (service);
+  }
+
+  {
+    struct sockaddr_un address;
+    socklen_t len;
+
+    fd = socket (AF_UNIX, SOCK_STREAM, 0);
+
+    address.sun_family = AF_UNIX;
+    strcpy (address.sun_path, "/tmp/gum-script-test");
+    unlink (address.sun_path);
+    address.sun_len = sizeof (address) - sizeof (address.sun_path) +
+        strlen (address.sun_path) + 1;
+    len = address.sun_len;
+    bind (fd, (struct sockaddr *) &address, len);
+
+    COMPILE_AND_LOAD_SCRIPT ("send(Socket.localAddress(%d));", fd);
+    EXPECT_SEND_MESSAGE_WITH ("{\"path\":\"\"}");
+    close (fd);
+
+    unlink (address.sun_path);
   }
 #endif
 }
