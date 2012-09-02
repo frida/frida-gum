@@ -43,9 +43,10 @@
 # define GUM_SOCKOPT_OPTVAL(v) reinterpret_cast<char *> (v)
   typedef int gum_socklen_t;
 #else
+# include <errno.h>
+# include <signal.h>
 # include <arpa/inet.h>
 # include <netinet/in.h>
-# include <signal.h>
 # include <sys/socket.h>
 # include <sys/un.h>
 # define GUM_SETJMP(env) sigsetjmp (env, 1)
@@ -53,9 +54,9 @@
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
 #  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
+# endif
 # define GUM_SOCKOPT_OPTVAL(v) (v)
   typedef socklen_t gum_socklen_t;
-#endif
 #endif
 
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
@@ -1598,28 +1599,45 @@ gum_script_on_socket_type (const Arguments & args)
   if (getsockopt (socket, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
       &len) == 0)
   {
-    struct sockaddr_in invalid_sockaddr;
-    invalid_sockaddr.sin_family = AF_INET;
-    invalid_sockaddr.sin_port = htons (0);
-    invalid_sockaddr.sin_addr.s_addr = htonl (0xffffffff);
-    bind (socket,
-        reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
-        sizeof (invalid_sockaddr));
-    bool v4 = WSAGetLastError () == WSAEADDRNOTAVAIL;
-    if (v4)
+#ifndef G_OS_WIN32
+    gchar dummy = 0;
+    len = sizeof (dummy);
+    getsockopt (socket, SOL_SOCKET, LOCAL_PEERCRED,
+        GUM_SOCKOPT_OPTVAL (&dummy), &len);
+    if (errno == EINVAL)
     {
-      switch (type)
-      {
-        case SOCK_STREAM: result = "tcp"; break;
-        case  SOCK_DGRAM: result = "udp"; break;
-      }
+      result = "unix";
     }
     else
+#endif
     {
-      switch (type)
+      struct sockaddr_in invalid_sockaddr;
+      invalid_sockaddr.sin_family = AF_INET;
+      invalid_sockaddr.sin_port = htons (0);
+      invalid_sockaddr.sin_addr.s_addr = htonl (0xffffffff);
+      bind (socket,
+          reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
+          sizeof (invalid_sockaddr));
+#ifdef G_OS_WIN32
+      bool v4 = WSAGetLastError () == WSAEADDRNOTAVAIL;
+#else
+      bool v4 = errno == EADDRNOTAVAIL;
+#endif
+      if (v4)
       {
-        case SOCK_STREAM: result = "tcp6"; break;
-        case  SOCK_DGRAM: result = "udp6"; break;
+        switch (type)
+        {
+          case SOCK_STREAM: result = "tcp"; break;
+          case  SOCK_DGRAM: result = "udp"; break;
+        }
+      }
+      else
+      {
+        switch (type)
+        {
+          case SOCK_STREAM: result = "tcp6"; break;
+          case  SOCK_DGRAM: result = "udp6"; break;
+        }
       }
     }
   }
