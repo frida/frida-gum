@@ -943,6 +943,7 @@ gum_script_array_free (Persistent<Value> object, void * data)
 {
   int32_t length;
 
+  HandleScope handle_scope;
   length = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
   V8::AdjustAmountOfExternalAllocatedMemory (-length);
   g_free (data);
