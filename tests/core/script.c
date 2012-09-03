@@ -171,7 +171,7 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     g_object_unref (service);
   }
 
-#ifndef G_OS_WIN32
+#ifdef HAVE_DARWIN
   {
     struct sockaddr_un address;
     socklen_t len;

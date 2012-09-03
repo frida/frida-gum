@@ -1599,7 +1599,7 @@ gum_script_on_socket_type (const Arguments & args)
   if (getsockopt (socket, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
       &len) == 0)
   {
-#ifndef G_OS_WIN32
+#ifdef HAVE_DARWIN
     gchar dummy = 0;
     len = sizeof (dummy);
     getsockopt (socket, SOL_SOCKET, LOCAL_PEERCRED,
