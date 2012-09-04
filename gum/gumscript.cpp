@@ -790,7 +790,7 @@ gum_script_on_schedule_callback (const Arguments & args,
     return Undefined ();
   }
 
-  gint id = g_atomic_int_add (&priv->last_callback_id, 1) + 1;
+  gint id = g_atomic_int_exchange_and_add (&priv->last_callback_id, 1) + 1;
   GSource * source;
   if (delay == 0)
     source = g_idle_source_new ();
