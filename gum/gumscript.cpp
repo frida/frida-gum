@@ -45,6 +45,7 @@
 #else
 # include <errno.h>
 # include <signal.h>
+# include <stdlib.h>
 # include <arpa/inet.h>
 # include <netinet/in.h>
 # include <sys/socket.h>
@@ -1281,6 +1282,7 @@ gum_script_memory_on_invalid_access (int sig,
                                      void * context)
 {
   GumMemoryAccessScope * scope;
+  struct sigaction * action;
 
   scope = (GumMemoryAccessScope *)
       GUM_TLS_KEY_GET_VALUE (gum_memaccess_scope_tls);
@@ -1296,7 +1298,21 @@ gum_script_memory_on_invalid_access (int sig,
   }
 
 not_our_fault:
-  raise (GUM_INVALID_ACCESS_SIGNAL);
+  action = &gum_memaccess_old_action;
+  if ((action->sa_flags & SA_SIGINFO) != 0)
+  {
+    if (action->sa_sigaction != NULL)
+      action->sa_sigaction (sig, siginfo, context);
+    else
+      abort ();
+  }
+  else
+  {
+    if (action->sa_handler != NULL)
+      action->sa_handler (sig);
+    else
+      abort ();
+  }
 }
 
 #endif
