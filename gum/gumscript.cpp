@@ -64,6 +64,7 @@
 
 using namespace v8;
 
+typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumMessageSink GumMessageSink;
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
 typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
@@ -74,6 +75,8 @@ typedef struct _GumMemoryScanContext GumMemoryScanContext;
 
 struct _GumScriptPrivate
 {
+  GMainContext * main_context;
+
   GumInterceptor * interceptor;
 
   Persistent<Context> context;
@@ -84,14 +87,28 @@ struct _GumScriptPrivate
   gpointer message_handler_data;
   GDestroyNotify message_handler_notify;
 
-  GMutex * event_mutex;
+  GMutex * mutex;
+
   GCond * event_cond;
   guint event_count;
+
+  GSList * scheduled_callbacks;
+  volatile gint last_callback_id;
 
   GumMessageSink * incoming_message_sink;
 
   GQueue * attach_entries;
   GQueue * heap_blocks;
+};
+
+struct _GumScheduledCallback
+{
+  gint id;
+  gboolean repeat;
+  Persistent<Function> func;
+  Persistent<Object> receiver;
+  GSource * source;
+  GumScript * script;
 };
 
 struct _GumMessageSink
@@ -157,6 +174,13 @@ static void gum_script_finalize (GObject * object);
 static void gum_script_create_context (GumScript * self);
 
 static Handle<Value> gum_script_on_console_log (const Arguments & args);
+static Handle<Value> gum_script_on_set_timeout (const Arguments & args);
+static Handle<Value> gum_script_on_set_interval (const Arguments & args);
+static Handle<Value> gum_script_on_clear_timeout (const Arguments & args);
+static GumScheduledCallback * gum_scheduled_callback_new (gint id,
+    gboolean repeat, GSource * source, GumScript * script);
+static void gum_scheduled_callback_free (GumScheduledCallback * callback);
+static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_set_incoming_message_callback (
     const Arguments & args);
@@ -166,12 +190,25 @@ static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
 static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message);
-static Handle<Value> gum_script_on_process_find_module_export_by_name (
+static Handle<Value> gum_script_on_process_enumerate_modules (
     const Arguments & args);
+static gboolean gum_script_process_module_match (const gchar * name,
+    GumAddress address, const gchar * path, gpointer user_data);
 static Handle<Value> gum_script_on_process_enumerate_ranges (
     const Arguments & args);
-static gboolean gum_script_process_range_match (const GumMemoryRange * range,
+static gboolean gum_script_range_match (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
+static Handle<Value> gum_script_on_thread_sleep (const Arguments & args);
+static Handle<Value> gum_script_on_module_enumerate_exports (
+    const Arguments & args);
+static Handle<Value> gum_script_on_module_enumerate_ranges (
+    const Arguments & args);
+static gboolean gum_script_module_export_match (const gchar * name,
+    GumAddress address, gpointer user_data);
+static Handle<Value> gum_script_on_module_find_base_address (
+    const Arguments & args);
+static Handle<Value> gum_script_on_module_find_export_by_name (
+    const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
 static Handle<Value> gum_script_on_int32_cast (const Arguments & args);
 #ifdef G_OS_WIN32
@@ -240,6 +277,8 @@ static Handle<Value> gum_script_args_on_set_nth (uint32_t index,
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
+    GumPageProtection * prot);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -302,9 +341,12 @@ gum_script_init (GumScript * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
+  priv->main_context = g_main_context_get_thread_default ();
+
   priv->interceptor = gum_interceptor_obtain ();
 
-  priv->event_mutex = g_mutex_new ();
+  priv->mutex = g_mutex_new ();
+
   priv->event_cond = g_cond_new ();
 
   priv->attach_entries = g_queue_new ();
@@ -346,8 +388,18 @@ gum_script_dispose (GObject * object)
   {
     gum_script_unload (self);
 
+    priv->main_context = NULL;
+
     g_object_unref (priv->interceptor);
     priv->interceptor = NULL;
+
+    while (priv->scheduled_callbacks != NULL)
+    {
+      g_source_destroy (static_cast<GumScheduledCallback *> (
+          priv->scheduled_callbacks->data)->source);
+      priv->scheduled_callbacks = g_slist_delete_link (
+          priv->scheduled_callbacks, priv->scheduled_callbacks);
+    }
 
     gum_message_sink_free (priv->incoming_message_sink);
     priv->incoming_message_sink = NULL;
@@ -397,7 +449,8 @@ gum_script_finalize (GObject * object)
   }
   G_UNLOCK (gum_memaccess);
 
-  g_mutex_free (priv->event_mutex);
+  g_mutex_free (priv->mutex);
+
   g_cond_free (priv->event_cond);
 
   g_queue_free (priv->attach_entries);
@@ -420,6 +473,17 @@ gum_script_create_context (GumScript * self)
       gum_script_on_console_log, External::Wrap (self)));
   global_templ->Set (String::New ("console"), console_templ);
 
+  global_templ->Set (String::New ("setTimeout"),
+      FunctionTemplate::New (gum_script_on_set_timeout, External::Wrap (self)));
+  global_templ->Set (String::New ("setInterval"),
+      FunctionTemplate::New (gum_script_on_set_interval,
+          External::Wrap (self)));
+  global_templ->Set (String::New ("clearTimeout"),
+      FunctionTemplate::New (gum_script_on_clear_timeout,
+          External::Wrap (self)));
+  global_templ->Set (String::New ("clearInterval"),
+      FunctionTemplate::New (gum_script_on_clear_timeout,
+          External::Wrap (self)));
   global_templ->Set (String::New ("_send"),
       FunctionTemplate::New (gum_script_on_send, External::Wrap (self)));
   global_templ->Set (String::New ("_setIncomingMessageCallback"),
@@ -435,12 +499,27 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> process_templ = ObjectTemplate::New ();
-  process_templ->Set (String::New ("findModuleExportByName"),
-      FunctionTemplate::New (
-          gum_script_on_process_find_module_export_by_name));
+  process_templ->Set (String::New ("enumerateModules"),
+      FunctionTemplate::New (gum_script_on_process_enumerate_modules));
   process_templ->Set (String::New ("enumerateRanges"),
       FunctionTemplate::New (gum_script_on_process_enumerate_ranges));
   global_templ->Set (String::New ("Process"), process_templ);
+
+  Handle<ObjectTemplate> thread_templ = ObjectTemplate::New ();
+  thread_templ->Set (String::New ("sleep"),
+      FunctionTemplate::New (gum_script_on_thread_sleep));
+  global_templ->Set (String::New ("Thread"), thread_templ);
+
+  Handle<ObjectTemplate> module_templ = ObjectTemplate::New ();
+  module_templ->Set (String::New ("enumerateExports"),
+      FunctionTemplate::New (gum_script_on_module_enumerate_exports));
+  module_templ->Set (String::New ("enumerateRanges"),
+      FunctionTemplate::New (gum_script_on_module_enumerate_ranges));
+  module_templ->Set (String::New ("findBaseAddress"),
+      FunctionTemplate::New (gum_script_on_module_find_base_address));
+  module_templ->Set (String::New ("findExportByName"),
+      FunctionTemplate::New (gum_script_on_module_find_export_by_name));
+  global_templ->Set (String::New ("Module"), module_templ);
 
   global_templ->Set (String::New ("Int32"),
       FunctionTemplate::New (gum_script_on_int32_cast, External::Wrap (self)));
@@ -642,9 +721,9 @@ gum_script_post_message (GumScript * self,
       priv->event_count++;
     }
 
-    g_mutex_lock (priv->event_mutex);
+    g_mutex_lock (priv->mutex);
     g_cond_broadcast (priv->event_cond);
-    g_mutex_unlock (priv->event_mutex);
+    g_mutex_unlock (priv->mutex);
   }
 }
 
@@ -655,6 +734,172 @@ gum_script_on_console_log (const Arguments & args)
   g_print ("%s\n", *message);
 
   return Undefined ();
+}
+
+static void
+gum_script_add_scheduled_callback (GumScript * self,
+                                   GumScheduledCallback * callback)
+{
+  GumScriptPrivate * priv = self->priv;
+
+  g_mutex_lock (priv->mutex);
+  priv->scheduled_callbacks =
+      g_slist_prepend (priv->scheduled_callbacks, callback);
+  g_mutex_unlock (priv->mutex);
+}
+
+static void
+gum_script_remove_scheduled_callback (GumScript * self,
+                                      GumScheduledCallback * callback)
+{
+  GumScriptPrivate * priv = self->priv;
+
+  g_mutex_lock (priv->mutex);
+  priv->scheduled_callbacks =
+      g_slist_remove (priv->scheduled_callbacks, callback);
+  g_mutex_unlock (priv->mutex);
+}
+
+static Handle<Value>
+gum_script_on_schedule_callback (const Arguments & args,
+                                 gboolean repeat)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+
+  Local<Value> func_val = args[0];
+  if (!func_val->IsFunction ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "first argument must be a function")));
+    return Undefined ();
+  }
+
+  Local<Value> delay_val = args[1];
+  if (!delay_val->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "second argument must be a number specifying delay")));
+    return Undefined ();
+  }
+  int32_t delay = delay_val->ToInt32 ()->Value ();
+  if (delay < 0)
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "second argument must be a positive integer")));
+    return Undefined ();
+  }
+
+  gint id = g_atomic_int_add (&priv->last_callback_id, 1) + 1;
+  GSource * source;
+  if (delay == 0)
+    source = g_idle_source_new ();
+  else
+    source = g_timeout_source_new (delay);
+  GumScheduledCallback * callback =
+      gum_scheduled_callback_new (id, repeat, source, self);
+  callback->func = Persistent<Function>::New (Local<Function>::Cast (func_val));
+  callback->receiver = Persistent<Object>::New (args.This ());
+  g_source_set_callback (source, gum_scheduled_callback_invoke, callback,
+      reinterpret_cast<GDestroyNotify> (gum_scheduled_callback_free));
+  gum_script_add_scheduled_callback (self, callback);
+
+  g_source_attach (source, priv->main_context);
+
+  return Int32::New (id);
+}
+
+static Handle<Value>
+gum_script_on_set_timeout (const Arguments & args)
+{
+  return gum_script_on_schedule_callback (args, FALSE);
+}
+
+static Handle<Value>
+gum_script_on_set_interval (const Arguments & args)
+{
+  return gum_script_on_schedule_callback (args, TRUE);
+}
+
+static Handle<Value>
+gum_script_on_clear_timeout (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+  GSList * cur;
+
+  Local<Value> id_val = args[0];
+  if (!id_val->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "argument must be a timeout id")));
+    return Undefined ();
+  }
+  gint id = id_val->ToInt32 ()->Value ();
+
+  GumScheduledCallback * callback = NULL;
+  g_mutex_lock (priv->mutex);
+  for (cur = priv->scheduled_callbacks; cur != NULL; cur = cur->next)
+  {
+    GumScheduledCallback * cb =
+        static_cast<GumScheduledCallback *> (cur->data);
+    if (cb->id == id)
+    {
+      callback = cb;
+      priv->scheduled_callbacks =
+          g_slist_delete_link (priv->scheduled_callbacks, cur);
+      break;
+    }
+  }
+  g_mutex_unlock (priv->mutex);
+
+  if (callback != NULL)
+    g_source_destroy (callback->source);
+
+  return (callback != NULL) ? True () : False ();
+}
+
+static GumScheduledCallback *
+gum_scheduled_callback_new (gint id,
+                            gboolean repeat,
+                            GSource * source,
+                            GumScript * script)
+{
+  GumScheduledCallback * callback;
+
+  callback = g_slice_new (GumScheduledCallback);
+  callback->id = id;
+  callback->repeat = repeat;
+  callback->source = source;
+  callback->script = script;
+
+  return callback;
+}
+
+static void
+gum_scheduled_callback_free (GumScheduledCallback * callback)
+{
+  Locker l;
+  HandleScope handle_scope;
+  callback->func.Dispose ();
+  callback->receiver.Dispose ();
+
+  g_slice_free (GumScheduledCallback, callback);
+}
+
+static gboolean
+gum_scheduled_callback_invoke (gpointer user_data)
+{
+  GumScheduledCallback * self =
+      static_cast<GumScheduledCallback *> (user_data);
+
+  ScriptScope scope (self->script);
+  self->func->Call (self->receiver, 0, 0);
+
+  if (!self->repeat)
+    gum_script_remove_scheduled_callback (self->script, self);
+
+  return self->repeat;
 }
 
 static Handle<Value>
@@ -731,9 +976,9 @@ gum_script_on_wait_for_event (const Arguments & args)
   {
     Unlocker ul;
 
-    g_mutex_lock (priv->event_mutex);
-    g_cond_wait (priv->event_cond, priv->event_mutex);
-    g_mutex_unlock (priv->event_mutex);
+    g_mutex_lock (priv->mutex);
+    g_cond_wait (priv->event_cond, priv->mutex);
+    g_mutex_unlock (priv->mutex);
   }
 
   return Undefined ();
@@ -773,74 +1018,67 @@ gum_message_sink_handle_message (GumMessageSink * self,
 }
 
 static Handle<Value>
-gum_script_on_process_find_module_export_by_name (const Arguments & args)
+gum_script_on_process_enumerate_modules (const Arguments & args)
 {
-  Local<Value> module_name_val = args[0];
-  if (!module_name_val->IsString ())
+  GumScriptMatchContext ctx;
+
+  Local<Value> callbacks_value = args[0];
+  if (!callbacks_value->IsObject ())
   {
     ThrowException (Exception::TypeError (String::New (
-        "Process.findModuleExportByName: first argument must be a string "
-        "specifying module name")));
+        "Process.enumerateModules: argument must be a callback object")));
     return Undefined ();
   }
-  String::Utf8Value module_name (module_name_val);
 
-  Local<Value> symbol_name_val = args[1];
-  if (!symbol_name_val->IsString ())
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  gum_process_enumerate_modules (gum_script_process_module_match, &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+
+  return Undefined ();
+}
+
+static gboolean
+gum_script_process_module_match (const gchar * name,
+                                 GumAddress address,
+                                 const gchar * path,
+                                 gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+
+  Handle<Value> argv[] = {
+    String::New (name),
+    Number::New (address),
+    String::New (path)
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
+
+  gboolean proceed = TRUE;
+  if (result->IsString ())
   {
-    ThrowException (Exception::TypeError (String::New (
-        "Process.findModuleExportByName: second argument must be a string "
-        "specifying name of exported symbol")));
-    return Undefined ();
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
   }
-  String::Utf8Value symbol_name (symbol_name_val);
 
-  GumAddress raw_address =
-      gum_module_find_export_by_name (*module_name, *symbol_name);
-  if (raw_address == 0)
-    return Undefined ();
-
-  return Number::New (raw_address);
+  return proceed;
 }
 
 static Handle<Value>
 gum_script_on_process_enumerate_ranges (const Arguments & args)
 {
-  Local<Value> prot_val = args[0];
-  if (!prot_val->IsString ())
-  {
-    ThrowException (Exception::TypeError (String::New (
-        "Process.enumerateRanges: first argument must be a string "
-        "specifying required memory protection")));
-    return Undefined ();
-  }
-  String::Utf8Value prot_str (prot_val);
-
-  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
-  for (const char *ch = *prot_str; *ch != '\0'; ch++)
-  {
-    switch (*ch)
-    {
-      case 'r':
-        prot |= GUM_PAGE_READ;
-        break;
-      case 'w':
-        prot |= GUM_PAGE_WRITE;
-        break;
-      case 'x':
-        prot |= GUM_PAGE_EXECUTE;
-        break;
-      case '-':
-        break;
-      default:
-        ThrowException (Exception::TypeError (String::New (
-            "Process.enumerateRanges: invalid character in memory protection "
-            "specifier string")));
-        return Undefined ();
-    }
-  }
-
   GumScriptMatchContext ctx;
+
+  GumPageProtection prot;
+  if (!gum_script_page_protection_get (args[0], &prot))
+    return Undefined ();
 
   Local<Value> callbacks_value = args[1];
   if (!callbacks_value->IsObject ())
@@ -858,7 +1096,7 @@ gum_script_on_process_enumerate_ranges (const Arguments & args)
 
   ctx.receiver = args.This ();
 
-  gum_process_enumerate_ranges (prot, gum_script_process_range_match, &ctx);
+  gum_process_enumerate_ranges (prot, gum_script_range_match, &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
 
@@ -866,9 +1104,9 @@ gum_script_on_process_enumerate_ranges (const Arguments & args)
 }
 
 static gboolean
-gum_script_process_range_match (const GumMemoryRange * range,
-                                GumPageProtection prot,
-                                gpointer user_data)
+gum_script_range_match (const GumMemoryRange * range,
+                        GumPageProtection prot,
+                        gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
@@ -882,7 +1120,7 @@ gum_script_process_range_match (const GumMemoryRange * range,
     prot_str[2] = 'x';
 
   Handle<Value> argv[] = {
-    Number::New (GPOINTER_TO_SIZE (range->base_address)),
+    Number::New (range->base_address),
     Integer::NewFromUnsigned (range->size),
     String::New (prot_str)
   };
@@ -896,6 +1134,179 @@ gum_script_process_range_match (const GumMemoryRange * range,
   }
 
   return proceed;
+}
+
+static Handle<Value>
+gum_script_on_thread_sleep (const Arguments & args)
+{
+  Local<Value> delay_val = args[0];
+  if (!delay_val->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Thread.sleep: argument must be a number specifying delay")));
+    return Undefined ();
+  }
+  double delay = delay_val->ToNumber ()->Value ();
+
+  g_usleep (delay * G_USEC_PER_SEC);
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_module_enumerate_exports (const Arguments & args)
+{
+  GumScriptMatchContext ctx;
+
+  Local<Value> name_val = args[0];
+  if (!name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.enumerateExports: first argument must be a string "
+        "specifying a module name whose exports to enumerate")));
+    return Undefined ();
+  }
+  String::Utf8Value name_str (name_val);
+
+  Local<Value> callbacks_value = args[1];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.enumerateExports: second argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  gum_module_enumerate_exports (*name_str, gum_script_module_export_match,
+      &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+
+  return Undefined ();
+}
+
+static gboolean
+gum_script_module_export_match (const gchar * name,
+                                GumAddress address,
+                                gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+
+  Handle<Value> argv[] = {
+    String::New (name),
+    Number::New (address)
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
+
+  gboolean proceed = TRUE;
+  if (result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+static Handle<Value>
+gum_script_on_module_enumerate_ranges (const Arguments & args)
+{
+  GumScriptMatchContext ctx;
+
+  Local<Value> name_val = args[0];
+  if (!name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.enumerateRanges: first argument must be a string "
+        "specifying a module name whose ranges to enumerate")));
+    return Undefined ();
+  }
+  String::Utf8Value name_str (name_val);
+
+  GumPageProtection prot;
+  if (!gum_script_page_protection_get (args[1], &prot))
+    return Undefined ();
+
+  Local<Value> callbacks_value = args[2];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.enumerateRanges: third argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  gum_module_enumerate_ranges (*name_str, prot, gum_script_range_match, &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_module_find_base_address (const Arguments & args)
+{
+  Local<Value> module_name_val = args[0];
+  if (!module_name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.findBaseAddress: argument must be a string "
+        "specifying module name")));
+    return Undefined ();
+  }
+  String::Utf8Value module_name (module_name_val);
+
+  GumAddress raw_address = gum_module_find_base_address (*module_name);
+  if (raw_address == 0)
+    return Null ();
+
+  return Number::New (raw_address);
+}
+
+static Handle<Value>
+gum_script_on_module_find_export_by_name (const Arguments & args)
+{
+  Local<Value> module_name_val = args[0];
+  if (!module_name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.findExportByName: first argument must be a string "
+        "specifying module name")));
+    return Undefined ();
+  }
+  String::Utf8Value module_name (module_name_val);
+
+  Local<Value> symbol_name_val = args[1];
+  if (!symbol_name_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Module.findExportByName: second argument must be a string "
+        "specifying name of exported symbol")));
+    return Undefined ();
+  }
+  String::Utf8Value symbol_name (symbol_name_val);
+
+  GumAddress raw_address =
+      gum_module_find_export_by_name (*module_name, *symbol_name);
+  if (raw_address == 0)
+    return Null ();
+
+  return Number::New (raw_address);
 }
 
 static Handle<Value>
@@ -1661,8 +2072,8 @@ gum_script_on_socket_type (const Arguments & args)
   return (result != NULL) ? String::New (result) : Null ();
 }
 
-static Handle<Value> gum_script_on_socket_local_address (
-    const Arguments & args)
+static Handle<Value>
+gum_script_on_socket_local_address (const Arguments & args)
 {
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
@@ -1844,6 +2255,44 @@ gum_script_callbacks_get (Handle<Object> callbacks,
     }
 
     *callback_function = Local<Function>::Cast (val);
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_script_page_protection_get (Handle<Value> prot_val,
+                                GumPageProtection * prot)
+{
+  if (!prot_val->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "argument must be a string specifying memory protection")));
+    return FALSE;
+  }
+  String::Utf8Value prot_str (prot_val);
+
+  *prot = GUM_PAGE_NO_ACCESS;
+  for (const gchar * ch = *prot_str; *ch != '\0'; ch++)
+  {
+    switch (*ch)
+    {
+      case 'r':
+        *prot |= GUM_PAGE_READ;
+        break;
+      case 'w':
+        *prot |= GUM_PAGE_WRITE;
+        break;
+      case 'x':
+        *prot |= GUM_PAGE_EXECUTE;
+        break;
+      case '-':
+        break;
+      default:
+        ThrowException (Exception::TypeError (String::New (
+            "invalid character in memory protection specifier string")));
+        return FALSE;
+    }
   }
 
   return TRUE;

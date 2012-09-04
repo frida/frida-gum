@@ -178,6 +178,7 @@ test_script_fixture_pop_message (TestScriptFixture * fixture)
   g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
   item = (TestScriptMessageItem *) g_async_queue_timed_pop (fixture->messages,
       &end_time);
+  g_assert (item != NULL);
 
   return item;
 }

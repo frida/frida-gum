@@ -25,6 +25,11 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (recv_can_be_waited_for)
+  SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
+  SCRIPT_TESTENTRY (timeout_can_be_scheduled)
+  SCRIPT_TESTENTRY (timeout_can_be_cancelled)
+  SCRIPT_TESTENTRY (interval_can_be_scheduled)
+  SCRIPT_TESTENTRY (interval_can_be_cancelled)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -54,8 +59,12 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_write_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
-  SCRIPT_TESTENTRY (can_resolve_export_by_name)
+  SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_base_address_can_be_found)
+  SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 TEST_LIST_END ()
@@ -222,24 +231,20 @@ on_read_ready (GObject * source_object,
   g_clear_error (&error);
 }
 
-SCRIPT_TESTCASE (can_resolve_export_by_name)
+SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
-#ifdef G_OS_WIN32
-  HMODULE mod;
-  gpointer actual_address;
-  char actual_address_str[64];
-
-  mod = GetModuleHandle (_T ("kernel32.dll"));
-  g_assert (mod != NULL);
-  actual_address = GetProcAddress (mod, "Sleep");
-  g_assert (actual_address != NULL);
-  sprintf_s (actual_address_str, sizeof (actual_address_str),
-      "%" G_GSIZE_MODIFIER "d", GPOINTER_TO_SIZE (actual_address));
-
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.findModuleExportByName('kernel32.dll', 'Sleep'));");
-  EXPECT_SEND_MESSAGE_WITH (actual_address_str);
-#endif
+      "Process.enumerateModules({"
+        "onMatch: function(name, address, path) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
 SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
@@ -256,6 +261,70 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_exports_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateExports(\"%s\", {"
+        "onMatch: function(name, address) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});", SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Module.enumerateRanges(\"%s\", '--x', {"
+        "onMatch: function(address, size, prot) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});", SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_base_address_can_be_found)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.findBaseAddress('%s') !== null);", SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (module_export_can_be_found_by_name)
+{
+#ifdef G_OS_WIN32
+  HMODULE mod;
+  gpointer actual_address;
+  char actual_address_str[64];
+
+  mod = GetModuleHandle (_T ("kernel32.dll"));
+  g_assert (mod != NULL);
+  actual_address = GetProcAddress (mod, "Sleep");
+  g_assert (actual_address != NULL);
+  sprintf_s (actual_address_str, sizeof (actual_address_str),
+      "%" G_GSIZE_MODIFIER "d", GPOINTER_TO_SIZE (actual_address));
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.findExportByName('kernel32.dll', 'Sleep'));");
+  EXPECT_SEND_MESSAGE_WITH (actual_address_str);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.findExportByName('%s', '%s') !== null);",
+      SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+#endif
 }
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)
@@ -360,6 +429,118 @@ invoke_target_function_int_worker (gpointer data)
   ctx->finished = TRUE;
 
   return NULL;
+}
+
+SCRIPT_TESTCASE (thread_can_be_forced_to_sleep)
+{
+  GTimer * timer = g_timer_new ();
+  COMPILE_AND_LOAD_SCRIPT ("Thread.sleep(0.25);");
+  g_assert_cmpfloat (g_timer_elapsed (timer, NULL), >=, 0.2f);
+  EXPECT_NO_MESSAGES ();
+  g_timer_destroy (timer);
+}
+
+SCRIPT_TESTCASE (timeout_can_be_scheduled)
+{
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "setTimeout(function() {"
+      "  send(1337);"
+      "}, 20);");
+  EXPECT_NO_MESSAGES ();
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_NO_MESSAGES ();
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (timeout_can_be_cancelled)
+{
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var timeout = setTimeout(function() {"
+      "  send(1337);"
+      "}, 20);"
+      "clearTimeout(timeout);");
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (interval_can_be_scheduled)
+{
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "setInterval(function() {"
+      "  send(1337);"
+      "}, 20);");
+  EXPECT_NO_MESSAGES ();
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_NO_MESSAGES ();
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+}
+
+SCRIPT_TESTCASE (interval_can_be_cancelled)
+{
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var count = 1;"
+      "var interval = setInterval(function() {"
+      "  send(count++);"
+      "  if (count == 3)"
+      "    clearInterval(interval);"
+      "}, 20);");
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("1");
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("2");
+
+  g_usleep (25000);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (argument_can_be_read)

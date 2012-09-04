@@ -57,6 +57,21 @@
   }                                                                       \
   G_STMT_END
 
+#if defined (G_OS_WIN32)
+# define SYSTEM_MODULE_NAME "kernel32.dll"
+#elif defined (HAVE_DARWIN)
+# define SYSTEM_MODULE_NAME "libSystem.B.dylib"
+#elif defined (HAVE_ANDROID)
+# define SYSTEM_MODULE_NAME "libc.so"
+#else
+# define SYSTEM_MODULE_NAME "libc-2.12.1.so"
+#endif
+#if defined (G_OS_WIN32)
+# define SYSTEM_MODULE_EXPORT "Sleep"
+#else
+# define SYSTEM_MODULE_EXPORT "sendto"
+#endif
+
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _test_util_deinit (void);
