@@ -72,8 +72,15 @@ TEST_LIST_END ()
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
 {
   int fd;
+  struct sockaddr_in addr = { 0, };
 
   fd = socket (AF_INET, SOCK_STREAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons (39876);
+  addr.sin_addr.s_addr = INADDR_ANY;
+  bind (fd, (struct sockaddr *) &addr, sizeof (addr));
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
   GUM_CLOSE_SOCKET (fd);
@@ -93,17 +100,20 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("\"udp6\"");
   GUM_CLOSE_SOCKET (fd);
 
-#ifndef G_OS_WIN32
-  fd = socket (AF_UNIX, SOCK_STREAM, 0);
-  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
-  EXPECT_SEND_MESSAGE_WITH ("\"unix\"");
-  close (fd);
-#endif
-
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(-1));");
   EXPECT_SEND_MESSAGE_WITH ("null");
 
 #ifndef G_OS_WIN32
+  fd = socket (AF_UNIX, SOCK_STREAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"unix:stream\"");
+  close (fd);
+
+  fd = socket (AF_UNIX, SOCK_DGRAM, 0);
+  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+  EXPECT_SEND_MESSAGE_WITH ("\"unix:dgram\"");
+  close (fd);
+
   fd = open ("/etc/hosts", O_RDONLY);
   g_assert (fd >= 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);

@@ -34,6 +34,7 @@
 # include <ws2tcpip.h>
 #else
 # include <fcntl.h>
+# include <netinet/in.h>
 # include <sys/socket.h>
 # include <sys/un.h>
 # include <unistd.h>

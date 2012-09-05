@@ -2026,17 +2026,16 @@ gum_script_on_socket_type (const Arguments & args)
   if (getsockopt (socket, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
       &len) == 0)
   {
-#ifdef HAVE_DARWIN
-    gchar dummy = 0;
-    len = sizeof (dummy);
-    getsockopt (socket, SOL_SOCKET, LOCAL_PEERCRED,
-        GUM_SOCKOPT_OPTVAL (&dummy), &len);
-    if (errno == EINVAL)
+    int family;
+
+    struct sockaddr_in6 addr;
+    len = sizeof (addr);
+    if (getsockname (socket,
+        reinterpret_cast<struct sockaddr *> (&addr), &len) == 0)
     {
-      result = "unix";
+      family = addr.sin6_family;
     }
     else
-#endif
     {
       struct sockaddr_in invalid_sockaddr;
       invalid_sockaddr.sin_family = AF_INET;
@@ -2046,26 +2045,37 @@ gum_script_on_socket_type (const Arguments & args)
           reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
           sizeof (invalid_sockaddr));
 #ifdef G_OS_WIN32
-      bool v4 = WSAGetLastError () == WSAEADDRNOTAVAIL;
+      family = (WSAGetLastError () == WSAEADDRNOTAVAIL) ? AF_INET : AF_INET6;
 #else
-      bool v4 = errno == EADDRNOTAVAIL;
+      family = (errno == EADDRNOTAVAIL) ? AF_INET : AF_INET6;
 #endif
-      if (v4)
-      {
+    }
+
+    switch (family)
+    {
+      case AF_INET:
         switch (type)
         {
           case SOCK_STREAM: result = "tcp"; break;
           case  SOCK_DGRAM: result = "udp"; break;
         }
-      }
-      else
-      {
+        break;
+      case AF_INET6:
         switch (type)
         {
           case SOCK_STREAM: result = "tcp6"; break;
           case  SOCK_DGRAM: result = "udp6"; break;
         }
-      }
+        break;
+#ifndef G_OS_WIN32
+      case AF_UNIX:
+        switch (type)
+        {
+          case SOCK_STREAM: result = "unix:stream"; break;
+          case  SOCK_DGRAM: result = "unix:dgram";  break;
+        }
+        break;
+#endif
     }
   }
 
