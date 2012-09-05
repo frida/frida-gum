@@ -59,6 +59,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_write_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
+  SCRIPT_TESTENTRY (process_arch_is_available)
+  SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
@@ -239,6 +241,32 @@ on_read_ready (GObject * source_object,
   GError * error = NULL;
   g_input_stream_read_finish (G_INPUT_STREAM (source_object), res, &error);
   g_clear_error (&error);
+}
+
+SCRIPT_TESTCASE (process_arch_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.arch);");
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  EXPECT_SEND_MESSAGE_WITH ("\"ia32\"");
+# else
+  EXPECT_SEND_MESSAGE_WITH ("\"x64\"");
+# endif
+#elif defined (HAVE_ARM)
+  EXPECT_SEND_MESSAGE_WITH ("\"arm\"");
+#endif
+}
+
+SCRIPT_TESTCASE (process_platform_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.platform);");
+#if defined (HAVE_LINUX)
+  EXPECT_SEND_MESSAGE_WITH ("\"linux\"");
+#elif defined (HAVE_DARWIN)
+  EXPECT_SEND_MESSAGE_WITH ("\"darwin\"");
+#elif defined (G_OS_WIN32)
+  EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
+#endif
 }
 
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)

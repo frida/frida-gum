@@ -60,6 +60,24 @@
   typedef socklen_t gum_socklen_t;
 #endif
 
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_SCRIPT_ARCH "ia32"
+# else
+#  define GUM_SCRIPT_ARCH "x64"
+# endif
+#elif defined (HAVE_ARM)
+# define GUM_SCRIPT_ARCH "arm"
+#endif
+
+#if defined (HAVE_LINUX)
+# define GUM_SCRIPT_PLATFORM "linux"
+#elif defined (HAVE_DARWIN)
+# define GUM_SCRIPT_PLATFORM "darwin"
+#elif defined (G_OS_WIN32)
+# define GUM_SCRIPT_PLATFORM "windows"
+#endif
+
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
 
 using namespace v8;
@@ -499,6 +517,10 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> process_templ = ObjectTemplate::New ();
+  process_templ->Set (String::New ("arch"),
+      String::New (GUM_SCRIPT_ARCH), ReadOnly);
+  process_templ->Set (String::New ("platform"),
+      String::New (GUM_SCRIPT_PLATFORM), ReadOnly);
   process_templ->Set (String::New ("enumerateModules"),
       FunctionTemplate::New (gum_script_on_process_enumerate_modules));
   process_templ->Set (String::New ("enumerateRanges"),
