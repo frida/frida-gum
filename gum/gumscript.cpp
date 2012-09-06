@@ -415,6 +415,10 @@ gum_script_dispose (GObject * object)
 
   if (priv->interceptor != NULL)
   {
+    Locker l;
+    HandleScope handle_scope;
+    Context::Scope context_scope (priv->context);
+
     gum_script_unload (self);
 
     priv->main_context = NULL;
@@ -437,8 +441,8 @@ gum_script_dispose (GObject * object)
     {
       GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
           g_queue_pop_tail (priv->attach_entries));
-      entry->on_enter.Clear ();
-      entry->on_leave.Clear ();
+      entry->on_enter.Dispose ();
+      entry->on_leave.Dispose ();
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
@@ -694,7 +698,7 @@ gum_script_from_string (const gchar * source,
   g_free (combined_source);
   TryCatch trycatch;
   Handle<Script> raw_script = Script::Compile (source_value);
-  if (raw_script.IsEmpty())
+  if (raw_script.IsEmpty ())
   {
     g_object_unref (script);
 
@@ -1036,8 +1040,8 @@ gum_message_sink_free (GumMessageSink * sink)
   if (sink == NULL)
     return;
 
-  sink->callback.Clear ();
-  sink->receiver.Clear ();
+  sink->callback.Dispose ();
+  sink->receiver.Dispose ();
 
   g_slice_free (GumMessageSink, sink);
 }
@@ -1814,9 +1818,14 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
     return;
 
   gum_match_pattern_free (ctx->pattern);
-  ctx->on_match.Clear ();
-  ctx->on_complete.Clear ();
-  ctx->receiver.Clear ();
+
+  {
+    Locker l;
+    HandleScope handle_scope;
+    ctx->on_match.Dispose ();
+    ctx->on_complete.Dispose ();
+    ctx->receiver.Dispose ();
+  }
 
   g_object_unref (ctx->script);
 
