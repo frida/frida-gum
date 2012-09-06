@@ -40,6 +40,8 @@
 # include <winsock2.h>
 # include <ws2tcpip.h>
 # define GUM_SETJMP(env) setjmp (env)
+# define GUM_LONGJMP(env, val) longjmp (env, val)
+  typedef jmp_buf gum_jmp_buf;
 # define GUM_SOCKOPT_OPTVAL(v) reinterpret_cast<char *> (v)
   typedef int gum_socklen_t;
 #else
@@ -50,7 +52,15 @@
 # include <netinet/in.h>
 # include <sys/socket.h>
 # include <sys/un.h>
-# define GUM_SETJMP(env) sigsetjmp (env, 1)
+# ifdef HAVE_DARWIN
+#  define GUM_SETJMP(env) setjmp (env)
+#  define GUM_LONGJMP(env, val) longjmp (env, val)
+   typedef jmp_buf gum_jmp_buf;
+# else
+#  define GUM_SETJMP(env) sigsetjmp (env, 1)
+#  define GUM_LONGJMP(env, val) siglongjmp (env, val)
+   typedef sigjmp_buf gum_jmp_buf;
+# endif
 # if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
@@ -145,8 +155,9 @@ struct _GumMemoryAccessScope
 {
   gboolean exception_occurred;
   gpointer address;
-  jmp_buf env;
+  gum_jmp_buf env;
 };
+#define GUM_MEMORY_ACCESS_SCOPE_INIT { FALSE, NULL, }
 
 enum _GumMemoryValueType
 {
@@ -1402,11 +1413,9 @@ static Handle<Value>
 gum_script_memory_do_read (const Arguments & args,
                            GumMemoryValueType type)
 {
-  GumMemoryAccessScope scope;
+  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
   Handle<Value> address = args[0];
   Handle<Value> result;
-
-  scope.exception_occurred = FALSE;
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
@@ -1608,10 +1617,8 @@ static Handle<Value>
 gum_script_memory_do_write (const Arguments & args,
                             GumMemoryValueType type)
 {
-  GumMemoryAccessScope scope;
+  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
   gpointer address = GSIZE_TO_POINTER (args[1]->IntegerValue ());
-
-  scope.exception_occurred = FALSE;
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
@@ -1657,9 +1664,9 @@ gum_script_memory_do_write (const Arguments & args,
 #endif
 
 static void
-gum_script_memory_do_longjmp (jmp_buf * env)
+gum_script_memory_do_longjmp (gum_jmp_buf * env)
 {
-  longjmp (*env, 1);
+  GUM_LONGJMP (*env, 1);
 }
 
 static gboolean
@@ -1691,8 +1698,8 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
 
 #if GLIB_SIZEOF_VOID_P == 4
     context->Esp -= 8;
-    *((jmp_buf **) (context->Esp + 4)) = &scope->env;
-    *((jmp_buf **) (context->Esp + 0)) = NULL;
+    *((gum_jmp_buf **) (context->Esp + 4)) = &scope->env;
+    *((gum_jmp_buf **) (context->Esp + 0)) = NULL;
     context->Eip = (DWORD) gum_script_memory_do_longjmp;
 #else
     context->Rsp -= 16;
@@ -1727,7 +1734,7 @@ gum_script_memory_on_invalid_access (int sig,
     scope->exception_occurred = TRUE;
 
     scope->address = siginfo->si_addr;
-    longjmp (scope->env, 1);
+    GUM_LONGJMP (scope->env, 1);
   }
 
 not_our_fault:
