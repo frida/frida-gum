@@ -154,6 +154,13 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   gchar * source;
   GError * err = NULL;
 
+  if (fixture->script != NULL)
+  {
+    gum_script_unload (fixture->script);
+    g_object_unref (fixture->script);
+    fixture->script = NULL;
+  }
+
   va_start (args, source_template);
   source = g_strdup_vprintf (source_template, args);
   va_end (args);
@@ -166,6 +173,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
 
   gum_script_set_message_handler (fixture->script,
       test_script_fixture_store_message, fixture, NULL);
+
   gum_script_load (fixture->script);
 }
 
