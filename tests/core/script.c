@@ -59,6 +59,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_write_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
+  SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
@@ -683,6 +684,24 @@ SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
         "}"
       "});", haystack, haystack);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(1328, 7, '13 37', {"
+        "onMatch: function(address, size) {"
+        "  send('onMatch');"
+        "},"
+        "onError: function(message) {"
+        "  send('onError: ' + message);"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onError: access violation reading 0x530\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 

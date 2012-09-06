@@ -189,6 +189,7 @@ struct _GumMemoryScanContext
   GumMemoryRange range;
   GumMatchPattern * pattern;
   Persistent<Function> on_match;
+  Persistent<Function> on_error;
   Persistent<Function> on_complete;
   Persistent<Object> receiver;
 
@@ -1782,6 +1783,9 @@ gum_script_on_memory_scan (const Arguments & args)
   Local<Function> on_match;
   if (!gum_script_callbacks_get (callbacks, "onMatch", &on_match))
     return Undefined ();
+  Local<Function> on_error;
+  if (!gum_script_callbacks_get (callbacks, "onError", &on_error))
+    return Undefined ();
   Local<Function> on_complete;
   if (!gum_script_callbacks_get (callbacks, "onComplete", &on_complete))
     return Undefined ();
@@ -1793,6 +1797,7 @@ gum_script_on_memory_scan (const Arguments & args)
     ctx->range = range;
     ctx->pattern = pattern;
     ctx->on_match = Persistent<Function>::New (on_match);
+    ctx->on_error = Persistent<Function>::New (on_error);
     ctx->on_complete = Persistent<Function>::New (on_complete);
     ctx->receiver = Persistent<Object>::New (args.This ());
 
@@ -1823,6 +1828,7 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
     Locker l;
     HandleScope handle_scope;
     ctx->on_match.Dispose ();
+    ctx->on_error.Dispose ();
     ctx->on_complete.Dispose ();
     ctx->receiver.Dispose ();
   }
@@ -1838,15 +1844,34 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
                            gpointer user_data)
 {
   GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
+  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
 
   (void) job;
   (void) cancellable;
 
-  gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
-      ctx);
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
+
+  if (GUM_SETJMP (scope.env) == 0)
+  {
+    gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
+        ctx);
+  }
+
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
 
   {
-    ScriptScope scope (ctx->script);
+    ScriptScope script_scope (ctx->script);
+
+    if (scope.exception_occurred)
+    {
+      gchar * message = g_strdup_printf (
+          "access violation reading 0x%" G_GSIZE_MODIFIER "x",
+          GPOINTER_TO_SIZE (scope.address));
+      Handle<Value> argv[] = { String::New (message) };
+      ctx->on_error->Call (ctx->receiver, 1, argv);
+      g_free (message);
+    }
+
     ctx->on_complete->Call (ctx->receiver, 0, 0);
   }
 
