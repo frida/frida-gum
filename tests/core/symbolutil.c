@@ -59,6 +59,11 @@ typedef struct _TestForEachContext {
   guint number_of_calls;
 } TestForEachContext;
 
+#ifdef HAVE_DARWIN
+static gboolean store_export_address_if_malloc (const gchar * name,
+    GumAddress address, gpointer user_data);
+#endif
+
 static gboolean module_found_cb (const gchar * name, GumAddress address,
     const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, GumAddress address,
@@ -223,6 +228,9 @@ SYMUTIL_TESTCASE (darwin_module_exports)
 {
   mach_port_t task = gum_test_get_target_task ();
   TestForEachContext ctx;
+  GumAddress actual_malloc_address = 0;
+  GumAddress expected_malloc_address;
+  void * module;
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -235,6 +243,31 @@ SYMUTIL_TESTCASE (darwin_module_exports)
   gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
       export_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  gum_darwin_enumerate_exports (task, SYSTEM_MODULE_NAME,
+      store_export_address_if_malloc, &actual_malloc_address);
+  g_assert (actual_malloc_address != 0);
+
+  module = dlopen (SYSTEM_MODULE_NAME, 0);
+  expected_malloc_address = GUM_ADDRESS (dlsym (module, "malloc"));
+  g_assert (expected_malloc_address != 0);
+  dlclose (module);
+
+  g_assert_cmphex (actual_malloc_address, ==, expected_malloc_address);
+}
+
+static gboolean
+store_export_address_if_malloc (const gchar * name,
+                                GumAddress address,
+                                gpointer user_data)
+{
+  if (strcmp (name, "malloc") == 0)
+  {
+    *((GumAddress *) user_data) = address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 #endif

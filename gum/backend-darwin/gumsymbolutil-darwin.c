@@ -565,7 +565,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
       if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       {
         symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
-        symbol_address = sym->n_value;
+        symbol_address = sym->n_value + slide;
         if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
           symbol_address++;
       }
@@ -576,7 +576,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
       if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       {
         symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
-        symbol_address = sym->n_value;
+        symbol_address = sym->n_value + slide;
         if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
           symbol_address++;
       }
