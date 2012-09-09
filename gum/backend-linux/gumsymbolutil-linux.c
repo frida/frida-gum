@@ -45,6 +45,7 @@ typedef Elf64_Sym GumElfSymbol;
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
+typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumFindModuleContext
 {
@@ -53,8 +54,16 @@ struct _GumFindModuleContext
   gchar * path;
 };
 
+struct _GumFindExportContext
+{
+  GumAddress result;
+  const gchar * symbol_name;
+};
+
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
     GumAddress address, const gchar * path, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (const gchar * name,
+    GumAddress address, gpointer user_data);
 
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
@@ -215,7 +224,8 @@ gum_module_enumerate_exports (const gchar * module_name,
     GumElfSymbol * sym;
 
     sym = base_address + dynsym_section_offset + (i * dynsym_entry_size);
-    if (GUM_ELF_ST_BIND (sym->st_info) == STB_GLOBAL &&
+    if ((GUM_ELF_ST_BIND (sym->st_info) == STB_GLOBAL ||
+         GUM_ELF_ST_BIND (sym->st_info) == STB_WEAK) &&
         GUM_ELF_ST_TYPE (sym->st_info) == STT_FUNC &&
         sym->st_shndx != SHN_UNDEF)
     {
@@ -301,14 +311,25 @@ gum_module_enumerate_ranges (const gchar * module_name,
 GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {
-  return 0;
+  GumFindModuleContext ctx = { module_name, 0, NULL };
+  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches, &ctx);
+  g_free (ctx.path);
+  return ctx.base;
 }
 
 GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  return 0;
+  GumFindExportContext ctx;
+
+  ctx.result = 0;
+  ctx.symbol_name = symbol_name;
+
+  gum_module_enumerate_exports (module_name,
+      gum_store_address_if_export_name_matches, &ctx);
+
+  return ctx.result;
 }
 
 static gboolean
@@ -325,6 +346,22 @@ gum_store_base_and_path_if_name_matches (const gchar * name,
   ctx->base = address;
   ctx->path = g_strdup (path);
   return FALSE;
+}
+
+static gboolean
+gum_store_address_if_export_name_matches (const gchar * name,
+                                          GumAddress address,
+                                          gpointer user_data)
+{
+  GumFindExportContext * ctx = (GumFindExportContext *) user_data;
+
+  if (strcmp (name, ctx->symbol_name) == 0)
+  {
+    ctx->result = address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static GumPageProtection

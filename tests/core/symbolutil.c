@@ -34,11 +34,9 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (process_ranges)
   SYMUTIL_TESTENTRY (module_exports)
   SYMUTIL_TESTENTRY (module_ranges_can_be_enumerated)
-#ifndef HAVE_LINUX
   SYMUTIL_TESTENTRY (module_base)
   SYMUTIL_TESTENTRY (module_export_can_be_found)
   SYMUTIL_TESTENTRY (module_export_matches_system_lookup)
-#endif
 #ifdef HAVE_DARWIN
   SYMUTIL_TESTENTRY (darwin_enumerate_modules)
   SYMUTIL_TESTENTRY (darwin_enumerate_ranges)
@@ -138,8 +136,6 @@ SYMUTIL_TESTCASE (module_ranges_can_be_enumerated)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-#ifndef HAVE_LINUX
-
 SYMUTIL_TESTCASE (module_base)
 {
   g_assert (gum_module_find_base_address (SYSTEM_MODULE_NAME) != 0);
@@ -168,8 +164,6 @@ SYMUTIL_TESTCASE (module_export_matches_system_lookup)
   g_assert_cmphex (gum_address, ==, GPOINTER_TO_SIZE (system_address));
 #endif
 }
-
-#endif
 
 #ifdef HAVE_DARWIN
 
