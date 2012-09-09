@@ -64,7 +64,7 @@
 #elif defined (HAVE_ANDROID)
 # define SYSTEM_MODULE_NAME "libc.so"
 #else
-# define SYSTEM_MODULE_NAME "libc-2.12.1.so"
+# define SYSTEM_MODULE_NAME "libc-2.15.so"
 #endif
 #if defined (G_OS_WIN32)
 # define SYSTEM_MODULE_EXPORT "Sleep"
