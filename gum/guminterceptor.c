@@ -503,7 +503,8 @@ intercept_function_at (GumInterceptor * self,
 
   ctx = function_context_new (self, function_address, &self->priv->allocator);
 
-  ctx->listener_entries = g_ptr_array_sized_new (2);
+  ctx->listener_entries =
+      gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
 
   _gum_function_context_make_monitor_trampoline (ctx);
   _gum_function_context_activate_trampoline (ctx);
@@ -611,7 +612,7 @@ function_context_destroy (FunctionContext * function_ctx)
   }
 
   if (function_ctx->listener_entries != NULL)
-    g_ptr_array_free (function_ctx->listener_entries, TRUE);
+    gum_array_free (function_ctx->listener_entries, TRUE);
 
   gum_free (function_ctx);
 }
@@ -623,12 +624,12 @@ function_context_add_listener (FunctionContext * function_ctx,
 {
   ListenerEntry * entry;
 
-  entry = g_new (ListenerEntry, 1);
+  entry = gum_new (ListenerEntry, 1);
   entry->listener_interface = GUM_INVOCATION_LISTENER_GET_INTERFACE (listener);
   entry->listener_instance = listener;
   entry->function_data = function_data;
 
-  g_ptr_array_add (function_ctx->listener_entries, entry);
+  gum_array_append_val (function_ctx->listener_entries, entry);
 }
 
 static void
@@ -636,13 +637,23 @@ function_context_remove_listener (FunctionContext * function_ctx,
                                   GumInvocationListener * listener)
 {
   ListenerEntry * entry;
+  guint i;
 
   entry = function_context_find_listener_entry (function_ctx, listener);
   g_assert (entry != NULL);
 
-  g_ptr_array_remove (function_ctx->listener_entries, entry);
+  for (i = 0; i < function_ctx->listener_entries->len; i++)
+  {
+    ListenerEntry * cur =
+        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+    if (cur == entry)
+    {
+      gum_array_remove_index (function_ctx->listener_entries, i);
+      break;
+    }
+  }
 
-  g_free (entry);
+  gum_free (entry);
 }
 
 static gboolean
@@ -660,8 +671,8 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
 
   for (i = 0; i < function_ctx->listener_entries->len; i++)
   {
-    ListenerEntry * entry = (ListenerEntry *)
-        g_ptr_array_index (function_ctx->listener_entries, i);
+    ListenerEntry * entry =
+        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
 
     if (entry->listener_instance == listener)
       return entry;
@@ -728,8 +739,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       ListenerEntry * entry;
       ListenerInvocationState state;
 
-      entry = (ListenerEntry *)
-          g_ptr_array_index (function_ctx->listener_entries, i);
+      entry =
+          gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
 
       state.point_cut = GUM_POINT_ENTER;
       state.entry = entry;
@@ -795,8 +806,8 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     ListenerEntry * entry;
     ListenerInvocationState state;
 
-    entry = (ListenerEntry *)
-        g_ptr_array_index (function_ctx->listener_entries, i);
+    entry =
+        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
 
     state.point_cut = GUM_POINT_LEAVE;
     state.entry = entry;
