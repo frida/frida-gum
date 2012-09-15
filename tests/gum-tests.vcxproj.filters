@@ -54,14 +54,14 @@
     <ClCompile Include="core\arch-x86\relocator.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
-    <ClCompile Include="core\stalker.c">
-      <Filter>Tests\core</Filter>
+    <ClCompile Include="core\arch-x86\stalker.c">
+      <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="stubs\fakeeventsink.c">
       <Filter>Source Files\stubs</Filter>
     </ClCompile>
-    <ClCompile Include="core\stalker-fixture.c">
-      <Filter>Tests\core</Filter>
+    <ClCompile Include="core\arch-x86\stalker-fixture.c">
+      <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="core\symbolutil.c">
       <Filter>Tests\core</Filter>

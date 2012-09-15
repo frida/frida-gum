@@ -93,8 +93,8 @@
     <ClCompile Include="gum\gumeventsink.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gumstalker.c">
-      <Filter>core</Filter>
+    <ClCompile Include="gum\backend-x86\gumstalker-x86.c">
+      <Filter>core\backend-x86</Filter>
     </ClCompile>
     <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c">
       <Filter>core\backend-windows</Filter>

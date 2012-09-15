@@ -20,7 +20,8 @@ arch_sources += \
 	arch-arm/armwriter.c \
 	arch-arm/armrelocator.c \
 	arch-arm/thumbwriter.c \
-	arch-arm/thumbrelocator.c
+	arch-arm/thumbrelocator.c \
+	arch-arm/stalker.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-arm
 endif
@@ -49,5 +50,6 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/tests \
+	-I $(top_srcdir)/tests/stubs \
 	$(arch_includes) \
 	$(GUM_CFLAGS)

@@ -53,7 +53,6 @@
     <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />
-    <ClCompile Include="gum\gumstalker.c" />
     <ClCompile Include="gum\gumtracer.c" />
   </ItemGroup>
 
@@ -76,6 +75,7 @@
   <ItemGroup>
     <ClCompile Include="gum\backend-x86\gumclosure-x86.c" />
     <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
+    <ClCompile Include="gum\backend-x86\gumstalker-x86.c" />
   </ItemGroup>
 
   <ItemGroup>

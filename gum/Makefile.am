@@ -88,7 +88,8 @@ arch_includes += \
 backend_sources += \
 	backend-arm/gumclosure-arm.c \
 	backend-arm/guminterceptor-arm.c \
-	backend-arm/gumspinlock-arm.c
+	backend-arm/gumspinlock-arm.c \
+	backend-arm/gumstalker-arm.c
 endif
 
 if OS_LINUX
@@ -154,6 +155,7 @@ libgum_la_SOURCES = \
 	gum.c \
 	gumbacktracer.c \
 	gumcodeallocator.c \
+	gumeventsink.c \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
