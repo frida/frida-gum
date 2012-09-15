@@ -19,6 +19,8 @@
 
 #include "gumsymbolutil.h"
 
+#include "gumlinux.h"
+
 #include <elf.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -123,24 +125,38 @@ gum_process_enumerate_ranges (GumPageProtection prot,
                               GumFoundRangeFunc func,
                               gpointer user_data)
 {
+  gum_linux_enumerate_ranges (getpid (), prot, func, user_data);
+}
+
+void
+gum_linux_enumerate_ranges (pid_t pid,
+                            GumPageProtection prot,
+                            GumFoundRangeFunc func,
+                            gpointer user_data)
+{
+  gchar * maps_path;
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
   gchar * line;
   gboolean carry_on = TRUE;
 
-  fp = fopen ("/proc/self/maps", "r");
+  maps_path = g_strdup_printf ("/proc/%d/maps", pid);
+
+  fp = fopen (maps_path, "r");
   g_assert (fp != NULL);
+
+  g_free (maps_path);
 
   line = g_malloc (line_size);
 
   while (carry_on && fgets (line, line_size, fp) != NULL)
   {
-    guint8 * start, * end;
+    GumAddress start, end;
     gchar perms[4 + 1] = { 0, };
     gint n;
     GumPageProtection cur_prot;
 
-    n = sscanf (line, "%p-%p %4s", &start, &end, perms);
+    n = sscanf (line, "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %4s", &start, &end, perms);
     g_assert_cmpint (n, ==, 3);
 
     cur_prot = gum_page_protection_from_proc_perms_string (perms);

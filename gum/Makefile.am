@@ -94,6 +94,8 @@ endif
 if OS_LINUX
 backend_sources += \
 	backend-linux/gumsymbolutil-linux.c
+guminclude_HEADERS += \
+	backend-linux/gumlinux.h
 endif
 
 if OS_DARWIN
