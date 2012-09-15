@@ -59,7 +59,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
   INTERCEPTOR_TESTENTRY (function_data)
 
-#ifdef HAVE_I386
+#ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
 #endif
@@ -67,8 +67,6 @@ TEST_LIST_END ()
 
 #ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
-#endif
-#ifdef HAVE_I386
 static gpointer replacement_malloc (gsize size);
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
@@ -500,6 +498,10 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
   proxy_func_free (proxy_func);
 }
 
+#endif /* HAVE_I386 */
+
+#ifdef G_OS_WIN32
+
 INTERCEPTOR_TESTCASE (replace_function)
 {
   guint counter = 0;
@@ -518,13 +520,11 @@ INTERCEPTOR_TESTCASE (replace_function)
 
   gum_interceptor_revert_function (fixture->interceptor, malloc);
   g_assert_cmpint (counter, ==, 1);
-#ifdef G_OS_WIN32
   /*
    * FIXME: FPU state is not preserved, which makes this part fail depending
    *        on compiler optimizations.
    */
   g_assert_cmphex (GPOINTER_TO_SIZE (ret), ==, 0x42);
-#endif
 
   ret = malloc (1);
   g_assert_cmpint (counter, ==, 1);
@@ -553,8 +553,6 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_free (ret);
 }
 
-#ifdef G_OS_WIN32
-
 static gpointer
 hit_target_function_repeatedly (gpointer data)
 {
@@ -573,8 +571,6 @@ hit_target_function_repeatedly (gpointer data)
 
   return NULL;
 }
-
-#endif
 
 typedef gpointer (* MallocFunc) (gsize size);
 
@@ -642,5 +638,5 @@ replacement_free_doing_nothing (gpointer mem)
   (*counter)++;
 }
 
-#endif
+#endif /* G_OS_WIN32 */
 
