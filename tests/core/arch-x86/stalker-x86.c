@@ -18,7 +18,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "stalker-fixture.c"
+#include "stalker-x86-fixture.c"
 
 TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (no_events)
@@ -55,9 +55,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (heap_api)
 
 #ifdef G_OS_WIN32
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   STALKER_TESTENTRY (win32_indirect_call_seg)
-#endif
+# endif
   STALKER_TESTENTRY (win32_messagebeep_api)
   STALKER_TESTENTRY (win32_follow_user_to_kernel_to_callback)
   STALKER_TESTENTRY (win32_follow_callback_to_kernel_to_user)
@@ -124,9 +124,8 @@ STALKER_TESTCASE (call)
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent, 0).type,
       ==, GUM_CALL);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).call;
-  g_assert_cmphex ((guint64) ev->location,
-      ==, (guint64) fixture->last_invoke_calladdr);
-  g_assert_cmphex ((guint64) ev->target, ==, (guint64) func);
+  GUM_ASSERT_CMPADDR (ev->location, ==, fixture->last_invoke_calladdr);
+  GUM_ASSERT_CMPADDR (ev->target, ==, func);
 }
 
 STALKER_TESTCASE (ret)
@@ -140,10 +139,9 @@ STALKER_TESTCASE (ret)
   g_assert_cmpint (g_array_index (fixture->sink->events, GumEvent, 0).type,
       ==, GUM_RET);
   ev = &g_array_index (fixture->sink->events, GumEvent, 0).ret;
-  g_assert_cmphex ((guint64) ev->location,
-      ==, (guint64) (((guint8 *) GSIZE_TO_POINTER (func)) + 6));
-  g_assert_cmphex ((guint64) ev->target,
-      ==, (guint64) fixture->last_invoke_retaddr);
+  GUM_ASSERT_CMPADDR (ev->location,
+      ==, ((guint8 *) GSIZE_TO_POINTER (func)) + 6);
+  GUM_ASSERT_CMPADDR (ev->target, ==, fixture->last_invoke_retaddr);
 }
 
 STALKER_TESTCASE (exec)
@@ -158,7 +156,7 @@ STALKER_TESTCASE (exec)
       INVOKER_IMPL_OFFSET).type, ==, GUM_EXEC);
   ev = &g_array_index (fixture->sink->events, GumEvent,
       INVOKER_IMPL_OFFSET).ret;
-  g_assert_cmphex ((guint64) ev->location, ==, (guint64) func);
+  GUM_ASSERT_CMPADDR (ev->location, ==, func);
 }
 
 STALKER_TESTCASE (call_depth)
@@ -273,8 +271,7 @@ probe_func_a_invocation (GumCallSite * site, gpointer user_data)
 
   ctx->callback_count++;
 
-  g_assert_cmphex ((guint64) site->block_address, ==,
-      (guint64) ctx->block_start);
+  GUM_ASSERT_CMPADDR (site->block_address, ==, ctx->block_start);
 #if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmphex (site->cpu_context->ecx, ==, 0xaaaa1111);
   g_assert_cmphex (site->cpu_context->edx, ==, 0xaaaa2222);
@@ -321,16 +318,16 @@ STALKER_TESTCASE (unconditional_jumps)
   invoke_jumpy (fixture, GUM_EXEC);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
-      ==, (guint64) (fixture->code + 0));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, (guint64) (fixture->code + 2));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
-      ==, (guint64) (fixture->code + 5));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 7));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
-      ==, (guint64) (fixture->code + 14));
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
+      ==, fixture->code + 0);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
+      ==, fixture->code + 2);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
+      ==, fixture->code + 5);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
+      ==, fixture->code + 7);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
+      ==, fixture->code + 14);
 }
 
 static StalkerTestFunc
@@ -368,14 +365,14 @@ STALKER_TESTCASE (short_conditional_jump_true)
   invoke_short_condy (fixture, GUM_EXEC, 42);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
-      ==, (guint64) (fixture->code + 0));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, (guint64) (fixture->code + 3));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
-      ==, (guint64) (fixture->code + 10));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 15));
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
+      ==, fixture->code + 0);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
+      ==, fixture->code + 3);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
+      ==, fixture->code + 10);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
+      ==, fixture->code + 15);
 }
 
 STALKER_TESTCASE (short_conditional_jump_false)
@@ -383,16 +380,16 @@ STALKER_TESTCASE (short_conditional_jump_false)
   invoke_short_condy (fixture, GUM_EXEC, 43);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 5);
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
-      ==, (guint64) (fixture->code + 0));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, (guint64) (fixture->code + 3));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
-      ==, (guint64) (fixture->code + 5));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
-      ==, (guint64) (fixture->code + 16));
-  g_assert_cmphex ((guint64) NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
-      ==, (guint64) (fixture->code + 21));
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
+      ==, fixture->code + 0);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
+      ==, fixture->code + 3);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
+      ==, fixture->code + 5);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
+      ==, fixture->code + 16);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 4),
+      ==, fixture->code + 21);
 }
 
 static StalkerTestFunc
@@ -463,9 +460,9 @@ STALKER_TESTCASE (long_conditional_jump)
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
+#define FOLLOW_RETURN_EXTRA_INSN_COUNT 1
 #else
-#define FOLLOW_RETURN_EXTRA_INSN_COUNT 2
+#define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
 #endif
 
 STALKER_TESTCASE (follow_return)
@@ -483,6 +480,11 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 {
   guint8 * code;
   GumX86Writer cw;
+#if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction_unfollow = 8;
+#else
+  guint align_correction_unfollow = 8;
+#endif
   const gchar * start_following_lbl = "start_following";
   GCallback invoke_func;
 
@@ -492,9 +494,11 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_put_call_near_label (&cw, start_following_lbl);
   gum_x86_writer_put_nop (&cw);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_put_label (&cw, start_following_lbl);
@@ -542,9 +546,9 @@ STALKER_TESTCASE (follow_stdcall)
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 0
+#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 1
 #else
-#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 2
+#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 0
 #endif
 
 STALKER_TESTCASE (unfollow_deep)
@@ -554,7 +558,7 @@ STALKER_TESTCASE (unfollow_deep)
   invoke_unfollow_deep_code (fixture);
 
   g_assert_cmpuint (fixture->sink->events->len,
-      ==, 6 + UNFOLLOW_DEEP_EXTRA_INSN_COUNT);
+      ==, 7 + UNFOLLOW_DEEP_EXTRA_INSN_COUNT);
 }
 
 static void
@@ -562,6 +566,13 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 {
   guint8 * code;
   GumX86Writer cw;
+#if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction_follow = 4;
+  guint align_correction_unfollow = 12;
+#else
+  guint align_correction_follow = 8;
+  guint align_correction_unfollow = 0;
+#endif
   const gchar * func_a_lbl = "func_a";
   const gchar * func_b_lbl = "func_b";
   const gchar * func_c_lbl = "func_c";
@@ -571,9 +582,11 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 
   gum_x86_writer_init (&cw, code);
 
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_with_arguments (&cw, gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_near_label (&cw, func_a_lbl);
   gum_x86_writer_put_ret (&cw);
 
@@ -586,8 +599,10 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_put_label (&cw, func_c_lbl);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_call_with_arguments (&cw, gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_free (&cw);
@@ -684,10 +699,10 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpint (ret, ==, 1337);
   g_assert_cmpuint (fixture->sink->events->len, ==, 2 + 1);
-  g_assert_cmphex ((guint64) NTH_EVENT_AS_CALL (1)->location,
-      ==, (guint64) (code + call_template->call_site_offset));
-  g_assert_cmphex ((guint64) NTH_EVENT_AS_CALL (1)->target,
-      ==, (guint64) (code + call_template->target_func_offset));
+  GUM_ASSERT_CMPADDR (NTH_EVENT_AS_CALL (1)->location,
+      ==, code + call_template->call_site_offset);
+  GUM_ASSERT_CMPADDR (NTH_EVENT_AS_CALL (1)->target,
+      ==, code + call_template->target_func_offset);
 
   return func;
 }

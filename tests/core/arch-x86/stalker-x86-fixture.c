@@ -25,6 +25,7 @@
 #include "gummemory.h"
 #include "testutil.h"
 
+#include <stdlib.h>
 #include <string.h>
 #ifdef G_OS_WIN32
 #define VC_EXTRALEAN
@@ -39,10 +40,10 @@
     TEST_ENTRY_WITH_FIXTURE ("Core/Stalker", test_stalker, NAME, \
         TestStalkerFixture)
 
-#if GLIB_SIZEOF_VOID_P == 4
-#define STALKER_TESTFUNC __fastcall
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+# define STALKER_TESTFUNC __fastcall
 #else
-#define STALKER_TESTFUNC
+# define STALKER_TESTFUNC
 #endif
 
 #define NTH_EVENT_AS_CALL(N) \
@@ -111,11 +112,12 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define INVOKER_INSN_COUNT  7
+# define INVOKER_INSN_COUNT 11
+# define INVOKER_IMPL_OFFSET 5
 #else
-#define INVOKER_INSN_COUNT  9
+# define INVOKER_INSN_COUNT 10
+# define INVOKER_IMPL_OFFSET 4
 #endif
-#define INVOKER_IMPL_OFFSET 3
 
 /* custom invoke code as we want to stalk a deterministic code sequence */
 static gint
@@ -126,6 +128,15 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gint ret;
   guint8 * code;
   GumX86Writer cw;
+#if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction_follow = 4;
+  guint align_correction_call = 12;
+  guint align_correction_unfollow = 8;
+#else
+  guint align_correction_follow = 8;
+  guint align_correction_call = 0;
+  guint align_correction_unfollow = 8;
+#endif
   GCallback invoke_func;
 
   code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
@@ -134,21 +145,27 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   gum_x86_writer_put_pushax (&cw);
 
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
   gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_follow_me, 2,
       GUM_ARG_POINTER, fixture->stalker,
       GUM_ARG_POINTER, fixture->sink);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
 
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
   gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
   fixture->last_invoke_calladdr = (guint8 *) gum_x86_writer_cur (&cw);
   gum_x86_writer_put_call (&cw, func);
   fixture->last_invoke_retaddr = (guint8 *) gum_x86_writer_cur (&cw);
   gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (&ret));
   gum_x86_writer_put_mov_reg_ptr_reg (&cw, GUM_REG_XCX, GUM_REG_EAX);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
 
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
   gum_x86_writer_put_call_with_arguments (&cw,
       gum_stalker_unfollow_me, 1,
       GUM_ARG_POINTER, fixture->stalker);
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_unfollow);
 
   gum_x86_writer_put_popax (&cw);
 

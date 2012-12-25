@@ -9,7 +9,8 @@ if ARCH_I386
 arch_sources += \
 	arch-x86/codewriter.c \
 	arch-x86/functionparser.c \
-	arch-x86/relocator.c
+	arch-x86/relocator.c \
+	arch-x86/stalker-x86.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-x86 \
 	-I $(top_srcdir)/ext/udis86
@@ -21,7 +22,7 @@ arch_sources += \
 	arch-arm/armrelocator.c \
 	arch-arm/thumbwriter.c \
 	arch-arm/thumbrelocator.c \
-	arch-arm/stalker.c
+	arch-arm/stalker-arm.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-arm
 endif

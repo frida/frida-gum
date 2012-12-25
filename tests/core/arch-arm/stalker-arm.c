@@ -18,7 +18,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "stalker-fixture.c"
+#include "stalker-arm-fixture.c"
 
 TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (call)

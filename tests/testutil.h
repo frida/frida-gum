@@ -57,6 +57,9 @@
   }                                                                       \
   G_STMT_END
 
+#define GUM_ASSERT_CMPADDR(n1, cmp, n2) \
+    g_assert_cmphex (GPOINTER_TO_SIZE (n1), cmp, GPOINTER_TO_SIZE (n2))
+
 #if defined (G_OS_WIN32)
 # define SYSTEM_MODULE_NAME "kernel32.dll"
 #elif defined (HAVE_DARWIN)

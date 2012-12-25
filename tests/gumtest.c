@@ -116,14 +116,11 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_V8)
   TEST_RUN_LIST (script);
 #endif
-#if defined (HAVE_I386) && defined (G_OS_WIN32) /* for now */
+#if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
-  TEST_RUN_LIST (stalker);
   TEST_RUN_LIST (tracer);
 #endif
-#if defined (HAVE_ARM)
   TEST_RUN_LIST (stalker);
-#endif
 #if !defined (HAVE_ANDROID) && !defined (HAVE_IOS)
   TEST_RUN_LIST (backtracer);
 #endif

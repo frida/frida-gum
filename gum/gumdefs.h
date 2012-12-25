@@ -173,6 +173,13 @@ struct _GumCpuContext
 #define GUM_CPU_MODE 32
 #define GUM_THUNK GUM_FASTCALL
 #endif
+#if !defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 8
+# define GUM_THUNK_REG_ARG0 GUM_REG_XDI
+# define GUM_THUNK_REG_ARG1 GUM_REG_XSI
+#else
+# define GUM_THUNK_REG_ARG0 GUM_REG_XCX
+# define GUM_THUNK_REG_ARG1 GUM_REG_XDX
+#endif
 
 #ifdef _MSC_VER
 # define GUM_CDECL __cdecl

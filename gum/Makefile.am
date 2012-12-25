@@ -67,7 +67,9 @@ arch_libs += \
 backend_sources += \
 	backend-x86/gumclosure-x86.c \
 	backend-x86/guminterceptor-x86.c \
-	backend-x86/gumspinlock-x86.c
+	backend-x86/gumspinlock-x86.c \
+	backend-x86/gumstalker-x86.c \
+	backend-x86/gumstalker-x86-glue.S
 endif
 
 if ARCH_ARM
