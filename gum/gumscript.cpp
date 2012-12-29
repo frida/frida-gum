@@ -21,6 +21,9 @@
 
 #include "guminterceptor.h"
 #include "gumscript-priv.h"
+#include "gumscripteventsink.h"
+#include "gumscriptscope.h"
+#include "gumstalker.h"
 #include "gumsymbolutil.h"
 #include "gumtls.h"
 #ifdef G_OS_WIN32
@@ -106,6 +109,7 @@ struct _GumScriptPrivate
   GMainContext * main_context;
 
   GumInterceptor * interceptor;
+  GumStalker * stalker;
 
   Persistent<Context> context;
   Persistent<Script> raw_script;
@@ -294,6 +298,8 @@ static Handle<Value> gum_script_on_socket_local_address (
 static Handle<Value> gum_script_on_socket_peer_address (const Arguments & args);
 static Handle<Value> gum_script_socket_address_to_value (
     struct sockaddr * addr);
+static Handle<Value> gum_script_on_stalker_follow (const Arguments & args);
+static Handle<Value> gum_script_on_stalker_unfollow (const Arguments & args);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -423,6 +429,12 @@ gum_script_dispose (GObject * object)
     gum_script_unload (self);
 
     priv->main_context = NULL;
+
+    if (priv->stalker != NULL)
+    {
+      g_object_unref (priv->stalker);
+      priv->stalker = NULL;
+    }
 
     g_object_unref (priv->interceptor);
     priv->interceptor = NULL;
@@ -636,6 +648,15 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_socket_peer_address));
   global_templ->Set (String::New ("Socket"), socket_templ);
 
+  Handle<ObjectTemplate> stalker_templ = ObjectTemplate::New ();
+  stalker_templ->Set (String::New ("follow"),
+      FunctionTemplate::New (gum_script_on_stalker_follow,
+          External::Wrap (self)));
+  stalker_templ->Set (String::New ("unfollow"),
+      FunctionTemplate::New (gum_script_on_stalker_unfollow,
+          External::Wrap (self)));
+  global_templ->Set (String::New ("Stalker"), stalker_templ);
+
   priv->context = Context::New (NULL, global_templ);
 
   Context::Scope context_scope (priv->context);
@@ -647,41 +668,30 @@ gum_script_create_context (GumScript * self)
   priv->args_template = Persistent<ObjectTemplate>::New (args_templ);
 }
 
-class ScriptScope
+ScriptScope::ScriptScope (GumScript * parent)
+  : parent (parent),
+    context_scope (parent->priv->context)
 {
-public:
-  ScriptScope (GumScript * parent)
-    : parent (parent),
-      context_scope (parent->priv->context)
+}
+
+ScriptScope::~ScriptScope ()
+{
+  GumScriptPrivate * priv = parent->priv;
+
+  if (trycatch.HasCaught () && priv->message_handler_func != NULL)
   {
+    Handle<Message> message = trycatch.Message ();
+    Handle<Value> exception = trycatch.Exception ();
+    String::AsciiValue exception_str (exception);
+    gchar * error = g_strdup_printf (
+        "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
+        message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
+        *exception_str);
+    priv->message_handler_func (parent, error, NULL, 0,
+        priv->message_handler_data);
+    g_free (error);
   }
-
-  ~ScriptScope ()
-  {
-    GumScriptPrivate * priv = parent->priv;
-
-    if (trycatch.HasCaught () && priv->message_handler_func != NULL)
-    {
-      Handle<Message> message = trycatch.Message ();
-      Handle<Value> exception = trycatch.Exception ();
-      String::AsciiValue exception_str (exception);
-      gchar * error = g_strdup_printf (
-          "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-          *exception_str);
-      priv->message_handler_func (parent, error, NULL, 0,
-          priv->message_handler_data);
-      g_free (error);
-    }
-  }
-
-private:
-  GumScript * parent;
-  Locker l;
-  HandleScope handle_scope;
-  Context::Scope context_scope;
-  TryCatch trycatch;
-};
+}
 
 GumScript *
 gum_script_from_string (const gchar * source,
@@ -2224,6 +2234,54 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
   }
 
   return Null ();
+}
+
+static Handle<Value>
+gum_script_on_stalker_follow (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+  GumEventSink * sink;
+
+  Local<Value> callbacks_value = args[0];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
+        "first argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Function> on_receive;
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onReceive", &on_receive))
+    return Undefined ();
+
+  if (priv->stalker == NULL)
+    priv->stalker = gum_stalker_new ();
+  sink = gum_script_event_sink_new (self, priv->main_context, on_receive);
+  gum_stalker_follow_me (priv->stalker, sink);
+  g_object_unref (sink);
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_stalker_unfollow (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+
+  if (priv->stalker == NULL)
+    return Undefined ();
+
+  if (gum_stalker_is_following_me (priv->stalker))
+  {
+    gum_stalker_unfollow_me (priv->stalker);
+    return True ();
+  }
+
+  return False ();
 }
 
 static void

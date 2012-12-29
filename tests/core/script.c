@@ -70,6 +70,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
+  SCRIPT_TESTENTRY (execution_can_be_traced)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
@@ -242,6 +243,18 @@ on_read_ready (GObject * source_object,
   GError * error = NULL;
   g_input_stream_read_finish (G_INPUT_STREAM (source_object), res, &error);
   g_clear_error (&error);
+}
+
+SCRIPT_TESTCASE (execution_can_be_traced)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
+    "  onReceive: function(events) {"
+    "    send(events.length > 0);"
+    "  }"
+    "});"
+    "Thread.sleep(0.01);"
+    "Stalker.unfollow();");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (process_arch_is_available)

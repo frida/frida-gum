@@ -138,8 +138,8 @@ guminclude_HEADERS += backend-gcc/gumgccbacktracer.h
 endif
 
 if HAVE_V8
-script_sources += gumscript.cpp
-guminclude_HEADERS += gumscript.h
+script_sources += gumscript.cpp gumscripteventsink.cpp
+guminclude_HEADERS += gumscript.h gumscripteventsink.h
 endif
 
 if ENABLE_LIBS
