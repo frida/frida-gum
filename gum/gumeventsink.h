@@ -40,7 +40,9 @@ struct _GumEventSinkIface
   GTypeInterface parent;
 
   GumEventType (*query_mask) (GumEventSink * self);
+  void (*start) (GumEventSink * self);
   void (*process) (GumEventSink * self, const GumEvent * ev);
+  void (*stop) (GumEventSink * self);
 };
 
 G_BEGIN_DECLS
@@ -48,7 +50,9 @@ G_BEGIN_DECLS
 GType gum_event_sink_get_type (void);
 
 GUM_API GumEventType gum_event_sink_query_mask (GumEventSink * self);
+GUM_API void gum_event_sink_start (GumEventSink * self);
 GUM_API void gum_event_sink_process (GumEventSink * self, const GumEvent * ev);
+GUM_API void gum_event_sink_stop (GumEventSink * self);
 
 G_END_DECLS
 

@@ -47,10 +47,26 @@ gum_event_sink_query_mask (GumEventSink * self)
 }
 
 void
+gum_event_sink_start (GumEventSink * self)
+{
+  GumEventSinkIface * iface = GUM_EVENT_SINK_GET_INTERFACE (self);
+  if (iface->start != NULL)
+    iface->start (self);
+}
+
+void
 gum_event_sink_process (GumEventSink * self,
                         const GumEvent * ev)
 {
   GumEventSinkIface * iface = GUM_EVENT_SINK_GET_INTERFACE (self);
   g_assert (iface->process != NULL);
   iface->process (self, ev);
+}
+
+void
+gum_event_sink_stop (GumEventSink * self)
+{
+  GumEventSinkIface * iface = GUM_EVENT_SINK_GET_INTERFACE (self);
+  if (iface->stop != NULL)
+    iface->stop (self);
 }
