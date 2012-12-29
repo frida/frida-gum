@@ -541,6 +541,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 
   g_private_set (self->priv->exec_ctx, ctx);
 
+  gum_event_sink_start (sink);
+
   return ctx;
 }
 
@@ -548,6 +550,8 @@ static void
 gum_stalker_destroy_exec_ctx (GumStalker * self,
                               GumExecCtx * ctx)
 {
+  gum_event_sink_stop (ctx->sink);
+
   gum_exec_ctx_destroy_block_pool (ctx);
   gum_exec_ctx_destroy_thunks (ctx);
 
