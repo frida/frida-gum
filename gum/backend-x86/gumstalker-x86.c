@@ -932,10 +932,17 @@ static void
 gum_exec_ctx_write_event_submit_code (GumExecCtx * ctx,
                                       GumX86Writer * cw)
 {
+#if GLIB_SIZEOF_VOID_P == 4
+  guint align_correction = 8;
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
   gum_x86_writer_put_call_with_arguments (cw,
       ctx->sink_process_impl, 2,
       GUM_ARG_POINTER, ctx->sink,
       GUM_ARG_REGISTER, GUM_REG_XAX);
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
 }
 
 static void
