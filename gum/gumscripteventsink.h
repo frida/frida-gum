@@ -30,6 +30,7 @@
 #define GUM_TYPE_SCRIPT_EVENT_SINK (gum_script_event_sink_get_type ())
 #define GUM_SCRIPT_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_SCRIPT_EVENT_SINK, GumScriptEventSink))
+#define GUM_SCRIPT_EVENT_SINK_CAST(obj) ((GumScriptEventSink *) (obj))
 #define GUM_SCRIPT_EVENT_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_SCRIPT_EVENT_SINK, GumScriptEventSinkClass))
 #define GUM_IS_SCRIPT_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
@@ -49,6 +50,7 @@ struct _GumScriptEventSink
   GArray * events;
 
   GumScript * script;
+  GMainContext * main_context;
   v8::Persistent<v8::Function> on_receive;
   GSource * source;
 };

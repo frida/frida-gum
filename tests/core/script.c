@@ -247,6 +247,10 @@ on_read_ready (GObject * source_object,
 
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
+  GMainContext * context;
+
+  context = g_main_context_get_thread_default ();
+
   COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
     "  onReceive: function(events) {"
     "    send(events.length > 0);"
@@ -254,6 +258,9 @@ SCRIPT_TESTCASE (execution_can_be_traced)
     "});"
     "Thread.sleep(0.01);"
     "Stalker.unfollow();");
+  EXPECT_NO_MESSAGES ();
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
