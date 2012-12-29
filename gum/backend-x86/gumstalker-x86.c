@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2009-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C)      2010 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * This library is free software; you can redistribute it and/or
@@ -239,6 +239,8 @@ static gboolean gum_exec_block_full (GumExecBlock * block);
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
+    GumExecBlock * block, GumGeneratorContext * gc);
+static GumVirtualizationRequirements gum_exec_block_virtualize_sysenter_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_call_invoke_code (GumExecBlock * block,
     GumInstruction * insn, const GumBranchTarget * target, GumX86Writer * cw);
@@ -616,8 +618,8 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
   gum_exec_ctx_write_state_preserve_prolog (ctx, &cw);
   gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XDX,
       GUM_ADDRESS (&ctx->replacement_address));
-  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_REG_XDX, GUM_REG_XDX);
-  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX,
+  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_THUNK_REG_ARG1, GUM_REG_XDX);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (ctx));
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
@@ -751,6 +753,9 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
         break;
       case UD_Iret:
         requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
+        break;
+      case UD_Isysenter:
+        requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
         break;
       default:
         if (gum_mnemonic_is_jcc (insn.ud->mnemonic))
@@ -1219,6 +1224,30 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
       gc->code_writer);
 
   return GUM_REQUIRE_NOTHING;
+}
+
+static GumVirtualizationRequirements
+gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
+                                         GumGeneratorContext * gc)
+{
+#if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
+  guint8 code[] = {
+    0x89, 0x15, 0x78, 0x56, 0x34, 0x12, /* mov [X], edx */
+    0xba, 0x78, 0x56, 0x34, 0x12,       /* mov edx, X */
+    0x0f, 0x34                          /* sysenter */
+  };
+  *((gpointer *) (code + 2)) = &block->ctx->replacement_address;
+  *((gpointer *) (code + 7)) = block->ctx->replace_block_thunk;
+
+  if ((block->ctx->sink_mask & (GUM_CALL | GUM_RET)) != 0)
+    gum_exec_ctx_write_depth_decrement_code (block->ctx, gc->code_writer);
+  gum_x86_writer_put_bytes (gc->code_writer, code, sizeof (code));
+  gum_x86_relocator_skip_one_no_label (gc->relocator);
+
+  return GUM_REQUIRE_NOTHING;
+#else
+  return GUM_REQUIRE_RELOCATION;
+#endif
 }
 
 static void

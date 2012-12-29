@@ -53,6 +53,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (big_block)
 
   STALKER_TESTENTRY (heap_api)
+  STALKER_TESTENTRY (follow_syscall)
 
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
@@ -76,6 +77,19 @@ STALKER_TESTCASE (heap_api)
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
   free (p);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_assert_cmpuint (fixture->sink->events->len, >, 0);
+
+  /*gum_fake_event_sink_dump (fixture->sink);*/
+}
+
+STALKER_TESTCASE (follow_syscall)
+{
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
+
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
