@@ -954,6 +954,10 @@ static void
 gum_exec_ctx_write_state_preserve_prolog (GumExecCtx * ctx,
                                           GumX86Writer * cw)
 {
+  guint8 fxsave[] = {
+    0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
+  };
+
   (void) ctx;
 
   gum_x86_writer_put_pushfx (cw);
@@ -974,14 +978,21 @@ gum_exec_ctx_write_state_preserve_prolog (GumExecCtx * ctx,
 
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XSP);
   gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, ~(16 - 1));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 512);
+  gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
 }
 
 static void
 gum_exec_ctx_write_state_preserve_epilog (GumExecCtx * ctx,
                                           GumX86Writer * cw)
 {
+  guint8 fxrstor[] = {
+    0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
+  };
+
   (void) ctx;
 
+  gum_x86_writer_put_bytes (cw, fxrstor, sizeof (fxrstor));
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XSP, GUM_REG_XBX);
 
 #if GLIB_SIZEOF_VOID_P == 8
