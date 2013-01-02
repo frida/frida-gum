@@ -78,6 +78,7 @@ struct _GumCallProbe
   GumProbeId id;
   GumCallProbeCallback callback;
   gpointer user_data;
+  GDestroyNotify user_notify;
 };
 
 struct _GumExecCtx
@@ -429,7 +430,8 @@ GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
                             GumCallProbeCallback callback,
-                            gpointer data)
+                            gpointer data,
+                            GDestroyNotify notify)
 {
   GumStalkerPrivate * priv = self->priv;
   GumCallProbe probe;
@@ -438,6 +440,7 @@ gum_stalker_add_call_probe (GumStalker * self,
   probe.id = g_atomic_int_exchange_and_add (&priv->last_probe_id, 1) + 1;
   probe.callback = callback;
   probe.user_data = data;
+  probe.user_notify = notify;
 
   gum_spinlock_acquire (&priv->probe_lock);
 
@@ -467,46 +470,45 @@ gum_stalker_remove_call_probe (GumStalker * self,
 {
   GumStalkerPrivate * priv = self->priv;
   gpointer target_address;
-  GArray * probes;
 
   gum_spinlock_acquire (&priv->probe_lock);
 
   target_address =
       g_hash_table_lookup (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
-  g_assert (target_address != NULL);
-  g_hash_table_remove (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
-
-  probes = (GArray *)
-      g_hash_table_lookup (priv->probe_array_by_address, target_address);
-  g_assert (probes != NULL);
-
-  if (probes->len == 1)
+  if (target_address != NULL)
   {
-    g_assert_cmpuint (g_array_index (probes, GumCallProbe, 0).id, ==, id);
-    g_hash_table_remove (priv->probe_target_by_id, target_address);
-  }
-  else
-  {
+    GArray * probes;
     gint match_index = -1;
     guint i;
+    GumCallProbe * probe;
+
+    g_hash_table_remove (priv->probe_target_by_id, GSIZE_TO_POINTER (id));
+
+    probes = (GArray *)
+        g_hash_table_lookup (priv->probe_array_by_address, target_address);
+    g_assert (probes != NULL);
 
     for (i = 0; i != probes->len; i++)
     {
-      GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
-
-      if (probe->id == id)
+      if (g_array_index (probes, GumCallProbe, i).id == id)
       {
         match_index = i;
         break;
       }
     }
+    g_assert_cmpint (match_index, !=, -1);
 
-    g_assert (match_index != -1);
+    probe = &g_array_index (probes, GumCallProbe, match_index);
+    if (probe->user_notify != NULL)
+      probe->user_notify (probe->user_data);
     g_array_remove_index (probes, match_index);
-  }
 
-  priv->any_probes_attached =
-      g_hash_table_size (priv->probe_array_by_address) != 0;
+    if (probes->len == 0)
+      g_hash_table_remove (priv->probe_array_by_address, target_address);
+
+    priv->any_probes_attached =
+        g_hash_table_size (priv->probe_array_by_address) != 0;
+  }
 
   gum_spinlock_release (&priv->probe_lock);
 }
@@ -514,8 +516,17 @@ gum_stalker_remove_call_probe (GumStalker * self,
 static void
 gum_stalker_free_probe_array (gpointer data)
 {
-  GArray * probe_array = (GArray *) data;
-  g_array_free (probe_array, TRUE);
+  GArray * probes = (GArray *) data;
+  guint i;
+
+  for (i = 0; i != probes->len; i++)
+  {
+    GumCallProbe * probe = &g_array_index (probes, GumCallProbe, i);
+    if (probe->user_notify != NULL)
+      probe->user_notify (probe->user_data);
+  }
+
+  g_array_free (probes, TRUE);
 }
 
 static GumExecCtx *

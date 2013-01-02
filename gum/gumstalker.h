@@ -76,7 +76,8 @@ GUM_API void gum_stalker_unfollow_me (GumStalker * self);
 GUM_API gboolean gum_stalker_is_following_me (GumStalker * self);
 
 GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
-    gpointer target_address, GumCallProbeCallback callback, gpointer data);
+    gpointer target_address, GumCallProbeCallback callback, gpointer data,
+    GDestroyNotify notify);
 GUM_API void gum_stalker_remove_call_probe (GumStalker * self,
     GumProbeId id);
 

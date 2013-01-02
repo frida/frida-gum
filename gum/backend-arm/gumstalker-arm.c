@@ -88,7 +88,8 @@ GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,
                             GumCallProbeCallback callback,
-                            gpointer data)
+                            gpointer data,
+                            GDestroyNotify notify)
 {
   return 0;
 }

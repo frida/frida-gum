@@ -260,14 +260,14 @@ STALKER_TESTCASE (call_probe)
   probe_ctx.callback_count = 0;
   probe_ctx.block_start = fixture->code;
   probe_id = gum_stalker_add_call_probe (fixture->stalker,
-      func_a_address, probe_func_a_invocation, &probe_ctx);
+      func_a_address, probe_func_a_invocation, &probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 1);
 
   secondary_probe_ctx.callback_count = 0;
   secondary_probe_ctx.block_start = fixture->code;
   secondary_probe_id = gum_stalker_add_call_probe (fixture->stalker,
-      func_a_address, probe_func_a_invocation, &secondary_probe_ctx);
+      func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
   g_assert_cmpuint (secondary_probe_ctx.callback_count, ==, 1);
