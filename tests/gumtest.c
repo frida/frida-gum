@@ -172,6 +172,14 @@ main (gint argc, gchar * argv[])
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
 
+  {
+    GMainContext * context;
+
+    context = g_main_context_get_thread_default ();
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
+  }
+
   _test_util_deinit ();
 
 #ifdef HAVE_I386
