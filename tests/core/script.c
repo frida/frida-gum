@@ -71,6 +71,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
   SCRIPT_TESTENTRY (execution_can_be_traced)
+  SCRIPT_TESTENTRY (call_can_be_probed)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
@@ -262,6 +263,23 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (call_can_be_probed)
+{
+  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
+    "  onReceive: function(events) {}"
+    "});"
+    "Stalker.addCallProbe(" GUM_PTR_FORMAT ", function(args) {"
+    "  send(args[0]);"
+    "});"
+    "recv('stop', function(message) {"
+    "  Stalker.unfollow();"
+    "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+  target_function_int (1337);
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  POST_MESSAGE ("{\"type\":\"stop\"}");
 }
 
 SCRIPT_TESTCASE (process_arch_is_available)

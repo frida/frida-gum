@@ -103,6 +103,7 @@ typedef guint GumMemoryValueType;
 
 typedef struct _GumScriptMatchContext GumScriptMatchContext;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
+typedef struct _GumScriptCallProbe GumScriptCallProbe;
 
 struct _GumScriptPrivate
 {
@@ -113,7 +114,8 @@ struct _GumScriptPrivate
 
   Persistent<Context> context;
   Persistent<Script> raw_script;
-  Persistent<ObjectTemplate> args_template;
+  Persistent<ObjectTemplate> invocation_args;
+  Persistent<ObjectTemplate> probe_args;
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
@@ -198,6 +200,13 @@ struct _GumMemoryScanContext
   Persistent<Object> receiver;
 
   GumScript * script;
+};
+
+struct _GumScriptCallProbe
+{
+  GumScript * script;
+  Persistent<Function> callback;
+  Persistent<Object> receiver;
 };
 
 static void gum_script_listener_iface_init (gpointer g_iface,
@@ -300,15 +309,24 @@ static Handle<Value> gum_script_socket_address_to_value (
     struct sockaddr * addr);
 static Handle<Value> gum_script_on_stalker_follow (const Arguments & args);
 static Handle<Value> gum_script_on_stalker_unfollow (const Arguments & args);
+static Handle<Value> gum_script_on_stalker_add_call_probe (
+    const Arguments & args);
+static Handle<Value> gum_script_on_stalker_remove_call_probe (
+    const Arguments & args);
+static void gum_script_call_probe_free (GumScriptCallProbe * probe);
+static void gum_script_call_probe_fire (GumCallSite * site,
+    gpointer user_data);
+static Handle<Value> gum_script_probe_args_on_get_nth (uint32_t index,
+    const AccessorInfo & info);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
 static void gum_script_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
 
-static Handle<Value> gum_script_args_on_get_nth (uint32_t index,
+static Handle<Value> gum_script_invocation_args_on_get_nth (uint32_t index,
     const AccessorInfo & info);
-static Handle<Value> gum_script_args_on_set_nth (uint32_t index,
+static Handle<Value> gum_script_invocation_args_on_set_nth (uint32_t index,
     Local<Value> value, const AccessorInfo & info);
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
@@ -462,8 +480,10 @@ gum_script_dispose (GObject * object)
     while (!g_queue_is_empty (priv->heap_blocks))
       g_free (g_queue_pop_tail (priv->heap_blocks));
 
-    priv->args_template.Dispose ();
-    priv->args_template.Clear ();
+    priv->invocation_args.Dispose ();
+    priv->invocation_args.Clear ();
+    priv->probe_args.Dispose ();
+    priv->probe_args.Clear ();
     priv->raw_script.Dispose ();
     priv->raw_script.Clear ();
     priv->context.Dispose ();
@@ -655,17 +675,33 @@ gum_script_create_context (GumScript * self)
   stalker_templ->Set (String::New ("unfollow"),
       FunctionTemplate::New (gum_script_on_stalker_unfollow,
           External::Wrap (self)));
+  stalker_templ->Set (String::New ("addCallProbe"),
+      FunctionTemplate::New (gum_script_on_stalker_add_call_probe,
+          External::Wrap (self)));
+  stalker_templ->Set (String::New ("removeCallProbe"),
+      FunctionTemplate::New (gum_script_on_stalker_remove_call_probe,
+          External::Wrap (self)));
   global_templ->Set (String::New ("Stalker"), stalker_templ);
 
   priv->context = Context::New (NULL, global_templ);
 
   Context::Scope context_scope (priv->context);
 
-  Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
-  args_templ->SetInternalFieldCount (1);
-  args_templ->SetIndexedPropertyHandler (gum_script_args_on_get_nth,
-      gum_script_args_on_set_nth);
-  priv->args_template = Persistent<ObjectTemplate>::New (args_templ);
+  {
+    Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
+    args_templ->SetInternalFieldCount (1);
+    args_templ->SetIndexedPropertyHandler (
+        gum_script_invocation_args_on_get_nth,
+        gum_script_invocation_args_on_set_nth);
+    priv->invocation_args = Persistent<ObjectTemplate>::New (args_templ);
+  }
+
+  {
+    Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
+    args_templ->SetInternalFieldCount (1);
+    args_templ->SetIndexedPropertyHandler (gum_script_probe_args_on_get_nth);
+    priv->probe_args = Persistent<ObjectTemplate>::New (args_templ);
+  }
 }
 
 ScriptScope::ScriptScope (GumScript * parent)
@@ -2284,6 +2320,125 @@ gum_script_on_stalker_unfollow (const Arguments & args)
   return False ();
 }
 
+static Handle<Value>
+gum_script_on_stalker_add_call_probe (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+  GumScriptCallProbe * probe;
+  GumProbeId id;
+
+  Local<Value> target_spec = args[0];
+  if (!target_spec->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (String::New ("Stalker.addCallProbe: "
+        "first argument must be a memory address")));
+    return Undefined ();
+  }
+  gpointer target_address = GSIZE_TO_POINTER (target_spec->IntegerValue ());
+
+  Local<Value> callback_value = args[1];
+  if (!callback_value->IsFunction ())
+  {
+    ThrowException (Exception::TypeError (String::New ("Stalker.addCallProbe: "
+        "second argument must be a function")));
+    return Undefined ();
+  }
+  Local<Function> callback = Local<Function>::Cast (callback_value);
+
+  if (priv->stalker == NULL)
+    priv->stalker = gum_stalker_new ();
+
+  probe = g_slice_new (GumScriptCallProbe);
+  probe->script = self;
+  probe->callback = Persistent<Function>::New (callback);
+  probe->receiver = Persistent<Object>::New (args.This ());
+  id = gum_stalker_add_call_probe (priv->stalker, target_address,
+      gum_script_call_probe_fire,
+      probe, reinterpret_cast<GDestroyNotify> (gum_script_call_probe_free));
+
+  return Uint32::New (id);
+}
+
+static Handle<Value>
+gum_script_on_stalker_remove_call_probe (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
+
+  Local<Value> id = args[0];
+  if (!id->IsUint32 ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Stalker.removeCallProbe: argument must be a probe id")));
+    return Undefined ();
+  }
+
+  if (priv->stalker == NULL)
+    return Undefined ();
+
+  gum_stalker_remove_call_probe (priv->stalker, id->ToUint32 ()->Value ());
+
+  return Undefined ();
+}
+
+static void
+gum_script_call_probe_free (GumScriptCallProbe * probe)
+{
+  Locker l;
+  HandleScope handle_scope;
+  probe->callback.Dispose ();
+  probe->receiver.Dispose ();
+  g_slice_free (GumScriptCallProbe, probe);
+}
+
+static void
+gum_script_call_probe_fire (GumCallSite * site,
+                            gpointer user_data)
+{
+  GumScriptCallProbe * self = static_cast<GumScriptCallProbe *> (user_data);
+
+  ScriptScope scope (self->script);
+  Local<Object> args = self->script->priv->probe_args->NewInstance ();
+  args->SetPointerInInternalField (0, site);
+  Handle<Value> argv[] = { args };
+  self->callback->Call (self->receiver, 1, argv);
+}
+
+static Handle<Value>
+gum_script_probe_args_on_get_nth (uint32_t index,
+                                  const AccessorInfo & info)
+{
+  GumCallSite * site = static_cast<GumCallSite *> (
+      info.This ()->GetPointerFromInternalField (0));
+  gsize value;
+
+  switch (index)
+  {
+#if GLIB_SIZEOF_VOID_P == 8
+# if GUM_NATIVE_ABI_IS_UNIX
+    case 0: value = site->cpu_context->rdi; break;
+    case 1: value = site->cpu_context->rsi; break;
+    case 2: value = site->cpu_context->rdx; break;
+    case 3: value = site->cpu_context->rcx; break;
+    case 4: value = site->cpu_context->r8;  break;
+    case 5: value = site->cpu_context->r9;  break;
+# else
+    case 0: value = site->cpu_context->rcx; break;
+    case 1: value = site->cpu_context->rdx; break;
+    case 2: value = site->cpu_context->r8;  break;
+    case 3: value = site->cpu_context->r9;  break;
+# endif
+#endif
+    default:
+      gsize * stack_argument = static_cast<gsize *> (site->stack_data);
+      value = stack_argument[index];
+      break;
+  }
+
+  return Number::New (value);
+}
+
 static void
 gum_script_on_enter (GumInvocationListener * listener,
                      GumInvocationContext * context)
@@ -2302,7 +2457,7 @@ gum_script_on_enter (GumInvocationListener * listener,
 
   if (!entry->on_enter.IsEmpty ())
   {
-    Local<Object> args = self->priv->args_template->NewInstance ();
+    Local<Object> args = self->priv->invocation_args->NewInstance ();
     args->SetPointerInInternalField (0, context);
 
     Handle<Value> argv[] = { args };
@@ -2336,8 +2491,8 @@ gum_script_on_leave (GumInvocationListener * listener,
 }
 
 static Handle<Value>
-gum_script_args_on_get_nth (uint32_t index,
-                            const AccessorInfo & info)
+gum_script_invocation_args_on_get_nth (uint32_t index,
+                                       const AccessorInfo & info)
 {
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
       info.This ()->GetPointerFromInternalField (0));
@@ -2348,9 +2503,9 @@ gum_script_args_on_get_nth (uint32_t index,
 }
 
 static Handle<Value>
-gum_script_args_on_set_nth (uint32_t index,
-                            Local<Value> value,
-                            const AccessorInfo & info)
+gum_script_invocation_args_on_set_nth (uint32_t index,
+                                       Local<Value> value,
+                                       const AccessorInfo & info)
 {
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
       info.This ()->GetPointerFromInternalField (0));
