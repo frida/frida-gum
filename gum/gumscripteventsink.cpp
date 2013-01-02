@@ -75,9 +75,13 @@ gum_script_event_sink_finalize (GObject * obj)
 
   g_assert (self->source == NULL);
 
+  g_object_unref (self->script);
+
   gum_spinlock_free (&self->lock);
   g_array_free (self->events, TRUE);
 
+  Locker l;
+  HandleScope handle_scope;
   self->on_receive.Dispose ();
 
   G_OBJECT_CLASS (gum_script_event_sink_parent_class)->finalize (obj);
@@ -92,6 +96,7 @@ gum_script_event_sink_new (GumScript * script,
 
   sink = GUM_SCRIPT_EVENT_SINK (
       g_object_new (GUM_TYPE_SCRIPT_EVENT_SINK, NULL));
+  g_object_ref (script);
   sink->script = script;
   sink->main_context = main_context;
   sink->on_receive = Persistent<Function>::New (on_receive);
