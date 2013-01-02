@@ -1437,11 +1437,18 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 {
   GumX86Writer * cw = gc->code_writer;
   guint state_preserve_stack_offset, accumulated_stack_delta = 0;
-
+  guint8 fxsave[] = {
+    0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
+  };
+  guint8 fxrstor[] = {
+    0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
+  };
 #if GLIB_SIZEOF_VOID_P == 4
-  state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, edx);
+  guint align_correction = 4;
+
+  state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, ebx);
 #else
-  state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, rsi);
+  state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, r9);
 #endif
 
   gum_x86_writer_put_pushfx (cw);
@@ -1453,16 +1460,29 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* GumCpuContext.xip */
   accumulated_stack_delta += sizeof (GumCpuContext);
 
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XSP);
+  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, ~(16 - 1));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 512);
+  gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
+
   gum_write_push_branch_target_address (target, state_preserve_stack_offset,
       accumulated_stack_delta, cw);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XSI);
-  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XDI, GUM_REG_XSP);
 
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
   gum_x86_writer_put_call_with_arguments (cw,
       GUM_FUNCPTR_TO_POINTER (gum_exec_block_invoke_call_probes_for_target), 3,
       GUM_ARG_POINTER, block,
       GUM_ARG_REGISTER, GUM_REG_XSI,
-      GUM_ARG_REGISTER, GUM_REG_XDI);
+      GUM_ARG_REGISTER, GUM_REG_XBX);
+#if GLIB_SIZEOF_VOID_P == 4
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, align_correction);
+#endif
+
+  gum_x86_writer_put_bytes (cw, fxrstor, sizeof (fxrstor));
+  gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XSP, GUM_REG_XBX);
 
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX); /* discard
                                                     GumCpuContext.xip */
