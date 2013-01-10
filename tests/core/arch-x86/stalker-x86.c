@@ -102,7 +102,7 @@ STALKER_TESTCASE (performance)
 {
   GTimer * timer;
   guint i;
-  const guint repeats = 10000;
+  const guint repeats = 1000;
   gdouble duration_direct, duration_cache_off, duration_cache_on;
 
   timer = g_timer_new ();
