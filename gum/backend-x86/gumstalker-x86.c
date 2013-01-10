@@ -37,7 +37,7 @@
 #include <tchar.h>
 #endif
 
-#define GUM_MAX_EXEC_BLOCKS                    2
+#define GUM_MAX_EXEC_BLOCKS                 1000
 #define GUM_EXEC_BLOCK_SIZE_IN_PAGES          20
 #define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
 #define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
@@ -61,6 +61,7 @@ struct _GumStalkerPrivate
 
   GPrivate * exec_ctx;
 
+  gboolean cache_enabled;
   volatile gboolean any_probes_attached;
   volatile gint last_probe_id;
   GumSpinlock probe_lock;
@@ -118,11 +119,11 @@ struct _GumAddressMapping
 
 struct _GumExecBlock
 {
+  guint ref_count;
   GumExecCtx * ctx;
 
   guint8 * real_begin;
   guint8 * real_end;
-
   guint8 * code_begin;
   guint8 * code_end;
 
@@ -213,7 +214,7 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_create_block_pool (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_block_pool (GumExecCtx * ctx);
 
-static GumExecBlock * gum_exec_ctx_create_block_for (GumExecCtx * ctx,
+static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer address);
 static void gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
     gpointer location, const GumBranchTarget * target, GumX86Writer * cw);
@@ -235,7 +236,9 @@ static void gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
     GumX86Writer * cw);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
-static void gum_exec_block_free (GumExecBlock * block);
+static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
+    gpointer address);
+static void gum_exec_block_release (GumExecBlock * block);
 static gboolean gum_exec_block_full (GumExecBlock * block);
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
@@ -377,6 +380,13 @@ gum_stalker_new (void)
   return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
 }
 
+void
+gum_stalker_set_cache_enabled (GumStalker * self,
+                               gboolean enabled)
+{
+  self->priv->cache_enabled = enabled;
+}
+
 #ifdef _MSC_VER
 
 #define RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(arg)   \
@@ -403,7 +413,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
   GumExecCtx * ctx;
 
   ctx = gum_stalker_create_exec_ctx (self, sink);
-  ctx->current_block = gum_exec_ctx_create_block_for (ctx, *ret_addr_ptr);
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr);
   *ret_addr_ptr = ctx->current_block->code_begin;
 }
 
@@ -588,14 +598,16 @@ static gpointer GUM_THUNK
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
+  gum_exec_block_release (ctx->current_block);
+  ctx->current_block = NULL;
+
   if (start_address == gum_stalker_unfollow_me)
   {
     ctx->unfollow_called_while_still_following = TRUE;
     return start_address;
   }
 
-  gum_exec_block_free (ctx->current_block);
-  ctx->current_block = gum_exec_ctx_create_block_for (ctx, start_address);
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address);
 
   return ctx->current_block->code_begin;
 }
@@ -715,7 +727,7 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
 #endif
 
 static GumExecBlock *
-gum_exec_ctx_create_block_for (GumExecCtx * ctx,
+gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
                                gpointer address)
 {
   GumExecBlock * block;
@@ -723,7 +735,20 @@ gum_exec_ctx_create_block_for (GumExecCtx * ctx,
   GumX86Relocator * rl = &ctx->relocator;
   GumGeneratorContext gc;
 
+  if (ctx->stalker->priv->cache_enabled)
+  {
+    block = gum_exec_block_obtain (ctx, address);
+    if (block != NULL)
+    {
+#if ENABLE_DEBUG
+      printf ("\n\n***\n\nReusing block for %p:\n", address);
+#endif
+      return block;
+    }
+  }
+
   block = gum_exec_block_new (ctx);
+  gum_exec_block_add_address_mapping (block, block->code_begin, address);
   gum_x86_writer_reset (cw, block->code_begin);
   gum_x86_relocator_reset (rl, address, cw);
 
@@ -1056,40 +1081,80 @@ gum_exec_ctx_write_depth_decrement_code (GumExecCtx * ctx,
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)
 {
+  GumExecBlock * block = NULL;
   guint8 * cur;
   guint i;
 
   cur = ctx->block_pool;
+  if (ctx->stalker->priv->cache_enabled)
+  {
+    for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
+    {
+      GumExecBlock * current_block = (GumExecBlock *) cur;
+      if (current_block->mappings_len == 0)
+      {
+        block = current_block;
+        break;
+      }
+      cur += ctx->block_size;
+    }
+  }
 
-  for (i = 0; i < GUM_MAX_EXEC_BLOCKS; ++i)
+  if (block == NULL)
+  {
+    cur = ctx->block_pool;
+    for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
+    {
+      GumExecBlock * current_block = (GumExecBlock *) cur;
+      if (current_block->ref_count == 0)
+      {
+        block = current_block;
+        break;
+      }
+      cur += ctx->block_size;
+    }
+  }
+
+  g_assert (block != NULL);
+
+  block->ref_count++;
+  block->ctx = ctx;
+
+  block->code_end = block->code_begin = cur + ctx->block_code_offset;
+
+  block->mappings_len = 0;
+  block->state = GUM_EXEC_NORMAL;
+
+  return block;
+}
+
+static GumExecBlock *
+gum_exec_block_obtain (GumExecCtx * ctx,
+                       gpointer address)
+{
+  guint8 * cur;
+  guint i;
+
+  cur = ctx->block_pool;
+  for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
   {
     GumExecBlock * block = (GumExecBlock *) cur;
-
-    if (block->ctx == NULL)
+    if (block->mappings_len != 0 && block->mappings[0].real_address == address)
     {
-      block->ctx = ctx;
-
-      block->code_end = block->code_begin = cur + ctx->block_code_offset;
-
-      block->mappings_len = 0;
+      block->ref_count++;
       block->state = GUM_EXEC_NORMAL;
-
-      /* TODO: should we fill the block with INT3 instructions? */
-
       return block;
     }
-
     cur += ctx->block_size;
   }
 
-  g_assert_not_reached ();
   return NULL;
 }
 
 static void
-gum_exec_block_free (GumExecBlock * block)
+gum_exec_block_release (GumExecBlock * block)
 {
-  block->ctx = NULL;
+  block->ref_count--;
 }
 
 static gboolean

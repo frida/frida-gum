@@ -71,6 +71,9 @@ GUM_API GType gum_stalker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumStalker * gum_stalker_new (void);
 
+GUM_API void gum_stalker_set_cache_enabled (GumStalker * self,
+    gboolean enabled);
+
 GUM_API void gum_stalker_follow_me (GumStalker * self, GumEventSink * sink);
 GUM_API void gum_stalker_unfollow_me (GumStalker * self);
 GUM_API gboolean gum_stalker_is_following_me (GumStalker * self);

@@ -68,6 +68,12 @@ gum_stalker_new (void)
 }
 
 void
+gum_stalker_set_cache_enabled (GumStalker * self,
+                               gboolean enabled)
+{
+}
+
+void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {

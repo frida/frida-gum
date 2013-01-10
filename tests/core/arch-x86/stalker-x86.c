@@ -54,6 +54,7 @@ TEST_LIST_BEGIN (stalker)
 
   STALKER_TESTENTRY (heap_api)
   STALKER_TESTENTRY (follow_syscall)
+  STALKER_TESTENTRY (performance)
 
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
@@ -95,6 +96,53 @@ STALKER_TESTCASE (follow_syscall)
   g_assert_cmpuint (fixture->sink->events->len, >, 0);
 
   /*gum_fake_event_sink_dump (fixture->sink);*/
+}
+
+STALKER_TESTCASE (performance)
+{
+  GTimer * timer;
+  guint i;
+  const guint repeats = 10000;
+  gdouble duration_direct, duration_cache_off, duration_cache_on;
+
+  timer = g_timer_new ();
+  for (i = 0; i != repeats; i++)
+    free (malloc (42 + i));
+
+  g_timer_reset (timer);
+  for (i = 0; i != repeats; i++)
+    free (malloc (42 + i));
+  duration_direct = g_timer_elapsed (timer, NULL);
+
+  fixture->sink->mask = GUM_NOTHING;
+
+  gum_stalker_set_cache_enabled (fixture->stalker, FALSE);
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  g_timer_reset (timer);
+  for (i = 0; i != repeats; i++)
+    free (malloc (42 + i));
+  duration_cache_off = g_timer_elapsed (timer, NULL);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  gum_stalker_set_cache_enabled (fixture->stalker, TRUE);
+  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  g_timer_reset (timer);
+  for (i = 0; i != repeats; i++)
+    free (malloc (42 + i));
+  duration_cache_on = g_timer_elapsed (timer, NULL);
+  gum_stalker_unfollow_me (fixture->stalker);
+
+  g_timer_destroy (timer);
+
+  /*
+  g_print ("duration_direct=%.2f ms  duration_cache_off=%.2f ms"
+      "  duration_cache_on=%.2f ms  ratio_cache_off=%.1f  ratio_cache_on=%.1f\n",
+      duration_direct * 1000.0, duration_cache_off * 1000.0,
+      duration_cache_on * 1000.0,
+      duration_cache_off / duration_direct,
+      duration_cache_on / duration_direct);
+  */
+  g_assert_cmpfloat (duration_cache_on / duration_cache_off, <=, 0.4);
 }
 
 static const guint8 flat_code[] = {
