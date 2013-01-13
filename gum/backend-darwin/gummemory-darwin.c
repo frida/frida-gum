@@ -223,9 +223,8 @@ gum_mprotect (gpointer address,
   page_size = gum_query_page_size ();
   aligned_address = GSIZE_TO_POINTER (
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
-  aligned_size = size;
-  if (aligned_size % page_size != 0)
-    aligned_size = (aligned_size + page_size) & ~(page_size - 1);
+  aligned_size =
+      (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
   mach_page_prot = gum_page_protection_to_mach (page_prot);
 
   kr = mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (aligned_address),

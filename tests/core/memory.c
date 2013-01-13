@@ -37,6 +37,7 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (is_memory_readable_handles_mixed_page_protections)
   MEMORY_TESTENTRY (alloc_n_pages_returns_aligned_rw_address)
   MEMORY_TESTENTRY (alloc_n_pages_near_returns_aligned_rw_address_within_range)
+  MEMORY_TESTENTRY (mprotect_handles_page_boundaries)
 TEST_LIST_END ()
 
 typedef struct _TestForEachContext {
@@ -317,6 +318,21 @@ MEMORY_TESTCASE (alloc_n_pages_near_returns_aligned_rw_address_within_range)
   g_assert_cmpuint (actual_distance, <=, as.max_distance);
 
   gum_free_pages (page);
+}
+
+MEMORY_TESTCASE (mprotect_handles_page_boundaries)
+{
+  guint8 * pages;
+  guint page_size;
+
+  pages = gum_alloc_n_pages (2, GUM_PAGE_NO_ACCESS);
+  page_size = gum_query_page_size ();
+
+  gum_mprotect (pages + page_size - 1, 2, GUM_PAGE_RW);
+  pages[page_size - 1] = 0x13;
+  pages[page_size] = 0x37;
+
+  gum_free_pages (pages);
 }
 
 static gboolean

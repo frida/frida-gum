@@ -263,17 +263,22 @@ gum_mprotect (gpointer address,
               gsize size,
               GumPageProtection page_prot)
 {
+  gsize page_size;
   gpointer aligned_address;
+  gsize aligned_size;
   gint unix_page_prot;
   gint result;
 
   g_assert (size != 0);
 
+  page_size = gum_query_page_size ();
   aligned_address = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (address) & ~((gsize) gum_query_page_size () - 1));
+      GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+  aligned_size =
+      (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
   unix_page_prot = gum_page_protection_to_unix (page_prot);
 
-  result = mprotect (aligned_address, size, unix_page_prot);
+  result = mprotect (aligned_address, aligned_size, unix_page_prot);
   g_assert_cmpint (result, ==, 0);
 }
 
