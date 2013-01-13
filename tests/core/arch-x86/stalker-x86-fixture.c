@@ -103,10 +103,15 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
                                const guint8 * tpl_code,
                                guint tpl_size)
 {
+  GumAddressSpec spec;
+
+  spec.near_address = gum_stalker_follow_me;
+  spec.max_distance = G_MAXINT32 / 2;
+
   if (fixture->code != NULL)
     gum_free_pages (fixture->code);
-  fixture->code = (guint8 *) gum_alloc_n_pages (
-      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX);
+  fixture->code = (guint8 *) gum_alloc_n_pages_near (
+      (tpl_size / gum_query_page_size ()) + 1, GUM_PAGE_RWX, &spec);
   memcpy (fixture->code, tpl_code, tpl_size);
   return fixture->code;
 }
@@ -125,6 +130,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
                                         StalkerTestFunc func,
                                         gint arg)
 {
+  GumAddressSpec spec;
   gint ret;
   guint8 * code;
   GumX86Writer cw;
@@ -139,7 +145,10 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 #endif
   GCallback invoke_func;
 
-  code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  spec.near_address = gum_stalker_follow_me;
+  spec.max_distance = G_MAXINT32 / 2;
+
+  code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
   gum_x86_writer_init (&cw, code);
 

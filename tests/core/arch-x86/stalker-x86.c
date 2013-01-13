@@ -540,6 +540,7 @@ STALKER_TESTCASE (follow_return)
 static void
 invoke_follow_return_code (TestStalkerFixture * fixture)
 {
+  GumAddressSpec spec;
   guint8 * code;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
@@ -550,7 +551,10 @@ invoke_follow_return_code (TestStalkerFixture * fixture)
   const gchar * start_following_lbl = "start_following";
   GCallback invoke_func;
 
-  code = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  spec.near_address = gum_stalker_follow_me;
+  spec.max_distance = G_MAXINT32 / 2;
+
+  code = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
   gum_x86_writer_init (&cw, code);
 
@@ -626,6 +630,7 @@ STALKER_TESTCASE (unfollow_deep)
 static void
 invoke_unfollow_deep_code (TestStalkerFixture * fixture)
 {
+  GumAddressSpec spec;
   guint8 * code;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
@@ -640,7 +645,10 @@ invoke_unfollow_deep_code (TestStalkerFixture * fixture)
   const gchar * func_c_lbl = "func_c";
   GCallback invoke_func;
 
-  code = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  spec.near_address = gum_stalker_follow_me;
+  spec.max_distance = G_MAXINT32 / 2;
+
+  code = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
 
   gum_x86_writer_init (&cw, code);
 
