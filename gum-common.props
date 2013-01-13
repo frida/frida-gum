@@ -85,7 +85,7 @@
 
   <ItemGroup>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
-    <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c" />
+    <ClCompile Include="gum\backend-windows\gumprocess-windows.c" />
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c" />
   </ItemGroup>
 

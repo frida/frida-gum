@@ -19,7 +19,7 @@
 
 #include "gumx86backtracer.h"
 
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 typedef struct _GumCodeRange GumCodeRange;
 typedef struct _GumUpdateCodeRangesCtx GumUpdateCodeRangesCtx;

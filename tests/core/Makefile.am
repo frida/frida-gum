@@ -37,6 +37,7 @@ libgum_tests_core_la_SOURCES = \
 	$(script_sources) \
 	closure.c \
 	memory.c \
+	process.c \
 	symbolutil.c \
 	backtracer.c \
 	interceptor.c

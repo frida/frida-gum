@@ -19,6 +19,7 @@ guminclude_HEADERS = \
 	gumlist.h \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
+	gumprocess.h \
 	gumreturnaddress.h \
 	gumspinlock.h \
 	gumstalker.h \
@@ -96,7 +97,7 @@ endif
 
 if OS_LINUX
 backend_sources += \
-	backend-linux/gumsymbolutil-linux.c
+	backend-linux/gumprocess-linux.c
 guminclude_HEADERS += \
 	backend-linux/gumlinux.h
 endif
@@ -105,11 +106,11 @@ if OS_DARWIN
 if ENABLE_OBJC
 backend_sources += \
 	backend-darwin/gumnsbacktracer.m \
-	backend-darwin/gumsymbolbackend-darwin.m
+	backend-darwin/gumsymbolutil-darwin.m
 endif
 backend_sources += \
 	backend-darwin/gummemory-darwin.c \
-	backend-darwin/gumsymbolutil-darwin.c
+	backend-darwin/gumprocess-darwin.c
 guminclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumnsbacktracer.h

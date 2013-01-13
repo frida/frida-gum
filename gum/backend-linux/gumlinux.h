@@ -20,7 +20,7 @@
 #ifndef __GUM_LINUX_H__
 #define __GUM_LINUX_H__
 
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 G_BEGIN_DECLS
 

@@ -21,7 +21,7 @@
 #define __GUM_DARWIN_H__
 
 #include "gummemory.h"
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 #ifdef HAVE_IOS
   /*

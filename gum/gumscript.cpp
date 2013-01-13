@@ -20,11 +20,11 @@
 #include "gumscript.h"
 
 #include "guminterceptor.h"
+#include "gumprocess.h"
 #include "gumscript-priv.h"
 #include "gumscripteventsink.h"
 #include "gumscriptscope.h"
 #include "gumstalker.h"
-#include "gumsymbolutil.h"
 #include "gumtls.h"
 #ifdef G_OS_WIN32
 # include "backend-windows/gumwinexceptionhook.h"

@@ -17,7 +17,7 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 #include "gumdarwin.h"
 
