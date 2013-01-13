@@ -189,3 +189,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
 
   return ret;
 }
+
+static void pretend_workload (void);
+
+gint gum_stalker_dummy_global_to_trick_optimizer = 0;

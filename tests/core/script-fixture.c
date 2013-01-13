@@ -266,4 +266,4 @@ static gpointer invoke_target_function_int_worker (gpointer data);
 static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
 
-static gint gum_dummy_global_to_trick_optimizer = 0;
+gint gum_script_dummy_global_to_trick_optimizer = 0;

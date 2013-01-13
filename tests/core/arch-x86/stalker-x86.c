@@ -101,17 +101,13 @@ STALKER_TESTCASE (follow_syscall)
 STALKER_TESTCASE (performance)
 {
   GTimer * timer;
-  guint i;
-  const guint repeats = 1000;
   gdouble duration_direct, duration_cache_off, duration_cache_on;
 
   timer = g_timer_new ();
-  for (i = 0; i != repeats; i++)
-    free (malloc (42 + i));
+  pretend_workload ();
 
   g_timer_reset (timer);
-  for (i = 0; i != repeats; i++)
-    free (malloc (42 + i));
+  pretend_workload ();
   duration_direct = g_timer_elapsed (timer, NULL);
 
   fixture->sink->mask = GUM_NOTHING;
@@ -119,16 +115,15 @@ STALKER_TESTCASE (performance)
   gum_stalker_set_cache_enabled (fixture->stalker, FALSE);
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   g_timer_reset (timer);
-  for (i = 0; i != repeats; i++)
-    free (malloc (42 + i));
+  pretend_workload ();
   duration_cache_off = g_timer_elapsed (timer, NULL);
   gum_stalker_unfollow_me (fixture->stalker);
 
   gum_stalker_set_cache_enabled (fixture->stalker, TRUE);
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
+  pretend_workload ();
   g_timer_reset (timer);
-  for (i = 0; i != repeats; i++)
-    free (malloc (42 + i));
+  pretend_workload ();
   duration_cache_on = g_timer_elapsed (timer, NULL);
   gum_stalker_unfollow_me (fixture->stalker);
 
@@ -143,6 +138,21 @@ STALKER_TESTCASE (performance)
       duration_cache_on / duration_direct);
   */
   g_assert_cmpfloat (duration_cache_on / duration_cache_off, <=, 0.4);
+}
+
+GUM_NOINLINE static void
+pretend_workload (void)
+{
+  const guint repeats = 250;
+  guint i;
+
+  for (i = 0; i != repeats; i++)
+  {
+    void * p = malloc (42 + i);
+    gum_stalker_dummy_global_to_trick_optimizer +=
+        GPOINTER_TO_SIZE (p) % 42 == 0;
+    free (p);
+  }
 }
 
 static const guint8 flat_code[] = {

@@ -462,8 +462,6 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
 
-  target_function_int (0);
-
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_FORMAT ", {"
       "  onEnter: function(args) {"
@@ -1027,7 +1025,7 @@ target_function_int (int arg)
   for (i = 0; i != 10; i++)
     result += i * arg;
 
-  gum_dummy_global_to_trick_optimizer += result;
+  gum_script_dummy_global_to_trick_optimizer += result;
 
   return result;
 }
@@ -1038,7 +1036,7 @@ target_function_string (const gchar * arg)
   int i;
 
   for (i = 0; i != 10; i++)
-    gum_dummy_global_to_trick_optimizer += i * arg[0];
+    gum_script_dummy_global_to_trick_optimizer += i * arg[0];
 
   return arg;
 }
