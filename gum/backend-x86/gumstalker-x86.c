@@ -719,8 +719,8 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
 
   while (ud_disassemble (&ud_obj))
   {
-    printf ("%s%p\t%s\n", prefix, code + ud_insn_off (&ud_obj),
-        ud_insn_asm (&ud_obj));
+    printf ("%s0x%" G_GINT64_MODIFIER "x\t%s\n",
+        prefix, (guint64) ud_insn_off (&ud_obj), ud_insn_asm (&ud_obj));
   }
 }
 
