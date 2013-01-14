@@ -253,13 +253,16 @@ SCRIPT_TESTCASE (execution_can_be_traced)
 
   context = g_main_context_get_thread_default ();
 
-  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
+  COMPILE_AND_LOAD_SCRIPT (
+    "var me = Process.getCurrentThreadId();"
+    "Stalker.follow(me, {"
     "  onReceive: function(events) {"
     "    send(events.length > 0);"
     "  }"
     "});"
     "Thread.sleep(0.01);"
-    "Stalker.unfollow();");
+    "Stalker.unfollow(me);"
+  );
   EXPECT_NO_MESSAGES ();
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);

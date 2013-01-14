@@ -2393,13 +2393,24 @@ gum_script_on_stalker_follow (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumScriptPrivate * priv = self->priv;
-  GumEventSink * sink;
 
-  Local<Value> callbacks_value = args[0];
+  GumThreadId thread_id;
+  Local<Value> callbacks_value;
+  if (args[0]->IsNumber ())
+  {
+    thread_id = args[0]->IntegerValue ();
+    callbacks_value = args[1];
+  }
+  else
+  {
+    thread_id = gum_process_get_current_thread_id ();
+    callbacks_value = args[0];
+  }
+
   if (!callbacks_value->IsObject ())
   {
     ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
-        "first argument must be a callback object")));
+        "argument must be a callback object")));
     return Undefined ();
   }
 
@@ -2411,8 +2422,8 @@ gum_script_on_stalker_follow (const Arguments & args)
 
   if (priv->stalker == NULL)
     priv->stalker = gum_stalker_new ();
-  sink = gum_script_event_sink_new (self, priv->main_context, on_receive);
-  gum_stalker_follow_me (priv->stalker, sink);
+  GumEventSink * sink = gum_script_event_sink_new (self, priv->main_context, on_receive);
+  gum_stalker_follow (priv->stalker, thread_id, sink);
   g_object_unref (sink);
 
   return Undefined ();
@@ -2425,15 +2436,21 @@ gum_script_on_stalker_unfollow (const Arguments & args)
   GumScriptPrivate * priv = self->priv;
 
   if (priv->stalker == NULL)
-    return Undefined ();
+    return False ();
 
-  if (gum_stalker_is_following_me (priv->stalker))
+  if (args.Length () > 0)
   {
+    GumThreadId thread_id = args[0]->IntegerValue ();
+    gum_stalker_unfollow (priv->stalker, thread_id);
+  }
+  else
+  {
+    if (!gum_stalker_is_following_me (priv->stalker))
+      return False ();
     gum_stalker_unfollow_me (priv->stalker);
-    return True ();
   }
 
-  return False ();
+  return True ();
 }
 
 static Handle<Value>
