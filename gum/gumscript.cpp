@@ -233,6 +233,13 @@ static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
 static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message);
+static Handle<Value> gum_script_on_process_enumerate_threads (
+    const Arguments & args);
+static gboolean gum_script_process_thread_match (GumThreadDetails * details,
+    gpointer user_data);
+static const gchar * gum_script_thread_state_to_string (GumThreadState state);
+static Handle<Object> gum_script_cpu_context_to_object (
+    const GumCpuContext * ctx);
 static Handle<Value> gum_script_on_process_enumerate_modules (
     const Arguments & args);
 static gboolean gum_script_process_module_match (const gchar * name,
@@ -569,6 +576,8 @@ gum_script_create_context (GumScript * self)
       String::New (GUM_SCRIPT_ARCH), ReadOnly);
   process_templ->Set (String::New ("platform"),
       String::New (GUM_SCRIPT_PLATFORM), ReadOnly);
+  process_templ->Set (String::New ("enumerateThreads"),
+      FunctionTemplate::New (gum_script_on_process_enumerate_threads));
   process_templ->Set (String::New ("enumerateModules"),
       FunctionTemplate::New (gum_script_on_process_enumerate_modules));
   process_templ->Set (String::New ("enumerateRanges"),
@@ -1099,6 +1108,103 @@ gum_message_sink_handle_message (GumMessageSink * self,
 {
   Handle<Value> argv[] = { String::New (message) };
   self->callback->Call (self->receiver, 1, argv);
+}
+
+static Handle<Value>
+gum_script_on_process_enumerate_threads (const Arguments & args)
+{
+  GumScriptMatchContext ctx;
+
+  Local<Value> callbacks_value = args[0];
+  if (!callbacks_value->IsObject ())
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "Process.enumerateThreads: argument must be a callback object")));
+    return Undefined ();
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match))
+    return Undefined ();
+  if (!gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete))
+    return Undefined ();
+
+  ctx.receiver = args.This ();
+
+  gum_process_enumerate_threads (gum_script_process_thread_match, &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+
+  return Undefined ();
+}
+
+static gboolean
+gum_script_process_thread_match (GumThreadDetails * details,
+                                 gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+
+  Local<Object> thread (Object::New ());
+  thread->Set (String::New ("id"), Number::New (details->id), ReadOnly);
+  thread->Set (String::New ("state"),
+      String::New (gum_script_thread_state_to_string (details->state)),
+      ReadOnly);
+  thread->Set (String::New ("registers"),
+      gum_script_cpu_context_to_object (&details->cpu_context),
+      ReadOnly);
+  Handle<Value> argv[] = { thread };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
+
+  gboolean proceed = TRUE;
+  if (result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+static const gchar *
+gum_script_thread_state_to_string (GumThreadState state)
+{
+  switch (state)
+  {
+    case GUM_THREAD_RUNNING: return "running";
+    case GUM_THREAD_STOPPED: return "stopped";
+    case GUM_THREAD_WAITING: return "waiting";
+    case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
+    case GUM_THREAD_HALTED: return "halted";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
+  return NULL;
+}
+
+static Handle<Object>
+gum_script_cpu_context_to_object (const GumCpuContext * ctx)
+{
+  Local<Object> result (Object::New ());
+  gsize pc, sp;
+
+#if defined (HAVE_ARM)
+  pc = ctx->pc;
+  sp = ctx->sp;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  pc = ctx->eip;
+  sp = ctx->esp;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  pc = ctx->rip;
+  sp = ctx->rsp;
+#endif
+
+  result->Set (String::New ("pc"), Number::New (pc), ReadOnly);
+  result->Set (String::New ("sp"), Number::New (sp), ReadOnly);
+
+  return result;
 }
 
 static Handle<Value>

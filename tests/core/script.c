@@ -62,6 +62,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
+  SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
@@ -306,6 +307,22 @@ SCRIPT_TESTCASE (process_platform_is_available)
 #elif defined (G_OS_WIN32)
   EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
 #endif
+}
+
+SCRIPT_TESTCASE (process_threads_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Process.enumerateThreads({"
+        "onMatch: function(thread) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function() {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)
