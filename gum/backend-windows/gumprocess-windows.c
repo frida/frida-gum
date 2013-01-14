@@ -25,6 +25,31 @@
 
 static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
+GumThreadId
+gum_process_get_current_thread_id (void)
+{
+  return GetCurrentThreadId ();
+}
+
+gboolean
+gum_process_modify_thread (GumThreadId thread_id,
+                           GumModifyThreadFunc func,
+                           gpointer user_data)
+{
+  /* FIXME */
+  g_assert_not_reached ();
+
+  return FALSE;
+}
+
+void
+gum_process_enumerate_threads (GumFoundThreadFunc func,
+                               gpointer user_data)
+{
+  /* FIXME */
+  g_assert_not_reached ();
+}
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)

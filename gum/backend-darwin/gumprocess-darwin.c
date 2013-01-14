@@ -60,6 +60,16 @@ struct _GumEnumerateExportsContext
   gpointer user_data;
 };
 
+#ifdef HAVE_ARM
+typedef arm_thread_state_t gum_thread_state_t;
+# define GUM_THREAD_STATE_COUNT ARM_THREAD_STATE_COUNT
+# define GUM_THREAD_STATE_FLAVOR ARM_THREAD_STATE
+#else
+typedef x86_thread_state_t gum_thread_state_t;
+# define GUM_THREAD_STATE_COUNT x86_THREAD_STATE_COUNT
+# define GUM_THREAD_STATE_FLAVOR x86_THREAD_STATE
+#endif
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
@@ -100,9 +110,135 @@ static gboolean find_image_vmaddr_and_fileoff (gpointer address,
 static gboolean find_image_symtab_command (gpointer address,
     struct symtab_command ** sc);
 
+static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
+static void gum_cpu_context_from_darwin (const gum_thread_state_t * state,
+    GumCpuContext * ctx);
+static void gum_cpu_context_to_darwin (const GumCpuContext * ctx,
+    gum_thread_state_t * state);
 static const char * gum_symbol_name_from_darwin (const char * s);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
+
+GumThreadId
+gum_process_get_current_thread_id (void)
+{
+  mach_port_t port;
+
+  port = mach_thread_self ();
+  mach_port_deallocate (mach_task_self (), port);
+  return (GumThreadId) port;
+}
+
+gboolean
+gum_process_modify_thread (GumThreadId thread_id,
+                           GumModifyThreadFunc func,
+                           gpointer user_data)
+{
+  gboolean success = FALSE;
+  mach_port_t task;
+  thread_act_array_t threads;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+
+  task = mach_task_self ();
+
+  kr = task_threads (task, &threads, &count);
+  if (kr == KERN_SUCCESS)
+  {
+    guint i;
+
+    for (i = 0; i != count; i++)
+    {
+      thread_t thread = threads[i];
+
+      if (thread == thread_id)
+      {
+        gum_thread_state_t state;
+        mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
+        thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
+        GumCpuContext cpu_context;
+
+        kr = thread_suspend (thread);
+        if (kr != KERN_SUCCESS)
+          break;
+
+        kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+            &state_count);
+        if (kr != KERN_SUCCESS)
+        {
+          thread_resume (thread);
+          break;
+        }
+
+        gum_cpu_context_from_darwin (&state, &cpu_context);
+        func (thread_id, &cpu_context, user_data);
+        gum_cpu_context_to_darwin (&cpu_context, &state);
+
+        kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
+            state_count);
+
+        success =
+            (thread_resume (thread) == KERN_SUCCESS && kr == KERN_SUCCESS);
+      }
+    }
+
+    for (i = 0; i != count; i++)
+      mach_port_deallocate (task, threads[i]);
+    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+  }
+
+  return success;
+}
+
+void
+gum_process_enumerate_threads (GumFoundThreadFunc func,
+                               gpointer user_data)
+{
+  mach_port_t task;
+  thread_act_array_t threads;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+
+  task = mach_task_self ();
+
+  kr = task_threads (task, &threads, &count);
+  if (kr == KERN_SUCCESS)
+  {
+    guint i;
+
+    for (i = 0; i != count; i++)
+    {
+      thread_t thread = threads[i];
+      GumThreadDetails details;
+      thread_basic_info_data_t info;
+      mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
+      gum_thread_state_t state;
+      mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
+      thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
+
+      kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
+          &info_count);
+      if (kr != KERN_SUCCESS)
+        continue;
+
+      kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+          &state_count);
+      if (kr != KERN_SUCCESS)
+        continue;
+
+      details.id = (GumThreadId) thread;
+      details.state = gum_thread_state_from_darwin (info.run_state);
+      gum_cpu_context_from_darwin (&state, &details.cpu_context);
+
+      if (!func (&details, user_data))
+        break;
+    }
+
+    for (i = 0; i != count; i++)
+      mach_port_deallocate (task, threads[i]);
+    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+  }
+}
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
@@ -824,6 +960,124 @@ find_image_symtab_command (gpointer address,
   }
 
   return FALSE;
+}
+
+static GumThreadState
+gum_thread_state_from_darwin (integer_t run_state)
+{
+  switch (run_state)
+  {
+    case TH_STATE_RUNNING: return GUM_THREAD_RUNNING;
+    case TH_STATE_STOPPED: return GUM_THREAD_STOPPED;
+    case TH_STATE_WAITING: return GUM_THREAD_WAITING;
+    case TH_STATE_UNINTERRUPTIBLE: return GUM_THREAD_UNINTERRUPTIBLE;
+    case TH_STATE_HALTED: return GUM_THREAD_HALTED;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+}
+
+static void
+gum_cpu_context_from_darwin (const gum_thread_state_t * state,
+                             GumCpuContext * ctx)
+{
+#if defined (HAVE_ARM)
+  guint n;
+
+  ctx->pc = state->__pc;
+  ctx->sp = state->__sp;
+
+  for (n = 0; n != G_N_ELEMENTS (ctx->r); n++)
+    ctx->r[n] = state->__r[n];
+  ctx->lr = state->__lr;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  const x86_thread_state32_t * ts = &state->uts.ts32;
+
+  ctx->eip = ts->__eip;
+
+  ctx->edi = ts->__edi;
+  ctx->esi = ts->__esi;
+  ctx->ebp = ts->__ebp;
+  ctx->esp = ts->__esp;
+  ctx->ebx = ts->__ebx;
+  ctx->edx = ts->__edx;
+  ctx->ecx = ts->__ecx;
+  ctx->eax = ts->__eax;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  const x86_thread_state64_t * ts = &state->uts.ts64;
+
+  ctx->rip = ts->rip;
+
+  ctx->r15 = ts->r15;
+  ctx->r14 = ts->r14;
+  ctx->r13 = ts->r13;
+  ctx->r12 = ts->r12;
+  ctx->r11 = ts->r11;
+  ctx->r10 = ts->r10;
+  ctx->r9 = ts->r9;
+  ctx->r8 = ts->r8;
+
+  ctx->rdi = ts->rdi;
+  ctx->rsi = ts->rsi;
+  ctx->rbp = ts->rbp;
+  ctx->rsp = ts->rsp;
+  ctx->rbx = ts->rbx;
+  ctx->rdx = ts->rdx;
+  ctx->rcx = ts->rcx;
+  ctx->rax = ts->rax;
+#endif
+}
+
+static void
+gum_cpu_context_to_darwin (const GumCpuContext * ctx,
+                           gum_thread_state_t * state)
+{
+#if defined (HAVE_ARM)
+  guint n;
+
+  state->__pc = ctx->pc;
+  state->__sp = ctx->sp;
+
+  for (n = 0; n != G_N_ELEMENTS (ctx->r); n++)
+    state->__r[n] = ctx->r[n];
+  state->__lr = ctx->lr;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  x86_thread_state32_t * ts = &state->uts.ts32;
+
+  ts->__eip = ctx->eip;
+
+  ts->__edi = ctx->edi;
+  ts->__esi = ctx->esi;
+  ts->__ebp = ctx->ebp;
+  ts->__esp = ctx->esp;
+  ts->__ebx = ctx->ebx;
+  ts->__edx = ctx->edx;
+  ts->__ecx = ctx->ecx;
+  ts->__eax = ctx->eax;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  x86_thread_state64_t * ts = &state->uts.ts64;
+
+  ts->rip = ctx->rip;
+
+  ts->r15 = ctx->r15;
+  ts->r14 = ctx->r14;
+  ts->r13 = ctx->r13;
+  ts->r12 = ctx->r12;
+  ts->r11 = ctx->r11;
+  ts->r10 = ctx->r10;
+  ts->r9 = ctx->r9;
+  ts->r8 = ctx->r8;
+
+  ts->rdi = ctx->rdi;
+  ts->rsi = ctx->rsi;
+  ts->rbp = ctx->rbp;
+  ts->rsp = ctx->rsp;
+  ts->rbx = ctx->rbx;
+  ts->rdx = ctx->rdx;
+  ts->rcx = ctx->rcx;
+  ts->rax = ctx->rax;
+#endif
 }
 
 static const char *

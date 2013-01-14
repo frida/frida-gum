@@ -30,6 +30,7 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
+  PROCESS_TESTENTRY (process_threads)
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
   PROCESS_TESTENTRY (module_exports)
@@ -54,12 +55,29 @@ static gboolean store_export_address_if_malloc (const gchar * name,
     GumAddress address, gpointer user_data);
 #endif
 
+static gboolean thread_found_cb (GumThreadDetails * details,
+    gpointer user_data);
 static gboolean module_found_cb (const gchar * name, GumAddress address,
     const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, GumAddress address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
+
+PROCESS_TESTCASE (process_threads)
+{
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_process_enumerate_threads (thread_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_process_enumerate_threads (thread_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+}
 
 PROCESS_TESTCASE (process_modules)
 {
@@ -252,6 +270,17 @@ store_export_address_if_malloc (const gchar * name,
 }
 
 #endif
+
+static gboolean
+thread_found_cb (GumThreadDetails * details,
+                 gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}
 
 static gboolean
 module_found_cb (const gchar * name,

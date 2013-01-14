@@ -22,8 +22,32 @@
 
 #include <gum/gummemory.h>
 
+typedef gsize GumThreadId;
+typedef guint GumThreadState;
+typedef struct _GumThreadDetails GumThreadDetails;
+
+enum _GumThreadState
+{
+  GUM_THREAD_RUNNING = 1,
+  GUM_THREAD_STOPPED,
+  GUM_THREAD_WAITING,
+  GUM_THREAD_UNINTERRUPTIBLE,
+  GUM_THREAD_HALTED
+};
+
+struct _GumThreadDetails
+{
+  GumThreadId id;
+  GumThreadState state;
+  GumCpuContext cpu_context;
+};
+
 G_BEGIN_DECLS
 
+typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+typedef gboolean (* GumFoundThreadFunc) (GumThreadDetails * details,
+    gpointer user_data);
 typedef gboolean (* GumFoundModuleFunc) (const gchar * name, GumAddress address,
     const gchar * path, gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, GumAddress address,
@@ -31,6 +55,11 @@ typedef gboolean (* GumFoundExportFunc) (const gchar * name, GumAddress address,
 typedef gboolean (* GumFoundRangeFunc) (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 
+GUM_API GumThreadId gum_process_get_current_thread_id (void);
+GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
+    GumModifyThreadFunc func, gpointer user_data);
+GUM_API void gum_process_enumerate_threads (GumFoundThreadFunc func,
+    gpointer user_data);
 GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,

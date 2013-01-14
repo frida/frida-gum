@@ -70,6 +70,31 @@ static gboolean gum_store_address_if_export_name_matches (const gchar * name,
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
 
+GumThreadId
+gum_process_get_current_thread_id (void)
+{
+  return gettid ();
+}
+
+gboolean
+gum_process_modify_thread (GumThreadId thread_id,
+                           GumModifyThreadFunc func,
+                           gpointer user_data)
+{
+  /* FIXME */
+  g_assert_not_reached ();
+
+  return FALSE;
+}
+
+void
+gum_process_enumerate_threads (GumFoundThreadFunc func,
+                               gpointer user_data)
+{
+  /* FIXME */
+  g_assert_not_reached ();
+}
+
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
