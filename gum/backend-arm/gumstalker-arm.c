@@ -90,6 +90,19 @@ gum_stalker_is_following_me (GumStalker * self)
   return FALSE;
 }
 
+void
+gum_stalker_follow (GumStalker * self,
+                    GumThreadId thread_id,
+                    GumEventSink * sink)
+{
+}
+
+void
+gum_stalker_unfollow (GumStalker * self,
+                      GumThreadId thread_id)
+{
+}
+
 GumProbeId
 gum_stalker_add_call_probe (GumStalker * self,
                             gpointer target_address,

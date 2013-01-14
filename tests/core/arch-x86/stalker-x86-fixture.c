@@ -190,6 +190,31 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   return ret;
 }
 
+typedef struct _StalkerVictimContext StalkerVictimContext;
+typedef guint StalkerVictimState;
+
+struct _StalkerVictimContext
+{
+  volatile StalkerVictimState state;
+  GumThreadId thread_id;
+  GMutex * mutex;
+  GCond * cond;
+};
+
+enum _StalkerVictimState
+{
+  STALKER_VICTIM_CREATED = 1,
+  STALKER_VICTIM_READY_FOR_FOLLOW,
+  STALKER_VICTIM_IS_FOLLOWED,
+  STALKER_VICTIM_READY_FOR_UNFOLLOW,
+  STALKER_VICTIM_IS_UNFOLLOWED,
+  STALKER_VICTIM_READY_FOR_SHUTDOWN,
+  STALKER_VICTIM_IS_SHUTDOWN
+};
+
 static void pretend_workload (void);
+static gpointer stalker_victim (gpointer data);
+static void invoke_follow_return_code (TestStalkerFixture * fixture);
+static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
 
 gint gum_stalker_dummy_global_to_trick_optimizer = 0;

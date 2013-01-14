@@ -24,6 +24,7 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 #include <gum/gumeventsink.h>
+#include <gum/gumprocess.h>
 
 #define GUM_TYPE_STALKER (gum_stalker_get_type ())
 #define GUM_STALKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -77,6 +78,10 @@ GUM_API void gum_stalker_set_cache_enabled (GumStalker * self,
 GUM_API void gum_stalker_follow_me (GumStalker * self, GumEventSink * sink);
 GUM_API void gum_stalker_unfollow_me (GumStalker * self);
 GUM_API gboolean gum_stalker_is_following_me (GumStalker * self);
+
+GUM_API void gum_stalker_follow (GumStalker * self, GumThreadId thread_id,
+    GumEventSink * sink);
+GUM_API void gum_stalker_unfollow (GumStalker * self, GumThreadId thread_id);
 
 GUM_API GumProbeId gum_stalker_add_call_probe (GumStalker * self,
     gpointer target_address, GumCallProbeCallback callback, gpointer data,
