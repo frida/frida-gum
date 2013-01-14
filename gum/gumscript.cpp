@@ -233,6 +233,8 @@ static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
 static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message);
+static Handle<Value> gum_script_on_process_get_current_thread_id (
+    const Arguments & args);
 static Handle<Value> gum_script_on_process_enumerate_threads (
     const Arguments & args);
 static gboolean gum_script_process_thread_match (GumThreadDetails * details,
@@ -576,6 +578,8 @@ gum_script_create_context (GumScript * self)
       String::New (GUM_SCRIPT_ARCH), ReadOnly);
   process_templ->Set (String::New ("platform"),
       String::New (GUM_SCRIPT_PLATFORM), ReadOnly);
+  process_templ->Set (String::New ("getCurrentThreadId"),
+      FunctionTemplate::New (gum_script_on_process_get_current_thread_id));
   process_templ->Set (String::New ("enumerateThreads"),
       FunctionTemplate::New (gum_script_on_process_enumerate_threads));
   process_templ->Set (String::New ("enumerateModules"),
@@ -1108,6 +1112,12 @@ gum_message_sink_handle_message (GumMessageSink * self,
 {
   Handle<Value> argv[] = { String::New (message) };
   self->callback->Call (self->receiver, 1, argv);
+}
+
+static Handle<Value>
+gum_script_on_process_get_current_thread_id (const Arguments & args)
+{
+  return Number::New (gum_process_get_current_thread_id ());
 }
 
 static Handle<Value>
