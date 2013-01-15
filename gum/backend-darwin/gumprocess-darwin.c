@@ -1007,25 +1007,25 @@ gum_cpu_context_from_darwin (const gum_thread_state_t * state,
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   const x86_thread_state64_t * ts = &state->uts.ts64;
 
-  ctx->rip = ts->rip;
+  ctx->rip = ts->__rip;
 
-  ctx->r15 = ts->r15;
-  ctx->r14 = ts->r14;
-  ctx->r13 = ts->r13;
-  ctx->r12 = ts->r12;
-  ctx->r11 = ts->r11;
-  ctx->r10 = ts->r10;
-  ctx->r9 = ts->r9;
-  ctx->r8 = ts->r8;
+  ctx->r15 = ts->__r15;
+  ctx->r14 = ts->__r14;
+  ctx->r13 = ts->__r13;
+  ctx->r12 = ts->__r12;
+  ctx->r11 = ts->__r11;
+  ctx->r10 = ts->__r10;
+  ctx->r9 = ts->__r9;
+  ctx->r8 = ts->__r8;
 
-  ctx->rdi = ts->rdi;
-  ctx->rsi = ts->rsi;
-  ctx->rbp = ts->rbp;
-  ctx->rsp = ts->rsp;
-  ctx->rbx = ts->rbx;
-  ctx->rdx = ts->rdx;
-  ctx->rcx = ts->rcx;
-  ctx->rax = ts->rax;
+  ctx->rdi = ts->__rdi;
+  ctx->rsi = ts->__rsi;
+  ctx->rbp = ts->__rbp;
+  ctx->rsp = ts->__rsp;
+  ctx->rbx = ts->__rbx;
+  ctx->rdx = ts->__rdx;
+  ctx->rcx = ts->__rcx;
+  ctx->rax = ts->__rax;
 #endif
 }
 
@@ -1058,25 +1058,25 @@ gum_cpu_context_to_darwin (const GumCpuContext * ctx,
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   x86_thread_state64_t * ts = &state->uts.ts64;
 
-  ts->rip = ctx->rip;
+  ts->__rip = ctx->rip;
 
-  ts->r15 = ctx->r15;
-  ts->r14 = ctx->r14;
-  ts->r13 = ctx->r13;
-  ts->r12 = ctx->r12;
-  ts->r11 = ctx->r11;
-  ts->r10 = ctx->r10;
-  ts->r9 = ctx->r9;
-  ts->r8 = ctx->r8;
+  ts->__r15 = ctx->r15;
+  ts->__r14 = ctx->r14;
+  ts->__r13 = ctx->r13;
+  ts->__r12 = ctx->r12;
+  ts->__r11 = ctx->r11;
+  ts->__r10 = ctx->r10;
+  ts->__r9 = ctx->r9;
+  ts->__r8 = ctx->r8;
 
-  ts->rdi = ctx->rdi;
-  ts->rsi = ctx->rsi;
-  ts->rbp = ctx->rbp;
-  ts->rsp = ctx->rsp;
-  ts->rbx = ctx->rbx;
-  ts->rdx = ctx->rdx;
-  ts->rcx = ctx->rcx;
-  ts->rax = ctx->rax;
+  ts->__rdi = ctx->rdi;
+  ts->__rsi = ctx->rsi;
+  ts->__rbp = ctx->rbp;
+  ts->__rsp = ctx->rsp;
+  ts->__rbx = ctx->rbx;
+  ts->__rdx = ctx->rdx;
+  ts->__rcx = ctx->rcx;
+  ts->__rax = ctx->rax;
 #endif
 }
 
