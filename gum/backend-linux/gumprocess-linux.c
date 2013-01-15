@@ -24,11 +24,16 @@
 #include <elf.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ucontext.h>
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <sys/syscall.h>
 #include <sys/types.h>
+
+#define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
 #if GLIB_SIZEOF_VOID_P == 4
 typedef Elf32_Ehdr GumElfEHeader;
@@ -62,18 +67,34 @@ struct _GumFindExportContext
   const gchar * symbol_name;
 };
 
+static void gum_do_modify_thread (int sig, siginfo_t * siginfo,
+    void * context);
+static void gum_store_cpu_context (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
+
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
     GumAddress address, const gchar * path, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (const gchar * name,
     GumAddress address, gpointer user_data);
 
+static void gum_cpu_context_from_linux (const ucontext_t * uc,
+    GumCpuContext * ctx);
+static void gum_cpu_context_to_linux (const GumCpuContext * ctx,
+    ucontext_t * uc);
+static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
+
+G_LOCK_DEFINE_STATIC (gum_modify_thread);
+static volatile gboolean gum_modify_thread_did_load_cpu_context;
+static volatile gboolean gum_modify_thread_did_modify_cpu_context;
+static volatile gboolean gum_modify_thread_did_store_cpu_context;
+static GumCpuContext gum_modify_thread_cpu_context;
 
 GumThreadId
 gum_process_get_current_thread_id (void)
 {
-  return gettid ();
+  return syscall (SYS_gettid);
 }
 
 gboolean
@@ -81,18 +102,123 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
 {
-  /* FIXME */
-  g_assert_not_reached ();
+  gboolean success = FALSE;
+  struct sigaction action, old_action;
 
-  return FALSE;
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    ucontext_t uc;
+    gboolean modified = FALSE;
+
+    getcontext (&uc);
+    if (!modified)
+    {
+      GumCpuContext cpu_context;
+
+      gum_cpu_context_from_linux (&uc, &cpu_context);
+      func (thread_id, &cpu_context, user_data);
+      gum_cpu_context_to_linux (&cpu_context, &uc);
+
+      modified = TRUE;
+      setcontext (&uc);
+    }
+
+    success = TRUE;
+  }
+  else
+  {
+    G_LOCK (gum_modify_thread);
+
+    gum_modify_thread_did_load_cpu_context = FALSE;
+    gum_modify_thread_did_modify_cpu_context = FALSE;
+    gum_modify_thread_did_store_cpu_context = FALSE;
+
+    action.sa_sigaction = gum_do_modify_thread;
+    sigemptyset (&action.sa_mask);
+    action.sa_flags = SA_SIGINFO;
+    sigaction (GUM_HIJACK_SIGNAL, &action, &old_action);
+
+    if (syscall (SYS_tgkill, getpid (), thread_id, GUM_HIJACK_SIGNAL) == 0)
+    {
+      /* FIXME: timeout? */
+      while (!gum_modify_thread_did_load_cpu_context)
+        g_thread_yield ();
+      func (thread_id, &gum_modify_thread_cpu_context, user_data);
+      gum_modify_thread_did_modify_cpu_context = TRUE;
+      while (!gum_modify_thread_did_store_cpu_context)
+        g_thread_yield ();
+
+      success = TRUE;
+    }
+
+    sigaction (GUM_HIJACK_SIGNAL, &old_action, NULL);
+
+    G_UNLOCK (gum_modify_thread);
+  }
+
+  return success;
+}
+
+static void
+gum_do_modify_thread (int sig,
+                      siginfo_t * siginfo,
+                      void * context)
+{
+  ucontext_t * uc = (ucontext_t *) context;
+
+  gum_cpu_context_from_linux (uc, &gum_modify_thread_cpu_context);
+  gum_modify_thread_did_load_cpu_context = TRUE;
+  while (!gum_modify_thread_did_modify_cpu_context)
+    ;
+  gum_cpu_context_to_linux (&gum_modify_thread_cpu_context, uc);
+  gum_modify_thread_did_store_cpu_context = TRUE;
 }
 
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
                                gpointer user_data)
 {
-  /* FIXME */
-  g_assert_not_reached ();
+  GDir * dir;
+  const gchar * name;
+  gboolean carry_on = TRUE;
+
+  dir = g_dir_open ("/proc/self/task", 0, NULL);
+  g_assert (dir != NULL);
+
+  while (carry_on && (name = g_dir_read_name (dir)) != NULL)
+  {
+    gchar * path, * info = NULL;
+
+    path = g_strconcat ("/proc/self/task/", name, "/stat", NULL);
+    if (g_file_get_contents (path, &info, NULL, NULL))
+    {
+      gchar * state;
+      GumThreadDetails details;
+
+      state = strrchr (info, ')') + 2;
+
+      details.id = atoi (name);
+      details.state = gum_thread_state_from_proc_status_character (*state);
+      if (gum_process_modify_thread (details.id, gum_store_cpu_context,
+            &details.cpu_context))
+      {
+        carry_on = func (&details, user_data);
+      }
+    }
+
+    g_free (info);
+    g_free (path);
+  }
+
+  g_dir_close (dir);
+}
+
+static void
+gum_store_cpu_context (GumThreadId thread_id,
+                       GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
 
 void
@@ -403,6 +529,111 @@ gum_store_address_if_export_name_matches (const gchar * name,
   }
 
   return TRUE;
+}
+
+static void
+gum_cpu_context_from_linux (const ucontext_t * uc,
+                            GumCpuContext * ctx)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  const greg_t * gr = uc->uc_mcontext.gregs;
+
+  ctx->eip = gr[REG_EIP];
+
+  ctx->edi = gr[REG_EDI];
+  ctx->esi = gr[REG_ESI];
+  ctx->ebp = gr[REG_EBP];
+  ctx->esp = gr[REG_ESP];
+  ctx->ebx = gr[REG_EBX];
+  ctx->edx = gr[REG_EDX];
+  ctx->ecx = gr[REG_ECX];
+  ctx->eax = gr[REG_EAX];
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  const greg_t * gr = uc->uc_mcontext.gregs;
+
+  ctx->rip = gr[REG_RIP];
+
+  ctx->r15 = gr[REG_R15];
+  ctx->r14 = gr[REG_R14];
+  ctx->r13 = gr[REG_R13];
+  ctx->r12 = gr[REG_R12];
+  ctx->r11 = gr[REG_R11];
+  ctx->r10 = gr[REG_R10];
+  ctx->r9 = gr[REG_R9];
+  ctx->r8 = gr[REG_R8];
+
+  ctx->rdi = gr[REG_RDI];
+  ctx->rsi = gr[REG_RSI];
+  ctx->rbp = gr[REG_RBP];
+  ctx->rsp = gr[REG_RSP];
+  ctx->rbx = gr[REG_RBX];
+  ctx->rdx = gr[REG_RDX];
+  ctx->rcx = gr[REG_RCX];
+  ctx->rax = gr[REG_RAX];
+#else
+# error FIXME
+#endif
+}
+
+static void
+gum_cpu_context_to_linux (const GumCpuContext * ctx,
+                          ucontext_t * uc)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  greg_t * gr = uc->uc_mcontext.gregs;
+
+  gr[REG_EIP] = ctx->eip;
+
+  gr[REG_EDI] = ctx->edi;
+  gr[REG_ESI] = ctx->esi;
+  gr[REG_EBP] = ctx->ebp;
+  gr[REG_ESP] = ctx->esp;
+  gr[REG_EBX] = ctx->ebx;
+  gr[REG_EDX] = ctx->edx;
+  gr[REG_ECX] = ctx->ecx;
+  gr[REG_EAX] = ctx->eax;
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  greg_t * gr = uc->uc_mcontext.gregs;
+
+  gr[REG_RIP] = ctx->rip;
+
+  gr[REG_R15] = ctx->r15;
+  gr[REG_R14] = ctx->r14;
+  gr[REG_R13] = ctx->r13;
+  gr[REG_R12] = ctx->r12;
+  gr[REG_R11] = ctx->r11;
+  gr[REG_R10] = ctx->r10;
+  gr[REG_R9] = ctx->r9;
+  gr[REG_R8] = ctx->r8;
+
+  gr[REG_RDI] = ctx->rdi;
+  gr[REG_RSI] = ctx->rsi;
+  gr[REG_RBP] = ctx->rbp;
+  gr[REG_RSP] = ctx->rsp;
+  gr[REG_RBX] = ctx->rbx;
+  gr[REG_RDX] = ctx->rdx;
+  gr[REG_RCX] = ctx->rcx;
+  gr[REG_RAX] = ctx->rax;
+#else
+# error FIXME
+#endif
+}
+
+static GumThreadState
+gum_thread_state_from_proc_status_character (gchar c)
+{
+  switch (c)
+  {
+    case 'R': return GUM_THREAD_RUNNING;
+    case 'S': return GUM_THREAD_WAITING;
+    case 'D': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'Z': return GUM_THREAD_UNINTERRUPTIBLE;
+    case 'T': return GUM_THREAD_STOPPED;
+    case 'W': return GUM_THREAD_UNINTERRUPTIBLE;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
 }
 
 static GumPageProtection
