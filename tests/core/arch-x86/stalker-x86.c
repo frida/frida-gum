@@ -229,6 +229,7 @@ STALKER_TESTCASE (performance)
 
   g_timer_destroy (timer);
 
+  g_assert (duration_cache_off > duration_direct); /* silence warning */
   /*
   g_print ("duration_direct=%.2f ms  duration_cache_off=%.2f ms"
       "  duration_cache_on=%.2f ms  ratio_cache_off=%.1f  ratio_cache_on=%.1f\n",
@@ -343,13 +344,12 @@ STALKER_TESTCASE (call_depth)
     0xcc,                         /* int3       */
   };
   StalkerTestFunc func;
-  gint ret;
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
       test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
 
   fixture->sink->mask = GUM_CALL | GUM_RET;
-  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  test_stalker_fixture_follow_and_invoke (fixture, func, 0);
 
   g_assert_cmpuint (fixture->sink->events->len, ==, 7 + 7 + 1);
   g_assert_cmpint (NTH_EVENT_AS_CALL (0)->depth, ==, 0);
@@ -407,7 +407,7 @@ STALKER_TESTCASE (call_probe)
   StalkerTestFunc func;
   guint8 * func_a_address;
   CallProbeContext probe_ctx, secondary_probe_ctx;
-  GumProbeId probe_id, secondary_probe_id;
+  GumProbeId probe_id;
 
   func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
       test_stalker_fixture_dup_code (fixture, code_template,
@@ -424,7 +424,7 @@ STALKER_TESTCASE (call_probe)
 
   secondary_probe_ctx.callback_count = 0;
   secondary_probe_ctx.block_start = fixture->code;
-  secondary_probe_id = gum_stalker_add_call_probe (fixture->stalker,
+  gum_stalker_add_call_probe (fixture->stalker,
       func_a_address, probe_func_a_invocation, &secondary_probe_ctx, NULL);
   test_stalker_fixture_follow_and_invoke (fixture, func, 0);
   g_assert_cmpuint (probe_ctx.callback_count, ==, 2);
