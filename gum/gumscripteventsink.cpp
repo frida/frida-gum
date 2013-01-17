@@ -55,6 +55,8 @@ gum_script_event_sink_iface_init (gpointer g_iface,
 {
   GumEventSinkIface * iface = (GumEventSinkIface *) g_iface;
 
+  (void) iface_data;
+
   iface->query_mask = gum_script_event_sink_query_mask;
   iface->start = gum_script_event_sink_start;
   iface->process = gum_script_event_sink_process;

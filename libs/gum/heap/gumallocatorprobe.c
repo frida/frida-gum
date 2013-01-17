@@ -22,6 +22,7 @@
 
 #include "gumallocatorprobe-priv.h"
 #include "guminterceptor.h"
+#include "gumprocess.h"
 #include "gumsymbolutil.h"
 
 #include <gmodule.h>

@@ -19,7 +19,7 @@
 
 #include "gumheapapi.h"
 
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 #include <gmodule.h>
 #include <string.h>

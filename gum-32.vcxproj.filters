@@ -96,9 +96,6 @@
     <ClCompile Include="gum\backend-x86\gumstalker-x86.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
-    <ClCompile Include="gum\backend-windows\gumsymbolutil-windows.c">
-      <Filter>core\backend-windows</Filter>
-    </ClCompile>
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
@@ -200,6 +197,12 @@
     </ClCompile>
     <ClCompile Include="gum\gumscript.cpp">
       <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscripteventsink.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
+      <Filter>core\backend-windows</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -396,6 +399,12 @@
       <Filter>libs\heap</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumclosure.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscript-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscripteventsink.h">
       <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>

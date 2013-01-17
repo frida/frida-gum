@@ -73,8 +73,9 @@ struct _GumStalkerPrivate
   GHashTable * probe_array_by_address;
 
   gpointer thunks;
-  gpointer jmp_block_thunk;
+  gpointer enter_block_thunk;
   gpointer ret_block_thunk;
+  gpointer ret_only_thunk;
   gpointer replace_block_thunk;
 
 #ifdef G_OS_WIN32
@@ -116,8 +117,6 @@ struct _GumExecCtx
   gint call_depth;
 
   gpointer thunks;
-  gpointer replace_block_thunk;
-  gpointer replacement_address;
   gpointer infect_thunk;
 
   guint8 * block_pool;
@@ -421,13 +420,13 @@ gum_stalker_set_cache_enabled (GumStalker * self,
 #ifdef _MSC_VER
 
 #define RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(arg)   \
-    ((gpointer *) ((volatile guint8 *) &arg - sizeof (gpointer)))
+    ((gpointer *) ((guint8 *) &arg - sizeof (gpointer)))
 
 void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
-  volatile gpointer * ret_addr_ptr;
+  gpointer * ret_addr_ptr;
 
   ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
@@ -664,7 +663,7 @@ gum_stalker_create_thunks (GumStalker * self)
   priv->thunks = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_x86_writer_init (&cw, priv->thunks);
 
-  priv->jmp_block_thunk = gum_x86_writer_cur (&cw);
+  priv->enter_block_thunk = gum_x86_writer_cur (&cw);
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
@@ -682,9 +681,28 @@ gum_stalker_create_thunks (GumStalker * self)
   gum_write_state_preserve_epilog (&cw);
   gum_x86_writer_put_ret (&cw);
 
+  priv->ret_only_thunk = gum_x86_writer_cur (&cw);
+  gum_x86_writer_put_ret (&cw);
+
   priv->replace_block_thunk = gum_x86_writer_cur (&cw);
+  gum_write_state_preserve_prolog (&cw);
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_THUNK_REG_ARG1,
+      GUM_REG_XBX, STATE_PRESERVE_SIZE + (1 * sizeof (gpointer)));
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_THUNK_REG_ARG0,
+      GUM_REG_XBX, STATE_PRESERVE_SIZE + (0 * sizeof (gpointer)));
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
+      GUM_THUNK_ARGLIST_STACK_RESERVE);
+  gum_x86_writer_put_call (&cw,
+      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
+      GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_XBX, STATE_PRESERVE_SIZE,
+      GUM_REG_XBX, STATE_PRESERVE_SIZE + (1 * sizeof (gpointer)),
+      GUM_REG_XAX);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XAX,
+      GUM_ADDRESS (priv->ret_only_thunk));
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
+      GUM_REG_XBX, STATE_PRESERVE_SIZE + (0 * sizeof (gpointer)),
       GUM_REG_XAX);
   gum_write_state_preserve_epilog (&cw);
   gum_x86_writer_put_ret (&cw);
@@ -792,26 +810,6 @@ gum_exec_ctx_create_thunks (GumExecCtx * ctx)
 
   ctx->thunks = gum_alloc_n_pages (1, GUM_PAGE_RWX);
   gum_x86_writer_init (&cw, ctx->thunks);
-
-  ctx->replace_block_thunk = gum_x86_writer_cur (&cw);
-  gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder */
-  gum_write_state_preserve_prolog (&cw);
-  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XDX,
-      GUM_ADDRESS (&ctx->replacement_address));
-  gum_x86_writer_put_mov_reg_reg_ptr (&cw, GUM_THUNK_REG_ARG1, GUM_REG_XDX);
-  gum_x86_writer_put_mov_reg_address (&cw, GUM_THUNK_REG_ARG0,
-      GUM_ADDRESS (ctx));
-  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, /* x64 ABI compat */
-      GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_x86_writer_put_call (&cw,
-      GUM_FUNCPTR_TO_POINTER (gum_exec_ctx_replace_current_block_with));
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP,
-      GUM_THUNK_ARGLIST_STACK_RESERVE);
-  gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
-      GUM_REG_XBX, STATE_PRESERVE_SIZE,
-      GUM_REG_XAX);
-  gum_write_state_preserve_epilog (&cw);
-  gum_x86_writer_put_ret (&cw);
 
   ctx->infect_thunk = gum_x86_writer_cur (&cw);
 
@@ -1169,7 +1167,7 @@ gum_write_state_preserve_prolog (GumX86Writer * cw)
 #endif
 
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XSP);
-  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, ~(16 - 1));
+  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
 }
@@ -1501,10 +1499,12 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
       GUM_THUNK_REG_ARG1);
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (block->ctx));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP, /* x64 ABI compat */
+      GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  /* push fake return address so we chain to replace_block_thunk */
+  /* push fake return address so we chain to enter_block_thunk */
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_EAX,
-      GUM_ADDRESS (block->ctx->stalker->priv->replace_block_thunk));
+      GUM_ADDRESS (block->ctx->stalker->priv->enter_block_thunk));
   gum_x86_writer_put_push_reg (cw, GUM_REG_EAX);
 
   /* jump */
@@ -1515,6 +1515,9 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
   return GUM_REQUIRE_NOTHING;
 #else
+  (void) block;
+  (void) gc;
+
   return GUM_REQUIRE_RELOCATION;
 #endif
 }
@@ -1546,9 +1549,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  /* push fake return address so we chain to jmp_block_thunk */
+  /* push fake return address so we chain to enter_block_thunk */
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (block->ctx->stalker->priv->jmp_block_thunk));
+      GUM_ADDRESS (block->ctx->stalker->priv->enter_block_thunk));
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 
   /* jump */
@@ -1574,9 +1577,9 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, /* x64 ABI compat */
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  /* push fake return address so we chain to jmp_block_thunk */
+  /* push fake return address so we chain to enter_block_thunk */
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-      GUM_ADDRESS (block->ctx->stalker->priv->jmp_block_thunk));
+      GUM_ADDRESS (block->ctx->stalker->priv->enter_block_thunk));
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
 
   /* jump */
@@ -1704,7 +1707,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   accumulated_stack_delta += sizeof (GumCpuContext);
 
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XBX, GUM_REG_XSP);
-  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, ~(16 - 1));
+  gum_x86_writer_put_and_reg_u32 (cw, GUM_REG_XSP, (guint32) ~(16 - 1));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, 512);
   gum_x86_writer_put_bytes (cw, fxsave, sizeof (fxsave));
 
@@ -2040,13 +2043,18 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
 
     case GUM_EXEC_SINGLE_STEPPING_THROUGH_CALL:
     {
+      gpointer * args;
+
       context->Dr0 = block->previous_dr0;
       context->Dr1 = block->previous_dr1;
       context->Dr2 = block->previous_dr2;
       context->Dr7 = block->previous_dr7;
 
-      ctx->replacement_address = (gpointer) context->Eip;
-      context->Eip = (DWORD) ctx->replace_block_thunk;
+      context->Esp -= 8;
+      args = (gpointer *) context->Esp;
+      args[0] = block->ctx;
+      args[1] = (gpointer) context->Eip;
+      context->Eip = (DWORD) ctx->stalker->priv->replace_block_thunk;
 
       block->state = GUM_EXEC_NORMAL;
 

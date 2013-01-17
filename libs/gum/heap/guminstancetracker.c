@@ -21,7 +21,7 @@
 
 #include "guminterceptor.h"
 #include "gumhash.h"
-#include "gumsymbolutil.h"
+#include "gumprocess.h"
 
 #include <gmodule.h>
 

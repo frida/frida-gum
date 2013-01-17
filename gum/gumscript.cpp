@@ -1117,6 +1117,8 @@ gum_message_sink_handle_message (GumMessageSink * self,
 static Handle<Value>
 gum_script_on_process_get_current_thread_id (const Arguments & args)
 {
+  (void) args;
+
   return Number::New (gum_process_get_current_thread_id ());
 }
 
@@ -1824,11 +1826,11 @@ gum_script_memory_do_write (const Arguments & args,
   return Undefined ();
 }
 
-#ifdef G_OS_WIN32
-
 #ifdef _MSC_VER
 # pragma warning (pop)
 #endif
+
+#ifdef G_OS_WIN32
 
 static void
 gum_script_memory_do_longjmp (gum_jmp_buf * env)
@@ -2000,6 +2002,11 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
   g_slice_free (GumMemoryScanContext, ctx);
 }
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4611)
+#endif
+
 static gboolean
 gum_script_do_memory_scan (GIOSchedulerJob * job,
                            GCancellable * cancellable,
@@ -2039,6 +2046,10 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
 
   return FALSE;
 }
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 static gboolean
 gum_script_process_scan_match (GumAddress address,
@@ -2545,10 +2556,11 @@ gum_script_probe_args_on_get_nth (uint32_t index,
   GumCallSite * site = static_cast<GumCallSite *> (
       info.This ()->GetPointerFromInternalField (0));
   gsize value;
+  gsize * stack_argument = static_cast<gsize *> (site->stack_data);
 
+#if GLIB_SIZEOF_VOID_P == 8
   switch (index)
   {
-#if GLIB_SIZEOF_VOID_P == 8
 # if GUM_NATIVE_ABI_IS_UNIX
     case 0: value = site->cpu_context->rdi; break;
     case 1: value = site->cpu_context->rsi; break;
@@ -2562,12 +2574,13 @@ gum_script_probe_args_on_get_nth (uint32_t index,
     case 2: value = site->cpu_context->r8;  break;
     case 3: value = site->cpu_context->r9;  break;
 # endif
-#endif
     default:
-      gsize * stack_argument = static_cast<gsize *> (site->stack_data);
       value = stack_argument[index];
       break;
   }
+#else
+  value = stack_argument[index];
+#endif
 
   return Number::New (value);
 }

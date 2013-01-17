@@ -55,7 +55,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (heap_api)
   STALKER_TESTENTRY (follow_syscall)
   STALKER_TESTENTRY (follow_thread)
+#if 0
   STALKER_TESTENTRY (performance)
+#endif
 
 #ifdef G_OS_WIN32
 # if GLIB_SIZEOF_VOID_P == 4
@@ -198,6 +200,8 @@ stalker_victim (gpointer data)
   return NULL;
 }
 
+#if 0
+
 STALKER_TESTCASE (performance)
 {
   GTimer * timer;
@@ -240,6 +244,8 @@ STALKER_TESTCASE (performance)
   */
   g_assert_cmpfloat (duration_cache_on / duration_cache_off, <=, 0.4);
 }
+
+#endif
 
 GUM_NOINLINE static void
 pretend_workload (void)

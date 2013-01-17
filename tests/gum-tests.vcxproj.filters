@@ -54,13 +54,13 @@
     <ClCompile Include="core\arch-x86\relocator.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\stalker.c">
+    <ClCompile Include="core\arch-x86\stalker-x86.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="stubs\fakeeventsink.c">
       <Filter>Source Files\stubs</Filter>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\stalker-fixture.c">
+    <ClCompile Include="core\arch-x86\stalker-x86-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
     </ClCompile>
     <ClCompile Include="core\symbolutil.c">
@@ -190,6 +190,9 @@
       <Filter>Tests\core</Filter>
     </ClCompile>
     <ClCompile Include="core\closure-fixture.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\process.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
   </ItemGroup>

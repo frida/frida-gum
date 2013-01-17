@@ -296,13 +296,13 @@ copy /B /Y "$(SolutionDir)bin\$(Platform)-$(ConfigurationName)\gumpp.dll" "$(Tar
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="core\script.c" />
-    <ClCompile Include="core\arch-x86\stalker-fixture.c">
+    <ClCompile Include="core\arch-x86\stalker-x86-fixture.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="core\arch-x86\stalker.c" />
+    <ClCompile Include="core\arch-x86\stalker-x86.c" />
     <ClCompile Include="core\process.c" />
     <ClCompile Include="core\symbolutil.c" />
     <ClCompile Include="core\tracer-fixture.c">

@@ -29,6 +29,8 @@
     <ClInclude Include="gum\gummemoryaccessmonitor.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
+    <ClInclude Include="gum\gumscript-priv.h" />
+    <ClInclude Include="gum\gumscripteventsink.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
@@ -53,6 +55,7 @@
     <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />
+    <ClCompile Include="gum\gumscripteventsink.cpp" />
     <ClCompile Include="gum\gumtracer.c" />
   </ItemGroup>
 
