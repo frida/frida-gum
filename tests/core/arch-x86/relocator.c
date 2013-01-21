@@ -460,7 +460,7 @@ RELOCATOR_TESTCASE (rip_relative_push)
       0xff, 0x35,                         /* push [rip + imm32]   */
       0x01, 0x02, 0x03, 0x04
   };
-  const guint8 expected_output[] = {
+  guint8 expected_output[] = {
       0x50,                               /* push rax  */
       0x50,                               /* push rax  */
 
