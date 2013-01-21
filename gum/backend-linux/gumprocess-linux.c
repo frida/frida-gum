@@ -108,7 +108,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   if (thread_id == gum_process_get_current_thread_id ())
   {
     ucontext_t uc;
-    gboolean modified = FALSE;
+    volatile gboolean modified = FALSE;
 
     getcontext (&uc);
     if (!modified)
