@@ -489,13 +489,28 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     rm = 1;
   }
 
+  if (insn->mnemonic == UD_Ipush)
+  {
+    gum_x86_writer_put_push_reg (ctx->code_writer, GUM_REG_RAX);
+  }
+
   gum_x86_writer_put_push_reg (ctx->code_writer, rip_reg);
   gum_x86_writer_put_mov_reg_address (ctx->code_writer, rip_reg,
       GUM_ADDRESS (ctx->end));
 
-  memcpy (code, ctx->start, ctx->len);
-  code[ctx->insn->modrm_offset] = (mod << 6) | (reg << 3) | rm;
-  gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
+  if (insn->mnemonic == UD_Ipush)
+  {
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (ctx->code_writer, rip_reg,
+        rip_reg, insn->operand[0].lval.sdword);
+    gum_x86_writer_put_mov_reg_offset_ptr_reg (ctx->code_writer,
+        GUM_REG_RSP, 0x08, rip_reg);
+  }
+  else
+  {
+    memcpy (code, ctx->start, ctx->len);
+    code[ctx->insn->modrm_offset] = (mod << 6) | (reg << 3) | rm;
+    gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
+  }
 
   gum_x86_writer_put_pop_reg (ctx->code_writer, rip_reg);
 

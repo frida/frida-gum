@@ -37,8 +37,9 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
 
 #if GLIB_SIZEOF_VOID_P == 8
-  RELOCATOR_TESTENTRY (rip_relative_different_target)
-  RELOCATOR_TESTENTRY (rip_relative_same_target)
+  RELOCATOR_TESTENTRY (rip_relative_move_different_target)
+  RELOCATOR_TESTENTRY (rip_relative_move_same_target)
+  RELOCATOR_TESTENTRY (rip_relative_push)
 #endif
 TEST_LIST_END ()
 
@@ -403,7 +404,7 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
 
 #if GLIB_SIZEOF_VOID_P == 8
 
-RELOCATOR_TESTCASE (rip_relative_different_target)
+RELOCATOR_TESTCASE (rip_relative_move_different_target)
 {
   guint8 input[] = {
     0x8b, 0x15, 0x01, 0x00, 0x00, 0x00, /* mov edx, [rip + 1] */
@@ -428,7 +429,7 @@ RELOCATOR_TESTCASE (rip_relative_different_target)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (rip_relative_same_target)
+RELOCATOR_TESTCASE (rip_relative_move_same_target)
 {
   guint8 input[] = {
     0x8b, 0x05, 0x01, 0x00, 0x00, 0x00, /* mov eax, [rip + 1] */
@@ -451,6 +452,36 @@ RELOCATOR_TESTCASE (rip_relative_same_target)
   gum_x86_relocator_write_one (&fixture->rl);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (rip_relative_push)
+{
+  const guint8 input[] = {
+      0xff, 0x35,                         /* push [rip + imm32]   */
+      0x01, 0x02, 0x03, 0x04
+  };
+  const guint8 expected_output[] = {
+      0x50,                               /* push rax  */
+      0x50,                               /* push rax  */
+
+      0x48, 0xb8,                         /* mov rax, <rip> */
+      0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+
+      0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
+      0x01, 0x02, 0x03, 0x04,
+
+      0x48, 0x89, 0x44, 0x24, 0x08,       /* mov [rsp + 8], rax */
+      0x58                                /* pop rax */
+  };
+
+  *((gpointer *) (expected_output + 4)) = (gpointer) (input + 6);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
 }
 
 #endif
