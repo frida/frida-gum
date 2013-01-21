@@ -245,8 +245,6 @@ STALKER_TESTCASE (performance)
   g_assert_cmpfloat (duration_cache_on / duration_cache_off, <=, 0.4);
 }
 
-#endif
-
 GUM_NOINLINE static void
 pretend_workload (void)
 {
@@ -261,6 +259,8 @@ pretend_workload (void)
     free (p);
   }
 }
+
+#endif
 
 static const guint8 flat_code[] = {
     0x33, 0xc0, /* xor eax, eax */
