@@ -562,6 +562,15 @@ gum_x86_writer_put_ret (GumX86Writer * self)
 }
 
 void
+gum_x86_writer_put_ret_imm (GumX86Writer * self,
+                            guint16 imm_value)
+{
+  self->code[0] = 0xc2;
+  *((guint16 *) (self->code + 1)) = imm_value;
+  self->code += 3;
+}
+
+void
 gum_x86_writer_put_jmp (GumX86Writer * self,
                         gconstpointer target)
 {
@@ -647,6 +656,29 @@ gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self,
 
   if (ri.meta == GUM_META_REG_XSP)
     *self->code++ = 0x24;
+}
+
+void
+gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
+                                 GumAddress address)
+{
+  self->code[0] = 0xff;
+  self->code[1] = 0x25;
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_assert (address <= G_MAXUINT32);
+    *((guint32 *) (self->code + 2)) = (guint32) address;
+  }
+  else
+  {
+    gint64 distance = (gint64) address -
+        (gint64) (GPOINTER_TO_SIZE (self->code) + 6);
+    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    *((gint32 *) (self->code + 2)) = (gint32) distance;
+  }
+
+  self->code += 6;
 }
 
 void
@@ -1362,6 +1394,82 @@ gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
   }
 }
 
+void
+gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
+                                     GumCpuReg dst_reg,
+                                     GumAddress src_address)
+{
+  GumCpuRegInfo dst;
+
+  gum_x86_writer_describe_cpu_reg (self, dst_reg, &dst);
+
+  gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &dst, NULL);
+
+  if (self->target_cpu == GUM_CPU_IA32 && dst.meta == GUM_META_REG_XAX)
+  {
+    self->code[0] = 0xa1;
+    self->code++;
+  }
+  else
+  {
+    self->code[0] = 0x8b;
+    self->code[1] = (dst.index << 3) | 0x05;
+    self->code += 2;
+  }
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_assert (src_address <= G_MAXUINT32);
+    *((guint32 *) self->code) = (guint32) src_address;
+  }
+  else
+  {
+    gint64 distance = (gint64) src_address -
+        (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
+    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    *((gint32 *) self->code) = (gint32) distance;
+  }
+  self->code += 4;
+}
+
+void
+gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
+                                     GumAddress dst_address,
+                                     GumCpuReg src_reg)
+{
+  GumCpuRegInfo src;
+
+  gum_x86_writer_describe_cpu_reg (self, src_reg, &src);
+
+  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &src, NULL);
+
+  if (self->target_cpu == GUM_CPU_IA32 && src.meta == GUM_META_REG_XAX)
+  {
+    self->code[0] = 0xa3;
+    self->code++;
+  }
+  else
+  {
+    self->code[0] = 0x89;
+    self->code[1] = (src.index << 3) | 0x05;
+    self->code += 2;
+  }
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_assert (dst_address <= G_MAXUINT32);
+    *((guint32 *) self->code) = (guint32) dst_address;
+  }
+  else
+  {
+    gint64 distance = (gint64) dst_address -
+        (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
+    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    *((gint32 *) self->code) = (gint32) distance;
+  }
+  self->code += 4;
+}
+
 static void
 gum_x86_writer_put_mov_reg_imm_ptr (GumX86Writer * self,
                                     GumCpuReg dst_reg,
@@ -1555,6 +1663,29 @@ gum_x86_writer_put_push_u32 (GumX86Writer * self,
   self->code[0] = 0x68;
   *((guint32 *) (self->code + 1)) = imm_value;
   self->code += 5;
+}
+
+void
+gum_x86_writer_put_push_near_ptr (GumX86Writer * self,
+                                  GumAddress address)
+{
+  self->code[0] = 0xff;
+  self->code[1] = 0x35;
+
+  if (self->target_cpu == GUM_CPU_IA32)
+  {
+    g_assert (address <= G_MAXUINT32);
+    *((guint32 *) (self->code + 2)) = (guint32) address;
+  }
+  else
+  {
+    gint64 distance = (gint64) address -
+        (gint64) (GPOINTER_TO_SIZE (self->code) + 6);
+    g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
+    *((gint32 *) (self->code + 2)) = (gint32) distance;
+  }
+
+  self->code += 6;
 }
 
 void

@@ -35,6 +35,8 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (jmp_r8)
   CODEWRITER_TESTENTRY (jmp_rsp_ptr)
   CODEWRITER_TESTENTRY (jmp_r8_ptr)
+  CODEWRITER_TESTENTRY (jmp_near_ptr_for_ia32)
+  CODEWRITER_TESTENTRY (jmp_near_ptr_for_amd64)
 
   CODEWRITER_TESTENTRY (add_eax_ecx)
   CODEWRITER_TESTENTRY (add_rax_rcx)
@@ -58,6 +60,13 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (mov_r10d_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_r10_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_ecx_r11_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_reg_near_ptr_for_ia32)
+  CODEWRITER_TESTENTRY (mov_reg_near_ptr_for_amd64)
+  CODEWRITER_TESTENTRY (mov_near_ptr_reg_for_ia32)
+  CODEWRITER_TESTENTRY (mov_near_ptr_reg_for_amd64)
+
+  CODEWRITER_TESTENTRY (push_near_ptr_for_ia32)
+  CODEWRITER_TESTENTRY (push_near_ptr_for_amd64)
 
   CODEWRITER_TESTENTRY (test_eax_ecx)
   CODEWRITER_TESTENTRY (test_rax_rcx)
@@ -300,6 +309,23 @@ CODEWRITER_TESTCASE (jmp_r8_ptr)
   assert_output_equals (expected_code);
 }
 
+CODEWRITER_TESTCASE (jmp_near_ptr_for_ia32)
+{
+  const guint8 expected_code[] = { 0xff, 0x25, 0x78, 0x56, 0x34, 0x12 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_jmp_near_ptr (&fixture->cw, 0x12345678);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (jmp_near_ptr_for_amd64)
+{
+  const guint8 expected_code[] = { 0xff, 0x25, 0x16, 0x00, 0x00, 0x00 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_jmp_near_ptr (&fixture->cw,
+      GUM_ADDRESS (fixture->output + 28));
+  assert_output_equals (expected_code);
+}
+
 CODEWRITER_TESTCASE (add_eax_ecx)
 {
   const guint8 expected_code[] = { 0x01, 0xc8 };
@@ -456,6 +482,145 @@ CODEWRITER_TESTCASE (mov_ecx_r11_offset_ptr)
   const guint8 expected_code[] = { 0x41, 0x8b, 0x8b, 0x37, 0x13, 0x00, 0x00 };
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_ECX,
       GUM_REG_R11, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_reg_near_ptr_for_ia32)
+{
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0x8b, 0x25, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_ESP, 0x12345678);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0xa1, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_EAX, 0x12345678);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0x8b, 0x0d, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_ECX, 0x12345678);
+    assert_output_equals (expected_code);
+  }
+}
+
+CODEWRITER_TESTCASE (mov_reg_near_ptr_for_amd64)
+{
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x8b, 0x25, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_RSP,
+        GUM_ADDRESS (fixture->output + 28));
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x8b, 0x05, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_RAX,
+        GUM_ADDRESS (fixture->output + 28));
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x8b, 0x0d, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_reg_near_ptr (&fixture->cw, GUM_REG_RCX,
+        GUM_ADDRESS (fixture->output + 28));
+    assert_output_equals (expected_code);
+  }
+}
+
+CODEWRITER_TESTCASE (mov_near_ptr_reg_for_ia32)
+{
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0x89, 0x25, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw, 0x12345678, GUM_REG_ESP);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0xa3, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw, 0x12345678, GUM_REG_EAX);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+
+  {
+    const guint8 expected_code[] = { 0x89, 0x0d, 0x78, 0x56, 0x34, 0x12 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw, 0x12345678, GUM_REG_ECX);
+    assert_output_equals (expected_code);
+  }
+}
+
+CODEWRITER_TESTCASE (mov_near_ptr_reg_for_amd64)
+{
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x89, 0x25, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw,
+        GUM_ADDRESS (fixture->output + 28), GUM_REG_RSP);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x89, 0x05, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw,
+        GUM_ADDRESS (fixture->output + 28), GUM_REG_RAX);
+    assert_output_equals (expected_code);
+  }
+
+  gum_x86_writer_reset (&fixture->cw, fixture->output);
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+
+  {
+    const guint8 expected_code[] = { 0x48, 0x89, 0x0d, 0x15, 0x00, 0x00, 0x00 };
+    gum_x86_writer_put_mov_near_ptr_reg (&fixture->cw,
+        GUM_ADDRESS (fixture->output + 28), GUM_REG_RCX);
+    assert_output_equals (expected_code);
+  }
+}
+
+CODEWRITER_TESTCASE (push_near_ptr_for_ia32)
+{
+  const guint8 expected_code[] = { 0xff, 0x35, 0x78, 0x56, 0x34, 0x12 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  gum_x86_writer_put_push_near_ptr (&fixture->cw, 0x12345678);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (push_near_ptr_for_amd64)
+{
+  const guint8 expected_code[] = { 0xff, 0x35, 0x16, 0x00, 0x00, 0x00 };
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_AMD64);
+  gum_x86_writer_put_push_near_ptr (&fixture->cw,
+      GUM_ADDRESS (fixture->output + 28));
   assert_output_equals (expected_code);
 }
 
