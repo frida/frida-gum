@@ -119,9 +119,14 @@ test_stalker_fixture_dup_code (TestStalkerFixture * fixture,
 #if GLIB_SIZEOF_VOID_P == 4
 # define INVOKER_INSN_COUNT 11
 # define INVOKER_IMPL_OFFSET 5
-#else
-# define INVOKER_INSN_COUNT 10
-# define INVOKER_IMPL_OFFSET 4
+#elif GLIB_SIZEOF_VOID_P == 8
+# if GUM_NATIVE_ABI_IS_WINDOWS
+#  define INVOKER_INSN_COUNT 12
+#  define INVOKER_IMPL_OFFSET 5
+# else
+#  define INVOKER_INSN_COUNT 10
+#  define INVOKER_IMPL_OFFSET 4
+# endif
 #endif
 
 /* custom invoke code as we want to stalk a deterministic code sequence */

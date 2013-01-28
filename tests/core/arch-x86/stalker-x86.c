@@ -48,8 +48,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
 #if GLIB_SIZEOF_VOID_P == 4
-  STALKER_TESTENTRY (no_clobber)
+  STALKER_TESTENTRY (no_register_clobber)
 #endif
+  STALKER_TESTENTRY (no_red_zone_clobber)
   STALKER_TESTENTRY (big_block)
 
   STALKER_TESTENTRY (heap_api)
@@ -73,8 +74,7 @@ STALKER_TESTCASE (heap_api)
 {
   gpointer p;
 
-  /* FIXME: GUM_EXEC <- red zone problems? */
-  fixture->sink->mask = (GumEventType) (GUM_CALL | GUM_RET); 
+  fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   p = malloc (1);
@@ -639,9 +639,13 @@ STALKER_TESTCASE (long_conditional_jump)
 }
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define FOLLOW_RETURN_EXTRA_INSN_COUNT 1
-#else
-#define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
+# define FOLLOW_RETURN_EXTRA_INSN_COUNT 1
+#elif GLIB_SIZEOF_VOID_P == 8
+# if GUM_NATIVE_ABI_IS_WINDOWS
+#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 2
+# else
+#  define FOLLOW_RETURN_EXTRA_INSN_COUNT 0
+# endif
 #endif
 
 STALKER_TESTCASE (follow_return)
@@ -730,8 +734,12 @@ STALKER_TESTCASE (follow_stdcall)
 
 #if GLIB_SIZEOF_VOID_P == 4
 #define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 1
-#else
-#define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 0
+#elif GLIB_SIZEOF_VOID_P == 8
+# if GUM_NATIVE_ABI_IS_WINDOWS
+#  define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 2
+# else
+#  define UNFOLLOW_DEEP_EXTRA_INSN_COUNT 0
+# endif
 #endif
 
 STALKER_TESTCASE (unfollow_deep)
@@ -1265,7 +1273,7 @@ STALKER_TESTCASE (indirect_jump_with_immediate_and_scaled_register)
 
 typedef void (* ClobberFunc) (GumCpuContext * ctx);
 
-STALKER_TESTCASE (no_clobber)
+STALKER_TESTCASE (no_register_clobber)
 {
   guint8 * code;
   GumX86Writer cw;
@@ -1354,6 +1362,47 @@ STALKER_TESTCASE (no_clobber)
 }
 
 #endif
+
+STALKER_TESTCASE (no_red_zone_clobber)
+{
+  guint8 code_template[] =
+  {
+    0x90, 0xb8, 0x00, 0x00, 0x00, 0x00, /* mov xax, <addr>    */
+                0x90, 0x90, 0x90, 0x90,
+    0x90, 0x89, 0x44, 0x24, 0xf8,       /* mov [rsp - 8], xax */
+    0x90, 0x8b, 0x44, 0x24, 0xf8,       /* mov xax, [rsp - 8] */
+    0xff, 0xe0,                         /* jmp rax            */
+    0xcc,                               /* int3               */
+    0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov rax, 1337      */
+    0xc3                                /* ret                */
+  };
+  guint8 * code;
+  StalkerTestFunc func;
+  gint ret;
+
+#if GLIB_SIZEOF_VOID_P == 8
+  code_template[0] = 0x48;
+  code_template[10] = 0x48;
+  code_template[15] = 0x48;
+#endif
+
+  code = test_stalker_fixture_dup_code (fixture, code_template,
+      sizeof (code_template));
+  *((gpointer *) (code + 2)) = code + 23;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc, code);
+  ret = func (42);
+  g_assert_cmpint (ret, ==, 1337);
+
+  fixture->sink->mask = GUM_EXEC;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+#if GLIB_SIZEOF_VOID_P == 8
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 6);
+#else
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 13);
+#endif
+  g_assert_cmpint (ret, ==, 1337);
+}
 
 STALKER_TESTCASE (big_block)
 {
