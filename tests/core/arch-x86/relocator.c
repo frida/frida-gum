@@ -425,8 +425,7 @@ RELOCATOR_TESTCASE (rip_relative_move_different_target)
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  assert_output_equals (expected_output);
 }
 
 RELOCATOR_TESTCASE (rip_relative_move_same_target)
@@ -450,8 +449,7 @@ RELOCATOR_TESTCASE (rip_relative_move_same_target)
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
-  g_assert_cmpint (memcmp (fixture->output, expected_output,
-      sizeof (expected_output)), ==, 0);
+  assert_output_equals (expected_output);
 }
 
 RELOCATOR_TESTCASE (rip_relative_push)
