@@ -224,7 +224,7 @@ enum _GumVirtualizationRequirements
 static void gum_stalker_finalize (GObject * object);
 
 void _gum_stalker_do_follow_me (GumStalker * self, GumEventSink * sink,
-    gpointer * ret_addr_ptr);
+    volatile gpointer * ret_addr_ptr);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
@@ -451,13 +451,13 @@ gum_stalker_garbage_collect (GumStalker * self)
 #ifdef _MSC_VER
 
 #define RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT(arg)   \
-    ((gpointer *) ((guint8 *) &arg - sizeof (gpointer)))
+    ((gpointer *) ((volatile guint8 *) &arg - sizeof (gpointer)))
 
 void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
-  gpointer * ret_addr_ptr;
+  volatile gpointer * ret_addr_ptr;
 
   ret_addr_ptr = RETURN_ADDRESS_POINTER_FROM_FIRST_ARGUMENT (self);
 
@@ -469,7 +469,7 @@ gum_stalker_follow_me (GumStalker * self,
 void
 _gum_stalker_do_follow_me (GumStalker * self,
                            GumEventSink * sink,
-                           gpointer * ret_addr_ptr)
+                           volatile gpointer * ret_addr_ptr)
 {
   GumExecCtx * ctx;
 
