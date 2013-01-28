@@ -249,6 +249,12 @@ on_read_ready (GObject * source_object,
 
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   GMainContext * context;
 
   context = g_main_context_get_thread_default ();
@@ -272,6 +278,12 @@ SCRIPT_TESTCASE (execution_can_be_traced)
 
 SCRIPT_TESTCASE (call_can_be_probed)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
     "  onReceive: function(events) {}"
     "});"
