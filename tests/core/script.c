@@ -262,6 +262,7 @@ SCRIPT_TESTCASE (execution_can_be_traced)
     "});"
     "Thread.sleep(0.01);"
     "Stalker.unfollow(me);"
+    "Stalker.garbageCollect();"
   );
   EXPECT_NO_MESSAGES ();
   while (g_main_context_pending (context))

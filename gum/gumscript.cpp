@@ -316,6 +316,8 @@ static Handle<Value> gum_script_on_socket_local_address (
 static Handle<Value> gum_script_on_socket_peer_address (const Arguments & args);
 static Handle<Value> gum_script_socket_address_to_value (
     struct sockaddr * addr);
+static Handle<Value> gum_script_on_stalker_garbage_collect (
+    const Arguments & args);
 static Handle<Value> gum_script_on_stalker_follow (const Arguments & args);
 static Handle<Value> gum_script_on_stalker_unfollow (const Arguments & args);
 static Handle<Value> gum_script_on_stalker_add_call_probe (
@@ -682,6 +684,9 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("Socket"), socket_templ);
 
   Handle<ObjectTemplate> stalker_templ = ObjectTemplate::New ();
+  stalker_templ->Set (String::New ("garbageCollect"),
+      FunctionTemplate::New (gum_script_on_stalker_garbage_collect,
+          External::Wrap (self)));
   stalker_templ->Set (String::New ("follow"),
       FunctionTemplate::New (gum_script_on_stalker_follow,
           External::Wrap (self)));
@@ -2396,6 +2401,17 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
   }
 
   return Null ();
+}
+
+static Handle<Value>
+gum_script_on_stalker_garbage_collect (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  if (self->priv->stalker != NULL)
+    gum_stalker_garbage_collect (self->priv->stalker);
+
+  return Undefined ();
 }
 
 static Handle<Value>
