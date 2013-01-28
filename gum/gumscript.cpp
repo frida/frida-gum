@@ -1703,7 +1703,7 @@ gum_script_memory_do_read (const Arguments & args,
       {
         const gunichar2 * str_utf16 = static_cast<const gunichar2 *> (
             GSIZE_TO_POINTER (args[0]->IntegerValue ()));
-        guint16 dummy_to_trap_bad_pointer_early;
+        guint8 dummy_to_trap_bad_pointer_early;
         gchar * str_utf8;
         glong length, size;
 
@@ -1713,8 +1713,7 @@ gum_script_memory_do_read (const Arguments & args,
           break;
         }
 
-        memcpy (&dummy_to_trap_bad_pointer_early, str_utf16,
-            sizeof (gunichar2));
+        memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, 1);
 
         length = (args.Length () > 1) ? args[1]->IntegerValue() : -1;
         str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
