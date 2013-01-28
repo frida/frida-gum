@@ -74,6 +74,11 @@ gum_stalker_set_cache_enabled (GumStalker * self,
 }
 
 void
+gum_stalker_garbage_collect (GumStalker * self)
+{
+}
+
+void
 gum_stalker_follow_me (GumStalker * self,
                        GumEventSink * sink)
 {
