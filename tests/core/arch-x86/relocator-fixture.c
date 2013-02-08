@@ -45,7 +45,7 @@ test_relocator_fixture_setup (TestRelocatorFixture * fixture,
                               gconstpointer data)
 {
   guint page_size;
-  const guint8 stack_data[1] = { 42 };
+  guint8 stack_data[1] = { 42 };
   GumAddressSpec as;
 
   page_size = gum_query_page_size ();
