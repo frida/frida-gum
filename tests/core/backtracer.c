@@ -46,6 +46,13 @@ BACKTRACER_TESTCASE (basics)
 
   expected_line_number = __LINE__ + 2;
 #endif
+
+  if (fixture->backtracer == NULL)
+  {
+    g_print ("<skipping, no backtracer support> ");
+    return;
+  }
+
   gum_backtracer_generate (fixture->backtracer, NULL, &ret_addrs);
   g_assert_cmpuint (ret_addrs.len, >=, 2);
 

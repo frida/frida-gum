@@ -46,5 +46,6 @@ static void
 test_backtracer_fixture_teardown (TestBacktracerFixture * fixture,
                                   gconstpointer data)
 {
-  g_object_unref (fixture->backtracer);
+  if (fixture->backtracer != NULL)
+    g_object_unref (fixture->backtracer);
 }

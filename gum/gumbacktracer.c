@@ -57,7 +57,7 @@ gum_backtracer_make_default (void)
   return gum_ns_backtracer_new ();
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
-#elif defined (HAVE_I386)
+#elif defined (HAVE_I386) && !defined(__clang__)
   return gum_x86_backtracer_new ();
 #else
   return NULL;
