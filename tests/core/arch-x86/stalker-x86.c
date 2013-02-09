@@ -105,6 +105,14 @@ STALKER_TESTCASE (follow_thread)
   GumThreadId thread_id;
   GThread * thread;
 
+#ifdef HAVE_LINUX
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping as it is unreliable on Linux, run in slow mode> ");
+    return;
+  }
+#endif
+
   ctx.state = STALKER_VICTIM_CREATED;
   ctx.mutex = g_mutex_new ();
   ctx.cond = g_cond_new ();
