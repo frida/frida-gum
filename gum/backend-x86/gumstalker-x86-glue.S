@@ -19,7 +19,7 @@ call _gum_stalker_do_follow_me
 addl $12, %esp
 ret
 #else
-movl %rsp, %rdx
+mov %rsp, %rdx
 #ifdef __APPLE__
 jmp __gum_stalker_do_follow_me
 #else
