@@ -1,4 +1,3 @@
-.intel_syntax noprefix
 .text
 
 #ifdef __APPLE__
@@ -9,18 +8,18 @@ _gum_stalker_follow_me:
 gum_stalker_follow_me:
 #endif
 #ifdef i386
-push esp
-push [esp + 8 + 4]
-push [esp + 12 + 0]
+pushl %esp
+pushl (8 + 4)(%esp)
+pushl (12 + 0)(%esp)
 #ifdef __APPLE__
 call __gum_stalker_do_follow_me
 #else
 call _gum_stalker_do_follow_me
 #endif
-add esp, 12
+addl $12, %esp
 ret
 #else
-mov rdx, rsp
+movl %rsp, %rdx
 #ifdef __APPLE__
 jmp __gum_stalker_do_follow_me
 #else
