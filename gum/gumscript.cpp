@@ -2918,7 +2918,10 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
   { "default", FFI_DEFAULT_ABI },
 #ifdef X86_WIN32
   { "sysv", FFI_SYSV },
-  { "stdcall", FFI_STDCALL }
+  { "stdcall", FFI_STDCALL },
+  { "thiscall", FFI_THISCALL },
+  { "fastcall", FFI_FASTCALL },
+  { "mscdecl", FFI_MS_CDECL }
 #elif defined(X86_WIN64)
   { "win64", FFI_WIN64 }
 #else
