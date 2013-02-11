@@ -89,7 +89,6 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
       gum_toupper, str, str);
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("-6");
-  EXPECT_SEND_MESSAGE_WITH ("yay");
   EXPECT_NO_MESSAGES ();
   g_assert_cmpstr (str, ==, "BADGER");
 }
