@@ -255,6 +255,8 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   g_free (expected_message);
 }
 
+static gint gum_toupper (gchar * str, gint limit);
+
 static gboolean on_incoming_connection (GSocketService * service,
     GSocketConnection * connection, GObject * source_object,
     gpointer user_data);

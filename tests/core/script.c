@@ -71,9 +71,43 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
+  SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
 TEST_LIST_END ()
+
+SCRIPT_TESTCASE (native_function_can_be_invoked)
+{
+  gchar str[7];
+
+  strcpy (str, "badger");
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_FORMAT ", "
+          "'int', ['pointer', 'int']);"
+      "send(toupper(" GUM_PTR_FORMAT ", 3));"
+      "send(toupper(" GUM_PTR_FORMAT ", -1));",
+      gum_toupper, str, str);
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("-6");
+  EXPECT_SEND_MESSAGE_WITH ("yay");
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (str, ==, "BADGER");
+}
+
+static gint
+gum_toupper (gchar * str,
+             gint limit)
+{
+  gint count = 0;
+  gchar * c;
+
+  for (c = str; *c != '\0' && (count < limit || limit == -1); c++, count++)
+  {
+    *c = g_ascii_toupper (*c);
+  }
+
+  return (limit == -1) ? -count : count;
+}
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
 {

@@ -30,6 +30,7 @@
 # include "backend-windows/gumwinexceptionhook.h"
 #endif
 
+#include <ffi.h>
 #include <gio/gio.h>
 #include <setjmp.h>
 #include <string.h>
@@ -104,6 +105,11 @@ typedef guint GumMemoryValueType;
 typedef struct _GumScriptMatchContext GumScriptMatchContext;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
 typedef struct _GumScriptCallProbe GumScriptCallProbe;
+
+typedef struct _GumFFIFunction GumFFIFunction;
+typedef union _GumFFIValue GumFFIValue;
+typedef struct _GumFFITypeMapping GumFFITypeMapping;
+typedef struct _GumFFIABIMapping GumFFIABIMapping;
 
 struct _GumScriptPrivate
 {
@@ -209,6 +215,46 @@ struct _GumScriptCallProbe
   Persistent<Object> receiver;
 };
 
+struct _GumFFIFunction
+{
+  gpointer fn;
+  ffi_cif cif;
+  ffi_type ** atypes;
+};
+
+union _GumFFIValue
+{
+  gpointer v_pointer;
+  gint v_sint;
+  guint v_uint;
+  glong v_slong;
+  gulong v_ulong;
+  gchar v_schar;
+  guchar v_uchar;
+  gfloat v_float;
+  gdouble v_double;
+  gint8 v_sint8;
+  guint8 v_uint8;
+  gint16 v_sint16;
+  guint16 v_uint16;
+  gint32 v_sint32;
+  guint32 v_uint32;
+  gint64 v_sint64;
+  guint64 v_uint64;
+};
+
+struct _GumFFITypeMapping
+{
+  const gchar * name;
+  ffi_type * type;
+};
+
+struct _GumFFIABIMapping
+{
+  const gchar * name;
+  ffi_abi abi;
+};
+
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -228,6 +274,15 @@ static Handle<Value> gum_script_on_send (const Arguments & args);
 static Handle<Value> gum_script_on_set_incoming_message_callback (
     const Arguments & args);
 static Handle<Value> gum_script_on_wait_for_event (const Arguments & args);
+
+static Handle<Value> gum_script_on_new_native_function (
+    const Arguments & args);
+static void gum_script_on_free_native_function (Persistent<Value> object,
+    void * data);
+static Handle<Value> gum_script_on_invoke_native_function (
+    const Arguments & args);
+static void gum_ffi_function_free (GumFFIFunction * func);
+
 static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
     Handle<Object> receiver);
 static void gum_message_sink_free (GumMessageSink * sink);
@@ -339,6 +394,13 @@ static Handle<Value> gum_script_invocation_args_on_get_nth (uint32_t index,
     const AccessorInfo & info);
 static Handle<Value> gum_script_invocation_args_on_set_nth (uint32_t index,
     Local<Value> value, const AccessorInfo & info);
+
+static gboolean gum_script_ffi_type_get (Handle<Value> name, ffi_type ** type);
+static gboolean gum_script_ffi_abi_get (Handle<Value> name, ffi_abi * abi);
+static gboolean gum_script_value_to_ffi_type (const Handle<Value> svalue,
+    GumFFIValue * value, const ffi_type * type);
+static gboolean gum_script_value_from_ffi_type (Handle<Value> * svalue,
+    const GumFFIValue * value, const ffi_type * type);
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
@@ -569,6 +631,16 @@ gum_script_create_context (GumScript * self)
   global_templ->Set (String::New ("_waitForEvent"),
       FunctionTemplate::New (gum_script_on_wait_for_event,
           External::Wrap (self)));
+
+  Local<FunctionTemplate> native_function = FunctionTemplate::New (
+      gum_script_on_new_native_function);
+  native_function->SetClassName (String::New ("NativeFunction"));
+  Local<ObjectTemplate> native_function_object =
+      native_function->InstanceTemplate ();
+  native_function_object->SetCallAsFunctionHandler (
+      gum_script_on_invoke_native_function);
+  native_function_object->SetInternalFieldCount (1);
+  global_templ->Set (String::New ("NativeFunction"), native_function);
 
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
@@ -1086,6 +1158,140 @@ gum_script_on_wait_for_event (const Arguments & args)
   return Undefined ();
 }
 
+static Handle<Value>
+gum_script_on_new_native_function (const Arguments & args)
+{
+  GumFFIFunction * func;
+  Local<Value> rtype_value;
+  ffi_type * rtype;
+  Local<Value> atypes_value;
+  Local<Array> atypes_array;
+  uint32_t nargs, i;
+  ffi_abi abi;
+  Local<Object> instance;
+  Persistent<Object> persistent_instance;
+
+  func = g_slice_new0 (GumFFIFunction);
+
+  Local<Value> fn_value = args[0];
+  if (!fn_value->IsNumber ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+        "first argument must be a memory address")));
+    goto error;
+  }
+  func->fn = GSIZE_TO_POINTER (fn_value->IntegerValue ());
+
+  rtype_value = args[1];
+  if (!rtype_value->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+        "second argument must be a string specifying return type")));
+    goto error;
+  }
+  if (!gum_script_ffi_type_get (rtype_value, &rtype))
+    goto error;
+
+  atypes_value = args[2];
+  if (!atypes_value->IsArray ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+        "third argument must be an array specifying argument types")));
+    goto error;
+  }
+  atypes_array = Array::Cast (*atypes_value);
+  nargs = atypes_array->Length ();
+  func->atypes = g_new (ffi_type *, nargs);
+  for (i = 0; i != nargs; i++)
+  {
+    if (!gum_script_ffi_type_get (atypes_array->Get (i), &func->atypes[i]))
+      goto error;
+  }
+
+  abi = FFI_DEFAULT_ABI;
+  if (args.Length () > 3)
+  {
+    if (!gum_script_ffi_abi_get (args[3], &abi))
+      goto error;
+  }
+
+  if (ffi_prep_cif (&func->cif, abi, nargs, rtype, func->atypes) != FFI_OK)
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+        "failed to compile function call interface")));
+    goto error;
+  }
+
+  instance = args.Holder ();
+  instance->SetPointerInInternalField (0, func);
+
+  persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (func, gum_script_on_free_native_function);
+  persistent_instance.MarkIndependent ();
+
+  return Undefined ();
+
+error:
+  gum_ffi_function_free (func);
+  return Undefined ();
+}
+
+static void
+gum_script_on_free_native_function (Persistent<Value> object,
+                                    void * data)
+{
+  HandleScope handle_scope;
+  gum_ffi_function_free (static_cast<GumFFIFunction *> (data));
+  object.Dispose ();
+}
+
+static Handle<Value>
+gum_script_on_invoke_native_function (const Arguments & args)
+{
+  Local<Object> instance = args.Holder ();
+  GumFFIFunction * func = static_cast<GumFFIFunction *> (
+      instance->GetPointerFromInternalField (0));
+
+  if (args.Length () != func->cif.nargs)
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+        "bad argument count")));
+    return Undefined ();
+  }
+
+  GumFFIValue rvalue;
+  void ** avalue = static_cast<void **> (
+      g_alloca (func->cif.nargs * sizeof (void *)));
+  GumFFIValue * ffi_args = static_cast<GumFFIValue *> (
+      g_alloca (func->cif.nargs * sizeof (GumFFIValue)));
+  for (uint32_t i = 0; i != func->cif.nargs; i++)
+  {
+    if (!gum_script_value_to_ffi_type (args[i], &ffi_args[i],
+        func->cif.arg_types[i]))
+    {
+      return Undefined ();
+    }
+    avalue[i] = &ffi_args[i];
+  }
+
+  ffi_call (&func->cif, FFI_FN (func->fn), &rvalue, avalue);
+
+  Local<Value> result;
+  if (!gum_script_value_from_ffi_type (&result, &rvalue, func->cif.rtype))
+  {
+    return Undefined ();
+  }
+
+  return result;
+}
+
+static void
+gum_ffi_function_free (GumFFIFunction * func)
+{
+  g_free (func->atypes);
+  g_slice_free (GumFFIFunction, func);
+}
+
 static GumMessageSink *
 gum_message_sink_new (Handle<Function> callback,
                       Handle<Object> receiver)
@@ -1567,7 +1773,8 @@ gum_script_on_int32_cast (const Arguments & args)
 }
 
 static void
-gum_script_array_free (Persistent<Value> object, void * data)
+gum_script_array_free (Persistent<Value> object,
+                       void * data)
 {
   int32_t length;
 
@@ -2682,6 +2889,254 @@ gum_script_invocation_args_on_set_nth (uint32_t index,
   gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
 
   return value;
+}
+
+static const GumFFITypeMapping gum_ffi_type_mappings[] =
+{
+  { "void", &ffi_type_void },
+  { "pointer", &ffi_type_pointer },
+  { "int", &ffi_type_sint },
+  { "uint", &ffi_type_uint },
+  { "long", &ffi_type_slong },
+  { "ulong", &ffi_type_ulong },
+  { "char", &ffi_type_schar },
+  { "uchar", &ffi_type_uchar },
+  { "float", &ffi_type_float },
+  { "double", &ffi_type_double },
+  { "int8", &ffi_type_sint8 },
+  { "uint8", &ffi_type_uint8 },
+  { "int16", &ffi_type_sint16 },
+  { "uint16", &ffi_type_uint16 },
+  { "int32", &ffi_type_sint32 },
+  { "uint32", &ffi_type_uint32 },
+  { "int64", &ffi_type_sint64 },
+  { "uint64", &ffi_type_uint64 }
+};
+
+static const GumFFIABIMapping gum_ffi_abi_mappings[] =
+{
+  { "default", FFI_DEFAULT_ABI },
+#ifdef X86_WIN32
+  { "sysv", FFI_SYSV },
+  { "stdcall", FFI_STDCALL }
+#elif defined(X86_WIN64)
+  { "win64", FFI_WIN64 }
+#else
+  { "sysv", FFI_SYSV },
+  { "unix64", FFI_UNIX64 }
+#endif
+};
+
+static gboolean
+gum_script_ffi_type_get (Handle<Value> name,
+                         ffi_type ** type)
+{
+  String::Utf8Value str_value (name);
+  const gchar * str = *str_value;
+  for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
+  {
+    const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
+    if (strcmp (str, m->name) == 0)
+    {
+      *type = m->type;
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_script_ffi_abi_get (Handle<Value> name,
+                        ffi_abi * abi)
+{
+  String::Utf8Value str_value (name);
+  const gchar * str = *str_value;
+  for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
+  {
+    const GumFFIABIMapping * m = &gum_ffi_abi_mappings[i];
+    if (strcmp (str, m->name) == 0)
+    {
+      *abi = m->abi;
+      return TRUE;
+    }
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_script_value_to_ffi_type (const Handle<Value> svalue,
+                              GumFFIValue * value,
+                              const ffi_type * type)
+{
+  if (type == &ffi_type_void)
+  {
+    value->v_pointer = NULL;
+  }
+  else if (type == &ffi_type_pointer)
+  {
+    value->v_pointer = GSIZE_TO_POINTER (svalue->IntegerValue ());
+  }
+  else if (type == &ffi_type_sint)
+  {
+    value->v_sint = svalue->IntegerValue ();
+  }
+  else if (type == &ffi_type_uint)
+  {
+    value->v_uint = static_cast<guint> (svalue->IntegerValue ());
+  }
+  else if (type == &ffi_type_slong)
+  {
+    value->v_slong = svalue->IntegerValue ();
+  }
+  else if (type == &ffi_type_ulong)
+  {
+    value->v_ulong = static_cast<gulong> (svalue->IntegerValue ());
+  }
+  else if (type == &ffi_type_schar)
+  {
+    value->v_schar = static_cast<gchar> (svalue->Int32Value ());
+  }
+  else if (type == &ffi_type_uchar)
+  {
+    value->v_uchar = static_cast<guchar> (svalue->Uint32Value ());
+  }
+  else if (type == &ffi_type_float)
+  {
+    value->v_float = svalue->NumberValue ();
+  }
+  else if (type == &ffi_type_double)
+  {
+    value->v_double = svalue->NumberValue ();
+  }
+  else if (type == &ffi_type_sint8)
+  {
+    value->v_sint8 = static_cast<gint8> (svalue->Int32Value ());
+  }
+  else if (type == &ffi_type_uint8)
+  {
+    value->v_uint8 = static_cast<guint8> (svalue->Uint32Value ());
+  }
+  else if (type == &ffi_type_sint16)
+  {
+    value->v_sint16 = static_cast<gint16> (svalue->Int32Value ());
+  }
+  else if (type == &ffi_type_uint16)
+  {
+    value->v_uint16 = static_cast<guint16> (svalue->Uint32Value ());
+  }
+  else if (type == &ffi_type_sint32)
+  {
+    value->v_sint32 = static_cast<gint32> (svalue->Int32Value ());
+  }
+  else if (type == &ffi_type_uint32)
+  {
+    value->v_uint32 = static_cast<guint32> (svalue->Uint32Value ());
+  }
+  else if (type == &ffi_type_sint64)
+  {
+    value->v_sint64 = static_cast<gint64> (svalue->IntegerValue ());
+  }
+  else if (type == &ffi_type_uint64)
+  {
+    value->v_uint64 = static_cast<guint64> (svalue->IntegerValue ());
+  }
+  else
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "value_to_ffi_type: unsupported type")));
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_script_value_from_ffi_type (Handle<Value> * svalue,
+                                const GumFFIValue * value,
+                                const ffi_type * type)
+{
+  if (type == &ffi_type_void)
+  {
+    *svalue = Undefined ();
+  }
+  else if (type == &ffi_type_pointer)
+  {
+    *svalue = Number::New (GPOINTER_TO_SIZE (value->v_pointer));
+  }
+  else if (type == &ffi_type_sint)
+  {
+    *svalue = Number::New (value->v_sint);
+  }
+  else if (type == &ffi_type_uint)
+  {
+    *svalue = Number::New (value->v_uint);
+  }
+  else if (type == &ffi_type_slong)
+  {
+    *svalue = Number::New (value->v_slong);
+  }
+  else if (type == &ffi_type_ulong)
+  {
+    *svalue = Number::New (value->v_ulong);
+  }
+  else if (type == &ffi_type_schar)
+  {
+    *svalue = Integer::New (value->v_schar);
+  }
+  else if (type == &ffi_type_uchar)
+  {
+    *svalue = Integer::NewFromUnsigned (value->v_uchar);
+  }
+  else if (type == &ffi_type_float)
+  {
+    *svalue = Number::New (value->v_float);
+  }
+  else if (type == &ffi_type_double)
+  {
+    *svalue = Number::New (value->v_double);
+  }
+  else if (type == &ffi_type_sint8)
+  {
+    *svalue = Integer::New (value->v_sint8);
+  }
+  else if (type == &ffi_type_uint8)
+  {
+    *svalue = Integer::NewFromUnsigned (value->v_uint8);
+  }
+  else if (type == &ffi_type_sint16)
+  {
+    *svalue = Integer::New (value->v_sint16);
+  }
+  else if (type == &ffi_type_uint16)
+  {
+    *svalue = Integer::NewFromUnsigned (value->v_uint16);
+  }
+  else if (type == &ffi_type_sint32)
+  {
+    *svalue = Integer::New (value->v_sint32);
+  }
+  else if (type == &ffi_type_uint32)
+  {
+    *svalue = Integer::NewFromUnsigned (value->v_uint32);
+  }
+  else if (type == &ffi_type_sint64)
+  {
+    *svalue = Number::New (value->v_sint64);
+  }
+  else if (type == &ffi_type_uint64)
+  {
+    *svalue = Number::New (value->v_uint64);
+  }
+  else
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "value_from_ffi_type: unsupported type")));
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
