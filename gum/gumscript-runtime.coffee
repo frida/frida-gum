@@ -60,3 +60,6 @@ recv = ->
     type = arguments[0]
     callback = arguments[1]
   _dispatcher.registerCallback(type, callback)
+
+ptr = (str) ->
+  new NativePointer(str)

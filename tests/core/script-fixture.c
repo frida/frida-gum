@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tandberg.com>
+ * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -64,7 +65,7 @@
 #define EXPECT_ERROR_MESSAGE_WITH(LINE_NUMBER, DESC) \
     test_script_fixture_expect_error_message_with (fixture, LINE_NUMBER, DESC)
 
-#define GUM_PTR_FORMAT "0x%" G_GSIZE_MODIFIER "x"
+#define GUM_PTR_CONST "ptr(\"0x%" G_GSIZE_MODIFIER "x\")"
 
 #ifdef G_OS_WIN32
 # define GUM_CLOSE_SOCKET(s) closesocket (s)
@@ -122,6 +123,7 @@ test_script_fixture_store_message (GumScript * script,
 
   item = g_slice_new (TestScriptMessageItem);
   item->message = g_strdup (message);
+
   if (data != NULL)
   {
     GString * s;

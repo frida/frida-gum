@@ -1,5 +1,6 @@
 /*
- * Copyright (C) 2010-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -120,6 +121,7 @@ struct _GumScriptPrivate
 
   Persistent<Context> context;
   Persistent<Script> raw_script;
+  Persistent<FunctionTemplate> native_pointer;
   Persistent<ObjectTemplate> invocation_args;
   Persistent<ObjectTemplate> probe_args;
 
@@ -275,6 +277,12 @@ static Handle<Value> gum_script_on_set_incoming_message_callback (
     const Arguments & args);
 static Handle<Value> gum_script_on_wait_for_event (const Arguments & args);
 
+static Handle<Value> gum_script_on_new_native_pointer (const Arguments & args);
+static Handle<Value> gum_script_on_native_pointer_add (const Arguments & args);
+static Handle<Value> gum_script_on_native_pointer_sub (const Arguments & args);
+static Handle<Value> gum_script_on_native_pointer_to_int32 (
+    const Arguments & args);
+
 static Handle<Value> gum_script_on_new_native_function (
     const Arguments & args);
 static void gum_script_on_free_native_function (Persistent<Value> object,
@@ -317,7 +325,7 @@ static Handle<Value> gum_script_on_module_find_base_address (
 static Handle<Value> gum_script_on_module_find_export_by_name (
     const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
-static Handle<Value> gum_script_on_int32_cast (const Arguments & args);
+
 #ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
@@ -397,15 +405,20 @@ static Handle<Value> gum_script_invocation_args_on_set_nth (uint32_t index,
 
 static gboolean gum_script_ffi_type_get (Handle<Value> name, ffi_type ** type);
 static gboolean gum_script_ffi_abi_get (Handle<Value> name, ffi_abi * abi);
-static gboolean gum_script_value_to_ffi_type (const Handle<Value> svalue,
-    GumFFIValue * value, const ffi_type * type);
-static gboolean gum_script_value_from_ffi_type (Handle<Value> * svalue,
-    const GumFFIValue * value, const ffi_type * type);
+static gboolean gum_script_value_to_ffi_type (GumScript * self,
+    const Handle<Value> svalue, GumFFIValue * value, const ffi_type * type);
+static gboolean gum_script_value_from_ffi_type (GumScript * self,
+    Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
 static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
     GumPageProtection * prot);
+
+static Handle<Object> gum_script_pointer_new (GumScript * self,
+    gpointer address);
+static gboolean gum_script_pointer_get (GumScript * self, Handle<Value> value,
+    gpointer * target);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -553,6 +566,8 @@ gum_script_dispose (GObject * object)
     while (!g_queue_is_empty (priv->heap_blocks))
       g_free (g_queue_pop_tail (priv->heap_blocks));
 
+    priv->native_pointer.Dispose ();
+    priv->native_pointer.Clear ();
     priv->invocation_args.Dispose ();
     priv->invocation_args.Clear ();
     priv->probe_args.Dispose ();
@@ -632,13 +647,30 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_wait_for_event,
           External::Wrap (self)));
 
+  Local<FunctionTemplate> native_pointer = FunctionTemplate::New (
+      gum_script_on_new_native_pointer);
+  native_pointer->SetClassName (String::New ("NativePointer"));
+  Local<ObjectTemplate> native_pointer_object =
+      native_pointer->InstanceTemplate ();
+  native_pointer_object->SetInternalFieldCount (1);
+  native_pointer_object->Set (String::New ("add"),
+      FunctionTemplate::New (gum_script_on_native_pointer_add,
+      External::Wrap (self)));
+  native_pointer_object->Set (String::New ("sub"),
+      FunctionTemplate::New (gum_script_on_native_pointer_sub,
+      External::Wrap (self)));
+  native_pointer_object->Set (String::New ("toInt32"),
+      FunctionTemplate::New (gum_script_on_native_pointer_to_int32));
+  global_templ->Set (String::New ("NativePointer"), native_pointer);
+  priv->native_pointer = Persistent<FunctionTemplate>::New (native_pointer);
+
   Local<FunctionTemplate> native_function = FunctionTemplate::New (
-      gum_script_on_new_native_function);
+      gum_script_on_new_native_function, External::Wrap (self));
   native_function->SetClassName (String::New ("NativeFunction"));
   Local<ObjectTemplate> native_function_object =
       native_function->InstanceTemplate ();
   native_function_object->SetCallAsFunctionHandler (
-      gum_script_on_invoke_native_function);
+      gum_script_on_invoke_native_function, External::Wrap (self));
   native_function_object->SetInternalFieldCount (1);
   global_templ->Set (String::New ("NativeFunction"), native_function);
 
@@ -677,9 +709,6 @@ gum_script_create_context (GumScript * self)
   module_templ->Set (String::New ("findExportByName"),
       FunctionTemplate::New (gum_script_on_module_find_export_by_name));
   global_templ->Set (String::New ("Module"), module_templ);
-
-  global_templ->Set (String::New ("Int32"),
-      FunctionTemplate::New (gum_script_on_int32_cast, External::Wrap (self)));
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
   memory_templ->Set (String::New ("scan"),
@@ -782,7 +811,9 @@ gum_script_create_context (GumScript * self)
     args_templ->SetInternalFieldCount (1);
     args_templ->SetIndexedPropertyHandler (
         gum_script_invocation_args_on_get_nth,
-        gum_script_invocation_args_on_set_nth);
+        gum_script_invocation_args_on_set_nth,
+        0, 0, 0,
+        External::Wrap (self));
     priv->invocation_args = Persistent<ObjectTemplate>::New (args_templ);
   }
 
@@ -1159,8 +1190,97 @@ gum_script_on_wait_for_event (const Arguments & args)
 }
 
 static Handle<Value>
+gum_script_on_new_native_pointer (const Arguments & args)
+{
+  guint64 ptr;
+
+  if (args.Length () == 0)
+  {
+    ptr = 0;
+  }
+  else
+  {
+    String::Utf8Value ptr_as_utf8 (args[0]);
+    const gchar * ptr_as_string = *ptr_as_utf8;
+    gchar * endptr;
+    if (g_str_has_prefix (ptr_as_string, "0x")) 
+    {
+      ptr = g_ascii_strtoull (ptr_as_string + 2, &endptr, 16);
+      if (endptr == ptr_as_string + 2)
+      {
+        ThrowException (Exception::TypeError (String::New ("NativePointer: "
+            "argument is not a valid hexadecimal string")));
+        return Undefined ();
+      }
+    }
+    else
+    {
+      ptr = g_ascii_strtoull (ptr_as_string, &endptr, 10);
+      if (endptr == ptr_as_string)
+      {
+        ThrowException (Exception::TypeError (String::New ("NativePointer: "
+            "argument is not a valid decimal string")));
+        return Undefined ();
+      }
+    }
+  }
+
+  args.Holder ()->SetPointerInInternalField (0, GSIZE_TO_POINTER (ptr));
+
+  return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_native_pointer_add (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  guint64 lhs = reinterpret_cast<guint64> (
+      args.Holder ()->GetPointerFromInternalField (0));
+  if (self->priv->native_pointer->HasInstance (args[0]))
+  {
+    guint64 rhs = reinterpret_cast<guint64> (
+        args[0]->ToObject ()->GetPointerFromInternalField (0));
+    return gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs + rhs));
+  }
+  else
+  {
+    return gum_script_pointer_new (self,
+        GSIZE_TO_POINTER (lhs + args[0]->ToInteger ()->Value ()));
+  }
+}
+
+static Handle<Value>
+gum_script_on_native_pointer_sub (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  guint64 lhs = reinterpret_cast<guint64> (
+      args.Holder ()->GetPointerFromInternalField (0));
+  if (self->priv->native_pointer->HasInstance (args[0]))
+  {
+    guint64 rhs = reinterpret_cast<guint64> (
+        args[0]->ToObject ()->GetPointerFromInternalField (0));
+    return gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs - rhs));
+  }
+  else
+  {
+    return gum_script_pointer_new (self,
+        GSIZE_TO_POINTER (lhs - args[0]->ToInteger ()->Value ()));
+  }
+}
+
+static Handle<Value>
+gum_script_on_native_pointer_to_int32 (const Arguments & args)
+{
+  return Integer::New (static_cast<int32_t>
+      (GPOINTER_TO_SIZE (args.Holder ()->GetPointerFromInternalField (0))));
+}
+
+static Handle<Value>
 gum_script_on_new_native_function (const Arguments & args)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumFFIFunction * func;
   Local<Value> rtype_value;
   ffi_type * rtype;
@@ -1173,14 +1293,8 @@ gum_script_on_new_native_function (const Arguments & args)
 
   func = g_slice_new0 (GumFFIFunction);
 
-  Local<Value> fn_value = args[0];
-  if (!fn_value->IsNumber ())
-  {
-    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
-        "first argument must be a memory address")));
+  if (!gum_script_pointer_get (self, args[0], &func->fn))
     goto error;
-  }
-  func->fn = GSIZE_TO_POINTER (fn_value->IntegerValue ());
 
   rtype_value = args[1];
   if (!rtype_value->IsString ())
@@ -1248,11 +1362,12 @@ gum_script_on_free_native_function (Persistent<Value> object,
 static Handle<Value>
 gum_script_on_invoke_native_function (const Arguments & args)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   Local<Object> instance = args.Holder ();
   GumFFIFunction * func = static_cast<GumFFIFunction *> (
       instance->GetPointerFromInternalField (0));
 
-  if (args.Length () != func->cif.nargs)
+  if (args.Length () != static_cast<gint> (func->cif.nargs))
   {
     ThrowException (Exception::TypeError (String::New ("NativeFunction: "
         "bad argument count")));
@@ -1266,7 +1381,7 @@ gum_script_on_invoke_native_function (const Arguments & args)
       g_alloca (func->cif.nargs * sizeof (GumFFIValue)));
   for (uint32_t i = 0; i != func->cif.nargs; i++)
   {
-    if (!gum_script_value_to_ffi_type (args[i], &ffi_args[i],
+    if (!gum_script_value_to_ffi_type (self, args[i], &ffi_args[i],
         func->cif.arg_types[i]))
     {
       return Undefined ();
@@ -1277,7 +1392,7 @@ gum_script_on_invoke_native_function (const Arguments & args)
   ffi_call (&func->cif, FFI_FN (func->fn), &rvalue, avalue);
 
   Local<Value> result;
-  if (!gum_script_value_from_ffi_type (&result, &rvalue, func->cif.rtype))
+  if (!gum_script_value_from_ffi_type (self, &result, &rvalue, func->cif.rtype))
   {
     return Undefined ();
   }
@@ -1728,13 +1843,9 @@ gum_script_on_interceptor_attach (const Arguments & args)
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumScriptPrivate * priv = self->priv;
 
-  Local<Value> target_spec = args[0];
-  if (!target_spec->IsNumber ())
-  {
-    ThrowException (Exception::TypeError (String::New ("Interceptor.attach: "
-        "first argument must be a memory address")));
+  gpointer target;
+  if (!gum_script_pointer_get (self, args[0], &target))
     return Undefined ();
-  }
 
   Local<Value> callbacks_value = args[1];
   if (!callbacks_value->IsObject ())
@@ -1756,20 +1867,12 @@ gum_script_on_interceptor_attach (const Arguments & args)
   entry->on_enter = Persistent<Function>::New (on_enter);
   entry->on_leave = Persistent<Function>::New (on_leave);
 
-  gpointer function_address = GSIZE_TO_POINTER (target_spec->IntegerValue ());
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
-      priv->interceptor, function_address, GUM_INVOCATION_LISTENER (self),
-      entry);
+      priv->interceptor, target, GUM_INVOCATION_LISTENER (self), entry);
 
   g_queue_push_tail (priv->attach_entries, entry);
 
   return (attach_ret == GUM_ATTACH_OK) ? True () : False ();
-}
-
-static Handle<Value>
-gum_script_on_int32_cast (const Arguments & args)
-{
-  return Number::New (args[0]->Int32Value ());
 }
 
 static void
@@ -1794,9 +1897,13 @@ static Handle<Value>
 gum_script_memory_do_read (const Arguments & args,
                            GumMemoryValueType type)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
-  Handle<Value> address = args[0];
   Handle<Value> result;
+
+  gpointer address;
+  if (!gum_script_pointer_get (self, args[0], &address))
+    return Undefined ();
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
@@ -1805,49 +1912,44 @@ gum_script_memory_do_read (const Arguments & args,
     switch (type)
     {
       case GUM_MEMORY_VALUE_SWORD:
-        result = Integer::New (*static_cast<const int *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        result = Integer::New (*static_cast<const int *> (address));
         break;
       case GUM_MEMORY_VALUE_UWORD:
-        result = Integer::New (*static_cast<const unsigned int *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        result = Integer::New (*static_cast<const unsigned int *> (address));
         break;
       case GUM_MEMORY_VALUE_S8:
-        result = Integer::New (*static_cast<const gint8 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        result = Integer::New (*static_cast<const gint8 *> (address));
         break;
       case GUM_MEMORY_VALUE_U8:
         result = Integer::NewFromUnsigned (*static_cast<const guint8 *> (
-            GSIZE_TO_POINTER (address->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_S16:
-        result = Integer::New (*static_cast<const gint16 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+        result = Integer::New (*static_cast<const gint16 *> (address));
         break;
       case GUM_MEMORY_VALUE_U16:
         result = Integer::NewFromUnsigned (*static_cast<const guint16 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_S32:
         result = Integer::New (*static_cast<const gint32 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_U32:
         result = Integer::NewFromUnsigned (*static_cast<const guint32 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_S64:
         result = Number::New (*static_cast<const gint64 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_U64:
         result = Number::New (*static_cast<const guint64 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ())));
+            address));
         break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
-        const guint8 * data = static_cast<const guint8 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        const guint8 * data = static_cast<const guint8 *> (address);
         if (data == NULL)
         {
           result = Null ();
@@ -1885,8 +1987,7 @@ gum_script_memory_do_read (const Arguments & args,
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
-        const char * data = static_cast<const char *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        const char * data = static_cast<const char *> (address);
         if (data == NULL)
         {
           result = Null ();
@@ -1913,8 +2014,7 @@ gum_script_memory_do_read (const Arguments & args,
       }
       case GUM_MEMORY_VALUE_UTF16_STRING:
       {
-        const gunichar2 * str_utf16 = static_cast<const gunichar2 *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        const gunichar2 * str_utf16 = static_cast<const gunichar2 *> (address);
         guint8 dummy_to_trap_bad_pointer_early;
         gchar * str_utf8;
         glong length, size;
@@ -1941,8 +2041,7 @@ gum_script_memory_do_read (const Arguments & args,
 #ifdef G_OS_WIN32
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
-        const char * str_ansi = static_cast<const char *> (
-            GSIZE_TO_POINTER (args[0]->IntegerValue ()));
+        const char * str_ansi = static_cast<const char *> (address);
         if (str_ansi == NULL)
         {
           result = Null ();
@@ -1997,8 +2096,12 @@ static Handle<Value>
 gum_script_memory_do_write (const Arguments & args,
                             GumMemoryValueType type)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
-  gpointer address = GSIZE_TO_POINTER (args[1]->IntegerValue ());
+
+  gpointer address;
+  if (!gum_script_pointer_get (self, args[1], &address))
+    return Undefined ();
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
@@ -2140,8 +2243,13 @@ not_our_fault:
 static Handle<Value>
 gum_script_on_memory_scan (const Arguments & args)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  gpointer address;
+  if (!gum_script_pointer_get (self, args[0], &address))
+    return Undefined ();
   GumMemoryRange range;
-  range.base_address = args[0]->IntegerValue ();
+  range.base_address = GUM_ADDRESS (address);
   range.size = args[1]->IntegerValue ();
 
   String::Utf8Value match_str (args[2]);
@@ -2271,13 +2379,13 @@ gum_script_process_scan_match (GumAddress address,
   ScriptScope scope (ctx->script);
 
   Handle<Value> argv[] = {
-    Number::New (address),
+    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address)),
     Integer::NewFromUnsigned (size)
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
 
   gboolean proceed = TRUE;
-  if (result->IsString ())
+  if (!result.IsEmpty () && result->IsString ())
   {
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
@@ -2393,7 +2501,7 @@ gum_script_on_memory_alloc_ansi_string (const Arguments & args)
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
   g_queue_push_tail (self->priv->heap_blocks, str_heap);
 
-  return Number::New (GPOINTER_TO_SIZE (str_heap));
+  return gum_script_pointer_new (self, str_heap);
 }
 
 static gchar *
@@ -2446,7 +2554,7 @@ gum_script_on_memory_alloc_utf8_string (const Arguments & args)
   gchar * str_heap = g_strdup (*str);
   g_queue_push_tail (self->priv->heap_blocks, str_heap);
 
-  return Number::New (GPOINTER_TO_SIZE (str_heap));
+  return gum_script_pointer_new (self, str_heap);
 }
 
 static Handle<Value>
@@ -2458,7 +2566,7 @@ gum_script_on_memory_alloc_utf16_string (const Arguments & args)
   gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, NULL, NULL);
   g_queue_push_tail (self->priv->heap_blocks, str_heap);
 
-  return Number::New (GPOINTER_TO_SIZE (str_heap));
+  return gum_script_pointer_new (self, str_heap);
 }
 
 static Handle<Value>
@@ -2862,12 +2970,11 @@ static Handle<Value>
 gum_script_invocation_args_on_get_nth (uint32_t index,
                                        const AccessorInfo & info)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
       info.This ()->GetPointerFromInternalField (0));
-
-  gpointer raw_value = gum_invocation_context_get_nth_argument (ctx, index);
-
-  return Number::New (GPOINTER_TO_SIZE (raw_value));
+  return gum_script_pointer_new (self,
+      gum_invocation_context_get_nth_argument (ctx, index));
 }
 
 static Handle<Value>
@@ -2875,17 +2982,14 @@ gum_script_invocation_args_on_set_nth (uint32_t index,
                                        Local<Value> value,
                                        const AccessorInfo & info)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
       info.This ()->GetPointerFromInternalField (0));
 
-  if (!value->IsNumber ())
-  {
-    ThrowException (Exception::TypeError (
-        String::New ("can only assign a number")));
+  gpointer raw_value;
+  if (!gum_script_pointer_get (self, value, &raw_value))
     return Undefined ();
-  }
 
-  gpointer raw_value = GSIZE_TO_POINTER (value->IntegerValue ());
   gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
 
   return value;
@@ -2969,7 +3073,8 @@ gum_script_ffi_abi_get (Handle<Value> name,
 }
 
 static gboolean
-gum_script_value_to_ffi_type (const Handle<Value> svalue,
+gum_script_value_to_ffi_type (GumScript * self,
+                              const Handle<Value> svalue,
                               GumFFIValue * value,
                               const ffi_type * type)
 {
@@ -2979,7 +3084,8 @@ gum_script_value_to_ffi_type (const Handle<Value> svalue,
   }
   else if (type == &ffi_type_pointer)
   {
-    value->v_pointer = GSIZE_TO_POINTER (svalue->IntegerValue ());
+    if (!gum_script_pointer_get (self, svalue, &value->v_pointer))
+      return FALSE;
   }
   else if (type == &ffi_type_sint)
   {
@@ -3056,7 +3162,8 @@ gum_script_value_to_ffi_type (const Handle<Value> svalue,
 }
 
 static gboolean
-gum_script_value_from_ffi_type (Handle<Value> * svalue,
+gum_script_value_from_ffi_type (GumScript * self,
+                                Handle<Value> * svalue,
                                 const GumFFIValue * value,
                                 const ffi_type * type)
 {
@@ -3066,7 +3173,7 @@ gum_script_value_from_ffi_type (Handle<Value> * svalue,
   }
   else if (type == &ffi_type_pointer)
   {
-    *svalue = Number::New (GPOINTER_TO_SIZE (value->v_pointer));
+    *svalue = gum_script_pointer_new (self, value->v_pointer);
   }
   else if (type == &ffi_type_sint)
   {
@@ -3199,6 +3306,32 @@ gum_script_page_protection_get (Handle<Value> prot_val,
         return FALSE;
     }
   }
+
+  return TRUE;
+}
+
+static Handle<Object>
+gum_script_pointer_new (GumScript * self,
+                        gpointer address)
+{
+  Local<Object> native_pointer_object =
+      self->priv->native_pointer->InstanceTemplate ()->NewInstance ();
+  native_pointer_object->SetPointerInInternalField (0, address);
+  return native_pointer_object;
+}
+
+static gboolean
+gum_script_pointer_get (GumScript * self,
+                        Handle<Value> value,
+                        gpointer * target)
+{
+  if (!self->priv->native_pointer->HasInstance (value))
+  {
+    ThrowException (Exception::TypeError (String::New (
+        "expected NativePointer object")));
+    return FALSE;
+  }
+  *target = value->ToObject ()->GetPointerFromInternalField (0);
 
   return TRUE;
 }
