@@ -140,7 +140,6 @@ struct _GumScriptPrivate
   GumMessageSink * incoming_message_sink;
 
   GQueue * attach_entries;
-  GQueue * heap_blocks;
 };
 
 struct _GumScheduledCallback
@@ -175,8 +174,7 @@ struct _GumMemoryAccessScope
 
 enum _GumMemoryValueType
 {
-  GUM_MEMORY_VALUE_SWORD,
-  GUM_MEMORY_VALUE_UWORD,
+  GUM_MEMORY_VALUE_POINTER,
   GUM_MEMORY_VALUE_S8,
   GUM_MEMORY_VALUE_U8,
   GUM_MEMORY_VALUE_S16,
@@ -193,6 +191,7 @@ enum _GumMemoryValueType
 
 struct _GumScriptMatchContext
 {
+  GumScript * script;
   Local<Function> on_match;
   Local<Function> on_complete;
   Local<Object> receiver;
@@ -200,14 +199,13 @@ struct _GumScriptMatchContext
 
 struct _GumMemoryScanContext
 {
+  GumScript * script;
   GumMemoryRange range;
   GumMatchPattern * pattern;
   Persistent<Function> on_match;
   Persistent<Function> on_error;
   Persistent<Function> on_complete;
   Persistent<Object> receiver;
-
-  GumScript * script;
 };
 
 struct _GumScriptCallProbe
@@ -282,6 +280,8 @@ static Handle<Value> gum_script_on_native_pointer_add (const Arguments & args);
 static Handle<Value> gum_script_on_native_pointer_sub (const Arguments & args);
 static Handle<Value> gum_script_on_native_pointer_to_int32 (
     const Arguments & args);
+static Handle<Value> gum_script_on_native_pointer_to_string (
+    const Arguments & args);
 
 static Handle<Value> gum_script_on_new_native_function (
     const Arguments & args);
@@ -303,7 +303,7 @@ static Handle<Value> gum_script_on_process_enumerate_threads (
 static gboolean gum_script_process_thread_match (GumThreadDetails * details,
     gpointer user_data);
 static const gchar * gum_script_thread_state_to_string (GumThreadState state);
-static Handle<Object> gum_script_cpu_context_to_object (
+static Handle<Object> gum_script_cpu_context_to_object (GumScript * self,
     const GumCpuContext * ctx);
 static Handle<Value> gum_script_on_process_enumerate_modules (
     const Arguments & args);
@@ -342,8 +342,13 @@ static gboolean gum_script_do_memory_scan (GIOSchedulerJob * job,
 static gboolean gum_script_process_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 
-static Handle<Value> gum_script_on_memory_read_sword (const Arguments & args);
-static Handle<Value> gum_script_on_memory_read_uword (const Arguments & args);
+static Handle<Value> gum_script_on_memory_alloc (const Arguments & args);
+static void gum_script_on_free_malloc_pointer (Persistent<Value> object,
+    void * data);
+static Handle<Value> gum_script_on_memory_read_pointer (
+    const Arguments & args);
+static Handle<Value> gum_script_on_memory_write_pointer (
+    const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_s8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_read_u8 (const Arguments & args);
 static Handle<Value> gum_script_on_memory_write_u8 (const Arguments & args);
@@ -490,7 +495,6 @@ gum_script_init (GumScript * self)
   priv->event_cond = g_cond_new ();
 
   priv->attach_entries = g_queue_new ();
-  priv->heap_blocks = g_queue_new ();
 
   G_LOCK (gum_memaccess);
   if (gum_memaccess_refcount++ == 0)
@@ -563,9 +567,6 @@ gum_script_dispose (GObject * object)
       g_slice_free (GumScriptAttachEntry, entry);
     }
 
-    while (!g_queue_is_empty (priv->heap_blocks))
-      g_free (g_queue_pop_tail (priv->heap_blocks));
-
     priv->native_pointer.Dispose ();
     priv->native_pointer.Clear ();
     priv->invocation_args.Dispose ();
@@ -608,7 +609,6 @@ gum_script_finalize (GObject * object)
   g_cond_free (priv->event_cond);
 
   g_queue_free (priv->attach_entries);
-  g_queue_free (priv->heap_blocks);
 
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
@@ -661,6 +661,8 @@ gum_script_create_context (GumScript * self)
       External::Wrap (self)));
   native_pointer_object->Set (String::New ("toInt32"),
       FunctionTemplate::New (gum_script_on_native_pointer_to_int32));
+  native_pointer_object->Set (String::New ("toString"),
+      FunctionTemplate::New (gum_script_on_native_pointer_to_string));
   global_templ->Set (String::New ("NativePointer"), native_pointer);
   priv->native_pointer = Persistent<FunctionTemplate>::New (native_pointer);
 
@@ -687,11 +689,14 @@ gum_script_create_context (GumScript * self)
   process_templ->Set (String::New ("getCurrentThreadId"),
       FunctionTemplate::New (gum_script_on_process_get_current_thread_id));
   process_templ->Set (String::New ("enumerateThreads"),
-      FunctionTemplate::New (gum_script_on_process_enumerate_threads));
+      FunctionTemplate::New (gum_script_on_process_enumerate_threads,
+      External::Wrap (self)));
   process_templ->Set (String::New ("enumerateModules"),
-      FunctionTemplate::New (gum_script_on_process_enumerate_modules));
+      FunctionTemplate::New (gum_script_on_process_enumerate_modules,
+      External::Wrap (self)));
   process_templ->Set (String::New ("enumerateRanges"),
-      FunctionTemplate::New (gum_script_on_process_enumerate_ranges));
+      FunctionTemplate::New (gum_script_on_process_enumerate_ranges,
+      External::Wrap (self)));
   global_templ->Set (String::New ("Process"), process_templ);
 
   Handle<ObjectTemplate> thread_templ = ObjectTemplate::New ();
@@ -701,24 +706,31 @@ gum_script_create_context (GumScript * self)
 
   Handle<ObjectTemplate> module_templ = ObjectTemplate::New ();
   module_templ->Set (String::New ("enumerateExports"),
-      FunctionTemplate::New (gum_script_on_module_enumerate_exports));
+      FunctionTemplate::New (gum_script_on_module_enumerate_exports,
+      External::Wrap (self)));
   module_templ->Set (String::New ("enumerateRanges"),
-      FunctionTemplate::New (gum_script_on_module_enumerate_ranges));
+      FunctionTemplate::New (gum_script_on_module_enumerate_ranges,
+      External::Wrap (self)));
   module_templ->Set (String::New ("findBaseAddress"),
-      FunctionTemplate::New (gum_script_on_module_find_base_address));
+      FunctionTemplate::New (gum_script_on_module_find_base_address,
+      External::Wrap (self)));
   module_templ->Set (String::New ("findExportByName"),
-      FunctionTemplate::New (gum_script_on_module_find_export_by_name));
+      FunctionTemplate::New (gum_script_on_module_find_export_by_name,
+      External::Wrap (self)));
   global_templ->Set (String::New ("Module"), module_templ);
 
   Handle<ObjectTemplate> memory_templ = ObjectTemplate::New ();
   memory_templ->Set (String::New ("scan"),
       FunctionTemplate::New (gum_script_on_memory_scan,
           External::Wrap (self)));
-  memory_templ->Set (String::New ("readSWord"),
-      FunctionTemplate::New (gum_script_on_memory_read_sword,
+  memory_templ->Set (String::New ("alloc"),
+      FunctionTemplate::New (gum_script_on_memory_alloc,
           External::Wrap (self)));
-  memory_templ->Set (String::New ("readUWord"),
-      FunctionTemplate::New (gum_script_on_memory_read_uword,
+  memory_templ->Set (String::New ("readPointer"),
+      FunctionTemplate::New (gum_script_on_memory_read_pointer,
+          External::Wrap (self)));
+  memory_templ->Set (String::New ("writePointer"),
+      FunctionTemplate::New (gum_script_on_memory_write_pointer,
           External::Wrap (self)));
   memory_templ->Set (String::New ("readS8"),
       FunctionTemplate::New (gum_script_on_memory_read_s8,
@@ -819,7 +831,7 @@ gum_script_create_context (GumScript * self)
 
   {
     Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
-    args_templ->SetInternalFieldCount (1);
+    args_templ->SetInternalFieldCount (2);
     args_templ->SetIndexedPropertyHandler (gum_script_probe_args_on_get_nth);
     priv->probe_args = Persistent<ObjectTemplate>::New (args_templ);
   }
@@ -1278,6 +1290,29 @@ gum_script_on_native_pointer_to_int32 (const Arguments & args)
 }
 
 static Handle<Value>
+gum_script_on_native_pointer_to_string (const Arguments & args)
+{
+  gsize ptr = GPOINTER_TO_SIZE (
+      args.Holder ()->GetPointerFromInternalField (0));
+  gint radix = 10;
+  if (args.Length () > 0)
+    radix = args[0]->Int32Value ();
+  if (radix != 10 && radix != 16)
+  {
+    ThrowException (Exception::TypeError (String::New ("unsupported radix")));
+    return Undefined ();
+  }
+
+  gchar buf[32];
+  if (radix == 10)
+    sprintf (buf, "%" G_GSIZE_MODIFIER "u", ptr);
+  else
+    sprintf (buf, "%" G_GSIZE_MODIFIER "x", ptr);
+
+  return String::New (buf);
+}
+
+static Handle<Value>
 gum_script_on_new_native_function (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
@@ -1453,6 +1488,8 @@ gum_script_on_process_enumerate_threads (const Arguments & args)
 {
   GumScriptMatchContext ctx;
 
+  ctx.script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
   Local<Value> callbacks_value = args[0];
   if (!callbacks_value->IsObject ())
   {
@@ -1489,7 +1526,7 @@ gum_script_process_thread_match (GumThreadDetails * details,
       String::New (gum_script_thread_state_to_string (details->state)),
       ReadOnly);
   thread->Set (String::New ("registers"),
-      gum_script_cpu_context_to_object (&details->cpu_context),
+      gum_script_cpu_context_to_object (ctx->script, &details->cpu_context),
       ReadOnly);
   Handle<Value> argv[] = { thread };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
@@ -1523,7 +1560,8 @@ gum_script_thread_state_to_string (GumThreadState state)
 }
 
 static Handle<Object>
-gum_script_cpu_context_to_object (const GumCpuContext * ctx)
+gum_script_cpu_context_to_object (GumScript * self,
+                                  const GumCpuContext * ctx)
 {
   Local<Object> result (Object::New ());
   gsize pc, sp;
@@ -1539,8 +1577,8 @@ gum_script_cpu_context_to_object (const GumCpuContext * ctx)
   sp = ctx->rsp;
 #endif
 
-  result->Set (String::New ("pc"), Number::New (pc), ReadOnly);
-  result->Set (String::New ("sp"), Number::New (sp), ReadOnly);
+  result->Set (String::New ("pc"), gum_script_pointer_new (self, GSIZE_TO_POINTER (pc)), ReadOnly);
+  result->Set (String::New ("sp"), gum_script_pointer_new (self, GSIZE_TO_POINTER (sp)), ReadOnly);
 
   return result;
 }
@@ -1549,6 +1587,8 @@ static Handle<Value>
 gum_script_on_process_enumerate_modules (const Arguments & args)
 {
   GumScriptMatchContext ctx;
+
+  ctx.script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
 
   Local<Value> callbacks_value = args[0];
   if (!callbacks_value->IsObject ())
@@ -1584,7 +1624,7 @@ gum_script_process_module_match (const gchar * name,
 
   Handle<Value> argv[] = {
     String::New (name),
-    Number::New (address),
+    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address)),
     String::New (path)
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
@@ -1603,6 +1643,8 @@ static Handle<Value>
 gum_script_on_process_enumerate_ranges (const Arguments & args)
 {
   GumScriptMatchContext ctx;
+
+  ctx.script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
 
   GumPageProtection prot;
   if (!gum_script_page_protection_get (args[0], &prot))
@@ -1648,7 +1690,8 @@ gum_script_range_match (const GumMemoryRange * range,
     prot_str[2] = 'x';
 
   Handle<Value> argv[] = {
-    Number::New (range->base_address),
+    gum_script_pointer_new (ctx->script,
+        GSIZE_TO_POINTER (range->base_address)),
     Integer::NewFromUnsigned (range->size),
     String::New (prot_str)
   };
@@ -1685,6 +1728,8 @@ static Handle<Value>
 gum_script_on_module_enumerate_exports (const Arguments & args)
 {
   GumScriptMatchContext ctx;
+
+  ctx.script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
 
   Local<Value> name_val = args[0];
   if (!name_val->IsString ())
@@ -1730,7 +1775,7 @@ gum_script_module_export_match (const gchar * name,
 
   Handle<Value> argv[] = {
     String::New (name),
-    Number::New (address)
+    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address))
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
 
@@ -1748,6 +1793,8 @@ static Handle<Value>
 gum_script_on_module_enumerate_ranges (const Arguments & args)
 {
   GumScriptMatchContext ctx;
+
+  ctx.script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
 
   Local<Value> name_val = args[0];
   if (!name_val->IsString ())
@@ -1789,6 +1836,8 @@ gum_script_on_module_enumerate_ranges (const Arguments & args)
 static Handle<Value>
 gum_script_on_module_find_base_address (const Arguments & args)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
   Local<Value> module_name_val = args[0];
   if (!module_name_val->IsString ())
   {
@@ -1803,12 +1852,14 @@ gum_script_on_module_find_base_address (const Arguments & args)
   if (raw_address == 0)
     return Null ();
 
-  return Number::New (raw_address);
+  return gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
 }
 
 static Handle<Value>
 gum_script_on_module_find_export_by_name (const Arguments & args)
 {
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
   Local<Value> module_name_val = args[0];
   if (!module_name_val->IsString ())
   {
@@ -1834,7 +1885,7 @@ gum_script_on_module_find_export_by_name (const Arguments & args)
   if (raw_address == 0)
     return Null ();
 
-  return Number::New (raw_address);
+  return gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
 }
 
 static Handle<Value>
@@ -1911,11 +1962,9 @@ gum_script_memory_do_read (const Arguments & args,
   {
     switch (type)
     {
-      case GUM_MEMORY_VALUE_SWORD:
-        result = Integer::New (*static_cast<const int *> (address));
-        break;
-      case GUM_MEMORY_VALUE_UWORD:
-        result = Integer::New (*static_cast<const unsigned int *> (address));
+      case GUM_MEMORY_VALUE_POINTER:
+        result = gum_script_pointer_new (self, *static_cast<const gpointer *> (
+            address));
         break;
       case GUM_MEMORY_VALUE_S8:
         result = Integer::New (*static_cast<const gint8 *> (address));
@@ -2100,7 +2149,7 @@ gum_script_memory_do_write (const Arguments & args,
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
 
   gpointer address;
-  if (!gum_script_pointer_get (self, args[1], &address))
+  if (!gum_script_pointer_get (self, args[0], &address))
     return Undefined ();
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
@@ -2109,15 +2158,22 @@ gum_script_memory_do_write (const Arguments & args,
   {
     switch (type)
     {
+      case GUM_MEMORY_VALUE_POINTER:
+      {
+        gpointer value;
+        if (gum_script_pointer_get (self, args[1], &value))
+          *static_cast<gpointer *> (address) = value;
+        break;
+      }
       case GUM_MEMORY_VALUE_U8:
       {
-        guint8 value = args[0]->Uint32Value ();
+        guint8 value = args[1]->Uint32Value ();
         *static_cast<guint8 *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
-        String::Utf8Value str (args[0]);
+        String::Utf8Value str (args[1]);
         strcpy (static_cast<char *> (address), *str);
         break;
       }
@@ -2277,15 +2333,15 @@ gum_script_on_memory_scan (const Arguments & args)
   if (pattern != NULL)
   {
     GumMemoryScanContext * ctx = g_slice_new (GumMemoryScanContext);
+
+    ctx->script = self;
+    g_object_ref (ctx->script);
     ctx->range = range;
     ctx->pattern = pattern;
     ctx->on_match = Persistent<Function>::New (on_match);
     ctx->on_error = Persistent<Function>::New (on_error);
     ctx->on_complete = Persistent<Function>::New (on_complete);
     ctx->receiver = Persistent<Object>::New (args.This ());
-
-    ctx->script = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
-    g_object_ref (ctx->script);
 
     g_io_scheduler_push_job (gum_script_do_memory_scan, ctx,
         reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free),
@@ -2395,15 +2451,46 @@ gum_script_process_scan_match (GumAddress address,
 }
 
 static Handle<Value>
-gum_script_on_memory_read_sword (const Arguments & args)
+gum_script_on_memory_alloc (const Arguments & args)
 {
-  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_SWORD);
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  uint32_t size = args[0]->Uint32Value ();
+  if (size > 0x7fffffff)
+  {
+    ThrowException (Exception::TypeError (String::New ("invalid size")));
+    return Undefined ();
+  }
+
+  gpointer block = g_malloc (size);
+  Handle<Object> instance = gum_script_pointer_new (self, block);
+
+  Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (block, gum_script_on_free_malloc_pointer);
+  persistent_instance.MarkIndependent ();
+
+  return instance;
+}
+
+static void
+gum_script_on_free_malloc_pointer (Persistent<Value> object,
+                                   void * data)
+{
+  HandleScope handle_scope;
+  g_free (data);
+  object.Dispose ();
 }
 
 static Handle<Value>
-gum_script_on_memory_read_uword (const Arguments & args)
+gum_script_on_memory_read_pointer (const Arguments & args)
 {
-  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_UWORD);
+  return gum_script_memory_do_read (args, GUM_MEMORY_VALUE_POINTER);
+}
+
+static Handle<Value>
+gum_script_on_memory_write_pointer (const Arguments & args)
+{
+  return gum_script_memory_do_write (args, GUM_MEMORY_VALUE_POINTER);
 }
 
 static Handle<Value>
@@ -2499,9 +2586,13 @@ gum_script_on_memory_alloc_ansi_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
-  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
 
-  return gum_script_pointer_new (self, str_heap);
+  Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
+  persistent_instance.MarkIndependent ();
+
+  return instance;
 }
 
 static gchar *
@@ -2552,9 +2643,13 @@ gum_script_on_memory_alloc_utf8_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = g_strdup (*str);
-  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
 
-  return gum_script_pointer_new (self, str_heap);
+  Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
+  persistent_instance.MarkIndependent ();
+
+  return instance;
 }
 
 static Handle<Value>
@@ -2564,9 +2659,13 @@ gum_script_on_memory_alloc_utf16_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, NULL, NULL);
-  g_queue_push_tail (self->priv->heap_blocks, str_heap);
+  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
 
-  return gum_script_pointer_new (self, str_heap);
+  Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
+  persistent_instance.MarkIndependent ();
+
+  return instance;
 }
 
 static Handle<Value>
@@ -2802,14 +2901,9 @@ gum_script_on_stalker_add_call_probe (const Arguments & args)
   GumScriptCallProbe * probe;
   GumProbeId id;
 
-  Local<Value> target_spec = args[0];
-  if (!target_spec->IsNumber ())
-  {
-    ThrowException (Exception::TypeError (String::New ("Stalker.addCallProbe: "
-        "first argument must be a memory address")));
+  gpointer target_address;
+  if (!gum_script_pointer_get (self, args[0], &target_address))
     return Undefined ();
-  }
-  gpointer target_address = GSIZE_TO_POINTER (target_spec->IntegerValue ());
 
   Local<Value> callback_value = args[1];
   if (!callback_value->IsFunction ())
@@ -2874,7 +2968,8 @@ gum_script_call_probe_fire (GumCallSite * site,
 
   ScriptScope scope (self->script);
   Local<Object> args = self->script->priv->probe_args->NewInstance ();
-  args->SetPointerInInternalField (0, site);
+  args->SetPointerInInternalField (0, self->script);
+  args->SetPointerInInternalField (1, site);
   Handle<Value> argv[] = { args };
   self->callback->Call (self->receiver, 1, argv);
 }
@@ -2883,8 +2978,11 @@ static Handle<Value>
 gum_script_probe_args_on_get_nth (uint32_t index,
                                   const AccessorInfo & info)
 {
+  Handle<Object> instance = info.This ();
+  GumScript * self = static_cast<GumScript *> (
+      instance->GetPointerFromInternalField (0));
   GumCallSite * site = static_cast<GumCallSite *> (
-      info.This ()->GetPointerFromInternalField (0));
+      instance->GetPointerFromInternalField (1));
   gsize value;
   gsize * stack_argument = static_cast<gsize *> (site->stack_data);
 
@@ -2912,7 +3010,7 @@ gum_script_probe_args_on_get_nth (uint32_t index,
   value = stack_argument[index];
 #endif
 
-  return Number::New (value);
+  return gum_script_pointer_new (self, GSIZE_TO_POINTER (value));
 }
 
 static void
@@ -2957,7 +3055,7 @@ gum_script_on_leave (GumInvocationListener * listener,
   if (!entry->on_leave.IsEmpty ())
   {
     gpointer raw_value = gum_invocation_context_get_return_value (context);
-    Local<Number> return_value (Number::New (GPOINTER_TO_SIZE (raw_value)));
+    Handle<Object> return_value (gum_script_pointer_new (self, raw_value));
 
     Handle<Value> argv[] = { return_value };
     entry->on_leave->Call (receiver, 1, argv);

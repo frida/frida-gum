@@ -34,8 +34,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
-  SCRIPT_TESTENTRY (sword_can_be_read)
-  SCRIPT_TESTENTRY (uword_can_be_read)
+  SCRIPT_TESTENTRY (pointer_can_be_read)
+  SCRIPT_TESTENTRY (pointer_can_be_written)
+  SCRIPT_TESTENTRY (memory_can_be_allocated)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_written)
@@ -321,7 +322,7 @@ SCRIPT_TESTCASE (call_can_be_probed)
     "  onReceive: function(events) {}"
     "});"
     "Stalker.addCallProbe(" GUM_PTR_CONST ", function(args) {"
-    "  send(args[0]);"
+    "  send(args[0].toInt32());"
     "});"
     "recv('stop', function(message) {"
     "  Stalker.unfollow();"
@@ -450,17 +451,17 @@ SCRIPT_TESTCASE (module_export_can_be_found_by_name)
 #ifdef G_OS_WIN32
   HMODULE mod;
   gpointer actual_address;
-  char actual_address_str[64];
+  char actual_address_str[32];
 
   mod = GetModuleHandle (_T ("kernel32.dll"));
   g_assert (mod != NULL);
   actual_address = GetProcAddress (mod, "Sleep");
   g_assert (actual_address != NULL);
   sprintf_s (actual_address_str, sizeof (actual_address_str),
-      "%" G_GSIZE_MODIFIER "d", GPOINTER_TO_SIZE (actual_address));
+      "\"%" G_GSIZE_MODIFIER "x\"", GPOINTER_TO_SIZE (actual_address));
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.findExportByName('kernel32.dll', 'Sleep'));");
+      "send(Module.findExportByName('kernel32.dll', 'Sleep').toString(16));");
   EXPECT_SEND_MESSAGE_WITH (actual_address_str);
 #else
   COMPILE_AND_LOAD_SCRIPT (
@@ -722,7 +723,7 @@ SCRIPT_TESTCASE (return_value_can_be_read)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onLeave: function(retval) {"
-      "    send(retval);"
+      "    send(retval.toInt32());"
       "  }"
       "});", target_function_int);
 
@@ -807,18 +808,29 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-SCRIPT_TESTCASE (sword_can_be_read)
+SCRIPT_TESTCASE (pointer_can_be_read)
 {
-  int val = -1337000;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readSWord(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("-1337000");
+  gpointer val = GSIZE_TO_POINTER (1337000);
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Memory.readPointer(" GUM_PTR_CONST ").toString());", &val);
+  EXPECT_SEND_MESSAGE_WITH ("\"1337000\"");
 }
 
-SCRIPT_TESTCASE (uword_can_be_read)
+SCRIPT_TESTCASE (pointer_can_be_written)
 {
-  unsigned int val = 1337000;
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUWord(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("1337000");
+  gpointer val = NULL;
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.writePointer(" GUM_PTR_CONST ", ptr(\"1337000\"));", &val);
+  g_assert_cmphex (GPOINTER_TO_SIZE (val), ==, 1337000);
+}
+
+SCRIPT_TESTCASE (memory_can_be_allocated)
+{
+    COMPILE_AND_LOAD_SCRIPT (
+      "var p = Memory.alloc(8);"
+      "Memory.writePointer(p, ptr(\"1337\"));"
+      "send(Memory.readPointer(p).toInt32() === 1337);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (s8_can_be_read)
@@ -838,7 +850,7 @@ SCRIPT_TESTCASE (u8_can_be_read)
 SCRIPT_TESTCASE (u8_can_be_written)
 {
   guint8 val = 42;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(37, " GUM_PTR_CONST ");", &val);
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(" GUM_PTR_CONST ", 37);", &val);
   g_assert_cmpint (val, ==, 37);
 }
 
@@ -921,7 +933,7 @@ SCRIPT_TESTCASE (utf8_string_can_be_written)
   gchar str[6];
 
   strcpy (str, "Hello");
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf8String('Bye', " GUM_PTR_CONST ");",
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf8String(" GUM_PTR_CONST ", 'Bye');",
       str);
   g_assert_cmpstr (str, ==, "Bye");
   g_assert_cmphex (str[4], ==, 'o');
@@ -995,7 +1007,7 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
       ", -1));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(0));", str);
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str_utf16);
@@ -1013,8 +1025,7 @@ SCRIPT_TESTCASE (ansi_string_can_be_allocated)
 SCRIPT_TESTCASE (invalid_read_results_in_exception)
 {
   const gchar * type_name[] = {
-      "SWord",
-      "UWord",
+      "Pointer",
       "S8",
       "U8",
       "S16",
@@ -1065,7 +1076,7 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     gchar * source;
 
     source = g_strconcat ("Memory.write", primitive_type_name[i],
-        "(13, ptr(\"1328\"));", NULL);
+        "(ptr(\"1328\"), 13);", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
     g_free (source);
@@ -1076,7 +1087,7 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     gchar * source;
 
     source = g_strconcat ("Memory.write", string_type_name[i],
-        "('Hey', ptr(\"1328\"));", NULL);
+        "(ptr(\"1328\"), 'Hey');", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
     g_free (source);
