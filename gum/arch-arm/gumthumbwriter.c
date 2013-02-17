@@ -383,7 +383,22 @@ gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self,
 {
   guint16 insn;
 
-  insn = 0x1800 | (right_reg << 6) | (left_reg << 3) | dst_reg;
+  if (left_reg == dst_reg)
+  {
+    insn = 0x4400;
+    if (dst_reg <= GUM_AREG_R7)
+      insn |= dst_reg;
+    else
+      insn |= 0x0080 | (dst_reg - GUM_AREG_R8);
+    if (right_reg <= GUM_AREG_R7)
+      insn |= (right_reg << 3);
+    else
+      insn |= 0x0040 | ((right_reg - GUM_AREG_R8) << 3);
+  }
+  else
+  {
+    insn = 0x1800 | (right_reg << 6) | (left_reg << 3) | dst_reg;
+  }
 
   gum_thumb_writer_put_instruction (self, insn);
 }

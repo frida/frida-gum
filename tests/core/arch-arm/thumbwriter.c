@@ -255,12 +255,16 @@ THUMBWRITER_TESTCASE (add_reg_reg_reg)
   gum_thumb_writer_put_add_reg_reg_reg (&fixture->tw, GUM_AREG_R0, GUM_AREG_R1,
       GUM_AREG_R7);
   assert_output_n_equals (3, 0x19c8);
+
+  gum_thumb_writer_put_add_reg_reg_reg (&fixture->tw, GUM_AREG_R9, GUM_AREG_R9,
+      GUM_AREG_R0);
+  assert_output_n_equals (4, 0x4481);
 }
 
 THUMBWRITER_TESTCASE (add_reg_reg)
 {
   gum_thumb_writer_put_add_reg_reg (&fixture->tw, GUM_AREG_R0, GUM_AREG_R1);
-  assert_output_equals (0x1840);
+  assert_output_equals (0x4408);
 }
 
 THUMBWRITER_TESTCASE (add_reg_reg_imm)

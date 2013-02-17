@@ -109,7 +109,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
   guint16 expected_output[] = {
     0xb401,                   /* push {r0}        */
     0x4801,                   /* ldr r0, [pc, #4] */
-    0x1812,                   /* adds r2, r2, r0  */
+    0x4402,                   /* add r2, r0       */
     0xbc01,                   /* pop {r0}         */
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
