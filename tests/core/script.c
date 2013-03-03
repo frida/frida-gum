@@ -34,6 +34,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
+  SCRIPT_TESTENTRY (invocations_provide_call_depth)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
@@ -754,6 +755,48 @@ SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
   EXPECT_SEND_MESSAGE_WITH ("11");
 }
 
+SCRIPT_TESTCASE (invocations_provide_call_depth)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function(args) {"
+      "    send('>a' + this.depth);"
+      "  },"
+      "  onLeave: function(retval) {"
+      "    send('<a' + this.depth);"
+      "  }"
+      "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function(args) {"
+      "    send('>b' + this.depth);"
+      "  },"
+      "  onLeave: function(retval) {"
+      "    send('<b' + this.depth);"
+      "  }"
+      "});"
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function(args) {"
+      "    send('>c' + this.depth);"
+      "  },"
+      "  onLeave: function(retval) {"
+      "    send('<c' + this.depth);"
+      "  }"
+      "});",
+      target_function_nested_a,
+      target_function_nested_b,
+      target_function_nested_c);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_nested_a (7);
+  EXPECT_SEND_MESSAGE_WITH ("\">a0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\">b1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\">c2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<c2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<b1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"<a0\"");
+  EXPECT_NO_MESSAGES ();
+}
+
 SCRIPT_TESTCASE (memory_can_be_scanned)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
@@ -1117,4 +1160,46 @@ target_function_string (const gchar * arg)
     gum_script_dummy_global_to_trick_optimizer += i * arg[0];
 
   return arg;
+}
+
+GUM_NOINLINE static int
+target_function_nested_a (int arg)
+{
+  int result = 0;
+  int i;
+
+  for (i = 0; i != 7; i++)
+    result += i * arg;
+
+  gum_script_dummy_global_to_trick_optimizer += result;
+
+  return target_function_nested_b (result);
+}
+
+GUM_NOINLINE static int
+target_function_nested_b (int arg)
+{
+  int result = 0;
+  int i;
+
+  for (i = 0; i != 14; i++)
+    result += i * arg;
+
+  gum_script_dummy_global_to_trick_optimizer += result;
+
+  return target_function_nested_c (result);
+}
+
+GUM_NOINLINE static int
+target_function_nested_c (int arg)
+{
+  int result = 0;
+  int i;
+
+  for (i = 0; i != 21; i++)
+    result += i * arg;
+
+  gum_script_dummy_global_to_trick_optimizer += result;
+
+  return result;
 }

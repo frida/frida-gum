@@ -3023,6 +3023,7 @@ gum_script_on_enter (GumInvocationListener * listener,
   GumScript * self = GUM_SCRIPT_CAST (listener);
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
+  int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
 
   ScriptScope scope (self);
 
@@ -3030,6 +3031,7 @@ gum_script_on_enter (GumInvocationListener * listener,
   receiver->Set (String::New ("threadId"),
       Int32::New (gum_invocation_context_get_thread_id (context)),
       ReadOnly);
+  receiver->Set (String::New ("depth"), Int32::New (*depth), ReadOnly);
   *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *) = *receiver;
 
   if (!entry->on_enter.IsEmpty ())
@@ -3040,6 +3042,8 @@ gum_script_on_enter (GumInvocationListener * listener,
     Handle<Value> argv[] = { args };
     entry->on_enter->Call (receiver, 1, argv);
   }
+
+  (*depth)++;
 }
 
 static void
@@ -3049,6 +3053,9 @@ gum_script_on_leave (GumInvocationListener * listener,
   GumScript * self = GUM_SCRIPT_CAST (listener);
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
+  int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
+
+  (*depth)--;
 
   ScriptScope scope (self);
 
