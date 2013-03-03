@@ -346,29 +346,28 @@ _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
 
 #if GLIB_SIZEOF_VOID_P == 4
   stack_argument = (gpointer *) context->cpu_context->esp;
+  return stack_argument[n];
 #else
   stack_argument = (gpointer *) context->cpu_context->rsp;
-
   switch (n)
   {
-#if GUM_NATIVE_ABI_IS_UNIX
+# if GUM_NATIVE_ABI_IS_UNIX
     case 0:   return (gpointer) context->cpu_context->rdi;
     case 1:   return (gpointer) context->cpu_context->rsi;
     case 2:   return (gpointer) context->cpu_context->rdx;
     case 3:   return (gpointer) context->cpu_context->rcx;
     case 4:   return (gpointer) context->cpu_context->r8;
     case 5:   return (gpointer) context->cpu_context->r9;
-#else
+    default:  return            stack_argument[n - 6];
+# else
     case 0:   return (gpointer) context->cpu_context->rcx;
     case 1:   return (gpointer) context->cpu_context->rdx;
     case 2:   return (gpointer) context->cpu_context->r8;
     case 3:   return (gpointer) context->cpu_context->r9;
-#endif
-    default:  break;
+    default:  return            stack_argument[n];
+# endif
   }
 #endif
-
-  return stack_argument[n];
 }
 
 void
@@ -381,29 +380,28 @@ _gum_interceptor_invocation_replace_nth_argument (
 
 #if GLIB_SIZEOF_VOID_P == 4
   stack_argument = (gpointer *) context->cpu_context->esp;
+  stack_argument[n] = value;
 #else
   stack_argument = (gpointer *) context->cpu_context->rsp;
-
   switch (n)
   {
-#if GUM_NATIVE_ABI_IS_UNIX
-    case 0:   context->cpu_context->rdi = (guint64) value; return;
-    case 1:   context->cpu_context->rsi = (guint64) value; return;
-    case 2:   context->cpu_context->rdx = (guint64) value; return;
-    case 3:   context->cpu_context->rcx = (guint64) value; return;
-    case 4:   context->cpu_context->r8  = (guint64) value; return;
-    case 5:   context->cpu_context->r9  = (guint64) value; return;
-#else
-    case 0:   context->cpu_context->rcx = (guint64) value; return;
-    case 1:   context->cpu_context->rdx = (guint64) value; return;
-    case 2:   context->cpu_context->r8  = (guint64) value; return;
-    case 3:   context->cpu_context->r9  = (guint64) value; return;
-#endif
-    default:  break;
+# if GUM_NATIVE_ABI_IS_UNIX
+    case 0:   context->cpu_context->rdi = (guint64) value; break;
+    case 1:   context->cpu_context->rsi = (guint64) value; break;
+    case 2:   context->cpu_context->rdx = (guint64) value; break;
+    case 3:   context->cpu_context->rcx = (guint64) value; break;
+    case 4:   context->cpu_context->r8  = (guint64) value; break;
+    case 5:   context->cpu_context->r9  = (guint64) value; break;
+    default:  stack_argument[n - 6]     =           value; break;
+# else
+    case 0:   context->cpu_context->rcx = (guint64) value; break;
+    case 1:   context->cpu_context->rdx = (guint64) value; break;
+    case 2:   context->cpu_context->r8  = (guint64) value; break;
+    case 3:   context->cpu_context->r9  = (guint64) value; break;
+    default:  stack_argument[n]         =           value; break;
+# endif
   }
 #endif
-
-  stack_argument[n] = value;
 }
 
 gpointer

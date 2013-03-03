@@ -2996,15 +2996,18 @@ gum_script_probe_args_on_get_nth (uint32_t index,
     case 3: value = site->cpu_context->rcx; break;
     case 4: value = site->cpu_context->r8;  break;
     case 5: value = site->cpu_context->r9;  break;
+    default:
+      value = stack_argument[index - 6];
+      break;
 # else
     case 0: value = site->cpu_context->rcx; break;
     case 1: value = site->cpu_context->rdx; break;
     case 2: value = site->cpu_context->r8;  break;
     case 3: value = site->cpu_context->r9;  break;
-# endif
     default:
       value = stack_argument[index];
       break;
+# endif
   }
 #else
   value = stack_argument[index];
