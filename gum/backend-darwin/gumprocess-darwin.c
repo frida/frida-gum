@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -33,9 +33,17 @@
        S->n_type >= N_PEXT || \
        (S->n_type & N_EXT) == 0)
 
+typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
+
+struct _GumFindEntrypointContext
+{
+  GumAddress result;
+  mach_port_t task;
+  guint page_size;
+};
 
 struct _GumEnumerateModulesContext
 {
@@ -89,6 +97,8 @@ static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (const gchar * name,
     GumAddress address, gpointer user_data);
+static gboolean gum_probe_range_for_entrypoint (const GumMemoryRange * range,
+    GumPageProtection prot, gpointer user_data);
 static gboolean gum_emit_if_range_is_a_module (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 
@@ -449,6 +459,121 @@ gum_store_address_if_export_name_matches (const gchar * name,
   }
 
   return TRUE;
+}
+
+GumAddress
+gum_darwin_find_entrypoint (mach_port_t task)
+{
+  GumFindEntrypointContext ctx;
+
+  ctx.result = 0;
+  ctx.task = task;
+  ctx.page_size = gum_query_page_size ();
+
+  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
+      gum_probe_range_for_entrypoint, &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_probe_range_for_entrypoint (const GumMemoryRange * range,
+                                GumPageProtection prot,
+                                gpointer user_data)
+{
+  GumFindEntrypointContext * ctx = user_data;
+  gboolean carry_on = TRUE;
+  guint8 * chunk, * page, * p;
+  gsize chunk_size;
+
+  chunk = gum_darwin_read (ctx->task, range->base_address, range->size,
+      &chunk_size);
+  if (chunk == NULL)
+    return TRUE;
+
+  g_assert (chunk_size % ctx->page_size == 0);
+
+  for (page = chunk; page != chunk + chunk_size; page += ctx->page_size)
+  {
+    struct mach_header * header;
+    guint cmd_index;
+    GumAddress text_base = 0, text_offset = 0;
+
+    header = (struct mach_header *) page;
+    if (header->magic != MH_MAGIC && header->magic != MH_MAGIC_64)
+      continue;
+
+    if (header->filetype != MH_EXECUTE)
+      continue;
+
+    carry_on = FALSE;
+
+    if (header->magic == MH_MAGIC)
+      p = page + sizeof (struct mach_header);
+    else
+      p = page + sizeof (struct mach_header_64);
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      const struct load_command * lc = (struct load_command *) p;
+
+      switch (lc->cmd)
+      {
+        case LC_SEGMENT:
+        {
+          struct segment_command * sc = (struct segment_command *) lc;
+          if (strcmp (sc->segname, "__TEXT") == 0)
+            text_base = sc->vmaddr;
+          break;
+        }
+        case LC_SEGMENT_64:
+        {
+          struct segment_command_64 * sc = (struct segment_command_64 *) lc;
+          if (strcmp (sc->segname, "__TEXT") == 0)
+            text_base = sc->vmaddr;
+          break;
+        }
+        case LC_UNIXTHREAD:
+        {
+          guint8 * thread = p + sizeof (struct thread_command);
+          while (thread != p + lc->cmdsize)
+          {
+            thread_state_flavor_t * flavor = (thread_state_flavor_t *) thread;
+            mach_msg_type_number_t * count = (mach_msg_type_number_t *)
+                (flavor + 1);
+            if (header->magic == MH_MAGIC && *flavor == x86_THREAD_STATE32)
+            {
+              x86_thread_state32_t * ts = (x86_thread_state32_t *) (count + 1);
+              ctx->result = ts->__eip;
+            }
+            else if (header->magic == MH_MAGIC_64 &&
+                *flavor == x86_THREAD_STATE64)
+            {
+              x86_thread_state64_t * ts = (x86_thread_state64_t *) (count + 1);
+              ctx->result = ts->__rip;
+            }
+            thread = ((guint8 *) (count + 1)) + (*count * sizeof (int));
+          }
+          break;
+        }
+        case LC_MAIN:
+        {
+          struct entry_point_command * ec = (struct entry_point_command *) p;
+          text_offset = ec->entryoff;
+          break;
+        }
+      }
+      p += lc->cmdsize;
+    }
+
+    if (ctx->result == 0)
+      ctx->result = text_base + text_offset;
+
+    if (!carry_on)
+      break;
+  }
+
+  g_free (chunk);
+  return carry_on;
 }
 
 void
