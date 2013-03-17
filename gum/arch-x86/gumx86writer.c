@@ -337,11 +337,13 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
   }
   else
   {
-    static const GumCpuReg reg_for_arg_unix[4] = {
+    static const GumCpuReg reg_for_arg_unix[6] = {
       GUM_REG_RDI,
       GUM_REG_RSI,
       GUM_REG_RDX,
-      GUM_REG_RCX
+      GUM_REG_RCX,
+      GUM_REG_R8,
+      GUM_REG_R9
     };
     static const GumCpuReg reg_for_arg_windows[4] = {
       GUM_REG_RCX,
@@ -350,17 +352,24 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       GUM_REG_R9
     };
     const GumCpuReg * reg_for_arg;
+    guint reg_for_arg_count;
 
     if (self->target_abi == GUM_ABI_UNIX)
+    {
       reg_for_arg = reg_for_arg_unix;
+      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_unix);
+    }
     else
+    {
       reg_for_arg = reg_for_arg_windows;
+      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_windows);
+    }
 
     for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
     {
       GumArgument * arg = &args[arg_index];
 
-      if (arg_index < 4)
+      if (arg_index < reg_for_arg_count)
       {
         if (arg->type == GUM_ARG_POINTER)
         {
@@ -391,7 +400,7 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     }
 
     if (self->target_abi == GUM_ABI_WINDOWS)
-      gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 32);
+      gum_x86_writer_put_sub_reg_imm (self, GUM_REG_RSP, 4 * 8);
   }
 }
 
@@ -411,7 +420,9 @@ gum_x86_writer_put_argument_list_teardown (GumX86Writer * self,
   else
   {
     if (self->target_abi == GUM_ABI_WINDOWS)
-      gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, 32);
+      gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, MAX (n_args, 4) * 8);
+    else if (n_args > 6)
+      gum_x86_writer_put_add_reg_imm (self, GUM_REG_RSP, (n_args - 6) * 8);
   }
 }
 
