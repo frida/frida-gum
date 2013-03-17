@@ -42,6 +42,8 @@ GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
 GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,
     guint8 * bytes, gsize len);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
+GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
+    GumFoundThreadFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,

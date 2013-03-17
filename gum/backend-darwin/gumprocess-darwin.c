@@ -204,50 +204,7 @@ void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
                                gpointer user_data)
 {
-  mach_port_t task;
-  thread_act_array_t threads;
-  mach_msg_type_number_t count;
-  kern_return_t kr;
-
-  task = mach_task_self ();
-
-  kr = task_threads (task, &threads, &count);
-  if (kr == KERN_SUCCESS)
-  {
-    guint i;
-
-    for (i = 0; i != count; i++)
-    {
-      thread_t thread = threads[i];
-      GumThreadDetails details;
-      thread_basic_info_data_t info;
-      mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-      gum_thread_state_t state;
-      mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
-      thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
-
-      kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
-          &info_count);
-      if (kr != KERN_SUCCESS)
-        continue;
-
-      kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
-          &state_count);
-      if (kr != KERN_SUCCESS)
-        continue;
-
-      details.id = (GumThreadId) thread;
-      details.state = gum_thread_state_from_darwin (info.run_state);
-      gum_cpu_context_from_darwin (&state, &details.cpu_context);
-
-      if (!func (&details, user_data))
-        break;
-    }
-
-    for (i = 0; i != count; i++)
-      mach_port_deallocate (task, threads[i]);
-    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
-  }
+  gum_darwin_enumerate_threads (mach_task_self (), func, user_data);
 }
 
 void
@@ -574,6 +531,54 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
 
   g_free (chunk);
   return carry_on;
+}
+
+void
+gum_darwin_enumerate_threads (mach_port_t task,
+                              GumFoundThreadFunc func,
+                              gpointer user_data)
+{
+  thread_act_array_t threads;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+
+  kr = task_threads (task, &threads, &count);
+  if (kr == KERN_SUCCESS)
+  {
+    guint i;
+
+    for (i = 0; i != count; i++)
+    {
+      thread_t thread = threads[i];
+      GumThreadDetails details;
+      thread_basic_info_data_t info;
+      mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
+      gum_thread_state_t state;
+      mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
+      thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
+
+      kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
+          &info_count);
+      if (kr != KERN_SUCCESS)
+        continue;
+
+      kr = thread_get_state (thread, state_flavor, (thread_state_t) &state,
+          &state_count);
+      if (kr != KERN_SUCCESS)
+        continue;
+
+      details.id = (GumThreadId) thread;
+      details.state = gum_thread_state_from_darwin (info.run_state);
+      gum_cpu_context_from_darwin (&state, &details.cpu_context);
+
+      if (!func (&details, user_data))
+        break;
+    }
+
+    for (i = 0; i != count; i++)
+      mach_port_deallocate (task, threads[i]);
+    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+  }
 }
 
 void
