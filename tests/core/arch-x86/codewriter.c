@@ -60,6 +60,8 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (mov_r10d_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_r10_rsi_offset_ptr)
   CODEWRITER_TESTENTRY (mov_ecx_r11_offset_ptr)
+  CODEWRITER_TESTENTRY (mov_r11_offset_ptr_ecx)
+  CODEWRITER_TESTENTRY (mov_rcx_offset_ptr_r15)
   CODEWRITER_TESTENTRY (mov_reg_near_ptr_for_ia32)
   CODEWRITER_TESTENTRY (mov_reg_near_ptr_for_amd64)
   CODEWRITER_TESTENTRY (mov_near_ptr_reg_for_ia32)
@@ -482,6 +484,22 @@ CODEWRITER_TESTCASE (mov_ecx_r11_offset_ptr)
   const guint8 expected_code[] = { 0x41, 0x8b, 0x8b, 0x37, 0x13, 0x00, 0x00 };
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&fixture->cw, GUM_REG_ECX,
       GUM_REG_R11, 0x1337);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_r11_offset_ptr_ecx)
+{
+  const guint8 expected_code[] = { 0x41, 0x89, 0x8b, 0x37, 0x13, 0x00, 0x00 };
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&fixture->cw, GUM_REG_R11, 0x1337,
+      GUM_REG_ECX);
+  assert_output_equals (expected_code);
+}
+
+CODEWRITER_TESTCASE (mov_rcx_offset_ptr_r15)
+{
+  const guint8 expected_code[] = { 0x4c, 0x89, 0xb9, 0x37, 0x13, 0x00, 0x00 };
+  gum_x86_writer_put_mov_reg_offset_ptr_reg (&fixture->cw, GUM_REG_RCX, 0x1337,
+      GUM_REG_R15);
   assert_output_equals (expected_code);
 }
 

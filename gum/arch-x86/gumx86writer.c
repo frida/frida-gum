@@ -1272,7 +1272,7 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
 
   offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (dst_offset);
 
-  gum_x86_writer_put_prefix_for_reg_info (self, &src, 1);
+  gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src, NULL);
 
   *self->code++ = 0x89;
 
