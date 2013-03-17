@@ -298,12 +298,12 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
                                         guint n_args,
                                         va_list vl)
 {
-  GumArgument args[4];
+  GumArgument * args;
   gint arg_index;
 
-  g_return_if_fail (n_args <= 4);
-
   (void) conv;
+
+  args = g_alloca (n_args * sizeof (GumArgument));
 
   for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
   {
@@ -360,16 +360,33 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
     {
       GumArgument * arg = &args[arg_index];
 
-      if (arg->type == GUM_ARG_POINTER)
+      if (arg_index < 4)
       {
-        gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
-            GPOINTER_TO_SIZE (arg->value.pointer));
+        if (arg->type == GUM_ARG_POINTER)
+        {
+          gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
+              GPOINTER_TO_SIZE (arg->value.pointer));
+        }
+        else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
+            gum_meta_reg_from_cpu_reg (reg_for_arg[arg_index]))
+        {
+          gum_x86_writer_put_mov_reg_reg (self, reg_for_arg[arg_index],
+              arg->value.reg);
+        }
       }
-      else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
-          gum_meta_reg_from_cpu_reg (reg_for_arg[arg_index]))
+      else
       {
-        gum_x86_writer_put_mov_reg_reg (self, reg_for_arg[arg_index],
-            arg->value.reg);
+        if (arg->type == GUM_ARG_POINTER)
+        {
+          gum_x86_writer_put_push_reg (self, GUM_REG_XAX);
+          gum_x86_writer_put_mov_reg_address (self, GUM_REG_RAX,
+              GUM_ADDRESS (arg->value.pointer));
+          gum_x86_writer_put_xchg_reg_reg_ptr (self, GUM_REG_RAX, GUM_REG_RSP);
+        }
+        else
+        {
+          gum_x86_writer_put_push_reg (self, arg->value.reg);
+        }
       }
     }
 
