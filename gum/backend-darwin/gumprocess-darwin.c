@@ -489,6 +489,7 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
             text_base = sc->vmaddr;
           break;
         }
+#ifdef HAVE_I386
         case LC_UNIXTHREAD:
         {
           guint8 * thread = p + sizeof (struct thread_command);
@@ -512,6 +513,7 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
           }
           break;
         }
+#endif
         case LC_MAIN:
         {
           struct entry_point_command * ec = (struct entry_point_command *) p;
