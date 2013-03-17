@@ -25,6 +25,7 @@
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
+#include <sys/sysctl.h>
 
 #define GUM_MAX_MACH_HEADER_SIZE (64 * 1024)
 
@@ -416,6 +417,29 @@ gum_store_address_if_export_name_matches (const gchar * name,
   }
 
   return TRUE;
+}
+
+gboolean
+gum_darwin_cpu_type_from_pid (pid_t pid,
+                              GumCpuType * cpu_type)
+{
+#ifdef HAVE_ARM
+  *cpu_type = GUM_CPU_ARM;
+  return TRUE;
+#else
+  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, pid };
+  struct kinfo_proc kp;
+  size_t bufsize = sizeof (kp);
+  int err;
+
+  memset (&kp, 0, sizeof (kp));
+  err = sysctl (mib, G_N_ELEMENTS (mib), &kp, &bufsize, NULL, 0);
+  if (err != 0)
+    return FALSE;
+
+  *cpu_type = (kp.kp_proc.p_flag & P_LP64) ? GUM_CPU_AMD64 : GUM_CPU_IA32;
+  return TRUE;
+#endif
 }
 
 GumAddress
