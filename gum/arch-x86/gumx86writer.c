@@ -352,7 +352,7 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       GUM_REG_R9
     };
     const GumCpuReg * reg_for_arg;
-    guint reg_for_arg_count;
+    gint reg_for_arg_count;
 
     if (self->target_abi == GUM_ABI_UNIX)
     {
