@@ -477,6 +477,7 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
   for (page = chunk; page != chunk + chunk_size; page += ctx->page_size)
   {
     struct mach_header * header;
+    gint64 slide;
     guint cmd_index;
     GumAddress text_base = 0, text_offset = 0;
 
@@ -486,6 +487,12 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
 
     if (header->filetype != MH_EXECUTE)
       continue;
+
+    if (!gum_darwin_find_slide (range->base_address + (page - chunk), page,
+          chunk_size - (page - chunk), &slide))
+    {
+      continue;
+    }
 
     carry_on = FALSE;
 
@@ -503,14 +510,14 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
         {
           struct segment_command * sc = (struct segment_command *) lc;
           if (strcmp (sc->segname, "__TEXT") == 0)
-            text_base = sc->vmaddr;
+            text_base = sc->vmaddr + slide;
           break;
         }
         case LC_SEGMENT_64:
         {
           struct segment_command_64 * sc = (struct segment_command_64 *) lc;
           if (strcmp (sc->segname, "__TEXT") == 0)
-            text_base = sc->vmaddr;
+            text_base = sc->vmaddr + slide;
           break;
         }
 #ifdef HAVE_I386
