@@ -30,10 +30,10 @@ pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = $(pcfiles)
 
 if OS_ANDROID
-RPFX := /data/local/tmp
-MKDIR := mkdir
-RM := rm
-DEBUG_PORT := 5042
+RPFX = /data/local/tmp
+MKDIR = mkdir
+RM = rm
+DEBUG_PORT = 5042
 
 push: all
 	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-arm.so\""
@@ -68,9 +68,9 @@ $(top_builddir)/tests/android-gdb.setup: $(top_builddir)/tests/gum-tests
 endif
 
 if OS_IOS
-RURL := root@${IOS_IPADDR}
-RPFX := /Library/Frida
-RSYNC := rsync -az
+RURL = root@${IOS_IPADDR}
+RPFX = /Library/Frida
+RSYNC = rsync -az
 
 check: all
 	ssh "${RURL}" "mkdir -p \"${RPFX}/tests/data/\""
