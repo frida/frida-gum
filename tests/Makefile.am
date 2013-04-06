@@ -90,11 +90,21 @@ all-local: gum-tests
 			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/.libs/gum-tests" || true; \
 		else \
 			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/gum-tests" || true; \
+		fi; \
+		if [ ! -d "$(builddir)/data" ]; then \
+			cp -a "$(srcdir)/data" "$(builddir)/data"; \
 		fi \
 	)
-endif
-
+else
 if OS_IOS
 all-local: gum-tests
 	codesign -s "$$IOS_CERTID" --entitlements "$(srcdir)/gum-tests.xcent" "$<" || true
+else
+all-local: gum-tests
+	( \
+		if [ ! -d "$(builddir)/data" ]; then \
+			cp -a "$(srcdir)/data" "$(builddir)/data"; \
+		fi \
+	)
+endif
 endif
