@@ -1,8 +1,8 @@
-lib_LTLIBRARIES = libgum-1.0.la
-noinst_LTLIBRARIES = libgum.la
+lib_LTLIBRARIES = libfrida-gum-1.0.la
+noinst_LTLIBRARIES = libfrida-gum.la
 
-gumincludedir = $(includedir)/gum-1.0/gum
-guminclude_HEADERS = \
+fridaincludedir = $(includedir)/frida-1.0/gum
+fridainclude_HEADERS = \
 	gum.h \
 	gumarray.h \
 	gumbacktracer.h \
@@ -27,14 +27,14 @@ guminclude_HEADERS = \
 	gumsysinternals.h \
 	gumtracer.h
 
-libgum_1_0_la_SOURCES = $(NULL)
-libgum_1_0_la_LDFLAGS = \
+libfrida_gum_1_0_la_SOURCES = $(NULL)
+libfrida_gum_1_0_la_LDFLAGS = \
 	-export-symbols-regex "^gum_.*" \
 	$(GUM_LDFLAGS)
-libgum_1_0_la_LIBADD = \
-	libgum.la \
+libfrida_gum_1_0_la_LIBADD = \
+	libfrida-gum.la \
 	$(GUM_LIBS)
-libgum_1_0_la_LIBTOOLFLAGS = \
+libfrida_gum_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
 arch_sources = $(NULL)
@@ -61,10 +61,7 @@ arch_sources += \
 	arch-x86/gumudis86.h \
 	arch-x86/gumudis86.c
 arch_includes += \
-	-I $(srcdir)/arch-x86 \
-	-I $(top_srcdir)/ext/udis86
-arch_libs += \
-	$(top_builddir)/ext/udis86/libudis86/libudis86.la
+	-I $(srcdir)/arch-x86
 backend_sources += \
 	backend-x86/gumclosure-x86.c \
 	backend-x86/guminterceptor-x86.c \
@@ -98,7 +95,7 @@ endif
 if OS_LINUX
 backend_sources += \
 	backend-linux/gumprocess-linux.c
-guminclude_HEADERS += \
+fridainclude_HEADERS += \
 	backend-linux/gumlinux.h
 endif
 
@@ -111,7 +108,7 @@ endif
 backend_sources += \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c
-guminclude_HEADERS += \
+fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumnsbacktracer.h
 else
@@ -135,18 +132,18 @@ endif
 if OS_ANDROID
 else
 backend_sources += backend-gcc/gumgccbacktracer.c
-guminclude_HEADERS += backend-gcc/gumgccbacktracer.h
+fridainclude_HEADERS += backend-gcc/gumgccbacktracer.h
 endif
 
 if HAVE_V8
 script_sources += gumscript.cpp gumscripteventsink.cpp
-guminclude_HEADERS += gumscript.h gumscripteventsink.h
+fridainclude_HEADERS += gumscript.h gumscripteventsink.h
 endif
 
 if ENABLE_LIBS
 libs_libadd += \
-	$(top_builddir)/libs/gum/heap/libgum-heap-1.0.la \
-	$(top_builddir)/libs/gum/prof/libgum-prof-1.0.la
+	$(top_builddir)/libs/gum/heap/libfrida-gum-heap-1.0.la \
+	$(top_builddir)/libs/gum/prof/libfrida-gum-prof-1.0.la
 endif
 
 container_sources = \
@@ -154,7 +151,7 @@ container_sources = \
 	gumhash.c \
 	gumlist.c
 
-libgum_la_SOURCES = \
+libfrida_gum_la_SOURCES = \
 	gum.c \
 	gumbacktracer.c \
 	gumcodeallocator.c \
@@ -169,10 +166,11 @@ libgum_la_SOURCES = \
 	$(container_sources) \
 	$(script_sources) \
 	$(backend_sources)
-libgum_la_LIBADD = \
+libfrida_gum_la_LIBADD = \
 	$(libs_libadd) \
 	$(arch_libs)
-libgum_la_LIBTOOLFLAGS = --tag=disable-shared
+libfrida_gum_la_LIBTOOLFLAGS = \
+	--tag=disable-shared
 
 AM_CPPFLAGS = \
 	-include config.h \

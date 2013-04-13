@@ -1,4 +1,4 @@
-AC_INIT([libgum], [1.0.0])
+AC_INIT([frida-gum], [1.0.0])
 AC_CONFIG_SRCDIR([gum/gum.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -168,12 +168,9 @@ fi
 AM_CONDITIONAL(ENABLE_BINDINGS, [test "x$enable_bindings" != "xno" -a "x$enable_symbol_backend" = "xyes" ])
 
 AC_CONFIG_FILES([
-	gum-1.0.pc
-	gumpp-1.0.pc
+	frida-gum-1.0.pc
+	frida-gumpp-1.0.pc
 	Makefile
-	ext/Makefile
-	ext/udis86/Makefile
-	ext/udis86/libudis86/Makefile
 	libs/Makefile
 	libs/gum/Makefile
 	libs/gum/heap/Makefile

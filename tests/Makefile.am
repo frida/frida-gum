@@ -40,7 +40,7 @@ libs_libadd += \
 endif
 
 if ENABLE_BINDINGS
-binding_ldadd += $(top_builddir)/bindings/gumpp/libgumpp-1.0.la
+binding_ldadd += $(top_builddir)/bindings/gumpp/libfrida-gumpp-1.0.la
 binding_libadd += $(builddir)/gumpp/libgum-tests-gumpp.la
 endif
 
@@ -50,7 +50,7 @@ gum_tests_LDFLAGS = \
 	$(GUM_LDFLAGS)
 gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
-	$(top_builddir)/gum/libgum-1.0.la \
+	$(top_builddir)/gum/libfrida-gum-1.0.la \
 	$(binding_ldadd) \
 	$(GUM_LIBS) \
 	-lstdc++

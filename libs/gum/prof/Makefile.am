@@ -1,4 +1,4 @@
-noinst_LTLIBRARIES = libgum-prof-1.0.la
+noinst_LTLIBRARIES = libfrida-gum-prof-1.0.la
 
 arch_sources = $(NULL)
 arch_includes = $(NULL)
@@ -17,8 +17,8 @@ os_sources += \
 	gumbusycyclesampler-darwin.c
 endif
 
-gumincludedir = $(includedir)/gum-1.0/gum/prof
-guminclude_HEADERS = \
+fridaincludedir = $(includedir)/frida-1.0/gum/prof
+fridainclude_HEADERS = \
 	gumbusycyclesampler.h \
 	gumcallcountsampler.h \
 	gumcyclesampler.h \
@@ -28,7 +28,7 @@ guminclude_HEADERS = \
 	gumsampler.h \
 	gumwallclocksampler.h
 
-libgum_prof_1_0_la_SOURCES = \
+libfrida_gum_prof_1_0_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
 	gumcallcountsampler.c \

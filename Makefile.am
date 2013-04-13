@@ -12,17 +12,15 @@ extras += bindings
 endif
 
 SUBDIRS = \
-	ext \
 	$(libs) \
 	gum \
 	$(extras) \
 	tests \
 	vapi
 
-
 pcfiles = \
-	gum-1.0.pc \
-	gumpp-1.0.pc
+	frida-gum-1.0.pc \
+	frida-gumpp-1.0.pc
 
 all-local: $(pcfiles)
 

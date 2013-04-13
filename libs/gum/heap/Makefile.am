@@ -1,7 +1,7 @@
-noinst_LTLIBRARIES = libgum-heap-1.0.la
+noinst_LTLIBRARIES = libfrida-gum-heap-1.0.la
 
-gumincludedir = $(includedir)/gum-1.0/gum/heap
-guminclude_HEADERS = \
+fridaincludedir = $(includedir)/frida-1.0/gum/heap
+fridainclude_HEADERS = \
 	gumallocationblock.h \
 	gumallocationgroup.h \
 	gumallocationtracker.h \
@@ -17,7 +17,7 @@ guminclude_HEADERS = \
 noinst_HEADERS = \
 	gumallocatorprobe-priv.h
 
-libgum_heap_1_0_la_SOURCES = \
+libfrida_gum_heap_1_0_la_SOURCES = \
 	gumallocationblock.c \
 	gumallocationgroup.c \
 	gumallocationtracker.c \
