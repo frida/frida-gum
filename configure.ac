@@ -104,6 +104,9 @@ AC_CHECK_MEMBER([struct mallinfo.arena],
 GLIB_VERSION=2.24.1
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION, libffi >= 3.0.12"
+if [[ "$HAVE_I386" = "yes" ]]; then
+  pkg_modules="$pkg_modules udis86"
+fi
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 
 PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
