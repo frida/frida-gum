@@ -45,7 +45,7 @@ script_sources = $(NULL)
 libs_libadd = $(NULL)
 
 if ARCH_I386
-archincludedir = $(includedir)/gum-1.0/gum/arch-x86
+archincludedir = $(includedir)/frida-1.0/gum/arch-x86
 archinclude_HEADERS = \
 	arch-x86/gumx86backtracer.h \
 	arch-x86/gumx86writer.h \
@@ -71,7 +71,7 @@ backend_sources += \
 endif
 
 if ARCH_ARM
-archincludedir = $(includedir)/gum-1.0/gum/arch-arm
+archincludedir = $(includedir)/frida-1.0/gum/arch-arm
 archinclude_HEADERS = \
 	arch-arm/gumarm.h \
 	arch-arm/gumarmwriter.h \
