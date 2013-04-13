@@ -182,6 +182,7 @@ _test_util_deinit (void)
 #endif
 }
 
+#ifdef HAVE_LIBS
 GumSampler *
 heap_access_counter_new (void)
 {
@@ -190,6 +191,7 @@ heap_access_counter_new (void)
       g_slice_free_chain_with_offset, g_malloc, g_malloc0, g_free,
       g_memdup, NULL);
 }
+#endif
 
 void
 assert_basename_equals (const gchar * expected_filename,
