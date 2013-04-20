@@ -33,22 +33,22 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ext\udis86\libudis86\decode.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\input.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\input.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\syn-att.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\syn-intel.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-intel.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\syn.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\udis86.c">
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\udis86.c">
       <Filter>udis86</Filter>
     </ClCompile>
     <ClCompile Include="gum\arch-x86\gumudis86.c">
@@ -87,7 +87,7 @@
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="ext\udis86\libudis86\itab.c">
+    <ClCompile Include="$(IntDir)libudis86\itab.c">
       <Filter>udis86</Filter>
     </ClCompile>
     <ClCompile Include="gum\gumeventsink.c">
@@ -206,19 +206,19 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ext\udis86\libudis86\extern.h">
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h">
       <Filter>udis86</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\udis86.h">
+    <ClInclude Include="$(SolutionDir)udis86\udis86.h">
       <Filter>udis86</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\types.h">
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\types.h">
       <Filter>udis86</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\syn.h">
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h">
       <Filter>udis86</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\input.h">
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\input.h">
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-x86\gumudis86.h">
@@ -260,10 +260,10 @@
     <ClInclude Include="gum\gumlist.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\decode.h">
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\decode.h">
       <Filter>udis86</Filter>
     </ClInclude>
-    <ClInclude Include="ext\udis86\libudis86\itab.h">
+    <ClInclude Include="$(IntDir)libudis86\itab.h">
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumstalker.h">
