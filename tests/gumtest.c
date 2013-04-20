@@ -119,7 +119,6 @@ main (gint argc, gchar * argv[])
 #endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
-  TEST_RUN_LIST (tracer);
 #endif
 #ifndef HAVE_ARM
   TEST_RUN_LIST (stalker);

@@ -36,7 +36,6 @@
 #include <gum/gumscript.h>
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
-#include <gum/gumtracer.h>
 
 G_BEGIN_DECLS
 

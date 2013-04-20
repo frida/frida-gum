@@ -102,9 +102,6 @@
     <ClCompile Include="gum\backend-x86\gumspinlock-ia32-msc.c">
       <Filter>core\backend-x86</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gumtracer.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gumcodeallocator.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -279,9 +276,6 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscript.h">
-      <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\gumtracer.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumsymbolutil.h">

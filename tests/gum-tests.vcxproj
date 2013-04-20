@@ -305,13 +305,6 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     <ClCompile Include="core\arch-x86\stalker-x86.c" />
     <ClCompile Include="core\process.c" />
     <ClCompile Include="core\symbolutil.c" />
-    <ClCompile Include="core\tracer-fixture.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="core\tracer.c" />
     <ClCompile Include="gumtest.c" />
     <ClCompile Include="prof\fakesampler.c" />
     <ClCompile Include="prof\profiler-fixture.c">

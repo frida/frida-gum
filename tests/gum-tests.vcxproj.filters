@@ -69,9 +69,6 @@
     <ClCompile Include="core\script.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\tracer.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\interceptor-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
@@ -86,9 +83,6 @@
     </ClCompile>
     <ClCompile Include="core\arch-x86\codewriter-fixture.c">
       <Filter>Tests\core\arch-x86</Filter>
-    </ClCompile>
-    <ClCompile Include="core\tracer-fixture.c">
-      <Filter>Tests\core</Filter>
     </ClCompile>
     <ClCompile Include="lowlevel-helpers.c">
       <Filter>Source Files</Filter>

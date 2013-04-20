@@ -24,8 +24,7 @@ fridainclude_HEADERS = \
 	gumspinlock.h \
 	gumstalker.h \
 	gumsymbolutil.h \
-	gumsysinternals.h \
-	gumtracer.h
+	gumsysinternals.h
 
 libfrida_gum_1_0_la_SOURCES = $(NULL)
 libfrida_gum_1_0_la_LDFLAGS = \
