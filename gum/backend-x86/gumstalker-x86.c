@@ -28,6 +28,8 @@
 #include "gumspinlock.h"
 #include "gumudis86.h"
 
+#include <stdlib.h>
+#include <string.h>
 #ifdef G_OS_WIN32
 #include "backend-windows/gumwinexceptionhook.h"
 
@@ -38,15 +40,16 @@
 #endif
 
 #define GUM_STACK_SIZE_IN_PAGES              128
-#define GUM_MAX_EXEC_BLOCKS                 1000
-#define GUM_EXEC_BLOCK_SIZE_IN_PAGES          20
-#define GUM_EXEC_BLOCK_MAX_MAPPINGS         2048
-#define GUM_MAX_INSTRUMENTATION_MAPPING_COUNT  2
-#define GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE 256
+#define GUM_CODE_ALIGNMENT                     8
+#define GUM_DATA_ALIGNMENT                     8
+#define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
+#define GUM_MAPPING_SLAB_SIZE_IN_PAGES       200
+#define GUM_EXEC_BLOCK_MIN_SIZE              128
 
 typedef struct _GumInfectContext GumInfectContext;
 
 typedef struct _GumCallProbe GumCallProbe;
+typedef struct _GumSlab GumSlab;
 
 typedef struct _GumExecCtx GumExecCtx;
 typedef struct _GumExecBlock GumExecBlock;
@@ -93,6 +96,14 @@ struct _GumCallProbe
   GDestroyNotify user_notify;
 };
 
+struct _GumSlab
+{
+  guint8 * data;
+  guint offset;
+  guint size;
+  GumSlab * next; /* TODO: implement worker adding a new slab when needed */
+};
+
 enum _GumExecCtxState
 {
   GUM_EXEC_CTX_ACTIVE,
@@ -129,30 +140,26 @@ struct _GumExecCtx
   gpointer ret_block_thunk;
   gpointer infect_thunk;
 
-  guint8 * block_pool;
-  guint block_size;
-  guint block_code_offset;
-  guint block_code_maxsize;
+  GumSlab code_slab;
+  GumSlab mapping_slab;
 };
 
 struct _GumAddressMapping
 {
-  gpointer replica_address;
   gpointer real_address;
+  gpointer code_address;
+  GumExecBlock * block;
 };
 
 struct _GumExecBlock
 {
-  guint ref_count;
   GumExecCtx * ctx;
+  GumSlab * slab;
 
   guint8 * real_begin;
   guint8 * real_end;
   guint8 * code_begin;
   guint8 * code_end;
-
-  GumAddressMapping mappings[GUM_EXEC_BLOCK_MAX_MAPPINGS];
-  guint mappings_len;
 
   guint8 state;
 
@@ -243,7 +250,9 @@ static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
 static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
-    gpointer address);
+    gpointer real_address, gpointer * code_address);
+static void gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
+    gpointer real_address, gpointer code_address, GumExecBlock * block);
 static void gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
     gpointer location, const GumBranchTarget * target, GumX86Writer * cw);
 static void gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
@@ -270,11 +279,13 @@ static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     guint state_preserve_stack_offset, guint accumulated_stack_delta,
     gpointer ip, GumX86Writer * cw);
 
+static int gum_address_mapping_compare (const void * a, const void * b);
+
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
-    gpointer address);
-static void gum_exec_block_release (GumExecBlock * block);
-static gboolean gum_exec_block_full (GumExecBlock * block);
+    gpointer real_address, gpointer * code_address);
+static gboolean gum_exec_block_is_full (GumExecBlock * block);
+static void gum_exec_block_commit (GumExecBlock * block);
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
@@ -291,8 +302,6 @@ static void gum_exec_block_write_single_step_transfer_code (
     GumExecBlock * block, GumGeneratorContext * gc);
 static void gum_exec_block_write_call_probe_code (GumExecBlock * block,
     const GumBranchTarget * target, GumGeneratorContext * gc);
-static void gum_exec_block_add_address_mapping (GumExecBlock * block,
-    gpointer replica_address, gpointer real_address);
 
 static void gum_write_state_preserve_prolog (GumX86Writer * cw);
 static void gum_write_state_preserve_epilog (GumX86Writer * cw);
@@ -329,6 +338,8 @@ gum_stalker_init (GumStalker * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_STALKER, GumStalkerPrivate);
   priv = self->priv;
+
+  priv->cache_enabled = TRUE;
 
   gum_spinlock_init (&priv->probe_lock);
   priv->probe_target_by_id =
@@ -472,12 +483,14 @@ _gum_stalker_do_follow_me (GumStalker * self,
                            volatile gpointer * ret_addr_ptr)
 {
   GumExecCtx * ctx;
+  gpointer code_address;
 
   ctx = gum_stalker_create_exec_ctx (self,
       gum_process_get_current_thread_id (), sink);
   g_private_set (self->priv->exec_ctx, ctx);
-  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr);
-  *ret_addr_ptr = ctx->current_block->code_begin;
+  ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
+      &code_address);
+  *ret_addr_ptr = code_address;
 }
 
 void
@@ -559,6 +572,7 @@ gum_stalker_infect (GumThreadId thread_id,
   GumInfectContext * infect_context = (GumInfectContext *) user_data;
   GumStalker * self = infect_context->stalker;
   GumExecCtx * ctx;
+  gpointer code_address;
   GumX86Writer cw;
 #if GLIB_SIZEOF_VOID_P == 4
   guint align_correction = 8;
@@ -569,7 +583,7 @@ gum_stalker_infect (GumThreadId thread_id,
   ctx = gum_stalker_create_exec_ctx (self, thread_id, infect_context->sink);
 
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx,
-      GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)));
+      GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context)), &code_address);
   GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (ctx->infect_thunk);
 
   gum_x86_writer_init (&cw, ctx->infect_thunk);
@@ -581,7 +595,7 @@ gum_stalker_infect (GumThreadId thread_id,
       GUM_ARG_POINTER, ctx);
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_exec_ctx_write_state_preserve_epilog (ctx, &cw);
-  gum_x86_writer_put_jmp (&cw, ctx->current_block->code_begin);
+  gum_x86_writer_put_jmp (&cw, code_address);
   gum_x86_writer_free (&cw);
 }
 
@@ -694,25 +708,27 @@ gum_stalker_create_exec_ctx (GumStalker * self,
                              GumEventSink * sink)
 {
   GumStalkerPrivate * priv = self->priv;
-  guint base_size, block_pool_size;
+  guint base_size;
   GumExecCtx * ctx;
 
   base_size = sizeof (GumExecCtx) / priv->page_size;
   if (sizeof (GumExecCtx) % priv->page_size != 0)
     base_size++;
-  block_pool_size = GUM_MAX_EXEC_BLOCKS * GUM_EXEC_BLOCK_SIZE_IN_PAGES;
 
   ctx = (GumExecCtx *)
-      gum_alloc_n_pages (base_size + block_pool_size, GUM_PAGE_RWX);
+      gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES +
+          GUM_MAPPING_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
   ctx->state = GUM_EXEC_CTX_ACTIVE;
 
-  ctx->block_pool = ((guint8 *) ctx) + (base_size * priv->page_size);
+  ctx->code_slab.data = ((guint8 *) ctx) + (base_size * priv->page_size);
+  ctx->code_slab.offset = 0;
+  ctx->code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
+  ctx->code_slab.next = NULL;
 
-  ctx->block_size =
-      GUM_EXEC_BLOCK_SIZE_IN_PAGES * priv->page_size;
-  g_assert (ctx->block_size >= 2 * sizeof (GumExecBlock));
-  ctx->block_code_offset = ((sizeof (GumExecBlock) + (64 - 1)) & ~(64 - 1));
-  ctx->block_code_maxsize = ctx->block_size - ctx->block_code_offset;
+  ctx->mapping_slab.data = ctx->code_slab.data + ctx->code_slab.size;
+  ctx->mapping_slab.offset = 0;
+  ctx->mapping_slab.size = GUM_MAPPING_SLAB_SIZE_IN_PAGES * priv->page_size;
+  ctx->mapping_slab.next = NULL;
 
   ctx->stalker = g_object_ref (self);
   ctx->thread_id = thread_id;
@@ -766,7 +782,6 @@ static void GUM_THUNK
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
-  gum_exec_block_release (ctx->current_block);
   ctx->current_block = NULL;
 
   if (start_address == gum_stalker_unfollow_me)
@@ -789,8 +804,8 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
   }
   else
   {
-    ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address);
-    ctx->resume_at = ctx->current_block->code_begin;
+    ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, start_address,
+        &ctx->resume_at);
   }
 }
 
@@ -872,7 +887,8 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
 
 static GumExecBlock *
 gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
-                               gpointer address)
+                               gpointer real_address,
+                               gpointer * code_address)
 {
   GumExecBlock * block;
   GumX86Writer * cw = &ctx->code_writer;
@@ -881,7 +897,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
   if (ctx->stalker->priv->cache_enabled)
   {
-    block = gum_exec_block_obtain (ctx, address);
+    block = gum_exec_block_obtain (ctx, real_address, code_address);
     if (block != NULL)
     {
 #if ENABLE_DEBUG
@@ -892,9 +908,11 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   block = gum_exec_block_new (ctx);
-  gum_exec_block_add_address_mapping (block, block->code_begin, address);
+  *code_address = block->code_begin;
+  gum_exec_ctx_add_address_mapping (ctx, real_address, block->code_begin,
+      block);
   gum_x86_writer_reset (cw, block->code_begin);
-  gum_x86_relocator_reset (rl, address, cw);
+  gum_x86_relocator_reset (rl, real_address, cw);
 
   gc.instruction = NULL;
   gc.relocator = rl;
@@ -953,16 +971,16 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     {
       if ((requirements & GUM_REQUIRE_MAPPING) != 0)
       {
-        gum_exec_block_add_address_mapping (block, gum_x86_writer_cur (cw),
-            insn.begin);
+        gum_exec_ctx_add_address_mapping (ctx, insn.begin,
+            gum_x86_writer_cur (cw), block);
       }
 
       gum_x86_relocator_write_one_no_label (rl);
 
       if ((requirements & GUM_REQUIRE_MAPPING) != 0)
       {
-        gum_exec_block_add_address_mapping (block, gum_x86_writer_cur (cw),
-            insn.end);
+        gum_exec_ctx_add_address_mapping (ctx, insn.end,
+            gum_x86_writer_cur (cw), block);
       }
     }
     else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
@@ -981,7 +999,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     block->code_end = gum_x86_writer_cur (cw);
 #endif
 
-    if (gum_exec_block_full (block))
+    if (gum_exec_block_is_full (block))
     {
       gc.continuation_real_address = insn.end;
       break;
@@ -1008,11 +1026,61 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   block->real_begin = (guint8 *) rl->input_start;
   block->real_end = (guint8 *) rl->input_cur;
 
-  g_assert_cmpuint (gum_x86_writer_offset (cw), <=, ctx->block_code_maxsize);
-
-  block->code_end--; /* pretend the INT3 guard isn't part of the block */
+  gum_exec_block_commit (block);
 
   return block;
+}
+
+static void
+gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
+                                  gpointer real_address,
+                                  gpointer code_address,
+                                  GumExecBlock * block)
+{
+  GumSlab * slab;
+
+  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
+  {
+    if (slab->size - slab->offset >= sizeof (GumAddressMapping))
+    {
+      GumAddressMapping * mapping, * cur;
+      guint offset_from_end;
+
+      mapping = NULL;
+
+      for (cur = (GumAddressMapping *) (slab->data + slab->offset -
+            sizeof (GumAddressMapping)), offset_from_end = 0;
+          cur >= (GumAddressMapping *) slab->data;
+          cur--, offset_from_end++)
+      {
+        if (real_address >= cur->real_address)
+        {
+          if (offset_from_end > 0)
+          {
+            mapping = cur + 1;
+            memmove (cur + 2, cur + 1, offset_from_end * sizeof (GumAddressMapping));
+          }
+          break;
+        }
+        else if (cur == (GumAddressMapping *) slab->data)
+        {
+          mapping = cur;
+          memmove (cur + 1, cur, (offset_from_end + 1) * sizeof (GumAddressMapping));
+        }
+      }
+
+      if (mapping == NULL)
+        mapping = (GumAddressMapping *) (slab->data + slab->offset);
+
+      mapping->real_address = real_address;
+      mapping->code_address = code_address;
+      mapping->block = block;
+
+      slab->offset += sizeof (GumAddressMapping);
+
+      break;
+    }
+  }
 }
 
 static void
@@ -1362,95 +1430,95 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
 }
 
-static GumExecBlock *
-gum_exec_block_new (GumExecCtx * ctx)
+static int
+gum_address_mapping_compare (const void * a,
+                             const void * b)
 {
-  GumExecBlock * block = NULL;
-  guint8 * cur;
-  guint i;
+  const GumAddressMapping * mapping_a = (const GumAddressMapping *) a;
+  const GumAddressMapping * mapping_b = (const GumAddressMapping *) b;
 
-  cur = ctx->block_pool;
-  if (ctx->stalker->priv->cache_enabled)
-  {
-    for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
-    {
-      GumExecBlock * current_block = (GumExecBlock *) cur;
-      if (current_block->mappings_len == 0)
-      {
-        block = current_block;
-        break;
-      }
-      cur += ctx->block_size;
-    }
-  }
-
-  if (block == NULL)
-  {
-    cur = ctx->block_pool;
-    for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
-    {
-      GumExecBlock * current_block = (GumExecBlock *) cur;
-      if (current_block->ref_count == 0)
-      {
-        block = current_block;
-        break;
-      }
-      cur += ctx->block_size;
-    }
-  }
-
-  g_assert (block != NULL);
-
-  block->ref_count++;
-  block->ctx = ctx;
-
-  block->code_end = block->code_begin = cur + ctx->block_code_offset;
-
-  block->mappings_len = 0;
-  block->state = GUM_EXEC_NORMAL;
-
-  return block;
+  if (mapping_a->real_address < mapping_b->real_address)
+    return -1;
+  else if (mapping_a->real_address > mapping_b->real_address)
+    return 1;
+  else
+    return 0;
 }
 
 static GumExecBlock *
-gum_exec_block_obtain (GumExecCtx * ctx,
-                       gpointer address)
+gum_exec_block_new (GumExecCtx * ctx)
 {
-  guint8 * cur;
-  guint i;
+  GumSlab * slab;
 
-  cur = ctx->block_pool;
-  for (i = 0; i != GUM_MAX_EXEC_BLOCKS; i++)
+  for (slab = &ctx->code_slab; slab != NULL; slab = slab->next)
   {
-    GumExecBlock * block = (GumExecBlock *) cur;
-    if (block->mappings_len != 0 && block->mappings[0].real_address == address)
+    if (slab->size - slab->offset >= GUM_EXEC_BLOCK_MIN_SIZE)
     {
-      block->ref_count++;
+      GumExecBlock * block = (GumExecBlock *) (slab->data + slab->offset);
+
+      block->ctx = ctx;
+      block->slab = slab;
+
+      block->code_begin = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (slab->data +
+            slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
+          & ~(GUM_CODE_ALIGNMENT - 1));
+      block->code_end = block->code_begin;
+
       block->state = GUM_EXEC_NORMAL;
+
+      slab->offset += block->code_begin - (slab->data + slab->offset);
+
       return block;
     }
-    cur += ctx->block_size;
   }
 
   return NULL;
 }
 
-static void
-gum_exec_block_release (GumExecBlock * block)
+static GumExecBlock *
+gum_exec_block_obtain (GumExecCtx * ctx,
+                       gpointer real_address,
+                       gpointer * code_address)
 {
-  block->ref_count--;
+  GumAddressMapping mapping;
+  GumSlab * slab;
+
+  mapping.real_address = real_address;
+  mapping.code_address = NULL;
+  mapping.block = NULL;
+
+  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
+  {
+    GumAddressMapping * match;
+
+    match = bsearch (&mapping, slab->data,
+        slab->offset / sizeof (GumAddressMapping), sizeof (GumAddressMapping),
+        gum_address_mapping_compare);
+    if (match != NULL)
+    {
+      *code_address = match->code_address;
+      return match->block;
+    }
+  }
+
+  return NULL;
 }
 
 static gboolean
-gum_exec_block_full (GumExecBlock * block)
+gum_exec_block_is_full (GumExecBlock * block)
 {
-  guint mappings_available, bytes_available;
+  guint8 * slab_end = block->slab->data + block->slab->size;
+  return slab_end - block->code_end < GUM_EXEC_BLOCK_MIN_SIZE;
+}
 
-  mappings_available = G_N_ELEMENTS (block->mappings) - block->mappings_len;
-  bytes_available =
-      block->ctx->block_size - (block->code_end - (guint8 *) block);
-  return (mappings_available < GUM_MAX_INSTRUMENTATION_MAPPING_COUNT) ||
-      (bytes_available < GUM_MAX_INSTRUMENTATION_WRAPPER_SIZE);
+static void
+gum_exec_block_commit (GumExecBlock * block)
+{
+  guint8 * aligned_end;
+
+  aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->code_end +
+        GUM_DATA_ALIGNMENT - 1) & ~(GUM_DATA_ALIGNMENT - 1));
+  block->slab->offset += aligned_end - block->code_begin;
 }
 
 static GumVirtualizationRequirements
@@ -1546,7 +1614,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   else
   {
     gpointer cond_false_lbl_id;
-    
+
     cond_false_lbl_id =
         GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->begin) << 16) | 0xbeef);
 
@@ -1857,17 +1925,6 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
     GUM_ADDRESS (&block->ctx->app_stack));
-}
-
-static void
-gum_exec_block_add_address_mapping (GumExecBlock * block,
-                                    gpointer replica_address,
-                                    gpointer real_address)
-{
-  GumAddressMapping * map = &block->mappings[block->mappings_len++];
-  g_assert_cmpuint (block->mappings_len, <=, G_N_ELEMENTS (block->mappings));
-  map->replica_address = replica_address;
-  map->real_address = real_address;
 }
 
 static void
