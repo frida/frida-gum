@@ -67,6 +67,8 @@ gum_mnemonic_is_jcc (ud_mnemonic_code_t mnemonic)
 guint8
 gum_jcc_insn_to_short_opcode (guint8 * code)
 {
+  if (*code == 0x3e || *code == 0x2e)
+    code++; /* skip hint */
   if (code[0] == 0x0f)
     return code[1] - 0x10;
   else
