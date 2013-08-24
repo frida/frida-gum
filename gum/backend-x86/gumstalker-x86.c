@@ -899,6 +899,32 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
   }
 }
 
+static void
+gum_hexdump (guint8 * data, guint size, const gchar * prefix)
+{
+  guint i, line_offset;
+
+  line_offset = 0;
+  for (i = 0; i != size; i++)
+  {
+    if (line_offset == 0)
+      printf ("%s0x%" G_GINT64_MODIFIER "x\t%02x", prefix, (guint64) data + i,
+          data[i]);
+    else
+      printf (" %02x", data[i]);
+
+    line_offset++;
+    if (line_offset == 16 && i != size - 1)
+    {
+      printf ("\n");
+      line_offset = 0;
+    }
+  }
+
+  if (line_offset != 0)
+    printf ("\n");
+}
+
 #endif
 
 static GumExecBlock *
@@ -965,6 +991,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
 #if ENABLE_DEBUG
     gum_disasm (insn.begin, insn.end - insn.begin, "");
+    gum_hexdump (insn.begin, insn.end - insn.begin, "; ");
 #endif
 
     gc.instruction = &insn;
@@ -1019,6 +1046,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       guint8 * begin = block->code_end;
       block->code_end = gum_x86_writer_cur (cw);
       gum_disasm (begin, block->code_end - begin, "\t");
+      gum_hexdump (begin, block->code_end - begin, "\t; ");
     }
 #else
     block->code_end = gum_x86_writer_cur (cw);
