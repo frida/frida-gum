@@ -69,7 +69,7 @@ struct _GumStalkerPrivate
   GSList * contexts;
   GPrivate * exec_ctx;
 
-  gboolean cache_enabled;
+  gint trust_threshold;
   volatile gboolean any_probes_attached;
   volatile gint last_probe_id;
   GumSpinlock probe_lock;
@@ -160,6 +160,8 @@ struct _GumExecBlock
   guint8 * real_end;
   guint8 * code_begin;
   guint8 * code_end;
+  guint8 real_snapshot[16];
+  guint recycle_count;
 
   guint8 state;
 
@@ -253,6 +255,8 @@ static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static void gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
     gpointer real_address, gpointer code_address, GumExecBlock * block);
+static void gum_exec_ctx_remove_address_mapping (GumExecCtx * ctx,
+    gpointer real_address);
 static void gum_exec_ctx_write_call_event_code (GumExecCtx * ctx,
     gpointer location, const GumBranchTarget * target, GumX86Writer * cw);
 static void gum_exec_ctx_write_ret_event_code (GumExecCtx * ctx,
@@ -343,7 +347,7 @@ gum_stalker_init (GumStalker * self)
       GUM_TYPE_STALKER, GumStalkerPrivate);
   priv = self->priv;
 
-  priv->cache_enabled = TRUE;
+  priv->trust_threshold = 1;
 
   gum_spinlock_init (&priv->probe_lock);
   priv->probe_target_by_id =
@@ -434,11 +438,17 @@ gum_stalker_new (void)
   return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
 }
 
-void
-gum_stalker_set_cache_enabled (GumStalker * self,
-                               gboolean enabled)
+gint
+gum_stalker_get_trust_threshold (GumStalker * self)
 {
-  self->priv->cache_enabled = enabled;
+  return self->priv->trust_threshold;
+}
+
+void
+gum_stalker_set_trust_threshold (GumStalker * self,
+                                 gint trust_threshold)
+{
+  self->priv->trust_threshold = trust_threshold;
 }
 
 void
@@ -901,14 +911,28 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumX86Relocator * rl = &ctx->relocator;
   GumGeneratorContext gc;
 
-  if (ctx->stalker->priv->cache_enabled)
+  if (ctx->stalker->priv->trust_threshold >= 0)
   {
     block = gum_exec_block_obtain (ctx, real_address, code_address);
     if (block != NULL)
-      return block;
+    {
+      if (block->recycle_count >= ctx->stalker->priv->trust_threshold ||
+          memcmp (real_address, block->real_snapshot,
+            sizeof (block->real_snapshot)) == 0)
+      {
+        block->recycle_count++;
+        return block;
+      }
+      else
+      {
+        gum_exec_ctx_remove_address_mapping (ctx, real_address);
+      }
+    }
   }
 
   block = gum_exec_block_new (ctx);
+  if (ctx->stalker->priv->trust_threshold >= 0)
+    memcpy (block->real_snapshot, real_address, sizeof (block->real_snapshot));
   *code_address = block->code_begin;
   gum_exec_ctx_add_address_mapping (ctx, real_address, block->code_begin,
       block);
@@ -1080,6 +1104,42 @@ gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
       slab->offset += sizeof (GumAddressMapping);
 
       break;
+    }
+  }
+}
+
+static void
+gum_exec_ctx_remove_address_mapping (GumExecCtx * ctx,
+                                     gpointer real_address)
+{
+  GumAddressMapping mapping;
+  GumSlab * slab;
+
+  mapping.real_address = real_address;
+  mapping.code_address = NULL;
+  mapping.block = NULL;
+
+  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
+  {
+    GumAddressMapping * match;
+
+    match = bsearch (&mapping, slab->data,
+        slab->offset / sizeof (GumAddressMapping), sizeof (GumAddressMapping),
+        gum_address_mapping_compare);
+    if (match != NULL)
+    {
+      GumAddressMapping * last_mapping;
+
+      last_mapping = (GumAddressMapping *) (slab->data + slab->offset -
+          sizeof (GumAddressMapping));
+      if (match != last_mapping)
+      {
+        memmove (match, match + 1, (slab->data + slab->offset) -
+            ((guint8 *) (match + 1)));
+      }
+      slab->offset -= sizeof (GumAddressMapping);
+
+      return;
     }
   }
 }
@@ -1464,6 +1524,7 @@ gum_exec_block_new (GumExecCtx * ctx)
             slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
           & ~(GUM_CODE_ALIGNMENT - 1));
       block->code_end = block->code_begin;
+      block->recycle_count = 0;
 
       block->state = GUM_EXEC_NORMAL;
 
@@ -1528,15 +1589,18 @@ gum_exec_block_backpatch_static_call (GumExecBlock * block,
                                       gpointer target_address,
                                       gpointer return_address)
 {
-  GumX86Writer * cw = &block->ctx->code_writer;
-  gpointer * return_address_storage = (gpointer *) (code_start + 20);
+  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  {
+    GumX86Writer * cw = &block->ctx->code_writer;
+    gpointer * return_address_storage = (gpointer *) (code_start + 20);
 
-  *return_address_storage = return_address;
+    *return_address_storage = return_address;
 
-  gum_x86_writer_reset (cw, code_start);
-  gum_x86_writer_put_push_near_ptr (cw, GUM_ADDRESS (return_address_storage));
-  gum_x86_writer_put_jmp (cw, target_address);
-  gum_x86_writer_flush (cw);
+    gum_x86_writer_reset (cw, code_start);
+    gum_x86_writer_put_push_near_ptr (cw, GUM_ADDRESS (return_address_storage));
+    gum_x86_writer_put_jmp (cw, target_address);
+    gum_x86_writer_flush (cw);
+  }
 }
 
 static void
@@ -1544,11 +1608,14 @@ gum_exec_block_backpatch_static_jmp (GumExecBlock * block,
                                      guint8 * code_start,
                                      gpointer target_address)
 {
-  GumX86Writer * cw = &block->ctx->code_writer;
+  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  {
+    GumX86Writer * cw = &block->ctx->code_writer;
 
-  gum_x86_writer_reset (cw, code_start);
-  gum_x86_writer_put_jmp (cw, target_address);
-  gum_x86_writer_flush (cw);
+    gum_x86_writer_reset (cw, code_start);
+    gum_x86_writer_put_jmp (cw, target_address);
+    gum_x86_writer_flush (cw);
+  }
 }
 
 static GumVirtualizationRequirements
@@ -1778,7 +1845,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  if (block->ctx->stalker->priv->cache_enabled &&
+  if (block->ctx->stalker->priv->trust_threshold >= 0 &&
       !target->is_indirect &&
       target->base == UD_NONE)
   {
@@ -1828,7 +1895,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
-  if (block->ctx->stalker->priv->cache_enabled &&
+  if (block->ctx->stalker->priv->trust_threshold >= 0 &&
       !target->is_indirect &&
       target->base == UD_NONE)
   {

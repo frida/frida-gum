@@ -72,8 +72,9 @@ GUM_API GType gum_stalker_get_type (void) G_GNUC_CONST;
 
 GUM_API GumStalker * gum_stalker_new (void);
 
-GUM_API void gum_stalker_set_cache_enabled (GumStalker * self,
-    gboolean enabled);
+GUM_API gint gum_stalker_get_trust_threshold (GumStalker * self);
+GUM_API void gum_stalker_set_trust_threshold (GumStalker * self,
+    gint trust_threshold);
 
 GUM_API void gum_stalker_garbage_collect (GumStalker * self);
 
