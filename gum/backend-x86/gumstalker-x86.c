@@ -300,11 +300,13 @@ static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
 static gboolean gum_exec_block_is_full (GumExecBlock * block);
 static void gum_exec_block_commit (GumExecBlock * block);
-static void gum_exec_block_backpatch_static_call (GumExecBlock * block,
-    guint8 * code_start, gpointer target_address, gpointer ret_real_address,
+static void gum_exec_block_backpatch_call (GumExecBlock * block,
+    gpointer code_start, gpointer target_address, gpointer ret_real_address,
     gpointer ret_code_address);
-static void gum_exec_block_backpatch_static_jmp (GumExecBlock * block,
-    guint8 * code_start, gpointer target_address);
+static void gum_exec_block_backpatch_jmp (GumExecBlock * block,
+    gpointer code_start, gpointer target_address);
+static void gum_exec_block_backpatch_ret (GumExecBlock * block,
+    gpointer code_start, gpointer target_address);
 static GumVirtualizationRequirements gum_exec_block_virtualize_branch_insn (
     GumExecBlock * block, GumGeneratorContext * gc);
 static GumVirtualizationRequirements gum_exec_block_virtualize_ret_insn (
@@ -1634,11 +1636,11 @@ gum_exec_block_commit (GumExecBlock * block)
 }
 
 static void
-gum_exec_block_backpatch_static_call (GumExecBlock * block,
-                                      guint8 * code_start,
-                                      gpointer target_address,
-                                      gpointer ret_real_address,
-                                      gpointer ret_code_address)
+gum_exec_block_backpatch_call (GumExecBlock * block,
+                               gpointer code_start,
+                               gpointer target_address,
+                               gpointer ret_real_address,
+                               gpointer ret_code_address)
 {
   if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
   {
@@ -1687,9 +1689,24 @@ gum_exec_block_backpatch_static_call (GumExecBlock * block,
 }
 
 static void
-gum_exec_block_backpatch_static_jmp (GumExecBlock * block,
-                                     guint8 * code_start,
-                                     gpointer target_address)
+gum_exec_block_backpatch_jmp (GumExecBlock * block,
+                              gpointer code_start,
+                              gpointer target_address)
+{
+  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  {
+    GumX86Writer * cw = &block->ctx->code_writer;
+
+    gum_x86_writer_reset (cw, code_start);
+    gum_x86_writer_put_jmp (cw, target_address);
+    gum_x86_writer_flush (cw);
+  }
+}
+
+static void
+gum_exec_block_backpatch_ret (GumExecBlock * block,
+                              gpointer code_start,
+                              gpointer target_address)
 {
   if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
   {
@@ -1906,13 +1923,13 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
                                        const GumBranchTarget * target,
                                        GumX86Writer * cw)
 {
-  guint8 * code_start;
+  gpointer call_code_start;
   gconstpointer perform_stack_push = cw->code + 1;
   gconstpointer skip_stack_push = cw->code + 2;
   gpointer ret_real_address;
   gpointer ret_code_address;
 
-  code_start = cw->code;
+  call_code_start = cw->code;
 
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX); /* placeholder: retaddr */
 
@@ -1959,6 +1976,14 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
 
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XCX,
+      GUM_ADDRESS (&block->ctx->current_block));
+  gum_x86_writer_put_call_with_arguments (cw,
+      GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_ret), 3,
+      GUM_ARG_REGISTER, GUM_REG_XCX,
+      GUM_ARG_POINTER, ret_code_address,
+      GUM_ARG_REGISTER, GUM_REG_XAX);
+
   gum_exec_ctx_write_state_preserve_epilog (block->ctx, cw);
   gum_x86_writer_put_jmp_near_ptr (cw, GUM_ADDRESS (&block->ctx->resume_at));
 
@@ -1991,9 +2016,9 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
       target->base == UD_NONE)
   {
     gum_x86_writer_put_call_with_arguments (cw,
-        GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_static_call), 5,
+        GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_call), 5,
         GUM_ARG_POINTER, block,
-        GUM_ARG_POINTER, code_start,
+        GUM_ARG_POINTER, call_code_start,
         GUM_ARG_REGISTER, GUM_REG_XCX,
         GUM_ARG_POINTER, ret_real_address,
         GUM_ARG_POINTER, ret_code_address);
@@ -2033,7 +2058,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
         GUM_THUNK_ARGLIST_STACK_RESERVE);
 
     gum_x86_writer_put_call_with_arguments (cw,
-        GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_static_jmp), 3,
+        GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_jmp), 3,
         GUM_ARG_POINTER, block,
         GUM_ARG_POINTER, code_start,
         GUM_ARG_REGISTER, GUM_REG_XAX);
