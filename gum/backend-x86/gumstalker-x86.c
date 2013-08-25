@@ -940,22 +940,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   GumX86Relocator * rl = &ctx->relocator;
   GumGeneratorContext gc;
 
-#if 0
-  {
-    GumExecFrame * cur;
-    guint i;
-
-    printf ("\n===\n");
-    for (cur = ctx->first_frame, i = 0; cur != ctx->current_frame; cur--, i++)
-    {
-      printf ("\tframe %u: real_address=%p code_address=%p\n",
-          i, cur->real_address, cur->code_address);
-    }
-    if (i > 0)
-      abort ();
-  }
-#endif
-
   if (ctx->stalker->priv->trust_threshold >= 0)
   {
     block = gum_exec_block_obtain (ctx, real_address, code_address);
