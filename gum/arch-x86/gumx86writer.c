@@ -2002,6 +2002,8 @@ gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
   gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
   gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
 
+  gum_x86_writer_put_prefix_for_registers (self, &b, 32, &b, NULL);
+
   offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
   g_assert (offset_fits_in_i8);
 
