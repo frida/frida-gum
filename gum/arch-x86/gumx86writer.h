@@ -175,6 +175,7 @@ void gum_x86_writer_put_ret (GumX86Writer * self);
 void gum_x86_writer_put_ret_imm (GumX86Writer * self, guint16 imm_value);
 void gum_x86_writer_put_jmp (GumX86Writer * self, gconstpointer target);
 void gum_x86_writer_put_jmp_short_label (GumX86Writer * self, gconstpointer label_id);
+void gum_x86_writer_put_jmp_near_label (GumX86Writer * self, gconstpointer label_id);
 void gum_x86_writer_put_jmp_reg (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_jmp_reg_ptr (GumX86Writer * self, GumCpuReg reg);
 void gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self, GumAddress address);

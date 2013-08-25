@@ -91,6 +91,10 @@ struct _GumLabelRef
 
 static guint8 * gum_x86_writer_lookup_address_for_label_id (
     GumX86Writer * self, gconstpointer id);
+static void gum_x86_writer_put_short_jmp (GumX86Writer * self,
+    gconstpointer target);
+static void gum_x86_writer_put_near_jmp (GumX86Writer * self,
+    gconstpointer target);
 static void gum_x86_writer_describe_cpu_reg (GumX86Writer * self,
     GumCpuReg reg, GumCpuRegInfo * ri);
 
@@ -635,12 +639,60 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
   }
 }
 
+static void
+gum_x86_writer_put_short_jmp (GumX86Writer * self,
+                              gconstpointer target)
+{
+  gint64 distance;
+
+  distance = (gssize) target - (gssize) (self->code + 2);
+  g_assert (IS_WITHIN_INT8_RANGE (distance));
+
+  self->code[0] = 0xeb;
+  *((gint8 *) (self->code + 1)) = distance;
+  self->code += 2;
+}
+
+static void
+gum_x86_writer_put_near_jmp (GumX86Writer * self,
+                             gconstpointer target)
+{
+  gint64 distance;
+
+  distance = (gssize) target - (gssize) (self->code + 5);
+
+  if (IS_WITHIN_INT32_RANGE (distance))
+  {
+    self->code[0] = 0xe9;
+    *((gint32 *) (self->code + 1)) = distance;
+    self->code += 5;
+  }
+  else
+  {
+    g_assert_cmpint (self->target_cpu, ==, GUM_CPU_AMD64);
+
+    self->code[0] = 0xff;
+    self->code[1] = 0x25;
+    *((gint32 *) (self->code + 2)) = 0; /* rip + 0 */
+    *((gconstpointer *) (self->code + 6)) = target;
+    self->code += 14;
+  }
+}
+
 void
 gum_x86_writer_put_jmp_short_label (GumX86Writer * self,
                                     gconstpointer label_id)
 {
-  gum_x86_writer_put_jmp (self, self->code);
+  gum_x86_writer_put_short_jmp (self, self->code);
   gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_SHORT);
+}
+
+void
+gum_x86_writer_put_jmp_near_label (GumX86Writer * self,
+                                   gconstpointer label_id)
+{
+  gum_x86_writer_put_near_jmp (self, self->code);
+  gum_x86_writer_add_label_reference_here (self, label_id, GUM_LREF_NEAR);
 }
 
 void
