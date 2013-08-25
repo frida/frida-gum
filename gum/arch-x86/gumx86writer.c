@@ -1862,6 +1862,32 @@ gum_x86_writer_put_test_reg_reg (GumX86Writer * self,
 }
 
 void
+gum_x86_writer_put_test_reg_u32 (GumX86Writer * self,
+                                 GumCpuReg reg,
+                                 guint32 imm_value)
+{
+  GumCpuRegInfo ri;
+
+  gum_x86_writer_describe_cpu_reg (self, reg, &ri);
+
+  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+
+  if (ri.meta == GUM_META_REG_XAX)
+  {
+    self->code[0] = 0xa9;
+    *((guint32 *) (self->code + 1)) = imm_value;
+    self->code += 5;
+  }
+  else
+  {
+    self->code[0] = 0xf7;
+    self->code[1] = 0xc0 | ri.index;
+    *((guint32 *) (self->code + 2)) = imm_value;
+    self->code += 6;
+  }
+}
+
+void
 gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
                                 GumCpuReg reg,
                                 gint32 imm_value)
@@ -1885,6 +1911,38 @@ gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
 
   *((gint32 *) self->code) = imm_value;
   self->code += 4;
+}
+
+void
+gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
+                                           GumCpuReg reg_a,
+                                           gssize offset,
+                                           GumCpuReg reg_b)
+{
+  GumCpuRegInfo a, b;
+  gboolean offset_fits_in_i8;
+
+  gum_x86_writer_describe_cpu_reg (self, reg_a, &a);
+  gum_x86_writer_describe_cpu_reg (self, reg_b, &b);
+
+  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+  g_assert (offset_fits_in_i8);
+
+  if (a.meta == GUM_META_REG_XSP)
+  {
+    self->code[0] = 0x39;
+    self->code[1] = 0x44 | (b.index << 3);
+    self->code[2] = 0x24;
+    self->code[3] = (gint8) offset;
+    self->code += 4;
+  }
+  else
+  {
+    self->code[0] = 0x39;
+    self->code[1] = 0x40 | (b.index << 3) | a.index;
+    self->code[2] = (gint8) offset;
+    self->code += 3;
+  }
 }
 
 void

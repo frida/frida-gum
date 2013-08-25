@@ -242,7 +242,9 @@ void gum_x86_writer_put_pushfx (GumX86Writer * self);
 void gum_x86_writer_put_popfx (GumX86Writer * self);
 
 void gum_x86_writer_put_test_reg_reg (GumX86Writer * self, GumCpuReg reg_a, GumCpuReg reg_b);
+void gum_x86_writer_put_test_reg_u32 (GumX86Writer * self, GumCpuReg reg, guint32 imm_value);
 void gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self, GumCpuReg reg, gint32 imm_value);
+void gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg reg_a, gssize offset, GumCpuReg reg_b);
 void gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self, gconstpointer imm_ptr, guint32 imm_value);
 void gum_x86_writer_put_clc (GumX86Writer * self);
 void gum_x86_writer_put_stc (GumX86Writer * self);
