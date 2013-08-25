@@ -1060,6 +1060,10 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gc.continuation_real_address = insn.end;
       break;
     }
+    else if (insn.ud->mnemonic == UD_Icall)
+    {
+      break;
+    }
   }
   while (!gum_x86_relocator_eob (rl));
 
