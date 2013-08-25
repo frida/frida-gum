@@ -1591,9 +1591,12 @@ gum_exec_block_backpatch_call (GumExecBlock * block,
                                gpointer ret_real_address,
                                gpointer ret_code_address)
 {
-  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  GumExecCtx * ctx = block->ctx;
+
+  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+      block->recycle_count >= ctx->stalker->priv->trust_threshold)
   {
-    GumX86Writer * cw = &block->ctx->code_writer;
+    GumX86Writer * cw = &ctx->code_writer;
     gconstpointer beach_label = cw->code + 1;
 
     gum_x86_writer_reset (cw, code_start);
@@ -1642,9 +1645,12 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
                               gpointer code_start,
                               gpointer target_address)
 {
-  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  GumExecCtx * ctx = block->ctx;
+
+  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+      block->recycle_count >= ctx->stalker->priv->trust_threshold)
   {
-    GumX86Writer * cw = &block->ctx->code_writer;
+    GumX86Writer * cw = &ctx->code_writer;
 
     gum_x86_writer_reset (cw, code_start);
     gum_x86_writer_put_jmp (cw, target_address);
@@ -1657,9 +1663,12 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
                               gpointer code_start,
                               gpointer target_address)
 {
-  if (block->recycle_count >= block->ctx->stalker->priv->trust_threshold)
+  GumExecCtx * ctx = block->ctx;
+
+  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+      block->recycle_count >= ctx->stalker->priv->trust_threshold)
   {
-    GumX86Writer * cw = &block->ctx->code_writer;
+    GumX86Writer * cw = &ctx->code_writer;
 
     gum_x86_writer_reset (cw, code_start);
     gum_x86_writer_put_jmp (cw, target_address);
