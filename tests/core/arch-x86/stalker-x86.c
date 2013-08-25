@@ -98,6 +98,7 @@ STALKER_TESTCASE (follow_syscall)
 
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
+  g_usleep (1); /* FIXME: workaround for unknown bug on 64-bit */
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
@@ -222,7 +223,7 @@ stalker_victim (gpointer data)
 STALKER_TESTCASE (performance)
 {
   GTimer * timer;
-  gdouble duration_direct, duration_cache_off, duration_cache_on;
+  gdouble duration_direct, duration_stalked;
 
   timer = g_timer_new ();
   pretend_workload ();
@@ -233,33 +234,24 @@ STALKER_TESTCASE (performance)
 
   fixture->sink->mask = GUM_NOTHING;
 
-  gum_stalker_set_cache_enabled (fixture->stalker, FALSE);
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-  g_timer_reset (timer);
-  pretend_workload ();
-  duration_cache_off = g_timer_elapsed (timer, NULL);
-  gum_stalker_unfollow_me (fixture->stalker);
 
-  gum_stalker_set_cache_enabled (fixture->stalker, TRUE);
-  gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
-  pretend_workload ();
+  /* warm-up */
   g_timer_reset (timer);
   pretend_workload ();
-  duration_cache_on = g_timer_elapsed (timer, NULL);
+  g_timer_elapsed (timer, NULL);
+
+  /* the real deal */
+  g_timer_reset (timer);
+  pretend_workload ();
+  duration_stalked = g_timer_elapsed (timer, NULL);
+
   gum_stalker_unfollow_me (fixture->stalker);
 
   g_timer_destroy (timer);
 
-  g_assert (duration_cache_off > duration_direct); /* silence warning */
-  /*
-  g_print ("duration_direct=%.2f ms  duration_cache_off=%.2f ms"
-      "  duration_cache_on=%.2f ms  ratio_cache_off=%.1f  ratio_cache_on=%.1f\n",
-      duration_direct * 1000.0, duration_cache_off * 1000.0,
-      duration_cache_on * 1000.0,
-      duration_cache_off / duration_direct,
-      duration_cache_on / duration_direct);
-  */
-  g_assert_cmpfloat (duration_cache_on / duration_cache_off, <=, 0.4);
+  g_print ("duration_direct=%f duration_stalked=%f ratio=%f\n",
+      duration_direct, duration_stalked, duration_stalked / duration_direct);
 }
 
 GUM_NOINLINE static void

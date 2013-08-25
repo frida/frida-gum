@@ -67,9 +67,15 @@ gum_stalker_new (void)
   return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
 }
 
+gint
+gum_stalker_get_trust_threshold (GumStalker * self)
+{
+  return -1;
+}
+
 void
-gum_stalker_set_cache_enabled (GumStalker * self,
-                               gboolean enabled)
+gum_stalker_set_trust_threshold (GumStalker * self,
+                                 gint trust_threshold)
 {
 }
 
