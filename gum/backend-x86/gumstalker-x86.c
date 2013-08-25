@@ -1774,7 +1774,11 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     {
       g_assert (!target.is_indirect);
 
+#if GLIB_SIZEOF_VOID_P == 4
       gum_x86_writer_put_jcc_short_label (cw,
+#else
+      gum_x86_writer_put_jcc_near_label (cw,
+#endif
           gum_jcc_opcode_negate (gum_jcc_insn_to_short_opcode (insn->begin)),
           cond_false_lbl_id, GUM_NO_HINT);
     }
@@ -1905,7 +1909,11 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP,
       GUM_THUNK_ARGLIST_STACK_RESERVE);
   gum_x86_writer_put_mov_reg_reg (cw, GUM_REG_XCX, GUM_REG_XAX);
+#if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_jmp_short_label (cw, perform_stack_push);
+#else
+  gum_x86_writer_put_jmp_near_label (cw, perform_stack_push);
+#endif
 
   /* generate code for handling the return */
   ret_real_address = insn->end;
