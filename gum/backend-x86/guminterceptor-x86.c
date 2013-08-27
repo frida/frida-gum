@@ -71,6 +71,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   ctx->on_enter_trampoline = (guint8 *) gum_x86_writer_cur (&cw);
 
   gum_x86_writer_put_pushfx (&cw);
+  gum_x86_writer_put_cld (&cw); /* C ABI mandates this */
   gum_x86_writer_put_lock_inc_imm32_ptr (&cw,
       (gpointer) ctx->trampoline_usage_counter);
   gum_x86_writer_put_pushax (&cw);
@@ -146,6 +147,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for ret */
 
   gum_x86_writer_put_pushfx (&cw);
+  gum_x86_writer_put_cld (&cw); /* C ABI mandates this */
   gum_x86_writer_put_pushax (&cw);
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
 
