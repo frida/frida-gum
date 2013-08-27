@@ -2249,7 +2249,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   gum_x86_writer_put_popfx (cw);
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
-    GUM_ADDRESS (&block->ctx->app_stack));
+      GUM_ADDRESS (&block->ctx->app_stack));
 }
 
 static void
