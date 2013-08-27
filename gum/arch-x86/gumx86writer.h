@@ -252,6 +252,8 @@ void gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self, GumCpuReg r
 void gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self, gconstpointer imm_ptr, guint32 imm_value);
 void gum_x86_writer_put_clc (GumX86Writer * self);
 void gum_x86_writer_put_stc (GumX86Writer * self);
+void gum_x86_writer_put_cld (GumX86Writer * self);
+void gum_x86_writer_put_std (GumX86Writer * self);
 
 void gum_x86_writer_put_cpuid (GumX86Writer * self);
 void gum_x86_writer_put_lfence (GumX86Writer * self);

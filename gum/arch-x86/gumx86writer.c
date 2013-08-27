@@ -2101,6 +2101,18 @@ gum_x86_writer_put_stc (GumX86Writer * self)
 }
 
 void
+gum_x86_writer_put_cld (GumX86Writer * self)
+{
+  *self->code++ = 0xfc;
+}
+
+void
+gum_x86_writer_put_std (GumX86Writer * self)
+{
+  *self->code++ = 0xfd;
+}
+
+void
 gum_x86_writer_put_cpuid (GumX86Writer * self)
 {
   self->code[0] = 0x0f;
