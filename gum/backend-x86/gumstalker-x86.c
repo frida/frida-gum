@@ -1314,6 +1314,8 @@ gum_write_state_preserve_prolog (GumX86Writer * cw)
 
   gum_x86_writer_put_pushfx (cw);
 
+  gum_x86_writer_put_cld (cw); /* C ABI mandates this */
+
   gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
   gum_x86_writer_put_push_reg (cw, GUM_REG_XCX);
   gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
@@ -2203,6 +2205,8 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
       GUM_ADDRESS (&block->ctx->stack));
 
   gum_x86_writer_put_pushfx (cw);
+
+  gum_x86_writer_put_cld (cw); /* C ABI mandates this */
 
   gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
