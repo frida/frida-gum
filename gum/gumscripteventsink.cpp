@@ -206,6 +206,8 @@ gum_script_event_sink_drain (gpointer user_data)
 
     Handle<Value> argv[] = { events };
     self->on_receive->Call (self->on_receive, 1, argv);
+
+    g_array_free (raw_events, TRUE);
   }
 
   return TRUE;
