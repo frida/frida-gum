@@ -118,6 +118,8 @@ struct _GumScriptPrivate
 
   GumInterceptor * interceptor;
   GumStalker * stalker;
+  guint stalker_queue_capacity;
+  guint stalker_queue_drain_interval;
 
   Persistent<Context> context;
   Persistent<Script> raw_script;
@@ -388,6 +390,14 @@ static Handle<Value> gum_script_on_stalker_get_trust_threshold (
     Local<String> property, const AccessorInfo & info);
 static void gum_script_on_stalker_set_trust_threshold (Local<String> property,
     Local<Value> value, const AccessorInfo & info);
+static Handle<Value> gum_script_on_stalker_get_queue_capacity (
+    Local<String> property, const AccessorInfo & info);
+static void gum_script_on_stalker_set_queue_capacity (Local<String> property,
+    Local<Value> value, const AccessorInfo & info);
+static Handle<Value> gum_script_on_stalker_get_queue_drain_interval (
+    Local<String> property, const AccessorInfo & info);
+static void gum_script_on_stalker_set_queue_drain_interval (
+    Local<String> property, Local<Value> value, const AccessorInfo & info);
 static Handle<Value> gum_script_on_stalker_garbage_collect (
     const Arguments & args);
 static Handle<Value> gum_script_on_stalker_follow (const Arguments & args);
@@ -493,6 +503,9 @@ gum_script_init (GumScript * self)
   priv->main_context = g_main_context_get_thread_default ();
 
   priv->interceptor = gum_interceptor_obtain ();
+  priv->stalker = NULL;
+  priv->stalker_queue_capacity = 16384;
+  priv->stalker_queue_drain_interval = 250;
 
   priv->mutex = g_mutex_new ();
 
@@ -804,6 +817,14 @@ gum_script_create_context (GumScript * self)
   stalker_templ->SetAccessor (String::New ("trustThreshold"),
       gum_script_on_stalker_get_trust_threshold,
       gum_script_on_stalker_set_trust_threshold,
+      External::Wrap (self));
+  stalker_templ->SetAccessor (String::New ("queueCapacity"),
+      gum_script_on_stalker_get_queue_capacity,
+      gum_script_on_stalker_set_queue_capacity,
+      External::Wrap (self));
+  stalker_templ->SetAccessor (String::New ("queueDrainInterval"),
+      gum_script_on_stalker_get_queue_drain_interval,
+      gum_script_on_stalker_set_queue_drain_interval,
       External::Wrap (self));
   stalker_templ->Set (String::New ("garbageCollect"),
       FunctionTemplate::New (gum_script_on_stalker_garbage_collect,
@@ -2856,6 +2877,40 @@ gum_script_on_stalker_set_trust_threshold (Local<String> property,
 }
 
 static Handle<Value>
+gum_script_on_stalker_get_queue_capacity (Local<String> property,
+                                          const AccessorInfo & info)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  return Number::New (self->priv->stalker_queue_capacity);
+}
+
+static void
+gum_script_on_stalker_set_queue_capacity (Local<String> property,
+                                          Local<Value> value,
+                                          const AccessorInfo & info)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  self->priv->stalker_queue_capacity = value->IntegerValue ();
+}
+
+static Handle<Value>
+gum_script_on_stalker_get_queue_drain_interval (Local<String> property,
+                                                const AccessorInfo & info)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  return Number::New (self->priv->stalker_queue_drain_interval);
+}
+
+static void
+gum_script_on_stalker_set_queue_drain_interval (Local<String> property,
+                                                Local<Value> value,
+                                                const AccessorInfo & info)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  self->priv->stalker_queue_drain_interval = value->IntegerValue ();
+}
+
+static Handle<Value>
 gum_script_on_stalker_garbage_collect (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
@@ -2897,7 +2952,9 @@ gum_script_on_stalker_follow (const Arguments & args)
   if (!gum_script_callbacks_get (callbacks, "onReceive", &on_receive))
     return Undefined ();
 
-  GumEventSink * sink = gum_script_event_sink_new (self, priv->main_context, on_receive);
+  GumEventSink * sink = gum_script_event_sink_new (self, priv->main_context,
+      on_receive, priv->stalker_queue_capacity,
+      priv->stalker_queue_drain_interval);
   gum_stalker_follow (gum_script_get_stalker (self), thread_id, sink);
   g_object_unref (sink);
 

@@ -67,7 +67,6 @@ static void
 gum_script_event_sink_init (GumScriptEventSink * self)
 {
   gum_spinlock_init (&self->lock);
-  self->events = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent), 16384);
 }
 
 static void
@@ -80,7 +79,7 @@ gum_script_event_sink_finalize (GObject * obj)
   g_object_unref (self->script);
 
   gum_spinlock_free (&self->lock);
-  g_array_free (self->events, TRUE);
+  g_array_free (self->queue, TRUE);
 
   Locker l;
   HandleScope handle_scope;
@@ -92,12 +91,19 @@ gum_script_event_sink_finalize (GObject * obj)
 GumEventSink *
 gum_script_event_sink_new (GumScript * script,
                            GMainContext * main_context,
-                           Handle<Function> on_receive)
+                           Handle<Function> on_receive,
+                           guint queue_capacity,
+                           guint queue_drain_interval)
 {
   GumScriptEventSink * sink;
 
   sink = GUM_SCRIPT_EVENT_SINK (
       g_object_new (GUM_TYPE_SCRIPT_EVENT_SINK, NULL));
+  sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
+      queue_capacity);
+  sink->queue_capacity = queue_capacity;
+  sink->queue_drain_interval = queue_drain_interval;
+
   g_object_ref (script);
   sink->script = script;
   sink->main_context = main_context;
@@ -118,7 +124,7 @@ static void
 gum_script_event_sink_start (GumEventSink * sink)
 {
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (sink);
-  self->source = g_timeout_source_new (250);
+  self->source = g_timeout_source_new (self->queue_drain_interval);
   g_source_set_callback (self->source, gum_script_event_sink_drain,
       g_object_ref (self), g_object_unref);
   g_source_attach (self->source, self->main_context);
@@ -130,8 +136,8 @@ gum_script_event_sink_process (GumEventSink * sink,
 {
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK_CAST (sink);
   gum_spinlock_acquire (&self->lock);
-  if (self->events->len != 16384)
-    g_array_append_val (self->events, *ev);
+  if (self->queue->len != self->queue_capacity)
+    g_array_append_val (self->queue, *ev);
   gum_spinlock_release (&self->lock);
 }
 
@@ -169,10 +175,11 @@ gum_script_event_sink_drain (gpointer user_data)
   GArray * raw_events = NULL;
 
   gum_spinlock_acquire (&self->lock);
-  if (self->events->len > 0)
+  if (self->queue->len > 0)
   {
-    raw_events = self->events;
-    self->events = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent), 16384);
+    raw_events = self->queue;
+    self->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
+        self->queue_capacity);
   }
   gum_spinlock_release (&self->lock);
 
