@@ -32,7 +32,8 @@ public:
 
 private:
   GumScript * parent;
-  v8::Locker l;
+  v8::Locker locker;
+  v8::Isolate::Scope isolate_scope;
   v8::HandleScope handle_scope;
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;

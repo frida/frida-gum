@@ -121,6 +121,7 @@ struct _GumScriptPrivate
   guint stalker_queue_capacity;
   guint stalker_queue_drain_interval;
 
+  Isolate * isolate;
   Persistent<Context> context;
   Persistent<Script> raw_script;
   Persistent<FunctionTemplate> native_pointer;
@@ -532,6 +533,8 @@ gum_script_init (GumScript * self)
   gum_win_exception_hook_add (gum_script_memory_on_exception, self);
 #endif
 
+  priv->isolate = Isolate::New ();
+
   gum_script_create_context (self);
 }
 
@@ -547,53 +550,59 @@ gum_script_dispose (GObject * object)
 
   if (priv->interceptor != NULL)
   {
-    Locker l;
-    HandleScope handle_scope;
-    Context::Scope context_scope (priv->context);
-
-    gum_script_unload (self);
-
-    priv->main_context = NULL;
-
-    if (priv->stalker != NULL)
     {
-      g_object_unref (priv->stalker);
-      priv->stalker = NULL;
+      Locker locker(priv->isolate);
+      Isolate::Scope isolate_scope(priv->isolate);
+      HandleScope handle_scope;
+      Context::Scope context_scope (priv->context);
+
+      gum_script_unload (self);
+
+      priv->main_context = NULL;
+
+      if (priv->stalker != NULL)
+      {
+        g_object_unref (priv->stalker);
+        priv->stalker = NULL;
+      }
+
+      g_object_unref (priv->interceptor);
+      priv->interceptor = NULL;
+
+      while (priv->scheduled_callbacks != NULL)
+      {
+        g_source_destroy (static_cast<GumScheduledCallback *> (
+            priv->scheduled_callbacks->data)->source);
+        priv->scheduled_callbacks = g_slist_delete_link (
+            priv->scheduled_callbacks, priv->scheduled_callbacks);
+      }
+
+      gum_message_sink_free (priv->incoming_message_sink);
+      priv->incoming_message_sink = NULL;
+
+      while (!g_queue_is_empty (priv->attach_entries))
+      {
+        GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
+            g_queue_pop_tail (priv->attach_entries));
+        entry->on_enter.Dispose ();
+        entry->on_leave.Dispose ();
+        g_slice_free (GumScriptAttachEntry, entry);
+      }
+
+      priv->native_pointer.Dispose ();
+      priv->native_pointer.Clear ();
+      priv->invocation_args.Dispose ();
+      priv->invocation_args.Clear ();
+      priv->probe_args.Dispose ();
+      priv->probe_args.Clear ();
+      priv->raw_script.Dispose ();
+      priv->raw_script.Clear ();
+      priv->context.Dispose ();
+      priv->context.Clear ();
     }
 
-    g_object_unref (priv->interceptor);
-    priv->interceptor = NULL;
-
-    while (priv->scheduled_callbacks != NULL)
-    {
-      g_source_destroy (static_cast<GumScheduledCallback *> (
-          priv->scheduled_callbacks->data)->source);
-      priv->scheduled_callbacks = g_slist_delete_link (
-          priv->scheduled_callbacks, priv->scheduled_callbacks);
-    }
-
-    gum_message_sink_free (priv->incoming_message_sink);
-    priv->incoming_message_sink = NULL;
-
-    while (!g_queue_is_empty (priv->attach_entries))
-    {
-      GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
-          g_queue_pop_tail (priv->attach_entries));
-      entry->on_enter.Dispose ();
-      entry->on_leave.Dispose ();
-      g_slice_free (GumScriptAttachEntry, entry);
-    }
-
-    priv->native_pointer.Dispose ();
-    priv->native_pointer.Clear ();
-    priv->invocation_args.Dispose ();
-    priv->invocation_args.Clear ();
-    priv->probe_args.Dispose ();
-    priv->probe_args.Clear ();
-    priv->raw_script.Dispose ();
-    priv->raw_script.Clear ();
-    priv->context.Dispose ();
-    priv->context.Clear ();
+    priv->isolate->Dispose ();
+    priv->isolate = NULL;
   }
 
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
@@ -634,7 +643,8 @@ static void
 gum_script_create_context (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
-  Locker l;
+  Locker locker(priv->isolate);
+  Isolate::Scope isolate_scope(priv->isolate);
   HandleScope handle_scope;
 
   Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
@@ -868,6 +878,8 @@ gum_script_create_context (GumScript * self)
 
 ScriptScope::ScriptScope (GumScript * parent)
   : parent (parent),
+    locker (parent->priv->isolate),
+    isolate_scope (parent->priv->isolate),
     context_scope (parent->priv->context)
 {
 }
@@ -896,32 +908,40 @@ gum_script_from_string (const gchar * source,
                         GError ** error)
 {
   GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT, NULL));
+  GumScriptPrivate * priv = script->priv;
 
-  Locker l;
-  HandleScope handle_scope;
-  Context::Scope context_scope (script->priv->context);
-
-  gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
-      source, NULL);
-  Handle<String> source_value = String::New (combined_source);
-  g_free (combined_source);
-  TryCatch trycatch;
-  Handle<Script> raw_script = Script::Compile (source_value);
-  if (raw_script.IsEmpty ())
   {
-    g_object_unref (script);
+    Locker locker(priv->isolate);
+    Isolate::Scope isolate_scope(priv->isolate);
+    HandleScope handle_scope;
+    Context::Scope context_scope (priv->context);
 
-    Handle<Message> message = trycatch.Message ();
-    Handle<Value> exception = trycatch.Exception ();
-    String::AsciiValue exception_str (exception);
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
-        message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-        *exception_str);
-
-    return NULL;
+    gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
+        source, NULL);
+    Handle<String> source_value = String::New (combined_source);
+    g_free (combined_source);
+    TryCatch trycatch;
+    Handle<Script> raw_script = Script::Compile (source_value);
+    if (raw_script.IsEmpty ())
+    {
+      Handle<Message> message = trycatch.Message ();
+      Handle<Value> exception = trycatch.Exception ();
+      String::AsciiValue exception_str (exception);
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
+          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
+          *exception_str);
+    }
+    else
+    {
+      priv->raw_script = Persistent<Script>::New (raw_script);
+    }
   }
 
-  script->priv->raw_script = Persistent<Script>::New (raw_script);
+  if (priv->raw_script.IsEmpty ())
+  {
+    g_object_unref (script);
+    script = NULL;
+  }
 
   return script;
 }
@@ -1125,7 +1145,9 @@ gum_scheduled_callback_new (gint id,
 static void
 gum_scheduled_callback_free (GumScheduledCallback * callback)
 {
-  Locker l;
+  Isolate * isolate = callback->script->priv->isolate;
+  Locker locker(isolate);
+  Isolate::Scope isolate_scope(isolate);
   HandleScope handle_scope;
   callback->func.Dispose ();
   callback->receiver.Dispose ();
@@ -1220,7 +1242,7 @@ gum_script_on_wait_for_event (const Arguments & args)
   start_count = priv->event_count;
   while (priv->event_count == start_count)
   {
-    Unlocker ul;
+    Unlocker ul(priv->isolate);
 
     g_mutex_lock (priv->mutex);
     g_cond_wait (priv->event_cond, priv->mutex);
@@ -2393,7 +2415,9 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
   gum_match_pattern_free (ctx->pattern);
 
   {
-    Locker l;
+    Isolate * isolate = ctx->script->priv->isolate;
+    Locker locker(isolate);
+    Isolate::Scope isolate_scope(isolate);
     HandleScope handle_scope;
     ctx->on_match.Dispose ();
     ctx->on_error.Dispose ();
@@ -3036,7 +3060,9 @@ gum_script_on_stalker_remove_call_probe (const Arguments & args)
 static void
 gum_script_call_probe_free (GumScriptCallProbe * probe)
 {
-  Locker l;
+  Isolate * isolate = probe->script->priv->isolate;
+  Locker locker(isolate);
+  Isolate::Scope isolate_scope(isolate);
   HandleScope handle_scope;
   probe->callback.Dispose ();
   probe->receiver.Dispose ();
