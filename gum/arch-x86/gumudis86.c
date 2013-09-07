@@ -48,6 +48,7 @@ gum_mnemonic_is_jcc (ud_mnemonic_code_t mnemonic)
     case UD_Ijge:
     case UD_Ijl:
     case UD_Ijle:
+    case UD_Ijno:
     case UD_Ijnp:
     case UD_Ijns:
     case UD_Ijnz:
