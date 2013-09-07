@@ -1861,12 +1861,13 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
+      GUM_ADDRESS (saved_edx));
+
   gum_exec_ctx_write_state_preserve_prolog (block->ctx, cw);
 
-  gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG1,
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
       GUM_ADDRESS (saved_edx));
-  gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_THUNK_REG_ARG1,
-      GUM_THUNK_REG_ARG1);
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (block->ctx));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP,
