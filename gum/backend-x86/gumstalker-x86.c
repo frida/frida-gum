@@ -1832,6 +1832,8 @@ gum_exec_block_virtualize_ret_insn (GumExecBlock * block,
         gc->code_writer);
   }
 
+  gum_x86_relocator_skip_one_no_label (gc->relocator);
+
   gum_exec_block_write_ret_transfer_code (block, gc);
 
   return GUM_REQUIRE_NOTHING;
