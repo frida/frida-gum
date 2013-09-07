@@ -44,7 +44,7 @@
 #define GUM_DATA_ALIGNMENT                     8
 #define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
 #define GUM_MAPPING_SLAB_SIZE_IN_PAGES       200
-#define GUM_EXEC_BLOCK_MIN_SIZE              128
+#define GUM_EXEC_BLOCK_MIN_SIZE             1024
 
 typedef struct _GumInfectContext GumInfectContext;
 
@@ -1099,6 +1099,11 @@ gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
 {
   GumSlab * slab;
 
+  if (ctx->stalker->priv->trust_threshold < 0)
+  {
+    return;
+  }
+
   for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
   {
     if (slab->size - slab->offset >= sizeof (GumAddressMapping))
@@ -1539,6 +1544,13 @@ gum_exec_block_new (GumExecCtx * ctx)
 
       return block;
     }
+  }
+
+  if (ctx->stalker->priv->trust_threshold < 0)
+  {
+    ctx->code_slab.offset = 0;
+
+    return gum_exec_block_new (ctx);
   }
 
   return NULL;
