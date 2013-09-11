@@ -45,6 +45,7 @@
 #define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
 #define GUM_MAPPING_SLAB_SIZE_IN_PAGES       200
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
+#define GUM_RED_ZONE_MAX_SIZE                128
 
 typedef struct _GumInfectContext GumInfectContext;
 
@@ -2220,8 +2221,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
 
   gum_x86_writer_put_mov_near_ptr_reg (cw,
       GUM_ADDRESS (&block->ctx->app_stack), GUM_REG_XSP);
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
-      GUM_ADDRESS (&block->ctx->stack));
+  gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_XSP, GUM_RED_ZONE_MAX_SIZE);
 
   gum_x86_writer_put_pushfx (cw);
 
@@ -2267,8 +2267,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   gum_x86_writer_put_popax (cw);
   gum_x86_writer_put_popfx (cw);
 
-  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XSP,
-      GUM_ADDRESS (&block->ctx->app_stack));
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_XSP, GUM_RED_ZONE_MAX_SIZE);
 }
 
 static void
