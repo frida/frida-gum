@@ -167,12 +167,12 @@ struct _GumExecBlock
 
   guint8 * real_begin;
   guint8 * real_end;
+  guint8 * real_snapshot;
   guint8 * code_begin;
   guint8 * code_end;
-  guint8 real_snapshot[16];
-  guint recycle_count;
 
   guint8 state;
+  guint recycle_count;
 
 #ifdef G_OS_WIN32
   DWORD previous_dr0;
@@ -947,7 +947,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     {
       if (block->recycle_count >= ctx->stalker->priv->trust_threshold ||
           memcmp (real_address, block->real_snapshot,
-            sizeof (block->real_snapshot)) == 0)
+            block->real_end - block->real_begin) == 0)
       {
         block->recycle_count++;
         return block;
@@ -960,8 +960,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   }
 
   block = gum_exec_block_new (ctx);
-  if (ctx->stalker->priv->trust_threshold >= 0)
-    memcpy (block->real_snapshot, real_address, sizeof (block->real_snapshot));
   *code_address = block->code_begin;
   gum_exec_ctx_add_address_mapping (ctx, real_address, block->code_begin,
       block);
@@ -1536,9 +1534,9 @@ gum_exec_block_new (GumExecCtx * ctx)
             slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
           & ~(GUM_CODE_ALIGNMENT - 1));
       block->code_end = block->code_begin;
-      block->recycle_count = 0;
 
       block->state = GUM_EXEC_NORMAL;
+      block->recycle_count = 0;
 
       slab->offset += block->code_begin - (slab->data + slab->offset);
 
@@ -1595,10 +1593,16 @@ gum_exec_block_is_full (GumExecBlock * block)
 static void
 gum_exec_block_commit (GumExecBlock * block)
 {
+  guint real_size;
   guint8 * aligned_end;
 
-  aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->code_end +
-        GUM_DATA_ALIGNMENT - 1) & ~(GUM_DATA_ALIGNMENT - 1));
+  real_size = block->real_end - block->real_begin;
+  block->real_snapshot = block->code_end;
+  memcpy (block->real_snapshot, block->real_begin, real_size);
+  block->slab->offset += real_size;
+
+  aligned_end = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (block->real_snapshot +
+        real_size + GUM_DATA_ALIGNMENT - 1) & ~(GUM_DATA_ALIGNMENT - 1));
   block->slab->offset += aligned_end - block->code_begin;
 }
 
