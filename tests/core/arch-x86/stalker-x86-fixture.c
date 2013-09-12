@@ -217,9 +217,7 @@ enum _StalkerVictimState
   STALKER_VICTIM_IS_SHUTDOWN
 };
 
-#if 0
 static void pretend_workload (void);
-#endif
 static gpointer stalker_victim (gpointer data);
 static void invoke_follow_return_code (TestStalkerFixture * fixture);
 static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
