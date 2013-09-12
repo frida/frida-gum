@@ -2160,6 +2160,14 @@ gum_x86_writer_put_int3 (GumX86Writer * self)
 }
 
 void
+gum_x86_writer_put_padding (GumX86Writer * self,
+                            guint n)
+{
+  memset (self->code, 0xcc, n);
+  self->code += n;
+}
+
+void
 gum_x86_writer_put_byte (GumX86Writer * self,
                          guint8 b)
 {

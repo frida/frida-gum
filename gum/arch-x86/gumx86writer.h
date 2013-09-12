@@ -261,6 +261,7 @@ void gum_x86_writer_put_rdtsc (GumX86Writer * self);
 void gum_x86_writer_put_pause (GumX86Writer * self);
 void gum_x86_writer_put_nop (GumX86Writer * self);
 void gum_x86_writer_put_int3 (GumX86Writer * self);
+void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
 
 void gum_x86_writer_put_byte (GumX86Writer * self, guint8 b);
 void gum_x86_writer_put_bytes (GumX86Writer * self, const guint8 * data, guint n);
