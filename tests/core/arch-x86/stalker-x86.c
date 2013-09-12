@@ -230,6 +230,7 @@ STALKER_TESTCASE (performance)
 
   fixture->sink->mask = GUM_NOTHING;
 
+  gum_stalker_set_trust_threshold (fixture->stalker, 0);
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
 
   /* warm-up */
