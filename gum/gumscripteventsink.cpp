@@ -217,11 +217,11 @@ static void
 gum_script_event_sink_data_free (Persistent<Value> object,
                                  void * buffer)
 {
-  int32_t length;
+  int32_t size;
 
   HandleScope handle_scope;
-  length = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
-  V8::AdjustAmountOfExternalAllocatedMemory (-length);
+  size = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
+  V8::AdjustAmountOfExternalAllocatedMemory (-size);
   g_free (buffer);
   object.Dispose ();
 }
