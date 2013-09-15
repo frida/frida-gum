@@ -1864,7 +1864,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
      * We need some padding so the backpatching doesn't overwrite the return
      * handling logic below
      */
-    gum_x86_writer_put_padding (cw, 30);
+    gum_x86_writer_put_padding (cw, 50);
   }
 
   /* generate code for handling the return */
