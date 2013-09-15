@@ -1361,6 +1361,22 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
         STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
         ((source_meta - GUM_REG_XAX) * sizeof (gpointer)));
   }
+#if GLIB_SIZEOF_VOID_P == 8
+  else if (source_meta >= GUM_REG_XSI && source_meta <= GUM_REG_XDI)
+  {
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
+        GUM_REG_XBX, gc->state_preserve_stack_offset +
+        STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
+        ((source_meta - 2 - GUM_REG_XAX) * sizeof (gpointer)));
+  }
+  else if (source_meta >= GUM_REG_R8 && source_meta <= GUM_REG_R11)
+  {
+    gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
+        GUM_REG_XBX, gc->state_preserve_stack_offset +
+        STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
+        ((source_meta - 2 - GUM_REG_RAX) * sizeof (gpointer)));
+  }
+#endif
   else if (source_meta == GUM_REG_XSP)
   {
     gum_x86_writer_put_mov_reg_near_ptr (cw, target_register,
