@@ -193,15 +193,15 @@ gum_script_event_sink_drain (gpointer user_data)
   {
     ScriptScope scope (self->script);
 
-    guint length = filled_queue->len;
+    guint size = filled_queue->len * sizeof (GumEvent);
     guint8 * buffer =
         reinterpret_cast<guint8 *> (g_array_free (filled_queue, FALSE));
-    V8::AdjustAmountOfExternalAllocatedMemory (length);
+    V8::AdjustAmountOfExternalAllocatedMemory (size);
 
     Handle<Object> data = Object::New ();
-    data->Set (String::New ("length"), Int32::New (length), ReadOnly);
+    data->Set (String::New ("length"), Int32::New (size), ReadOnly);
     data->SetIndexedPropertiesToExternalArrayData (buffer,
-        kExternalUnsignedByteArray, length);
+        kExternalUnsignedByteArray, size);
     Persistent<Object> persistent_data = Persistent<Object>::New (data);
     persistent_data.MakeWeak (buffer, gum_script_event_sink_data_free);
     persistent_data.MarkIndependent ();
