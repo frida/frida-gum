@@ -2069,6 +2069,7 @@ gum_script_memory_do_read (const Arguments & args,
           V8::AdjustAmountOfExternalAllocatedMemory (length);
 
           array = Object::New ();
+          array->Set (String::New ("length"), Int32::New (length), ReadOnly);
           array->SetIndexedPropertiesToExternalArrayData (buffer,
               kExternalUnsignedByteArray, length);
           Persistent<Object> persistent_array = Persistent<Object>::New (array);
