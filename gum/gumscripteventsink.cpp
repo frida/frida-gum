@@ -33,6 +33,8 @@ static void gum_script_event_sink_process (GumEventSink * sink,
 static void gum_script_event_sink_stop (GumEventSink * sink);
 static gboolean gum_script_event_sink_stop_idle (gpointer user_data);
 static gboolean gum_script_event_sink_drain (gpointer user_data);
+static void gum_script_event_sink_data_free (Persistent<Value> object,
+    void * buffer);
 
 G_DEFINE_TYPE_EXTENDED (GumScriptEventSink,
                         gum_script_event_sink,
@@ -172,43 +174,54 @@ static gboolean
 gum_script_event_sink_drain (gpointer user_data)
 {
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (user_data);
-  GArray * raw_events = NULL;
+  GArray * filled_queue = NULL;
 
-  gum_spinlock_acquire (&self->lock);
-  if (self->queue->len > 0)
+  if (self->queue->len != 0)
   {
-    raw_events = self->queue;
-    self->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
-        self->queue_capacity);
-  }
-  gum_spinlock_release (&self->lock);
+    GArray * empty_queue;
 
-  if (raw_events != NULL)
+    empty_queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
+        self->queue_capacity);
+
+    gum_spinlock_acquire (&self->lock);
+    filled_queue = self->queue;
+    self->queue = empty_queue;
+    gum_spinlock_release (&self->lock);
+  }
+
+  if (filled_queue != NULL)
   {
     ScriptScope scope (self->script);
 
-    Local<Array> events = Array::New (raw_events->len);
-    for (guint i = 0; i != raw_events->len; i++)
-    {
-      GumCallEvent * raw_event = &g_array_index (raw_events, GumCallEvent, i);
-      Local<Object> event (Object::New ());
-      event->Set (String::New ("location"),
-          Number::New (GPOINTER_TO_SIZE (raw_event->location)),
-          ReadOnly);
-      event->Set (String::New ("target"),
-          Number::New (GPOINTER_TO_SIZE (raw_event->target)),
-          ReadOnly);
-      event->Set (String::New ("depth"),
-          Int32::New (GPOINTER_TO_SIZE (raw_event->depth)),
-          ReadOnly);
-      events->Set (v8::Number::New (i), event);
-    }
+    guint length = filled_queue->len;
+    guint8 * buffer =
+        reinterpret_cast<guint8 *> (g_array_free (filled_queue, FALSE));
+    V8::AdjustAmountOfExternalAllocatedMemory (length);
 
-    Handle<Value> argv[] = { events };
+    Handle<Object> data = Object::New ();
+    data->Set (String::New ("length"), Int32::New (length), ReadOnly);
+    data->SetIndexedPropertiesToExternalArrayData (buffer,
+        kExternalUnsignedByteArray, length);
+    Persistent<Object> persistent_data = Persistent<Object>::New (data);
+    persistent_data.MakeWeak (buffer, gum_script_event_sink_data_free);
+    persistent_data.MarkIndependent ();
+
+    Handle<Value> argv[] = { data };
     self->on_receive->Call (self->on_receive, 1, argv);
-
-    g_array_free (raw_events, TRUE);
   }
 
   return TRUE;
+}
+
+static void
+gum_script_event_sink_data_free (Persistent<Value> object,
+                                 void * buffer)
+{
+  int32_t length;
+
+  HandleScope handle_scope;
+  length = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
+  V8::AdjustAmountOfExternalAllocatedMemory (-length);
+  g_free (buffer);
+  object.Dispose ();
 }
