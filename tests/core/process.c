@@ -57,8 +57,8 @@ static gboolean store_export_address_if_malloc (const gchar * name,
 
 static gboolean thread_found_cb (GumThreadDetails * details,
     gpointer user_data);
-static gboolean module_found_cb (const gchar * name, GumAddress address,
-    const gchar * path, gpointer user_data);
+static gboolean module_found_cb (const gchar * name,
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, GumAddress address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
@@ -284,7 +284,7 @@ thread_found_cb (GumThreadDetails * details,
 
 static gboolean
 module_found_cb (const gchar * name,
-                 GumAddress address,
+                 const GumMemoryRange * range,
                  const gchar * path,
                  gpointer user_data)
 {

@@ -104,7 +104,7 @@ static gboolean gum_emit_if_range_is_a_module (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
 
 static gboolean gum_store_module_address (const gchar * name,
-    GumAddress address, const gchar * path, gpointer user_data);
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static gboolean gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
     const gchar * module_name);
 static gboolean gum_darwin_find_slide (GumAddress module_address,
@@ -116,10 +116,11 @@ static gboolean gum_darwin_find_symtab_command (guint8 * module,
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
-static gboolean find_image_vmaddr_and_fileoff (gpointer address,
+static gboolean find_image_vmaddr_and_fileoff (gconstpointer address,
     gsize * vmaddr, gsize * fileoff);
-static gboolean find_image_symtab_command (gpointer address,
-    struct symtab_command ** sc);
+static gsize find_image_size (const gchar * image_name);
+static gboolean find_image_symtab_command (gconstpointer address,
+    const struct symtab_command ** sc);
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
 static void gum_cpu_context_from_darwin (const gum_thread_state_t * state,
@@ -232,11 +233,14 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     const struct dyld_image_info * info = &all_info->infoArray[i];
     gchar * name;
+    GumMemoryRange range;
     gboolean carry_on;
 
+    range.base_address = GUM_ADDRESS (info->imageLoadAddress);
+    range.size = find_image_size (info->imageFilePath);
+
     name = g_path_get_basename (info->imageFilePath);
-    carry_on = func (name, GUM_ADDRESS (info->imageLoadAddress),
-        info->imageFilePath, user_data);
+    carry_on = func (name, &range, info->imageFilePath, user_data);
     g_free (name);
 
     if (!carry_on)
@@ -267,7 +271,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
 {
   gpointer address, slide;
   gsize vmaddr, fileoff;
-  struct symtab_command * sc;
+  const struct symtab_command * sc;
   guint8 * table_base;
   gum_nlist_t * symbase, * sym;
   gchar * strbase;
@@ -637,7 +641,7 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
 {
   GumEnumerateModulesContext * ctx = user_data;
   gboolean carry_on = TRUE;
-  guint8 * chunk, * page, * p;
+  guint8 * chunk, * page;
   gsize chunk_size;
 
   chunk = gum_darwin_read (ctx->task, range->base_address, range->size,
@@ -650,7 +654,9 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
   for (page = chunk; page != chunk + chunk_size; page += ctx->page_size)
   {
     struct mach_header * header;
+    guint8 * first_command, * p;
     guint cmd_index;
+    GumMemoryRange dylib_range;
 
     header = (struct mach_header *) page;
     if (header->magic != MH_MAGIC && header->magic != MH_MAGIC_64)
@@ -660,9 +666,32 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
       continue;
 
     if (header->magic == MH_MAGIC)
-      p = page + sizeof (struct mach_header);
+      first_command = page + sizeof (struct mach_header);
     else
-      p = page + sizeof (struct mach_header_64);
+      first_command = page + sizeof (struct mach_header_64);
+
+    dylib_range.base_address = range->base_address + (page - chunk);
+    dylib_range.size = 0;
+
+    p = first_command;
+    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+    {
+      const struct load_command * lc = (struct load_command *) p;
+
+      if (lc->cmd == GUM_LC_SEGMENT)
+      {
+        gum_segment_command_t * sc = (gum_segment_command_t *) lc;
+        if (strcmp (sc->segname, "__TEXT") == 0)
+        {
+          dylib_range.size = sc->vmsize;
+          break;
+        }
+      }
+
+      p += lc->cmdsize;
+    }
+
+    p = first_command;
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
     {
       const struct load_command * lc = (struct load_command *) p;
@@ -681,11 +710,8 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
         path[raw_path_len] = '\0';
         name = g_path_get_basename (path);
 
-        if (!ctx->func (name, range->base_address + (page - chunk), path,
-            ctx->user_data))
-        {
+        if (!ctx->func (name, &dylib_range, path, ctx->user_data))
           carry_on = FALSE;
-        }
 
         g_free (name);
         g_free (path);
@@ -784,14 +810,14 @@ gum_darwin_enumerate_exports (mach_port_t task,
 
 static gboolean
 gum_store_module_address (const gchar * name,
-                          GumAddress address,
+                          const GumMemoryRange * range,
                           const gchar * path,
                           gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
   GVariant * value;
 
-  value = g_variant_new_uint64 (address);
+  value = g_variant_new_uint64 (range->base_address);
   g_hash_table_insert (ctx->modules, g_strdup (name), g_variant_ref (value));
   g_hash_table_insert (ctx->modules, g_strdup (path), g_variant_ref (value));
   g_variant_unref (value);
@@ -1069,11 +1095,11 @@ find_image_address_and_slide (const gchar * image_name,
 }
 
 static gboolean
-find_image_vmaddr_and_fileoff (gpointer address,
+find_image_vmaddr_and_fileoff (gconstpointer address,
                                gsize * vmaddr,
                                gsize * fileoff)
 {
-  gum_mach_header_t * header = address;
+  const gum_mach_header_t * header = address;
   guint8 * p;
   guint cmd_index;
 
@@ -1100,11 +1126,41 @@ find_image_vmaddr_and_fileoff (gpointer address,
   return FALSE;
 }
 
-static gboolean
-find_image_symtab_command (gpointer address,
-                           struct symtab_command ** sc)
+static gsize
+find_image_size (const gchar * image_name)
 {
-  gum_mach_header_t * header = address;
+  gpointer image_address, image_slide;
+  const gum_mach_header_t * header;
+  guint8 * p;
+  guint cmd_index;
+
+  if (!find_image_address_and_slide (image_name, &image_address, &image_slide))
+    return 0;
+
+  header = (const gum_mach_header_t *) image_address;
+  p = (guint8 *) (header + 1);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    gum_segment_command_t * sc = (gum_segment_command_t *) p;
+
+    if (sc->cmd == GUM_LC_SEGMENT)
+    {
+      gpointer segment_address = sc->vmaddr + image_slide;
+      if (segment_address == image_address)
+        return sc->vmsize;
+    }
+
+    p += sc->cmdsize;
+  }
+
+  return 0;
+}
+
+static gboolean
+find_image_symtab_command (gconstpointer address,
+                           const struct symtab_command ** sc)
+{
+  const gum_mach_header_t * header = address;
   guint8 * p;
   guint cmd_index;
 

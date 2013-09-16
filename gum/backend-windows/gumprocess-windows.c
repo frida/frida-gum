@@ -203,6 +203,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     MODULEINFO mi;
     WCHAR module_path_utf16[MAX_PATH];
     gchar * module_path, * module_name;
+    GumMemoryRange range;
     gboolean carry_on;
 
     if (!GetModuleInformation (this_process, modules[mod_idx], &mi,
@@ -217,8 +218,10 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
         NULL, NULL, NULL);
     module_name = strrchr (module_path, '\\') + 1;
 
-    carry_on = func (module_name, GUM_ADDRESS (mi.lpBaseOfDll), module_path,
-        user_data);
+    range.base_address = GUM_ADDRESS (mi.lpBaseOfDll);
+    range.size = mi.SizeOfImage;
+
+    carry_on = func (module_name, &range, module_path, user_data);
 
     g_free (module_path);
 

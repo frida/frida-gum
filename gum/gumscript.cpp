@@ -312,7 +312,7 @@ static Handle<Object> gum_script_cpu_context_to_object (GumScript * self,
 static Handle<Value> gum_script_on_process_enumerate_modules (
     const Arguments & args);
 static gboolean gum_script_process_module_match (const gchar * name,
-    GumAddress address, const gchar * path, gpointer user_data);
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static Handle<Value> gum_script_on_process_enumerate_ranges (
     const Arguments & args);
 static gboolean gum_script_range_match (const GumMemoryRange * range,
@@ -1723,7 +1723,7 @@ gum_script_on_process_enumerate_modules (const Arguments & args)
 
 static gboolean
 gum_script_process_module_match (const gchar * name,
-                                 GumAddress address,
+                                 const GumMemoryRange * range,
                                  const gchar * path,
                                  gpointer user_data)
 {
@@ -1732,10 +1732,11 @@ gum_script_process_module_match (const gchar * name,
 
   Handle<Value> argv[] = {
     String::New (name),
-    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address)),
+    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (range->base_address)),
+    Integer::NewFromUnsigned (range->size),
     String::New (path)
   };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 4, argv);
 
   gboolean proceed = TRUE;
   if (result->IsString ())

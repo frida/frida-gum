@@ -381,7 +381,7 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
-        "onMatch: function(name, address, path) {"
+        "onMatch: function(name, address, size, path) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"

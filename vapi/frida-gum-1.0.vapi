@@ -140,7 +140,7 @@ namespace Gum {
 		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
-		public delegate bool FoundModuleFunc (string name, Address address, string path);
+		public delegate bool FoundModuleFunc (string name, Gum.MemoryRange range, string path);
 	}
 
 	namespace Module {

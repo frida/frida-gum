@@ -48,8 +48,8 @@ typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 typedef gboolean (* GumFoundThreadFunc) (GumThreadDetails * details,
     gpointer user_data);
-typedef gboolean (* GumFoundModuleFunc) (const gchar * name, GumAddress address,
-    const gchar * path, gpointer user_data);
+typedef gboolean (* GumFoundModuleFunc) (const gchar * name,
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 typedef gboolean (* GumFoundExportFunc) (const gchar * name, GumAddress address,
     gpointer user_data);
 typedef gboolean (* GumFoundRangeFunc) (const GumMemoryRange * range,

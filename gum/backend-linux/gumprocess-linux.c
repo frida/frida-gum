@@ -73,7 +73,7 @@ static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
-    GumAddress address, const gchar * path, gpointer user_data);
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (const gchar * name,
     GumAddress address, gpointer user_data);
 
@@ -242,14 +242,15 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   while (carry_on && fgets (line, line_size, fp) != NULL)
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
-    guint8 * start;
+    guint8 * start, * end;
     gint n;
     gchar * name;
+    GumMemoryRange range;
 
-    n = sscanf (line, "%p-%*p %*s %*x %*s %*s %s", &start, path);
-    if (n == 1)
+    n = sscanf (line, "%p-%p %*s %*x %*s %*s %s", &start, &end, path);
+    if (n == 2)
       continue;
-    g_assert_cmpint (n, ==, 2);
+    g_assert_cmpint (n, ==, 3);
 
     if (strcmp (path, prev_path) == 0 || path[0] == '[')
       continue;
@@ -257,7 +258,12 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
       continue;
 
     name = g_path_get_basename (path);
-    carry_on = func (name, GUM_ADDRESS (start), path, user_data);
+
+    range.base_address = GUM_ADDRESS (start);
+    range.size = end - start;
+
+    carry_on = func (name, &range, path, user_data);
+
     g_free (name);
 
     strcpy (prev_path, path);
@@ -343,8 +349,7 @@ gum_module_enumerate_exports (const gchar * module_name,
   gsize dynsym_entry_size = 0;
   const gchar * dynsym_strtab = NULL;
 
-  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches,
-      &ctx);
+  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches, &ctx);
   if (ctx.base == 0)
     goto beach;
 
@@ -501,7 +506,7 @@ gum_module_find_export_by_name (const gchar * module_name,
 
 static gboolean
 gum_store_base_and_path_if_name_matches (const gchar * name,
-                                         GumAddress address,
+                                         const GumMemoryRange * range,
                                          const gchar * path,
                                          gpointer user_data)
 {
@@ -510,7 +515,7 @@ gum_store_base_and_path_if_name_matches (const gchar * name,
   if (strcmp (name, ctx->module_name) != 0)
     return TRUE;
 
-  ctx->base = address;
+  ctx->base = range->base_address;
   ctx->path = g_strdup (path);
   return FALSE;
 }
