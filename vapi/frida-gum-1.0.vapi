@@ -78,6 +78,8 @@ namespace Gum {
 
 		public static Script from_string (string source) throws GLib.IOError;
 
+		public unowned Stalker get_stalker ();
+
 		public void set_message_handler (owned Gum.Script.MessageHandler func);
 
 		public void load ();

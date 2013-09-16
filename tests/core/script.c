@@ -301,11 +301,12 @@ SCRIPT_TESTCASE (execution_can_be_traced)
     "    send(events.length > 0);"
     "  }"
     "});"
-    "Thread.sleep(0.01);"
-    "Stalker.unfollow(me);"
-    "Stalker.garbageCollect();"
-  );
+    "recv('stop', function(message) {"
+    "  Stalker.unfollow();"
+    "});");
+  g_usleep (1);
   EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"stop\"}");
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("true");

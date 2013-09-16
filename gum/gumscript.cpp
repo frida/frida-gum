@@ -25,7 +25,6 @@
 #include "gumscript-priv.h"
 #include "gumscripteventsink.h"
 #include "gumscriptscope.h"
-#include "gumstalker.h"
 #include "gumtls.h"
 #ifdef G_OS_WIN32
 # include "backend-windows/gumwinexceptionhook.h"
@@ -118,8 +117,10 @@ struct _GumScriptPrivate
 
   GumInterceptor * interceptor;
   GumStalker * stalker;
+  GumEventSink * stalker_sink;
   guint stalker_queue_capacity;
   guint stalker_queue_drain_interval;
+  gint stalker_pending_follow_level;
 
   Isolate * isolate;
   Persistent<Context> context;
@@ -505,8 +506,10 @@ gum_script_init (GumScript * self)
 
   priv->interceptor = gum_interceptor_obtain ();
   priv->stalker = NULL;
+  priv->stalker_sink = NULL;
   priv->stalker_queue_capacity = 16384;
   priv->stalker_queue_drain_interval = 250;
+  priv->stalker_pending_follow_level = 0;
 
   priv->mutex = g_mutex_new ();
 
@@ -560,6 +563,7 @@ gum_script_dispose (GObject * object)
 
       priv->main_context = NULL;
 
+      priv->stalker_sink = NULL;
       if (priv->stalker != NULL)
       {
         g_object_unref (priv->stalker);
@@ -876,11 +880,48 @@ gum_script_create_context (GumScript * self)
   }
 }
 
+class ScriptScopeImpl
+{
+public:
+  ScriptScopeImpl (GumScript * parent)
+    : parent (parent),
+      locker (parent->priv->isolate),
+      isolate_scope (parent->priv->isolate),
+      context_scope (parent->priv->context)
+  {
+  }
+
+  ~ScriptScopeImpl ()
+  {
+    GumScriptPrivate * priv = parent->priv;
+
+    if (trycatch.HasCaught () && priv->message_handler_func != NULL)
+    {
+      Handle<Message> message = trycatch.Message ();
+      Handle<Value> exception = trycatch.Exception ();
+      String::AsciiValue exception_str (exception);
+      gchar * error = g_strdup_printf (
+          "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
+          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
+          *exception_str);
+      priv->message_handler_func (parent, error, NULL, 0,
+          priv->message_handler_data);
+      g_free (error);
+    }
+  }
+
+private:
+  GumScript * parent;
+  v8::Locker locker;
+  v8::Isolate::Scope isolate_scope;
+  v8::HandleScope handle_scope;
+  v8::Context::Scope context_scope;
+  v8::TryCatch trycatch;
+};
+
 ScriptScope::ScriptScope (GumScript * parent)
   : parent (parent),
-    locker (parent->priv->isolate),
-    isolate_scope (parent->priv->isolate),
-    context_scope (parent->priv->context)
+    impl (new ScriptScopeImpl (parent))
 {
 }
 
@@ -888,18 +929,23 @@ ScriptScope::~ScriptScope ()
 {
   GumScriptPrivate * priv = parent->priv;
 
-  if (trycatch.HasCaught () && priv->message_handler_func != NULL)
+  delete impl;
+  impl = NULL;
+
+  if (priv->stalker_pending_follow_level > 0)
   {
-    Handle<Message> message = trycatch.Message ();
-    Handle<Value> exception = trycatch.Exception ();
-    String::AsciiValue exception_str (exception);
-    gchar * error = g_strdup_printf (
-        "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-        message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-        *exception_str);
-    priv->message_handler_func (parent, error, NULL, 0,
-        priv->message_handler_data);
-    g_free (error);
+    gum_stalker_follow_me (gum_script_get_stalker (parent), priv->stalker_sink);
+  }
+  else if (priv->stalker_pending_follow_level < 0)
+  {
+    gum_stalker_unfollow_me (gum_script_get_stalker (parent));
+  }
+  priv->stalker_pending_follow_level = 0;
+
+  if (priv->stalker_sink != NULL)
+  {
+    g_object_unref (priv->stalker_sink);
+    priv->stalker_sink = NULL;
   }
 }
 
@@ -944,6 +990,17 @@ gum_script_from_string (const gchar * source,
   }
 
   return script;
+}
+
+GumStalker *
+gum_script_get_stalker (GumScript * self)
+{
+  GumScriptPrivate * priv = self->priv;
+
+  if (priv->stalker == NULL)
+    priv->stalker = gum_stalker_new ();
+
+  return priv->stalker;
 }
 
 void
@@ -2871,17 +2928,6 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
   return Null ();
 }
 
-static GumStalker *
-gum_script_get_stalker (GumScript * self)
-{
-  GumScriptPrivate * priv = self->priv;
-
-  if (priv->stalker == NULL)
-    priv->stalker = gum_stalker_new ();
-
-  return priv->stalker;
-}
-
 static Handle<Value>
 gum_script_on_stalker_get_trust_threshold (Local<String> property,
                                            const AccessorInfo & info)
@@ -2977,11 +3023,26 @@ gum_script_on_stalker_follow (const Arguments & args)
   if (!gum_script_callbacks_get (callbacks, "onReceive", &on_receive))
     return Undefined ();
 
-  GumEventSink * sink = gum_script_event_sink_new (self, priv->main_context,
+  if (priv->stalker_sink != NULL)
+  {
+    g_object_unref (priv->stalker_sink);
+    priv->stalker_sink = NULL;
+  }
+
+  priv->stalker_sink = gum_script_event_sink_new (self, priv->main_context,
       on_receive, priv->stalker_queue_capacity,
       priv->stalker_queue_drain_interval);
-  gum_stalker_follow (gum_script_get_stalker (self), thread_id, sink);
-  g_object_unref (sink);
+  if (thread_id == gum_process_get_current_thread_id ())
+  {
+    priv->stalker_pending_follow_level = 1;
+  }
+  else
+  {
+    gum_stalker_follow (gum_script_get_stalker (self), thread_id,
+        priv->stalker_sink);
+    g_object_unref (priv->stalker_sink);
+    priv->stalker_sink = NULL;
+  }
 
   return Undefined ();
 }
@@ -2990,19 +3051,24 @@ static Handle<Value>
 gum_script_on_stalker_unfollow (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumScriptPrivate * priv = self->priv;
   GumStalker * stalker;
+  GumThreadId thread_id;
 
   stalker = gum_script_get_stalker (self);
 
   if (args.Length () > 0)
+    thread_id = args[0]->IntegerValue ();
+  else
+    thread_id = gum_process_get_current_thread_id ();
+
+  if (thread_id == gum_process_get_current_thread_id ())
   {
-    GumThreadId thread_id = args[0]->IntegerValue ();
-    gum_stalker_unfollow (stalker, thread_id);
+    priv->stalker_pending_follow_level--;
   }
   else
   {
-    if (gum_stalker_is_following_me (stalker))
-      gum_stalker_unfollow_me (stalker);
+    gum_stalker_unfollow (stalker, thread_id);
   }
 
   return Undefined ();
