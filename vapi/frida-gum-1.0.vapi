@@ -115,8 +115,18 @@ namespace Gum {
 	public class Stalker : GLib.Object {
 		public Stalker ();
 
+		public void exclude (Gum.MemoryRange range);
+
+		public int get_trust_threshold ();
+		public void set_trust_threshold (int trust_threshold);
+
+		public void garbage_collect ();
+
 		public void follow_me (Gum.EventSink sink);
 		public void unfollow_me ();
+		public bool is_following_me ();
+
+		// TODO: complete binding
 	}
 
 	public interface EventSink : GLib.Object {

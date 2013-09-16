@@ -72,6 +72,7 @@ struct _GumStalkerPrivate
   GSList * contexts;
   GPrivate * exec_ctx;
 
+  GArray * exclusions;
   gint trust_threshold;
   volatile gboolean any_probes_attached;
   volatile gint last_probe_id;
@@ -172,6 +173,7 @@ struct _GumExecBlock
 
   guint8 state;
   guint recycle_count;
+  gboolean has_call_to_excluded_range;
 
 #ifdef G_OS_WIN32
   DWORD previous_dr0;
@@ -368,6 +370,7 @@ gum_stalker_init (GumStalker * self)
       GUM_TYPE_STALKER, GumStalkerPrivate);
   priv = self->priv;
 
+  priv->exclusions = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
   priv->trust_threshold = 1;
 
   gum_spinlock_init (&priv->probe_lock);
@@ -447,6 +450,8 @@ gum_stalker_finalize (GObject * object)
 
   gum_spinlock_free (&priv->probe_lock);
 
+  g_array_free (priv->exclusions, TRUE);
+
   g_assert (priv->contexts == NULL);
   g_mutex_free (priv->mutex);
 
@@ -457,6 +462,13 @@ GumStalker *
 gum_stalker_new (void)
 {
   return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
+}
+
+void
+gum_stalker_exclude (GumStalker * self,
+                     const GumMemoryRange * range)
+{
+  g_array_append_val (self->priv->exclusions, *range);
 }
 
 gint
@@ -536,15 +548,23 @@ gum_stalker_unfollow_me (GumStalker * self)
   ctx = gum_stalker_get_exec_ctx (self);
   g_assert (ctx != NULL);
 
-  g_assert (ctx->unfollow_called_while_still_following);
+  if (ctx->current_block != NULL &&
+      ctx->current_block->has_call_to_excluded_range)
+  {
+    ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+  }
+  else
+  {
+    g_assert (ctx->unfollow_called_while_still_following);
 
-  g_private_set (self->priv->exec_ctx, NULL);
+    g_private_set (self->priv->exec_ctx, NULL);
 
-  GUM_STALKER_LOCK (self);
-  self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
-  GUM_STALKER_UNLOCK (self);
+    GUM_STALKER_LOCK (self);
+    self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
+    GUM_STALKER_UNLOCK (self);
 
-  gum_exec_ctx_free (ctx);
+    gum_exec_ctx_free (ctx);
+  }
 }
 
 gboolean
@@ -1059,7 +1079,8 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gc.continuation_real_address = insn.end;
       break;
     }
-    else if (insn.ud->mnemonic == UD_Icall)
+    else if (insn.ud->mnemonic == UD_Icall &&
+        requirements != GUM_REQUIRE_RELOCATION)
     {
       break;
     }
@@ -1435,6 +1456,7 @@ gum_exec_block_new (GumExecCtx * ctx)
 
       block->state = GUM_EXEC_NORMAL;
       block->recycle_count = 0;
+      block->has_call_to_excluded_range = FALSE;
 
       slab->offset += block->code_begin - (slab->data + slab->offset);
 
@@ -1692,11 +1714,36 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
   if (insn->ud->mnemonic == UD_Icall)
   {
+    gboolean target_is_excluded = FALSE;
+
     if ((block->ctx->sink_mask & GUM_CALL) != 0)
       gum_exec_block_write_call_event_code (block, &target, gc);
 
     if (block->ctx->stalker->priv->any_probes_attached)
       gum_exec_block_write_call_probe_code (block, &target, gc);
+
+    if (!target.is_indirect && target.base == UD_NONE)
+    {
+      GArray * exclusions = block->ctx->stalker->priv->exclusions;
+      guint i;
+
+      for (i = 0; i != exclusions->len; i++)
+      {
+        GumMemoryRange * r = &g_array_index (exclusions, GumMemoryRange, i);
+        if (GUM_MEMORY_RANGE_INCLUDES (r,
+            GUM_ADDRESS (target.absolute_address)))
+        {
+          target_is_excluded = TRUE;
+          break;
+        }
+      }
+    }
+
+    if (target_is_excluded)
+    {
+      block->has_call_to_excluded_range = TRUE;
+      return GUM_REQUIRE_RELOCATION;
+    }
 
     gum_exec_block_write_call_invoke_code (block, &target, gc);
   }

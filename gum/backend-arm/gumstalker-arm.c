@@ -67,6 +67,12 @@ gum_stalker_new (void)
   return GUM_STALKER (g_object_new (GUM_TYPE_STALKER, NULL));
 }
 
+void
+gum_stalker_exclude (GumStalker * self,
+                     const GumMemoryRange * range)
+{
+}
+
 gint
 gum_stalker_get_trust_threshold (GumStalker * self)
 {
