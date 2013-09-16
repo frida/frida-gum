@@ -988,7 +988,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   printf ("\n\n***\n\nCreating block for %p:\n", real_address);
 #endif
 
-  do
+  while (TRUE)
   {
     guint n_read;
     GumInstruction insn;
@@ -1079,13 +1079,23 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gc.continuation_real_address = insn.end;
       break;
     }
-    else if (insn.ud->mnemonic == UD_Icall &&
-        requirements != GUM_REQUIRE_RELOCATION)
+    else if (insn.ud->mnemonic == UD_Icall)
+    {
+      /* We always stop on a call unless it's to an excluded range */
+      if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
+      {
+        rl->eob = FALSE;
+      }
+      else
+      {
+        break;
+      }
+    }
+    else if (gum_x86_relocator_eob (rl))
     {
       break;
     }
   }
-  while (!gum_x86_relocator_eob (rl));
 
   if (gc.continuation_real_address != NULL)
   {
@@ -1710,8 +1720,6 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     g_assert_not_reached ();
   }
 
-  gum_x86_relocator_skip_one_no_label (gc->relocator);
-
   if (insn->ud->mnemonic == UD_Icall)
   {
     gboolean target_is_excluded = FALSE;
@@ -1745,11 +1753,14 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       return GUM_REQUIRE_RELOCATION;
     }
 
+    gum_x86_relocator_skip_one_no_label (gc->relocator);
     gum_exec_block_write_call_invoke_code (block, &target, gc);
   }
   else
   {
     gpointer cond_false_lbl_id;
+
+    gum_x86_relocator_skip_one_no_label (gc->relocator);
 
     cond_false_lbl_id =
         GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->begin) << 16) | 0xbeef);
