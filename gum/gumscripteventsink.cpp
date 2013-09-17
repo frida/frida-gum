@@ -21,6 +21,8 @@
 
 #include "gumscriptscope.h"
 
+#include <string.h>
+
 using namespace v8;
 
 static void gum_script_event_sink_iface_init (gpointer g_iface,
@@ -174,28 +176,24 @@ static gboolean
 gum_script_event_sink_drain (gpointer user_data)
 {
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (user_data);
-  GArray * filled_queue = NULL;
+  gpointer buffer = NULL;
+  guint len, size;
 
-  if (self->queue->len != 0)
+  len = self->queue->len;
+  size = len * sizeof (GumEvent);
+  if (len != 0)
   {
-    GArray * empty_queue;
-
-    empty_queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
-        self->queue_capacity);
+    buffer = g_memdup (self->queue->data, size);
 
     gum_spinlock_acquire (&self->lock);
-    filled_queue = self->queue;
-    self->queue = empty_queue;
+    g_array_remove_range (self->queue, 0, len);
     gum_spinlock_release (&self->lock);
   }
 
-  if (filled_queue != NULL)
+  if (buffer != NULL)
   {
     ScriptScope scope (self->script);
 
-    guint size = filled_queue->len * sizeof (GumEvent);
-    guint8 * buffer =
-        reinterpret_cast<guint8 *> (g_array_free (filled_queue, FALSE));
     V8::AdjustAmountOfExternalAllocatedMemory (size);
 
     Handle<Object> data = Object::New ();
