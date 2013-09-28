@@ -124,6 +124,7 @@ enum _GumExecCtxState
 struct _GumExecCtx
 {
   volatile guint state;
+  volatile gboolean invalidate_pending;
 
   GumStalker * stalker;
   GumThreadId thread_id;
@@ -262,8 +263,10 @@ static void gum_stalker_free_probe_array (gpointer data);
 static GumExecCtx * gum_stalker_create_exec_ctx (GumStalker * self,
     GumThreadId thread_id, GumEventSink * sink);
 static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
+static void gum_stalker_invalidate_caches (GumStalker * self);
 
 static void gum_exec_ctx_free (GumExecCtx * ctx);
+static void gum_exec_ctx_add_code_slab_if_neeed (GumExecCtx * ctx);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
@@ -271,6 +274,7 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
+static void gum_exec_ctx_clear_address_mappings (GumExecCtx * ctx);
 static void gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
     gpointer real_address, gpointer code_address, GumExecBlock * block);
 static void gum_exec_ctx_remove_address_mapping (GumExecCtx * ctx,
@@ -690,6 +694,8 @@ gum_stalker_add_call_probe (GumStalker * self,
 
   gum_spinlock_release (&priv->probe_lock);
 
+  gum_stalker_invalidate_caches (self);
+
   return probe.id;
 }
 
@@ -740,6 +746,8 @@ gum_stalker_remove_call_probe (GumStalker * self,
   }
 
   gum_spinlock_release (&priv->probe_lock);
+
+  gum_stalker_invalidate_caches (self);
 }
 
 static void
@@ -775,6 +783,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
       gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES +
           GUM_MAPPING_SLAB_SIZE_IN_PAGES + 1, GUM_PAGE_RWX);
   ctx->state = GUM_EXEC_CTX_ACTIVE;
+  ctx->invalidate_pending = FALSE;
 
   ctx->code_slab.data = ((guint8 *) ctx) + (base_size * priv->page_size);
   ctx->code_slab.offset = 0;
@@ -821,9 +830,38 @@ gum_stalker_get_exec_ctx (GumStalker * self)
 }
 
 static void
+gum_stalker_invalidate_caches (GumStalker * self)
+{
+  GSList * cur;
+
+  GUM_STALKER_LOCK (self);
+
+  for (cur = self->priv->contexts; cur != NULL; cur = cur->next)
+  {
+    GumExecCtx * ctx = (GumExecCtx *) cur->data;
+
+    gum_exec_ctx_add_code_slab_if_neeed (ctx);
+
+    ctx->invalidate_pending = TRUE;
+  }
+
+  GUM_STALKER_UNLOCK (self);
+}
+
+static void
 gum_exec_ctx_free (GumExecCtx * ctx)
 {
+  GumSlab * slab;
+
   gum_event_sink_stop (ctx->sink);
+
+  slab = ctx->code_slab.next;
+  while (slab != NULL)
+  {
+    GumSlab * next = slab->next;
+    gum_free_pages (slab);
+    slab = next;
+  }
 
   gum_exec_ctx_destroy_thunks (ctx);
 
@@ -838,10 +876,40 @@ gum_exec_ctx_free (GumExecCtx * ctx)
   gum_free_pages (ctx);
 }
 
+static void
+gum_exec_ctx_add_code_slab_if_neeed (GumExecCtx * ctx)
+{
+  GumSlab * slab;
+
+  slab = &ctx->code_slab;
+  while (slab->next != NULL)
+    slab = slab->next;
+  if (slab->size - slab->offset > slab->size / 2)
+  {
+    GumSlab * s;
+
+    s = gum_alloc_n_pages (GUM_CODE_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
+    s->data = (guint8 *) (s + 1);
+    s->offset = 0;
+    s->size = (GUM_CODE_SLAB_SIZE_IN_PAGES * ctx->stalker->priv->page_size)
+        - sizeof (GumSlab);
+    s->next = NULL;
+
+    slab->next = s;
+  }
+}
+
 static gpointer GUM_THUNK
 gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
                                          gpointer start_address)
 {
+  if (ctx->invalidate_pending)
+  {
+    gum_exec_ctx_clear_address_mappings (ctx);
+
+    ctx->invalidate_pending = FALSE;
+  }
+
   ctx->current_block = NULL;
 
   if (start_address == gum_stalker_unfollow_me)
@@ -1119,6 +1187,17 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gum_exec_block_commit (block);
 
   return block;
+}
+
+static void
+gum_exec_ctx_clear_address_mappings (GumExecCtx * ctx)
+{
+  GumSlab * slab;
+
+  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
+  {
+    slab->offset = 0;
+  }
 }
 
 static void
