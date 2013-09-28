@@ -433,6 +433,8 @@ static gboolean gum_script_value_from_ffi_type (GumScript * self,
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static gboolean gum_script_callbacks_get_opt (Handle<Object> callbacks,
+    const gchar * name, Local<Function> * callback_function);
 static gboolean gum_script_flags_get (Handle<Object> flags,
     const gchar * name);
 static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
@@ -2020,9 +2022,9 @@ gum_script_on_interceptor_attach (const Arguments & args)
   Local<Function> on_enter, on_leave;
 
   Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!gum_script_callbacks_get (callbacks, "onEnter", &on_enter))
+  if (!gum_script_callbacks_get_opt (callbacks, "onEnter", &on_enter))
     return Undefined ();
-  if (!gum_script_callbacks_get (callbacks, "onLeave", &on_leave))
+  if (!gum_script_callbacks_get_opt (callbacks, "onLeave", &on_leave))
     return Undefined ();
 
   GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
@@ -2435,7 +2437,7 @@ gum_script_on_memory_scan (const Arguments & args)
   if (!gum_script_callbacks_get (callbacks, "onMatch", &on_match))
     return Undefined ();
   Local<Function> on_error;
-  if (!gum_script_callbacks_get (callbacks, "onError", &on_error))
+  if (!gum_script_callbacks_get_opt (callbacks, "onError", &on_error))
     return Undefined ();
   Local<Function> on_complete;
   if (!gum_script_callbacks_get (callbacks, "onComplete", &on_complete))
@@ -2520,7 +2522,7 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
   {
     ScriptScope script_scope (ctx->script);
 
-    if (scope.exception_occurred)
+    if (scope.exception_occurred && !ctx->on_error.IsEmpty ())
     {
       gchar * message = g_strdup_printf (
           "access violation reading 0x%" G_GSIZE_MODIFIER "x",
@@ -3053,16 +3055,10 @@ gum_script_on_stalker_follow (const Arguments & args)
         event_mask |= GUM_EXEC;
     }
 
-    if (event_mask != GUM_NOTHING)
+    if (event_mask != GUM_NOTHING &&
+        !gum_script_callbacks_get (options, "onReceive", &on_receive))
     {
-      if (!gum_script_callbacks_get (options, "onReceive", &on_receive))
-        return Undefined ();
-      if (on_receive.IsEmpty ())
-      {
-        ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
-            "onReceive callback is required when events are enabled")));
-        return Undefined ();
-      }
+      return Undefined ();
     }
   }
 
@@ -3583,6 +3579,26 @@ static gboolean
 gum_script_callbacks_get (Handle<Object> callbacks,
                           const gchar * name,
                           Local<Function> * callback_function)
+{
+  if (!gum_script_callbacks_get_opt (callbacks, name, callback_function))
+    return FALSE;
+
+  if ((*callback_function).IsEmpty ())
+  {
+    gchar * message = g_strdup_printf ("%s callback is required", name);
+    ThrowException (Exception::TypeError (String::New (message)));
+    g_free (message);
+
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_script_callbacks_get_opt (Handle<Object> callbacks,
+                              const gchar * name,
+                              Local<Function> * callback_function)
 {
   Local<Value> val = callbacks->Get (String::New (name));
   if (!val->IsUndefined ())
