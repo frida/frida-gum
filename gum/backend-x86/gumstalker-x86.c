@@ -1689,12 +1689,13 @@ gum_exec_block_backpatch_jmp (GumExecBlock * block,
   {
     GumX86Writer * cw = &ctx->code_writer;
 
+    gum_x86_writer_reset (cw, code_start);
+
     if (opened_prolog != GUM_PROLOG_NONE)
     {
       gum_exec_ctx_write_epilog (block->ctx, opened_prolog, cw);
     }
 
-    gum_x86_writer_reset (cw, code_start);
     gum_x86_writer_put_jmp (cw, target_address);
     gum_x86_writer_flush (cw);
   }
