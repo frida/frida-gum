@@ -53,6 +53,7 @@ struct _GumScriptEventSink
 
   GumScript * script;
   GMainContext * main_context;
+  GumEventType event_mask;
   v8::Persistent<v8::Function> on_receive;
   GSource * source;
 };
@@ -67,8 +68,9 @@ G_BEGIN_DECLS
 GType gum_script_event_sink_get_type (void) G_GNUC_CONST;
 
 GumEventSink * gum_script_event_sink_new (GumScript * script,
-    GMainContext * main_context, v8::Handle<v8::Function> on_receive,
-    guint queue_capacity, guint queue_drain_interval);
+    GMainContext * main_context, GumEventType event_mask,
+    v8::Handle<v8::Function> on_receive, guint queue_capacity,
+    guint queue_drain_interval);
 
 G_END_DECLS
 

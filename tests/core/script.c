@@ -297,6 +297,11 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   COMPILE_AND_LOAD_SCRIPT (
     "var me = Process.getCurrentThreadId();"
     "Stalker.follow(me, {"
+    "  events: {"
+    "    call: true,"
+    "    ret: false,"
+    "    exec: false"
+    "  },"
     "  onReceive: function(events) {"
     "    send(events.length > 0);"
     "  }"
@@ -320,9 +325,7 @@ SCRIPT_TESTCASE (call_can_be_probed)
     return;
   }
 
-  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow({"
-    "  onReceive: function(events) {}"
-    "});"
+  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow();"
     "Stalker.addCallProbe(" GUM_PTR_CONST ", function(args) {"
     "  send(args[0].toInt32());"
     "});"

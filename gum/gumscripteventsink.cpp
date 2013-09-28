@@ -95,6 +95,7 @@ gum_script_event_sink_finalize (GObject * obj)
 GumEventSink *
 gum_script_event_sink_new (GumScript * script,
                            GMainContext * main_context,
+                           GumEventType event_mask,
                            Handle<Function> on_receive,
                            guint queue_capacity,
                            guint queue_drain_interval)
@@ -111,6 +112,7 @@ gum_script_event_sink_new (GumScript * script,
   g_object_ref (script);
   sink->script = script;
   sink->main_context = main_context;
+  sink->event_mask = event_mask;
   sink->on_receive = Persistent<Function>::New (on_receive);
 
   return GUM_EVENT_SINK (sink);
@@ -119,9 +121,7 @@ gum_script_event_sink_new (GumScript * script,
 static GumEventType
 gum_script_event_sink_query_mask (GumEventSink * sink)
 {
-  (void) sink;
-
-  return GUM_CALL;
+  return GUM_SCRIPT_EVENT_SINK (sink)->event_mask;
 }
 
 static void

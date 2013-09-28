@@ -433,6 +433,8 @@ static gboolean gum_script_value_from_ffi_type (GumScript * self,
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
     const gchar * name, Local<Function> * callback_function);
+static gboolean gum_script_flags_get (Handle<Object> flags,
+    const gchar * name);
 static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
     GumPageProtection * prot);
 
@@ -2999,30 +3001,70 @@ gum_script_on_stalker_follow (const Arguments & args)
   GumScriptPrivate * priv = self->priv;
 
   GumThreadId thread_id;
-  Local<Value> callbacks_value;
-  if (args[0]->IsNumber ())
+  Local<Value> options_value;
+  switch (args.Length ())
   {
-    thread_id = args[0]->IntegerValue ();
-    callbacks_value = args[1];
-  }
-  else
-  {
-    thread_id = gum_process_get_current_thread_id ();
-    callbacks_value = args[0];
-  }
-
-  if (!callbacks_value->IsObject ())
-  {
-    ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
-        "argument must be a callback object")));
-    return Undefined ();
+    case 0:
+      thread_id = gum_process_get_current_thread_id ();
+      break;
+    case 1:
+      thread_id = args[0]->IntegerValue ();
+      break;
+    default:
+      thread_id = args[0]->IntegerValue ();
+      options_value = args[1];
+      break;
   }
 
+  GumEventType event_mask = GUM_NOTHING;
   Local<Function> on_receive;
 
-  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!gum_script_callbacks_get (callbacks, "onReceive", &on_receive))
-    return Undefined ();
+  if (!options_value.IsEmpty ())
+  {
+    if (!options_value->IsObject ())
+    {
+      ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
+          "options argument must be an object")));
+      return Undefined ();
+    }
+
+    Local<Object> options = Local<Object>::Cast (options_value);
+
+    Local<String> events_key (String::New ("events"));
+    if (options->Has (events_key))
+    {
+      Local<Value> events_value (options->Get (events_key));
+      if (!events_value->IsObject ())
+      {
+        ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
+            "events key must be an object")));
+        return Undefined ();
+      }
+
+      Local<Object> events (Local<Object>::Cast (events_value));
+
+      if (gum_script_flags_get (events, "call"))
+        event_mask |= GUM_CALL;
+
+      if (gum_script_flags_get (events, "ret"))
+        event_mask |= GUM_RET;
+
+      if (gum_script_flags_get (events, "exec"))
+        event_mask |= GUM_EXEC;
+    }
+
+    if (event_mask != GUM_NOTHING)
+    {
+      if (!gum_script_callbacks_get (options, "onReceive", &on_receive))
+        return Undefined ();
+      if (on_receive.IsEmpty ())
+      {
+        ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
+            "onReceive callback is required when events are enabled")));
+        return Undefined ();
+      }
+    }
+  }
 
   if (priv->stalker_sink != NULL)
   {
@@ -3031,7 +3073,7 @@ gum_script_on_stalker_follow (const Arguments & args)
   }
 
   priv->stalker_sink = gum_script_event_sink_new (self, priv->main_context,
-      on_receive, priv->stalker_queue_capacity,
+      event_mask, on_receive, priv->stalker_queue_capacity,
       priv->stalker_queue_drain_interval);
   if (thread_id == gum_process_get_current_thread_id ())
   {
@@ -3558,6 +3600,14 @@ gum_script_callbacks_get (Handle<Object> callbacks,
   }
 
   return TRUE;
+}
+
+static gboolean
+gum_script_flags_get (Handle<Object> flags,
+                      const gchar * name)
+{
+  Local<String> key (String::New (name));
+  return flags->Has (key) && flags->Get (key)->ToBoolean ()->BooleanValue ();
 }
 
 static gboolean
