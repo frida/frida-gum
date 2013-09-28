@@ -1078,12 +1078,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     gc.instruction = &insn;
 
-    if (insn.ud->mnemonic == UD_Icall &&
-        block->ctx->stalker->priv->any_probes_attached)
-    {
-      gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, &gc);
-    }
-
     if ((ctx->sink_mask & GUM_EXEC) != 0)
       gum_exec_block_write_exec_event_code (block, &gc);
 
@@ -2450,6 +2444,8 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
     guint align_correction = 4;
 #endif
 
+    if (gc->opened_prolog != GUM_PROLOG_NONE)
+      gum_exec_block_close_prolog (block, gc);
     gum_exec_block_open_prolog (block, GUM_PROLOG_FULL, gc);
 
     gum_exec_ctx_write_push_branch_target_address (block->ctx, target, gc);
