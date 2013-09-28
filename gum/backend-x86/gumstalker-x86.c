@@ -1632,16 +1632,19 @@ gum_exec_block_backpatch_ret (GumExecBlock * block,
                               gpointer code_start,
                               gpointer target_address)
 {
-  GumExecCtx * ctx = block->ctx;
-
-  if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
-      block->recycle_count >= ctx->stalker->priv->trust_threshold)
+  if (block != NULL) /* when we just unfollowed */
   {
-    GumX86Writer * cw = &ctx->code_writer;
+    GumExecCtx * ctx = block->ctx;
 
-    gum_x86_writer_reset (cw, code_start);
-    gum_x86_writer_put_jmp (cw, target_address);
-    gum_x86_writer_flush (cw);
+    if (ctx->state == GUM_EXEC_CTX_ACTIVE &&
+        block->recycle_count >= ctx->stalker->priv->trust_threshold)
+    {
+      GumX86Writer * cw = &ctx->code_writer;
+
+      gum_x86_writer_reset (cw, code_start);
+      gum_x86_writer_put_jmp (cw, target_address);
+      gum_x86_writer_flush (cw);
+    }
   }
 }
 
@@ -1825,6 +1828,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   };
   gpointer * saved_edx;
   gpointer continuation;
+  gconstpointer resolve_dynamically_label = cw->code;
 
   gum_exec_block_close_prolog (block, gc);
 
@@ -1838,6 +1842,42 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
       GUM_ADDRESS (saved_edx));
 
+  /*
+   * Fast path (try the stack)
+   */
+  gum_x86_writer_put_pushfx (cw);
+  gum_x86_writer_put_push_reg (cw, GUM_REG_EAX);
+
+  /* check frame at the top of the stack */
+  gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EAX,
+      GUM_ADDRESS (&block->ctx->current_frame));
+  gum_x86_writer_put_cmp_reg_offset_ptr_reg (cw,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, real_address),
+      GUM_REG_EDX);
+  gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JNZ,
+      resolve_dynamically_label, GUM_UNLIKELY);
+
+  /* replace return address */
+  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EDX,
+      GUM_REG_EAX, G_STRUCT_OFFSET (GumExecFrame, code_address));
+
+  /* pop from our stack */
+  gum_x86_writer_put_add_reg_imm (cw, GUM_REG_EAX, sizeof (GumExecFrame));
+  gum_x86_writer_put_mov_near_ptr_reg (cw,
+      GUM_ADDRESS (&block->ctx->current_frame), GUM_REG_EAX);
+
+  /* proceeed to block */
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
+  gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_jmp_reg (cw, GUM_REG_EDX);
+
+  gum_x86_writer_put_label (cw, resolve_dynamically_label);
+  gum_x86_writer_put_pop_reg (cw, GUM_REG_EAX);
+  gum_x86_writer_put_popfx (cw);
+
+  /*
+   * Slow path (resolve dynamically)
+   */
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
@@ -2061,7 +2101,7 @@ gum_exec_block_write_ret_transfer_code (GumExecBlock * block,
   gum_x86_writer_put_mov_near_ptr_reg (cw,
       GUM_ADDRESS (&block->ctx->return_at), GUM_REG_XAX);
 
-  /* check frame at top of the stack */
+  /* check frame at the top of the stack */
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_XDX,
       GUM_ADDRESS (&block->ctx->current_frame));
   gum_x86_writer_put_mov_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XDX);
