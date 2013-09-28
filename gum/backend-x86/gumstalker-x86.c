@@ -1842,6 +1842,12 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
       GUM_ADDRESS (saved_edx));
 
+  if ((block->ctx->sink_mask & GUM_RET) != 0)
+  {
+    gum_exec_block_write_ret_event_code (block, gc);
+    gum_exec_block_close_prolog (block, gc);
+  }
+
   /*
    * Fast path (try the stack)
    */
