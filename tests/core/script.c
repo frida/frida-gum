@@ -68,6 +68,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_exports_enumeration_performance)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
@@ -426,6 +427,27 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
       "});", SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_exports_enumeration_performance)
+{
+  TestScriptMessageItem * item;
+  gint duration;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var start = new Date();"
+      "Module.enumerateExports(\"%s\", {"
+        "onMatch: function(name, address) {"
+        "},"
+        "onComplete: function() {"
+        "}"
+      "});"
+      "send((new Date()).getTime() - start.getTime());",
+      SYSTEM_MODULE_NAME);
+  item = test_script_fixture_pop_message (fixture);
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &duration);
+  g_print ("<%d ms> ", duration);
+  test_script_message_item_free (item);
 }
 
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated)

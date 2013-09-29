@@ -126,6 +126,7 @@ struct _GumScriptPrivate
   Persistent<Context> context;
   Persistent<Script> raw_script;
   Persistent<FunctionTemplate> native_pointer;
+  Persistent<Object> native_pointer_value;
   Persistent<ObjectTemplate> invocation_args;
   Persistent<ObjectTemplate> probe_args;
 
@@ -597,6 +598,8 @@ gum_script_dispose (GObject * object)
         g_slice_free (GumScriptAttachEntry, entry);
       }
 
+      priv->native_pointer_value.Dispose ();
+      priv->native_pointer_value.Clear ();
       priv->native_pointer.Dispose ();
       priv->native_pointer.Clear ();
       priv->invocation_args.Dispose ();
@@ -651,8 +654,8 @@ static void
 gum_script_create_context (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
-  Locker locker(priv->isolate);
-  Isolate::Scope isolate_scope(priv->isolate);
+  Locker locker (priv->isolate);
+  Isolate::Scope isolate_scope (priv->isolate);
   HandleScope handle_scope;
 
   Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
@@ -864,6 +867,11 @@ gum_script_create_context (GumScript * self)
   priv->context = Context::New (NULL, global_templ);
 
   Context::Scope context_scope (priv->context);
+
+  {
+    priv->native_pointer_value = Persistent<Object>::New (
+        priv->native_pointer->InstanceTemplate ()->NewInstance ());
+  }
 
   {
     Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
@@ -3677,7 +3685,7 @@ gum_script_pointer_new (GumScript * self,
                         gpointer address)
 {
   Local<Object> native_pointer_object =
-      self->priv->native_pointer->InstanceTemplate ()->NewInstance ();
+      self->priv->native_pointer_value->Clone ();
   native_pointer_object->SetPointerInInternalField (0, address);
   return native_pointer_object;
 }
