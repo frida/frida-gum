@@ -35,6 +35,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
+  SCRIPT_TESTENTRY (interceptor_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
@@ -821,6 +822,19 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_SEND_MESSAGE_WITH ("\"<b1\"");
   EXPECT_SEND_MESSAGE_WITH ("\"<a0\"");
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (interceptor_performance)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function(args) {"
+      "  },"
+      "  onLeave: function(retval) {"
+      "  }"
+      "});", target_function_int);
+  /* while (TRUE) */
+    target_function_int (7);
 }
 
 SCRIPT_TESTCASE (memory_can_be_scanned)
