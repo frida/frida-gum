@@ -247,7 +247,7 @@ STALKER_TESTCASE (performance)
 
   g_timer_destroy (timer);
 
-  g_print ("duration_direct=%f duration_stalked=%f ratio=%f\n",
+  g_print ("<duration_direct=%f duration_stalked=%f ratio=%f> ",
       duration_direct, duration_stalked, duration_stalked / duration_direct);
 }
 
