@@ -1644,7 +1644,7 @@ gum_script_process_thread_match (GumThreadDetails * details,
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
   gboolean proceed = TRUE;
-  if (result->IsString ())
+  if (!result.IsEmpty () && result->IsString ())
   {
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
@@ -1743,7 +1743,7 @@ gum_script_process_module_match (const gchar * name,
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 4, argv);
 
   gboolean proceed = TRUE;
-  if (result->IsString ())
+  if (!result.IsEmpty () && result->IsString ())
   {
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
@@ -1811,7 +1811,7 @@ gum_script_range_match (const GumMemoryRange * range,
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
 
   gboolean proceed = TRUE;
-  if (result->IsString ())
+  if (!result.IsEmpty () && result->IsString ())
   {
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
@@ -1893,7 +1893,7 @@ gum_script_module_export_match (const gchar * name,
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
 
   gboolean proceed = TRUE;
-  if (result->IsString ())
+  if (!result.IsEmpty () && result->IsString ())
   {
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
