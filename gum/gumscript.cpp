@@ -3010,7 +3010,15 @@ gum_script_on_stalker_follow (const Arguments & args)
       thread_id = gum_process_get_current_thread_id ();
       break;
     case 1:
-      thread_id = args[0]->IntegerValue ();
+      if (args[0]->IsNumber ())
+      {
+        thread_id = args[0]->IntegerValue ();
+      }
+      else
+      {
+        thread_id = gum_process_get_current_thread_id ();
+        options_value = args[0];
+      }
       break;
     default:
       thread_id = args[0]->IntegerValue ();
