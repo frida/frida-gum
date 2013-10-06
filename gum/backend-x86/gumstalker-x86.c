@@ -173,7 +173,7 @@ struct _GumExecBlock
   guint8 * code_end;
 
   guint8 state;
-  guint recycle_count;
+  gint recycle_count;
   gboolean has_call_to_excluded_range;
 
 #ifdef G_OS_WIN32
