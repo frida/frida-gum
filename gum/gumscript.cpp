@@ -2947,6 +2947,7 @@ gum_script_on_stalker_get_trust_threshold (Local<String> property,
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
   GumStalker * stalker = gum_script_get_stalker (self);
+  (void) property;
   return Number::New (gum_stalker_get_trust_threshold (stalker));
 }
 
@@ -2957,6 +2958,7 @@ gum_script_on_stalker_set_trust_threshold (Local<String> property,
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
   GumStalker * stalker = gum_script_get_stalker (self);
+  (void) property;
   gum_stalker_set_trust_threshold (stalker, value->IntegerValue ());
 }
 
@@ -2965,6 +2967,7 @@ gum_script_on_stalker_get_queue_capacity (Local<String> property,
                                           const AccessorInfo & info)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  (void) property;
   return Number::New (self->priv->stalker_queue_capacity);
 }
 
@@ -2974,6 +2977,7 @@ gum_script_on_stalker_set_queue_capacity (Local<String> property,
                                           const AccessorInfo & info)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  (void) property;
   self->priv->stalker_queue_capacity = value->IntegerValue ();
 }
 
@@ -2982,6 +2986,7 @@ gum_script_on_stalker_get_queue_drain_interval (Local<String> property,
                                                 const AccessorInfo & info)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  (void) property;
   return Number::New (self->priv->stalker_queue_drain_interval);
 }
 
@@ -2991,6 +2996,7 @@ gum_script_on_stalker_set_queue_drain_interval (Local<String> property,
                                                 const AccessorInfo & info)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
+  (void) property;
   self->priv->stalker_queue_drain_interval = value->IntegerValue ();
 }
 
