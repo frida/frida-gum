@@ -407,4 +407,9 @@
       <Filter>vapi</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\udis86\docs\x86\optable.xml">
+      <Filter>udis86</Filter>
+    </CustomBuild>
+  </ItemGroup>
 </Project>
