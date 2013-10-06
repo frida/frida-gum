@@ -60,15 +60,7 @@
 #define GUM_ASSERT_CMPADDR(n1, cmp, n2) \
     g_assert_cmphex (GPOINTER_TO_SIZE (n1), cmp, GPOINTER_TO_SIZE (n2))
 
-#if defined (G_OS_WIN32)
-# define SYSTEM_MODULE_NAME "kernel32.dll"
-#elif defined (HAVE_DARWIN)
-# define SYSTEM_MODULE_NAME "libSystem.B.dylib"
-#elif defined (HAVE_ANDROID)
-# define SYSTEM_MODULE_NAME "libc.so"
-#else
-# define SYSTEM_MODULE_NAME "libc-2.15.so"
-#endif
+#define SYSTEM_MODULE_NAME test_util_get_system_module_name ()
 #if defined (G_OS_WIN32)
 # define SYSTEM_MODULE_EXPORT "Sleep"
 #else
@@ -93,6 +85,7 @@ gchar * test_util_diff_xml (const gchar * expected_xml,
     const gchar * actual_xml);
 
 gchar * test_util_get_data_dir (void);
+const gchar * test_util_get_system_module_name (void);
 
 const GumHeapApiList * test_util_heap_apis (void);
 

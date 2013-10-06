@@ -37,6 +37,7 @@
 #  include <sys/types.h>
 #  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
+#  include <stdio.h>
 #  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
 # endif
 #endif
@@ -166,6 +167,7 @@ TESTUTIL_TESTCASE (line_diff)
 
 /* Implementation */
 
+static gchar * _test_util_system_module_name = NULL;
 #ifdef HAVE_LIBS
 static GumHeapApiList * _test_util_heap_apis = NULL;
 #endif
@@ -173,6 +175,9 @@ static GumHeapApiList * _test_util_heap_apis = NULL;
 void
 _test_util_deinit (void)
 {
+  g_free (_test_util_system_module_name);
+  _test_util_system_module_name = NULL;
+
 #ifdef HAVE_LIBS
   if (_test_util_heap_apis != NULL)
   {
@@ -336,6 +341,31 @@ test_util_get_data_dir (void)
   return NULL;
 #else
 # error Implement support for your OS here
+#endif
+}
+
+const gchar *
+test_util_get_system_module_name (void)
+{
+#if defined (G_OS_WIN32)
+  return "kernel32.dll";
+#elif defined (HAVE_DARWIN)
+  return "libSystem.B.dylib";
+#elif defined (HAVE_ANDROID)
+  return "libc.so";
+#else
+  if (_test_util_system_module_name == NULL)
+  {
+    FILE * p;
+
+    _test_util_system_module_name = malloc (64);
+    p = popen ("find /lib -name \"libc-*.so\" | head -1 | xargs basename"
+        " | tr -d \"\\n\"", "r");
+    fgets (_test_util_system_module_name, 64, p);
+    pclose (p);
+  }
+
+  return _test_util_system_module_name;
 #endif
 }
 
