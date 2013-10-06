@@ -169,7 +169,7 @@ gum_instance_tracker_new (void)
 
 static gboolean
 gum_instance_tracker_fill_vtable_if_module_is_gobject (const gchar * name,
-                                                       GumAddress address,
+                                                       const GumMemoryRange * range,
                                                        const gchar * path,
                                                        gpointer user_data)
 {
@@ -177,7 +177,7 @@ gum_instance_tracker_fill_vtable_if_module_is_gobject (const gchar * name,
   GumInstanceVTable * vtable = &self->priv->vtable;
   gchar * name_lowercase;
 
-  (void) address;
+  (void) range;
 
   name_lowercase = g_ascii_strdown (name, -1);
 

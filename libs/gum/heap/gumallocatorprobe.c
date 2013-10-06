@@ -354,7 +354,7 @@ gum_allocator_probe_get_property (GObject * object,
 
 static gboolean
 gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
-                                                       GumAddress address,
+                                                       const GumMemoryRange * range,
                                                        const gchar * path,
                                                        gpointer user_data)
 {
@@ -375,7 +375,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
   gchar * name_lowercase;
   static const gchar ** function_name;
 
-  (void) address;
+  (void) range;
 
   name_lowercase = g_ascii_strdown (name, -1);
 

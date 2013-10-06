@@ -25,7 +25,7 @@
 #include <string.h>
 
 static gboolean gum_collect_heap_api_if_crt_module (const gchar * name,
-    GumAddress address, const gchar * path, gpointer user_data);
+    const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static void gum_init_field_from_module_symbol (gpointer * field,
     GModule * module, const gchar * name);
 
@@ -46,13 +46,13 @@ gum_process_find_heap_apis (void)
 
 static gboolean
 gum_collect_heap_api_if_crt_module (const gchar * name,
-                                    GumAddress address,
+                                    const GumMemoryRange * range,
                                     const gchar * path,
                                     gpointer user_data)
 {
   GumHeapApiList * list = (GumHeapApiList *) user_data;
 
-  (void) address;
+  (void) range;
 
   if (g_ascii_strncasecmp (name, "msvcr", 5) == 0 ||
       g_ascii_strncasecmp (name, "libSystem.B", 11) == 0)
