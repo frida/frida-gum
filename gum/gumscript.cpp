@@ -287,6 +287,8 @@ static Handle<Value> gum_script_on_native_pointer_to_int32 (
     const Arguments & args);
 static Handle<Value> gum_script_on_native_pointer_to_string (
     const Arguments & args);
+static Handle<Value> gum_script_on_native_pointer_to_json (
+    const Arguments & args);
 
 static Handle<Value> gum_script_on_new_native_function (
     const Arguments & args);
@@ -701,6 +703,8 @@ gum_script_create_context (GumScript * self)
       FunctionTemplate::New (gum_script_on_native_pointer_to_int32));
   native_pointer_object->Set (String::New ("toString"),
       FunctionTemplate::New (gum_script_on_native_pointer_to_string));
+  native_pointer_object->Set (String::New ("toJSON"),
+      FunctionTemplate::New (gum_script_on_native_pointer_to_json));
   global_templ->Set (String::New ("NativePointer"), native_pointer);
   priv->native_pointer = Persistent<FunctionTemplate>::New (native_pointer);
 
@@ -1414,8 +1418,9 @@ gum_script_on_native_pointer_to_string (const Arguments & args)
 {
   gsize ptr = GPOINTER_TO_SIZE (
       args.Holder ()->GetPointerFromInternalField (0));
-  gint radix = 10;
-  if (args.Length () > 0)
+  gint radix = 16;
+  bool radix_specified = args.Length () > 0;
+  if (radix_specified)
     radix = args[0]->Int32Value ();
   if (radix != 10 && radix != 16)
   {
@@ -1425,9 +1430,28 @@ gum_script_on_native_pointer_to_string (const Arguments & args)
 
   gchar buf[32];
   if (radix == 10)
+  {
     sprintf (buf, "%" G_GSIZE_MODIFIER "u", ptr);
+  }
   else
-    sprintf (buf, "%" G_GSIZE_MODIFIER "x", ptr);
+  {
+    if (radix_specified)
+      sprintf (buf, "%" G_GSIZE_MODIFIER "x", ptr);
+    else
+      sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
+  }
+
+  return String::New (buf);
+}
+
+static Handle<Value>
+gum_script_on_native_pointer_to_json (const Arguments & args)
+{
+  gsize ptr = GPOINTER_TO_SIZE (
+      args.Holder ()->GetPointerFromInternalField (0));
+
+  gchar buf[32];
+  sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
   return String::New (buf);
 }

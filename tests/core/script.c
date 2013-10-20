@@ -893,18 +893,18 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
 
 SCRIPT_TESTCASE (pointer_can_be_read)
 {
-  gpointer val = GSIZE_TO_POINTER (1337000);
+  gpointer val = GSIZE_TO_POINTER (0x1337000);
   COMPILE_AND_LOAD_SCRIPT (
       "send(Memory.readPointer(" GUM_PTR_CONST ").toString());", &val);
-  EXPECT_SEND_MESSAGE_WITH ("\"1337000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0x1337000\"");
 }
 
 SCRIPT_TESTCASE (pointer_can_be_written)
 {
   gpointer val = NULL;
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.writePointer(" GUM_PTR_CONST ", ptr(\"1337000\"));", &val);
-  g_assert_cmphex (GPOINTER_TO_SIZE (val), ==, 1337000);
+      "Memory.writePointer(" GUM_PTR_CONST ", ptr(\"0x1337000\"));", &val);
+  g_assert_cmphex (GPOINTER_TO_SIZE (val), ==, 0x1337000);
 }
 
 SCRIPT_TESTCASE (memory_can_be_allocated)
