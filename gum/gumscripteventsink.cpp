@@ -190,13 +190,10 @@ gum_script_event_sink_drain (gpointer user_data)
 
   if (buffer != NULL)
   {
-    ScriptScope scope (self->script);
-
-    V8::AdjustAmountOfExternalAllocatedMemory (size);
-
+    GHashTable * frequencies = NULL;
     if (!self->on_call_summary.IsEmpty ())
     {
-      GHashTable * frequencies = g_hash_table_new (NULL, NULL);
+      frequencies = g_hash_table_new (NULL, NULL);
       GumCallEvent * ev = ev = static_cast<GumCallEvent *> (buffer);
       for (guint i = 0; i != len; i++)
       {
@@ -211,8 +208,14 @@ gum_script_event_sink_drain (gpointer user_data)
 
         ev++;
       }
+    }
 
+    ScriptScope scope (self->script);
+
+    if (frequencies != NULL)
+    {
       Handle<Object> summary = Object::New ();
+
       GHashTableIter iter;
       g_hash_table_iter_init (&iter, frequencies);
       gpointer target, count;
@@ -230,6 +233,8 @@ gum_script_event_sink_drain (gpointer user_data)
 
     if (!self->on_receive.IsEmpty ())
     {
+      V8::AdjustAmountOfExternalAllocatedMemory (size);
+
       Handle<Object> data = Object::New ();
       data->Set (String::New ("length"), Int32::New (size), ReadOnly);
       data->SetIndexedPropertiesToExternalArrayData (buffer,
