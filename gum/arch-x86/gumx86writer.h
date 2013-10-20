@@ -187,7 +187,7 @@ void gum_x86_writer_put_jcc_near_label (GumX86Writer * self, guint8 opcode, gcon
 
 void gum_x86_writer_put_add_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
 void gum_x86_writer_put_add_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
-void gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_address);
+void gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);
 void gum_x86_writer_put_sub_reg_imm (GumX86Writer * self, GumCpuReg reg, gssize imm_value);
 void gum_x86_writer_put_sub_reg_reg (GumX86Writer * self, GumCpuReg dst_reg, GumCpuReg src_reg);
 void gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self, GumCpuReg dst_reg, GumAddress src_address);

@@ -914,7 +914,7 @@ gum_x86_writer_put_add_reg_reg (GumX86Writer * self,
 void
 gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self,
                                      GumCpuReg dst_reg,
-                                     GumCpuReg src_address)
+                                     GumAddress src_address)
 {
   GumCpuRegInfo dst;
 
