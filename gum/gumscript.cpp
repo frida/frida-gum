@@ -436,9 +436,9 @@ static gboolean gum_script_value_from_ffi_type (GumScript * self,
     Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
 static gboolean gum_script_callbacks_get (Handle<Object> callbacks,
-    const gchar * name, Local<Function> * callback_function);
+    const gchar * name, Handle<Function> * callback_function);
 static gboolean gum_script_callbacks_get_opt (Handle<Object> callbacks,
-    const gchar * name, Local<Function> * callback_function);
+    const gchar * name, Handle<Function> * callback_function);
 static gboolean gum_script_flags_get (Handle<Object> flags,
     const gchar * name);
 static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
@@ -3623,7 +3623,7 @@ gum_script_value_from_ffi_type (GumScript * self,
 static gboolean
 gum_script_callbacks_get (Handle<Object> callbacks,
                           const gchar * name,
-                          Local<Function> * callback_function)
+                          Handle<Function> * callback_function)
 {
   if (!gum_script_callbacks_get_opt (callbacks, name, callback_function))
     return FALSE;
@@ -3643,7 +3643,7 @@ gum_script_callbacks_get (Handle<Object> callbacks,
 static gboolean
 gum_script_callbacks_get_opt (Handle<Object> callbacks,
                               const gchar * name,
-                              Local<Function> * callback_function)
+                              Handle<Function> * callback_function)
 {
   Local<Value> val = callbacks->Get (String::New (name));
   if (!val->IsUndefined ())
