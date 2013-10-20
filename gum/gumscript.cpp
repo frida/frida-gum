@@ -24,6 +24,7 @@
 #include "gumprocess.h"
 #include "gumscript-priv.h"
 #include "gumscripteventsink.h"
+#include "gumscriptpointer.h"
 #include "gumscriptscope.h"
 #include "gumtls.h"
 #ifdef G_OS_WIN32
@@ -442,11 +443,6 @@ static gboolean gum_script_flags_get (Handle<Object> flags,
     const gchar * name);
 static gboolean gum_script_page_protection_get (Handle<Value> prot_val,
     GumPageProtection * prot);
-
-static Handle<Object> gum_script_pointer_new (GumScript * self,
-    gpointer address);
-static gboolean gum_script_pointer_get (GumScript * self, Handle<Value> value,
-    gpointer * target);
 
 G_DEFINE_TYPE_EXTENDED (GumScript,
                         gum_script,
@@ -1377,11 +1373,11 @@ gum_script_on_native_pointer_add (const Arguments & args)
   {
     guint64 rhs = reinterpret_cast<guint64> (
         args[0]->ToObject ()->GetPointerFromInternalField (0));
-    return gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs + rhs));
+    return _gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs + rhs));
   }
   else
   {
-    return gum_script_pointer_new (self,
+    return _gum_script_pointer_new (self,
         GSIZE_TO_POINTER (lhs + args[0]->ToInteger ()->Value ()));
   }
 }
@@ -1397,11 +1393,11 @@ gum_script_on_native_pointer_sub (const Arguments & args)
   {
     guint64 rhs = reinterpret_cast<guint64> (
         args[0]->ToObject ()->GetPointerFromInternalField (0));
-    return gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs - rhs));
+    return _gum_script_pointer_new (self, GSIZE_TO_POINTER (lhs - rhs));
   }
   else
   {
-    return gum_script_pointer_new (self,
+    return _gum_script_pointer_new (self,
         GSIZE_TO_POINTER (lhs - args[0]->ToInteger ()->Value ()));
   }
 }
@@ -1472,7 +1468,7 @@ gum_script_on_new_native_function (const Arguments & args)
 
   func = g_slice_new0 (GumFFIFunction);
 
-  if (!gum_script_pointer_get (self, args[0], &func->fn))
+  if (!_gum_script_pointer_get (self, args[0], &func->fn))
     goto error;
 
   rtype_value = args[1];
@@ -1721,8 +1717,10 @@ gum_script_cpu_context_to_object (GumScript * self,
   sp = ctx->rsp;
 #endif
 
-  result->Set (String::New ("pc"), gum_script_pointer_new (self, GSIZE_TO_POINTER (pc)), ReadOnly);
-  result->Set (String::New ("sp"), gum_script_pointer_new (self, GSIZE_TO_POINTER (sp)), ReadOnly);
+  result->Set (String::New ("pc"),
+      _gum_script_pointer_new (self, GSIZE_TO_POINTER (pc)), ReadOnly);
+  result->Set (String::New ("sp"),
+      _gum_script_pointer_new (self, GSIZE_TO_POINTER (sp)), ReadOnly);
 
   return result;
 }
@@ -1768,7 +1766,8 @@ gum_script_process_module_match (const gchar * name,
 
   Handle<Value> argv[] = {
     String::New (name),
-    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (range->base_address)),
+    _gum_script_pointer_new (ctx->script,
+        GSIZE_TO_POINTER (range->base_address)),
     Integer::NewFromUnsigned (range->size),
     String::New (path)
   };
@@ -1835,7 +1834,7 @@ gum_script_range_match (const GumMemoryRange * range,
     prot_str[2] = 'x';
 
   Handle<Value> argv[] = {
-    gum_script_pointer_new (ctx->script,
+    _gum_script_pointer_new (ctx->script,
         GSIZE_TO_POINTER (range->base_address)),
     Integer::NewFromUnsigned (range->size),
     String::New (prot_str)
@@ -1920,7 +1919,7 @@ gum_script_module_export_match (const gchar * name,
 
   Handle<Value> argv[] = {
     String::New (name),
-    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address))
+    _gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address))
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
 
@@ -1997,7 +1996,7 @@ gum_script_on_module_find_base_address (const Arguments & args)
   if (raw_address == 0)
     return Null ();
 
-  return gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
+  return _gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
 }
 
 static Handle<Value>
@@ -2030,7 +2029,7 @@ gum_script_on_module_find_export_by_name (const Arguments & args)
   if (raw_address == 0)
     return Null ();
 
-  return gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
+  return _gum_script_pointer_new (self, GSIZE_TO_POINTER (raw_address));
 }
 
 static Handle<Value>
@@ -2040,7 +2039,7 @@ gum_script_on_interceptor_attach (const Arguments & args)
   GumScriptPrivate * priv = self->priv;
 
   gpointer target;
-  if (!gum_script_pointer_get (self, args[0], &target))
+  if (!_gum_script_pointer_get (self, args[0], &target))
     return Undefined ();
 
   Local<Value> callbacks_value = args[1];
@@ -2098,7 +2097,7 @@ gum_script_memory_do_read (const Arguments & args,
   Handle<Value> result;
 
   gpointer address;
-  if (!gum_script_pointer_get (self, args[0], &address))
+  if (!_gum_script_pointer_get (self, args[0], &address))
     return Undefined ();
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
@@ -2108,7 +2107,7 @@ gum_script_memory_do_read (const Arguments & args,
     switch (type)
     {
       case GUM_MEMORY_VALUE_POINTER:
-        result = gum_script_pointer_new (self, *static_cast<const gpointer *> (
+        result = _gum_script_pointer_new (self, *static_cast<const gpointer *> (
             address));
         break;
       case GUM_MEMORY_VALUE_S8:
@@ -2295,7 +2294,7 @@ gum_script_memory_do_write (const Arguments & args,
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
 
   gpointer address;
-  if (!gum_script_pointer_get (self, args[0], &address))
+  if (!_gum_script_pointer_get (self, args[0], &address))
     return Undefined ();
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
@@ -2307,7 +2306,7 @@ gum_script_memory_do_write (const Arguments & args,
       case GUM_MEMORY_VALUE_POINTER:
       {
         gpointer value;
-        if (gum_script_pointer_get (self, args[1], &value))
+        if (_gum_script_pointer_get (self, args[1], &value))
           *static_cast<gpointer *> (address) = value;
         break;
       }
@@ -2448,7 +2447,7 @@ gum_script_on_memory_scan (const Arguments & args)
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
 
   gpointer address;
-  if (!gum_script_pointer_get (self, args[0], &address))
+  if (!_gum_script_pointer_get (self, args[0], &address))
     return Undefined ();
   GumMemoryRange range;
   range.base_address = GUM_ADDRESS (address);
@@ -2583,7 +2582,7 @@ gum_script_process_scan_match (GumAddress address,
   ScriptScope scope (ctx->script);
 
   Handle<Value> argv[] = {
-    gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address)),
+    _gum_script_pointer_new (ctx->script, GSIZE_TO_POINTER (address)),
     Integer::NewFromUnsigned (size)
   };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
@@ -2611,7 +2610,7 @@ gum_script_on_memory_alloc (const Arguments & args)
   }
 
   gpointer block = g_malloc (size);
-  Handle<Object> instance = gum_script_pointer_new (self, block);
+  Handle<Object> instance = _gum_script_pointer_new (self, block);
 
   Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (block, gum_script_on_free_malloc_pointer);
@@ -2734,7 +2733,7 @@ gum_script_on_memory_alloc_ansi_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
-  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
+  Handle<Object> instance = _gum_script_pointer_new (self, str_heap);
 
   Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
@@ -2791,7 +2790,7 @@ gum_script_on_memory_alloc_utf8_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = g_strdup (*str);
-  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
+  Handle<Object> instance = _gum_script_pointer_new (self, str_heap);
 
   Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
@@ -2807,7 +2806,7 @@ gum_script_on_memory_alloc_utf16_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, NULL, NULL);
-  Handle<Object> instance = gum_script_pointer_new (self, str_heap);
+  Handle<Object> instance = _gum_script_pointer_new (self, str_heap);
 
   Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
@@ -3167,7 +3166,7 @@ gum_script_on_stalker_add_call_probe (const Arguments & args)
   GumProbeId id;
 
   gpointer target_address;
-  if (!gum_script_pointer_get (self, args[0], &target_address))
+  if (!_gum_script_pointer_get (self, args[0], &target_address))
     return Undefined ();
 
   Local<Value> callback_value = args[1];
@@ -3274,7 +3273,7 @@ gum_script_probe_args_on_get_nth (uint32_t index,
   value = stack_argument[index];
 #endif
 
-  return gum_script_pointer_new (self, GSIZE_TO_POINTER (value));
+  return _gum_script_pointer_new (self, GSIZE_TO_POINTER (value));
 }
 
 static void
@@ -3326,7 +3325,7 @@ gum_script_on_leave (GumInvocationListener * listener,
   if (!entry->on_leave.IsEmpty ())
   {
     gpointer raw_value = gum_invocation_context_get_return_value (context);
-    Handle<Object> return_value (gum_script_pointer_new (self, raw_value));
+    Handle<Object> return_value (_gum_script_pointer_new (self, raw_value));
 
     Handle<Value> argv[] = { return_value };
     entry->on_leave->Call (receiver, 1, argv);
@@ -3342,7 +3341,7 @@ gum_script_invocation_args_on_get_nth (uint32_t index,
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (info.Data ()));
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
       info.This ()->GetPointerFromInternalField (0));
-  return gum_script_pointer_new (self,
+  return _gum_script_pointer_new (self,
       gum_invocation_context_get_nth_argument (ctx, index));
 }
 
@@ -3356,7 +3355,7 @@ gum_script_invocation_args_on_set_nth (uint32_t index,
       info.This ()->GetPointerFromInternalField (0));
 
   gpointer raw_value;
-  if (!gum_script_pointer_get (self, value, &raw_value))
+  if (!_gum_script_pointer_get (self, value, &raw_value))
     return Undefined ();
 
   gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
@@ -3456,7 +3455,7 @@ gum_script_value_to_ffi_type (GumScript * self,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (!gum_script_pointer_get (self, svalue, &value->v_pointer))
+    if (!_gum_script_pointer_get (self, svalue, &value->v_pointer))
       return FALSE;
   }
   else if (type == &ffi_type_sint)
@@ -3545,7 +3544,7 @@ gum_script_value_from_ffi_type (GumScript * self,
   }
   else if (type == &ffi_type_pointer)
   {
-    *svalue = gum_script_pointer_new (self, value->v_pointer);
+    *svalue = _gum_script_pointer_new (self, value->v_pointer);
   }
   else if (type == &ffi_type_sint)
   {
@@ -3710,9 +3709,9 @@ gum_script_page_protection_get (Handle<Value> prot_val,
   return TRUE;
 }
 
-static Handle<Object>
-gum_script_pointer_new (GumScript * self,
-                        gpointer address)
+Handle<Object>
+_gum_script_pointer_new (GumScript * self,
+                         gpointer address)
 {
   Local<Object> native_pointer_object =
       self->priv->native_pointer_value->Clone ();
@@ -3720,10 +3719,10 @@ gum_script_pointer_new (GumScript * self,
   return native_pointer_object;
 }
 
-static gboolean
-gum_script_pointer_get (GumScript * self,
-                        Handle<Value> value,
-                        gpointer * target)
+gboolean
+_gum_script_pointer_get (GumScript * self,
+                         Handle<Value> value,
+                         gpointer * target)
 {
   if (!self->priv->native_pointer->HasInstance (value))
   {
