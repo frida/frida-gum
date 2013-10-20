@@ -306,6 +306,9 @@ SCRIPT_TESTCASE (execution_can_be_traced)
     "  },"
     "  onReceive: function(events) {"
     "    send(events.length > 0);"
+    "  },"
+    "  onCallSummary: function(summary) {"
+    "    send(Object.keys(summary).length > 0);"
     "  }"
     "});"
     "recv('stop', function(message) {"
@@ -316,6 +319,7 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   POST_MESSAGE ("{\"type\":\"stop\"}");
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

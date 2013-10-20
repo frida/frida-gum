@@ -3063,8 +3063,12 @@ gum_script_on_stalker_follow (const Arguments & args)
       break;
   }
 
-  GumEventType event_mask = GUM_NOTHING;
-  Local<Function> on_receive;
+  GumScriptEventSinkOptions so;
+  so.script = self;
+  so.main_context = priv->main_context;
+  so.event_mask = GUM_NOTHING;
+  so.queue_capacity = priv->stalker_queue_capacity;
+  so.queue_drain_interval = priv->stalker_queue_drain_interval;
 
   if (!options_value.IsEmpty ())
   {
@@ -3091,19 +3095,25 @@ gum_script_on_stalker_follow (const Arguments & args)
       Local<Object> events (Local<Object>::Cast (events_value));
 
       if (gum_script_flags_get (events, "call"))
-        event_mask |= GUM_CALL;
+        so.event_mask |= GUM_CALL;
 
       if (gum_script_flags_get (events, "ret"))
-        event_mask |= GUM_RET;
+        so.event_mask |= GUM_RET;
 
       if (gum_script_flags_get (events, "exec"))
-        event_mask |= GUM_EXEC;
+        so.event_mask |= GUM_EXEC;
     }
 
-    if (event_mask != GUM_NOTHING &&
-        !gum_script_callbacks_get (options, "onReceive", &on_receive))
+    if (so.event_mask != GUM_NOTHING &&
+        !gum_script_callbacks_get_opt (options, "onReceive", &so.on_receive))
     {
       return Undefined ();
+    }
+
+    if ((so.event_mask & GUM_CALL) != 0)
+    {
+      gum_script_callbacks_get_opt (options, "onCallSummary",
+          &so.on_call_summary);
     }
   }
 
@@ -3113,9 +3123,7 @@ gum_script_on_stalker_follow (const Arguments & args)
     priv->stalker_sink = NULL;
   }
 
-  priv->stalker_sink = gum_script_event_sink_new (self, priv->main_context,
-      event_mask, on_receive, priv->stalker_queue_capacity,
-      priv->stalker_queue_drain_interval);
+  priv->stalker_sink = gum_script_event_sink_new (&so);
   if (thread_id == gum_process_get_current_thread_id ())
   {
     priv->stalker_pending_follow_level = 1;

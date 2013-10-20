@@ -42,6 +42,7 @@
 
 typedef struct _GumScriptEventSink GumScriptEventSink;
 typedef struct _GumScriptEventSinkClass GumScriptEventSinkClass;
+typedef struct _GumScriptEventSinkOptions GumScriptEventSinkOptions;
 
 struct _GumScriptEventSink
 {
@@ -55,6 +56,7 @@ struct _GumScriptEventSink
   GMainContext * main_context;
   GumEventType event_mask;
   v8::Persistent<v8::Function> on_receive;
+  v8::Persistent<v8::Function> on_call_summary;
   GSource * source;
 };
 
@@ -63,14 +65,23 @@ struct _GumScriptEventSinkClass
   GObjectClass parent_class;
 };
 
+struct _GumScriptEventSinkOptions
+{
+  GumScript * script;
+  GMainContext * main_context;
+  GumEventType event_mask;
+  guint queue_capacity;
+  guint queue_drain_interval;
+  v8::Handle<v8::Function> on_receive;
+  v8::Handle<v8::Function> on_call_summary;
+};
+
 G_BEGIN_DECLS
 
 GType gum_script_event_sink_get_type (void) G_GNUC_CONST;
 
-GumEventSink * gum_script_event_sink_new (GumScript * script,
-    GMainContext * main_context, GumEventType event_mask,
-    v8::Handle<v8::Function> on_receive, guint queue_capacity,
-    guint queue_drain_interval);
+GumEventSink * gum_script_event_sink_new (
+    const GumScriptEventSinkOptions * options);
 
 G_END_DECLS
 
