@@ -26,7 +26,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ucontext.h>
+#ifndef HAVE_ANDROID
+# include <ucontext.h>
+#endif
 #include <unistd.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -67,34 +69,40 @@ struct _GumFindExportContext
   const gchar * symbol_name;
 };
 
+#ifndef HAVE_ANDROID
 static void gum_do_modify_thread (int sig, siginfo_t * siginfo,
     void * context);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+#endif
 
 static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
     const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (const gchar * name,
     GumAddress address, gpointer user_data);
 
+#ifndef HAVE_ANDROID
 static void gum_cpu_context_from_linux (const ucontext_t * uc,
     GumCpuContext * ctx);
 static void gum_cpu_context_to_linux (const GumCpuContext * ctx,
     ucontext_t * uc);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
+#endif
 static GumPageProtection gum_page_protection_from_proc_perms_string (
     const gchar * perms);
 
+#ifndef HAVE_ANDROID
 G_LOCK_DEFINE_STATIC (gum_modify_thread);
 static volatile gboolean gum_modify_thread_did_load_cpu_context;
 static volatile gboolean gum_modify_thread_did_modify_cpu_context;
 static volatile gboolean gum_modify_thread_did_store_cpu_context;
 static GumCpuContext gum_modify_thread_cpu_context;
+#endif
 
 GumThreadId
 gum_process_get_current_thread_id (void)
 {
-  return syscall (SYS_gettid);
+  return syscall (__NR_gettid);
 }
 
 gboolean
@@ -103,6 +111,7 @@ gum_process_modify_thread (GumThreadId thread_id,
                            gpointer user_data)
 {
   gboolean success = FALSE;
+#ifndef HAVE_ANDROID
   struct sigaction action, old_action;
 
   if (thread_id == gum_process_get_current_thread_id ())
@@ -155,10 +164,12 @@ gum_process_modify_thread (GumThreadId thread_id,
 
     G_UNLOCK (gum_modify_thread);
   }
+#endif
 
   return success;
 }
 
+#ifndef HAVE_ANDROID
 static void
 gum_do_modify_thread (int sig,
                       siginfo_t * siginfo,
@@ -173,11 +184,13 @@ gum_do_modify_thread (int sig,
   gum_cpu_context_to_linux (&gum_modify_thread_cpu_context, uc);
   gum_modify_thread_did_store_cpu_context = TRUE;
 }
+#endif
 
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
                                gpointer user_data)
 {
+#ifndef HAVE_ANDROID
   GDir * dir;
   const gchar * name;
   gboolean carry_on = TRUE;
@@ -211,8 +224,10 @@ gum_process_enumerate_threads (GumFoundThreadFunc func,
   }
 
   g_dir_close (dir);
+#endif
 }
 
+#ifndef HAVE_ANDROID
 static void
 gum_store_cpu_context (GumThreadId thread_id,
                        GumCpuContext * cpu_context,
@@ -220,6 +235,7 @@ gum_store_cpu_context (GumThreadId thread_id,
 {
   memcpy (user_data, cpu_context, sizeof (GumCpuContext));
 }
+#endif
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
@@ -536,6 +552,8 @@ gum_store_address_if_export_name_matches (const gchar * name,
   return TRUE;
 }
 
+#ifndef HAVE_ANDROID
+
 static void
 gum_cpu_context_from_linux (const ucontext_t * uc,
                             GumCpuContext * ctx)
@@ -640,6 +658,8 @@ gum_thread_state_from_proc_status_character (gchar c)
       break;
   }
 }
+
+#endif /* !HAVE_ANDROID */
 
 static GumPageProtection
 gum_page_protection_from_proc_perms_string (const gchar * perms)
