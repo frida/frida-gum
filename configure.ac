@@ -27,7 +27,7 @@ case $target_cpu in
   i?86|x86*)
     HAVE_I386=yes
   ;;
-  arm)
+  arm*)
     HAVE_ARM=yes
   ;;
 esac
