@@ -975,7 +975,7 @@ gum_script_from_string (const gchar * source,
     Context::Scope context_scope (priv->context);
 
     gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
-        source, NULL);
+        source, static_cast<void *> (NULL));
     Handle<String> source_value = String::New (combined_source);
     g_free (combined_source);
     TryCatch trycatch;
