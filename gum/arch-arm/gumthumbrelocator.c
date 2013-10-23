@@ -346,9 +346,7 @@ gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
   else
     temp_reg = GUM_AREG_R1;
 
-  absolute_pc = GPOINTER_TO_SIZE (ctx->end);
-  if (absolute_pc % 4 != 0)
-    absolute_pc += 2;
+  absolute_pc = GPOINTER_TO_SIZE (ctx->start) + 4;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, absolute_pc);
