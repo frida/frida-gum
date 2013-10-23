@@ -259,11 +259,13 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
 
 static gint gum_toupper (gchar * str, gint limit);
 
+#ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,
     GSocketConnection * connection, GObject * source_object,
     gpointer user_data);
 static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
+#endif
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 

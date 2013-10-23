@@ -65,7 +65,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
+#ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
+#endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
@@ -74,10 +76,14 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
+#ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
+#endif
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+#ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
+#endif
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (native_function_can_be_invoked)
@@ -164,6 +170,8 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   close (fd);
 #endif
 }
+
+#ifndef HAVE_ANDROID
 
 SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
 {
@@ -284,6 +292,10 @@ on_read_ready (GObject * source_object,
   g_clear_error (&error);
 }
 
+#endif /* !HAVE_ANDROID */
+
+#ifdef HAVE_I386
+
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
   GMainContext * context;
@@ -344,6 +356,8 @@ SCRIPT_TESTCASE (call_can_be_probed)
   POST_MESSAGE ("{\"type\":\"stop\"}");
 }
 
+#endif /* HAVE_I386 */
+
 SCRIPT_TESTCASE (process_arch_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.arch);");
@@ -370,6 +384,7 @@ SCRIPT_TESTCASE (process_platform_is_available)
 #endif
 }
 
+#ifndef HAVE_ANDROID
 SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -385,6 +400,7 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
+#endif
 
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {

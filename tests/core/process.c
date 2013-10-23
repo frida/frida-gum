@@ -30,7 +30,9 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
+#ifndef HAVE_ANDROID
   PROCESS_TESTENTRY (process_threads)
+#endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
   PROCESS_TESTENTRY (module_exports)
@@ -55,14 +57,18 @@ static gboolean store_export_address_if_malloc (const gchar * name,
     GumAddress address, gpointer user_data);
 #endif
 
+#ifndef HAVE_ANDROID
 static gboolean thread_found_cb (GumThreadDetails * details,
     gpointer user_data);
+#endif
 static gboolean module_found_cb (const gchar * name,
     const GumMemoryRange * range, const gchar * path, gpointer user_data);
 static gboolean export_found_cb (const gchar * name, GumAddress address,
     gpointer user_data);
 static gboolean range_found_cb (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
+
+#ifndef HAVE_ANDROID
 
 PROCESS_TESTCASE (process_threads)
 {
@@ -78,6 +84,8 @@ PROCESS_TESTCASE (process_threads)
   gum_process_enumerate_threads (thread_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
+
+#endif
 
 PROCESS_TESTCASE (process_modules)
 {
@@ -271,6 +279,8 @@ store_export_address_if_malloc (const gchar * name,
 
 #endif
 
+#ifndef HAVE_ANDROID
+
 static gboolean
 thread_found_cb (GumThreadDetails * details,
                  gpointer user_data)
@@ -281,6 +291,8 @@ thread_found_cb (GumThreadDetails * details,
 
   return ctx->value_to_return;
 }
+
+#endif
 
 static gboolean
 module_found_cb (const gchar * name,
