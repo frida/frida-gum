@@ -259,18 +259,21 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
     guint8 * start, * end;
+    gchar perms[4 + 1] = { 0, };
     gint n;
+    gboolean readable;
     gchar * name;
     GumMemoryRange range;
 
-    n = sscanf (line, "%p-%p %*s %*x %*s %*s %s", &start, &end, path);
-    if (n == 2)
+    n = sscanf (line, "%p-%p %s %*x %*s %*s %s", &start, &end, perms, path);
+    if (n == 3)
       continue;
-    g_assert_cmpint (n, ==, 3);
+    g_assert_cmpint (n, ==, 4);
 
+    readable = perms[0] == 'r';
     if (strcmp (path, prev_path) == 0 || path[0] == '[')
       continue;
-    else if (memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
+    else if (!readable || memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
       continue;
 
     name = g_path_get_basename (path);
