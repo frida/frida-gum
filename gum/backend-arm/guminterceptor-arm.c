@@ -129,7 +129,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
     guint arm_code_size;
 
     /* switch back to ARM mode */
-    if (gum_thumb_writer_offset (&tw) % 4 != 0)
+    if (GPOINTER_TO_SIZE (gum_thumb_writer_cur (&tw)) % 4 != 0)
       gum_thumb_writer_put_nop (&tw);
     gum_thumb_writer_put_bx_reg (&tw, GUM_AREG_PC);
     gum_thumb_writer_put_nop (&tw);
