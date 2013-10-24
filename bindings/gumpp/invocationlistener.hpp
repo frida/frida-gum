@@ -17,6 +17,7 @@ namespace Gum
   {
   public:
     InvocationListenerProxy (InvocationListener * listener);
+    virtual ~InvocationListenerProxy ();
 
     virtual void ref ();
     virtual void unref ();

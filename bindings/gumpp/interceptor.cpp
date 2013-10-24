@@ -19,7 +19,7 @@ namespace Gum
       assign_handle (gum_interceptor_obtain ());
     }
 
-    ~InterceptorImpl ()
+    virtual ~InterceptorImpl ()
     {
       g_mutex_free (mutex);
     }

@@ -33,7 +33,7 @@ ALLOCPROBE_TESTCASE (new_delete)
   guint malloc_count, realloc_count, free_count;
   int * a;
 
-  g_object_set (fixture->ap, "enable-counters", TRUE, NULL);
+  g_object_set (fixture->ap, "enable-counters", TRUE, (void *) NULL);
 
   READ_PROBE_COUNTERS ();
   g_assert_cmpuint (malloc_count, ==, 0);

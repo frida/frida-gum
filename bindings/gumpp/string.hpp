@@ -17,7 +17,7 @@ namespace Gum
       assign_handle (str);
     }
 
-    ~StringImpl ()
+    virtual ~StringImpl ()
     {
       g_free (handle);
     }

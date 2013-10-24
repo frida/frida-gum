@@ -15,6 +15,10 @@ namespace Gum
     {
     }
 
+    virtual ~PodWrapper ()
+    {
+    }
+
     virtual void ref ()
     {
       g_atomic_int_add (&refcount, 1);

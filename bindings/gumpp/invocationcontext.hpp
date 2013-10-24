@@ -16,7 +16,7 @@ namespace Gum
     {
     }
 
-    ~InvocationContextImpl ()
+    virtual ~InvocationContextImpl ()
     {
       delete parent;
     }

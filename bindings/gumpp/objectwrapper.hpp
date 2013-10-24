@@ -14,6 +14,10 @@ namespace Gum
     {
     }
 
+    virtual ~ObjectWrapper ()
+    {
+    }
+
     virtual void ref ()
     {
       g_object_ref (handle);

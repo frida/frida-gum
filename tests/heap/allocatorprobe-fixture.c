@@ -66,7 +66,7 @@ test_allocator_probe_fixture_teardown (TestAllocatorProbeFixture * fixture,
         "malloc-count", &malloc_count,    \
         "realloc-count", &realloc_count,  \
         "free-count", &free_count,        \
-        NULL);
+        (void *) NULL);
 
 G_BEGIN_DECLS
 

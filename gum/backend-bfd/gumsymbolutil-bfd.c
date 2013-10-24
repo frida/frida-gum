@@ -17,8 +17,6 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#define _GNU_SOURCE
-
 #include "gumsymbolutil.h"
 
 #include "gummemory.h"
@@ -96,7 +94,7 @@ gum_symbol_details_from_address (gpointer address,
 
   memset (details, 0, sizeof (GumSymbolDetails));
 
-  details->address = address;
+  details->address = GUM_ADDRESS (address);
 
   module_name = rindex (dl_info.dli_fname, '/');
   if (module_name != NULL)

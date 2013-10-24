@@ -31,6 +31,10 @@ namespace Gum
     cproxy->proxy = this;
   }
 
+  InvocationListenerProxy::~InvocationListenerProxy ()
+  {
+  }
+
   void InvocationListenerProxy::ref ()
   {
     g_object_ref (cproxy);

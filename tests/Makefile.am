@@ -2,7 +2,7 @@ SUBDIRS = \
 	core
 
 if ENABLE_LIBS
-SUBDIRS +=
+SUBDIRS += \
 	heap \
 	prof
 endif
