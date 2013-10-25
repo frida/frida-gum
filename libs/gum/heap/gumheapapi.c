@@ -51,11 +51,19 @@ gum_collect_heap_api_if_crt_module (const gchar * name,
                                     gpointer user_data)
 {
   GumHeapApiList * list = (GumHeapApiList *) user_data;
+  gboolean is_libc_module;
 
   (void) range;
 
-  if (g_ascii_strncasecmp (name, "msvcr", 5) == 0 ||
-      g_ascii_strncasecmp (name, "libSystem.B", 11) == 0)
+#if defined (G_OS_WIN32)
+  is_libc_module = g_ascii_strncasecmp (name, "msvcr", 5) == 0;
+#elif defined (HAVE_DARWIN)
+  is_libc_module = g_ascii_strncasecmp (name, "libSystem.B", 11) == 0;
+#else
+  is_libc_module = strcmp (name, "libc.so") == 0;
+#endif
+
+  if (is_libc_module)
   {
     GumHeapApi api = { 0, };
     GModule * module;
@@ -67,6 +75,7 @@ gum_collect_heap_api_if_crt_module (const gchar * name,
     GUM_API_INIT_FIELD (realloc);
     GUM_API_INIT_FIELD (free);
 
+#ifdef G_OS_WIN32
     if (g_strncasecmp (name + strlen (name) - 5, "d.dll", 5) == 0)
     {
       GUM_API_INIT_FIELD (_malloc_dbg);
@@ -74,6 +83,7 @@ gum_collect_heap_api_if_crt_module (const gchar * name,
       GUM_API_INIT_FIELD (_realloc_dbg);
       GUM_API_INIT_FIELD (_free_dbg);
     }
+#endif
 
     g_module_close (module);
 
