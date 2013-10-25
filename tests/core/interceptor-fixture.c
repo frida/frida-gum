@@ -303,3 +303,11 @@ listener_context_init (ListenerContext * self)
 {
   (void) self;
 }
+
+#ifdef G_OS_WIN32
+static gpointer hit_target_function_repeatedly (gpointer data);
+#endif
+static gpointer replacement_malloc (gsize size);
+static gpointer replacement_malloc_calling_malloc_and_replaced_free (
+    gsize size);
+static void replacement_free_doing_nothing (gpointer mem);

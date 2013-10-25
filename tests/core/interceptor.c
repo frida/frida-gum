@@ -59,19 +59,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
   INTERCEPTOR_TESTENTRY (function_data)
 
-#ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
-#endif
 TEST_LIST_END ()
-
-#ifdef G_OS_WIN32
-static gpointer hit_target_function_repeatedly (gpointer data);
-static gpointer replacement_malloc (gsize size);
-static gpointer replacement_malloc_calling_malloc_and_replaced_free (
-    gsize size);
-static void replacement_free_doing_nothing (gpointer mem);
-#endif
 
 INTERCEPTOR_TESTCASE (attach_one)
 {
@@ -500,8 +490,6 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 
 #endif /* HAVE_I386 */
 
-#ifdef G_OS_WIN32
-
 INTERCEPTOR_TESTCASE (replace_function)
 {
   guint counter = 0;
@@ -553,6 +541,8 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_free (ret);
 }
 
+#ifdef G_OS_WIN32
+
 static gpointer
 hit_target_function_repeatedly (gpointer data)
 {
@@ -571,6 +561,8 @@ hit_target_function_repeatedly (gpointer data)
 
   return NULL;
 }
+
+#endif
 
 typedef gpointer (* MallocFunc) (gsize size);
 
@@ -637,6 +629,4 @@ replacement_free_doing_nothing (gpointer mem)
       gum_invocation_context_get_replacement_function_data (ctx);
   (*counter)++;
 }
-
-#endif /* G_OS_WIN32 */
 

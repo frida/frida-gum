@@ -82,7 +82,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_ADDRESS (_gum_function_context_on_enter));
   gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R3);
 
-  /* restore LR */
+  /* update LR to optionally trap the return (up to the C code to decide) */
   gum_thumb_writer_put_ldr_reg_reg_offset (&tw, GUM_AREG_R0,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
   gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_LR, GUM_AREG_R0);
@@ -160,6 +160,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   }
 
   gum_thumb_writer_flush (&tw);
+  g_assert_cmpuint (gum_thumb_writer_offset (&tw),
+      <=, ctx->trampoline_slice->size);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
@@ -194,9 +196,13 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
       GUM_AREG_PC);
 
+  gum_thumb_writer_flush (&tw);
+  g_assert_cmpuint (gum_thumb_writer_offset (&tw),
+      <=, ctx->trampoline_slice->size);
+
   gum_thumb_writer_free (&tw);
 
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM)
+#ifdef HAVE_DARWIN
   gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
       GUM_PAGE_READ | GUM_PAGE_EXECUTE);
 #endif
@@ -206,13 +212,177 @@ void
 _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
                                                gpointer replacement_function)
 {
-  g_assert_not_reached ();
+  gconstpointer skip_label = "gum_interceptor_replacement_skip";
+  gpointer function_address;
+  gboolean is_thumb;
+  GumThumbWriter tw;
+  guint reloc_bytes;
+
+  function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
+  g_assert ((GPOINTER_TO_SIZE (function_address) & 0x2) == 0);
+
+  ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
+      function_address);
+
+  gum_thumb_writer_init (&tw, ctx->trampoline_slice->data);
+
+  /*
+   * Generate on_leave trampoline
+   */
+  ctx->on_leave_trampoline = gum_thumb_writer_cur (&tw) + 1;
+  gum_thumb_writer_put_push_regs (&tw, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0,
+      GUM_ADDRESS (_gum_function_context_end_invocation));
+  gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R0);
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_LR, GUM_AREG_R0);
+  gum_thumb_writer_put_pop_regs (&tw, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_bx_reg (&tw, GUM_AREG_LR);
+
+  /*
+   * Generate on_enter trampoline
+   */
+  ctx->on_enter_trampoline = gum_thumb_writer_cur (&tw) + 1;
+
+  if (!is_thumb)
+  {
+    /* build high part of GumCpuContext */
+    gum_thumb_writer_put_push_regs (&tw, 8 + 1,
+        GUM_AREG_R0, GUM_AREG_R1, GUM_AREG_R2, GUM_AREG_R3,
+        GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
+        GUM_AREG_LR);
+  }
+
+  /* build low part of GumCpuContext */
+  gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_AREG_R1, GUM_AREG_SP, 9 * 4);
+  gum_thumb_writer_put_push_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_R1);
+
+  /* check if we can invoke replacement implementation */
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_reg_offset (&tw, GUM_AREG_R1,
+      GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_R2, GUM_AREG_SP);
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R3,
+      GUM_ADDRESS (_gum_function_context_try_begin_invocation));
+  gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R3);
+  gum_thumb_writer_put_cbz_reg_label (&tw, GUM_AREG_R0, skip_label);
+
+  /* update LR to trap the return */
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0,
+      GUM_ADDRESS (ctx->on_leave_trampoline));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_LR, GUM_AREG_R0);
+  /* replace LR in the GumCpuContext on stack so we can pop it into PC */
+  gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0,
+      GUM_ADDRESS (replacement_function));
+  gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_AREG_R0,
+      GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+
+  /* clear PC and SP from GumCpuContext */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 8);
+  /* restore r[0-8] and jump to replacement_function */
+  gum_thumb_writer_put_pop_regs (&tw, 8 + 1,
+      GUM_AREG_R0, GUM_AREG_R1, GUM_AREG_R2, GUM_AREG_R3,
+      GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
+      GUM_AREG_PC);
+
+  /* call from within the replacement — let the call pass through */
+  gum_thumb_writer_put_label (&tw, skip_label);
+
+  /* restore LR */
+  gum_thumb_writer_put_ldr_reg_reg_offset (&tw, GUM_AREG_R0,
+      GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_LR, GUM_AREG_R0);
+
+  /* clear PC and SP from GumCpuContext */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 8);
+  /* restore r[0-8] */
+  gum_thumb_writer_put_pop_regs (&tw, 8,
+      GUM_AREG_R0, GUM_AREG_R1, GUM_AREG_R2, GUM_AREG_R3,
+      GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7);
+  /* clear LR */
+  gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 4);
+
+  if (is_thumb)
+  {
+    GumThumbRelocator tr;
+
+    gum_thumb_relocator_init (&tr, function_address, &tw);
+
+    do
+    {
+      reloc_bytes = gum_thumb_relocator_read_one (&tr, NULL);
+      g_assert_cmpuint (reloc_bytes, !=, 0);
+    }
+    while (reloc_bytes < GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+
+    gum_thumb_relocator_write_all (&tr);
+
+    gum_thumb_relocator_free (&tr);
+
+    /* and finally, jump back to the next instruction where prologue was */
+    gum_thumb_writer_put_push_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_R1);
+    gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0,
+        GUM_ADDRESS (function_address + reloc_bytes + 1));
+    gum_thumb_writer_put_str_reg_reg_offset (&tw, GUM_AREG_R0,
+        GUM_AREG_SP, 4);
+    gum_thumb_writer_put_pop_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_PC);
+  }
+  else
+  {
+    GumArmWriter aw;
+    GumArmRelocator ar;
+    guint arm_code_size;
+
+    /* switch back to ARM mode */
+    if (GPOINTER_TO_SIZE (gum_thumb_writer_cur (&tw)) % 4 != 0)
+      gum_thumb_writer_put_nop (&tw);
+    gum_thumb_writer_put_bx_reg (&tw, GUM_AREG_PC);
+    gum_thumb_writer_put_nop (&tw);
+
+    gum_arm_writer_init (&aw, gum_thumb_writer_cur (&tw));
+    gum_arm_relocator_init (&ar, function_address, &aw);
+
+    do
+    {
+      reloc_bytes = gum_arm_relocator_read_one (&ar, NULL);
+      g_assert_cmpuint (reloc_bytes, !=, 0);
+    }
+    while (reloc_bytes < GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
+
+    gum_arm_relocator_write_all (&ar);
+
+    gum_arm_relocator_free (&ar);
+
+    /* jump back */
+    gum_arm_writer_put_ldr_reg_address (&aw, GUM_AREG_PC,
+        GUM_ADDRESS (function_address + reloc_bytes));
+
+    gum_arm_writer_flush (&aw);
+    arm_code_size = gum_arm_writer_offset (&aw);
+    gum_arm_writer_free (&aw);
+
+    gum_thumb_writer_skip (&tw, arm_code_size);
+  }
+
+  gum_thumb_writer_flush (&tw);
+  g_assert_cmpuint (gum_thumb_writer_offset (&tw),
+      <=, ctx->trampoline_slice->size);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+
+  gum_thumb_writer_free (&tw);
+
+#ifdef HAVE_DARWIN
+  gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
+      GUM_PAGE_READ | GUM_PAGE_EXECUTE);
+#endif
 }
 
 void
 _gum_function_context_destroy_trampoline (FunctionContext * ctx)
 {
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM)
+#ifdef HAVE_DARWIN
   gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
       GUM_PAGE_READ | GUM_PAGE_WRITE);
 #endif
