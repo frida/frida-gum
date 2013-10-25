@@ -130,10 +130,12 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_LIBS
   /* Heap */
   TEST_RUN_LIST (allocation_tracker);
+#ifdef G_OS_WIN32
   TEST_RUN_LIST (allocator_probe);
   TEST_RUN_LIST (allocator_probe_cxx);
   TEST_RUN_LIST (cobjecttracker);
   TEST_RUN_LIST (instancetracker);
+#endif
   TEST_RUN_LIST (pagepool);
 #ifndef G_OS_WIN32
   if (gum_is_debugger_present ())
@@ -150,11 +152,15 @@ main (gint argc, gchar * argv[])
   {
     TEST_RUN_LIST (boundschecker);
   }
+#ifdef G_OS_WIN32
   TEST_RUN_LIST (sanitychecker);
+#endif
 
   /* Prof */
   TEST_RUN_LIST (sampler);
+#ifdef G_OS_WIN32
   TEST_RUN_LIST (profiler);
+#endif
 #endif
 
   /* GUM++ */

@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "instancetracker-fixture.c"
 
 #include <string.h>
@@ -277,3 +279,5 @@ walk_instance (GumInstanceDetails * id, gpointer user_data)
 
   ctx->call_count++;
 }
+
+#endif /* G_OS_WIN32 */

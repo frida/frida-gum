@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "allocatorprobe-fixture.c"
 
 G_BEGIN_DECLS
@@ -105,3 +107,5 @@ concurrency_torture_helper (gpointer data)
 }
 
 G_END_DECLS
+
+#endif /* G_OS_WIN32 */

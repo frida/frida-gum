@@ -25,6 +25,12 @@
 #define SYMUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
+#ifdef HAVE_ARM
+# define FUNCTION_PTR_ADDRESS(f) (GPOINTER_TO_SIZE (f) & ~1)
+#else
+# define FUNCTION_PTR_ADDRESS(f) GPOINTER_TO_SIZE (f)
+#endif
+
 TEST_LIST_BEGIN (symbolutil)
 #ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
@@ -75,7 +81,7 @@ SYMUTIL_TESTCASE (find_local_static_function)
 
   function_address = gum_find_function ("gum_dummy_function_0");
   g_assert_cmphex (GPOINTER_TO_SIZE (function_address), ==,
-      GPOINTER_TO_SIZE (gum_dummy_function_0));
+      FUNCTION_PTR_ADDRESS (gum_dummy_function_0));
 }
 
 SYMUTIL_TESTCASE (find_functions_named)
@@ -97,7 +103,7 @@ SYMUTIL_TESTCASE (find_functions_matching)
 
   a = g_array_index (functions, gpointer, 0);
   b = g_array_index (functions, gpointer, 1);
-  if (a != GUM_FUNCPTR_TO_POINTER (gum_dummy_function_0))
+  if (GPOINTER_TO_SIZE (a) != FUNCTION_PTR_ADDRESS (gum_dummy_function_0))
   {
     gpointer hold = a;
 
@@ -106,9 +112,9 @@ SYMUTIL_TESTCASE (find_functions_matching)
   }
 
   g_assert_cmphex (GPOINTER_TO_SIZE (a),
-      ==, GPOINTER_TO_SIZE (gum_dummy_function_0));
+      ==, FUNCTION_PTR_ADDRESS (gum_dummy_function_0));
   g_assert_cmphex (GPOINTER_TO_SIZE (b),
-      ==, GPOINTER_TO_SIZE (gum_dummy_function_1));
+      ==, FUNCTION_PTR_ADDRESS (gum_dummy_function_1));
 
   g_array_free (functions, TRUE);
 }

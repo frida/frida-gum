@@ -17,12 +17,14 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "allocatorprobe-fixture.c"
 
 TEST_LIST_BEGIN (allocator_probe)
   ALLOCPROBE_TESTENTRY (basics)
   ALLOCPROBE_TESTENTRY (ignore_gquark)
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#ifdef _DEBUG
   ALLOCPROBE_TESTENTRY (nonstandard_basics)
   ALLOCPROBE_TESTENTRY (nonstandard_ignored)
 #endif
@@ -102,7 +104,7 @@ ALLOCPROBE_TESTCASE (ignore_gquark)
   DETACH_PROBE ();
 }
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#ifdef _DEBUG
 
 #include <crtdbg.h>
 
@@ -186,7 +188,7 @@ ALLOCPROBE_TESTCASE (gtype_interop)
   g_object_unref (pony);
 }
 
-#if defined (G_OS_WIN32) && defined (_DEBUG)
+#ifdef _DEBUG
 
 static void
 do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
@@ -228,4 +230,6 @@ do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
   g_assert_cmpuint (free_count,    ==, 2 * factor);
 }
 
-#endif
+#endif /* _DEBUG */
+
+#endif /* G_OS_WIN32 */

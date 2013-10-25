@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "cobjecttracker-fixture.c"
 
 TEST_LIST_BEGIN (cobjecttracker)
@@ -121,3 +123,5 @@ COBJTRACKER_TESTCASE (object_list)
 
   gum_cobject_list_free (cobjects);
 }
+
+#endif /* G_OS_WIN32 */

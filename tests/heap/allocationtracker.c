@@ -40,12 +40,14 @@ TEST_LIST_BEGIN (allocation_tracker)
   ALLOCTRACKER_TESTENTRY (memory_usage_without_backtracer_should_be_sensible)
   ALLOCTRACKER_TESTENTRY (memory_usage_with_backtracer_should_be_sensible)
 
+#ifdef G_OS_WIN32
   ALLOCTRACKER_TESTENTRY (backtracer_gtype_interop)
 
   ALLOCTRACKER_TESTENTRY (avoid_heap_priv)
   ALLOCTRACKER_TESTENTRY (avoid_heap_public)
   ALLOCTRACKER_TESTENTRY (hashtable_resize)
   ALLOCTRACKER_TESTENTRY (hashtable_life)
+#endif
 TEST_LIST_END ()
 
 ALLOCTRACKER_TESTCASE (begin)
@@ -467,6 +469,8 @@ ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
   g_assert_cmpuint (total_bytes_after, ==, total_bytes_before);
 }
 
+#ifdef G_OS_WIN32
+
 ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)
 {
   GumBacktracer * backtracer;
@@ -566,3 +570,5 @@ ALLOCTRACKER_TESTCASE (hashtable_life)
 
   g_object_unref (heap_access_counter);
 }
+
+#endif /* G_OS_WIN32 */

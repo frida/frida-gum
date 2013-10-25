@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "sanitychecker-fixture.c"
 
 TEST_LIST_BEGIN (sanitychecker)
@@ -139,3 +141,5 @@ SANITYCHECKER_TESTCASE (checker_itself_does_not_leak)
       GUM_CHECK_BLOCK_LEAKS | GUM_CHECK_INSTANCE_LEAKS | GUM_CHECK_BOUNDS);
   gum_sanity_checker_destroy (checker);
 }
+
+#endif /* G_OS_WIN32 */

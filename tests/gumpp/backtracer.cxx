@@ -71,6 +71,15 @@ public:
 
 GUMPP_TESTCASE (can_get_stack_trace_from_invocation_context)
 {
+  GumBacktracer * backtracer = gum_backtracer_make_default ();
+  if (backtracer == NULL)
+  {
+    g_print ("<skipping, no backtracer support> ");
+    return;
+  }
+  g_object_unref (backtracer);
+  backtracer = NULL;
+
   Gum::RefPtr<Gum::Interceptor> interceptor (Gum::Interceptor_obtain ());
 
   BacktraceTestListener listener;

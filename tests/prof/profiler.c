@@ -18,6 +18,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#ifdef G_OS_WIN32
+
 #include "profiler-fixture.c"
 
 TEST_LIST_BEGIN (profiler)
@@ -375,3 +377,5 @@ PROFILER_TESTCASE (worst_case_info_on_recursion)
   g_assert_cmpstr (gum_profiler_get_worst_case_info_of (fixture->profiler, 0,
       &example_worst_case_recursive), ==, "2");
 }
+
+#endif /* G_OS_WIN32 */
