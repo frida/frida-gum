@@ -31,8 +31,8 @@ typedef enum _GumCpuReg       GumCpuReg;
 typedef enum _GumPtrTarget    GumPtrTarget;
 typedef enum _GumBranchHint   GumBranchHint;
 
-typedef struct _GumLabelMapping GumLabelMapping;
-typedef struct _GumLabelRef GumLabelRef;
+typedef struct _GumX86LabelMapping GumX86LabelMapping;
+typedef struct _GumX86LabelRef GumX86LabelRef;
 
 struct _GumX86Writer
 {
@@ -42,10 +42,10 @@ struct _GumX86Writer
   guint8 * base;
   guint8 * code;
 
-  GumLabelMapping * id_to_address;
+  GumX86LabelMapping * id_to_address;
   guint id_to_address_len;
 
-  GumLabelRef * label_refs;
+  GumX86LabelRef * label_refs;
   guint label_refs_len;
 };
 

@@ -70,23 +70,23 @@ struct _GumCpuRegInfo
   gboolean index_is_extended;
 };
 
-typedef enum _GumLabelRefSize
+typedef enum _GumX86LabelRefSize
 {
   GUM_LREF_SHORT,
   GUM_LREF_NEAR
-} GumLabelRefSize;
+} GumX86LabelRefSize;
 
-struct _GumLabelMapping
+struct _GumX86LabelMapping
 {
   gconstpointer id;
   gpointer address;
 };
 
-struct _GumLabelRef
+struct _GumX86LabelRef
 {
   gconstpointer id;
   guint8 * address;
-  GumLabelRefSize size;
+  GumX86LabelRefSize size;
 };
 
 static guint8 * gum_x86_writer_lookup_address_for_label_id (
@@ -109,8 +109,8 @@ void
 gum_x86_writer_init (GumX86Writer * writer,
                      gpointer code_address)
 {
-  writer->id_to_address = gum_new (GumLabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = gum_new (GumLabelRef, GUM_MAX_LREF_COUNT);
+  writer->id_to_address = gum_new (GumX86LabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = gum_new (GumX86LabelRef, GUM_MAX_LREF_COUNT);
 
   gum_x86_writer_reset (writer, code_address);
 }
@@ -175,7 +175,7 @@ gum_x86_writer_flush (GumX86Writer * self)
 
   for (i = 0; i < self->label_refs_len; i++)
   {
-    GumLabelRef * r = &self->label_refs[i];
+    GumX86LabelRef * r = &self->label_refs[i];
     gpointer target_address;
     gint32 distance;
 
@@ -253,7 +253,7 @@ gum_x86_writer_lookup_address_for_label_id (GumX86Writer * self,
 
   for (i = 0; i < self->id_to_address_len; i++)
   {
-    GumLabelMapping * map = &self->id_to_address[i];
+    GumX86LabelMapping * map = &self->id_to_address[i];
     if (map->id == id)
       return map->address;
   }
@@ -266,7 +266,7 @@ gum_x86_writer_add_address_for_label_id (GumX86Writer * self,
                                          gconstpointer id,
                                          gpointer address)
 {
-  GumLabelMapping * map = &self->id_to_address[self->id_to_address_len++];
+  GumX86LabelMapping * map = &self->id_to_address[self->id_to_address_len++];
 
   g_assert_cmpuint (self->id_to_address_len, <=, GUM_MAX_LABEL_COUNT);
 
@@ -285,9 +285,9 @@ gum_x86_writer_put_label (GumX86Writer * self,
 static void
 gum_x86_writer_add_label_reference_here (GumX86Writer * self,
                                          gconstpointer id,
-                                         GumLabelRefSize size)
+                                         GumX86LabelRefSize size)
 {
-  GumLabelRef * r = &self->label_refs[self->label_refs_len++];
+  GumX86LabelRef * r = &self->label_refs[self->label_refs_len++];
 
   g_assert_cmpuint (self->label_refs_len, <=, GUM_MAX_LREF_COUNT);
 
