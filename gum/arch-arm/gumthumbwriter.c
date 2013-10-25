@@ -19,11 +19,25 @@
 
 #include "gumthumbwriter.h"
 
+#include "gummemory.h"
+
 #include <string.h>
 
-#define GUM_THUMB_WRITER_NUM_RESERVED_U32_REFS (16)
+#define GUM_MAX_LABEL_COUNT   100
+#define GUM_MAX_LREF_COUNT    (3 * GUM_MAX_LABEL_COUNT)
+#define GUM_MAX_U32_REF_COUNT 100
 
-typedef struct _GumThumbU32Ref GumThumbU32Ref;
+struct _GumThumbLabelMapping
+{
+  gconstpointer id;
+  gpointer address;
+};
+
+struct _GumThumbLabelRef
+{
+  gconstpointer id;
+  guint16 * insn;
+};
 
 struct _GumThumbU32Ref
 {
@@ -31,6 +45,8 @@ struct _GumThumbU32Ref
   guint32 val;
 };
 
+static guint8 * gum_thumb_writer_lookup_address_for_label_id (
+    GumThumbWriter * self, gconstpointer id);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
     GumArmReg left_reg, GumArmReg right_reg, guint8 right_offset);
 static void gum_thumb_writer_put_instruction (GumThumbWriter * self,
@@ -40,8 +56,9 @@ void
 gum_thumb_writer_init (GumThumbWriter * writer,
                        gpointer code_address)
 {
-  writer->u32_refs = gum_array_sized_new (FALSE, FALSE,
-      sizeof (GumThumbU32Ref), GUM_THUMB_WRITER_NUM_RESERVED_U32_REFS);
+  writer->id_to_address = gum_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = gum_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
+  writer->u32_refs = gum_new (GumThumbU32Ref, GUM_MAX_U32_REF_COUNT);
 
   gum_thumb_writer_reset (writer, code_address);
 }
@@ -52,6 +69,10 @@ gum_thumb_writer_reset (GumThumbWriter * writer,
 {
   writer->base = code_address;
   writer->code = code_address;
+
+  writer->id_to_address_len = 0;
+  writer->label_refs_len = 0;
+  writer->u32_refs_len = 0;
 }
 
 void
@@ -59,7 +80,9 @@ gum_thumb_writer_free (GumThumbWriter * writer)
 {
   gum_thumb_writer_flush (writer);
 
-  gum_array_free (writer->u32_refs, TRUE);
+  gum_free (writer->id_to_address);
+  gum_free (writer->label_refs);
+  gum_free (writer->u32_refs);
 }
 
 gpointer
@@ -84,56 +107,132 @@ gum_thumb_writer_skip (GumThumbWriter * self,
 void
 gum_thumb_writer_flush (GumThumbWriter * self)
 {
-  guint32 * first_slot, * last_slot;
-  guint ref_idx;
-
-  if (self->u32_refs->len == 0)
-    return;
-
-  if ((GPOINTER_TO_SIZE (self->code) & 2) == 0)
-    first_slot = (guint32 *) (self->code + 0);
-  else
-    first_slot = (guint32 *) (self->code + 1);
-  last_slot = first_slot;
-
-  for (ref_idx = 0; ref_idx != self->u32_refs->len; ref_idx++)
+  if (self->label_refs_len > 0)
   {
-    GumThumbU32Ref * r;
-    guint32 * cur_slot;
-    gsize distance_in_words;
+    guint label_idx;
 
-    r = &g_array_index (self->u32_refs, GumThumbU32Ref, ref_idx);
-
-    for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+    for (label_idx = 0; label_idx != self->label_refs_len; label_idx++)
     {
-      if (*cur_slot == r->val)
-        break;
-    }
+      GumThumbLabelRef * r = &self->label_refs[label_idx];
+      gpointer target_address;
+      gssize distance_in_insns;
 
-    if (cur_slot == last_slot)
-    {
-      *cur_slot = r->val;
-      last_slot++;
-    }
+      target_address =
+          gum_thumb_writer_lookup_address_for_label_id (self, r->id);
+      g_assert (target_address != NULL);
 
-    distance_in_words = cur_slot - (guint32 *) (r->insn + 1);
-    *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
+      distance_in_insns = ((gssize) target_address -
+          (gssize) (r->insn + 2)) / sizeof (guint16);
+      g_assert_cmpint (distance_in_insns, >=, 0);
+      g_assert_cmpint (distance_in_insns, <, 64);
+
+      if (distance_in_insns < 32)
+        *r->insn |= (gsize) distance_in_insns << 3;
+      else
+        *r->insn |= 0x0200 | ((gsize) (distance_in_insns - 32) << 3);
+    }
+    self->label_refs_len = 0;
   }
-  gum_array_set_size (self->u32_refs, 0);
 
-  self->code = (guint16 *) last_slot;
+  if (self->u32_refs_len > 0)
+  {
+    guint32 * first_slot, * last_slot;
+    guint ref_idx;
+
+    if ((GPOINTER_TO_SIZE (self->code) & 2) == 0)
+      first_slot = (guint32 *) (self->code + 0);
+    else
+      first_slot = (guint32 *) (self->code + 1);
+    last_slot = first_slot;
+
+    for (ref_idx = 0; ref_idx != self->u32_refs_len; ref_idx++)
+    {
+      GumThumbU32Ref * r;
+      guint32 * cur_slot;
+      gsize distance_in_words;
+
+      r = &self->u32_refs[ref_idx];
+
+      for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+      {
+        if (*cur_slot == r->val)
+          break;
+      }
+
+      if (cur_slot == last_slot)
+      {
+        *cur_slot = r->val;
+        last_slot++;
+      }
+
+      distance_in_words = cur_slot - (guint32 *) (r->insn + 1);
+      *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
+    }
+    self->u32_refs_len = 0;
+
+    self->code = (guint16 *) last_slot;
+  }
+}
+
+static guint8 *
+gum_thumb_writer_lookup_address_for_label_id (GumThumbWriter * self,
+                                              gconstpointer id)
+{
+  guint i;
+
+  for (i = 0; i < self->id_to_address_len; i++)
+  {
+    GumThumbLabelMapping * map = &self->id_to_address[i];
+    if (map->id == id)
+      return map->address;
+  }
+
+  return NULL;
 }
 
 static void
-gum_thumb_writer_mark_u32_reference_here (GumThumbWriter * self,
-                                          guint32 val)
+gum_thumb_writer_add_address_for_label_id (GumThumbWriter * self,
+                                           gconstpointer id,
+                                           gpointer address)
 {
-  GumThumbU32Ref r;
+  GumThumbLabelMapping * map = &self->id_to_address[self->id_to_address_len++];
 
-  r.insn = self->code;
-  r.val = val;
+  g_assert_cmpuint (self->id_to_address_len, <=, GUM_MAX_LABEL_COUNT);
 
-  gum_array_append_val (self->u32_refs, r);
+  map->id = id;
+  map->address = address;
+}
+
+void
+gum_thumb_writer_put_label (GumThumbWriter * self,
+                            gconstpointer id)
+{
+  g_assert (gum_thumb_writer_lookup_address_for_label_id (self, id) == NULL);
+  gum_thumb_writer_add_address_for_label_id (self, id, self->code);
+}
+
+static void
+gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
+                                           gconstpointer id)
+{
+  GumThumbLabelRef * r = &self->label_refs[self->label_refs_len++];
+
+  g_assert_cmpuint (self->label_refs_len, <=, GUM_MAX_LREF_COUNT);
+
+  r->id = id;
+  r->insn = self->code;
+}
+
+static void
+gum_thumb_writer_add_u32_reference_here (GumThumbWriter * self,
+                                         guint32 val)
+{
+  GumThumbU32Ref * r = &self->u32_refs[self->u32_refs_len++];
+
+  g_assert_cmpuint (self->u32_refs_len, <=, GUM_MAX_U32_REF_COUNT);
+
+  r->insn = self->code;
+  r->val = val;
 }
 
 void
@@ -148,6 +247,24 @@ gum_thumb_writer_put_blx_reg (GumThumbWriter * self,
                               GumArmReg reg)
 {
   gum_thumb_writer_put_instruction (self, 0x4780 | (reg << 3));
+}
+
+void
+gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self,
+                                    GumArmReg reg,
+                                    gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_put_instruction (self, 0xb100 | reg);
+}
+
+void
+gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self,
+                                     GumArmReg reg,
+                                     gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_put_instruction (self, 0xb900 | reg);
 }
 
 void
@@ -227,7 +344,7 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
                                   GumArmReg reg,
                                   guint32 val)
 {
-  gum_thumb_writer_mark_u32_reference_here (self, val);
+  gum_thumb_writer_add_u32_reference_here (self, val);
   gum_thumb_writer_put_instruction (self, 0x4800 | (reg << 8));
 }
 

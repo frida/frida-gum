@@ -27,13 +27,23 @@
 G_BEGIN_DECLS
 
 typedef struct _GumThumbWriter GumThumbWriter;
+typedef struct _GumThumbLabelMapping GumThumbLabelMapping;
+typedef struct _GumThumbLabelRef GumThumbLabelRef;
+typedef struct _GumThumbU32Ref GumThumbU32Ref;
 
 struct _GumThumbWriter
 {
   guint16 * base;
   guint16 * code;
 
-  GumArray * u32_refs;
+  GumThumbLabelMapping * id_to_address;
+  guint id_to_address_len;
+
+  GumThumbLabelRef * label_refs;
+  guint label_refs_len;
+
+  GumThumbU32Ref * u32_refs;
+  guint u32_refs_len;
 };
 
 void gum_thumb_writer_init (GumThumbWriter * writer, gpointer code_address);
@@ -46,8 +56,14 @@ void gum_thumb_writer_skip (GumThumbWriter * self, guint n_bytes);
 
 void gum_thumb_writer_flush (GumThumbWriter * self);
 
+void gum_thumb_writer_put_label (GumThumbWriter * self, gconstpointer id);
+
 void gum_thumb_writer_put_bx_reg (GumThumbWriter * self, GumArmReg reg);
 void gum_thumb_writer_put_blx_reg (GumThumbWriter * self, GumArmReg reg);
+void gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self, GumArmReg reg,
+    gconstpointer label_id);
+void gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self, GumArmReg reg,
+    gconstpointer label_id);
 
 void gum_thumb_writer_put_push_regs (GumThumbWriter * self, guint n_regs, GumArmReg first_reg, ...);
 void gum_thumb_writer_put_pop_regs (GumThumbWriter * self, guint n_regs, GumArmReg first_reg, ...);

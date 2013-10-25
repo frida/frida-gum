@@ -20,6 +20,8 @@
 #include "thumbwriter-fixture.c"
 
 TEST_LIST_BEGIN (thumbwriter)
+  THUMBWRITER_TESTENTRY (cbz_reg_label)
+
   THUMBWRITER_TESTENTRY (bx_reg)
   THUMBWRITER_TESTENTRY (blx_reg)
 
@@ -42,6 +44,30 @@ TEST_LIST_BEGIN (thumbwriter)
 
   THUMBWRITER_TESTENTRY (nop)
 TEST_LIST_END ()
+
+THUMBWRITER_TESTCASE (cbz_reg_label)
+{
+  const gchar * beach_lbl = "beach";
+
+  gum_thumb_writer_put_cbz_reg_label (&fixture->tw, GUM_AREG_R7, beach_lbl);
+  gum_thumb_writer_put_blx_reg (&fixture->tw, GUM_AREG_R1);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
+  gum_thumb_writer_put_pop_regs (&fixture->tw, 1, GUM_AREG_PC);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  assert_output_n_equals (0, 0xb11f); /* cbz r7, beach */
+  assert_output_n_equals (1, 0x4788); /* blx r1 */
+  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (3, 0x46c0); /* nop */
+  assert_output_n_equals (4, 0x46c0); /* nop */
+  /* beach: */
+  assert_output_n_equals (5, 0xbd00); /* pop {pc} */
+}
 
 THUMBWRITER_TESTCASE (bx_reg)
 {
