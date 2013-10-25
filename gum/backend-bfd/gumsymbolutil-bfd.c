@@ -179,7 +179,8 @@ gum_find_functions_named (const gchar * name)
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
   address = gum_find_function (name);
-  g_array_append_val (matches, address);
+  if (address != NULL)
+    g_array_append_val (matches, address);
 
   return matches;
 }
