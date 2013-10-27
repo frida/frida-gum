@@ -35,6 +35,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
+  SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (interceptor_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
@@ -876,6 +877,25 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_SEND_MESSAGE_WITH ("\"<c2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"<b1\"");
   EXPECT_SEND_MESSAGE_WITH ("\"<a0\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (function_can_be_replaced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_NO_MESSAGES ();
+
+  gum_script_unload (fixture->script);
+  target_function_int (1);
   EXPECT_NO_MESSAGES ();
 }
 
