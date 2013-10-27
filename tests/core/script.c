@@ -35,7 +35,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
+  SCRIPT_TESTENTRY (callbacks_can_be_detached);
   SCRIPT_TESTENTRY (function_can_be_replaced)
+  SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (interceptor_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
@@ -880,6 +882,22 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_NO_MESSAGES ();
 }
 
+SCRIPT_TESTCASE (callbacks_can_be_detached)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function(args) {"
+      "    send(args[0].toInt32());"
+      "  }"
+      "});"
+      "Interceptor.detachAll();",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_NO_MESSAGES ();
+}
+
 SCRIPT_TESTCASE (function_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -896,6 +914,21 @@ SCRIPT_TESTCASE (function_can_be_replaced)
 
   gum_script_unload (fixture->script);
   target_function_int (1);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (function_can_be_reverted)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
+      "  send(arg);"
+      "  return 1337;"
+      "}, 'int', ['int']));"
+      "Interceptor.revert(" GUM_PTR_CONST ");",
+      target_function_int, target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
   EXPECT_NO_MESSAGES ();
 }
 

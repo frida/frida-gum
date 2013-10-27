@@ -150,7 +150,7 @@ struct _GumScriptPrivate
   GumMessageSink * incoming_message_sink;
 
   GQueue * attach_entries;
-  GQueue * replace_entries;
+  GHashTable * replacement_by_address;
 };
 
 struct _GumScheduledCallback
@@ -177,6 +177,7 @@ struct _GumScriptAttachEntry
 
 struct _GumScriptReplaceEntry
 {
+  GumInterceptor * interceptor;
   gpointer target;
   Persistent<Value> replacement;
 };
@@ -361,7 +362,12 @@ static Handle<Value> gum_script_on_module_find_base_address (
 static Handle<Value> gum_script_on_module_find_export_by_name (
     const Arguments & args);
 static Handle<Value> gum_script_on_interceptor_attach (const Arguments & args);
+static Handle<Value> gum_script_on_interceptor_detach_all (
+    const Arguments & args);
+static void gum_script_detach_all (GumScript * self);
 static Handle<Value> gum_script_on_interceptor_replace (const Arguments & args);
+static Handle<Value> gum_script_on_interceptor_revert (const Arguments & args);
+static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
 #ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
@@ -549,7 +555,8 @@ gum_script_init (GumScript * self)
   priv->event_cond = g_cond_new ();
 
   priv->attach_entries = g_queue_new ();
-  priv->replace_entries = g_queue_new ();
+  priv->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
+      reinterpret_cast<GDestroyNotify> (gum_script_replace_entry_free));
 
   G_LOCK (gum_memaccess);
   if (gum_memaccess_refcount++ == 0)
@@ -618,15 +625,6 @@ gum_script_dispose (GObject * object)
       gum_message_sink_free (priv->incoming_message_sink);
       priv->incoming_message_sink = NULL;
 
-      while (!g_queue_is_empty (priv->attach_entries))
-      {
-        GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
-            g_queue_pop_tail (priv->attach_entries));
-        entry->on_enter.Dispose ();
-        entry->on_leave.Dispose ();
-        g_slice_free (GumScriptAttachEntry, entry);
-      }
-
       priv->native_pointer_value.Dispose ();
       priv->native_pointer_value.Clear ();
       priv->native_pointer.Dispose ();
@@ -675,7 +673,7 @@ gum_script_finalize (GObject * object)
   g_cond_free (priv->event_cond);
 
   g_queue_free (priv->attach_entries);
-  g_queue_free (priv->replace_entries);
+  g_hash_table_unref (priv->replacement_by_address);
 
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
@@ -756,8 +754,12 @@ gum_script_create_context (GumScript * self)
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
       gum_script_on_interceptor_attach, External::Wrap (self)));
+  interceptor_templ->Set (String::New ("detachAll"), FunctionTemplate::New (
+      gum_script_on_interceptor_detach_all, External::Wrap (self)));
   interceptor_templ->Set (String::New ("replace"), FunctionTemplate::New (
       gum_script_on_interceptor_replace, External::Wrap (self)));
+  interceptor_templ->Set (String::New ("revert"), FunctionTemplate::New (
+      gum_script_on_interceptor_revert, External::Wrap (self)));
   global_templ->Set (String::New ("Interceptor"), interceptor_templ);
 
   Handle<ObjectTemplate> process_templ = ObjectTemplate::New ();
@@ -1078,19 +1080,11 @@ gum_script_load (GumScript * self)
 void
 gum_script_unload (GumScript * self)
 {
-  GumScriptPrivate * priv = self->priv;
+  ScriptScope scope (self);
 
-  gum_interceptor_detach_listener (self->priv->interceptor,
-      GUM_INVOCATION_LISTENER (self));
+  gum_script_detach_all (self);
 
-  while (!g_queue_is_empty (priv->replace_entries))
-  {
-    GumScriptReplaceEntry * entry = static_cast<GumScriptReplaceEntry *> (
-        g_queue_pop_tail (priv->replace_entries));
-    gum_interceptor_revert_function (priv->interceptor, entry->target);
-    entry->replacement.Dispose ();
-    g_slice_free (GumScriptReplaceEntry, entry);
-  }
+  g_hash_table_remove_all (self->priv->replacement_by_address);
 }
 
 void
@@ -2273,6 +2267,34 @@ gum_script_on_interceptor_attach (const Arguments & args)
 }
 
 static Handle<Value>
+gum_script_on_interceptor_detach_all (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  gum_script_detach_all (self);
+
+  return Undefined ();
+}
+
+static void
+gum_script_detach_all (GumScript * self)
+{
+  GumScriptPrivate * priv = self->priv;
+
+  gum_interceptor_detach_listener (priv->interceptor,
+      GUM_INVOCATION_LISTENER (self));
+
+  while (!g_queue_is_empty (priv->attach_entries))
+  {
+    GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
+        g_queue_pop_tail (priv->attach_entries));
+    entry->on_enter.Dispose ();
+    entry->on_leave.Dispose ();
+    g_slice_free (GumScriptAttachEntry, entry);
+  }
+}
+
+static Handle<Value>
 gum_script_on_interceptor_replace (const Arguments & args)
 {
   GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
@@ -2287,15 +2309,38 @@ gum_script_on_interceptor_replace (const Arguments & args)
     return Undefined ();
 
   GumScriptReplaceEntry * entry = g_slice_new (GumScriptReplaceEntry);
+  entry->interceptor = priv->interceptor;
   entry->target = target;
   entry->replacement = Persistent<Value>::New (args[1]);
 
   gum_interceptor_replace_function (priv->interceptor, target, replacement,
       NULL);
 
-  g_queue_push_tail (priv->replace_entries, entry);
+  g_hash_table_insert (priv->replacement_by_address, target, entry);
 
   return Undefined ();
+}
+
+static Handle<Value>
+gum_script_on_interceptor_revert (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+
+  gpointer target;
+  if (!_gum_script_pointer_get (self, args[0], &target))
+    return Undefined ();
+
+  g_hash_table_remove (self->priv->replacement_by_address, target);
+
+  return Undefined ();
+}
+
+static void
+gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
+{
+  gum_interceptor_revert_function (entry->interceptor, entry->target);
+  entry->replacement.Dispose ();
+  g_slice_free (GumScriptReplaceEntry, entry);
 }
 
 static void
