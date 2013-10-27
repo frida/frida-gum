@@ -80,6 +80,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_callback_can_be_invoked)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
@@ -100,6 +101,40 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("3");
   EXPECT_SEND_MESSAGE_WITH ("-6");
   EXPECT_NO_MESSAGES ();
+  g_assert_cmpstr (str, ==, "BADGER");
+}
+
+SCRIPT_TESTCASE (native_callback_can_be_invoked)
+{
+  TestScriptMessageItem * item;
+  gint (* toupper_impl) (gchar * str, gint limit);
+  gchar str[7];
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "toupper = new NativeCallback(function (str, limit) {"
+      "  var count = 0;"
+      "  while (count < limit || limit === -1) {"
+      "    var p = str.add(count);"
+      "    var b = Memory.readU8(p);"
+      "    if (b === 0)"
+      "      break;"
+      "    Memory.writeU8(p, String.fromCharCode(b).toUpperCase().charCodeAt(0));"
+      "    count++;"
+      "  }"
+      "  return (limit === -1) ? -count : count;"
+      "}, 'int', ['pointer', 'int']);"
+      "send(toupper);");
+
+  item = test_script_fixture_pop_message (fixture);
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":"
+      "\"0x%" G_GSIZE_MODIFIER "x\"}", (gsize *) &toupper_impl);
+  g_assert (toupper_impl != NULL);
+  test_script_message_item_free (item);
+
+  strcpy (str, "badger");
+  g_assert_cmpint (toupper_impl (str, 3), ==, 3);
+  g_assert_cmpstr (str, ==, "BADger");
+  g_assert_cmpint (toupper_impl (str, -1), ==, -6);
   g_assert_cmpstr (str, ==, "BADGER");
 }
 

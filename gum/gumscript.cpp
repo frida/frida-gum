@@ -110,6 +110,7 @@ typedef struct _GumMemoryScanContext GumMemoryScanContext;
 typedef struct _GumScriptCallProbe GumScriptCallProbe;
 
 typedef struct _GumFFIFunction GumFFIFunction;
+typedef struct _GumFFICallback GumFFICallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
@@ -230,6 +231,16 @@ struct _GumFFIFunction
   ffi_type ** atypes;
 };
 
+struct _GumFFICallback
+{
+  GumScript * script;
+  Persistent<Function> func;
+  Persistent<Object> receiver;
+  ffi_closure * closure;
+  ffi_cif cif;
+  ffi_type ** atypes;
+};
+
 union _GumFFIValue
 {
   gpointer v_pointer;
@@ -300,6 +311,13 @@ static void gum_script_on_free_native_function (Persistent<Value> object,
 static Handle<Value> gum_script_on_invoke_native_function (
     const Arguments & args);
 static void gum_ffi_function_free (GumFFIFunction * func);
+
+static Handle<Value> gum_script_on_new_native_callback (const Arguments & args);
+static void gum_script_on_free_native_callback (Persistent<Value> object,
+    void * data);
+static void gum_script_on_invoke_native_callback (ffi_cif * cif,
+    void * return_value, void ** args, void * user_data);
+static void gum_ffi_callback_free (GumFFICallback * callback);
 
 static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
     Handle<Object> receiver);
@@ -689,21 +707,21 @@ gum_script_create_context (GumScript * self)
   Local<FunctionTemplate> native_pointer = FunctionTemplate::New (
       gum_script_on_new_native_pointer);
   native_pointer->SetClassName (String::New ("NativePointer"));
-  Local<ObjectTemplate> native_pointer_object =
-      native_pointer->InstanceTemplate ();
-  native_pointer_object->SetInternalFieldCount (1);
-  native_pointer_object->Set (String::New ("add"),
+  Local<ObjectTemplate> native_pointer_proto =
+      native_pointer->PrototypeTemplate ();
+  native_pointer_proto->Set (String::New ("add"),
       FunctionTemplate::New (gum_script_on_native_pointer_add,
       External::Wrap (self)));
-  native_pointer_object->Set (String::New ("sub"),
+  native_pointer_proto->Set (String::New ("sub"),
       FunctionTemplate::New (gum_script_on_native_pointer_sub,
       External::Wrap (self)));
-  native_pointer_object->Set (String::New ("toInt32"),
+  native_pointer_proto->Set (String::New ("toInt32"),
       FunctionTemplate::New (gum_script_on_native_pointer_to_int32));
-  native_pointer_object->Set (String::New ("toString"),
+  native_pointer_proto->Set (String::New ("toString"),
       FunctionTemplate::New (gum_script_on_native_pointer_to_string));
-  native_pointer_object->Set (String::New ("toJSON"),
+  native_pointer_proto->Set (String::New ("toJSON"),
       FunctionTemplate::New (gum_script_on_native_pointer_to_json));
+  native_pointer->InstanceTemplate ()->SetInternalFieldCount (1);
   global_templ->Set (String::New ("NativePointer"), native_pointer);
   priv->native_pointer = Persistent<FunctionTemplate>::New (native_pointer);
 
@@ -716,6 +734,13 @@ gum_script_create_context (GumScript * self)
       gum_script_on_invoke_native_function, External::Wrap (self));
   native_function_object->SetInternalFieldCount (1);
   global_templ->Set (String::New ("NativeFunction"), native_function);
+
+  Local<FunctionTemplate> native_callback = FunctionTemplate::New (
+      gum_script_on_new_native_callback, External::Wrap (self));
+  native_callback->SetClassName (String::New ("NativeCallback"));
+  native_callback->Inherit (native_pointer);
+  native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
+  global_templ->Set (String::New ("NativeCallback"), native_callback);
 
   Handle<ObjectTemplate> interceptor_templ = ObjectTemplate::New ();
   interceptor_templ->Set (String::New ("attach"), FunctionTemplate::New (
@@ -1583,6 +1608,156 @@ gum_ffi_function_free (GumFFIFunction * func)
 {
   g_free (func->atypes);
   g_slice_free (GumFFIFunction, func);
+}
+
+static Handle<Value>
+gum_script_on_new_native_callback (const Arguments & args)
+{
+  GumScript * self = GUM_SCRIPT_CAST (External::Unwrap (args.Data ()));
+  GumFFICallback * callback;
+  Local<Value> func_value;
+  Local<Value> rtype_value;
+  ffi_type * rtype;
+  Local<Value> atypes_value;
+  Local<Array> atypes_array;
+  uint32_t nargs, i;
+  ffi_abi abi;
+  gpointer func = NULL;
+  Local<Object> instance;
+  Persistent<Object> persistent_instance;
+
+  callback = g_slice_new0 (GumFFICallback);
+  callback->script = self;
+
+  func_value = args[0];
+  if (!func_value->IsFunction ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "first argument must be a function implementing the callback")));
+    goto error;
+  }
+  callback->func = Persistent<Function>::New (
+      Local<Function>::Cast (func_value));
+  callback->receiver = Persistent<Object>::New (args.This ());
+
+  rtype_value = args[1];
+  if (!rtype_value->IsString ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "second argument must be a string specifying return type")));
+    goto error;
+  }
+  if (!gum_script_ffi_type_get (rtype_value, &rtype))
+    goto error;
+
+  atypes_value = args[2];
+  if (!atypes_value->IsArray ())
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "third argument must be an array specifying argument types")));
+    goto error;
+  }
+  atypes_array = Array::Cast (*atypes_value);
+  nargs = atypes_array->Length ();
+  callback->atypes = g_new (ffi_type *, nargs);
+  for (i = 0; i != nargs; i++)
+  {
+    if (!gum_script_ffi_type_get (atypes_array->Get (i), &callback->atypes[i]))
+      goto error;
+  }
+
+  abi = FFI_DEFAULT_ABI;
+  if (args.Length () > 3)
+  {
+    if (!gum_script_ffi_abi_get (args[3], &abi))
+      goto error;
+  }
+
+  callback->closure = static_cast<ffi_closure *> (
+      ffi_closure_alloc (sizeof (ffi_closure), &func));
+  if (callback->closure == NULL)
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "failed to allocate closure")));
+    goto error;
+  }
+
+  if (ffi_prep_cif (&callback->cif, abi, nargs, rtype,
+        callback->atypes) != FFI_OK)
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "failed to compile function call interface")));
+    goto error;
+  }
+
+  if (ffi_prep_closure_loc (callback->closure, &callback->cif,
+        gum_script_on_invoke_native_callback, callback, func) != FFI_OK)
+  {
+    ThrowException (Exception::TypeError (String::New ("NativeCallback: "
+        "failed to prepare closure")));
+    goto error;
+  }
+
+  instance = args.Holder ();
+  instance->SetPointerInInternalField (0, func);
+
+  persistent_instance = Persistent<Object>::New (instance);
+  persistent_instance.MakeWeak (func, gum_script_on_free_native_callback);
+  persistent_instance.MarkIndependent ();
+
+  return Undefined ();
+
+error:
+  gum_ffi_callback_free (callback);
+  return Undefined ();
+}
+
+static void
+gum_script_on_free_native_callback (Persistent<Value> object,
+                                    void * data)
+{
+  HandleScope handle_scope;
+  gum_ffi_callback_free (static_cast<GumFFICallback *> (data));
+  object.Dispose ();
+}
+
+static void
+gum_script_on_invoke_native_callback (ffi_cif * cif,
+                                      void * return_value,
+                                      void ** args,
+                                      void * user_data)
+{
+  GumFFICallback * self = static_cast<GumFFICallback *> (user_data);
+  ScriptScope scope (self->script);
+
+  Local<Value> * argv = static_cast<Local<Value> *> (
+      g_alloca (cif->nargs * sizeof (Local<Value>)));
+  for (guint i = 0; i != cif->nargs; i++)
+  {
+    if (!gum_script_value_from_ffi_type (self->script, &argv[i],
+          static_cast<GumFFIValue *> (args[i]), cif->arg_types[i]))
+    {
+      return;
+    }
+  }
+
+  Local<Value> result = self->func->Call (self->receiver, cif->nargs, argv);
+  if (cif->rtype != &ffi_type_void)
+  {
+    gum_script_value_to_ffi_type (self->script, result,
+        static_cast<GumFFIValue *> (return_value), cif->rtype);
+  }
+}
+
+static void
+gum_ffi_callback_free (GumFFICallback * callback)
+{
+  callback->func.Dispose ();
+  callback->receiver.Dispose ();
+  ffi_closure_free (callback->closure);
+  g_free (callback->atypes);
+
+  g_slice_free (GumFFICallback, callback);
 }
 
 static GumMessageSink *
