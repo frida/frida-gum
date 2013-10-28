@@ -368,10 +368,8 @@ gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
 
   reg = (raw_insn & 0x0700) >> 8;
 
-  absolute_pc = (raw_insn & 0x00ff) * 4;
-  absolute_pc += GPOINTER_TO_SIZE (ctx->end);
-  if (absolute_pc % 4 != 0)
-    absolute_pc += 2;
+  absolute_pc = (GPOINTER_TO_SIZE (ctx->start) + 4) & ~(4 - 1);
+  absolute_pc += (raw_insn & 0x00ff) * 4;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
   gum_thumb_writer_put_ldr_reg_reg (ctx->output, reg, reg);

@@ -86,9 +86,7 @@ RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
   gsize calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = GPOINTER_TO_SIZE (input) + 2 + 12;
-  if (calculated_pc % 4 != 0)
-    calculated_pc += 2;
+  calculated_pc = (GPOINTER_TO_SIZE (input) + 4 + 12) & ~(4 - 1);
   *((gsize *) (expected_output + 2)) = calculated_pc;
 
   SETUP_RELOCATOR_WITH (input);
@@ -117,9 +115,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
   gsize calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = GPOINTER_TO_SIZE (input) + 2;
-  if (calculated_pc % 4 != 0)
-    calculated_pc += 2;
+  calculated_pc = GPOINTER_TO_SIZE (input) + 4;
   *((gsize *) (expected_output + 4)) = calculated_pc;
 
   SETUP_RELOCATOR_WITH (input);
