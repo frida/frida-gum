@@ -32,6 +32,8 @@ enum _GumArmMnemonic
 {
   GUM_ARM_UNKNOWN,
 
+  GUM_ARM_B_IMM24,
+  GUM_ARM_BL_IMM24,
   GUM_ARM_ADDH,
   GUM_ARM_ADDPC,
   GUM_ARM_ADDSP,

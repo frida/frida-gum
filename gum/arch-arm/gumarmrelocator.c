@@ -38,6 +38,8 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm_relocator_write_one_instruction (
     GumArmRelocator * self);
+static gboolean gum_arm_relocator_rewrite_b_imm24 (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_arm_relocator_init (GumArmRelocator * relocator,
@@ -101,7 +103,7 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
                             const GumArmInstruction ** instruction)
 {
   guint32 raw_insn;
-  guint group, operation;
+  guint category;
   GumArmInstruction * insn;
 
   if (self->eoi)
@@ -110,27 +112,38 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   raw_insn = *((guint32 *) self->input_cur);
   insn = &self->input_insns[gum_arm_relocator_inpos (self)];
 
-  group = (raw_insn >> 20) & 0xff;
-  operation = (raw_insn >> 4) & 0xf;
+  category = (raw_insn >> 25) & 0b111;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->length = 4;
 
-  switch (group)
+  switch (category)
   {
-    case 0x1a:
-      if (operation <= 8 || operation == 10 || operation == 12 ||
-          operation == 14)
+    case 0b000: /* data processing */
+    case 0b001:
+    {
+      guint opcode = (raw_insn >> 21) & 0b1111;
+      switch (opcode)
       {
-        insn->mnemonic = GUM_ARM_MOV;
+        case 0b1101:
+          insn->mnemonic = GUM_ARM_MOV;
+          break;
       }
       break;
-
-    case 0x92:
-      insn->mnemonic = GUM_ARM_PUSH;
+    }
+    case 0b010: /* load/store */
       break;
-
-    default:
+    case 0b100: /* load/store multiple */
+    {
+      guint base_register = (raw_insn >> 16) & 0b1111;
+      guint is_load = (raw_insn >> 20) & 1;
+      if (base_register == GUM_AREG_SP)
+        insn->mnemonic = is_load ? GUM_ARM_POP : GUM_ARM_PUSH;
+      break;
+    }
+    case 0b101: /* control */
+      insn->mnemonic =
+          ((raw_insn & 0x1000000) == 0) ? GUM_ARM_B_IMM24 : GUM_ARM_BL_IMM24;
       break;
   }
 
@@ -208,6 +221,11 @@ gum_arm_relocator_write_one_instruction (GumArmRelocator * self)
 
   switch (ctx.insn->mnemonic)
   {
+    case GUM_ARM_B_IMM24:
+    case GUM_ARM_BL_IMM24:
+      rewritten = gum_arm_relocator_rewrite_b_imm24 (self, &ctx);
+      break;
+
     default:
       break;
   }
@@ -296,4 +314,29 @@ gum_arm_relocator_relocate (gpointer from,
   gum_arm_writer_free (&cw);
 
   return reloc_bytes;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_b_imm24 (GumArmRelocator * self,
+                                   GumCodeGenCtx * ctx)
+{
+  guint32 raw_insn;
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  GumAddress absolute_target;
+
+  raw_insn = *ctx->raw_insn;
+  if ((raw_insn & 0x00800000) != 0)
+    distance.u = 0xfc000000 | ((raw_insn & 0x00ffffff) << 2);
+  else
+    distance.u = ((raw_insn & 0x007fffff) << 2);
+
+  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 8 + distance.i;
+
+  gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_PC, absolute_target);
+
+  return TRUE;
 }

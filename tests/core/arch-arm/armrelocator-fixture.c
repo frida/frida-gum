@@ -36,7 +36,7 @@
 typedef struct _TestArmRelocatorFixture
 {
   guint8 * output;
-  GumArmWriter tw;
+  GumArmWriter aw;
   GumArmRelocator rl;
 } TestArmRelocatorFixture;
 
@@ -46,7 +46,7 @@ test_arm_relocator_fixture_setup (TestArmRelocatorFixture * fixture,
 {
   fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
 
-  gum_arm_writer_init (&fixture->tw, fixture->output);
+  gum_arm_writer_init (&fixture->aw, fixture->output);
 }
 
 static void
@@ -54,14 +54,14 @@ test_arm_relocator_fixture_teardown (TestArmRelocatorFixture * fixture,
                                      gconstpointer data)
 {
   gum_arm_relocator_free (&fixture->rl);
-  gum_arm_writer_free (&fixture->tw);
+  gum_arm_writer_free (&fixture->aw);
   gum_free_pages (fixture->output);
 }
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
 
 #define SETUP_RELOCATOR_WITH(CODE) \
-    gum_arm_relocator_init (&fixture->rl, CODE, &fixture->tw)
+    gum_arm_relocator_init (&fixture->rl, CODE, &fixture->aw)
 
 #define assert_outbuf_still_zeroed_from_offset(OFF) \
     g_assert_cmpint (memcmp (fixture->output + OFF, cleared_outbuf + OFF, \
