@@ -88,6 +88,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
+  SCRIPT_TESTENTRY (script_can_be_reloaded)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (native_function_can_be_invoked)
@@ -1283,6 +1284,21 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
     g_free (source);
   }
+}
+
+SCRIPT_TESTCASE (script_can_be_reloaded)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(typeof badger);"
+      "badger = 42;");
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+  gum_script_load (fixture->script);
+  EXPECT_NO_MESSAGES ();
+  gum_script_unload (fixture->script);
+  gum_script_unload (fixture->script);
+  EXPECT_NO_MESSAGES ();
+  gum_script_load (fixture->script);
+  EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
 GUM_NOINLINE static int

@@ -31,6 +31,16 @@
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumscript-priv.h" />
+    <ClInclude Include="gum\gumscript-runtime.h" />
+    <ClInclude Include="gum\gumscriptscope.h" />
+    <ClInclude Include="gum\gumscriptcore.h" />
+    <ClInclude Include="gum\gumscriptmemory.h" />
+    <ClInclude Include="gum\gumscriptprocess.h" />
+    <ClInclude Include="gum\gumscriptthread.h" />
+    <ClInclude Include="gum\gumscriptmodule.h" />
+    <ClInclude Include="gum\gumscriptsocket.h" />
+    <ClInclude Include="gum\gumscriptinterceptor.h" />
+    <ClInclude Include="gum\gumscriptstalker.h" />
     <ClInclude Include="gum\gumscripteventsink.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
@@ -56,6 +66,14 @@
     <ClCompile Include="gum\gummemorymap.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />
+    <ClCompile Include="gum\gumscriptcore.cpp" />
+    <ClCompile Include="gum\gumscriptmemory.cpp" />
+    <ClCompile Include="gum\gumscriptprocess.cpp" />
+    <ClCompile Include="gum\gumscriptthread.cpp" />
+    <ClCompile Include="gum\gumscriptmodule.cpp" />
+    <ClCompile Include="gum\gumscriptsocket.cpp" />
+    <ClCompile Include="gum\gumscriptinterceptor.cpp" />
+    <ClCompile Include="gum\gumscriptstalker.cpp" />
     <ClCompile Include="gum\gumscripteventsink.cpp" />
   </ItemGroup>
 

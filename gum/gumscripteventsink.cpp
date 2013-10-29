@@ -19,7 +19,6 @@
 
 #include "gumscripteventsink.h"
 
-#include "gumscriptpointer.h"
 #include "gumscriptscope.h"
 
 #include <string.h>
@@ -81,15 +80,16 @@ gum_script_event_sink_finalize (GObject * obj)
 
   g_assert (self->source == NULL);
 
-  g_object_unref (self->script);
+  {
+    ScriptScope scope (self->core->script);
+    self->on_receive.Dispose ();
+    self->on_call_summary.Dispose ();
+  }
+
+  g_object_unref (self->core->script);
 
   gum_spinlock_free (&self->lock);
   g_array_free (self->queue, TRUE);
-
-  Locker l;
-  HandleScope handle_scope;
-  self->on_receive.Dispose ();
-  self->on_call_summary.Dispose ();
 
   G_OBJECT_CLASS (gum_script_event_sink_parent_class)->finalize (obj);
 }
@@ -106,8 +106,8 @@ gum_script_event_sink_new (const GumScriptEventSinkOptions * options)
   sink->queue_capacity = options->queue_capacity;
   sink->queue_drain_interval = options->queue_drain_interval;
 
-  g_object_ref (options->script);
-  sink->script = options->script;
+  g_object_ref (options->core->script);
+  sink->core = options->core;
   sink->main_context = options->main_context;
   sink->event_mask = options->event_mask;
   sink->on_receive = Persistent<Function>::New (options->on_receive);
@@ -210,7 +210,7 @@ gum_script_event_sink_drain (gpointer user_data)
       }
     }
 
-    ScriptScope scope (self->script);
+    ScriptScope scope (self->core->script);
 
     if (frequencies != NULL)
     {
@@ -221,7 +221,7 @@ gum_script_event_sink_drain (gpointer user_data)
       gpointer target, count;
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        summary->Set (_gum_script_pointer_new (self->script, target),
+        summary->Set (_gum_script_pointer_new (self->core, target),
             Number::New (GPOINTER_TO_SIZE (count)), ReadOnly);
       }
 

@@ -21,7 +21,7 @@
 #define __GUM_SCRIPT_EVENT_SINK_H__
 
 #include "gumeventsink.h"
-#include "gumscript.h"
+#include "gumscriptcore.h"
 #include "gumspinlock.h"
 
 #include <glib-object.h>
@@ -52,7 +52,7 @@ struct _GumScriptEventSink
   guint queue_capacity;
   guint queue_drain_interval;
 
-  GumScript * script;
+  GumScriptCore * core;
   GMainContext * main_context;
   GumEventType event_mask;
   v8::Persistent<v8::Function> on_receive;
@@ -67,7 +67,7 @@ struct _GumScriptEventSinkClass
 
 struct _GumScriptEventSinkOptions
 {
-  GumScript * script;
+  GumScriptCore * core;
   GMainContext * main_context;
   GumEventType event_mask;
   guint queue_capacity;

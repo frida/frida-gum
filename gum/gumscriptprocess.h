@@ -17,24 +17,24 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_SCRIPT_SCOPE_H__
-#define __GUM_SCRIPT_SCOPE_H__
+#ifndef __GUM_SCRIPT_PROCESS_H__
+#define __GUM_SCRIPT_PROCESS_H__
 
-#include "gumscript.h"
+#include "gumscriptcore.h"
 
 #include <v8.h>
 
-class ScriptScopeImpl;
+typedef struct _GumScriptProcess GumScriptProcess;
 
-class ScriptScope
+struct _GumScriptProcess
 {
-public:
-  ScriptScope (GumScript * parent);
-  ~ScriptScope ();
-
-private:
-  GumScript * parent;
-  ScriptScopeImpl * impl;
+  GumScriptCore * core;
 };
+
+G_GNUC_INTERNAL void _gum_script_process_init (GumScriptProcess * self,
+    GumScriptCore * core, v8::Handle<v8::ObjectTemplate> scope);
+G_GNUC_INTERNAL void _gum_script_process_realize (GumScriptProcess * self);
+G_GNUC_INTERNAL void _gum_script_process_dispose (GumScriptProcess * self);
+G_GNUC_INTERNAL void _gum_script_process_finalize (GumScriptProcess * self);
 
 #endif

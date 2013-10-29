@@ -17,24 +17,36 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_SCRIPT_SCOPE_H__
-#define __GUM_SCRIPT_SCOPE_H__
+#ifndef __GUM_SCRIPT_STALKER_H__
+#define __GUM_SCRIPT_STALKER_H__
 
-#include "gumscript.h"
+#include "gumscriptcore.h"
 
 #include <v8.h>
 
-class ScriptScopeImpl;
+typedef struct _GumScriptStalker GumScriptStalker;
 
-class ScriptScope
+struct _GumScriptStalker
 {
-public:
-  ScriptScope (GumScript * parent);
-  ~ScriptScope ();
+  GumScriptCore * core;
+  GMainContext * main_context;
+  GumStalker * stalker;
 
-private:
-  GumScript * parent;
-  ScriptScopeImpl * impl;
+  GumEventSink * sink;
+  guint queue_capacity;
+  guint queue_drain_interval;
+  gint pending_follow_level;
+
+  v8::Persistent<v8::ObjectTemplate> probe_args;
 };
+
+G_GNUC_INTERNAL void _gum_script_stalker_init (GumScriptStalker * self,
+    GumScriptCore * core, v8::Handle<v8::ObjectTemplate> scope);
+G_GNUC_INTERNAL void _gum_script_stalker_realize (GumScriptStalker * self);
+G_GNUC_INTERNAL void _gum_script_stalker_dispose (GumScriptStalker * self);
+G_GNUC_INTERNAL void _gum_script_stalker_finalize (GumScriptStalker * self);
+
+G_GNUC_INTERNAL void _gum_script_stalker_process_pending (
+    GumScriptStalker * self);
 
 #endif

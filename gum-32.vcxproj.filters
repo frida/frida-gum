@@ -198,6 +198,30 @@
     <ClCompile Include="gum\gumscript.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscriptcore.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptmemory.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptprocess.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptthread.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptmodule.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptsocket.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptinterceptor.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\gumscriptstalker.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumscripteventsink.cpp">
       <Filter>core</Filter>
     </ClCompile>
@@ -402,6 +426,36 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscript-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscript-runtime.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptscope.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptcore.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptmemory.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptprocess.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptthread.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptmodule.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptsocket.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptinterceptor.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptstalker.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscripteventsink.h">

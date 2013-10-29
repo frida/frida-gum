@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,16 +17,24 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_SCRIPT_POINTER_H__
-#define __GUM_SCRIPT_POINTER_H__
+#ifndef __GUM_SCRIPT_THREAD_H__
+#define __GUM_SCRIPT_THREAD_H__
 
-#include "gumscript.h"
+#include "gumscriptcore.h"
 
 #include <v8.h>
 
-G_GNUC_INTERNAL v8::Handle<v8::Object> _gum_script_pointer_new (
-    GumScript * self, gpointer address);
-G_GNUC_INTERNAL gboolean _gum_script_pointer_get (GumScript * self,
-    v8::Handle<v8::Value> value, gpointer * target);
+typedef struct _GumScriptThread GumScriptThread;
+
+struct _GumScriptThread
+{
+  GumScriptCore * core;
+};
+
+G_GNUC_INTERNAL void _gum_script_thread_init (GumScriptThread * self,
+    GumScriptCore * core, v8::Handle<v8::ObjectTemplate> scope);
+G_GNUC_INTERNAL void _gum_script_thread_realize (GumScriptThread * self);
+G_GNUC_INTERNAL void _gum_script_thread_dispose (GumScriptThread * self);
+G_GNUC_INTERNAL void _gum_script_thread_finalize (GumScriptThread * self);
 
 #endif

@@ -138,8 +138,31 @@ fridainclude_HEADERS += backend-gcc/gumgccbacktracer.h
 endif
 
 if HAVE_V8
-script_sources += gumscript.cpp gumscripteventsink.cpp
-fridainclude_HEADERS += gumscript.h gumscripteventsink.h
+script_sources += \
+	gumscript.cpp \
+	gumscript-priv.h \
+	gumscript-runtime.h \
+	gumscriptscope.h \
+	gumscriptcore.h \
+	gumscriptcore.cpp \
+	gumscriptmemory.h \
+	gumscriptmemory.cpp \
+	gumscriptprocess.h \
+	gumscriptprocess.cpp \
+	gumscriptthread.h \
+	gumscriptthread.cpp \
+	gumscriptmodule.h \
+	gumscriptmodule.cpp \
+	gumscriptsocket.h \
+	gumscriptsocket.cpp \
+	gumscriptinterceptor.h \
+	gumscriptinterceptor.cpp \
+	gumscriptstalker.h \
+	gumscriptstalker.cpp \
+	gumscripteventsink.h \
+	gumscripteventsink.cpp
+fridainclude_HEADERS += \
+	gumscript.h
 endif
 
 if ENABLE_LIBS
