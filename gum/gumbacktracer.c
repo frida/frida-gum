@@ -27,6 +27,8 @@
 # include "backend-glibc/gumgnubacktracer.h"
 #elif defined (HAVE_I386)
 # include "arch-x86/gumx86backtracer.h"
+#elif defined (HAVE_ARM)
+# include "arch-arm/gumarmbacktracer.h"
 #endif
 
 GType
@@ -59,6 +61,8 @@ gum_backtracer_make_default (void)
   return gum_gnu_backtracer_new ();
 #elif defined (HAVE_I386) && !defined(__clang__)
   return gum_x86_backtracer_new ();
+#elif defined (HAVE_ARM)
+  return gum_arm_backtracer_new ();
 #else
   return NULL;
 #endif

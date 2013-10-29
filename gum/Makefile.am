@@ -19,6 +19,7 @@ fridainclude_HEADERS = \
 	gumlist.h \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
+	gummemorymap.h \
 	gumprocess.h \
 	gumreturnaddress.h \
 	gumspinlock.h \
@@ -73,11 +74,13 @@ if ARCH_ARM
 archincludedir = $(includedir)/frida-1.0/gum/arch-arm
 archinclude_HEADERS = \
 	arch-arm/gumarm.h \
+	arch-arm/gumarmbacktracer.h \
 	arch-arm/gumarmwriter.h \
 	arch-arm/gumarmrelocator.h \
 	arch-arm/gumthumbwriter.h \
 	arch-arm/gumthumbrelocator.h
 arch_sources += \
+	arch-arm/gumarmbacktracer.c \
 	arch-arm/gumarmwriter.c \
 	arch-arm/gumarmrelocator.c \
 	arch-arm/gumthumbwriter.c \
@@ -159,6 +162,7 @@ libfrida_gum_la_SOURCES = \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
 	gummemory.c \
+	gummemorymap.c \
 	gumreturnaddress.c \
 	gumtls.h \
 	$(arch_sources) \

@@ -123,7 +123,7 @@ main (gint argc, gchar * argv[])
 #ifndef HAVE_ARM
   TEST_RUN_LIST (stalker);
 #endif
-#if !defined (HAVE_ANDROID) && !defined (HAVE_IOS)
+#ifndef HAVE_IOS
   TEST_RUN_LIST (backtracer);
 #endif
 

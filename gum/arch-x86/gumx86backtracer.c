@@ -19,42 +19,21 @@
 
 #include "gumx86backtracer.h"
 
-#include "gumprocess.h"
-
-typedef struct _GumCodeRange GumCodeRange;
-typedef struct _GumUpdateCodeRangesCtx GumUpdateCodeRangesCtx;
+#include "guminterceptor.h"
+#include "gummemorymap.h"
 
 struct _GumX86BacktracerPrivate
 {
-  GArray * code_ranges;
-  gsize code_ranges_min;
-  gsize code_ranges_max;
-};
-
-struct _GumCodeRange
-{
-  gsize start;
-  gsize end;
-};
-
-struct _GumUpdateCodeRangesCtx
-{
-  GumX86Backtracer * self;
-  gint prev_range_index;
+  GumMemoryMap * code;
+  GumMemoryMap * writable;
 };
 
 static void gum_x86_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_x86_backtracer_finalize (GObject * object);
+static void gum_x86_backtracer_dispose (GObject * object);
 static void gum_x86_backtracer_generate (GumBacktracer * backtracer,
     const GumCpuContext * cpu_context,
     GumReturnAddressArray * return_addresses);
-
-static void gum_x86_backtracer_update_code_ranges (GumX86Backtracer * self);
-static gboolean gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
-static gboolean gum_is_valid_code_address (GumX86Backtracer * self,
-    gsize address, gsize size);
 
 G_DEFINE_TYPE_EXTENDED (GumX86Backtracer,
                         gum_x86_backtracer,
@@ -70,7 +49,7 @@ gum_x86_backtracer_class_init (GumX86BacktracerClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumX86BacktracerPrivate));
 
-  object_class->finalize = gum_x86_backtracer_finalize;
+  object_class->dispose = gum_x86_backtracer_dispose;
 }
 
 static void
@@ -88,19 +67,29 @@ gum_x86_backtracer_init (GumX86Backtracer * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_X86_BACKTRACER,
       GumX86BacktracerPrivate);
 
-  self->priv->code_ranges = g_array_new (FALSE, FALSE, sizeof (GumCodeRange));
-
-  gum_x86_backtracer_update_code_ranges (self);
+  self->priv->code = gum_memory_map_new (GUM_PAGE_EXECUTE);
+  self->priv->writable = gum_memory_map_new (GUM_PAGE_WRITE);
 }
 
 static void
-gum_x86_backtracer_finalize (GObject * object)
+gum_x86_backtracer_dispose (GObject * object)
 {
   GumX86Backtracer * self = GUM_X86_BACKTRACER (object);
+  GumX86BacktracerPrivate * priv = self->priv;
 
-  g_array_free (self->priv->code_ranges, TRUE);
+  if (priv->code != NULL)
+  {
+    g_object_unref (priv->code);
+    priv->code = NULL;
+  }
 
-  G_OBJECT_CLASS (gum_x86_backtracer_parent_class)->finalize (object);
+  if (priv->writable != NULL)
+  {
+    g_object_unref (priv->writable);
+    priv->writable = NULL;
+  }
+
+  G_OBJECT_CLASS (gum_x86_backtracer_parent_class)->dispose (object);
 }
 
 GumBacktracer *
@@ -118,10 +107,14 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
                              GumReturnAddressArray * return_addresses)
 {
   GumX86Backtracer * self = GUM_X86_BACKTRACER_CAST (backtracer);
+  GumX86BacktracerPrivate * priv = self->priv;
+  GumInvocationStack * invocation_stack;
   gsize * start_address;
   gsize first_address = 0;
   guint i;
   gsize * p;
+
+  invocation_stack = gum_interceptor_get_current_stack ();
 
   if (cpu_context != NULL)
     start_address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XSP (cpu_context));
@@ -130,99 +123,60 @@ gum_x86_backtracer_generate (GumBacktracer * backtracer,
 
   for (i = 0, p = start_address; p < start_address + 2048; p++)
   {
-    gsize value = *p;
+    gboolean valid = FALSE;
+    gsize value;
+    GumMemoryRange vr;
 
-    if (value != first_address && value > 6 &&
-        gum_is_valid_code_address (self, value - 6, 6))
+    if ((GPOINTER_TO_SIZE (p) & (4096 - 1)) == 0)
     {
-      guint8 * code_ptr = GSIZE_TO_POINTER (value);
+      GumMemoryRange next_range;
+      next_range.base_address = GUM_ADDRESS (p);
+      next_range.size = 4096;
+      if (!gum_memory_map_contains (priv->writable, &next_range))
+        break;
+    }
 
-      if (*(code_ptr - 5) == OPCODE_CALL_NEAR_RELATIVE ||
-          *(code_ptr - 6) == OPCODE_CALL_NEAR_ABS_INDIRECT ||
-          *(code_ptr - 3) == OPCODE_CALL_NEAR_ABS_INDIRECT ||
-          *(code_ptr - 2) == OPCODE_CALL_NEAR_ABS_INDIRECT)
+    value = *p;
+    vr.base_address = value - 6;
+    vr.size = 6;
+
+    if (value != first_address && value > 4096 + 6 &&
+        gum_memory_map_contains (priv->code, &vr))
+    {
+      gsize translated_value;
+
+      translated_value = GPOINTER_TO_SIZE (gum_invocation_stack_translate (
+          invocation_stack, GSIZE_TO_POINTER (value)));
+      if (translated_value != value)
       {
-        return_addresses->items[i++] = GSIZE_TO_POINTER (value);
-        if (i == G_N_ELEMENTS (return_addresses->items))
-          break;
-
-        if (first_address == 0)
-          first_address = value;
+        value = translated_value;
+        valid = TRUE;
       }
+      else
+      {
+        guint8 * code_ptr = GSIZE_TO_POINTER (value);
+
+        if (*(code_ptr - 5) == OPCODE_CALL_NEAR_RELATIVE ||
+            *(code_ptr - 6) == OPCODE_CALL_NEAR_ABS_INDIRECT ||
+            *(code_ptr - 3) == OPCODE_CALL_NEAR_ABS_INDIRECT ||
+            *(code_ptr - 2) == OPCODE_CALL_NEAR_ABS_INDIRECT)
+        {
+          valid = TRUE;
+        }
+      }
+    }
+
+    if (valid)
+    {
+      return_addresses->items[i++] = GSIZE_TO_POINTER (value);
+      if (i == G_N_ELEMENTS (return_addresses->items))
+        break;
+
+      if (first_address == 0)
+        first_address = value;
     }
   }
 
   return_addresses->len = i;
 }
 
-static void
-gum_x86_backtracer_update_code_ranges (GumX86Backtracer * self)
-{
-  GumX86BacktracerPrivate * priv = self->priv;
-  GumUpdateCodeRangesCtx ctx;
-  GumCodeRange * first_range, * last_range;
-
-  ctx.self = self;
-  ctx.prev_range_index = -1;
-
-  g_array_set_size (priv->code_ranges, 0);
-
-  gum_process_enumerate_ranges (GUM_PAGE_EXECUTE,
-      gum_x86_backtracer_add_code_range, &ctx);
-
-  first_range = &g_array_index (priv->code_ranges, GumCodeRange, 0);
-  last_range = &g_array_index (priv->code_ranges, GumCodeRange,
-      priv->code_ranges->len - 1);
-
-  priv->code_ranges_min = first_range->start;
-  priv->code_ranges_max = last_range->end;
-}
-
-static gboolean
-gum_x86_backtracer_add_code_range (const GumMemoryRange * range,
-                                   GumPageProtection prot,
-                                   gpointer user_data)
-{
-  GumUpdateCodeRangesCtx * ctx = (GumUpdateCodeRangesCtx *) user_data;
-  GArray * ranges = ctx->self->priv->code_ranges;
-  GumCodeRange cur_range, * prev_range;
-
-  cur_range.start = GPOINTER_TO_SIZE (range->base_address);
-  cur_range.end = cur_range.start + range->size;
-
-  if (ctx->prev_range_index >= 0)
-    prev_range = &g_array_index (ranges, GumCodeRange, ctx->prev_range_index);
-  else
-    prev_range = NULL;
-
-  if (prev_range != NULL && cur_range.start == prev_range->end)
-    prev_range->end = cur_range.end;
-  else
-    g_array_append_val (ranges, cur_range);
-
-  return TRUE;
-}
-
-static gboolean
-gum_is_valid_code_address (GumX86Backtracer * self,
-                           gsize address,
-                           gsize size)
-{
-  GumX86BacktracerPrivate * priv = self->priv;
-  guint i;
-
-  if (address < priv->code_ranges_min)
-    return FALSE;
-  else if (address + size >= priv->code_ranges_max)
-    return FALSE;
-
-  for (i = 0; i < priv->code_ranges->len; i++)
-  {
-    GumCodeRange * range = &g_array_index (priv->code_ranges, GumCodeRange, i);
-
-    if (address >= range->start && address + size < range->end)
-      return TRUE;
-  }
-
-  return FALSE;
-}
