@@ -293,7 +293,7 @@ replacement_malloc (gsize size)
   if (priv->detaching)
     goto fallback;
 
-  result = gum_page_pool_try_alloc (priv->page_pool, size);
+  result = gum_page_pool_try_alloc (priv->page_pool, MAX (size, 1));
   if (result == NULL)
     goto fallback;
 
@@ -317,7 +317,7 @@ replacement_calloc (gsize num,
   if (priv->detaching)
     goto fallback;
 
-  result = gum_page_pool_try_alloc (priv->page_pool, num * size);
+  result = gum_page_pool_try_alloc (priv->page_pool, MAX (num * size, 1));
   if (result != NULL)
     memset (result, 0, num * size);
   else
@@ -344,6 +344,12 @@ replacement_realloc (gpointer old_address,
 
   if (old_address == NULL)
     return malloc (new_size);
+
+  if (new_size == 0)
+  {
+    free (old_address);
+    return NULL;
+  }
 
   old_size = gum_page_pool_query_block_size (priv->page_pool, old_address);
   if (old_size == 0)
