@@ -1,6 +1,6 @@
 lib_LTLIBRARIES = libfrida-gumpp-1.0.la
 
-fridaincludedir = $(includedir)/frida-1.0
+fridaincludedir = $(includedir)/frida-1.0/gum
 fridainclude_HEADERS = gumpp.hpp
 
 ## FIXME: generate this
