@@ -38,6 +38,7 @@
     <ClInclude Include="gum\gumscriptprocess.h" />
     <ClInclude Include="gum\gumscriptthread.h" />
     <ClInclude Include="gum\gumscriptmodule.h" />
+    <ClInclude Include="gum\gumscriptfile.h" />
     <ClInclude Include="gum\gumscriptsocket.h" />
     <ClInclude Include="gum\gumscriptinterceptor.h" />
     <ClInclude Include="gum\gumscriptstalker.h" />
@@ -71,6 +72,7 @@
     <ClCompile Include="gum\gumscriptprocess.cpp" />
     <ClCompile Include="gum\gumscriptthread.cpp" />
     <ClCompile Include="gum\gumscriptmodule.cpp" />
+    <ClCompile Include="gum\gumscriptfile.cpp" />
     <ClCompile Include="gum\gumscriptsocket.cpp" />
     <ClCompile Include="gum\gumscriptinterceptor.cpp" />
     <ClCompile Include="gum\gumscriptstalker.cpp" />

@@ -22,6 +22,7 @@
 
 #include "gumscript-priv.h"
 #include "gumscriptcore.h"
+#include "gumscriptfile.h"
 #include "gumscriptinterceptor.h"
 #include "gumscriptmemory.h"
 #include "gumscriptmodule.h"
@@ -57,6 +58,7 @@ struct _GumScriptPrivate
   GumScriptProcess process;
   GumScriptThread thread;
   GumScriptModule module;
+  GumScriptFile file;
   GumScriptSocket socket;
   GumScriptInterceptor interceptor;
   GumScriptStalker stalker;
@@ -228,6 +230,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
     _gum_script_module_init (&priv->module, &priv->core, global_templ);
+    _gum_script_file_init (&priv->file, &priv->core, global_templ);
     _gum_script_socket_init (&priv->socket, &priv->core, global_templ);
     _gum_script_interceptor_init (&priv->interceptor, &priv->core, global_templ);
     _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
@@ -239,6 +242,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_process_realize (&priv->process);
     _gum_script_thread_realize (&priv->thread);
     _gum_script_module_realize (&priv->module);
+    _gum_script_file_realize (&priv->file);
     _gum_script_socket_realize (&priv->socket);
     _gum_script_interceptor_realize (&priv->interceptor);
     _gum_script_stalker_realize (&priv->stalker);
@@ -290,6 +294,7 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
     _gum_script_socket_dispose (&priv->socket);
+    _gum_script_file_dispose (&priv->file);
     _gum_script_module_dispose (&priv->module);
     _gum_script_thread_dispose (&priv->thread);
     _gum_script_process_dispose (&priv->process);
@@ -305,6 +310,7 @@ gum_script_destroy_context (GumScript * self)
   _gum_script_stalker_finalize (&priv->stalker);
   _gum_script_interceptor_finalize (&priv->interceptor);
   _gum_script_socket_finalize (&priv->socket);
+  _gum_script_file_finalize (&priv->file);
   _gum_script_module_finalize (&priv->module);
   _gum_script_thread_finalize (&priv->thread);
   _gum_script_process_finalize (&priv->process);

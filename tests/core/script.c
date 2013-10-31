@@ -84,6 +84,7 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
+  SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
@@ -155,6 +156,25 @@ gum_toupper (gchar * str,
   }
 
   return (limit == -1) ? -count : count;
+}
+
+SCRIPT_TESTCASE (file_can_be_written_to)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
+  COMPILE_AND_LOAD_SCRIPT (
+      "var log = new File(\"/tmp/script-test.log\", 'a');"
+      "log.write(\"Hello \");"
+      "log.write(Memory.readByteArray(" GUM_PTR_CONST ", 4));"
+      "log.write(\"!\\n\");"
+      "log.close();",
+      d00d);
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)

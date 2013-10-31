@@ -153,6 +153,8 @@ script_sources += \
 	gumscriptthread.cpp \
 	gumscriptmodule.h \
 	gumscriptmodule.cpp \
+	gumscriptfile.h \
+	gumscriptfile.cpp \
 	gumscriptsocket.h \
 	gumscriptsocket.cpp \
 	gumscriptinterceptor.h \
