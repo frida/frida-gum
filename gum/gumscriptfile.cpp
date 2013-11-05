@@ -128,15 +128,14 @@ gum_script_file_on_file_write (const Arguments & args)
   FILE * file = static_cast<FILE *> (
       args.Holder ()->GetPointerFromInternalField (0));
 
+  gboolean argument_valid = FALSE;
   const gchar * data = NULL;
   gint data_length = 0;
 
   Local<Value> data_val = args[0];
   if (data_val->IsString ())
   {
-    String::Utf8Value utf_val (data_val);
-    data = *utf_val;
-    data_length = utf_val.length ();
+    argument_valid = TRUE;
   }
   else if (data_val->IsObject () && !data_val->IsNull ())
   {
@@ -145,13 +144,14 @@ gum_script_file_on_file_write (const Arguments & args)
         array->GetIndexedPropertiesExternalArrayDataType ()
         == kExternalUnsignedByteArray)
     {
+      argument_valid = TRUE;
       data = static_cast<gchar *> (
           array->GetIndexedPropertiesExternalArrayData ());
       data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
     }
   }
 
-  if (data == NULL)
+  if (!argument_valid)
   {
     ThrowException (Exception::TypeError (String::New (
         "File.write: argument must be a string or raw byte array")));
@@ -160,7 +160,15 @@ gum_script_file_on_file_write (const Arguments & args)
 
   if (file != NULL)
   {
-    fwrite (data, data_length, 1, file);
+    if (data == NULL)
+    {
+      String::Utf8Value utf_val (data_val);
+      fwrite (*utf_val, utf_val.length (), 1, file);
+    }
+    else
+    {
+      fwrite (data, data_length, 1, file);
+    }
   }
   else
   {
