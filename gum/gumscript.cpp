@@ -337,6 +337,12 @@ gum_script_from_string (const gchar * source,
   return script;
 }
 
+GumStalker *
+gum_script_get_stalker (GumScript * self)
+{
+  return _gum_script_stalker_get (&self->priv->stalker);
+}
+
 void
 gum_script_set_message_handler (GumScript * self,
                                 GumScriptMessageHandler func,

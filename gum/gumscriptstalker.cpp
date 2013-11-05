@@ -34,8 +34,6 @@ struct _GumScriptCallProbe
   Persistent<Object> receiver;
 };
 
-static GumStalker * gum_script_stalker_get (GumScriptStalker * self);
-
 static Handle<Value> gum_script_stalker_on_get_trust_threshold (
     Local<String> property, const AccessorInfo & info);
 static void gum_script_stalker_on_set_trust_threshold (Local<String> property,
@@ -137,16 +135,25 @@ _gum_script_stalker_finalize (GumScriptStalker * self)
 {
 }
 
+GumStalker *
+_gum_script_stalker_get (GumScriptStalker * self)
+{
+  if (self->stalker == NULL)
+    self->stalker = gum_stalker_new ();
+
+  return self->stalker;
+}
+
 void
 _gum_script_stalker_process_pending (GumScriptStalker * self)
 {
   if (self->pending_follow_level > 0)
   {
-    gum_stalker_follow_me (gum_script_stalker_get (self), self->sink);
+    gum_stalker_follow_me (_gum_script_stalker_get (self), self->sink);
   }
   else if (self->pending_follow_level < 0)
   {
-    gum_stalker_unfollow_me (gum_script_stalker_get (self));
+    gum_stalker_unfollow_me (_gum_script_stalker_get (self));
   }
   self->pending_follow_level = 0;
 
@@ -157,22 +164,13 @@ _gum_script_stalker_process_pending (GumScriptStalker * self)
   }
 }
 
-static GumStalker *
-gum_script_stalker_get (GumScriptStalker * self)
-{
-  if (self->stalker == NULL)
-    self->stalker = gum_stalker_new ();
-
-  return self->stalker;
-}
-
 static Handle<Value>
 gum_script_stalker_on_get_trust_threshold (Local<String> property,
                                            const AccessorInfo & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
       External::Unwrap (info.Data ()));
-  GumStalker * stalker = gum_script_stalker_get (self);
+  GumStalker * stalker = _gum_script_stalker_get (self);
   (void) property;
   return Number::New (gum_stalker_get_trust_threshold (stalker));
 }
@@ -184,7 +182,7 @@ gum_script_stalker_on_set_trust_threshold (Local<String> property,
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
       External::Unwrap (info.Data ()));
-  GumStalker * stalker = gum_script_stalker_get (self);
+  GumStalker * stalker = _gum_script_stalker_get (self);
   (void) property;
   gum_stalker_set_trust_threshold (stalker, value->IntegerValue ());
 }
@@ -237,7 +235,7 @@ gum_script_stalker_on_garbage_collect (const Arguments & args)
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
       External::Unwrap (args.Data ()));
 
-  gum_stalker_garbage_collect (gum_script_stalker_get (self));
+  gum_stalker_garbage_collect (_gum_script_stalker_get (self));
 
   return Undefined ();
 }
@@ -339,7 +337,7 @@ gum_script_stalker_on_follow (const Arguments & args)
   }
   else
   {
-    gum_stalker_follow (gum_script_stalker_get (self), thread_id,
+    gum_stalker_follow (_gum_script_stalker_get (self), thread_id,
         self->sink);
     g_object_unref (self->sink);
     self->sink = NULL;
@@ -356,7 +354,7 @@ gum_script_stalker_on_unfollow (const Arguments & args)
   GumStalker * stalker;
   GumThreadId thread_id;
 
-  stalker = gum_script_stalker_get (self);
+  stalker = _gum_script_stalker_get (self);
 
   if (args.Length () > 0)
     thread_id = args[0]->IntegerValue ();
@@ -400,7 +398,7 @@ gum_script_stalker_on_add_call_probe (const Arguments & args)
   probe->parent = self;
   probe->callback = Persistent<Function>::New (callback);
   probe->receiver = Persistent<Object>::New (args.This ());
-  id = gum_stalker_add_call_probe (gum_script_stalker_get (self),
+  id = gum_stalker_add_call_probe (_gum_script_stalker_get (self),
       target_address, gum_script_call_probe_fire,
       probe, reinterpret_cast<GDestroyNotify> (gum_script_call_probe_free));
 
@@ -421,7 +419,7 @@ gum_script_stalker_on_remove_call_probe (const Arguments & args)
     return Undefined ();
   }
 
-  gum_stalker_remove_call_probe (gum_script_stalker_get (self),
+  gum_stalker_remove_call_probe (_gum_script_stalker_get (self),
       id->ToUint32 ()->Value ());
 
   return Undefined ();

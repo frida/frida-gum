@@ -46,6 +46,7 @@ G_GNUC_INTERNAL void _gum_script_stalker_realize (GumScriptStalker * self);
 G_GNUC_INTERNAL void _gum_script_stalker_dispose (GumScriptStalker * self);
 G_GNUC_INTERNAL void _gum_script_stalker_finalize (GumScriptStalker * self);
 
+G_GNUC_INTERNAL GumStalker * _gum_script_stalker_get (GumScriptStalker * self);
 G_GNUC_INTERNAL void _gum_script_stalker_process_pending (
     GumScriptStalker * self);
 
