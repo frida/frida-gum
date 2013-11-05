@@ -47,6 +47,11 @@ static Handle<Value> gum_script_interceptor_on_replace (const Arguments & args);
 static Handle<Value> gum_script_interceptor_on_revert (const Arguments & args);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
+static Handle<Value> gum_script_invocation_context_on_get_thread_id (
+    Local<String> property, const AccessorInfo & info);
+static Handle<Value> gum_script_invocation_context_on_get_depth (
+    Local<String> property, const AccessorInfo & info);
+
 static Handle<Value> gum_script_invocation_args_on_get_nth (uint32_t index,
     const AccessorInfo & info);
 static Handle<Value> gum_script_invocation_args_on_set_nth (uint32_t index,
@@ -80,6 +85,15 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
 void
 _gum_script_interceptor_realize (GumScriptInterceptor * self)
 {
+  Handle<ObjectTemplate> context = ObjectTemplate::New ();
+  context->SetInternalFieldCount (2);
+  context->SetAccessor (String::New ("threadId"),
+      gum_script_invocation_context_on_get_thread_id);
+  context->SetAccessor (String::New ("depth"),
+      gum_script_invocation_context_on_get_depth);
+  self->invocation_context_value =
+      Persistent<Object>::New (context->NewInstance ());
+
   Handle<ObjectTemplate> args = ObjectTemplate::New ();
   args->SetInternalFieldCount (1);
   args->SetIndexedPropertyHandler (
@@ -87,7 +101,7 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
       gum_script_invocation_args_on_set_nth,
       0, 0, 0,
       External::Wrap (self));
-  self->invocation_args = Persistent<ObjectTemplate>::New (args);
+  self->invocation_args_value = Persistent<Object>::New (args->NewInstance ());
 }
 
 void
@@ -96,14 +110,17 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
   gum_script_interceptor_detach_all (self);
 
   g_hash_table_remove_all (self->replacement_by_address);
+
+  self->invocation_args_value.Dispose ();
+  self->invocation_args_value.Clear ();
+
+  self->invocation_context_value.Dispose ();
+  self->invocation_context_value.Clear ();
 }
 
 void
 _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 {
-  self->invocation_args.Dispose ();
-  self->invocation_args.Clear ();
-
   g_queue_free (self->attach_entries);
   g_hash_table_unref (self->replacement_by_address);
 
@@ -121,16 +138,15 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
 
   ScriptScope scope (self->core->script);
 
-  Persistent<Object> receiver = Persistent<Object>::New (Object::New ());
-  receiver->Set (String::New ("threadId"),
-      Int32::New (gum_invocation_context_get_thread_id (context)),
-      ReadOnly);
-  receiver->Set (String::New ("depth"), Int32::New (*depth), ReadOnly);
+  Persistent<Object> receiver (Persistent<Object>::New (
+      self->invocation_context_value->Clone ()));
+  receiver->SetPointerInInternalField (0, context);
+  receiver->SetPointerInInternalField (1, reinterpret_cast<void *> (*depth));
   *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *) = *receiver;
 
   if (!entry->on_enter.IsEmpty ())
   {
-    Local<Object> args = self->invocation_args->NewInstance ();
+    Local<Object> args (self->invocation_args_value->Clone ());
     args->SetPointerInInternalField (0, context);
 
     Handle<Value> argv[] = { args };
@@ -286,6 +302,26 @@ gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   entry->replacement.Dispose ();
   g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+static Handle<Value>
+gum_script_invocation_context_on_get_thread_id (Local<String> property,
+                                                const AccessorInfo & info)
+{
+  GumInvocationContext * context = static_cast<GumInvocationContext *> (
+      info.Holder ()->GetPointerFromInternalField (0));
+  (void) property;
+  return Number::New (gum_invocation_context_get_thread_id (context));
+}
+
+static Handle<Value>
+gum_script_invocation_context_on_get_depth (Local<String> property,
+                                            const AccessorInfo & info)
+{
+  int32_t depth = static_cast<int32_t> (reinterpret_cast<gsize> (
+      info.Holder ()->GetPointerFromInternalField (1)));
+  (void) property;
+  return Number::New (depth);
 }
 
 static Handle<Value>
