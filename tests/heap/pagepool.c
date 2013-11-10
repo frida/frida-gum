@@ -25,7 +25,7 @@ TEST_LIST_BEGIN (pagepool)
   PAGEPOOL_TESTENTRY (alloc_protection)
   PAGEPOOL_TESTENTRY (free)
   PAGEPOOL_TESTENTRY (free_protection)
-  PAGEPOOL_TESTENTRY (query_block_size)
+  PAGEPOOL_TESTENTRY (query_block_details)
   PAGEPOOL_TESTENTRY (peek_used)
   PAGEPOOL_TESTENTRY (alloc_and_fill_full_cycle)
 TEST_LIST_END ()
@@ -135,17 +135,47 @@ PAGEPOOL_TESTCASE (free_protection)
   g_assert (!gum_memory_is_readable (address + 16, 1));
 }
 
-PAGEPOOL_TESTCASE (query_block_size)
+PAGEPOOL_TESTCASE (query_block_details)
 {
   GumPagePool * pool;
+  guint page_size, size;
+  GumBlockDetails details;
   guint8 * p;
 
-  SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 2);
+  SETUP_POOL (&pool, GUM_PROTECT_MODE_ABOVE, 3);
 
-  g_assert_cmpuint (gum_page_pool_query_block_size (pool,
-      GSIZE_TO_POINTER (1)), ==, 0);
-  p = (guint8 *) gum_page_pool_try_alloc (pool, 1337);
-  g_assert_cmpuint (gum_page_pool_query_block_size (pool, p), ==, 1337);
+  g_object_get (pool, "page-size", &page_size, NULL);
+
+  g_assert (!gum_page_pool_query_block_details (pool, GSIZE_TO_POINTER (1),
+      &details));
+  size = page_size + 1;
+  p = (guint8 *) gum_page_pool_try_alloc (pool, size);
+
+  g_assert (gum_page_pool_query_block_details (pool, p, &details));
+  g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
+      ==, GPOINTER_TO_SIZE (p));
+  g_assert_cmpuint (details.size, ==, size);
+  g_assert (details.allocated);
+
+  g_assert (gum_page_pool_query_block_details (pool, p + 1, &details));
+  g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
+      ==, GPOINTER_TO_SIZE (p));
+  g_assert_cmpuint (details.size, ==, size);
+  g_assert (details.allocated);
+
+  g_assert (gum_page_pool_query_block_details (pool, p + size - 1, &details));
+  g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
+      ==, GPOINTER_TO_SIZE (p));
+  g_assert_cmpuint (details.size, ==, size);
+  g_assert (details.allocated);
+
+  gum_page_pool_try_free (pool, p);
+
+  g_assert (gum_page_pool_query_block_details (pool, p, &details));
+  g_assert_cmphex (GPOINTER_TO_SIZE (details.address),
+      ==, GPOINTER_TO_SIZE (p));
+  g_assert_cmpuint (details.size, ==, size);
+  g_assert (!details.allocated);
 }
 
 PAGEPOOL_TESTCASE (peek_used)

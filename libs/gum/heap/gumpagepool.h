@@ -39,6 +39,7 @@ typedef struct _GumPagePool GumPagePool;
 typedef struct _GumPagePoolClass GumPagePoolClass;
 
 typedef enum _GumProtectMode GumProtectMode;
+typedef struct _GumBlockDetails GumBlockDetails;
 
 typedef struct _GumPagePoolPrivate GumPagePoolPrivate;
 
@@ -59,6 +60,13 @@ enum _GumProtectMode
   GUM_PROTECT_MODE_ABOVE = 1
 };
 
+struct _GumBlockDetails
+{
+  gpointer address;
+  gsize size;
+  gboolean allocated;
+};
+
 G_BEGIN_DECLS
 
 GType gum_page_pool_get_type (void) G_GNUC_CONST;
@@ -72,7 +80,8 @@ guint gum_page_pool_peek_available (GumPagePool * self);
 guint gum_page_pool_peek_used (GumPagePool * self);
 void gum_page_pool_get_bounds (GumPagePool * self, guint8 ** lower,
     guint8 ** upper);
-guint gum_page_pool_query_block_size (GumPagePool * self, gpointer mem);
+gboolean gum_page_pool_query_block_details (GumPagePool * self,
+    gconstpointer mem, GumBlockDetails * details);
 
 G_END_DECLS
 

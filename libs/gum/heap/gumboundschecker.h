@@ -42,6 +42,8 @@ typedef struct _GumBoundsCheckerClass GumBoundsCheckerClass;
 
 typedef struct _GumBoundsCheckerPrivate GumBoundsCheckerPrivate;
 
+typedef void (* GumBoundsOutputFunc) (const gchar * text, gpointer user_data);
+
 struct _GumBoundsChecker
 {
   GObject parent;
@@ -58,7 +60,8 @@ G_BEGIN_DECLS
 
 GUM_API GType gum_bounds_checker_get_type (void) G_GNUC_CONST;
 
-GUM_API GumBoundsChecker * gum_bounds_checker_new (void);
+GUM_API GumBoundsChecker * gum_bounds_checker_new (GumBoundsOutputFunc func,
+    gpointer user_data);
 
 GUM_API guint gum_bounds_checker_get_pool_size (GumBoundsChecker * self);
 GUM_API void gum_bounds_checker_set_pool_size (GumBoundsChecker * self,

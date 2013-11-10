@@ -30,7 +30,41 @@ TEST_LIST_BEGIN (boundschecker)
   BOUNDSCHECKER_TESTENTRY (protected_after_free)
   BOUNDSCHECKER_TESTENTRY (calloc_initializes_to_zero)
   BOUNDSCHECKER_TESTENTRY (custom_front_alignment)
+  BOUNDSCHECKER_TESTENTRY (output_report_on_access_beyond_end)
+  BOUNDSCHECKER_TESTENTRY (output_report_on_access_after_free)
 TEST_LIST_END ()
+
+BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
+{
+  guint8 * p;
+
+  ATTACH_CHECKER ();
+  p = (guint8 *) malloc (16);
+  gum_try_read_and_write_at (p, 16, NULL, NULL);
+  free (p);
+  DETACH_CHECKER ();
+
+  assert_same_output (fixture,
+      "Oops! Heap block %p of 16 bytes was accessed at offset 16\n"
+      "Oops! Heap block %p of 16 bytes was accessed at offset 16\n",
+      p, p);
+}
+
+BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
+{
+  guint8 * p;
+
+  ATTACH_CHECKER ();
+  p = (guint8 *) malloc (10);
+  free (p);
+  gum_try_read_and_write_at (p, 7, NULL, NULL);
+  DETACH_CHECKER ();
+
+  assert_same_output (fixture,
+      "Oops! Freed block %p of 10 bytes was accessed at offset 7\n"
+      "Oops! Freed block %p of 10 bytes was accessed at offset 7\n",
+      p, p);
+}
 
 BOUNDSCHECKER_TESTCASE (tail_checking_malloc)
 {

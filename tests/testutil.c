@@ -412,8 +412,11 @@ gum_try_read_and_write_at (guint8 * a,
                            gboolean * exception_raised_on_write)
 {
   guint8 dummy_value_to_trick_optimizer = 0;
-  *exception_raised_on_read = FALSE;
-  *exception_raised_on_write = FALSE;
+
+  if (exception_raised_on_read != NULL)
+    *exception_raised_on_read = FALSE;
+  if (exception_raised_on_write != NULL)
+    *exception_raised_on_write = FALSE;
 
   __try
   {
@@ -421,7 +424,8 @@ gum_try_read_and_write_at (guint8 * a,
   }
   __except (EXCEPTION_EXECUTE_HANDLER)
   {
-    *exception_raised_on_read = TRUE;
+    if (exception_raised_on_read != NULL)
+      *exception_raised_on_read = TRUE;
   }
 
   __try
@@ -430,7 +434,8 @@ gum_try_read_and_write_at (guint8 * a,
   }
   __except (EXCEPTION_EXECUTE_HANDLER)
   {
-    *exception_raised_on_write = TRUE;
+    if (exception_raised_on_write != NULL)
+      *exception_raised_on_write = TRUE;
   }
 
   return dummy_value_to_trick_optimizer;
@@ -497,8 +502,10 @@ gum_try_read_and_write_at (guint8 * a,
   struct sigaction action;
   guint8 dummy_value_to_trick_optimizer = 0;
 
-  *exception_raised_on_read = FALSE;
-  *exception_raised_on_write = FALSE;
+  if (exception_raised_on_read != NULL)
+    *exception_raised_on_read = FALSE;
+  if (exception_raised_on_write != NULL)
+    *exception_raised_on_write = FALSE;
 
   action.sa_sigaction = gum_test_on_signal;
   sigemptyset (&action.sa_mask);
@@ -512,7 +519,8 @@ gum_try_read_and_write_at (guint8 * a,
   }
   else
   {
-    *exception_raised_on_read = TRUE;
+    if (exception_raised_on_read != NULL)
+      *exception_raised_on_read = TRUE;
   }
 
   if (sigsetjmp (gum_try_read_and_write_context, 1) == 0)
@@ -521,7 +529,8 @@ gum_try_read_and_write_at (guint8 * a,
   }
   else
   {
-    *exception_raised_on_write = TRUE;
+    if (exception_raised_on_write != NULL)
+      *exception_raised_on_write = TRUE;
   }
 
   sigaction (SIGSEGV, &gum_test_old_sigsegv, NULL);

@@ -35,13 +35,21 @@
 typedef struct _TestBoundsCheckerFixture
 {
   GumBoundsChecker * checker;
+  GString * output;
+  guint output_call_count;
 } TestBoundsCheckerFixture;
+
+static void test_bounds_checker_fixture_do_output (const gchar * text,
+    gpointer user_data);
 
 static void
 test_bounds_checker_fixture_setup (TestBoundsCheckerFixture * fixture,
                                    gconstpointer data)
 {
-  fixture->checker = gum_bounds_checker_new ();
+  fixture->output = g_string_new ("");
+
+  fixture->checker = gum_bounds_checker_new (
+      test_bounds_checker_fixture_do_output, fixture);
 }
 
 static void
@@ -49,6 +57,52 @@ test_bounds_checker_fixture_teardown (TestBoundsCheckerFixture * fixture,
                                       gconstpointer data)
 {
   g_object_unref (fixture->checker);
+
+  g_string_free (fixture->output, TRUE);
+}
+
+static void
+assert_same_output (TestBoundsCheckerFixture * fixture,
+                    const gchar * expected_output_format,
+                    ...)
+{
+  gboolean is_exact_match;
+  va_list args;
+  gchar * expected_output;
+
+  va_start (args, expected_output_format);
+  expected_output = g_strdup_vprintf (expected_output_format, args);
+  va_end (args);
+
+  is_exact_match = strcmp (fixture->output->str, expected_output) == 0;
+  if (!is_exact_match)
+  {
+    GString * message;
+    gchar * diff;
+
+    message = g_string_new ("Generated output not like expected:\n\n");
+
+    diff = test_util_diff_text (expected_output, fixture->output->str);
+    g_string_append (message, diff);
+    g_free (diff);
+
+    g_assertion_message (G_LOG_DOMAIN, __FILE__, __LINE__, G_STRFUNC,
+        message->str);
+
+    g_string_free (message, TRUE);
+  }
+
+  g_free (expected_output);
+}
+
+static void
+test_bounds_checker_fixture_do_output (const gchar * text,
+                                       gpointer user_data)
+{
+  TestBoundsCheckerFixture * fixture = (TestBoundsCheckerFixture *) user_data;
+
+  fixture->output_call_count++;
+  g_string_append (fixture->output, text);
 }
 
 #define ATTACH_CHECKER() \

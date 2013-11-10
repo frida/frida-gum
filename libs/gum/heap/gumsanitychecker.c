@@ -253,7 +253,8 @@ gum_sanity_checker_begin (GumSanityChecker * self,
 
   if ((flags & GUM_CHECK_BOUNDS) != 0)
   {
-    priv->bounds_checker = gum_bounds_checker_new ();
+    priv->bounds_checker = gum_bounds_checker_new (
+        priv->output, priv->output_user_data);
     g_object_set (priv->bounds_checker,
         "front-alignment", priv->front_alignment_granularity, NULL);
     gum_bounds_checker_attach_to_apis (priv->bounds_checker, priv->heap_apis);
