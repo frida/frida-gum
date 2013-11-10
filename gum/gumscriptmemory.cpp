@@ -49,11 +49,6 @@
 #  define GUM_LONGJMP(env, val) siglongjmp (env, val)
    typedef sigjmp_buf gum_jmp_buf;
 # endif
-# if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
-#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
-# else
-#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
-# endif
 #endif
 
 using namespace v8;
@@ -160,7 +155,8 @@ G_LOCK_DEFINE_STATIC (gum_memaccess);
 static guint gum_memaccess_refcount = 0;
 static GumTlsKey gum_memaccess_scope_tls;
 #ifndef G_OS_WIN32
-static struct sigaction gum_memaccess_old_action;
+static struct sigaction gum_memaccess_old_sigsegv;
+static struct sigaction gum_memaccess_old_sigbus;
 #endif
 
 void
@@ -248,7 +244,8 @@ _gum_script_memory_init (GumScriptMemory * self,
     action.sa_sigaction = gum_script_memory_on_invalid_access;
     sigemptyset (&action.sa_mask);
     action.sa_flags = SA_SIGINFO;
-    sigaction (GUM_INVALID_ACCESS_SIGNAL, &action, &gum_memaccess_old_action);
+    sigaction (SIGSEGV, &action, &gum_memaccess_old_sigsegv);
+    sigaction (SIGBUS, &action, &gum_memaccess_old_sigbus);
 #endif
   }
   G_UNLOCK (gum_memaccess);
@@ -279,8 +276,10 @@ _gum_script_memory_finalize (GumScriptMemory * self)
   if (--gum_memaccess_refcount == 0)
   {
 #ifndef G_OS_WIN32
-    sigaction (GUM_INVALID_ACCESS_SIGNAL, &gum_memaccess_old_action, NULL);
-    memset (&gum_memaccess_old_action, 0, sizeof (gum_memaccess_old_action));
+    sigaction (SIGSEGV, &gum_memaccess_old_sigsegv, NULL);
+    memset (&gum_memaccess_old_sigsegv, 0, sizeof (gum_memaccess_old_sigsegv));
+    sigaction (SIGBUS, &gum_memaccess_old_sigbus, NULL);
+    memset (&gum_memaccess_old_sigbus, 0, sizeof (gum_memaccess_old_sigbus));
 #endif
 
     GUM_TLS_KEY_FREE (gum_memaccess_scope_tls);
@@ -865,7 +864,8 @@ gum_script_memory_on_invalid_access (int sig,
   }
 
 not_our_fault:
-  action = &gum_memaccess_old_action;
+  action =
+      (sig == SIGSEGV) ? &gum_memaccess_old_sigsegv : &gum_memaccess_old_sigbus;
   if ((action->sa_flags & SA_SIGINFO) != 0)
   {
     if (action->sa_sigaction != NULL)

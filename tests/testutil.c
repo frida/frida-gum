@@ -35,10 +35,8 @@
 #  include <mach-o/dyld.h>
 #  include <sys/sysctl.h>
 #  include <sys/types.h>
-#  define GUM_INVALID_ACCESS_SIGNAL SIGBUS
 # else
 #  include <stdio.h>
-#  define GUM_INVALID_ACCESS_SIGNAL SIGSEGV
 # endif
 #endif
 #include <stdlib.h>
@@ -464,12 +462,30 @@ gum_is_debugger_present (void)
 #endif
 }
 
-static sigjmp_buf try_read_and_write_context;
+static sigjmp_buf gum_try_read_and_write_context;
+static struct sigaction gum_test_old_sigsegv;
+static struct sigaction gum_test_old_sigbus;
 
 static void
-on_sigsegv (int arg)
+gum_test_on_signal (int sig,
+                    siginfo_t * siginfo,
+                    void * context)
 {
-  siglongjmp (try_read_and_write_context, 1337);
+  struct sigaction * action;
+
+  action = (sig == SIGSEGV) ? &gum_test_old_sigsegv : &gum_test_old_sigbus;
+  if ((action->sa_flags & SA_SIGINFO) != 0)
+  {
+    if (action->sa_sigaction != NULL)
+      action->sa_sigaction (sig, siginfo, context);
+  }
+  else
+  {
+    if (action->sa_handler != NULL)
+      action->sa_handler (sig);
+  }
+
+  siglongjmp (gum_try_read_and_write_context, 1337);
 }
 
 guint8
@@ -478,14 +494,19 @@ gum_try_read_and_write_at (guint8 * a,
                            gboolean * exception_raised_on_read,
                            gboolean * exception_raised_on_write)
 {
+  struct sigaction action;
   guint8 dummy_value_to_trick_optimizer = 0;
 
   *exception_raised_on_read = FALSE;
   *exception_raised_on_write = FALSE;
 
-  signal (GUM_INVALID_ACCESS_SIGNAL, on_sigsegv);
+  action.sa_sigaction = gum_test_on_signal;
+  sigemptyset (&action.sa_mask);
+  action.sa_flags = SA_SIGINFO;
+  sigaction (SIGSEGV, &action, &gum_test_old_sigsegv);
+  sigaction (SIGBUS, &action, &gum_test_old_sigbus);
 
-  if (sigsetjmp (try_read_and_write_context, 1) == 0)
+  if (sigsetjmp (gum_try_read_and_write_context, 1) == 0)
   {
     dummy_value_to_trick_optimizer = a[i];
   }
@@ -494,7 +515,7 @@ gum_try_read_and_write_at (guint8 * a,
     *exception_raised_on_read = TRUE;
   }
 
-  if (sigsetjmp (try_read_and_write_context, 1) == 0)
+  if (sigsetjmp (gum_try_read_and_write_context, 1) == 0)
   {
     a[i] = 42;
   }
@@ -503,7 +524,10 @@ gum_try_read_and_write_at (guint8 * a,
     *exception_raised_on_write = TRUE;
   }
 
-  signal (GUM_INVALID_ACCESS_SIGNAL, SIG_DFL);
+  sigaction (SIGSEGV, &gum_test_old_sigsegv, NULL);
+  memset (&gum_test_old_sigsegv, 0, sizeof (gum_test_old_sigsegv));
+  sigaction (SIGBUS, &gum_test_old_sigbus, NULL);
+  memset (&gum_test_old_sigbus, 0, sizeof (gum_test_old_sigbus));
 
   return dummy_value_to_trick_optimizer;
 }
