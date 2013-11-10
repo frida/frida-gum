@@ -19,6 +19,7 @@
 
 #include "gumboundschecker.h"
 
+#include "fakebacktracer.h"
 #include "gummemory.h"
 #include "testutil.h"
 
@@ -35,6 +36,7 @@
 typedef struct _TestBoundsCheckerFixture
 {
   GumBoundsChecker * checker;
+  GumFakeBacktracer * backtracer;
   GString * output;
   guint output_call_count;
 } TestBoundsCheckerFixture;
@@ -46,9 +48,14 @@ static void
 test_bounds_checker_fixture_setup (TestBoundsCheckerFixture * fixture,
                                    gconstpointer data)
 {
+  GumBacktracer * backtracer;
+
+  backtracer = gum_fake_backtracer_new (NULL, 0);
+
+  fixture->backtracer = GUM_FAKE_BACKTRACER (backtracer);
   fixture->output = g_string_new ("");
 
-  fixture->checker = gum_bounds_checker_new (
+  fixture->checker = gum_bounds_checker_new (backtracer,
       test_bounds_checker_fixture_do_output, fixture);
 }
 
@@ -59,6 +66,7 @@ test_bounds_checker_fixture_teardown (TestBoundsCheckerFixture * fixture,
   g_object_unref (fixture->checker);
 
   g_string_free (fixture->output, TRUE);
+  g_object_unref (fixture->backtracer);
 }
 
 static void
@@ -110,3 +118,25 @@ test_bounds_checker_fixture_do_output (const gchar * text,
         test_util_heap_apis ())
 #define DETACH_CHECKER() \
     gum_bounds_checker_detach (fixture->checker)
+
+#define USE_BACKTRACE(bt) \
+    fixture->backtracer->ret_addrs = bt; \
+    fixture->backtracer->num_ret_addrs = G_N_ELEMENTS (bt);
+
+static const GumReturnAddress malloc_backtrace[] =
+{
+  GUINT_TO_POINTER (0xbbbb1111),
+  GUINT_TO_POINTER (0xbbbb2222)
+};
+
+static const GumReturnAddress free_backtrace[] =
+{
+  GUINT_TO_POINTER (0xcccc1111),
+  GUINT_TO_POINTER (0xcccc2222)
+};
+
+static const GumReturnAddress violation_backtrace[] =
+{
+  GUINT_TO_POINTER (0xaaaa1111),
+  GUINT_TO_POINTER (0xaaaa2222)
+};

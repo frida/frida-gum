@@ -212,19 +212,15 @@ gum_sanity_checker_begin (GumSanityChecker * self,
                           guint flags)
 {
   GumSanityCheckerPrivate * priv = self->priv;
+  GumBacktracer * backtracer = NULL;
+
+  if (priv->backtrace_block_size != 0)
+    backtracer = gum_backtracer_make_default ();
 
   if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
   {
-    GumBacktracer * backtracer = NULL;
-
-    if (priv->backtrace_block_size != 0)
-      backtracer = gum_backtracer_make_default ();
-
     priv->alloc_tracker =
         gum_allocation_tracker_new_with_backtracer (backtracer);
-
-    if (backtracer != NULL)
-      g_object_unref (backtracer);
 
     if (priv->backtrace_block_size > 0)
     {
@@ -253,12 +249,15 @@ gum_sanity_checker_begin (GumSanityChecker * self,
 
   if ((flags & GUM_CHECK_BOUNDS) != 0)
   {
-    priv->bounds_checker = gum_bounds_checker_new (
+    priv->bounds_checker = gum_bounds_checker_new (backtracer,
         priv->output, priv->output_user_data);
     g_object_set (priv->bounds_checker,
         "front-alignment", priv->front_alignment_granularity, NULL);
     gum_bounds_checker_attach_to_apis (priv->bounds_checker, priv->heap_apis);
   }
+
+  if (backtracer != NULL)
+    g_object_unref (backtracer);
 }
 
 gboolean

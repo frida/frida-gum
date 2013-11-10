@@ -39,6 +39,7 @@
 enum
 {
   PROP_0,
+  PROP_BACKTRACER,
   PROP_POOL_SIZE,
   PROP_FRONT_ALIGNMENT
 };
@@ -47,6 +48,8 @@ struct _GumBoundsCheckerPrivate
 {
   gboolean disposed;
 
+  GumBacktracerIface * backtracer_interface;
+  GumBacktracer * backtracer_instance;
   GumBoundsOutputFunc output;
   gpointer output_user_data;
 
@@ -103,6 +106,11 @@ gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
   object_class->dispose = gum_bounds_checker_dispose;
   object_class->get_property = gum_bounds_checker_get_property;
   object_class->set_property = gum_bounds_checker_set_property;
+
+  g_object_class_install_property (object_class, PROP_BACKTRACER,
+      g_param_spec_object ("backtracer", "Backtracer",
+      "Backtracer Implementation", GUM_TYPE_BACKTRACER,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT_ONLY));
 
   g_object_class_install_property (object_class, PROP_POOL_SIZE,
       g_param_spec_uint ("pool-size", "Pool Size",
@@ -184,6 +192,14 @@ gum_bounds_checker_dispose (GObject * object)
     G_UNLOCK (gum_memaccess);
 
     g_object_unref (priv->interceptor);
+    priv->interceptor = NULL;
+
+    if (priv->backtracer_instance != NULL)
+    {
+      g_object_unref (priv->backtracer_instance);
+      priv->backtracer_instance = NULL;
+    }
+    priv->backtracer_interface = NULL;
   }
 
   G_OBJECT_CLASS (gum_bounds_checker_parent_class)->dispose (object);
@@ -196,9 +212,13 @@ gum_bounds_checker_get_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
+  GumBoundsCheckerPrivate * priv = self->priv;
 
   switch (property_id)
   {
+    case PROP_BACKTRACER:
+      g_value_set_object (value, priv->backtracer_instance);
+      break;
     case PROP_POOL_SIZE:
       g_value_set_uint (value, gum_bounds_checker_get_pool_size (self));
       break;
@@ -217,9 +237,26 @@ gum_bounds_checker_set_property (GObject * object,
                                  GParamSpec * pspec)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
+  GumBoundsCheckerPrivate * priv = self->priv;
 
   switch (property_id)
   {
+    case PROP_BACKTRACER:
+      if (priv->backtracer_instance != NULL)
+        g_object_unref (priv->backtracer_instance);
+      priv->backtracer_instance = g_value_dup_object (value);
+
+      if (priv->backtracer_instance != NULL)
+      {
+        priv->backtracer_interface =
+            GUM_BACKTRACER_GET_INTERFACE (priv->backtracer_instance);
+      }
+      else
+      {
+        priv->backtracer_interface = NULL;
+      }
+
+      break;
     case PROP_POOL_SIZE:
       gum_bounds_checker_set_pool_size (self, g_value_get_uint (value));
       break;
@@ -232,13 +269,16 @@ gum_bounds_checker_set_property (GObject * object,
 }
 
 GumBoundsChecker *
-gum_bounds_checker_new (GumBoundsOutputFunc func,
+gum_bounds_checker_new (GumBacktracer * backtracer,
+                        GumBoundsOutputFunc func,
                         gpointer user_data)
 {
   GumBoundsChecker * checker;
   GumBoundsCheckerPrivate * priv;
 
-  checker = GUM_BOUNDS_CHECKER (g_object_new (GUM_TYPE_BOUNDS_CHECKER, NULL));
+  checker = GUM_BOUNDS_CHECKER (g_object_new (GUM_TYPE_BOUNDS_CHECKER,
+      "backtracer", backtracer,
+      NULL));
   priv = checker->priv;
 
   priv->output = func;
@@ -469,20 +509,66 @@ gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
 {
   GumBoundsCheckerPrivate * priv = self->priv;
   GumBlockDetails block;
-  gchar * message;
+  GString * message;
+  GumReturnAddressArray return_addresses = { 0, };
+  guint i;
+
+  if (priv->output == NULL)
+    return;
 
   if (!gum_page_pool_query_block_details (priv->page_pool, address, &block))
     return;
 
-  message = g_strdup_printf (
+  message = g_string_sized_new (300);
+
+  g_string_append_printf (message,
       "Oops! %s block %p of %" G_GSIZE_MODIFIER "d bytes"
-      " was accessed at offset %" G_GSIZE_MODIFIER "d\n",
+      " was accessed at offset %" G_GSIZE_MODIFIER "d",
       block.allocated ? "Heap" : "Freed",
       block.address,
       block.size,
       (gsize) (address - block.address));
-  priv->output (message, priv->output_user_data);
-  g_free (message);
+
+  if (priv->backtracer_instance != NULL)
+  {
+    priv->backtracer_interface->generate (priv->backtracer_instance,
+        NULL, &return_addresses);
+  }
+
+  if (return_addresses.len > 0)
+  {
+    g_string_append (message, " from:\n");
+
+    for (i = 0; i != return_addresses.len; i++)
+    {
+      GumReturnAddress addr = return_addresses.items[i];
+      GumReturnAddressDetails rad;
+
+      if (gum_return_address_details_from_address (addr, &rad))
+      {
+        gchar * file_basename;
+
+        file_basename = g_path_get_basename (rad.file_name);
+        g_string_append_printf (message, "\t%p %s!%s %s:%u\n",
+            rad.address,
+            rad.module_name, rad.function_name,
+            file_basename, rad.line_number);
+        g_free (file_basename);
+      }
+      else
+      {
+        g_string_append_printf (message, "\t%p\n", addr);
+      }
+    }
+  }
+  else
+  {
+    g_string_append_c (message, '\n');
+  }
+
+  priv->output (message->str, priv->output_user_data);
+
+  g_string_free (message, TRUE);
 }
 
 #ifdef G_OS_WIN32

@@ -23,6 +23,7 @@
 #include "gumheapapi.h"
 
 #include <glib-object.h>
+#include <gum/gumbacktracer.h>
 
 #define GUM_TYPE_BOUNDS_CHECKER (gum_bounds_checker_get_type ())
 #define GUM_BOUNDS_CHECKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -60,8 +61,8 @@ G_BEGIN_DECLS
 
 GUM_API GType gum_bounds_checker_get_type (void) G_GNUC_CONST;
 
-GUM_API GumBoundsChecker * gum_bounds_checker_new (GumBoundsOutputFunc func,
-    gpointer user_data);
+GUM_API GumBoundsChecker * gum_bounds_checker_new (GumBacktracer * backtracer,
+    GumBoundsOutputFunc func, gpointer user_data);
 
 GUM_API guint gum_bounds_checker_get_pool_size (GumBoundsChecker * self);
 GUM_API void gum_bounds_checker_set_pool_size (GumBoundsChecker * self,

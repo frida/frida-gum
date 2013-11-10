@@ -39,15 +39,23 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
   guint8 * p;
 
   ATTACH_CHECKER ();
+  USE_BACKTRACE (malloc_backtrace);
   p = (guint8 *) malloc (16);
+  USE_BACKTRACE (violation_backtrace);
   gum_try_read_and_write_at (p, 16, NULL, NULL);
+  USE_BACKTRACE (free_backtrace);
   free (p);
   DETACH_CHECKER ();
 
   assert_same_output (fixture,
-      "Oops! Heap block %p of 16 bytes was accessed at offset 16\n"
-      "Oops! Heap block %p of 16 bytes was accessed at offset 16\n",
-      p, p);
+      "Oops! Heap block %p of 16 bytes was accessed at offset 16 from:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Oops! Heap block %p of 16 bytes was accessed at offset 16 from:\n"
+      "\t%p\n"
+      "\t%p\n",
+      p, violation_backtrace[0], violation_backtrace[1],
+      p, violation_backtrace[0], violation_backtrace[1]);
 }
 
 BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
@@ -55,15 +63,23 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
   guint8 * p;
 
   ATTACH_CHECKER ();
+  USE_BACKTRACE (malloc_backtrace);
   p = (guint8 *) malloc (10);
+  USE_BACKTRACE (free_backtrace);
   free (p);
+  USE_BACKTRACE (violation_backtrace);
   gum_try_read_and_write_at (p, 7, NULL, NULL);
   DETACH_CHECKER ();
 
   assert_same_output (fixture,
-      "Oops! Freed block %p of 10 bytes was accessed at offset 7\n"
-      "Oops! Freed block %p of 10 bytes was accessed at offset 7\n",
-      p, p);
+      "Oops! Freed block %p of 10 bytes was accessed at offset 7 from:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Oops! Freed block %p of 10 bytes was accessed at offset 7 from:\n"
+      "\t%p\n"
+      "\t%p\n",
+      p, violation_backtrace[0], violation_backtrace[1],
+      p, violation_backtrace[0], violation_backtrace[1]);
 }
 
 BOUNDSCHECKER_TESTCASE (tail_checking_malloc)
