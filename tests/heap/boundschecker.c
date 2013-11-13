@@ -51,11 +51,19 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
       "Oops! Heap block %p of 16 bytes was accessed at offset 16 from:\n"
       "\t%p\n"
       "\t%p\n"
+      "Allocated at:\n"
+      "\t%p\n"
+      "\t%p\n"
       "Oops! Heap block %p of 16 bytes was accessed at offset 16 from:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Allocated at:\n"
       "\t%p\n"
       "\t%p\n",
       p, violation_backtrace[0], violation_backtrace[1],
-      p, violation_backtrace[0], violation_backtrace[1]);
+      malloc_backtrace[0], malloc_backtrace[1],
+      p, violation_backtrace[0], violation_backtrace[1],
+      malloc_backtrace[0], malloc_backtrace[1]);
 }
 
 BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
@@ -75,11 +83,27 @@ BOUNDSCHECKER_TESTCASE (output_report_on_access_after_free)
       "Oops! Freed block %p of 10 bytes was accessed at offset 7 from:\n"
       "\t%p\n"
       "\t%p\n"
+      "Allocated at:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Freed at:\n"
+      "\t%p\n"
+      "\t%p\n"
       "Oops! Freed block %p of 10 bytes was accessed at offset 7 from:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Allocated at:\n"
+      "\t%p\n"
+      "\t%p\n"
+      "Freed at:\n"
       "\t%p\n"
       "\t%p\n",
       p, violation_backtrace[0], violation_backtrace[1],
-      p, violation_backtrace[0], violation_backtrace[1]);
+      malloc_backtrace[0], malloc_backtrace[1],
+      free_backtrace[0], free_backtrace[1],
+      p, violation_backtrace[0], violation_backtrace[1],
+      malloc_backtrace[0], malloc_backtrace[1],
+      free_backtrace[0], free_backtrace[1]);
 }
 
 BOUNDSCHECKER_TESTCASE (tail_checking_malloc)

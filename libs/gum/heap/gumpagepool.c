@@ -26,9 +26,6 @@
 #define DEFAULT_POOL_SIZE       G_MAXUINT16
 #define DEFAULT_FRONT_ALIGNMENT 16
 
-#define GUM_PAGE_POOL_LOCK()   (g_mutex_lock (priv->mutex))
-#define GUM_PAGE_POOL_UNLOCK() (g_mutex_unlock (priv->mutex))
-
 enum
 {
   PROP_0,
@@ -46,8 +43,6 @@ typedef struct _TailAlignResult   TailAlignResult;
 struct _GumPagePoolPrivate
 {
   gboolean disposed;
-
-  GMutex * mutex;
 
   /*< properties */
   guint page_size;
@@ -144,8 +139,6 @@ gum_page_pool_init (GumPagePool * self)
 
   priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
-  priv->mutex = g_mutex_new ();
-
   priv->page_size = gum_query_page_size ();
   priv->protect_mode = DEFAULT_PROTECT_MODE;
   priv->size = DEFAULT_POOL_SIZE;
@@ -172,8 +165,6 @@ gum_page_pool_finalize (GObject * object)
 
   gum_free (priv->block_details);
   gum_free_pages (priv->pool);
-
-  g_mutex_free (priv->mutex);
 
   G_OBJECT_CLASS (gum_page_pool_parent_class)->finalize (object);
 }
@@ -253,7 +244,6 @@ gum_page_pool_try_alloc (GumPagePool * self,
 
   n_pages = num_pages_needed_for (self, size);
 
-  GUM_PAGE_POOL_LOCK ();
   if (n_pages <= priv->available)
   {
     gint start_index;
@@ -279,12 +269,14 @@ gum_page_pool_try_alloc (GumPagePool * self,
 
         details->address = align_result.aligned_ptr;
         details->size = size;
+
+        details->guard = page_start + ((n_pages - 1) * priv->page_size);
+        details->guard_size = priv->page_size;
       }
 
       result = align_result.aligned_ptr;
     }
   }
-  GUM_PAGE_POOL_UNLOCK ();
 
   return result;
 }
@@ -301,10 +293,8 @@ gum_page_pool_try_free (GumPagePool * self,
   if (start_index < 0)
     return FALSE;
 
-  GUM_PAGE_POOL_LOCK ();
   n_pages = num_pages_needed_for (self, priv->block_details[start_index].size);
   release_n_pages_at (self, n_pages, start_index);
-  GUM_PAGE_POOL_UNLOCK ();
 
   return TRUE;
 }
@@ -312,27 +302,15 @@ gum_page_pool_try_free (GumPagePool * self,
 guint
 gum_page_pool_peek_available (GumPagePool * self)
 {
-  GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-  guint result;
-
-  GUM_PAGE_POOL_LOCK ();
-  result = priv->available;
-  GUM_PAGE_POOL_UNLOCK ();
-
-  return result;
+  return self->priv->available;
 }
 
 guint
 gum_page_pool_peek_used (GumPagePool * self)
 {
   GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
-  guint result;
 
-  GUM_PAGE_POOL_LOCK ();
-  result = priv->size - priv->available;
-  GUM_PAGE_POOL_UNLOCK ();
-
-  return result;
+  return priv->size - priv->available;
 }
 
 void
@@ -358,10 +336,7 @@ gum_page_pool_query_block_details (GumPagePool * self,
   if (start_index < 0)
     return FALSE;
 
-  GUM_PAGE_POOL_LOCK ();
   *details = priv->block_details[start_index];
-  GUM_PAGE_POOL_UNLOCK ();
-
   return TRUE;
 }
 

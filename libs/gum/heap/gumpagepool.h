@@ -64,6 +64,8 @@ struct _GumBlockDetails
 {
   gpointer address;
   gsize size;
+  gpointer guard;
+  gsize guard_size;
   gboolean allocated;
 };
 
