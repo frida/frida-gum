@@ -17,6 +17,8 @@
  * Boston, MA 02111-1307, USA.
  */
 
+#define _POSIX_C_SOURCE 199506L /* to avoid sbrk() deprecation */
+
 #include "gummemory.h"
 
 #include "gumdarwin.h"
