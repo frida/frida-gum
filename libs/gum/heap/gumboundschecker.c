@@ -91,9 +91,9 @@ static gpointer replacement_realloc (gpointer old_address,
 static void replacement_free (gpointer address);
 
 static gpointer gum_bounds_checker_try_alloc (GumBoundsChecker * self,
-    guint size);
+    guint size, GumInvocationContext * ctx);
 static gboolean gum_bounds_checker_try_free (GumBoundsChecker * self,
-    gpointer address);
+    gpointer address, GumInvocationContext * ctx);
 
 static void gum_bounds_checker_append_backtrace (
     const GumReturnAddressArray * arr, GString * s);
@@ -445,7 +445,7 @@ replacement_malloc (gsize size)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
-  result = gum_bounds_checker_try_alloc (self, MAX (size, 1));
+  result = gum_bounds_checker_try_alloc (self, MAX (size, 1), ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
   if (result == NULL)
     goto fallback;
@@ -471,7 +471,7 @@ replacement_calloc (gsize num,
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
-  result = gum_bounds_checker_try_alloc (self, MAX (num * size, 1));
+  result = gum_bounds_checker_try_alloc (self, MAX (num * size, 1), ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
   if (result != NULL)
     memset (result, 0, num * size);
@@ -516,7 +516,7 @@ replacement_realloc (gpointer old_address,
     goto fallback;
   }
 
-  result = gum_bounds_checker_try_alloc (self, new_size);
+  result = gum_bounds_checker_try_alloc (self, new_size, ctx);
 
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
@@ -527,7 +527,7 @@ replacement_realloc (gpointer old_address,
     memcpy (result, old_address, MIN (old_block.size, new_size));
 
   GUM_BOUNDS_CHECKER_LOCK ();
-  success = gum_bounds_checker_try_free (self, old_address);
+  success = gum_bounds_checker_try_free (self, old_address, ctx);
   g_assert (success);
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
@@ -548,7 +548,7 @@ replacement_free (gpointer address)
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
 
   GUM_BOUNDS_CHECKER_LOCK ();
-  freed = gum_bounds_checker_try_free (self, address);
+  freed = gum_bounds_checker_try_free (self, address, ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
 
   if (!freed)
@@ -557,7 +557,8 @@ replacement_free (gpointer address)
 
 static gpointer
 gum_bounds_checker_try_alloc (GumBoundsChecker * self,
-                              guint size)
+                              guint size,
+                              GumInvocationContext * ctx)
 {
   GumBoundsCheckerPrivate * priv = self->priv;
   gpointer result;
@@ -567,7 +568,6 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
   if (result != NULL && priv->backtracer_instance != NULL)
   {
     GumBlockDetails block;
-    GumCpuContext * cpu_context = NULL;
 
     gum_page_pool_query_block_details (priv->page_pool, result, &block);
 
@@ -576,7 +576,7 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
     g_assert_cmpuint (block.guard_size / 2,
         >=, sizeof (GumReturnAddressArray));
     priv->backtracer_interface->generate (priv->backtracer_instance,
-        cpu_context, BLOCK_ALLOC_RETADDRS (&block));
+        ctx->cpu_context, BLOCK_ALLOC_RETADDRS (&block));
 
     BLOCK_FREE_RETADDRS (&block)->len = 0;
 
@@ -588,7 +588,8 @@ gum_bounds_checker_try_alloc (GumBoundsChecker * self,
 
 static gboolean
 gum_bounds_checker_try_free (GumBoundsChecker * self,
-                             gpointer address)
+                             gpointer address,
+                             GumInvocationContext * ctx)
 {
   GumBoundsCheckerPrivate * priv = self->priv;
   gboolean freed;
@@ -598,7 +599,6 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
   if (freed && priv->backtracer_instance != NULL)
   {
     GumBlockDetails block;
-    GumCpuContext * cpu_context = NULL;
 
     gum_page_pool_query_block_details (priv->page_pool, address, &block);
 
@@ -607,7 +607,7 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
     g_assert_cmpuint (block.guard_size / 2,
         >=, sizeof (GumReturnAddressArray));
     priv->backtracer_interface->generate (priv->backtracer_instance,
-        cpu_context, BLOCK_FREE_RETADDRS (&block));
+        ctx->cpu_context, BLOCK_FREE_RETADDRS (&block));
 
     gum_mprotect (block.guard, block.guard_size, GUM_PAGE_NO_ACCESS);
   }
