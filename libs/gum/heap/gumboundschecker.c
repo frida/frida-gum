@@ -43,7 +43,7 @@
 #define BLOCK_ALLOC_RETADDRS(b) \
     ((GumReturnAddressArray *) (b)->guard)
 #define BLOCK_FREE_RETADDRS(b) \
-    ((GumReturnAddressArray *) ((b)->guard + ((b)->guard_size / 2)))
+    ((GumReturnAddressArray *) ((guint8 *) (b)->guard + ((b)->guard_size / 2)))
 
 enum
 {
