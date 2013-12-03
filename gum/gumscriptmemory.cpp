@@ -426,7 +426,7 @@ gum_script_memory_on_alloc_ansi_string (const Arguments & args)
 
   String::Utf8Value str (args[0]);
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
-  Handle<Object> instance = _gum_script_pointer_new (self->script, str_heap);
+  Handle<Object> instance = _gum_script_pointer_new (self->core, str_heap);
 
   Persistent<Object> persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (str_heap, gum_script_on_free_malloc_pointer);
