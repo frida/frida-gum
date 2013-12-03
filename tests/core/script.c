@@ -160,13 +160,14 @@ gum_toupper (gchar * str,
 
 SCRIPT_TESTCASE (file_can_be_written_to)
 {
+  gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
+
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
 
-  gchar d00d[4] = { 0x64, 0x30, 0x30, 0x64 };
   COMPILE_AND_LOAD_SCRIPT (
       "var log = new File(\"/tmp/script-test.log\", 'a');"
       "log.write(\"Hello \");"
