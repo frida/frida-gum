@@ -638,7 +638,7 @@ gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
       block.allocated ? "Heap" : "Freed",
       block.address,
       block.size,
-      (gsize) (address - block.address));
+      (gsize) ((guint8 *) address - block.address));
 
   if (priv->backtracer_instance != NULL)
   {
