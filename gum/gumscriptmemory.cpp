@@ -258,16 +258,20 @@ _gum_script_memory_init (GumScriptMemory * self,
 void
 _gum_script_memory_realize (GumScriptMemory * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_memory_dispose (GumScriptMemory * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_memory_finalize (GumScriptMemory * self)
 {
+  (void) self;
+
 #ifdef G_OS_WIN32
   gum_win_exception_hook_remove (gum_script_memory_on_exception);
 #endif
