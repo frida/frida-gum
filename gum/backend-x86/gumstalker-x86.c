@@ -26,6 +26,7 @@
 #include "gummemory.h"
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
+#include "gumtls.h"
 #include "gumudis86.h"
 
 #include <stdlib.h>
@@ -70,7 +71,7 @@ struct _GumStalkerPrivate
 
   GMutex * mutex;
   GSList * contexts;
-  GPrivate * exec_ctx;
+  GumTlsKey exec_ctx;
 
   GArray * exclusions;
   gint trust_threshold;
@@ -345,7 +346,7 @@ static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_ud (enum ud_type reg);
 
-static void gum_private_set (GPrivate * private_key, gpointer data);
+static void gum_tls_key_set (GumTlsKey key, gpointer data);
 
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_handle_exception (
@@ -434,7 +435,7 @@ gum_stalker_init (GumStalker * self)
   priv->page_size = gum_query_page_size ();
   priv->mutex = g_mutex_new ();
   priv->contexts = NULL;
-  priv->exec_ctx = g_private_new (NULL);
+  GUM_TLS_KEY_INIT (&priv->exec_ctx);
 }
 
 static void
@@ -538,7 +539,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self,
       gum_process_get_current_thread_id (), sink);
-  g_private_set (self->priv->exec_ctx, ctx);
+  GUM_TLS_KEY_SET_VALUE (self->priv->exec_ctx, ctx);
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
   *ret_addr_ptr = code_address;
@@ -561,7 +562,7 @@ gum_stalker_unfollow_me (GumStalker * self)
   {
     g_assert (ctx->unfollow_called_while_still_following);
 
-    g_private_set (self->priv->exec_ctx, NULL);
+    GUM_TLS_KEY_SET_VALUE (self->priv->exec_ctx, NULL);
 
     GUM_STALKER_LOCK (self);
     self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
@@ -650,7 +651,7 @@ gum_stalker_infect (GumThreadId thread_id,
       ctx->current_block->real_begin, &cw);
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_x86_writer_put_call_with_arguments (&cw,
-      GUM_FUNCPTR_TO_POINTER (gum_private_set), 2,
+      GUM_FUNCPTR_TO_POINTER (gum_tls_key_set), 2,
       GUM_ARG_POINTER, self->priv->exec_ctx,
       GUM_ARG_POINTER, ctx);
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
@@ -826,7 +827,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
-  return (GumExecCtx *) g_private_get (self->priv->exec_ctx);
+  return (GumExecCtx *) GUM_TLS_KEY_GET_VALUE (self->priv->exec_ctx);
 }
 
 static void
@@ -923,7 +924,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 
     ctx->resume_at = start_address;
 
-    g_private_set (ctx->stalker->priv->exec_ctx, NULL);
+    GUM_TLS_KEY_SET_VALUE (ctx->stalker->priv->exec_ctx, NULL);
     stalker = ctx->stalker;
     ctx->stalker = NULL;
     ctx->state = GUM_EXEC_CTX_DESTROY_PENDING;
@@ -2563,10 +2564,10 @@ gum_cpu_reg_from_ud (enum ud_type reg)
 }
 
 static void
-gum_private_set (GPrivate * private_key,
+gum_tls_key_set (GumTlsKey key,
                  gpointer data)
 {
-  g_private_set (private_key, data);
+  GUM_TLS_KEY_SET_VALUE (key, data);
 }
 
 #ifdef G_OS_WIN32
