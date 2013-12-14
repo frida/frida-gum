@@ -155,8 +155,15 @@ static void
 gum_script_dispose (GObject * object)
 {
   GumScript * self = GUM_SCRIPT (object);
+  GumScriptPrivate * priv = self->priv;
 
   gum_script_unload (self);
+
+  if (priv->isolate != NULL)
+  {
+    priv->isolate->Dispose ();
+    priv->isolate = NULL;
+  }
 
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
 }
