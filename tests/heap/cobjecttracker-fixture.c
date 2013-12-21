@@ -19,6 +19,8 @@
 
 #include "gumcobjecttracker.h"
 
+#ifdef G_OS_WIN32
+
 #include "testutil.h"
 
 #include <string.h>
@@ -102,3 +104,5 @@ test_cobject_tracker_fixture_teardown (TestCObjectTrackerFixture * fixture,
     my_object_free (fixture->mo);
   g_object_unref (fixture->tracker);
 }
+
+#endif /* G_OS_WIN32 */

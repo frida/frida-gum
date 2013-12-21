@@ -19,6 +19,8 @@
 
 #include "gumallocatorprobe.h"
 
+#ifdef G_OS_WIN32
+
 #include "dummyclasses.h"
 #include "testutil.h"
 
@@ -76,3 +78,5 @@ static void do_nonstandard_heap_calls (TestAllocatorProbeFixture * fixture,
 #endif
 
 G_END_DECLS
+
+#endif /* G_OS_WIN32 */

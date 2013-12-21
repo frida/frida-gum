@@ -17,9 +17,9 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifdef G_OS_WIN32
-
 #include "allocatorprobe-fixture.c"
+
+#ifdef G_OS_WIN32
 
 G_BEGIN_DECLS
 

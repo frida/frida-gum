@@ -19,6 +19,8 @@
 
 #include "guminstancetracker.h"
 
+#ifdef G_OS_WIN32
+
 #include "dummyclasses.h"
 #include "testutil.h"
 
@@ -49,3 +51,5 @@ test_instance_tracker_fixture_teardown (TestInstanceTrackerFixture * fixture,
   gum_instance_tracker_end (fixture->tracker);
   g_object_unref (fixture->tracker);
 }
+
+#endif /* G_OS_WIN32 */

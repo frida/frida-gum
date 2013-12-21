@@ -19,6 +19,8 @@
 
 #include "gumsanitychecker.h"
 
+#ifdef G_OS_WIN32
+
 #include "dummyclasses.h"
 #include "testutil.h"
 
@@ -261,3 +263,5 @@ forget_object (gpointer object)
     *ptr = NULL;
   }
 }
+
+#endif /* G_OS_WIN32 */

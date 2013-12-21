@@ -20,6 +20,8 @@
 
 #include "gumprofiler.h"
 
+#ifdef G_OS_WIN32
+
 #include "fakesampler.h"
 #include "lowlevel-helpers.h"
 #include "testutil.h"
@@ -495,3 +497,5 @@ instrument_simple_functions (TestProfileReportFixture * fixture)
   INSTRUMENT_FUNCTION (simple_1);
   INSTRUMENT_FUNCTION (simple_3);
 }
+
+#endif /* G_OS_WIN32 */
