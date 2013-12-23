@@ -111,6 +111,8 @@ static gboolean gum_darwin_find_slide (GumAddress module_address,
     guint8 * module, gsize module_size, gint64 * slide);
 static gboolean gum_darwin_find_linkedit (guint8 * module, gsize module_size,
     GumAddress * linkedit);
+static GSList * gum_darwin_find_text_section_ids (guint8 * module,
+    gsize module_size);
 static gboolean gum_darwin_find_symtab_command (guint8 * module,
     gsize module_size, struct symtab_command ** sc);
 
@@ -119,6 +121,7 @@ static gboolean find_image_address_and_slide (const gchar * image_name,
 static gboolean find_image_vmaddr_and_fileoff (gconstpointer address,
     gsize * vmaddr, gsize * fileoff);
 static gsize find_image_size (const gchar * image_name);
+static GSList * find_image_text_section_ids (gconstpointer address);
 static gboolean find_image_symtab_command (gconstpointer address,
     const struct symtab_command ** sc);
 
@@ -269,8 +272,10 @@ gum_module_do_enumerate_exports (const gchar * module_name,
                                  GumFoundExportFunc func,
                                  gpointer user_data)
 {
+  gboolean carry_on = TRUE;
   gpointer address, slide;
   gsize vmaddr, fileoff;
+  GSList * text_section_ids = NULL;
   const struct symtab_command * sc;
   guint8 * table_base;
   gum_nlist_t * symbase, * sym;
@@ -278,13 +283,15 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   guint symbol_idx;
 
   if (!find_image_address_and_slide (module_name, &address, &slide))
-    return TRUE;
+    goto beach;
 
   if (!find_image_vmaddr_and_fileoff (address, &vmaddr, &fileoff))
-    return TRUE;
+    goto beach;
+
+  text_section_ids = find_image_text_section_ids (address);
 
   if (!find_image_symtab_command (address, &sc))
-    return TRUE;
+    goto beach;
 
   table_base = GSIZE_TO_POINTER (vmaddr - fileoff + GPOINTER_TO_SIZE (slide));
   symbase = (gum_nlist_t *) (table_base + sc->symoff);
@@ -300,6 +307,9 @@ gum_module_do_enumerate_exports (const gchar * module_name,
     if (SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       continue;
 
+    if (g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect)) == NULL)
+      continue;
+
     symbol_name = gum_symbol_name_from_darwin (strbase + sym->n_un.n_strx);
 
     symbol_address = GUM_ADDRESS (
@@ -307,8 +317,9 @@ gum_module_do_enumerate_exports (const gchar * module_name,
     if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
       symbol_address++;
 
-    if (!func (symbol_name, symbol_address, user_data))
-      return FALSE;
+    carry_on = func (symbol_name, symbol_address, user_data);
+    if (!carry_on)
+      goto beach;
   }
 
   {
@@ -334,7 +345,10 @@ gum_module_do_enumerate_exports (const gchar * module_name,
     }
   }
 
-  return TRUE;
+beach:
+  g_slist_free (text_section_ids);
+
+  return carry_on;
 }
 
 void
@@ -836,6 +850,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   struct mach_header * header;
   gint64 slide;
   GumAddress linkedit;
+  GSList * text_section_ids = NULL;
   struct symtab_command * sc;
   gsize symbol_size;
   guint8 * symbols = NULL;
@@ -860,6 +875,8 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   if (!gum_darwin_find_linkedit (chunk, chunk_size, &linkedit))
     goto beach;
   linkedit += slide;
+
+  text_section_ids = gum_darwin_find_text_section_ids (chunk, chunk_size);
 
   if (!gum_darwin_find_symtab_command (chunk, chunk_size, &sc))
     goto beach;
@@ -887,7 +904,9 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
     if (header->magic == MH_MAGIC)
     {
       struct nlist * sym = (struct nlist *) cur_sym;
-      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
+      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym) &&
+          g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect))
+          != NULL)
       {
         symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
         symbol_address = sym->n_value + slide;
@@ -898,7 +917,9 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
     else
     {
       struct nlist_64 * sym = (struct nlist_64 *) cur_sym;
-      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
+      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym) &&
+          g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect))
+          != NULL)
       {
         symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
         symbol_address = sym->n_value + slide;
@@ -951,6 +972,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
 beach:
   g_free (strings);
   g_free (symbols);
+  g_slist_free (text_section_ids);
   g_free (chunk);
 
   return carry_on;
@@ -1031,6 +1053,60 @@ gum_darwin_find_linkedit (guint8 * module,
   }
 
   return FALSE;
+}
+
+static GSList *
+gum_darwin_find_text_section_ids (guint8 * module,
+                                  gsize module_size)
+{
+  GSList * ids = NULL;
+  gsize section_count = 0;
+  struct mach_header * header;
+  guint8 * p;
+  guint cmd_index;
+
+  header = (struct mach_header *) module;
+  if (header->magic == MH_MAGIC)
+    p = module + sizeof (struct mach_header);
+  else
+    p = module + sizeof (struct mach_header_64);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
+    {
+      vm_prot_t initprot;
+      gsize nsects, section_index;
+
+      if (header->magic == MH_MAGIC)
+      {
+        struct segment_command * sc = (struct segment_command *) lc;
+        initprot = sc->initprot;
+        nsects = sc->nsects;
+      }
+      else
+      {
+        struct segment_command_64 * sc = (struct segment_command_64 *) lc;
+        initprot = sc->initprot;
+        nsects = sc->nsects;
+      }
+
+      if ((initprot & VM_PROT_EXECUTE) != 0)
+      {
+        for (section_index = 0; section_index != nsects; section_index++)
+        {
+          ids = g_slist_prepend (ids, GSIZE_TO_POINTER (section_count + section_index + 1));
+        }
+      }
+
+      section_count += nsects;
+    }
+
+    p += lc->cmdsize;
+  }
+
+  return g_slist_reverse (ids);
 }
 
 static gboolean
@@ -1154,6 +1230,41 @@ find_image_size (const gchar * image_name)
   }
 
   return 0;
+}
+
+static GSList *
+find_image_text_section_ids (gconstpointer address)
+{
+  GSList * ids = NULL;
+  gsize section_count = 0;
+  const gum_mach_header_t * header = address;
+  guint8 * p;
+  guint cmd_index, section_index;
+
+  p = (guint8 *) (header + 1);
+  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
+  {
+    struct load_command * lc = (struct load_command *) p;
+
+    if (lc->cmd == GUM_LC_SEGMENT)
+    {
+      gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
+
+      if ((segcmd->initprot & VM_PROT_EXECUTE) != 0)
+      {
+        for (section_index = 0; section_index != segcmd->nsects; section_index++)
+        {
+          ids = g_slist_prepend (ids, GSIZE_TO_POINTER (section_count + section_index + 1));
+        }
+      }
+
+      section_count += segcmd->nsects;
+    }
+
+    p += lc->cmdsize;
+  }
+
+  return g_slist_reverse (ids);
 }
 
 static gboolean

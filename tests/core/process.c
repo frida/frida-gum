@@ -316,6 +316,11 @@ export_found_cb (const gchar * name,
 
   ctx->number_of_calls++;
 
+#ifdef HAVE_DARWIN
+  /* should exclude data exports */
+  g_assert (!g_str_has_prefix (name, "OBJC_CLASS_"));
+#endif
+
   return ctx->value_to_return;
 }
 
