@@ -80,6 +80,7 @@ void gum_thumb_writer_put_add_reg_reg (GumThumbWriter * self, GumArmReg dst_reg,
 void gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg left_reg, GumArmReg right_reg);
 void gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg left_reg, gssize right_value);
 void gum_thumb_writer_put_sub_reg_imm (GumThumbWriter * self, GumArmReg dst_reg, gssize imm_value);
+void gum_thumb_writer_put_sub_reg_reg (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg src_reg);
 void gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg left_reg, GumArmReg right_reg);
 void gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self, GumArmReg dst_reg, GumArmReg left_reg, gssize right_value);
 

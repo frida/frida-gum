@@ -573,6 +573,14 @@ gum_thumb_writer_put_sub_reg_imm (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_sub_reg_reg (GumThumbWriter * self,
+                                  GumArmReg dst_reg,
+                                  GumArmReg src_reg)
+{
+  gum_thumb_writer_put_sub_reg_reg_reg (self, dst_reg, dst_reg, src_reg);
+}
+
+void
 gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self,
                                       GumArmReg dst_reg,
                                       GumArmReg left_reg,
