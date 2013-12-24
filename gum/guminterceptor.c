@@ -723,14 +723,27 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
                                 GumCpuContext * cpu_context,
                                 gpointer * caller_ret_addr)
 {
-  GumInterceptorPrivate * priv = function_ctx->interceptor->priv;
+  GumInterceptor * self = function_ctx->interceptor;
+  GumInterceptorPrivate * priv = self->priv;
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave = FALSE;
   InterceptorThreadContext * interceptor_ctx = NULL;
 #ifdef G_OS_WIN32
-  DWORD previous_last_error = GetLastError ();
+  DWORD previous_last_error;
 #else
-  gint previous_errno = errno;
+  gint previous_errno;
+#endif
+
+#ifdef HAVE_LINUX
+  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
+    return FALSE;
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
+#endif
+
+#ifdef G_OS_WIN32
+  previous_last_error = GetLastError ();
+#else
+  previous_errno = errno;
 #endif
 
   if (G_UNLIKELY (priv->selected_thread_id != 0))
@@ -797,6 +810,10 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   errno = previous_errno;
 #endif
 
+#ifdef HAVE_LINUX
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
+#endif
+
   return will_trap_on_leave;
 }
 
@@ -810,9 +827,19 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx;
   guint i;
 #ifdef G_OS_WIN32
-  DWORD previous_last_error = GetLastError ();
+  DWORD previous_last_error;
 #else
-  gint previous_errno = errno;
+  gint previous_errno;
+#endif
+
+#ifdef HAVE_LINUX
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
+#endif
+
+#ifdef G_OS_WIN32
+  previous_last_error = GetLastError ();
+#else
+  previous_errno = errno;
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
@@ -860,6 +887,10 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   SetLastError (previous_last_error);
 #else
   errno = previous_errno;
+#endif
+
+#ifdef HAVE_LINUX
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 #endif
 }
 
