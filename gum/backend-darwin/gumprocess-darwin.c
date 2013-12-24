@@ -550,13 +550,13 @@ gum_probe_range_for_entrypoint (const GumMemoryRange * range,
             if (header->magic == MH_MAGIC && *flavor == x86_THREAD_STATE32)
             {
               x86_thread_state32_t * ts = (x86_thread_state32_t *) (count + 1);
-              ctx->result = ts->__eip;
+              ctx->result = ts->__eip + slide;
             }
             else if (header->magic == MH_MAGIC_64 &&
                 *flavor == x86_THREAD_STATE64)
             {
               x86_thread_state64_t * ts = (x86_thread_state64_t *) (count + 1);
-              ctx->result = ts->__rip;
+              ctx->result = ts->__rip + slide;
             }
             thread = ((guint8 *) (count + 1)) + (*count * sizeof (int));
           }
