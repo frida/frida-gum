@@ -38,12 +38,22 @@
 
 static void gum_function_context_clear_cache (FunctionContext * ctx);
 
+static void gum_function_context_write_guard_enter_code (FunctionContext * ctx,
+    gconstpointer skip_label, GumThumbWriter * tw);
+static void gum_function_context_write_guard_leave_code (FunctionContext * ctx,
+    GumThumbWriter * tw);
+
+#ifdef HAVE_DARWIN
+static void gum_darwin_write_ldr_r1_tls_guard_ptr (GumThumbWriter * tw);
+#endif
+
 void
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   gpointer function_address;
   gboolean is_thumb;
   GumThumbWriter tw;
+  gconstpointer skip_label = "gum_interceptor_on_enter_skip";
   guint reloc_bytes;
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
@@ -73,6 +83,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_AREG_R1, GUM_AREG_SP, 9 * 4);
   gum_thumb_writer_put_push_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_R1);
 
+  gum_function_context_write_guard_enter_code (ctx, skip_label, &tw);
+
   /* invoke on_enter */
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_R1, GUM_AREG_SP);
@@ -82,6 +94,9 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       GUM_ADDRESS (_gum_function_context_on_enter));
   gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R3);
 
+  gum_function_context_write_guard_leave_code (ctx, &tw);
+
+  gum_thumb_writer_put_label (&tw, skip_label);
   /* update LR to optionally trap the return (up to the C code to decide) */
   gum_thumb_writer_put_ldr_reg_reg_offset (&tw, GUM_AREG_R0,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
@@ -179,6 +194,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_add_reg_reg_imm (&tw, GUM_AREG_R1, GUM_AREG_SP, 9 * 4);
   gum_thumb_writer_put_push_regs (&tw, 2, GUM_AREG_R0, GUM_AREG_R1);
 
+  gum_function_context_write_guard_enter_code (ctx, NULL, &tw);
+
   /* invoke on_leave */
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R0, GUM_ADDRESS (ctx));
   gum_thumb_writer_put_mov_reg_reg (&tw, GUM_AREG_R1, GUM_AREG_SP);
@@ -187,6 +204,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_put_ldr_reg_address (&tw, GUM_AREG_R3,
       GUM_ADDRESS (_gum_function_context_on_leave));
   gum_thumb_writer_put_blx_reg (&tw, GUM_AREG_R3);
+
+  gum_function_context_write_guard_leave_code (ctx, &tw);
 
   /* clear PC and SP from GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (&tw, GUM_AREG_SP, 8);
@@ -511,3 +530,57 @@ _gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 {
   return (gpointer) context->cpu_context->r[0];
 }
+
+static void
+gum_function_context_write_guard_enter_code (FunctionContext * ctx,
+                                             gconstpointer skip_label,
+                                             GumThumbWriter * tw)
+{
+  (void) ctx;
+
+#ifdef HAVE_DARWIN
+  gum_darwin_write_ldr_r1_tls_guard_ptr (tw);
+
+  gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R0,
+      GUM_ADDRESS (ctx->interceptor));
+
+  if (skip_label != NULL)
+  {
+    gum_thumb_writer_put_ldr_reg_reg (tw, GUM_AREG_R2, GUM_AREG_R1);
+    gum_thumb_writer_put_sub_reg_reg (tw, GUM_AREG_R2, GUM_AREG_R0);
+    gum_thumb_writer_put_cbz_reg_label (tw, GUM_AREG_R2, skip_label);
+  }
+
+  gum_thumb_writer_put_str_reg_reg (tw, GUM_AREG_R0, GUM_AREG_R1);
+#endif
+}
+
+static void
+gum_function_context_write_guard_leave_code (FunctionContext * ctx,
+                                             GumThumbWriter * tw)
+{
+  (void) ctx;
+
+#ifdef HAVE_DARWIN
+  gum_darwin_write_ldr_r1_tls_guard_ptr (tw);
+  gum_thumb_writer_put_ldr_reg_u32 (tw, GUM_AREG_R0, 0);
+  gum_thumb_writer_put_str_reg_reg (tw, GUM_AREG_R0, GUM_AREG_R1);
+#endif
+}
+
+#ifdef HAVE_DARWIN
+
+static void
+gum_darwin_write_ldr_r1_tls_guard_ptr (GumThumbWriter * tw)
+{
+  guint8 code[] = {
+    0x1d, 0xee, 0x70, 0x1f, /* mrc 15, 0, r1, cr13, cr0, {3} */
+    0x21, 0xf0, 0x03, 0x01  /* bic.w r1, r1, #3 */
+  };
+  gum_thumb_writer_put_bytes (tw, code, sizeof (code));
+  gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R0,
+      _gum_interceptor_guard_key * GLIB_SIZEOF_VOID_P);
+  gum_thumb_writer_put_add_reg_reg (tw, GUM_AREG_R1, GUM_AREG_R0);
+}
+
+#endif
