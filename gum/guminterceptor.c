@@ -161,7 +161,8 @@ static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
 static GumInterceptor * _the_interceptor = NULL;
 
 static gboolean _gum_interceptor_initialized = FALSE;
-static GumTlsKey _gum_interceptor_tls_key;
+static GumTlsKey _gum_interceptor_context_key;
+GumTlsKey _gum_interceptor_guard_key;
 
 static GumSpinlock _gum_interceptor_thread_context_lock;
 static GumArray * _gum_interceptor_thread_contexts;
@@ -178,7 +179,8 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  GUM_TLS_KEY_INIT (&_gum_interceptor_tls_key);
+  GUM_TLS_KEY_INIT (&_gum_interceptor_context_key);
+  GUM_TLS_KEY_INIT (&_gum_interceptor_guard_key);
 #ifndef G_OS_WIN32
   GUM_TLS_KEY_INIT (&_gum_interceptor_tid_key);
 #endif
@@ -213,7 +215,8 @@ _gum_interceptor_deinit (void)
     _gum_interceptor_thread_contexts = NULL;
     gum_spinlock_free (&_gum_interceptor_thread_context_lock);
 
-    GUM_TLS_KEY_FREE (_gum_interceptor_tls_key);
+    GUM_TLS_KEY_FREE (_gum_interceptor_context_key);
+    GUM_TLS_KEY_FREE (_gum_interceptor_guard_key);
 #ifndef G_OS_WIN32
     GUM_TLS_KEY_FREE (_gum_interceptor_tid_key);
 #endif
@@ -466,7 +469,7 @@ gum_interceptor_get_current_stack (void)
   InterceptorThreadContext * context;
 
   context = (InterceptorThreadContext *)
-      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
+      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_context_key);
   if (context == NULL)
     return &_gum_interceptor_empty_stack;
 
@@ -901,7 +904,7 @@ get_interceptor_thread_context (void)
   InterceptorThreadContext * context;
 
   context = (InterceptorThreadContext *)
-      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tls_key);
+      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_context_key);
   if (context == NULL)
   {
     context = interceptor_thread_context_new ();
@@ -910,7 +913,7 @@ get_interceptor_thread_context (void)
     gum_array_append_val (_gum_interceptor_thread_contexts, context);
     gum_spinlock_release (&_gum_interceptor_thread_context_lock);
 
-    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tls_key, context);
+    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_context_key, context);
   }
 
   return context;

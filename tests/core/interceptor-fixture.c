@@ -19,9 +19,7 @@
 
 #include "guminterceptor.h"
 
-#ifdef G_OS_WIN32
 #include "interceptor-callbacklistener.c"
-#endif
 #ifdef HAVE_I386
 # include "lowlevel-helpers.h"
 #endif

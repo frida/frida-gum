@@ -36,17 +36,13 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
-#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
-#endif
-#ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
+#ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
 #endif
   INTERCEPTOR_TESTENTRY (thread_id)
-#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
-#endif
   INTERCEPTOR_TESTENTRY (function_arguments)
   INTERCEPTOR_TESTENTRY (function_return_value)
 #ifdef HAVE_I386
@@ -85,8 +81,6 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
 
-#ifdef HAVE_I386
-
 INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   volatile gpointer p;
@@ -104,8 +98,6 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
-
-# ifdef G_OS_WIN32
 
 INTERCEPTOR_TESTCASE (attach_to_own_api)
 {
@@ -126,6 +118,8 @@ INTERCEPTOR_TESTCASE (attach_to_own_api)
 
   g_object_unref (listener);
 }
+
+#ifdef G_OS_WIN32
 
 INTERCEPTOR_TESTCASE (attach_detach_torture)
 {
@@ -158,8 +152,6 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
   g_thread_join (th);
 }
 
-# endif
-
 #endif
 
 INTERCEPTOR_TESTCASE (thread_id)
@@ -178,15 +170,11 @@ INTERCEPTOR_TESTCASE (thread_id)
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
 }
 
-#ifdef HAVE_I386
-
 INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
 {
   interceptor_fixture_attach_listener (fixture, 0, free, 'a', 'b');
   g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
 }
-
-#endif
 
 INTERCEPTOR_TESTCASE (function_arguments)
 {

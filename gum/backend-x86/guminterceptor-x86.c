@@ -424,6 +424,7 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
   (void) ctx;
 
 #ifdef G_OS_WIN32
+  /* FIXME: use a TLS key here instead */
 # if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_EBX,
       GUM_TEB_OFFSET_SELF);
@@ -446,6 +447,49 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
       GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
       GUM_INTERCEPTOR_GUARD_MAGIC);
 #endif
+
+#ifdef HAVE_DARWIN
+  const guint32 guard_offset = _gum_interceptor_guard_key * GLIB_SIZEOF_VOID_P;
+
+  gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+      GUM_ADDRESS (ctx->interceptor));
+
+  if (skip_label != NULL)
+  {
+# if GLIB_SIZEOF_VOID_P == 4
+    guint8 check[] = {
+      0x65, 0x39, 0x05,             /* cmp [gs:0x12345678], eax */
+      0x78, 0x56, 0x34, 0x12
+    };
+    *((guint32 *) (check + 3)) = guard_offset;
+# else
+    guint8 check[] = {
+      0x65, 0x48, 0x39, 0x04, 0x25, /* cmp [gs:0x12345678], rax */
+      0x78, 0x56, 0x34, 0x12
+    };
+    *((guint32 *) (check + 5)) = guard_offset;
+# endif
+    gum_x86_writer_put_bytes (cw, check, sizeof (check));
+    gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ, skip_label,
+        GUM_UNLIKELY);
+  }
+
+# if GLIB_SIZEOF_VOID_P == 4
+  guint8 enable_guard[] = {
+    0x65, 0xa3,                     /* mov [gs:0x12345678], eax */
+    0x78, 0x56, 0x34, 0x12
+  };
+  *((guint32 *) (enable_guard + 2)) = guard_offset;
+# else
+  guint8 enable_guard[] = {
+    0x65, 0x48, 0x89, 0x04, 0x25,   /* mov [gs:0x12345678], rax */
+    0x78, 0x56, 0x34, 0x12
+  };
+  *((guint32 *) (enable_guard + 5)) = guard_offset;
+# endif
+  gum_x86_writer_put_bytes (cw, enable_guard, sizeof (enable_guard));
+
+#endif
 }
 
 static void
@@ -458,5 +502,27 @@ gum_function_context_write_guard_leave_code (FunctionContext * ctx,
   gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
       GUM_REG_EBP);
+#endif
+
+#ifdef HAVE_DARWIN
+  const guint32 guard_offset = _gum_interceptor_guard_key * GLIB_SIZEOF_VOID_P;
+
+# if GLIB_SIZEOF_VOID_P == 4
+  guint8 disable_guard[] = {
+    0x65, 0xc7, 0x05,               /* mov dword [dword gs:0x12345678], 0 */
+    0x78, 0x56, 0x34, 0x12,
+    0x00, 0x00, 0x00, 0x00
+  };
+  *((guint32 *) (disable_guard + 3)) = guard_offset;
+# else
+  guint8 disable_guard[] = {
+    0x65, 0x48, 0xc7, 0x04, 0x25,   /* mov qword [gs:0x12345678], 0 */
+    0x78, 0x56, 0x34, 0x12,
+    0x00, 0x00, 0x00, 0x00
+  };
+  *((guint32 *) (disable_guard + 5)) = guard_offset;
+# endif
+  gum_x86_writer_put_bytes (cw, disable_guard, sizeof (disable_guard));
+
 #endif
 }

@@ -26,6 +26,7 @@
 #include "gumarray.h"
 #include "gumcodeallocator.h"
 #include "gumspinlock.h"
+#include "gumtls.h"
 
 typedef struct _FunctionContext          FunctionContext;
 
@@ -49,6 +50,8 @@ struct _FunctionContext
 
   gpointer replacement_function_data;
 };
+
+extern GumTlsKey _gum_interceptor_guard_key;
 
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
