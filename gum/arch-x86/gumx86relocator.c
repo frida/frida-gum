@@ -403,6 +403,10 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   {
     return FALSE;
   }
+  else if (op->type == UD_OP_REG)
+  {
+    return FALSE;
+  }
   else
   {
     /* FIXME */

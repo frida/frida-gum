@@ -26,6 +26,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (call_near_indirect)
   RELOCATOR_TESTENTRY (jmp_short_outside_block)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
+  RELOCATOR_TESTENTRY (jmp_register)
   RELOCATOR_TESTENTRY (jcc_short_within_block);
   RELOCATOR_TESTENTRY (jcc_short_outside_block);
   RELOCATOR_TESTENTRY (jcc_near_outside_block);
@@ -194,6 +195,21 @@ RELOCATOR_TESTCASE (jmp_near_outside_block)
   expected_distance =
       ((gssize) (input + 5 + 1)) - ((gssize) (fixture->output + 5));
   g_assert_cmpint (reloc_distance, ==, expected_distance);
+}
+
+RELOCATOR_TESTCASE (jmp_register)
+{
+  guint8 input[] = {
+    0xff, 0xe0 /* jmp eax */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
+
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==, sizeof (input));
+  g_assert_cmpint (memcmp (fixture->output, input, 2), ==, 0);
 }
 
 RELOCATOR_TESTCASE (jcc_short_within_block)
