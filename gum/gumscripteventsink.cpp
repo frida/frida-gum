@@ -194,7 +194,7 @@ gum_script_event_sink_drain (gpointer user_data)
     if (!self->on_call_summary.IsEmpty ())
     {
       frequencies = g_hash_table_new (NULL, NULL);
-      GumCallEvent * ev = ev = static_cast<GumCallEvent *> (buffer);
+      GumCallEvent * ev = static_cast<GumCallEvent *> (buffer);
       for (guint i = 0; i != len; i++)
       {
         if (ev->type == GUM_CALL)
