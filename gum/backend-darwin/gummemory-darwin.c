@@ -17,17 +17,12 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#define _POSIX_C_SOURCE 199506L /* to avoid sbrk() deprecation */
-
 #include "gummemory.h"
 
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
-#include <unistd.h>
-#define __USE_GNU     1
-#include <sys/mman.h>
-#undef __USE_GNU
+#define DARWIN        1
 #define INSECURE      0
 #define NO_MALLINFO   0
 #define USE_LOCKS     1
