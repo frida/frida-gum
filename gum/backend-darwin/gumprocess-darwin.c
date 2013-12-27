@@ -51,6 +51,8 @@ struct _GumEnumerateModulesContext
   mach_port_t task;
   GumFoundModuleFunc func;
   gpointer user_data;
+
+  GArray * ranges;
   guint page_size;
 };
 
@@ -100,8 +102,10 @@ static gboolean gum_store_address_if_export_name_matches (const gchar * name,
     GumAddress address, gpointer user_data);
 static gboolean gum_probe_range_for_entrypoint (const GumMemoryRange * range,
     GumPageProtection prot, gpointer user_data);
-static gboolean gum_emit_if_range_is_a_module (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+static gboolean gum_store_range_of_potential_modules (
+    const GumMemoryRange * range, GumPageProtection prot, gpointer user_data);
+static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
+    GumEnumerateModulesContext * ctx);
 
 static gboolean gum_store_module_address (const gchar * name,
     const GumMemoryRange * range, const gchar * path, gpointer user_data);
@@ -638,54 +642,86 @@ gum_darwin_enumerate_modules (mach_port_t task,
                               gpointer user_data)
 {
   GumEnumerateModulesContext ctx;
+  guint i;
 
   ctx.task = task;
   ctx.func = func;
   ctx.user_data = user_data;
+
+  ctx.ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 64);
   ctx.page_size = gum_query_page_size ();
 
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
-      gum_emit_if_range_is_a_module, &ctx);
+      gum_store_range_of_potential_modules, &ctx);
+
+  for (i = 0; i != ctx.ranges->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (ctx.ranges, GumMemoryRange, i);
+    if (!gum_emit_modules_in_range (r, &ctx))
+      break;
+  }
+
+  g_array_unref (ctx.ranges);
 }
 
 static gboolean
-gum_emit_if_range_is_a_module (const GumMemoryRange * range,
-                               GumPageProtection prot,
-                               gpointer user_data)
+gum_store_range_of_potential_modules (const GumMemoryRange * range,
+                                      GumPageProtection prot,
+                                      gpointer user_data)
 {
   GumEnumerateModulesContext * ctx = user_data;
+
+  g_array_append_val (ctx->ranges, *range);
+
+  return TRUE;
+}
+
+static gboolean
+gum_emit_modules_in_range (const GumMemoryRange * range,
+                           GumEnumerateModulesContext * ctx)
+{
+  GumAddress address = range->base_address;
+  gsize remaining = range->size;
   gboolean carry_on = TRUE;
-  guint8 * chunk, * page;
-  gsize chunk_size;
 
-  chunk = gum_darwin_read (ctx->task, range->base_address, range->size,
-      &chunk_size);
-  if (chunk == NULL)
-    return TRUE;
-
-  g_assert (chunk_size % ctx->page_size == 0);
-
-  for (page = chunk; page != chunk + chunk_size; page += ctx->page_size)
+  do
   {
     struct mach_header * header;
+    gboolean is_dylib;
+    guint8 * chunk;
+    gsize chunk_size;
     guint8 * first_command, * p;
     guint cmd_index;
     GumMemoryRange dylib_range;
 
-    header = (struct mach_header *) page;
-    if (header->magic != MH_MAGIC && header->magic != MH_MAGIC_64)
-      continue;
+    header = (struct mach_header *) gum_darwin_read (ctx->task,
+        address, sizeof (struct mach_header), NULL);
+    if (header == NULL)
+      return TRUE;
+    is_dylib = (header->magic == MH_MAGIC || header->magic == MH_MAGIC_64) &&
+        header->filetype == MH_DYLIB;
+    g_free (header);
 
-    if (header->filetype != MH_DYLIB)
+    if (!is_dylib)
+    {
+      address += ctx->page_size;
+      remaining -= ctx->page_size;
       continue;
+    }
 
+    chunk = gum_darwin_read (ctx->task,
+        address, MIN (GUM_MAX_MACH_HEADER_SIZE, remaining), &chunk_size);
+    if (chunk == NULL)
+      return TRUE;
+
+    header = (struct mach_header *) chunk;
     if (header->magic == MH_MAGIC)
-      first_command = page + sizeof (struct mach_header);
+      first_command = chunk + sizeof (struct mach_header);
     else
-      first_command = page + sizeof (struct mach_header_64);
+      first_command = chunk + sizeof (struct mach_header_64);
 
-    dylib_range.base_address = range->base_address + (page - chunk);
-    dylib_range.size = 0;
+    dylib_range.base_address = address;
+    dylib_range.size = ctx->page_size;
 
     p = first_command;
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
@@ -724,8 +760,7 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
         path[raw_path_len] = '\0';
         name = g_path_get_basename (path);
 
-        if (!ctx->func (name, &dylib_range, path, ctx->user_data))
-          carry_on = FALSE;
+        carry_on = ctx->func (name, &dylib_range, path, ctx->user_data);
 
         g_free (name);
         g_free (path);
@@ -736,11 +771,16 @@ gum_emit_if_range_is_a_module (const GumMemoryRange * range,
       p += lc->cmdsize;
     }
 
+    g_free (chunk);
+
+    address += dylib_range.size;
+    remaining -= dylib_range.size;
+
     if (!carry_on)
       break;
   }
+  while (remaining != 0);
 
-  g_free (chunk);
   return carry_on;
 }
 
@@ -756,13 +796,14 @@ gum_darwin_enumerate_ranges (mach_port_t task,
 
   while (TRUE)
   {
-    vm_region_submap_info_data_64_t info;
-    mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+    struct vm_region_submap_info_64 info;
+    mach_msg_type_number_t info_count;
     kern_return_t kr;
     GumPageProtection cur_prot;
 
     while (TRUE)
     {
+      info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
       kr = mach_vm_region_recurse (task, &address, &size, &depth,
           (vm_region_recurse_info_t) &info, &info_count);
       if (kr != KERN_SUCCESS)
@@ -844,6 +885,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
                           const gchar * module_name)
 {
   gboolean carry_on = TRUE;
+  GVariant * address_value;
   GumAddress address;
   guint8 * chunk = NULL;
   gsize chunk_size;
@@ -858,8 +900,11 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   guint8 * cur_sym;
   guint symbol_index;
 
-  address = g_variant_get_uint64 (
-      g_hash_table_lookup (ctx->modules, module_name));
+  address_value = g_hash_table_lookup (ctx->modules, module_name);
+  if (address_value == NULL)
+    goto beach;
+
+  address = g_variant_get_uint64 (address_value);
   if (address == 0)
     goto beach;
 
