@@ -57,16 +57,19 @@ _gum_script_file_init (GumScriptFile * self,
 void
 _gum_script_file_realize (GumScriptFile * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_file_dispose (GumScriptFile * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_file_finalize (GumScriptFile * self)
 {
+  (void) self;
 }
 
 static Handle<Value>
@@ -114,6 +117,8 @@ static void
 gum_script_file_on_destroy (Persistent<Value> value,
                             void * data)
 {
+  (void) data;
+
   HandleScope handle_scope;
   Local<Object> object (value->ToObject ());
   FILE * file = static_cast<FILE *> (object->GetPointerFromInternalField (0));

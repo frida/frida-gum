@@ -87,8 +87,8 @@ static gint find_start_index_for_address (GumPagePool * self, const guint8 * p);
 
 static guint num_pages_needed_for (GumPagePool * self, guint size);
 
-static gpointer claim_n_pages_for_size_at (GumPagePool * self, guint n_pages,
-    guint size, guint start_index);
+static gpointer claim_n_pages_at (GumPagePool * self, guint n_pages,
+    guint start_index);
 static gpointer release_n_pages_at (GumPagePool * self, guint n_pages,
     guint start_index);
 
@@ -256,8 +256,7 @@ gum_page_pool_try_alloc (GumPagePool * self,
       TailAlignResult align_result;
       guint i;
 
-      page_start =
-          claim_n_pages_for_size_at (self, n_pages, size, start_index);
+      page_start = claim_n_pages_at (self, n_pages, start_index);
 
       align_criteria.front = priv->front_alignment;
       align_criteria.tail = priv->page_size;
@@ -403,10 +402,9 @@ num_pages_needed_for (GumPagePool * self,
 #define POOL_ADDRESS_FROM_PAGE_INDEX(n) (priv->pool + (n * priv->page_size))
 
 static gpointer
-claim_n_pages_for_size_at (GumPagePool * self,
-                           guint n_pages,
-                           guint size,
-                           guint start_index)
+claim_n_pages_at (GumPagePool * self,
+                  guint n_pages,
+                  guint start_index)
 {
   GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
   gpointer start_address;

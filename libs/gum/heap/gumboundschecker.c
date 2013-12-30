@@ -22,6 +22,9 @@
 #include "guminterceptor.h"
 #include "gummemory.h"
 #include "gumpagepool.h"
+#ifdef G_OS_WIN32
+# include "backend-windows/gumwinexceptionhook.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -638,7 +641,7 @@ gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
       block.allocated ? "Heap" : "Freed",
       block.address,
       block.size,
-      (gsize) ((guint8 *) address - block.address));
+      (gsize) ((guint8 *) address - (guint8 *) block.address));
 
   if (priv->backtracer_instance != NULL)
   {
@@ -722,6 +725,7 @@ gum_bounds_checker_on_exception (EXCEPTION_RECORD * exception_record,
 {
   GSList * cur;
 
+  (void) context;
   (void) user_data;
 
   if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)

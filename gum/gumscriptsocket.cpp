@@ -67,16 +67,19 @@ _gum_script_socket_init (GumScriptSocket * self,
 void
 _gum_script_socket_realize (GumScriptSocket * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_socket_dispose (GumScriptSocket * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_socket_finalize (GumScriptSocket * self)
 {
+  (void) self;
 }
 
 static Handle<Value>

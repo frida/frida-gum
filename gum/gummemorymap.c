@@ -150,6 +150,8 @@ gum_memory_map_add_range (const GumMemoryRange * cur,
   GArray * ranges = ctx->ranges;
   GumMemoryRange * prev;
 
+  (void) prot;
+
   if (ctx->prev_range_index >= 0)
     prev = &g_array_index (ranges, GumMemoryRange, ctx->prev_range_index);
   else

@@ -97,7 +97,8 @@ static const gchar * gum_script_runtime_source =
 void
 _gum_script_init (void)
 {
-  V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS, strlen (GUM_SCRIPT_V8_FLAGS));
+  V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
+      static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
 }
 

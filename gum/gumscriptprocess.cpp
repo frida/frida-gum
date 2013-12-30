@@ -96,16 +96,19 @@ _gum_script_process_init (GumScriptProcess * self,
 void
 _gum_script_process_realize (GumScriptProcess * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_process_dispose (GumScriptProcess * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_process_finalize (GumScriptProcess * self)
 {
+  (void) self;
 }
 
 static Handle<Value>

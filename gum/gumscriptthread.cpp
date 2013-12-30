@@ -40,16 +40,19 @@ _gum_script_thread_init (GumScriptThread * self,
 void
 _gum_script_thread_realize (GumScriptThread * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_thread_dispose (GumScriptThread * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_thread_finalize (GumScriptThread * self)
 {
+  (void) self;
 }
 
 static Handle<Value>

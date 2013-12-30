@@ -133,6 +133,7 @@ _gum_script_stalker_dispose (GumScriptStalker * self)
 void
 _gum_script_stalker_finalize (GumScriptStalker * self)
 {
+  (void) self;
 }
 
 GumStalker *

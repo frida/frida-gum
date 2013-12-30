@@ -72,16 +72,19 @@ _gum_script_module_init (GumScriptModule * self,
 void
 _gum_script_module_realize (GumScriptModule * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_module_dispose (GumScriptModule * self)
 {
+  (void) self;
 }
 
 void
 _gum_script_module_finalize (GumScriptModule * self)
 {
+  (void) self;
 }
 
 static Handle<Value>
