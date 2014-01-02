@@ -190,22 +190,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\decode.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\input.h" />
-    <ClInclude Include="$(IntDir)libudis86\itab.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\types.h" />
     <ClInclude Include="$(SolutionDir)udis86\udis86.h" />
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\types.h" />
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h" />
+    <ClInclude Include="$(IntDir)libudis86\itab.h" />
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h" />
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h" />
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\decode.h" />
   </ItemGroup>
 
   <ItemGroup>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\input.c" />
     <ClCompile Include="$(IntDir)libudis86\itab.c" />
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c" />
     <ClCompile Include="$(SolutionDir)udis86\libudis86\syn.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c" />
     <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-intel.c" />
+    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c" />
     <ClCompile Include="$(SolutionDir)udis86\libudis86\udis86.c" />
   </ItemGroup>
 

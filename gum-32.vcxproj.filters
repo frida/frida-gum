@@ -45,9 +45,6 @@
     <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c">
       <Filter>udis86</Filter>
     </ClCompile>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\input.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
     <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c">
       <Filter>udis86</Filter>
     </ClCompile>
@@ -234,9 +231,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\input.h">
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h">
@@ -466,6 +460,9 @@
     </ClInclude>
     <ClInclude Include="gum\gumscripteventsink.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h">
+      <Filter>udis86</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
