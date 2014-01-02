@@ -49,6 +49,7 @@
 #define GUM_RED_ZONE_MAX_SIZE                128
 
 typedef struct _GumInfectContext GumInfectContext;
+typedef struct _GumDisinfectContext GumDisinfectContext;
 
 typedef struct _GumCallProbe GumCallProbe;
 typedef struct _GumSlab GumSlab;
@@ -91,6 +92,13 @@ struct _GumInfectContext
 {
   GumStalker * stalker;
   GumEventSink * sink;
+};
+
+struct _GumDisinfectContext
+{
+  GumStalker * stalker;
+  GumExecCtx * exec_ctx;
+  gboolean success;
 };
 
 struct _GumCallProbe
@@ -258,6 +266,8 @@ void _gum_stalker_do_follow_me (GumStalker * self, GumEventSink * sink,
     volatile gpointer * ret_addr_ptr);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
+static void gum_stalker_disinfect (GumThreadId thread_id,
+    GumCpuContext * cpu_context, gpointer user_data);
 
 static void gum_stalker_free_probe_array (gpointer data);
 
@@ -267,6 +277,7 @@ static GumExecCtx * gum_stalker_get_exec_ctx (GumStalker * self);
 static void gum_stalker_invalidate_caches (GumStalker * self);
 
 static void gum_exec_ctx_free (GumExecCtx * ctx);
+static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
 static void gum_exec_ctx_add_code_slab_if_neeed (GumExecCtx * ctx);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
@@ -615,7 +626,21 @@ gum_stalker_unfollow (GumStalker * self,
       GumExecCtx * ctx = (GumExecCtx *) cur->data;
       if (ctx->thread_id == thread_id && ctx->state == GUM_EXEC_CTX_ACTIVE)
       {
-        ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+        if (gum_exec_ctx_has_executed (ctx))
+        {
+          ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+        }
+        else
+        {
+          GumDisinfectContext dc;
+          dc.stalker = self;
+          dc.exec_ctx = ctx;
+          dc.success = FALSE;
+          gum_process_modify_thread (thread_id, gum_stalker_disinfect, &dc);
+          if (!dc.success)
+            ctx->state = GUM_EXEC_CTX_UNFOLLOW_PENDING;
+        }
+
         break;
       }
     }
@@ -658,6 +683,30 @@ gum_stalker_infect (GumThreadId thread_id,
   gum_exec_ctx_write_epilog (ctx, GUM_PROLOG_MINIMAL, &cw);
   gum_x86_writer_put_jmp (&cw, code_address);
   gum_x86_writer_free (&cw);
+}
+
+static void
+gum_stalker_disinfect (GumThreadId thread_id,
+                       GumCpuContext * cpu_context,
+                       gpointer user_data)
+{
+  GumDisinfectContext * disinfect_context = (GumDisinfectContext *) user_data;
+  GumStalker * self = disinfect_context->stalker;
+  GumExecCtx * ctx = disinfect_context->exec_ctx;
+  gboolean infection_not_active_yet;
+
+  infection_not_active_yet =
+      GUM_CPU_CONTEXT_XIP (cpu_context) == GPOINTER_TO_SIZE (ctx->infect_thunk);
+  if (infection_not_active_yet)
+  {
+    GUM_CPU_CONTEXT_XIP (cpu_context) =
+        GPOINTER_TO_SIZE (ctx->current_block->real_begin);
+
+    self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
+    gum_exec_ctx_free (ctx);
+
+    disinfect_context->success = TRUE;
+  }
 }
 
 GumProbeId
@@ -802,6 +851,10 @@ gum_stalker_create_exec_ctx (GumStalker * self,
       ctx->mapping_slab.size + priv->page_size - sizeof (GumExecFrame));
   ctx->current_frame = ctx->first_frame;
 
+  ctx->resume_at = NULL;
+  ctx->return_at = NULL;
+  ctx->app_stack = NULL;
+
   ctx->stalker = g_object_ref (self);
   ctx->thread_id = thread_id;
 
@@ -875,6 +928,12 @@ gum_exec_ctx_free (GumExecCtx * ctx)
     g_object_unref (ctx->stalker);
 
   gum_free_pages (ctx);
+}
+
+static gboolean
+gum_exec_ctx_has_executed (GumExecCtx * ctx)
+{
+  return ctx->resume_at != NULL;
 }
 
 static void
