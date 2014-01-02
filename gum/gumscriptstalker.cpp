@@ -160,8 +160,9 @@ _gum_script_stalker_process_pending (GumScriptStalker * self)
 
   if (self->sink != NULL)
   {
-    g_object_unref (self->sink);
+    GumEventSink * sink = self->sink;
     self->sink = NULL;
+    g_object_unref (sink);
   }
 }
 
@@ -327,8 +328,9 @@ gum_script_stalker_on_follow (const Arguments & args)
 
   if (self->sink != NULL)
   {
-    g_object_unref (self->sink);
+    GumEventSink * sink = self->sink;
     self->sink = NULL;
+    g_object_unref (sink);
   }
 
   self->sink = gum_script_event_sink_new (&so);
@@ -338,10 +340,10 @@ gum_script_stalker_on_follow (const Arguments & args)
   }
   else
   {
-    gum_stalker_follow (_gum_script_stalker_get (self), thread_id,
-        self->sink);
-    g_object_unref (self->sink);
+    GumEventSink * sink = self->sink;
     self->sink = NULL;
+    gum_stalker_follow (_gum_script_stalker_get (self), thread_id, sink);
+    g_object_unref (sink);
   }
 
   return Undefined ();
