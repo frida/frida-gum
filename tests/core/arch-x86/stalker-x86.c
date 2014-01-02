@@ -47,6 +47,7 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
+  STALKER_TESTENTRY (popcnt)
 #if GLIB_SIZEOF_VOID_P == 4
   STALKER_TESTENTRY (no_register_clobber)
 #endif
@@ -1155,6 +1156,23 @@ STALKER_TESTCASE (direct_call_with_register)
   call_template.ia32_padding_instruction_count = 5;
 
   invoke_call_from_template (fixture, &call_template);
+}
+
+STALKER_TESTCASE (popcnt)
+{
+  const guint8 code[] =
+  {
+    0xf3, 0x0f, 0xb8, 0xcb, /* popcnt ecx, ebx */
+    0xc3,                   /* ret             */
+    0xcc,                   /* int3            */
+  };
+  StalkerTestFunc func;
+
+  func = GUM_POINTER_TO_FUNCPTR (StalkerTestFunc,
+      test_stalker_fixture_dup_code (fixture, code, sizeof (code)));
+
+  fixture->sink->mask = GUM_NOTHING;
+  test_stalker_fixture_follow_and_invoke (fixture, func, 0);
 }
 
 typedef struct _JumpTemplate JumpTemplate;
