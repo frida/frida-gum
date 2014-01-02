@@ -704,6 +704,8 @@ gum_stalker_disinfect (GumThreadId thread_id,
   GumExecCtx * ctx = disinfect_context->exec_ctx;
   gboolean infection_not_active_yet;
 
+  (void) thread_id;
+
   infection_not_active_yet =
       GUM_CPU_CONTEXT_XIP (cpu_context) == GPOINTER_TO_SIZE (ctx->infect_thunk);
   if (infection_not_active_yet)
