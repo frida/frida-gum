@@ -59,8 +59,7 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
     }
     else if (ud_obj.mnemonic == UD_Ijmp)
     {
-      if (ud_obj.operand[0].type == UD_OP_JIMM &&
-          ud_obj.operand[0].base == UD_NONE)
+      if (ud_obj.operand[0].type == UD_OP_JIMM)
       {
         const uint8_t * target = ud_obj.inp_buf + ud_obj.operand[0].lval.sdword;
         ud_set_input_buffer (&ud_obj, target, buf_size);

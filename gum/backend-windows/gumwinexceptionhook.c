@@ -99,7 +99,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
 
       op = &ud_obj.operand[0];
     } while (ud_obj.mnemonic != UD_Icall || op->type != UD_OP_JIMM ||
-        op->base != UD_NONE || op->size != 32);
+        op->size != 32);
 
     call_begin =
         (guint8 *) hook_instance->dispatcher_impl + ud_insn_off (&ud_obj);

@@ -379,7 +379,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
     return TRUE;
   }
 
-  if (op->type == UD_OP_JIMM && op->base == UD_NONE)
+  if (op->type == UD_OP_JIMM)
   {
     const guint8 * target = NULL;
 
@@ -419,7 +419,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
                                               GumCodeGenCtx * ctx)
 {
   ud_operand_t * op = &ctx->insn->operand[0];
-  if (op->type == UD_OP_JIMM && op->base == UD_NONE)
+  if (op->type == UD_OP_JIMM)
   {
     const guint8 * target = NULL;
 
@@ -527,6 +527,5 @@ gum_x86_call_is_to_next_instruction (ud_t * insn)
 {
   ud_operand_t * op = &insn->operand[0];
 
-  return (op->type == UD_OP_JIMM && op->base == UD_NONE &&
-      op->lval.sdword == 0);
+  return (op->type == UD_OP_JIMM && op->lval.sdword == 0);
 }

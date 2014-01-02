@@ -1743,7 +1743,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   target.index = op->index;
   target.scale = op->scale;
 
-  if (op->type == UD_OP_JIMM && op->base == UD_NONE)
+  if (op->type == UD_OP_JIMM)
   {
     if (op->size == 8)
       target.absolute_address = insn->end + op->lval.sbyte;
