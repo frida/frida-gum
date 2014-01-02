@@ -62,7 +62,7 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
       if (ud_obj.operand[0].type == UD_OP_JIMM &&
           ud_obj.operand[0].base == UD_NONE)
       {
-        gpointer target = ud_obj.inp_buff + ud_obj.operand[0].lval.sdword;
+        const uint8_t * target = ud_obj.inp_buf + ud_obj.operand[0].lval.sdword;
         ud_set_input_buffer (&ud_obj, target, buf_size);
       }
       else
