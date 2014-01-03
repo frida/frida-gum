@@ -27,6 +27,7 @@ using namespace v8;
 
 static void gum_script_event_sink_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_script_event_sink_dispose (GObject * obj);
 static void gum_script_event_sink_finalize (GObject * obj);
 static GumEventType gum_script_event_sink_query_mask (GumEventSink * sink);
 static void gum_script_event_sink_start (GumEventSink * sink);
@@ -50,6 +51,7 @@ gum_script_event_sink_class_init (GumScriptEventSinkClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  object_class->dispose = gum_script_event_sink_dispose;
   object_class->finalize = gum_script_event_sink_finalize;
 }
 
@@ -74,19 +76,38 @@ gum_script_event_sink_init (GumScriptEventSink * self)
 }
 
 static void
+gum_script_event_sink_release_core (GumScriptEventSink * self)
+{
+  GumScript * script;
+
+  if (self->core == NULL)
+    return;
+  script = self->core->script;
+  self->core = NULL;
+
+  {
+    ScriptScope scope (script);
+    self->on_receive.Dispose ();
+    self->on_call_summary.Dispose ();
+  }
+
+  g_object_unref (script);
+}
+
+static void
+gum_script_event_sink_dispose (GObject * obj)
+{
+  gum_script_event_sink_release_core (GUM_SCRIPT_EVENT_SINK (obj));
+
+  G_OBJECT_CLASS (gum_script_event_sink_parent_class)->dispose (obj);
+}
+
+static void
 gum_script_event_sink_finalize (GObject * obj)
 {
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (obj);
 
   g_assert (self->source == NULL);
-
-  {
-    ScriptScope scope (self->core->script);
-    self->on_receive.Dispose ();
-    self->on_call_summary.Dispose ();
-  }
-
-  g_object_unref (self->core->script);
 
   gum_spinlock_free (&self->lock);
   g_array_free (self->queue, TRUE);
@@ -146,12 +167,21 @@ gum_script_event_sink_process (GumEventSink * sink,
 static void
 gum_script_event_sink_stop (GumEventSink * sink)
 {
-  GSource * source;
+  GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (sink);
 
-  source = g_idle_source_new ();
-  g_source_set_callback (source, gum_script_event_sink_stop_idle, sink, NULL);
-  g_source_attach (source, GUM_SCRIPT_EVENT_SINK (sink)->main_context);
-  g_source_unref (source);
+  if (g_main_context_is_owner (self->main_context))
+  {
+    gum_script_event_sink_stop_idle (sink);
+  }
+  else
+  {
+    GSource * source;
+
+    source = g_idle_source_new ();
+    g_source_set_callback (source, gum_script_event_sink_stop_idle, sink, NULL);
+    g_source_attach (source, self->main_context);
+    g_source_unref (source);
+  }
 }
 
 static gboolean
@@ -165,6 +195,7 @@ gum_script_event_sink_stop_idle (gpointer user_data)
   g_source_destroy (self->source);
   g_source_unref (self->source);
   self->source = NULL;
+  gum_script_event_sink_release_core (self);
   g_object_unref (self);
 
   return FALSE;
@@ -176,6 +207,9 @@ gum_script_event_sink_drain (gpointer user_data)
   GumScriptEventSink * self = GUM_SCRIPT_EVENT_SINK (user_data);
   gpointer buffer = NULL;
   guint len, size;
+
+  if (self->core == NULL)
+    return FALSE;
 
   len = self->queue->len;
   size = len * sizeof (GumEvent);

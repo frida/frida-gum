@@ -118,10 +118,16 @@ _gum_script_stalker_realize (GumScriptStalker * self)
 void
 _gum_script_stalker_dispose (GumScriptStalker * self)
 {
-  self->sink = NULL;
+  if (self->sink != NULL)
+  {
+    GumEventSink * sink = self->sink;
+    self->sink = NULL;
+    g_object_unref (sink);
+  }
 
   if (self->stalker != NULL)
   {
+    gum_stalker_stop (self->stalker);
     g_object_unref (self->stalker);
     self->stalker = NULL;
   }
