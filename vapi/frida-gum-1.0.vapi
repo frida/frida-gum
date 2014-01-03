@@ -122,7 +122,8 @@ namespace Gum {
 		public int get_trust_threshold ();
 		public void set_trust_threshold (int trust_threshold);
 
-		public void garbage_collect ();
+		public void stop ();
+		public bool garbage_collect ();
 
 		public void follow_me (Gum.EventSink sink);
 		public void unfollow_me ();

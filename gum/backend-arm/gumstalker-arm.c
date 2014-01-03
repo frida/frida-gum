@@ -86,8 +86,14 @@ gum_stalker_set_trust_threshold (GumStalker * self,
 }
 
 void
+gum_stalker_stop (GumStalker * self)
+{
+}
+
+gboolean
 gum_stalker_garbage_collect (GumStalker * self)
 {
+  return FALSE;
 }
 
 void
