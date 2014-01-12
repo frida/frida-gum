@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2013 Ole AndrÃ© Vadla RavnÃ¥s <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2010-2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * This library is free software; you can redistribute it and/or
