@@ -1204,15 +1204,7 @@ gum_invocation_stack_peek_top (GumInvocationStack * stack)
 static void
 make_function_prologue_at_least_read_write (gpointer prologue_address)
 {
-  GumPageProtection prot;
-
-#if defined (HAVE_DARWIN) && defined (HAVE_ARM)
-  prot = GUM_PAGE_READ | GUM_PAGE_WRITE; /* RWX is not allowed */
-#else
-  prot = GUM_PAGE_RWX;
-#endif
-
-  gum_mprotect (prologue_address, 16, prot);
+  gum_mprotect (prologue_address, 16, GUM_PAGE_RWX);
 }
 
 static void

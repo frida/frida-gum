@@ -220,11 +220,6 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
       <=, ctx->trampoline_slice->size);
 
   gum_thumb_writer_free (&tw);
-
-#ifdef HAVE_DARWIN
-  gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
-      GUM_PAGE_READ | GUM_PAGE_EXECUTE);
-#endif
 }
 
 void
@@ -391,21 +386,11 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
 
   gum_thumb_writer_free (&tw);
-
-#ifdef HAVE_DARWIN
-  gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
-      GUM_PAGE_READ | GUM_PAGE_EXECUTE);
-#endif
 }
 
 void
 _gum_function_context_destroy_trampoline (FunctionContext * ctx)
 {
-#ifdef HAVE_DARWIN
-  gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
-      GUM_PAGE_READ | GUM_PAGE_WRITE);
-#endif
-
   gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
