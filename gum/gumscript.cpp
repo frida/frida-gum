@@ -35,7 +35,12 @@
 #include <gio/gio.h>
 #include <string.h>
 
-#define GUM_SCRIPT_V8_FLAGS "-expose-gc"
+/* FIXME: this should no longer be needed once V8 has been updated */
+#ifdef HAVE_ARM
+# define GUM_SCRIPT_V8_FLAGS "--expose-gc true --crankshaft false --opt false --lazy false"
+#else
+# define GUM_SCRIPT_V8_FLAGS "--expose-gc true"
+#endif
 
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
 
