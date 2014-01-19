@@ -258,6 +258,7 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
 }
 
 static gint gum_toupper (gchar * str, gint limit);
+static gint gum_sum (gint count, ...);
 
 #ifndef HAVE_ANDROID
 static gboolean on_incoming_connection (GSocketService * service,

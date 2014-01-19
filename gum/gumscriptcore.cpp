@@ -709,7 +709,8 @@ gum_script_core_on_new_native_function (const Arguments & args)
   ffi_type * rtype;
   Local<Value> atypes_value;
   Local<Array> atypes_array;
-  uint32_t nargs, i;
+  uint32_t nargs_fixed, nargs_total, i;
+  gboolean is_variadic;
   ffi_abi abi;
   Local<Object> instance;
   Persistent<Object> persistent_instance;
@@ -737,13 +738,33 @@ gum_script_core_on_new_native_function (const Arguments & args)
     goto error;
   }
   atypes_array = Array::Cast (*atypes_value);
-  nargs = atypes_array->Length ();
-  func->atypes = g_new (ffi_type *, nargs);
-  for (i = 0; i != nargs; i++)
+  nargs_fixed = nargs_total = atypes_array->Length ();
+  is_variadic = FALSE;
+  func->atypes = g_new (ffi_type *, nargs_total);
+  for (i = 0; i != nargs_total; i++)
   {
-    if (!gum_script_ffi_type_get (atypes_array->Get (i), &func->atypes[i]))
+    Handle<Value> type (atypes_array->Get (i));
+    String::Utf8Value type_utf (type);
+    if (strcmp (*type_utf, "...") == 0)
+    {
+      if (is_variadic)
+      {
+        ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+            "only one variadic marker may be specified")));
+        goto error;
+      }
+
+      nargs_fixed = i;
+      is_variadic = TRUE;
+    }
+    else if (!gum_script_ffi_type_get (type,
+        &func->atypes[is_variadic ? i - 1 : i]))
+    {
       goto error;
+    }
   }
+  if (is_variadic)
+    nargs_total--;
 
   abi = FFI_DEFAULT_ABI;
   if (args.Length () > 3)
@@ -752,11 +773,25 @@ gum_script_core_on_new_native_function (const Arguments & args)
       goto error;
   }
 
-  if (ffi_prep_cif (&func->cif, abi, nargs, rtype, func->atypes) != FFI_OK)
+  if (is_variadic)
   {
-    ThrowException (Exception::TypeError (String::New ("NativeFunction: "
-        "failed to compile function call interface")));
-    goto error;
+    if (ffi_prep_cif_var (&func->cif, abi, nargs_fixed, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+    {
+      ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+          "failed to compile function call interface")));
+      goto error;
+    }
+  }
+  else
+  {
+    if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+    {
+      ThrowException (Exception::TypeError (String::New ("NativeFunction: "
+          "failed to compile function call interface")));
+      goto error;
+    }
   }
 
   instance = args.Holder ();

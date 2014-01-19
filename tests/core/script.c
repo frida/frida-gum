@@ -83,6 +83,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
   SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
@@ -107,6 +108,17 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("-6");
   EXPECT_NO_MESSAGES ();
   g_assert_cmpstr (str, ==, "BADGER");
+}
+
+SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var sum = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['int', '...', 'int', 'int', 'int']);"
+      "send(sum(3, 1, 2, 3));",
+      gum_sum);
+  EXPECT_SEND_MESSAGE_WITH ("6");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (native_callback_can_be_invoked)
@@ -156,6 +168,22 @@ gum_toupper (gchar * str,
   }
 
   return (limit == -1) ? -count : count;
+}
+
+static gint
+gum_sum (gint count,
+         ...)
+{
+  gint total = 0;
+  va_list vl;
+  gint i;
+
+  va_start (vl, count);
+  for (i = 0; i != count; i++)
+    total += va_arg (vl, gint);
+  va_end (vl);
+
+  return total;
 }
 
 SCRIPT_TESTCASE (file_can_be_written_to)
