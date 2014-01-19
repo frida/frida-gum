@@ -440,11 +440,13 @@ public:
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
       String::AsciiValue exception_str (exception);
+      gchar * exception_str_escaped = g_strescape (*exception_str, "");
       gchar * error = g_strdup_printf (
           "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
           message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-          *exception_str);
+          exception_str_escaped);
       _gum_script_core_emit_message (&priv->core, error, NULL, 0);
+      g_free (exception_str_escaped);
       g_free (error);
     }
   }
