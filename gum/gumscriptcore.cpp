@@ -1073,6 +1073,8 @@ gum_script_ffi_type_get (Handle<Value> name,
     }
   }
 
+  ThrowException (Exception::TypeError (
+      String::New ("invalid type specified")));
   return FALSE;
 }
 
@@ -1092,6 +1094,8 @@ gum_script_ffi_abi_get (Handle<Value> name,
     }
   }
 
+  ThrowException (Exception::TypeError (
+      String::New ("invalid abi specified")));
   return FALSE;
 }
 
