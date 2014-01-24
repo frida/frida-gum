@@ -35,12 +35,13 @@ struct _GumScriptMatchContext
 
 static Handle<Value> gum_script_module_on_enumerate_exports (
     const Arguments & args);
-static gboolean gum_script_module_handle_export_match (const gchar * name,
-    GumAddress address, gpointer user_data);
+static gboolean gum_script_module_handle_export_match (
+    const GumExportDetails * details, gpointer user_data);
+static const gchar * gum_export_type_to_string (GumExportType type);
 static Handle<Value> gum_script_module_on_enumerate_ranges (
     const Arguments & args);
 static gboolean gum_script_module_handle_range_match (
-    const GumMemoryRange * range, GumPageProtection prot, gpointer user_data);
+    const GumRangeDetails * details, gpointer user_data);
 static Handle<Value> gum_script_module_on_find_base_address (
     const Arguments & args);
 static Handle<Value> gum_script_module_on_find_export_by_name (
@@ -129,18 +130,24 @@ gum_script_module_on_enumerate_exports (const Arguments & args)
 }
 
 static gboolean
-gum_script_module_handle_export_match (const gchar * name,
-                                       GumAddress address,
+gum_script_module_handle_export_match (const GumExportDetails * details,
                                        gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
 
+  Local<Object> exp (Object::New ());
+  exp->Set (String::New ("type"),
+      String::New (gum_export_type_to_string (details->type)), ReadOnly);
+  exp->Set (String::New ("name"),
+      String::New (details->name), ReadOnly);
+  exp->Set (String::New ("address"), _gum_script_pointer_new (ctx->self->core,
+      GSIZE_TO_POINTER (details->address)), ReadOnly);
+
   Handle<Value> argv[] = {
-    String::New (name),
-    _gum_script_pointer_new (ctx->self->core, GSIZE_TO_POINTER (address))
+    exp
   };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 2, argv);
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
   gboolean proceed = TRUE;
   if (!result.IsEmpty () && result->IsString ())
@@ -150,6 +157,21 @@ gum_script_module_handle_export_match (const gchar * name,
   }
 
   return proceed;
+}
+
+static const gchar *
+gum_export_type_to_string (GumExportType type)
+{
+  switch (type)
+  {
+    case GUM_EXPORT_FUNCTION: return "function";
+    case GUM_EXPORT_VARIABLE: return "variable";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
+  return NULL;
 }
 
 static Handle<Value>
@@ -198,28 +220,31 @@ gum_script_module_on_enumerate_ranges (const Arguments & args)
 }
 
 static gboolean
-gum_script_module_handle_range_match (const GumMemoryRange * range,
-                                      GumPageProtection prot,
+gum_script_module_handle_range_match (const GumRangeDetails * details,
                                       gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
 
   char prot_str[4] = "---";
-  if ((prot & GUM_PAGE_READ) != 0)
+  if ((details->prot & GUM_PAGE_READ) != 0)
     prot_str[0] = 'r';
-  if ((prot & GUM_PAGE_WRITE) != 0)
+  if ((details->prot & GUM_PAGE_WRITE) != 0)
     prot_str[1] = 'w';
-  if ((prot & GUM_PAGE_EXECUTE) != 0)
+  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
     prot_str[2] = 'x';
 
+  Local<Object> range (Object::New ());
+  range->Set (String::New ("base"), _gum_script_pointer_new (ctx->self->core,
+      GSIZE_TO_POINTER (details->range->base_address)), ReadOnly);
+  range->Set (String::New ("size"),
+      Integer::NewFromUnsigned (details->range->size), ReadOnly);
+  range->Set (String::New ("protection"), String::New (prot_str), ReadOnly);
+
   Handle<Value> argv[] = {
-    _gum_script_pointer_new (ctx->self->core,
-        GSIZE_TO_POINTER (range->base_address)),
-    Integer::NewFromUnsigned (range->size),
-    String::New (prot_str)
+    range
   };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
   gboolean proceed = TRUE;
   if (!result.IsEmpty () && result->IsString ())

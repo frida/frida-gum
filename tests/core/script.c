@@ -494,7 +494,7 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
-        "onMatch: function(name, address, size, path) {"
+        "onMatch: function(module) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
@@ -510,7 +510,7 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateRanges('--x', {"
-        "onMatch: function(address, size, prot) {"
+        "onMatch: function(range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
@@ -526,7 +526,7 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(name, address) {"
+        "onMatch: function(export) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
@@ -546,7 +546,7 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   COMPILE_AND_LOAD_SCRIPT (
       "var start = new Date();"
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(name, address) {"
+        "onMatch: function(export) {"
         "},"
         "onComplete: function() {"
         "}"
@@ -563,7 +563,7 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateRanges(\"%s\", '--x', {"
-        "onMatch: function(address, size, prot) {"
+        "onMatch: function(range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"

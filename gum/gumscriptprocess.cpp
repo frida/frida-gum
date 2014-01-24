@@ -55,17 +55,17 @@ static Handle<Value> gum_script_process_on_get_current_thread_id (
     const Arguments & args);
 static Handle<Value> gum_script_process_on_enumerate_threads (
     const Arguments & args);
-static gboolean gum_script_process_thread_match (GumThreadDetails * details,
-    gpointer user_data);
+static gboolean gum_script_process_thread_match (
+    const GumThreadDetails * details, gpointer user_data);
 static const gchar * gum_script_thread_state_to_string (GumThreadState state);
 static Handle<Value> gum_script_process_on_enumerate_modules (
     const Arguments & args);
-static gboolean gum_script_process_handle_module_match (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
+static gboolean gum_script_process_handle_module_match (
+    const GumModuleDetails * details, gpointer user_data);
 static Handle<Value> gum_script_process_on_enumerate_ranges (
     const Arguments & args);
-static gboolean gum_script_process_handle_range_match (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+static gboolean gum_script_process_handle_range_match (
+    const GumRangeDetails * details, gpointer user_data);
 
 void
 _gum_script_process_init (GumScriptProcess * self,
@@ -150,7 +150,7 @@ gum_script_process_on_enumerate_threads (const Arguments & args)
 }
 
 static gboolean
-gum_script_process_thread_match (GumThreadDetails * details,
+gum_script_process_thread_match (const GumThreadDetails * details,
                                  gpointer user_data)
 {
   GumScriptMatchContext * ctx =
@@ -227,22 +227,24 @@ gum_script_process_on_enumerate_modules (const Arguments & args)
 }
 
 static gboolean
-gum_script_process_handle_module_match (const gchar * name,
-                                        const GumMemoryRange * range,
-                                        const gchar * path,
+gum_script_process_handle_module_match (const GumModuleDetails * details,
                                         gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
 
+  Local<Object> module (Object::New ());
+  module->Set (String::New ("name"), String::New (details->name), ReadOnly);
+  module->Set (String::New ("base"), _gum_script_pointer_new (ctx->self->core,
+      GSIZE_TO_POINTER (details->range->base_address)), ReadOnly);
+  module->Set (String::New ("size"),
+      Integer::NewFromUnsigned (details->range->size), ReadOnly);
+  module->Set (String::New ("path"), String::New (details->path), ReadOnly);
+
   Handle<Value> argv[] = {
-    String::New (name),
-    _gum_script_pointer_new (ctx->self->core,
-        GSIZE_TO_POINTER (range->base_address)),
-    Integer::NewFromUnsigned (range->size),
-    String::New (path)
+    module
   };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 4, argv);
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
   gboolean proceed = TRUE;
   if (!result.IsEmpty () && result->IsString ())
@@ -290,28 +292,31 @@ gum_script_process_on_enumerate_ranges (const Arguments & args)
 }
 
 static gboolean
-gum_script_process_handle_range_match (const GumMemoryRange * range,
-                                       GumPageProtection prot,
+gum_script_process_handle_range_match (const GumRangeDetails * details,
                                        gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
 
   char prot_str[4] = "---";
-  if ((prot & GUM_PAGE_READ) != 0)
+  if ((details->prot & GUM_PAGE_READ) != 0)
     prot_str[0] = 'r';
-  if ((prot & GUM_PAGE_WRITE) != 0)
+  if ((details->prot & GUM_PAGE_WRITE) != 0)
     prot_str[1] = 'w';
-  if ((prot & GUM_PAGE_EXECUTE) != 0)
+  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
     prot_str[2] = 'x';
 
+  Local<Object> range (Object::New ());
+  range->Set (String::New ("base"), _gum_script_pointer_new (ctx->self->core,
+      GSIZE_TO_POINTER (details->range->base_address)), ReadOnly);
+  range->Set (String::New ("size"),
+      Integer::NewFromUnsigned (details->range->size), ReadOnly);
+  range->Set (String::New ("protection"), String::New (prot_str), ReadOnly);
+
   Handle<Value> argv[] = {
-    _gum_script_pointer_new (ctx->self->core,
-        GSIZE_TO_POINTER (range->base_address)),
-    Integer::NewFromUnsigned (range->size),
-    String::New (prot_str)
+    range
   };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 3, argv);
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
   gboolean proceed = TRUE;
   if (!result.IsEmpty () && result->IsString ())
