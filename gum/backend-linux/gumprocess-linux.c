@@ -76,10 +76,10 @@ static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 #endif
 
-static gboolean gum_store_base_and_path_if_name_matches (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (const gchar * name,
-    GumAddress address, gpointer user_data);
+static gboolean gum_store_base_and_path_if_name_matches (
+    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (
+    const GumExportDetails * details, gpointer user_data);
 
 #ifndef HAVE_ANDROID
 static void gum_cpu_context_from_linux (const ucontext_t * uc,
@@ -264,6 +264,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     gboolean readable;
     gchar * name;
     GumMemoryRange range;
+    GumModuleDetails details;
 
     n = sscanf (line, "%p-%p %s %*x %*s %*s %s", &start, &end, perms, path);
     if (n == 3)
@@ -281,7 +282,11 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     range.base_address = GUM_ADDRESS (start);
     range.size = end - start;
 
-    carry_on = func (name, &range, path, user_data);
+    details.name = name;
+    details.range = &range;
+    details.path = path;
+
+    carry_on = func (&details, user_data);
 
     g_free (name);
 
@@ -340,11 +345,15 @@ gum_linux_enumerate_ranges (pid_t pid,
     if ((cur_prot & prot) == prot)
     {
       GumMemoryRange range;
+      GumRangeDetails details;
 
       range.base_address = GUM_ADDRESS (start);
       range.size = end - start;
 
-      carry_on = func (&range, cur_prot, user_data);
+      details.range = &range;
+      details.prot = cur_prot;
+
+      carry_on = func (&details, user_data);
     }
   }
 
@@ -417,16 +426,17 @@ gum_module_enumerate_exports (const gchar * module_name,
     sym = base_address + dynsym_section_offset + (i * dynsym_entry_size);
     if ((GUM_ELF_ST_BIND (sym->st_info) == STB_GLOBAL ||
          GUM_ELF_ST_BIND (sym->st_info) == STB_WEAK) &&
-        GUM_ELF_ST_TYPE (sym->st_info) == STT_FUNC &&
         sym->st_shndx != SHN_UNDEF)
     {
-      const gchar * name;
-      GumAddress address;
+      GumExportDetails details;
 
-      name = dynsym_strtab + sym->st_name;
-      address = ctx.base + sym->st_value;
+      details.type = GUM_ELF_ST_TYPE (sym->st_info) == STT_FUNC
+          ? GUM_EXPORT_FUNCTION
+          : GUM_EXPORT_VARIABLE;
+      details.name = dynsym_strtab + sym->st_name;
+      details.address = ctx.base + sym->st_value;
 
-      if (!func (name, address, user_data))
+      if (!func (&details, user_data))
         goto beach;
     }
   }
@@ -483,11 +493,15 @@ gum_module_enumerate_ranges (const gchar * module_name,
       if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
+        GumRangeDetails details;
 
         range.base_address = GUM_ADDRESS (start);
         range.size = end - start;
 
-        carry_on = func (&range, cur_prot, user_data);
+        details.range = &range;
+        details.prot = cur_prot;
+
+        carry_on = func (&details, user_data);
       }
     }
     g_free (name);
@@ -524,31 +538,28 @@ gum_module_find_export_by_name (const gchar * module_name,
 }
 
 static gboolean
-gum_store_base_and_path_if_name_matches (const gchar * name,
-                                         const GumMemoryRange * range,
-                                         const gchar * path,
+gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
                                          gpointer user_data)
 {
   GumFindModuleContext * ctx = user_data;
 
-  if (strcmp (name, ctx->module_name) != 0)
+  if (strcmp (details->name, ctx->module_name) != 0)
     return TRUE;
 
-  ctx->base = range->base_address;
-  ctx->path = g_strdup (path);
+  ctx->base = details->range->base_address;
+  ctx->path = g_strdup (details->path);
   return FALSE;
 }
 
 static gboolean
-gum_store_address_if_export_name_matches (const gchar * name,
-                                          GumAddress address,
+gum_store_address_if_export_name_matches (const GumExportDetails * details,
                                           gpointer user_data)
 {
   GumFindExportContext * ctx = (GumFindExportContext *) user_data;
 
-  if (strcmp (name, ctx->symbol_name) == 0)
+  if (strcmp (details->name, ctx->symbol_name) == 0)
   {
-    ctx->result = address;
+    ctx->result = details->address;
     return FALSE;
   }
 
