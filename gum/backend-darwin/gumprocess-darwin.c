@@ -98,17 +98,17 @@ typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
 
 static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (const gchar * name,
-    GumAddress address, gpointer user_data);
-static gboolean gum_probe_range_for_entrypoint (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (
+    const GumExportDetails * details, gpointer user_data);
+static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
+    gpointer user_data);
 static gboolean gum_store_range_of_potential_modules (
-    const GumMemoryRange * range, GumPageProtection prot, gpointer user_data);
+    const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesContext * ctx);
 
-static gboolean gum_store_module_address (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
+static gboolean gum_store_module_address (const GumModuleDetails * details,
+    gpointer user_data);
 static gboolean gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
     const gchar * module_name);
 static gboolean gum_darwin_find_slide (GumAddress module_address,
@@ -241,13 +241,20 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     const struct dyld_image_info * info = &all_info->infoArray[i];
     gchar * name;
     GumMemoryRange range;
+    GumModuleDetails details;
     gboolean carry_on;
+
+    name = g_path_get_basename (info->imageFilePath);
 
     range.base_address = GUM_ADDRESS (info->imageLoadAddress);
     range.size = find_image_size (info->imageFilePath);
 
-    name = g_path_get_basename (info->imageFilePath);
-    carry_on = func (name, &range, info->imageFilePath, user_data);
+    details.name = name;
+    details.range = &range;
+    details.path = info->imageFilePath;
+
+    carry_on = func (&details, user_data);
+
     g_free (name);
 
     if (!carry_on)
@@ -305,23 +312,22 @@ gum_module_do_enumerate_exports (const gchar * module_name,
       symbol_idx != sc->nsyms;
       symbol_idx++, sym++)
   {
-    const gchar * symbol_name;
-    GumAddress symbol_address;
+    GumExportDetails details;
 
     if (SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       continue;
 
-    if (g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect)) == NULL)
-      continue;
-
-    symbol_name = gum_symbol_name_from_darwin (strbase + sym->n_un.n_strx);
-
-    symbol_address = GUM_ADDRESS (
+    details.type =
+        g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect)) != NULL
+        ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
+    details.name = gum_symbol_name_from_darwin (strbase + sym->n_un.n_strx);
+    details.address = GUM_ADDRESS (
         GSIZE_TO_POINTER (sym->n_value) + GPOINTER_TO_SIZE (slide));
     if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
-      symbol_address++;
+      details.address++;
 
-    carry_on = func (symbol_name, symbol_address, user_data);
+    carry_on = func (&details, user_data);
+
     if (!carry_on)
       goto beach;
   }
@@ -385,12 +391,16 @@ gum_module_enumerate_ranges (const gchar * module_name,
       if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
+        GumRangeDetails details;
 
         range.base_address = GUM_ADDRESS (
             GSIZE_TO_POINTER (segcmd->vmaddr) + GPOINTER_TO_SIZE (slide));
         range.size = segcmd->vmsize;
 
-        if (!func (&range, cur_prot, user_data))
+        details.range = &range;
+        details.prot = cur_prot;
+
+        if (!func (&details, user_data))
           return;
       }
     }
@@ -426,15 +436,14 @@ gum_module_find_export_by_name (const gchar * module_name,
 }
 
 static gboolean
-gum_store_address_if_export_name_matches (const gchar * name,
-                                          GumAddress address,
+gum_store_address_if_export_name_matches (const GumExportDetails * details,
                                           gpointer user_data)
 {
   GumFindExportContext * ctx = (GumFindExportContext *) user_data;
 
-  if (strcmp (name, ctx->symbol_name) == 0)
+  if (strcmp (details->name, ctx->symbol_name) == 0)
   {
-    ctx->result = address;
+    ctx->result = details->address;
     return FALSE;
   }
 
@@ -480,10 +489,10 @@ gum_darwin_find_entrypoint (mach_port_t task)
 }
 
 static gboolean
-gum_probe_range_for_entrypoint (const GumMemoryRange * range,
-                                GumPageProtection prot,
+gum_probe_range_for_entrypoint (const GumRangeDetails * details,
                                 gpointer user_data)
 {
+  const GumMemoryRange * range = details->range;
   GumFindEntrypointContext * ctx = user_data;
   gboolean carry_on = TRUE;
   guint8 * chunk, * page, * p;
@@ -665,13 +674,12 @@ gum_darwin_enumerate_modules (mach_port_t task,
 }
 
 static gboolean
-gum_store_range_of_potential_modules (const GumMemoryRange * range,
-                                      GumPageProtection prot,
+gum_store_range_of_potential_modules (const GumRangeDetails * details,
                                       gpointer user_data)
 {
   GumEnumerateModulesContext * ctx = user_data;
 
-  g_array_append_val (ctx->ranges, *range);
+  g_array_append_val (ctx->ranges, *(details->range));
 
   return TRUE;
 }
@@ -752,6 +760,7 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
         const gchar * raw_path;
         guint raw_path_len;
         gchar * path, * name;
+        GumModuleDetails details;
 
         raw_path = (gchar *) p + dl->name.offset;
         raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
@@ -760,7 +769,11 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
         path[raw_path_len] = '\0';
         name = g_path_get_basename (path);
 
-        carry_on = ctx->func (name, &dylib_range, path, ctx->user_data);
+        details.name = name;
+        details.range = &dylib_range;
+        details.path = path;
+
+        carry_on = ctx->func (&details, ctx->user_data);
 
         g_free (name);
         g_free (path);
@@ -828,11 +841,15 @@ gum_darwin_enumerate_ranges (mach_port_t task,
     if ((cur_prot & prot) == prot)
     {
       GumMemoryRange range;
+      GumRangeDetails details;
 
       range.base_address = address;
       range.size = size;
 
-      if (!func (&range, cur_prot, user_data))
+      details.range = &range;
+      details.prot = cur_prot;
+
+      if (!func (&details, user_data))
         return;
     }
 
@@ -864,17 +881,17 @@ gum_darwin_enumerate_exports (mach_port_t task,
 }
 
 static gboolean
-gum_store_module_address (const gchar * name,
-                          const GumMemoryRange * range,
-                          const gchar * path,
+gum_store_module_address (const GumModuleDetails * details,
                           gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
   GVariant * value;
 
-  value = g_variant_new_uint64 (range->base_address);
-  g_hash_table_insert (ctx->modules, g_strdup (name), g_variant_ref (value));
-  g_hash_table_insert (ctx->modules, g_strdup (path), g_variant_ref (value));
+  value = g_variant_new_uint64 (details->range->base_address);
+  g_hash_table_insert (ctx->modules, g_strdup (details->name),
+      g_variant_ref (value));
+  g_hash_table_insert (ctx->modules, g_strdup (details->path),
+      g_variant_ref (value));
   g_variant_unref (value);
 
   return TRUE;
@@ -943,39 +960,42 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   cur_sym = symbols;
   for (symbol_index = 0; symbol_index != sc->nsyms; symbol_index++)
   {
-    const gchar * symbol_name = NULL;
-    GumAddress symbol_address = 0;
+    GumExportDetails details;
+
+    details.name = NULL;
 
     if (header->magic == MH_MAGIC)
     {
       struct nlist * sym = (struct nlist *) cur_sym;
-      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym) &&
-          g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect))
-          != NULL)
+      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       {
-        symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
-        symbol_address = sym->n_value + slide;
+        details.type = g_slist_find (text_section_ids,
+            GSIZE_TO_POINTER (sym->n_sect)) != NULL
+            ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
+        details.name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
+        details.address = sym->n_value + slide;
         if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
-          symbol_address++;
+          details.address++;
       }
     }
     else
     {
       struct nlist_64 * sym = (struct nlist_64 *) cur_sym;
-      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym) &&
-          g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect))
-          != NULL)
+      if (!SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
       {
-        symbol_name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
-        symbol_address = sym->n_value + slide;
+        details.type = g_slist_find (text_section_ids,
+            GSIZE_TO_POINTER (sym->n_sect)) != NULL
+            ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
+        details.name = gum_symbol_name_from_darwin (strings + sym->n_un.n_strx);
+        details.address = sym->n_value + slide;
         if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
-          symbol_address++;
+          details.address++;
       }
     }
 
-    if (symbol_name != NULL)
+    if (details.name != NULL)
     {
-      if (!ctx->func (symbol_name, symbol_address, ctx->user_data))
+      if (!ctx->func (&details, ctx->user_data))
       {
         carry_on = FALSE;
         break;
