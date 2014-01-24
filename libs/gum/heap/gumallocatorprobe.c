@@ -353,9 +353,7 @@ gum_allocator_probe_get_property (GObject * object,
 }
 
 static gboolean
-gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
-                                                       const GumMemoryRange * range,
-                                                       const gchar * path,
+gum_allocator_probe_add_suppression_addresses_if_glib (const GumModuleDetails * details,
                                                        gpointer user_data)
 {
   static const gchar * glib_function_name[] = {
@@ -375,9 +373,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
   gchar * name_lowercase;
   static const gchar ** function_name;
 
-  (void) range;
-
-  name_lowercase = g_ascii_strdown (name, -1);
+  name_lowercase = g_ascii_strdown (details->name, -1);
 
   if (g_strstr_len (name_lowercase, -1, "glib-2.0") != NULL)
     function_name = glib_function_name;
@@ -391,7 +387,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const gchar * name,
     GModule * module;
     guint i;
 
-    module = g_module_open (path, (GModuleFlags) 0);
+    module = g_module_open (details->path, (GModuleFlags) 0);
 
     for (i = 0; function_name[i] != NULL; i++)
     {

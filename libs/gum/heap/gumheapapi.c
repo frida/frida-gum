@@ -24,8 +24,8 @@
 #include <gmodule.h>
 #include <string.h>
 
-static gboolean gum_collect_heap_api_if_crt_module (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
+static gboolean gum_collect_heap_api_if_crt_module (
+    const GumModuleDetails * details, gpointer user_data);
 static void gum_init_field_from_module_symbol (gpointer * field,
     GModule * module, const gchar * name);
 
@@ -45,15 +45,12 @@ gum_process_find_heap_apis (void)
         G_STRINGIFY (name))
 
 static gboolean
-gum_collect_heap_api_if_crt_module (const gchar * name,
-                                    const GumMemoryRange * range,
-                                    const gchar * path,
+gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
                                     gpointer user_data)
 {
+  const gchar * name = details->name;
   GumHeapApiList * list = (GumHeapApiList *) user_data;
   gboolean is_libc_module;
-
-  (void) range;
 
 #if defined (G_OS_WIN32)
   is_libc_module = g_ascii_strncasecmp (name, "msvcr", 5) == 0;
@@ -68,7 +65,7 @@ gum_collect_heap_api_if_crt_module (const gchar * name,
     GumHeapApi api = { 0, };
     GModule * module;
 
-    module = g_module_open (path, (GModuleFlags) 0);
+    module = g_module_open (details->path, (GModuleFlags) 0);
 
     GUM_API_INIT_FIELD (malloc);
     GUM_API_INIT_FIELD (calloc);
