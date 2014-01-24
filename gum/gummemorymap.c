@@ -39,8 +39,8 @@ struct _GumUpdateMemoryRangesCtx
 
 static void gum_memory_map_finalize (GObject * object);
 
-static gboolean gum_memory_map_add_range (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+static gboolean gum_memory_map_add_range (const GumRangeDetails * details,
+    gpointer user_data);
 
 G_DEFINE_TYPE (GumMemoryMap, gum_memory_map, G_TYPE_OBJECT);
 
@@ -142,15 +142,13 @@ gum_memory_map_update (GumMemoryMap * self)
 }
 
 static gboolean
-gum_memory_map_add_range (const GumMemoryRange * cur,
-                          GumPageProtection prot,
+gum_memory_map_add_range (const GumRangeDetails * details,
                           gpointer user_data)
 {
   GumUpdateMemoryRangesCtx * ctx = (GumUpdateMemoryRangesCtx *) user_data;
   GArray * ranges = ctx->ranges;
+  const GumMemoryRange * cur = details->range;
   GumMemoryRange * prev;
-
-  (void) prot;
 
   if (ctx->prev_range_index >= 0)
     prev = &g_array_index (ranges, GumMemoryRange, ctx->prev_range_index);
