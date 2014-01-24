@@ -39,7 +39,7 @@ FUNCPARSER_TESTCASE (ret_size)
 #if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmpint (details.num_arguments, ==, 3);
 #else
-  g_assert_cmpint (details.num_arguments, ==, 0);
+  g_assert_cmpint (details.num_arguments, ==, -1);
 #endif
 }
 

@@ -32,6 +32,7 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
                                gpointer func_address,
                                GumFunctionDetails * details)
 {
+#if GLIB_SIZEOF_VOID_P == 4
   ud_t ud_obj;
   guint insn_size;
   const guint buf_size = 4096;
@@ -53,8 +54,9 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
 
     if (ud_obj.mnemonic == UD_Iret)
     {
-      details->num_arguments =
-          ud_obj.operand[0].lval.udword / sizeof (gpointer);
+      details->num_arguments = (ud_obj.operand[0].type != UD_NONE)
+          ? ud_obj.operand[0].lval.udword / sizeof (gpointer)
+          : 0;
       break;
     }
     else if (ud_obj.mnemonic == UD_Ijmp)
@@ -71,5 +73,10 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
       }
     }
   }
+#else
+  /* stdcall is obviously only relevant in 32-bit mode, and we don't yet have
+   * any heuristics for 64-bit mode */
+  details->num_arguments = -1;
+#endif
 }
 
