@@ -76,6 +76,8 @@ gum_x86_function_parser_parse (GumX86FunctionParser * fp,
 #else
   /* stdcall is obviously only relevant in 32-bit mode, and we don't yet have
    * any heuristics for 64-bit mode */
+  (void) fp;
+  (void) func_address;
   details->num_arguments = -1;
 #endif
 }
