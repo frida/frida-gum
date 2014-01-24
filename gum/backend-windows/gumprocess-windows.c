@@ -204,6 +204,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     WCHAR module_path_utf16[MAX_PATH];
     gchar * module_path, * module_name;
     GumMemoryRange range;
+    GumModuleDetails details;
     gboolean carry_on;
 
     if (!GetModuleInformation (this_process, modules[mod_idx], &mi,
@@ -221,7 +222,11 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     range.base_address = GUM_ADDRESS (mi.lpBaseOfDll);
     range.size = mi.SizeOfImage;
 
-    carry_on = func (module_name, &range, module_path, user_data);
+    details.name = module_name;
+    details.range = &range;
+    details.path = module_path;
+
+    carry_on = func (&details, user_data);
 
     g_free (module_path);
 
@@ -260,11 +265,15 @@ gum_process_enumerate_ranges (GumPageProtection prot,
       if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
+        GumRangeDetails details;
 
         range.base_address = GUM_ADDRESS (cur_base_address);
         range.size = mbi.RegionSize;
 
-        if (!func (&range, cur_prot, user_data))
+        details.range = &range;
+        details.prot = cur_prot;
+
+        if (!func (&details, user_data))
           return;
       }
     }
@@ -316,9 +325,13 @@ gum_module_enumerate_exports (const gchar * module_name,
       func_address = &mod_base[func_rva];
       if (func_address < exp_begin || func_address > exp_end)
       {
-        const gchar * func_name = (const gchar *) &mod_base[name_rvas[index]];
+        GumExportDetails details;
 
-        if (!func (func_name, GUM_ADDRESS (func_address), user_data))
+        details.type = GUM_EXPORT_FUNCTION; /* TODO: data exports */
+        details.name = (const gchar *) &mod_base[name_rvas[index]];
+        details.address = GUM_ADDRESS (func_address);
+
+        if (!func (&details, user_data))
           return;
       }
     }
@@ -363,11 +376,15 @@ gum_module_enumerate_ranges (const gchar * module_name,
       if ((cur_prot & prot) == prot)
       {
         GumMemoryRange range;
+        GumRangeDetails details;
 
         range.base_address = GUM_ADDRESS (cur_base_address);
         range.size = mbi.RegionSize;
 
-        if (!func (&range, cur_prot, user_data))
+        details.range = &range;
+        details.prot = cur_prot;
+
+        if (!func (&details, user_data))
           return;
       }
     }
