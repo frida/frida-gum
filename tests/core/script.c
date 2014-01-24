@@ -526,7 +526,7 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(export) {"
+        "onMatch: function(exp) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
@@ -546,7 +546,7 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   COMPILE_AND_LOAD_SCRIPT (
       "var start = new Date();"
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(export) {"
+        "onMatch: function(exp) {"
         "},"
         "onComplete: function() {"
         "}"
