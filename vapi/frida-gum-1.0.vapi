@@ -129,7 +129,16 @@ namespace Gum {
 		public void unfollow_me ();
 		public bool is_following_me ();
 
-		// TODO: complete binding
+		public void follow (Gum.ThreadId thread_id, Gum.EventSink sink);
+		public void unfollow (Gum.ThreadId thread_id);
+
+		public Gum.Stalker.ProbeId add_call_probe (void * target_address, owned Gum.Stalker.CallProbeCallback callback);
+		public void remove_call_probe (Gum.Stalker.ProbeId id);
+
+		public struct ProbeId : uint {
+		}
+
+		public delegate void CallProbeCallback (Gum.CallSite site);
 	}
 
 	public interface EventSink : GLib.Object {
@@ -137,11 +146,23 @@ namespace Gum {
 		public abstract void process (void * opaque_event);
 	}
 
+	public struct CallSite {
+		public void * block_address;
+		public void * stack_data;
+		public void * cpu_context;
+	}
+
 	namespace Process {
+		public Gum.ThreadId get_current_thread_id ();
+		public bool modify_thread (Gum.ThreadId thread_id, Gum.Process.ModifyThreadFunc func);
+		public void enumerate_threads (Gum.Process.FoundThreadFunc func);
 		public void enumerate_modules (Gum.Process.FoundModuleFunc func);
 		public void enumerate_ranges (Gum.PageProtection prot, Gum.FoundRangeFunc func);
 
-		public delegate bool FoundModuleFunc (string name, Gum.MemoryRange range, string path);
+		// FIXME: add wrapper for CpuContext
+		public delegate void ModifyThreadFunc (Gum.ThreadId thread_id, void * cpu_context);
+		public delegate bool FoundThreadFunc (Gum.ThreadDetails details);
+		public delegate bool FoundModuleFunc (Gum.ModuleDetails details);
 	}
 
 	namespace Module {
@@ -150,10 +171,8 @@ namespace Gum {
 		public void * find_base_address (string module_name);
 		public void * find_export_by_name (string module_name, string symbol_name);
 
-		public delegate bool FoundExportFunc (string name, Address address);
+		public delegate bool FoundExportFunc (Gum.ExportDetails details);
 	}
-
-	public delegate bool FoundRangeFunc (Gum.MemoryRange range, Gum.PageProtection prot);
 
 	namespace Memory {
 		public uint8[] read (Address address, size_t len);
@@ -161,6 +180,49 @@ namespace Gum {
 		public void scan (Gum.MemoryRange range, Gum.MatchPattern pattern, Gum.Memory.ScanMatchFunc func);
 
 		public delegate bool ScanMatchFunc (Address address, size_t size);
+	}
+
+	public delegate bool FoundRangeFunc (Gum.RangeDetails details);
+
+	public struct ThreadId : size_t {
+	}
+
+	[CCode (cprefix = "GUM_THREAD_")]
+	public enum ThreadState {
+		RUNNING = 1,
+		STOPPED,
+		WAITING,
+		UNINTERRUPTIBLE,
+		HALTED
+	}
+
+	public struct ThreadDetails {
+		public Gum.ThreadId id;
+		public Gum.ThreadState state;
+		public void * cpu_context;
+	}
+
+	public struct ModuleDetails {
+		public string name;
+		public Gum.MemoryRange range;
+		public string path;
+	}
+
+	[CCode (cprefix = "GUM_EXPORT_")]
+	public enum ExportType {
+		FUNCTION = 1,
+		VARIABLE
+	}
+
+	public struct ExportDetails {
+		public Gum.ExportType type;
+		public string name;
+		public Gum.Address address;
+	}
+
+	public struct RangeDetails {
+		public Gum.MemoryRange range;
+		public Gum.PageProtection prot;
 	}
 
 	public struct Address : uint64 {
