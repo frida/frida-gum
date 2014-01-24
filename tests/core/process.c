@@ -53,20 +53,20 @@ typedef struct _TestForEachContext {
 } TestForEachContext;
 
 #ifdef HAVE_DARWIN
-static gboolean store_export_address_if_malloc (const gchar * name,
-    GumAddress address, gpointer user_data);
+static gboolean store_export_address_if_malloc (
+    const GumExportDetails * details, gpointer user_data);
 #endif
 
 #ifndef HAVE_ANDROID
-static gboolean thread_found_cb (GumThreadDetails * details,
+static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
 #endif
-static gboolean module_found_cb (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
-static gboolean export_found_cb (const gchar * name, GumAddress address,
+static gboolean module_found_cb (const GumModuleDetails * details,
     gpointer user_data);
-static gboolean range_found_cb (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+static gboolean export_found_cb (const GumExportDetails * details,
+    gpointer user_data);
+static gboolean range_found_cb (const GumRangeDetails * details,
+    gpointer user_data);
 
 #ifndef HAVE_ANDROID
 
@@ -264,13 +264,13 @@ PROCESS_TESTCASE (darwin_module_exports)
 }
 
 static gboolean
-store_export_address_if_malloc (const gchar * name,
-                                GumAddress address,
+store_export_address_if_malloc (const GumExportDetails * details,
                                 gpointer user_data)
 {
-  if (strcmp (name, "malloc") == 0)
+  if (details->type == GUM_EXPORT_FUNCTION
+      && strcmp (details->name, "malloc") == 0)
   {
-    *((GumAddress *) user_data) = address;
+    *((GumAddress *) user_data) = details->address;
     return FALSE;
   }
 
@@ -282,7 +282,7 @@ store_export_address_if_malloc (const gchar * name,
 #ifndef HAVE_ANDROID
 
 static gboolean
-thread_found_cb (GumThreadDetails * details,
+thread_found_cb (const GumThreadDetails * details,
                  gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;
@@ -295,9 +295,7 @@ thread_found_cb (GumThreadDetails * details,
 #endif
 
 static gboolean
-module_found_cb (const gchar * name,
-                 const GumMemoryRange * range,
-                 const gchar * path,
+module_found_cb (const GumModuleDetails * details,
                  gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;
@@ -308,8 +306,7 @@ module_found_cb (const gchar * name,
 }
 
 static gboolean
-export_found_cb (const gchar * name,
-                 GumAddress address,
+export_found_cb (const GumExportDetails * details,
                  gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;
@@ -317,16 +314,17 @@ export_found_cb (const gchar * name,
   ctx->number_of_calls++;
 
 #ifdef HAVE_DARWIN
-  /* should exclude data exports */
-  g_assert (!g_str_has_prefix (name, "OBJC_CLASS_"));
+  if (strcmp (details->name, "malloc") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
+  if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
 #endif
 
   return ctx->value_to_return;
 }
 
 static gboolean
-range_found_cb (const GumMemoryRange * range,
-                GumPageProtection prot,
+range_found_cb (const GumRangeDetails * details,
                 gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;

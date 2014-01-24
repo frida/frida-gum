@@ -25,6 +25,10 @@
 typedef gsize GumThreadId;
 typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
+typedef struct _GumModuleDetails GumModuleDetails;
+typedef guint GumExportType;
+typedef struct _GumExportDetails GumExportDetails;
+typedef struct _GumRangeDetails GumRangeDetails;
 
 enum _GumThreadState
 {
@@ -42,18 +46,44 @@ struct _GumThreadDetails
   GumCpuContext cpu_context;
 };
 
+struct _GumModuleDetails
+{
+  const gchar * name;
+  const GumMemoryRange * range;
+  const gchar * path;
+};
+
+enum _GumExportType
+{
+  GUM_EXPORT_FUNCTION = 1,
+  GUM_EXPORT_VARIABLE
+};
+
+struct _GumExportDetails
+{
+  GumExportType type;
+  const gchar * name;
+  GumAddress address;
+};
+
+struct _GumRangeDetails
+{
+  const GumMemoryRange * range;
+  GumPageProtection prot;
+};
+
 G_BEGIN_DECLS
 
 typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
-typedef gboolean (* GumFoundThreadFunc) (GumThreadDetails * details,
+typedef gboolean (* GumFoundThreadFunc) (const GumThreadDetails * details,
     gpointer user_data);
-typedef gboolean (* GumFoundModuleFunc) (const gchar * name,
-    const GumMemoryRange * range, const gchar * path, gpointer user_data);
-typedef gboolean (* GumFoundExportFunc) (const gchar * name, GumAddress address,
+typedef gboolean (* GumFoundModuleFunc) (const GumModuleDetails * details,
     gpointer user_data);
-typedef gboolean (* GumFoundRangeFunc) (const GumMemoryRange * range,
-    GumPageProtection prot, gpointer user_data);
+typedef gboolean (* GumFoundExportFunc) (const GumExportDetails * details,
+    gpointer user_data);
+typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
+    gpointer user_data);
 
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,
