@@ -169,7 +169,7 @@
                 "initialize(ch, handle);" +
             "};");
 
-            var initialize = function initialize(classHandle, handle) {
+            var initialize = function initialize(/*classHandle, handle*/) {
             };
 
             var initializeClass = function initializeClass() {
