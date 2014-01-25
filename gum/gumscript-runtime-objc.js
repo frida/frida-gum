@@ -615,35 +615,3 @@
         return _api;
     };
 }).call(this);
-
-/*
- * TEST:
- */
-
-var NSSound = ObjC.use('NSSound');
-ObjC.schedule(ObjC.mainQueue, function () {
-    var sound = NSSound.alloc().initWithContentsOfFile_byReference_("/Users/oleavr/.Trash/test.mp3", true);
-    sound.play();
-});
-
-/*
-var s = ObjC.cast(ptr(sound.handle.toString()), NSSound);
-*/
-
-/*
-var oldImpl = NSSound.play.implementation;
-NSSound.play.implementation = ObjC.implement(NSSound.play, function (handle, selector) {
-    return oldImpl(handle, selector);
-});
-*/
-
-/*
- * TODO:
- * [x] processes without ObjC available
- * [x] cast
- * [x] get method implementation
- * [x] replace method implementation
- * [x] responds to selector
- * [x] schedule on main thread
- * [ ] NativeFunction.toString() should behave like a NativePointer
- */
