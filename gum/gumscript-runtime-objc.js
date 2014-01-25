@@ -1,7 +1,7 @@
 (function () {
     var _runtime = null;
     var _api = null;
-    var pointerSize = Process.arch === 'x64' ? 8 : 4; // FIXME: runtime should expose the pointer size
+    var pointerSize = Process.arch === 'x64' ? 8 : 4; // TODO: runtime should expose the pointer size
     var scratchBuffer = Memory.alloc(pointerSize);
 
     Object.defineProperty(this, 'ObjC', {
@@ -194,7 +194,7 @@
                 try {
                     var sel = api.method_getName(m);
                     var name = Memory.readUtf8String(api.sel_getName(sel));
-                    var jsName = name.replace(/:/g, "_");
+                    var jsName = jsMethodName(name);
                     var signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(m)));
                     var retType = signature.retType;
                     var argTypes = signature.argTypes.slice(2);
@@ -257,6 +257,20 @@
                     });
                 } catch (e) {
                 }
+            };
+
+            // TODO: replace with regex once V8 has been upgraded (which should fix crash on iOS)
+            var jsMethodName = function jsMethodName(name) {
+                var result = "";
+                for (var i = 0; i !== name.length; i++) {
+                    var c = name.charAt(i);
+                    if (c === ':') {
+                        result += "_";
+                    } else {
+                        result += c;
+                    }
+                }
+                return result;
             };
 
             var parseSignature = function parseSignature(sig) {
