@@ -79,7 +79,7 @@
 
         this.implement = function (method, fn) {
             return new NativeCallback(fn, method.returnType, method.argumentTypes);
-        }
+        };
 
         this.refreshClasses = function () {
             classFactory.refresh();
@@ -322,7 +322,7 @@
                     }
                 }
                 return t;
-            }
+            };
 
             var nextType = function nextType(t) {
                 var type = "";
@@ -493,8 +493,8 @@
                 Surrogate.prototype = superKlass.prototype;
                 klass.prototype = new Surrogate();
 
-                klass['__name__'] = name;
-                klass['__super__'] = superKlass.prototype;
+                klass.__name__ = name;
+                klass.__super__ = superKlass.prototype;
             }
 
             initializeClass();
