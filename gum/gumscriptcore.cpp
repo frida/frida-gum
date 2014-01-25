@@ -217,11 +217,12 @@ _gum_script_core_init (GumScriptCore * self,
   Local<FunctionTemplate> native_function = FunctionTemplate::New (
       gum_script_core_on_new_native_function, External::Wrap (self));
   native_function->SetClassName (String::New ("NativeFunction"));
+  native_function->Inherit (native_pointer);
   Local<ObjectTemplate> native_function_object =
       native_function->InstanceTemplate ();
   native_function_object->SetCallAsFunctionHandler (
       gum_script_core_on_invoke_native_function, External::Wrap (self));
-  native_function_object->SetInternalFieldCount (1);
+  native_function_object->SetInternalFieldCount (2);
   scope->Set (String::New ("NativeFunction"), native_function);
 
   Local<FunctionTemplate> native_callback = FunctionTemplate::New (
@@ -795,7 +796,8 @@ gum_script_core_on_new_native_function (const Arguments & args)
   }
 
   instance = args.Holder ();
-  instance->SetPointerInInternalField (0, func);
+  instance->SetPointerInInternalField (0, func->fn);
+  instance->SetPointerInInternalField (1, func);
 
   persistent_instance = Persistent<Object>::New (instance);
   persistent_instance.MakeWeak (func, gum_script_core_on_free_native_function);
@@ -824,7 +826,7 @@ gum_script_core_on_invoke_native_function (const Arguments & args)
       static_cast<GumScriptCore *> (External::Unwrap (args.Data ()));
   Local<Object> instance = args.Holder ();
   GumFFIFunction * func = static_cast<GumFFIFunction *> (
-      instance->GetPointerFromInternalField (0));
+      instance->GetPointerFromInternalField (1));
 
   if (args.Length () != static_cast<gint> (func->cif.nargs))
   {

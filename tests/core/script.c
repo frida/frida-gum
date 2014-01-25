@@ -84,7 +84,9 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
+  SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
   SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
@@ -121,6 +123,18 @@ SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
   EXPECT_NO_MESSAGES ();
 }
 
+SCRIPT_TESTCASE (native_function_is_a_native_pointer)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var toupper = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int', ['pointer', 'int']);"
+      "send(toupper instanceof NativePointer);"
+      "send(toupper.toString() === " GUM_PTR_CONST ".toString());",
+      gum_toupper, gum_toupper);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
 SCRIPT_TESTCASE (native_callback_can_be_invoked)
 {
   TestScriptMessageItem * item;
@@ -153,6 +167,14 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
   g_assert_cmpstr (str, ==, "BADger");
   g_assert_cmpint (toupper_impl (str, -1), ==, -6);
   g_assert_cmpstr (str, ==, "BADGER");
+}
+
+SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var cb = new NativeCallback(function () {}, 'void', []);"
+      "send(cb instanceof NativePointer);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 static gint
