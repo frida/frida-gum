@@ -17,6 +17,7 @@
     var Runtime = function Runtime() {
         var api = null;
         var classFactory = null;
+        var scheduledCallbacks = [];
 
         var initialize = function initialize() {
             api = getApi();
@@ -38,6 +39,35 @@
                 return classFactory.classes;
             }
         });
+
+        Object.defineProperty(this, 'mainQueue', {
+            enumerable: true,
+            get: function () {
+                return api._dispatch_main_q;
+            }
+        });
+
+        this.schedule = function (queue, work) {
+            var NSAutoreleasePool = this.use('NSAutoreleasePool');
+            var workCallback = new NativeCallback(function () {
+                var pool = NSAutoreleasePool.alloc().init();
+                var pendingException = null;
+                try {
+                    work();
+                } catch (e) {
+                    pendingException = e;
+                }
+                pool.release();
+                setTimeout(function () {
+                    scheduledCallbacks.splice(scheduledCallbacks.indexOf(workCallback), 1);
+                }, 0);
+                if (pendingException !== null) {
+                    throw pendingException;
+                }
+            }, 'void', ['pointer']);
+            scheduledCallbacks.push(workCallback);
+            api.dispatch_async_f(queue, ptr("0"), workCallback);
+        };
 
         this.use = function (className) {
             return classFactory.use(className);
@@ -165,9 +195,6 @@
                     var sel = api.method_getName(m);
                     var name = Memory.readUtf8String(api.sel_getName(sel));
                     var jsName = name.replace(/:/g, "_");
-                    if (name === 'respondsToSelector:') {
-                        send("respondsToSelector: " + Memory.readUtf8String(api.method_getTypeEncoding(m)));
-                    }
                     var signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(m)));
                     var retType = signature.retType;
                     var argTypes = signature.argTypes.slice(2);
@@ -489,43 +516,87 @@
         }
 
         var temporaryApi = {};
-        var pendingApi = {
-            "objc_msgSend": [],
-            "objc_getClassList": ['int', ['pointer', 'int']],
-            "class_getName": ['pointer', ['pointer']],
-            "class_copyMethodList": ['pointer', ['pointer', 'pointer']],
-            "class_getSuperclass": ['pointer', ['pointer']],
-            "object_getClass": ['pointer', ['pointer']],
-            "method_getName": ['pointer', ['pointer']],
-            "method_getTypeEncoding": ['pointer', ['pointer']],
-            "method_getImplementation": ['pointer', ['pointer']],
-            "method_setImplementation": ['pointer', ['pointer', 'pointer']],
-            "sel_getName": ['pointer', ['pointer']],
-            "sel_registerName": ['pointer', ['pointer']]
-        };
-        Module.enumerateExports("libobjc.A.dylib", {
-            onMatch: function (name, address, size, path) {
-                var signature = pendingApi[name];
-                if (signature) {
-                    if (signature.length > 0) {
-                        temporaryApi[name] = new NativeFunction(address, signature[0], signature[1]);
-                    } else {
-                        temporaryApi[name] = address;
-                    }
-                    delete pendingApi[name];
-                    if (Object.keys(pendingApi).length === 0) {
-                        return 'stop';
-                    }
+        var pending = [
+            {
+                module: "libsystem_malloc.dylib",
+                functions: {
+                    "free": ['void', ['pointer']]
+                },
+                variables: {
                 }
             },
-            onComplete: function () {
-                if (Object.keys(pendingApi).length === 0) {
-                    temporaryApi.objc_msgSend_noargs = new NativeFunction(temporaryApi.objc_msgSend, 'pointer', ['pointer', 'pointer', '...']);
-                    temporaryApi.free = new NativeFunction(Module.findExportByName("libSystem.B.dylib", "free"), 'void', ['pointer']);
-                    _api = temporaryApi;
+            {
+                module: "libobjc.A.dylib",
+                functions: {
+                    "objc_msgSend": function (address) {
+                        this.objc_msgSend = address;
+                        this.objc_msgSend_noargs = new NativeFunction(address, 'pointer', ['pointer', 'pointer', '...']);
+                    },
+                    "objc_getClassList": ['int', ['pointer', 'int']],
+                    "class_getName": ['pointer', ['pointer']],
+                    "class_copyMethodList": ['pointer', ['pointer', 'pointer']],
+                    "class_getSuperclass": ['pointer', ['pointer']],
+                    "object_getClass": ['pointer', ['pointer']],
+                    "method_getName": ['pointer', ['pointer']],
+                    "method_getTypeEncoding": ['pointer', ['pointer']],
+                    "method_getImplementation": ['pointer', ['pointer']],
+                    "method_setImplementation": ['pointer', ['pointer', 'pointer']],
+                    "sel_getName": ['pointer', ['pointer']],
+                    "sel_registerName": ['pointer', ['pointer']]
+                },
+                variables: {
+                }
+            },
+            {
+                module: "libdispatch.dylib",
+                functions: {
+                    "dispatch_async_f": ['void', ['pointer', 'pointer', 'pointer']]
+                },
+                variables: {
+                    "_dispatch_main_q": function (address) {
+                        this._dispatch_main_q = address;
+                    }
                 }
             }
+        ];
+        var remaining = 0;
+        pending.forEach(function (api) {
+            var pendingFunctions = api.functions;
+            var pendingVariables = api.variables;
+            remaining += Object.keys(pendingFunctions).length + Object.keys(pendingVariables).length;
+            Module.enumerateExports(api.module, {
+                onMatch: function (exp) {
+                    var name = exp.name;
+                    if (exp.type === 'function') {
+                        var signature = pendingFunctions[name];
+                        if (signature) {
+                            if (typeof signature === 'function') {
+                                signature.call(temporaryApi, exp.address);
+                            } else {
+                                temporaryApi[name] = new NativeFunction(exp.address, signature[0], signature[1]);
+                            }
+                            delete pendingFunctions[name];
+                            remaining--;
+                        }
+                    } else if (exp.type === 'variable') {
+                        var handler = pendingVariables[name];
+                        if (handler) {
+                            handler.call(temporaryApi, exp.address);
+                            delete pendingVariables[name];
+                            remaining--;
+                        }
+                    }
+                    if (remaining === 0) {
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                }
+            });
         });
+        if (remaining === 0) {
+            _api = temporaryApi;
+        }
 
         return _api;
     };
@@ -534,32 +605,23 @@
 /*
  * TEST:
  */
-var NSAutoreleasePool = ObjC.use('NSAutoreleasePool');
+
 var NSSound = ObjC.use('NSSound');
-var pool = NSAutoreleasePool.alloc().init();
-var sound = NSSound.alloc().initWithContentsOfFile_byReference_("/Users/oleavr/.Trash/test.mp3", true);
-var s = ObjC.cast(ptr(sound.handle.toString()), NSSound);
-
-send("available: " + ObjC.available);
-send("NSSound.play.selector: " + NSSound.play.selector);
-send("ObjC.selectorAsString(NSSound.play.selector): " + ObjC.selectorAsString(NSSound.play.selector));
-send("ObjC.selector(\"play\"): " + ObjC.selector('play'));
-send("NSSound.play.implementation: " + NSSound.play.implementation);
-
-var oldImpl = NSSound.play.implementation;
-NSSound.play.implementation = ObjC.implement(NSSound.play, function (handle, selector) {
-    send("Woot play!!! Calling oldImpl ... handle=" + handle + " selector=" + selector);
-    var result = oldImpl(handle, selector);
-    send("Called original! result=" + result);
-    return result;
+ObjC.schedule(ObjC.mainQueue, function () {
+    var sound = NSSound.alloc().initWithContentsOfFile_byReference_("/Users/oleavr/.Trash/test.mp3", true);
+    sound.play();
 });
 
-send("before play()");
-var result = s.play();
-send("after play() result=" + result);
+/*
+var s = ObjC.cast(ptr(sound.handle.toString()), NSSound);
+*/
 
-send("respondsToSelector_('play'):" + s.respondsToSelector_(ObjC.selector('play')));
-send("respondsToSelector_('badgers'):" + s.respondsToSelector_(ObjC.selector('badgers')));
+/*
+var oldImpl = NSSound.play.implementation;
+NSSound.play.implementation = ObjC.implement(NSSound.play, function (handle, selector) {
+    return oldImpl(handle, selector);
+});
+*/
 
 /*
  * TODO:
@@ -568,6 +630,6 @@ send("respondsToSelector_('badgers'):" + s.respondsToSelector_(ObjC.selector('ba
  * [x] get method implementation
  * [x] replace method implementation
  * [x] responds to selector
- * [ ] schedule on main thread
+ * [x] schedule on main thread
  * [ ] NativeFunction.toString() should behave like a NativePointer
  */
