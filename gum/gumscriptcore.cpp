@@ -508,6 +508,7 @@ gum_script_core_on_send (const Arguments & args)
     {
       ThrowException (Exception::TypeError (String::New (
           "unsupported data value")));
+      return Undefined ();
     }
   }
 
