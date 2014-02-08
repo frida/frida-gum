@@ -42,6 +42,8 @@ static gboolean gum_thumb_relocator_rewrite_addh_if_pc_relative (
     GumThumbRelocator * self, GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_thumb_relocator_init (GumThumbRelocator * relocator,
@@ -142,8 +144,18 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       break;
 
     case 0xf:
+    {
+      guint32 wide_insn;
+
       insn->length = 4;
+
+      wide_insn = ((guint32) raw_insn) << 16 |
+          (guint32) *((guint16 *) (self->input_cur + 2));
+      if ((wide_insn & 0xf800d001) == 0xf000c000)
+        insn->mnemonic = GUM_ARM_BLX_IMM_T2;
+
       break;
+    }
 
     default:
       break;
@@ -229,6 +241,10 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
 
     case GUM_ARM_LDRPC:
       rewritten = gum_thumb_relocator_rewrite_ldr_pc (self, &ctx);
+      break;
+
+    case GUM_ARM_BLX_IMM_T2:
+      rewritten = gum_thumb_relocator_rewrite_b_imm (self, &ctx);
       break;
 
     default:
@@ -373,6 +389,47 @@ gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
   gum_thumb_writer_put_ldr_reg_reg (ctx->output, reg, reg);
+
+  return TRUE;
+}
+
+static gboolean
+gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
+                                   GumCodeGenCtx * ctx)
+{
+  guint32 insn, s, j1, j2, i1, i2, imm10_h, imm10_l;
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  GumAddress absolute_target;
+
+  insn = ((guint32) *(ctx->raw_insn)) << 16 | (guint32) *(ctx->raw_insn + 1);
+
+  /*
+   * GUM_ARM_BLX_IMM_T2
+   * DDI0487A_b_armv8_arm.pdf | F7.1.25 | Encoding T2
+   */
+  s = (insn >> 26) & 1;
+  j1 = (insn >> 13) & 1;
+  j2 = (insn >> 11) & 1;
+  i1 = ~(j1 ^ s) & 1;
+  i2 = ~(j2 ^ s) & 1;
+  imm10_h = (insn >> 16) & 0x3ff;
+  imm10_l = (insn >> 1) & 0x3ff;
+
+  distance.u =
+      (s << 31) | (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm10_l << 2);
+
+  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 4 + distance.i;
+
+  gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,
+      absolute_target);
+  gum_thumb_writer_put_mov_reg_reg (ctx->output, GUM_AREG_LR, GUM_AREG_R0);
+  gum_thumb_writer_put_pop_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_blx_reg (ctx->output, GUM_AREG_LR);
 
   return TRUE;
 }

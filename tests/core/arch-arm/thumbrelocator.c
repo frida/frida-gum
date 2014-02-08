@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -25,6 +25,7 @@ TEST_LIST_BEGIN (thumbrelocator)
 
   RELOCATOR_TESTENTRY (ldrpc_should_be_rewritten)
   RELOCATOR_TESTENTRY (addh_should_be_rewritten_if_pc_relative)
+  RELOCATOR_TESTENTRY (blx_imm_t2_should_be_rewritten)
 TEST_LIST_END ()
 
 RELOCATOR_TESTCASE (one_to_one)
@@ -122,6 +123,37 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADDH);
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (blx_imm_t2_should_be_rewritten)
+{
+  const guint16 input[] = {
+    0xf001, 0xe91a            /* blx pc + 0x1234  */
+  };
+  guint16 expected_output[] = {
+    0xb401,                   /* push {r0}        */
+    0x4802,                   /* ldr r0, [pc, #8] */
+    0x4686,                   /* mov lr, r0       */
+    0xbc01,                   /* pop {r0}         */
+    0x47f0,                   /* blx lr           */
+    0x0000,                   /* <padding>        */
+    0xffff,                   /* <calculated PC   */
+    0xffff                    /*  goes here>      */
+  };
+  gsize calculated_pc;
+  const GumArmInstruction * insn = NULL;
+
+  calculated_pc = GPOINTER_TO_SIZE (input) + 4 + 0x1234;
+  *((gsize *) (expected_output + 6)) = calculated_pc;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_BLX_IMM_T2);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
