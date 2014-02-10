@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -38,7 +38,7 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm_relocator_write_one_instruction (
     GumArmRelocator * self);
-static gboolean gum_arm_relocator_rewrite_b_imm24 (GumArmRelocator * self,
+static gboolean gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 
 void
@@ -131,8 +131,10 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       }
       break;
     }
+
     case 0b010: /* load/store */
       break;
+
     case 0b100: /* load/store multiple */
     {
       guint base_register = (raw_insn >> 16) & 0b1111;
@@ -141,9 +143,17 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
         insn->mnemonic = is_load ? GUM_ARM_POP : GUM_ARM_PUSH;
       break;
     }
+
     case 0b101: /* control */
-      insn->mnemonic =
-          ((raw_insn & 0x1000000) == 0) ? GUM_ARM_B_IMM24 : GUM_ARM_BL_IMM24;
+      if (((raw_insn >> 28) & 0b1111) == 0b1111)
+      {
+        insn->mnemonic = GUM_ARM_BLX_IMM_A2;
+      }
+      else
+      {
+        insn->mnemonic = ((raw_insn & 0x1000000) == 0) ?
+            GUM_ARM_B_IMM_A1 : GUM_ARM_BL_IMM_A1;
+      }
       break;
   }
 
@@ -221,9 +231,10 @@ gum_arm_relocator_write_one_instruction (GumArmRelocator * self)
 
   switch (ctx.insn->mnemonic)
   {
-    case GUM_ARM_B_IMM24:
-    case GUM_ARM_BL_IMM24:
-      rewritten = gum_arm_relocator_rewrite_b_imm24 (self, &ctx);
+    case GUM_ARM_B_IMM_A1:
+    case GUM_ARM_BL_IMM_A1:
+    case GUM_ARM_BLX_IMM_A2:
+      rewritten = gum_arm_relocator_rewrite_branch_imm (self, &ctx);
       break;
 
     default:
@@ -317,8 +328,8 @@ gum_arm_relocator_relocate (gpointer from,
 }
 
 static gboolean
-gum_arm_relocator_rewrite_b_imm24 (GumArmRelocator * self,
-                                   GumCodeGenCtx * ctx)
+gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
+                                      GumCodeGenCtx * ctx)
 {
   guint32 raw_insn;
   union
@@ -334,7 +345,27 @@ gum_arm_relocator_rewrite_b_imm24 (GumArmRelocator * self,
   else
     distance.u = ((raw_insn & 0x007fffff) << 2);
 
+  if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2 &&
+      (raw_insn & 0x01000000) != 0)
+  {
+    distance.u |= 2;
+  }
+
   absolute_target = GPOINTER_TO_SIZE (ctx->start) + 8 + distance.i;
+  if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2)
+    absolute_target |= 1;
+
+  switch (ctx->insn->mnemonic)
+  {
+    case GUM_ARM_BL_IMM_A1:
+    case GUM_ARM_BLX_IMM_A2:
+      gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_LR,
+          GUM_ADDRESS (ctx->output->code + 2));
+      break;
+
+    default:
+      break;
+  }
 
   gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_PC, absolute_target);
 

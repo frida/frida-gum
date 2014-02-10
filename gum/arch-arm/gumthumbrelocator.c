@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -43,6 +43,8 @@ static gboolean gum_thumb_relocator_rewrite_addh_if_pc_relative (
 static gboolean gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 
 void
@@ -116,34 +118,39 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   raw_insn = *((guint16 *) self->input_cur);
   insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
-  group = (raw_insn >> 12) & 0xf;
-  operation = (raw_insn >> 8) & 0xf;
+  group = (raw_insn >> 12) & 0b1111;
+  operation = (raw_insn >> 8) & 0b1111;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->length = 2;
 
   switch (group)
   {
-    case 0x4:
+    case 0b0100:
       if (operation == 4)
         insn->mnemonic = GUM_ARM_ADDH;
       else if (operation >= 8)
         insn->mnemonic = GUM_ARM_LDRPC;
       break;
 
-    case 0xa:
+    case 0b1010:
       if (operation < 8)
         insn->mnemonic = GUM_ARM_ADDPC;
       else
         insn->mnemonic = GUM_ARM_ADDSP;
       break;
 
-    case 0xb:
+    case 0b1011:
       if (operation == 4 || operation == 5)
         insn->mnemonic = GUM_ARM_PUSH;
       break;
 
-    case 0xf:
+    case 0b1110:
+      if (((raw_insn >> 11) & 1) == 0)
+        insn->mnemonic = GUM_ARM_B_IMM_T2;
+      break;
+
+    case 0b1111:
     {
       guint32 wide_insn;
 
@@ -151,7 +158,11 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
       wide_insn = ((guint32) raw_insn) << 16 |
           (guint32) *((guint16 *) (self->input_cur + 2));
-      if ((wide_insn & 0xf800d001) == 0xf000c000)
+      if ((wide_insn & 0xf800d000) == 0xf0009000)
+        insn->mnemonic = GUM_ARM_B_IMM_T4;
+      else if ((wide_insn & 0xf800d000) == 0xf000d000)
+        insn->mnemonic = GUM_ARM_BL_IMM_T1;
+      else if ((wide_insn & 0xf800d001) == 0xf000c000)
         insn->mnemonic = GUM_ARM_BLX_IMM_T2;
 
       break;
@@ -243,8 +254,14 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
       rewritten = gum_thumb_relocator_rewrite_ldr_pc (self, &ctx);
       break;
 
-    case GUM_ARM_BLX_IMM_T2:
+    case GUM_ARM_B_IMM_T2:
+    case GUM_ARM_B_IMM_T4:
       rewritten = gum_thumb_relocator_rewrite_b_imm (self, &ctx);
+      break;
+
+    case GUM_ARM_BL_IMM_T1:
+    case GUM_ARM_BLX_IMM_T2:
+      rewritten = gum_thumb_relocator_rewrite_bl_imm (self, &ctx);
       break;
 
     default:
@@ -341,19 +358,17 @@ static gboolean
 gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
                                                  GumCodeGenCtx * ctx)
 {
-  guint16 raw_insn;
+  guint16 insn = *ctx->raw_insn;
   GumArmReg src_reg, dst_reg, temp_reg;
   gboolean dst_reg_is_upper;
   GumAddress absolute_pc;
 
-  raw_insn = *ctx->raw_insn;
-
-  src_reg = (raw_insn & 0x78) >> 3;
+  src_reg = (insn & 0x78) >> 3;
   if (src_reg != GUM_AREG_PC)
     return FALSE;
 
-  dst_reg = raw_insn & 0x7;
-  dst_reg_is_upper = (raw_insn & 0x80) != 0;
+  dst_reg = insn & 0x7;
+  dst_reg_is_upper = (insn & 0x80) != 0;
   if (dst_reg_is_upper)
     dst_reg += 8;
 
@@ -376,16 +391,14 @@ static gboolean
 gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
-  guint16 raw_insn;
+  guint16 insn = *ctx->raw_insn;
   GumArmReg reg;
   GumAddress absolute_pc;
 
-  raw_insn = *ctx->raw_insn;
-
-  reg = (raw_insn & 0x0700) >> 8;
+  reg = (insn & 0x0700) >> 8;
 
   absolute_pc = (GPOINTER_TO_SIZE (ctx->start) + 4) & ~(4 - 1);
-  absolute_pc += (raw_insn & 0x00ff) * 4;
+  absolute_pc += (insn & 0x00ff) * 4;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
   gum_thumb_writer_put_ldr_reg_reg (ctx->output, reg, reg);
@@ -397,7 +410,72 @@ static gboolean
 gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
                                    GumCodeGenCtx * ctx)
 {
-  guint32 insn, s, j1, j2, i1, i2, imm10_h, imm10_l;
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  GumAddress absolute_target;
+
+  switch (ctx->insn->mnemonic)
+  {
+    case GUM_ARM_B_IMM_T2:
+    {
+      guint16 insn = *ctx->raw_insn;
+      guint32 imm11;
+
+      imm11 = insn & 0b11111111111;
+
+      distance.u = ((imm11 & 0b10000000000) ? 0xfffff000 : 0x00000000) |
+          (imm11 << 1);
+
+      break;
+    }
+
+    case GUM_ARM_B_IMM_T4:
+    {
+      guint32 insn, s, j1, j2, i1, i2, imm10_h, imm11_l;
+
+      insn =
+          ((guint32) *(ctx->raw_insn)) << 16 | (guint32) *(ctx->raw_insn + 1);
+
+      s = (insn >> 26) & 1;
+      j1 = (insn >> 13) & 1;
+      j2 = (insn >> 11) & 1;
+      i1 = ~(j1 ^ s) & 1;
+      i2 = ~(j2 ^ s) & 1;
+      imm10_h = (insn >> 16) & 0b1111111111;
+      imm11_l = insn & 0b11111111111;
+
+      distance.u = (s ? 0xff000000 : 0x00000000) |
+          (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
+
+      break;
+    }
+
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+
+  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 4 + distance.i;
+
+  gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,
+      absolute_target);
+  gum_thumb_writer_put_str_reg_reg_offset (ctx->output, GUM_AREG_R0,
+      GUM_AREG_SP, 4);
+  gum_thumb_writer_put_pop_regs (ctx->output, 2, GUM_AREG_R0, GUM_AREG_PC);
+
+  return TRUE;
+}
+
+static gboolean
+gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
+                                    GumCodeGenCtx * ctx)
+{
+  guint32 insn, s, j1, j2, i1, i2, imm10_h, imm11_l;
   union
   {
     gint32 i;
@@ -407,20 +485,17 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
 
   insn = ((guint32) *(ctx->raw_insn)) << 16 | (guint32) *(ctx->raw_insn + 1);
 
-  /*
-   * GUM_ARM_BLX_IMM_T2
-   * DDI0487A_b_armv8_arm.pdf | F7.1.25 | Encoding T2
-   */
+  /* GUM_ARM_BL_IMM_T1 and GUM_ARM_BLX_IMM_T2 */
   s = (insn >> 26) & 1;
   j1 = (insn >> 13) & 1;
   j2 = (insn >> 11) & 1;
   i1 = ~(j1 ^ s) & 1;
   i2 = ~(j2 ^ s) & 1;
-  imm10_h = (insn >> 16) & 0x3ff;
-  imm10_l = (insn >> 1) & 0x3ff;
+  imm10_h = (insn >> 16) & 0b1111111111;
+  imm11_l = insn & 0b11111111111;
 
-  distance.u =
-      (s << 31) | (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm10_l << 2);
+  distance.u = (s ? 0xff000000 : 0x00000000) |
+      (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
 
   absolute_target = GPOINTER_TO_SIZE (ctx->start) + 4 + distance.i;
 
