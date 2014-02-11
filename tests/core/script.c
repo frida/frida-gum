@@ -427,14 +427,14 @@ SCRIPT_TESTCASE (execution_can_be_traced)
     "    ret: false,"
     "    exec: false"
     "  },"
-    "  onReceive: function(events) {"
+    "  onReceive: function (events) {"
     "    send(events.length > 0);"
     "  },"
-    "  onCallSummary: function(summary) {"
+    "  onCallSummary: function (summary) {"
     "    send(Object.keys(summary).length > 0);"
     "  }"
     "});"
-    "recv('stop', function(message) {"
+    "recv('stop', function (message) {"
     "  Stalker.unfollow();"
     "});");
   g_usleep (1);
@@ -455,10 +455,10 @@ SCRIPT_TESTCASE (call_can_be_probed)
   }
 
   COMPILE_AND_LOAD_SCRIPT ("Stalker.follow();"
-    "Stalker.addCallProbe(" GUM_PTR_CONST ", function(args) {"
+    "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
     "  send(args[0].toInt32());"
     "});"
-    "recv('stop', function(message) {"
+    "recv('stop', function (message) {"
     "  Stalker.unfollow();"
     "});", target_function_int);
   EXPECT_NO_MESSAGES ();
@@ -500,11 +500,11 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateThreads({"
-        "onMatch: function(thread) {"
+        "onMatch: function (thread) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});");
@@ -517,11 +517,11 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateModules({"
-        "onMatch: function(module) {"
+        "onMatch: function (module) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});");
@@ -533,11 +533,11 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateRanges('--x', {"
-        "onMatch: function(range) {"
+        "onMatch: function (range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});");
@@ -549,11 +549,11 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(exp) {"
+        "onMatch: function (exp) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});", SYSTEM_MODULE_NAME);
@@ -569,9 +569,9 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   COMPILE_AND_LOAD_SCRIPT (
       "var start = new Date();"
       "Module.enumerateExports(\"%s\", {"
-        "onMatch: function(exp) {"
+        "onMatch: function (exp) {"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "}"
       "});"
       "send((new Date()).getTime() - start.getTime());",
@@ -586,11 +586,11 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateRanges(\"%s\", '--x', {"
-        "onMatch: function(range) {"
+        "onMatch: function (range) {"
         "  send('onMatch');"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});", SYSTEM_MODULE_NAME);
@@ -651,7 +651,7 @@ SCRIPT_TESTCASE (message_can_be_sent)
 SCRIPT_TESTCASE (message_can_be_received)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "recv(function(message) {"
+      "recv(function (message) {"
       "  if (message.type == 'ping')"
       "    send('pong');"
       "});");
@@ -663,10 +663,10 @@ SCRIPT_TESTCASE (message_can_be_received)
 SCRIPT_TESTCASE (recv_may_specify_desired_message_type)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "recv('wobble', function(message) {"
+      "recv('wobble', function (message) {"
       "  send('wibble');"
       "});"
-      "recv('ping', function(message) {"
+      "recv('ping', function (message) {"
       "  send('pong');"
       "});");
   EXPECT_NO_MESSAGES ();
@@ -690,8 +690,8 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
-      "    op = recv('poke', function(pokeMessage) {"
+      "  onEnter: function (args) {"
+      "    op = recv('poke', function (pokeMessage) {"
       "      send('pokeBack');"
       "    });"
       "    op.wait();"
@@ -748,7 +748,7 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
   context = g_main_context_get_thread_default ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function() {"
+      "setTimeout(function () {"
       "  send(1337);"
       "}, 20);");
   EXPECT_NO_MESSAGES ();
@@ -774,7 +774,7 @@ SCRIPT_TESTCASE (timeout_can_be_cancelled)
   context = g_main_context_get_thread_default ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var timeout = setTimeout(function() {"
+      "var timeout = setTimeout(function () {"
       "  send(1337);"
       "}, 20);"
       "clearTimeout(timeout);");
@@ -793,7 +793,7 @@ SCRIPT_TESTCASE (interval_can_be_scheduled)
   context = g_main_context_get_thread_default ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "setInterval(function() {"
+      "setInterval(function () {"
       "  send(1337);"
       "}, 20);");
   EXPECT_NO_MESSAGES ();
@@ -820,7 +820,7 @@ SCRIPT_TESTCASE (interval_can_be_cancelled)
 
   COMPILE_AND_LOAD_SCRIPT (
       "var count = 1;"
-      "var interval = setInterval(function() {"
+      "var interval = setInterval(function () {"
       "  send(count++);"
       "  if (count == 3)"
       "    clearInterval(interval);"
@@ -848,7 +848,7 @@ SCRIPT_TESTCASE (argument_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send(args[0].toInt32());"
       "  }"
       "});", target_function_int);
@@ -867,7 +867,7 @@ SCRIPT_TESTCASE (argument_can_be_replaced)
   COMPILE_AND_LOAD_SCRIPT (
       "var replacementString = Memory.allocUtf8String('Hei');"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    args[0] = replacementString;"
       "  }"
       "});", target_function_string);
@@ -881,7 +881,7 @@ SCRIPT_TESTCASE (return_value_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    send(retval.toInt32());"
       "  }"
       "});", target_function_int);
@@ -895,7 +895,7 @@ SCRIPT_TESTCASE (return_value_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    retval.replace(1337);"
       "  }"
       "});", target_function_int);
@@ -909,11 +909,11 @@ SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send(this.value || null);"
       "    this.value = args[0].toInt32();"
       "  },"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    send(this.value || null);"
       "  }"
       "});", target_function_int);
@@ -931,26 +931,26 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send('>a' + this.depth);"
       "  },"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    send('<a' + this.depth);"
       "  }"
       "});"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send('>b' + this.depth);"
       "  },"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    send('<b' + this.depth);"
       "  }"
       "});"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send('>c' + this.depth);"
       "  },"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "    send('<c' + this.depth);"
       "  }"
       "});",
@@ -973,7 +973,7 @@ SCRIPT_TESTCASE (callbacks_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "    send(args[0].toInt32());"
       "  }"
       "});"
@@ -1023,9 +1023,9 @@ SCRIPT_TESTCASE (interceptor_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
-      "  onEnter: function(args) {"
+      "  onEnter: function (args) {"
       "  },"
-      "  onLeave: function(retval) {"
+      "  onLeave: function (retval) {"
       "  }"
       "});", target_function_int);
   /* while (TRUE) */
@@ -1037,11 +1037,11 @@ SCRIPT_TESTCASE (memory_can_be_scanned)
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
-        "onMatch: function(address, size) {"
+        "onMatch: function (address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});", haystack, haystack);
@@ -1055,12 +1055,12 @@ SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
-        "onMatch: function(address, size) {"
+        "onMatch: function (address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
         "  return 'stop';"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});", haystack, haystack);
@@ -1072,13 +1072,13 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(\"1328\"), 7, '13 37', {"
-        "onMatch: function(address, size) {"
+        "onMatch: function (address, size) {"
         "  send('onMatch');"
         "},"
-        "onError: function(message) {"
+        "onError: function (message) {"
         "  send('onError: ' + message);"
         "},"
-        "onComplete: function() {"
+        "onComplete: function () {"
         "  send('onComplete');"
         "}"
       "});");
