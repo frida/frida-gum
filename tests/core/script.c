@@ -33,6 +33,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
+  SCRIPT_TESTENTRY (return_value_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
   SCRIPT_TESTENTRY (callbacks_can_be_detached);
@@ -888,6 +889,20 @@ SCRIPT_TESTCASE (return_value_can_be_read)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("315");
+}
+
+SCRIPT_TESTCASE (return_value_can_be_replaced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onLeave: function(retval) {"
+      "    retval.replace(1337);"
+      "  }"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (7), ==, 1337);
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)

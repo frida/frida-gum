@@ -38,6 +38,7 @@ struct _GumScriptInterceptor
 
   v8::Persistent<v8::Object> invocation_context_value;
   v8::Persistent<v8::Object> invocation_args_value;
+  v8::Persistent<v8::Object> invocation_return_value;
 };
 
 G_GNUC_INTERNAL void _gum_script_interceptor_init (GumScriptInterceptor * self,
