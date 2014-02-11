@@ -81,6 +81,8 @@ void _gum_interceptor_invocation_replace_nth_argument (
     GumInvocationContext * context, guint n, gpointer value);
 gpointer _gum_interceptor_invocation_get_return_value (
     GumInvocationContext * context);
+void _gum_interceptor_invocation_replace_return_value (
+    GumInvocationContext * context, gpointer value);
 
 #endif
 

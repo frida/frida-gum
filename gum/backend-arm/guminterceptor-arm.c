@@ -516,6 +516,14 @@ _gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
   return (gpointer) context->cpu_context->r[0];
 }
 
+void
+_gum_interceptor_invocation_replace_return_value (
+    GumInvocationContext * context,
+    gpointer value)
+{
+  context->cpu_context->r[0] = (guint32) value;
+}
+
 static void
 gum_function_context_write_guard_enter_code (FunctionContext * ctx,
                                              gconstpointer skip_label,

@@ -48,6 +48,8 @@ struct _GumInvocationBackend
   void (* replace_nth_argument) (GumInvocationContext * context, guint n,
       gpointer value);
   gpointer (* get_return_value) (GumInvocationContext * context);
+  void (* replace_return_value) (GumInvocationContext * context,
+      gpointer value);
 
   guint (* get_thread_id) (GumInvocationContext * context);
 
@@ -88,6 +90,8 @@ GUM_API void gum_invocation_context_replace_nth_argument (
     GumInvocationContext * context, guint n, gpointer value);
 GUM_API gpointer gum_invocation_context_get_return_value (
     GumInvocationContext * context);
+GUM_API void gum_invocation_context_replace_return_value (
+    GumInvocationContext * context, gpointer value);
 
 GUM_API guint gum_invocation_context_get_thread_id (
     GumInvocationContext * context);

@@ -416,6 +416,18 @@ _gum_interceptor_invocation_get_return_value (GumInvocationContext * context)
 #endif
 }
 
+void
+_gum_interceptor_invocation_replace_return_value (
+    GumInvocationContext * context,
+    gpointer value)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  context->cpu_context->eax = (guint32) value;
+#else
+  context->cpu_context->rax = (guint64) value;
+#endif
+}
+
 static void
 gum_function_context_write_guard_enter_code (FunctionContext * ctx,
                                              gconstpointer skip_label,

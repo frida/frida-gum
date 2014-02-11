@@ -46,6 +46,13 @@ gum_invocation_context_get_return_value (GumInvocationContext * context)
   return context->backend->get_return_value (context);
 }
 
+void
+gum_invocation_context_replace_return_value (GumInvocationContext * context,
+                                             gpointer value)
+{
+  context->backend->replace_return_value (context, value);
+}
+
 guint
 gum_invocation_context_get_thread_id (GumInvocationContext * context)
 {
