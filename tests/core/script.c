@@ -34,6 +34,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
   SCRIPT_TESTENTRY (return_value_can_be_replaced)
+  SCRIPT_TESTENTRY (system_error_can_be_read)
+  SCRIPT_TESTENTRY (system_error_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
   SCRIPT_TESTENTRY (callbacks_can_be_detached);
@@ -903,6 +905,64 @@ SCRIPT_TESTCASE (return_value_can_be_replaced)
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (7), ==, 1337);
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (system_error_can_be_read)
+{
+#ifdef G_OS_WIN32
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (retval) {"
+      "    send(this.lastError);"
+      "  }"
+      "});", target_function_int);
+
+  SetLastError (13);
+  target_function_int (7);
+  SetLastError (37);
+  target_function_int (7);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (retval) {"
+      "    send(this.errno);"
+      "  }"
+      "});", target_function_int);
+
+  errno = 13;
+  target_function_int (7);
+  errno = 37;
+  target_function_int (7);
+#endif
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+}
+
+SCRIPT_TESTCASE (system_error_can_be_replaced)
+{
+#ifdef G_OS_WIN32
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (retval) {"
+      "    this.lastError = 1337;"
+      "  }"
+      "});", target_function_int);
+
+  SetLastError (42);
+  target_function_int (7);
+  g_assert_cmpint (GetLastError (), ==, 1337);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (retval) {"
+      "    this.errno = 1337;"
+      "  }"
+      "});", target_function_int);
+
+  errno = 42;
+  target_function_int (7);
+  g_assert_cmpint (errno, ==, 1337);
+#endif
 }
 
 SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)

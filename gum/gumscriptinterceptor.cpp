@@ -21,6 +21,14 @@
 
 #include "gumscriptscope.h"
 
+#include <errno.h>
+
+#ifdef G_OS_WIN32
+# define GUM_SYSTEM_ERROR_FIELD "lastError"
+#else
+# define GUM_SYSTEM_ERROR_FIELD "errno"
+#endif
+
 using namespace v8;
 
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
@@ -47,6 +55,10 @@ static Handle<Value> gum_script_interceptor_on_replace (const Arguments & args);
 static Handle<Value> gum_script_interceptor_on_revert (const Arguments & args);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
+static Handle<Value> gum_script_invocation_context_on_get_system_error (
+    Local<String> property, const AccessorInfo & info);
+static void gum_script_invocation_context_on_set_system_error (
+    Local<String> property, Local<Value> value, const AccessorInfo & info);
 static Handle<Value> gum_script_invocation_context_on_get_thread_id (
     Local<String> property, const AccessorInfo & info);
 static Handle<Value> gum_script_invocation_context_on_get_depth (
@@ -90,6 +102,9 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
 {
   Handle<ObjectTemplate> context = ObjectTemplate::New ();
   context->SetInternalFieldCount (2);
+  context->SetAccessor (String::New (GUM_SYSTEM_ERROR_FIELD),
+      gum_script_invocation_context_on_get_system_error,
+      gum_script_invocation_context_on_set_system_error);
   context->SetAccessor (String::New ("threadId"),
       gum_script_invocation_context_on_get_thread_id);
   context->SetAccessor (String::New ("depth"),
@@ -319,6 +334,27 @@ gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   entry->replacement.Dispose ();
   g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+static Handle<Value>
+gum_script_invocation_context_on_get_system_error (Local<String> property,
+                                                   const AccessorInfo & info)
+{
+  GumInvocationContext * context = static_cast<GumInvocationContext *> (
+      info.Holder ()->GetPointerFromInternalField (0));
+  (void) property;
+  return Number::New (context->system_error);
+}
+
+static void
+gum_script_invocation_context_on_set_system_error (Local<String> property,
+                                                   Local<Value> value,
+                                                   const AccessorInfo & info)
+{
+  GumInvocationContext * context = static_cast<GumInvocationContext *> (
+      info.Holder ()->GetPointerFromInternalField (0));
+  (void) property;
+  context->system_error = value->Int32Value ();
 }
 
 static Handle<Value>
