@@ -728,22 +728,11 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave = FALSE;
   InterceptorThreadContext * interceptor_ctx = NULL;
-#ifdef G_OS_WIN32
-  DWORD previous_last_error;
-#else
-  gint previous_errno;
-#endif
 
 #ifdef HAVE_LINUX
   if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
     return FALSE;
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
-#endif
-
-#ifdef G_OS_WIN32
-  previous_last_error = GetLastError ();
-#else
-  previous_errno = errno;
 #endif
 
   if (G_UNLIKELY (priv->selected_thread_id != 0))
@@ -780,6 +769,11 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
     invocation_ctx = &stack_entry->invocation_context;
     invocation_ctx->cpu_context = cpu_context;
+#ifdef G_OS_WIN32
+    invocation_ctx->system_error = GetLastError ();
+#else
+    invocation_ctx->system_error = errno;
+#endif
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
     for (i = 0; i != function_ctx->listener_entries->len; i++)
@@ -800,15 +794,15 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
           invocation_ctx);
     }
 
+#ifdef G_OS_WIN32
+    SetLastError (invocation_ctx->system_error);
+#else
+    errno = invocation_ctx->system_error;
+#endif
+
     *caller_ret_addr = function_ctx->on_leave_trampoline;
     will_trap_on_leave = TRUE;
   }
-
-#ifdef G_OS_WIN32
-  SetLastError (previous_last_error);
-#else
-  errno = previous_errno;
-#endif
 
 #ifdef HAVE_LINUX
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
@@ -826,20 +820,9 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
   guint i;
-#ifdef G_OS_WIN32
-  DWORD previous_last_error;
-#else
-  gint previous_errno;
-#endif
 
 #ifdef HAVE_LINUX
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
-#endif
-
-#ifdef G_OS_WIN32
-  previous_last_error = GetLastError ();
-#else
-  previous_errno = errno;
 #endif
 
   interceptor_ctx = get_interceptor_thread_context ();
@@ -849,6 +832,11 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
+#ifdef G_OS_WIN32
+  invocation_ctx->system_error = GetLastError ();
+#else
+  invocation_ctx->system_error = errno;
+#endif
   invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
 #if defined (HAVE_I386)
@@ -881,13 +869,13 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
         invocation_ctx);
   }
 
-  gum_invocation_stack_pop (interceptor_ctx->stack);
-
 #ifdef G_OS_WIN32
-  SetLastError (previous_last_error);
+  SetLastError (invocation_ctx->system_error);
 #else
-  errno = previous_errno;
+  errno = invocation_ctx->system_error;
 #endif
+
+  gum_invocation_stack_pop (interceptor_ctx->stack);
 
 #ifdef HAVE_LINUX
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);

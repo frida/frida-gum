@@ -68,6 +68,7 @@ struct _GumInvocationContext
 {
   GCallback function;
   GumCpuContext * cpu_context;
+  gint system_error;
 
   /*< private */
   GumInvocationBackend * backend;
