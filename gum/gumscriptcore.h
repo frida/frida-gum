@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -20,6 +20,9 @@
 #ifndef __GUM_SCRIPT_CORE_H__
 #define __GUM_SCRIPT_CORE_H__
 
+#define GUM_NATIVE_POINTER_VALUE(o) \
+    (o)->GetInternalField (0).As<External> ()->Value ()
+
 #include "gumscript.h"
 
 #include <v8.h>
@@ -28,6 +31,15 @@ typedef struct _GumScriptCore GumScriptCore;
 
 typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumMessageSink GumMessageSink;
+
+typedef struct _GumHeapBlock GumHeapBlock;
+typedef struct _GumByteArray GumByteArray;
+
+template <typename T>
+struct GumPersistent
+{
+  typedef v8::Persistent<T, v8::CopyablePersistentTraits<T>> type;
+};
 
 struct _GumScriptCore
 {
@@ -49,8 +61,24 @@ struct _GumScriptCore
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
 
-  v8::Persistent<v8::FunctionTemplate> native_pointer;
-  v8::Persistent<v8::Object> native_pointer_value;
+  GumPersistent<v8::FunctionTemplate>::type * native_pointer;
+  GumPersistent<v8::Object>::type * native_pointer_value;
+};
+
+struct _GumHeapBlock
+{
+  GumPersistent<v8::Object>::type * instance;
+  gpointer data;
+  gsize size;
+  v8::Isolate * isolate;
+};
+
+struct _GumByteArray
+{
+  GumPersistent<v8::Object>::type * instance;
+  gpointer data;
+  gsize size;
+  v8::Isolate * isolate;
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
@@ -67,22 +95,31 @@ G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
 
-G_GNUC_INTERNAL v8::Handle<v8::Object> _gum_script_pointer_new (
-    GumScriptCore * core, gpointer address);
-G_GNUC_INTERNAL gboolean _gum_script_pointer_get (GumScriptCore * core,
-    v8::Handle<v8::Value> value, gpointer * target);
+G_GNUC_INTERNAL GumByteArray * _gum_byte_array_new (gpointer data, gsize size,
+    GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_byte_array_free (GumByteArray * buffer);
+
+G_GNUC_INTERNAL GumHeapBlock * _gum_heap_block_new (gpointer data,
+    gsize size, GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_heap_block_free (GumHeapBlock * block);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_pointer_new (gpointer address,
+    GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_pointer_get (v8::Handle<v8::Value> value,
+    gpointer * target, GumScriptCore * core);
 
 G_GNUC_INTERNAL gboolean _gum_script_callbacks_get (
     v8::Handle<v8::Object> callbacks, const gchar * name,
-    v8::Handle<v8::Function> * callback_function);
+    v8::Handle<v8::Function> * callback_function, GumScriptCore * core);
 G_GNUC_INTERNAL gboolean _gum_script_callbacks_get_opt (
     v8::Handle<v8::Object> callbacks, const gchar * name,
-    v8::Handle<v8::Function> * callback_function);
+    v8::Handle<v8::Function> * callback_function, GumScriptCore * core);
 
 G_GNUC_INTERNAL v8::Handle<v8::Object> _gum_script_cpu_context_to_object (
-    GumScriptCore * core, const GumCpuContext * ctx);
+    const GumCpuContext * ctx, GumScriptCore * core);
 
 G_GNUC_INTERNAL gboolean _gum_script_page_protection_get (
-    v8::Handle<v8::Value> prot_val, GumPageProtection * prot);
+    v8::Handle<v8::Value> prot_val, GumPageProtection * prot,
+    GumScriptCore * core);
 
 #endif

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -36,9 +36,9 @@ struct _GumScriptInterceptor
   GQueue * attach_entries;
   GHashTable * replacement_by_address;
 
-  v8::Persistent<v8::Object> invocation_context_value;
-  v8::Persistent<v8::Object> invocation_args_value;
-  v8::Persistent<v8::Object> invocation_return_value;
+  GumPersistent<v8::Object>::type * invocation_context_value;
+  GumPersistent<v8::Object>::type * invocation_args_value;
+  GumPersistent<v8::Object>::type * invocation_return_value;
 };
 
 G_GNUC_INTERNAL void _gum_script_interceptor_init (GumScriptInterceptor * self,

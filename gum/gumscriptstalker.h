@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -37,7 +37,7 @@ struct _GumScriptStalker
   guint queue_drain_interval;
   gint pending_follow_level;
 
-  v8::Persistent<v8::ObjectTemplate> probe_args;
+  GumPersistent<v8::ObjectTemplate>::type * probe_args;
 };
 
 G_GNUC_INTERNAL void _gum_script_stalker_init (GumScriptStalker * self,

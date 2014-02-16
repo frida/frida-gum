@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -30,44 +30,49 @@ typedef struct _GumScriptCallProbe GumScriptCallProbe;
 struct _GumScriptCallProbe
 {
   GumScriptStalker * parent;
-  Persistent<Function> callback;
-  Persistent<Object> receiver;
+  GumPersistent<Function>::type * callback;
+  GumPersistent<Value>::type * receiver;
 };
 
-static Handle<Value> gum_script_stalker_on_get_trust_threshold (
-    Local<String> property, const AccessorInfo & info);
+static void gum_script_stalker_on_get_trust_threshold (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_stalker_on_set_trust_threshold (Local<String> property,
-    Local<Value> value, const AccessorInfo & info);
-static Handle<Value> gum_script_stalker_on_get_queue_capacity (
-    Local<String> property, const AccessorInfo & info);
+    Local<Value> value, const PropertyCallbackInfo<void> & info);
+static void gum_script_stalker_on_get_queue_capacity (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_stalker_on_set_queue_capacity (Local<String> property,
-    Local<Value> value, const AccessorInfo & info);
-static Handle<Value> gum_script_stalker_on_get_queue_drain_interval (
-    Local<String> property, const AccessorInfo & info);
+    Local<Value> value, const PropertyCallbackInfo<void> & info);
+static void gum_script_stalker_on_get_queue_drain_interval (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_stalker_on_set_queue_drain_interval (
-    Local<String> property, Local<Value> value, const AccessorInfo & info);
-static Handle<Value> gum_script_stalker_on_garbage_collect (
-    const Arguments & args);
-static Handle<Value> gum_script_stalker_on_follow (const Arguments & args);
-static Handle<Value> gum_script_stalker_on_unfollow (const Arguments & args);
-static Handle<Value> gum_script_stalker_on_add_call_probe (
-    const Arguments & args);
-static Handle<Value> gum_script_stalker_on_remove_call_probe (
-    const Arguments & args);
+    Local<String> property, Local<Value> value,
+    const PropertyCallbackInfo<void> & info);
+static void gum_script_stalker_on_garbage_collect (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_stalker_on_follow (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_stalker_on_unfollow (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_stalker_on_add_call_probe (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_stalker_on_remove_call_probe (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_call_probe_free (GumScriptCallProbe * probe);
 static void gum_script_call_probe_fire (GumCallSite * site,
     gpointer user_data);
-static Handle<Value> gum_script_probe_args_on_get_nth (uint32_t index,
-    const AccessorInfo & info);
+static void gum_script_probe_args_on_get_nth (uint32_t index,
+    const PropertyCallbackInfo<Value> & info);
 
 static gboolean gum_script_flags_get (Handle<Object> flags,
-    const gchar * name);
+    const gchar * name, GumScriptCore * core);
 
 void
 _gum_script_stalker_init (GumScriptStalker * self,
                           GumScriptCore * core,
                           Handle<ObjectTemplate> scope)
 {
+  Isolate * isolate = core->isolate;
+
   self->core = core;
   self->stalker = NULL;
   self->sink = NULL;
@@ -75,44 +80,49 @@ _gum_script_stalker_init (GumScriptStalker * self,
   self->queue_drain_interval = 250;
   self->pending_follow_level = 0;
 
-  Handle<ObjectTemplate> stalker = ObjectTemplate::New ();
-  stalker->SetAccessor (String::New ("trustThreshold"),
+  Local<External> data (External::New (isolate, self));
+
+  Handle<ObjectTemplate> stalker = ObjectTemplate::New (isolate);
+  stalker->SetAccessor (String::NewFromUtf8 (isolate, "trustThreshold"),
       gum_script_stalker_on_get_trust_threshold,
       gum_script_stalker_on_set_trust_threshold,
-      External::Wrap (self));
-  stalker->SetAccessor (String::New ("queueCapacity"),
+      data);
+  stalker->SetAccessor (String::NewFromUtf8 (isolate, "queueCapacity"),
       gum_script_stalker_on_get_queue_capacity,
       gum_script_stalker_on_set_queue_capacity,
-      External::Wrap (self));
-  stalker->SetAccessor (String::New ("queueDrainInterval"),
+      data);
+  stalker->SetAccessor (String::NewFromUtf8 (isolate, "queueDrainInterval"),
       gum_script_stalker_on_get_queue_drain_interval,
       gum_script_stalker_on_set_queue_drain_interval,
-      External::Wrap (self));
-  stalker->Set (String::New ("garbageCollect"),
-      FunctionTemplate::New (gum_script_stalker_on_garbage_collect,
-          External::Wrap (self)));
-  stalker->Set (String::New ("follow"),
-      FunctionTemplate::New (gum_script_stalker_on_follow,
-          External::Wrap (self)));
-  stalker->Set (String::New ("unfollow"),
-      FunctionTemplate::New (gum_script_stalker_on_unfollow,
-          External::Wrap (self)));
-  stalker->Set (String::New ("addCallProbe"),
-      FunctionTemplate::New (gum_script_stalker_on_add_call_probe,
-          External::Wrap (self)));
-  stalker->Set (String::New ("removeCallProbe"),
-      FunctionTemplate::New (gum_script_stalker_on_remove_call_probe,
-          External::Wrap (self)));
-  scope->Set (String::New ("Stalker"), stalker);
+      data);
+  stalker->Set (String::NewFromUtf8 (isolate, "garbageCollect"),
+      FunctionTemplate::New (isolate, gum_script_stalker_on_garbage_collect,
+      data));
+  stalker->Set (String::NewFromUtf8 (isolate, "follow"),
+      FunctionTemplate::New (isolate, gum_script_stalker_on_follow,
+      data));
+  stalker->Set (String::NewFromUtf8 (isolate, "unfollow"),
+      FunctionTemplate::New (isolate, gum_script_stalker_on_unfollow,
+      data));
+  stalker->Set (String::NewFromUtf8 (isolate, "addCallProbe"),
+      FunctionTemplate::New (isolate, gum_script_stalker_on_add_call_probe,
+      data));
+  stalker->Set (String::NewFromUtf8 (isolate, "removeCallProbe"),
+      FunctionTemplate::New (isolate, gum_script_stalker_on_remove_call_probe,
+      data));
+  scope->Set (String::NewFromUtf8 (isolate, "Stalker"), stalker);
 }
 
 void
 _gum_script_stalker_realize (GumScriptStalker * self)
 {
-  Handle<ObjectTemplate> args_templ = ObjectTemplate::New ();
+  Isolate * isolate = self->core->isolate;
+
+  Handle<ObjectTemplate> args_templ = ObjectTemplate::New (isolate);
   args_templ->SetInternalFieldCount (2);
   args_templ->SetIndexedPropertyHandler (gum_script_probe_args_on_get_nth);
-  self->probe_args = Persistent<ObjectTemplate>::New (args_templ);
+  self->probe_args =
+      new GumPersistent<ObjectTemplate>::type(isolate, args_templ);
 }
 
 void
@@ -132,8 +142,8 @@ _gum_script_stalker_dispose (GumScriptStalker * self)
     self->stalker = NULL;
   }
 
-  self->probe_args.Dispose ();
-  self->probe_args.Clear ();
+  delete self->probe_args;
+  self->probe_args = NULL;
 }
 
 void
@@ -172,109 +182,115 @@ _gum_script_stalker_process_pending (GumScriptStalker * self)
   }
 }
 
-static Handle<Value>
-gum_script_stalker_on_get_trust_threshold (Local<String> property,
-                                           const AccessorInfo & info)
+static void
+gum_script_stalker_on_get_trust_threshold (
+    Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   GumStalker * stalker = _gum_script_stalker_get (self);
   (void) property;
-  return Number::New (gum_stalker_get_trust_threshold (stalker));
+  info.GetReturnValue ().Set (gum_stalker_get_trust_threshold (stalker));
 }
 
 static void
-gum_script_stalker_on_set_trust_threshold (Local<String> property,
-                                           Local<Value> value,
-                                           const AccessorInfo & info)
+gum_script_stalker_on_set_trust_threshold (
+    Local<String> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<void> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   GumStalker * stalker = _gum_script_stalker_get (self);
   (void) property;
   gum_stalker_set_trust_threshold (stalker, value->IntegerValue ());
 }
 
-static Handle<Value>
-gum_script_stalker_on_get_queue_capacity (Local<String> property,
-                                          const AccessorInfo & info)
+static void
+gum_script_stalker_on_get_queue_capacity (
+    Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   (void) property;
-  return Number::New (self->queue_capacity);
+  info.GetReturnValue ().Set (self->queue_capacity);
 }
 
 static void
-gum_script_stalker_on_set_queue_capacity (Local<String> property,
-                                          Local<Value> value,
-                                          const AccessorInfo & info)
+gum_script_stalker_on_set_queue_capacity (
+    Local<String> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<void> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   (void) property;
   self->queue_capacity = value->IntegerValue ();
 }
 
-static Handle<Value>
-gum_script_stalker_on_get_queue_drain_interval (Local<String> property,
-                                                const AccessorInfo & info)
+static void
+gum_script_stalker_on_get_queue_drain_interval (
+    Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   (void) property;
-  return Number::New (self->queue_drain_interval);
+  info.GetReturnValue ().Set (self->queue_drain_interval);
 }
 
 static void
-gum_script_stalker_on_set_queue_drain_interval (Local<String> property,
-                                                Local<Value> value,
-                                                const AccessorInfo & info)
+gum_script_stalker_on_set_queue_drain_interval (
+    Local<String> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<void> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (info.Data ()));
+      info.Data ().As<External> ()->Value ());
   (void) property;
   self->queue_drain_interval = value->IntegerValue ();
 }
 
-static Handle<Value>
-gum_script_stalker_on_garbage_collect (const Arguments & args)
+static void
+gum_script_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (args.Data ()));
+      info.Data ().As<External> ()->Value ());
 
   gum_stalker_garbage_collect (_gum_script_stalker_get (self));
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_stalker_on_follow (const Arguments & args)
+static void
+gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (args.Data ()));
+      info.Data ().As<External> ()->Value ());
+  GumScriptCore * core = self->core;
+  Isolate * isolate = info.GetIsolate ();
 
   GumThreadId thread_id;
   Local<Value> options_value;
-  switch (args.Length ())
+  switch (info.Length ())
   {
     case 0:
       thread_id = gum_process_get_current_thread_id ();
       break;
     case 1:
-      if (args[0]->IsNumber ())
+      if (info[0]->IsNumber ())
       {
-        thread_id = args[0]->IntegerValue ();
+        thread_id = info[0]->IntegerValue ();
       }
       else
       {
         thread_id = gum_process_get_current_thread_id ();
-        options_value = args[0];
+        options_value = info[0];
       }
       break;
     default:
-      thread_id = args[0]->IntegerValue ();
-      options_value = args[1];
+      thread_id = info[0]->IntegerValue ();
+      options_value = info[1];
       break;
   }
 
@@ -289,46 +305,47 @@ gum_script_stalker_on_follow (const Arguments & args)
   {
     if (!options_value->IsObject ())
     {
-      ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
-          "options argument must be an object")));
-      return Undefined ();
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "Stalker.follow: options argument must be an object")));
+      return;
     }
 
     Local<Object> options = Local<Object>::Cast (options_value);
 
-    Local<String> events_key (String::New ("events"));
+    Local<String> events_key (String::NewFromUtf8 (isolate, "events"));
     if (options->Has (events_key))
     {
       Local<Value> events_value (options->Get (events_key));
       if (!events_value->IsObject ())
       {
-        ThrowException (Exception::TypeError (String::New ("Stalker.follow: "
-            "events key must be an object")));
-        return Undefined ();
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "Stalker.follow: events key must be an object")));
+        return;
       }
 
       Local<Object> events (Local<Object>::Cast (events_value));
 
-      if (gum_script_flags_get (events, "call"))
+      if (gum_script_flags_get (events, "call", core))
         so.event_mask |= GUM_CALL;
 
-      if (gum_script_flags_get (events, "ret"))
+      if (gum_script_flags_get (events, "ret", core))
         so.event_mask |= GUM_RET;
 
-      if (gum_script_flags_get (events, "exec"))
+      if (gum_script_flags_get (events, "exec", core))
         so.event_mask |= GUM_EXEC;
     }
 
     if (so.event_mask != GUM_NOTHING &&
-        !_gum_script_callbacks_get_opt (options, "onReceive", &so.on_receive))
+        !_gum_script_callbacks_get_opt (options, "onReceive", &so.on_receive,
+        core))
     {
-      return Undefined ();
+      return;
     }
 
     if ((so.event_mask & GUM_CALL) != 0)
     {
       _gum_script_callbacks_get_opt (options, "onCallSummary",
-          &so.on_call_summary);
+          &so.on_call_summary, core);
     }
   }
 
@@ -351,22 +368,20 @@ gum_script_stalker_on_follow (const Arguments & args)
     gum_stalker_follow (_gum_script_stalker_get (self), thread_id, sink);
     g_object_unref (sink);
   }
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_stalker_on_unfollow (const Arguments & args)
+static void
+gum_script_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (args.Data ()));
+      info.Data ().As<External> ()->Value ());
   GumStalker * stalker;
   GumThreadId thread_id;
 
   stalker = _gum_script_stalker_get (self);
 
-  if (args.Length () > 0)
-    thread_id = args[0]->IntegerValue ();
+  if (info.Length () > 0)
+    thread_id = info[0]->IntegerValue ();
   else
     thread_id = gum_process_get_current_thread_id ();
 
@@ -378,68 +393,69 @@ gum_script_stalker_on_unfollow (const Arguments & args)
   {
     gum_stalker_unfollow (stalker, thread_id);
   }
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_stalker_on_add_call_probe (const Arguments & args)
+static void
+gum_script_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (args.Data ()));
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
   GumScriptCallProbe * probe;
   GumProbeId id;
 
   gpointer target_address;
-  if (!_gum_script_pointer_get (self->core, args[0], &target_address))
-    return Undefined ();
+  if (!_gum_script_pointer_get (info[0], &target_address, self->core))
+    return;
 
-  Local<Value> callback_value = args[1];
+  Local<Value> callback_value = info[1];
   if (!callback_value->IsFunction ())
   {
-    ThrowException (Exception::TypeError (String::New ("Stalker.addCallProbe: "
-        "second argument must be a function")));
-    return Undefined ();
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "Stalker.addCallProbe: second argument must be a function")));
+    return;
   }
   Local<Function> callback = Local<Function>::Cast (callback_value);
 
   probe = g_slice_new (GumScriptCallProbe);
   probe->parent = self;
-  probe->callback = Persistent<Function>::New (callback);
-  probe->receiver = Persistent<Object>::New (args.This ());
+  probe->callback = new GumPersistent<Function>::type (isolate, callback);
+  probe->receiver = new GumPersistent<Value>::type (isolate, info.This ());
   id = gum_stalker_add_call_probe (_gum_script_stalker_get (self),
       target_address, gum_script_call_probe_fire,
       probe, reinterpret_cast<GDestroyNotify> (gum_script_call_probe_free));
 
-  return Uint32::New (id);
+  info.GetReturnValue ().Set (id);
 }
 
-static Handle<Value>
-gum_script_stalker_on_remove_call_probe (const Arguments & args)
+static void
+gum_script_stalker_on_remove_call_probe (
+    const FunctionCallbackInfo<Value> & info)
 {
   GumScriptStalker * self = static_cast<GumScriptStalker *> (
-      External::Unwrap (args.Data ()));
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
 
-  Local<Value> id = args[0];
+  Local<Value> id = info[0];
   if (!id->IsUint32 ())
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
         "Stalker.removeCallProbe: argument must be a probe id")));
-    return Undefined ();
+    return;
   }
 
   gum_stalker_remove_call_probe (_gum_script_stalker_get (self),
       id->ToUint32 ()->Value ());
 
-  return Undefined ();
+  return;
 }
 
 static void
 gum_script_call_probe_free (GumScriptCallProbe * probe)
 {
   ScriptScope scope (probe->parent->core->script);
-  probe->callback.Dispose ();
-  probe->receiver.Dispose ();
+  delete probe->callback;
+  delete probe->receiver;
   g_slice_free (GumScriptCallProbe, probe);
 }
 
@@ -450,22 +466,29 @@ gum_script_call_probe_fire (GumCallSite * site,
   GumScriptCallProbe * self = static_cast<GumScriptCallProbe *> (user_data);
 
   ScriptScope scope (self->parent->core->script);
-  Local<Object> args = self->parent->probe_args->NewInstance ();
-  args->SetPointerInInternalField (0, self);
-  args->SetPointerInInternalField (1, site);
+  Isolate * isolate = self->parent->core->isolate;
+
+  Local<ObjectTemplate> probe_args (
+      Local<ObjectTemplate>::New (isolate, *self->parent->probe_args));
+  Local<Object> args = probe_args->NewInstance ();
+  args->SetAlignedPointerInInternalField (0, self);
+  args->SetAlignedPointerInInternalField (1, site);
+
+  Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+  Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
   Handle<Value> argv[] = { args };
-  self->callback->Call (self->receiver, 1, argv);
+  callback->Call (receiver, 1, argv);
 }
 
-static Handle<Value>
+static void
 gum_script_probe_args_on_get_nth (uint32_t index,
-                                  const AccessorInfo & info)
+                                  const PropertyCallbackInfo<Value> & info)
 {
   Handle<Object> instance = info.This ();
   GumScriptCallProbe * self = static_cast<GumScriptCallProbe *> (
-      instance->GetPointerFromInternalField (0));
+      instance->GetAlignedPointerFromInternalField (0));
   GumCallSite * site = static_cast<GumCallSite *> (
-      instance->GetPointerFromInternalField (1));
+      instance->GetAlignedPointerFromInternalField (1));
   gsize value;
   gsize * stack_argument = static_cast<gsize *> (site->stack_data);
 
@@ -496,15 +519,15 @@ gum_script_probe_args_on_get_nth (uint32_t index,
   value = stack_argument[index];
 #endif
 
-  return _gum_script_pointer_new (self->parent->core,
-      GSIZE_TO_POINTER (value));
+  info.GetReturnValue ().Set (
+      _gum_script_pointer_new (GSIZE_TO_POINTER (value), self->parent->core));
 }
 
 static gboolean
 gum_script_flags_get (Handle<Object> flags,
-                      const gchar * name)
+                      const gchar * name,
+                      GumScriptCore * core)
 {
-  Local<String> key (String::New (name));
+  Local<String> key (String::NewFromUtf8 (core->isolate, name));
   return flags->Has (key) && flags->Get (key)->ToBoolean ()->BooleanValue ();
 }
-

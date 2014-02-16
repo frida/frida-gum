@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -36,47 +36,53 @@ typedef struct _GumScriptReplaceEntry GumScriptReplaceEntry;
 
 struct _GumScriptAttachEntry
 {
-  Persistent<Function> on_enter;
-  Persistent<Function> on_leave;
+  GumPersistent<Function>::type * on_enter;
+  GumPersistent<Function>::type * on_leave;
 };
 
 struct _GumScriptReplaceEntry
 {
   GumInterceptor * interceptor;
   gpointer target;
-  Persistent<Value> replacement;
+  GumPersistent<Value>::type * replacement;
 };
 
-static Handle<Value> gum_script_interceptor_on_attach (const Arguments & args);
-static Handle<Value> gum_script_interceptor_on_detach_all (
-    const Arguments & args);
+static void gum_script_interceptor_on_attach (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_interceptor_on_detach_all (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
-static Handle<Value> gum_script_interceptor_on_replace (const Arguments & args);
-static Handle<Value> gum_script_interceptor_on_revert (const Arguments & args);
+static void gum_script_interceptor_on_replace (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_interceptor_on_revert (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
-static Handle<Value> gum_script_invocation_context_on_get_system_error (
-    Local<String> property, const AccessorInfo & info);
+static void gum_script_invocation_context_on_get_system_error (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_invocation_context_on_set_system_error (
-    Local<String> property, Local<Value> value, const AccessorInfo & info);
-static Handle<Value> gum_script_invocation_context_on_get_thread_id (
-    Local<String> property, const AccessorInfo & info);
-static Handle<Value> gum_script_invocation_context_on_get_depth (
-    Local<String> property, const AccessorInfo & info);
+    Local<String> property, Local<Value> value,
+    const PropertyCallbackInfo<void> & info);
+static void gum_script_invocation_context_on_get_thread_id (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
+static void gum_script_invocation_context_on_get_depth (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 
-static Handle<Value> gum_script_invocation_args_on_get_nth (uint32_t index,
-    const AccessorInfo & info);
-static Handle<Value> gum_script_invocation_args_on_set_nth (uint32_t index,
-    Local<Value> value, const AccessorInfo & info);
+static void gum_script_invocation_args_on_get_nth (uint32_t index,
+    const PropertyCallbackInfo<Value> & info);
+static void gum_script_invocation_args_on_set_nth (uint32_t index,
+    Local<Value> value, const PropertyCallbackInfo<Value> & info);
 
-static Handle<Value> gum_script_invocation_return_value_on_replace (
-    const Arguments & args);
+static void gum_script_invocation_return_value_on_replace (
+    const FunctionCallbackInfo<Value> & info);
 
 void
 _gum_script_interceptor_init (GumScriptInterceptor * self,
                               GumScriptCore * core,
                               Handle<ObjectTemplate> scope)
 {
+  Isolate * isolate = core->isolate;
+
   self->core = core;
 
   self->interceptor = gum_interceptor_obtain ();
@@ -85,50 +91,63 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_script_replace_entry_free));
 
-  Handle<ObjectTemplate> interceptor = ObjectTemplate::New ();
-  interceptor->Set (String::New ("attach"), FunctionTemplate::New (
-      gum_script_interceptor_on_attach, External::Wrap (self)));
-  interceptor->Set (String::New ("detachAll"), FunctionTemplate::New (
-      gum_script_interceptor_on_detach_all, External::Wrap (self)));
-  interceptor->Set (String::New ("replace"), FunctionTemplate::New (
-      gum_script_interceptor_on_replace, External::Wrap (self)));
-  interceptor->Set (String::New ("revert"), FunctionTemplate::New (
-      gum_script_interceptor_on_revert, External::Wrap (self)));
-  scope->Set (String::New ("Interceptor"), interceptor);
+  Local<External> data (External::New (isolate, self));
+
+  Handle<ObjectTemplate> interceptor = ObjectTemplate::New (isolate);
+  interceptor->Set (String::NewFromUtf8 (isolate, "attach"),
+      FunctionTemplate::New (isolate, gum_script_interceptor_on_attach,
+      data));
+  interceptor->Set (String::NewFromUtf8 (isolate, "detachAll"),
+      FunctionTemplate::New (isolate,  gum_script_interceptor_on_detach_all,
+      data));
+  interceptor->Set (String::NewFromUtf8 (isolate, "replace"),
+      FunctionTemplate::New (isolate,  gum_script_interceptor_on_replace,
+      data));
+  interceptor->Set (String::NewFromUtf8 (isolate, "revert"),
+      FunctionTemplate::New (isolate,  gum_script_interceptor_on_revert,
+      data));
+  scope->Set (String::NewFromUtf8 (isolate, "Interceptor"), interceptor);
 }
 
 void
 _gum_script_interceptor_realize (GumScriptInterceptor * self)
 {
-  Handle<ObjectTemplate> context = ObjectTemplate::New ();
+  Isolate * isolate = self->core->isolate;
+
+  Local<External> data (External::New (isolate, self));
+
+  Handle<ObjectTemplate> context = ObjectTemplate::New (isolate);
   context->SetInternalFieldCount (2);
-  context->SetAccessor (String::New (GUM_SYSTEM_ERROR_FIELD),
+  context->SetAccessor (String::NewFromUtf8 (isolate, GUM_SYSTEM_ERROR_FIELD),
       gum_script_invocation_context_on_get_system_error,
       gum_script_invocation_context_on_set_system_error);
-  context->SetAccessor (String::New ("threadId"),
+  context->SetAccessor (String::NewFromUtf8 (isolate, "threadId"),
       gum_script_invocation_context_on_get_thread_id);
-  context->SetAccessor (String::New ("depth"),
+  context->SetAccessor (String::NewFromUtf8 (isolate, "depth"),
       gum_script_invocation_context_on_get_depth);
   self->invocation_context_value =
-      Persistent<Object>::New (context->NewInstance ());
+      new GumPersistent<Object>::type (isolate, context->NewInstance ());
 
-  Handle<ObjectTemplate> args = ObjectTemplate::New ();
+  Handle<ObjectTemplate> args = ObjectTemplate::New (isolate);
   args->SetInternalFieldCount (1);
   args->SetIndexedPropertyHandler (
       gum_script_invocation_args_on_get_nth,
       gum_script_invocation_args_on_set_nth,
       0, 0, 0,
-      External::Wrap (self));
-  self->invocation_args_value = Persistent<Object>::New (args->NewInstance ());
+      data);
+  self->invocation_args_value =
+      new GumPersistent<Object>::type (isolate, args->NewInstance ());
 
-  Local<FunctionTemplate> return_value = FunctionTemplate::New ();
-  return_value->SetClassName (String::New ("ReturnValue"));
-  return_value->Inherit (self->core->native_pointer);
-  return_value->PrototypeTemplate ()->Set (String::New ("replace"),
-      FunctionTemplate::New (gum_script_invocation_return_value_on_replace,
-      External::Wrap (self)));
+  Local<FunctionTemplate> return_value = FunctionTemplate::New (isolate);
+  return_value->SetClassName (String::NewFromUtf8 (isolate, "ReturnValue"));
+  Local<FunctionTemplate> native_pointer (Local<FunctionTemplate>::New (isolate,
+      *self->core->native_pointer));
+  return_value->Inherit (native_pointer);
+  return_value->PrototypeTemplate ()->Set (
+      String::NewFromUtf8 (isolate, "replace"), FunctionTemplate::New (isolate,
+      gum_script_invocation_return_value_on_replace, data));
   return_value->InstanceTemplate ()->SetInternalFieldCount (2);
-  self->invocation_return_value = Persistent<Object>::New (
+  self->invocation_return_value = new GumPersistent<Object>::type (isolate, 
       return_value->GetFunction ()->NewInstance ());
 }
 
@@ -139,14 +158,14 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
 
   g_hash_table_remove_all (self->replacement_by_address);
 
-  self->invocation_return_value.Dispose ();
-  self->invocation_return_value.Clear ();
+  delete self->invocation_return_value;
+  self->invocation_return_value = NULL;
 
-  self->invocation_args_value.Dispose ();
-  self->invocation_args_value.Clear ();
+  delete self->invocation_args_value;
+  self->invocation_args_value = NULL;
 
-  self->invocation_context_value.Dispose ();
-  self->invocation_context_value.Clear ();
+  delete self->invocation_context_value;
+  self->invocation_context_value = NULL;
 }
 
 void
@@ -168,20 +187,28 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
   int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
 
   ScriptScope scope (self->core->script);
+  Isolate * isolate = self->core->isolate;
 
-  Persistent<Object> receiver (Persistent<Object>::New (
-      self->invocation_context_value->Clone ()));
-  receiver->SetPointerInInternalField (0, context);
-  receiver->SetPointerInInternalField (1, reinterpret_cast<void *> (*depth));
-  *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *) = *receiver;
+  Local<Object> invocation_context_value (Local<Object>::New (isolate,
+      *self->invocation_context_value));
+  Local<Object> receiver (invocation_context_value->Clone ());
+  receiver->SetAlignedPointerInInternalField (0, context);
+  receiver->SetInternalField (1, Integer::New (isolate, *depth));
+  GumPersistent<Value>::type * persistent_receiver =
+      new GumPersistent<Value>::type (isolate, receiver);
+  *GUM_LINCTX_GET_FUNC_INVDATA (context,
+      GumPersistent<Value>::type *) = persistent_receiver;
 
-  if (!entry->on_enter.IsEmpty ())
+  if (entry->on_enter != NULL)
   {
-    Local<Object> args (self->invocation_args_value->Clone ());
-    args->SetPointerInInternalField (0, context);
+    Local<Object> invocation_args_value (Local<Object>::New (isolate,
+        *self->invocation_args_value));
+    Local<Object> args (invocation_args_value->Clone ());
+    args->SetAlignedPointerInInternalField (0, context);
 
+    Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
     Handle<Value> argv[] = { args };
-    entry->on_enter->Call (receiver, 1, argv);
+    on_enter->Call (receiver, 1, argv);
   }
 
   (*depth)++;
@@ -198,57 +225,66 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
   (*depth)--;
 
   ScriptScope scope (self->core->script);
+  Isolate * isolate = self->core->isolate;
 
-  Persistent<Object> receiver (
-      *GUM_LINCTX_GET_FUNC_INVDATA (context, Object *));
+  GumPersistent<Value>::type * persistent_receiver =
+    *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Value>::type *);
+  Local<Value> receiver (Local<Value>::New (isolate, *persistent_receiver));
 
-  if (!entry->on_leave.IsEmpty ())
+  if (entry->on_leave != NULL)
   {
-    Local<Object> return_value (self->invocation_return_value->Clone ());
-    return_value->SetPointerInInternalField (0,
-        gum_invocation_context_get_return_value (context));
-    return_value->SetPointerInInternalField (1, context);
+    Local<Object> invocation_return_value (Local<Object>::New (isolate,
+        *self->invocation_return_value));
+    Local<Object> return_value (invocation_return_value->Clone ());
+    return_value->SetInternalField (0, External::New (isolate,
+        gum_invocation_context_get_return_value (context)));
+    return_value->SetAlignedPointerInInternalField (1, context);
 
+    Local<Function> on_leave (Local<Function>::New (isolate, *entry->on_leave));
     Handle<Value> argv[] = { return_value };
-    entry->on_leave->Call (receiver, 1, argv);
+    on_leave->Call (receiver, 1, argv);
   }
 
-  receiver.Dispose ();
+  delete persistent_receiver;
 }
 
-static Handle<Value>
-gum_script_interceptor_on_attach (const Arguments & args)
+static void
+gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (args.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
+  GumScriptCore * core = self->core;
+  Isolate * isolate = core->isolate;
 
   gpointer target;
-  if (!_gum_script_pointer_get (self->core, args[0], &target))
-    return Undefined ();
+  if (!_gum_script_pointer_get (info[0], &target, self->core))
+    return;
 
-  Local<Value> callbacks_value = args[1];
+  Local<Value> callbacks_value = info[1];
   if (!callbacks_value->IsObject ())
   {
-    ThrowException (Exception::TypeError (String::New ("Interceptor.attach: "
-        "second argument must be a callback object")));
-    return Undefined ();
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "Interceptor.attach: second argument must be a callback object")));
+    return;
   }
 
   Local<Function> on_enter, on_leave;
 
   Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!_gum_script_callbacks_get_opt (callbacks, "onEnter", &on_enter))
-    return Undefined ();
-  if (!_gum_script_callbacks_get_opt (callbacks, "onLeave", &on_leave))
-    return Undefined ();
+  if (!_gum_script_callbacks_get_opt (callbacks, "onEnter", &on_enter, core))
+    return;
+  if (!_gum_script_callbacks_get_opt (callbacks, "onLeave", &on_leave, core))
+    return;
 
-  GumScriptAttachEntry * entry = g_slice_new (GumScriptAttachEntry);
-  entry->on_enter = Persistent<Function>::New (on_enter);
-  entry->on_leave = Persistent<Function>::New (on_leave);
+  GumScriptAttachEntry * entry = g_slice_new0 (GumScriptAttachEntry);
+  if (!on_enter.IsEmpty ())
+    entry->on_enter = new GumPersistent<Function>::type (isolate, on_enter);
+  if (!on_leave.IsEmpty ())
+    entry->on_leave = new GumPersistent<Function>::type (isolate, on_leave);
 
   /*
-   * FIXME: Create a helper object implementing the listener interface,
-   *        and allow each to be detached invididually.
+   * TODO: Create a helper object implementing the listener interface,
+   *       and allow each to be detached invididually.
    */
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
       self->interceptor, target, GUM_INVOCATION_LISTENER (self->core->script),
@@ -256,18 +292,16 @@ gum_script_interceptor_on_attach (const Arguments & args)
 
   g_queue_push_tail (self->attach_entries, entry);
 
-  return (attach_ret == GUM_ATTACH_OK) ? True () : False ();
+  info.GetReturnValue ().Set (attach_ret == GUM_ATTACH_OK);
 }
 
-static Handle<Value>
-gum_script_interceptor_on_detach_all (const Arguments & args)
+static void
+gum_script_interceptor_on_detach_all (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (args.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
 
   gum_script_interceptor_detach_all (self);
-
-  return Undefined ();
 }
 
 static void
@@ -280,150 +314,147 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   {
     GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
         g_queue_pop_tail (self->attach_entries));
-    entry->on_enter.Dispose ();
-    entry->on_leave.Dispose ();
+    delete entry->on_enter;
+    delete entry->on_leave;
     g_slice_free (GumScriptAttachEntry, entry);
   }
 }
 
-static Handle<Value>
-gum_script_interceptor_on_replace (const Arguments & args)
+static void
+gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (args.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->core->isolate;
 
   gpointer target;
-  if (!_gum_script_pointer_get (self->core, args[0], &target))
-    return Undefined ();
+  if (!_gum_script_pointer_get (info[0], &target, self->core))
+    return;
 
   gpointer replacement;
-  if (!_gum_script_pointer_get (self->core, args[1], &replacement))
-    return Undefined ();
+  if (!_gum_script_pointer_get (info[1], &replacement, self->core))
+    return;
 
   GumScriptReplaceEntry * entry = g_slice_new (GumScriptReplaceEntry);
   entry->interceptor = self->interceptor;
   entry->target = target;
-  entry->replacement = Persistent<Value>::New (args[1]);
+  entry->replacement = new GumPersistent<Value>::type (isolate, info[1]);
 
   gum_interceptor_replace_function (self->interceptor, target, replacement,
       NULL);
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_interceptor_on_revert (const Arguments & args)
+static void
+gum_script_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (args.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
 
   gpointer target;
-  if (!_gum_script_pointer_get (self->core, args[0], &target))
-    return Undefined ();
+  if (!_gum_script_pointer_get (info[0], &target, self->core))
+    return;
 
   g_hash_table_remove (self->replacement_by_address, target);
-
-  return Undefined ();
 }
 
 static void
 gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
 {
   gum_interceptor_revert_function (entry->interceptor, entry->target);
-  entry->replacement.Dispose ();
+  delete entry->replacement;
   g_slice_free (GumScriptReplaceEntry, entry);
 }
 
-static Handle<Value>
+static void
 gum_script_invocation_context_on_get_system_error (Local<String> property,
-                                                   const AccessorInfo & info)
+    const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
   (void) property;
-  return Number::New (context->system_error);
+  info.GetReturnValue ().Set (context->system_error);
 }
 
 static void
 gum_script_invocation_context_on_set_system_error (Local<String> property,
-                                                   Local<Value> value,
-                                                   const AccessorInfo & info)
+    Local<Value> value,
+    const PropertyCallbackInfo<void> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
   (void) property;
   context->system_error = value->Int32Value ();
 }
 
-static Handle<Value>
+static void
 gum_script_invocation_context_on_get_thread_id (Local<String> property,
-                                                const AccessorInfo & info)
+    const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
   (void) property;
-  return Number::New (gum_invocation_context_get_thread_id (context));
+  info.GetReturnValue ().Set (gum_invocation_context_get_thread_id (context));
 }
 
-static Handle<Value>
+static void
 gum_script_invocation_context_on_get_depth (Local<String> property,
-                                            const AccessorInfo & info)
+    const PropertyCallbackInfo<Value> & info)
 {
-  int32_t depth = static_cast<int32_t> (reinterpret_cast<gsize> (
-      info.Holder ()->GetPointerFromInternalField (1)));
+  int32_t depth =
+      info.Holder ()->GetInternalField (1).As <Integer> ()->Int32Value ();
   (void) property;
-  return Number::New (depth);
+  info.GetReturnValue ().Set (depth);
 }
 
-static Handle<Value>
+static void
 gum_script_invocation_args_on_get_nth (uint32_t index,
-                                       const AccessorInfo & info)
+                                       const PropertyCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (info.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetPointerFromInternalField (0));
-  return _gum_script_pointer_new (self->core,
-      gum_invocation_context_get_nth_argument (ctx, index));
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  info.GetReturnValue ().Set (_gum_script_pointer_new (
+      gum_invocation_context_get_nth_argument (ctx, index), self->core));
 }
 
-static Handle<Value>
+static void
 gum_script_invocation_args_on_set_nth (uint32_t index,
                                        Local<Value> value,
-                                       const AccessorInfo & info)
+                                       const PropertyCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (info.Data ()));
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
 
   gpointer raw_value;
-  if (!_gum_script_pointer_get (self->core, value, &raw_value))
-    return Undefined ();
+  if (!_gum_script_pointer_get (value, &raw_value, self->core))
+    return;
 
   gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
-
-  return value;
 }
 
-static Handle<Value>
-gum_script_invocation_return_value_on_replace (const Arguments & args)
+static void
+gum_script_invocation_return_value_on_replace (
+    const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptInterceptor * self =
-      static_cast<GumScriptInterceptor *> (External::Unwrap (args.Data ()));
-  Local<Object> holder (args.Holder ());
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
+  Local<Object> holder (info.Holder ());
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      holder->GetPointerFromInternalField (1));
+      holder->GetAlignedPointerFromInternalField (1));
 
   gpointer value;
-  if (self->core->native_pointer->HasInstance (args[0]))
-    value = args[0]->ToObject ()->GetPointerFromInternalField (0);
+  Local<FunctionTemplate> native_pointer (
+      Local<FunctionTemplate>::New (info.GetIsolate (),
+      *self->core->native_pointer));
+  if (native_pointer->HasInstance (info[0]))
+    value = GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ());
   else
-    value = GSIZE_TO_POINTER (args[0]->ToInteger ()->Value ());
+    value = GSIZE_TO_POINTER (info[0].As<Integer> ()->Value ());
   gum_invocation_context_replace_return_value (context, value);
-  holder->SetPointerInInternalField (0, value);
-
-  return Undefined ();
+  holder->SetInternalField (0, External::New (info.GetIsolate (), value));
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -40,28 +40,32 @@
 
 using namespace v8;
 
-static Handle<Value> gum_script_socket_on_type (const Arguments & args);
-static Handle<Value> gum_script_socket_on_local_address (
-    const Arguments & args);
-static Handle<Value> gum_script_socket_on_peer_address (const Arguments & args);
-static Handle<Value> gum_script_socket_address_to_value (
-    struct sockaddr * addr);
+static void gum_script_socket_on_type (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_socket_on_local_address (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_socket_on_peer_address (
+    const FunctionCallbackInfo<Value> & info);
+static Local<Value> gum_script_socket_address_to_value (
+    struct sockaddr * addr, Isolate * isolate);
 
 void
 _gum_script_socket_init (GumScriptSocket * self,
                          GumScriptCore * core,
                          Handle<ObjectTemplate> scope)
 {
+  Isolate * isolate = core->isolate;
+
   self->core = core;
 
-  Handle<ObjectTemplate> socket = ObjectTemplate::New ();
-  socket->Set (String::New ("type"),
-      FunctionTemplate::New (gum_script_socket_on_type));
-  socket->Set (String::New ("localAddress"),
-      FunctionTemplate::New (gum_script_socket_on_local_address));
-  socket->Set (String::New ("peerAddress"),
-      FunctionTemplate::New (gum_script_socket_on_peer_address));
-  scope->Set (String::New ("Socket"), socket);
+  Handle<ObjectTemplate> socket = ObjectTemplate::New (isolate);
+  socket->Set (String::NewFromUtf8 (isolate, "type"),
+      FunctionTemplate::New (isolate, gum_script_socket_on_type));
+  socket->Set (String::NewFromUtf8 (isolate, "localAddress"),
+      FunctionTemplate::New (isolate, gum_script_socket_on_local_address));
+  socket->Set (String::NewFromUtf8 (isolate, "peerAddress"),
+      FunctionTemplate::New (isolate, gum_script_socket_on_peer_address));
+  scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
 }
 
 void
@@ -82,12 +86,12 @@ _gum_script_socket_finalize (GumScriptSocket * self)
   (void) self;
 }
 
-static Handle<Value>
-gum_script_socket_on_type (const Arguments & args)
+static void
+gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
 {
-  const gchar * result = NULL;
+  const gchar * res = NULL;
 
-  int32_t socket = args[0]->ToInteger ()->Value ();
+  int32_t socket = info[0]->ToInteger ()->Value ();
 
   int type;
   gum_socklen_t len = sizeof (int);
@@ -124,56 +128,72 @@ gum_script_socket_on_type (const Arguments & args)
       case AF_INET:
         switch (type)
         {
-          case SOCK_STREAM: result = "tcp"; break;
-          case  SOCK_DGRAM: result = "udp"; break;
+          case SOCK_STREAM: res = "tcp"; break;
+          case  SOCK_DGRAM: res = "udp"; break;
         }
         break;
       case AF_INET6:
         switch (type)
         {
-          case SOCK_STREAM: result = "tcp6"; break;
-          case  SOCK_DGRAM: result = "udp6"; break;
+          case SOCK_STREAM: res = "tcp6"; break;
+          case  SOCK_DGRAM: res = "udp6"; break;
         }
         break;
 #ifndef G_OS_WIN32
       case AF_UNIX:
         switch (type)
         {
-          case SOCK_STREAM: result = "unix:stream"; break;
-          case  SOCK_DGRAM: result = "unix:dgram";  break;
+          case SOCK_STREAM: res = "unix:stream"; break;
+          case  SOCK_DGRAM: res = "unix:dgram";  break;
         }
         break;
 #endif
     }
   }
 
-  return (result != NULL) ? String::New (result) : Null ();
+  if (res != NULL)
+    info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), res));
+  else
+    info.GetReturnValue ().SetNull ();
 }
 
-static Handle<Value>
-gum_script_socket_on_local_address (const Arguments & args)
+static void
+gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
 {
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
-  if (getsockname (args[0]->ToInteger ()->Value (), addr, &len) != 0)
-    return Null ();
-  return gum_script_socket_address_to_value (addr);
+  if (getsockname (info[0]->ToInteger ()->Value (), addr, &len) == 0)
+  {
+    info.GetReturnValue ().Set (
+        gum_script_socket_address_to_value (addr, info.GetIsolate ()));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
 }
 
-static Handle<Value>
-gum_script_socket_on_peer_address (const Arguments & args)
+static void
+gum_script_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
 {
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
-  if (getpeername (args[0]->ToInteger ()->Value (), addr, &len) != 0)
-    return Null ();
-  return gum_script_socket_address_to_value (addr);
+  if (getpeername (info[0]->ToInteger ()->Value (), addr, &len) == 0)
+  {
+    info.GetReturnValue ().Set (
+        gum_script_socket_address_to_value (addr, info.GetIsolate ()));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
 }
 
-static Handle<Value>
-gum_script_socket_address_to_value (struct sockaddr * addr)
+static Local<Value>
+gum_script_socket_address_to_value (struct sockaddr * addr,
+                                    Isolate * isolate)
 {
   switch (addr->sa_family)
   {
@@ -192,10 +212,11 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
       gchar ip[INET_ADDRSTRLEN];
       inet_ntop (AF_INET, &inet_addr->sin_addr, ip, sizeof (ip));
 #endif
-      Local<Object> result (Object::New ());
-      result->Set (String::New ("ip"), String::New (ip), ReadOnly);
-      result->Set (String::New ("port"),
-          Int32::New (ntohs (inet_addr->sin_port)), ReadOnly);
+      Local<Object> result (Object::New (isolate));
+      result->Set (String::NewFromUtf8 (isolate, "ip"),
+          String::NewFromUtf8 (isolate, ip), ReadOnly);
+      result->Set (String::NewFromUtf8 (isolate, "port"),
+          Int32::New (isolate, ntohs (inet_addr->sin_port)), ReadOnly);
       return result;
     }
     case AF_INET6:
@@ -213,21 +234,23 @@ gum_script_socket_address_to_value (struct sockaddr * addr)
       gchar ip[INET6_ADDRSTRLEN];
       inet_ntop (AF_INET6, &inet_addr->sin6_addr, ip, sizeof (ip));
 #endif
-      Local<Object> result (Object::New ());
-      result->Set (String::New ("ip"), String::New (ip), ReadOnly);
-      result->Set (String::New ("port"),
-          Int32::New (ntohs (inet_addr->sin6_port)), ReadOnly);
+      Local<Object> result (Object::New (isolate));
+      result->Set (String::NewFromUtf8 (isolate, "ip"),
+          String::NewFromUtf8 (isolate, ip), ReadOnly);
+      result->Set (String::NewFromUtf8 (isolate, "port"),
+          Int32::New (isolate, ntohs (inet_addr->sin6_port)), ReadOnly);
       return result;
     }
     case AF_UNIX:
     {
-      Local<Object> result (Object::New ());
-      result->Set (String::New ("path"), String::New ("") /* FIXME */,
+      Local<Object> result (Object::New (isolate));
+      result->Set (String::NewFromUtf8 (isolate, "path"),
+          String::NewFromUtf8 (isolate, "") /* FIXME */,
           ReadOnly);
       return result;
     }
   }
 
-  return Null ();
+  return Null (isolate);
 }
 
