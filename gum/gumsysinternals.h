@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,14 +27,10 @@
 # if GLIB_SIZEOF_VOID_P == 4
 #  define GUM_TEB_OFFSET_SELF 0x0018
 #  define GUM_TEB_OFFSET_TID  0x0024
-#  define GUM_TEB_OFFSET_USER 0x0700
 # else
 #  define GUM_TEB_OFFSET_SELF 0x0030
 #  define GUM_TEB_OFFSET_TID  0x0048
-#  define GUM_TEB_OFFSET_USER 0x0878
 # endif
-
-# define GUM_TEB_OFFSET_INTERCEPTOR_GUARD (GUM_TEB_OFFSET_USER + 4)
 
 #endif
 

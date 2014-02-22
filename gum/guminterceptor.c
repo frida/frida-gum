@@ -34,6 +34,12 @@
 
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE     450
 
+#ifdef HAVE_DARWIN
+# define GUM_INTERCEPTOR_FAST_TLS 1
+#else
+# define GUM_INTERCEPTOR_FAST_TLS 0
+#endif
+
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
 #define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (priv->mutex))
@@ -725,11 +731,18 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 {
   GumInterceptor * self = function_ctx->interceptor;
   GumInterceptorPrivate * priv = self->priv;
+  gint system_error;
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave = FALSE;
   InterceptorThreadContext * interceptor_ctx = NULL;
 
-#ifdef HAVE_LINUX
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#else
+  system_error = errno;
+#endif
+
+#if !GUM_INTERCEPTOR_FAST_TLS
   if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
     return FALSE;
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
@@ -769,11 +782,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
     invocation_ctx = &stack_entry->invocation_context;
     invocation_ctx->cpu_context = cpu_context;
-#ifdef G_OS_WIN32
-    invocation_ctx->system_error = GetLastError ();
-#else
-    invocation_ctx->system_error = errno;
-#endif
+    invocation_ctx->system_error = system_error;
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
     for (i = 0; i != function_ctx->listener_entries->len; i++)
@@ -804,7 +813,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
     will_trap_on_leave = TRUE;
   }
 
-#ifdef HAVE_LINUX
+#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 #endif
 
@@ -816,12 +825,19 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
                                 GumCpuContext * cpu_context,
                                 gpointer * caller_ret_addr)
 {
+  gint system_error;
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStackEntry * stack_entry;
   GumInvocationContext * invocation_ctx;
   guint i;
 
-#ifdef HAVE_LINUX
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#else
+  system_error = errno;
+#endif
+
+#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
 #endif
 
@@ -832,11 +848,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
-#ifdef G_OS_WIN32
-  invocation_ctx->system_error = GetLastError ();
-#else
-  invocation_ctx->system_error = errno;
-#endif
+  invocation_ctx->system_error = system_error;
   invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
 #if defined (HAVE_I386)
@@ -877,7 +889,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
-#ifdef HAVE_LINUX
+#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 #endif
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -433,33 +433,6 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
                                              gconstpointer skip_label,
                                              GumX86Writer * cw)
 {
-  (void) ctx;
-
-#ifdef G_OS_WIN32
-  /* FIXME: use a TLS key here instead */
-# if GLIB_SIZEOF_VOID_P == 4
-  gum_x86_writer_put_mov_reg_fs_u32_ptr (cw, GUM_REG_EBX,
-      GUM_TEB_OFFSET_SELF);
-# else
-  gum_x86_writer_put_mov_reg_gs_u32_ptr (cw, GUM_REG_RBX,
-      GUM_TEB_OFFSET_SELF);
-# endif
-  gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, GUM_REG_EBP,
-      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD);
-
-  if (skip_label != NULL)
-  {
-    gum_x86_writer_put_cmp_reg_i32 (cw, GUM_REG_EBP,
-        GUM_INTERCEPTOR_GUARD_MAGIC);
-    gum_x86_writer_put_jcc_short_label (cw, GUM_X86_JZ, skip_label,
-        GUM_UNLIKELY);
-  }
-
-  gum_x86_writer_put_mov_reg_offset_ptr_u32 (cw,
-      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
-      GUM_INTERCEPTOR_GUARD_MAGIC);
-#endif
-
 #ifdef HAVE_DARWIN
   const guint32 guard_offset = _gum_interceptor_guard_key * GLIB_SIZEOF_VOID_P;
 
@@ -500,7 +473,10 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
   *((guint32 *) (enable_guard + 5)) = guard_offset;
 # endif
   gum_x86_writer_put_bytes (cw, enable_guard, sizeof (enable_guard));
-
+#else
+  (void) ctx;
+  (void) skip_label;
+  (void) cw;
 #endif
 }
 
@@ -508,14 +484,6 @@ static void
 gum_function_context_write_guard_leave_code (FunctionContext * ctx,
                                              GumX86Writer * cw)
 {
-  (void) ctx;
-
-#ifdef G_OS_WIN32
-  gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
-      GUM_REG_XBX, GUM_TEB_OFFSET_INTERCEPTOR_GUARD,
-      GUM_REG_EBP);
-#endif
-
 #ifdef HAVE_DARWIN
   const guint32 guard_offset = _gum_interceptor_guard_key * GLIB_SIZEOF_VOID_P;
 
@@ -535,6 +503,8 @@ gum_function_context_write_guard_leave_code (FunctionContext * ctx,
   *((guint32 *) (disable_guard + 5)) = guard_offset;
 # endif
   gum_x86_writer_put_bytes (cw, disable_guard, sizeof (disable_guard));
-
+#else
+  (void) ctx;
+  (void) cw;
 #endif
 }
