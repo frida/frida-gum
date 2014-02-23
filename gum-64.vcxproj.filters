@@ -51,9 +51,6 @@
     <ClCompile Include="gum\arch-x86\gumudis86.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumx86functionparser.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\arch-x86\gumx86reader.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
@@ -243,9 +240,6 @@
       <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-x86\gumudis86.h">
-      <Filter>core\arch-x86</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumx86functionparser.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">

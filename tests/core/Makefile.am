@@ -8,7 +8,6 @@ script_sources = $(NULL)
 if ARCH_I386
 arch_sources += \
 	arch-x86/codewriter.c \
-	arch-x86/functionparser.c \
 	arch-x86/relocator.c \
 	arch-x86/stalker-x86.c
 arch_includes += \

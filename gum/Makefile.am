@@ -50,14 +50,12 @@ archinclude_HEADERS = \
 	arch-x86/gumx86backtracer.h \
 	arch-x86/gumx86writer.h \
 	arch-x86/gumx86relocator.h \
-	arch-x86/gumx86reader.h \
-	arch-x86/gumx86functionparser.h
+	arch-x86/gumx86reader.h
 arch_sources += \
 	arch-x86/gumx86backtracer.c \
 	arch-x86/gumx86writer.c \
 	arch-x86/gumx86relocator.c \
 	arch-x86/gumx86reader.c \
-	arch-x86/gumx86functionparser.c \
 	arch-x86/gumudis86.h \
 	arch-x86/gumudis86.c
 arch_includes += \

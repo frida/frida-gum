@@ -103,7 +103,6 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (symbolutil);
 #ifdef HAVE_I386
   TEST_RUN_LIST (codewriter);
-  TEST_RUN_LIST (functionparser);
   TEST_RUN_LIST (relocator);
 #endif
 #ifdef HAVE_ARM
