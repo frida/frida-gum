@@ -135,10 +135,16 @@ gum_script_event_sink_new (const GumScriptEventSinkOptions * options)
   sink->core = options->core;
   sink->main_context = options->main_context;
   sink->event_mask = options->event_mask;
-  sink->on_receive =
-      new GumPersistent<Function>::type (isolate, options->on_receive);
-  sink->on_call_summary =
-      new GumPersistent<Function>::type (isolate, options->on_call_summary);
+  if (!options->on_receive.IsEmpty ())
+  {
+    sink->on_receive =
+        new GumPersistent<Function>::type (isolate, options->on_receive);
+  }
+  if (!options->on_call_summary.IsEmpty ())
+  {
+    sink->on_call_summary =
+        new GumPersistent<Function>::type (isolate, options->on_call_summary);
+  }
 
   return GUM_EVENT_SINK (sink);
 }
