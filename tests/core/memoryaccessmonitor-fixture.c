@@ -37,8 +37,8 @@ typedef struct _TestMAMonitorFixture
   guint offset_in_second_page;
   GCallback nop_function_in_first_page;
 
-  guint number_of_notifies;
-  GumMemoryAccessDetails last_details;
+  volatile guint number_of_notifies;
+  volatile GumMemoryAccessDetails last_details;
 } TestMAMonitorFixture;
 
 static void

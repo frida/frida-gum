@@ -29,9 +29,9 @@ TEST_LIST_END ()
 
 MAMONITOR_TESTCASE (notify_on_read_access)
 {
-  guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;
-  GumMemoryAccessDetails * d = &fixture->last_details;
+  volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
   bytes[fixture->offset_in_first_page] = 0x13;
   bytes[fixture->offset_in_second_page] = 0x37;
@@ -63,9 +63,9 @@ MAMONITOR_TESTCASE (notify_on_read_access)
 
 MAMONITOR_TESTCASE (notify_on_write_access)
 {
-  guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;
-  GumMemoryAccessDetails * d = &fixture->last_details;
+  volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
   bytes[fixture->offset_in_first_page] = 0x13;
 
@@ -84,7 +84,7 @@ MAMONITOR_TESTCASE (notify_on_write_access)
 
 MAMONITOR_TESTCASE (notify_on_execute_access)
 {
-  GumMemoryAccessDetails * d = &fixture->last_details;
+  volatile GumMemoryAccessDetails * d = &fixture->last_details;
 
   ENABLE_MONITOR ();
 
@@ -99,8 +99,8 @@ MAMONITOR_TESTCASE (notify_on_execute_access)
 
 MAMONITOR_TESTCASE (notify_should_include_progress)
 {
-  GumMemoryAccessDetails * d = &fixture->last_details;
-  guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile GumMemoryAccessDetails * d = &fixture->last_details;
+  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
 
   g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 0);
@@ -121,7 +121,7 @@ MAMONITOR_TESTCASE (notify_should_include_progress)
 
 MAMONITOR_TESTCASE (disable)
 {
-  guint8 * bytes = (guint8 *) fixture->range.base_address;
+  volatile guint8 * bytes = (guint8 *) fixture->range.base_address;
   guint8 val;
 
   bytes[fixture->offset_in_first_page] = 0x13;
