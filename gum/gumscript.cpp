@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * This library is free software; you can redistribute it and/or
@@ -35,13 +35,7 @@
 #include <gio/gio.h>
 #include <string.h>
 
-/* FIXME: this should no longer be needed once V8 has been updated */
-#ifdef HAVE_ARM
-# define GUM_SCRIPT_V8_FLAGS "--expose-gc true --crankshaft false --opt false --lazy false"
-#else
-# define GUM_SCRIPT_V8_FLAGS "--expose-gc true"
-#endif
-
+#define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
 
 using namespace v8;
@@ -67,8 +61,8 @@ struct _GumScriptPrivate
   GumScriptSocket socket;
   GumScriptInterceptor interceptor;
   GumScriptStalker stalker;
-  Persistent<Context> context;
-  Persistent<Script> raw_script;
+  GumPersistent<Context>::type * context;
+  GumPersistent<Script>::type * raw_script;
   gboolean loaded;
 };
 
@@ -229,12 +223,12 @@ gum_script_create_context (GumScript * self,
 {
   GumScriptPrivate * priv = self->priv;
 
-  g_assert (priv->context.IsEmpty ());
+  g_assert (priv->context == NULL);
 
   {
     Locker locker (priv->isolate);
     Isolate::Scope isolate_scope (priv->isolate);
-    HandleScope handle_scope;
+    HandleScope handle_scope (priv->isolate);
 
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
     _gum_script_core_init (&priv->core, self, priv->main_context, priv->isolate,
@@ -248,8 +242,9 @@ gum_script_create_context (GumScript * self,
     _gum_script_interceptor_init (&priv->interceptor, &priv->core, global_templ);
     _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
 
-    priv->context = Context::New (NULL, global_templ);
-    Context::Scope context_scope (priv->context);
+    Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
+    priv->context = new GumPersistent<Context>::type (priv->isolate, context);
+    Context::Scope context_scope (context);
     _gum_script_core_realize (&priv->core);
     _gum_script_memory_realize (&priv->memory);
     _gum_script_process_realize (&priv->process);
@@ -262,7 +257,7 @@ gum_script_create_context (GumScript * self,
 
     gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
         priv->source, static_cast<void *> (NULL));
-    Handle<String> source_value = String::New (combined_source);
+    Local<String> source_value (String::NewFromUtf8 (priv->isolate, combined_source));
     g_free (combined_source);
     TryCatch trycatch;
     Handle<Script> raw_script = Script::Compile (source_value);
@@ -270,18 +265,19 @@ gum_script_create_context (GumScript * self,
     {
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
-      String::AsciiValue exception_str (exception);
+      String::Utf8Value exception_str (exception);
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
           message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
           *exception_str);
     }
     else
     {
-      priv->raw_script = Persistent<Script>::New (raw_script);
+      priv->raw_script =
+          new GumPersistent<Script>::type (priv->isolate, raw_script);
     }
   }
 
-  if (priv->raw_script.IsEmpty ())
+  if (priv->raw_script == NULL)
   {
     gum_script_destroy_context (self);
     return FALSE;
@@ -295,14 +291,15 @@ gum_script_destroy_context (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
 
-  g_assert (!priv->context.IsEmpty ());
+  g_assert (priv->context != NULL);
 
   Locker locker (priv->isolate);
   Isolate::Scope isolate_scope (priv->isolate);
-  HandleScope handle_scope;
+  HandleScope handle_scope (priv->isolate);
 
   {
-    Context::Scope context_scope (priv->context);
+    Local<Context> context (Local<Context>::New (priv->isolate, *priv->context));
+    Context::Scope context_scope (context);
 
     _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
@@ -315,10 +312,10 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_core_dispose (&priv->core);
   }
 
-  priv->raw_script.Dispose ();
-  priv->raw_script.Clear ();
-  priv->context.Dispose ();
-  priv->context.Clear ();
+  delete priv->raw_script;
+  priv->raw_script = NULL;
+  delete priv->context;
+  priv->context = NULL;
 
   _gum_script_stalker_finalize (&priv->stalker);
   _gum_script_interceptor_finalize (&priv->interceptor);
@@ -370,15 +367,16 @@ gum_script_load (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
 
-  if (priv->raw_script.IsEmpty ())
+  if (priv->raw_script == NULL)
     gum_script_create_context (self, NULL);
 
-  if (!priv->raw_script.IsEmpty () && !priv->loaded)
+  if (priv->raw_script != NULL && !priv->loaded)
   {
     priv->loaded = TRUE;
 
     ScriptScope scope (self);
-    self->priv->raw_script->Run ();
+    Local<Script> raw_script (Local<Script>::New (priv->isolate, *priv->raw_script));
+    raw_script->Run ();
   }
 }
 
@@ -427,7 +425,9 @@ public:
     : parent (parent),
       locker (parent->priv->isolate),
       isolate_scope (parent->priv->isolate),
-      context_scope (parent->priv->context)
+      handle_scope (parent->priv->isolate),
+      context (Local<Context>::New (parent->priv->isolate, *parent->priv->context)),
+      context_scope (context)
   {
   }
 
@@ -439,7 +439,7 @@ public:
     {
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
-      String::AsciiValue exception_str (exception);
+      String::Utf8Value exception_str (exception);
       gchar * exception_str_escaped = g_strescape (*exception_str, "");
       gchar * error = g_strdup_printf (
           "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
@@ -456,6 +456,7 @@ private:
   Locker locker;
   Isolate::Scope isolate_scope;
   HandleScope handle_scope;
+  Local<Context> context;
   Context::Scope context_scope;
   TryCatch trycatch;
 };

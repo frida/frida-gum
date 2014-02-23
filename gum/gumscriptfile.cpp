@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2013-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,34 +24,53 @@
 
 using namespace v8;
 
-static Handle<Value> gum_script_file_on_new_file (const Arguments & args);
-static void gum_script_file_on_destroy (Persistent<Value> value, void * data);
-static Handle<Value> gum_script_file_on_file_write (const Arguments & args);
-static Handle<Value> gum_script_file_on_file_flush (const Arguments & args);
-static Handle<Value> gum_script_file_on_file_close (const Arguments & args);
+typedef struct _GumFile GumFile;
+
+struct _GumFile
+{
+  GumPersistent<v8::Object>::type * instance;
+  FILE * handle;
+};
+
+static void gum_script_file_on_new_file (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_file_on_file_write (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_file_on_file_flush (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_file_on_file_close (
+    const FunctionCallbackInfo<Value> & info);
+
+static GumFile * gum_file_new (Handle<Object> instance, FILE * handle,
+    GumScriptCore * core);
+static gboolean gum_file_is_open (GumFile * self);
+static void gum_file_close (GumFile * self);
+static void gum_file_on_weak_notify (
+    const WeakCallbackData<Object, GumFile> & data);
 
 void
 _gum_script_file_init (GumScriptFile * self,
                        GumScriptCore * core,
                        Handle<ObjectTemplate> scope)
 {
+  Isolate * isolate = core->isolate;
+
   self->core = core;
 
-  Local<FunctionTemplate> file = FunctionTemplate::New (
-      gum_script_file_on_new_file);
-  file->SetClassName (String::New ("File"));
+  Local<External> data (External::New (isolate, self));
+
+  Local<FunctionTemplate> file = FunctionTemplate::New (isolate,
+      gum_script_file_on_new_file, data);
+  file->SetClassName (String::NewFromUtf8 (isolate, "File"));
   Local<ObjectTemplate> file_proto = file->PrototypeTemplate ();
-  file_proto->Set (String::New ("write"),
-      FunctionTemplate::New (gum_script_file_on_file_write,
-      External::Wrap (self)));
-  file_proto->Set (String::New ("flush"),
-      FunctionTemplate::New (gum_script_file_on_file_flush,
-      External::Wrap (self)));
-  file_proto->Set (String::New ("close"),
-      FunctionTemplate::New (gum_script_file_on_file_close,
-      External::Wrap (self)));
+  file_proto->Set (String::NewFromUtf8 (isolate, "write"),
+      FunctionTemplate::New (isolate, gum_script_file_on_file_write, data));
+  file_proto->Set (String::NewFromUtf8 (isolate, "flush"),
+      FunctionTemplate::New (isolate, gum_script_file_on_file_flush, data));
+  file_proto->Set (String::NewFromUtf8 (isolate, "close"),
+      FunctionTemplate::New (isolate, gum_script_file_on_file_close, data));
   file->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::New ("File"), file);
+  scope->Set (String::NewFromUtf8 (isolate, "File"), file);
 }
 
 void
@@ -72,72 +91,59 @@ _gum_script_file_finalize (GumScriptFile * self)
   (void) self;
 }
 
-static Handle<Value>
-gum_script_file_on_new_file (const Arguments & args)
+static void
+gum_script_file_on_new_file (const FunctionCallbackInfo<Value> & info)
 {
-  Local<Value> filename_val = args[0];
+  GumScriptFile * self = static_cast<GumScriptFile *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->core->isolate;
+
+  Local<Value> filename_val = info[0];
   if (!filename_val->IsString ())
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "File: first argument must be a string specifying filename")));
-    return Undefined ();
+    return;
   }
   String::Utf8Value filename (filename_val);
 
-  Local<Value> mode_val = args[1];
+  Local<Value> mode_val = info[1];
   if (!mode_val->IsString ())
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "File: second argument must be a string specifying mode")));
-    return Undefined ();
+    return;
   }
   String::Utf8Value mode (mode_val);
 
-  FILE * file = fopen (*filename, *mode);
-  if (file == NULL)
+  FILE * handle = fopen (*filename, *mode);
+  if (handle == NULL)
   {
     gchar * message = g_strdup_printf ("File: failed to open file (%s)",
         strerror (errno));
-    ThrowException (Exception::TypeError (String::New (message)));
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        message)));
     g_free (message);
-    return Undefined ();
+    return;
   }
 
-  Local<Object> instance (args.Holder ());
-  instance->SetPointerInInternalField (0, file);
-
-  Persistent<Object> persistent_instance (Persistent<Object>::New (instance));
-  persistent_instance.MakeWeak (NULL, gum_script_file_on_destroy);
-  persistent_instance.MarkIndependent ();
-
-  return Undefined ();
+  Local<Object> instance (info.Holder ());
+  GumFile * file = gum_file_new (instance, handle, self->core);
+  instance->SetAlignedPointerInInternalField (0, file);
 }
 
 static void
-gum_script_file_on_destroy (Persistent<Value> value,
-                            void * data)
+gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
 {
-  (void) data;
-
-  HandleScope handle_scope;
-  Local<Object> object (value->ToObject ());
-  FILE * file = static_cast<FILE *> (object->GetPointerFromInternalField (0));
-  if (file != NULL)
-    fclose (file);
-  value.Dispose ();
-}
-
-static Handle<Value>
-gum_script_file_on_file_write (const Arguments & args)
-{
-  FILE * file = static_cast<FILE *> (
-      args.Holder ()->GetPointerFromInternalField (0));
+  GumFile * file = static_cast<GumFile *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  Isolate * isolate = info.GetIsolate ();
 
   gboolean argument_valid = FALSE;
   const gchar * data = NULL;
   gint data_length = 0;
 
-  Local<Value> data_val = args[0];
+  Local<Value> data_val = info[0];
   if (data_val->IsString ())
   {
     argument_valid = TRUE;
@@ -158,67 +164,109 @@ gum_script_file_on_file_write (const Arguments & args)
 
   if (!argument_valid)
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "File.write: argument must be a string or raw byte array")));
-    return Undefined ();
+    return;
   }
 
-  if (file != NULL)
+  if (gum_file_is_open (file))
   {
     if (data == NULL)
     {
       String::Utf8Value utf_val (data_val);
-      fwrite (*utf_val, utf_val.length (), 1, file);
+      fwrite (*utf_val, utf_val.length (), 1, file->handle);
     }
     else
     {
-      fwrite (data, data_length, 1, file);
+      fwrite (data, data_length, 1, file->handle);
     }
   }
   else
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "File.write: file is closed")));
   }
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_file_on_file_flush (const Arguments & args)
+static void
+gum_script_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
 {
-  FILE * file = static_cast<FILE *> (
-      args.Holder ()->GetPointerFromInternalField (0));
+  GumFile * file = static_cast<GumFile *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  Isolate * isolate = info.GetIsolate ();
 
-  if (file != NULL)
+  if (gum_file_is_open (file))
   {
-    fflush (file);
+    fflush (file->handle);
   }
   else
   {
-    ThrowException (Exception::TypeError (String::New (
-        "File.flush: file is closed")));
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "File.flush: file is closed")));
   }
-
-  return Undefined ();
 }
 
-static Handle<Value>
-gum_script_file_on_file_close (const Arguments & args)
+static void
+gum_script_file_on_file_close (const FunctionCallbackInfo<Value> & info)
 {
-  FILE * file = static_cast<FILE *> (
-      args.Holder ()->GetPointerFromInternalField (0));
+  GumFile * file = static_cast<GumFile *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  Isolate * isolate = info.GetIsolate ();
 
-  if (file != NULL)
+  if (gum_file_is_open (file))
   {
-    fclose (file);
-    args.Holder ()->SetPointerInInternalField (0, NULL);
+    gum_file_close (file);
   }
   else
   {
-    ThrowException (Exception::TypeError (String::New (
-        "File.close: file is already closed")));
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate,  "File.close: file is already closed")));
   }
+}
 
-  return Undefined ();
+static GumFile *
+gum_file_new (Handle<Object> instance,
+              FILE * handle,
+              GumScriptCore * core)
+{
+  GumFile * file;
+
+  file = g_slice_new (GumFile);
+  file->instance = new GumPersistent<Object>::type (core->isolate, instance);
+  file->instance->MarkIndependent ();
+  file->instance->SetWeak (file, gum_file_on_weak_notify);
+  file->handle = handle;
+
+  return file;
+}
+
+static void
+gum_file_free (GumFile * file)
+{
+  gum_file_close (file);
+  delete file->instance;
+  g_slice_free (GumFile, file);
+}
+
+static gboolean
+gum_file_is_open (GumFile * self)
+{
+  return self->handle != NULL;
+}
+
+static void
+gum_file_close (GumFile * self)
+{
+  if (self->handle != NULL)
+  {
+    fclose (self->handle);
+    self->handle = NULL;
+  }
+}
+
+static void
+gum_file_on_weak_notify (const WeakCallbackData<Object, GumFile> & data)
+{
+  HandleScope handle_scope (data.GetIsolate ());
+  gum_file_free (data.GetParameter ());
 }

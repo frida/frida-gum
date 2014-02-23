@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2012-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -55,8 +55,8 @@ struct _GumScriptEventSink
   GumScriptCore * core;
   GMainContext * main_context;
   GumEventType event_mask;
-  v8::Persistent<v8::Function> on_receive;
-  v8::Persistent<v8::Function> on_call_summary;
+  GumPersistent<v8::Function>::type * on_receive;
+  GumPersistent<v8::Function>::type * on_call_summary;
   GSource * source;
 };
 

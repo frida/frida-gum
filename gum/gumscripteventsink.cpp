@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2012-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,6 +19,7 @@
 
 #include "gumscripteventsink.h"
 
+#include "gumscriptcore.h"
 #include "gumscriptscope.h"
 
 #include <string.h>
@@ -44,7 +45,7 @@ G_DEFINE_TYPE_EXTENDED (GumScriptEventSink,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_EVENT_SINK,
-                                               gum_script_event_sink_iface_init));
+                            gum_script_event_sink_iface_init));
 
 static void
 gum_script_event_sink_class_init (GumScriptEventSinkClass * klass)
@@ -87,8 +88,10 @@ gum_script_event_sink_release_core (GumScriptEventSink * self)
 
   {
     ScriptScope scope (script);
-    self->on_receive.Dispose ();
-    self->on_call_summary.Dispose ();
+    delete self->on_receive;
+    self->on_receive = NULL;
+    delete self->on_call_summary;
+    self->on_call_summary = NULL;
   }
 
   g_object_unref (script);
@@ -118,6 +121,7 @@ gum_script_event_sink_finalize (GObject * obj)
 GumEventSink *
 gum_script_event_sink_new (const GumScriptEventSinkOptions * options)
 {
+  Isolate * isolate = options->core->isolate;
   GumScriptEventSink * sink;
 
   sink = GUM_SCRIPT_EVENT_SINK (
@@ -131,8 +135,10 @@ gum_script_event_sink_new (const GumScriptEventSinkOptions * options)
   sink->core = options->core;
   sink->main_context = options->main_context;
   sink->event_mask = options->event_mask;
-  sink->on_receive = Persistent<Function>::New (options->on_receive);
-  sink->on_call_summary = Persistent<Function>::New (options->on_call_summary);
+  sink->on_receive =
+      new GumPersistent<Function>::type (isolate, options->on_receive);
+  sink->on_call_summary =
+      new GumPersistent<Function>::type (isolate, options->on_call_summary);
 
   return GUM_EVENT_SINK (sink);
 }
@@ -225,9 +231,11 @@ gum_script_event_sink_drain (gpointer user_data)
   if (buffer != NULL)
   {
     GHashTable * frequencies = NULL;
-    if (!self->on_call_summary.IsEmpty ())
+
+    if (self->on_call_summary != NULL)
     {
       frequencies = g_hash_table_new (NULL, NULL);
+
       GumCallEvent * ev = static_cast<GumCallEvent *> (buffer);
       for (guint i = 0; i != len; i++)
       {
@@ -245,40 +253,38 @@ gum_script_event_sink_drain (gpointer user_data)
     }
 
     ScriptScope scope (self->core->script);
+    Isolate * isolate = self->core->isolate;
 
     if (frequencies != NULL)
     {
-      Handle<Object> summary = Object::New ();
+      Handle<Object> summary = Object::New (isolate);
 
       GHashTableIter iter;
       g_hash_table_iter_init (&iter, frequencies);
       gpointer target, count;
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        summary->Set (_gum_script_pointer_new (self->core, target),
-            Number::New (GPOINTER_TO_SIZE (count)), ReadOnly);
+        summary->Set (_gum_script_pointer_new (target, self->core),
+            Number::New (isolate, GPOINTER_TO_SIZE (count)), ReadOnly);
       }
 
       g_hash_table_unref (frequencies);
 
       Handle<Value> argv[] = { summary };
-      self->on_call_summary->Call (self->on_call_summary, 1, argv);
+      Local<Function> on_call_summary (Local<Function>::New (isolate,
+          *self->on_call_summary));
+      on_call_summary->Call (on_call_summary, 1, argv);
     }
 
-    if (!self->on_receive.IsEmpty ())
+    if (self->on_receive != NULL)
     {
-      V8::AdjustAmountOfExternalAllocatedMemory (size);
-
-      Handle<Object> data = Object::New ();
-      data->Set (String::New ("length"), Int32::New (size), ReadOnly);
-      data->SetIndexedPropertiesToExternalArrayData (buffer,
-          kExternalUnsignedByteArray, size);
-      Persistent<Object> persistent_data = Persistent<Object>::New (data);
-      persistent_data.MakeWeak (buffer, gum_script_event_sink_data_free);
-      persistent_data.MarkIndependent ();
-
-      Handle<Value> argv[] = { data };
-      self->on_receive->Call (self->on_receive, 1, argv);
+      Local<Function> on_receive (Local<Function>::New (isolate,
+          *self->on_receive));
+      GumByteArray * buf = _gum_byte_array_new (buffer, size, self->core);
+      Local<Value> argv[] = {
+          Local<Object>::New (isolate, *buf->instance)
+      };
+      on_receive->Call (on_receive, 1, argv);
     }
     else
     {
@@ -287,17 +293,4 @@ gum_script_event_sink_drain (gpointer user_data)
   }
 
   return TRUE;
-}
-
-static void
-gum_script_event_sink_data_free (Persistent<Value> object,
-                                 void * buffer)
-{
-  int32_t size;
-
-  HandleScope handle_scope;
-  size = object->ToObject ()->Get (String::New ("length"))->Uint32Value ();
-  V8::AdjustAmountOfExternalAllocatedMemory (-size);
-  g_free (buffer);
-  object.Dispose ();
 }

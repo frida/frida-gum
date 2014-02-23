@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -21,20 +21,23 @@
 
 using namespace v8;
 
-static Handle<Value> gum_script_thread_on_sleep (const Arguments & args);
+static void gum_script_thread_on_sleep (
+    const FunctionCallbackInfo<Value> & info);
 
 void
 _gum_script_thread_init (GumScriptThread * self,
                          GumScriptCore * core,
                          Handle<ObjectTemplate> scope)
 {
+  Isolate * isolate = core->isolate;
+
   self->core = core;
 
-  Handle<ObjectTemplate> thread = ObjectTemplate::New ();
-  thread->Set (String::New ("sleep"),
-      FunctionTemplate::New (gum_script_thread_on_sleep,
-          External::Wrap (self)));
-  scope->Set (String::New ("Thread"), thread);
+  Handle<ObjectTemplate> thread = ObjectTemplate::New (isolate);
+  thread->Set (String::NewFromUtf8 (isolate, "sleep"),
+      FunctionTemplate::New (isolate, gum_script_thread_on_sleep,
+      External::New (isolate, self)));
+  scope->Set (String::NewFromUtf8 (isolate, "Thread"), thread);
 }
 
 void
@@ -55,28 +58,24 @@ _gum_script_thread_finalize (GumScriptThread * self)
   (void) self;
 }
 
-static Handle<Value>
-gum_script_thread_on_sleep (const Arguments & args)
+static void
+gum_script_thread_on_sleep (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptThread * self = static_cast<GumScriptThread *> (
-      External::Unwrap (args.Data ()));
+  Isolate * isolate = info.GetIsolate ();
 
-  Local<Value> delay_val = args[0];
+  Local<Value> delay_val = info[0];
   if (!delay_val->IsNumber ())
   {
-    ThrowException (Exception::TypeError (String::New (
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
         "Thread.sleep: argument must be a number specifying delay")));
-    return Undefined ();
+    return;
   }
   double delay = delay_val->ToNumber ()->Value ();
 
-  self->core->isolate->Exit ();
+  isolate->Exit ();
   {
-    Unlocker ul (self->core->isolate);
+    Unlocker ul (isolate);
     g_usleep (delay * G_USEC_PER_SEC);
   }
-  self->core->isolate->Enter ();
-
-  return Undefined ();
+  isolate->Enter ();
 }
-
