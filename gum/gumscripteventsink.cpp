@@ -37,8 +37,6 @@ static void gum_script_event_sink_process (GumEventSink * sink,
 static void gum_script_event_sink_stop (GumEventSink * sink);
 static gboolean gum_script_event_sink_stop_idle (gpointer user_data);
 static gboolean gum_script_event_sink_drain (gpointer user_data);
-static void gum_script_event_sink_data_free (Persistent<Value> object,
-    void * buffer);
 
 G_DEFINE_TYPE_EXTENDED (GumScriptEventSink,
                         gum_script_event_sink,
