@@ -38,7 +38,7 @@ typedef struct _GumByteArray GumByteArray;
 template <typename T>
 struct GumPersistent
 {
-  typedef v8::Persistent<T, v8::CopyablePersistentTraits<T>> type;
+  typedef v8::Persistent<T, v8::CopyablePersistentTraits<T> > type;
 };
 
 struct _GumScriptCore
