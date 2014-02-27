@@ -269,8 +269,8 @@ enum _GumVirtualizationRequirements
 
 static void gum_stalker_finalize (GObject * object);
 
-void _gum_stalker_do_follow_me (GumStalker * self, GumEventSink * sink,
-    volatile gpointer * ret_addr_ptr);
+G_GNUC_INTERNAL void _gum_stalker_do_follow_me (GumStalker * self,
+    GumEventSink * sink, volatile gpointer * ret_addr_ptr);
 static void gum_stalker_infect (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 static void gum_stalker_disinfect (GumThreadId thread_id,
