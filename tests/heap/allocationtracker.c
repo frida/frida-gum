@@ -413,12 +413,9 @@ ALLOCTRACKER_TESTCASE (realloc_backtrace)
 
 ALLOCTRACKER_TESTCASE (memory_usage_without_backtracer_should_be_sensible)
 {
-  guint total_bytes_before, total_bytes_after;
   GumAllocationTracker * t = fixture->tracker;
   const guint num_allocations = 10000;
   guint bytes_before, bytes_after, i, bytes_per_allocation;
-
-  total_bytes_before = gum_peek_private_memory_usage ();
 
   t = gum_allocation_tracker_new ();
   gum_allocation_tracker_begin (t);
@@ -433,20 +430,14 @@ ALLOCTRACKER_TESTCASE (memory_usage_without_backtracer_should_be_sensible)
   g_assert_cmpuint (bytes_per_allocation, <=, 40);
 
   g_object_unref (t);
-
-  total_bytes_after = gum_peek_private_memory_usage ();
-  g_assert_cmpuint (total_bytes_after, ==, total_bytes_before);
 }
 
 ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
 {
-  guint total_bytes_before, total_bytes_after;
   GumBacktracer * backtracer;
   GumAllocationTracker * t;
   const guint num_allocations = 10;
   guint bytes_before, bytes_after, i, bytes_per_allocation;
-
-  total_bytes_before = gum_peek_private_memory_usage ();
 
   backtracer = gum_fake_backtracer_new (dummy_return_addresses_a,
       G_N_ELEMENTS (dummy_return_addresses_a));
@@ -464,9 +455,6 @@ ALLOCTRACKER_TESTCASE (memory_usage_with_backtracer_should_be_sensible)
 
   g_object_unref (backtracer);
   g_object_unref (t);
-
-  total_bytes_after = gum_peek_private_memory_usage ();
-  g_assert_cmpuint (total_bytes_after, ==, total_bytes_before);
 }
 
 #ifdef G_OS_WIN32
