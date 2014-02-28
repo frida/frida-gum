@@ -55,6 +55,10 @@ TEST_LIST_BEGIN (testutil)
   TESTUTIL_TESTENTRY (xml_multiline_diff_same_size)
 TEST_LIST_END ()
 
+#ifndef G_OS_WIN32
+static gchar * find_data_dir_from_executable_path (const gchar * path);
+#endif
+
 static gchar * byte_array_to_hex_string (const guint8 * bytes, guint length);
 static gchar * byte_array_to_bin_string (const guint8 * bytes, guint length);
 static gchar * prettify_xml (const gchar * input_xml);
@@ -303,35 +307,19 @@ test_util_get_data_dir (void)
   image_count = _dyld_image_count ();
   for (image_idx = 0; image_idx != image_count; image_idx++)
   {
-    const gchar * image_path = _dyld_get_image_name (image_idx);
+    const gchar * path = _dyld_get_image_name (image_idx);
 
-    if (g_str_has_suffix (image_path, "/gum-tests"))
-    {
-      gchar * exe_dir, * result;
-
-      exe_dir = g_path_get_dirname (image_path);
-      if (g_str_has_suffix (exe_dir, "/.libs"))
-      {
-        gchar * tmp = g_path_get_dirname (exe_dir);
-        g_free (exe_dir);
-        exe_dir = tmp;
-      }
-      result = g_build_filename (exe_dir, "data", NULL);
-      g_free (exe_dir);
-
-      return result;
-    }
+    if (g_str_has_suffix (path, "/gum-tests"))
+      return find_data_dir_from_executable_path (path);
   }
 
   return g_strdup ("/Library/Frida/tests/data");
 #elif defined (HAVE_LINUX)
-  gchar * exe_path, * exe_dir, * result;
+  gchar * result, * path;
 
-  exe_path = g_file_read_link ("/proc/self/exe", NULL);
-  exe_dir = g_path_get_dirname (exe_path);
-  g_free (exe_path);
-  result = g_build_filename (exe_dir, "data", NULL);
-  g_free (exe_dir);
+  path = g_file_read_link ("/proc/self/exe", NULL);
+  result = find_data_dir_from_executable_path (path);
+  g_free (path);
 
   return result;
 #elif defined (G_OS_WIN32)
@@ -341,6 +329,28 @@ test_util_get_data_dir (void)
 # error Implement support for your OS here
 #endif
 }
+
+#ifndef G_OS_WIN32
+
+static gchar *
+find_data_dir_from_executable_path (const gchar * path)
+{
+  gchar * result, * dir;
+
+  dir = g_path_get_dirname (path);
+  if (g_str_has_suffix (dir, "/.libs"))
+  {
+    gchar * tmp = g_path_get_dirname (dir);
+    g_free (dir);
+    dir = tmp;
+  }
+  result = g_build_filename (dir, "data", NULL);
+  g_free (dir);
+
+  return result;
+}
+
+#endif
 
 const gchar *
 test_util_get_system_module_name (void)
