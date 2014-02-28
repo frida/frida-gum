@@ -71,7 +71,7 @@ gum_gnu_backtracer_generate (GumBacktracer * backtracer,
 
   if (cpu_context == NULL)
   {
-    skip_count = 2;
+    skip_count = 1;
   }
   else
   {
