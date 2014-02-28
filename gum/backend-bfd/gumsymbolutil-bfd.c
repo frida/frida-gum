@@ -284,13 +284,19 @@ maybe_add_function_symbol (bfd * abfd,
                            asymbol * sym,
                            gpointer base_address)
 {
+  gpointer address;
+
   if ((sym->flags & BSF_FUNCTION) == 0)
     return;
   if ((sym->flags & (BSF_LOCAL | BSF_GLOBAL)) == 0)
     return;
 
+  address = (guint8 *) base_address + bfd_asymbol_value (sym);
+  if (address == NULL)
+    return;
+
   g_hash_table_insert (function_address_by_name_ht, g_strdup (sym->name),
-      (guint8 *) base_address + bfd_asymbol_value (sym));
+      address);
 }
 
 static bfd *
