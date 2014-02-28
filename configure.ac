@@ -89,7 +89,10 @@ fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
 AC_TRY_LINK(
-    [ #include <execinfo.h> ],
+    [
+      #include <stdlib.h>
+      #include <execinfo.h>
+    ],
     [ backtrace (NULL, 0); ],
     HAVE_GLIBC=yes,
     HAVE_GLIBC=no)
