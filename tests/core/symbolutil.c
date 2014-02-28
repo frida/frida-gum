@@ -55,7 +55,8 @@ SYMUTIL_TESTCASE (symbol_details_from_address)
 
   g_assert_cmphex (GPOINTER_TO_SIZE (details.address), ==,
       GPOINTER_TO_SIZE (gum_dummy_function_0));
-  g_assert (g_str_has_prefix (details.module_name, "gum-tests"));
+  g_assert (g_str_has_prefix (details.module_name, "gum-tests") ||
+      g_str_has_prefix (details.module_name, "lt-gum-tests"));
   g_assert_cmpstr (details.symbol_name, ==, "gum_dummy_function_0");
   assert_basename_equals (__FILE__, details.file_name);
   g_assert_cmpuint (details.line_number, >, 0);
@@ -72,7 +73,7 @@ SYMUTIL_TESTCASE (symbol_name_from_address)
 
 SYMUTIL_TESTCASE (find_external_public_function)
 {
-  g_assert (gum_find_function ("g_object_new") != NULL);
+  g_assert (gum_find_function ("g_socket_init") != NULL);
 }
 
 SYMUTIL_TESTCASE (find_local_static_function)
@@ -88,7 +89,7 @@ SYMUTIL_TESTCASE (find_functions_named)
 {
   GArray * functions;
 
-  functions = gum_find_functions_named ("g_object_new");
+  functions = gum_find_functions_named ("g_socket_init");
   g_assert_cmpuint (functions->len, >=, 1);
   g_array_free (functions, TRUE);
 }
