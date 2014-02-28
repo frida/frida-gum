@@ -85,6 +85,8 @@ do_init (gpointer data)
     _gum_symbol_util_init ();
 #endif
 
+  _gum_interceptor_init ();
+
 #ifdef HAVE_V8
   _gum_script_init ();
 #endif

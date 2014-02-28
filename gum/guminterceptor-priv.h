@@ -53,6 +53,7 @@ struct _FunctionContext
 
 extern GumTlsKey _gum_interceptor_guard_key;
 
+G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
 gboolean _gum_function_context_on_enter (FunctionContext * function_ctx,

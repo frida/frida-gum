@@ -166,7 +166,6 @@ static void gum_function_context_wait_for_idle_trampoline (
 static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
 static GumInterceptor * _the_interceptor = NULL;
 
-static gboolean _gum_interceptor_initialized = FALSE;
 static GumTlsKey _gum_interceptor_context_key;
 GumTlsKey _gum_interceptor_guard_key;
 
@@ -185,6 +184,14 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
+  g_type_class_add_private (klass, sizeof (GumInterceptorPrivate));
+
+  object_class->finalize = gum_interceptor_finalize;
+}
+
+void
+_gum_interceptor_init (void)
+{
   GUM_TLS_KEY_INIT (&_gum_interceptor_context_key);
   GUM_TLS_KEY_INIT (&_gum_interceptor_guard_key);
 #ifndef G_OS_WIN32
@@ -194,41 +201,30 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
   _gum_interceptor_thread_contexts = gum_array_new (FALSE, FALSE,
       sizeof (InterceptorThreadContext *));
-
-  _gum_interceptor_initialized = TRUE;
-
-  g_type_class_add_private (klass, sizeof (GumInterceptorPrivate));
-
-  object_class->finalize = gum_interceptor_finalize;
 }
 
 void
 _gum_interceptor_deinit (void)
 {
-  if (_gum_interceptor_initialized)
+  guint i;
+
+  for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
   {
-    guint i;
+    InterceptorThreadContext * thread_ctx;
 
-    for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
-    {
-      InterceptorThreadContext * thread_ctx;
-
-      thread_ctx = gum_array_index (_gum_interceptor_thread_contexts,
-          InterceptorThreadContext *, i);
-      interceptor_thread_context_destroy (thread_ctx);
-    }
-    gum_array_free (_gum_interceptor_thread_contexts, TRUE);
-    _gum_interceptor_thread_contexts = NULL;
-    gum_spinlock_free (&_gum_interceptor_thread_context_lock);
-
-    GUM_TLS_KEY_FREE (_gum_interceptor_context_key);
-    GUM_TLS_KEY_FREE (_gum_interceptor_guard_key);
-#ifndef G_OS_WIN32
-    GUM_TLS_KEY_FREE (_gum_interceptor_tid_key);
-#endif
-
-    _gum_interceptor_initialized = FALSE;
+    thread_ctx = gum_array_index (_gum_interceptor_thread_contexts,
+        InterceptorThreadContext *, i);
+    interceptor_thread_context_destroy (thread_ctx);
   }
+  gum_array_free (_gum_interceptor_thread_contexts, TRUE);
+  _gum_interceptor_thread_contexts = NULL;
+  gum_spinlock_free (&_gum_interceptor_thread_context_lock);
+
+  GUM_TLS_KEY_FREE (_gum_interceptor_context_key);
+  GUM_TLS_KEY_FREE (_gum_interceptor_guard_key);
+#ifndef G_OS_WIN32
+  GUM_TLS_KEY_FREE (_gum_interceptor_tid_key);
+#endif
 }
 
 static void
