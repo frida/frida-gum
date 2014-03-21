@@ -147,7 +147,7 @@ gum_script_init (GumScript * self)
 
   priv->main_context = g_main_context_get_thread_default ();
 
-  priv->isolate = Isolate::New ();
+  priv->isolate = Isolate::GetCurrent ();
   priv->loaded = FALSE;
 }
 
@@ -159,11 +159,7 @@ gum_script_dispose (GObject * object)
 
   gum_script_unload (self);
 
-  if (priv->isolate != NULL)
-  {
-    priv->isolate->Dispose ();
-    priv->isolate = NULL;
-  }
+  priv->isolate = NULL;
 
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
 }
