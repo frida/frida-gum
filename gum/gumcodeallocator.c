@@ -46,12 +46,16 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
   allocator->pages = NULL;
   allocator->page_size = gum_query_page_size ();
 
-  allocator->header_size = 256;
   allocator->slice_size = slice_size;
 
-  allocator->slices_per_page =
-      (allocator->page_size - allocator->header_size) / allocator->slice_size;
-  g_assert_cmpuint (allocator->header_size, >=,
+  allocator->header_size = 0;
+  do
+  {
+    allocator->header_size += 16;
+    allocator->slices_per_page =
+        (allocator->page_size - allocator->header_size) / allocator->slice_size;
+  }
+  while (allocator->header_size <
       allocator->slices_per_page * sizeof (GumCodeSlice));
 }
 
