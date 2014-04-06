@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -111,7 +111,8 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
 #endif
-  TEST_RUN_LIST (closure);
+  TEST_RUN_LIST (arm64writer);
+  TEST_RUN_LIST (arm64relocator);
   TEST_RUN_LIST (interceptor);
 #if defined (HAVE_V8)
   TEST_RUN_LIST (script);
@@ -119,7 +120,7 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
-#ifndef HAVE_ARM
+#ifdef HAVE_I386
   TEST_RUN_LIST (stalker);
 #endif
 #ifndef HAVE_IOS

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -55,6 +55,8 @@
 # endif
 #elif defined (HAVE_ARM)
 # define GUM_TEST_SHLIB_FLAVOR "arm"
+#elif defined (HAVE_ARM64)
+# define GUM_TEST_SHLIB_FLAVOR "arm64"
 #else
 # error Unknown CPU
 #endif

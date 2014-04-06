@@ -25,11 +25,8 @@
 G_BEGIN_DECLS
 
 typedef struct _GumX86Writer GumX86Writer;
-/* FIXME: not all of these are x86 specific, should be moved */
-typedef enum _GumArgType      GumArgType;
-typedef enum _GumCpuReg       GumCpuReg;
-typedef enum _GumPtrTarget    GumPtrTarget;
-typedef enum _GumBranchHint   GumBranchHint;
+typedef enum _GumCpuReg GumCpuReg;
+typedef enum _GumPtrTarget GumPtrTarget;
 
 typedef struct _GumX86LabelMapping GumX86LabelMapping;
 typedef struct _GumX86LabelRef GumX86LabelRef;
@@ -47,12 +44,6 @@ struct _GumX86Writer
 
   GumX86LabelRef * label_refs;
   guint label_refs_len;
-};
-
-enum _GumArgType
-{
-  GUM_ARG_POINTER,
-  GUM_ARG_REGISTER
 };
 
 enum _GumCpuReg
@@ -139,12 +130,6 @@ enum _GumX86JumpOpcode
   GUM_X86_JG  = 0x7f,
 };
 
-enum _GumBranchHint
-{
-  GUM_NO_HINT,
-  GUM_LIKELY,
-  GUM_UNLIKELY
-};
 
 void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);

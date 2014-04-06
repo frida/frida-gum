@@ -21,7 +21,11 @@
 
 #include "gummemory.h"
 
-#define GUM_CODE_ALLOCATOR_MAX_DISTANCE (G_MAXINT32 - 16384)
+#if defined (HAVE_I386) || defined (HAVE_ARM)
+# define GUM_CODE_ALLOCATOR_MAX_DISTANCE (G_MAXINT32 - 16384)
+#elif defined (HAVE_ARM64)
+# define GUM_CODE_ALLOCATOR_MAX_DISTANCE (G_MAXINT64 - 16384)
+#endif
 
 typedef struct _GumCodePage GumCodePage;
 

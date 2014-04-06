@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -17,25 +17,41 @@
  * Boston, MA 02111-1307, USA.
  */
 
-#ifndef __GUM_CLOSURE_H__
-#define __GUM_CLOSURE_H__
+#include "gumspinlock.h"
 
-#include <glib-object.h>
-#include <gum/gumdefs.h>
+#include <string.h>
 
-G_BEGIN_DECLS
+typedef struct _GumSpinlockImpl GumSpinlockImpl;
 
-typedef struct _GumClosure GumClosure;
+struct _GumSpinlockImpl
+{
+  volatile int is_held;
+};
 
-typedef void (* GumClosureTarget) (void);
-#define GUM_CLOSURE_TARGET(f) ((GumClosureTarget) f)
+void
+gum_spinlock_init (GumSpinlock * spinlock)
+{
+  memset (spinlock, 0, sizeof (GumSpinlock));
+}
 
-GUM_API GumClosure * gum_closure_new (GumCallingConvention conv,
-    GumClosureTarget target, GVariant * args);
-GUM_API void gum_closure_free (GumClosure * closure);
+void
+gum_spinlock_free (GumSpinlock * spinlock)
+{
+}
 
-GUM_API void gum_closure_invoke (GumClosure * closure);
+void
+gum_spinlock_acquire (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
 
-G_END_DECLS
+  while (__sync_lock_test_and_set (&self->is_held, 1))
+    ;
+}
 
-#endif
+void
+gum_spinlock_release (GumSpinlock * spinlock)
+{
+  GumSpinlockImpl * self = (GumSpinlockImpl *) spinlock;
+
+  __sync_lock_release (&self->is_held);
+}
