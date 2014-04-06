@@ -482,6 +482,8 @@ SCRIPT_TESTCASE (process_arch_is_available)
 # endif
 #elif defined (HAVE_ARM)
   EXPECT_SEND_MESSAGE_WITH ("\"arm\"");
+#elif defined (HAVE_ARM64)
+  EXPECT_SEND_MESSAGE_WITH ("\"arm64\"");
 #endif
 }
 
