@@ -6,7 +6,6 @@ fridainclude_HEADERS = \
 	gum.h \
 	gumarray.h \
 	gumbacktracer.h \
-	gumclosure.h \
 	gumcodeallocator.h \
 	gumdefs.h \
 	gumevent.h \
@@ -26,6 +25,12 @@ fridainclude_HEADERS = \
 	gumstalker.h \
 	gumsymbolutil.h \
 	gumsysinternals.h
+
+arm64includedir = $(includedir)/frida-1.0/gum/arch-arm64
+arm64include_HEADERS = \
+	arch-arm64/gumarm64.h \
+	arch-arm64/gumarm64writer.h \
+	arch-arm64/gumarm64relocator.h
 
 libfrida_gum_1_0_la_SOURCES = $(NULL)
 libfrida_gum_1_0_la_LDFLAGS = \
@@ -61,7 +66,6 @@ arch_sources += \
 arch_includes += \
 	-I $(srcdir)/arch-x86
 backend_sources += \
-	backend-x86/gumclosure-x86.c \
 	backend-x86/guminterceptor-x86.c \
 	backend-x86/gumspinlock-x86.c \
 	backend-x86/gumstalker-x86.c \
@@ -86,10 +90,16 @@ arch_sources += \
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \
-	backend-arm/gumclosure-arm.c \
 	backend-arm/guminterceptor-arm.c \
 	backend-arm/gumspinlock-arm.c \
 	backend-arm/gumstalker-arm.c
+endif
+
+if ARCH_ARM64
+backend_sources += \
+	backend-arm64/guminterceptor-arm64.c \
+	backend-arm64/gumspinlock-arm64.c \
+	backend-arm64/gumstalker-arm64.c
 endif
 
 if OS_LINUX
@@ -188,6 +198,8 @@ libfrida_gum_la_SOURCES = \
 	gummemorymap.c \
 	gumreturnaddress.c \
 	gumtls.h \
+	arch-arm64/gumarm64writer.c \
+	arch-arm64/gumarm64relocator.c \
 	$(arch_sources) \
 	$(container_sources) \
 	$(script_sources) \
@@ -201,5 +213,6 @@ libfrida_gum_la_LIBTOOLFLAGS = \
 AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir) \
+	-I $(srcdir)/arch-arm64 \
 	$(arch_includes) \
 	$(GUM_CFLAGS)

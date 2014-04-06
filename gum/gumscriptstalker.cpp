@@ -492,7 +492,7 @@ gum_script_probe_args_on_get_nth (uint32_t index,
   gsize value;
   gsize * stack_argument = static_cast<gsize *> (site->stack_data);
 
-#if GLIB_SIZEOF_VOID_P == 8
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   switch (index)
   {
 # if GUM_NATIVE_ABI_IS_UNIX

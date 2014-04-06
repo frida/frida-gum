@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -47,6 +47,8 @@ typedef guint64 GumAddress;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
+typedef guint GumArgType;
+typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
 
 enum _GumCallingConvention
@@ -65,12 +67,27 @@ enum _GumCpuType
 {
   GUM_CPU_IA32,
   GUM_CPU_AMD64,
-  GUM_CPU_ARM
+  GUM_CPU_ARM,
+  GUM_CPU_ARM64
+};
+
+enum _GumArgType
+{
+  GUM_ARG_ADDRESS,
+  GUM_ARG_REGISTER,
+  GUM_ARG_POINTER /* deprecated */
+};
+
+enum _GumBranchHint
+{
+  GUM_NO_HINT,
+  GUM_LIKELY,
+  GUM_UNLIKELY
 };
 
 struct _GumCpuContext
 {
-#ifndef __arm__
+#if !defined(__arm__) && !defined(__arm64__)
 # if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
@@ -103,6 +120,13 @@ struct _GumCpuContext
   guint32 ecx;
   guint32 eax;
 # endif
+#elif defined (__arm64__)
+  guint64 pc;
+  guint64 sp;
+
+  guint64 x[29];
+  guint64 fp;
+  guint64 lr;
 #else
   guint32 pc;
   guint32 sp;

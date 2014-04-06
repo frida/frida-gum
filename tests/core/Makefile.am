@@ -20,11 +20,16 @@ arch_sources += \
 	arch-arm/armwriter.c \
 	arch-arm/armrelocator.c \
 	arch-arm/thumbwriter.c \
-	arch-arm/thumbrelocator.c \
-	arch-arm/stalker-arm.c
+	arch-arm/thumbrelocator.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-arm
 endif
+
+arch_sources += \
+	arch-arm64/arm64writer.c \
+	arch-arm64/arm64relocator.c
+arch_includes += \
+	-I $(top_srcdir)/gum/arch-arm64
 
 if HAVE_V8
 script_sources += script.c
@@ -34,7 +39,6 @@ libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
 	$(script_sources) \
-	closure.c \
 	memory.c \
 	process.c \
 	symbolutil.c \

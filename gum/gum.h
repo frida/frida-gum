@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -23,7 +23,6 @@
 #include <gum/gumdefs.h>
 
 #include <gum/gumbacktracer.h>
-#include <gum/gumclosure.h>
 #include <gum/gumevent.h>
 #include <gum/gumeventsink.h>
 #include <gum/guminterceptor.h>

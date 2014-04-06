@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * This library is free software; you can redistribute it and/or
@@ -32,9 +32,9 @@
 #endif
 #include <string.h>
 
-#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     450
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE     452
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN) && !defined (HAVE_ARM64)
 # define GUM_INTERCEPTOR_FAST_TLS 1
 #else
 # define GUM_INTERCEPTOR_FAST_TLS 0
@@ -769,6 +769,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 # endif
 #elif defined (HAVE_ARM)
     cpu_context->pc = (guint32) *caller_ret_addr;
+#elif defined (HAVE_ARM64)
+    /* handled by the trampoline code */
 #else
 # error Unsupported architecture
 #endif
@@ -855,6 +857,8 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 # endif
 #elif defined (HAVE_ARM)
   cpu_context->pc = (guint32) *caller_ret_addr;
+#elif defined (HAVE_ARM64)
+  /* handled by the trampoline code */
 #else
 # error Unsupported architecture
 #endif

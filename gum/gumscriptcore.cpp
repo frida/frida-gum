@@ -1579,15 +1579,15 @@ _gum_script_cpu_context_to_object (const GumCpuContext * ctx,
   Local<Object> result (Object::New (isolate));
   gsize pc, sp;
 
-#if defined (HAVE_ARM)
-  pc = ctx->pc;
-  sp = ctx->sp;
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   pc = ctx->eip;
   sp = ctx->esp;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   pc = ctx->rip;
   sp = ctx->rsp;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  pc = ctx->pc;
+  sp = ctx->sp;
 #endif
 
   result->Set (String::NewFromUtf8 (isolate, "pc"),

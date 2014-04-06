@@ -77,7 +77,9 @@ check: all
 		"${RURL}:\"${RPFX}/tests/\""
 	${RSYNC} \
 		"$(top_srcdir)/tests/data/targetfunctions-arm.dylib" \
+		"$(top_srcdir)/tests/data/targetfunctions-arm64.dylib" \
 		"$(top_srcdir)/tests/data/specialfunctions-arm.dylib" \
+		"$(top_srcdir)/tests/data/specialfunctions-arm64.dylib" \
 		"${RURL}:\"${RPFX}/tests/data/\""
 	ssh "${RURL}" "\"${RPFX}/tests/gum-tests\""
 endif
