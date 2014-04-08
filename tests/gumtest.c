@@ -101,11 +101,9 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (memory);
   TEST_RUN_LIST (process);
   TEST_RUN_LIST (symbolutil);
-#ifdef HAVE_I386
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (relocator);
-#endif
-#ifdef HAVE_ARM
+#ifndef G_OS_WIN32 /* TODO: build system */
   TEST_RUN_LIST (armwriter);
   TEST_RUN_LIST (armrelocator);
   TEST_RUN_LIST (thumbwriter);

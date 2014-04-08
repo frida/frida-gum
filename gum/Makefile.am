@@ -26,6 +26,20 @@ fridainclude_HEADERS = \
 	gumsymbolutil.h \
 	gumsysinternals.h
 
+x86includedir = $(includedir)/frida-1.0/gum/arch-x86
+x86include_HEADERS = \
+	arch-x86/gumx86writer.h \
+	arch-x86/gumx86relocator.h \
+	arch-x86/gumx86reader.h
+
+armincludedir = $(includedir)/frida-1.0/gum/arch-arm
+arminclude_HEADERS = \
+	arch-arm/gumarm.h \
+	arch-arm/gumarmwriter.h \
+	arch-arm/gumarmrelocator.h \
+	arch-arm/gumthumbwriter.h \
+	arch-arm/gumthumbrelocator.h
+
 arm64includedir = $(includedir)/frida-1.0/gum/arch-arm64
 arm64include_HEADERS = \
 	arch-arm64/gumarm64.h \
@@ -52,17 +66,9 @@ libs_libadd = $(NULL)
 if ARCH_I386
 archincludedir = $(includedir)/frida-1.0/gum/arch-x86
 archinclude_HEADERS = \
-	arch-x86/gumx86backtracer.h \
-	arch-x86/gumx86writer.h \
-	arch-x86/gumx86relocator.h \
-	arch-x86/gumx86reader.h
+	arch-x86/gumx86backtracer.h
 arch_sources += \
-	arch-x86/gumx86backtracer.c \
-	arch-x86/gumx86writer.c \
-	arch-x86/gumx86relocator.c \
-	arch-x86/gumx86reader.c \
-	arch-x86/gumudis86.h \
-	arch-x86/gumudis86.c
+	arch-x86/gumx86backtracer.c
 arch_includes += \
 	-I $(srcdir)/arch-x86
 backend_sources += \
@@ -75,18 +81,9 @@ endif
 if ARCH_ARM
 archincludedir = $(includedir)/frida-1.0/gum/arch-arm
 archinclude_HEADERS = \
-	arch-arm/gumarm.h \
-	arch-arm/gumarmbacktracer.h \
-	arch-arm/gumarmwriter.h \
-	arch-arm/gumarmrelocator.h \
-	arch-arm/gumthumbwriter.h \
-	arch-arm/gumthumbrelocator.h
+	arch-arm/gumarmbacktracer.h
 arch_sources += \
-	arch-arm/gumarmbacktracer.c \
-	arch-arm/gumarmwriter.c \
-	arch-arm/gumarmrelocator.c \
-	arch-arm/gumthumbwriter.c \
-	arch-arm/gumthumbrelocator.c
+	arch-arm/gumarmbacktracer.c
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \
@@ -198,6 +195,15 @@ libfrida_gum_la_SOURCES = \
 	gummemorymap.c \
 	gumreturnaddress.c \
 	gumtls.h \
+	arch-x86/gumx86writer.c \
+	arch-x86/gumx86relocator.c \
+	arch-x86/gumx86reader.c \
+	arch-x86/gumudis86.h \
+	arch-x86/gumudis86.c \
+	arch-arm/gumarmwriter.c \
+	arch-arm/gumarmrelocator.c \
+	arch-arm/gumthumbwriter.c \
+	arch-arm/gumthumbrelocator.c \
 	arch-arm64/gumarm64writer.c \
 	arch-arm64/gumarm64relocator.c \
 	$(arch_sources) \
