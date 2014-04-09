@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -191,7 +191,7 @@ gum_x86_writer_flush (GumX86Writer * self)
     }
     else
     {
-      *((gint32 *) (r->address - 4)) = distance;
+      *((gint32 *) (r->address - 4)) = GINT32_TO_LE (distance);
     }
   }
 
@@ -498,7 +498,7 @@ gum_x86_writer_put_call (GumX86Writer * self,
   if (distance_fits_in_i32)
   {
     self->code[0] = 0xe8;
-    *((gint32 *) (self->code + 1)) = distance;
+    *((gint32 *) (self->code + 1)) = GINT32_TO_LE (distance);
     self->code += 5;
   }
   else
@@ -563,7 +563,7 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
   }
   else
   {
-    *((gint32 *) self->code) = offset;
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
     self->code += 4;
   }
 }
@@ -574,7 +574,7 @@ gum_x86_writer_put_call_indirect (GumX86Writer * self,
 {
   self->code[0] = 0xff;
   self->code[1] = 0x15;
-  *((gconstpointer **) (self->code + 2)) = addr;
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) addr);
   self->code += 6;
 }
 
@@ -598,7 +598,7 @@ gum_x86_writer_put_ret_imm (GumX86Writer * self,
                             guint16 imm_value)
 {
   self->code[0] = 0xc2;
-  *((guint16 *) (self->code + 1)) = imm_value;
+  *((guint16 *) (self->code + 1)) = GUINT16_TO_LE (imm_value);
   self->code += 3;
 }
 
@@ -623,7 +623,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
     if (IS_WITHIN_INT32_RANGE (distance))
     {
       self->code[0] = 0xe9;
-      *((gint32 *) (self->code + 1)) = distance;
+      *((gint32 *) (self->code + 1)) = GINT32_TO_LE ((gint32) distance);
       self->code += 5;
     }
     else
@@ -632,8 +632,8 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
 
       self->code[0] = 0xff;
       self->code[1] = 0x25;
-      *((gint32 *) (self->code + 2)) = 0; /* rip + 0 */
-      *((gconstpointer *) (self->code + 6)) = target;
+      *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
+      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (target);
       self->code += 14;
     }
   }
@@ -664,7 +664,7 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
   if (IS_WITHIN_INT32_RANGE (distance))
   {
     self->code[0] = 0xe9;
-    *((gint32 *) (self->code + 1)) = distance;
+    *((gint32 *) (self->code + 1)) = GINT32_TO_LE (distance);
     self->code += 5;
   }
   else
@@ -673,8 +673,8 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
 
     self->code[0] = 0xff;
     self->code[1] = 0x25;
-    *((gint32 *) (self->code + 2)) = 0; /* rip + 0 */
-    *((gconstpointer *) (self->code + 6)) = target;
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
+    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE ((guint64) target);
     self->code += 14;
   }
 }
@@ -748,14 +748,14 @@ gum_x86_writer_put_jmp_near_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (address <= G_MAXUINT32);
-    *((guint32 *) (self->code + 2)) = (guint32) address;
+    *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) address);
   }
   else
   {
     gint64 distance = (gint64) address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 6);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) (self->code + 2)) = (gint32) distance;
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE ((gint32) distance);
   }
 
   self->code += 6;
@@ -822,7 +822,7 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
   self->code[1] = 0x10 + opcode;
   distance = (gssize) target - (gssize) (self->code + 6);
   g_assert (IS_WITHIN_INT32_RANGE (distance));
-  *((gint32 *) (self->code + 2)) = distance;
+  *((gint32 *) (self->code + 2)) = GINT32_TO_LE (distance);
   self->code += 6;
 }
 
@@ -879,7 +879,7 @@ gum_x86_writer_put_add_or_sub_reg_imm (GumX86Writer * self,
   }
   else
   {
-    *((gint32 *) self->code) = imm_value;
+    *((gint32 *) self->code) = GINT32_TO_LE (imm_value);
     self->code += 4;
   }
 }
@@ -929,14 +929,14 @@ gum_x86_writer_put_add_reg_near_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (src_address <= G_MAXUINT32);
-    *((guint32 *) self->code) = (guint32) src_address;
+    *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) self->code) = (gint32) distance;
+    *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   self->code += 4;
 }
@@ -977,14 +977,14 @@ gum_x86_writer_put_sub_reg_near_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (src_address <= G_MAXUINT32);
-    *((guint32 *) self->code) = (guint32) src_address;
+    *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) self->code) = (gint32) distance;
+    *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   self->code += 4;
 }
@@ -1131,13 +1131,13 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
 
   if (self->target_cpu == GUM_CPU_IA32)
   {
-    *((guint32 *) (self->code + 3)) = GPOINTER_TO_SIZE (target);
+    *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (GPOINTER_TO_SIZE (target));
   }
   else
   {
     gint64 distance = (gssize) target - (gssize) (self->code + 7);
     g_assert (IS_WITHIN_INT32_RANGE (distance));
-    *((gint32 *) (self->code + 3)) = distance;
+    *((gint32 *) (self->code + 3)) = GINT32_TO_LE (distance);
   }
 
   self->code += 7;
@@ -1191,14 +1191,14 @@ gum_x86_writer_put_and_reg_u32 (GumX86Writer * self,
   if (ri.meta == GUM_META_REG_XAX)
   {
     self->code[0] = 0x25;
-    *((guint32 *) (self->code + 1)) = imm_value;
+    *((guint32 *) (self->code + 1)) = GUINT32_TO_LE (imm_value);
     self->code += 5;
   }
   else
   {
     self->code[0] = 0x81;
     self->code[1] = 0xe0 | ri.index;
-    *((guint32 *) (self->code + 2)) = imm_value;
+    *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (imm_value);
     self->code += 6;
   }
 }
@@ -1290,7 +1290,7 @@ gum_x86_writer_put_mov_reg_u32 (GumX86Writer * self,
   gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
 
   self->code[0] = 0xb8 | dst.index;
-  *((guint32 *) (self->code + 1)) = imm_value;
+  *((guint32 *) (self->code + 1)) = GUINT32_TO_LE (imm_value);
   self->code += 5;
 }
 
@@ -1310,7 +1310,7 @@ gum_x86_writer_put_mov_reg_u64 (GumX86Writer * self,
   gum_x86_writer_put_prefix_for_reg_info (self, &dst, 0);
 
   self->code[0] = 0xb8 | dst.index;
-  *((guint64 *) (self->code + 1)) = imm_value;
+  *((guint64 *) (self->code + 1)) = GUINT64_TO_LE (imm_value);
   self->code += 9;
 }
 
@@ -1376,12 +1376,12 @@ gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self,
     }
     else
     {
-      *((gint32 *) self->code) = dst_offset;
+      *((gint32 *) self->code) = GINT32_TO_LE (dst_offset);
       self->code += 4;
     }
   }
 
-  *((guint32 *) self->code) = imm_value;
+  *((guint32 *) self->code) = GUINT32_TO_LE (imm_value);
   self->code += 4;
 }
 
@@ -1437,7 +1437,7 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
     }
     else
     {
-      *((gint32 *) self->code) = dst_offset;
+      *((gint32 *) self->code) = GINT32_TO_LE (dst_offset);
       self->code += 4;
     }
   }
@@ -1487,7 +1487,7 @@ gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self,
   }
   else
   {
-    *((gint32 *) self->code) = src_offset;
+    *((gint32 *) self->code) = GINT32_TO_LE (src_offset);
     self->code += 4;
   }
 }
@@ -1546,7 +1546,7 @@ gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
   }
   else
   {
-    *((gint32 *) self->code) = offset;
+    *((gint32 *) self->code) = GINT32_TO_LE (offset);
     self->code += 4;
   }
 }
@@ -1577,14 +1577,14 @@ gum_x86_writer_put_mov_reg_near_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (src_address <= G_MAXUINT32);
-    *((guint32 *) self->code) = (guint32) src_address;
+    *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) src_address);
   }
   else
   {
     gint64 distance = (gint64) src_address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) self->code) = (gint32) distance;
+    *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   self->code += 4;
 }
@@ -1615,14 +1615,14 @@ gum_x86_writer_put_mov_near_ptr_reg (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (dst_address <= G_MAXUINT32);
-    *((guint32 *) self->code) = (guint32) dst_address;
+    *((guint32 *) self->code) = GUINT32_TO_LE ((guint32) dst_address);
   }
   else
   {
     gint64 distance = (gint64) dst_address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 4);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) self->code) = (gint32) distance;
+    *((gint32 *) self->code) = GINT32_TO_LE ((gint32) distance);
   }
   self->code += 4;
 }
@@ -1641,7 +1641,7 @@ gum_x86_writer_put_mov_reg_imm_ptr (GumX86Writer * self,
   self->code[0] = 0x8b;
   self->code[1] = (dst.index << 3) | 0x04;
   self->code[2] = 0x25;
-  *((guint32 *) (self->code + 3)) = address;
+  *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (address);
   self->code += 7;
 }
 
@@ -1659,7 +1659,7 @@ gum_x86_writer_put_mov_imm_ptr_reg (GumX86Writer * self,
   self->code[0] = 0x89;
   self->code[1] = (src.index << 3) | 0x04;
   self->code[2] = 0x25;
-  *((guint32 *) (self->code + 3)) = address;
+  *((guint32 *) (self->code + 3)) = GUINT32_TO_LE (address);
   self->code += 7;
 }
 
@@ -1777,7 +1777,7 @@ gum_x86_writer_put_lea_reg_reg_offset (GumX86Writer * self,
   if (src.meta == GUM_META_REG_XSP)
     *self->code++ = 0x24;
 
-  *((gint32 *) self->code) = src_offset;
+  *((gint32 *) self->code) = GINT32_TO_LE (src_offset);
   self->code += 4;
 }
 
@@ -1818,7 +1818,7 @@ gum_x86_writer_put_push_u32 (GumX86Writer * self,
                              guint32 imm_value)
 {
   self->code[0] = 0x68;
-  *((guint32 *) (self->code + 1)) = imm_value;
+  *((guint32 *) (self->code + 1)) = GUINT32_TO_LE (imm_value);
   self->code += 5;
 }
 
@@ -1832,14 +1832,14 @@ gum_x86_writer_put_push_near_ptr (GumX86Writer * self,
   if (self->target_cpu == GUM_CPU_IA32)
   {
     g_assert (address <= G_MAXUINT32);
-    *((guint32 *) (self->code + 2)) = (guint32) address;
+    *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) address);
   }
   else
   {
     gint64 distance = (gint64) address -
         (gint64) (GPOINTER_TO_SIZE (self->code) + 6);
     g_assert (distance >= G_MININT32 && distance <= G_MAXINT32);
-    *((gint32 *) (self->code + 2)) = (gint32) distance;
+    *((gint32 *) (self->code + 2)) = GINT32_TO_LE ((gint32) distance);
   }
 
   self->code += 6;
@@ -1887,7 +1887,7 @@ gum_x86_writer_put_push_imm_ptr (GumX86Writer * self,
 {
   self->code[0] = 0xff;
   self->code[1] = 0x35;
-  *((gconstpointer *) (self->code + 2)) = imm_ptr;
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) imm_ptr);
   self->code += 6;
 }
 
@@ -2004,14 +2004,14 @@ gum_x86_writer_put_test_reg_u32 (GumX86Writer * self,
   if (ri.meta == GUM_META_REG_XAX)
   {
     self->code[0] = 0xa9;
-    *((guint32 *) (self->code + 1)) = imm_value;
+    *((guint32 *) (self->code + 1)) = GUINT32_TO_LE (imm_value);
     self->code += 5;
   }
   else
   {
     self->code[0] = 0xf7;
     self->code[1] = 0xc0 | ri.index;
-    *((guint32 *) (self->code + 2)) = imm_value;
+    *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (imm_value);
     self->code += 6;
   }
 }
@@ -2038,7 +2038,7 @@ gum_x86_writer_put_cmp_reg_i32 (GumX86Writer * self,
     self->code += 2;
   }
 
-  *((gint32 *) self->code) = imm_value;
+  *((gint32 *) self->code) = GINT32_TO_LE (imm_value);
   self->code += 4;
 }
 
@@ -2083,8 +2083,8 @@ gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self,
 {
   self->code[0] = 0x81;
   self->code[1] = 0x3d;
-  *((gconstpointer *) (self->code + 2)) = imm_ptr;
-  *((guint32 *) (self->code + 6)) = imm_value;
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) imm_ptr);
+  *((guint32 *) (self->code + 6)) = GUINT32_TO_LE (imm_value);
   self->code += 10;
 }
 

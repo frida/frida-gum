@@ -97,7 +97,9 @@ test_code_writer_fixture_assert_output_equals (TestCodeWriterFixture * fixture,
   g_assert (same_content);
 }
 
+#ifdef HAVE_I386
 static void gum_test_native_function (const gchar * arg1, const gchar * arg2,
     const gchar * arg3, const gchar * arg4);
+#endif
 
 #define assert_output_equals(e) test_code_writer_fixture_assert_output_equals (fixture, e, sizeof (e))

@@ -28,7 +28,9 @@ TEST_LIST_BEGIN (codewriter)
   CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_ia32)
   CODEWRITER_TESTENTRY (call_sysapi_xbx_plus_i8_offset_ptr_with_xcx_argument_for_amd64)
   CODEWRITER_TESTENTRY (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_amd64)
+#ifdef HAVE_I386
   CODEWRITER_TESTENTRY (call_with_arguments_should_be_compatible_with_native_abi)
+#endif
   CODEWRITER_TESTENTRY (flush_on_free)
 
   CODEWRITER_TESTENTRY (jmp_rcx)
@@ -242,6 +244,8 @@ CODEWRITER_TESTCASE (call_sysapi_r12_plus_i32_offset_ptr_with_xcx_argument_for_a
   assert_output_equals (expected_code);
 }
 
+#ifdef HAVE_I386
+
 CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
 {
   gpointer page;
@@ -266,6 +270,8 @@ CODEWRITER_TESTCASE (call_with_arguments_should_be_compatible_with_native_abi)
 
   gum_free_pages (page);
 }
+
+#endif
 
 CODEWRITER_TESTCASE (flush_on_free)
 {
@@ -677,6 +683,8 @@ CODEWRITER_TESTCASE (cmp_r9_i32)
   assert_output_equals (expected_code);
 }
 
+#ifdef HAVE_I386
+
 static void
 gum_test_native_function (const gchar * arg1,
                           const gchar * arg2,
@@ -688,3 +696,5 @@ gum_test_native_function (const gchar * arg1,
   g_assert_cmpstr (arg3, ==, "blue");
   g_assert_cmpstr (arg4, ==, "you");
 }
+
+#endif
