@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -23,9 +23,9 @@
 
 #include <string.h>
 
-#define GUM_MAX_LABEL_COUNT   100
-#define GUM_MAX_LREF_COUNT    (3 * GUM_MAX_LABEL_COUNT)
-#define GUM_MAX_U32_REF_COUNT 100
+#define GUM_MAX_LABEL_COUNT       100
+#define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
+#define GUM_MAX_LITERAL_REF_COUNT 100
 
 struct _GumThumbLabelMapping
 {
@@ -39,7 +39,7 @@ struct _GumThumbLabelRef
   guint16 * insn;
 };
 
-struct _GumThumbU32Ref
+struct _GumThumbLiteralRef
 {
   guint16 * insn;
   guint32 val;
@@ -58,7 +58,7 @@ gum_thumb_writer_init (GumThumbWriter * writer,
 {
   writer->id_to_address = gum_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
   writer->label_refs = gum_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
-  writer->u32_refs = gum_new (GumThumbU32Ref, GUM_MAX_U32_REF_COUNT);
+  writer->literal_refs = gum_new (GumThumbLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_thumb_writer_reset (writer, code_address);
 }
@@ -69,10 +69,11 @@ gum_thumb_writer_reset (GumThumbWriter * writer,
 {
   writer->base = code_address;
   writer->code = code_address;
+  writer->pc = GUM_ADDRESS (code_address);
 
   writer->id_to_address_len = 0;
   writer->label_refs_len = 0;
-  writer->u32_refs_len = 0;
+  writer->literal_refs_len = 0;
 }
 
 void
@@ -82,7 +83,7 @@ gum_thumb_writer_free (GumThumbWriter * writer)
 
   gum_free (writer->id_to_address);
   gum_free (writer->label_refs);
-  gum_free (writer->u32_refs);
+  gum_free (writer->literal_refs);
 }
 
 gpointer
@@ -102,6 +103,7 @@ gum_thumb_writer_skip (GumThumbWriter * self,
                        guint n_bytes)
 {
   self->code = (guint16 *) (((guint8 *) self->code) + n_bytes);
+  self->pc += n_bytes;
 }
 
 void
@@ -134,7 +136,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     self->label_refs_len = 0;
   }
 
-  if (self->u32_refs_len > 0)
+  if (self->literal_refs_len > 0)
   {
     guint32 * first_slot, * last_slot;
     guint ref_idx;
@@ -145,13 +147,13 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       first_slot = (guint32 *) (self->code + 1);
     last_slot = first_slot;
 
-    for (ref_idx = 0; ref_idx != self->u32_refs_len; ref_idx++)
+    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
     {
-      GumThumbU32Ref * r;
+      GumThumbLiteralRef * r;
       guint32 * cur_slot;
       gsize distance_in_words;
 
-      r = &self->u32_refs[ref_idx];
+      r = &self->literal_refs[ref_idx];
 
       for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
       {
@@ -168,9 +170,10 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       distance_in_words = cur_slot - (guint32 *) (r->insn + 1);
       *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
     }
-    self->u32_refs_len = 0;
+    self->literal_refs_len = 0;
 
     self->code = (guint16 *) last_slot;
+    self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
 }
 
@@ -224,12 +227,12 @@ gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
 }
 
 static void
-gum_thumb_writer_add_u32_reference_here (GumThumbWriter * self,
-                                         guint32 val)
+gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
+                                             guint32 val)
 {
-  GumThumbU32Ref * r = &self->u32_refs[self->u32_refs_len++];
+  GumThumbLiteralRef * r = &self->literal_refs[self->literal_refs_len++];
 
-  g_assert_cmpuint (self->u32_refs_len, <=, GUM_MAX_U32_REF_COUNT);
+  g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
 
   r->insn = self->code;
   r->val = val;
@@ -344,7 +347,7 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
                                   GumArmReg reg,
                                   guint32 val)
 {
-  gum_thumb_writer_add_u32_reference_here (self, val);
+  gum_thumb_writer_add_literal_reference_here (self, val);
   gum_thumb_writer_put_instruction (self, 0x4800 | (reg << 8));
 }
 
@@ -631,6 +634,7 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
 
   memcpy (self->code, data, n);
   self->code += n / sizeof (guint16);
+  self->pc += n;
 }
 
 static void
@@ -638,5 +642,6 @@ gum_thumb_writer_put_instruction (GumThumbWriter * self,
                                   guint16 insn)
 {
   *self->code++ = GUINT16_TO_LE (insn);
+  self->pc += 2;
 }
 

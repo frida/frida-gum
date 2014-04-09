@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -19,13 +19,13 @@
 
 #include "gumarmwriter.h"
 
+#include "gummemory.h"
+
 #include <string.h>
 
-#define GUM_ARM_WRITER_NUM_RESERVED_U32_REFS (16)
+#define GUM_MAX_LITERAL_REF_COUNT 100
 
-typedef struct _GumArmU32Ref GumArmU32Ref;
-
-struct _GumArmU32Ref
+struct _GumArmLiteralRef
 {
   guint32 * insn;
   guint32 val;
@@ -38,8 +38,8 @@ void
 gum_arm_writer_init (GumArmWriter * writer,
                      gpointer code_address)
 {
-  writer->u32_refs = gum_array_sized_new (FALSE, FALSE,
-      sizeof (GumArmU32Ref), GUM_ARM_WRITER_NUM_RESERVED_U32_REFS);
+  writer->literal_refs =
+      gum_new (GumArmLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_arm_writer_reset (writer, code_address);
 }
@@ -50,6 +50,9 @@ gum_arm_writer_reset (GumArmWriter * writer,
 {
   writer->base = code_address;
   writer->code = code_address;
+  writer->pc = GUM_ADDRESS (code_address);
+
+  writer->literal_refs_len = 0;
 }
 
 void
@@ -57,7 +60,7 @@ gum_arm_writer_free (GumArmWriter * writer)
 {
   gum_arm_writer_flush (writer);
 
-  gum_array_free (writer->u32_refs, TRUE);
+  gum_free (writer->literal_refs);
 }
 
 gpointer
@@ -77,64 +80,66 @@ gum_arm_writer_skip (GumArmWriter * self,
                      guint n_bytes)
 {
   self->code = (guint32 *) (((guint8 *) self->code) + n_bytes);
+  self->pc += n_bytes;
 }
 
 void
 gum_arm_writer_flush (GumArmWriter * self)
 {
-  guint32 * first_slot, * last_slot;
-  guint ref_idx;
-
-  if (self->u32_refs->len == 0)
-    return;
-
-  first_slot = self->code;
-  last_slot = first_slot;
-
-  for (ref_idx = 0; ref_idx != self->u32_refs->len; ref_idx++)
+  if (self->literal_refs_len > 0)
   {
-    GumArmU32Ref * r;
-    guint32 * cur_slot;
-    gssize distance_in_words;
-    guint32 insn;
+    guint32 * first_slot, * last_slot;
+    guint ref_idx;
 
-    r = &g_array_index (self->u32_refs, GumArmU32Ref, ref_idx);
+    first_slot = self->code;
+    last_slot = first_slot;
 
-    for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
     {
-      if (*cur_slot == r->val)
-        break;
+      GumArmLiteralRef * r;
+      guint32 * cur_slot;
+      gint64 distance_in_words;
+      guint32 insn;
+
+      r = &self->literal_refs[ref_idx];
+
+      for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+      {
+        if (*cur_slot == r->val)
+          break;
+      }
+
+      if (cur_slot == last_slot)
+      {
+        *cur_slot = r->val;
+        last_slot++;
+      }
+
+      distance_in_words = cur_slot - (r->insn + 2);
+
+      insn = GUINT32_FROM_LE (*r->insn);
+      insn |= ABS (distance_in_words) * 4;
+      if (distance_in_words >= 0)
+        insn |= 1 << 23;
+      *r->insn = GUINT32_TO_LE (insn);
     }
+    self->literal_refs_len = 0;
 
-    if (cur_slot == last_slot)
-    {
-      *cur_slot = r->val;
-      last_slot++;
-    }
-
-    distance_in_words = cur_slot - (r->insn + 2);
-
-    insn = GUINT32_FROM_LE (*r->insn);
-    insn |= ABS (distance_in_words) * 4;
-    if (distance_in_words >= 0)
-      insn |= 1 << 23;
-    *r->insn = GUINT32_TO_LE (insn);
+    self->code = last_slot;
+    self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
-  gum_array_set_size (self->u32_refs, 0);
-
-  self->code = last_slot;
 }
 
 static void
-gum_arm_writer_mark_u32_reference_here (GumArmWriter * self,
-                                        guint32 val)
+gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
+                                           guint32 val)
 {
-  GumArmU32Ref r;
+  GumArmLiteralRef * r = &self->literal_refs[self->literal_refs_len++];
 
-  r.insn = self->code;
-  r.val = val;
+  g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
 
-  gum_array_append_val (self->u32_refs, r);
+  r->insn = self->code;
+  r->val = val;
 }
 
 void
@@ -150,7 +155,7 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
                                 GumArmReg reg,
                                 guint32 val)
 {
-  gum_arm_writer_mark_u32_reference_here (self, val);
+  gum_arm_writer_add_literal_reference_here (self, val);
   gum_arm_writer_put_instruction (self, 0xe51f0000 | (reg << 12));
 }
 
@@ -169,6 +174,7 @@ gum_arm_writer_put_bytes (GumArmWriter * self,
 
   memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
+  self->pc += n;
 }
 
 static void
@@ -176,5 +182,6 @@ gum_arm_writer_put_instruction (GumArmWriter * self,
                                 guint32 insn)
 {
   *self->code++ = GUINT32_TO_LE (insn);
+  self->pc += 4;
 }
 

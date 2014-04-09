@@ -91,13 +91,13 @@ RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
   };
-  gsize calculated_pc;
+  guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = (GPOINTER_TO_SIZE (input) + 4 + 12) & ~(4 - 1);
-  *((gsize *) (expected_output + 2)) = calculated_pc;
-
   SETUP_RELOCATOR_WITH (input);
+
+  calculated_pc = (fixture->rl.input_pc + 4 + 12) & ~(4 - 1);
+  *((guint32 *) (expected_output + 2)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_LDRPC);
@@ -120,13 +120,13 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
   };
-  gsize calculated_pc;
+  guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = GPOINTER_TO_SIZE (input) + 4;
-  *((gsize *) (expected_output + 4)) = calculated_pc;
-
   SETUP_RELOCATOR_WITH (input);
+
+  calculated_pc = fixture->rl.input_pc + 4;
+  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADDH);
@@ -331,13 +331,14 @@ static void
 branch_scenario_execute (BranchScenario * bs,
                          TestThumbRelocatorFixture * fixture)
 {
-  gsize calculated_pc;
+  guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = GPOINTER_TO_SIZE (bs->input) + 4 + bs->expected_pc_distance;
-  *((gsize *) (bs->expected_output + bs->pc_offset)) = calculated_pc;
-
   SETUP_RELOCATOR_WITH (bs->input);
+
+  calculated_pc = fixture->rl.input_pc + 4 + bs->expected_pc_distance;
+  *((guint32 *) (bs->expected_output + bs->pc_offset)) =
+      GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);

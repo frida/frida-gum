@@ -29,15 +29,10 @@ struct _GumCodeGenCtx
 {
   const GumArmInstruction * insn;
   const guint32 * raw_insn;
-  const guint8 * start;
-  const guint8 * end;
-  guint len;
 
   GumArmWriter * output;
 };
 
-static gboolean gum_arm_relocator_write_one_instruction (
-    GumArmRelocator * self);
 static gboolean gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 
@@ -57,10 +52,13 @@ gum_arm_relocator_reset (GumArmRelocator * relocator,
                          gconstpointer input_code,
                          GumArmWriter * output)
 {
-  relocator->input_start = relocator->input_cur = input_code;
+  relocator->input_start = input_code;
+  relocator->input_cur = input_code;
+  relocator->input_pc = GUM_ADDRESS (input_code);
   relocator->output = output;
 
-  relocator->inpos = relocator->outpos = 0;
+  relocator->inpos = 0;
+  relocator->outpos = 0;
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
@@ -109,13 +107,15 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   if (self->eoi)
     return 0;
 
-  raw_insn = *((guint32 *) self->input_cur);
+  raw_insn = GUINT32_FROM_LE (*((guint32 *) self->input_cur));
   insn = &self->input_insns[gum_arm_relocator_inpos (self)];
 
   category = (raw_insn >> 25) & 0b111;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
+  insn->address = self->input_cur;
   insn->length = 4;
+  insn->pc = self->input_pc + 8;
 
   switch (category)
   {
@@ -157,14 +157,13 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       break;
   }
 
-  insn->address = self->input_cur;
-
   gum_arm_relocator_increment_inpos (self);
 
   if (instruction != NULL)
     *instruction = insn;
 
   self->input_cur += insn->length;
+  self->input_pc += insn->length;
 
   return self->input_cur - self->input_start;
 }
@@ -204,17 +203,6 @@ gum_arm_relocator_skip_one (GumArmRelocator * self)
 gboolean
 gum_arm_relocator_write_one (GumArmRelocator * self)
 {
-  GumArmInstruction * cur;
-
-  if ((cur = gum_arm_relocator_peek_next_write_insn (self)) == NULL)
-    return FALSE;
-
-  return gum_arm_relocator_write_one_instruction (self);
-}
-
-static gboolean
-gum_arm_relocator_write_one_instruction (GumArmRelocator * self)
-{
   GumCodeGenCtx ctx;
   gboolean rewritten = FALSE;
 
@@ -222,10 +210,7 @@ gum_arm_relocator_write_one_instruction (GumArmRelocator * self)
     return FALSE;
   gum_arm_relocator_increment_outpos (self);
 
-  ctx.len = ctx.insn->length;
   ctx.raw_insn = ctx.insn->address;
-  ctx.start = ctx.insn->address;
-  ctx.end = ctx.start + ctx.len;
 
   ctx.output = self->output;
 
@@ -242,7 +227,7 @@ gum_arm_relocator_write_one_instruction (GumArmRelocator * self)
   }
 
   if (!rewritten)
-    gum_arm_writer_put_bytes (ctx.output, ctx.start, ctx.len);
+    gum_arm_writer_put_bytes (ctx.output, ctx.insn->address, ctx.insn->length);
 
   return TRUE;
 }
@@ -351,7 +336,7 @@ gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     distance.u |= 2;
   }
 
-  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 8 + distance.i;
+  absolute_target = ctx->insn->pc + distance.i;
   if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2)
     absolute_target |= 1;
 
@@ -360,14 +345,15 @@ gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     case GUM_ARM_BL_IMM_A1:
     case GUM_ARM_BLX_IMM_A2:
       gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_LR,
-          GUM_ADDRESS (ctx->output->code + 2));
+          ctx->output->pc + 4 + 4);
       break;
 
     default:
       break;
   }
 
-  gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_PC, absolute_target);
+  gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_PC,
+      absolute_target);
 
   return TRUE;
 }

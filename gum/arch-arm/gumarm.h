@@ -79,6 +79,7 @@ struct _GumArmInstruction
 
   gconstpointer address;
   guint length;
+  GumAddress pc;
 };
 
 G_END_DECLS

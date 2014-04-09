@@ -201,22 +201,24 @@ static void
 branch_scenario_execute (BranchScenario * bs,
                          TestArmRelocatorFixture * fixture)
 {
-  gsize calculated_pc;
+  guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
-  calculated_pc = GPOINTER_TO_SIZE (bs->input) + 8 + bs->expected_pc_distance;
-  *((gsize *) (bs->expected_output + bs->pc_offset)) = calculated_pc;
+  SETUP_RELOCATOR_WITH (bs->input);
+
+  calculated_pc = fixture->rl.input_pc + 8 + bs->expected_pc_distance;
+  *((guint32 *) (bs->expected_output + bs->pc_offset)) =
+      GUINT32_TO_LE (calculated_pc);
 
   if (bs->lr_offset != -1)
   {
-    gsize calculated_lr;
+    guint32 calculated_lr;
 
-    calculated_lr = GPOINTER_TO_SIZE (fixture->output) +
+    calculated_lr = fixture->aw.pc +
         (bs->expected_lr_distance * sizeof (guint32));
-    *((gsize *) (bs->expected_output + bs->lr_offset)) = calculated_lr;
+    *((guint32 *) (bs->expected_output + bs->lr_offset)) =
+        GUINT32_TO_LE (calculated_lr);
   }
-
-  SETUP_RELOCATOR_WITH (bs->input);
 
   g_assert_cmpuint (gum_arm_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->mnemonic, ==, bs->mnemonic);

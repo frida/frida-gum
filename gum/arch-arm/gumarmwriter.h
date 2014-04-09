@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -27,13 +27,16 @@
 G_BEGIN_DECLS
 
 typedef struct _GumArmWriter GumArmWriter;
+typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
 struct _GumArmWriter
 {
   guint32 * base;
   guint32 * code;
+  GumAddress pc;
 
-  GumArray * u32_refs;
+  GumArmLiteralRef * literal_refs;
+  guint literal_refs_len;
 };
 
 void gum_arm_writer_init (GumArmWriter * writer, gpointer code_address);

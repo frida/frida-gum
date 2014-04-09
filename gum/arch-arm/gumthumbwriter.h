@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -29,12 +29,13 @@ G_BEGIN_DECLS
 typedef struct _GumThumbWriter GumThumbWriter;
 typedef struct _GumThumbLabelMapping GumThumbLabelMapping;
 typedef struct _GumThumbLabelRef GumThumbLabelRef;
-typedef struct _GumThumbU32Ref GumThumbU32Ref;
+typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 
 struct _GumThumbWriter
 {
   guint16 * base;
   guint16 * code;
+  GumAddress pc;
 
   GumThumbLabelMapping * id_to_address;
   guint id_to_address_len;
@@ -42,8 +43,8 @@ struct _GumThumbWriter
   GumThumbLabelRef * label_refs;
   guint label_refs_len;
 
-  GumThumbU32Ref * u32_refs;
-  guint u32_refs_len;
+  GumThumbLiteralRef * literal_refs;
+  guint literal_refs_len;
 };
 
 void gum_thumb_writer_init (GumThumbWriter * writer, gpointer code_address);

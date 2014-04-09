@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -32,6 +32,7 @@ struct _GumArmRelocator
 {
   const guint8 * input_start;
   const guint8 * input_cur;
+  GumAddress input_pc;
   GumArmInstruction * input_insns;
   GumArmWriter * output;
 

@@ -29,9 +29,6 @@ struct _GumCodeGenCtx
 {
   const GumArmInstruction * insn;
   const guint16 * raw_insn;
-  const guint8 * start;
-  const guint8 * end;
-  guint len;
 
   GumThumbWriter * output;
 };
@@ -63,10 +60,13 @@ gum_thumb_relocator_reset (GumThumbRelocator * relocator,
                            gconstpointer input_code,
                            GumThumbWriter * output)
 {
-  relocator->input_start = relocator->input_cur = input_code;
+  relocator->input_start = input_code;
+  relocator->input_cur = input_code;
+  relocator->input_pc = GUM_ADDRESS (input_code);
   relocator->output = output;
 
-  relocator->inpos = relocator->outpos = 0;
+  relocator->inpos = 0;
+  relocator->outpos = 0;
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
@@ -115,14 +115,16 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (self->eoi)
     return 0;
 
-  raw_insn = *((guint16 *) self->input_cur);
+  raw_insn = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
   insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
   group = (raw_insn >> 12) & 0b1111;
   operation = (raw_insn >> 8) & 0b1111;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
+  insn->address = self->input_cur;
   insn->length = 2;
+  insn->pc = self->input_pc + 4;
 
   switch (group)
   {
@@ -172,14 +174,13 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       break;
   }
 
-  insn->address = self->input_cur;
-
   gum_thumb_relocator_increment_inpos (self);
 
   if (instruction != NULL)
     *instruction = insn;
 
   self->input_cur += insn->length;
+  self->input_pc += insn->length;
 
   return self->input_cur - self->input_start;
 }
@@ -237,10 +238,7 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
     return FALSE;
   gum_thumb_relocator_increment_outpos (self);
 
-  ctx.len = ctx.insn->length;
   ctx.raw_insn = ctx.insn->address;
-  ctx.start = ctx.insn->address;
-  ctx.end = ctx.start + ctx.len;
 
   ctx.output = self->output;
 
@@ -269,7 +267,10 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
   }
 
   if (!rewritten)
-    gum_thumb_writer_put_bytes (ctx.output, ctx.start, ctx.len);
+  {
+    gum_thumb_writer_put_bytes (ctx.output, ctx.insn->address,
+        ctx.insn->length);
+  }
 
   return TRUE;
 }
@@ -358,10 +359,9 @@ static gboolean
 gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
                                                  GumCodeGenCtx * ctx)
 {
-  guint16 insn = *ctx->raw_insn;
+  guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
   GumArmReg src_reg, dst_reg, temp_reg;
   gboolean dst_reg_is_upper;
-  GumAddress absolute_pc;
 
   src_reg = (insn & 0x78) >> 3;
   if (src_reg != GUM_AREG_PC)
@@ -377,10 +377,8 @@ gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
   else
     temp_reg = GUM_AREG_R1;
 
-  absolute_pc = GPOINTER_TO_SIZE (ctx->start) + 4;
-
   gum_thumb_writer_put_push_regs (ctx->output, 1, temp_reg);
-  gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, absolute_pc);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, temp_reg, ctx->insn->pc);
   gum_thumb_writer_put_add_reg_reg (ctx->output, dst_reg, temp_reg);
   gum_thumb_writer_put_pop_regs (ctx->output, 1, temp_reg);
 
@@ -391,13 +389,13 @@ static gboolean
 gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
-  guint16 insn = *ctx->raw_insn;
+  guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
   GumArmReg reg;
   GumAddress absolute_pc;
 
   reg = (insn & 0x0700) >> 8;
 
-  absolute_pc = (GPOINTER_TO_SIZE (ctx->start) + 4) & ~(4 - 1);
+  absolute_pc = ctx->insn->pc & ~(4 - 1);
   absolute_pc += (insn & 0x00ff) * 4;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
@@ -421,7 +419,7 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
   {
     case GUM_ARM_B_IMM_T2:
     {
-      guint16 insn = *ctx->raw_insn;
+      guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
       guint32 imm11;
 
       imm11 = insn & 0b11111111111;
@@ -437,7 +435,8 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
       guint32 insn, s, j1, j2, i1, i2, imm10_h, imm11_l;
 
       insn =
-          ((guint32) *(ctx->raw_insn)) << 16 | (guint32) *(ctx->raw_insn + 1);
+          ((guint32) GUINT16_FROM_LE (*(ctx->raw_insn))) << 16 |
+          (guint32) GUINT16_FROM_LE (*(ctx->raw_insn + 1));
 
       s = (insn >> 26) & 1;
       j1 = (insn >> 13) & 1;
@@ -458,7 +457,7 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
       break;
   }
 
-  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 4 + distance.i;
+  absolute_target = ctx->insn->pc + distance.i;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
@@ -483,7 +482,8 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   } distance;
   GumAddress absolute_target;
 
-  insn = ((guint32) *(ctx->raw_insn)) << 16 | (guint32) *(ctx->raw_insn + 1);
+  insn = ((guint32) GUINT16_FROM_LE (*(ctx->raw_insn))) << 16 |
+      (guint32) GUINT16_FROM_LE (*(ctx->raw_insn + 1));
 
   /* GUM_ARM_BL_IMM_T1 and GUM_ARM_BLX_IMM_T2 */
   s = (insn >> 26) & 1;
@@ -497,7 +497,7 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   distance.u = (s ? 0xff000000 : 0x00000000) |
       (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
 
-  absolute_target = GPOINTER_TO_SIZE (ctx->start) + 4 + distance.i;
+  absolute_target = ctx->insn->pc + distance.i;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,

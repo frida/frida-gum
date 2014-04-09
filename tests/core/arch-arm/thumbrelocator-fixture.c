@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -47,6 +47,7 @@ test_thumb_relocator_fixture_setup (TestThumbRelocatorFixture * fixture,
   fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
 
   gum_thumb_writer_init (&fixture->tw, fixture->output);
+  fixture->tw.pc = 1024;
 }
 
 static void
@@ -61,7 +62,8 @@ test_thumb_relocator_fixture_teardown (TestThumbRelocatorFixture * fixture,
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
 
 #define SETUP_RELOCATOR_WITH(CODE) \
-    gum_thumb_relocator_init (&fixture->rl, CODE, &fixture->tw)
+    gum_thumb_relocator_init (&fixture->rl, CODE, &fixture->tw); \
+    fixture->rl.input_pc = 2048
 
 #define assert_outbuf_still_zeroed_from_offset(OFF) \
     g_assert_cmpint (memcmp (fixture->output + OFF, cleared_outbuf + OFF, \
