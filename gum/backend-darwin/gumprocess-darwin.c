@@ -454,10 +454,6 @@ gboolean
 gum_darwin_cpu_type_from_pid (pid_t pid,
                               GumCpuType * cpu_type)
 {
-#ifdef HAVE_ARM
-  *cpu_type = GUM_CPU_ARM;
-  return TRUE;
-#else
   int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, pid };
   struct kinfo_proc kp;
   size_t bufsize = sizeof (kp);
@@ -468,9 +464,12 @@ gum_darwin_cpu_type_from_pid (pid_t pid,
   if (err != 0)
     return FALSE;
 
+#ifdef HAVE_I386
   *cpu_type = (kp.kp_proc.p_flag & P_LP64) ? GUM_CPU_AMD64 : GUM_CPU_IA32;
-  return TRUE;
+#else
+  *cpu_type = (kp.kp_proc.p_flag & P_LP64) ? GUM_CPU_ARM64 : GUM_CPU_ARM;
 #endif
+  return TRUE;
 }
 
 GumAddress
