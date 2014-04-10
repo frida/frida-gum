@@ -118,6 +118,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       GumThumbLabelRef * r = &self->label_refs[label_idx];
       gpointer target_address;
       gssize distance_in_insns;
+      guint16 insn;
 
       target_address =
           gum_thumb_writer_lookup_address_for_label_id (self, r->id);
@@ -128,10 +129,12 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       g_assert_cmpint (distance_in_insns, >=, 0);
       g_assert_cmpint (distance_in_insns, <, 64);
 
+      insn = GUINT16_FROM_LE (*r->insn);
       if (distance_in_insns < 32)
-        *r->insn |= (gsize) distance_in_insns << 3;
+        insn |= (gsize) distance_in_insns << 3;
       else
-        *r->insn |= 0x0200 | ((gsize) (distance_in_insns - 32) << 3);
+        insn |= 0x0200 | ((gsize) (distance_in_insns - 32) << 3);
+      *r->insn = GUINT16_TO_LE (insn);
     }
     self->label_refs_len = 0;
   }
