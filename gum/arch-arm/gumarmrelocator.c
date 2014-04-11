@@ -110,7 +110,7 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   raw_insn = GUINT32_FROM_LE (*((guint32 *) self->input_cur));
   insn = &self->input_insns[gum_arm_relocator_inpos (self)];
 
-  category = (raw_insn >> 25) & 0b111;
+  category = (raw_insn >> 25) & 7;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->address = self->input_cur;
@@ -119,33 +119,33 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
 
   switch (category)
   {
-    case 0b000: /* data processing */
-    case 0b001:
+    case 0: /* data processing */
+    case 1:
     {
-      guint opcode = (raw_insn >> 21) & 0b1111;
+      guint opcode = (raw_insn >> 21) & 0xf;
       switch (opcode)
       {
-        case 0b1101:
+        case 0xd:
           insn->mnemonic = GUM_ARM_MOV;
           break;
       }
       break;
     }
 
-    case 0b010: /* load/store */
+    case 2: /* load/store */
       break;
 
-    case 0b100: /* load/store multiple */
+    case 4: /* load/store multiple */
     {
-      guint base_register = (raw_insn >> 16) & 0b1111;
+      guint base_register = (raw_insn >> 16) & 0xf;
       guint is_load = (raw_insn >> 20) & 1;
       if (base_register == GUM_AREG_SP)
         insn->mnemonic = is_load ? GUM_ARM_POP : GUM_ARM_PUSH;
       break;
     }
 
-    case 0b101: /* control */
-      if (((raw_insn >> 28) & 0b1111) == 0b1111)
+    case 5: /* control */
+      if (((raw_insn >> 28) & 0xf) == 0xf)
       {
         insn->mnemonic = GUM_ARM_BLX_IMM_A2;
       }
@@ -323,6 +323,8 @@ gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     guint32 u;
   } distance;
   GumAddress absolute_target;
+
+  (void) self;
 
   raw_insn = *ctx->raw_insn;
   if ((raw_insn & 0x00800000) != 0)

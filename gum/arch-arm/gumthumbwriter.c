@@ -95,7 +95,7 @@ gum_thumb_writer_cur (GumThumbWriter * self)
 guint
 gum_thumb_writer_offset (GumThumbWriter * self)
 {
-  return (self->code - self->base) * sizeof (guint16);
+  return (guint) (self->code - self->base) * sizeof (guint16);
 }
 
 void

@@ -192,7 +192,7 @@ gum_arm64_writer_cur (GumArm64Writer * self)
 guint
 gum_arm64_writer_offset (GumArm64Writer * self)
 {
-  return (self->code - self->base) * sizeof (guint32);
+  return (guint) (self->code - self->base) * sizeof (guint32);
 }
 
 void
@@ -231,17 +231,16 @@ gum_arm64_writer_flush (GumArm64Writer * self)
 
   if (self->literal_refs_len > 0)
   {
-    guint64 * first_slot, * last_slot;
+    gint64 * first_slot, * last_slot;
     guint ref_idx;
 
-    first_slot = (guint64 *) self->code;
+    first_slot = (gint64 *) self->code;
     last_slot = first_slot;
 
     for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
     {
       GumArm64LiteralRef * r;
-      guint64 * cur_slot;
-      gint64 distance;
+      gint64 * cur_slot, distance;
       guint32 insn;
 
       r = &self->literal_refs[ref_idx];
@@ -402,6 +401,8 @@ static void
 gum_arm64_writer_put_argument_list_teardown (GumArm64Writer * self,
                                              guint n_args)
 {
+  (void) self;
+  (void) n_args;
 }
 
 gboolean
@@ -571,12 +572,12 @@ gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self,
   if (ra.width == 64)
   {
     gum_arm64_writer_put_load_store_pair_pre (self, GUM_MEM_PAIR_OPERAND_64,
-        0b10, FALSE, FALSE, ra.index, rb.index, GUM_A64REG_SP, -16);
+        2, FALSE, FALSE, ra.index, rb.index, GUM_A64REG_SP, -16);
   }
   else
   {
     gum_arm64_writer_put_load_store_pair_pre (self, GUM_MEM_PAIR_OPERAND_32,
-        0b00, FALSE, FALSE, ra.index, rb.index, GUM_A64REG_SP, -8);
+        0, FALSE, FALSE, ra.index, rb.index, GUM_A64REG_SP, -8);
   }
 }
 
@@ -595,12 +596,12 @@ gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self,
   if (ra.width == 64)
   {
     gum_arm64_writer_put_load_store_pair_post (self, GUM_MEM_PAIR_OPERAND_64,
-        0b10, FALSE, TRUE, ra.index, rb.index, GUM_A64REG_SP, 16);
+        2, FALSE, TRUE, ra.index, rb.index, GUM_A64REG_SP, 16);
   }
   else
   {
     gum_arm64_writer_put_load_store_pair_post (self, GUM_MEM_PAIR_OPERAND_32,
-        0b00, FALSE, TRUE, ra.index, rb.index, GUM_A64REG_SP, 8);
+        0, FALSE, TRUE, ra.index, rb.index, GUM_A64REG_SP, 8);
   }
 }
 
@@ -760,8 +761,8 @@ gum_arm64_writer_put_load_store_pair_pre (GumArm64Writer * self,
                                           gssize pre_increment)
 {
   gsize shift = gum_mem_pair_offset_shift (op_size, v);
-  gum_arm64_writer_put_instruction (self, (opc << 30) | (0b101 << 27) |
-      (v << 26) | (0b011 << 23) | (l << 22) |
+  gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
+      (v << 26) | (3 << 23) | (l << 22) |
       (((pre_increment >> shift) & 0x7f) << 15) |
       (rt2 << 10) | (rn << 5) | rt);
 }
@@ -778,8 +779,8 @@ gum_arm64_writer_put_load_store_pair_post (GumArm64Writer * self,
                                            gssize post_increment)
 {
   gsize shift = gum_mem_pair_offset_shift (op_size, v);
-  gum_arm64_writer_put_instruction (self, (opc << 30) | (0b101 << 27) |
-      (v << 26) | (0b001 << 23) | (l << 22) |
+  gum_arm64_writer_put_instruction (self, (opc << 30) | (5 << 27) |
+      (v << 26) | (1 << 23) | (l << 22) |
       (((post_increment >> shift) & 0x7f) << 15) |
       (rt2 << 10) | (rn << 5) | rt);
 }
@@ -816,6 +817,8 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
                                GumArm64Reg reg,
                                GumArm64RegInfo * ri)
 {
+  (void) self;
+
   if ((reg >= GUM_A64REG_X0 && reg <= GUM_A64REG_X30) ||
       reg == 31 ||
       (reg >= GUM_A64REG_PC && reg <= GUM_A64REG_NONE))

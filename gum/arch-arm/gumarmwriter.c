@@ -72,7 +72,7 @@ gum_arm_writer_cur (GumArmWriter * self)
 guint
 gum_arm_writer_offset (GumArmWriter * self)
 {
-  return (self->code - self->base) * sizeof (guint32);
+  return (guint) (self->code - self->base) * sizeof (guint32);
 }
 
 void

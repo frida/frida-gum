@@ -118,8 +118,8 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   raw_insn = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
   insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
-  group = (raw_insn >> 12) & 0b1111;
-  operation = (raw_insn >> 8) & 0b1111;
+  group = (raw_insn >> 12) & 0xf;
+  operation = (raw_insn >> 8) & 0xf;
 
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->address = self->input_cur;
@@ -128,31 +128,31 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
   switch (group)
   {
-    case 0b0100:
+    case 0x4:
       if (operation == 4)
         insn->mnemonic = GUM_ARM_ADDH;
       else if (operation >= 8)
         insn->mnemonic = GUM_ARM_LDRPC;
       break;
 
-    case 0b1010:
+    case 0xa:
       if (operation < 8)
         insn->mnemonic = GUM_ARM_ADDPC;
       else
         insn->mnemonic = GUM_ARM_ADDSP;
       break;
 
-    case 0b1011:
+    case 0xb:
       if (operation == 4 || operation == 5)
         insn->mnemonic = GUM_ARM_PUSH;
       break;
 
-    case 0b1110:
+    case 0xe:
       if (((raw_insn >> 11) & 1) == 0)
         insn->mnemonic = GUM_ARM_B_IMM_T2;
       break;
 
-    case 0b1111:
+    case 0xf:
     {
       guint32 wide_insn;
 
@@ -363,6 +363,8 @@ gum_thumb_relocator_rewrite_addh_if_pc_relative (GumThumbRelocator * self,
   GumArmReg src_reg, dst_reg, temp_reg;
   gboolean dst_reg_is_upper;
 
+  (void) self;
+
   src_reg = (insn & 0x78) >> 3;
   if (src_reg != GUM_AREG_PC)
     return FALSE;
@@ -393,6 +395,8 @@ gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
   GumArmReg reg;
   GumAddress absolute_pc;
 
+  (void) self;
+
   reg = (insn & 0x0700) >> 8;
 
   absolute_pc = ctx->insn->pc & ~(4 - 1);
@@ -415,6 +419,10 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
   } distance;
   GumAddress absolute_target;
 
+  (void) self;
+
+  distance.u = 0;
+
   switch (ctx->insn->mnemonic)
   {
     case GUM_ARM_B_IMM_T2:
@@ -422,10 +430,9 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
       guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
       guint32 imm11;
 
-      imm11 = insn & 0b11111111111;
+      imm11 = insn & 0x7ff;
 
-      distance.u = ((imm11 & 0b10000000000) ? 0xfffff000 : 0x00000000) |
-          (imm11 << 1);
+      distance.u = ((imm11 & 0x400) ? 0xfffff000 : 0x00000000) | (imm11 << 1);
 
       break;
     }
@@ -443,8 +450,8 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
       j2 = (insn >> 11) & 1;
       i1 = ~(j1 ^ s) & 1;
       i2 = ~(j2 ^ s) & 1;
-      imm10_h = (insn >> 16) & 0b1111111111;
-      imm11_l = insn & 0b11111111111;
+      imm10_h = (insn >> 16) & 0x3ff;
+      imm11_l = insn & 0x7ff;
 
       distance.u = (s ? 0xff000000 : 0x00000000) |
           (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
@@ -482,6 +489,8 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   } distance;
   GumAddress absolute_target;
 
+  (void) self;
+
   insn = ((guint32) GUINT16_FROM_LE (*(ctx->raw_insn))) << 16 |
       (guint32) GUINT16_FROM_LE (*(ctx->raw_insn + 1));
 
@@ -491,8 +500,8 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   j2 = (insn >> 11) & 1;
   i1 = ~(j1 ^ s) & 1;
   i2 = ~(j2 ^ s) & 1;
-  imm10_h = (insn >> 16) & 0b1111111111;
-  imm11_l = insn & 0b11111111111;
+  imm10_h = (insn >> 16) & 0x3ff;
+  imm11_l = insn & 0x7ff;
 
   distance.u = (s ? 0xff000000 : 0x00000000) |
       (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);

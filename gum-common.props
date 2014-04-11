@@ -12,7 +12,6 @@
     <ClInclude Include="gum\gum.h" />
     <ClInclude Include="gum\gumarray.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
-    <ClInclude Include="gum\gumclosure.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumevent.h" />
@@ -94,7 +93,32 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClCompile Include="gum\backend-x86\gumclosure-x86.c" />
+    <ClInclude Include="gum\arch-arm\gumarm.h" />
+    <ClInclude Include="gum\arch-arm\gumarmwriter.h" />
+    <ClInclude Include="gum\arch-arm\gumarmrelocator.h" />
+    <ClInclude Include="gum\arch-arm\gumthumbwriter.h" />
+    <ClInclude Include="gum\arch-arm\gumthumbrelocator.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\arch-arm\gumarmwriter.c" />
+    <ClCompile Include="gum\arch-arm\gumarmrelocator.c" />
+    <ClCompile Include="gum\arch-arm\gumthumbwriter.c" />
+    <ClCompile Include="gum\arch-arm\gumthumbrelocator.c" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClInclude Include="gum\arch-arm64\gumarm64.h" />
+    <ClInclude Include="gum\arch-arm64\gumarm64writer.h" />
+    <ClInclude Include="gum\arch-arm64\gumarm64relocator.h" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ClCompile Include="gum\arch-arm64\gumarm64writer.c" />
+    <ClCompile Include="gum\arch-arm64\gumarm64relocator.c" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ClCompile Include="gum\backend-x86\guminterceptor-x86.c" />
     <ClCompile Include="gum\backend-x86\gumstalker-x86.c" />
   </ItemGroup>

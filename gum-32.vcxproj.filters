@@ -31,6 +31,12 @@
     <Filter Include="vapi">
       <UniqueIdentifier>{c9fdd7fd-d1cb-41ce-a511-b326acab51f1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="core\arch-arm">
+      <UniqueIdentifier>{3de8e70e-7e64-469c-bca3-90eb555c03c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\arch-arm64">
+      <UniqueIdentifier>{12159555-5953-43fc-873d-2754adb9b815}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="$(SolutionDir)udis86\libudis86\udis86.c">
@@ -186,9 +192,6 @@
     <ClCompile Include="libs\gum\heap\gumheapapi.c">
       <Filter>libs\heap</Filter>
     </ClCompile>
-    <ClCompile Include="gum\backend-x86\gumclosure-x86.c">
-      <Filter>core\backend-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gumscript.cpp">
       <Filter>core</Filter>
     </ClCompile>
@@ -224,6 +227,24 @@
     </ClCompile>
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
       <Filter>core\backend-windows</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm64\gumarm64relocator.c">
+      <Filter>core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm64\gumarm64writer.c">
+      <Filter>core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm\gumarmrelocator.c">
+      <Filter>core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm\gumarmwriter.c">
+      <Filter>core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm\gumthumbrelocator.c">
+      <Filter>core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-arm\gumthumbwriter.c">
+      <Filter>core\arch-arm</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -413,9 +434,6 @@
     <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
       <Filter>libs\heap</Filter>
     </ClInclude>
-    <ClInclude Include="gum\gumclosure.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="gum\gumscript-priv.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -457,6 +475,30 @@
     </ClInclude>
     <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h">
       <Filter>udis86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm64\gumarm64.h">
+      <Filter>core\arch-arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm64\gumarm64relocator.h">
+      <Filter>core\arch-arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm64\gumarm64writer.h">
+      <Filter>core\arch-arm64</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumarm.h">
+      <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumarmrelocator.h">
+      <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumarmwriter.h">
+      <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumthumbrelocator.h">
+      <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumthumbwriter.h">
+      <Filter>core\arch-arm</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

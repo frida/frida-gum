@@ -214,8 +214,8 @@ branch_scenario_execute (BranchScenario * bs,
   {
     guint32 calculated_lr;
 
-    calculated_lr = fixture->aw.pc +
-        (bs->expected_lr_distance * sizeof (guint32));
+    calculated_lr = (guint32) (fixture->aw.pc +
+        (bs->expected_lr_distance * sizeof (guint32)));
     *((guint32 *) (bs->expected_output + bs->lr_offset)) =
         GUINT32_TO_LE (calculated_lr);
   }

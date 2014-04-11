@@ -103,12 +103,10 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (symbolutil);
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (relocator);
-#ifndef G_OS_WIN32 /* TODO: build system */
   TEST_RUN_LIST (armwriter);
   TEST_RUN_LIST (armrelocator);
   TEST_RUN_LIST (thumbwriter);
   TEST_RUN_LIST (thumbrelocator);
-#endif
   TEST_RUN_LIST (arm64writer);
   TEST_RUN_LIST (arm64relocator);
   TEST_RUN_LIST (interceptor);

@@ -37,6 +37,12 @@
     <Filter Include="Tests\gumpp">
       <UniqueIdentifier>{d5b54bac-c4d7-454d-b175-74936806c670}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests\core\arch-arm">
+      <UniqueIdentifier>{945f9b08-f2a1-406e-8c5a-dfedfa55adeb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tests\core\arch-arm64">
+      <UniqueIdentifier>{6378022e-45dd-4fb7-a3b4-6e107a63a6e4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="testutil.c">
@@ -176,6 +182,42 @@
     </ClCompile>
     <ClCompile Include="core\process.c">
       <Filter>Tests\core</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\armrelocator.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\armrelocator-fixture.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\armwriter.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\armwriter-fixture.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\thumbrelocator.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\thumbrelocator-fixture.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\thumbwriter.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm\thumbwriter-fixture.c">
+      <Filter>Tests\core\arch-arm</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm64\arm64relocator.c">
+      <Filter>Tests\core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm64\arm64relocator-fixture.c">
+      <Filter>Tests\core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm64\arm64writer.c">
+      <Filter>Tests\core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="core\arch-arm64\arm64writer-fixture.c">
+      <Filter>Tests\core\arch-arm64</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
