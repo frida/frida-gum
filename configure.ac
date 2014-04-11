@@ -145,7 +145,11 @@ if [[ "x$enable_objc" = "xyes" ]]; then
 fi
 AM_CONDITIONAL(ENABLE_OBJC, [test "x$enable_objc" = "xyes"])
 
-GUM_EXTRA_LIBS="-lstdc++"
+if $CC --version | grep -q clang; then
+  GUM_EXTRA_LIBS="-lc++"
+else
+  GUM_EXTRA_LIBS="-lstdc++"
+fi
 if [[ "x$enable_objc" = "xyes" ]]; then
   GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
