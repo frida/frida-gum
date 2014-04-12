@@ -85,19 +85,23 @@ RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
   const guint16 input[] = {
     0x4a03,                   /* ldr r2, [pc, #12] */
   };
-  guint16 expected_output[] = {
+  const guint16 expected_output_instructions[] = {
     0x4a00,                   /* ldr r2, [pc, #0] */
     0x6812,                   /* ldr r2, r2       */
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
   };
+  gchar expected_output[4 * sizeof (guint16)];
+
   guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
   calculated_pc = (fixture->rl.input_pc + 4 + 12) & ~(4 - 1);
-  *((guint32 *) (expected_output + 2)) = GUINT32_TO_LE (calculated_pc);
+  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_LDRPC);
@@ -112,7 +116,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
   const guint16 input[] = {
     0x447a,                   /* add r2, pc       */
   };
-  guint16 expected_output[] = {
+  const guint16 expected_output_instructions[] = {
     0xb401,                   /* push {r0}        */
     0x4801,                   /* ldr r0, [pc, #4] */
     0x4402,                   /* add r2, r0       */
@@ -120,13 +124,17 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
     0xffff,                   /* <calculated PC   */
     0xffff,                   /*  goes here>      */
   };
+  gchar expected_output[6 * sizeof (guint16)];
+
   guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
   calculated_pc = fixture->rl.input_pc + 4;
-  *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
+  *((guint32 *) (expected_output + 8)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADDH);

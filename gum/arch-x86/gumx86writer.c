@@ -574,7 +574,7 @@ gum_x86_writer_put_call_indirect (GumX86Writer * self,
 {
   self->code[0] = 0xff;
   self->code[1] = 0x15;
-  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) addr);
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (GUM_ADDRESS (addr));
   self->code += 6;
 }
 
@@ -1887,7 +1887,7 @@ gum_x86_writer_put_push_imm_ptr (GumX86Writer * self,
 {
   self->code[0] = 0xff;
   self->code[1] = 0x35;
-  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) imm_ptr);
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (GUM_ADDRESS (imm_ptr));
   self->code += 6;
 }
 
@@ -2083,7 +2083,7 @@ gum_x86_writer_put_cmp_imm_ptr_imm_u32 (GumX86Writer * self,
 {
   self->code[0] = 0x81;
   self->code[1] = 0x3d;
-  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE ((guint32) imm_ptr);
+  *((guint32 *) (self->code + 2)) = GUINT32_TO_LE (GUM_ADDRESS (imm_ptr));
   *((guint32 *) (self->code + 6)) = GUINT32_TO_LE (imm_value);
   self->code += 10;
 }
