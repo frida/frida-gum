@@ -70,6 +70,37 @@ gum_query_page_size (void)
   return page_size;
 }
 
+gboolean
+gum_darwin_query_page_size (mach_port_t task,
+                            guint * page_size)
+{
+  int pid;
+  kern_return_t kr;
+  GumCpuType cpu_type;
+
+  /* FIXME: any way we can probe it without access to the task's host port? */
+  kr = pid_for_task (task, &pid);
+  if (kr != KERN_SUCCESS)
+    return FALSE;
+
+  if (!gum_darwin_cpu_type_from_pid (pid, &cpu_type))
+    return FALSE;
+
+  switch (cpu_type)
+  {
+    case GUM_CPU_IA32:
+    case GUM_CPU_AMD64:
+    case GUM_CPU_ARM:
+      *page_size = 4096;
+      break;
+    case GUM_CPU_ARM64:
+      *page_size = 16384;
+      break;
+  }
+
+  return TRUE;
+}
+
 static void
 gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
                                   gpointer user_data)

@@ -43,6 +43,8 @@ GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,
     guint8 * bytes, gsize len);
 GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
+GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,
+    guint * page_size);
 GUM_API GumAddress gum_darwin_find_entrypoint (mach_port_t task);
 GUM_API void gum_darwin_enumerate_threads (mach_port_t task,
     GumFoundThreadFunc func, gpointer user_data);
