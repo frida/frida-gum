@@ -329,8 +329,7 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
 
   absolute_target = ctx->insn->pc + distance.i;
 
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, reg,
-      absolute_target);
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, reg, absolute_target);
 
   return TRUE;
 }
