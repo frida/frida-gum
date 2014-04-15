@@ -32,6 +32,7 @@ struct _GumArm64Relocator
 {
   const guint8 * input_start;
   const guint8 * input_cur;
+  GumAddress input_pc;
   GumArm64Instruction * input_insns;
   GumArm64Writer * output;
 

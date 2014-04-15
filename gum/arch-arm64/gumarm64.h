@@ -30,7 +30,10 @@ typedef struct _GumArm64Instruction GumArm64Instruction;
 
 enum _GumArm64Mnemonic
 {
-  GUM_ARM64_UNKNOWN
+  GUM_ARM64_UNKNOWN,
+
+  GUM_ARM64_ADR,
+  GUM_ARM64_ADRP
 };
 
 enum _GumArm64Reg
@@ -115,6 +118,7 @@ struct _GumArm64Instruction
 
   gconstpointer address;
   guint length;
+  GumAddress pc;
 };
 
 G_END_DECLS

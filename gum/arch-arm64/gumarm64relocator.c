@@ -30,7 +30,7 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 struct _GumCodeGenCtx
 {
   const GumArm64Instruction * insn;
-  const guint32 * raw_insn;
+  guint32 raw_insn;
   const guint8 * start;
   const guint8 * end;
   guint len;
@@ -38,8 +38,8 @@ struct _GumCodeGenCtx
   GumArm64Writer * output;
 };
 
-static gboolean gum_arm64_relocator_write_one_instruction (
-    GumArm64Relocator * self);
+static gboolean gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_arm64_relocator_init (GumArm64Relocator * relocator,
@@ -57,10 +57,13 @@ gum_arm64_relocator_reset (GumArm64Relocator * relocator,
                            gconstpointer input_code,
                            GumArm64Writer * output)
 {
-  relocator->input_start = relocator->input_cur = input_code;
+  relocator->input_start = input_code;
+  relocator->input_cur = input_code;
+  relocator->input_pc = GUM_ADDRESS (input_code);
   relocator->output = output;
 
-  relocator->inpos = relocator->outpos = 0;
+  relocator->inpos = 0;
+  relocator->outpos = 0;
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
@@ -100,20 +103,28 @@ gum_arm64_relocator_increment_outpos (GumArm64Relocator * self)
 
 guint
 gum_arm64_relocator_read_one (GumArm64Relocator * self,
-                            const GumArm64Instruction ** instruction)
+                              const GumArm64Instruction ** instruction)
 {
   guint32 raw_insn;
   GumArm64Instruction * insn;
+  guint32 adr_bits;
 
   if (self->eoi)
     return 0;
 
-  raw_insn = *((guint32 *) self->input_cur);
+  raw_insn = GUINT32_FROM_LE (*((guint32 *) self->input_cur));
   insn = &self->input_insns[gum_arm64_relocator_inpos (self)];
 
   insn->mnemonic = GUM_ARM64_UNKNOWN;
-  insn->length = 4;
   insn->address = self->input_cur;
+  insn->length = 4;
+  insn->pc = self->input_pc;
+
+  adr_bits = raw_insn & 0x9f000000;
+  if (adr_bits == 0x10000000)
+    insn->mnemonic = GUM_ARM64_ADR;
+  else if (adr_bits == 0x90000000)
+    insn->mnemonic = GUM_ARM64_ADRP;
 
   gum_arm64_relocator_increment_inpos (self);
 
@@ -121,6 +132,7 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
     *instruction = insn;
 
   self->input_cur += insn->length;
+  self->input_pc += insn->length;
 
   return self->input_cur - self->input_start;
 }
@@ -161,29 +173,32 @@ gboolean
 gum_arm64_relocator_write_one (GumArm64Relocator * self)
 {
   GumArm64Instruction * cur;
+  GumCodeGenCtx ctx;
+  gboolean rewritten = FALSE;
 
   if ((cur = gum_arm64_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
-
-  return gum_arm64_relocator_write_one_instruction (self);
-}
-
-static gboolean
-gum_arm64_relocator_write_one_instruction (GumArm64Relocator * self)
-{
-  GumCodeGenCtx ctx;
-  gboolean rewritten = FALSE;
 
   if ((ctx.insn = gum_arm64_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
   gum_arm64_relocator_increment_outpos (self);
 
   ctx.len = ctx.insn->length;
-  ctx.raw_insn = ctx.insn->address;
+  ctx.raw_insn = GUINT32_FROM_LE (*((guint32 *) ctx.insn->address));
   ctx.start = ctx.insn->address;
   ctx.end = ctx.start + ctx.len;
 
   ctx.output = self->output;
+
+  switch (ctx.insn->mnemonic)
+  {
+    case GUM_ARM64_ADR:
+    case GUM_ARM64_ADRP:
+      rewritten = gum_arm64_relocator_rewrite_adr (self, &ctx);
+      break;
+    default:
+      break;
+  }
 
   if (!rewritten)
     gum_arm64_writer_put_bytes (ctx.output, ctx.start, ctx.len);
@@ -216,7 +231,7 @@ gum_arm64_relocator_eoi (GumArm64Relocator * self)
 
 gboolean
 gum_arm64_relocator_can_relocate (gpointer address,
-                                guint min_bytes)
+                                  guint min_bytes)
 {
   guint8 * buf;
   GumArm64Writer cw;
@@ -245,8 +260,8 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
 guint
 gum_arm64_relocator_relocate (gpointer from,
-                            guint min_bytes,
-                            gpointer to)
+                              guint min_bytes,
+                              gpointer to)
 {
   GumArm64Writer cw;
   GumArm64Relocator rl;
@@ -269,4 +284,53 @@ gum_arm64_relocator_relocate (gpointer from,
   gum_arm64_writer_free (&cw);
 
   return reloc_bytes;
+}
+
+static gboolean
+gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
+                                 GumCodeGenCtx * ctx)
+{
+  GumArm64Reg reg;
+  guint64 imm_hi, imm_lo;
+  guint64 negative_mask;
+  union
+  {
+    gint64 i;
+    guint64 u;
+  } distance;
+  GumAddress absolute_target;
+
+  reg = ctx->raw_insn & 0x1f;
+  imm_hi = (ctx->raw_insn >> 5) & 0x7ffff;
+  imm_lo = (ctx->raw_insn >> 29) & 3;
+
+  if (ctx->insn->mnemonic == GUM_ARM64_ADR)
+  {
+    negative_mask = G_GUINT64_CONSTANT (0xffffffffffe00000);
+
+    if ((imm_hi & 0x40000) != 0)
+      distance.u = negative_mask | (imm_hi << 2) | imm_lo;
+    else
+      distance.u = (imm_hi << 2) | imm_lo;
+  }
+  else if (ctx->insn->mnemonic == GUM_ARM64_ADRP)
+  {
+    negative_mask = G_GUINT64_CONSTANT (0xfffffffe00000000);
+
+    if ((imm_hi & 0x40000) != 0)
+      distance.u = negative_mask | (imm_hi << 14) | (imm_lo << 12);
+    else
+      distance.u = (imm_hi << 14) | (imm_lo << 12);
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
+
+  absolute_target = ctx->insn->pc + distance.i;
+
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, reg,
+      absolute_target);
+
+  return TRUE;
 }

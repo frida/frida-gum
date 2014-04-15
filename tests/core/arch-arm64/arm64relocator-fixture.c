@@ -47,6 +47,7 @@ test_arm64_relocator_fixture_setup (TestArm64RelocatorFixture * fixture,
   fixture->output = (guint8 *) gum_alloc_n_pages (1, GUM_PAGE_RW);
 
   gum_arm64_writer_init (&fixture->aw, fixture->output);
+  fixture->aw.pc = 1024;
 }
 
 static void
@@ -61,7 +62,8 @@ test_arm64_relocator_fixture_teardown (TestArm64RelocatorFixture * fixture,
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
 
 #define SETUP_RELOCATOR_WITH(CODE) \
-    gum_arm64_relocator_init (&fixture->rl, CODE, &fixture->aw)
+    gum_arm64_relocator_init (&fixture->rl, CODE, &fixture->aw); \
+    fixture->rl.input_pc = 2048
 
 #define assert_outbuf_still_zeroed_from_offset(OFF) \
     g_assert_cmpint (memcmp (fixture->output + OFF, cleared_outbuf + OFF, \
