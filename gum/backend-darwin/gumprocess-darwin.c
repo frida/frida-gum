@@ -479,7 +479,8 @@ gum_darwin_find_entrypoint (mach_port_t task)
 
   ctx.result = 0;
   ctx.task = task;
-  ctx.page_size = gum_query_page_size ();
+  if (!gum_darwin_query_page_size (task, &ctx.page_size))
+    return 0;
 
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
       gum_probe_range_for_entrypoint, &ctx);
@@ -657,7 +658,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
   ctx.user_data = user_data;
 
   ctx.ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 64);
-  ctx.page_size = gum_query_page_size ();
+  if (!gum_darwin_query_page_size (task, &ctx.page_size))
+    return;
 
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
       gum_store_range_of_potential_modules, &ctx);
