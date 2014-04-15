@@ -265,6 +265,7 @@ gum_clear_cache (gpointer address,
                  gsize size)
 {
   sys_icache_invalidate (address, size);
+  sys_dcache_flush (address, size);
 }
 
 guint
