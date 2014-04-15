@@ -300,6 +300,8 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
   } distance;
   GumAddress absolute_target;
 
+  (void) self;
+
   reg = ctx->raw_insn & 0x1f;
   imm_hi = (ctx->raw_insn >> 5) & 0x7ffff;
   imm_lo = (ctx->raw_insn >> 29) & 3;
@@ -324,6 +326,8 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
   }
   else
   {
+    distance.u = 0;
+
     g_assert_not_reached ();
   }
 
