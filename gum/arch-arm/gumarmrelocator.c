@@ -28,7 +28,7 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 struct _GumCodeGenCtx
 {
   const GumArmInstruction * insn;
-  const guint32 * raw_insn;
+  guint32 raw_insn;
 
   GumArmWriter * output;
 };
@@ -210,7 +210,7 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
     return FALSE;
   gum_arm_relocator_increment_outpos (self);
 
-  ctx.raw_insn = ctx.insn->address;
+  ctx.raw_insn = GUINT32_FROM_LE (*((guint32 *) ctx.insn->address));
 
   ctx.output = self->output;
 
@@ -316,7 +316,6 @@ static gboolean
 gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
                                       GumCodeGenCtx * ctx)
 {
-  guint32 raw_insn;
   union
   {
     gint32 i;
@@ -326,14 +325,13 @@ gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
 
   (void) self;
 
-  raw_insn = *ctx->raw_insn;
-  if ((raw_insn & 0x00800000) != 0)
-    distance.u = 0xfc000000 | ((raw_insn & 0x00ffffff) << 2);
+  if ((ctx->raw_insn & 0x00800000) != 0)
+    distance.u = 0xfc000000 | ((ctx->raw_insn & 0x00ffffff) << 2);
   else
-    distance.u = ((raw_insn & 0x007fffff) << 2);
+    distance.u = ((ctx->raw_insn & 0x007fffff) << 2);
 
   if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2 &&
-      (raw_insn & 0x01000000) != 0)
+      (ctx->raw_insn & 0x01000000) != 0)
   {
     distance.u |= 2;
   }
