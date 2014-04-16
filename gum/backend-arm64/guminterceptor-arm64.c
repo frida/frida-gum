@@ -299,7 +299,7 @@ _gum_interceptor_resolve_redirect (gpointer address)
 gboolean
 _gum_interceptor_can_intercept (gpointer function_address)
 {
-  return TRUE;
+  return gum_arm64_relocator_can_relocate (function_address, 16);
 }
 
 gpointer
