@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (arm64relocator)
   TESTENTRY (one_to_one)
   TESTENTRY (adr_should_be_rewritten)
   TESTENTRY (adrp_should_be_rewritten)
+  TESTENTRY (eob_and_eoi_on_ret)
 TEST_LIST_END ()
 
 TESTCASE (one_to_one)
@@ -112,3 +113,16 @@ TESTCASE (adrp_should_be_rewritten)
       sizeof (expected_output)), ==, 0);
 }
 
+TESTCASE (eob_and_eoi_on_ret)
+{
+  const guint32 input[] = {
+    GUINT32_TO_LE (0xd65f03c0)  /* ret */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert (gum_arm64_relocator_eob (&fixture->rl));
+  g_assert (gum_arm64_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, NULL), ==, 0);
+}

@@ -107,7 +107,6 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
 {
   guint32 raw_insn;
   GumArm64Instruction * insn;
-  guint32 adr_bits;
 
   if (self->eoi)
     return 0;
@@ -120,11 +119,39 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   insn->length = 4;
   insn->pc = self->input_pc;
 
-  adr_bits = raw_insn & 0x9f000000;
-  if (adr_bits == 0x10000000)
-    insn->mnemonic = GUM_ARM64_ADR;
-  else if (adr_bits == 0x90000000)
-    insn->mnemonic = GUM_ARM64_ADRP;
+  if ((raw_insn & 0xff9ffc1f) == 0xd61f0000)
+  {
+    switch ((raw_insn >> 21) & 3)
+    {
+      case 0:
+        insn->mnemonic = GUM_ARM64_BR;
+        self->eob = TRUE;
+        self->eoi = TRUE;
+        break;
+      case 1:
+        insn->mnemonic = GUM_ARM64_BLR;
+        self->eob = TRUE;
+        self->eoi = FALSE;
+        break;
+      case 2:
+        insn->mnemonic = GUM_ARM64_RET;
+        self->eob = TRUE;
+        self->eoi = TRUE;
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+  }
+  else
+  {
+    guint32 adr_bits;
+
+    adr_bits = raw_insn & 0x9f000000;
+    if (adr_bits == 0x10000000)
+      insn->mnemonic = GUM_ARM64_ADR;
+    else if (adr_bits == 0x90000000)
+      insn->mnemonic = GUM_ARM64_ADRP;
+  }
 
   gum_arm64_relocator_increment_inpos (self);
 

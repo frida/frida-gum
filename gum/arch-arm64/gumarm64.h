@@ -33,7 +33,10 @@ enum _GumArm64Mnemonic
   GUM_ARM64_UNKNOWN,
 
   GUM_ARM64_ADR,
-  GUM_ARM64_ADRP
+  GUM_ARM64_ADRP,
+  GUM_ARM64_BR,
+  GUM_ARM64_BLR,
+  GUM_ARM64_RET
 };
 
 enum _GumArm64Reg
