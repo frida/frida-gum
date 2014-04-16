@@ -473,7 +473,17 @@ _gum_interceptor_resolve_redirect (gpointer address)
 gboolean
 _gum_interceptor_can_intercept (gpointer function_address)
 {
-  return TRUE;
+  if ((GPOINTER_TO_SIZE (function_address) & 1) != 0)
+  {
+    return gum_thumb_relocator_can_relocate (
+        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (function_address) & ~1),
+        GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+  }
+  else
+  {
+    return gum_arm_relocator_can_relocate (function_address,
+        GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
+  }
 }
 
 gpointer
