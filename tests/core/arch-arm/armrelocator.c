@@ -32,8 +32,8 @@ TEST_LIST_END ()
 RELOCATOR_TESTCASE (one_to_one)
 {
   const guint32 input[] = {
-    0xe1a0c00d,               /* mov ip, sp    */
-    0xe92d0030,               /* push {r4, r5} */
+    GUINT32_TO_LE (0xe1a0c00d), /* mov ip, sp    */
+    GUINT32_TO_LE (0xe92d0030), /* push {r4, r5} */
   };
   const GumArmInstruction * insn;
 
@@ -201,8 +201,14 @@ static void
 branch_scenario_execute (BranchScenario * bs,
                          TestArmRelocatorFixture * fixture)
 {
+  gsize i;
   guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
+
+  for (i = 0; i != bs->input_length; i++)
+    bs->input[i] = GUINT32_TO_LE (bs->input[i]);
+  for (i = 0; i != bs->expected_output_length; i++)
+    bs->expected_output[i] = GUINT32_TO_LE (bs->expected_output[i]);
 
   SETUP_RELOCATOR_WITH (bs->input);
 
