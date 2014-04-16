@@ -29,8 +29,8 @@ TEST_LIST_END ()
 TESTCASE (one_to_one)
 {
   const guint32 input[] = {
-    0xe1a0c00d,               /* mov ip, sp    */
-    0xe92d0030,               /* push {r4, r5} */
+    GUINT32_TO_LE (0xe1a0c00d), /* mov ip, sp    */
+    GUINT32_TO_LE (0xe92d0030), /* push {r4, r5} */
   };
   const GumArm64Instruction * insn;
 
