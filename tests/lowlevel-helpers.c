@@ -70,7 +70,8 @@ lowlevel_helpers_deinit (void)
 void
 fill_cpu_context_with_magic_values (GumCpuContext * ctx)
 {
-#if GLIB_SIZEOF_VOID_P == 4
+#ifdef HAVE_I386
+# if GLIB_SIZEOF_VOID_P == 4
   ctx->edi = 0x1234a001;
   ctx->esi = 0x12340b02;
   ctx->ebp = 0x123400c3;
@@ -78,7 +79,7 @@ fill_cpu_context_with_magic_values (GumCpuContext * ctx)
   ctx->edx = 0x1234e005;
   ctx->ecx = 0x12340f06;
   ctx->eax = 0x12340107;
-#else
+# else
   ctx->rdi = 0x876543211234a001;
   ctx->rsi = 0x8765432112340b02;
   ctx->rbp = 0x87654321123400c3;
@@ -95,6 +96,7 @@ fill_cpu_context_with_magic_values (GumCpuContext * ctx)
   ctx->r10 = 0x8765abcd12340f06;
   ctx->r9  = 0x8765abcd12340107;
   ctx->r8  = 0x8765abcd12340107;
+# endif
 #endif
 }
 
@@ -102,7 +104,8 @@ void
 assert_cpu_contexts_are_equal (GumCpuContext * input,
                                GumCpuContext * output)
 {
-#if GLIB_SIZEOF_VOID_P == 4
+#ifdef HAVE_I386
+# if GLIB_SIZEOF_VOID_P == 4
   g_assert_cmphex (output->edi, ==, input->edi);
   g_assert_cmphex (output->esi, ==, input->esi);
   g_assert_cmphex (output->ebp, ==, input->ebp);
@@ -110,7 +113,7 @@ assert_cpu_contexts_are_equal (GumCpuContext * input,
   g_assert_cmphex (output->edx, ==, input->edx);
   g_assert_cmphex (output->ecx, ==, input->ecx);
   g_assert_cmphex (output->eax, ==, input->eax);
-#else
+# else
   g_assert_cmphex (output->rdi, ==, input->rdi);
   g_assert_cmphex (output->rsi, ==, input->rsi);
   g_assert_cmphex (output->rbp, ==, input->rbp);
@@ -127,6 +130,7 @@ assert_cpu_contexts_are_equal (GumCpuContext * input,
   g_assert_cmphex (output->r10, ==, input->r10);
   g_assert_cmphex (output->r9, ==, input->r9);
   g_assert_cmphex (output->r8, ==, input->r8);
+# endif
 #endif
 }
 
@@ -134,15 +138,16 @@ void
 invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
                                                GumCpuContext * output)
 {
+#ifdef HAVE_I386
   GumAddressSpec addr_spec;
   guint8 * code;
   GumX86Writer cw;
   InvokeWithCpuContextFunc func;
   guint align_correction = 0;
 
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   align_correction = 8;
-#endif
+# endif
 
   addr_spec.near_address = GUM_FUNCPTR_TO_POINTER (clobber_test_function);
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
@@ -152,7 +157,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   gum_x86_writer_put_pushax (&cw);
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XAX); /* placeholder for xip */
 
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_EAX,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, eax));
   /* leave GUM_REG_ECX for last */
@@ -169,7 +174,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
 
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx));
-#else
+# else
   if (cw.target_abi == GUM_ABI_UNIX)
     gum_x86_writer_put_mov_reg_reg (&cw, GUM_REG_RCX, GUM_REG_RDI);
 
@@ -206,7 +211,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
 
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx));
-#endif
+# endif
 
   if (align_correction != 0)
     gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
@@ -219,7 +224,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
 
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XCX);
 
-#if GLIB_SIZEOF_VOID_P == 4
+# if GLIB_SIZEOF_VOID_P == 4
   gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_ECX,
       GUM_REG_ESP, 4 + G_STRUCT_OFFSET (GumCpuContext, edx));
 
@@ -247,7 +252,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_ECX, G_STRUCT_OFFSET (GumCpuContext, ecx),
       GUM_REG_EDX);
-#else
+# else
   if (cw.target_abi == GUM_ABI_UNIX)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (&cw, GUM_REG_RCX,
@@ -308,7 +313,7 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   gum_x86_writer_put_mov_reg_offset_ptr_reg (&cw,
       GUM_REG_RCX, G_STRUCT_OFFSET (GumCpuContext, rcx),
       GUM_REG_RDX);
-#endif
+# endif
 
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XAX);
   gum_x86_writer_put_popax (&cw);
@@ -320,23 +325,25 @@ invoke_clobber_test_function_with_cpu_context (const GumCpuContext * input,
   func (input, output);
 
   gum_free_pages (code);
+#endif
 }
 
 void
 invoke_clobber_test_function_with_carry_set (gsize * flags_input,
                                              gsize * flags_output)
 {
+#ifdef HAVE_I386
   GumAddressSpec addr_spec;
   guint8 * code;
   GumX86Writer cw;
   InvokeWithCpuFlagsFunc func;
   guint align_correction = 0, i;
 
-#if GLIB_SIZEOF_VOID_P == 8
+# if GLIB_SIZEOF_VOID_P == 8
   align_correction = 8;
-#else
+# else
   align_correction = 12;
-#endif
+# endif
 
   addr_spec.near_address = clobber_test_function;
   addr_spec.max_distance = G_MAXINT32 - gum_query_page_size ();
@@ -372,6 +379,7 @@ invoke_clobber_test_function_with_carry_set (gsize * flags_input,
   func (flags_input, flags_output);
 
   gum_free_pages (code);
+#endif
 }
 
 UnsupportedFunction *
@@ -379,8 +387,14 @@ unsupported_function_list_new (guint * count)
 {
   static const UnsupportedFunction unsupported_functions[] =
   {
-    { "ret",   1, { 0xc3                                           } },
-    { "retf",  1, { 0xcb                                           } },
+#if defined (HAVE_I386)
+    { "ret",   1, 0, { 0xc3                                           } },
+    { "retf",  1, 0, { 0xcb                                           } },
+#elif defined (HAVE_ARM)
+    { "ret",   2, 1, { 0x70, 0x47                                     } },
+#elif defined (HAVE_ARM64)
+    { "ret",   4, 0, { 0xc0, 0x03, 0x5f, 0xd6                         } },
+#endif
   };
   UnsupportedFunction * result;
 
@@ -396,6 +410,8 @@ unsupported_function_list_free (UnsupportedFunction * functions)
 {
   gum_free_pages (functions);
 }
+
+#ifdef HAVE_I386
 
 ProxyFunc
 proxy_func_new_relative_with_target (TargetFunc target_func)
@@ -505,3 +521,5 @@ proxy_func_free (ProxyFunc proxy_func)
 {
   gum_free_pages ((gpointer) (gsize) proxy_func);
 }
+
+#endif

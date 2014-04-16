@@ -24,8 +24,10 @@ TEST_LIST_BEGIN (interceptor)
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (cpu_register_clobber)
   INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
+#endif
 
   INTERCEPTOR_TESTENTRY (i_can_has_attachability)
+#ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (already_attached)
   INTERCEPTOR_TESTENTRY (relative_proxy_function)
   INTERCEPTOR_TESTENTRY (absolute_indirect_proxy_function)
@@ -397,6 +399,8 @@ INTERCEPTOR_TESTCASE (cpu_flag_clobber)
   g_assert_cmphex (flags_output, ==, flags_input);
 }
 
+#endif
+
 INTERCEPTOR_TESTCASE (i_can_has_attachability)
 {
   UnsupportedFunction * unsupported_functions;
@@ -409,11 +413,14 @@ INTERCEPTOR_TESTCASE (i_can_has_attachability)
     UnsupportedFunction * func = &unsupported_functions[i];
 
     g_assert_cmpint (interceptor_fixture_try_attaching_listener (fixture, 0,
-        func->code, '>', '<'), ==, GUM_ATTACH_WRONG_SIGNATURE);
+        func->code + func->code_offset, '>', '<'),
+        ==, GUM_ATTACH_WRONG_SIGNATURE);
   }
 
   unsupported_function_list_free (unsupported_functions);
 }
+
+#ifdef HAVE_I386
 
 INTERCEPTOR_TESTCASE (already_attached)
 {

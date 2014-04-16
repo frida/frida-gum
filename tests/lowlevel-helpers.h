@@ -32,6 +32,7 @@ struct _UnsupportedFunction
 {
   const gchar * insn_name;
   guint code_len;
+  guint code_offset;
   guint8 code[16];
 };
 
@@ -52,10 +53,12 @@ void invoke_clobber_test_function_with_carry_set (gsize * flags_input,
 UnsupportedFunction * unsupported_function_list_new (guint * count);
 void unsupported_function_list_free (UnsupportedFunction * functions);
 
+#ifdef HAVE_I386
 ProxyFunc proxy_func_new_relative_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_absolute_indirect_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_two_jumps_with_target (TargetFunc target_func);
 ProxyFunc proxy_func_new_early_call_with_target (TargetFunc target_func);
 void proxy_func_free (ProxyFunc proxy_func);
+#endif
 
 #endif

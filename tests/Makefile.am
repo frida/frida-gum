@@ -22,16 +22,9 @@ endif
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
 
-arch_sources = $(NULL)
 libs_libadd = $(NULL)
 binding_ldadd = $(NULL)
 binding_libadd = $(NULL)
-
-if ARCH_I386
-arch_sources += \
-	lowlevel-helpers.c \
-	lowlevel-helpers.h
-endif
 
 if ENABLE_LIBS
 libs_libadd += \
@@ -69,7 +62,8 @@ libgum_tests_la_SOURCES = \
 	stubs/fakebacktracer.h \
 	stubs/fakeeventsink.c \
 	stubs/fakeeventsink.h \
-	$(arch_sources)
+	lowlevel-helpers.c \
+	lowlevel-helpers.h
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(libs_libadd) \
