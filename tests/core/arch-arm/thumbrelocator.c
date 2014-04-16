@@ -33,6 +33,7 @@ TEST_LIST_BEGIN (thumbrelocator)
   RELOCATOR_TESTENTRY (bl_imm_t1_negative_should_be_rewritten)
   RELOCATOR_TESTENTRY (blx_imm_t2_positive_should_be_rewritten)
   RELOCATOR_TESTENTRY (blx_imm_t2_negative_should_be_rewritten)
+  RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
 TEST_LIST_END ()
 
 RELOCATOR_TESTCASE (one_to_one)
@@ -361,4 +362,18 @@ branch_scenario_execute (BranchScenario * bs,
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint16)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0x4770)  /* bx lr */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert (gum_thumb_relocator_eob (&fixture->rl));
+  g_assert (gum_thumb_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 0);
 }

@@ -130,9 +130,19 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   {
     case 0x4:
       if (operation == 4)
+      {
         insn->mnemonic = GUM_ARM_ADDH;
+      }
+      else if (operation == 7)
+      {
+        insn->mnemonic = GUM_ARM_BX_REG;
+        self->eob = TRUE;
+        self->eoi = TRUE;
+      }
       else if (operation >= 8)
+      {
         insn->mnemonic = GUM_ARM_LDRPC;
+      }
       break;
 
     case 0xa:
@@ -149,7 +159,11 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
     case 0xe:
       if (((raw_insn >> 11) & 1) == 0)
+      {
         insn->mnemonic = GUM_ARM_B_IMM_T2;
+        self->eob = TRUE;
+        self->eoi = TRUE;
+      }
       break;
 
     case 0xf:
@@ -161,11 +175,23 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
       wide_insn = ((guint32) raw_insn) << 16 |
           (guint32) *((guint16 *) (self->input_cur + 2));
       if ((wide_insn & 0xf800d000) == 0xf0009000)
+      {
         insn->mnemonic = GUM_ARM_B_IMM_T4;
+        self->eob = TRUE;
+        self->eoi = TRUE;
+      }
       else if ((wide_insn & 0xf800d000) == 0xf000d000)
+      {
         insn->mnemonic = GUM_ARM_BL_IMM_T1;
+        self->eob = TRUE;
+        self->eoi = FALSE;
+      }
       else if ((wide_insn & 0xf800d001) == 0xf000c000)
+      {
         insn->mnemonic = GUM_ARM_BLX_IMM_T2;
+        self->eob = TRUE;
+        self->eoi = FALSE;
+      }
 
       break;
     }

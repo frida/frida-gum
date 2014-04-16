@@ -32,6 +32,7 @@ enum _GumArmMnemonic
 {
   GUM_ARM_UNKNOWN,
 
+  GUM_ARM_BX_REG,
   GUM_ARM_B_IMM_A1,
   GUM_ARM_B_IMM_T2,
   GUM_ARM_B_IMM_T4,
