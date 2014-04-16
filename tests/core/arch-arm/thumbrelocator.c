@@ -38,8 +38,8 @@ TEST_LIST_END ()
 RELOCATOR_TESTCASE (one_to_one)
 {
   const guint16 input[] = {
-    0xb580,                   /* push {r7, lr}  */
-    0xaf00,                   /* add r7, sp, #0 */
+    GUINT16_TO_LE (0xb580), /* push {r7, lr}  */
+    GUINT16_TO_LE (0xaf00), /* add r7, sp, #0 */
   };
   const GumArmInstruction * insn;
 
@@ -69,7 +69,7 @@ RELOCATOR_TESTCASE (one_to_one)
 RELOCATOR_TESTCASE (handle_extended_instructions)
 {
   const guint16 input[] = {
-    0xf241, 0x3037,           /* movw r0, #4919 */
+    GUINT16_TO_LE (0xf241), GUINT16_TO_LE (0x3037), /* movw r0, #4919 */
   };
 
   SETUP_RELOCATOR_WITH (input);
@@ -83,13 +83,13 @@ RELOCATOR_TESTCASE (handle_extended_instructions)
 RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
 {
   const guint16 input[] = {
-    0x4a03,                   /* ldr r2, [pc, #12] */
+    GUINT16_TO_LE (0x4a03), /* ldr r2, [pc, #12] */
   };
   const guint16 expected_output_instructions[] = {
-    0x4a00,                   /* ldr r2, [pc, #0] */
-    0x6812,                   /* ldr r2, r2       */
-    0xffff,                   /* <calculated PC   */
-    0xffff,                   /*  goes here>      */
+    GUINT16_TO_LE (0x4a00), /* ldr r2, [pc, #0] */
+    GUINT16_TO_LE (0x6812), /* ldr r2, r2       */
+    GUINT16_TO_LE (0xffff), /* <calculated PC   */
+    GUINT16_TO_LE (0xffff), /*  goes here>      */
   };
   gchar expected_output[4 * sizeof (guint16)];
 
@@ -114,15 +114,15 @@ RELOCATOR_TESTCASE (ldrpc_should_be_rewritten)
 RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
 {
   const guint16 input[] = {
-    0x447a,                   /* add r2, pc       */
+    GUINT16_TO_LE (0x447a),   /* add r2, pc       */
   };
   const guint16 expected_output_instructions[] = {
-    0xb401,                   /* push {r0}        */
-    0x4801,                   /* ldr r0, [pc, #4] */
-    0x4402,                   /* add r2, r0       */
-    0xbc01,                   /* pop {r0}         */
-    0xffff,                   /* <calculated PC   */
-    0xffff,                   /*  goes here>      */
+    GUINT16_TO_LE (0xb401),   /* push {r0}        */
+    GUINT16_TO_LE (0x4801),   /* ldr r0, [pc, #4] */
+    GUINT16_TO_LE (0x4402),   /* add r2, r0       */
+    GUINT16_TO_LE (0xbc01),   /* pop {r0}         */
+    GUINT16_TO_LE (0xffff),   /* <calculated PC   */
+    GUINT16_TO_LE (0xffff),   /*  goes here>      */
   };
   gchar expected_output[6 * sizeof (guint16)];
 
@@ -339,8 +339,14 @@ static void
 branch_scenario_execute (BranchScenario * bs,
                          TestThumbRelocatorFixture * fixture)
 {
+  gsize i;
   guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
+
+  for (i = 0; i != bs->input_length; i++)
+    bs->input[i] = GUINT16_TO_LE (bs->input[i]);
+  for (i = 0; i != bs->expected_output_length; i++)
+    bs->expected_output[i] = GUINT16_TO_LE (bs->expected_output[i]);
 
   SETUP_RELOCATOR_WITH (bs->input);
 
