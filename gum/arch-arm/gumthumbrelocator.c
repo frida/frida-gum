@@ -490,7 +490,7 @@ gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
       break;
   }
 
-  absolute_target = ctx->insn->pc + distance.i;
+  absolute_target = (ctx->insn->pc + distance.i) | 1;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
@@ -532,7 +532,7 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   distance.u = (s ? 0xff000000 : 0x00000000) |
       (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
 
-  absolute_target = ctx->insn->pc + distance.i;
+  absolute_target = (ctx->insn->pc + distance.i) | ((insn >> 12) & 1);
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,

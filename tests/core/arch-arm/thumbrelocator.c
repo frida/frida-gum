@@ -191,7 +191,7 @@ RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, 8
+    6, 9
   };
   branch_scenario_execute (&bs, fixture);
 }
@@ -211,7 +211,7 @@ RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, -8
+    6, -7
   };
   branch_scenario_execute (&bs, fixture);
 }
@@ -231,7 +231,7 @@ RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, 0x1234
+    6, 0x1235
   };
   branch_scenario_execute (&bs, fixture);
 }
@@ -251,7 +251,7 @@ RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, -0x1234
+    6, -0x1233
   };
   branch_scenario_execute (&bs, fixture);
 }
@@ -271,7 +271,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, 0x1234
+    6, 0x1235
   };
   branch_scenario_execute (&bs, fixture);
 }
@@ -291,7 +291,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
-    6, -0x1234
+    6, -0x1233
   };
   branch_scenario_execute (&bs, fixture);
 }
