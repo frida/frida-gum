@@ -40,6 +40,8 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_arm64_relocator_init (GumArm64Relocator * relocator,
@@ -119,7 +121,22 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   insn->length = 4;
   insn->pc = self->input_pc;
 
-  if ((raw_insn & 0xff9ffc1f) == 0xd61f0000)
+  if ((raw_insn & 0x7c000000) == 0x14000000)
+  {
+    if ((raw_insn & 0x80000000) != 0)
+    {
+      insn->mnemonic = GUM_ARM64_BL;
+      self->eob = TRUE;
+      self->eoi = FALSE;
+    }
+    else
+    {
+      insn->mnemonic = GUM_ARM64_B;
+      self->eob = TRUE;
+      self->eoi = TRUE;
+    }
+  }
+  else if ((raw_insn & 0xff9ffc1f) == 0xd61f0000)
   {
     switch ((raw_insn >> 21) & 3)
     {
@@ -222,6 +239,10 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
     case GUM_ARM64_ADR:
     case GUM_ARM64_ADRP:
       rewritten = gum_arm64_relocator_rewrite_adr (self, &ctx);
+      break;
+    case GUM_ARM64_B:
+    case GUM_ARM64_BL:
+      rewritten = gum_arm64_relocator_rewrite_bl (self, &ctx);
       break;
     default:
       break;
@@ -361,6 +382,40 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
   absolute_target = ctx->insn->pc + distance.i;
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, reg, absolute_target);
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
+                                GumCodeGenCtx * ctx)
+{
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  GumAddress absolute_target;
+
+  if ((ctx->raw_insn & 0x2000000) != 0)
+    distance.u = 0xfc000000 | (ctx->raw_insn & 0x3ffffff);
+  else
+    distance.u = ctx->raw_insn & 0x3ffffff;
+
+  absolute_target = ctx->insn->pc + (distance.i * 4);
+
+  if (ctx->insn->mnemonic == GUM_ARM64_B)
+  {
+    gum_arm64_writer_put_ldr_reg_address (ctx->output, GUM_A64REG_X16,
+        absolute_target);
+    gum_arm64_writer_put_br_reg (ctx->output, GUM_A64REG_X16);
+  }
+  else
+  {
+    gum_arm64_writer_put_ldr_reg_address (ctx->output, GUM_A64REG_LR,
+        absolute_target);
+    gum_arm64_writer_put_blr_reg (ctx->output, GUM_A64REG_LR);
+  }
 
   return TRUE;
 }
