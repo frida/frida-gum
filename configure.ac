@@ -146,7 +146,11 @@ fi
 AM_CONDITIONAL(ENABLE_OBJC, [test "x$enable_objc" = "xyes"])
 
 if $CC --version | grep -q clang; then
-  GUM_EXTRA_LIBS="-lc++"
+  if [[ "x$HAVE_ANDROID" = "xyes" ]]; then
+    GUM_EXTRA_LIBS="-lc++_static"
+  else
+    GUM_EXTRA_LIBS="-lc++"
+  fi
 else
   GUM_EXTRA_LIBS="-lstdc++"
 fi
