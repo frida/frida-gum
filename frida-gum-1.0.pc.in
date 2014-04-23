@@ -5,7 +5,7 @@ includedir=${prefix}/include
 
 Name: GUM
 Description: GUM library
-Requires: glib-2.0 gobject-2.0 v8
+Requires: glib-2.0 gobject-2.0
 Version: @VERSION@
 Libs: -L${libdir} -lfrida-gum-1.0 @GUM_EXTRA_LIBS@
 Cflags: -I${includedir}/frida-1.0

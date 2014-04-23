@@ -157,6 +157,7 @@ fi
 if [[ "x$enable_objc" = "xyes" ]]; then
   GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
 fi
+GUM_EXTRA_LIBS="$V8_LDFLAGS $V8_LIBS $GUM_EXTRA_LIBS"
 AC_SUBST(GUM_EXTRA_LIBS)
 
 GUM_LDFLAGS="$GUM_LDFLAGS $GUM_EXTRA_LIBS"
