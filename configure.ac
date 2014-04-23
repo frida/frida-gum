@@ -28,7 +28,7 @@ case $host_cpu in
   i?86|x86*)
     HAVE_I386=yes
   ;;
-  arm)
+  arm|armv7)
     HAVE_ARM=yes
   ;;
   aarch64)
