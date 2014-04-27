@@ -59,6 +59,11 @@ void gum_thumb_writer_flush (GumThumbWriter * self);
 
 void gum_thumb_writer_put_label (GumThumbWriter * self, gconstpointer id);
 
+void gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
+    GumAddress func, guint n_args, ...);
+void gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
+    GumArmReg reg, guint n_args, ...);
+
 void gum_thumb_writer_put_bx_reg (GumThumbWriter * self, GumArmReg reg);
 void gum_thumb_writer_put_blx_reg (GumThumbWriter * self, GumArmReg reg);
 void gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self, GumArmReg reg,

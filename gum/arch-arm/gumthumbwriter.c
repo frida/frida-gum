@@ -27,6 +27,8 @@
 #define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
+typedef struct _GumThumbArgument GumThumbArgument;
+
 struct _GumThumbLabelMapping
 {
   gconstpointer id;
@@ -45,8 +47,23 @@ struct _GumThumbLiteralRef
   guint32 val;
 };
 
+struct _GumThumbArgument
+{
+  GumArgType type;
+
+  union
+  {
+    GumArmReg reg;
+    GumAddress address;
+  } value;
+};
+
 static guint8 * gum_thumb_writer_lookup_address_for_label_id (
     GumThumbWriter * self, gconstpointer id);
+static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
+    guint n_args, va_list vl);
+static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
+    guint n_args);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
     GumArmReg left_reg, GumArmReg right_reg, guint8 right_offset);
 static void gum_thumb_writer_put_instruction (GumThumbWriter * self,
@@ -239,6 +256,107 @@ gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
 
   r->insn = self->code;
   r->val = val;
+}
+
+void
+gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
+                                                  GumAddress func,
+                                                  guint n_args,
+                                                  ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
+  va_end (vl);
+
+  gum_thumb_writer_put_push_regs (self, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_ldr_reg_address (self, GUM_AREG_R0, func);
+  gum_thumb_writer_put_mov_reg_reg (self, GUM_AREG_LR, GUM_AREG_R0);
+  gum_thumb_writer_put_pop_regs (self, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_blx_reg (self, GUM_AREG_LR);
+
+  gum_thumb_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
+                                              GumArmReg reg,
+                                              guint n_args,
+                                              ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
+  va_end (vl);
+
+  gum_thumb_writer_put_blx_reg (self, reg);
+
+  gum_thumb_writer_put_argument_list_teardown (self, n_args);
+}
+
+static void
+gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
+                                          guint n_args,
+                                          va_list vl)
+{
+  GumThumbArgument * args;
+  gint arg_index;
+
+  args = g_alloca (n_args * sizeof (GumThumbArgument));
+
+  for (arg_index = 0; arg_index != (gint) n_args; arg_index++)
+  {
+    GumThumbArgument * arg = &args[arg_index];
+
+    arg->type = va_arg (vl, GumArgType);
+    if (arg->type == GUM_ARG_ADDRESS)
+      arg->value.address = va_arg (vl, GumAddress);
+    else if (arg->type == GUM_ARG_REGISTER)
+      arg->value.reg = va_arg (vl, GumArmReg);
+    else
+      g_assert_not_reached ();
+  }
+
+  for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
+  {
+    GumThumbArgument * arg = &args[arg_index];
+    GumArmReg r = GUM_AREG_R0 + arg_index;
+
+    if (arg_index < 4)
+    {
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+        gum_thumb_writer_put_ldr_reg_address (self, r, arg->value.address);
+      }
+      else
+      {
+        if (arg->value.reg != r)
+          gum_thumb_writer_put_mov_reg_reg (self, r, arg->value.reg);
+      }
+    }
+    else
+    {
+      if (arg->type == GUM_ARG_ADDRESS)
+      {
+        gum_thumb_writer_put_ldr_reg_address (self, GUM_AREG_R0, arg->value.address);
+        gum_thumb_writer_put_push_regs (self, 1, GUM_AREG_R0);
+      }
+      else
+      {
+        gum_thumb_writer_put_push_regs (self, 1, arg->value.reg);
+      }
+    }
+  }
+}
+
+static void
+gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
+                                             guint n_args)
+{
+  (void) self;
+  (void) n_args;
 }
 
 void
