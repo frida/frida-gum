@@ -186,6 +186,7 @@ gum_arm_relocator_peek_next_write_source (GumArmRelocator * self)
   if (next == NULL)
     return NULL;
 
+  /* FIXME */
   g_assert_not_reached ();
   return NULL;
 }
