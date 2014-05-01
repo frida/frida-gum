@@ -44,11 +44,11 @@ check: push
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
-	adb push "${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-4.4.3/prebuilt/gdbserver" "${RPFX}/tests/"
+	adb push "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" "${RPFX}/tests/"
 	adb shell "${RPFX}/tests/gdbserver +${RPFX}/tests/debug-socket ${RPFX}/tests/gum-tests" &
 	sleep 1
 	adb forward tcp:${DEBUG_PORT} localfilesystem:${RPFX}/tests/debug-socket
-	arm-linux-androideabi-gdb -x "$(top_builddir)/tests/android-gdb.setup"
+	${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb -x "$(top_builddir)/tests/android-gdb.setup"
 
 pull:
 	adb pull /system/bin/linker "$(top_builddir)/tests"
