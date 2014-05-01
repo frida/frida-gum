@@ -189,6 +189,9 @@
     <ClCompile Include="gum\gummemorymap.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumprintf.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="libs\gum\heap\gumheapapi.c">
       <Filter>libs\heap</Filter>
     </ClCompile>
@@ -279,6 +282,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummemorymap.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumprintf.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumdefs.h">

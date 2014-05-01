@@ -193,6 +193,8 @@ libfrida_gum_la_SOURCES = \
 	guminvocationlistener.c \
 	gummemory.c \
 	gummemorymap.c \
+	gumprintf.c \
+	gumprintf.h \
 	gumreturnaddress.c \
 	gumtls.h \
 	arch-x86/gumx86writer.c \
