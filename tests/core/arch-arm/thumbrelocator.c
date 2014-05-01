@@ -70,12 +70,18 @@ RELOCATOR_TESTCASE (one_to_one)
 RELOCATOR_TESTCASE (handle_extended_instructions)
 {
   const guint16 input[] = {
+    GUINT16_TO_LE (0xe92d), GUINT16_TO_LE (0x4ff0), /* stmdb sp!, {r4, r5, r6, r7, r8, r9, sl, fp, lr} */
+    GUINT16_TO_LE (0xb580), /* push {r7, lr}  */
     GUINT16_TO_LE (0xf241), GUINT16_TO_LE (0x3037), /* movw r0, #4919 */
   };
 
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 6);
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, NULL), ==, 10);
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
   g_assert_cmpint (memcmp (fixture->output, input, sizeof (input)), ==, 0);
