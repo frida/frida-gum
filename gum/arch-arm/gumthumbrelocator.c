@@ -49,6 +49,10 @@ gum_thumb_relocator_init (GumThumbRelocator * relocator,
                           gconstpointer input_code,
                           GumThumbWriter * output)
 {
+  cs_err err;
+
+  err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &relocator->capstone);
+  g_assert_cmpint (err, ==, CS_ERR_OK);
   relocator->input_insns = gum_new (GumArmInstruction,
       GUM_MAX_INPUT_INSN_COUNT);
 
@@ -76,6 +80,8 @@ void
 gum_thumb_relocator_free (GumThumbRelocator * relocator)
 {
   gum_free (relocator->input_insns);
+
+  cs_close (&relocator->capstone);
 }
 
 static guint
@@ -108,69 +114,83 @@ guint
 gum_thumb_relocator_read_one (GumThumbRelocator * self,
                               const GumArmInstruction ** instruction)
 {
+  cs_insn * ci;
   guint16 raw_insn;
-  guint group, operation;
   GumArmInstruction * insn;
 
   if (self->eoi)
     return 0;
 
+  if (cs_disasm_ex (self->capstone, self->input_cur, 4, self->input_pc, 1,
+        &ci) != 1)
+  {
+    return 0;
+  }
+
   raw_insn = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
   insn = &self->input_insns[gum_thumb_relocator_inpos (self)];
 
-  group = (raw_insn >> 12) & 0xf;
-  operation = (raw_insn >> 8) & 0xf;
-
   insn->mnemonic = GUM_ARM_UNKNOWN;
   insn->address = self->input_cur;
-  insn->length = 2;
+  insn->length = ci->size;
   insn->pc = self->input_pc + 4;
 
-  switch (group)
+  switch (ci->size)
   {
-    case 0x4:
-      if (operation == 4)
-      {
-        insn->mnemonic = GUM_ARM_ADDH;
-      }
-      else if (operation == 7)
-      {
-        insn->mnemonic = GUM_ARM_BX_REG;
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      else if (operation >= 8)
-      {
-        insn->mnemonic = GUM_ARM_LDRPC;
-      }
-      break;
+    case 2:
+    {
+      guint group, operation;
 
-    case 0xa:
-      if (operation < 8)
-        insn->mnemonic = GUM_ARM_ADDPC;
-      else
-        insn->mnemonic = GUM_ARM_ADDSP;
-      break;
+      group = (raw_insn >> 12) & 0xf;
+      operation = (raw_insn >> 8) & 0xf;
 
-    case 0xb:
-      if (operation == 4 || operation == 5)
-        insn->mnemonic = GUM_ARM_PUSH;
-      break;
-
-    case 0xe:
-      if (((raw_insn >> 11) & 1) == 0)
+      switch (group)
       {
-        insn->mnemonic = GUM_ARM_B_IMM_T2;
-        self->eob = TRUE;
-        self->eoi = TRUE;
-      }
-      break;
+        case 0x4:
+          if (operation == 4)
+          {
+            insn->mnemonic = GUM_ARM_ADDH;
+          }
+          else if (operation == 7)
+          {
+            insn->mnemonic = GUM_ARM_BX_REG;
+            self->eob = TRUE;
+            self->eoi = TRUE;
+          }
+          else if (operation >= 8)
+          {
+            insn->mnemonic = GUM_ARM_LDRPC;
+          }
+          break;
 
-    case 0xf:
+        case 0xa:
+          if (operation < 8)
+            insn->mnemonic = GUM_ARM_ADDPC;
+          else
+            insn->mnemonic = GUM_ARM_ADDSP;
+          break;
+
+        case 0xb:
+          if (operation == 4 || operation == 5)
+            insn->mnemonic = GUM_ARM_PUSH;
+          break;
+
+        case 0xe:
+          if (((raw_insn >> 11) & 1) == 0)
+          {
+            insn->mnemonic = GUM_ARM_B_IMM_T2;
+            self->eob = TRUE;
+            self->eoi = TRUE;
+          }
+          break;
+      }
+
+      break;
+    }
+
+    case 4:
     {
       guint32 wide_insn;
-
-      insn->length = 4;
 
       wide_insn = ((guint32) raw_insn) << 16 |
           (guint32) *((guint16 *) (self->input_cur + 2));
@@ -197,7 +217,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
     }
 
     default:
-      break;
+      g_assert_not_reached ();
   }
 
   gum_thumb_relocator_increment_inpos (self);
@@ -207,6 +227,8 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
   self->input_cur += insn->length;
   self->input_pc += insn->length;
+
+  cs_free (ci, 1);
 
   return self->input_cur - self->input_start;
 }

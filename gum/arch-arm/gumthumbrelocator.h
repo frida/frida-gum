@@ -22,12 +22,16 @@
 
 #include "gumthumbwriter.h"
 
+#include <capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumThumbRelocator GumThumbRelocator;
 
 struct _GumThumbRelocator
 {
+  csh capstone;
+
   const guint8 * input_start;
   const guint8 * input_cur;
   GumAddress input_pc;
