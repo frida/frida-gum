@@ -22,9 +22,11 @@
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gummemory-priv.h"
+#include "gumprintf.h"
 #include "gumscript-priv.h"
 #include "gumsymbolutil-priv.h"
 
+#include <capstone.h>
 #include <glib-object.h>
 
 static gpointer do_init (gpointer data);
@@ -66,6 +68,13 @@ static gpointer
 do_init (gpointer data)
 {
   GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
+  cs_opt_mem gum_cs_mem_callbacks = {
+    gum_malloc,
+    gum_calloc,
+    gum_realloc,
+    gum_free,
+    gum_vsnprintf
+  };
 
   (void) features;
 
@@ -79,6 +88,8 @@ do_init (gpointer data)
   g_type_init ();
 
   _gum_memory_init ();
+
+  cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
 
 #ifdef HAVE_SYMBOL_BACKEND
   if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
