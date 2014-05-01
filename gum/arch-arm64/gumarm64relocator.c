@@ -397,6 +397,8 @@ gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
   } distance;
   GumAddress absolute_target;
 
+  (void) self;
+
   if ((ctx->raw_insn & 0x2000000) != 0)
     distance.u = 0xfc000000 | (ctx->raw_insn & 0x3ffffff);
   else
