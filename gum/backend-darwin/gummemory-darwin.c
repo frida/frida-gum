@@ -291,6 +291,12 @@ gum_malloc0 (gsize size)
 }
 
 gpointer
+gum_calloc (gsize count, gsize size)
+{
+  return dlcalloc (count, size);
+}
+
+gpointer
 gum_realloc (gpointer mem,
              gsize size)
 {

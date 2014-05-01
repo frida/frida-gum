@@ -209,6 +209,12 @@ gum_malloc0 (gsize size)
 }
 
 gpointer
+gum_calloc (gsize count, gsize size)
+{
+  return HeapAlloc (_gum_memory_heap, HEAP_ZERO_MEMORY, count * size);
+}
+
+gpointer
 gum_realloc (gpointer mem,
              gsize size)
 {
