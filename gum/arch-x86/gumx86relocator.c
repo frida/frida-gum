@@ -397,7 +397,8 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
     return TRUE;
   }
-  else if ((ctx->insn->mnemonic == UD_Icall && op->type == UD_OP_MEM) ||
+  else if (((ctx->insn->mnemonic == UD_Icall || ctx->insn->mnemonic == UD_Ijmp)
+          && op->type == UD_OP_MEM) ||
       (ctx->insn->mnemonic == UD_Ijmp && op->type == UD_OP_JIMM
           && op->size == 8))
   {
