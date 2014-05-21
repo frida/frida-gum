@@ -220,6 +220,10 @@
             return impl(this.handle, ref1, ref2) ? true : false;
         });
 
+        Env.prototype.isInstanceOf = proxy(32, 'uint8', ['pointer', 'pointer', 'pointer'], function (impl, obj, klass) {
+            return impl(this.handle, obj, klass) ? true : false;
+        });
+
         Env.prototype.getMethodId = proxy(33, 'pointer', ['pointer', 'pointer', 'pointer', 'pointer'], function (impl, klass, name, sig) {
             return impl(this.handle, klass, Memory.allocUtf8String(name), Memory.allocUtf8String(sig));
         });
@@ -245,8 +249,16 @@
             return impl(this.handle, array);
         });
 
-        Env.prototype.getObjectArrayElement = proxy(173, 'pointer', ['pointer', 'pointer', 'int'], function (impl, array, index) {
-            return impl(this.handle, array, index);
+        Env.prototype.newObjectArray = proxy(172, 'pointer', ['pointer', 'pointer', 'pointer', 'pointer'], function (impl, length, elementClass, initialElement) {
+            return impl(this.handle, ptr(length), elementClass, initialElement);
+        });
+
+        Env.prototype.getObjectArrayElement = proxy(173, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array, index) {
+            return impl(this.handle, array, ptr(index));
+        });
+
+        Env.prototype.setObjectArrayElement = proxy(174, 'void', ['pointer', 'pointer', 'pointer', 'pointer'], function (impl, array, index, value) {
+            impl(this.handle, array, ptr(index), value);
         });
 
         var cachedMethods = {};
@@ -281,6 +293,7 @@
             if (javaLangClass === null) {
                 var handle = this.findClass("java/lang/Class");
                 javaLangClass = {
+                    handle: this.newGlobalRef(handle),
                     getName: this.getMethodId(handle, "getName", "()Ljava/lang/String;"),
                     getDeclaredConstructors: this.getMethodId(handle, "getDeclaredConstructors", "()[Ljava/lang/reflect/Constructor;"),
                     getDeclaredMethods: this.getMethodId(handle, "getDeclaredMethods", "()[Ljava/lang/reflect/Method;")
@@ -307,7 +320,6 @@
             if (javaLangReflectConstructor === null) {
                 var handle = this.findClass("java/lang/reflect/Constructor");
                 javaLangReflectConstructor = {
-                    handle: this.newGlobalRef(handle),
                     getGenericParameterTypes: this.getMethodId(handle, "getGenericParameterTypes", "()[Ljava/lang/reflect/Type;")
                 };
                 this.deleteLocalRef(handle);
@@ -315,11 +327,48 @@
             return javaLangReflectConstructor;
         };
 
+        var javaLangReflectMethod = null;
+        Env.prototype.javaLangReflectMethod = function () {
+            if (javaLangReflectMethod === null) {
+                var handle = this.findClass("java/lang/reflect/Method");
+                javaLangReflectMethod = {
+                    getName: this.getMethodId(handle, "getName", "()Ljava/lang/String;"),
+                    getGenericParameterTypes: this.getMethodId(handle, "getGenericParameterTypes", "()[Ljava/lang/reflect/Type;"),
+                    getGenericReturnType: this.getMethodId(handle, "getGenericReturnType", "()Ljava/lang/reflect/Type;")
+                };
+                this.deleteLocalRef(handle);
+            }
+            return javaLangReflectMethod;
+        };
+
+        var javaLangReflectGenericArrayType = null;
+        Env.prototype.javaLangReflectGenericArrayType = function () {
+            if (javaLangReflectGenericArrayType === null) {
+                var handle = this.findClass("java/lang/reflect/GenericArrayType");
+                javaLangReflectGenericArrayType = {
+                    handle: this.newGlobalRef(handle),
+                    getGenericComponentType: this.getMethodId(handle, "getGenericComponentType", "()Ljava/lang/reflect/Type;")
+                };
+                this.deleteLocalRef(handle);
+            }
+            return javaLangReflectGenericArrayType;
+        };
+
         Env.prototype.getClassName = function (klass) {
             var name = this.method('pointer', [])(this.handle, klass, this.javaLangClass().getName);
             var result = this.stringFromJni(name);
             this.deleteLocalRef(name);
             return result;
+        };
+
+        Env.prototype.getTypeName = function (type) {
+            if (this.isInstanceOf(type, this.javaLangClass().handle)) {
+                return this.getClassName(type);
+            // } else if (this.isInstanceOf(type, this.javaLangReflectGenericArrayType().handle)) {
+            //     return "L";
+            } else {
+                return "java/lang/Object";
+            }
         };
 
         Env.prototype.stringFromJni = function (str) {
@@ -389,24 +438,22 @@
 
                 klass.prototype.$new = makeConstructor();
 
-                klass.prototype.toString = function toString () {
-                    return name;
-                };
+                addMethods();
             };
 
             var makeConstructor = function () {
                 var Constructor = env.javaLangReflectConstructor();
                 var invokeObjectMethodNoArgs = env.method('pointer', []);
 
-                var methods = [];
-                var retType = objectType(name);
+                var jsMethods = [];
+                var jsRetType = objectType(name, false);
                 var constructors = invokeObjectMethodNoArgs(env.handle, classHandle, env.javaLangClass().getDeclaredConstructors);
                 var numConstructors = env.getArrayLength(constructors);
                 for (var constructorIndex = 0; constructorIndex !== numConstructors; constructorIndex++) {
                     var constructor = env.getObjectArrayElement(constructors, constructorIndex);
 
                     var methodId = env.fromReflectedMethod(constructor);
-                    var methodArgTypes = [];
+                    var jsArgTypes = [];
 
                     var types = invokeObjectMethodNoArgs(env.handle, constructor, Constructor.getGenericParameterTypes);
                     env.deleteLocalRef(constructor);
@@ -415,8 +462,8 @@
                         for (var typeIndex = 0; typeIndex !== numTypes; typeIndex++) {
                             var t = env.getObjectArrayElement(types, typeIndex);
                             try {
-                                var argType = typeFromClassName(env.getClassName(t));
-                                methodArgTypes.push(argType);
+                                var argType = typeFromClassName(env.getTypeName(t));
+                                jsArgTypes.push(argType);
                             } finally {
                                 env.deleteLocalRef(t);
                             }
@@ -427,14 +474,79 @@
                         env.deleteLocalRef(types);
                     }
 
-                    methods.push(makeMethod(CONSTRUCTOR_METHOD, methodId, retType, methodArgTypes));
+                    jsMethods.push(makeMethod(CONSTRUCTOR_METHOD, methodId, jsRetType, jsArgTypes));
                 }
                 env.deleteLocalRef(constructors);
 
-                return makeMethodDispatcher(methods);
+                return makeMethodDispatcher("<init>", jsMethods);
             };
 
-            var makeMethodDispatcher = function (methods) {
+            var addMethods = function () {
+                var Method = env.javaLangReflectMethod();
+                var invokeObjectMethodNoArgs = env.method('pointer', []);
+
+                var jsMethods = {};
+                var methods = invokeObjectMethodNoArgs(env.handle, classHandle, env.javaLangClass().getDeclaredMethods);
+                var numMethods = env.getArrayLength(methods);
+                for (var methodIndex = 0; methodIndex !== numMethods; methodIndex++) {
+                    var method = env.getObjectArrayElement(methods, methodIndex);
+                    var methodId = env.fromReflectedMethod(method);
+                    var name = invokeObjectMethodNoArgs(env.handle, method, Method.getName);
+                    var retType = invokeObjectMethodNoArgs(env.handle, method, Method.getGenericReturnType);
+                    var argTypes = invokeObjectMethodNoArgs(env.handle, method, Method.getGenericParameterTypes);
+                    env.deleteLocalRef(method);
+
+                    var jsName = env.stringFromJni(name);
+                    var jsRetType;
+                    var jsArgTypes = [];
+
+                    env.deleteLocalRef(name);
+
+                    try {
+                        jsRetType = typeFromClassName(env.getTypeName(retType));
+                    } catch (e) {
+                        env.deleteLocalRef(argTypes);
+                        continue;
+                    } finally {
+                        env.deleteLocalRef(retType);
+                    }
+
+                    try {
+                        var numArgTypes = env.getArrayLength(argTypes);
+                        for (var argTypeIndex = 0; argTypeIndex !== numArgTypes; argTypeIndex++) {
+                            var t = env.getObjectArrayElement(argTypes, argTypeIndex);
+                            try {
+                                var argType = typeFromClassName(env.getTypeName(t));
+                                jsArgTypes.push(argType);
+                            } finally {
+                                env.deleteLocalRef(t);
+                            }
+                        }
+                    } catch (e) {
+                        continue;
+                    } finally {
+                        env.deleteLocalRef(argTypes);
+                    }
+
+                    var jsOverloads;
+                    if (jsMethods.hasOwnProperty(jsName)) {
+                        jsOverloads = jsMethods[jsName];
+                    } else {
+                        jsOverloads = [];
+                        jsMethods[jsName] = jsOverloads;
+                    }
+                    // TODO: support CLASS_METHOD
+                    jsOverloads.push(makeMethod(INSTANCE_METHOD, methodId, jsRetType, jsArgTypes));
+                }
+
+                for (var methodName in jsMethods) {
+                    if (jsMethods.hasOwnProperty(methodName)) {
+                        klass.prototype[methodName] = makeMethodDispatcher(methodName, jsMethods[methodName]);
+                    }
+                }
+            };
+
+            var makeMethodDispatcher = function (name, methods) {
                 var candidates = {};
                 methods.forEach(function (m) {
                     var numArgs = m.argumentTypes.length;
@@ -561,7 +673,7 @@
             if (!type && className.indexOf("[") === 0) {
                 throw new Error("Unsupported type: " + className);
             }
-            return objectType(className);
+            return objectType(className, true);
         };
 
         var types = {
@@ -655,21 +767,34 @@
                     throw new Error("Not yet implemented ([I)");
                 }
             },
-            'java.lang.String': {
+            '[Ljava.lang.String;': {
                 type: 'pointer',
                 isCompatible: function (v) {
-                    return typeof v === 'string';
+                    return typeof v === 'object' && v.hasOwnProperty('length') && (v.length === 0 || typeof v[0] === 'string');
                 },
                 fromJni: function (h, env) {
-                    return env.stringFromJni(h);
+                    var result = [];
+                    var length = env.getArrayLength(h);
+                    for (var i = 0; i !== length; i++) {
+                        var s = env.getObjectArrayElement(h, i);
+                        result.push(env.stringFromJni(s));
+                        env.deleteLocalRef(s);
+                    }
+                    return result;
                 },
-                toJni: function (s, env) {
-                    return env.newStringUtf(h);
+                toJni: function (strings, env) {
+                    var result = env.newObjectArray(strings.length, env.javaLangString().handle, NULL);
+                    for (var i = 0; i !== strings.length; i++) {
+                        var s = env.newStringUtf(strings[i]);
+                        env.setObjectArrayElement(result, i, s);
+                        env.deleteLocalRef(s);
+                    }
+                    return result;
                 }
             }
         };
 
-        var objectType = function (className) {
+        var objectType = function (className, unbox) {
             return {
                 type: 'pointer',
                 isCompatible: function (v) {
@@ -684,6 +809,8 @@
                         return null;
                     } else if (this.$handle !== null && env.isSameObject(h, this.$handle)) {
                         return this;
+                    } else if (className === 'java.lang.String' && unbox) {
+                        return env.stringFromJni(h);
                     } else {
                         return factory.cast(h, factory.use(className));
                     }
@@ -777,5 +904,5 @@ send("Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var javaLangString = Dalvik.use("java.lang.String");
     var s = javaLangString.$new("Hello Java!");
-    send(s);
+    send("Yeah: " + s.toString());
 });
