@@ -112,9 +112,9 @@
             handle = Memory.readPointer(api.gDvmJni.add(8));
 
             var vtable = Memory.readPointer(handle);
-            attachCurrentThread = new NativeFunction(Memory.readPointer(vtable.add(4 * pointerSize)), 'int', ['pointer', 'pointer', 'pointer']);
-            detachCurrentThread = new NativeFunction(Memory.readPointer(vtable.add(5 * pointerSize)), 'int', ['pointer']);
-            getEnv = new NativeFunction(Memory.readPointer(vtable.add(6 * pointerSize)), 'int', ['pointer', 'pointer', 'int']);
+            attachCurrentThread = new NativeFunction(Memory.readPointer(vtable.add(4 * pointerSize)), 'int32', ['pointer', 'pointer', 'pointer']);
+            detachCurrentThread = new NativeFunction(Memory.readPointer(vtable.add(5 * pointerSize)), 'int32', ['pointer']);
+            getEnv = new NativeFunction(Memory.readPointer(vtable.add(6 * pointerSize)), 'int32', ['pointer', 'pointer', 'int32']);
         };
 
         this.attachCurrentThread = function () {
@@ -152,12 +152,52 @@
         var CALL_CONSTRUCTOR_METHOD_OFFSET = 28;
 
         var CALL_OBJECT_METHOD_OFFSET = 34;
+        var CALL_BOOLEAN_METHOD_OFFSET = 37;
+        var CALL_BYTE_METHOD_OFFSET = 40;
+        var CALL_CHAR_METHOD_OFFSET = 43;
+        var CALL_SHORT_METHOD_OFFSET = 46;
         var CALL_INT_METHOD_OFFSET = 49;
+        var CALL_LONG_METHOD_OFFSET = 52;
+        var CALL_FLOAT_METHOD_OFFSET = 55;
+        var CALL_DOUBLE_METHOD_OFFSET = 58;
         var CALL_VOID_METHOD_OFFSET = 61;
 
         var CALL_STATIC_OBJECT_METHOD_OFFSET = 114;
+        var CALL_STATIC_BOOLEAN_METHOD_OFFSET = 117;
+        var CALL_STATIC_BYTE_METHOD_OFFSET = 120;
+        var CALL_STATIC_CHAR_METHOD_OFFSET = 123;
+        var CALL_STATIC_SHORT_METHOD_OFFSET = 126;
         var CALL_STATIC_INT_METHOD_OFFSET = 129;
+        var CALL_STATIC_LONG_METHOD_OFFSET = 132;
+        var CALL_STATIC_FLOAT_METHOD_OFFSET = 135;
+        var CALL_STATIC_DOUBLE_METHOD_OFFSET = 138;
         var CALL_STATIC_VOID_METHOD_OFFSET = 141;
+
+        var callMethodOffset = {
+            'pointer': CALL_OBJECT_METHOD_OFFSET,
+            'uint8': CALL_BOOLEAN_METHOD_OFFSET,
+            'int8': CALL_BYTE_METHOD_OFFSET,
+            'uint16': CALL_CHAR_METHOD_OFFSET,
+            'int16': CALL_SHORT_METHOD_OFFSET,
+            'int32': CALL_INT_METHOD_OFFSET,
+            'int64': CALL_LONG_METHOD_OFFSET,
+            'float': CALL_FLOAT_METHOD_OFFSET,
+            'double': CALL_DOUBLE_METHOD_OFFSET,
+            'void': CALL_VOID_METHOD_OFFSET
+        };
+
+        var callStaticMethodOffset = {
+            'pointer': CALL_STATIC_OBJECT_METHOD_OFFSET,
+            'uint8': CALL_STATIC_BOOLEAN_METHOD_OFFSET,
+            'int8': CALL_STATIC_BYTE_METHOD_OFFSET,
+            'uint16': CALL_STATIC_CHAR_METHOD_OFFSET,
+            'int16': CALL_STATIC_SHORT_METHOD_OFFSET,
+            'int32': CALL_STATIC_INT_METHOD_OFFSET,
+            'int64': CALL_STATIC_LONG_METHOD_OFFSET,
+            'float': CALL_STATIC_FLOAT_METHOD_OFFSET,
+            'double': CALL_STATIC_DOUBLE_METHOD_OFFSET,
+            'void': CALL_STATIC_VOID_METHOD_OFFSET
+        };
 
         function vtable() {
             if (cachedVtable === null) {
@@ -202,7 +242,7 @@
             impl(this.handle);
         });
 
-        Env.prototype.pushLocalFrame = proxy(19, 'int', ['pointer', 'int'], function (impl, capacity) {
+        Env.prototype.pushLocalFrame = proxy(19, 'int32', ['pointer', 'int32'], function (impl, capacity) {
             return impl(this.handle, capacity);
         });
 
@@ -238,7 +278,7 @@
             return impl(this.handle, klass, Memory.allocUtf8String(name), Memory.allocUtf8String(sig));
         });
 
-        Env.prototype.getIntField = proxy(100, 'int', ['pointer', 'pointer', 'pointer'], function (impl, obj, fieldId) {
+        Env.prototype.getIntField = proxy(100, 'int32', ['pointer', 'pointer', 'pointer'], function (impl, obj, fieldId) {
             return impl(this.handle, obj, fieldId);
         });
 
@@ -250,7 +290,7 @@
             return impl(this.handle, klass, Memory.allocUtf8String(name), Memory.allocUtf8String(sig));
         });
 
-        Env.prototype.getStaticIntField = proxy(150, 'int', ['pointer', 'pointer', 'pointer'], function (impl, obj, fieldId) {
+        Env.prototype.getStaticIntField = proxy(150, 'int32', ['pointer', 'pointer', 'pointer'], function (impl, obj, fieldId) {
             return impl(this.handle, obj, fieldId);
         });
 
@@ -267,20 +307,20 @@
             impl(this.handle, str, utf);
         });
 
-        Env.prototype.getArrayLength = proxy(171, 'int', ['pointer', 'pointer'], function (impl, array) {
+        Env.prototype.getArrayLength = proxy(171, 'int32', ['pointer', 'pointer'], function (impl, array) {
             return impl(this.handle, array);
         });
 
-        Env.prototype.newObjectArray = proxy(172, 'pointer', ['pointer', 'pointer', 'pointer', 'pointer'], function (impl, length, elementClass, initialElement) {
-            return impl(this.handle, ptr(length), elementClass, initialElement);
+        Env.prototype.newObjectArray = proxy(172, 'pointer', ['pointer', 'int32', 'pointer', 'pointer'], function (impl, length, elementClass, initialElement) {
+            return impl(this.handle, length, elementClass, initialElement);
         });
 
-        Env.prototype.getObjectArrayElement = proxy(173, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array, index) {
-            return impl(this.handle, array, ptr(index));
+        Env.prototype.getObjectArrayElement = proxy(173, 'pointer', ['pointer', 'pointer', 'int32'], function (impl, array, index) {
+            return impl(this.handle, array, index);
         });
 
-        Env.prototype.setObjectArrayElement = proxy(174, 'void', ['pointer', 'pointer', 'pointer', 'pointer'], function (impl, array, index, value) {
-            impl(this.handle, array, ptr(index), value);
+        Env.prototype.setObjectArrayElement = proxy(174, 'void', ['pointer', 'pointer', 'int32', 'pointer'], function (impl, array, index, value) {
+            impl(this.handle, array, index, value);
         });
 
         var cachedMethods = {};
@@ -299,30 +339,16 @@
         };
 
         Env.prototype.method = function (retType, argTypes) {
-            var offset;
-            if (retType === 'pointer') {
-                offset = CALL_OBJECT_METHOD_OFFSET;
-            } else if (retType === 'int') {
-                offset = CALL_INT_METHOD_OFFSET;
-            } else if (retType === 'void') {
-                offset = CALL_VOID_METHOD_OFFSET;
-            } else {
-                throw new Error("Unsupported type: " + retType + " (pull-request welcome!)");
-            }
+            var offset = callMethodOffset[retType];
+            if (offset === undefined)
+                throw new Error("Unsupported type: " + retType);
             return method(offset, retType, argTypes);
         };
 
         Env.prototype.staticMethod = function (retType, argTypes) {
-            var offset;
-            if (retType === 'pointer') {
-                offset = CALL_STATIC_OBJECT_METHOD_OFFSET;
-            } else if (retType === 'int') {
-                offset = CALL_STATIC_INT_METHOD_OFFSET;
-            } else if (retType === 'void') {
-                offset = CALL_STATIC_VOID_METHOD_OFFSET;
-            } else {
-                throw new Error("Unsupported type: " + retType + " (pull-request welcome!)");
-            }
+            var offset = callStaticMethodOffset[retType];
+            if (offset === undefined)
+                throw new Error("Unsupported type: " + retType);
             return method(offset, retType, argTypes);
         };
 
@@ -539,7 +565,7 @@
                 var Method = env.javaLangReflectMethod();
                 var Modifier = env.javaLangReflectModifier();
                 var invokeObjectMethodNoArgs = env.method('pointer', []);
-                var invokeIntMethodNoArgs = env.method('int', []);
+                var invokeIntMethodNoArgs = env.method('int32', []);
 
                 var jsMethods = {};
                 var methods = invokeObjectMethodNoArgs(env.handle, classHandle, env.javaLangClass().getDeclaredMethods);
@@ -652,15 +678,12 @@
 
                 return function () {
                     var isInstance = this.$handle !== null;
-                    var group = candidates[arguments.length].filter(function (f) {
-                        if (isInstance) {
-                            return f.type == INSTANCE_METHOD;
-                        } else if (f.type == CONSTRUCTOR_METHOD) {
-                            return true;
-                        } else {
-                            return f.type == STATIC_METHOD;
-                        }
-                    });
+                    if (methods[0].type !== INSTANCE_METHOD && isInstance) {
+                        throw new Error(name + ": cannot call static method by way of an instance");
+                    } else if (methods[0].type === INSTANCE_METHOD && !isInstance) {
+                        throw new Error(name + ": cannot call instance method without an instance");
+                    }
+                    var group = candidates[arguments.length];
                     if (!group) {
                         throw new Error(name + ": argument count does not match any overload");
                     }
@@ -786,7 +809,9 @@
 
         var typeFromClassName = function (className) {
             var type = types[className];
-            if (!type && className.indexOf("[") === 0) {
+            if (type) {
+                return type;
+            } else if (className.indexOf("[") === 0) {
                 throw new Error("Unsupported type: " + className);
             }
             return objectType(className, true);
@@ -815,6 +840,12 @@
                 type: 'uint16',
                 isCompatible: function (v) {
                     return typeof v === 'string' && v.length === 1;
+                },
+                fromJni: function (c) {
+                    return String.fromCharCode(c);
+                },
+                toJni: function (s) {
+                    return s.charCodeAt(0);
                 }
             },
             'short': {
@@ -1020,5 +1051,5 @@ send("Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var javaLangString = Dalvik.use("java.lang.String");
     var s = javaLangString.$new("Hello Java!");
-    s.toString();
+    send(s.substring(1));
 });
