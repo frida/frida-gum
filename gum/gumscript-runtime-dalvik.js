@@ -2,7 +2,6 @@
  * TODO
  *
  * Dalvik:
- *   - Hook methods
  *   - Use WeakMap to clean up wrappers when they go out of scope
  *   - Make it possible to implement a Java interface in JavaScript
  *
@@ -12,6 +11,8 @@
  *   - NativePointer: isNull()
  *   - Thread.isFrida()
  *   - global NULL constant
+ *   - Memory.writeU16 et al
+ *   - Memory.writeByteArray
  */
 
 (function () {
@@ -26,6 +27,15 @@
     var CONSTRUCTOR_METHOD = 1;
     var STATIC_METHOD = 2;
     var INSTANCE_METHOD = 3;
+
+    /* TODO: 64-bit */
+    var METHOD_SIZE = 56;
+    var METHOD_OFFSET_ACCESS_FLAGS = 4;
+    var METHOD_OFFSET_REGISTERS_SIZE = 10;
+    var METHOD_OFFSET_OUTS_SIZE = 12;
+    var METHOD_OFFSET_INS_SIZE = 14;
+    var METHOD_OFFSET_INSNS = 32;
+    var METHOD_OFFSET_JNI_ARG_INFO = 36;
 
     Object.defineProperty(this, 'Dalvik', {
         enumerable: true,
@@ -190,8 +200,6 @@
                     });
                 }
             });
-
-            send(f.toString());
 
             return new NativeCallback(f, rawRetType, ['pointer', 'pointer'].concat(rawArgTypes));
         };
@@ -823,6 +831,68 @@
                     }
                 });
 
+                Object.defineProperty(f, 'holder', {
+                    enumerable: true,
+                    get: methods[0].holder
+                });
+
+                Object.defineProperty(f, 'type', {
+                    enumerable: true,
+                    value: methods[0].type
+                });
+
+                if (methods.length === 1) {
+                    Object.defineProperty(f, 'implementation', {
+                        enumerable: true,
+                        get: function () {
+                            return methods[0].implementation;
+                        },
+                        set: function (imp) {
+                            methods[0].implementation = imp;
+                        }
+                    });
+
+                    Object.defineProperty(f, 'returnType', {
+                        enumerable: true,
+                        value: methods[0].returnType
+                    });
+
+                    Object.defineProperty(f, 'argumentTypes', {
+                        enumerable: true,
+                        value: methods[0].argumentTypes
+                    });
+
+                    Object.defineProperty(f, 'canInvokeWith', {
+                        enumerable: true,
+                        value: methods[0].canInvokeWith
+                    });
+                } else {
+                    var throwAmbiguousError = function () {
+                        throw new Error("Method has more than one overload. Please resolve by for example: `method.overload('int')`");
+                    };
+
+                    Object.defineProperty(f, 'implementation', {
+                        enumerable: true,
+                        get: throwAmbiguousError,
+                        set: throwAmbiguousError
+                    });
+
+                    Object.defineProperty(f, 'returnType', {
+                        enumerable: true,
+                        get: throwAmbiguousError
+                    });
+
+                    Object.defineProperty(f, 'argumentTypes', {
+                        enumerable: true,
+                        get: throwAmbiguousError
+                    });
+
+                    Object.defineProperty(f, 'canInvokeWith', {
+                        enumerable: true,
+                        get: throwAmbiguousError
+                    });
+                }
+
                 return f;
             };
 
@@ -898,6 +968,33 @@
                     value: type
                 });
 
+                Object.defineProperty(f, 'implementation', {
+                    enumerable: true,
+                    get: function () {
+                        return null; // for now
+                    },
+                    set: function (imp) {
+                        var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
+                        if (type === INSTANCE_METHOD) {
+                            argsSize++;
+                        }
+
+                        var accessFlags = Memory.readU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS)) | 0x0100;
+                        var registersSize = argsSize;
+                        var outsSize = 0;
+                        var insSize = argsSize;
+                        var jniArgInfo = 0x80000000;
+
+                        writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
+                        writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
+                        writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
+                        writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
+                        writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
+
+                        api.dvmUseJNIBridge(methodId, imp);
+                    }
+                });
+
                 Object.defineProperty(f, 'returnType', {
                     enumerable: true,
                     value: retType
@@ -964,6 +1061,7 @@
         var types = {
             'boolean': {
                 type: 'uint8',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'boolean';
                 },
@@ -976,12 +1074,14 @@
             },
             'byte': {
                 type: 'int8',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
             'char': {
                 type: 'uint16',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'string' && v.length === 1;
                 },
@@ -994,36 +1094,49 @@
             },
             'short': {
                 type: 'int16',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
             'int': {
                 type: 'int32',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
             'long': {
                 type: 'int64',
+                size: 2,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
             'float': {
                 type: 'float',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
             'double': {
                 type: 'double',
+                size: 2,
                 isCompatible: function (v) {
                     return typeof v === 'number';
                 }
             },
+            'void': {
+                type: 'void',
+                size: 0,
+                isCompatible: function (v) {
+                    return false;
+                }
+            },
             '[B': {
                 type: 'pointer',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'object' && v.hasOwnProperty('length');
                 },
@@ -1036,6 +1149,7 @@
             },
             '[C': {
                 type: 'pointer',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'object' && v.hasOwnProperty('length');
                 },
@@ -1048,6 +1162,7 @@
             },
             '[I': {
                 type: 'pointer',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'object' && v.hasOwnProperty('length');
                 },
@@ -1060,6 +1175,7 @@
             },
             '[Ljava.lang.String;': {
                 type: 'pointer',
+                size: 1,
                 isCompatible: function (v) {
                     return typeof v === 'object' && v.hasOwnProperty('length') && (v.length === 0 || typeof v[0] === 'string');
                 },
@@ -1088,6 +1204,7 @@
         var objectType = function (className, unbox) {
             return {
                 type: 'pointer',
+                size: 1,
                 isCompatible: function (v) {
                     if (className === 'java.lang.String' && typeof v === 'string') {
                         return true;
@@ -1139,7 +1256,7 @@
             {
                 module: "libdvm.so",
                 functions: {
-                    "_Z18dvmFindLoadedClassPKc": ["dvmFindLoadedClass", 'pointer', ['pointer']]
+                    "_Z15dvmUseJNIBridgeP6MethodPv": ["dvmUseJNIBridge", 'void', ['pointer', 'pointer']]
                 },
                 variables: {
                     "gDvmJni": function (address) {
@@ -1189,14 +1306,25 @@
 
         return _api;
     };
+
+    var writeU16 = function (address, value) {
+        Memory.writeU8(address, value & 0xff);
+        Memory.writeU8(address.add(1), (value >> 8) & 0xff);
+    };
+
+    var writeU32 = function (address, value) {
+        Memory.writeU8(address, value & 0xff);
+        Memory.writeU8(address.add(1), (value >> 8) & 0xff);
+        Memory.writeU8(address.add(2), (value >> 16) & 0xff);
+        Memory.writeU8(address.add(3), (value >> 24) & 0xff);
+    };
 }).call(this);
 
-send("Dalvik.available: " + Dalvik.available);
+send("*** Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
-    var javaLangString = Dalvik.use("java.lang.String");
-    var s = javaLangString.$new("Hello Java!");
-    send(s.substring(1));
-    var impl = Dalvik.implement(javaLangString.toString, function myCompareTo() {
-        return 0;
+    var Activity = Dalvik.use("android.app.Activity");
+    var impl = Dalvik.implement(Activity.onResume, function onResume() {
+        send("onResume()");
     });
+    Activity.onResume.implementation = impl;
 });
