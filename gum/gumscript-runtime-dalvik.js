@@ -2,7 +2,6 @@
  * TODO
  *
  * Dalvik:
- *   - Expose methods
  *   - Hook methods
  *   - Use WeakMap to clean up wrappers when they go out of scope
  *   - Make it possible to implement a Java interface in JavaScript
@@ -96,7 +95,105 @@
         };
 
         this.implement = function (method, fn) {
-            return new NativeCallback(fn, method.returnType, method.argumentTypes);
+            var env = vm.getEnv();
+
+            if (method.hasOwnProperty('overloads')) {
+                if (method.overloads.length > 1) {
+                    throw new Error("Method has more than one overload. Please resolve by for example: `method.overload('int')`");
+                }
+                method = method.overloads[0];
+            }
+
+            var C = method.holder;
+            var type = method.type;
+            var retType = method.returnType;
+            var argTypes = method.argumentTypes;
+            var rawRetType = retType.type;
+            var rawArgTypes = argTypes.map(function (t) { return t.type; });
+            var invokeTarget;
+            if (type == CONSTRUCTOR_METHOD) {
+                invokeTarget = env.constructor(rawArgTypes);
+            } else if (type == STATIC_METHOD) {
+                invokeTarget = env.staticMethod(rawRetType, rawArgTypes);
+            } else if (type == INSTANCE_METHOD) {
+                invokeTarget = env.method(rawRetType, rawArgTypes);
+            }
+
+            var frameCapacity = 2;
+            var argVariableNames = argTypes.map(function (t, i) {
+                return "a" + (i + 1);
+            });
+            var callArgs = argTypes.map(function (t, i) {
+                if (t.fromJni) {
+                    frameCapacity++;
+                    return "argTypes[" + i + "].fromJni.call(this, " + argVariableNames[i] + ", env)";
+                }
+                return argVariableNames[i];
+            });
+            var returnCapture, returnStatement;
+            if (rawRetType === 'void') {
+                returnCapture = "";
+                returnStatements = "env.popLocalFrame(NULL);";
+            } else {
+                if (retType.toJni) {
+                    frameCapacity++;
+                    returnCapture = "var result = ";
+                    if (retType.type === 'pointer') {
+                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
+                            "return env.popLocalFrame(rawResult);";
+                    } else {
+                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
+                            "env.popLocalFrame(NULL);" +
+                            "return rawResult;";
+                    }
+                } else {
+                    returnCapture = "var result = ";
+                    returnStatements = "env.popLocalFrame(NULL);" +
+                        "return result;";
+                }
+            }
+            eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
+                "var env = new Env(envHandle);" +
+                "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
+                    "return;" +
+                "}" +
+                ((type === INSTANCE_METHOD) ? "var self = new C(C.__handle__, thisHandle);" : "var self = new C(thisHandle, null);") +
+                returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
+                // TODO: throw Java exception if JS throws an exception
+                returnStatements +
+            "}");
+
+            Object.defineProperty(f, 'type', {
+                enumerable: true,
+                value: type
+            });
+
+            Object.defineProperty(f, 'returnType', {
+                enumerable: true,
+                value: retType
+            });
+
+            Object.defineProperty(f, 'argumentTypes', {
+                enumerable: true,
+                value: argTypes
+            });
+
+            Object.defineProperty(f, 'canInvokeWith', {
+                enumerable: true,
+                value: function (args) {
+                    if (args.length !== argTypes.length) {
+                        return false;
+                    }
+
+                    return argTypes.every(function (t, i) {
+                        return t.isCompatible(args[i]);
+                    });
+                }
+            });
+
+            send(f.toString());
+
+            return new NativeCallback(f, rawRetType, ['pointer', 'pointer'].concat(rawArgTypes));
         };
 
         initialize.call(this);
@@ -634,6 +731,11 @@
                                     return this;
                                 };
 
+                                Object.defineProperty(defaultValueOf, 'holder', {
+                                    enumerable: true,
+                                    value: klass
+                                });
+
                                 Object.defineProperty(defaultValueOf, 'type', {
                                     enumerable: true,
                                     value: INSTANCE_METHOD
@@ -641,7 +743,7 @@
 
                                 Object.defineProperty(defaultValueOf, 'returnType', {
                                     enumerable: true,
-                                    value: 'pointer'
+                                    value: typeFromClassName('int')
                                 });
 
                                 Object.defineProperty(defaultValueOf, 'argumentTypes', {
@@ -676,7 +778,7 @@
                     group.push(m);
                 });
 
-                return function () {
+                var f = function () {
                     var isInstance = this.$handle !== null;
                     if (methods[0].type !== INSTANCE_METHOD && isInstance) {
                         throw new Error(name + ": cannot call static method by way of an instance");
@@ -695,6 +797,33 @@
                     }
                     throw new Error(name + ": argument types do not match any overload");
                 };
+
+                Object.defineProperty(f, 'overloads', {
+                    enumerable: true,
+                    value: methods
+                });
+
+                Object.defineProperty(f, 'overload', {
+                    enumerable: true,
+                    value: function () {
+                        var group = candidates[arguments.length];
+                        if (!group) {
+                            throw new Error(name + ": argument count does not match any overload");
+                        }
+
+                        var signature = Array.prototype.join.call(arguments, ":");
+                        for (var i = 0; i !== group.length; i++) {
+                            var method = group[i];
+                            var s = method.argumentTypes.map(function (t) { return t.className; }).join(":");
+                            if (s === signature) {
+                                return method;
+                            }
+                        }
+                        throw new Error(name + ": specified argument types do not match any overload");
+                    }
+                });
+
+                return f;
             };
 
             var makeMethod = function (type, methodId, retType, argTypes) {
@@ -759,6 +888,11 @@
                     returnStatements +
                 "}");
 
+                Object.defineProperty(f, 'holder', {
+                    enumerable: true,
+                    value: klass
+                });
+
                 Object.defineProperty(f, 'type', {
                     enumerable: true,
                     value: type
@@ -766,12 +900,12 @@
 
                 Object.defineProperty(f, 'returnType', {
                     enumerable: true,
-                    value: rawRetType
+                    value: retType
                 });
 
                 Object.defineProperty(f, 'argumentTypes', {
                     enumerable: true,
-                    value: rawArgTypes
+                    value: argTypes
                 });
 
                 Object.defineProperty(f, 'canInvokeWith', {
@@ -809,12 +943,22 @@
 
         var typeFromClassName = function (className) {
             var type = types[className];
-            if (type) {
-                return type;
-            } else if (className.indexOf("[") === 0) {
-                throw new Error("Unsupported type: " + className);
+            if (!type) {
+                if (className.indexOf("[") === 0) {
+                    throw new Error("Unsupported type: " + className);
+                }
+                type = objectType(className, true);
             }
-            return objectType(className, true);
+
+            var result = {
+                className: className
+            };
+            for (var key in type) {
+                if (type.hasOwnProperty(key)) {
+                    result[key] = type[key];
+                }
+            }
+            return result;
         };
 
         var types = {
@@ -1052,4 +1196,7 @@ Dalvik.perform(function () {
     var javaLangString = Dalvik.use("java.lang.String");
     var s = javaLangString.$new("Hello Java!");
     send(s.substring(1));
+    var impl = Dalvik.implement(javaLangString.toString, function myCompareTo() {
+        return 0;
+    });
 });
