@@ -1327,8 +1327,7 @@
 send("*** Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var Activity = Dalvik.use("android.app.Activity");
-    var impl = Dalvik.implement(Activity.onResume, function onResume() {
+    Activity.onResume.implementation = Dalvik.implement(Activity.onResume, function onResume() {
         send("onResume()");
     });
-    Activity.onResume.implementation = impl;
 });
