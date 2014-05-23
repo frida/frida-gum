@@ -610,6 +610,7 @@
             }
 
             eval("klass = function " + basename(name) + "(classHandle, handle) {" +
+                 "var env = vm.getEnv();" +
                  "this.$class = klass;" +
                  "this.$classHandle = env.newGlobalRef(classHandle);" +
                  "this.$handle = (handle !== null) ? env.newGlobalRef(handle) : null;" +
