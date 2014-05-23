@@ -969,12 +969,15 @@
                     value: type
                 });
 
+                var implementation = null;
                 Object.defineProperty(f, 'implementation', {
                     enumerable: true,
                     get: function () {
-                        return null; // for now
+                        return implementation;
                     },
                     set: function (imp) {
+                        implementation = imp;
+
                         var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
                         if (type === INSTANCE_METHOD) {
                             argsSize++;

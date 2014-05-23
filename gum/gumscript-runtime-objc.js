@@ -234,12 +234,15 @@
                         value: sel
                     });
 
+                    var implementation = null;
                     Object.defineProperty(f, 'implementation', {
                         enumerable: true,
                         get: function () {
                             return new NativeFunction(api.method_getImplementation(m), f.returnType, f.argumentTypes);
                         },
                         set: function (imp) {
+                            implementation = imp;
+
                             api.method_setImplementation(m, imp);
                         }
                     });
