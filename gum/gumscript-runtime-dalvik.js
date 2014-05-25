@@ -249,6 +249,10 @@
             return impl(this.handle, klass);
         });
 
+        Env.prototype.throw = proxy(13, 'int32', ['pointer', 'pointer'], function (impl, obj) {
+            return impl(this.handle, obj);
+        });
+
         Env.prototype.exceptionOccurred = proxy(15, 'pointer', ['pointer'], function (impl) {
             return impl(this.handle);
         });
@@ -1055,10 +1059,11 @@
                 }
                 return argVariableNames[i];
             });
-            var returnCapture, returnStatement;
+            var returnCapture, returnStatement, returnNothing;
             if (rawRetType === 'void') {
                 returnCapture = "";
                 returnStatements = "env.popLocalFrame(NULL);";
+                returnNothing = "return;"
             } else {
                 if (retType.toJni) {
                     frameCapacity++;
@@ -1066,15 +1071,18 @@
                     if (retType.type === 'pointer') {
                         returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
                             "return env.popLocalFrame(rawResult);";
+                        returnNothing = "return NULL;"
                     } else {
                         returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
                             "env.popLocalFrame(NULL);" +
                             "return rawResult;";
+                        returnNothing = "return 0;"
                     }
                 } else {
                     returnCapture = "var result = ";
                     returnStatements = "env.popLocalFrame(NULL);" +
                         "return result;";
+                    returnNothing = "return 0;"
                 }
             }
             eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
@@ -1083,8 +1091,16 @@
                     "return;" +
                 "}" +
                 ((type === INSTANCE_METHOD) ? "var self = new C(C.__handle__, thisHandle);" : "var self = new C(thisHandle, null);") +
-                returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
-                // TODO: throw Java exception if JS throws an exception
+                "try {" +
+                    returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
+                "} catch (e) {" +
+                    "if (typeof e === 'object' && e.hasOwnProperty('$handle')) {" +
+                        "env.throw(e.$handle);" +
+                        returnNothing +
+                    "} else {" +
+                        "throw e;" +
+                    "}" +
+                "}" +
                 returnStatements +
             "}");
 
@@ -1422,11 +1438,17 @@
 send("*** Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var Activity = Dalvik.use("android.app.Activity");
+    var Exception = Dalvik.use("java.lang.Exception");
     var count = 0;
     Activity.onResume.implementation = function onResume() {
         send("onResume()");
         this.onResume();
         count++;
+        /*
+        if (count === 1) {
+            throw Exception.$new("Oh noes");
+        }
+        */
         if (count === 3) {
             send("enough already!");
             Activity.onResume.implementation = null;
