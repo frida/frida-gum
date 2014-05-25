@@ -118,106 +118,6 @@
             return classFactory.cast(handle, C);
         };
 
-        this.implement = function (method, fn) {
-            var env = vm.getEnv();
-
-            if (method.hasOwnProperty('overloads')) {
-                if (method.overloads.length > 1) {
-                    throw new Error("Method has more than one overload. Please resolve by for example: `method.overload('int')`");
-                }
-                method = method.overloads[0];
-            }
-
-            var C = method.holder;
-            var type = method.type;
-            var retType = method.returnType;
-            var argTypes = method.argumentTypes;
-            var rawRetType = retType.type;
-            var rawArgTypes = argTypes.map(function (t) { return t.type; });
-            var invokeTarget;
-            if (type == CONSTRUCTOR_METHOD) {
-                invokeTarget = env.constructor(rawArgTypes);
-            } else if (type == STATIC_METHOD) {
-                invokeTarget = env.staticMethod(rawRetType, rawArgTypes);
-            } else if (type == INSTANCE_METHOD) {
-                invokeTarget = env.method(rawRetType, rawArgTypes);
-            }
-
-            var frameCapacity = 2;
-            var argVariableNames = argTypes.map(function (t, i) {
-                return "a" + (i + 1);
-            });
-            var callArgs = argTypes.map(function (t, i) {
-                if (t.fromJni) {
-                    frameCapacity++;
-                    return "argTypes[" + i + "].fromJni.call(this, " + argVariableNames[i] + ", env)";
-                }
-                return argVariableNames[i];
-            });
-            var returnCapture, returnStatement;
-            if (rawRetType === 'void') {
-                returnCapture = "";
-                returnStatements = "env.popLocalFrame(NULL);";
-            } else {
-                if (retType.toJni) {
-                    frameCapacity++;
-                    returnCapture = "var result = ";
-                    if (retType.type === 'pointer') {
-                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
-                            "return env.popLocalFrame(rawResult);";
-                    } else {
-                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
-                            "env.popLocalFrame(NULL);" +
-                            "return rawResult;";
-                    }
-                } else {
-                    returnCapture = "var result = ";
-                    returnStatements = "env.popLocalFrame(NULL);" +
-                        "return result;";
-                }
-            }
-            eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
-                "var env = new Env(envHandle);" +
-                "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
-                    "return;" +
-                "}" +
-                ((type === INSTANCE_METHOD) ? "var self = new C(C.__handle__, thisHandle);" : "var self = new C(thisHandle, null);") +
-                returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
-                // TODO: throw Java exception if JS throws an exception
-                returnStatements +
-            "}");
-
-            Object.defineProperty(f, 'type', {
-                enumerable: true,
-                value: type
-            });
-
-            Object.defineProperty(f, 'returnType', {
-                enumerable: true,
-                value: retType
-            });
-
-            Object.defineProperty(f, 'argumentTypes', {
-                enumerable: true,
-                value: argTypes
-            });
-
-            Object.defineProperty(f, 'canInvokeWith', {
-                enumerable: true,
-                value: function (args) {
-                    if (args.length !== argTypes.length) {
-                        return false;
-                    }
-
-                    return argTypes.every(function (t, i) {
-                        return t.isCompatible(args[i]);
-                    });
-                }
-            });
-
-            return new NativeCallback(f, rawRetType, ['pointer', 'pointer'].concat(rawArgTypes));
-        };
-
         initialize.call(this);
     };
 
@@ -1039,13 +939,13 @@
                     get: function () {
                         return implementation;
                     },
-                    set: function (imp) {
+                    set: function (fn) {
                         if (originalMethodId === null) {
                             originalMethodId = memdup(methodId, METHOD_SIZE);
                             targetMethodId = memdup(methodId, METHOD_SIZE);
                         }
 
-                        implementation = imp;
+                        implementation = implement(f, fn);
 
                         var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
                         if (type === INSTANCE_METHOD) {
@@ -1064,7 +964,7 @@
                         writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
                         writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
 
-                        api.dvmUseJNIBridge(methodId, imp);
+                        api.dvmUseJNIBridge(methodId, implementation);
                     }
                 });
 
@@ -1109,6 +1009,106 @@
             initializeClass();
 
             return klass;
+        };
+
+        var implement = function (method, fn) {
+            var env = vm.getEnv();
+
+            if (method.hasOwnProperty('overloads')) {
+                if (method.overloads.length > 1) {
+                    throw new Error("Method has more than one overload. Please resolve by for example: `method.overload('int')`");
+                }
+                method = method.overloads[0];
+            }
+
+            var C = method.holder;
+            var type = method.type;
+            var retType = method.returnType;
+            var argTypes = method.argumentTypes;
+            var rawRetType = retType.type;
+            var rawArgTypes = argTypes.map(function (t) { return t.type; });
+            var invokeTarget;
+            if (type == CONSTRUCTOR_METHOD) {
+                invokeTarget = env.constructor(rawArgTypes);
+            } else if (type == STATIC_METHOD) {
+                invokeTarget = env.staticMethod(rawRetType, rawArgTypes);
+            } else if (type == INSTANCE_METHOD) {
+                invokeTarget = env.method(rawRetType, rawArgTypes);
+            }
+
+            var frameCapacity = 2;
+            var argVariableNames = argTypes.map(function (t, i) {
+                return "a" + (i + 1);
+            });
+            var callArgs = argTypes.map(function (t, i) {
+                if (t.fromJni) {
+                    frameCapacity++;
+                    return "argTypes[" + i + "].fromJni.call(this, " + argVariableNames[i] + ", env)";
+                }
+                return argVariableNames[i];
+            });
+            var returnCapture, returnStatement;
+            if (rawRetType === 'void') {
+                returnCapture = "";
+                returnStatements = "env.popLocalFrame(NULL);";
+            } else {
+                if (retType.toJni) {
+                    frameCapacity++;
+                    returnCapture = "var result = ";
+                    if (retType.type === 'pointer') {
+                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
+                            "return env.popLocalFrame(rawResult);";
+                    } else {
+                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
+                            "env.popLocalFrame(NULL);" +
+                            "return rawResult;";
+                    }
+                } else {
+                    returnCapture = "var result = ";
+                    returnStatements = "env.popLocalFrame(NULL);" +
+                        "return result;";
+                }
+            }
+            eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
+                "var env = new Env(envHandle);" +
+                "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
+                    "return;" +
+                "}" +
+                ((type === INSTANCE_METHOD) ? "var self = new C(C.__handle__, thisHandle);" : "var self = new C(thisHandle, null);") +
+                returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
+                // TODO: throw Java exception if JS throws an exception
+                returnStatements +
+            "}");
+
+            Object.defineProperty(f, 'type', {
+                enumerable: true,
+                value: type
+            });
+
+            Object.defineProperty(f, 'returnType', {
+                enumerable: true,
+                value: retType
+            });
+
+            Object.defineProperty(f, 'argumentTypes', {
+                enumerable: true,
+                value: argTypes
+            });
+
+            Object.defineProperty(f, 'canInvokeWith', {
+                enumerable: true,
+                value: function (args) {
+                    if (args.length !== argTypes.length) {
+                        return false;
+                    }
+
+                    return argTypes.every(function (t, i) {
+                        return t.isCompatible(args[i]);
+                    });
+                }
+            });
+
+            return new NativeCallback(f, rawRetType, ['pointer', 'pointer'].concat(rawArgTypes));
         };
 
         var typeFromClassName = function (className) {
@@ -1414,8 +1414,8 @@
 send("*** Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var Activity = Dalvik.use("android.app.Activity");
-    Activity.onResume.implementation = Dalvik.implement(Activity.onResume, function onResume() {
+    Activity.onResume.implementation = function onResume() {
         send("onResume()");
         this.onResume();
-    });
+    };
 });
