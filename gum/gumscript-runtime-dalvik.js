@@ -12,7 +12,11 @@
  *   - Thread.isFrida()
  *   - global NULL constant
  *   - Memory.writeU16 et al
+ *   - Memory.writePointer
  *   - Memory.writeByteArray
+ *   - Memory.dup (memdup)
+ *   - Memory.copy (memcpy)
+ *   - NativePointer.add should return this when 0
  */
 
 (function () {
@@ -29,8 +33,18 @@
     var INSTANCE_METHOD = 3;
 
     /* TODO: 64-bit */
+    var JNI_ENV_OFFSET_SELF = 12;
+
+    var CLASS_OBJECT_SIZE = 160;
+    var CLASS_OBJECT_OFFSET_VTABLE_COUNT = 112;
+    var CLASS_OBJECT_OFFSET_VTABLE = 116;
+
+    var OBJECT_OFFSET_CLAZZ = 0;
+
     var METHOD_SIZE = 56;
+    var METHOD_OFFSET_CLAZZ = 0;
     var METHOD_OFFSET_ACCESS_FLAGS = 4;
+    var METHOD_OFFSET_METHOD_INDEX = 8;
     var METHOD_OFFSET_REGISTERS_SIZE = 10;
     var METHOD_OFFSET_OUTS_SIZE = 12;
     var METHOD_OFFSET_INS_SIZE = 14;
@@ -599,6 +613,7 @@
             if (klass) {
                 return klass;
             }
+            var patchedClasses = {};
 
             var superHandle = env.getSuperclass(classHandle);
             var superKlass;
@@ -898,6 +913,9 @@
             };
 
             var makeMethod = function (type, methodId, retType, argTypes) {
+                var targetMethodId = methodId;
+                var originalMethodId = null;
+
                 var rawRetType = retType.type;
                 var rawArgTypes = argTypes.map(function (t) { return t.type; });
                 var invokeTarget;
@@ -916,7 +934,7 @@
                 var callArgs = [
                     "env.handle",
                     type === INSTANCE_METHOD ? "this.$handle" : "this.$classHandle",
-                    "methodId"
+                    "targetMethodId"
                 ].concat(argTypes.map(function (t, i) {
                     if (t.toJni) {
                         frameCapacity++;
@@ -947,6 +965,7 @@
                         "env.exceptionClear();" +
                         "throw new Error(\"Out of memory\");" +
                     "}" +
+                    "synchronizeVtable.call(this, env);" +
                     returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
                     "var throwable = env.exceptionOccurred();" +
                     "if (throwable.toString(16) !== \"0\") {" +
@@ -970,12 +989,62 @@
                 });
 
                 var implementation = null;
+                var synchronizeVtable = function (env) {
+                    if (originalMethodId === null) {
+                        return; /* nothing to do – implementation hasn't been replaced */
+                    }
+
+                    var thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                    var object = api.dvmDecodeIndirectRef(thread, this.$handle);
+                    var classObject = Memory.readPointer(object.add(OBJECT_OFFSET_CLAZZ));
+                    var key = classObject.toString(16);
+                    var entry = patchedClasses[key];
+                    if (!entry) {
+                        var vtablePtr = classObject.add(CLASS_OBJECT_OFFSET_VTABLE);
+                        var vtableCountPtr = classObject.add(CLASS_OBJECT_OFFSET_VTABLE_COUNT);
+                        var vtable = Memory.readPointer(vtablePtr);
+                        var vtableCount = Memory.readS32(vtableCountPtr);
+
+                        var vtableSize = vtableCount * pointerSize;
+                        var shadowVtable = Memory.alloc(2 * vtableSize);
+                        memcpy(shadowVtable, vtable, vtableSize);
+                        writePointer(vtablePtr, shadowVtable);
+
+                        entry = {
+                            classObject: classObject,
+                            vtablePtr: vtablePtr,
+                            vtableCountPtr: vtableCountPtr,
+                            vtable: vtable,
+                            vtableCount: vtableCount,
+                            shadowVtable: shadowVtable,
+                            shadowVtableCount: vtableCount,
+                            targetMethods: {}
+                        };
+                        patchedClasses[key] = entry;
+                    }
+
+                    key = methodId.toString(16);
+                    var method = entry.targetMethods[key];
+                    if (!method) {
+                        var methodIndex = entry.shadowVtableCount++;
+                        writePointer(entry.shadowVtable.add(methodIndex * pointerSize), targetMethodId);
+                        writeU16(targetMethodId.add(METHOD_OFFSET_METHOD_INDEX), methodIndex);
+                        writeU32(entry.vtableCountPtr, entry.shadowVtableCount); // TODO: S32
+
+                        entry.targetMethods[key] = methodIndex;
+                    }
+                };
                 Object.defineProperty(f, 'implementation', {
                     enumerable: true,
                     get: function () {
                         return implementation;
                     },
                     set: function (imp) {
+                        if (originalMethodId === null) {
+                            originalMethodId = memdup(methodId, METHOD_SIZE);
+                            targetMethodId = memdup(methodId, METHOD_SIZE);
+                        }
+
                         implementation = imp;
 
                         var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
@@ -1260,6 +1329,7 @@
             {
                 module: "libdvm.so",
                 functions: {
+                    "_Z20dvmDecodeIndirectRefP6ThreadP8_jobject": ["dvmDecodeIndirectRef", 'pointer', ['pointer', 'pointer']],
                     "_Z15dvmUseJNIBridgeP6MethodPv": ["dvmUseJNIBridge", 'void', ['pointer', 'pointer']]
                 },
                 variables: {
@@ -1322,6 +1392,23 @@
         Memory.writeU8(address.add(2), (value >> 16) & 0xff);
         Memory.writeU8(address.add(3), (value >> 24) & 0xff);
     };
+
+    var writePointer = function (address, value) {
+        // TODO: 32-bit only as we expect writePointer to be provided by the Frida runtime sometime soon
+        writeU32(address, value.toInt32());
+    };
+
+    var memdup = function (mem, size) {
+        var result = Memory.alloc(size);
+        memcpy(result, mem, size);
+        return result;
+    };
+
+    var memcpy = function (dst, src, n) {
+        for (var i = 0; i !== n; i++) {
+            Memory.writeU8(dst.add(i), Memory.readU8(src.add(i)));
+        }
+    };
 }).call(this);
 
 send("*** Dalvik.available: " + Dalvik.available);
@@ -1329,5 +1416,6 @@ Dalvik.perform(function () {
     var Activity = Dalvik.use("android.app.Activity");
     Activity.onResume.implementation = Dalvik.implement(Activity.onResume, function onResume() {
         send("onResume()");
+        this.onResume();
     });
 });
