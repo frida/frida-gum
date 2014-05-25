@@ -940,31 +940,39 @@
                         return implementation;
                     },
                     set: function (fn) {
+                        if (fn === null && originalMethodId === null) {
+                            return;
+                        }
+
                         if (originalMethodId === null) {
                             originalMethodId = memdup(methodId, METHOD_SIZE);
                             targetMethodId = memdup(methodId, METHOD_SIZE);
                         }
 
-                        implementation = implement(f, fn);
+                        if (fn !== null) {
+                            implementation = implement(f, fn);
 
-                        var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
-                        if (type === INSTANCE_METHOD) {
-                            argsSize++;
+                            var argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
+                            if (type === INSTANCE_METHOD) {
+                                argsSize++;
+                            }
+
+                            var accessFlags = Memory.readU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS)) | 0x0100;
+                            var registersSize = argsSize;
+                            var outsSize = 0;
+                            var insSize = argsSize;
+                            var jniArgInfo = 0x80000000;
+
+                            writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
+                            writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
+                            writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
+                            writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
+                            writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
+
+                            api.dvmUseJNIBridge(methodId, implementation);
+                        } else {
+                            memcpy(methodId, originalMethodId, METHOD_SIZE);
                         }
-
-                        var accessFlags = Memory.readU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS)) | 0x0100;
-                        var registersSize = argsSize;
-                        var outsSize = 0;
-                        var insSize = argsSize;
-                        var jniArgInfo = 0x80000000;
-
-                        writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
-                        writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
-                        writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
-                        writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
-                        writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
-
-                        api.dvmUseJNIBridge(methodId, implementation);
                     }
                 });
 
@@ -1414,8 +1422,14 @@
 send("*** Dalvik.available: " + Dalvik.available);
 Dalvik.perform(function () {
     var Activity = Dalvik.use("android.app.Activity");
+    var count = 0;
     Activity.onResume.implementation = function onResume() {
         send("onResume()");
         this.onResume();
+        count++;
+        if (count === 3) {
+            send("enough already!");
+            Activity.onResume.implementation = null;
+        }
     };
 });
