@@ -1,7 +1,7 @@
 (function () {
     var _runtime = null;
     var _api = null;
-    var pointerSize = (Process.arch === 'x64' || Process.arch === 'arm64') ? 8 : 4; // TODO: runtime should expose the pointer size
+    var pointerSize = Process.pointerSize;
     var scratchBuffer = Memory.alloc(pointerSize);
 
     Object.defineProperty(this, 'ObjC', {
