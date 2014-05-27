@@ -96,6 +96,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_reloaded)
+  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
+  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
+  SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (native_function_can_be_invoked)
@@ -1447,6 +1450,43 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_NO_MESSAGES ();
   gum_script_load (fixture->script);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = {};"
+      "WeakRef.bind(val, function () {"
+      "  send(\"weak notify\");"
+      "});"
+      "val = null;"
+      "gc();");
+  EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (weak_callback_is_triggered_on_unload)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = {};"
+      "WeakRef.bind(val, function () {"
+      "  send(\"weak notify\");"
+      "});");
+  EXPECT_NO_MESSAGES ();
+  gum_script_unload (fixture->script);
+  EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var val = {};"
+      "var id = WeakRef.bind(val, function () {"
+      "  send(\"weak notify\");"
+      "});"
+      "WeakRef.unbind(id);");
+  EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
 }
 
 GUM_NOINLINE static int

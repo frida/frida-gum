@@ -58,6 +58,9 @@ struct _GumScriptCore
 
   GumMessageSink * incoming_message_sink;
 
+  GHashTable * weak_refs;
+  volatile gint last_weak_ref_id;
+
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
 

@@ -26,11 +26,20 @@
 
 using namespace v8;
 
+typedef struct _GumWeakRef GumWeakRef;
 typedef struct _GumFFIFunction GumFFIFunction;
 typedef struct _GumFFICallback GumFFICallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
+
+struct _GumWeakRef
+{
+  gint id;
+  GumPersistent<Value>::type * target;
+  GumPersistent<Function>::type * callback;
+  GumScriptCore * core;
+};
 
 struct _GumScheduledCallback
 {
@@ -101,6 +110,15 @@ struct _GumFFIABIMapping
   ffi_abi abi;
 };
 
+static void gum_script_core_on_weak_ref_bind (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_weak_ref_unbind (
+    const FunctionCallbackInfo<Value> & info);
+static GumWeakRef * gum_weak_ref_new (gint id, Handle<Value> target,
+    Handle<Function> callback, GumScriptCore * core);
+static void gum_weak_ref_free (GumWeakRef * ref);
+static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
+    GumWeakRef> & data);
 static void gum_script_core_on_console_log (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_set_timeout (
@@ -182,7 +200,18 @@ _gum_script_core_init (GumScriptCore * self,
   self->mutex = g_mutex_new ();
   self->event_cond = g_cond_new ();
 
+  self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
+      reinterpret_cast<GDestroyNotify> (gum_weak_ref_free));
+
   Local<External> data (External::New (isolate, self));
+
+  Handle<ObjectTemplate> weak = ObjectTemplate::New ();
+  weak->Set (String::NewFromUtf8 (isolate, "bind"),
+      FunctionTemplate::New (isolate, gum_script_core_on_weak_ref_bind, data));
+  weak->Set (String::NewFromUtf8 (isolate, "unbind"),
+      FunctionTemplate::New (isolate, gum_script_core_on_weak_ref_unbind,
+          data));
+  scope->Set (String::NewFromUtf8 (isolate, "WeakRef"), weak);
 
   Handle<ObjectTemplate> console = ObjectTemplate::New ();
   console->Set (String::NewFromUtf8 (isolate, "log"),
@@ -275,6 +304,8 @@ _gum_script_core_dispose (GumScriptCore * self)
         self->scheduled_callbacks, self->scheduled_callbacks);
   }
 
+  g_hash_table_remove_all (self->weak_refs);
+
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
@@ -288,6 +319,9 @@ _gum_script_core_dispose (GumScriptCore * self)
 void
 _gum_script_core_finalize (GumScriptCore * self)
 {
+  g_hash_table_unref (self->weak_refs);
+  self->weak_refs = NULL;
+
   delete self->native_pointer;
   self->native_pointer = NULL;
 
@@ -335,6 +369,105 @@ _gum_script_core_post_message (GumScriptCore * self,
     g_cond_broadcast (self->event_cond);
     g_mutex_unlock (self->mutex);
   }
+}
+
+static void
+gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+  GumWeakRef * ref;
+
+  Local<Value> target = info[0];
+  if (target->IsUndefined () || target->IsNull ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "first argument must be a value with a regular lifespan")));
+    return;
+  }
+
+  Local<Value> callback_val = info[1];
+  if (!callback_val->IsFunction ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "second argument must be a function")));
+    return;
+  }
+
+  gint id = g_atomic_int_exchange_and_add (&self->last_weak_ref_id, 1) + 1;
+
+  ref = gum_weak_ref_new (id, target, callback_val.As <Function> (), self);
+  g_hash_table_insert (self->weak_refs, GINT_TO_POINTER (id), ref);
+
+  info.GetReturnValue ().Set (id);
+}
+
+static void
+gum_script_core_on_weak_ref_unbind (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Value> id_val = info[0];
+  if (!id_val->IsNumber ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "argument must be a weak ref id")));
+    return;
+  }
+  gint id = id_val->ToInt32 ()->Value ();
+
+  bool removed =
+      !!g_hash_table_remove (self->weak_refs, GINT_TO_POINTER (id));
+
+  info.GetReturnValue ().Set (removed);
+}
+
+static GumWeakRef *
+gum_weak_ref_new (gint id,
+                  Handle<Value> target,
+                  Handle<Function> callback,
+                  GumScriptCore * core)
+{
+  GumWeakRef * ref;
+  Isolate * isolate = core->isolate;
+
+  ref = g_slice_new (GumWeakRef);
+  ref->id = id;
+  ref->target = new GumPersistent<Value>::type (isolate, target);
+  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify);
+  ref->target->MarkIndependent ();
+  ref->callback = new GumPersistent<Function>::type (isolate, callback);
+  ref->core = core;
+
+  return ref;
+}
+
+static void
+gum_weak_ref_free (GumWeakRef * ref)
+{
+  {
+    ScriptScope scope (ref->core->script);
+    Isolate * isolate = ref->core->isolate;
+    Local<Function> callback (Local<Function>::New (isolate, *ref->callback));
+    callback->Call (Null (isolate), 0, NULL);
+  }
+
+  delete ref->target;
+  delete ref->callback;
+
+  g_slice_free (GumWeakRef, ref);
+}
+
+static void
+gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
+    GumWeakRef> & data)
+{
+  GumWeakRef * self = data.GetParameter ();
+
+  g_hash_table_remove (self->core->weak_refs, GINT_TO_POINTER (self->id));
 }
 
 static void
@@ -612,7 +745,7 @@ gum_script_core_on_new_native_pointer (
     String::Utf8Value ptr_as_utf8 (info[0]);
     const gchar * ptr_as_string = *ptr_as_utf8;
     gchar * endptr;
-    if (g_str_has_prefix (ptr_as_string, "0x")) 
+    if (g_str_has_prefix (ptr_as_string, "0x"))
     {
       ptr = g_ascii_strtoull (ptr_as_string + 2, &endptr, 16);
       if (endptr == ptr_as_string + 2)
