@@ -1,6 +1,6 @@
 (function () {
     var engine = this;
-    var dispatcher = null;
+    var dispatcher;
 
     var initialize = function initialize() {
         dispatcher = new MessageDispatcher();
@@ -37,6 +37,11 @@
         value: function ptr(str) {
             return new NativePointer(str);
         }
+    });
+
+    Object.defineProperty(engine, 'NULL', {
+        enumerable: true,
+        value: new NativePointer("0")
     });
 
     var MessageDispatcher = function MessageDispatcher() {
