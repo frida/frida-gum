@@ -2,7 +2,6 @@
  * TODO Frida Runtime:
  *
  *   - NativePointer: isNull()
- *   - global NULL constant
  *   - Memory.writeU16 et al
  *   - Memory.writePointer
  *   - Memory.writeByteArray
@@ -16,7 +15,6 @@
     var _api = null;
     var pointerSize = Process.pointerSize;
     var scratchBuffer = Memory.alloc(pointerSize);
-    var NULL = ptr("0");
     var JNI_OK = 0;
     var JNI_VERSION_1_6 = 0x00010006;
 

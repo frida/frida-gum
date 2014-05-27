@@ -66,7 +66,7 @@
                 }
             }, 'void', ['pointer']);
             scheduledCallbacks.push(workCallback);
-            api.dispatch_async_f(queue, ptr("0"), workCallback);
+            api.dispatch_async_f(queue, NULL, workCallback);
         };
 
         this.use = function (className) {
@@ -136,7 +136,7 @@
         };
 
         this.refresh = function refresh() {
-            var numClasses = api.objc_getClassList(ptr("0"), 0);
+            var numClasses = api.objc_getClassList(NULL, 0);
             var rawClasses = Memory.alloc(numClasses * pointerSize);
             numClasses = api.objc_getClassList(rawClasses, numClasses);
             var iterations = 0;
@@ -165,7 +165,7 @@
             eval("klass = function " + name + "(ch, handle) {" +
                 (superKlass !== null
                     ? "superKlass.call(this, ch || classHandle, handle);"
-                    : "this.classHandle = ch || classHandle; this.handle = handle || ptr(\"0\");") +
+                    : "this.classHandle = ch || classHandle; this.handle = handle || NULL;") +
                 "initialize(ch, handle);" +
             "};");
 
