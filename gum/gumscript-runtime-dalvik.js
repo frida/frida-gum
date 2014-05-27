@@ -1,7 +1,6 @@
 /*
  * TODO Frida Runtime:
  *
- *   - NativePointer: isNull()
  *   - Memory.writeU16 et al
  *   - Memory.writePointer
  *   - Memory.writeByteArray
@@ -135,7 +134,7 @@
             if (!klass) {
                 var env = vm.getEnv();
                 var handle = env.findClass(className.replace(/\./g, "/"));
-                if (handle.toString(16) === "0") {
+                if (handle.isNull()) {
                     throw new Error("Class '" + className + "' is not loaded");
                 }
                 var C = ensureClass(handle, className);
@@ -160,7 +159,7 @@
 
             var superHandle = env.getSuperclass(classHandle);
             var superKlass;
-            if (superHandle.toString(16) !== "0") {
+            if (!superHandle.isNull()) {
                 superKlass = ensureClass(superHandle, null);
                 env.deleteLocalRef(superHandle);
             } else {
@@ -517,7 +516,7 @@
                     "synchronizeVtable.call(this, env);" +
                     returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
                     "var throwable = env.exceptionOccurred();" +
-                    "if (throwable.toString(16) !== \"0\") {" +
+                    "if (!throwable.isNull()) {" +
                         "env.exceptionClear();" +
                         "var description = env.method('pointer', [])(env.handle, throwable, env.javaLangObject().toString);" +
                         "var descriptionStr = env.stringFromJni(description);" +
@@ -965,7 +964,7 @@
                     return typeof v === 'object' && v.hasOwnProperty('$handle'); // TODO: improve strictness
                 },
                 fromJni: function (h, env) {
-                    if (h.toString(16) === "0") {
+                    if (h.isNull()) {
                         return null;
                     } else if (className === 'java.lang.String' && unbox) {
                         return env.stringFromJni(h);

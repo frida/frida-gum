@@ -160,7 +160,7 @@
 
             var name = cachedName !== null ? cachedName : Memory.readUtf8String(api.class_getName(classHandle));
             var superHandle = api.class_getSuperclass(classHandle);
-            var superKlass = superHandle.toString(16) !== "0" ? ensureClass(superHandle, null) : null;
+            var superKlass = !superHandle.isNull() ? ensureClass(superHandle, null) : null;
 
             eval("klass = function " + name + "(ch, handle) {" +
                 (superKlass !== null
@@ -422,7 +422,7 @@
                 '*': {
                     type: 'pointer',
                     fromNative: function (h) {
-                        if (h.toString(16) === "0") {
+                        if (h.isNull()) {
                             return null;
                         }
                         return Memory.readUtf8String(h);
@@ -431,7 +431,7 @@
                 '@': {
                     type: 'pointer',
                     fromNative: function (h) {
-                        if (h.toString(16) === "0") {
+                        if (h.isNull()) {
                             return null;
                         } else if (h.toString(16) === this.handle.toString(16)) {
                             return this;
