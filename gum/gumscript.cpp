@@ -297,6 +297,8 @@ gum_script_destroy_context (GumScript * self)
     Local<Context> context (Local<Context>::New (priv->isolate, *priv->context));
     Context::Scope context_scope (context);
 
+    _gum_script_core_flush (&priv->core);
+
     _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
     _gum_script_socket_dispose (&priv->socket);

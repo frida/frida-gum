@@ -294,6 +294,12 @@ _gum_script_core_realize (GumScriptCore * self)
 }
 
 void
+_gum_script_core_flush (GumScriptCore * self)
+{
+  g_hash_table_remove_all (self->weak_refs);
+}
+
+void
 _gum_script_core_dispose (GumScriptCore * self)
 {
   while (self->scheduled_callbacks != NULL)
@@ -303,8 +309,6 @@ _gum_script_core_dispose (GumScriptCore * self)
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
   }
-
-  g_hash_table_remove_all (self->weak_refs);
 
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
