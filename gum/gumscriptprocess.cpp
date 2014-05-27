@@ -86,6 +86,8 @@ _gum_script_process_init (GumScriptProcess * self,
       String::NewFromUtf8 (isolate, GUM_SCRIPT_ARCH), ReadOnly);
   process->Set (String::NewFromUtf8 (isolate, "platform"),
       String::NewFromUtf8 (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
+  process->Set (String::NewFromUtf8 (isolate, "pointerSize"),
+      Number::New (isolate, GLIB_SIZEOF_VOID_P), ReadOnly);
   process->Set (String::NewFromUtf8 (isolate, "getCurrentThreadId"),
       FunctionTemplate::New (isolate,
       gum_script_process_on_get_current_thread_id));

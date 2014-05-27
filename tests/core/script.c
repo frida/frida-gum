@@ -71,6 +71,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
+  SCRIPT_TESTENTRY (process_pointer_size_is_available)
 #ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
 #endif
@@ -500,6 +501,12 @@ SCRIPT_TESTCASE (process_platform_is_available)
 #elif defined (G_OS_WIN32)
   EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
 #endif
+}
+
+SCRIPT_TESTCASE (process_pointer_size_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.pointerSize);");
+  EXPECT_SEND_MESSAGE_WITH (G_STRINGIFY (GLIB_SIZEOF_VOID_P));
 }
 
 #ifndef HAVE_ANDROID
