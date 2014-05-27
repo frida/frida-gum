@@ -109,6 +109,8 @@ static void gum_script_memory_on_read_s16 (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_read_u16 (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_memory_on_write_u16 (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_read_s32 (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_read_u32 (
@@ -196,6 +198,8 @@ _gum_script_memory_init (GumScriptMemory * self,
       FunctionTemplate::New (isolate, gum_script_memory_on_read_s16, data));
   memory->Set (String::NewFromUtf8 (isolate, "readU16"),
       FunctionTemplate::New (isolate, gum_script_memory_on_read_u16, data));
+  memory->Set (String::NewFromUtf8 (isolate, "writeU16"),
+      FunctionTemplate::New (isolate, gum_script_memory_on_write_u16, data));
   memory->Set (String::NewFromUtf8 (isolate, "readS32"),
       FunctionTemplate::New (isolate, gum_script_memory_on_read_s32, data));
   memory->Set (String::NewFromUtf8 (isolate, "readU32"),
@@ -353,6 +357,12 @@ static void
 gum_script_memory_on_read_u16 (const FunctionCallbackInfo<Value> & info)
 {
   return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_U16);
+}
+
+static void
+gum_script_memory_on_write_u16 (const FunctionCallbackInfo<Value> & info)
+{
+  return gum_script_memory_do_write (info, GUM_MEMORY_VALUE_U16);
 }
 
 static void
@@ -727,6 +737,12 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       {
         guint8 value = info[1]->Uint32Value ();
         *static_cast<guint8 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_U16:
+      {
+        guint16 value = info[1]->Uint32Value ();
+        *static_cast<guint16 *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:

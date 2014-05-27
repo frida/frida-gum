@@ -50,6 +50,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u8_can_be_written)
   SCRIPT_TESTENTRY (s16_can_be_read)
   SCRIPT_TESTENTRY (u16_can_be_read)
+  SCRIPT_TESTENTRY (u16_can_be_written)
   SCRIPT_TESTENTRY (s32_can_be_read)
   SCRIPT_TESTENTRY (u32_can_be_read)
   SCRIPT_TESTENTRY (s64_can_be_read)
@@ -1228,6 +1229,13 @@ SCRIPT_TESTCASE (u16_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("12123");
 }
 
+SCRIPT_TESTCASE (u16_can_be_written)
+{
+  guint16 val = 0x1337;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU16(" GUM_PTR_CONST ", 0x4321);", &val);
+  g_assert_cmpint (val, ==, 0x4321);
+}
+
 SCRIPT_TESTCASE (s32_can_be_read)
 {
   gint32 val = -120123;
@@ -1425,6 +1433,7 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
 {
   const gchar * primitive_type_name[] = {
       "U8",
+      "U16"
   };
   const gchar * string_type_name[] = {
       "Utf8String"
