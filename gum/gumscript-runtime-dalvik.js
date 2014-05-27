@@ -2,11 +2,9 @@
  * TODO Frida Runtime:
  *
  *   - Memory.writeU16 et al
- *   - Memory.writePointer
  *   - Memory.writeByteArray
  *   - Memory.dup (memdup)
  *   - Memory.copy (memcpy)
- *   - NativePointer.add should return this when 0
  */
 
 (function () {
@@ -107,7 +105,7 @@
                 for (entryId in patchedClasses) {
                     if (patchedClasses.hasOwnProperty(entryId)) {
                         var entry = patchedClasses[entryId];
-                        writePointer(entry.vtablePtr, entry.vtable);
+                        Memory.writePointer(entry.vtablePtr, entry.vtable);
                         writeU32(entry.vtableCountPtr, entry.vtableCount); // TODO: S32
 
                         for (methodId in entry.targetMethods) {
@@ -556,7 +554,7 @@
                         var vtableSize = vtableCount * pointerSize;
                         var shadowVtable = Memory.alloc(2 * vtableSize);
                         memcpy(shadowVtable, vtable, vtableSize);
-                        writePointer(vtablePtr, shadowVtable);
+                        Memory.writePointer(vtablePtr, shadowVtable);
 
                         entry = {
                             classObject: classObject,
@@ -575,7 +573,7 @@
                     var method = entry.targetMethods[key];
                     if (!method) {
                         var methodIndex = entry.shadowVtableCount++;
-                        writePointer(entry.shadowVtable.add(methodIndex * pointerSize), targetMethodId);
+                        Memory.writePointer(entry.shadowVtable.add(methodIndex * pointerSize), targetMethodId);
                         writeU16(targetMethodId.add(METHOD_OFFSET_METHOD_INDEX), methodIndex);
                         writeU32(entry.vtableCountPtr, entry.shadowVtableCount); // TODO: S32
 
@@ -1469,11 +1467,6 @@
         Memory.writeU8(address.add(1), (value >> 8) & 0xff);
         Memory.writeU8(address.add(2), (value >> 16) & 0xff);
         Memory.writeU8(address.add(3), (value >> 24) & 0xff);
-    };
-
-    var writePointer = function (address, value) {
-        // TODO: 32-bit only as we expect writePointer to be provided by the Frida runtime sometime soon
-        writeU32(address, value.toInt32());
     };
 
     var memdup = function (mem, size) {
