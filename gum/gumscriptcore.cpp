@@ -139,6 +139,8 @@ static void gum_script_core_on_wait_for_event (
 
 static void gum_script_core_on_new_native_pointer (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_native_pointer_is_null (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_add (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_sub (
@@ -241,6 +243,9 @@ _gum_script_core_init (GumScriptCore * self,
       String::NewFromUtf8 (isolate, "NativePointer"));
   Local<ObjectTemplate> native_pointer_proto =
       native_pointer->PrototypeTemplate ();
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "isNull"),
+      FunctionTemplate::New (isolate,
+          gum_script_core_on_native_pointer_is_null));
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "add"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_add, data));
@@ -775,6 +780,13 @@ gum_script_core_on_new_native_pointer (
 
   info.Holder ()->SetInternalField (0,
       External::New (info.GetIsolate (), GSIZE_TO_POINTER (ptr)));
+}
+
+static void
+gum_script_core_on_native_pointer_is_null (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (GUM_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
 }
 
 static void

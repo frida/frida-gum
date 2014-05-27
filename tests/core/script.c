@@ -86,6 +86,7 @@ TEST_LIST_BEGIN (script)
 #ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
+  SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
@@ -182,6 +183,15 @@ SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
       "var cb = new NativeCallback(function () {}, 'void', []);"
       "send(cb instanceof NativePointer);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (native_pointer_provides_is_null)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(\"0\").isNull());"
+      "send(ptr(\"1337\").isNull());");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("false");
 }
 
 static gint
