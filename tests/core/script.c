@@ -49,6 +49,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_written)
   SCRIPT_TESTENTRY (s16_can_be_read)
+  SCRIPT_TESTENTRY (s16_can_be_written)
   SCRIPT_TESTENTRY (u16_can_be_read)
   SCRIPT_TESTENTRY (u16_can_be_written)
   SCRIPT_TESTENTRY (s32_can_be_read)
@@ -1220,6 +1221,13 @@ SCRIPT_TESTCASE (s16_can_be_read)
   gint16 val = -12123;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS16(" GUM_PTR_CONST "));", &val);
   EXPECT_SEND_MESSAGE_WITH ("-12123");
+}
+
+SCRIPT_TESTCASE (s16_can_be_written)
+{
+  gint16 val = 12123;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS16(" GUM_PTR_CONST ", -12123);", &val);
+  g_assert_cmpint (val, ==, -12123);
 }
 
 SCRIPT_TESTCASE (u16_can_be_read)

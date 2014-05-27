@@ -95,41 +95,7 @@ struct _GumMemoryScanContext
 
 static void gum_script_memory_on_alloc (
     const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_pointer (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_write_pointer (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_s8 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_u8 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_write_u8 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_s16 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_u16 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_write_u16 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_s32 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_u32 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_s64 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_u64 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_byte_array (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_utf8_string (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_write_utf8_string (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_script_memory_on_read_utf16_string (
-    const FunctionCallbackInfo<Value> & info);
 #ifdef G_OS_WIN32
-static void gum_script_memory_on_read_ansi_string (
-    const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_alloc_ansi_string (
     const FunctionCallbackInfo<Value> & info);
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
@@ -169,6 +135,49 @@ static struct sigaction gum_memaccess_old_sigsegv;
 static struct sigaction gum_memaccess_old_sigbus;
 #endif
 
+#define GUM_DEFINE_MEMORY_READ(T) \
+    static void \
+    gum_script_memory_on_read_##T (const FunctionCallbackInfo<Value> & info) \
+    { \
+      return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_##T); \
+    }
+#define GUM_DEFINE_MEMORY_WRITE(T) \
+    static void \
+    gum_script_memory_on_write_##T (const FunctionCallbackInfo<Value> & info) \
+    { \
+      gum_script_memory_do_write (info, GUM_MEMORY_VALUE_##T); \
+    }
+#define GUM_DEFINE_MEMORY_READ_WRITE(T) \
+    GUM_DEFINE_MEMORY_READ (T); \
+    GUM_DEFINE_MEMORY_WRITE (T)
+
+#define GUM_EXPORT_MEMORY_READ(N, T) \
+    memory->Set (String::NewFromUtf8 (isolate, "read" N), \
+        FunctionTemplate::New (isolate, gum_script_memory_on_read_##T, data))
+#define GUM_EXPORT_MEMORY_WRITE(N, T) \
+    memory->Set (String::NewFromUtf8 (isolate, "write" N), \
+        FunctionTemplate::New (isolate, gum_script_memory_on_write_##T, data))
+#define GUM_EXPORT_MEMORY_READ_WRITE(N, T) \
+    GUM_EXPORT_MEMORY_READ (N, T); \
+    GUM_EXPORT_MEMORY_WRITE (N, T)
+
+GUM_DEFINE_MEMORY_READ_WRITE (POINTER)
+GUM_DEFINE_MEMORY_READ_WRITE (S8)
+GUM_DEFINE_MEMORY_READ_WRITE (U8)
+GUM_DEFINE_MEMORY_READ_WRITE (S16)
+GUM_DEFINE_MEMORY_READ_WRITE (U16)
+GUM_DEFINE_MEMORY_READ_WRITE (S32)
+GUM_DEFINE_MEMORY_READ_WRITE (U32)
+GUM_DEFINE_MEMORY_READ_WRITE (S64)
+GUM_DEFINE_MEMORY_READ_WRITE (U64)
+GUM_DEFINE_MEMORY_READ (BYTE_ARRAY)
+GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
+GUM_DEFINE_MEMORY_READ (UTF16_STRING)
+
+#ifdef G_OS_WIN32
+GUM_DEFINE_MEMORY_READ (ANSI_STRING)
+#endif
+
 void
 _gum_script_memory_init (GumScriptMemory * self,
                          GumScriptCore * core,
@@ -183,47 +192,23 @@ _gum_script_memory_init (GumScriptMemory * self,
   Handle<ObjectTemplate> memory = ObjectTemplate::New ();
   memory->Set (String::NewFromUtf8 (isolate, "alloc"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readPointer"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_pointer, data));
-  memory->Set (String::NewFromUtf8 (isolate, "writePointer"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_write_pointer,
-          data));
-  memory->Set (String::NewFromUtf8 (isolate, "readS8"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_s8, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readU8"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_u8, data));
-  memory->Set (String::NewFromUtf8 (isolate, "writeU8"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_write_u8, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readS16"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_s16, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readU16"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_u16, data));
-  memory->Set (String::NewFromUtf8 (isolate, "writeU16"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_write_u16, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readS32"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_s32, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readU32"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_u32, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readS64"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_s64, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readU64"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_u64, data));
-  memory->Set (String::NewFromUtf8 (isolate, "readByteArray"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_byte_array,
-          data));
-  memory->Set (String::NewFromUtf8 (isolate, "readUtf8String"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_utf8_string,
-          data));
-  memory->Set (String::NewFromUtf8 (isolate, "writeUtf8String"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_write_utf8_string,
-          data));
-  memory->Set (String::NewFromUtf8 (isolate, "readUtf16String"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_utf16_string,
-          data));
+
+  GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER);
+  GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8);
+  GUM_EXPORT_MEMORY_READ_WRITE ("U8", U8);
+  GUM_EXPORT_MEMORY_READ_WRITE ("S16", S16);
+  GUM_EXPORT_MEMORY_READ_WRITE ("U16", U16);
+  GUM_EXPORT_MEMORY_READ_WRITE ("S32", S32);
+  GUM_EXPORT_MEMORY_READ_WRITE ("U32", U32);
+  GUM_EXPORT_MEMORY_READ_WRITE ("S64", S64);
+  GUM_EXPORT_MEMORY_READ_WRITE ("U64", U64);
+  GUM_EXPORT_MEMORY_READ ("ByteArray", BYTE_ARRAY);
+  GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
+
+  GUM_EXPORT_MEMORY_READ ("Utf16String", UTF16_STRING);
 #ifdef G_OS_WIN32
-  memory->Set (String::NewFromUtf8 (isolate, "readAnsiString"),
-      FunctionTemplate::New (isolate, gum_script_memory_on_read_ansi_string,
-          data));
+  GUM_EXPORT_MEMORY_READ ("AnsiString", ANSI_STRING);
+
   memory->Set (String::NewFromUtf8 (isolate, "allocAnsiString"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc_ansi_string,
           data));
@@ -317,111 +302,7 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
 }
 
-static void
-gum_script_memory_on_read_pointer (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_POINTER);
-}
-
-static void
-gum_script_memory_on_write_pointer (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_write (info, GUM_MEMORY_VALUE_POINTER);
-}
-
-static void
-gum_script_memory_on_read_s8 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_S8);
-}
-
-static void
-gum_script_memory_on_read_u8 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_U8);
-}
-
-static void
-gum_script_memory_on_write_u8 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_write (info, GUM_MEMORY_VALUE_U8);
-}
-
-static void
-gum_script_memory_on_read_s16 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_S16);
-}
-
-static void
-gum_script_memory_on_read_u16 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_U16);
-}
-
-static void
-gum_script_memory_on_write_u16 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_write (info, GUM_MEMORY_VALUE_U16);
-}
-
-static void
-gum_script_memory_on_read_s32 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_S32);
-}
-
-static void
-gum_script_memory_on_read_u32 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_U32);
-}
-
-static void
-gum_script_memory_on_read_s64 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_S64);
-}
-
-static void
-gum_script_memory_on_read_u64 (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_U64);
-}
-
-static void
-gum_script_memory_on_read_byte_array (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_BYTE_ARRAY);
-}
-
-static void
-gum_script_memory_on_read_utf8_string (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_UTF8_STRING);
-}
-
-static void
-gum_script_memory_on_write_utf8_string (
-    const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_write (info, GUM_MEMORY_VALUE_UTF8_STRING);
-}
-
-static void
-gum_script_memory_on_read_utf16_string (
-    const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_UTF16_STRING);
-}
-
 #ifdef G_OS_WIN32
-
-static void
-gum_script_memory_on_read_ansi_string (const FunctionCallbackInfo<Value> & info)
-{
-  return gum_script_memory_do_read (info, GUM_MEMORY_VALUE_ANSI_STRING);
-}
 
 static void
 gum_script_memory_on_alloc_ansi_string (
@@ -737,6 +618,12 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       {
         guint8 value = info[1]->Uint32Value ();
         *static_cast<guint8 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_S16:
+      {
+        gint16 value = info[1]->Uint32Value ();
+        *static_cast<gint16 *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_U16:
