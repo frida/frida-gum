@@ -89,10 +89,6 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
-static const gchar * gum_script_runtime_source =
-#include "gumscript-runtime.h"
-;
-
 void
 _gum_script_init (void)
 {
@@ -251,8 +247,11 @@ gum_script_create_context (GumScript * self,
     _gum_script_interceptor_realize (&priv->interceptor);
     _gum_script_stalker_realize (&priv->stalker);
 
-    gchar * combined_source = g_strconcat (gum_script_runtime_source, "\n",
-        priv->source, static_cast<void *> (NULL));
+    gchar * combined_source = g_strconcat (
+#include "gumscript-runtime.h"
+        "\n",
+        priv->source,
+        static_cast<void *> (NULL));
     Local<String> source_value (String::NewFromUtf8 (priv->isolate, combined_source));
     g_free (combined_source);
     TryCatch trycatch;
