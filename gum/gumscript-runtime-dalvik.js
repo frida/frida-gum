@@ -1448,24 +1448,3 @@
         return className.slice(className.lastIndexOf(".") + 1);
     };
 }).call(this);
-
-send("*** Dalvik.available: " + Dalvik.available);
-Dalvik.perform(function () {
-    var Activity = Dalvik.use("android.app.Activity");
-    var Exception = Dalvik.use("java.lang.Exception");
-    var count = 0;
-    Activity.onResume.implementation = function onResume() {
-        send("onResume() count=" + count);
-        this.onResume();
-        count++;
-        /*
-        if (count === 1) {
-            throw Exception.$new("Oh noes");
-        }
-        if (count === 3) {
-            send("enough already!");
-            Activity.onResume.implementation = null;
-        }
-        */
-    };
-});
