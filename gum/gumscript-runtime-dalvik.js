@@ -1,10 +1,3 @@
-/*
- * TODO Frida Runtime:
- *
- *   - Memory.dup (memdup)
- *   - Memory.copy (memcpy)
- */
-
 (function () {
     var _runtime = null;
     var _api = null;
@@ -551,7 +544,7 @@
 
                         var vtableSize = vtableCount * pointerSize;
                         var shadowVtable = Memory.alloc(2 * vtableSize);
-                        memcpy(shadowVtable, vtable, vtableSize);
+                        Memory.copy(shadowVtable, vtable, vtableSize);
                         Memory.writePointer(vtablePtr, shadowVtable);
 
                         entry = {
@@ -589,8 +582,8 @@
                         }
 
                         if (originalMethodId === null) {
-                            originalMethodId = memdup(methodId, METHOD_SIZE);
-                            targetMethodId = memdup(methodId, METHOD_SIZE);
+                            originalMethodId = Memory.dup(methodId, METHOD_SIZE);
+                            targetMethodId = Memory.dup(methodId, METHOD_SIZE);
                         }
 
                         if (fn !== null) {
@@ -615,7 +608,7 @@
 
                             api.dvmUseJNIBridge(methodId, implementation);
                         } else {
-                            memcpy(methodId, originalMethodId, METHOD_SIZE);
+                            Memory.copy(methodId, originalMethodId, METHOD_SIZE);
                         }
                     }
                 });
@@ -1453,18 +1446,6 @@
 
     var basename = function (className) {
         return className.slice(className.lastIndexOf(".") + 1);
-    };
-
-    var memdup = function (mem, size) {
-        var result = Memory.alloc(size);
-        memcpy(result, mem, size);
-        return result;
-    };
-
-    var memcpy = function (dst, src, n) {
-        for (var i = 0; i !== n; i++) {
-            Memory.writeU8(dst.add(i), Memory.readU8(src.add(i)));
-        }
     };
 }).call(this);
 
