@@ -46,6 +46,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
   SCRIPT_TESTENTRY (s8_can_be_read)
+  SCRIPT_TESTENTRY (s8_can_be_written)
   SCRIPT_TESTENTRY (u8_can_be_read)
   SCRIPT_TESTENTRY (u8_can_be_written)
   SCRIPT_TESTENTRY (s16_can_be_read)
@@ -53,14 +54,20 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u16_can_be_read)
   SCRIPT_TESTENTRY (u16_can_be_written)
   SCRIPT_TESTENTRY (s32_can_be_read)
+  SCRIPT_TESTENTRY (s32_can_be_written)
   SCRIPT_TESTENTRY (u32_can_be_read)
+  SCRIPT_TESTENTRY (u32_can_be_written)
   SCRIPT_TESTENTRY (s64_can_be_read)
+  SCRIPT_TESTENTRY (s64_can_be_written)
   SCRIPT_TESTENTRY (u64_can_be_read)
+  SCRIPT_TESTENTRY (u64_can_be_written)
   SCRIPT_TESTENTRY (byte_array_can_be_read)
+  SCRIPT_TESTENTRY (byte_array_can_be_written)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_written)
   SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
+  SCRIPT_TESTENTRY (utf16_string_can_be_written)
   SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
 #ifdef G_OS_WIN32
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
@@ -1202,6 +1209,13 @@ SCRIPT_TESTCASE (s8_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("-42");
 }
 
+SCRIPT_TESTCASE (s8_can_be_written)
+{
+  gint8 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS8(" GUM_PTR_CONST ", -42);", &val);
+  g_assert_cmpint (val, ==, -42);
+}
+
 SCRIPT_TESTCASE (u8_can_be_read)
 {
   guint8 val = 42;
@@ -1211,9 +1225,9 @@ SCRIPT_TESTCASE (u8_can_be_read)
 
 SCRIPT_TESTCASE (u8_can_be_written)
 {
-  guint8 val = 42;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(" GUM_PTR_CONST ", 37);", &val);
-  g_assert_cmpint (val, ==, 37);
+  guint8 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU8(" GUM_PTR_CONST ", 42);", &val);
+  g_assert_cmpint (val, ==, 42);
 }
 
 SCRIPT_TESTCASE (s16_can_be_read)
@@ -1225,7 +1239,7 @@ SCRIPT_TESTCASE (s16_can_be_read)
 
 SCRIPT_TESTCASE (s16_can_be_written)
 {
-  gint16 val = 12123;
+  gint16 val = 0;
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeS16(" GUM_PTR_CONST ", -12123);", &val);
   g_assert_cmpint (val, ==, -12123);
 }
@@ -1239,9 +1253,9 @@ SCRIPT_TESTCASE (u16_can_be_read)
 
 SCRIPT_TESTCASE (u16_can_be_written)
 {
-  guint16 val = 0x1337;
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU16(" GUM_PTR_CONST ", 0x4321);", &val);
-  g_assert_cmpint (val, ==, 0x4321);
+  guint16 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU16(" GUM_PTR_CONST ", 12123);", &val);
+  g_assert_cmpint (val, ==, 12123);
 }
 
 SCRIPT_TESTCASE (s32_can_be_read)
@@ -1251,11 +1265,25 @@ SCRIPT_TESTCASE (s32_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("-120123");
 }
 
+SCRIPT_TESTCASE (s32_can_be_written)
+{
+  gint32 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS32(" GUM_PTR_CONST ", -120123);", &val);
+  g_assert_cmpint (val, ==, -120123);
+}
+
 SCRIPT_TESTCASE (u32_can_be_read)
 {
   guint32 val = 120123;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU32(" GUM_PTR_CONST "));", &val);
   EXPECT_SEND_MESSAGE_WITH ("120123");
+}
+
+SCRIPT_TESTCASE (u32_can_be_written)
+{
+  guint32 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU32(" GUM_PTR_CONST ", 120123);", &val);
+  g_assert_cmpint (val, ==, 120123);
 }
 
 SCRIPT_TESTCASE (s64_can_be_read)
@@ -1265,11 +1293,27 @@ SCRIPT_TESTCASE (s64_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("-1201239876783");
 }
 
+SCRIPT_TESTCASE (s64_can_be_written)
+{
+  gint64 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeS64(" GUM_PTR_CONST
+      ", -1201239876783);", &val);
+  g_assert_cmpint (val, ==, G_GINT64_CONSTANT (-1201239876783));
+}
+
 SCRIPT_TESTCASE (u64_can_be_read)
 {
   guint64 val = G_GUINT64_CONSTANT (1201239876783);
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU64(" GUM_PTR_CONST "));", &val);
   EXPECT_SEND_MESSAGE_WITH ("1201239876783");
+}
+
+SCRIPT_TESTCASE (u64_can_be_written)
+{
+  gint64 val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeU64(" GUM_PTR_CONST
+      ", 1201239876783);", &val);
+  g_assert_cmpint (val, ==, G_GUINT64_CONSTANT (1201239876783));
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_read)
@@ -1278,6 +1322,28 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
   COMPILE_AND_LOAD_SCRIPT ("send('stuff', Memory.readByteArray(" GUM_PTR_CONST
       ", 3));", val);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"stuff\"", "13 37 42");
+}
+
+SCRIPT_TESTCASE (byte_array_can_be_written)
+{
+  guint8 val[4] = { 0x00, 0x00, 0x00, 0xff };
+  const guint8 other[3] = { 0x01, 0x02, 0x03 };
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
+      ", [0x13, 0x37, 0x42]);", val);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (val[0], ==, 0x13);
+  g_assert_cmpint (val[1], ==, 0x37);
+  g_assert_cmpint (val[2], ==, 0x42);
+  g_assert_cmpint (val[3], ==, 0xff);
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(" GUM_PTR_CONST
+      ", Memory.readByteArray(" GUM_PTR_CONST ", 3));", val, other);
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (val[0], ==, 0x01);
+  g_assert_cmpint (val[1], ==, 0x02);
+  g_assert_cmpint (val[2], ==, 0x03);
+  g_assert_cmpint (val[3], ==, 0xff);
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_read)
@@ -1346,6 +1412,22 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(ptr(\"0\")));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
+
+  g_free (str);
+}
+
+SCRIPT_TESTCASE (utf16_string_can_be_written)
+{
+  gunichar2 * str = g_utf8_to_utf16 ("Hello", -1, NULL, NULL, NULL);
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUtf16String(" GUM_PTR_CONST ", 'Bye');",
+      str);
+  g_assert_cmphex (str[0], ==, 'B');
+  g_assert_cmphex (str[1], ==, 'y');
+  g_assert_cmphex (str[2], ==, 'e');
+  g_assert_cmphex (str[3], ==, '\0');
+  g_assert_cmphex (str[4], ==, 'o');
+  g_assert_cmphex (str[5], ==, '\0');
 
   g_free (str);
 }
@@ -1440,11 +1522,20 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
 SCRIPT_TESTCASE (invalid_write_results_in_exception)
 {
   const gchar * primitive_type_name[] = {
+      "S8",
       "U8",
-      "U16"
+      "S16",
+      "U16",
+      "S32",
+      "U32",
+#if GLIB_SIZEOF_VOID_P == 8
+      "S64",
+      "U64"
+#endif
   };
   const gchar * string_type_name[] = {
-      "Utf8String"
+      "Utf8String",
+      "Utf16String"
   };
   guint i;
 

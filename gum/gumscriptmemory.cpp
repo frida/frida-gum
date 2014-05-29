@@ -51,6 +51,8 @@
 # endif
 #endif
 
+#define GUM_MAX_JS_ARRAY_LENGTH (100 * 1024 * 1024)
+
 using namespace v8;
 
 typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
@@ -170,9 +172,9 @@ GUM_DEFINE_MEMORY_READ_WRITE (S32)
 GUM_DEFINE_MEMORY_READ_WRITE (U32)
 GUM_DEFINE_MEMORY_READ_WRITE (S64)
 GUM_DEFINE_MEMORY_READ_WRITE (U64)
-GUM_DEFINE_MEMORY_READ (BYTE_ARRAY)
+GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
-GUM_DEFINE_MEMORY_READ (UTF16_STRING)
+GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 
 #ifdef G_OS_WIN32
 GUM_DEFINE_MEMORY_READ (ANSI_STRING)
@@ -202,10 +204,10 @@ _gum_script_memory_init (GumScriptMemory * self,
   GUM_EXPORT_MEMORY_READ_WRITE ("U32", U32);
   GUM_EXPORT_MEMORY_READ_WRITE ("S64", S64);
   GUM_EXPORT_MEMORY_READ_WRITE ("U64", U64);
-  GUM_EXPORT_MEMORY_READ ("ByteArray", BYTE_ARRAY);
+  GUM_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY);
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
 
-  GUM_EXPORT_MEMORY_READ ("Utf16String", UTF16_STRING);
+  GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING);
 #ifdef G_OS_WIN32
   GUM_EXPORT_MEMORY_READ ("AnsiString", ANSI_STRING);
 
@@ -248,13 +250,17 @@ _gum_script_memory_init (GumScriptMemory * self,
 void
 _gum_script_memory_realize (GumScriptMemory * self)
 {
-  (void) self;
+  Isolate * isolate = self->core->isolate;
+
+  self->length_key = new GumPersistent<String>::type (isolate,
+      String::NewFromUtf8 (isolate, "length"));
 }
 
 void
 _gum_script_memory_dispose (GumScriptMemory * self)
 {
-  (void) self;
+  delete self->length_key;
+  self->length_key = NULL;
 }
 
 void
@@ -614,6 +620,12 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
           *static_cast<gpointer *> (address) = value;
         break;
       }
+      case GUM_MEMORY_VALUE_S8:
+      {
+        gint8 value = info[1]->Int32Value ();
+        *static_cast<gint8 *> (address) = value;
+        break;
+      }
       case GUM_MEMORY_VALUE_U8:
       {
         guint8 value = info[1]->Uint32Value ();
@@ -622,7 +634,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_S16:
       {
-        gint16 value = info[1]->Uint32Value ();
+        gint16 value = info[1]->Int32Value ();
         *static_cast<gint16 *> (address) = value;
         break;
       }
@@ -632,12 +644,87 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         *static_cast<guint16 *> (address) = value;
         break;
       }
+      case GUM_MEMORY_VALUE_S32:
+      {
+        gint32 value = info[1]->Int32Value ();
+        *static_cast<gint32 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_U32:
+      {
+        guint32 value = info[1]->Uint32Value ();
+        *static_cast<guint32 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_S64:
+      {
+        gint64 value = info[1]->IntegerValue ();
+        *static_cast<gint64 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_U64:
+      {
+        guint64 value = info[1]->IntegerValue ();
+        *static_cast<guint64 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        Local<Object> array = info[1].As <Object> ();
+        if (array->HasIndexedPropertiesInExternalArrayData () &&
+            array->GetIndexedPropertiesExternalArrayDataType ()
+            == kExternalUint8Array)
+        {
+          const guint8 * data = static_cast<guint8 *> (
+              array->GetIndexedPropertiesExternalArrayData ());
+          int data_length =
+              array->GetIndexedPropertiesExternalArrayDataLength ();
+          memcpy (address, data, data_length);
+        }
+        else
+        {
+          Local<String> length_key (Local<String>::New (isolate,
+              *self->length_key));
+          if (array->Has (length_key))
+          {
+            uint32_t length = array->Get (length_key)->Uint32Value ();
+            if (length <= GUM_MAX_JS_ARRAY_LENGTH)
+            {
+              for (uint32_t i = 0; i != length; i++)
+              {
+                uint32_t value = array->Get (i)->ToUint32 ()->Uint32Value ();
+                static_cast<char *> (address)[i] = value;
+              }
+            }
+            else
+            {
+              isolate->ThrowException (Exception::TypeError (
+                  String::NewFromUtf8 (isolate, "invalid array length")));
+            }
+          }
+          else
+          {
+            isolate->ThrowException (Exception::TypeError (
+                String::NewFromUtf8 (isolate, "expected array")));
+          }
+        }
+
+        break;
+      }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
         String::Utf8Value str (info[1]);
         const gchar * s = *str;
         int size = g_utf8_offset_to_pointer (s, g_utf8_strlen (s, -1)) - s;
         memcpy (static_cast<char *> (address), s, size + 1);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        String::Value str (info[1]);
+        const uint16_t * s = *str;
+        int size = (str.length () + 1) * sizeof (uint16_t);
+        memcpy (static_cast<char *> (address), s, size);
         break;
       }
       default:

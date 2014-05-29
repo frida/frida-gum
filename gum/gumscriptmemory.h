@@ -29,6 +29,8 @@ typedef struct _GumScriptMemory GumScriptMemory;
 struct _GumScriptMemory
 {
   GumScriptCore * core;
+
+  GumPersistent<v8::String>::type * length_key;
 };
 
 G_GNUC_INTERNAL void _gum_script_memory_init (GumScriptMemory * self,
