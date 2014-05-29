@@ -713,6 +713,9 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
+        gchar dummy_to_trap_bad_pointer_early = '\0';
+        memcpy (address, &dummy_to_trap_bad_pointer_early, sizeof (gchar));
+
         String::Utf8Value str (info[1]);
         const gchar * s = *str;
         int size = g_utf8_offset_to_pointer (s, g_utf8_strlen (s, -1)) - s;
@@ -721,6 +724,9 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_UTF16_STRING:
       {
+        gunichar2 dummy_to_trap_bad_pointer_early = 0;
+        memcpy (address, &dummy_to_trap_bad_pointer_early, sizeof (gunichar2));
+
         String::Value str (info[1]);
         const uint16_t * s = *str;
         int size = (str.length () + 1) * sizeof (uint16_t);
