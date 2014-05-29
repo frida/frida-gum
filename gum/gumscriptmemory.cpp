@@ -107,6 +107,9 @@ static void gum_script_memory_on_alloc_utf8_string (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_alloc_utf16_string (
     const FunctionCallbackInfo<Value> & info);
+
+static void gum_script_memory_on_copy (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_do_read (
     const FunctionCallbackInfo<Value> & info, GumMemoryValueType type);
 static void gum_script_memory_do_write (
@@ -194,6 +197,8 @@ _gum_script_memory_init (GumScriptMemory * self,
   Handle<ObjectTemplate> memory = ObjectTemplate::New ();
   memory->Set (String::NewFromUtf8 (isolate, "alloc"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc, data));
+  memory->Set (String::NewFromUtf8 (isolate, "copy"),
+      FunctionTemplate::New (isolate, gum_script_memory_on_copy, data));
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER);
   GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8);
@@ -402,6 +407,54 @@ gum_script_memory_on_alloc_utf16_string (
 # pragma warning (push)
 # pragma warning (disable: 4611)
 #endif
+
+static void
+gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->core->isolate;
+  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
+
+  gpointer to;
+  if (!_gum_script_pointer_get (info[0], &to, self->core))
+    return;
+
+  gpointer from;
+  if (!_gum_script_pointer_get (info[1], &from, self->core))
+    return;
+
+  uint32_t size = info[2]->Uint32Value ();
+  if (size == 0)
+  {
+    return;
+  }
+  else if (size > 0x7fffffff)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "invalid size")));
+    return;
+  }
+
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
+
+  if (GUM_SETJMP (scope.env) == 0)
+  {
+    memcpy (to, from, size);
+  }
+
+  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
+
+  if (scope.exception_occurred)
+  {
+    gchar * message = g_strdup_printf (
+        "access violation accessing 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (scope.address));
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        message)));
+    g_free (message);
+  }
+}
 
 static void
 gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,

@@ -44,6 +44,15 @@
         value: new NativePointer("0")
     });
 
+    Object.defineProperty(Memory, 'dup', {
+        enumerable: true,
+        value: function (mem, size) {
+            var result = Memory.alloc(size);
+            Memory.copy(result, mem, size);
+            return result;
+        }
+    });
+
     var MessageDispatcher = function MessageDispatcher() {
         var messages = [];
         var operations = {};

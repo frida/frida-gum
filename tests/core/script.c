@@ -45,6 +45,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
+  SCRIPT_TESTENTRY (memory_can_be_copied)
+  SCRIPT_TESTENTRY (memory_can_be_duped)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_written)
   SCRIPT_TESTENTRY (u8_can_be_read)
@@ -1196,11 +1198,43 @@ SCRIPT_TESTCASE (pointer_can_be_written)
 
 SCRIPT_TESTCASE (memory_can_be_allocated)
 {
-    COMPILE_AND_LOAD_SCRIPT (
+  COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(8);"
       "Memory.writePointer(p, ptr(\"1337\"));"
       "send(Memory.readPointer(p).toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (memory_can_be_copied)
+{
+  const gchar * from = "Hei";
+  gchar to[5] = { 0x01, 0x02, 0x03, 0x04, 0x05 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.copy(" GUM_PTR_CONST ", " GUM_PTR_CONST ", 3);", to, from);
+  g_assert_cmphex (to[0], ==, 'H');
+  g_assert_cmphex (to[1], ==, 'e');
+  g_assert_cmphex (to[2], ==, 'i');
+  g_assert_cmphex (to[3], ==, 0x04);
+  g_assert_cmphex (to[4], ==, 0x05);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
+  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x539");
+}
+
+SCRIPT_TESTCASE (memory_can_be_duped)
+{
+  guint8 buf[3] = { 0x13, 0x37, 0x42 };
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var p = Memory.dup(" GUM_PTR_CONST ", 3);"
+      "Memory.writeU8(p, 0x12);"
+      "send('p', Memory.readByteArray(p, 3));"
+      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 3));",
+      buf, buf);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37 42");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
 }
 
 SCRIPT_TESTCASE (s8_can_be_read)
@@ -1319,9 +1353,9 @@ SCRIPT_TESTCASE (u64_can_be_written)
 
 SCRIPT_TESTCASE (byte_array_can_be_read)
 {
-  guint8 val[3] = { 0x13, 0x37, 0x42 };
+  guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT ("send('stuff', Memory.readByteArray(" GUM_PTR_CONST
-      ", 3));", val);
+      ", 3));", buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"stuff\"", "13 37 42");
 }
 
