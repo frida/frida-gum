@@ -43,8 +43,6 @@
         var api = null;
         var vm = null;
         var classFactory = null;
-        var pendingCallbacks = [];
-        var scheduledCallbacks = [];
 
         var initialize = function () {
             api = getApi();
@@ -53,6 +51,16 @@
                 classFactory = new ClassFactory(api, vm);
             }
         };
+
+        WeakRef.bind(Runtime, function dispose() {
+            if (api !== null) {
+                vm.perform(function () {
+                    var env = vm.getEnv();
+                    classFactory.dispose(env);
+                    Env.dispose(env);
+                });
+            }
+        });
 
         Object.defineProperty(this, 'available', {
             enumerable: true,
@@ -89,34 +97,30 @@
             api = getApi();
         };
 
-        WeakRef.bind(Runtime, function dispose() {
-            vm.perform(function () {
-                var env = vm.getEnv();
+        this.dispose = function (env) {
+            for (var entryId in patchedClasses) {
+                if (patchedClasses.hasOwnProperty(entryId)) {
+                    var entry = patchedClasses[entryId];
+                    Memory.writePointer(entry.vtablePtr, entry.vtable);
+                    Memory.writeS32(entry.vtableCountPtr, entry.vtableCount);
 
-                for (entryId in patchedClasses) {
-                    if (patchedClasses.hasOwnProperty(entryId)) {
-                        var entry = patchedClasses[entryId];
-                        Memory.writePointer(entry.vtablePtr, entry.vtable);
-                        Memory.writeS32(entry.vtableCountPtr, entry.vtableCount);
-
-                        for (methodId in entry.targetMethods) {
-                            if (entry.targetMethods.hasOwnProperty(methodId)) {
-                                entry.targetMethods[methodId].implementation = null;
-                            }
+                    for (var methodId in entry.targetMethods) {
+                        if (entry.targetMethods.hasOwnProperty(methodId)) {
+                            entry.targetMethods[methodId].implementation = null;
                         }
                     }
                 }
-                patchedClasses = {};
+            }
+            patchedClasses = {};
 
-                for (classId in classes) {
-                    if (classes.hasOwnProperty(classId)) {
-                        var klass = classes[classId];
-                        env.deleteGlobalRef(klass.__handle__);
-                    }
+            for (var classId in classes) {
+                if (classes.hasOwnProperty(classId)) {
+                    var klass = classes[classId];
+                    env.deleteGlobalRef(klass.__handle__);
                 }
-                classes = {};
-            });
-        });
+            }
+            classes = {};
+        };
 
         this.use = function (className) {
             var klass = classes[className];
@@ -238,7 +242,7 @@
                     env.deleteLocalRef(method);
 
                     var jsName = env.stringFromJni(name);
-                    var jsType = (modifiers & Modifier.STATIC) != 0 ? STATIC_METHOD : INSTANCE_METHOD;
+                    var jsType = (modifiers & Modifier.STATIC) !== 0 ? STATIC_METHOD : INSTANCE_METHOD;
                     var jsRetType;
                     var jsArgTypes = [];
 
@@ -706,7 +710,7 @@
             if (rawRetType === 'void') {
                 returnCapture = "";
                 returnStatements = "env.popLocalFrame(NULL);";
-                returnNothing = "return;"
+                returnNothing = "return;";
             } else {
                 if (retType.toJni) {
                     frameCapacity++;
@@ -714,18 +718,18 @@
                     if (retType.type === 'pointer') {
                         returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
                             "return env.popLocalFrame(rawResult);";
-                        returnNothing = "return NULL;"
+                        returnNothing = "return NULL;";
                     } else {
                         returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
                             "env.popLocalFrame(NULL);" +
                             "return rawResult;";
-                        returnNothing = "return 0;"
+                        returnNothing = "return 0;";
                     }
                 } else {
                     returnCapture = "var result = ";
                     returnStatements = "env.popLocalFrame(NULL);" +
                         "return result;";
-                    returnNothing = "return 0;"
+                    returnNothing = "return 0;";
                 }
             }
             eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
@@ -870,7 +874,7 @@
             'void': {
                 type: 'void',
                 size: 0,
-                isCompatible: function (v) {
+                isCompatible: function () {
                     return false;
                 }
             },
@@ -950,7 +954,7 @@
                         return true;
                     }
 
-                    return typeof v === 'object' && v.hasOwnProperty('$handle'); // TODO: improve strictness
+                    return typeof v === 'object' && v.hasOwnProperty('$handle'); /* TODO: improve strictness */
                 },
                 fromJni: function (h, env) {
                     if (h.isNull()) {
@@ -1099,18 +1103,15 @@
 
         var cachedVtable = null;
         var globalRefs = [];
-        WeakRef.bind(Runtime, function dispose() {
-            vm.perform(function () {
-                var env = vm.getEnv();
-                globalRefs.forEach(env.deleteGlobalRef);
-                globalRefs = [];
-            });
-        });
+        Env.dispose = function (env) {
+            globalRefs.forEach(env.deleteGlobalRef);
+            globalRefs = [];
+        };
 
         function register(globalRef) {
             globalRefs.push(globalRef);
             return globalRef;
-        };
+        }
 
         function vtable() {
             if (cachedVtable === null) {
