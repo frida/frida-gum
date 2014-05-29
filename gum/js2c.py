@@ -31,14 +31,14 @@ def write_c_code(js_code, sink):
         while True:
             chunk = pending[:chunk_length]
             chunk_size = len(chunk.encode('utf-8'))
-            if size + chunk_size + LINE_OVERHEAD + NULL_TERMINATOR_SIZE <= MAX_LITERAL_SIZE:
+            if chunk[-1] != "\\" and size + chunk_size + LINE_OVERHEAD + NULL_TERMINATOR_SIZE <= MAX_LITERAL_SIZE:
                 pending = pending[chunk_length:]
                 size += chunk_size + LINE_OVERHEAD
                 break
             chunk_length -= 1
         sink.write((" " * INDENT) + "\"" + chunk + "\"")
         capacity = MAX_LITERAL_SIZE - size
-        if capacity < INDENT + QUOTATION_OVERHEAD + MAX_CHARACTER_SIZE + LINE_OVERHEAD + NULL_TERMINATOR_SIZE:
+        if capacity < INDENT + QUOTATION_OVERHEAD + (2 * MAX_CHARACTER_SIZE) + LINE_OVERHEAD + NULL_TERMINATOR_SIZE:
             sink.write(",")
             size = 0
         if len(pending) > 0:
