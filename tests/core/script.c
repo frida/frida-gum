@@ -71,6 +71,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
 #ifdef G_OS_WIN32
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
+  SCRIPT_TESTENTRY (ansi_string_can_be_written)
   SCRIPT_TESTENTRY (ansi_string_can_be_allocated)
 #endif
   SCRIPT_TESTENTRY (invalid_read_results_in_exception)
@@ -1469,6 +1470,25 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("null");
 
   g_free (str_utf16);
+}
+
+SCRIPT_TESTCASE (ansi_string_can_be_written)
+{
+  gchar str_ansi[17];
+  gunichar2 str_utf16[17];
+  gchar * str_utf8;
+
+  strcpy (str_ansi, "Kjempeforhaustar");
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeAnsiString(" GUM_PTR_CONST
+      ", 'Bjørheimsbygd');", str_ansi);
+  MultiByteToWideChar (CP_ACP, 0, str_ansi, -1, str_utf16, sizeof (str_utf16));
+  str_utf8 = g_utf16_to_utf8 (str_utf16, -1, NULL, NULL, NULL);
+  g_assert_cmpstr (str_utf8, == , "Bjørheimsbygd");
+  g_free (str_utf8);
+  g_assert_cmphex (str_ansi[13], == , '\0');
+  g_assert_cmphex (str_ansi[14], == , 'a');
+  g_assert_cmphex (str_ansi[15], == , 'r');
+  g_assert_cmphex (str_ansi[16], == , '\0');
 }
 
 SCRIPT_TESTCASE (ansi_string_can_be_allocated)

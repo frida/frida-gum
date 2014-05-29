@@ -177,7 +177,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 
 #ifdef G_OS_WIN32
-GUM_DEFINE_MEMORY_READ (ANSI_STRING)
+GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 #endif
 
 void
@@ -209,7 +209,7 @@ _gum_script_memory_init (GumScriptMemory * self,
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING);
 #ifdef G_OS_WIN32
-  GUM_EXPORT_MEMORY_READ ("AnsiString", ANSI_STRING);
+  GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING);
 
   memory->Set (String::NewFromUtf8 (isolate, "allocAnsiString"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc_ansi_string,
@@ -733,6 +733,20 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         memcpy (static_cast<char *> (address), s, size);
         break;
       }
+#ifdef G_OS_WIN32
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+        gchar dummy_to_trap_bad_pointer_early = '\0';
+        memcpy (address, &dummy_to_trap_bad_pointer_early, sizeof (gchar));
+
+        String::Utf8Value str (info[1]);
+        gchar * str_ansi = gum_ansi_string_from_utf8 (*str);
+        strcpy (static_cast<char *> (address), str_ansi);
+        g_free (str_ansi);
+
+        break;
+      }
+#endif
       default:
         g_assert_not_reached ();
     }
