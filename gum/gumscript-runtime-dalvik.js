@@ -1,8 +1,6 @@
 /*
  * TODO Frida Runtime:
  *
- *   - Memory.writeU16 et al
- *   - Memory.writeByteArray
  *   - Memory.dup (memdup)
  *   - Memory.copy (memcpy)
  */
@@ -106,7 +104,7 @@
                     if (patchedClasses.hasOwnProperty(entryId)) {
                         var entry = patchedClasses[entryId];
                         Memory.writePointer(entry.vtablePtr, entry.vtable);
-                        writeU32(entry.vtableCountPtr, entry.vtableCount); // TODO: S32
+                        Memory.writeS32(entry.vtableCountPtr, entry.vtableCount);
 
                         for (methodId in entry.targetMethods) {
                             if (entry.targetMethods.hasOwnProperty(methodId)) {
@@ -574,8 +572,8 @@
                     if (!method) {
                         var methodIndex = entry.shadowVtableCount++;
                         Memory.writePointer(entry.shadowVtable.add(methodIndex * pointerSize), targetMethodId);
-                        writeU16(targetMethodId.add(METHOD_OFFSET_METHOD_INDEX), methodIndex);
-                        writeU32(entry.vtableCountPtr, entry.shadowVtableCount); // TODO: S32
+                        Memory.writeU16(targetMethodId.add(METHOD_OFFSET_METHOD_INDEX), methodIndex);
+                        Memory.writeS32(entry.vtableCountPtr, entry.shadowVtableCount);
 
                         entry.targetMethods[key] = f;
                     }
@@ -609,11 +607,11 @@
                             var insSize = argsSize;
                             var jniArgInfo = 0x80000000;
 
-                            writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
-                            writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
-                            writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
-                            writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
-                            writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
+                            Memory.writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
+                            Memory.writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
+                            Memory.writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
+                            Memory.writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
+                            Memory.writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
 
                             api.dvmUseJNIBridge(methodId, implementation);
                         } else {
@@ -1455,18 +1453,6 @@
 
     var basename = function (className) {
         return className.slice(className.lastIndexOf(".") + 1);
-    };
-
-    var writeU16 = function (address, value) {
-        Memory.writeU8(address, value & 0xff);
-        Memory.writeU8(address.add(1), (value >> 8) & 0xff);
-    };
-
-    var writeU32 = function (address, value) {
-        Memory.writeU8(address, value & 0xff);
-        Memory.writeU8(address.add(1), (value >> 8) & 0xff);
-        Memory.writeU8(address.add(2), (value >> 16) & 0xff);
-        Memory.writeU8(address.add(3), (value >> 24) & 0xff);
     };
 
     var memdup = function (mem, size) {
