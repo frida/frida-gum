@@ -32,7 +32,7 @@
 
 typedef struct _TestArm64WriterFixture
 {
-  guint32 output[16];
+  gpointer output;
   GumArm64Writer aw;
 } TestArm64WriterFixture;
 
@@ -40,6 +40,7 @@ static void
 test_arm64_writer_fixture_setup (TestArm64WriterFixture * fixture,
                                  gconstpointer data)
 {
+  fixture->output = g_malloc (16 * sizeof (guint32));
   gum_arm64_writer_init (&fixture->aw, fixture->output);
 }
 
@@ -48,9 +49,10 @@ test_arm64_writer_fixture_teardown (TestArm64WriterFixture * fixture,
                                     gconstpointer data)
 {
   gum_arm64_writer_free (&fixture->aw);
+  g_free (fixture->output);
 }
 
 #define assert_output_n_equals(n, v) \
-    g_assert_cmphex (GUINT32_FROM_LE (fixture->output[n]), ==, v)
+    g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[n]), ==, v)
 #define assert_output_equals(v) \
     assert_output_n_equals (0, v)

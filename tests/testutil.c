@@ -365,11 +365,13 @@ test_util_get_system_module_name (void)
   if (_test_util_system_module_name == NULL)
   {
     FILE * p;
+    char * result;
 
     _test_util_system_module_name = malloc (64);
     p = popen ("find /lib -name \"libc-*.so\" | head -1 | xargs basename"
         " | tr -d \"\\n\"", "r");
-    fgets (_test_util_system_module_name, 64, p);
+    result = fgets (_test_util_system_module_name, 64, p);
+    g_assert (result != NULL);
     pclose (p);
   }
 

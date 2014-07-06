@@ -61,7 +61,8 @@ RELOCATOR_TESTCASE (one_to_one)
   assert_outbuf_still_zeroed_from_offset (2);
 
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
-  g_assert_cmpint (memcmp (fixture->output + 2, input + 1, 2), ==, 0);
+  g_assert_cmpint (memcmp (((guint8 *) fixture->output) + 2, input + 1, 2),
+      ==, 0);
   assert_outbuf_still_zeroed_from_offset (4);
 
   g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
@@ -358,8 +359,10 @@ branch_scenario_execute (BranchScenario * bs,
   SETUP_RELOCATOR_WITH (bs->input);
 
   calculated_pc = fixture->rl.input_pc + 4 + bs->expected_pc_distance;
-  *((guint32 *) (bs->expected_output + bs->pc_offset)) =
-      GUINT32_TO_LE (calculated_pc);
+  bs->expected_output[bs->pc_offset + 0] =
+      GUINT16_TO_LE ((calculated_pc >> 0) & 0xffff);
+  bs->expected_output[bs->pc_offset + 1] =
+      GUINT16_TO_LE ((calculated_pc >> 16) & 0xffff);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);

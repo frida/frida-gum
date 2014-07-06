@@ -168,7 +168,7 @@ branch_scenario_execute (BranchScenario * bs,
                          TestArm64RelocatorFixture * fixture)
 {
   gsize i;
-  guint32 calculated_pc;
+  guint64 calculated_pc;
   const GumArm64Instruction * insn = NULL;
 
   for (i = 0; i != bs->input_length; i++)
@@ -179,8 +179,10 @@ branch_scenario_execute (BranchScenario * bs,
   SETUP_RELOCATOR_WITH (bs->input);
 
   calculated_pc = fixture->rl.input_pc + bs->expected_pc_distance;
-  *((guint64 *) (bs->expected_output + bs->pc_offset)) =
-      GUINT64_TO_LE (calculated_pc);
+  bs->expected_output[bs->pc_offset + 0] =
+      GUINT32_TO_LE ((calculated_pc >> 0) & 0xffffffff);
+  bs->expected_output[bs->pc_offset + 1] =
+      GUINT32_TO_LE ((calculated_pc >> 32) & 0xffffffff);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->mnemonic, ==, bs->mnemonic);

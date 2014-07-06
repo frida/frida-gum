@@ -121,10 +121,10 @@ THUMBWRITER_TESTCASE (ldr_u32)
   assert_output_n_equals (0, 0x4801);
   assert_output_n_equals (1, 0x4902);
   assert_output_n_equals (2, 0x4a00);
-  g_assert_cmphex (GUINT32_FROM_LE (*((guint32 *) (fixture->output + 3 + 1 +
-      0))), ==, 0x1337);
-  g_assert_cmphex (GUINT32_FROM_LE (*((guint32 *) (fixture->output + 3 + 1 +
-      2))), ==, 0x1227);
+  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[2]),
+      ==, 0x1337);
+  g_assert_cmphex (GUINT32_FROM_LE (((guint32 *) fixture->output)[3]),
+      ==, 0x1227);
 }
 
 THUMBWRITER_TESTCASE (ldr_reg_reg_offset)
