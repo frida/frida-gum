@@ -487,12 +487,26 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 
 INTERCEPTOR_TESTCASE (replace_function)
 {
+  gpointer (* malloc_impl) (gsize size);
   guint counter = 0;
   gpointer ret;
 
+#ifdef HAVE_LINUX
+  /*
+   * Get the address of malloc dynamically, as GCC is too smart about
+   * malloc() and assumes the last part of this function is unreachable.
+   */
+  void * libc = dlopen (test_util_get_system_module_name (),
+      RTLD_LAZY | RTLD_GLOBAL);
+  malloc_impl = dlsym (libc, "malloc");
+  dlclose (libc);
+#else
+  malloc_impl = malloc;
+#endif
+
   gum_interceptor_replace_function (fixture->interceptor,
-      malloc, replacement_malloc, &counter);
-  ret = malloc (0x42);
+      malloc_impl, replacement_malloc, &counter);
+  ret = malloc_impl (0x42);
 
   /*
    * This statement is needed so the compiler doesn't move the malloc() call
@@ -501,15 +515,11 @@ INTERCEPTOR_TESTCASE (replace_function)
    */
   g_assert (ret != NULL);
 
-  gum_interceptor_revert_function (fixture->interceptor, malloc);
+  gum_interceptor_revert_function (fixture->interceptor, malloc_impl);
   g_assert_cmpint (counter, ==, 1);
-  /*
-   * FIXME: FPU state is not preserved, which makes this part fail depending
-   *        on compiler optimizations.
-   */
   g_assert_cmphex (GPOINTER_TO_SIZE (ret), ==, 0x42);
 
-  ret = malloc (1);
+  ret = malloc_impl (1);
   g_assert_cmpint (counter, ==, 1);
   free (ret);
 }
