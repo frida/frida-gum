@@ -8,6 +8,10 @@
 #define __GUM_SCRIPT_THREAD_H__
 
 #include "gumscriptcore.h"
+#include "gumbacktracer.h"
+
+#include <stdio.h>
+#include <string.h>
 
 #include <v8.h>
 

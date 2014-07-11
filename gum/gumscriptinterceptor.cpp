@@ -5,8 +5,13 @@
  */
 
 #include "gumscriptinterceptor.h"
-
 #include "gumscriptscope.h"
+
+#include "gumbacktracer.h"
+#include "gumsymbolutil-priv.h"
+
+#include <stdio.h>
+#include <string.h>
 
 #include <errno.h>
 
@@ -54,6 +59,9 @@ static void gum_script_invocation_context_on_get_thread_id (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_invocation_context_on_get_depth (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
+static void gum_script_invocation_context_on_get_context(
+	Local<String> property, const PropertyCallbackInfo<Value> & info);
+
 
 static void gum_script_invocation_args_on_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
@@ -94,6 +102,9 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
       FunctionTemplate::New (isolate,  gum_script_interceptor_on_revert,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "Interceptor"), interceptor);
+
+  // initialize the symbol backend for printing stack traces
+  _gum_symbol_util_init();
 }
 
 void
@@ -112,6 +123,8 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
       gum_script_invocation_context_on_get_thread_id);
   context->SetAccessor (String::NewFromUtf8 (isolate, "depth"),
       gum_script_invocation_context_on_get_depth);
+  context->SetAccessor(String::NewFromUtf8(isolate, "context"),
+	  gum_script_invocation_context_on_get_context, nullptr, data);
   self->invocation_context_value =
       new GumPersistent<Object>::type (isolate, context->NewInstance ());
 
@@ -393,6 +406,18 @@ gum_script_invocation_context_on_get_depth (Local<String> property,
       info.Holder ()->GetInternalField (1).As <Integer> ()->Int32Value ();
   (void) property;
   info.GetReturnValue ().Set (depth);
+}
+
+static void
+gum_script_invocation_context_on_get_context(Local<String> property,const PropertyCallbackInfo<Value> & info) {
+
+	Isolate * isolate = info.GetIsolate();
+
+	GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (info.Data().As<External>()->Value());
+	GumInvocationContext * ctx = static_cast<GumInvocationContext *> (info.Holder()->GetAlignedPointerFromInternalField(0));
+
+	(void)property;
+	info.GetReturnValue().Set(Local<Value>::New(isolate, _gum_script_pointer_new(ctx->cpu_context, self->core)));
 }
 
 static void
