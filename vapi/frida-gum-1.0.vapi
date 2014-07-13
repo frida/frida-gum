@@ -204,7 +204,7 @@ namespace Gum {
 
 	public struct ModuleDetails {
 		public string name;
-		public Gum.MemoryRange range;
+		public Gum.MemoryRange? range;
 		public string path;
 	}
 
@@ -221,7 +221,7 @@ namespace Gum {
 	}
 
 	public struct RangeDetails {
-		public Gum.MemoryRange range;
+		public Gum.MemoryRange? range;
 		public Gum.PageProtection prot;
 	}
 
