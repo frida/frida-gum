@@ -949,7 +949,6 @@ gum_script_memory_on_scan (const FunctionCallbackInfo<Value> & info)
     GumMemoryScanContext * ctx = g_slice_new0 (GumMemoryScanContext);
 
     ctx->core = core;
-    g_object_ref (ctx->core->script);
     ctx->range = range;
     ctx->pattern = pattern;
     ctx->on_match = new GumPersistent<Function>::type (isolate, on_match);
@@ -983,8 +982,6 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
     delete ctx->on_complete;
     delete ctx->receiver;
   }
-
-  g_object_unref (ctx->core->script);
 
   g_slice_free (GumMemoryScanContext, ctx);
 }
