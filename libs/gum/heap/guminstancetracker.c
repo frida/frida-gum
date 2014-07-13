@@ -28,7 +28,7 @@ struct _GumInstanceTrackerPrivate
 {
   gboolean disposed;
 
-  GMutex * mutex;
+  GMutex mutex;
   GumHashTable * counter_ht;
   GumHashTable * instances_ht;
   GumInterceptor * interceptor;
@@ -46,8 +46,8 @@ enum _FunctionId
   FUNCTION_ID_FREE_INSTANCE
 };
 
-#define GUM_INSTANCE_TRACKER_LOCK()   g_mutex_lock   (priv->mutex)
-#define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (priv->mutex)
+#define GUM_INSTANCE_TRACKER_LOCK()   g_mutex_lock   (&priv->mutex)
+#define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (&priv->mutex)
 
 #define COUNTER_TABLE_GET(gtype) GPOINTER_TO_UINT (gum_hash_table_lookup (\
     priv->counter_ht, GUINT_TO_POINTER (gtype)))
@@ -62,14 +62,10 @@ static void gum_instance_tracker_on_enter (GumInvocationListener * listener,
 static void gum_instance_tracker_on_leave (GumInvocationListener * listener,
     GumInvocationContext * context);
 
-static GPrivate * _gum_instance_tracker_tls = NULL;
-
 static void
 gum_instance_tracker_class_init (GumInstanceTrackerClass * klass)
 {
   GObjectClass * gobject_class = G_OBJECT_CLASS (klass);
-
-  _gum_instance_tracker_tls = g_private_new (g_free);
 
   g_type_class_add_private (klass, sizeof (GumInstanceTrackerPrivate));
 
@@ -99,7 +95,7 @@ gum_instance_tracker_init (GumInstanceTracker * self)
 
   priv = self->priv;
 
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 
   priv->counter_ht = gum_hash_table_new_full (g_direct_hash,
       g_direct_equal, NULL, NULL);
@@ -143,7 +139,7 @@ gum_instance_tracker_finalize (GObject * object)
   GumInstanceTrackerPrivate * priv =
       self->priv;
 
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   G_OBJECT_CLASS (gum_instance_tracker_parent_class)->finalize (object);
 }

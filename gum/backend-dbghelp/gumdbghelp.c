@@ -78,16 +78,16 @@ load_dbghelp (void)
   return LoadLibraryW (path);
 }
 
-static GStaticMutex _gum_dbghelp_mutex = G_STATIC_MUTEX_INIT;
+static GMutex _gum_dbghelp_mutex;
 
 static void
 gum_dbghelp_impl_lock (void)
 {
-  g_static_mutex_lock (&_gum_dbghelp_mutex);
+  g_mutex_lock (&_gum_dbghelp_mutex);
 }
 
 static void
 gum_dbghelp_impl_unlock (void)
 {
-  g_static_mutex_unlock (&_gum_dbghelp_mutex);
+  g_mutex_unlock (&_gum_dbghelp_mutex);
 }

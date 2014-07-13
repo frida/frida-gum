@@ -29,7 +29,7 @@ struct _GumAllocationTrackerPrivate
 {
   gboolean disposed;
 
-  GMutex * mutex;
+  GMutex mutex;
 
   volatile gint enabled;
 
@@ -51,8 +51,8 @@ struct _GumAllocationTrackerBlock
   GumReturnAddress return_addresses[1];
 };
 
-#define GUM_ALLOCATION_TRACKER_LOCK(t) g_mutex_lock (t->priv->mutex)
-#define GUM_ALLOCATION_TRACKER_UNLOCK(t) g_mutex_unlock (t->priv->mutex)
+#define GUM_ALLOCATION_TRACKER_LOCK(t) g_mutex_lock (&t->priv->mutex)
+#define GUM_ALLOCATION_TRACKER_UNLOCK(t) g_mutex_unlock (&t->priv->mutex)
 
 static void gum_allocation_tracker_constructed (GObject * object);
 static void gum_allocation_tracker_set_property (GObject * object,
@@ -96,7 +96,7 @@ gum_allocation_tracker_init (GumAllocationTracker * self)
       GumAllocationTrackerPrivate);
   priv = self->priv;
 
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 }
 
 static void
@@ -202,8 +202,7 @@ gum_allocation_tracker_finalize (GObject * object)
 {
   GumAllocationTracker * self = GUM_ALLOCATION_TRACKER (object);
 
-  g_mutex_free (self->priv->mutex);
-  self->priv->mutex = NULL;
+  g_mutex_clear (&self->priv->mutex);
 
   G_OBJECT_CLASS (gum_allocation_tracker_parent_class)->finalize (object);
 }

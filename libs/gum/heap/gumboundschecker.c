@@ -27,8 +27,8 @@
 #define DEFAULT_POOL_SIZE       4096
 #define DEFAULT_FRONT_ALIGNMENT   16
 
-#define GUM_BOUNDS_CHECKER_LOCK()   (g_mutex_lock (self->priv->mutex))
-#define GUM_BOUNDS_CHECKER_UNLOCK() (g_mutex_unlock (self->priv->mutex))
+#define GUM_BOUNDS_CHECKER_LOCK()   (g_mutex_lock (&self->priv->mutex))
+#define GUM_BOUNDS_CHECKER_UNLOCK() (g_mutex_unlock (&self->priv->mutex))
 
 #define BLOCK_ALLOC_RETADDRS(b) \
     ((GumReturnAddressArray *) (b)->guard)
@@ -47,7 +47,7 @@ struct _GumBoundsCheckerPrivate
 {
   gboolean disposed;
 
-  GMutex * mutex;
+  GMutex mutex;
 
   GumBacktracerIface * backtracer_interface;
   GumBacktracer * backtracer_instance;
@@ -146,7 +146,7 @@ gum_bounds_checker_init (GumBoundsChecker * self)
 
   priv = GUM_BOUNDS_CHECKER_GET_PRIVATE (self);
 
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 
   priv->interceptor = gum_interceptor_obtain ();
   priv->pool_size = DEFAULT_POOL_SIZE;
@@ -224,7 +224,7 @@ gum_bounds_checker_finalize (GObject * object)
 {
   GumBoundsChecker * self = GUM_BOUNDS_CHECKER (object);
 
-  g_mutex_free (self->priv->mutex);
+  g_mutex_clear (&self->priv->mutex);
 
   G_OBJECT_CLASS (gum_bounds_checker_parent_class)->finalize (object);
 }

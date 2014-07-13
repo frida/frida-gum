@@ -65,8 +65,8 @@ ALLOCPROBE_TESTCASE (concurrency)
 
   gum_allocator_probe_attach (fixture->ap);
 
-  GThread * thread = g_thread_create (concurrency_torture_helper, NULL, TRUE,
-      NULL);
+  GThread * thread = g_thread_new ("allocatorprobex-test-concurrency",
+      concurrency_torture_helper, NULL);
 
   g_thread_yield ();
 

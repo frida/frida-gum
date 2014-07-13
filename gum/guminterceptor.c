@@ -29,8 +29,8 @@
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
-#define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (priv->mutex))
-#define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (priv->mutex))
+#define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
+#define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
 typedef struct _ListenerEntry            ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
@@ -40,7 +40,7 @@ typedef struct _ListenerInvocationState  ListenerInvocationState;
 
 struct _GumInterceptorPrivate
 {
-  GMutex * mutex;
+  GMutex mutex;
 
   GumHashTable * monitored_function_by_address;
   GumHashTable * replaced_function_by_address;
@@ -150,7 +150,7 @@ static guint gum_get_current_thread_id (void);
 static void gum_function_context_wait_for_idle_trampoline (
     FunctionContext * ctx);
 
-static GStaticMutex _gum_interceptor_mutex = G_STATIC_MUTEX_INIT;
+static GMutex _gum_interceptor_mutex;
 static GumInterceptor * _the_interceptor = NULL;
 
 static GumTlsKey _gum_interceptor_context_key;
@@ -223,7 +223,7 @@ gum_interceptor_init (GumInterceptor * self)
       GumInterceptorPrivate);
 
   priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 
   priv->monitored_function_by_address = gum_hash_table_new_full (g_direct_hash,
       g_direct_equal, NULL, NULL);
@@ -239,7 +239,7 @@ gum_interceptor_finalize (GObject * object)
   GumInterceptor * self = GUM_INTERCEPTOR (object);
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
 
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   gum_hash_table_unref (priv->monitored_function_by_address);
   gum_hash_table_unref (priv->replaced_function_by_address);
@@ -254,7 +254,7 @@ gum_interceptor_obtain (void)
 {
   GumInterceptor * interceptor;
 
-  g_static_mutex_lock (&_gum_interceptor_mutex);
+  g_mutex_lock (&_gum_interceptor_mutex);
 
   if (_the_interceptor != NULL)
   {
@@ -270,7 +270,7 @@ gum_interceptor_obtain (void)
     interceptor = _the_interceptor;
   }
 
-  g_static_mutex_unlock (&_gum_interceptor_mutex);
+  g_mutex_unlock (&_gum_interceptor_mutex);
 
   return interceptor;
 }
@@ -281,12 +281,12 @@ the_interceptor_weak_notify (gpointer data,
 {
   (void) data;
 
-  g_static_mutex_lock (&_gum_interceptor_mutex);
+  g_mutex_lock (&_gum_interceptor_mutex);
 
   g_assert (_the_interceptor == (GumInterceptor *) where_the_object_was);
   _the_interceptor = NULL;
 
-  g_static_mutex_unlock (&_gum_interceptor_mutex);
+  g_mutex_unlock (&_gum_interceptor_mutex);
 }
 
 GumAttachReturn

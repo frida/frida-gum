@@ -189,8 +189,8 @@ struct _StalkerVictimContext
 {
   volatile StalkerVictimState state;
   GumThreadId thread_id;
-  GMutex * mutex;
-  GCond * cond;
+  GMutex mutex;
+  GCond cond;
 };
 
 enum _StalkerVictimState

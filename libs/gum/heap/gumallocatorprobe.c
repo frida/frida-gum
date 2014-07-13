@@ -43,8 +43,6 @@ struct _GumAllocatorProbePrivate
 {
   gboolean disposed;
 
-  GMutex * mutex;
-
   GumInterceptor * interceptor;
   GPtrArray * function_contexts;
   GumAllocationTracker * allocation_tracker;
@@ -235,8 +233,6 @@ gum_allocator_probe_init (GumAllocatorProbe * self)
 
   priv = self->priv;
 
-  priv->mutex = g_mutex_new ();
-
   priv->interceptor = gum_interceptor_obtain ();
   priv->function_contexts = g_ptr_array_sized_new (3);
 
@@ -276,8 +272,6 @@ gum_allocator_probe_finalize (GObject * object)
 {
   GumAllocatorProbe * self = GUM_ALLOCATOR_PROBE (object);
   GumAllocatorProbePrivate * priv = self->priv;
-
-  g_mutex_free (priv->mutex);
 
   g_ptr_array_free (priv->function_contexts, TRUE);
 

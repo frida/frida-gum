@@ -213,8 +213,8 @@ PROFILEREPORT_TESTCASE (xml_multiple_threads)
   instrument_example_functions (fixture);
 
   example_a (fixture->fake_sampler);
-  g_thread_join (g_thread_create ((GThreadFunc) example_d,
-      fixture->fake_sampler, TRUE, NULL));
+  g_thread_join (g_thread_new ("profiler-test-multiple-threads",
+      (GThreadFunc) example_d, fixture->fake_sampler));
 
   assert_same_xml (fixture,
       "<ProfileReport>"
@@ -262,10 +262,10 @@ PROFILEREPORT_TESTCASE (xml_thread_ordering)
   instrument_simple_functions (fixture);
 
   simple_1 (fixture->fake_sampler);
-  g_thread_join (g_thread_create ((GThreadFunc) simple_2,
-      fixture->fake_sampler, TRUE, NULL));
-  g_thread_join (g_thread_create ((GThreadFunc) simple_3,
-      fixture->fake_sampler, TRUE, NULL));
+  g_thread_join (g_thread_new ("profiler-test-helper-a",
+      (GThreadFunc) simple_2, fixture->fake_sampler));
+  g_thread_join (g_thread_new ("profiler-test-helper-b",
+      (GThreadFunc) simple_3, fixture->fake_sampler));
 
   assert_same_xml (fixture,
       "<ProfileReport>"

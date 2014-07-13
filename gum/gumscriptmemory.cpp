@@ -105,8 +105,7 @@ static void gum_script_memory_do_write (
 static void gum_script_memory_on_scan (
     const FunctionCallbackInfo<Value> & info);
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
-static gboolean gum_script_do_memory_scan (GIOSchedulerJob * job,
-    GCancellable * cancellable, gpointer user_data);
+static void gum_script_do_memory_scan (gpointer user_data);
 static gboolean gum_script_process_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 
@@ -959,9 +958,8 @@ gum_script_memory_on_scan (const FunctionCallbackInfo<Value> & info)
     ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
     ctx->receiver = new GumPersistent<Value>::type (isolate, info.This ());
 
-    g_io_scheduler_push_job (gum_script_do_memory_scan, ctx,
-        reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free),
-        G_PRIORITY_DEFAULT, NULL);
+    _gum_script_core_push_job (self->core, gum_script_do_memory_scan, ctx,
+        reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free));
   }
   else
   {
@@ -996,16 +994,11 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
 # pragma warning (disable: 4611)
 #endif
 
-static gboolean
-gum_script_do_memory_scan (GIOSchedulerJob * job,
-                           GCancellable * cancellable,
-                           gpointer user_data)
+static void
+gum_script_do_memory_scan (gpointer user_data)
 {
   GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
-
-  (void) job;
-  (void) cancellable;
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
@@ -1040,8 +1033,6 @@ gum_script_do_memory_scan (GIOSchedulerJob * job,
         *ctx->on_complete));
     on_complete->Call (receiver, 0, 0);
   }
-
-  return FALSE;
 }
 
 #ifdef _MSC_VER

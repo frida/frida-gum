@@ -35,7 +35,7 @@ struct _GumCallCountSamplerPrivate
   volatile gint total_count;
 
   GumTlsKey tls_key;
-  GMutex * mutex;
+  GMutex mutex;
   GSList * counters;
 };
 
@@ -94,7 +94,7 @@ gum_call_count_sampler_init (GumCallCountSampler * self)
   priv->interceptor = gum_interceptor_obtain ();
 
   GUM_TLS_KEY_INIT (&priv->tls_key);
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 }
 
 static void
@@ -121,7 +121,7 @@ gum_call_count_sampler_finalize (GObject * object)
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER (object);
   GumCallCountSamplerPrivate * priv = self->priv;
 
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   g_slist_foreach (priv->counters, (GFunc) g_free, NULL);
   g_slist_free (priv->counters);
@@ -256,9 +256,9 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
   {
     counter = g_new0 (GumSample, 1);
 
-    g_mutex_lock (priv->mutex);
+    g_mutex_lock (&priv->mutex);
     priv->counters = g_slist_prepend (priv->counters, counter);
-    g_mutex_unlock (priv->mutex);
+    g_mutex_unlock (&priv->mutex);
 
     GUM_TLS_KEY_SET_VALUE (priv->tls_key, counter);
   }

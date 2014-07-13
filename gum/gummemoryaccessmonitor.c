@@ -156,8 +156,7 @@ gum_memory_access_monitor_handle_exception_if_ours (
 
   details.page_index = ((guint8 *) details.address -
       (guint8 *) priv->range.base_address) / priv->page_size;
-  details.pages_completed =
-      g_atomic_int_exchange_and_add (&priv->pages_completed, 1) + 1;
+  details.pages_completed = g_atomic_int_add (&priv->pages_completed, 1) + 1;
   details.pages_remaining = (priv->range.size / priv->page_size) -
       details.pages_completed;
 

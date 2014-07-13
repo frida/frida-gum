@@ -42,7 +42,7 @@ typedef void (* CObjectLeaveHandler) (GumCObjectTracker * self,
 struct _GumCObjectTrackerPrivate
 {
   gboolean disposed;
-  GMutex * mutex;
+  GMutex mutex;
   GumHashTable * types_ht;
   GumHashTable * objects_ht;
   GumInterceptor * interceptor;
@@ -77,8 +77,8 @@ struct _CObjectFunctionContext
 
 #define GUM_COBJECT_TRACKER_GET_PRIVATE(o) ((o)->priv)
 
-#define GUM_COBJECT_TRACKER_LOCK()   g_mutex_lock   (priv->mutex)
-#define GUM_COBJECT_TRACKER_UNLOCK() g_mutex_unlock (priv->mutex)
+#define GUM_COBJECT_TRACKER_LOCK()   g_mutex_lock   (&priv->mutex)
+#define GUM_COBJECT_TRACKER_UNLOCK() g_mutex_unlock (&priv->mutex)
 
 static void gum_cobject_tracker_set_property (GObject * object,
     guint property_id, const GValue * value, GParamSpec * pspec);
@@ -169,7 +169,7 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
 
   priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
 
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 
   priv->types_ht = gum_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) object_type_free);
@@ -281,7 +281,7 @@ gum_cobject_tracker_finalize (GObject * object)
   g_ptr_array_foreach (priv->function_contexts, (GFunc) g_free, NULL);
   g_ptr_array_free (priv->function_contexts, TRUE);
 
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   G_OBJECT_CLASS (gum_cobject_tracker_parent_class)->finalize (object);
 }

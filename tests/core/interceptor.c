@@ -115,8 +115,8 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
   GThread * th;
   volatile guint n_passes = 100;
 
-  th = g_thread_create (hit_target_function_repeatedly, (gpointer) &n_passes,
-      TRUE, NULL);
+  th = g_thread_new ("interceptor-test-torture",
+      hit_target_function_repeatedly, (gpointer) &n_passes);
 
   g_thread_yield ();
 
@@ -152,8 +152,8 @@ INTERCEPTOR_TESTCASE (thread_id)
   target_function (fixture->result);
   first_thread_id = fixture->listener_context[0]->last_thread_id;
 
-  g_thread_join (g_thread_create ((GThreadFunc) target_function,
-      fixture->result, TRUE, NULL));
+  g_thread_join (g_thread_new ("interceptor-test-thread-id",
+      (GThreadFunc) target_function, fixture->result));
   second_thread_id = fixture->listener_context[0]->last_thread_id;
 
   g_assert_cmpuint (second_thread_id, !=, first_thread_id);
@@ -162,7 +162,8 @@ INTERCEPTOR_TESTCASE (thread_id)
 INTERCEPTOR_TESTCASE (intercepted_free_in_thread_exit)
 {
   interceptor_fixture_attach_listener (fixture, 0, free, 'a', 'b');
-  g_thread_join (g_thread_create (target_nop_function_a, NULL, TRUE, NULL));
+  g_thread_join (g_thread_new ("interceptor-test-thread-exit",
+      target_nop_function_a, NULL));
 }
 
 INTERCEPTOR_TESTCASE (function_arguments)
@@ -247,14 +248,14 @@ INTERCEPTOR_TESTCASE (ignore_other_threads)
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 
-  g_thread_join (g_thread_create ((GThreadFunc) target_function,
-      fixture->result, TRUE, NULL));
+  g_thread_join (g_thread_new ("interceptor-test-ignore-others-a",
+      (GThreadFunc) target_function, fixture->result));
   g_assert_cmpstr (fixture->result->str, ==, ">|<|");
 
   gum_interceptor_unignore_other_threads (fixture->interceptor);
 
-  g_thread_join (g_thread_create ((GThreadFunc) target_function,
-      fixture->result, TRUE, NULL));
+  g_thread_join (g_thread_new ("interceptor-test-ignore-others-b",
+      (GThreadFunc) target_function, fixture->result));
   g_assert_cmpstr (fixture->result->str, ==, ">|<|>|<");
 }
 
@@ -342,7 +343,8 @@ INTERCEPTOR_TESTCASE (function_data)
 
   test_function_data_listener_reset (fd_listener);
 
-  g_thread_join (g_thread_create (target_nop_function_a, "bdgr", TRUE, NULL));
+  g_thread_join (g_thread_new ("interceptor-test-function-data",
+      target_nop_function_a, "bdgr"));
   g_assert_cmpuint (fd_listener->on_enter_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->on_leave_call_count, ==, 1);
   g_assert_cmpuint (fd_listener->init_thread_state_count, ==, 1);

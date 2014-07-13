@@ -65,14 +65,7 @@ do_init (gpointer data)
 
   (void) features;
 
-  if (!g_thread_supported ())
-#ifdef _DEBUG
-    g_thread_init_with_errorcheck_mutexes (NULL);
-#else
-    g_thread_init (NULL);
-#endif
-
-  g_type_init ();
+  glib_init ();
 
   _gum_memory_init ();
 

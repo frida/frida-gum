@@ -170,13 +170,10 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
 static TestScriptMessageItem *
 test_script_fixture_pop_message (TestScriptFixture * fixture)
 {
-  GTimeVal end_time;
   TestScriptMessageItem * item;
 
-  g_get_current_time (&end_time);
-  g_time_val_add (&end_time, SCRIPT_MESSAGE_TIMEOUT_USEC);
-  item = (TestScriptMessageItem *) g_async_queue_timed_pop (fixture->messages,
-      &end_time);
+  item = (TestScriptMessageItem *) g_async_queue_timeout_pop (
+      fixture->messages, SCRIPT_MESSAGE_TIMEOUT_USEC);
   g_assert (item != NULL);
 
   return item;

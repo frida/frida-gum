@@ -714,7 +714,7 @@ gum_hash_table_unref (GumHashTable *hash_table)
   g_return_if_fail (hash_table != NULL);
   g_return_if_fail (hash_table->ref_count > 0);
 
-  if (g_atomic_int_exchange_and_add (&hash_table->ref_count, -1) - 1 == 0)
+  if (g_atomic_int_add (&hash_table->ref_count, -1) - 1 == 0)
     {
       gum_hash_table_remove_all_nodes (hash_table, TRUE);
       gum_free (hash_table->nodes);

@@ -58,7 +58,7 @@ struct _GumStalkerPrivate
 {
   guint page_size;
 
-  GMutex * mutex;
+  GMutex mutex;
   GSList * contexts;
   GumTlsKey exec_ctx;
 
@@ -242,8 +242,8 @@ enum _GumVirtualizationRequirements
   GUM_REQUIRE_SINGLE_STEP     = 1 << 2
 };
 
-#define GUM_STALKER_LOCK(o) g_mutex_lock ((o)->priv->mutex)
-#define GUM_STALKER_UNLOCK(o) g_mutex_unlock ((o)->priv->mutex)
+#define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
+#define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
 
 #if GLIB_SIZEOF_VOID_P == 4
 #define STATE_PRESERVE_SIZE (5 * sizeof (gpointer))
@@ -440,7 +440,7 @@ gum_stalker_init (GumStalker * self)
 #endif
 
   priv->page_size = gum_query_page_size ();
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
   priv->contexts = NULL;
   GUM_TLS_KEY_INIT (&priv->exec_ctx);
 }
@@ -463,7 +463,7 @@ gum_stalker_finalize (GObject * object)
   g_array_free (priv->exclusions, TRUE);
 
   g_assert (priv->contexts == NULL);
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
 }
@@ -771,7 +771,7 @@ gum_stalker_add_call_probe (GumStalker * self,
   GumCallProbe probe;
   GArray * probes;
 
-  probe.id = g_atomic_int_exchange_and_add (&priv->last_probe_id, 1) + 1;
+  probe.id = g_atomic_int_add (&priv->last_probe_id, 1) + 1;
   probe.callback = callback;
   probe.user_data = data;
   probe.user_notify = notify;

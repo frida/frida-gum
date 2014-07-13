@@ -22,6 +22,8 @@ typedef struct _GumMessageSink GumMessageSink;
 typedef struct _GumHeapBlock GumHeapBlock;
 typedef struct _GumByteArray GumByteArray;
 
+typedef void (* GumScriptCoreJobFunc) (gpointer user_data);
+
 template <typename T>
 struct GumPersistent
 {
@@ -34,10 +36,12 @@ struct _GumScriptCore
   GMainContext * main_context;
   v8::Isolate * isolate;
 
-  GMutex * mutex;
+  GMutex mutex;
 
-  GCond * event_cond;
+  GCond event_cond;
   guint event_count;
+
+  GThreadPool * thread_pool;
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
@@ -85,6 +89,9 @@ G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
     const gchar * message, const guint8 * data, gint data_length);
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
+
+G_GNUC_INTERNAL void _gum_script_core_push_job (GumScriptCore * self,
+    GumScriptCoreJobFunc job_func, gpointer user_data, GDestroyNotify notify);
 
 G_GNUC_INTERNAL GumByteArray * _gum_byte_array_new (gpointer data, gsize size,
     GumScriptCore * core);

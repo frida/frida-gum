@@ -14,8 +14,8 @@
 
 #include <string.h>
 
-#define GUM_PROFILER_LOCK()   (g_mutex_lock (priv->mutex))
-#define GUM_PROFILER_UNLOCK() (g_mutex_unlock (priv->mutex))
+#define GUM_PROFILER_LOCK()   (g_mutex_lock (&priv->mutex))
+#define GUM_PROFILER_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
 typedef struct _GumProfilerInvocation GumProfilerInvocation;
 typedef struct _GumProfilerContext GumProfilerContext;
@@ -26,7 +26,7 @@ typedef struct _GumFunctionThreadContext GumFunctionThreadContext;
 
 struct _GumProfilerPrivate
 {
-  GMutex * mutex;
+  GMutex mutex;
 
   GumInterceptor * interceptor;
   GHashTable * function_by_address;
@@ -158,7 +158,7 @@ gum_profiler_init (GumProfiler * self)
       GumProfilerPrivate);
 
   priv = GUM_PROFILER_GET_PRIVATE (self);
-  priv->mutex = g_mutex_new ();
+  g_mutex_init (&priv->mutex);
 
   priv->interceptor = gum_interceptor_obtain ();
   priv->function_by_address = g_hash_table_new_full (g_direct_hash,
@@ -174,7 +174,7 @@ gum_profiler_finalize (GObject * object)
   g_hash_table_foreach (priv->function_by_address,
       unstrument_and_free_function, self);
 
-  g_mutex_free (priv->mutex);
+  g_mutex_clear (&priv->mutex);
 
   gum_interceptor_detach_listener (priv->interceptor,
       GUM_INVOCATION_LISTENER (self));
@@ -648,7 +648,7 @@ gum_function_context_get_current_thread (GumFunctionContext * function_ctx,
       return thread_ctx;
   }
 
-  i = g_atomic_int_exchange_and_add (&function_ctx->thread_context_count, 1);
+  i = g_atomic_int_add (&function_ctx->thread_context_count, 1);
   g_assert (i < G_N_ELEMENTS (function_ctx->thread_contexts));
   thread_ctx = &function_ctx->thread_contexts[i];
   thread_ctx->function_ctx = function_ctx;

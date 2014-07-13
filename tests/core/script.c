@@ -726,8 +726,8 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
   ctx.script = fixture->script;
   ctx.started = FALSE;
   ctx.finished = FALSE;
-  worker_thread = g_thread_create (invoke_target_function_int_worker,
-      &ctx, TRUE, NULL);
+  worker_thread = g_thread_new ("script-test-worker-thread",
+      invoke_target_function_int_worker, &ctx);
   while (!ctx.started)
     g_usleep (G_USEC_PER_SEC / 200);
 

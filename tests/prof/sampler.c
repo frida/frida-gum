@@ -90,8 +90,8 @@ SAMPLER_TESTCASE (malloc_count)
   fixture->sampler = gum_malloc_count_sampler_new ();
 
   helper.sampler = fixture->sampler;
-  helper_thread = g_thread_create (malloc_count_helper_thread, &helper, TRUE,
-      NULL);
+  helper_thread = g_thread_new ("sampler-test-malloc-count",
+      malloc_count_helper_thread, &helper);
 
   interceptor = gum_interceptor_obtain ();
 

@@ -60,7 +60,7 @@ gum_collect_heap_api_if_crt_module (const GumModuleDetails * details,
     GUM_API_INIT_FIELD (free);
 
 #ifdef G_OS_WIN32
-    if (g_strncasecmp (name + strlen (name) - 5, "d.dll", 5) == 0)
+    if (g_str_has_suffix (name, "d.dll"))
     {
       GUM_API_INIT_FIELD (_malloc_dbg);
       GUM_API_INIT_FIELD (_calloc_dbg);

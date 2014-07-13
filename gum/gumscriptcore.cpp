@@ -11,9 +11,13 @@
 #include <ffi.h>
 #include <string.h>
 
+#define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_SCRIPT_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
+
 using namespace v8;
 
 typedef struct _GumWeakRef GumWeakRef;
+typedef struct _GumScriptJob GumScriptJob;
 typedef struct _GumFFIFunction GumFFIFunction;
 typedef struct _GumFFICallback GumFFICallback;
 typedef union _GumFFIValue GumFFIValue;
@@ -26,6 +30,13 @@ struct _GumWeakRef
   GumPersistent<Value>::type * target;
   GumPersistent<Function>::type * callback;
   GumScriptCore * core;
+};
+
+struct _GumScriptJob
+{
+  GumScriptCoreJobFunc func;
+  gpointer user_data;
+  GDestroyNotify notify;
 };
 
 struct _GumScheduledCallback
@@ -108,6 +119,7 @@ static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
     GumWeakRef> & data);
 static void gum_script_core_on_console_log (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_perform (GumScriptJob * job, GumScriptCore * self);
 static void gum_script_core_on_set_timeout (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_set_interval (
@@ -186,8 +198,8 @@ _gum_script_core_init (GumScriptCore * self,
   self->main_context = main_context;
   self->isolate = isolate;
 
-  self->mutex = g_mutex_new ();
-  self->event_cond = g_cond_new ();
+  g_mutex_init (&self->mutex);
+  g_cond_init (&self->event_cond);
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_weak_ref_free));
@@ -283,11 +295,17 @@ _gum_script_core_realize (GumScriptCore * self)
       Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   self->native_pointer_value = new GumPersistent<Object>::type (self->isolate,
       native_pointer->InstanceTemplate ()->NewInstance ());
+
+  self->thread_pool = g_thread_pool_new (
+      reinterpret_cast<GFunc> (gum_script_core_perform), self, 1, FALSE, NULL);
 }
 
 void
 _gum_script_core_flush (GumScriptCore * self)
 {
+  g_thread_pool_free (self->thread_pool, FALSE, TRUE);
+  self->thread_pool = NULL;
+
   g_hash_table_remove_all (self->weak_refs);
 }
 
@@ -321,8 +339,8 @@ _gum_script_core_finalize (GumScriptCore * self)
   delete self->native_pointer;
   self->native_pointer = NULL;
 
-  g_mutex_free (self->mutex);
-  g_cond_free (self->event_cond);
+  g_mutex_clear (&self->mutex);
+  g_cond_clear (&self->event_cond);
 }
 
 void
@@ -361,9 +379,9 @@ _gum_script_core_post_message (GumScriptCore * self,
       self->event_count++;
     }
 
-    g_mutex_lock (self->mutex);
-    g_cond_broadcast (self->event_cond);
-    g_mutex_unlock (self->mutex);
+    GUM_SCRIPT_CORE_LOCK ();
+    g_cond_broadcast (&self->event_cond);
+    GUM_SCRIPT_CORE_UNLOCK ();
   }
 }
 
@@ -391,7 +409,7 @@ gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  gint id = g_atomic_int_exchange_and_add (&self->last_weak_ref_id, 1) + 1;
+  gint id = g_atomic_int_add (&self->last_weak_ref_id, 1) + 1;
 
   ref = gum_weak_ref_new (id, target, callback_val.As <Function> (), self);
   g_hash_table_insert (self->weak_refs, GINT_TO_POINTER (id), ref);
@@ -473,24 +491,50 @@ gum_script_core_on_console_log (const FunctionCallbackInfo<Value> & info)
   g_print ("%s\n", *message);
 }
 
+void
+_gum_script_core_push_job (GumScriptCore * self,
+                           GumScriptCoreJobFunc job_func,
+                           gpointer user_data,
+                           GDestroyNotify notify)
+{
+  GumScriptJob * job;
+
+  job = g_slice_new (GumScriptJob);
+  job->func = job_func;
+  job->user_data = user_data;
+  job->notify = notify;
+  g_thread_pool_push (self->thread_pool, job, NULL);
+}
+
+static void
+gum_script_core_perform (GumScriptJob * job,
+                         GumScriptCore * self)
+{
+  (void) self;
+
+  job->func (job->user_data);
+  job->notify (job->user_data);
+  g_slice_free (GumScriptJob, job);
+}
+
 static void
 gum_script_core_add_scheduled_callback (GumScriptCore * self,
                                         GumScheduledCallback * callback)
 {
-  g_mutex_lock (self->mutex);
+  GUM_SCRIPT_CORE_LOCK ();
   self->scheduled_callbacks =
       g_slist_prepend (self->scheduled_callbacks, callback);
-  g_mutex_unlock (self->mutex);
+  GUM_SCRIPT_CORE_UNLOCK ();
 }
 
 static void
 gum_script_core_remove_scheduled_callback (GumScriptCore * self,
                                            GumScheduledCallback * callback)
 {
-  g_mutex_lock (self->mutex);
+  GUM_SCRIPT_CORE_LOCK ();
   self->scheduled_callbacks =
       g_slist_remove (self->scheduled_callbacks, callback);
-  g_mutex_unlock (self->mutex);
+  GUM_SCRIPT_CORE_UNLOCK ();
 }
 
 static void
@@ -524,7 +568,7 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
     return;
   }
 
-  gint id = g_atomic_int_exchange_and_add (&self->last_callback_id, 1) + 1;
+  gint id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
   GSource * source;
   if (delay == 0)
     source = g_idle_source_new ();
@@ -574,7 +618,7 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
   gint id = id_val->ToInt32 ()->Value ();
 
   GumScheduledCallback * callback = NULL;
-  g_mutex_lock (self->mutex);
+  GUM_SCRIPT_CORE_LOCK ();
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
     GumScheduledCallback * cb =
@@ -587,7 +631,7 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
       break;
     }
   }
-  g_mutex_unlock (self->mutex);
+  GUM_SCRIPT_CORE_UNLOCK ();
 
   if (callback != NULL)
     g_source_destroy (callback->source);
@@ -713,9 +757,9 @@ gum_script_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
     {
       Unlocker ul (self->isolate);
 
-      g_mutex_lock (self->mutex);
-      g_cond_wait (self->event_cond, self->mutex);
-      g_mutex_unlock (self->mutex);
+      GUM_SCRIPT_CORE_LOCK ();
+      g_cond_wait (&self->event_cond, &self->mutex);
+      GUM_SCRIPT_CORE_UNLOCK ();
     }
 
     self->isolate->Enter ();

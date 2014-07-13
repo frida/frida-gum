@@ -65,12 +65,9 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
   /* needed for the above and GUM's heap library */
   g_setenv ("G_SLICE", "always-malloc", TRUE);
-#ifdef _DEBUG
-  g_thread_init_with_errorcheck_mutexes (NULL);
-#else
-  g_thread_init (NULL);
+#if GLIB_CHECK_VERSION (2, 42, 0)
+  glib_init ();
 #endif
-  g_type_init ();
   g_test_init (&argc, &argv, NULL);
   gum_init ();
 
@@ -178,11 +175,8 @@ main (gint argc, gchar * argv[])
 #endif
 
   gum_deinit ();
-#if GLIB_CHECK_VERSION (2, 27, 1)
-  g_test_deinit ();
-  g_type_deinit ();
-  g_thread_deinit ();
-  g_mem_deinit ();
+#if GLIB_CHECK_VERSION (2, 42, 0)
+  glib_deinit ();
 #endif
 
 #ifdef G_OS_WIN32
