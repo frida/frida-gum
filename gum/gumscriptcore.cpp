@@ -303,8 +303,16 @@ _gum_script_core_realize (GumScriptCore * self)
 void
 _gum_script_core_flush (GumScriptCore * self)
 {
-  g_thread_pool_free (self->thread_pool, FALSE, TRUE);
-  self->thread_pool = NULL;
+  self->isolate->Exit ();
+
+  {
+    Unlocker ul (self->isolate);
+
+    g_thread_pool_free (self->thread_pool, FALSE, TRUE);
+    self->thread_pool = NULL;
+  }
+
+  self->isolate->Enter ();
 
   g_hash_table_remove_all (self->weak_refs);
 }
