@@ -1,6 +1,7 @@
 #include "gumpp.hpp"
 
 #include "objectwrapper.hpp"
+#include "runtime.hpp"
 
 #include <gum/gum.h>
 
@@ -9,9 +10,15 @@ namespace Gum
   class BacktracerImpl : public ObjectWrapper<BacktracerImpl, Backtracer, GumBacktracer>
   {
   public:
-    BacktracerImpl (GumBacktracer * handle)
+    BacktracerImpl ()
     {
-      assign_handle (handle);
+      Runtime::ref ();
+      assign_handle (gum_backtracer_make_default ());
+    }
+
+    virtual ~BacktracerImpl ()
+    {
+      Runtime::unref ();
     }
 
     virtual void generate (const CpuContext * cpu_context, ReturnAddressArray & return_addresses) const
@@ -20,5 +27,5 @@ namespace Gum
     }
   };
 
-  extern "C" Backtracer * Backtracer_make_default () { gum_init (); return new BacktracerImpl (gum_backtracer_make_default ()); }
+  extern "C" Backtracer * Backtracer_make_default () { return new BacktracerImpl (); }
 }

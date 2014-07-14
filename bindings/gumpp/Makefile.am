@@ -16,6 +16,8 @@ libfrida_gumpp_1_0_la_SOURCES =			\
 	podwrapper.hpp				\
 	profiler.cpp				\
 	returnaddress.cpp			\
+	runtime.cpp				\
+	runtime.hpp				\
 	sampler.cpp				\
 	sanitychecker.cpp			\
 	string.hpp				\

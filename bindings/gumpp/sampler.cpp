@@ -1,6 +1,7 @@
 #include "gumpp.hpp"
 
 #include "objectwrapper.hpp"
+#include "runtime.hpp"
 
 #include <gum/gum-prof.h>
 
@@ -12,6 +13,11 @@ namespace Gum
     SamplerImpl (GumSampler * handle)
     {
       assign_handle (handle);
+    }
+
+    virtual ~SamplerImpl ()
+    {
+      Runtime::unref ();
     }
 
     virtual Sample sample () const
@@ -26,6 +32,11 @@ namespace Gum
     CallCountSamplerImpl (GumCallCountSampler * handle)
     {
       assign_handle (handle);
+    }
+
+    virtual ~CallCountSamplerImpl ()
+    {
+      Runtime::unref ();
     }
 
     virtual Sample sample () const
@@ -46,21 +57,20 @@ namespace Gum
 
   extern "C" Sampler * BusyCycleSampler_new ()
   {
-    gum_init ();
-
 #ifndef HAVE_LINUX
+    Runtime::ref ();
     return new SamplerImpl (gum_busy_cycle_sampler_new ());
 #else
     return NULL;
 #endif
   }
-  extern "C" Sampler * CycleSampler_new () { gum_init (); return new SamplerImpl (gum_cycle_sampler_new ()); }
-  extern "C" Sampler * MallocCountSampler_new () { gum_init (); return new SamplerImpl (gum_malloc_count_sampler_new ()); }
-  extern "C" Sampler * WallClockSampler_new () { gum_init (); return new SamplerImpl (gum_wallclock_sampler_new ()); }
+  extern "C" Sampler * CycleSampler_new () { Runtime::ref (); return new SamplerImpl (gum_cycle_sampler_new ()); }
+  extern "C" Sampler * MallocCountSampler_new () { Runtime::ref (); return new SamplerImpl (gum_malloc_count_sampler_new ()); }
+  extern "C" Sampler * WallClockSampler_new () { Runtime::ref (); return new SamplerImpl (gum_wallclock_sampler_new ()); }
 
   extern "C" CallCountSampler * CallCountSampler_new (void * first_function, ...)
   {
-    gum_init ();
+    Runtime::ref ();
 
     va_list args;
     va_start (args, first_function);
@@ -72,7 +82,7 @@ namespace Gum
 
   extern "C" CallCountSampler * CallCountSampler_new_by_name (const char * first_function_name, ...)
   {
-    gum_init ();
+    Runtime::ref ();
 
     va_list args;
     va_start (args, first_function_name);

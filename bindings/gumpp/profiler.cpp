@@ -2,6 +2,7 @@
 
 #include "invocationcontext.hpp"
 #include "objectwrapper.hpp"
+#include "runtime.hpp"
 #include "string.hpp"
 
 #include <gum/gum-prof.h>
@@ -27,7 +28,13 @@ namespace Gum
   public:
     ProfilerImpl ()
     {
+      Runtime::ref ();
       assign_handle (gum_profiler_new ());
+    }
+
+    virtual ~ProfilerImpl ()
+    {
+      Runtime::unref ();
     }
 
     virtual void instrument_functions_matching (const char * match_str, Sampler * sampler, FunctionMatchCallbacks * match_callbacks)
@@ -63,5 +70,5 @@ namespace Gum
     }
   };
 
-  extern "C" Profiler * Profiler_new (void) { gum_init (); return new ProfilerImpl; }
+  extern "C" Profiler * Profiler_new (void) { return new ProfilerImpl; }
 }

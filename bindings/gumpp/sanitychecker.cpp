@@ -1,6 +1,7 @@
 #include "gumpp.hpp"
 
 #include "podwrapper.hpp"
+#include "runtime.hpp"
 
 #include <gum/gum-heap.h>
 #include <iostream>
@@ -12,6 +13,8 @@ namespace Gum
   public:
     explicit SanityCheckerImpl (const HeapApi * heap_api)
     {
+      Runtime::ref ();
+
       if (heap_api != 0)
       {
         GumHeapApiList * heap_apis = gum_heap_api_list_new ();
@@ -28,6 +31,8 @@ namespace Gum
     ~SanityCheckerImpl ()
     {
       gum_sanity_checker_destroy (handle);
+
+      Runtime::unref ();
     }
 
     virtual void enable_backtraces_for_blocks_of_all_sizes ()
@@ -64,6 +69,6 @@ namespace Gum
     }
   };
 
-  extern "C" SanityChecker * SanityChecker_new (void) { gum_init (); return new SanityCheckerImpl (0); }
-  extern "C" SanityChecker * SanityChecker_new_with_heap_api (const HeapApi * api)  { gum_init (); return new SanityCheckerImpl (api); }
+  extern "C" SanityChecker * SanityChecker_new (void) { return new SanityCheckerImpl (0); }
+  extern "C" SanityChecker * SanityChecker_new_with_heap_api (const HeapApi * api)  { return new SanityCheckerImpl (api); }
 }

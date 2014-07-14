@@ -3,6 +3,7 @@
 #include "invocationcontext.hpp"
 #include "invocationlistener.hpp"
 #include "objectwrapper.hpp"
+#include "runtime.hpp"
 
 #include <gum/gum.h>
 #include <cassert>
@@ -15,6 +16,7 @@ namespace Gum
   public:
     InterceptorImpl ()
     {
+      Runtime::ref ();
       g_mutex_init (&mutex);
       assign_handle (gum_interceptor_obtain ());
     }
@@ -22,6 +24,7 @@ namespace Gum
     virtual ~InterceptorImpl ()
     {
       g_mutex_clear (&mutex);
+      Runtime::unref ();
     }
 
     virtual bool attach_listener (void * function_address, InvocationListener * listener, void * listener_function_data)
@@ -109,5 +112,5 @@ namespace Gum
     ProxyMap proxy_by_listener;
   };
 
-  extern "C" Interceptor * Interceptor_obtain (void) { gum_init (); return new InterceptorImpl; }
+  extern "C" Interceptor * Interceptor_obtain (void) { return new InterceptorImpl; }
 }

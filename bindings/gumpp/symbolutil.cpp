@@ -1,6 +1,7 @@
 #include "gumpp.hpp"
 
 #include "podwrapper.hpp"
+#include "runtime.hpp"
 
 #include <gum/gum.h>
 
@@ -14,9 +15,11 @@ namespace Gum
       assign_handle (arr);
     }
 
-    ~SymbolPtrArray ()
+    virtual ~SymbolPtrArray ()
     {
       g_array_free (handle, TRUE);
+
+      Runtime::unref ();
     }
 
     virtual int length ()
@@ -30,6 +33,17 @@ namespace Gum
     }
   };
 
-  extern "C" void * find_function_ptr (const char * name) { gum_init (); return gum_find_function (name); }
-  extern "C" PtrArray * find_matching_functions_array (const char * str) { gum_init (); return new SymbolPtrArray (gum_find_functions_matching (str)); }
+  extern "C" void * find_function_ptr (const char * name)
+  {
+    Runtime::ref ();
+    void * result = gum_find_function (name);
+    Runtime::unref ();
+    return result;
+  }
+
+  extern "C" PtrArray * find_matching_functions_array (const char * str)
+  {
+    Runtime::ref ();
+    return new SymbolPtrArray (gum_find_functions_matching (str));
+  }
 }
