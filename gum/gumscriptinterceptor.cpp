@@ -7,6 +7,7 @@
 #include "gumscriptinterceptor.h"
 
 #include "gumscriptscope.h"
+#include "gumtls.h"
 
 #include <errno.h>
 
@@ -62,6 +63,46 @@ static void gum_script_invocation_args_on_set_nth (uint32_t index,
 
 static void gum_script_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
+
+static GumTlsKey gum_script_interceptor_ignore_key;
+
+void
+_gum_script_interceptor_global_init (void)
+{
+  GUM_TLS_KEY_INIT (&gum_script_interceptor_ignore_key);
+}
+
+void
+_gum_script_interceptor_global_deinit (void)
+{
+  GUM_TLS_KEY_FREE (gum_script_interceptor_ignore_key);
+}
+
+static gint
+gum_script_interceptor_ignore_level (void)
+{
+  return GPOINTER_TO_INT (
+      GUM_TLS_KEY_GET_VALUE (gum_script_interceptor_ignore_key));
+}
+
+static void
+gum_script_interceptor_adjust_ignore_level (gint adjustment)
+{
+  GUM_TLS_KEY_SET_VALUE (gum_script_interceptor_ignore_key,
+      GINT_TO_POINTER (gum_script_interceptor_ignore_level () + adjustment));
+}
+
+void
+gum_script_ignore_current_thread (void)
+{
+  gum_script_interceptor_adjust_ignore_level (1);
+}
+
+void
+gum_script_unignore_current_thread (void)
+{
+  gum_script_interceptor_adjust_ignore_level (-1);
+}
 
 void
 _gum_script_interceptor_init (GumScriptInterceptor * self,
@@ -169,6 +210,9 @@ void
 _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
                                   GumInvocationContext * context)
 {
+  if (gum_script_interceptor_ignore_level () > 0)
+    return;
+
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
   int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
@@ -205,6 +249,9 @@ void
 _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
                                   GumInvocationContext * context)
 {
+  if (gum_script_interceptor_ignore_level () > 0)
+    return;
+
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
       gum_invocation_context_get_listener_function_data (context));
   int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);

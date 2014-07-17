@@ -79,6 +79,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
 void
 _gum_script_init (void)
 {
+  _gum_script_interceptor_global_init ();
+
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
       static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
@@ -88,6 +90,8 @@ void
 _gum_script_deinit (void)
 {
   V8::Dispose ();
+
+  _gum_script_interceptor_global_deinit ();
 }
 
 static void

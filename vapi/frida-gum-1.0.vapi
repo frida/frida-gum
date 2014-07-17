@@ -86,6 +86,9 @@ namespace Gum {
 		public void unload ();
 
 		public void post_message (string message);
+
+		public static void ignore_current_thread ();
+		public static void unignore_current_thread ();
 	}
 
 	public class MemoryAccessMonitor : GLib.Object {

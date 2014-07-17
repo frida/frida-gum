@@ -28,6 +28,9 @@ struct _GumScriptInterceptor
   GumPersistent<v8::Object>::type * invocation_return_value;
 };
 
+G_GNUC_INTERNAL void _gum_script_interceptor_global_init (void);
+G_GNUC_INTERNAL void _gum_script_interceptor_global_deinit (void);
+
 G_GNUC_INTERNAL void _gum_script_interceptor_init (GumScriptInterceptor * self,
     GumScriptCore * core, v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_script_interceptor_realize (

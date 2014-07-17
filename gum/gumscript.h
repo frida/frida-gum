@@ -62,6 +62,9 @@ GUM_API void gum_script_unload (GumScript * self);
 
 GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
+GUM_API void gum_script_ignore_current_thread (void);
+GUM_API void gum_script_unignore_current_thread (void);
+
 G_END_DECLS
 
 #endif
