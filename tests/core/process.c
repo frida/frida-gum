@@ -45,6 +45,7 @@ static gboolean store_export_address_if_malloc (
 #endif
 
 #ifndef HAVE_ANDROID
+static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
 #endif
@@ -60,6 +61,10 @@ static gboolean range_found_cb (const GumRangeDetails * details,
 PROCESS_TESTCASE (process_threads)
 {
   TestForEachContext ctx;
+  GThread * thread;
+  gboolean done = FALSE;
+
+  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy, &done);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
@@ -70,6 +75,9 @@ PROCESS_TESTCASE (process_threads)
   ctx.value_to_return = FALSE;
   gum_process_enumerate_threads (thread_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+
+  done = TRUE;
+  g_thread_join (thread);
 }
 
 #endif
@@ -267,6 +275,17 @@ store_export_address_if_malloc (const GumExportDetails * details,
 #endif
 
 #ifndef HAVE_ANDROID
+
+static gpointer
+sleeping_dummy (gpointer data)
+{
+  volatile gboolean * done = (gboolean *) data;
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}
 
 static gboolean
 thread_found_cb (const GumThreadDetails * details,
