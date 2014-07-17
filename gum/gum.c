@@ -15,6 +15,7 @@
 
 #include <capstone.h>
 #include <glib-object.h>
+#include <gio/gio.h>
 
 static gpointer do_init (gpointer data);
 
@@ -65,7 +66,10 @@ do_init (gpointer data)
 
   (void) features;
 
+#if GLIB_CHECK_VERSION (2, 42, 0)
   glib_init ();
+  gio_init ();
+#endif
 
   _gum_memory_init ();
 

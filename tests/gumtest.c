@@ -13,6 +13,7 @@
 #endif
 
 #include <glib.h>
+#include <gio/gio.h>
 #include <gum/gum.h>
 
 #ifdef G_OS_WIN32
@@ -67,6 +68,7 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #if GLIB_CHECK_VERSION (2, 42, 0)
   glib_init ();
+  gio_init ();
 #endif
   g_test_init (&argc, &argv, NULL);
   gum_init ();
@@ -176,6 +178,7 @@ main (gint argc, gchar * argv[])
 
   gum_deinit ();
 #if GLIB_CHECK_VERSION (2, 42, 0)
+  gio_deinit ();
   glib_deinit ();
 #endif
 
