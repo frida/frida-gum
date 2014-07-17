@@ -80,10 +80,18 @@ void
 _gum_script_init (void)
 {
   _gum_script_interceptor_global_init ();
+}
+
+static gpointer
+gum_script_init_v8 (gpointer data)
+{
+  (void) data;
 
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
-      static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
+                          static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
+
+  return NULL;
 }
 
 void
@@ -127,7 +135,10 @@ gum_script_listener_iface_init (gpointer g_iface,
 static void
 gum_script_init (GumScript * self)
 {
+  static GOnce init_v8_once = G_ONCE_INIT;
   GumScriptPrivate * priv;
+
+  g_once (&init_v8_once, gum_script_init_v8, NULL);
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
