@@ -291,6 +291,12 @@ _gum_script_core_init (GumScriptCore * self,
 void
 _gum_script_core_realize (GumScriptCore * self)
 {
+  self->byte_arrays = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (_gum_byte_array_free));
+
+  self->heap_blocks = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (_gum_heap_block_free));
+
   Local<FunctionTemplate> native_pointer (
       Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   self->native_pointer_value = new GumPersistent<Object>::type (self->isolate,
@@ -314,12 +320,22 @@ _gum_script_core_flush (GumScriptCore * self)
 
   self->isolate->Enter ();
 
+  g_hash_table_remove_all (self->heap_blocks);
+
+  g_hash_table_remove_all (self->byte_arrays);
+
   g_hash_table_remove_all (self->weak_refs);
 }
 
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
+  g_hash_table_unref (self->heap_blocks);
+  self->heap_blocks = NULL;
+
+  g_hash_table_unref (self->byte_arrays);
+  self->byte_arrays = NULL;
+
   while (self->scheduled_callbacks != NULL)
   {
     g_source_destroy (static_cast<GumScheduledCallback *> (
@@ -1606,12 +1622,14 @@ _gum_byte_array_new (gpointer data,
   buffer->instance->SetWeak (buffer, gum_byte_array_on_weak_notify);
   buffer->data = data;
   buffer->size = size;
-  buffer->isolate = core->isolate;
+  buffer->core = core;
 
   if (buffer->size > 0)
   {
     core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
   }
+
+  g_hash_table_insert (core->byte_arrays, buffer->data, buffer);
 
   return buffer;
 }
@@ -1621,7 +1639,7 @@ _gum_byte_array_free (GumByteArray * buffer)
 {
   if (buffer->size > 0)
   {
-    buffer->isolate->AdjustAmountOfExternalAllocatedMemory (
+    buffer->core->isolate->AdjustAmountOfExternalAllocatedMemory (
         -static_cast<gssize> (buffer->size));
   }
 
@@ -1635,7 +1653,8 @@ gum_byte_array_on_weak_notify (
     const WeakCallbackData<Object, GumByteArray> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  _gum_byte_array_free (data.GetParameter ());
+  GumByteArray * self = data.GetParameter ();
+  g_hash_table_remove (self->core->byte_arrays, self->data);
 }
 
 GumHeapBlock *
@@ -1652,9 +1671,11 @@ _gum_heap_block_new (gpointer data,
   block->instance->SetWeak (block, gum_heap_block_on_weak_notify);
   block->data = data;
   block->size = size;
-  block->isolate = core->isolate;
+  block->core = core;
 
   core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
+
+  g_hash_table_insert (core->heap_blocks, block->data, block);
 
   return block;
 }
@@ -1662,7 +1683,7 @@ _gum_heap_block_new (gpointer data,
 void
 _gum_heap_block_free (GumHeapBlock * block)
 {
-  block->isolate->AdjustAmountOfExternalAllocatedMemory (
+  block->core->isolate->AdjustAmountOfExternalAllocatedMemory (
       -static_cast<gssize> (block->size));
 
   delete block->instance;
@@ -1675,7 +1696,8 @@ gum_heap_block_on_weak_notify (
     const WeakCallbackData<Object, GumHeapBlock> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  _gum_heap_block_free (data.GetParameter ());
+  GumHeapBlock * self = data.GetParameter ();
+  g_hash_table_remove (self->core->heap_blocks, self->data);
 }
 
 Local<Object>

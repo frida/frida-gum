@@ -55,6 +55,10 @@ struct _GumScriptCore
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
 
+  GHashTable * byte_arrays;
+
+  GHashTable * heap_blocks;
+
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
   GumPersistent<v8::Object>::type * native_pointer_value;
 };
@@ -64,7 +68,7 @@ struct _GumHeapBlock
   GumPersistent<v8::Object>::type * instance;
   gpointer data;
   gsize size;
-  v8::Isolate * isolate;
+  GumScriptCore * core;
 };
 
 struct _GumByteArray
@@ -72,7 +76,7 @@ struct _GumByteArray
   GumPersistent<v8::Object>::type * instance;
   gpointer data;
   gsize size;
-  v8::Isolate * isolate;
+  GumScriptCore * core;
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
