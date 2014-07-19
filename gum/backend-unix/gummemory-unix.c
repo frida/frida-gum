@@ -8,16 +8,6 @@
 
 #include "gummemory-priv.h"
 
-#include <unistd.h>
-#define __USE_GNU     1
-#include <sys/mman.h>
-#undef __USE_GNU
-#define INSECURE      0
-#define NO_MALLINFO   0
-#define USE_LOCKS     1
-#define USE_DL_PREFIX 1
-#include "dlmalloc.c"
-
 #define GUM_MEMRANGE_IS_NOT_MAPPED(address, size) \
     (gum_memory_get_protection (address, size, NULL) == FALSE)
 
@@ -37,16 +27,6 @@ struct _GumAllocNearContext
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
 static gint gum_page_protection_to_unix (GumPageProtection page_prot);
-
-void
-_gum_memory_init (void)
-{
-}
-
-void
-_gum_memory_deinit (void)
-{
-}
 
 guint
 gum_query_page_size (void)
@@ -276,59 +256,6 @@ gum_clear_cache (gpointer address,
 #ifdef HAVE_ARM
   cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
 #endif
-}
-
-guint
-gum_peek_private_memory_usage (void)
-{
-  struct mallinfo info;
-
-  info = dlmallinfo ();
-
-  return info.uordblks;
-}
-
-gpointer
-gum_malloc (gsize size)
-{
-  return dlmalloc (size);
-}
-
-gpointer
-gum_malloc0 (gsize size)
-{
-  return dlcalloc (1, size);
-}
-
-gpointer
-gum_calloc (gsize count, gsize size)
-{
-  return dlcalloc (count, size);
-}
-
-gpointer
-gum_realloc (gpointer mem,
-             gsize size)
-{
-  return dlrealloc (mem, size);
-}
-
-gpointer
-gum_memdup (gconstpointer mem,
-            gsize byte_size)
-{
-  gpointer result;
-
-  result = dlmalloc (byte_size);
-  memcpy (result, mem, byte_size);
-
-  return result;
-}
-
-void
-gum_free (gpointer mem)
-{
-  dlfree (mem);
 }
 
 gpointer

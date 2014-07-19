@@ -10,6 +10,27 @@
 
 #include <string.h>
 
+#ifdef G_OS_UNIX
+# include <unistd.h>
+# define __USE_GNU     1
+# include <sys/mman.h>
+# undef __USE_GNU
+#endif
+#define MSPACES       1
+#define ONLY_MSPACES  1
+#define USE_LOCKS     1
+#define FOOTERS       0
+#define INSECURE      1
+#define NO_MALLINFO   0
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4267 4702)
+#endif
+#include "dlmalloc.c"
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
+
 static GumMatchPattern * gum_match_pattern_new (void);
 static void gum_match_pattern_update_computed_size (GumMatchPattern * self);
 static GumMatchToken * gum_match_pattern_get_longest_token (
@@ -23,6 +44,32 @@ static gboolean gum_match_pattern_seal (GumMatchPattern * self);
 static GumMatchToken * gum_match_token_new (GumMatchType type);
 static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
+
+static mspace gum_mspace = NULL;
+
+static mspace
+gum_mspace_get (void)
+{
+  if (gum_mspace == NULL)
+    gum_mspace = create_mspace (0, TRUE);
+  return gum_mspace;
+}
+
+void
+gum_memory_init (void)
+{
+  gum_mspace_get ();
+}
+
+void
+gum_memory_deinit (void)
+{
+  if (gum_mspace != NULL)
+  {
+    destroy_mspace (gum_mspace);
+    gum_mspace = NULL;
+  }
+}
 
 void
 gum_memory_scan (const GumMemoryRange * range,
@@ -262,4 +309,57 @@ gum_match_token_append (GumMatchToken * self,
                         guint8 byte)
 {
   g_array_append_val (self->bytes, byte);
+}
+
+guint
+gum_peek_private_memory_usage (void)
+{
+  struct mallinfo info;
+
+  info = mspace_mallinfo (gum_mspace_get ());
+
+  return (guint) info.uordblks;
+}
+
+gpointer
+gum_malloc (gsize size)
+{
+  return mspace_malloc (gum_mspace_get (), size);
+}
+
+gpointer
+gum_malloc0 (gsize size)
+{
+  return mspace_calloc (gum_mspace_get (), 1, size);
+}
+
+gpointer
+gum_calloc (gsize count, gsize size)
+{
+  return mspace_calloc (gum_mspace_get (), count, size);
+}
+
+gpointer
+gum_realloc (gpointer mem,
+             gsize size)
+{
+  return mspace_realloc (gum_mspace_get (), mem, size);
+}
+
+gpointer
+gum_memdup (gconstpointer mem,
+            gsize byte_size)
+{
+  gpointer result;
+
+  result = mspace_malloc (gum_mspace_get (), byte_size);
+  memcpy (result, mem, byte_size);
+
+  return result;
+}
+
+void
+gum_free (gpointer mem)
+{
+  mspace_free (gum_mspace_get (), mem);
 }

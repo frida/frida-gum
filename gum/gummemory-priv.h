@@ -31,11 +31,4 @@ struct _GumMatchToken
   guint offset;
 };
 
-G_BEGIN_DECLS
-
-G_GNUC_INTERNAL void _gum_memory_init (void);
-G_GNUC_INTERNAL void _gum_memory_deinit (void);
-
-G_END_DECLS
-
 #endif

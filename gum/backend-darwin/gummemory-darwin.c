@@ -35,16 +35,6 @@ struct _GumAllocNearContext
 static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
 
-void
-_gum_memory_init (void)
-{
-}
-
-void
-_gum_memory_deinit (void)
-{
-}
-
 guint
 gum_query_page_size (void)
 {

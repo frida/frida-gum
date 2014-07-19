@@ -49,6 +49,9 @@ G_BEGIN_DECLS
 typedef gboolean (* GumMemoryScanMatchFunc) (GumAddress address, gsize size,
     gpointer user_data);
 
+void gum_memory_init (void);
+void gum_memory_deinit (void);
+
 guint gum_query_page_size (void);
 gboolean gum_memory_is_readable (GumAddress address, gsize len);
 guint8 * gum_memory_read (GumAddress address, gsize len, gsize * n_bytes_read);

@@ -10,26 +10,6 @@
 #include "gummemory-priv.h"
 #include "gumwindows.h"
 
-static HANDLE _gum_memory_heap = INVALID_HANDLE_VALUE;
-
-void
-_gum_memory_init (void)
-{
-  ULONG heap_frag_value = 2;
-
-  _gum_memory_heap = HeapCreate (HEAP_GENERATE_EXCEPTIONS, 0, 0);
-
-  HeapSetInformation (_gum_memory_heap, HeapCompatibilityInformation,
-      &heap_frag_value, sizeof (heap_frag_value));
-}
-
-void
-_gum_memory_deinit (void)
-{
-  HeapDestroy (_gum_memory_heap);
-  _gum_memory_heap = INVALID_HANDLE_VALUE;
-}
-
 guint
 gum_query_page_size (void)
 {
@@ -158,78 +138,6 @@ gum_clear_cache (gpointer address,
                  gsize size)
 {
   FlushInstructionCache (GetCurrentProcess (), address, size);
-}
-
-guint
-gum_peek_private_memory_usage (void)
-{
-  guint total_size = 0;
-  BOOL success;
-  PROCESS_HEAP_ENTRY entry;
-
-  success = HeapLock (_gum_memory_heap);
-  g_assert (success);
-
-  entry.lpData = NULL;
-  while (HeapWalk (_gum_memory_heap, &entry) != FALSE)
-  {
-    if ((entry.wFlags & PROCESS_HEAP_ENTRY_BUSY) != 0)
-      total_size += entry.cbData;
-  }
-
-  success = HeapUnlock (_gum_memory_heap);
-  g_assert (success);
-
-  return total_size;
-}
-
-gpointer
-gum_malloc (gsize size)
-{
-  return HeapAlloc (_gum_memory_heap, 0, size);
-}
-
-gpointer
-gum_malloc0 (gsize size)
-{
-  return HeapAlloc (_gum_memory_heap, HEAP_ZERO_MEMORY, size);
-}
-
-gpointer
-gum_calloc (gsize count, gsize size)
-{
-  return HeapAlloc (_gum_memory_heap, HEAP_ZERO_MEMORY, count * size);
-}
-
-gpointer
-gum_realloc (gpointer mem,
-             gsize size)
-{
-  if (mem != NULL)
-    return HeapReAlloc (_gum_memory_heap, 0, mem, size);
-  else
-    return gum_malloc (size);
-}
-
-gpointer
-gum_memdup (gconstpointer mem,
-            gsize byte_size)
-{
-  gpointer result;
-
-  result = gum_malloc (byte_size);
-  memcpy (result, mem, byte_size);
-
-  return result;
-}
-
-void
-gum_free (gpointer mem)
-{
-  BOOL success;
-
-  success = HeapFree (_gum_memory_heap, 0, mem);
-  g_assert (success);
 }
 
 gpointer

@@ -8,7 +8,6 @@
 
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
-#include "gummemory-priv.h"
 #include "gumprintf.h"
 #include "gumscript-priv.h"
 #include "gumsymbolutil-priv.h"
@@ -48,8 +47,6 @@ gum_deinit (void)
 #ifdef HAVE_SYMBOL_BACKEND
   _gum_symbol_util_deinit ();
 #endif
-
-  _gum_memory_deinit ();
 }
 
 static gpointer
@@ -66,12 +63,12 @@ do_init (gpointer data)
 
   (void) features;
 
+  gum_memory_init ();
+
 #if GLIB_CHECK_VERSION (2, 42, 0)
   glib_init ();
   gio_init ();
 #endif
-
-  _gum_memory_init ();
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
 
