@@ -59,13 +59,16 @@ gum_busy_cycle_sampler_is_available (GumBusyCycleSampler * self)
 static GumSample
 gum_busy_cycle_sampler_sample (GumSampler * sampler)
 {
+  mach_port_t port;
   thread_basic_info_data_t info;
   mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
   kern_return_t kr;
 
-  kr = thread_info (mach_thread_self (), THREAD_BASIC_INFO,
+  port = mach_thread_self ();
+  kr = thread_info (port, THREAD_BASIC_INFO,
       (thread_info_t) &info, &info_count);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  mach_port_deallocate (mach_task_self (), port);
 
   /*
    * We could convert this to actual cycles, but doing so would be a waste
