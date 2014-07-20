@@ -1251,7 +1251,7 @@ gum_get_current_thread_id (void)
   id = GPOINTER_TO_UINT (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tid_key));
   if (id == 0)
   {
-    id = g_atomic_int_exchange_and_add (&_gum_interceptor_tid_counter, 1) + 1;
+    id = g_atomic_int_add (&_gum_interceptor_tid_counter, 1) + 1;
     GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tid_key, GUINT_TO_POINTER (id));
   }
 
