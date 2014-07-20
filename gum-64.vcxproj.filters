@@ -293,6 +293,9 @@
     <ClInclude Include="gum\gum.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gum-init.h">
+      <Filter>core</Filter>
+    </ClInclude>
     <ClInclude Include="gum\guminvocationlistener.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -439,9 +442,6 @@
     </ClInclude>
     <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
       <Filter>libs\heap</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\gumscript-priv.h">
-      <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscript-runtime.h">
       <Filter>core</Filter>

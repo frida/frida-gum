@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <ClInclude Include="gum\gum.h" />
+    <ClInclude Include="gum\gum-init.h" />
     <ClInclude Include="gum\gumarray.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
@@ -30,7 +31,6 @@
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
-    <ClInclude Include="gum\gumscript-priv.h" />
     <ClInclude Include="gum\gumscript-runtime.h" />
     <ClInclude Include="gum\gumscriptscope.h" />
     <ClInclude Include="gum\gumscriptcore.h" />

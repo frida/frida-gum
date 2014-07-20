@@ -6,10 +6,10 @@
 
 #include "gum.h"
 
+#include "gum-init.h"
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gumprintf.h"
-#include "gumscript-priv.h"
 #include "gumsymbolutil-priv.h"
 
 #include <capstone.h>
@@ -17,6 +17,9 @@
 #include <gio/gio.h>
 
 static gpointer do_init (gpointer data);
+static void gum_destructor_invoke (GumDestructorFunc destructor);
+
+static GSList * gum_destructors = NULL;
 
 void
 gum_init (void)
@@ -34,9 +37,9 @@ gum_init_with_features (GumFeatureFlags features)
 void
 gum_deinit (void)
 {
-#ifdef HAVE_V8
-  _gum_script_deinit ();
-#endif
+  g_slist_foreach (gum_destructors, (GFunc) gum_destructor_invoke, NULL);
+  g_slist_free (gum_destructors);
+  gum_destructors = NULL;
 
 #ifdef HAVE_LIBS
   _gum_allocator_probe_deinit ();
@@ -79,9 +82,17 @@ do_init (gpointer data)
 
   _gum_interceptor_init ();
 
-#ifdef HAVE_V8
-  _gum_script_init ();
-#endif
-
   return NULL;
+}
+
+void
+_gum_register_destructor (GumDestructorFunc destructor)
+{
+  gum_destructors = g_slist_prepend (gum_destructors, destructor);
+}
+
+static void
+gum_destructor_invoke (GumDestructorFunc destructor)
+{
+  destructor ();
 }

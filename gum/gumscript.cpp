@@ -7,7 +7,7 @@
 
 #include "gumscript.h"
 
-#include "gumscript-priv.h"
+#include "gum-init.h"
 #include "gumscriptcore.h"
 #include "gumscriptfile.h"
 #include "gumscriptinterceptor.h"
@@ -53,6 +53,8 @@ struct _GumScriptPrivate
   gboolean loaded;
 };
 
+static void gum_script_runtime_deinit (void);
+
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
@@ -76,16 +78,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
-static GOnce init_v8_once = G_ONCE_INIT;
-
-void
-_gum_script_init (void)
-{
-  _gum_script_interceptor_global_init ();
-}
-
 static gpointer
-gum_script_init_v8 (gpointer data)
+gum_script_runtime_init (gpointer data)
 {
   (void) data;
 
@@ -93,16 +87,19 @@ gum_script_init_v8 (gpointer data)
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
 
+  _gum_script_interceptor_global_init ();
+
+  _gum_register_destructor (gum_script_runtime_deinit);
+
   return NULL;
 }
 
-void
-_gum_script_deinit (void)
+static void
+gum_script_runtime_deinit (void)
 {
-  if (init_v8_once.status == G_ONCE_STATUS_READY)
-    V8::Dispose ();
-
   _gum_script_interceptor_global_deinit ();
+
+  V8::Dispose ();
 }
 
 static void
@@ -139,8 +136,9 @@ static void
 gum_script_init (GumScript * self)
 {
   GumScriptPrivate * priv;
+  static GOnce init_once = G_ONCE_INIT;
 
-  g_once (&init_v8_once, gum_script_init_v8, NULL);
+  g_once (&init_once, gum_script_runtime_init, NULL);
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);

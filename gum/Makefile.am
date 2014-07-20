@@ -145,7 +145,6 @@ endif
 if HAVE_V8
 script_sources += \
 	gumscript.cpp \
-	gumscript-priv.h \
 	gumscript-runtime.h \
 	gumscriptscope.h \
 	gumscriptcore.h \
@@ -185,6 +184,7 @@ container_sources = \
 
 libfrida_gum_la_SOURCES = \
 	gum.c \
+	gum-init.h \
 	gumbacktracer.c \
 	gumcodeallocator.c \
 	gumeventsink.c \
