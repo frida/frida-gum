@@ -76,6 +76,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
+static GOnce init_v8_once = G_ONCE_INIT;
+
 void
 _gum_script_init (void)
 {
@@ -97,7 +99,8 @@ gum_script_init_v8 (gpointer data)
 void
 _gum_script_deinit (void)
 {
-  V8::Dispose ();
+  if (init_v8_once.status == G_ONCE_STATUS_READY)
+    V8::Dispose ();
 
   _gum_script_interceptor_global_deinit ();
 }
@@ -135,7 +138,6 @@ gum_script_listener_iface_init (gpointer g_iface,
 static void
 gum_script_init (GumScript * self)
 {
-  static GOnce init_v8_once = G_ONCE_INIT;
   GumScriptPrivate * priv;
 
   g_once (&init_v8_once, gum_script_init_v8, NULL);
