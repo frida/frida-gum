@@ -250,5 +250,4 @@ gum_page_protection_to_windows (GumPageProtection page_prot)
   }
 
   g_assert_not_reached ();
-  return PAGE_NOACCESS;
 }

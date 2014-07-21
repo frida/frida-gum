@@ -173,7 +173,6 @@ gum_export_type_to_string (GumExportType type)
   }
 
   g_assert_not_reached ();
-  return NULL;
 }
 
 static void

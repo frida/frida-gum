@@ -199,7 +199,6 @@ gum_script_thread_state_to_string (GumThreadState state)
   }
 
   g_assert_not_reached ();
-  return NULL;
 }
 
 static void

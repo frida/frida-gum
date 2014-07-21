@@ -88,7 +88,8 @@ do_init (gpointer data)
 void
 _gum_register_destructor (GumDestructorFunc destructor)
 {
-  gum_destructors = g_slist_prepend (gum_destructors, destructor);
+  gum_destructors = g_slist_prepend (gum_destructors,
+      GUM_FUNCPTR_TO_POINTER (destructor));
 }
 
 static void
