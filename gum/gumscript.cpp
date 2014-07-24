@@ -87,8 +87,6 @@ gum_script_runtime_init (gpointer data)
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
 
-  _gum_script_interceptor_global_init ();
-
   _gum_register_destructor (gum_script_runtime_deinit);
 
   return NULL;
@@ -97,8 +95,6 @@ gum_script_runtime_init (gpointer data)
 static void
 gum_script_runtime_deinit (void)
 {
-  _gum_script_interceptor_global_deinit ();
-
   V8::Dispose ();
 }
 

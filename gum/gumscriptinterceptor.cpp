@@ -64,31 +64,18 @@ static void gum_script_invocation_args_on_set_nth (uint32_t index,
 static void gum_script_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
 
-static GumTlsKey gum_script_interceptor_ignore_key;
-
-void
-_gum_script_interceptor_global_init (void)
-{
-  GUM_TLS_KEY_INIT (&gum_script_interceptor_ignore_key);
-}
-
-void
-_gum_script_interceptor_global_deinit (void)
-{
-  GUM_TLS_KEY_FREE (gum_script_interceptor_ignore_key);
-}
+static GPrivate gum_thread_ignore_level = G_PRIVATE_INIT (NULL);
 
 static gint
 gum_script_interceptor_ignore_level (void)
 {
-  return GPOINTER_TO_INT (
-      GUM_TLS_KEY_GET_VALUE (gum_script_interceptor_ignore_key));
+  return GPOINTER_TO_INT (g_private_get (&gum_thread_ignore_level));
 }
 
 static void
 gum_script_interceptor_adjust_ignore_level (gint adjustment)
 {
-  GUM_TLS_KEY_SET_VALUE (gum_script_interceptor_ignore_key,
+  g_private_set (&gum_thread_ignore_level,
       GINT_TO_POINTER (gum_script_interceptor_ignore_level () + adjustment));
 }
 
