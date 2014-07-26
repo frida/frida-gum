@@ -71,6 +71,30 @@ gum_memory_deinit (void)
   }
 }
 
+gboolean
+gum_query_is_rwx_supported (void)
+{
+#ifdef HAVE_IOS
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    gpointer p;
+    gboolean supported;
+
+    p = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+    supported = gum_memory_is_readable (GUM_ADDRESS (p), 1);
+    gum_free_pages (p);
+
+    g_once_init_leave (&cached_result, supported + 1);
+  }
+
+  return cached_result - 1;
+#else
+  return TRUE;
+#endif
+}
+
 void
 gum_memory_scan (const GumMemoryRange * range,
                  const GumMatchPattern * pattern,

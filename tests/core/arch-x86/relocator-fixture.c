@@ -40,7 +40,7 @@ test_relocator_fixture_setup (TestRelocatorFixture * fixture,
   as.near_address = (gpointer) stack_data;
   as.max_distance = G_MAXINT32 - page_size;
 
-  fixture->output = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
+  fixture->output = (guint8 *) gum_alloc_n_pages_near (1, GUM_PAGE_RW, &as);
   memset (fixture->output, 0, page_size);
 
   gum_x86_writer_init (&fixture->cw, fixture->output);

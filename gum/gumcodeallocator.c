@@ -39,15 +39,28 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
 
   allocator->slice_size = slice_size;
 
-  allocator->header_size = 0;
-  do
+  if (gum_query_is_rwx_supported ())
   {
-    allocator->header_size += 16;
-    allocator->slices_per_page =
-        (allocator->page_size - allocator->header_size) / allocator->slice_size;
+    allocator->header_size = 0;
+    do
+    {
+      allocator->header_size += 16;
+      allocator->slices_per_page =
+          (allocator->page_size - allocator->header_size)
+          / allocator->slice_size;
+    }
+    while (allocator->header_size <
+        allocator->slices_per_page * sizeof (GumCodeSlice));
   }
-  while (allocator->header_size <
-      allocator->slices_per_page * sizeof (GumCodeSlice));
+  else
+  {
+    /*
+     * We choose to waste some memory instead of risking stepping on existing
+     * slices whenever a new one is to be initialized.
+     */
+    allocator->header_size = 16;
+    allocator->slices_per_page = 1;
+  }
 }
 
 void
@@ -80,6 +93,8 @@ gum_code_allocator_new_slice_near (GumCodeAllocator * self,
 
         if (gum_code_slice_is_free (slice))
         {
+          if (!gum_query_is_rwx_supported ())
+            gum_mprotect (page, self->page_size, GUM_PAGE_RW);
           gum_code_slice_mark_taken (slice);
           return slice;
         }
@@ -105,6 +120,9 @@ gum_code_allocator_free_slice (GumCodeAllocator * self,
 
   cp = (GumCodePage *) (GPOINTER_TO_SIZE (slice) & ~(self->page_size - 1));
 
+  if (!gum_query_is_rwx_supported ())
+    gum_mprotect (cp, self->page_size, GUM_PAGE_RW);
+
   gum_code_slice_mark_free (slice);
 
   is_empty = TRUE;
@@ -122,20 +140,27 @@ gum_code_allocator_free_slice (GumCodeAllocator * self,
     self->pages = gum_list_remove (self->pages, cp);
     gum_code_page_free (cp);
   }
+  else if (!gum_query_is_rwx_supported ())
+  {
+    gum_mprotect (cp, self->page_size, GUM_PAGE_RX);
+  }
 }
 
 static GumCodePage *
 gum_code_allocator_new_page_near (GumCodeAllocator * self,
                                   gpointer address)
 {
+  GumPageProtection prot;
   GumAddressSpec spec;
   GumCodePage * cp;
   guint slice_idx;
 
+  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
   spec.near_address = address;
   spec.max_distance = GUM_CODE_ALLOCATOR_MAX_DISTANCE;
 
-  cp = (GumCodePage *) gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &spec);
+  cp = (GumCodePage *) gum_alloc_n_pages_near (1, prot, &spec);
 
   for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
   {

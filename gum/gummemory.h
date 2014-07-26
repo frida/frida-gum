@@ -53,6 +53,7 @@ void gum_memory_init (void);
 void gum_memory_deinit (void);
 
 guint gum_query_page_size (void);
+gboolean gum_query_is_rwx_supported (void);
 gboolean gum_memory_is_readable (GumAddress address, gsize len);
 guint8 * gum_memory_read (GumAddress address, gsize len, gsize * n_bytes_read);
 gboolean gum_memory_write (GumAddress address, guint8 * bytes, gsize len);

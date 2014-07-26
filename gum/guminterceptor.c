@@ -188,12 +188,16 @@ _gum_interceptor_init (void)
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
   _gum_interceptor_thread_contexts = gum_array_new (FALSE, FALSE,
       sizeof (InterceptorThreadContext *));
+
+  _gum_function_context_init ();
 }
 
 void
 _gum_interceptor_deinit (void)
 {
   guint i;
+
+  _gum_function_context_deinit ();
 
   for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
   {
@@ -323,9 +327,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
       goto beach;
     }
 
-    make_function_prologue_at_least_read_write (function_address);
     function_ctx = intercept_function_at (self, function_address);
-    make_function_prologue_read_execute (function_address);
 
     gum_hash_table_insert (priv->monitored_function_by_address,
         function_address, function_ctx);
@@ -413,10 +415,8 @@ gum_interceptor_replace_function (GumInterceptor * self,
 
   function_address = maybe_follow_redirect_at (self, function_address);
 
-  make_function_prologue_at_least_read_write (function_address);
   replace_function_at (self, function_address, replacement_function,
       replacement_function_data);
-  make_function_prologue_read_execute (function_address);
 
   GUM_INTERCEPTOR_UNLOCK ();
 }
@@ -431,9 +431,7 @@ gum_interceptor_revert_function (GumInterceptor * self,
 
   function_address = maybe_follow_redirect_at (self, function_address);
 
-  make_function_prologue_at_least_read_write (function_address);
   revert_function_at (self, function_address);
-  make_function_prologue_read_execute (function_address);
 
   GUM_INTERCEPTOR_UNLOCK ();
 }
@@ -533,7 +531,15 @@ intercept_function_at (GumInterceptor * self,
       gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
 
   _gum_function_context_make_monitor_trampoline (ctx);
+  if (!gum_query_is_rwx_supported ())
+  {
+    gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
+        GUM_PAGE_RX);
+  }
+
+  make_function_prologue_at_least_read_write (function_address);
   _gum_function_context_activate_trampoline (ctx);
+  make_function_prologue_read_execute (function_address);
 
 #ifdef G_OS_WIN32
   FlushInstructionCache (GetCurrentProcess (), NULL, 0);
@@ -556,7 +562,15 @@ replace_function_at (GumInterceptor * self,
   ctx->replacement_function_data = replacement_function_data;
 
   _gum_function_context_make_replace_trampoline (ctx, replacement_function);
+  if (!gum_query_is_rwx_supported ())
+  {
+    gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
+        GUM_PAGE_RX);
+  }
+
+  make_function_prologue_at_least_read_write (function_address);
   _gum_function_context_activate_trampoline (ctx);
+  make_function_prologue_read_execute (function_address);
 
   gum_hash_table_insert (priv->replaced_function_by_address, function_address,
       ctx);
@@ -601,9 +615,7 @@ detach_if_matching_listener (gpointer key,
 
     if (function_ctx->listener_entries->len == 0)
     {
-      make_function_prologue_at_least_read_write (function_address);
       function_context_destroy (function_ctx);
-      make_function_prologue_read_execute (function_address);
 
       detach_ctx->pending_removals =
           g_list_prepend (detach_ctx->pending_removals, function_address);
@@ -632,7 +644,10 @@ function_context_destroy (FunctionContext * function_ctx)
 {
   if (function_ctx->trampoline_slice != NULL)
   {
+    make_function_prologue_at_least_read_write (function_ctx->function_address);
     _gum_function_context_deactivate_trampoline (function_ctx);
+    make_function_prologue_read_execute (function_ctx->function_address);
+
     gum_function_context_wait_for_idle_trampoline (function_ctx);
     _gum_function_context_destroy_trampoline (function_ctx);
   }
@@ -1193,7 +1208,11 @@ gum_invocation_stack_peek_top (GumInvocationStack * stack)
 static void
 make_function_prologue_at_least_read_write (gpointer prologue_address)
 {
-  gum_mprotect (prologue_address, 16, GUM_PAGE_RWX);
+  GumPageProtection prot;
+
+  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
+  gum_mprotect (prologue_address, 16, prot);
 }
 
 static void

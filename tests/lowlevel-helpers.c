@@ -385,7 +385,7 @@ unsupported_function_list_new (guint * count)
   };
   UnsupportedFunction * result;
 
-  result = (UnsupportedFunction *) gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  result = (UnsupportedFunction *) gum_alloc_n_pages (1, GUM_PAGE_RW);
   memcpy (result, unsupported_functions, sizeof (unsupported_functions));
   *count = G_N_ELEMENTS (unsupported_functions);
 
