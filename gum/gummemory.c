@@ -68,6 +68,9 @@ gum_memory_deinit (void)
   {
     destroy_mspace (gum_mspace);
     gum_mspace = NULL;
+
+    DESTROY_MORECORE_LOCK ();
+    DESTROY_MAGIC_INIT_LOCK ();
   }
 }
 

@@ -1394,6 +1394,7 @@ static int win32munmap(void* ptr, size_t size) {
 #include <pthread.h>
 #define MLOCK_T pthread_mutex_t
 #define INITIAL_LOCK(l)      pthread_mutex_init(l, NULL)
+#define DESTROY_LOCK(l)      pthread_mutex_destroy(l)
 #define ACQUIRE_LOCK(l)      pthread_mutex_lock(l)
 #define RELEASE_LOCK(l)      pthread_mutex_unlock(l)
 
@@ -1428,6 +1429,7 @@ static void win32_release_lock (MLOCK_T *sl) {
 }
 
 #define INITIAL_LOCK(l)      *(l)=0
+#define DESTROY_LOCK(l)      *(l)=0
 #define ACQUIRE_LOCK(l)      win32_acquire_lock(l)
 #define RELEASE_LOCK(l)      win32_release_lock(l)
 #if HAVE_MORECORE
@@ -1443,17 +1445,21 @@ static MLOCK_T magic_init_mutex;
 #endif /* USE_LOCKS */
 
 #if USE_LOCKS && HAVE_MORECORE
+#define DESTROY_MORECORE_LOCK()    DESTROY_LOCK(&morecore_mutex);
 #define ACQUIRE_MORECORE_LOCK()    ACQUIRE_LOCK(&morecore_mutex);
 #define RELEASE_MORECORE_LOCK()    RELEASE_LOCK(&morecore_mutex);
 #else /* USE_LOCKS && HAVE_MORECORE */
+#define DESTROY_MORECORE_LOCK()
 #define ACQUIRE_MORECORE_LOCK()
 #define RELEASE_MORECORE_LOCK()
 #endif /* USE_LOCKS && HAVE_MORECORE */
 
 #if USE_LOCKS
+#define DESTROY_MAGIC_INIT_LOCK()  DESTROY_LOCK(&magic_init_mutex);
 #define ACQUIRE_MAGIC_INIT_LOCK()  ACQUIRE_LOCK(&magic_init_mutex);
 #define RELEASE_MAGIC_INIT_LOCK()  RELEASE_LOCK(&magic_init_mutex);
 #else  /* USE_LOCKS */
+#define DESTROY_MAGIC_INIT_LOCK()
 #define ACQUIRE_MAGIC_INIT_LOCK()
 #define RELEASE_MAGIC_INIT_LOCK()
 #endif /* USE_LOCKS */
@@ -4424,6 +4430,7 @@ size_t destroy_mspace(mspace msp) {
   size_t freed = 0;
   mstate ms = (mstate)msp;
   if (ok_magic(ms)) {
+    DESTROY_LOCK(&ms->mutex);
     msegmentptr sp = &ms->seg;
     while (sp != 0) {
       char* base = sp->base;
