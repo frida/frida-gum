@@ -13,6 +13,9 @@ gboolean
 gum_return_address_details_from_address (GumReturnAddress address,
                                          GumReturnAddressDetails * details)
 {
+
+#ifdef HAVE_SYMBOL_BACKEND
+
   GumSymbolDetails sd;
 
   if (gum_symbol_details_from_address (address, &sd))
@@ -26,6 +29,8 @@ gum_return_address_details_from_address (GumReturnAddress address,
 
     return TRUE;
   }
+
+#endif
 
   return FALSE;
 }

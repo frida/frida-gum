@@ -9,6 +9,7 @@
 
 #include "guminterceptor.h"
 #include "gumscriptcore.h"
+#include "gumbacktracer.h"
 
 #include <v8.h>
 
