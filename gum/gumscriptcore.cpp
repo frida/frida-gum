@@ -58,6 +58,7 @@ struct _GumMessageSink
 
 struct _GumFFIFunction
 {
+  GumScriptCore * core;
   gpointer fn;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -291,6 +292,12 @@ _gum_script_core_init (GumScriptCore * self,
 void
 _gum_script_core_realize (GumScriptCore * self)
 {
+  self->native_functions = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_function_free));
+
+  self->native_callbacks = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_callback_free));
+
   self->byte_arrays = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (_gum_byte_array_free));
 
@@ -331,6 +338,12 @@ _gum_script_core_dispose (GumScriptCore * self)
 
   g_hash_table_unref (self->byte_arrays);
   self->byte_arrays = NULL;
+
+  g_hash_table_unref (self->native_callbacks);
+  self->native_callbacks = NULL;
+
+  g_hash_table_unref (self->native_functions);
+  self->native_functions = NULL;
 
   while (self->scheduled_callbacks != NULL)
   {
@@ -971,6 +984,7 @@ gum_script_core_on_new_native_function (
   Local<Object> instance;
 
   func = g_slice_new0 (GumFFIFunction);
+  func->core = self;
 
   if (!_gum_script_pointer_get (info[0], &func->fn, self))
     goto error;
@@ -1062,6 +1076,8 @@ gum_script_core_on_new_native_function (
   func->weak_instance->SetWeak (func, gum_ffi_function_on_weak_notify);
   func->weak_instance->MarkIndependent ();
 
+  g_hash_table_insert (self->native_functions, func->fn, func);
+
   return;
 
 error:
@@ -1075,7 +1091,8 @@ gum_ffi_function_on_weak_notify (
     const WeakCallbackData<Object, GumFFIFunction> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  gum_ffi_function_free (data.GetParameter ());
+  GumFFIFunction * self = data.GetParameter ();
+  g_hash_table_remove (self->core->native_functions, self->fn);
 }
 
 static void
@@ -1232,6 +1249,8 @@ gum_script_core_on_new_native_callback (
       gum_script_core_on_free_native_callback);
   callback->weak_instance->MarkIndependent ();
 
+  g_hash_table_insert (self->native_callbacks, callback->closure, callback);
+
   return;
 
 error:
@@ -1244,7 +1263,8 @@ gum_script_core_on_free_native_callback (
     const WeakCallbackData<Object, GumFFICallback> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  gum_ffi_callback_free (data.GetParameter ());
+  GumFFICallback * self = data.GetParameter ();
+  g_hash_table_remove (self->core->native_callbacks, self->closure);
 }
 
 static void

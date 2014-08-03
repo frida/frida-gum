@@ -55,6 +55,10 @@ struct _GumScriptCore
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
 
+  GHashTable * native_functions;
+
+  GHashTable * native_callbacks;
+
   GHashTable * byte_arrays;
 
   GHashTable * heap_blocks;
