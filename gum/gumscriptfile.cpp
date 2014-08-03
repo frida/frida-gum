@@ -72,7 +72,6 @@ _gum_script_file_realize (GumScriptFile * self)
 void
 _gum_script_file_dispose (GumScriptFile * self)
 {
-  g_hash_table_remove_all (self->files);
   g_hash_table_unref (self->files);
   self->files = NULL;
 }

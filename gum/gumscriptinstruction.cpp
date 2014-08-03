@@ -109,7 +109,6 @@ _gum_script_instruction_realize (GumScriptInstruction * self)
 void
 _gum_script_instruction_dispose (GumScriptInstruction * self)
 {
-  g_hash_table_remove_all (self->instructions);
   g_hash_table_unref (self->instructions);
   self->instructions = NULL;
 

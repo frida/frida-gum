@@ -320,10 +320,6 @@ _gum_script_core_flush (GumScriptCore * self)
 
   self->isolate->Enter ();
 
-  g_hash_table_remove_all (self->heap_blocks);
-
-  g_hash_table_remove_all (self->byte_arrays);
-
   g_hash_table_remove_all (self->weak_refs);
 }
 
