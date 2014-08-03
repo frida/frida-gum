@@ -17,6 +17,7 @@ struct _GumFile
 {
   GumPersistent<v8::Object>::type * instance;
   FILE * handle;
+  GumScriptFile * module;
 };
 
 static void gum_script_file_on_new_file (
@@ -29,7 +30,8 @@ static void gum_script_file_on_file_close (
     const FunctionCallbackInfo<Value> & info);
 
 static GumFile * gum_file_new (Handle<Object> instance, FILE * handle,
-    GumScriptCore * core);
+    GumScriptFile * module);
+static void gum_file_free (GumFile * file);
 static gboolean gum_file_is_open (GumFile * self);
 static void gum_file_close (GumFile * self);
 static void gum_file_on_weak_notify (
@@ -63,13 +65,16 @@ _gum_script_file_init (GumScriptFile * self,
 void
 _gum_script_file_realize (GumScriptFile * self)
 {
-  (void) self;
+  self->files = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (gum_file_free));
 }
 
 void
 _gum_script_file_dispose (GumScriptFile * self)
 {
-  (void) self;
+  g_hash_table_remove_all (self->files);
+  g_hash_table_unref (self->files);
+  self->files = NULL;
 }
 
 void
@@ -115,7 +120,7 @@ gum_script_file_on_new_file (const FunctionCallbackInfo<Value> & info)
   }
 
   Local<Object> instance (info.Holder ());
-  GumFile * file = gum_file_new (instance, handle, self->core);
+  GumFile * file = gum_file_new (instance, handle, self);
   instance->SetAlignedPointerInInternalField (0, file);
 }
 
@@ -214,15 +219,19 @@ gum_script_file_on_file_close (const FunctionCallbackInfo<Value> & info)
 static GumFile *
 gum_file_new (Handle<Object> instance,
               FILE * handle,
-              GumScriptCore * core)
+              GumScriptFile * module)
 {
   GumFile * file;
 
   file = g_slice_new (GumFile);
-  file->instance = new GumPersistent<Object>::type (core->isolate, instance);
+  file->instance =
+      new GumPersistent<Object>::type (module->core->isolate, instance);
   file->instance->MarkIndependent ();
   file->instance->SetWeak (file, gum_file_on_weak_notify);
   file->handle = handle;
+  file->module = module;
+
+  g_hash_table_insert (module->files, handle, file);
 
   return file;
 }
@@ -255,5 +264,6 @@ static void
 gum_file_on_weak_notify (const WeakCallbackData<Object, GumFile> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  gum_file_free (data.GetParameter ());
+  GumFile * self = data.GetParameter ();
+  g_hash_table_remove (self->module->files, self->handle);
 }

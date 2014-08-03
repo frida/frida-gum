@@ -16,6 +16,8 @@ typedef struct _GumScriptFile GumScriptFile;
 struct _GumScriptFile
 {
   GumScriptCore * core;
+
+  GHashTable * files;
 };
 
 G_GNUC_INTERNAL void _gum_script_file_init (GumScriptFile * self,
