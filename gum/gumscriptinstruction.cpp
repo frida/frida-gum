@@ -262,7 +262,8 @@ gum_script_instruction_on_to_string (const FunctionCallbackInfo<Value> & info)
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   cs_insn * insn = self->handle;
-  gchar * str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
+  gchar * str = g_strconcat (insn->mnemonic, " ", insn->op_str,
+      static_cast<void *> (NULL));
   info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), str));
   g_free (str);
 }
