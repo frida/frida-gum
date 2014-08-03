@@ -64,6 +64,7 @@ GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
 GUM_API void gum_script_ignore_current_thread (void);
 GUM_API void gum_script_unignore_current_thread (void);
+GUM_API gboolean gum_script_is_thread_ignored (GumThreadId thread_id);
 
 G_END_DECLS
 

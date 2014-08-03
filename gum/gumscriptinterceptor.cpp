@@ -6,6 +6,7 @@
 
 #include "gumscriptinterceptor.h"
 
+#include "gum-init.h"
 #include "gumscriptscope.h"
 #include "gumtls.h"
 
@@ -66,6 +67,16 @@ static void gum_script_invocation_return_value_on_replace (
 
 static GPrivate gum_thread_ignore_level = G_PRIVATE_INIT (NULL);
 
+static GHashTable * gum_ignored_threads = NULL;
+G_LOCK_DEFINE_STATIC (gum_ignored_threads);
+
+static void
+gum_ignored_threads_deinit (void)
+{
+  g_hash_table_unref (gum_ignored_threads);
+  gum_ignored_threads = NULL;
+}
+
 static gint
 gum_script_interceptor_ignore_level (void)
 {
@@ -75,8 +86,32 @@ gum_script_interceptor_ignore_level (void)
 static void
 gum_script_interceptor_adjust_ignore_level (gint adjustment)
 {
-  g_private_set (&gum_thread_ignore_level,
-      GINT_TO_POINTER (gum_script_interceptor_ignore_level () + adjustment));
+  gint level;
+
+  level = gum_script_interceptor_ignore_level () + adjustment;
+  g_private_set (&gum_thread_ignore_level, GINT_TO_POINTER (level));
+
+  G_LOCK (gum_ignored_threads);
+
+  if (G_UNLIKELY (gum_ignored_threads == NULL))
+  {
+    gum_ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+    _gum_register_destructor (gum_ignored_threads_deinit);
+  }
+
+  if (level > 0)
+  {
+    g_hash_table_insert (gum_ignored_threads,
+        GSIZE_TO_POINTER (gum_process_get_current_thread_id ()),
+        GSIZE_TO_POINTER (level));
+  }
+  else
+  {
+    g_hash_table_remove (gum_ignored_threads,
+        GSIZE_TO_POINTER (gum_process_get_current_thread_id ()));
+  }
+
+  G_UNLOCK (gum_ignored_threads);
 }
 
 void
@@ -89,6 +124,21 @@ void
 gum_script_unignore_current_thread (void)
 {
   gum_script_interceptor_adjust_ignore_level (-1);
+}
+
+gboolean
+gum_script_is_thread_ignored (GumThreadId thread_id)
+{
+  gboolean is_ignored;
+
+  G_LOCK (gum_ignored_threads);
+
+  is_ignored = gum_ignored_threads != NULL &&
+      g_hash_table_contains (gum_ignored_threads, GSIZE_TO_POINTER (thread_id));
+
+  G_UNLOCK (gum_ignored_threads);
+
+  return is_ignored;
 }
 
 void
