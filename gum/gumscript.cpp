@@ -10,6 +10,7 @@
 #include "gum-init.h"
 #include "gumscriptcore.h"
 #include "gumscriptfile.h"
+#include "gumscriptinstruction.h"
 #include "gumscriptinterceptor.h"
 #include "gumscriptmemory.h"
 #include "gumscriptmodule.h"
@@ -48,6 +49,7 @@ struct _GumScriptPrivate
   GumScriptSocket socket;
   GumScriptInterceptor interceptor;
   GumScriptStalker stalker;
+  GumScriptInstruction instruction;
   GumPersistent<Context>::type * context;
   GumPersistent<Script>::type * raw_script;
   gboolean loaded;
@@ -229,8 +231,11 @@ gum_script_create_context (GumScript * self,
     _gum_script_module_init (&priv->module, &priv->core, global_templ);
     _gum_script_file_init (&priv->file, &priv->core, global_templ);
     _gum_script_socket_init (&priv->socket, &priv->core, global_templ);
-    _gum_script_interceptor_init (&priv->interceptor, &priv->core, global_templ);
+    _gum_script_interceptor_init (&priv->interceptor, &priv->core,
+        global_templ);
     _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
+    _gum_script_instruction_init (&priv->instruction, &priv->core,
+        global_templ);
 
     Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
@@ -244,6 +249,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_socket_realize (&priv->socket);
     _gum_script_interceptor_realize (&priv->interceptor);
     _gum_script_stalker_realize (&priv->stalker);
+    _gum_script_instruction_realize (&priv->instruction);
 
     gchar * combined_source = g_strconcat (
 #include "gumscript-runtime.h"
@@ -296,6 +302,7 @@ gum_script_destroy_context (GumScript * self)
 
     _gum_script_core_flush (&priv->core);
 
+    _gum_script_instruction_dispose (&priv->instruction);
     _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
     _gum_script_socket_dispose (&priv->socket);
@@ -312,6 +319,7 @@ gum_script_destroy_context (GumScript * self)
   delete priv->context;
   priv->context = NULL;
 
+  _gum_script_instruction_finalize (&priv->instruction);
   _gum_script_stalker_finalize (&priv->stalker);
   _gum_script_interceptor_finalize (&priv->interceptor);
   _gum_script_socket_finalize (&priv->socket);

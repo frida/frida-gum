@@ -43,6 +43,7 @@
     <ClInclude Include="gum\gumscriptinterceptor.h" />
     <ClInclude Include="gum\gumscriptstalker.h" />
     <ClInclude Include="gum\gumscripteventsink.h" />
+    <ClInclude Include="gum\gumscriptinstruction.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
@@ -78,6 +79,7 @@
     <ClCompile Include="gum\gumscriptinterceptor.cpp" />
     <ClCompile Include="gum\gumscriptstalker.cpp" />
     <ClCompile Include="gum\gumscripteventsink.cpp" />
+    <ClCompile Include="gum\gumscriptinstruction.cpp" />
   </ItemGroup>
 
   <ItemGroup>

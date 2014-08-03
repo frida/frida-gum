@@ -228,6 +228,9 @@
     <ClCompile Include="gum\gumscripteventsink.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscriptinstruction.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
@@ -477,6 +480,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscripteventsink.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptinstruction.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h">

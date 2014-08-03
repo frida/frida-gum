@@ -91,6 +91,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
   SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
+  SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
   SCRIPT_TESTENTRY (execution_can_be_traced)
@@ -101,6 +102,27 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
 TEST_LIST_END ()
+
+SCRIPT_TESTCASE (instruction_can_be_parsed)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var first = Instruction.parse(" GUM_PTR_CONST ");"
+      "var second = Instruction.parse(first.next);"
+      "send(typeof first.toString());"
+      "send(typeof second.toString());"
+      "send(first.address.toInt32() !== 0);"
+      "send(first.size > 0);"
+      "send(typeof first.mnemonic);"
+      "send(typeof first.opStr);",
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_NO_MESSAGES ();
+}
 
 SCRIPT_TESTCASE (native_function_can_be_invoked)
 {

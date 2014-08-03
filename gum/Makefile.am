@@ -166,7 +166,9 @@ script_sources += \
 	gumscriptstalker.h \
 	gumscriptstalker.cpp \
 	gumscripteventsink.h \
-	gumscripteventsink.cpp
+	gumscripteventsink.cpp \
+	gumscriptinstruction.h \
+	gumscriptinstruction.cpp
 fridainclude_HEADERS += \
 	gumscript.h
 endif
