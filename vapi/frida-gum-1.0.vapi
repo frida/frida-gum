@@ -87,8 +87,9 @@ namespace Gum {
 
 		public void post_message (string message);
 
-		public static void ignore_current_thread ();
-		public static void unignore_current_thread ();
+		public static void ignore (Gum.ThreadId thread_id);
+		public static void unignore (Gum.ThreadId thread_id);
+		public static void is_ignoring (Gum.ThreadId thread_id);
 	}
 
 	public class MemoryAccessMonitor : GLib.Object {

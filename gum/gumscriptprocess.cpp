@@ -162,7 +162,7 @@ gum_script_process_thread_match (const GumThreadDetails * details,
       static_cast<GumScriptMatchContext *> (user_data);
   Isolate * isolate = ctx->isolate;
 
-  if (gum_script_is_thread_ignored (details->id))
+  if (gum_script_is_ignoring (details->id))
     return TRUE;
 
   Local<Object> thread (Object::New (isolate));

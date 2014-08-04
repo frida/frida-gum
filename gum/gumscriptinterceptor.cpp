@@ -65,8 +65,6 @@ static void gum_script_invocation_args_on_set_nth (uint32_t index,
 static void gum_script_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
 
-static GPrivate gum_thread_ignore_level = G_PRIVATE_INIT (NULL);
-
 static GHashTable * gum_ignored_threads = NULL;
 G_LOCK_DEFINE_STATIC (gum_ignored_threads);
 
@@ -77,19 +75,12 @@ gum_ignored_threads_deinit (void)
   gum_ignored_threads = NULL;
 }
 
-static gint
-gum_script_interceptor_ignore_level (void)
-{
-  return GPOINTER_TO_INT (g_private_get (&gum_thread_ignore_level));
-}
-
 static void
-gum_script_interceptor_adjust_ignore_level (gint adjustment)
+gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
+                                            gint adjustment)
 {
+  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
   gint level;
-
-  level = gum_script_interceptor_ignore_level () + adjustment;
-  g_private_set (&gum_thread_ignore_level, GINT_TO_POINTER (level));
 
   G_LOCK (gum_ignored_threads);
 
@@ -99,35 +90,37 @@ gum_script_interceptor_adjust_ignore_level (gint adjustment)
     _gum_register_destructor (gum_ignored_threads_deinit);
   }
 
+  level = GPOINTER_TO_INT (
+      g_hash_table_lookup (gum_ignored_threads, thread_id_ptr));
+  level += adjustment;
+
   if (level > 0)
   {
-    g_hash_table_insert (gum_ignored_threads,
-        GSIZE_TO_POINTER (gum_process_get_current_thread_id ()),
-        GSIZE_TO_POINTER (level));
+    g_hash_table_insert (gum_ignored_threads, thread_id_ptr,
+        GINT_TO_POINTER (level));
   }
   else
   {
-    g_hash_table_remove (gum_ignored_threads,
-        GSIZE_TO_POINTER (gum_process_get_current_thread_id ()));
+    g_hash_table_remove (gum_ignored_threads, thread_id_ptr);
   }
 
   G_UNLOCK (gum_ignored_threads);
 }
 
 void
-gum_script_ignore_current_thread (void)
+gum_script_ignore (GumThreadId thread_id)
 {
-  gum_script_interceptor_adjust_ignore_level (1);
+  gum_script_interceptor_adjust_ignore_level (thread_id, 1);
 }
 
 void
-gum_script_unignore_current_thread (void)
+gum_script_unignore (GumThreadId thread_id)
 {
-  gum_script_interceptor_adjust_ignore_level (-1);
+  gum_script_interceptor_adjust_ignore_level (thread_id, -1);
 }
 
 gboolean
-gum_script_is_thread_ignored (GumThreadId thread_id)
+gum_script_is_ignoring (GumThreadId thread_id)
 {
   gboolean is_ignored;
 
@@ -247,7 +240,7 @@ void
 _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
                                   GumInvocationContext * context)
 {
-  if (gum_script_interceptor_ignore_level () > 0)
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
     return;
 
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
@@ -286,7 +279,7 @@ void
 _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
                                   GumInvocationContext * context)
 {
-  if (gum_script_interceptor_ignore_level () > 0)
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
     return;
 
   GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
