@@ -59,7 +59,7 @@ struct _ListenerContext
   TestInterceptorFixture * harness;
   gchar enter_char;
   gchar leave_char;
-  guint last_thread_id;
+  GumThreadId last_thread_id;
   gsize last_seen_argument;
   gpointer last_return_value;
   GumCpuContext last_on_enter_cpu_context;

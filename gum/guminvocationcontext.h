@@ -7,6 +7,8 @@
 #ifndef __GUM_INVOCATION_CONTEXT_H__
 #define __GUM_INVOCATION_CONTEXT_H__
 
+#include "gumprocess.h"
+
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 
@@ -38,7 +40,7 @@ struct _GumInvocationBackend
   void (* replace_return_value) (GumInvocationContext * context,
       gpointer value);
 
-  guint (* get_thread_id) (GumInvocationContext * context);
+  GumThreadId (* get_thread_id) (GumInvocationContext * context);
 
   gpointer (* get_listener_thread_data) (GumInvocationContext * context,
       gsize required_size);

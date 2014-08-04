@@ -145,8 +145,6 @@ static gpointer maybe_follow_redirect_at (GumInterceptor * self,
 static gboolean is_patched_function (GumInterceptor * self,
     gpointer function_address);
 
-static guint gum_get_current_thread_id (void);
-
 static void gum_function_context_wait_for_idle_trampoline (
     FunctionContext * ctx);
 
@@ -158,11 +156,6 @@ GumTlsKey _gum_interceptor_guard_key;
 
 static GumSpinlock _gum_interceptor_thread_context_lock;
 static GumArray * _gum_interceptor_thread_contexts;
-
-#ifndef G_OS_WIN32
-static GumTlsKey _gum_interceptor_tid_key;
-static volatile gint _gum_interceptor_tid_counter = 0;
-#endif
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
 
@@ -181,9 +174,6 @@ _gum_interceptor_init (void)
 {
   GUM_TLS_KEY_INIT (&_gum_interceptor_context_key);
   GUM_TLS_KEY_INIT (&_gum_interceptor_guard_key);
-#ifndef G_OS_WIN32
-  GUM_TLS_KEY_INIT (&_gum_interceptor_tid_key);
-#endif
 
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
   _gum_interceptor_thread_contexts = gum_array_new (FALSE, FALSE,
@@ -213,9 +203,6 @@ _gum_interceptor_deinit (void)
 
   GUM_TLS_KEY_FREE (_gum_interceptor_context_key);
   GUM_TLS_KEY_FREE (_gum_interceptor_guard_key);
-#ifndef G_OS_WIN32
-  GUM_TLS_KEY_FREE (_gum_interceptor_tid_key);
-#endif
 }
 
 static void
@@ -488,7 +475,7 @@ gum_interceptor_unignore_current_thread (GumInterceptor * self)
 void
 gum_interceptor_ignore_other_threads (GumInterceptor * self)
 {
-  self->priv->selected_thread_id = gum_get_current_thread_id ();
+  self->priv->selected_thread_id = gum_process_get_current_thread_id ();
 }
 
 void
@@ -496,7 +483,8 @@ gum_interceptor_unignore_other_threads (GumInterceptor * self)
 {
   GumInterceptorPrivate * priv = self->priv;
 
-  g_assert_cmpuint (priv->selected_thread_id, ==, gum_get_current_thread_id ());
+  g_assert_cmpuint (priv->selected_thread_id,
+      ==, gum_process_get_current_thread_id ());
   priv->selected_thread_id = 0;
 }
 
@@ -748,7 +736,8 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
   if (G_UNLIKELY (priv->selected_thread_id != 0))
   {
-    invoke_listeners = gum_get_current_thread_id () == priv->selected_thread_id;
+    invoke_listeners =
+        gum_process_get_current_thread_id () == priv->selected_thread_id;
   }
 
   if (G_LIKELY (invoke_listeners))
@@ -968,12 +957,12 @@ gum_interceptor_invocation_get_replacement_point_cut (
   return GUM_POINT_ENTER;
 }
 
-static guint
+static GumThreadId
 gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
 {
   (void) context;
 
-  return gum_get_current_thread_id ();
+  return gum_process_get_current_thread_id ();
 }
 
 static gpointer
@@ -1257,25 +1246,6 @@ is_patched_function (GumInterceptor * self,
   {
     return FALSE;
   }
-}
-
-static guint
-gum_get_current_thread_id (void)
-{
-#ifdef G_OS_WIN32
-  return GetCurrentThreadId ();
-#else
-  guint id;
-
-  id = GPOINTER_TO_UINT (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_tid_key));
-  if (id == 0)
-  {
-    id = g_atomic_int_add (&_gum_interceptor_tid_counter, 1) + 1;
-    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_tid_key, GUINT_TO_POINTER (id));
-  }
-
-  return id;
-#endif
 }
 
 static void

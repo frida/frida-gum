@@ -145,7 +145,7 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
 
 INTERCEPTOR_TESTCASE (thread_id)
 {
-  guint first_thread_id, second_thread_id;
+  GumThreadId first_thread_id, second_thread_id;
 
   interceptor_fixture_attach_listener (fixture, 0, target_function, 'a', 'b');
 
