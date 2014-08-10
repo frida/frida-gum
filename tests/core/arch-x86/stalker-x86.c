@@ -34,6 +34,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate_and_scaled_register)
   STALKER_TESTENTRY (direct_call_with_register)
+#if GLIB_SIZEOF_VOID_P == 8
+  STALKER_TESTENTRY (direct_call_with_extended_register)
+#endif
   STALKER_TESTENTRY (popcnt)
 #if GLIB_SIZEOF_VOID_P == 4
   STALKER_TESTENTRY (no_register_clobber)
@@ -1144,6 +1147,36 @@ STALKER_TESTCASE (direct_call_with_register)
 
   invoke_call_from_template (fixture, &call_template);
 }
+
+#if GLIB_SIZEOF_VOID_P == 8
+
+STALKER_TESTCASE (direct_call_with_extended_register)
+{
+  const guint8 code[] = {
+      0x49, 0xb9, 0x00, 0x00, 0x00, 0x00, /* mov r9, X            */
+                  0x00, 0x00, 0x00, 0x00,
+      0x41, 0xff, 0xd1,                   /* call r9              */
+      0xc3,                               /* ret                  */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337        */
+      0xc3,                               /* ret                  */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 10;
+  call_template.target_mov_offset = 0;
+  call_template.target_address_offset = 2;
+  call_template.target_address_offset_points_directly_to_function = TRUE;
+  call_template.target_func_offset = 14;
+  call_template.instruction_count = 5;
+  call_template.ia32_padding_instruction_count = 0;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
+#endif
 
 STALKER_TESTCASE (popcnt)
 {

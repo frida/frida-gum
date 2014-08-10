@@ -2682,10 +2682,16 @@ gum_write_segment_prefix (uint8_t segment,
 static GumCpuReg
 gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
 {
-  if (reg >= GUM_REG_EAX && reg <= GUM_REG_R15D)
+  if (reg >= GUM_REG_EAX && reg <= GUM_REG_EDI)
     return (GumCpuReg) (GUM_REG_XAX + reg - GUM_REG_EAX);
-  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_R15)
+  else if (reg >= GUM_REG_RAX && reg <= GUM_REG_RDI)
     return (GumCpuReg) (GUM_REG_XAX + reg - GUM_REG_RAX);
+#if GLIB_SIZEOF_VOID_P == 8
+  else if (reg >= GUM_REG_R8D && reg <= GUM_REG_R15D)
+    return reg;
+  else if (reg >= GUM_REG_R8 && reg <= GUM_REG_R15)
+    return reg;
+#endif
   else if (reg == GUM_REG_RIP)
     return GUM_REG_XIP;
   else if (reg == GUM_REG_NONE)
