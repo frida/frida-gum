@@ -387,7 +387,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
   if (op->type == X86_OP_IMM)
   {
-    const guint8 * target = ctx->end + op->imm;
+    const guint8 * target = GSIZE_TO_POINTER (op->imm);
 
     if (ctx->insn->id == X86_INS_CALL)
       gum_x86_writer_put_call (cw, target);
@@ -422,7 +422,7 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
 
   if (op->type == X86_OP_IMM)
   {
-    const guint8 * target = ctx->end + op->imm;
+    const guint8 * target = GSIZE_TO_POINTER (op->imm);
 
     if (target >= self->input_start && target < self->input_cur)
     {
@@ -524,5 +524,5 @@ gum_x86_call_is_to_next_instruction (cs_insn * insn)
 {
   cs_x86_op * op = &insn->detail->x86.operands[0];
 
-  return (op->type == X86_OP_IMM && op->imm == 0);
+  return (op->type == X86_OP_IMM && op->imm == insn->address + insn->size);
 }

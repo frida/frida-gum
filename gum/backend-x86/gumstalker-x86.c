@@ -1847,7 +1847,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 
   if (op->type == X86_OP_IMM)
   {
-    target.absolute_address = insn->end + op->imm;
+    target.absolute_address = GSIZE_TO_POINTER (op->imm);
     target.is_indirect = FALSE;
     target.pfx_seg = X86_REG_INVALID;
     target.base = X86_REG_INVALID;
@@ -1856,7 +1856,6 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
   else if (op->type == X86_OP_MEM)
   {
-    g_assert_cmpint (x86->op_size, ==, GLIB_SIZEOF_VOID_P * 8);
 #if GLIB_SIZEOF_VOID_P == 4
     g_assert (op->mem.base == X86_REG_INVALID ||
         (op->mem.base >= X86_REG_EAX && op->mem.base <= X86_REG_EDI));

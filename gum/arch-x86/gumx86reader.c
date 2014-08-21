@@ -112,9 +112,7 @@ try_get_relative_call_or_jump_target (gconstpointer address,
 
   op = &insn->detail->x86.operands[0];
   if (insn->id == call_or_jump && op->type == X86_OP_IMM)
-  {
-    result = (guint8 *) address + insn->size + op->imm;
-  }
+    result = GSIZE_TO_POINTER (op->imm);
 
   cs_free (insn, 1);
 
