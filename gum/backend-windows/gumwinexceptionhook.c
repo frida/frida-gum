@@ -9,7 +9,6 @@
 #include "gumx86writer.h"
 
 #include <tchar.h>
-#include <udis86.h>
 
 #define GUM_IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
 

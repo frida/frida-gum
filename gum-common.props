@@ -4,7 +4,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;HAVE_SYMBOL_BACKEND=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(IntDir)libudis86;$(SolutionDir)udis86;$(SolutionDir)udis86\libudis86;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -83,14 +83,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClInclude Include="gum\arch-x86\gumudis86.h" />
     <ClInclude Include="gum\arch-x86\gumx86reader.h" />
     <ClInclude Include="gum\arch-x86\gumx86relocator.h" />
     <ClInclude Include="gum\arch-x86\gumx86writer.h" />
   </ItemGroup>
 
   <ItemGroup>
-    <ClCompile Include="gum\arch-x86\gumudis86.c" />
     <ClCompile Include="gum\arch-x86\gumx86reader.c" />
     <ClCompile Include="gum\arch-x86\gumx86relocator.c" />
     <ClCompile Include="gum\arch-x86\gumx86writer.c" />
@@ -204,34 +202,6 @@
 
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <CustomBuild Include="..\udis86\docs\x86\optable.xml">
-      <Command>"$(SolutionDir)udis86\scripts\ud_itab.py" "$(SolutionDir)udis86\docs\x86\optable.xml" "$(IntDir)libudis86"</Command>
-      <Message>Generating itab</Message>
-      <Outputs>$(IntDir)libudis86\itab.c;$(IntDir)libudis86\itab.h</Outputs>
-      <AdditionalInputs>$(SolutionDir)udis86\scripts\ud_itab.py</AdditionalInputs>
-    </CustomBuild>
-  </ItemGroup>
-
-  <ItemGroup>
-    <ClInclude Include="$(SolutionDir)udis86\udis86.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\types.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h" />
-    <ClInclude Include="$(IntDir)libudis86\itab.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h" />
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\decode.h" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ClCompile Include="$(IntDir)libudis86\itab.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-intel.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c" />
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\udis86.c" />
   </ItemGroup>
 
 </Project>

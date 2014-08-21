@@ -41,7 +41,6 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/gum/arch-x86 \
-	-I $(top_srcdir)/ext/udis86 \
 	-I $(top_srcdir)/gum/arch-arm \
 	-I $(top_srcdir)/gum/arch-arm64 \
 	-I $(top_srcdir)/libs \

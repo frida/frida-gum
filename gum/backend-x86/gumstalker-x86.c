@@ -14,7 +14,6 @@
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
-#include "gumudis86.h"
 
 #include <stdlib.h>
 #include <string.h>
