@@ -369,8 +369,7 @@ static gboolean
 gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
                                                 GumCodeGenCtx * ctx)
 {
-  cs_x86 * x86 = &ctx->insn->detail->x86;
-  cs_x86_op * op = &x86->operands[0];
+  cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
   GumX86Writer * cw = ctx->code_writer;
 
   (void) self;
@@ -405,8 +404,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   }
   else if (((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP)
           && op->type == X86_OP_MEM) ||
-      (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM
-          && x86->op_size == 8))
+      (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM && op->size == 8))
   {
     return FALSE;
   }

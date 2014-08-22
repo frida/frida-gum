@@ -1868,7 +1868,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       target.relative_offset = op->mem.disp;
 
     target.is_indirect = TRUE;
-    target.pfx_seg = x86->segment;
+    target.pfx_seg = op->mem.segment;
     target.base = op->mem.base;
     target.index = op->mem.index;
     target.scale = op->mem.scale;
