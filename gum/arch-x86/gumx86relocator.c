@@ -470,7 +470,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   (void) self;
 
-  if (!x86->modrm)
+  if (x86->modrm_offset == 0)
     return FALSE;
 
   mod = (x86->modrm & 0xc0) >> 6;
@@ -513,9 +513,8 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   }
   else
   {
-    guint modrm_offset = insn->size - 1 - x86->imm_size;
     memcpy (code, ctx->start, ctx->len);
-    code[modrm_offset] = (mod << 6) | (reg << 3) | rm;
+    code[x86->modrm_offset] = (mod << 6) | (reg << 3) | rm;
     gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
   }
 
