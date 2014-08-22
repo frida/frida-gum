@@ -1516,7 +1516,7 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
   }
   else if (target->base == X86_REG_INVALID && target->index == X86_REG_INVALID)
   {
-    g_assert (target->scale == 0);
+    g_assert_cmpint (target->scale, ==, 1);
     g_assert (target->absolute_address != NULL);
     g_assert (target->relative_offset == 0);
 
@@ -1542,7 +1542,7 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
         target->origin_ip,
         gc);
     gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (cw, GUM_REG_XAX,
-        GUM_REG_XAX, GUM_REG_XDX, target->scale ? target->scale : 1,
+        GUM_REG_XAX, GUM_REG_XDX, target->scale,
         target->relative_offset);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
         GUM_REG_XSP, 2 * sizeof (gpointer),
@@ -1856,14 +1856,6 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   }
   else if (op->type == X86_OP_MEM)
   {
-#if GLIB_SIZEOF_VOID_P == 4
-    g_assert (op->mem.base == X86_REG_INVALID ||
-        (op->mem.base >= X86_REG_EAX && op->mem.base <= X86_REG_EDI));
-#else
-    g_assert (op->mem.base == X86_REG_INVALID || op->mem.base == X86_REG_RIP ||
-        (op->mem.base >= X86_REG_RAX && op->mem.base <= X86_REG_R15));
-#endif
-
 #ifdef G_OS_WIN32
     /* Can't follow WoW64 */
     if (insn->ud->pfx_seg == X86_REG_FS && op->lval.udword == 0xc0)
@@ -1885,7 +1877,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
     target.is_indirect = FALSE;
     target.pfx_seg = X86_REG_INVALID;
-    target.base = X86_REG_INVALID;
+    target.base = op->reg;
     target.index = X86_REG_INVALID;
     target.scale = 0;
   }
@@ -2694,16 +2686,49 @@ gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
 static GumCpuReg
 gum_cpu_reg_from_capstone (x86_reg reg)
 {
-  if (reg >= X86_REG_EAX && reg <= X86_REG_EDI)
-    return (GumCpuReg) (GUM_REG_EAX + reg - X86_REG_EAX);
-  else if (reg >= X86_REG_RAX && reg <= X86_REG_R15)
-    return (GumCpuReg) (GUM_REG_RAX + reg - X86_REG_RAX);
-  else if (reg == X86_REG_RIP)
-    return GUM_REG_RIP;
-  else if (reg == X86_REG_INVALID)
-    return GUM_REG_NONE;
-  else
-    g_assert_not_reached ();
+  switch (reg)
+  {
+    case X86_REG_INVALID: return GUM_REG_NONE;
+
+    case X86_REG_EAX: return GUM_REG_EAX;
+    case X86_REG_ECX: return GUM_REG_ECX;
+    case X86_REG_EDX: return GUM_REG_EDX;
+    case X86_REG_EBX: return GUM_REG_EBX;
+    case X86_REG_ESP: return GUM_REG_ESP;
+    case X86_REG_EBP: return GUM_REG_EBP;
+    case X86_REG_ESI: return GUM_REG_ESI;
+    case X86_REG_EDI: return GUM_REG_EDI;
+    case X86_REG_R8D: return GUM_REG_R8D;
+    case X86_REG_R9D: return GUM_REG_R9D;
+    case X86_REG_R10D: return GUM_REG_R10D;
+    case X86_REG_R11D: return GUM_REG_R11D;
+    case X86_REG_R12D: return GUM_REG_R12D;
+    case X86_REG_R13D: return GUM_REG_R13D;
+    case X86_REG_R14D: return GUM_REG_R14D;
+    case X86_REG_R15D: return GUM_REG_R15D;
+    case X86_REG_EIP: return GUM_REG_EIP;
+
+    case X86_REG_RAX: return GUM_REG_RAX;
+    case X86_REG_RCX: return GUM_REG_RCX;
+    case X86_REG_RDX: return GUM_REG_RDX;
+    case X86_REG_RBX: return GUM_REG_RBX;
+    case X86_REG_RSP: return GUM_REG_RSP;
+    case X86_REG_RBP: return GUM_REG_RBP;
+    case X86_REG_RSI: return GUM_REG_RSI;
+    case X86_REG_RDI: return GUM_REG_RDI;
+    case X86_REG_R8: return GUM_REG_R8;
+    case X86_REG_R9: return GUM_REG_R9;
+    case X86_REG_R10: return GUM_REG_R10;
+    case X86_REG_R11: return GUM_REG_R11;
+    case X86_REG_R12: return GUM_REG_R12;
+    case X86_REG_R13: return GUM_REG_R13;
+    case X86_REG_R14: return GUM_REG_R14;
+    case X86_REG_R15: return GUM_REG_R15;
+    case X86_REG_RIP: return GUM_REG_RIP;
+
+    default:
+      g_assert_not_reached ();
+  }
 }
 
 static void
