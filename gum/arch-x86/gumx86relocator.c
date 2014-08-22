@@ -67,9 +67,10 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
   {
     cs_insn * insn = relocator->input_insns[i];
     if (insn != NULL)
+    {
       cs_free (insn, 1);
-    else
-      break; /* we allocate them contiguously */
+      relocator->input_insns[i] = NULL;
+    }
   }
   relocator->output = output;
 
@@ -127,6 +128,12 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
     return 0;
 
   insn_ptr = &self->input_insns[gum_x86_relocator_inpos (self)];
+
+  if (*insn_ptr != NULL)
+  {
+    cs_free (*insn_ptr, 1);
+    *insn_ptr = NULL;
+  }
 
   if (cs_disasm_ex (self->capstone, self->input_cur, 16,
         GPOINTER_TO_SIZE (self->input_cur), 1, insn_ptr) != 1)
