@@ -307,15 +307,25 @@ gum_alloc_n_pages (guint n_pages,
   kern_return_t kr;
 
   page_size = gum_query_page_size ();
-  size = n_pages * page_size;
+  size = (1 + n_pages) * page_size;
 
   kr = mach_vm_allocate (mach_task_self (), &result, size, VM_FLAGS_ANYWHERE);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  if (page_prot != GUM_PAGE_RW)
-    gum_mprotect (GSIZE_TO_POINTER (result), size, page_prot);
+  *((gsize *) GSIZE_TO_POINTER (result)) = size;
 
-  return GSIZE_TO_POINTER (result);
+  if (page_prot != GUM_PAGE_READ)
+  {
+    gum_mprotect (GSIZE_TO_POINTER (result), page_size, GUM_PAGE_READ);
+  }
+
+  if (page_prot != GUM_PAGE_RW)
+  {
+    gum_mprotect (GSIZE_TO_POINTER (result + page_size), size - page_size,
+        page_prot);
+  }
+
+  return GSIZE_TO_POINTER (result + page_size);
 }
 
 gpointer
@@ -323,10 +333,13 @@ gum_alloc_n_pages_near (guint n_pages,
                         GumPageProtection page_prot,
                         GumAddressSpec * address_spec)
 {
+  gsize page_size;
   GumAllocNearContext ctx;
 
+  page_size = gum_query_page_size ();
+
   ctx.result = NULL;
-  ctx.size = n_pages * gum_query_page_size ();
+  ctx.size = (1 + n_pages) * gum_query_page_size ();
   ctx.address_spec = address_spec;
   ctx.task = mach_task_self ();
 
@@ -335,10 +348,19 @@ gum_alloc_n_pages_near (guint n_pages,
 
   g_assert (ctx.result != NULL);
 
-  if (page_prot != GUM_PAGE_RW)
-    gum_mprotect (ctx.result, ctx.size, page_prot);
+  *((gsize *) ctx.result) = ctx.size;
 
-  return ctx.result;
+  if (page_prot != GUM_PAGE_READ)
+  {
+    gum_mprotect (ctx.result, page_size, GUM_PAGE_READ);
+  }
+
+  if (page_prot != GUM_PAGE_RW)
+  {
+    gum_mprotect (ctx.result + page_size, ctx.size - page_size, page_prot);
+  }
+
+  return ctx.result + page_size;
 }
 
 static gboolean
@@ -379,21 +401,17 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
 void
 gum_free_pages (gpointer mem)
 {
-  mach_port_t self;
-  mach_vm_address_t address = GPOINTER_TO_SIZE (mem);
-  mach_vm_size_t size = (mach_vm_size_t) 0;
-  vm_region_basic_info_data_64_t info;
-  mach_msg_type_number_t info_count = VM_REGION_BASIC_INFO_COUNT_64;
-  mach_port_t unused_port = MACH_PORT_NULL;
+  gsize page_size;
+  mach_vm_address_t address;
+  mach_vm_size_t size;
   kern_return_t kr;
 
-  self = mach_task_self ();
+  page_size = gum_query_page_size ();
 
-  kr = mach_vm_region (self, &address, &size, VM_REGION_BASIC_INFO,
-      (vm_region_info_t) &info, &info_count, &unused_port);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  address = GPOINTER_TO_SIZE (mem) - page_size;
+  size = *((gsize *) address);
 
-  kr = mach_vm_deallocate (self, address, size);
+  kr = mach_vm_deallocate (mach_task_self (), address, size);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 }
 
