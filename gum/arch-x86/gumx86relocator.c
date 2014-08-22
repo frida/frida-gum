@@ -502,14 +502,15 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   if (insn->id == X86_INS_PUSH)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (ctx->code_writer, rip_reg,
-        rip_reg, x86->operands[0].imm);
+        rip_reg, x86->disp);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (ctx->code_writer,
         GUM_REG_RSP, 0x08, rip_reg);
   }
   else
   {
+    guint modrm_offset = insn->size - 1 - x86->imm_size;
     memcpy (code, ctx->start, ctx->len);
-    /* FIXME: code[ctx->insn->modrm_offset] = (mod << 6) | (reg << 3) | rm; */
+    code[modrm_offset] = (mod << 6) | (reg << 3) | rm;
     gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
   }
 
