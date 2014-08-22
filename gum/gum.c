@@ -227,14 +227,17 @@ static gpointer
 gum_capstone_realloc (gpointer mem,
                       gsize size)
 {
+  GumBlock * block;
   gpointer result;
 
+  if (mem == NULL)
+    return gum_capstone_malloc (size);
+
+  block = GUM_BLOCK_FROM_DATA_POINTER (mem);
+
   result = gum_capstone_malloc (size);
-  if (mem != NULL)
-  {
-    memcpy (result, mem, GUM_BLOCK_FROM_DATA_POINTER (mem)->pool->block_size);
-    gum_capstone_free (mem);
-  }
+  memcpy (result, mem, MIN (block->pool->block_size, size));
+  gum_capstone_free (mem);
 
   return result;
 }
