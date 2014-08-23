@@ -1329,10 +1329,11 @@ STALKER_TESTCASE (no_register_clobber)
   gum_x86_writer_put_pushax (&cw);
 
   gum_x86_writer_put_pushax (&cw);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_ESP, sizeof (gpointer));
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->sink);
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_x86_writer_put_call (&cw, gum_stalker_follow_me);
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 3 * sizeof (gpointer));
   gum_x86_writer_put_popax (&cw);
 
   gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_EAX, 0xcafebabe);
@@ -1346,9 +1347,10 @@ STALKER_TESTCASE (no_register_clobber)
   gum_x86_writer_put_call_near_label (&cw, my_func_lbl);
 
   gum_x86_writer_put_pushax (&cw);
+  gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_ESP, 2 * sizeof (gpointer));
   gum_x86_writer_put_push_u32 (&cw, (guint32) fixture->stalker);
   gum_x86_writer_put_call (&cw, gum_stalker_unfollow_me);
-  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 1 * sizeof (gpointer));
+  gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_ESP, 3 * sizeof (gpointer));
   gum_x86_writer_put_popax (&cw);
 
   gum_x86_writer_put_push_reg (&cw, GUM_REG_ECX);

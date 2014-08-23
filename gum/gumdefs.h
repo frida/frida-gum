@@ -178,10 +178,10 @@ struct _GumCpuContext
 #define GUM_MAX_LISTENER_DATA        256
 
 #if GLIB_SIZEOF_VOID_P == 8
-#define GUM_CPU_MODE 64
+#define GUM_CPU_MODE CS_MODE_64
 #define GUM_THUNK
 #else
-#define GUM_CPU_MODE 32
+#define GUM_CPU_MODE CS_MODE_32
 #define GUM_THUNK GUM_FASTCALL
 #endif
 #if !defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 8

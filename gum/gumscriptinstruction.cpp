@@ -6,6 +6,8 @@
 
 #include "gumscriptinstruction.h"
 
+#include <string.h>
+
 #if defined (HAVE_I386)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
 # if GLIB_SIZEOF_VOID_P == 8
@@ -33,7 +35,7 @@ struct _GumInstruction
 {
   GumPersistent<v8::Object>::type * instance;
   gpointer target;
-  cs_insn * handle;
+  cs_insn insn;
   GumScriptInstruction * module;
 };
 
@@ -41,7 +43,7 @@ static void gum_script_instruction_on_parse (
     const FunctionCallbackInfo<Value> & info);
 
 static GumInstruction * gum_instruction_new (Handle<Object> instance,
-    gpointer target, cs_insn * handle, GumScriptInstruction * module);
+    gpointer target, cs_insn * insn, GumScriptInstruction * module);
 static void gum_instruction_free (GumInstruction * instruction);
 static void gum_instruction_on_weak_notify (const WeakCallbackData<Object,
     GumInstruction> & data);
@@ -142,9 +144,9 @@ gum_script_instruction_on_parse (const FunctionCallbackInfo<Value> & info)
   address = GPOINTER_TO_SIZE (target);
 #endif
 
-  cs_insn * handle;
+  cs_insn * insn;
   if (cs_disasm_ex (self->capstone, static_cast<uint8_t *> (target), 16,
-      address, 1, &handle) == 0)
+      address, 1, &insn) == 0)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
         "Instruction.parse: invalid instruction")));
@@ -154,15 +156,17 @@ gum_script_instruction_on_parse (const FunctionCallbackInfo<Value> & info)
   Local<Object> value (Local<Object>::New (isolate, *self->value));
   Local<Object> instance (value->Clone ());
   GumInstruction * instruction =
-      gum_instruction_new (instance, target, handle, self);
+      gum_instruction_new (instance, target, insn, self);
   instance->SetAlignedPointerInInternalField (0, instruction);
   info.GetReturnValue ().Set (instance);
+
+  cs_free (insn, 1);
 }
 
 static GumInstruction *
 gum_instruction_new (Handle<Object> instance,
                      gpointer target,
-                     cs_insn * handle,
+                     cs_insn * insn,
                      GumScriptInstruction * module)
 {
   GumInstruction * instruction;
@@ -173,13 +177,13 @@ gum_instruction_new (Handle<Object> instance,
   instruction->instance->MarkIndependent ();
   instruction->instance->SetWeak (instruction, gum_instruction_on_weak_notify);
   instruction->target = target;
-  instruction->handle = handle;
+  memcpy (&instruction->insn, insn, sizeof (cs_insn));
   instruction->module = module;
 
   isolate->AdjustAmountOfExternalAllocatedMemory (
       GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
 
-  g_hash_table_insert (module->instructions, handle, instruction);
+  g_hash_table_insert (module->instructions, &instruction->insn, instruction);
 
   return instruction;
 }
@@ -190,7 +194,6 @@ gum_instruction_free (GumInstruction * instruction)
   instruction->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
       -GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
 
-  cs_free (instruction->handle, 1);
   delete instruction->instance;
   g_slice_free (GumInstruction, instruction);
 }
@@ -201,7 +204,7 @@ gum_instruction_on_weak_notify (const WeakCallbackData<Object,
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumInstruction * self = data.GetParameter ();
-  g_hash_table_remove (self->module->instructions, self->handle);
+  g_hash_table_remove (self->module->instructions, &self->insn);
 }
 
 static void
@@ -211,7 +214,7 @@ gum_script_instruction_on_get_address (Local<String> property,
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   info.GetReturnValue ().Set (
-      _gum_script_pointer_new (GSIZE_TO_POINTER (self->handle->address),
+      _gum_script_pointer_new (GSIZE_TO_POINTER (self->insn.address),
           self->module->core));
 }
 
@@ -222,7 +225,7 @@ gum_script_instruction_on_get_next (Local<String> property,
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   gpointer next = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (self->target) + self->handle->size);
+      GPOINTER_TO_SIZE (self->target) + self->insn.size);
   info.GetReturnValue ().Set (
       _gum_script_pointer_new (next, self->module->core));
 }
@@ -233,7 +236,7 @@ gum_script_instruction_on_get_size (Local<String> property,
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
-  info.GetReturnValue ().Set (self->handle->size);
+  info.GetReturnValue ().Set (self->insn.size);
 }
 
 static void
@@ -243,7 +246,7 @@ gum_script_instruction_on_get_mnemonic (Local<String> property,
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   info.GetReturnValue ().Set (
-      String::NewFromUtf8 (info.GetIsolate (), self->handle->mnemonic));
+      String::NewFromUtf8 (info.GetIsolate (), self->insn.mnemonic));
 }
 
 static void
@@ -253,7 +256,7 @@ gum_script_instruction_on_get_op_str (Local<String> property,
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   info.GetReturnValue ().Set (
-      String::NewFromUtf8 (info.GetIsolate (), self->handle->op_str));
+      String::NewFromUtf8 (info.GetIsolate (), self->insn.op_str));
 }
 
 static void
@@ -261,7 +264,7 @@ gum_script_instruction_on_to_string (const FunctionCallbackInfo<Value> & info)
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
-  cs_insn * insn = self->handle;
+  cs_insn * insn = &self->insn;
   gchar * str = g_strconcat (insn->mnemonic, " ", insn->op_str,
       static_cast<void *> (NULL));
   info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), str));

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,7 @@
 #include "gumx86relocator.h"
 
 #include "gummemory.h"
-#include "gumudis86.h"
+#include "gumx86reader.h"
 
 #include <string.h>
 
@@ -17,7 +17,7 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 
 struct _GumCodeGenCtx
 {
-  ud_t * insn;
+  cs_insn * insn;
   guint8 * start;
   guint8 * end;
   guint len;
@@ -27,7 +27,7 @@ struct _GumCodeGenCtx
 
 static gboolean gum_x86_relocator_write_one_instruction (GumX86Relocator * self);
 static void gum_x86_relocator_put_label_for (GumX86Relocator * self,
-    ud_t * insn);
+    cs_insn * insn);
 
 static gboolean gum_x86_relocator_rewrite_unconditional_branch (
     GumX86Relocator * self, GumCodeGenCtx * ctx);
@@ -36,14 +36,20 @@ static gboolean gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * 
 static gboolean gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     GumCodeGenCtx * ctx);
 
-static gboolean gum_x86_call_is_to_next_instruction (ud_t * insn);
+static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
 
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
                         const guint8 * input_code,
                         GumX86Writer * output)
 {
-  relocator->input_insns = gum_new (ud_t, GUM_MAX_INPUT_INSN_COUNT);
+  cs_err err;
+
+  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &relocator->capstone);
+  g_assert_cmpint (err, ==, CS_ERR_OK);
+  err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  g_assert_cmpint (err, ==, CS_ERR_OK);
+  relocator->input_insns = gum_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   gum_x86_relocator_reset (relocator, input_code, output);
 }
@@ -53,10 +59,23 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
                          const guint8 * input_code,
                          GumX86Writer * output)
 {
-  relocator->input_start = relocator->input_cur = input_code;
+  guint i;
+
+  relocator->input_start = input_code;
+  relocator->input_cur = input_code;
+  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
+  {
+    cs_insn * insn = relocator->input_insns[i];
+    if (insn != NULL)
+    {
+      cs_free (insn, 1);
+      relocator->input_insns[i] = NULL;
+    }
+  }
   relocator->output = output;
 
-  relocator->inpos = relocator->outpos = 0;
+  relocator->inpos = 0;
+  relocator->outpos = 0;
 
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
@@ -65,7 +84,12 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
 void
 gum_x86_relocator_free (GumX86Relocator * relocator)
 {
+  gum_x86_relocator_reset (relocator, relocator->input_start,
+      relocator->output);
+
   gum_free (relocator->input_insns);
+
+  cs_close (&relocator->capstone);
 }
 
 static guint
@@ -96,87 +120,90 @@ gum_x86_relocator_increment_outpos (GumX86Relocator * self)
 
 guint
 gum_x86_relocator_read_one (GumX86Relocator * self,
-                            const ud_t ** insn)
+                            const cs_insn ** instruction)
 {
-  const guint buf_size = 4096;
-  ud_t * ud;
-  guint in_size;
+  cs_insn ** insn_ptr, * insn;
 
   if (self->eoi)
     return 0;
 
-  ud = &self->input_insns[gum_x86_relocator_inpos (self)];
-  gum_x86_relocator_increment_inpos (self);
+  insn_ptr = &self->input_insns[gum_x86_relocator_inpos (self)];
 
-  ud_init (ud);
-  ud_set_mode (ud, GUM_CPU_MODE);
-  /*ud_set_syntax (ud, UD_SYN_INTEL);*/
-
-  ud_set_pc (ud, GPOINTER_TO_SIZE (self->input_cur));
-  ud_set_input_buffer (ud, (guint8 *) self->input_cur, buf_size);
-
-  in_size = ud_disassemble (ud);
-  g_assert (in_size != 0);
-
-  switch (ud->mnemonic)
+  if (*insn_ptr != NULL)
   {
-    case UD_Ijcxz:
-    case UD_Ijecxz:
-    case UD_Ijrcxz:
+    cs_free (*insn_ptr, 1);
+    *insn_ptr = NULL;
+  }
+
+  if (cs_disasm_ex (self->capstone, self->input_cur, 16,
+        GPOINTER_TO_SIZE (self->input_cur), 1, insn_ptr) != 1)
+  {
+    return 0;
+  }
+
+  insn = *insn_ptr;
+
+  switch (insn->id)
+  {
+    case X86_INS_JCXZ:
+    case X86_INS_JECXZ:
+    case X86_INS_JRCXZ:
       return 0; /* FIXME: not supported */
       break;
 
-    case UD_Ijmp:
-    case UD_Iret:
-    case UD_Iretf:
+    case X86_INS_JMP:
+    case X86_INS_RET:
+    case X86_INS_RETF:
       self->eob = TRUE;
       self->eoi = TRUE;
       break;
 
-    case UD_Icall:
-      self->eob = !gum_x86_call_is_to_next_instruction (ud);
+    case X86_INS_CALL:
+      self->eob = !gum_x86_call_is_to_next_instruction (insn);
       self->eoi = FALSE;
       break;
 
     default:
-      if (gum_mnemonic_is_jcc (ud->mnemonic))
+      if (gum_x86_reader_insn_is_jcc (insn))
         self->eob = TRUE;
       break;
   }
 
-  if (insn != NULL)
-    *insn = ud;
+  gum_x86_relocator_increment_inpos (self);
 
-  self->input_cur += in_size;
+  if (instruction != NULL)
+    *instruction = insn;
+
+  self->input_cur += insn->size;
 
   return self->input_cur - self->input_start;
 }
 
-ud_t *
+cs_insn *
 gum_x86_relocator_peek_next_write_insn (GumX86Relocator * self)
 {
   if (self->outpos == self->inpos)
     return NULL;
 
-  return &self->input_insns[gum_x86_relocator_outpos (self)];
+  return self->input_insns[gum_x86_relocator_outpos (self)];
 }
 
 gpointer
 gum_x86_relocator_peek_next_write_source (GumX86Relocator * self)
 {
-  ud_t * next;
+  cs_insn * next;
 
   next = gum_x86_relocator_peek_next_write_insn (self);
   if (next == NULL)
     return NULL;
 
-  return GSIZE_TO_POINTER (ud_insn_off (next));
+  return GSIZE_TO_POINTER (next->address);
 }
 
 void
 gum_x86_relocator_skip_one (GumX86Relocator * self)
 {
-  ud_t * next;
+  cs_insn * next;
 
   next = gum_x86_relocator_peek_next_write_insn (self);
   g_assert (next != NULL);
@@ -188,7 +215,7 @@ gum_x86_relocator_skip_one (GumX86Relocator * self)
 void
 gum_x86_relocator_skip_one_no_label (GumX86Relocator * self)
 {
-  ud_t * next;
+  cs_insn * next;
 
   next = gum_x86_relocator_peek_next_write_insn (self);
   g_assert (next != NULL);
@@ -198,7 +225,7 @@ gum_x86_relocator_skip_one_no_label (GumX86Relocator * self)
 gboolean
 gum_x86_relocator_write_one (GumX86Relocator * self)
 {
-  ud_t * cur;
+  cs_insn * cur;
 
   if ((cur = gum_x86_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
@@ -224,21 +251,21 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
     return FALSE;
   gum_x86_relocator_increment_outpos (self);
 
-  ctx.len = ud_insn_len (ctx.insn);
-  ctx.start = (guint8 *) GPOINTER_TO_SIZE (ud_insn_off (ctx.insn));
+  ctx.len = ctx.insn->size;
+  ctx.start = (guint8 *) GSIZE_TO_POINTER (ctx.insn->address);
   ctx.end = ctx.start + ctx.len;
 
   ctx.code_writer = self->output;
 
-  switch (ctx.insn->mnemonic)
+  switch (ctx.insn->id)
   {
-    case UD_Icall:
-    case UD_Ijmp:
+    case X86_INS_CALL:
+    case X86_INS_JMP:
       rewritten = gum_x86_relocator_rewrite_unconditional_branch (self, &ctx);
       break;
 
     default:
-      if (gum_mnemonic_is_jcc (ctx.insn->mnemonic))
+      if (gum_x86_reader_insn_is_jcc (ctx.insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
       else
         rewritten = gum_x86_relocator_rewrite_if_rip_relative (self, &ctx);
@@ -276,10 +303,9 @@ gum_x86_relocator_eoi (GumX86Relocator * self)
 
 static void
 gum_x86_relocator_put_label_for (GumX86Relocator * self,
-                                 ud_t * insn)
+                                 cs_insn * insn)
 {
-  gum_x86_writer_put_label (self->output,
-      GSIZE_TO_POINTER (ud_insn_off (insn)));
+  gum_x86_writer_put_label (self->output, GSIZE_TO_POINTER (insn->address));
 }
 
 gboolean
@@ -343,11 +369,10 @@ static gboolean
 gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
                                                 GumCodeGenCtx * ctx)
 {
-  ud_operand_t * op = &ctx->insn->operand[0];
+  cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
   GumX86Writer * cw = ctx->code_writer;
 
   (void) self;
-  (void) ctx;
 
   if (gum_x86_call_is_to_next_instruction (ctx->insn))
   {
@@ -366,32 +391,24 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
     return TRUE;
   }
 
-  if (op->type == UD_OP_JIMM)
+  if (op->type == X86_OP_IMM)
   {
-    const guint8 * target = NULL;
+    const guint8 * target = GSIZE_TO_POINTER (op->imm);
 
-    if (op->size == 8)
-      target = ctx->end + op->lval.sbyte;
-    else if (op->size == 32)
-      target = ctx->end + op->lval.sdword;
-    else
-      g_assert_not_reached ();
-
-    if (ctx->insn->mnemonic == UD_Icall)
+    if (ctx->insn->id == X86_INS_CALL)
       gum_x86_writer_put_call (cw, target);
     else
       gum_x86_writer_put_jmp (cw, target);
 
     return TRUE;
   }
-  else if (((ctx->insn->mnemonic == UD_Icall || ctx->insn->mnemonic == UD_Ijmp)
-          && op->type == UD_OP_MEM) ||
-      (ctx->insn->mnemonic == UD_Ijmp && op->type == UD_OP_JIMM
-          && op->size == 8))
+  else if (((ctx->insn->id == X86_INS_CALL || ctx->insn->id == X86_INS_JMP)
+          && op->type == X86_OP_MEM) ||
+      (ctx->insn->id == X86_INS_JMP && op->type == X86_OP_IMM && op->size == 8))
   {
     return FALSE;
   }
-  else if (op->type == UD_OP_REG)
+  else if (op->type == X86_OP_REG)
   {
     return FALSE;
   }
@@ -406,17 +423,11 @@ static gboolean
 gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
                                               GumCodeGenCtx * ctx)
 {
-  ud_operand_t * op = &ctx->insn->operand[0];
-  if (op->type == UD_OP_JIMM)
-  {
-    const guint8 * target = NULL;
+  cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
 
-    if (op->size == 8)
-      target = ctx->end + op->lval.sbyte;
-    else if (op->size == 32)
-      target = ctx->end + op->lval.sdword;
-    else
-      g_assert_not_reached ();
+  if (op->type == X86_OP_IMM)
+  {
+    const guint8 * target = GSIZE_TO_POINTER (op->imm);
 
     if (target >= self->input_start && target < self->input_cur)
     {
@@ -426,7 +437,9 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     else
     {
       gum_x86_writer_put_jcc_near (ctx->code_writer,
-          gum_jcc_insn_to_short_opcode (ctx->start), target, GUM_NO_HINT);
+          gum_x86_reader_jcc_insn_to_short_opcode (ctx->start),
+          target,
+          GUM_NO_HINT);
     }
   }
   else
@@ -448,7 +461,8 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   return FALSE;
 #else
-  ud_t * insn = ctx->insn;
+  cs_insn * insn = ctx->insn;
+  cs_x86 * x86 = &insn->detail->x86;
   guint mod, reg, rm;
   gboolean is_rip_relative;
   GumCpuReg target_reg, rip_reg;
@@ -456,12 +470,12 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 
   (void) self;
 
-  if (!insn->have_modrm)
+  if (x86->modrm_offset == 0)
     return FALSE;
 
-  mod = (insn->modrm & 0xc0) >> 6;
-  reg = (insn->modrm & 0x38) >> 3;
-  rm  = (insn->modrm & 0x07) >> 0;
+  mod = (x86->modrm & 0xc0) >> 6;
+  reg = (x86->modrm & 0x38) >> 3;
+  rm  = (x86->modrm & 0x07) >> 0;
 
   is_rip_relative = (mod == 0 && rm == 5);
   if (!is_rip_relative)
@@ -481,7 +495,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     rm = 1;
   }
 
-  if (insn->mnemonic == UD_Ipush)
+  if (insn->id == X86_INS_PUSH)
   {
     gum_x86_writer_put_push_reg (ctx->code_writer, GUM_REG_RAX);
   }
@@ -490,17 +504,17 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   gum_x86_writer_put_mov_reg_address (ctx->code_writer, rip_reg,
       GUM_ADDRESS (ctx->end));
 
-  if (insn->mnemonic == UD_Ipush)
+  if (insn->id == X86_INS_PUSH)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (ctx->code_writer, rip_reg,
-        rip_reg, insn->operand[0].lval.sdword);
+        rip_reg, x86->disp);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (ctx->code_writer,
         GUM_REG_RSP, 0x08, rip_reg);
   }
   else
   {
     memcpy (code, ctx->start, ctx->len);
-    code[ctx->insn->modrm_offset] = (mod << 6) | (reg << 3) | rm;
+    code[x86->modrm_offset] = (mod << 6) | (reg << 3) | rm;
     gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
   }
 
@@ -511,9 +525,10 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
 }
 
 static gboolean
-gum_x86_call_is_to_next_instruction (ud_t * insn)
+gum_x86_call_is_to_next_instruction (cs_insn * insn)
 {
-  ud_operand_t * op = &insn->operand[0];
+  cs_x86_op * op = &insn->detail->x86.operands[0];
 
-  return (op->type == UD_OP_JIMM && op->lval.sdword == 0);
+  return (op->type == X86_OP_IMM
+      && (uint64_t) op->imm == insn->address + insn->size);
 }

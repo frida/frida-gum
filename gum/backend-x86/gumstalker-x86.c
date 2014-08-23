@@ -9,12 +9,12 @@
 
 #include "gumstalker.h"
 
+#include "gumx86reader.h"
 #include "gumx86writer.h"
 #include "gummemory.h"
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
-#include "gumudis86.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -214,7 +214,7 @@ struct _GumGeneratorContext
 
 struct _GumInstruction
 {
-  ud_t * ud;
+  cs_insn * ci;
   guint8 * begin;
   guint8 * end;
 };
@@ -228,8 +228,8 @@ struct _GumBranchTarget
 
   gboolean is_indirect;
   uint8_t pfx_seg;
-  enum ud_type base;
-  enum ud_type index;
+  x86_reg base;
+  x86_reg index;
   guint8 scale;
 };
 
@@ -351,7 +351,7 @@ static void gum_exec_block_close_prolog (GumExecBlock * block,
 static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
-static GumCpuReg gum_cpu_reg_from_ud (enum ud_type reg);
+static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
 
 static void gum_tls_key_set (GumTlsKey key, gpointer data);
 
@@ -1172,11 +1172,11 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     n_read = gum_x86_relocator_read_one (rl, NULL);
     g_assert_cmpuint (n_read, !=, 0);
 
-    insn.ud = gum_x86_relocator_peek_next_write_insn (rl);
+    insn.ci = gum_x86_relocator_peek_next_write_insn (rl);
     insn.begin = gum_x86_relocator_peek_next_write_source (rl);
-    insn.end = insn.begin + ud_insn_len (insn.ud);
+    insn.end = insn.begin + insn.ci->size;
 
-    g_assert (insn.ud != NULL && insn.begin != NULL);
+    g_assert (insn.ci != NULL && insn.begin != NULL);
 
 #if ENABLE_DEBUG
     gum_disasm (insn.begin, insn.end - insn.begin, "");
@@ -1188,20 +1188,20 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     if ((ctx->sink_mask & GUM_EXEC) != 0)
       gum_exec_block_write_exec_event_code (block, &gc, GUM_CODE_INTERRUPTIBLE);
 
-    switch (insn.ud->mnemonic)
+    switch (insn.ci->id)
     {
-      case UD_Icall:
-      case UD_Ijmp:
+      case X86_INS_CALL:
+      case X86_INS_JMP:
         requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
         break;
-      case UD_Iret:
+      case X86_INS_RET:
         requirements = gum_exec_block_virtualize_ret_insn (block, &gc);
         break;
-      case UD_Isysenter:
+      case X86_INS_SYSENTER:
         requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
         break;
       default:
-        if (gum_mnemonic_is_jcc (insn.ud->mnemonic))
+        if (gum_x86_reader_insn_is_jcc (insn.ci))
           requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
         else
           requirements = GUM_REQUIRE_RELOCATION;
@@ -1248,7 +1248,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       gc.continuation_real_address = insn.end;
       break;
     }
-    else if (insn.ud->mnemonic == UD_Icall)
+    else if (insn.ci->id == X86_INS_CALL)
     {
       /* We always stop on a call unless it's to an excluded range */
       if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
@@ -1497,7 +1497,7 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
 
   if (!target->is_indirect)
   {
-    if (target->base == UD_NONE)
+    if (target->base == X86_REG_INVALID)
     {
       gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
       gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
@@ -1508,15 +1508,15 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     {
       gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
       gum_exec_ctx_load_real_register_into (ctx, GUM_REG_XAX,
-          gum_cpu_reg_from_ud (target->base),
+          gum_cpu_reg_from_capstone (target->base),
           target->origin_ip,
           gc);
       gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
     }
   }
-  else if (target->base == UD_NONE && target->index == UD_NONE)
+  else if (target->base == X86_REG_INVALID && target->index == X86_REG_INVALID)
   {
-    g_assert (target->scale == 0);
+    g_assert_cmpint (target->scale, ==, 1);
     g_assert (target->absolute_address != NULL);
     g_assert (target->relative_offset == 0);
 
@@ -1534,15 +1534,15 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     gum_x86_writer_put_push_reg (cw, GUM_REG_XDX);
 
     gum_exec_ctx_load_real_register_into (ctx, GUM_REG_XAX,
-        gum_cpu_reg_from_ud (target->base),
+        gum_cpu_reg_from_capstone (target->base),
         target->origin_ip,
         gc);
     gum_exec_ctx_load_real_register_into (ctx, GUM_REG_XDX,
-        gum_cpu_reg_from_ud (target->index),
+        gum_cpu_reg_from_capstone (target->index),
         target->origin_ip,
         gc);
     gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (cw, GUM_REG_XAX,
-        GUM_REG_XAX, GUM_REG_XDX, target->scale ? target->scale : 1,
+        GUM_REG_XAX, GUM_REG_XDX, target->scale,
         target->relative_offset);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
         GUM_REG_XSP, 2 * sizeof (gpointer),
@@ -1836,75 +1836,57 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   GumInstruction * insn = gc->instruction;
   GumX86Writer * cw = gc->code_writer;
   gboolean is_conditional;
-  ud_operand_t * op = &insn->ud->operand[0];
+  cs_x86 * x86 = &insn->ci->detail->x86;
+  cs_x86_op * op = &x86->operands[0];
   GumBranchTarget target = { 0, };
 
   is_conditional =
-      (insn->ud->mnemonic != UD_Icall && insn->ud->mnemonic != UD_Ijmp);
+      (insn->ci->id != X86_INS_CALL && insn->ci->id != X86_INS_JMP);
 
   target.origin_ip = insn->end;
 
-  target.pfx_seg = UD_NONE;
-  target.base = op->base;
-  target.index = op->index;
-  target.scale = op->scale;
-
-  if (op->type == UD_OP_JIMM)
+  if (op->type == X86_OP_IMM)
   {
-    if (op->size == 8)
-      target.absolute_address = insn->end + op->lval.sbyte;
-    else if (op->size == 32)
-      target.absolute_address = insn->end + op->lval.sdword;
-    else
-      g_assert_not_reached ();
+    target.absolute_address = GSIZE_TO_POINTER (op->imm);
     target.is_indirect = FALSE;
+    target.pfx_seg = X86_REG_INVALID;
+    target.base = X86_REG_INVALID;
+    target.index = X86_REG_INVALID;
+    target.scale = 0;
   }
-  else if (op->type == UD_OP_MEM)
+  else if (op->type == X86_OP_MEM)
   {
-    g_assert (op->size == GLIB_SIZEOF_VOID_P * 8);
-#if GLIB_SIZEOF_VOID_P == 4
-    g_assert (op->base == UD_NONE ||
-        (op->base >= UD_R_EAX && op->base <= UD_R_EDI));
-#else
-    g_assert (op->base == UD_NONE || op->base == UD_R_RIP ||
-        (op->base >= UD_R_RAX && op->base <= UD_R_R15));
-#endif
-    g_assert (op->offset == 8 || op->offset == 32 || op->offset == 0);
-
 #ifdef G_OS_WIN32
     /* Can't follow WoW64 */
-    if (insn->ud->pfx_seg == UD_R_FS && op->lval.udword == 0xc0)
+    if (op->mem.segment == X86_REG_FS && op->mem.disp == 0xc0)
       return GUM_REQUIRE_SINGLE_STEP;
 #endif
 
-    if (op->base == UD_NONE && op->index == UD_NONE)
-    {
-      g_assert (op->offset == 32);
-      target.absolute_address = GSIZE_TO_POINTER (op->lval.udword);
-    }
+    if (op->mem.base == X86_REG_INVALID && op->mem.index == X86_REG_INVALID)
+      target.absolute_address = GSIZE_TO_POINTER (op->mem.disp);
     else
-    {
-      if (op->offset == 8)
-        target.relative_offset = op->lval.sbyte;
-      else if (op->offset == 32)
-        target.relative_offset = op->lval.sdword;
-      else
-        target.relative_offset = 0;
-    }
+      target.relative_offset = op->mem.disp;
 
     target.is_indirect = TRUE;
-    target.pfx_seg = insn->ud->pfx_seg;
+    target.pfx_seg = op->mem.segment;
+    target.base = op->mem.base;
+    target.index = op->mem.index;
+    target.scale = op->mem.scale;
   }
-  else if (op->type == UD_OP_REG)
+  else if (op->type == X86_OP_REG)
   {
     target.is_indirect = FALSE;
+    target.pfx_seg = X86_REG_INVALID;
+    target.base = op->reg;
+    target.index = X86_REG_INVALID;
+    target.scale = 0;
   }
   else
   {
     g_assert_not_reached ();
   }
 
-  if (insn->ud->mnemonic == UD_Icall)
+  if (insn->ci->id == X86_INS_CALL)
   {
     gboolean target_is_excluded = FALSE;
 
@@ -1917,7 +1899,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     if (block->ctx->stalker->priv->any_probes_attached)
       gum_exec_block_write_call_probe_code (block, &target, gc);
 
-    if (!target.is_indirect && target.base == UD_NONE)
+    if (!target.is_indirect && target.base == X86_REG_INVALID)
     {
       GArray * exclusions = block->ctx->stalker->priv->exclusions;
       guint i;
@@ -1963,7 +1945,8 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 #else
       gum_x86_writer_put_jcc_near_label (cw,
 #endif
-          gum_jcc_opcode_negate (gum_jcc_insn_to_short_opcode (insn->begin)),
+          gum_x86_reader_jcc_opcode_negate (
+              gum_x86_reader_jcc_insn_to_short_opcode (insn->begin)),
           cond_false_lbl_id, GUM_NO_HINT);
     }
 
@@ -2126,7 +2109,7 @@ gum_exec_block_write_call_invoke_code (GumExecBlock * block,
   /* We can backpatch if we have some trust and the call's target is static */
   can_backpatch = (block->ctx->stalker->priv->trust_threshold >= 0 &&
       !target->is_indirect &&
-      target->base == UD_NONE);
+      target->base == X86_REG_INVALID);
 
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
@@ -2264,7 +2247,7 @@ gum_exec_block_write_jmp_transfer_code (GumExecBlock * block,
 
   if (block->ctx->stalker->priv->trust_threshold >= 0 &&
       !target->is_indirect &&
-      target->base == UD_NONE)
+      target->base == X86_REG_INVALID)
   {
     gum_x86_writer_put_call_with_arguments (cw,
         GUM_FUNCPTR_TO_POINTER (gum_exec_block_backpatch_jmp), 4,
@@ -2577,7 +2560,7 @@ gum_exec_block_write_call_probe_code (GumExecBlock * block,
   GumX86Writer * cw = gc->code_writer;
   gboolean skip_probing = FALSE;
 
-  if (!target->is_indirect && target->base == UD_NONE)
+  if (!target->is_indirect && target->base == X86_REG_INVALID)
   {
     GumStalkerPrivate * priv = block->ctx->stalker->priv;
 
@@ -2664,14 +2647,14 @@ gum_write_segment_prefix (uint8_t segment,
 {
   switch (segment)
   {
-    case UD_NONE: break;
+    case X86_REG_INVALID: break;
 
-    case UD_R_CS: gum_x86_writer_put_byte (cw, 0x2e); break;
-    case UD_R_SS: gum_x86_writer_put_byte (cw, 0x36); break;
-    case UD_R_DS: gum_x86_writer_put_byte (cw, 0x3e); break;
-    case UD_R_ES: gum_x86_writer_put_byte (cw, 0x26); break;
-    case UD_R_FS: gum_x86_writer_put_byte (cw, 0x64); break;
-    case UD_R_GS: gum_x86_writer_put_byte (cw, 0x65); break;
+    case X86_REG_CS: gum_x86_writer_put_byte (cw, 0x2e); break;
+    case X86_REG_SS: gum_x86_writer_put_byte (cw, 0x36); break;
+    case X86_REG_DS: gum_x86_writer_put_byte (cw, 0x3e); break;
+    case X86_REG_ES: gum_x86_writer_put_byte (cw, 0x26); break;
+    case X86_REG_FS: gum_x86_writer_put_byte (cw, 0x64); break;
+    case X86_REG_GS: gum_x86_writer_put_byte (cw, 0x65); break;
 
     default:
       g_assert_not_reached ();
@@ -2701,18 +2684,51 @@ gum_cpu_meta_reg_from_real_reg (GumCpuReg reg)
 }
 
 static GumCpuReg
-gum_cpu_reg_from_ud (enum ud_type reg)
+gum_cpu_reg_from_capstone (x86_reg reg)
 {
-  if (reg >= UD_R_EAX && reg <= UD_R_EDI)
-    return (GumCpuReg) (GUM_REG_EAX + reg - UD_R_EAX);
-  else if (reg >= UD_R_RAX && reg <= UD_R_R15)
-    return (GumCpuReg) (GUM_REG_RAX + reg - UD_R_RAX);
-  else if (reg == UD_R_RIP)
-    return GUM_REG_RIP;
-  else if (reg == UD_NONE)
-    return GUM_REG_NONE;
-  else
-    g_assert_not_reached ();
+  switch (reg)
+  {
+    case X86_REG_INVALID: return GUM_REG_NONE;
+
+    case X86_REG_EAX: return GUM_REG_EAX;
+    case X86_REG_ECX: return GUM_REG_ECX;
+    case X86_REG_EDX: return GUM_REG_EDX;
+    case X86_REG_EBX: return GUM_REG_EBX;
+    case X86_REG_ESP: return GUM_REG_ESP;
+    case X86_REG_EBP: return GUM_REG_EBP;
+    case X86_REG_ESI: return GUM_REG_ESI;
+    case X86_REG_EDI: return GUM_REG_EDI;
+    case X86_REG_R8D: return GUM_REG_R8D;
+    case X86_REG_R9D: return GUM_REG_R9D;
+    case X86_REG_R10D: return GUM_REG_R10D;
+    case X86_REG_R11D: return GUM_REG_R11D;
+    case X86_REG_R12D: return GUM_REG_R12D;
+    case X86_REG_R13D: return GUM_REG_R13D;
+    case X86_REG_R14D: return GUM_REG_R14D;
+    case X86_REG_R15D: return GUM_REG_R15D;
+    case X86_REG_EIP: return GUM_REG_EIP;
+
+    case X86_REG_RAX: return GUM_REG_RAX;
+    case X86_REG_RCX: return GUM_REG_RCX;
+    case X86_REG_RDX: return GUM_REG_RDX;
+    case X86_REG_RBX: return GUM_REG_RBX;
+    case X86_REG_RSP: return GUM_REG_RSP;
+    case X86_REG_RBP: return GUM_REG_RBP;
+    case X86_REG_RSI: return GUM_REG_RSI;
+    case X86_REG_RDI: return GUM_REG_RDI;
+    case X86_REG_R8: return GUM_REG_R8;
+    case X86_REG_R9: return GUM_REG_R9;
+    case X86_REG_R10: return GUM_REG_R10;
+    case X86_REG_R11: return GUM_REG_R11;
+    case X86_REG_R12: return GUM_REG_R12;
+    case X86_REG_R13: return GUM_REG_R13;
+    case X86_REG_R14: return GUM_REG_R14;
+    case X86_REG_R15: return GUM_REG_R15;
+    case X86_REG_RIP: return GUM_REG_RIP;
+
+    default:
+      g_assert_not_reached ();
+  }
 }
 
 static void
@@ -2811,7 +2827,7 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
       block->previous_dr7 = context->Dr7;
 
       instruction_after_call_here = context->Eip +
-          gum_find_instruction_length ((guint8 *) context->Eip);
+          gum_x86_reader_insn_length ((guint8 *) context->Eip);
       context->Dr0 = instruction_after_call_here;
       enable_hardware_breakpoint (&context->Dr7, 0);
 

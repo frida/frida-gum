@@ -122,6 +122,8 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   insn->length = ci->size;
   insn->pc = self->input_pc + 4;
 
+  /* TODO: migrate to Capstone */
+
   switch (ci->size)
   {
     case 2:

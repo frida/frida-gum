@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="udis86">
-      <UniqueIdentifier>{1cbce496-b36f-42a5-b142-8387f91dd218}</UniqueIdentifier>
-    </Filter>
     <Filter Include="core">
       <UniqueIdentifier>{37ab3c51-1983-4479-91c9-010eb64aae2f}</UniqueIdentifier>
     </Filter>
@@ -39,24 +36,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\decode.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-att.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn-intel.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\syn.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="$(SolutionDir)udis86\libudis86\udis86.c">
-      <Filter>udis86</Filter>
-    </ClCompile>
-    <ClCompile Include="gum\arch-x86\gumudis86.c">
-      <Filter>core\arch-x86</Filter>
-    </ClCompile>
     <ClCompile Include="gum\arch-x86\gumx86reader.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
@@ -86,9 +65,6 @@
     </ClCompile>
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
-    </ClCompile>
-    <ClCompile Include="$(IntDir)libudis86\itab.c">
-      <Filter>udis86</Filter>
     </ClCompile>
     <ClCompile Include="gum\gumeventsink.c">
       <Filter>core</Filter>
@@ -254,21 +230,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\extern.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\udis86.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\types.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\syn.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\arch-x86\gumudis86.h">
-      <Filter>core\arch-x86</Filter>
-    </ClInclude>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
       <Filter>core\arch-x86</Filter>
     </ClInclude>
@@ -310,12 +271,6 @@
     </ClInclude>
     <ClInclude Include="gum\gumlist.h">
       <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\decode.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
-    <ClInclude Include="$(IntDir)libudis86\itab.h">
-      <Filter>udis86</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumstalker.h">
       <Filter>core</Filter>
@@ -485,9 +440,6 @@
     <ClInclude Include="gum\gumscriptinstruction.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="$(SolutionDir)udis86\libudis86\udint.h">
-      <Filter>udis86</Filter>
-    </ClInclude>
     <ClInclude Include="gum\arch-arm64\gumarm64.h">
       <Filter>core\arch-arm64</Filter>
     </ClInclude>
@@ -517,10 +469,5 @@
     <None Include="vapi\gum-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
-  </ItemGroup>
-  <ItemGroup>
-    <CustomBuild Include="..\udis86\docs\x86\optable.xml">
-      <Filter>udis86</Filter>
-    </CustomBuild>
   </ItemGroup>
 </Project>

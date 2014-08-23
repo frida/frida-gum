@@ -38,18 +38,18 @@ RELOCATOR_TESTCASE (one_to_one)
     0x55,                         /* push ebp     */
     0x8b, 0xec,                   /* mov ebp, esp */
   };
-  const ud_t * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
   insn = NULL;
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, &insn), ==, 1);
-  g_assert_cmpint (insn->mnemonic, ==, UD_Ipush);
+  g_assert_cmpint (insn->id, ==, X86_INS_PUSH);
   assert_outbuf_still_zeroed_from_offset (0);
 
   insn = NULL;
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, &insn), ==, 3);
-  g_assert_cmpint (insn->mnemonic, ==, UD_Imov);
+  g_assert_cmpint (insn->id, ==, X86_INS_MOV);
   assert_outbuf_still_zeroed_from_offset (0);
 
   g_assert (gum_x86_relocator_write_one (&fixture->rl));
@@ -316,13 +316,13 @@ RELOCATOR_TESTCASE (peek_next_write)
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_read_one (&fixture->rl, NULL);
 
-  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
-      ==, UD_Ixor);
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->id,
+      ==, X86_INS_XOR);
   gum_x86_relocator_write_one (&fixture->rl);
-  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
-      ==, UD_Iinc);
-  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->mnemonic,
-      ==, UD_Iinc);
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->id,
+      ==, X86_INS_INC);
+  g_assert_cmpint (gum_x86_relocator_peek_next_write_insn (&fixture->rl)->id,
+      ==, X86_INS_INC);
   g_assert (gum_x86_relocator_peek_next_write_source (&fixture->rl)
       == input + 2);
   g_assert (gum_x86_relocator_write_one (&fixture->rl));

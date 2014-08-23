@@ -202,8 +202,6 @@ libfrida_gum_la_SOURCES = \
 	arch-x86/gumx86writer.c \
 	arch-x86/gumx86relocator.c \
 	arch-x86/gumx86reader.c \
-	arch-x86/gumudis86.h \
-	arch-x86/gumudis86.c \
 	arch-arm/gumarmwriter.c \
 	arch-arm/gumarmrelocator.c \
 	arch-arm/gumthumbwriter.c \

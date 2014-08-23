@@ -28,10 +28,6 @@
 /configure
 /ext/Makefile
 /ext/Makefile.in
-/ext/udis86/Makefile
-/ext/udis86/Makefile.in
-/ext/udis86/libudis86/Makefile
-/ext/udis86/libudis86/Makefile.in
 /gum-1.0.pc
 /gum/Makefile
 /gum/Makefile.in
