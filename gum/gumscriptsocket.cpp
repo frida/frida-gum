@@ -189,9 +189,13 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
       struct sockaddr_in * inet_addr =
           reinterpret_cast<struct sockaddr_in *> (addr);
 #ifdef G_OS_WIN32
+      gunichar2 ip_utf16[15 + 1 + 5 + 1];
       gchar ip[15 + 1 + 5 + 1];
-      DWORD len = sizeof (ip);
-      WSAAddressToStringA (addr, sizeof (struct sockaddr_in), NULL, ip, &len);
+      DWORD len = G_N_ELEMENTS (ip_utf16);
+      WSAAddressToStringW (addr, sizeof (struct sockaddr_in), NULL,
+          (LPWSTR) ip_utf16, &len);
+      WideCharToMultiByte (CP_UTF8, 0, (LPWSTR) ip_utf16, -1, ip, len, NULL,
+          NULL);
       gchar * p = strchr (ip, ':');
       if (p != NULL)
         *p = '\0';
@@ -211,9 +215,13 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
       struct sockaddr_in6 * inet_addr =
           reinterpret_cast<struct sockaddr_in6 *> (addr);
 #ifdef G_OS_WIN32
+      gunichar2 ip_utf16[45 + 1 + 5 + 1];
       gchar ip[45 + 1 + 5 + 1];
-      DWORD len = sizeof (ip);
-      WSAAddressToStringA (addr, sizeof (struct sockaddr_in6), NULL, ip, &len);
+      DWORD len = G_N_ELEMENTS (ip_utf16);
+      WSAAddressToStringW (addr, sizeof (struct sockaddr_in6), NULL,
+          (LPWSTR) ip_utf16, &len);
+      WideCharToMultiByte (CP_UTF8, 0, (LPWSTR) ip_utf16, -1, ip, len, NULL,
+          NULL);
       gchar * p = strrchr (ip, ':');
       if (p != NULL)
         *p = '\0';
