@@ -91,7 +91,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
       if (insn->id == X86_INS_CALL)
       {
         cs_x86_op * op = &insn->detail->x86.operands[0];
-        if (op->type == X86_OP_IMM && op->size == 4)
+        if (op->type == X86_OP_IMM)
         {
           guint8 * call_begin, * call_end;
           gssize distance;
