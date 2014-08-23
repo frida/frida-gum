@@ -529,5 +529,6 @@ gum_x86_call_is_to_next_instruction (cs_insn * insn)
 {
   cs_x86_op * op = &insn->detail->x86.operands[0];
 
-  return (op->type == X86_OP_IMM && op->imm == insn->address + insn->size);
+  return (op->type == X86_OP_IMM
+      && (uint64_t) op->imm == insn->address + insn->size);
 }

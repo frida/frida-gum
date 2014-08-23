@@ -13,6 +13,7 @@
 
 G_BEGIN_DECLS
 
+guint gum_x86_reader_insn_length (guint8 * code);
 gboolean gum_x86_reader_insn_is_jcc (cs_insn * insn);
 guint8 gum_x86_reader_jcc_insn_to_short_opcode (guint8 * code);
 guint8 gum_x86_reader_jcc_opcode_negate (guint8 opcode);

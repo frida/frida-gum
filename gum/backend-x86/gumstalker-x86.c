@@ -1858,7 +1858,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
   {
 #ifdef G_OS_WIN32
     /* Can't follow WoW64 */
-    if (insn->ud->pfx_seg == X86_REG_FS && op->lval.udword == 0xc0)
+    if (op->mem.segment == X86_REG_FS && op->mem.disp == 0xc0)
       return GUM_REQUIRE_SINGLE_STEP;
 #endif
 
@@ -2827,7 +2827,7 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
       block->previous_dr7 = context->Dr7;
 
       instruction_after_call_here = context->Eip +
-          gum_find_instruction_length ((guint8 *) context->Eip);
+          gum_x86_reader_insn_length ((guint8 *) context->Eip);
       context->Dr0 = instruction_after_call_here;
       enable_hardware_breakpoint (&context->Dr7, 0);
 

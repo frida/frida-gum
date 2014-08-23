@@ -10,6 +10,19 @@ static gpointer try_get_relative_call_or_jump_target (gconstpointer address,
     guint call_or_jump);
 static cs_insn * disassemble_instruction_at (gconstpointer address);
 
+guint
+gum_x86_reader_insn_length (guint8 * code)
+{
+  guint result;
+  cs_insn * insn;
+
+  insn = disassemble_instruction_at (code);
+  result = insn->size;
+  cs_free (insn, 1);
+
+  return result;
+}
+
 gboolean
 gum_x86_reader_insn_is_jcc (cs_insn * insn)
 {
