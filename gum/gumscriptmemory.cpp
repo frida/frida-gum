@@ -474,7 +474,7 @@ gum_script_memory_on_protect (const FunctionCallbackInfo<Value> & info)
     return;
 
   gboolean success = gum_try_mprotect (address, size, prot);
-  info.GetReturnValue ().Set (static_cast<bool> (success));
+  info.GetReturnValue ().Set (success ? true : false);
 }
 
 static void
