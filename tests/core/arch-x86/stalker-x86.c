@@ -1696,7 +1696,7 @@ create_test_window (GumStalker * stalker)
 #pragma warning (pop)
   g_assert (window->handle != NULL);
 
-  SetWindowLongPtr (window->handle, GWLP_USERDATA, (LONG) window);
+  SetWindowLongPtr (window->handle, GWLP_USERDATA, (LONG_PTR) window);
   ShowWindow (window->handle, SW_SHOWNORMAL);
 
   return window;
