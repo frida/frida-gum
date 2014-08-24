@@ -19,6 +19,9 @@ typedef struct _GumX86Relocator GumX86Relocator;
 
 struct _GumX86Relocator
 {
+  GumCpuType target_cpu;
+  GumAbiType target_abi;
+
   csh capstone;
 
   const guint8 * input_start;

@@ -29,6 +29,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (rip_relative_move_different_target)
   RELOCATOR_TESTENTRY (rip_relative_move_same_target)
   RELOCATOR_TESTENTRY (rip_relative_push)
+  RELOCATOR_TESTENTRY (rip_relative_push_red_zone)
 #endif
 TEST_LIST_END ()
 
@@ -445,6 +446,8 @@ RELOCATOR_TESTCASE (rip_relative_move_different_target)
 
   SETUP_RELOCATOR_WITH (input);
 
+  fixture->rl.target_abi = GUM_ABI_WINDOWS;
+
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
   assert_output_equals (expected_output);
@@ -468,6 +471,8 @@ RELOCATOR_TESTCASE (rip_relative_move_same_target)
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
 
   SETUP_RELOCATOR_WITH (input);
+
+  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
@@ -498,6 +503,45 @@ RELOCATOR_TESTCASE (rip_relative_push)
   *((gpointer *) (expected_output + 4)) = (gpointer) (input + 6);
 
   SETUP_RELOCATOR_WITH (input);
+
+  fixture->rl.target_abi = GUM_ABI_WINDOWS;
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
+}
+
+RELOCATOR_TESTCASE (rip_relative_push_red_zone)
+{
+  const guint8 input[] = {
+      0xff, 0x35,                         /* push [rip + imm32]   */
+      0x01, 0x02, 0x03, 0x04
+  };
+  guint8 expected_output[] = {
+      0x50,                               /* push rax  */
+      0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp - 128] */
+            0x80, 0xff, 0xff, 0xff,
+      0x50,                               /* push rax  */
+
+      0x48, 0xb8,                         /* mov rax, <rip> */
+      0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00,
+
+      0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
+      0x01, 0x02, 0x03, 0x04,
+
+      0x48, 0x89, 0x84, 0x24,             /* mov [rsp + 8 + 128], rax */
+            0x88, 0x00, 0x00, 0x00,
+      0x58,                               /* pop rax */
+      0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp + 128] */
+            0x80, 0x00, 0x00, 0x00
+  };
+
+  *((gpointer *) (expected_output + 12)) = (gpointer) (input + 6);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  fixture->rl.target_abi = GUM_ABI_UNIX;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);

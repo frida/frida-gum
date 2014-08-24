@@ -12,6 +12,7 @@
 #include <string.h>
 
 #define GUM_MAX_INPUT_INSN_COUNT (100)
+#define GUM_RED_ZONE_SIZE        (128)
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
 
@@ -60,6 +61,13 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
                          GumX86Writer * output)
 {
   guint i;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  relocator->target_cpu = GUM_CPU_IA32;
+#else
+  relocator->target_cpu = GUM_CPU_AMD64;
+#endif
+  relocator->target_abi = GUM_NATIVE_ABI;
 
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
@@ -267,7 +275,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
     default:
       if (gum_x86_reader_insn_is_jcc (ctx.insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
-      else
+      else if (self->target_cpu == GUM_CPU_AMD64)
         rewritten = gum_x86_relocator_rewrite_if_rip_relative (self, &ctx);
       break;
   }
@@ -455,12 +463,6 @@ static gboolean
 gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
                                            GumCodeGenCtx * ctx)
 {
-#if GLIB_SIZEOF_VOID_P == 4
-  (void) self;
-  (void) ctx;
-
-  return FALSE;
-#else
   cs_insn * insn = ctx->insn;
   cs_x86 * x86 = &insn->detail->x86;
   guint mod, reg, rm;
@@ -500,6 +502,11 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     gum_x86_writer_put_push_reg (ctx->code_writer, GUM_REG_RAX);
   }
 
+  if (self->target_abi == GUM_ABI_UNIX)
+  {
+    gum_x86_writer_put_lea_reg_reg_offset (ctx->code_writer, GUM_REG_RSP,
+        GUM_REG_RSP, -GUM_RED_ZONE_SIZE);
+  }
   gum_x86_writer_put_push_reg (ctx->code_writer, rip_reg);
   gum_x86_writer_put_mov_reg_address (ctx->code_writer, rip_reg,
       GUM_ADDRESS (ctx->end));
@@ -509,7 +516,9 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     gum_x86_writer_put_mov_reg_reg_offset_ptr (ctx->code_writer, rip_reg,
         rip_reg, x86->disp);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (ctx->code_writer,
-        GUM_REG_RSP, 0x08, rip_reg);
+        GUM_REG_RSP,
+        0x08 + ((self->target_abi == GUM_ABI_UNIX) ? GUM_RED_ZONE_SIZE : 0),
+        rip_reg);
   }
   else
   {
@@ -519,9 +528,13 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   }
 
   gum_x86_writer_put_pop_reg (ctx->code_writer, rip_reg);
+  if (self->target_abi == GUM_ABI_UNIX)
+  {
+    gum_x86_writer_put_lea_reg_reg_offset (ctx->code_writer, GUM_REG_RSP,
+        GUM_REG_RSP, GUM_RED_ZONE_SIZE);
+  }
 
   return TRUE;
-#endif
 }
 
 static gboolean
