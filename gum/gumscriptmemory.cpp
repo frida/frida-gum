@@ -260,7 +260,7 @@ _gum_script_memory_finalize (GumScriptMemory * self)
   (void) self;
 
 #ifdef G_OS_WIN32
-  gum_win_exception_hook_remove (gum_script_memory_on_exception);
+  gum_win_exception_hook_remove (gum_script_memory_on_exception, self);
 #endif
 
   G_LOCK (gum_memaccess);

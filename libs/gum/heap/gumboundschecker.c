@@ -186,7 +186,7 @@ gum_bounds_checker_dispose (GObject * object)
     gum_bounds_checker_detach (self);
 
 #ifdef G_OS_WIN32
-    gum_win_exception_hook_remove (gum_bounds_checker_on_exception);
+    gum_win_exception_hook_remove (gum_bounds_checker_on_exception, self);
 #endif
 
     G_LOCK (gum_memaccess);

@@ -17,7 +17,8 @@ typedef gboolean (* GumWinExceptionHandler) (
 
 void gum_win_exception_hook_add (GumWinExceptionHandler handler,
     gpointer user_data);
-void gum_win_exception_hook_remove (GumWinExceptionHandler handler);
+void gum_win_exception_hook_remove (GumWinExceptionHandler handler,
+    gpointer user_data);
 
 G_END_DECLS
 

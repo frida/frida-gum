@@ -451,7 +451,7 @@ gum_stalker_finalize (GObject * object)
   GumStalkerPrivate * priv = self->priv;
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
-  gum_win_exception_hook_remove (gum_stalker_handle_exception);
+  gum_win_exception_hook_remove (gum_stalker_handle_exception, self);
 #endif
 
   g_hash_table_unref (priv->probe_array_by_address);

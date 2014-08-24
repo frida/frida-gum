@@ -44,7 +44,8 @@ G_LOCK_DEFINE_STATIC (hook_instance);
 static GumWinExceptionHook * hook_instance = NULL;
 
 void
-gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
+gum_win_exception_hook_add (GumWinExceptionHandler handler,
+                            gpointer user_data)
 {
   GumWinExceptionHandlerEntry * entry;
 
@@ -141,7 +142,8 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler, gpointer user_data)
 }
 
 void
-gum_win_exception_hook_remove (GumWinExceptionHandler handler)
+gum_win_exception_hook_remove (GumWinExceptionHandler handler,
+                               gpointer user_data)
 {
   GumWinExceptionHandlerEntry * matching_entry = NULL;
   GSList * walk;
@@ -157,7 +159,7 @@ gum_win_exception_hook_remove (GumWinExceptionHandler handler)
     GumWinExceptionHandlerEntry * entry =
         (GumWinExceptionHandlerEntry *) walk->data;
 
-    if (entry->func == handler)
+    if (entry->func == handler && entry->user_data == user_data)
       matching_entry = entry;
   }
 

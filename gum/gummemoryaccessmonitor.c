@@ -122,7 +122,7 @@ gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self)
   g_assert (success);
 
   gum_win_exception_hook_remove (
-      gum_memory_access_monitor_handle_exception_if_ours);
+      gum_memory_access_monitor_handle_exception_if_ours, self);
 }
 
 static gboolean
