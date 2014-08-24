@@ -32,7 +32,7 @@
 #define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
 #define GUM_MAPPING_SLAB_SIZE_IN_PAGES       200
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
-#define GUM_RED_ZONE_MAX_SIZE                128
+#define GUM_RED_ZONE_SIZE                    128
 
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;
@@ -1413,7 +1413,7 @@ gum_exec_ctx_write_prolog (GumExecCtx * ctx,
   gum_x86_writer_put_mov_near_ptr_reg (cw, GUM_ADDRESS (&ctx->app_stack),
       GUM_REG_XSP);
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
-      GUM_REG_XSP, -GUM_RED_ZONE_MAX_SIZE);
+      GUM_REG_XSP, -GUM_RED_ZONE_SIZE);
 
   gum_x86_writer_put_pushfx (cw);
   gum_x86_writer_put_cld (cw); /* C ABI mandates this */
