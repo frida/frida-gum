@@ -1071,19 +1071,26 @@ gum_exec_ctx_destroy_thunks (GumExecCtx * ctx)
 static void
 gum_disasm (guint8 * code, guint size, const gchar * prefix)
 {
-  ud_t ud_obj;
+  csh capstone;
+  cs_err err;
+  cs_insn * insn;
+  size_t count, i;
 
-  ud_init (&ud_obj);
-  ud_set_input_buffer (&ud_obj, code, size);
-  ud_set_mode (&ud_obj, GUM_CPU_MODE);
-  ud_set_pc (&ud_obj, GPOINTER_TO_SIZE (code));
-  ud_set_syntax (&ud_obj, UD_SYN_INTEL);
+  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
+  g_assert_cmpint (err, == , CS_ERR_OK);
 
-  while (ud_disassemble (&ud_obj))
+  count = cs_disasm_ex (capstone, code, size, GPOINTER_TO_SIZE (code), 0, &insn);
+  g_assert (insn != NULL);
+
+  for (i = 0; i != count; i++)
   {
-    printf ("%s0x%" G_GINT64_MODIFIER "x\t%s\n",
-        prefix, (guint64) ud_insn_off (&ud_obj), ud_insn_asm (&ud_obj));
+    printf ("%s0x%" G_GINT64_MODIFIER "x\t%s %s\n",
+        prefix, insn[i].address, insn[i].mnemonic, insn[i].op_str);
   }
+
+  cs_free (insn, count);
+
+  cs_close (&capstone);
 }
 
 static void
