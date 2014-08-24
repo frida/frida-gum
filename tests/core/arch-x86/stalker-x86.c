@@ -80,14 +80,6 @@ STALKER_TESTCASE (heap_api)
 
 STALKER_TESTCASE (follow_syscall)
 {
-#ifdef HAVE_WINDOWS
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping as it is broken on 32-bit Windows systems due to missing sysenter-handling, run in slow mode> ");
-    return;
-  }
-#endif
-
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   g_usleep (1); /* FIXME: workaround for unknown bug on 64-bit */
@@ -1609,12 +1601,6 @@ STALKER_TESTCASE (win32_indirect_call_seg)
 
 STALKER_TESTCASE (win32_messagebeep_api)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping as it is broken on 32-bit Windows systems due to missing sysenter-handling, run in slow mode> ");
-    return;
-  }
-
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
@@ -1625,12 +1611,6 @@ STALKER_TESTCASE (win32_messagebeep_api)
 STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
 {
   TestWindow * window;
-
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping as it is broken on 32-bit Windows systems due to missing sysenter-handling, run in slow mode> ");
-    return;
-  }
 
   window = create_test_window (fixture->stalker);
 
@@ -1644,12 +1624,6 @@ STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
 STALKER_TESTCASE (win32_follow_callback_to_kernel_to_user)
 {
   TestWindow * window;
-
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping as it is broken on 32-bit Windows systems due to missing sysenter-handling, run in slow mode> ");
-    return;
-  }
 
   window = create_test_window (fixture->stalker);
 
