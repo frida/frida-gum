@@ -34,6 +34,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
   SCRIPT_TESTENTRY (memory_can_be_copied)
   SCRIPT_TESTENTRY (memory_can_be_duped)
+  SCRIPT_TESTENTRY (memory_can_be_protected)
   SCRIPT_TESTENTRY (s8_can_be_read)
   SCRIPT_TESTENTRY (s8_can_be_written)
   SCRIPT_TESTENTRY (u8_can_be_read)
@@ -1244,6 +1245,28 @@ SCRIPT_TESTCASE (memory_can_be_duped)
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
+}
+
+SCRIPT_TESTCASE (memory_can_be_protected)
+{
+  gpointer buf;
+  gboolean exception_on_read, exception_on_write;
+
+  buf = gum_alloc_n_pages (1, GUM_PAGE_RW);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Memory.protect(" GUM_PTR_CONST ", 1, 'r--'));",
+      buf, gum_query_page_size ());
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  g_object_unref (fixture->script); /* avoid overlapping signal handlers */
+  fixture->script = NULL;
+
+  gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
+  g_assert (!exception_on_read);
+  g_assert (exception_on_write);
+
+  gum_free_pages (buf);
 }
 
 SCRIPT_TESTCASE (s8_can_be_read)

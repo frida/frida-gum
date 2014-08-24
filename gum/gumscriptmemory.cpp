@@ -97,6 +97,8 @@ static void gum_script_memory_on_alloc_utf16_string (
 
 static void gum_script_memory_on_copy (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_memory_on_protect (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_do_read (
     const FunctionCallbackInfo<Value> & info, GumMemoryValueType type);
 static void gum_script_memory_do_write (
@@ -185,6 +187,8 @@ _gum_script_memory_init (GumScriptMemory * self,
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc, data));
   memory->Set (String::NewFromUtf8 (isolate, "copy"),
       FunctionTemplate::New (isolate, gum_script_memory_on_copy, data));
+  memory->Set (String::NewFromUtf8 (isolate, "protect"),
+      FunctionTemplate::New (isolate, gum_script_memory_on_protect, data));
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER);
   GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8);
@@ -440,6 +444,37 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
         message)));
     g_free (message);
   }
+}
+
+static void
+gum_script_memory_on_protect (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->core->isolate;
+
+  gpointer address;
+  if (!_gum_script_pointer_get (info[0], &address, self->core))
+    return;
+
+  gsize size = info[1]->Uint32Value ();
+  if (size == 0)
+  {
+    return;
+  }
+  else if (size > 0x7fffffff)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "invalid size")));
+    return;
+  }
+
+  GumPageProtection prot;
+  if (!_gum_script_page_protection_get (info[2], &prot, self->core))
+    return;
+
+  gboolean success = gum_try_mprotect (address, size, prot);
+  info.GetReturnValue ().Set (static_cast<bool> (success));
 }
 
 static void
