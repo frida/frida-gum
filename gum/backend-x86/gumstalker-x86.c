@@ -29,8 +29,8 @@
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
-#define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
-#define GUM_MAPPING_SLAB_SIZE_IN_PAGES       200
+#define GUM_CODE_SLAB_SIZE_IN_PAGES        64936
+#define GUM_MAPPING_SLAB_SIZE_IN_PAGES       600
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
 #define GUM_RED_ZONE_SIZE                    128
 
