@@ -82,7 +82,6 @@ STALKER_TESTCASE (follow_syscall)
 {
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
-  g_usleep (1); /* FIXME: workaround for unknown bug on 64-bit */
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
   g_usleep (1);
   gum_stalker_unfollow_me (fixture->stalker);
