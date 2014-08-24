@@ -27,7 +27,6 @@
 #include <tchar.h>
 #endif
 
-#define GUM_STACK_SIZE_IN_PAGES              128
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
 #define GUM_CODE_SLAB_SIZE_IN_PAGES        20000
