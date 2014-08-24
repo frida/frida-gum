@@ -2749,9 +2749,7 @@ gum_tls_key_set (GumTlsKey key,
   GUM_TLS_KEY_SET_VALUE (key, data);
 }
 
-#ifdef G_OS_WIN32
-
-#ifdef _M_IX86
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
 
 static void
 enable_hardware_breakpoint (DWORD * dr7_reg, guint index)
@@ -2769,6 +2767,7 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
   GumStalkerPrivate * priv = stalker->priv;
   gpointer * top_esp, * cur_esp;
   guint8 call_fs_c0_code[] = { 0x64, 0xff, 0x15, 0xc0, 0x00, 0x00, 0x00 };
+  guint8 call_ebp_8_code[] = { 0xff, 0x55, 0x08 };
   guint8 * minimum_address, * maximum_address;
 
   __asm
@@ -2791,18 +2790,20 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
   {
     guint8 * address = (guint8 *) *cur_esp;
 
-    if (address >= minimum_address && address <= maximum_address &&
-        memcmp (address - sizeof (call_fs_c0_code), call_fs_c0_code,
-        sizeof (call_fs_c0_code)) == 0)
+    if (address >= minimum_address && address <= maximum_address)
     {
-      return address;
+      if (memcmp (address - sizeof (call_fs_c0_code), call_fs_c0_code,
+          sizeof (call_fs_c0_code)) == 0
+          || memcmp (address - sizeof (call_ebp_8_code), call_ebp_8_code,
+          sizeof (call_ebp_8_code)) == 0)
+      {
+        return address;
+      }
     }
   }
 
   return NULL;
 }
-
-#endif
 
 static gboolean
 gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
@@ -2821,12 +2822,12 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
 
   block = ctx->current_block;
 
-#ifdef _M_IX86
   /*printf ("gum_stalker_handle_exception state=%u %p %08x\n",
       block->state, context->Eip, exception_record->ExceptionCode);*/
 
   switch (block->state)
   {
+    case GUM_EXEC_NORMAL:
     case GUM_EXEC_SINGLE_STEPPING_ON_CALL:
     {
       DWORD instruction_after_call_here;
@@ -2874,15 +2875,9 @@ gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
       break;
     }
 
-    case GUM_EXEC_NORMAL:
-      return FALSE;
-
     default:
       g_assert_not_reached ();
   }
-#else
-  (void) context;
-#endif
 
   return TRUE;
 }
