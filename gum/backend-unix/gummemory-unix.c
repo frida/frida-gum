@@ -230,10 +230,10 @@ gum_memory_write (GumAddress address,
   return result;
 }
 
-void
-gum_mprotect (gpointer address,
-              gsize size,
-              GumPageProtection page_prot)
+gboolean
+gum_try_mprotect (gpointer address,
+                  gsize size,
+                  GumPageProtection page_prot)
 {
   gsize page_size;
   gpointer aligned_address;
@@ -251,7 +251,8 @@ gum_mprotect (gpointer address,
   unix_page_prot = gum_page_protection_to_unix (page_prot);
 
   result = mprotect (aligned_address, aligned_size, unix_page_prot);
-  g_assert_cmpint (result, ==, 0);
+
+  return result == 0;
 }
 
 void

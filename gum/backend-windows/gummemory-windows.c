@@ -120,17 +120,16 @@ gum_memory_write (GumAddress address,
       bytes, len, NULL);
 }
 
-void
-gum_mprotect (gpointer address,
-              gsize size,
-              GumPageProtection page_prot)
+gboolean
+gum_try_mprotect (gpointer address,
+                  gsize size,
+                  GumPageProtection page_prot)
 {
   DWORD win_page_prot, old_protect;
-  BOOL success;
 
   win_page_prot = gum_page_protection_to_windows (page_prot);
-  success = VirtualProtect (address, size, win_page_prot, &old_protect);
-  g_assert (success);
+
+  return VirtualProtect (address, size, win_page_prot, &old_protect);
 }
 
 void

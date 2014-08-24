@@ -338,6 +338,17 @@ gum_match_token_append (GumMatchToken * self,
   g_array_append_val (self->bytes, byte);
 }
 
+void
+gum_mprotect (gpointer address,
+              gsize size,
+              GumPageProtection page_prot)
+{
+  gboolean success;
+
+  success = gum_try_mprotect (address, size, page_prot);
+  g_assert (success);
+}
+
 guint
 gum_peek_private_memory_usage (void)
 {

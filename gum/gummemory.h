@@ -66,6 +66,7 @@ GumMatchPattern * gum_match_pattern_new_from_string (const gchar * match_str);
 void gum_match_pattern_free (GumMatchPattern * pattern);
 
 void gum_mprotect (gpointer address, gsize size, GumPageProtection page_prot);
+gboolean gum_try_mprotect (gpointer address, gsize size, GumPageProtection page_prot);
 
 void gum_clear_cache (gpointer address, gsize size);
 

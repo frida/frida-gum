@@ -212,10 +212,10 @@ gum_darwin_write (mach_port_t task,
   return (kr == KERN_SUCCESS);
 }
 
-void
-gum_mprotect (gpointer address,
-              gsize size,
-              GumPageProtection page_prot)
+gboolean
+gum_try_mprotect (gpointer address,
+                  gsize size,
+                  GumPageProtection page_prot)
 {
   gsize page_size;
   gpointer aligned_address;
@@ -234,7 +234,8 @@ gum_mprotect (gpointer address,
 
   kr = mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (aligned_address),
       aligned_size, FALSE, mach_page_prot);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+  return kr == KERN_SUCCESS;
 }
 
 void
