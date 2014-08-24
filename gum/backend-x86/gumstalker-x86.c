@@ -209,6 +209,7 @@ struct _GumGeneratorContext
   gpointer continuation_real_address;
   GumPrologType opened_prolog;
   guint state_preserve_stack_offset;
+  guint state_preserve_stack_gap;
   guint accumulated_stack_delta;
 };
 
@@ -246,10 +247,8 @@ enum _GumVirtualizationRequirements
 #define GUM_STALKER_UNLOCK(o) g_mutex_unlock (&(o)->priv->mutex)
 
 #if GLIB_SIZEOF_VOID_P == 4
-#define STATE_PRESERVE_SIZE (5 * sizeof (gpointer))
 #define STATE_PRESERVE_TOPMOST_REGISTER_INDEX (3)
 #else
-#define STATE_PRESERVE_SIZE (11 * sizeof (gpointer))
 #define STATE_PRESERVE_TOPMOST_REGISTER_INDEX (9)
 #endif
 #define GUM_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
@@ -1157,6 +1156,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gc.continuation_real_address = NULL;
   gc.opened_prolog = GUM_PROLOG_NONE;
   gc.state_preserve_stack_offset = 0;
+  gc.state_preserve_stack_gap = 0;
   gc.accumulated_stack_delta = 0;
 
 #if ENABLE_DEBUG
@@ -1578,14 +1578,16 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XBX, gc->state_preserve_stack_offset +
         STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
-        ((source_meta - 2 - GUM_REG_XAX) * sizeof (gpointer)));
+        ((source_meta - gc->state_preserve_stack_gap - GUM_REG_XAX)
+        * sizeof (gpointer)));
   }
   else if (source_meta >= GUM_REG_R8 && source_meta <= GUM_REG_R11)
   {
     gum_x86_writer_put_mov_reg_reg_offset_ptr (cw, target_register,
         GUM_REG_XBX, gc->state_preserve_stack_offset +
         STATE_PRESERVE_TOPMOST_REGISTER_INDEX * sizeof (gpointer) -
-        ((source_meta - 2 - GUM_REG_RAX) * sizeof (gpointer)));
+        ((source_meta - gc->state_preserve_stack_gap - GUM_REG_RAX)
+        * sizeof (gpointer)));
   }
 #endif
   else if (source_meta == GUM_REG_XSP)
@@ -2612,6 +2614,7 @@ gum_exec_block_open_prolog (GumExecBlock * block,
   if (type == GUM_PROLOG_MINIMAL)
   {
     gc->state_preserve_stack_offset = 0;
+    gc->state_preserve_stack_gap = 2;
   }
   else /* GUM_PROLOG_FULL */
   {
@@ -2620,6 +2623,7 @@ gum_exec_block_open_prolog (GumExecBlock * block,
 #else
     gc->state_preserve_stack_offset = G_STRUCT_OFFSET (GumCpuContext, r9);
 #endif
+    gc->state_preserve_stack_gap = 0;
   }
   gc->accumulated_stack_delta = 0;
 

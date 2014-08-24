@@ -29,6 +29,9 @@ TEST_LIST_BEGIN (stalker)
   STALKER_TESTENTRY (indirect_call_with_register_and_negative_byte_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_positive_dword_immediate)
   STALKER_TESTENTRY (indirect_call_with_register_and_negative_dword_immediate)
+#if GLIB_SIZEOF_VOID_P == 8
+  STALKER_TESTENTRY (indirect_call_with_extended_registers_and_immediate)
+#endif
   STALKER_TESTENTRY (indirect_call_with_esp_and_byte_immediate)
   STALKER_TESTENTRY (indirect_call_with_esp_and_dword_immediate)
   STALKER_TESTENTRY (indirect_jump_with_immediate)
@@ -842,7 +845,11 @@ struct _CallTemplate
   gint target_func_immediate_fixup;
   guint instruction_count;
   guint ia32_padding_instruction_count;
+  gboolean enable_probe;
 };
+
+static void probe_template_func_invocation (GumCallSite * site,
+    gpointer user_data);
 
 static StalkerTestFunc
 invoke_call_from_template (TestStalkerFixture * fixture,
@@ -854,6 +861,7 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   gsize target_actual_address;
   guint expected_insn_count;
   gint ret;
+  GumProbeId probe_id;
 
   code = test_stalker_fixture_dup_code (fixture,
       call_template->code_template, call_template->code_size);
@@ -893,7 +901,20 @@ invoke_call_from_template (TestStalkerFixture * fixture,
   GUM_ASSERT_CMPADDR (NTH_EVENT_AS_CALL (1)->target,
       ==, code + call_template->target_func_offset);
 
+  probe_id = gum_stalker_add_call_probe (fixture->stalker, target_func_address,
+      probe_template_func_invocation, NULL, NULL);
+  fixture->sink->mask = GUM_NOTHING;
+  ret = test_stalker_fixture_follow_and_invoke (fixture, func, 0);
+  g_assert_cmpint (ret, == , 1337);
+  gum_stalker_remove_call_probe (fixture->stalker, probe_id);
+
   return func;
+}
+
+static void
+probe_template_func_invocation (GumCallSite * site,
+                                gpointer user_data)
+{
 }
 
 STALKER_TESTCASE (indirect_call_with_immediate)
@@ -1055,6 +1076,37 @@ STALKER_TESTCASE (indirect_call_with_register_and_negative_dword_immediate)
 
   invoke_call_from_template (fixture, &call_template);
 }
+
+#if GLIB_SIZEOF_VOID_P == 8
+
+STALKER_TESTCASE (indirect_call_with_extended_registers_and_immediate)
+{
+  const guint8 code[] = {
+      0x49, 0xbb, 0x00, 0x00, 0x00, 0x00, /* mov r11, X                   */
+                  0x00, 0x00, 0x00, 0x00,
+      0x49, 0xba, 0x39, 0x05, 0x00, 0x00, /* mov r10, 1337                */
+                  0x00, 0x00, 0x00, 0x00,
+      0x43, 0xff, 0x94, 0xd3,             /* call [r11 + r10*8 + 0x270e0] */
+                  0xe0, 0x70, 0x02, 0x00,
+      0xc3,                               /* ret                          */
+
+      0xb8, 0x39, 0x05, 0x00, 0x00,       /* mov eax, 1337                */
+      0xc3,                               /* ret                          */
+  };
+  CallTemplate call_template = { 0, };
+
+  call_template.code_template = code;
+  call_template.code_size = sizeof (code);
+  call_template.call_site_offset = 20;
+  call_template.target_address_offset = 2;
+  call_template.target_func_offset = 29;
+  call_template.target_func_immediate_fixup = -((1337 * 8) + 0x270e0);
+  call_template.instruction_count = 6;
+
+  invoke_call_from_template (fixture, &call_template);
+}
+
+#endif
 
 STALKER_TESTCASE (indirect_call_with_esp_and_byte_immediate)
 {
