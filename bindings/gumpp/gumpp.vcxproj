@@ -82,6 +82,7 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
+  <Import Project="gumpp-common.props" />
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile />
     <ClCompile>
@@ -130,26 +131,6 @@
       <SubSystem>Windows</SubSystem>
     </Link>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="backtracer.cpp" />
-    <ClCompile Include="interceptor.cpp" />
-    <ClCompile Include="invocationlistener.cpp" />
-    <ClCompile Include="profiler.cpp" />
-    <ClCompile Include="returnaddress.cpp" />
-    <ClCompile Include="runtime.cpp" />
-    <ClCompile Include="sampler.cpp" />
-    <ClCompile Include="sanitychecker.cpp" />
-    <ClCompile Include="symbolutil.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="gumpp.hpp" />
-    <ClInclude Include="invocationcontext.hpp" />
-    <ClInclude Include="invocationlistener.hpp" />
-    <ClInclude Include="objectwrapper.hpp" />
-    <ClInclude Include="podwrapper.hpp" />
-    <ClInclude Include="runtime.hpp" />
-    <ClInclude Include="string.hpp" />
-  </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\gum-32.vcxproj">
       <Project>{b31c7d42-54b6-49bb-b30c-11745c48b062}</Project>

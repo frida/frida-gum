@@ -1,10 +1,6 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <ItemGroup>
-    <Filter Include="static-libs">
-      <UniqueIdentifier>{a1c1b5d5-c188-46e4-8e74-49f01aa49953}</UniqueIdentifier>
-    </Filter>
-  </ItemGroup>
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  
   <ItemGroup>
     <ClCompile Include="..\gumpp\backtracer.cpp" />
     <ClCompile Include="..\gumpp\interceptor.cpp" />
@@ -25,4 +21,5 @@
     <ClInclude Include="..\gumpp\runtime.hpp" />
     <ClInclude Include="..\gumpp\string.hpp" />
   </ItemGroup>
+
 </Project>
