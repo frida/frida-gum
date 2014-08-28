@@ -1,0 +1,28 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="static-libs">
+      <UniqueIdentifier>{a1c1b5d5-c188-46e4-8e74-49f01aa49953}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\gumpp\backtracer.cpp" />
+    <ClCompile Include="..\gumpp\interceptor.cpp" />
+    <ClCompile Include="..\gumpp\invocationlistener.cpp" />
+    <ClCompile Include="..\gumpp\profiler.cpp" />
+    <ClCompile Include="..\gumpp\returnaddress.cpp" />
+    <ClCompile Include="..\gumpp\runtime.cpp" />
+    <ClCompile Include="..\gumpp\sampler.cpp" />
+    <ClCompile Include="..\gumpp\sanitychecker.cpp" />
+    <ClCompile Include="..\gumpp\symbolutil.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\gumpp\gumpp.hpp" />
+    <ClInclude Include="..\gumpp\invocationcontext.hpp" />
+    <ClInclude Include="..\gumpp\invocationlistener.hpp" />
+    <ClInclude Include="..\gumpp\objectwrapper.hpp" />
+    <ClInclude Include="..\gumpp\podwrapper.hpp" />
+    <ClInclude Include="..\gumpp\runtime.hpp" />
+    <ClInclude Include="..\gumpp\string.hpp" />
+  </ItemGroup>
+</Project>
