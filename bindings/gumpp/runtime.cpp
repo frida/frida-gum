@@ -10,6 +10,7 @@ namespace Gum
 {
   volatile int Runtime::ref_count = 0;
 
+#ifndef GUMPP_STATIC
   static void init ()
   {
 #if GLIB_CHECK_VERSION (2, 42, 0)
@@ -27,8 +28,11 @@ namespace Gum
     glib_deinit ();
 #endif
   }
+#endif
 
 #ifdef G_OS_WIN32
+
+#ifndef GUMPP_STATIC
   extern "C" BOOL WINAPI DllMain (HINSTANCE inst_dll, DWORD reason, LPVOID reserved)
   {
     (void) inst_dll;
@@ -46,6 +50,7 @@ namespace Gum
 
     return TRUE;
   }
+#endif
 
   void Runtime::ref ()
   {
@@ -54,7 +59,9 @@ namespace Gum
   void Runtime::unref ()
   {
   }
+
 #else
+
   void Runtime::ref ()
   {
     if (g_atomic_int_add (&ref_count, 1) == 0)
