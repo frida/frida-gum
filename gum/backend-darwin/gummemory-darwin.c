@@ -9,13 +9,6 @@
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
-#define DARWIN        1
-#define INSECURE      0
-#define NO_MALLINFO   0
-#define USE_LOCKS     1
-#define USE_DL_PREFIX 1
-#include "dlmalloc.c"
-
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
 
@@ -244,59 +237,6 @@ gum_clear_cache (gpointer address,
 {
   sys_icache_invalidate (address, size);
   sys_dcache_flush (address, size);
-}
-
-guint
-gum_peek_private_memory_usage (void)
-{
-  struct mallinfo info;
-
-  info = dlmallinfo ();
-
-  return info.uordblks;
-}
-
-gpointer
-gum_malloc (gsize size)
-{
-  return dlmalloc (size);
-}
-
-gpointer
-gum_malloc0 (gsize size)
-{
-  return dlcalloc (1, size);
-}
-
-gpointer
-gum_calloc (gsize count, gsize size)
-{
-  return dlcalloc (count, size);
-}
-
-gpointer
-gum_realloc (gpointer mem,
-             gsize size)
-{
-  return dlrealloc (mem, size);
-}
-
-gpointer
-gum_memdup (gconstpointer mem,
-            gsize byte_size)
-{
-  gpointer result;
-
-  result = dlmalloc (byte_size);
-  memcpy (result, mem, byte_size);
-
-  return result;
-}
-
-void
-gum_free (gpointer mem)
-{
-  dlfree (mem);
 }
 
 gpointer

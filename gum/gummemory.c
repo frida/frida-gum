@@ -16,6 +16,9 @@
 # include <sys/mman.h>
 # undef __USE_GNU
 #endif
+#ifdef HAVE_DARWIN
+# define DARWIN       1
+#endif
 #define MSPACES       1
 #define ONLY_MSPACES  1
 #define USE_LOCKS     1
