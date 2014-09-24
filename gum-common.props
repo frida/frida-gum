@@ -28,6 +28,7 @@
     <ClInclude Include="gum\gummemory-priv.h" />
     <ClInclude Include="gum\gummemoryaccessmonitor.h" />
     <ClInclude Include="gum\gummemorymap.h" />
+    <ClInclude Include="gum\gummetalhash.h" />
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
@@ -66,6 +67,7 @@
     <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gummemorymap.c" />
+    <ClCompile Include="gum\gummetalhash.c" />
     <ClCompile Include="gum\gumprintf.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />

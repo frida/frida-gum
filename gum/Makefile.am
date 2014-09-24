@@ -195,6 +195,8 @@ libfrida_gum_la_SOURCES = \
 	guminvocationlistener.c \
 	gummemory.c \
 	gummemorymap.c \
+	gummetalhash.c \
+	gummetalhash.h \
 	gumprintf.c \
 	gumprintf.h \
 	gumreturnaddress.c \
