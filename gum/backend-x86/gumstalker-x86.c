@@ -1084,7 +1084,7 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
   for (i = 0; i != count; i++)
   {
     printf ("%s0x%" G_GINT64_MODIFIER "x\t%s %s\n",
-        prefix, insn[i].address, insn[i].mnemonic, insn[i].op_str);
+        prefix, (gsize) insn[i].address, insn[i].mnemonic, insn[i].op_str);
   }
 
   cs_free (insn, count);
