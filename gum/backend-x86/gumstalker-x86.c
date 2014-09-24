@@ -29,7 +29,7 @@
 
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
-#define GUM_CODE_SLAB_SIZE_IN_PAGES        64936
+#define GUM_CODE_SLAB_SIZE_IN_PAGES         1024
 #define GUM_MAPPING_SLAB_SIZE_IN_PAGES       600
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
 #define GUM_RED_ZONE_SIZE                    128
@@ -146,7 +146,8 @@ struct _GumExecCtx
   gpointer thunks;
   gpointer infect_thunk;
 
-  GumSlab code_slab;
+  GumSlab * code_slab;
+  GumSlab first_code_slab;
   GumSlab mapping_slab;
 };
 
@@ -271,7 +272,6 @@ static void gum_stalker_invalidate_caches (GumStalker * self);
 static void gum_exec_ctx_free (GumExecCtx * ctx);
 static void gum_exec_ctx_unfollow (GumExecCtx * ctx, gpointer resume_at);
 static gboolean gum_exec_ctx_has_executed (GumExecCtx * ctx);
-static void gum_exec_ctx_add_code_slab_if_neeed (GumExecCtx * ctx);
 static gpointer GUM_THUNK gum_exec_ctx_replace_current_block_with (
     GumExecCtx * ctx, gpointer start_address);
 static void gum_exec_ctx_create_thunks (GumExecCtx * ctx);
@@ -884,12 +884,13 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->state = GUM_EXEC_CTX_ACTIVE;
   ctx->invalidate_pending = FALSE;
 
-  ctx->code_slab.data = ((guint8 *) ctx) + (base_size * priv->page_size);
-  ctx->code_slab.offset = 0;
-  ctx->code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
-  ctx->code_slab.next = NULL;
+  ctx->code_slab = &ctx->first_code_slab;
+  ctx->first_code_slab.data = ((guint8 *) ctx) + (base_size * priv->page_size);
+  ctx->first_code_slab.offset = 0;
+  ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
+  ctx->first_code_slab.next = NULL;
 
-  ctx->mapping_slab.data = ctx->code_slab.data + ctx->code_slab.size;
+  ctx->mapping_slab.data = ctx->code_slab->data + ctx->code_slab->size;
   ctx->mapping_slab.offset = 0;
   ctx->mapping_slab.size = GUM_MAPPING_SLAB_SIZE_IN_PAGES * priv->page_size;
   ctx->mapping_slab.next = NULL;
@@ -941,8 +942,6 @@ gum_stalker_invalidate_caches (GumStalker * self)
   {
     GumExecCtx * ctx = (GumExecCtx *) cur->data;
 
-    gum_exec_ctx_add_code_slab_if_neeed (ctx);
-
     ctx->invalidate_pending = TRUE;
   }
 
@@ -954,8 +953,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 {
   GumSlab * slab;
 
-  slab = ctx->code_slab.next;
-  while (slab != NULL)
+  slab = ctx->code_slab;
+  while (slab != &ctx->first_code_slab)
   {
     GumSlab * next = slab->next;
     gum_free_pages (slab);
@@ -989,29 +988,6 @@ static gboolean
 gum_exec_ctx_has_executed (GumExecCtx * ctx)
 {
   return ctx->resume_at != NULL;
-}
-
-static void
-gum_exec_ctx_add_code_slab_if_neeed (GumExecCtx * ctx)
-{
-  GumSlab * slab;
-
-  slab = &ctx->code_slab;
-  while (slab->next != NULL)
-    slab = slab->next;
-  if (slab->size - slab->offset > slab->size / 2)
-  {
-    GumSlab * s;
-
-    s = gum_alloc_n_pages (GUM_CODE_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
-    s->data = (guint8 *) (s + 1);
-    s->offset = 0;
-    s->size = (GUM_CODE_SLAB_SIZE_IN_PAGES * ctx->stalker->priv->page_size)
-        - sizeof (GumSlab);
-    s->next = NULL;
-
-    slab->next = s;
-  }
 }
 
 static gpointer GUM_THUNK
@@ -1636,40 +1612,46 @@ gum_address_mapping_compare (const void * a,
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)
 {
-  GumSlab * slab;
+  GumSlab * slab = ctx->code_slab;
 
-  for (slab = &ctx->code_slab; slab != NULL; slab = slab->next)
+  if (slab->size - slab->offset >= GUM_EXEC_BLOCK_MIN_SIZE)
   {
-    if (slab->size - slab->offset >= GUM_EXEC_BLOCK_MIN_SIZE)
-    {
-      GumExecBlock * block = (GumExecBlock *) (slab->data + slab->offset);
+    GumExecBlock * block = (GumExecBlock *) (slab->data + slab->offset);
 
-      block->ctx = ctx;
-      block->slab = slab;
+    block->ctx = ctx;
+    block->slab = slab;
 
-      block->code_begin = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (slab->data +
-            slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
-          & ~(GUM_CODE_ALIGNMENT - 1));
-      block->code_end = block->code_begin;
+    block->code_begin = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (slab->data +
+          slab->offset + sizeof (GumExecBlock) + GUM_CODE_ALIGNMENT - 1)
+        & ~(GUM_CODE_ALIGNMENT - 1));
+    block->code_end = block->code_begin;
 
-      block->state = GUM_EXEC_NORMAL;
-      block->recycle_count = 0;
-      block->has_call_to_excluded_range = FALSE;
+    block->state = GUM_EXEC_NORMAL;
+    block->recycle_count = 0;
+    block->has_call_to_excluded_range = FALSE;
 
-      slab->offset += block->code_begin - (slab->data + slab->offset);
+    slab->offset += block->code_begin - (slab->data + slab->offset);
 
-      return block;
-    }
+    return block;
   }
 
   if (ctx->stalker->priv->trust_threshold < 0)
   {
-    ctx->code_slab.offset = 0;
+    ctx->code_slab->offset = 0;
 
     return gum_exec_block_new (ctx);
   }
 
-  return NULL;
+
+  slab = gum_alloc_n_pages (GUM_CODE_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
+  slab->data = (guint8 *) (slab + 1);
+  slab->offset = 0;
+  slab->size = (GUM_CODE_SLAB_SIZE_IN_PAGES * ctx->stalker->priv->page_size)
+      - sizeof (GumSlab);
+  slab->next = ctx->code_slab;
+  ctx->code_slab = slab;
+
+  return gum_exec_block_new (ctx);
 }
 
 static GumExecBlock *
