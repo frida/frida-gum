@@ -482,22 +482,22 @@ RELOCATOR_TESTCASE (rip_relative_move_same_target)
 RELOCATOR_TESTCASE (rip_relative_push)
 {
   const guint8 input[] = {
-      0xff, 0x35,                         /* push [rip + imm32]   */
-      0x01, 0x02, 0x03, 0x04
+    0xff, 0x35,                         /* push [rip + imm32]   */
+    0x01, 0x02, 0x03, 0x04
   };
   guint8 expected_output[] = {
-      0x50,                               /* push rax  */
-      0x50,                               /* push rax  */
+    0x50,                               /* push rax  */
+    0x50,                               /* push rax  */
 
-      0x48, 0xb8,                         /* mov rax, <rip> */
-      0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00,
+    0x48, 0xb8,                         /* mov rax, <rip> */
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
 
-      0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
-      0x01, 0x02, 0x03, 0x04,
+    0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
+    0x01, 0x02, 0x03, 0x04,
 
-      0x48, 0x89, 0x44, 0x24, 0x08,       /* mov [rsp + 8], rax */
-      0x58                                /* pop rax */
+    0x48, 0x89, 0x44, 0x24, 0x08,       /* mov [rsp + 8], rax */
+    0x58                                /* pop rax */
   };
 
   *((gpointer *) (expected_output + 4)) = (gpointer) (input + 6);
@@ -514,27 +514,27 @@ RELOCATOR_TESTCASE (rip_relative_push)
 RELOCATOR_TESTCASE (rip_relative_push_red_zone)
 {
   const guint8 input[] = {
-      0xff, 0x35,                         /* push [rip + imm32]   */
-      0x01, 0x02, 0x03, 0x04
+    0xff, 0x35,                         /* push [rip + imm32]   */
+    0x01, 0x02, 0x03, 0x04
   };
   guint8 expected_output[] = {
-      0x50,                               /* push rax  */
-      0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp - 128] */
-            0x80, 0xff, 0xff, 0xff,
-      0x50,                               /* push rax  */
+    0x50,                               /* push rax  */
+    0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp - 128] */
+          0x80, 0xff, 0xff, 0xff,
+    0x50,                               /* push rax  */
 
-      0x48, 0xb8,                         /* mov rax, <rip> */
-      0x00, 0x00, 0x00, 0x00,
-      0x00, 0x00, 0x00, 0x00,
+    0x48, 0xb8,                         /* mov rax, <rip> */
+    0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
 
-      0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
-      0x01, 0x02, 0x03, 0x04,
+    0x48, 0x8b, 0x80,                   /* mov rax, [rax + <imm32>] */
+    0x01, 0x02, 0x03, 0x04,
 
-      0x48, 0x89, 0x84, 0x24,             /* mov [rsp + 8 + 128], rax */
-            0x88, 0x00, 0x00, 0x00,
-      0x58,                               /* pop rax */
-      0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp + 128] */
-            0x80, 0x00, 0x00, 0x00
+    0x48, 0x89, 0x84, 0x24,             /* mov [rsp + 8 + 128], rax */
+          0x88, 0x00, 0x00, 0x00,
+    0x58,                               /* pop rax */
+    0x48, 0x8d, 0xa4, 0x24,             /* lea rsp, [rsp + 128] */
+          0x80, 0x00, 0x00, 0x00
   };
 
   *((gpointer *) (expected_output + 12)) = (gpointer) (input + 6);
