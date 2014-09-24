@@ -9,6 +9,7 @@
 
 #include "gumstalker.h"
 
+#include "gummetalhash.h"
 #include "gumx86reader.h"
 #include "gumx86writer.h"
 #include "gummemory.h"
@@ -30,7 +31,6 @@
 #define GUM_CODE_ALIGNMENT                     8
 #define GUM_DATA_ALIGNMENT                     8
 #define GUM_CODE_SLAB_SIZE_IN_PAGES         1024
-#define GUM_MAPPING_SLAB_SIZE_IN_PAGES       600
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
 #define GUM_RED_ZONE_SIZE                    128
 
@@ -47,7 +47,6 @@ typedef struct _GumExecBlock GumExecBlock;
 typedef guint GumPrologType;
 typedef guint GumCodeContext;
 typedef struct _GumGeneratorContext GumGeneratorContext;
-typedef struct _GumAddressMapping GumAddressMapping;
 typedef struct _GumInstruction GumInstruction;
 typedef struct _GumBranchTarget GumBranchTarget;
 
@@ -101,7 +100,7 @@ struct _GumSlab
   guint8 * data;
   guint offset;
   guint size;
-  GumSlab * next; /* TODO: implement worker adding a new slab when needed */
+  GumSlab * next;
 };
 
 struct _GumExecFrame
@@ -148,14 +147,7 @@ struct _GumExecCtx
 
   GumSlab * code_slab;
   GumSlab first_code_slab;
-  GumSlab mapping_slab;
-};
-
-struct _GumAddressMapping
-{
-  gpointer real_address;
-  gpointer code_address;
-  GumExecBlock * block;
+  GumMetalHashTable * mappings;
 };
 
 struct _GumExecBlock
@@ -238,9 +230,8 @@ enum _GumVirtualizationRequirements
 {
   GUM_REQUIRE_NOTHING         = 0,
 
-  GUM_REQUIRE_MAPPING         = 1 << 0,
-  GUM_REQUIRE_RELOCATION      = 1 << 1,
-  GUM_REQUIRE_SINGLE_STEP     = 1 << 2
+  GUM_REQUIRE_RELOCATION      = 1 << 0,
+  GUM_REQUIRE_SINGLE_STEP     = 1 << 1
 };
 
 #define GUM_STALKER_LOCK(o) g_mutex_lock (&(o)->priv->mutex)
@@ -279,11 +270,6 @@ static void gum_exec_ctx_destroy_thunks (GumExecCtx * ctx);
 
 static GumExecBlock * gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gpointer real_address, gpointer * code_address);
-static void gum_exec_ctx_clear_address_mappings (GumExecCtx * ctx);
-static void gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
-    gpointer real_address, gpointer code_address, GumExecBlock * block);
-static void gum_exec_ctx_remove_address_mapping (GumExecCtx * ctx,
-    gpointer real_address);
 static void gum_exec_ctx_write_prolog (GumExecCtx * ctx, GumPrologType type,
     gpointer ip, GumX86Writer * cw);
 static void gum_exec_ctx_write_epilog (GumExecCtx * ctx, GumPrologType type,
@@ -293,8 +279,6 @@ static void gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
 static void gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
     GumCpuReg target_register, GumCpuReg source_register,
     gpointer ip, GumGeneratorContext * gc);
-
-static int gum_address_mapping_compare (const void * a, const void * b);
 
 static GumExecBlock * gum_exec_block_new (GumExecCtx * ctx);
 static GumExecBlock * gum_exec_block_obtain (GumExecCtx * ctx,
@@ -879,8 +863,8 @@ gum_stalker_create_exec_ctx (GumStalker * self,
     base_size++;
 
   ctx = (GumExecCtx *)
-      gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES +
-          GUM_MAPPING_SLAB_SIZE_IN_PAGES + 1, GUM_PAGE_RWX);
+      gum_alloc_n_pages (base_size + GUM_CODE_SLAB_SIZE_IN_PAGES + 1,
+          GUM_PAGE_RWX);
   ctx->state = GUM_EXEC_CTX_ACTIVE;
   ctx->invalidate_pending = FALSE;
 
@@ -890,16 +874,13 @@ gum_stalker_create_exec_ctx (GumStalker * self,
   ctx->first_code_slab.size = GUM_CODE_SLAB_SIZE_IN_PAGES * priv->page_size;
   ctx->first_code_slab.next = NULL;
 
-  ctx->mapping_slab.data = ctx->code_slab->data + ctx->code_slab->size;
-  ctx->mapping_slab.offset = 0;
-  ctx->mapping_slab.size = GUM_MAPPING_SLAB_SIZE_IN_PAGES * priv->page_size;
-  ctx->mapping_slab.next = NULL;
-
   ctx->frames = (GumExecFrame *)
-      ctx->mapping_slab.data + ctx->mapping_slab.size;
-  ctx->first_frame = (GumExecFrame *) (ctx->mapping_slab.data +
-      ctx->mapping_slab.size + priv->page_size - sizeof (GumExecFrame));
+      (ctx->code_slab->data + ctx->code_slab->size);
+  ctx->first_frame = (GumExecFrame *) (ctx->code_slab->data +
+      ctx->code_slab->size + priv->page_size - sizeof (GumExecFrame));
   ctx->current_frame = ctx->first_frame;
+
+  ctx->mappings = gum_metal_hash_table_new (NULL, NULL);
 
   ctx->resume_at = NULL;
   ctx->return_at = NULL;
@@ -953,6 +934,8 @@ gum_exec_ctx_free (GumExecCtx * ctx)
 {
   GumSlab * slab;
 
+  gum_metal_hash_table_unref (ctx->mappings);
+
   slab = ctx->code_slab;
   while (slab != &ctx->first_code_slab)
   {
@@ -996,7 +979,7 @@ gum_exec_ctx_replace_current_block_with (GumExecCtx * ctx,
 {
   if (ctx->invalidate_pending)
   {
-    gum_exec_ctx_clear_address_mappings (ctx);
+    gum_metal_hash_table_remove_all (ctx->mappings);
 
     ctx->invalidate_pending = FALSE;
   }
@@ -1120,15 +1103,15 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       }
       else
       {
-        gum_exec_ctx_remove_address_mapping (ctx, real_address);
+        gum_metal_hash_table_remove (ctx->mappings, real_address);
       }
     }
   }
 
   block = gum_exec_block_new (ctx);
   *code_address = block->code_begin;
-  gum_exec_ctx_add_address_mapping (ctx, real_address, block->code_begin,
-      block);
+  if (ctx->stalker->priv->trust_threshold >= 0)
+    gum_metal_hash_table_insert (ctx->mappings, real_address, block);
   gum_x86_writer_reset (cw, block->code_begin);
   gum_x86_relocator_reset (rl, real_address, cw);
 
@@ -1194,19 +1177,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
 
     if ((requirements & GUM_REQUIRE_RELOCATION) != 0)
     {
-      if ((requirements & GUM_REQUIRE_MAPPING) != 0)
-      {
-        gum_exec_ctx_add_address_mapping (ctx, insn.begin,
-            gum_x86_writer_cur (cw), block);
-      }
-
       gum_x86_relocator_write_one_no_label (rl);
-
-      if ((requirements & GUM_REQUIRE_MAPPING) != 0)
-      {
-        gum_exec_ctx_add_address_mapping (ctx, insn.end,
-            gum_x86_writer_cur (cw), block);
-      }
     }
     else if ((requirements & GUM_REQUIRE_SINGLE_STEP) != 0)
     {
@@ -1270,110 +1241,6 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
   gum_exec_block_commit (block);
 
   return block;
-}
-
-static void
-gum_exec_ctx_clear_address_mappings (GumExecCtx * ctx)
-{
-  GumSlab * slab;
-
-  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
-  {
-    slab->offset = 0;
-  }
-}
-
-static void
-gum_exec_ctx_add_address_mapping (GumExecCtx * ctx,
-                                  gpointer real_address,
-                                  gpointer code_address,
-                                  GumExecBlock * block)
-{
-  GumSlab * slab;
-
-  if (ctx->stalker->priv->trust_threshold < 0)
-  {
-    return;
-  }
-
-  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
-  {
-    if (slab->size - slab->offset >= sizeof (GumAddressMapping))
-    {
-      GumAddressMapping * mapping, * cur;
-      guint offset_from_end;
-
-      mapping = NULL;
-
-      for (cur = (GumAddressMapping *) (slab->data + slab->offset -
-            sizeof (GumAddressMapping)), offset_from_end = 0;
-          cur >= (GumAddressMapping *) slab->data;
-          cur--, offset_from_end++)
-      {
-        if (real_address >= cur->real_address)
-        {
-          if (offset_from_end > 0)
-          {
-            mapping = cur + 1;
-            memmove (cur + 2, cur + 1, offset_from_end * sizeof (GumAddressMapping));
-          }
-          break;
-        }
-        else if (cur == (GumAddressMapping *) slab->data)
-        {
-          mapping = cur;
-          memmove (cur + 1, cur, (offset_from_end + 1) * sizeof (GumAddressMapping));
-        }
-      }
-
-      if (mapping == NULL)
-        mapping = (GumAddressMapping *) (slab->data + slab->offset);
-
-      mapping->real_address = real_address;
-      mapping->code_address = code_address;
-      mapping->block = block;
-
-      slab->offset += sizeof (GumAddressMapping);
-
-      break;
-    }
-  }
-}
-
-static void
-gum_exec_ctx_remove_address_mapping (GumExecCtx * ctx,
-                                     gpointer real_address)
-{
-  GumAddressMapping mapping;
-  GumSlab * slab;
-
-  mapping.real_address = real_address;
-  mapping.code_address = NULL;
-  mapping.block = NULL;
-
-  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
-  {
-    GumAddressMapping * match;
-
-    match = bsearch (&mapping, slab->data,
-        slab->offset / sizeof (GumAddressMapping), sizeof (GumAddressMapping),
-        gum_address_mapping_compare);
-    if (match != NULL)
-    {
-      GumAddressMapping * last_mapping;
-
-      last_mapping = (GumAddressMapping *) (slab->data + slab->offset -
-          sizeof (GumAddressMapping));
-      if (match != last_mapping)
-      {
-        memmove (match, match + 1, (slab->data + slab->offset) -
-            ((guint8 *) (match + 1)));
-      }
-      slab->offset -= sizeof (GumAddressMapping);
-
-      return;
-    }
-  }
 }
 
 static void
@@ -1594,21 +1461,6 @@ gum_exec_ctx_load_real_register_into (GumExecCtx * ctx,
   }
 }
 
-static int
-gum_address_mapping_compare (const void * a,
-                             const void * b)
-{
-  const GumAddressMapping * mapping_a = (const GumAddressMapping *) a;
-  const GumAddressMapping * mapping_b = (const GumAddressMapping *) b;
-
-  if (mapping_a->real_address < mapping_b->real_address)
-    return -1;
-  else if (mapping_a->real_address > mapping_b->real_address)
-    return 1;
-  else
-    return 0;
-}
-
 static GumExecBlock *
 gum_exec_block_new (GumExecCtx * ctx)
 {
@@ -1642,7 +1494,6 @@ gum_exec_block_new (GumExecCtx * ctx)
     return gum_exec_block_new (ctx);
   }
 
-
   slab = gum_alloc_n_pages (GUM_CODE_SLAB_SIZE_IN_PAGES, GUM_PAGE_RWX);
   slab->data = (guint8 *) (slab + 1);
   slab->offset = 0;
@@ -1659,28 +1510,13 @@ gum_exec_block_obtain (GumExecCtx * ctx,
                        gpointer real_address,
                        gpointer * code_address)
 {
-  GumAddressMapping mapping;
-  GumSlab * slab;
+  GumExecBlock * block;
 
-  mapping.real_address = real_address;
-  mapping.code_address = NULL;
-  mapping.block = NULL;
+  block = gum_metal_hash_table_lookup (ctx->mappings, real_address);
+  if (block != NULL)
+    *code_address = block->code_begin;
 
-  for (slab = &ctx->mapping_slab; slab != NULL; slab = slab->next)
-  {
-    GumAddressMapping * match;
-
-    match = bsearch (&mapping, slab->data,
-        slab->offset / sizeof (GumAddressMapping), sizeof (GumAddressMapping),
-        gum_address_mapping_compare);
-    if (match != NULL)
-    {
-      *code_address = match->code_address;
-      return match->block;
-    }
-  }
-
-  return NULL;
+  return block;
 }
 
 static gboolean
