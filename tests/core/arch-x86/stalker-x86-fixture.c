@@ -52,6 +52,8 @@ typedef struct _TestStalkerFixture
 
 typedef gint (STALKER_TESTFUNC * StalkerTestFunc) (gint arg);
 
+static void silence_warnings (void);
+
 static void
 test_stalker_fixture_setup (TestStalkerFixture * fixture,
                             gconstpointer data)
@@ -72,6 +74,8 @@ test_stalker_fixture_setup (TestStalkerFixture * fixture,
     }
   }
 #endif
+
+  silence_warnings ();
 }
 
 static void
@@ -182,6 +186,13 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   return ret;
 }
 
+static void
+silence_warnings (void)
+{
+  (void) test_stalker_fixture_dup_code;
+  (void) test_stalker_fixture_follow_and_invoke;
+}
+
 typedef struct _StalkerVictimContext StalkerVictimContext;
 typedef guint StalkerVictimState;
 
@@ -203,10 +214,3 @@ enum _StalkerVictimState
   STALKER_VICTIM_READY_FOR_SHUTDOWN,
   STALKER_VICTIM_IS_SHUTDOWN
 };
-
-static void pretend_workload (void);
-static gpointer stalker_victim (gpointer data);
-static void invoke_follow_return_code (TestStalkerFixture * fixture);
-static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
-
-gint gum_stalker_dummy_global_to_trick_optimizer = 0;

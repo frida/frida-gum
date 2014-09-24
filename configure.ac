@@ -170,6 +170,12 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
+GUM_TEST_LIBS=""
+if [[ "x$HAVE_MAC" = "xyes" ]]; then
+  GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
+fi
+AC_SUBST(GUM_TEST_LIBS)
+
 if [[ "x$HAVE_BFD" = "xyes" ]] || [[ "x$enable_objc" = "xyes" ]]; then
   enable_symbol_backend=yes
   AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if a symbol backend is available.])

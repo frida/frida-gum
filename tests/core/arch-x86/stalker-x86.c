@@ -62,6 +62,13 @@ TEST_LIST_BEGIN (stalker)
 #endif
 TEST_LIST_END ()
 
+static void pretend_workload (void);
+static gpointer stalker_victim (gpointer data);
+static void invoke_follow_return_code (TestStalkerFixture * fixture);
+static void invoke_unfollow_deep_code (TestStalkerFixture * fixture);
+
+gint gum_stalker_dummy_global_to_trick_optimizer = 0;
+
 STALKER_TESTCASE (heap_api)
 {
   gpointer p;

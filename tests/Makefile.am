@@ -45,6 +45,7 @@ gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
 	$(top_builddir)/gum/libfrida-gum-1.0.la \
 	$(binding_ldadd) \
+	$(GUM_TEST_LIBS) \
 	$(GUM_LIBS) \
 	$(GUM_EXTRA_LIBS)
 if OS_MAC
