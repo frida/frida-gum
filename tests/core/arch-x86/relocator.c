@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (rip_relative_move_same_target)
   RELOCATOR_TESTENTRY (rip_relative_push)
   RELOCATOR_TESTENTRY (rip_relative_push_red_zone)
+  RELOCATOR_TESTENTRY (rip_relative_cmpxchg)
 #endif
 TEST_LIST_END ()
 
@@ -542,6 +543,32 @@ RELOCATOR_TESTCASE (rip_relative_push_red_zone)
   SETUP_RELOCATOR_WITH (input);
 
   fixture->rl.target_abi = GUM_ABI_UNIX;
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_one (&fixture->rl);
+  assert_output_equals (expected_output);
+}
+
+RELOCATOR_TESTCASE (rip_relative_cmpxchg)
+{
+  const guint8 input[] = {
+    0xf0, 0x48, 0x0f, 0xb1, 0x0d,       /* lock cmpxchg [rip + 1], rcx */
+          0x01, 0x00, 0x00, 0x00
+  };
+  guint8 expected_output[] = {
+    0x52,                               /* push rdx           */
+    0x48, 0xba, 0xff, 0xff, 0xff, 0xff, /* mov rdx, <rip>     */
+                0xff, 0xff, 0xff, 0xff,
+    0xf0, 0x48, 0x0f, 0xb1, 0x8a,       /* lock cmpxchg [rdx + 1], rcx */
+                0x01, 0x00, 0x00, 0x00,
+    0x5a                                /* pop rdx            */
+  };
+
+  *((gpointer *) (expected_output + 3)) = (gpointer) (input + 9);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);

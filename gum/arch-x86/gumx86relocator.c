@@ -467,10 +467,17 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   cs_x86 * x86 = &insn->detail->x86;
   guint mod, reg, rm;
   gboolean is_rip_relative;
-  GumCpuReg target_reg, rip_reg;
+  GumCpuReg cpu_regs[7] = {
+    GUM_REG_RAX, GUM_REG_RCX, GUM_REG_RDX, GUM_REG_RBX, GUM_REG_RBP,
+    GUM_REG_RSI, GUM_REG_RDI
+  };
+  x86_reg cs_regs[7] = {
+    X86_REG_RAX, X86_REG_RCX, X86_REG_RDX, X86_REG_RBX, X86_REG_RBP,
+    X86_REG_RSI, X86_REG_RDI
+  };
+  gint rip_reg_index, i;
+  GumCpuReg other_reg, rip_reg;
   guint8 code[16];
-
-  (void) self;
 
   if (x86->modrm_offset == 0)
     return FALSE;
@@ -483,19 +490,30 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   if (!is_rip_relative)
     return FALSE;
 
-  mod = 2;
+  other_reg = (GumCpuReg) (GUM_REG_RAX + reg);
 
-  target_reg = (GumCpuReg) (GUM_REG_RAX + reg);
-  if (target_reg != GUM_REG_RAX)
+  rip_reg_index = -1;
+  for (i = 0; i != G_N_ELEMENTS (cs_regs) && rip_reg_index == -1; i++)
   {
-    rip_reg = GUM_REG_RAX;
-    rm = 0;
+    /*
+     * FIXME: These first two checks shouldn't be necessary.
+     *        Need to have a closer look at capstone's mappings.
+     */
+    if (cpu_regs[i] == other_reg)
+      continue;
+    else if (insn->id == X86_INS_CMPXCHG && cpu_regs[i] == GUM_REG_RAX)
+      continue;
+    else if (cs_reg_read (self->capstone, ctx->insn, cs_regs[i]))
+      continue;
+    else if (cs_reg_write (self->capstone, ctx->insn, cs_regs[i]))
+      continue;
+    rip_reg_index = i;
   }
-  else
-  {
-    rip_reg = GUM_REG_RCX;
-    rm = 1;
-  }
+  g_assert_cmpint (rip_reg_index, !=, -1);
+  rip_reg = cpu_regs[rip_reg_index];
+
+  mod = 2;
+  rm = rip_reg - GUM_REG_RAX;
 
   if (insn->id == X86_INS_PUSH)
   {
