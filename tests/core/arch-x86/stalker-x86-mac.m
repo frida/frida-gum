@@ -24,17 +24,17 @@ STALKER_TESTCASE (cocoa)
     {
       [NSApplication sharedApplication];
       [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-      id menu = [NSMenu new];
-      id menu_item = [NSMenuItem new];
+      id menu = [[NSMenu new] autorelease];
+      id menu_item = [[NSMenuItem new] autorelease];
       [menu addItem:menu_item];
       [NSApp setMainMenu:menu];
-      id app_menu = [NSMenu new];
+      id app_menu = [[NSMenu new] autorelease];
       id app_name = [[NSProcessInfo processInfo] processName];
       id quit_title = [@"Quit " stringByAppendingString:app_name];
-      id quit_menu_item = [[NSMenuItem alloc]
+      id quit_menu_item = [[[NSMenuItem alloc]
           initWithTitle:quit_title
                  action:@selector (terminate:)
-          keyEquivalent:@"q"];
+          keyEquivalent:@"q"] autorelease];
       [app_menu addItem:quit_menu_item];
       [menu_item setSubmenu:app_menu];
       id window = [[NSWindow alloc]
@@ -47,6 +47,7 @@ STALKER_TESTCASE (cocoa)
       [window makeKeyAndOrderFront:nil];
       [NSApp activateIgnoringOtherApps:YES];
       [NSApp run];
+      [window release];
     }
     else
     {

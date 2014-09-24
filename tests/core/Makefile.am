@@ -13,7 +13,6 @@ endif
 if OS_MAC
 arch_sources += \
 	arch-x86/stalker-x86-mac.m
-libgum_tests_core_la_OBJCFLAGS = -fobjc-arc
 endif
 
 if HAVE_V8
