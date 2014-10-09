@@ -13,6 +13,9 @@ endif
 if OS_MAC
 arch_sources += \
 	arch-x86/stalker-x86-mac.m
+else
+libgum_tests_core_la_LIBTOOLFLAGS = \
+	--tag=CC
 endif
 
 if HAVE_V8
