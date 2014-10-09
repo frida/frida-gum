@@ -183,7 +183,7 @@ gum_instruction_new (Handle<Object> instance,
   isolate->AdjustAmountOfExternalAllocatedMemory (
       GUM_INSTRUCTION_FOOTPRINT_ESTIMATE);
 
-  g_hash_table_insert (module->instructions, &instruction->insn, instruction);
+  g_hash_table_insert (module->instructions, instruction, instruction);
 
   return instruction;
 }
@@ -204,7 +204,7 @@ gum_instruction_on_weak_notify (const WeakCallbackData<Object,
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumInstruction * self = data.GetParameter ();
-  g_hash_table_remove (self->module->instructions, &self->insn);
+  g_hash_table_remove (self->module->instructions, self);
 }
 
 static void

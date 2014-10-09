@@ -1076,7 +1076,7 @@ gum_script_core_on_new_native_function (
   func->weak_instance->SetWeak (func, gum_ffi_function_on_weak_notify);
   func->weak_instance->MarkIndependent ();
 
-  g_hash_table_insert (self->native_functions, func->fn, func);
+  g_hash_table_insert (self->native_functions, func, func);
 
   return;
 
@@ -1092,7 +1092,7 @@ gum_ffi_function_on_weak_notify (
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumFFIFunction * self = data.GetParameter ();
-  g_hash_table_remove (self->core->native_functions, self->fn);
+  g_hash_table_remove (self->core->native_functions, self);
 }
 
 static void
@@ -1249,7 +1249,7 @@ gum_script_core_on_new_native_callback (
       gum_script_core_on_free_native_callback);
   callback->weak_instance->MarkIndependent ();
 
-  g_hash_table_insert (self->native_callbacks, callback->closure, callback);
+  g_hash_table_insert (self->native_callbacks, callback, callback);
 
   return;
 
@@ -1264,7 +1264,7 @@ gum_script_core_on_free_native_callback (
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumFFICallback * self = data.GetParameter ();
-  g_hash_table_remove (self->core->native_callbacks, self->closure);
+  g_hash_table_remove (self->core->native_callbacks, self);
 }
 
 static void
@@ -1645,7 +1645,7 @@ _gum_byte_array_new (gpointer data,
     core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
   }
 
-  g_hash_table_insert (core->byte_arrays, buffer->data, buffer);
+  g_hash_table_insert (core->byte_arrays, buffer, buffer);
 
   return buffer;
 }
@@ -1670,7 +1670,7 @@ gum_byte_array_on_weak_notify (
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumByteArray * self = data.GetParameter ();
-  g_hash_table_remove (self->core->byte_arrays, self->data);
+  g_hash_table_remove (self->core->byte_arrays, self);
 }
 
 GumHeapBlock *
@@ -1691,7 +1691,7 @@ _gum_heap_block_new (gpointer data,
 
   core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
 
-  g_hash_table_insert (core->heap_blocks, block->data, block);
+  g_hash_table_insert (core->heap_blocks, block, block);
 
   return block;
 }
@@ -1713,7 +1713,7 @@ gum_heap_block_on_weak_notify (
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumHeapBlock * self = data.GetParameter ();
-  g_hash_table_remove (self->core->heap_blocks, self->data);
+  g_hash_table_remove (self->core->heap_blocks, self);
 }
 
 Local<Object>
