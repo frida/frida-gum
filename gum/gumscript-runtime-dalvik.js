@@ -10,7 +10,7 @@
     var STATIC_METHOD = 2;
     var INSTANCE_METHOD = 3;
 
-    /* TODO: 64-bit */
+    // TODO: 64-bit
     var JNI_ENV_OFFSET_SELF = 12;
 
     var CLASS_OBJECT_SIZE = 160;
@@ -43,6 +43,7 @@
         var api = null;
         var vm = null;
         var classFactory = null;
+        var pending = [];
 
         var initialize = function () {
             api = getApi();
@@ -74,15 +75,51 @@
                 throw new Error("Dalvik runtime not available");
             }
 
-            return vm.perform(fn);
+            if (classFactory.loader !== null) {
+                vm.perform(fn);
+            } else {
+                pending.push(fn);
+                if (pending.length === 1) {
+                    vm.perform(function () {
+                        var ActivityThread = classFactory.use("android.app.ActivityThread");
+                        var Handler = classFactory.use("android.os.Handler");
+                        var Looper = classFactory.use("android.os.Looper");
+
+                        var looper = Looper.getMainLooper();
+                        var handler = Handler.$new.overload("android.os.Looper").call(Handler, looper);
+                        var message = handler.obtainMessage();
+                        Handler.dispatchMessage.implementation = function (msg) {
+                            var sameHandler = this.$isSameObject(handler);
+                            if (sameHandler) {
+                                var app = ActivityThread.currentApplication();
+                                if (app !== null) {
+                                    Handler.dispatchMessage.implementation = null;
+                                    var loader = app.getClassLoader();
+                                    setTimeout(function () {
+                                        classFactory.loader = loader;
+                                        pending.forEach(vm.perform, vm);
+                                        pending = null;
+                                    }, 0);
+                                }
+                            } else {
+                                this.dispatchMessage(msg);
+                            }
+                        };
+                        message.sendToTarget();
+                    });
+                }
+            }
         };
 
         this.use = function (className) {
+            if (classFactory.loader === null) {
+                throw new Error("Not allowed outside Dalvik.perform() callback");
+            }
             return classFactory.use(className);
         };
 
-        this.cast = function (handle, C) {
-            return classFactory.cast(handle, C);
+        this.cast = function (obj, C) {
+            return classFactory.cast(obj, C);
         };
 
         initialize.call(this);
@@ -92,6 +129,7 @@
         var factory = this;
         var classes = {};
         var patchedClasses = {};
+        var loader = null;
 
         var initialize = function () {
             api = getApi();
@@ -122,22 +160,35 @@
             classes = {};
         };
 
-        this.use = function (className) {
-            var klass = classes[className];
-            if (!klass) {
-                var env = vm.getEnv();
-                var handle = env.findClass(className.replace(/\./g, "/"));
-                if (handle.isNull()) {
-                    throw new Error("Class '" + className + "' is not loaded");
-                }
-                var C = ensureClass(handle, className);
-                klass = new C(handle, null);
-                env.deleteLocalRef(handle);
+        Object.defineProperty(this, 'loader', {
+            enumerable: true,
+            get: function () {
+                return loader;
+            },
+            set: function (value) {
+                loader = value;
             }
-            return klass;
+        });
+
+        this.use = function (className) {
+            var C = classes[className];
+            if (!C) {
+                var env = vm.getEnv();
+                if (loader !== null) {
+                    var klassObj = loader.loadClass(className);
+                    C = ensureClass(klassObj.$handle, className);
+                } else {
+                    var handle = env.findClass(className.replace(/\./g, "/"));
+                    C = ensureClass(handle, className);
+                    env.deleteLocalRef(handle);
+                }
+            }
+            return new C(C.__handle__, null);
         };
 
-        this.cast = function (handle, C) {
+        this.cast = function (obj, klass) {
+            var handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
+            var C = klass.$class;
             return new C(C.__handle__, handle);
         };
 
@@ -175,6 +226,11 @@
 
                 klass.prototype.$new = makeConstructor();
                 klass.prototype.$dispose = dispose;
+
+                klass.prototype.$isSameObject = function (obj) {
+                    var env = vm.getEnv();
+                    return env.isSameObject(obj.$handle, this.$handle);
+                };
 
                 addMethods();
             };
@@ -348,6 +404,9 @@
                     if (methods[0].type !== INSTANCE_METHOD && isInstance) {
                         throw new Error(name + ": cannot call static method by way of an instance");
                     } else if (methods[0].type === INSTANCE_METHOD && !isInstance) {
+                        if (name === 'toString') {
+                            return "<" + this.$class.__name__ + ">";
+                        }
                         throw new Error(name + ": cannot call instance method without an instance");
                     }
                     var group = candidates[arguments.length];
@@ -532,7 +591,7 @@
                 var implementation = null;
                 var synchronizeVtable = function (env) {
                     if (originalMethodId === null) {
-                        return; /* nothing to do – implementation hasn't been replaced */
+                        return; // nothing to do – implementation hasn't been replaced
                     }
 
                     var thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
@@ -665,7 +724,7 @@
             return function () {
                 vm.perform(function () {
                     var env = vm.getEnv();
-                    handles.forEach(env.deleteGlobalRef);
+                    handles.forEach(env.deleteGlobalRef, env);
                 });
             };
         };
@@ -686,14 +745,6 @@
             var argTypes = method.argumentTypes;
             var rawRetType = retType.type;
             var rawArgTypes = argTypes.map(function (t) { return t.type; });
-            var invokeTarget;
-            if (type == CONSTRUCTOR_METHOD) {
-                invokeTarget = env.constructor(rawArgTypes);
-            } else if (type == STATIC_METHOD) {
-                invokeTarget = env.staticMethod(rawRetType, rawArgTypes);
-            } else if (type == INSTANCE_METHOD) {
-                invokeTarget = env.method(rawRetType, rawArgTypes);
-            }
 
             var frameCapacity = 2;
             var argVariableNames = argTypes.map(function (t, i) {
@@ -702,7 +753,7 @@
             var callArgs = argTypes.map(function (t, i) {
                 if (t.fromJni) {
                     frameCapacity++;
-                    return "argTypes[" + i + "].fromJni.call(this, " + argVariableNames[i] + ", env)";
+                    return "argTypes[" + i + "].fromJni.call(self, " + argVariableNames[i] + ", env)";
                 }
                 return argVariableNames[i];
             });
@@ -954,7 +1005,7 @@
                         return true;
                     }
 
-                    return typeof v === 'object' && v.hasOwnProperty('$handle'); /* TODO: improve strictness */
+                    return typeof v === 'object' && v.hasOwnProperty('$handle'); // TODO: improve strictness
                 },
                 fromJni: function (h, env) {
                     if (h.isNull()) {
@@ -1002,10 +1053,9 @@
                 env = this.attachCurrentThread();
             }
 
-            var result;
             var pendingException = null;
             try {
-                result = fn();
+                fn();
             } catch (e) {
                 pendingException = e;
             }
@@ -1017,8 +1067,6 @@
             if (pendingException !== null) {
                 throw pendingException;
             }
-
-            return result;
         };
 
         this.attachCurrentThread = function () {
@@ -1104,7 +1152,7 @@
         var cachedVtable = null;
         var globalRefs = [];
         Env.dispose = function (env) {
-            globalRefs.forEach(env.deleteGlobalRef);
+            globalRefs.forEach(env.deleteGlobalRef, env);
             globalRefs = [];
         };
 
@@ -1133,7 +1181,17 @@
         }
 
         Env.prototype.findClass = proxy(6, 'pointer', ['pointer', 'pointer'], function (impl, name) {
-            return impl(this.handle, Memory.allocUtf8String(name));
+            var result = impl(this.handle, Memory.allocUtf8String(name));
+            var throwable = this.exceptionOccurred();
+            if (!throwable.isNull()) {
+                this.exceptionClear();
+                var description = this.method('pointer', [])(this.handle, throwable, this.javaLangObject().toString);
+                var descriptionStr = this.stringFromJni(description);
+                this.deleteLocalRef(description);
+                this.deleteLocalRef(throwable);
+                throw new Error(descriptionStr);
+            }
+            return result;
         });
 
         Env.prototype.fromReflectedMethod = proxy(7, 'pointer', ['pointer', 'pointer'], function (impl, method) {
@@ -1365,7 +1423,7 @@
             // } else if (this.isInstanceOf(type, this.javaLangReflectGenericArrayType().handle)) {
             //     return "L";
             } else {
-                return "java/lang/Object";
+                return "java.lang.Object";
             }
         };
 
