@@ -30,7 +30,7 @@ struct _GumFindEntrypointContext
 {
   GumAddress result;
   mach_port_t task;
-  guint page_size;
+  guint alignment;
 };
 
 struct _GumEnumerateModulesContext
@@ -40,7 +40,7 @@ struct _GumEnumerateModulesContext
   gpointer user_data;
 
   GArray * ranges;
-  guint page_size;
+  guint alignment;
 };
 
 struct _GumFindExportContext
@@ -466,8 +466,7 @@ gum_darwin_find_entrypoint (mach_port_t task)
 
   ctx.result = 0;
   ctx.task = task;
-  if (!gum_darwin_query_page_size (task, &ctx.page_size))
-    return 0;
+  ctx.alignment = 4096;
 
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
       gum_probe_range_for_entrypoint, &ctx);
@@ -490,9 +489,9 @@ gum_probe_range_for_entrypoint (const GumRangeDetails * details,
   if (chunk == NULL)
     return TRUE;
 
-  g_assert (chunk_size % ctx->page_size == 0);
+  g_assert (chunk_size % ctx->alignment == 0);
 
-  for (page = chunk; page != chunk + chunk_size; page += ctx->page_size)
+  for (page = chunk; page != chunk + chunk_size; page += ctx->alignment)
   {
     struct mach_header * header;
     gint64 slide;
@@ -645,8 +644,7 @@ gum_darwin_enumerate_modules (mach_port_t task,
   ctx.user_data = user_data;
 
   ctx.ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 64);
-  if (!gum_darwin_query_page_size (task, &ctx.page_size))
-    return;
+  ctx.alignment = 4096;
 
   gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
       gum_store_range_of_potential_modules, &ctx);
@@ -700,8 +698,8 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
 
     if (!is_dylib)
     {
-      address += ctx->page_size;
-      remaining -= ctx->page_size;
+      address += ctx->alignment;
+      remaining -= ctx->alignment;
       continue;
     }
 
@@ -717,7 +715,7 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
       first_command = chunk + sizeof (struct mach_header_64);
 
     dylib_range.base_address = address;
-    dylib_range.size = ctx->page_size;
+    dylib_range.size = ctx->alignment;
 
     p = first_command;
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
