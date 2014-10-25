@@ -31,6 +31,9 @@ static gboolean gum_try_alloc_in_range_if_near_enough (
 guint
 gum_query_page_size (void)
 {
+#ifdef HAVE_ARM64
+  return 16384;
+#else
   vm_size_t page_size;
   kern_return_t kr;
 
@@ -38,6 +41,7 @@ gum_query_page_size (void)
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   return page_size;
+#endif
 }
 
 gboolean
