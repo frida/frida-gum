@@ -249,9 +249,7 @@ MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
   g_assert (gum_memory_is_readable (first_page + page_size - 1, 2));
   g_assert (gum_memory_is_readable (first_page, 2 * page_size));
 
-  g_assert (!gum_memory_is_readable (first_page - 1, 1));
   g_assert (!gum_memory_is_readable (second_page + page_size, 1));
-  g_assert (!gum_memory_is_readable (first_page - 1, 2));
   g_assert (!gum_memory_is_readable (second_page + page_size - 1, 2));
 
   gum_free_pages (pages);
