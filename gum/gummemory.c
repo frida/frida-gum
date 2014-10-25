@@ -16,6 +16,10 @@
 # include <sys/mman.h>
 # undef __USE_GNU
 #endif
+#ifdef HAVE_IOS
+# include "backend-darwin/gumdarwin.h"
+# include <mach/mach.h>
+#endif
 #ifdef HAVE_DARWIN
 # define DARWIN       1
 #endif
@@ -85,11 +89,42 @@ gum_query_is_rwx_supported (void)
 
   if (g_once_init_enter (&cached_result))
   {
+    gboolean supported = FALSE;
     gpointer p;
-    gboolean supported;
+    mach_port_t task;
+    mach_vm_address_t address;
+    mach_vm_size_t size = (mach_vm_size_t) 0;
+    natural_t depth = 0;
+    struct vm_region_submap_info_64 info;
+    mach_msg_type_number_t info_count;
+    kern_return_t kr;
 
     p = gum_alloc_n_pages (1, GUM_PAGE_RWX);
-    supported = gum_memory_is_readable (GUM_ADDRESS (p), 1);
+
+    task = mach_task_self ();
+    address = (mach_vm_address_t) p;
+    while (TRUE)
+    {
+      info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+      kr = mach_vm_region_recurse (task, &address, &size, &depth,
+          (vm_region_recurse_info_t) &info, &info_count);
+      if (kr != KERN_SUCCESS)
+        break;
+
+      if (info.is_submap)
+      {
+        depth++;
+        continue;
+      }
+      else
+      {
+        vm_prot_t requested_prot =
+            VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE;
+        supported = (info.protection & requested_prot) == requested_prot;
+        break;
+      }
+    }
+
     gum_free_pages (p);
 
     g_once_init_leave (&cached_result, supported + 1);
