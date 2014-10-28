@@ -9,6 +9,7 @@
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
+#include <unistd.h>
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
 
@@ -31,17 +32,7 @@ static gboolean gum_try_alloc_in_range_if_near_enough (
 guint
 gum_query_page_size (void)
 {
-#ifdef HAVE_ARM64
-  return 16384;
-#else
-  vm_size_t page_size;
-  kern_return_t kr;
-
-  kr = host_page_size (mach_host_self (), &page_size);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
-
-  return page_size;
-#endif
+  return getpagesize ();
 }
 
 gboolean
