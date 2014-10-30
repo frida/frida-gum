@@ -53,6 +53,7 @@ struct _GumEnumerateExportsContext
 {
   mach_port_t task;
   GHashTable * modules;
+  GHashTable * strings;
   const gchar * module_name;
   GumFoundExportFunc func;
   gpointer user_data;
@@ -855,6 +856,8 @@ gum_darwin_enumerate_exports (mach_port_t task,
   ctx.task = task;
   ctx.modules = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) g_variant_unref);
+  ctx.strings = g_hash_table_new_full (NULL, NULL,
+      NULL, (GDestroyNotify) g_free);
   ctx.module_name = module_name;
   ctx.func = func;
   ctx.user_data = user_data;
@@ -863,6 +866,7 @@ gum_darwin_enumerate_exports (mach_port_t task,
 
   gum_do_enumerate_exports (&ctx, module_name);
 
+  g_hash_table_unref (ctx.strings);
   g_hash_table_unref (ctx.modules);
 }
 
@@ -899,7 +903,8 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   struct symtab_command * sc;
   gsize symbol_size;
   guint8 * symbols = NULL;
-  gchar * strings = NULL;
+  GumAddress strings_address;
+  gchar * strings;
   guint8 * cur_sym;
   guint symbol_index;
 
@@ -938,10 +943,18 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   if (symbols == NULL)
     goto beach;
 
-  strings = (gchar *) gum_darwin_read (ctx->task,
-      linkedit + sc->stroff, sc->strsize, NULL);
+  strings_address = linkedit + sc->stroff;
+  strings = g_hash_table_lookup (ctx->strings,
+      GSIZE_TO_POINTER (strings_address));
   if (strings == NULL)
-    goto beach;
+  {
+    strings = (gchar *) gum_darwin_read (ctx->task,
+        strings_address, sc->strsize, NULL);
+    if (strings == NULL)
+      goto beach;
+    g_hash_table_insert (ctx->strings, GSIZE_TO_POINTER (strings_address),
+        strings);
+  }
 
   cur_sym = symbols;
   for (symbol_index = 0; symbol_index != sc->nsyms; symbol_index++)
@@ -1021,7 +1034,6 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   }
 
 beach:
-  g_free (strings);
   g_free (symbols);
   g_slist_free (text_section_ids);
   g_free (chunk);
