@@ -176,17 +176,12 @@ gum_darwin_read (mach_port_t task,
 
   do
   {
-    gboolean possibly_bad_length;
-
     result_len = 0;
     retry = FALSE;
 
     kr = mach_vm_read_overwrite (task, address, len,
         (vm_address_t) result, &result_len);
-
-    possibly_bad_length =
-        (kr == KERN_INVALID_ADDRESS || kr == KERN_PROTECTION_FAILURE);
-    if (possibly_bad_length)
+    if (kr != KERN_SUCCESS)
     {
       mach_vm_address_t region_address = address;
       mach_vm_size_t region_size = (mach_vm_size_t) 0;
@@ -204,14 +199,9 @@ gum_darwin_read (mach_port_t task,
           break;
 
         if (info.is_submap)
-        {
           depth++;
-          continue;
-        }
         else
-        {
           break;
-        }
       }
 
       if (region_kr == KERN_SUCCESS &&
