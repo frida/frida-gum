@@ -14,7 +14,13 @@
 #include <mach-o/nlist.h>
 #include <sys/sysctl.h>
 
-#define GUM_MAX_MACH_HEADER_SIZE (64 * 1024)
+#define MAX_MACH_HEADER_SIZE (64 * 1024)
+#define DYLD_INFO_COUNT 5
+#define DYLD_INFO_LEGACY_COUNT 1
+#define DYLD_INFO_32_COUNT 3
+#define DYLD_INFO_64_COUNT 5
+#define DYLD_IMAGE_INFO_32_SIZE 12
+#define DYLD_IMAGE_INFO_64_SIZE 24
 
 #define SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL(S) \
       (S->n_value == 0 || \
@@ -22,24 +28,22 @@
        (S->n_type & N_EXT) == 0)
 
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
-typedef struct _GumEnumerateModulesContext GumEnumerateModulesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
+
+typedef union _DyldInfo DyldInfo;
+typedef struct _DyldInfoLegacy DyldInfoLegacy;
+typedef struct _DyldInfo32 DyldInfo32;
+typedef struct _DyldInfo64 DyldInfo64;
+typedef struct _DyldAllImageInfos32 DyldAllImageInfos32;
+typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
+typedef struct _DyldImageInfo32 DyldImageInfo32;
+typedef struct _DyldImageInfo64 DyldImageInfo64;
 
 struct _GumFindEntrypointContext
 {
   GumAddress result;
   mach_port_t task;
-  guint alignment;
-};
-
-struct _GumEnumerateModulesContext
-{
-  mach_port_t task;
-  GumFoundModuleFunc func;
-  gpointer user_data;
-
-  GArray * ranges;
   guint alignment;
 };
 
@@ -57,6 +61,60 @@ struct _GumEnumerateExportsContext
   const gchar * module_name;
   GumFoundExportFunc func;
   gpointer user_data;
+};
+
+struct _DyldInfoLegacy
+{
+  guint32 all_image_info_addr;
+};
+
+struct _DyldInfo32
+{
+  guint32 all_image_info_addr;
+  guint32 all_image_info_size;
+  gint32 all_image_info_format;
+};
+
+struct _DyldInfo64
+{
+  guint64 all_image_info_addr;
+  guint64 all_image_info_size;
+  gint32 all_image_info_format;
+};
+
+union _DyldInfo
+{
+  DyldInfoLegacy info_legacy;
+  DyldInfo32 info_32;
+  DyldInfo64 info_64;
+};
+
+struct _DyldAllImageInfos32
+{
+  guint32 version;
+  guint32 info_array_count;
+  guint32 info_array;
+};
+
+struct _DyldAllImageInfos64
+{
+  guint32 version;
+  guint32 info_array_count;
+  guint64 info_array;
+};
+
+struct _DyldImageInfo32
+{
+  guint32 image_load_address;
+  guint32 image_file_path;
+  guint32 image_file_mod_date;
+};
+
+struct _DyldImageInfo64
+{
+  guint64 image_load_address;
+  guint64 image_file_path;
+  guint64 image_file_mod_date;
 };
 
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
@@ -90,10 +148,6 @@ static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
-static gboolean gum_store_range_of_potential_modules (
-    const GumRangeDetails * details, gpointer user_data);
-static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
-    GumEnumerateModulesContext * ctx);
 
 static gboolean gum_store_module_address (const GumModuleDetails * details,
     gpointer user_data);
@@ -637,86 +691,135 @@ gum_darwin_enumerate_modules (mach_port_t task,
                               GumFoundModuleFunc func,
                               gpointer user_data)
 {
-  GumEnumerateModulesContext ctx;
-  guint i;
-
-  ctx.task = task;
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  ctx.ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 64);
-  ctx.alignment = 4096;
-
-  gum_darwin_enumerate_ranges (task, GUM_PAGE_RX,
-      gum_store_range_of_potential_modules, &ctx);
-
-  for (i = 0; i != ctx.ranges->len; i++)
-  {
-    GumMemoryRange * r = &g_array_index (ctx.ranges, GumMemoryRange, i);
-    if (!gum_emit_modules_in_range (r, &ctx))
-      break;
-  }
-
-  g_array_unref (ctx.ranges);
-}
-
-static gboolean
-gum_store_range_of_potential_modules (const GumRangeDetails * details,
-                                      gpointer user_data)
-{
-  GumEnumerateModulesContext * ctx = user_data;
-
-  g_array_append_val (ctx->ranges, *(details->range));
-
-  return TRUE;
-}
-
-static gboolean
-gum_emit_modules_in_range (const GumMemoryRange * range,
-                           GumEnumerateModulesContext * ctx)
-{
-  GumAddress address = range->base_address;
-  gsize remaining = range->size;
+  struct task_dyld_info info;
+  mach_msg_type_number_t count;
+  kern_return_t kr;
+  gsize info_array_count, info_array_size, i;
+  GumAddress info_array_address;
+  gpointer info_array = NULL;
+  gpointer header_data = NULL;
+  gchar * file_path = NULL;
   gboolean carry_on = TRUE;
+
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  DyldInfo info_raw;
+  count = DYLD_INFO_COUNT;
+  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info_raw, &count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+  switch (count)
+  {
+    case DYLD_INFO_LEGACY_COUNT:
+      info.all_image_info_addr = info_raw.info_legacy.all_image_info_addr;
+      info.all_image_info_size = 0;
+      info.all_image_info_format = TASK_DYLD_ALL_IMAGE_INFO_32;
+      break;
+    case DYLD_INFO_32_COUNT:
+      info.all_image_info_addr = info_raw.info_32.all_image_info_addr;
+      info.all_image_info_size = info_raw.info_32.all_image_info_size;
+      info.all_image_info_format = info_raw.info_32.all_image_info_format;
+      break;
+    case DYLD_INFO_64_COUNT:
+      info.all_image_info_addr = info_raw.info_64.all_image_info_addr;
+      info.all_image_info_size = info_raw.info_64.all_image_info_size;
+      info.all_image_info_format = info_raw.info_64.all_image_info_format;
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+#else
+  count = TASK_DYLD_INFO_COUNT;
+  kr = task_info (task, TASK_DYLD_INFO, (task_info_t) &info, &count);
+  if (kr != KERN_SUCCESS)
+    goto beach;
+#endif
 
   do
   {
+    gboolean load_or_unload_in_progress;
+
+    if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+    {
+      DyldAllImageInfos64 * all_info;
+
+      all_info = (DyldAllImageInfos64 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos64),
+          NULL);
+      if (all_info == NULL)
+        goto beach;
+      info_array_count = all_info->info_array_count;
+      info_array_size = info_array_count * DYLD_IMAGE_INFO_64_SIZE;
+      info_array_address = all_info->info_array;
+      g_free (all_info);
+    }
+    else
+    {
+      DyldAllImageInfos32 * all_info;
+
+      all_info = (DyldAllImageInfos32 *) gum_darwin_read (task,
+          info.all_image_info_addr,
+          sizeof (DyldAllImageInfos32),
+          NULL);
+      if (all_info == NULL)
+        goto beach;
+      info_array_count = all_info->info_array_count;
+      info_array_size = info_array_count * DYLD_IMAGE_INFO_32_SIZE;
+      info_array_address = all_info->info_array;
+      g_free (all_info);
+    }
+
+    load_or_unload_in_progress = (info_array_address == 0);
+    if (load_or_unload_in_progress)
+      g_usleep (10000);
+  }
+  while (info_array_address == 0);
+
+  info_array =
+      gum_darwin_read (task, info_array_address, info_array_size, NULL);
+
+  for (i = 0; i != info_array_count && carry_on; i++)
+  {
+    GumAddress load_address, file_path_address;
     struct mach_header * header;
-    gboolean is_dylib;
-    guint8 * chunk;
-    gsize chunk_size;
     guint8 * first_command, * p;
     guint cmd_index;
     GumMemoryRange dylib_range;
+    gchar * name;
+    GumModuleDetails details;
 
-    header = (struct mach_header *) gum_darwin_read (ctx->task,
-        address, sizeof (struct mach_header), NULL);
-    if (header == NULL)
-      return TRUE;
-    is_dylib = (header->magic == MH_MAGIC || header->magic == MH_MAGIC_64) &&
-        header->filetype == MH_DYLIB;
-    g_free (header);
-
-    if (!is_dylib)
+    if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
     {
-      address += ctx->alignment;
-      remaining -= ctx->alignment;
-      continue;
+      DyldImageInfo64 * info = info_array + (i * DYLD_IMAGE_INFO_64_SIZE);
+      load_address = info->image_load_address;
+      file_path_address = info->image_file_path;
+    }
+    else
+    {
+      DyldImageInfo32 * info = info_array + (i * DYLD_IMAGE_INFO_32_SIZE);
+      load_address = info->image_load_address;
+      file_path_address = info->image_file_path;
     }
 
-    chunk = gum_darwin_read (ctx->task,
-        address, MIN (GUM_MAX_MACH_HEADER_SIZE, remaining), &chunk_size);
-    if (chunk == NULL)
-      return TRUE;
+    header_data = gum_darwin_read (task,
+        load_address,
+        MAX_MACH_HEADER_SIZE,
+        NULL);
+    file_path = (gchar *) gum_darwin_read (task,
+        file_path_address,
+        2 * MAXPATHLEN,
+        NULL);
+    if (header_data == NULL || file_path == NULL)
+      goto beach;
 
-    header = (struct mach_header *) chunk;
-    if (header->magic == MH_MAGIC)
-      first_command = chunk + sizeof (struct mach_header);
+    header = (struct mach_header *) header_data;
+    if (info.all_image_info_format == TASK_DYLD_ALL_IMAGE_INFO_64)
+      first_command = header_data + sizeof (struct mach_header_64);
     else
-      first_command = chunk + sizeof (struct mach_header_64);
+      first_command = header_data + sizeof (struct mach_header);
 
-    dylib_range.base_address = address;
-    dylib_range.size = ctx->alignment;
+    dylib_range.base_address = load_address;
+    dylib_range.size = 4096;
 
     p = first_command;
     for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
@@ -736,52 +839,28 @@ gum_emit_modules_in_range (const GumMemoryRange * range,
       p += lc->cmdsize;
     }
 
-    p = first_command;
-    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-    {
-      const struct load_command * lc = (struct load_command *) p;
+    name = g_path_get_basename (file_path);
 
-      if (lc->cmd == LC_ID_DYLIB)
-      {
-        const struct dylib * dl = &((struct dylib_command *) lc)->dylib;
-        const gchar * raw_path;
-        guint raw_path_len;
-        gchar * path, * name;
-        GumModuleDetails details;
+    details.name = name;
+    details.range = &dylib_range;
+    details.path = file_path;
 
-        raw_path = (gchar *) p + dl->name.offset;
-        raw_path_len = lc->cmdsize - sizeof (struct dylib_command);
-        path = g_malloc (raw_path_len + 1);
-        memcpy (path, raw_path, raw_path_len);
-        path[raw_path_len] = '\0';
-        name = g_path_get_basename (path);
+    carry_on = func (&details, user_data);
 
-        details.name = name;
-        details.range = &dylib_range;
-        details.path = path;
+    g_free (name);
 
-        carry_on = ctx->func (&details, ctx->user_data);
-
-        g_free (name);
-        g_free (path);
-
-        break;
-      }
-
-      p += lc->cmdsize;
-    }
-
-    g_free (chunk);
-
-    address += dylib_range.size;
-    remaining -= dylib_range.size;
-
-    if (!carry_on)
-      break;
+    g_free (file_path);
+    file_path = NULL;
+    g_free (header_data);
+    header_data = NULL;
   }
-  while (remaining != 0);
 
-  return carry_on;
+beach:
+  g_free (file_path);
+  g_free (header_data);
+  g_free (info_array);
+
+  return;
 }
 
 void
@@ -916,7 +995,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
   if (address == 0)
     goto beach;
 
-  chunk = gum_darwin_read (ctx->task, address, GUM_MAX_MACH_HEADER_SIZE,
+  chunk = gum_darwin_read (ctx->task, address, MAX_MACH_HEADER_SIZE,
       &chunk_size);
   if (chunk == NULL)
     goto beach;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -136,9 +136,10 @@ gum_memory_is_readable (GumAddress address,
 {
   gboolean is_readable;
   guint8 * bytes;
+  gsize n_bytes_read;
 
-  bytes = gum_memory_read (address, len, NULL);
-  is_readable = bytes != NULL;
+  bytes = gum_memory_read (address, len, &n_bytes_read);
+  is_readable = bytes != NULL && n_bytes_read == len;
   g_free (bytes);
 
   return is_readable;
@@ -167,13 +168,63 @@ gum_darwin_read (mach_port_t task,
                  gsize * n_bytes_read)
 {
   guint8 * result;
-  mach_vm_size_t result_len = 0;
+  mach_vm_size_t result_len;
+  gboolean retry;
   kern_return_t kr;
 
   result = g_malloc (len);
 
-  kr = mach_vm_read_overwrite (task, address, len,
-      (vm_address_t) result, &result_len);
+  do
+  {
+    gboolean possibly_bad_length;
+
+    result_len = 0;
+    retry = FALSE;
+
+    kr = mach_vm_read_overwrite (task, address, len,
+        (vm_address_t) result, &result_len);
+
+    possibly_bad_length =
+        (kr == KERN_INVALID_ADDRESS || kr == KERN_PROTECTION_FAILURE);
+    if (possibly_bad_length)
+    {
+      mach_vm_address_t region_address = address;
+      mach_vm_size_t region_size = (mach_vm_size_t) 0;
+      natural_t depth = 0;
+      struct vm_region_submap_info_64 info;
+      mach_msg_type_number_t info_count;
+      kern_return_t region_kr;
+
+      while (TRUE)
+      {
+        info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
+        region_kr = mach_vm_region_recurse (task, &region_address, &region_size,
+            &depth, (vm_region_recurse_info_t) &info, &info_count);
+        if (region_kr != KERN_SUCCESS)
+          break;
+
+        if (info.is_submap)
+        {
+          depth++;
+          continue;
+        }
+        else
+        {
+          break;
+        }
+      }
+
+      if (region_kr == KERN_SUCCESS &&
+          address >= region_address &&
+          address < region_address + region_size &&
+          (info.protection & VM_PROT_READ) == VM_PROT_READ)
+      {
+        len = region_size - (address - region_address);
+        retry = TRUE;
+      }
+    }
+  }
+  while (retry);
 
   if (kr != KERN_SUCCESS)
   {
