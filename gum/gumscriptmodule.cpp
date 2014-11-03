@@ -100,10 +100,10 @@ _gum_script_module_realize (GumScriptModule * self)
     Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
 
     Local<Object> exp (Object::New (isolate));
-    exp->Set (type, function, ReadOnly);
-    exp->Set (name, String::NewFromUtf8 (isolate, ""), ReadOnly);
+    exp->Set (type, function, DontDelete);
+    exp->Set (name, String::NewFromUtf8 (isolate, ""), DontDelete);
     exp->Set (address, _gum_script_pointer_new (
-        GSIZE_TO_POINTER (NULL), self->core), ReadOnly);
+        GSIZE_TO_POINTER (NULL), self->core), DontDelete);
 
     eternal_module_export.Set (isolate, exp);
     eternal_type.Set (isolate, type);
