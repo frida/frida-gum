@@ -10,9 +10,25 @@
 
 using namespace v8;
 
-typedef struct _GumScriptMatchContext GumScriptMatchContext;
+typedef struct _GumScriptExportsContext GumScriptExportsContext;
+typedef struct _GumScriptRangesContext GumScriptRangesContext;
 
-struct _GumScriptMatchContext
+struct _GumScriptExportsContext
+{
+  GumScriptModule * self;
+  Isolate * isolate;
+  Local<Function> on_match;
+  Local<Function> on_complete;
+  Local<Object> receiver;
+
+  Local<Object> exp;
+  Local<Value> type;
+  Local<Value> name;
+  Local<Value> address;
+  Local<Value> variable;
+};
+
+struct _GumScriptRangesContext
 {
   GumScriptModule * self;
   Isolate * isolate;
@@ -25,7 +41,6 @@ static void gum_script_module_on_enumerate_exports (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_module_handle_export_match (
     const GumExportDetails * details, gpointer user_data);
-static const gchar * gum_export_type_to_string (GumExportType type);
 static void gum_script_module_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_module_handle_range_match (
@@ -65,7 +80,26 @@ _gum_script_module_init (GumScriptModule * self,
 void
 _gum_script_module_realize (GumScriptModule * self)
 {
-  (void) self;
+  Isolate * isolate = self->core->isolate;
+
+  Local<String> type (String::NewFromUtf8 (isolate, "type"));
+  Local<String> name (String::NewFromUtf8 (isolate, "name"));
+  Local<String> address (String::NewFromUtf8 (isolate, "address"));
+
+  Local<String> function (String::NewFromUtf8 (isolate, "function"));
+  Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
+
+  Local<Object> exp (Object::New (isolate));
+  exp->Set (type, function, ReadOnly);
+  exp->Set (name, String::NewFromUtf8 (isolate, ""), ReadOnly);
+  exp->Set (address, _gum_script_pointer_new (
+      GSIZE_TO_POINTER (NULL), self->core), ReadOnly);
+
+  self->module_export.Set (isolate, exp);
+  self->type.Set (isolate, type);
+  self->name.Set (isolate, name);
+  self->address.Set (isolate, address);
+  self->variable.Set (isolate, variable);
 }
 
 void
@@ -84,17 +118,19 @@ static void
 gum_script_module_on_enumerate_exports (
     const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptMatchContext ctx;
-
-  ctx.self = static_cast<GumScriptModule *> (
+  GumScriptModule * self = static_cast<GumScriptModule *> (
       info.Data ().As<External> ()->Value ());
-  ctx.isolate = info.GetIsolate ();
+  Isolate * isolate = info.GetIsolate ();
+  GumScriptExportsContext ctx;
+
+  ctx.self = self;
+  ctx.isolate = isolate;
 
   Local<Value> name_val = info[0];
   if (!name_val->IsString ())
   {
-    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        ctx.isolate,  "Module.enumerateExports: first argument must be "
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate,  "Module.enumerateExports: first argument must be "
         "a string specifying a module name whose exports to enumerate")));
     return;
   }
@@ -103,8 +139,8 @@ gum_script_module_on_enumerate_exports (
   Local<Value> callbacks_value = info[1];
   if (!callbacks_value->IsObject ())
   {
-    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        ctx.isolate, "Module.enumerateExports: second argument must be "
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Module.enumerateExports: second argument must be "
         "a callback object")));
     return;
   }
@@ -123,6 +159,12 @@ gum_script_module_on_enumerate_exports (
 
   ctx.receiver = info.This ();
 
+  ctx.exp = self->module_export.Get (isolate);
+  ctx.type = self->type.Get (isolate);
+  ctx.name = self->name.Get (isolate);
+  ctx.address = self->address.Get (isolate);
+  ctx.variable = self->variable.Get (isolate);
+
   gum_module_enumerate_exports (*name_str,
       gum_script_module_handle_export_match, &ctx);
 
@@ -133,17 +175,16 @@ static gboolean
 gum_script_module_handle_export_match (const GumExportDetails * details,
                                        gpointer user_data)
 {
-  GumScriptMatchContext * ctx =
-      static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptExportsContext * ctx =
+      static_cast<GumScriptExportsContext *> (user_data);
   Isolate * isolate = ctx->isolate;
 
-  Local<Object> exp (Object::New (isolate));
-  exp->Set (String::NewFromUtf8 (isolate, "type"),
-      String::NewFromUtf8 (isolate, gum_export_type_to_string (details->type)),
-      ReadOnly);
-  exp->Set (String::NewFromUtf8 (isolate, "name"),
+  Local<Object> exp (ctx->exp->Clone ());
+  if (details->type != GUM_EXPORT_FUNCTION)
+    exp->Set (ctx->type, ctx->variable, ReadOnly);
+  exp->Set (ctx->name,
       String::NewFromUtf8 (isolate, details->name), ReadOnly);
-  exp->Set (String::NewFromUtf8 (isolate, "address"), _gum_script_pointer_new (
+  exp->Set (ctx->address, _gum_script_pointer_new (
       GSIZE_TO_POINTER (details->address), ctx->self->core), ReadOnly);
 
   Handle<Value> argv[] = {
@@ -161,24 +202,10 @@ gum_script_module_handle_export_match (const GumExportDetails * details,
   return proceed;
 }
 
-static const gchar *
-gum_export_type_to_string (GumExportType type)
-{
-  switch (type)
-  {
-    case GUM_EXPORT_FUNCTION: return "function";
-    case GUM_EXPORT_VARIABLE: return "variable";
-    default:
-      break;
-  }
-
-  g_assert_not_reached ();
-}
-
 static void
 gum_script_module_on_enumerate_ranges (const FunctionCallbackInfo<Value> & info)
 {
-  GumScriptMatchContext ctx;
+  GumScriptRangesContext ctx;
 
   ctx.self = static_cast<GumScriptModule *> (
       info.Data ().As<External> ()->Value ());
@@ -231,8 +258,8 @@ static gboolean
 gum_script_module_handle_range_match (const GumRangeDetails * details,
                                       gpointer user_data)
 {
-  GumScriptMatchContext * ctx =
-      static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptRangesContext * ctx =
+      static_cast<GumScriptRangesContext *> (user_data);
   Isolate * isolate = ctx->isolate;
 
   char prot_str[4] = "---";

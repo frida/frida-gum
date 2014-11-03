@@ -16,6 +16,12 @@ typedef struct _GumScriptModule GumScriptModule;
 struct _GumScriptModule
 {
   GumScriptCore * core;
+
+  v8::Eternal<v8::Object> module_export;
+  v8::Eternal<v8::String> type;
+  v8::Eternal<v8::String> name;
+  v8::Eternal<v8::String> address;
+  v8::Eternal<v8::String> variable;
 };
 
 G_GNUC_INTERNAL void _gum_script_module_init (GumScriptModule * self,
