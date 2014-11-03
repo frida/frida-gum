@@ -865,6 +865,8 @@ gum_darwin_enumerate_modules (mach_port_t task,
     header_data = NULL;
   }
 
+  goto beach;
+
 fallback:
   gum_darwin_enumerate_modules_slow (task, func, user_data);
 
