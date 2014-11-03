@@ -50,6 +50,12 @@ static void gum_script_module_on_find_base_address (
 static void gum_script_module_on_find_export_by_name (
     const FunctionCallbackInfo<Value> & info);
 
+static v8::Eternal<v8::Object> eternal_module_export;
+static v8::Eternal<v8::String> eternal_type;
+static v8::Eternal<v8::String> eternal_name;
+static v8::Eternal<v8::String> eternal_address;
+static v8::Eternal<v8::String> eternal_variable;
+
 void
 _gum_script_module_init (GumScriptModule * self,
                          GumScriptCore * core,
@@ -80,26 +86,33 @@ _gum_script_module_init (GumScriptModule * self,
 void
 _gum_script_module_realize (GumScriptModule * self)
 {
-  Isolate * isolate = self->core->isolate;
+  static gsize gonce_value = 0;
 
-  Local<String> type (String::NewFromUtf8 (isolate, "type"));
-  Local<String> name (String::NewFromUtf8 (isolate, "name"));
-  Local<String> address (String::NewFromUtf8 (isolate, "address"));
+  if (g_once_init_enter (&gonce_value))
+  {
+    Isolate * isolate = self->core->isolate;
 
-  Local<String> function (String::NewFromUtf8 (isolate, "function"));
-  Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
+    Local<String> type (String::NewFromUtf8 (isolate, "type"));
+    Local<String> name (String::NewFromUtf8 (isolate, "name"));
+    Local<String> address (String::NewFromUtf8 (isolate, "address"));
 
-  Local<Object> exp (Object::New (isolate));
-  exp->Set (type, function, ReadOnly);
-  exp->Set (name, String::NewFromUtf8 (isolate, ""), ReadOnly);
-  exp->Set (address, _gum_script_pointer_new (
-      GSIZE_TO_POINTER (NULL), self->core), ReadOnly);
+    Local<String> function (String::NewFromUtf8 (isolate, "function"));
+    Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
 
-  self->module_export.Set (isolate, exp);
-  self->type.Set (isolate, type);
-  self->name.Set (isolate, name);
-  self->address.Set (isolate, address);
-  self->variable.Set (isolate, variable);
+    Local<Object> exp (Object::New (isolate));
+    exp->Set (type, function, ReadOnly);
+    exp->Set (name, String::NewFromUtf8 (isolate, ""), ReadOnly);
+    exp->Set (address, _gum_script_pointer_new (
+        GSIZE_TO_POINTER (NULL), self->core), ReadOnly);
+
+    eternal_module_export.Set (isolate, exp);
+    eternal_type.Set (isolate, type);
+    eternal_name.Set (isolate, name);
+    eternal_address.Set (isolate, address);
+    eternal_variable.Set (isolate, variable);
+
+    g_once_init_leave (&gonce_value, 1);
+  }
 }
 
 void
@@ -130,7 +143,7 @@ gum_script_module_on_enumerate_exports (
   if (!name_val->IsString ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate,  "Module.enumerateExports: first argument must be "
+        isolate, "Module.enumerateExports: first argument must be "
         "a string specifying a module name whose exports to enumerate")));
     return;
   }
@@ -159,11 +172,11 @@ gum_script_module_on_enumerate_exports (
 
   ctx.receiver = info.This ();
 
-  ctx.exp = self->module_export.Get (isolate);
-  ctx.type = self->type.Get (isolate);
-  ctx.name = self->name.Get (isolate);
-  ctx.address = self->address.Get (isolate);
-  ctx.variable = self->variable.Get (isolate);
+  ctx.exp = eternal_module_export.Get (isolate);
+  ctx.type = eternal_type.Get (isolate);
+  ctx.name = eternal_name.Get (isolate);
+  ctx.address = eternal_address.Get (isolate);
+  ctx.variable = eternal_variable.Get (isolate);
 
   gum_module_enumerate_exports (*name_str,
       gum_script_module_handle_export_match, &ctx);
