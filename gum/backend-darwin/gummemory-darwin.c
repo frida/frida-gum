@@ -209,8 +209,12 @@ gum_darwin_read (mach_port_t task,
           address < region_address + region_size &&
           (info.protection & VM_PROT_READ) == VM_PROT_READ)
       {
-        len = region_size - (address - region_address);
-        retry = TRUE;
+        gsize max_len = region_size - (address - region_address);
+        if (len > max_len)
+        {
+          len = max_len;
+          retry = TRUE;
+        }
       }
     }
   }
