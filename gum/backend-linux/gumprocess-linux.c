@@ -646,7 +646,7 @@ gum_cpu_context_to_linux (const GumCpuContext * ctx,
 static GumThreadState
 gum_thread_state_from_proc_status_character (gchar c)
 {
-  switch (c)
+  switch (g_ascii_toupper (c))
   {
     case 'R': return GUM_THREAD_RUNNING;
     case 'S': return GUM_THREAD_WAITING;
