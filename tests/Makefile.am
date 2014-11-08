@@ -82,9 +82,9 @@ if OS_MAC
 all-local: gum-tests
 	( \
 		if [ -f "$(builddir)/.libs/gum-tests" ]; then \
-			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/.libs/gum-tests" || true; \
+			codesign -s "$$MAC_CERTID" -i "re.frida.GumTests" "$(builddir)/.libs/gum-tests" || true; \
 		else \
-			codesign -s "$$MAC_CERTID" -i "com.tillitech.GumTests" "$(builddir)/gum-tests" || true; \
+			codesign -s "$$MAC_CERTID" -i "re.frida.GumTests" "$(builddir)/gum-tests" || true; \
 		fi; \
 		if [ ! -d "$(builddir)/data" ]; then \
 			cp -a "$(srcdir)/data" "$(builddir)/data"; \
