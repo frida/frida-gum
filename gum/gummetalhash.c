@@ -55,9 +55,6 @@ struct _GumMetalHashTable
   GHashFunc        hash_func;
   GEqualFunc       key_equal_func;
   gint             ref_count;
-#ifndef G_DISABLE_ASSERT
-  int              version;
-#endif
   GDestroyNotify   key_destroy_func;
   GDestroyNotify   value_destroy_func;
 };
@@ -386,9 +383,6 @@ gum_metal_hash_table_new_full (GHashFunc      hash_func,
   hash_table->hash_func          = hash_func ? hash_func : g_direct_hash;
   hash_table->key_equal_func     = key_equal_func;
   hash_table->ref_count          = 1;
-#ifndef G_DISABLE_ASSERT
-  hash_table->version            = 0;
-#endif
   hash_table->key_destroy_func   = key_destroy_func;
   hash_table->value_destroy_func = value_destroy_func;
   hash_table->keys               = gum_metal_new0 (gpointer, hash_table->size);
@@ -409,9 +403,6 @@ gum_metal_hash_table_iter_init (GumMetalHashTableIter *iter,
 
   ri->hash_table = hash_table;
   ri->position = -1;
-#ifndef G_DISABLE_ASSERT
-  ri->version = hash_table->version;
-#endif
 }
 
 gboolean
@@ -423,9 +414,6 @@ gum_metal_hash_table_iter_next (GumMetalHashTableIter *iter,
   gint position;
 
   g_return_val_if_fail (iter != NULL, FALSE);
-#ifndef G_DISABLE_ASSERT
-  g_return_val_if_fail (ri->version == ri->hash_table->version, FALSE);
-#endif
   g_return_val_if_fail (ri->position < ri->hash_table->size, FALSE);
 
   position = ri->position;
@@ -462,18 +450,10 @@ static void
 iter_remove_or_steal (RealIter *ri, gboolean notify)
 {
   g_return_if_fail (ri != NULL);
-#ifndef G_DISABLE_ASSERT
-  g_return_if_fail (ri->version == ri->hash_table->version);
-#endif
   g_return_if_fail (ri->position >= 0);
   g_return_if_fail (ri->position < ri->hash_table->size);
 
   gum_metal_hash_table_remove_node (ri->hash_table, ri->position, notify);
-
-#ifndef G_DISABLE_ASSERT
-  ri->version++;
-  ri->hash_table->version++;
-#endif
 }
 
 void
@@ -534,10 +514,6 @@ gum_metal_hash_table_insert_node (GumMetalHashTable *hash_table,
           hash_table->noccupied++;
           gum_metal_hash_table_maybe_resize (hash_table);
         }
-
-#ifndef G_DISABLE_ASSERT
-      hash_table->version++;
-#endif
     }
 
   if (already_exists)
@@ -562,9 +538,6 @@ gum_metal_hash_table_iter_replace (GumMetalHashTableIter *iter,
   ri = (RealIter *) iter;
 
   g_return_if_fail (ri != NULL);
-#ifndef G_DISABLE_ASSERT
-  g_return_if_fail (ri->version == ri->hash_table->version);
-#endif
   g_return_if_fail (ri->position >= 0);
   g_return_if_fail (ri->position < ri->hash_table->size);
 
@@ -572,11 +545,6 @@ gum_metal_hash_table_iter_replace (GumMetalHashTableIter *iter,
   key = ri->hash_table->keys[ri->position];
 
   gum_metal_hash_table_insert_node (ri->hash_table, ri->position, node_hash, key, value, TRUE, TRUE);
-
-#ifndef G_DISABLE_ASSERT
-  ri->version++;
-  ri->hash_table->version++;
-#endif
 }
 
 void
@@ -733,10 +701,6 @@ gum_metal_hash_table_remove_internal (GumMetalHashTable    *hash_table,
   gum_metal_hash_table_remove_node (hash_table, node_index, notify);
   gum_metal_hash_table_maybe_resize (hash_table);
 
-#ifndef G_DISABLE_ASSERT
-  hash_table->version++;
-#endif
-
   return TRUE;
 }
 
@@ -759,11 +723,6 @@ gum_metal_hash_table_remove_all (GumMetalHashTable *hash_table)
 {
   g_return_if_fail (hash_table != NULL);
 
-#ifndef G_DISABLE_ASSERT
-  if (hash_table->nnodes != 0)
-    hash_table->version++;
-#endif
-
   gum_metal_hash_table_remove_all_nodes (hash_table, TRUE);
   gum_metal_hash_table_maybe_resize (hash_table);
 }
@@ -772,11 +731,6 @@ void
 gum_metal_hash_table_steal_all (GumMetalHashTable *hash_table)
 {
   g_return_if_fail (hash_table != NULL);
-
-#ifndef G_DISABLE_ASSERT
-  if (hash_table->nnodes != 0)
-    hash_table->version++;
-#endif
 
   gum_metal_hash_table_remove_all_nodes (hash_table, FALSE);
   gum_metal_hash_table_maybe_resize (hash_table);
@@ -790,9 +744,6 @@ gum_metal_hash_table_foreach_remove_or_steal (GumMetalHashTable *hash_table,
 {
   guint deleted = 0;
   gint i;
-#ifndef G_DISABLE_ASSERT
-  gint version = hash_table->version;
-#endif
 
   for (i = 0; i < hash_table->size; i++)
     {
@@ -806,18 +757,9 @@ gum_metal_hash_table_foreach_remove_or_steal (GumMetalHashTable *hash_table,
           gum_metal_hash_table_remove_node (hash_table, i, notify);
           deleted++;
         }
-
-#ifndef G_DISABLE_ASSERT
-      g_return_val_if_fail (version == hash_table->version, 0);
-#endif
     }
 
   gum_metal_hash_table_maybe_resize (hash_table);
-
-#ifndef G_DISABLE_ASSERT
-  if (deleted > 0)
-    hash_table->version++;
-#endif
 
   return deleted;
 }
@@ -850,16 +792,9 @@ gum_metal_hash_table_foreach (GumMetalHashTable *hash_table,
                       gpointer    user_data)
 {
   gint i;
-#ifndef G_DISABLE_ASSERT
-  gint version;
-#endif
 
   g_return_if_fail (hash_table != NULL);
   g_return_if_fail (func != NULL);
-
-#ifndef G_DISABLE_ASSERT
-  version = hash_table->version;
-#endif
 
   for (i = 0; i < hash_table->size; i++)
     {
@@ -869,10 +804,6 @@ gum_metal_hash_table_foreach (GumMetalHashTable *hash_table,
 
       if (HASH_IS_REAL (node_hash))
         (* func) (node_key, node_value, user_data);
-
-#ifndef G_DISABLE_ASSERT
-      g_return_if_fail (version == hash_table->version);
-#endif
     }
 }
 
@@ -882,17 +813,10 @@ gum_metal_hash_table_find (GumMetalHashTable *hash_table,
                    gpointer    user_data)
 {
   gint i;
-#ifndef G_DISABLE_ASSERT
-  gint version;
-#endif
   gboolean match;
 
   g_return_val_if_fail (hash_table != NULL, NULL);
   g_return_val_if_fail (predicate != NULL, NULL);
-
-#ifndef G_DISABLE_ASSERT
-  version = hash_table->version;
-#endif
 
   match = FALSE;
 
@@ -904,10 +828,6 @@ gum_metal_hash_table_find (GumMetalHashTable *hash_table,
 
       if (HASH_IS_REAL (node_hash))
         match = predicate (node_key, node_value, user_data);
-
-#ifndef G_DISABLE_ASSERT
-      g_return_val_if_fail (version == hash_table->version, NULL);
-#endif
 
       if (match)
         return node_value;
