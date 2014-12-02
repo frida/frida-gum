@@ -91,6 +91,8 @@
       <AdditionalIncludeDirectories>..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GUMPP_STATIC;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <UndefinePreprocessorDefinitions>HAVE_V8</UndefinePreprocessorDefinitions>
+      <ProgramDataBaseFileName>$(OutDir)\$(ProjectName).pdb</ProgramDataBaseFileName>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
     <Link>
       <AdditionalDependencies>DbgHelp.lib;gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
