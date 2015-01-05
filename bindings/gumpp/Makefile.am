@@ -28,8 +28,6 @@ libfrida_gumpp_1_0_la_LDFLAGS =			\
 libfrida_gumpp_1_0_la_LIBADD =			\
 	$(top_builddir)/gum/libfrida-gum.la	\
 	$(GUM_LIBS)
-libfrida_gumpp_1_0_la_LIBTOOLFLAGS =		\
-	--tag=disable-static
 
 AM_CPPFLAGS =					\
 	-include config.h			\
