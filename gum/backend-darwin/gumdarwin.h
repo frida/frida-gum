@@ -42,6 +42,13 @@ GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
 GUM_API void gum_darwin_enumerate_exports (mach_port_t task,
     const gchar * module_name, GumFoundExportFunc func, gpointer user_data);
 
+GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
+    guint8 * module, gsize module_size, gint64 * slide);
+GUM_API gboolean gum_darwin_find_linkedit (guint8 * module, gsize module_size,
+    GumAddress * linkedit);
+GUM_API gboolean gum_darwin_find_command (guint id, guint8 * module,
+    gsize module_size, gpointer * command);
+
 GumPageProtection gum_page_protection_from_mach (vm_prot_t native_prot);
 vm_prot_t gum_page_protection_to_mach (GumPageProtection page_prot);
 

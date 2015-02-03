@@ -170,14 +170,8 @@ static gboolean gum_store_module_address (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
     const gchar * module_name);
-static gboolean gum_darwin_find_slide (GumAddress module_address,
-    guint8 * module, gsize module_size, gint64 * slide);
-static gboolean gum_darwin_find_linkedit (guint8 * module, gsize module_size,
-    GumAddress * linkedit);
 static GSList * gum_darwin_find_text_section_ids (guint8 * module,
     gsize module_size);
-static gboolean gum_darwin_find_symtab_command (guint8 * module,
-    gsize module_size, struct symtab_command ** sc);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -1177,7 +1171,7 @@ gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
 
   text_section_ids = gum_darwin_find_text_section_ids (chunk, chunk_size);
 
-  if (!gum_darwin_find_symtab_command (chunk, chunk_size, &sc))
+  if (!gum_darwin_find_command (LC_SYMTAB, chunk, chunk_size, (gpointer *) &sc))
     goto beach;
 
   if (header->magic == MH_MAGIC)
@@ -1287,7 +1281,7 @@ beach:
   return carry_on;
 }
 
-static gboolean
+gboolean
 gum_darwin_find_slide (GumAddress module_address,
                        guint8 * module,
                        gsize module_size,
@@ -1326,7 +1320,7 @@ gum_darwin_find_slide (GumAddress module_address,
   return FALSE;
 }
 
-static gboolean
+gboolean
 gum_darwin_find_linkedit (guint8 * module,
                           gsize module_size,
                           GumAddress * linkedit)
@@ -1419,10 +1413,11 @@ gum_darwin_find_text_section_ids (guint8 * module,
   return g_slist_reverse (ids);
 }
 
-static gboolean
-gum_darwin_find_symtab_command (guint8 * module,
-                                gsize module_size,
-                                struct symtab_command ** sc)
+gboolean
+gum_darwin_find_command (guint id,
+                         guint8 * module,
+                         gsize module_size,
+                         gpointer * command)
 {
   struct mach_header * header;
   guint8 * p;
@@ -1437,9 +1432,9 @@ gum_darwin_find_symtab_command (guint8 * module,
   {
     struct load_command * lc = (struct load_command *) p;
 
-    if (lc->cmd == LC_SYMTAB)
+    if (lc->cmd == id)
     {
-      *sc = (struct symtab_command *) lc;
+      *command = lc;
       return TRUE;
     }
 
