@@ -980,8 +980,16 @@ void
 gum_x86_writer_put_inc_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
+  GumCpuRegInfo ri;
+
+  gum_x86_writer_describe_cpu_reg (self, reg, &ri);
+
+  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64 || (ri.width == 32 && !ri.index_is_extended));
+
+  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+
   self->code[0] = 0xff;
-  self->code[1] = 0xc0 | reg;
+  self->code[1] = 0xc0 | ri.index;
   self->code += 2;
 }
 
@@ -989,8 +997,16 @@ void
 gum_x86_writer_put_dec_reg (GumX86Writer * self,
                             GumCpuReg reg)
 {
+  GumCpuRegInfo ri;
+
+  gum_x86_writer_describe_cpu_reg (self, reg, &ri);
+
+  g_return_if_fail (self->target_cpu == GUM_CPU_AMD64 || (ri.width == 32 && !ri.index_is_extended));
+
+  gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
+
   self->code[0] = 0xff;
-  self->code[1] = 0xc8 | reg;
+  self->code[1] = 0xc8 | ri.index;
   self->code += 2;
 }
 
