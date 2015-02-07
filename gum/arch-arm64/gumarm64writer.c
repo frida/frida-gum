@@ -15,9 +15,9 @@
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
 #define IS_WITHIN_INT19_RANGE(i) \
-    ((i) >= -262144 && (i) <= 262143)
+    (((gint) (i)) >= -262144 && ((gint) (i)) <= 262143)
 #define IS_WITHIN_INT28_RANGE(i) \
-    ((i) >= -134217728 && (i) <= 134217727)
+    (((gint) (i)) >= -134217728 && ((gint) (i)) <= 134217727)
 
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
