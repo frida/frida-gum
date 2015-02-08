@@ -8,6 +8,7 @@
 
 TEST_LIST_BEGIN (thumbwriter)
   THUMBWRITER_TESTENTRY (cbz_reg_label)
+  THUMBWRITER_TESTENTRY (cbnz_reg_label)
 
   THUMBWRITER_TESTENTRY (bx_reg)
   THUMBWRITER_TESTENTRY (blx_reg)
@@ -54,6 +55,25 @@ THUMBWRITER_TESTCASE (cbz_reg_label)
   assert_output_n_equals (4, 0x46c0); /* nop */
   /* beach: */
   assert_output_n_equals (5, 0xbd00); /* pop {pc} */
+}
+
+THUMBWRITER_TESTCASE (cbnz_reg_label)
+{
+  const gchar * next_lbl = "next";
+
+  gum_thumb_writer_put_label (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_cbnz_reg_label (&fixture->tw, GUM_AREG_R0, next_lbl);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  /* next: */
+  assert_output_n_equals (0, 0x46c0); /* nop */
+  assert_output_n_equals (1, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (3, 0xbbd8); /* cbnz r0, next */
 }
 
 THUMBWRITER_TESTCASE (bx_reg)

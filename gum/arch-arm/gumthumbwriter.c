@@ -14,6 +14,9 @@
 #define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
+#define IS_WITHIN_INT7_RANGE(i) \
+    (((gint) (i)) >= -128 && ((gint) (i)) <= 127)
+
 typedef struct _GumThumbArgument GumThumbArgument;
 
 struct _GumThumbLabelMapping
@@ -121,23 +124,19 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     {
       GumThumbLabelRef * r = &self->label_refs[label_idx];
       gpointer target_address;
-      gssize distance_in_insns;
-      guint16 insn;
+      gssize distance;
+      guint16 i, imm5, insn;
 
       target_address =
           gum_thumb_writer_lookup_address_for_label_id (self, r->id);
       g_assert (target_address != NULL);
 
-      distance_in_insns = ((gssize) target_address -
-          (gssize) (r->insn + 2)) / sizeof (guint16);
-      g_assert_cmpint (distance_in_insns, >=, 0);
-      g_assert_cmpint (distance_in_insns, <, 64);
+      distance = ((gssize) target_address - (gssize) (r->insn + 2));
+      g_assert (IS_WITHIN_INT7_RANGE (distance));
 
-      insn = GUINT16_FROM_LE (*r->insn);
-      if (distance_in_insns < 32)
-        insn |= (gsize) distance_in_insns << 3;
-      else
-        insn |= 0x0200 | ((gsize) (distance_in_insns - 32) << 3);
+      i = (distance >> 6) & 1;
+      imm5 = (distance >> 1) & 0x1f;
+      insn = GUINT16_FROM_LE (*r->insn) | (i << 9) | (imm5 << 3);
       *r->insn = GUINT16_TO_LE (insn);
     }
     self->label_refs_len = 0;
