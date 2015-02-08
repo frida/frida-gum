@@ -1283,12 +1283,12 @@ beach:
 
 gboolean
 gum_darwin_find_slide (GumAddress module_address,
-                       guint8 * module,
+                       const guint8 * module,
                        gsize module_size,
                        gint64 * slide)
 {
   struct mach_header * header;
-  guint8 * p;
+  const guint8 * p;
   guint cmd_index;
 
   header = (struct mach_header *) module;
@@ -1321,12 +1321,12 @@ gum_darwin_find_slide (GumAddress module_address,
 }
 
 gboolean
-gum_darwin_find_linkedit (guint8 * module,
+gum_darwin_find_linkedit (const guint8 * module,
                           gsize module_size,
                           GumAddress * linkedit)
 {
   struct mach_header * header;
-  guint8 * p;
+  const guint8 * p;
   guint cmd_index;
 
   header = (struct mach_header *) module;
@@ -1415,12 +1415,12 @@ gum_darwin_find_text_section_ids (guint8 * module,
 
 gboolean
 gum_darwin_find_command (guint id,
-                         guint8 * module,
+                         const guint8 * module,
                          gsize module_size,
                          gpointer * command)
 {
   struct mach_header * header;
-  guint8 * p;
+  const guint8 * p;
   guint cmd_index;
 
   header = (struct mach_header *) module;
