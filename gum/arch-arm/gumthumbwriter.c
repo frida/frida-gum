@@ -14,8 +14,10 @@
 #define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
-#define IS_WITHIN_INT7_RANGE(i) \
+#define IS_WITHIN_INT8_RANGE(i) \
     (((gint) (i)) >= -128 && ((gint) (i)) <= 127)
+#define IS_WITHIN_UINT7_RANGE(i) \
+    (((gint) (i)) >= 0 && ((gint) (i)) <= 127)
 
 typedef struct _GumThumbArgument GumThumbArgument;
 
@@ -125,18 +127,33 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       GumThumbLabelRef * r = &self->label_refs[label_idx];
       gpointer target_address;
       gssize distance;
-      guint16 i, imm5, insn;
+      guint16 insn;
 
       target_address =
           gum_thumb_writer_lookup_address_for_label_id (self, r->id);
       g_assert (target_address != NULL);
 
-      distance = ((gssize) target_address - (gssize) (r->insn + 2));
-      g_assert (IS_WITHIN_INT7_RANGE (distance));
+      distance = ((gssize) target_address - (gssize) (r->insn + 2)) / 2;
 
-      i = (distance >> 6) & 1;
-      imm5 = (distance >> 1) & 0x1f;
-      insn = GUINT16_FROM_LE (*r->insn) | (i << 9) | (imm5 << 3);
+      insn = GUINT16_FROM_LE (*r->insn);
+      if ((insn & 0xf000) == 0xd000)
+      {
+        g_assert (IS_WITHIN_INT8_RANGE (distance));
+
+        insn |= distance & 0x00ff;
+      }
+      else
+      {
+        guint16 i, imm5;
+
+        g_assert (IS_WITHIN_UINT7_RANGE (distance));
+
+        i = (distance >> 5) & 1;
+        imm5 = distance & 0x001f;
+
+        insn |= (i << 9) | (imm5 << 3);
+      }
+
       *r->insn = GUINT16_TO_LE (insn);
     }
     self->label_refs_len = 0;
@@ -357,6 +374,30 @@ gum_thumb_writer_put_blx_reg (GumThumbWriter * self,
                               GumArmReg reg)
 {
   gum_thumb_writer_put_instruction (self, 0x4780 | (reg << 3));
+}
+
+void
+gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self,
+                                  GumArmReg reg,
+                                  guint8 imm_value)
+{
+  gum_thumb_writer_put_instruction (self, 0x2800 | (reg << 8) | imm_value);
+}
+
+void
+gum_thumb_writer_put_beq_label (GumThumbWriter * self,
+                                gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_put_instruction (self, 0xd000);
+}
+
+void
+gum_thumb_writer_put_bne_label (GumThumbWriter * self,
+                                gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_put_instruction (self, 0xd100);
 }
 
 void

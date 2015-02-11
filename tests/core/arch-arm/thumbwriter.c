@@ -7,6 +7,9 @@
 #include "thumbwriter-fixture.c"
 
 TEST_LIST_BEGIN (thumbwriter)
+  THUMBWRITER_TESTENTRY (cmp_reg_imm)
+  THUMBWRITER_TESTENTRY (beq_label)
+  THUMBWRITER_TESTENTRY (bne_label)
   THUMBWRITER_TESTENTRY (cbz_reg_label)
   THUMBWRITER_TESTENTRY (cbnz_reg_label)
 
@@ -32,6 +35,50 @@ TEST_LIST_BEGIN (thumbwriter)
 
   THUMBWRITER_TESTENTRY (nop)
 TEST_LIST_END ()
+
+THUMBWRITER_TESTCASE (cmp_reg_imm)
+{
+  gum_thumb_writer_put_cmp_reg_imm (&fixture->tw, GUM_AREG_R7, 7);
+  assert_output_n_equals (0, 0x2f07); /* cmp r7, 7 */
+}
+
+THUMBWRITER_TESTCASE (beq_label)
+{
+  const gchar * again_lbl = "again";
+
+  gum_thumb_writer_put_label (&fixture->tw, again_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_beq_label (&fixture->tw, again_lbl);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  /* again: */
+  assert_output_n_equals (0, 0x46c0); /* nop */
+  assert_output_n_equals (1, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (3, 0xd0fb); /* beq again */
+}
+
+THUMBWRITER_TESTCASE (bne_label)
+{
+  const gchar * again_lbl = "again";
+
+  gum_thumb_writer_put_label (&fixture->tw, again_lbl);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_nop (&fixture->tw);
+  gum_thumb_writer_put_bne_label (&fixture->tw, again_lbl);
+
+  gum_thumb_writer_flush (&fixture->tw);
+
+  /* again: */
+  assert_output_n_equals (0, 0x46c0); /* nop */
+  assert_output_n_equals (1, 0x46c0); /* nop */
+  assert_output_n_equals (2, 0x46c0); /* nop */
+  assert_output_n_equals (3, 0xd1fb); /* bne again */
+}
 
 THUMBWRITER_TESTCASE (cbz_reg_label)
 {
@@ -59,21 +106,21 @@ THUMBWRITER_TESTCASE (cbz_reg_label)
 
 THUMBWRITER_TESTCASE (cbnz_reg_label)
 {
-  const gchar * next_lbl = "next";
+  const gchar * beach_lbl = "beach";
 
-  gum_thumb_writer_put_label (&fixture->tw, next_lbl);
+  gum_thumb_writer_put_cbnz_reg_label (&fixture->tw, GUM_AREG_R0, beach_lbl);
   gum_thumb_writer_put_nop (&fixture->tw);
   gum_thumb_writer_put_nop (&fixture->tw);
   gum_thumb_writer_put_nop (&fixture->tw);
-  gum_thumb_writer_put_cbnz_reg_label (&fixture->tw, GUM_AREG_R0, next_lbl);
+  gum_thumb_writer_put_label (&fixture->tw, beach_lbl);
 
   gum_thumb_writer_flush (&fixture->tw);
 
-  /* next: */
-  assert_output_n_equals (0, 0x46c0); /* nop */
+  assert_output_n_equals (0, 0xb910); /* cbnz r0, beach */
   assert_output_n_equals (1, 0x46c0); /* nop */
   assert_output_n_equals (2, 0x46c0); /* nop */
-  assert_output_n_equals (3, 0xbbd8); /* cbnz r0, next */
+  assert_output_n_equals (3, 0x46c0); /* nop */
+  /* beach: */
 }
 
 THUMBWRITER_TESTCASE (bx_reg)
