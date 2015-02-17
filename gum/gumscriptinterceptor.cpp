@@ -47,6 +47,8 @@ static void gum_script_interceptor_on_revert (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
+static void gum_script_invocation_context_on_get_registers (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_invocation_context_on_get_system_error (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_invocation_context_on_set_system_error (
@@ -176,6 +178,8 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
 
   Handle<ObjectTemplate> context = ObjectTemplate::New (isolate);
   context->SetInternalFieldCount (2);
+  context->SetAccessor (String::NewFromUtf8 (isolate, "registers"),
+      gum_script_invocation_context_on_get_registers, NULL, data);
   context->SetAccessor (String::NewFromUtf8 (isolate, GUM_SYSTEM_ERROR_FIELD),
       gum_script_invocation_context_on_get_system_error,
       gum_script_invocation_context_on_set_system_error);
@@ -429,6 +433,19 @@ gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   delete entry->replacement;
   g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+static void
+gum_script_invocation_context_on_get_registers (Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
+{
+  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
+      info.Data ().As<External> ()->Value ());
+  GumInvocationContext * context = static_cast<GumInvocationContext *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  (void) property;
+  info.GetReturnValue ().Set (
+      _gum_script_cpu_context_to_object (context->cpu_context, self->core));
 }
 
 static void
