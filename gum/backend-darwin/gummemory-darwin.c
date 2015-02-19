@@ -183,7 +183,7 @@ gum_darwin_read (mach_port_t task,
         (vm_address_t) result, &result_len);
     if (kr != KERN_SUCCESS)
     {
-      mach_vm_address_t region_address = address;
+      mach_vm_address_t region_address;
       mach_vm_size_t region_size = (mach_vm_size_t) 0;
       natural_t depth = 0;
       struct vm_region_submap_info_64 info;
@@ -192,6 +192,7 @@ gum_darwin_read (mach_port_t task,
 
       while (TRUE)
       {
+        region_address = address;
         info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
         region_kr = mach_vm_region_recurse (task, &region_address, &region_size,
             &depth, (vm_region_recurse_info_t) &info, &info_count);
