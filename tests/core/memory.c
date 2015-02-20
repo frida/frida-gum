@@ -17,7 +17,7 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (read_from_valid_address_should_succeed)
   MEMORY_TESTENTRY (read_from_invalid_address_should_fail)
   MEMORY_TESTENTRY (read_from_unaligned_address_should_succeed)
-  MEMORY_TESTENTRY (multipage_read_should_return_correct_data)
+  MEMORY_TESTENTRY (read_across_two_pages_should_return_correct_data)
   MEMORY_TESTENTRY (write_to_valid_address_should_succeed)
   MEMORY_TESTENTRY (write_to_invalid_address_should_fail)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
@@ -85,7 +85,7 @@ MEMORY_TESTCASE (read_from_unaligned_address_should_succeed)
   gum_free_pages (page);
 }
 
-MEMORY_TESTCASE (multipage_read_should_return_correct_data)
+MEMORY_TESTCASE (read_across_two_pages_should_return_correct_data)
 {
   GRand * rand;
   guint8 * pages;
