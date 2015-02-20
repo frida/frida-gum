@@ -235,7 +235,6 @@ MEMORY_TESTCASE (is_memory_readable_handles_mixed_page_protections)
   right_guard = second_page + page_size;
 
   gum_mprotect (GSIZE_TO_POINTER (left_guard), page_size, GUM_PAGE_NO_ACCESS);
-  gum_mprotect (GSIZE_TO_POINTER (second_page), page_size, GUM_PAGE_RW);
   gum_mprotect (GSIZE_TO_POINTER (right_guard), page_size, GUM_PAGE_NO_ACCESS);
 
   g_assert (gum_memory_is_readable (first_page, 1));
