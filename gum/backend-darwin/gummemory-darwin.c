@@ -72,36 +72,20 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 {
   mach_port_t self;
   mach_vm_address_t address = MACH_VM_MIN_ADDRESS;
-  mach_vm_size_t size = (mach_vm_size_t) 0;
-  natural_t depth = 0;
   GumAddress prev_end = 0;
 
   self = mach_task_self ();
 
   while (TRUE)
   {
+    mach_vm_size_t size;
+    natural_t depth = 0;
     vm_region_submap_info_data_64_t info;
     mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
     kern_return_t kr;
 
-    while (TRUE)
-    {
-      kr = mach_vm_region_recurse (self, &address, &size, &depth,
-          (vm_region_recurse_info_t) &info, &info_count);
-      if (kr != KERN_SUCCESS)
-        break;
-
-      if (info.is_submap)
-      {
-        depth++;
-        continue;
-      }
-      else
-      {
-        break;
-      }
-    }
-
+    kr = mach_vm_region_recurse (self, &address, &size, &depth,
+        (vm_region_recurse_info_t) &info, &info_count);
     if (kr != KERN_SUCCESS)
       break;
 
@@ -126,7 +110,6 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
     prev_end = address + size;
 
     address += size;
-    size = 0;
   }
 }
 
