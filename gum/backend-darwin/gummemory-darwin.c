@@ -177,7 +177,7 @@ gum_darwin_read (mach_port_t task,
     g_assert_cmpuint (result_size, ==, page_size);
     memcpy (result + offset, (gpointer) (result_data + page_offset),
         chunk_size);
-    vm_deallocate (task, result_data, result_size);
+    mach_vm_deallocate (mach_task_self (), result_data, result_size);
     offset += chunk_size;
   }
 
