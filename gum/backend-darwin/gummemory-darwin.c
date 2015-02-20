@@ -160,66 +160,25 @@ gum_darwin_read (mach_port_t task,
 
   while (offset != len)
   {
-    GumAddress chunk_address;
-    gsize chunk_size;
+    GumAddress chunk_address, page_address;
+    gsize chunk_size, page_offset;
     vm_offset_t result_data;
     mach_msg_type_number_t result_size;
 
     chunk_address = address + offset;
-    chunk_size = MIN (len - offset, page_size);
+    page_address = chunk_address & ~(page_size - 1);
+    page_offset = chunk_address - page_address;
+    chunk_size = MIN (len - offset, page_size - page_offset);
 
-    kr = mach_vm_read (task, chunk_address, chunk_size,
+    kr = mach_vm_read (task, page_address, page_size,
         &result_data, &result_size);
-    if (kr == KERN_SUCCESS)
-    {
-      memcpy (result + offset, (gpointer) result_data, result_size);
-      vm_deallocate (task, result_data, result_size);
-      offset += result_size;
-    }
-    else
-    {
-      mach_vm_address_t region_address;
-      mach_vm_size_t region_size = (mach_vm_size_t) 0;
-      natural_t depth = 0;
-      struct vm_region_submap_info_64 info;
-      mach_msg_type_number_t info_count;
-      kern_return_t region_kr;
-
-      while (TRUE)
-      {
-        region_address = chunk_address;
-        info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
-        region_kr = mach_vm_region_recurse (task, &region_address, &region_size,
-            &depth, (vm_region_recurse_info_t) &info, &info_count);
-        if (region_kr != KERN_SUCCESS)
-          break;
-
-        if (info.is_submap)
-          depth++;
-        else
-          break;
-      }
-
-      if (region_kr == KERN_SUCCESS &&
-          chunk_address >= region_address &&
-          chunk_address < region_address + region_size &&
-          (info.protection & VM_PROT_READ) == VM_PROT_READ)
-      {
-        gsize max_size = region_size - (chunk_address - region_address);
-        if (chunk_size > max_size)
-        {
-          len -= chunk_size - max_size;
-        }
-        else
-        {
-          break;
-        }
-      }
-      else
-      {
-        break;
-      }
-    }
+    if (kr != KERN_SUCCESS)
+      break;
+    g_assert_cmpuint (result_size, ==, page_size);
+    memcpy (result + offset, (gpointer) (result_data + page_offset),
+        chunk_size);
+    vm_deallocate (task, result_data, result_size);
+    offset += chunk_size;
   }
 
   if (offset == 0)
