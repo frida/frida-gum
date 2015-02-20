@@ -18,6 +18,7 @@ TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (read_from_invalid_address_should_fail)
   MEMORY_TESTENTRY (read_from_unaligned_address_should_succeed)
   MEMORY_TESTENTRY (read_across_two_pages_should_return_correct_data)
+  MEMORY_TESTENTRY (read_beyond_page_should_return_partial_data)
   MEMORY_TESTENTRY (write_to_valid_address_should_succeed)
   MEMORY_TESTENTRY (write_to_invalid_address_should_fail)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
@@ -118,6 +119,31 @@ MEMORY_TESTCASE (read_across_two_pages_should_return_correct_data)
   g_free (expected_checksum);
   gum_free_pages (pages);
   g_rand_free (rand);
+}
+
+MEMORY_TESTCASE (read_beyond_page_should_return_partial_data)
+{
+  guint8 * page;
+  guint page_size;
+  gsize n_bytes_read;
+  guint8 * data;
+
+  page = (guint8 *) gum_alloc_n_pages (2, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+  gum_mprotect (page + page_size, page_size, GUM_PAGE_NO_ACCESS);
+
+  data = gum_memory_read (GUM_ADDRESS (page), 2 * page_size, &n_bytes_read);
+  g_assert (data != NULL);
+  g_assert_cmpuint (n_bytes_read, ==, page_size);
+  g_free (data);
+
+  data = gum_memory_read (GUM_ADDRESS (page + page_size - 1), 1 + page_size,
+      &n_bytes_read);
+  g_assert (data != NULL);
+  g_assert_cmpuint (n_bytes_read, ==, 1);
+  g_free (data);
+
+  gum_free_pages (page);
 }
 
 MEMORY_TESTCASE (write_to_valid_address_should_succeed)

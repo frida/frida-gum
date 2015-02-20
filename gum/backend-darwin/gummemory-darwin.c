@@ -222,7 +222,7 @@ gum_darwin_read (mach_port_t task,
     }
   }
 
-  if (kr != KERN_SUCCESS)
+  if (offset == 0)
   {
     g_free (result);
     result = NULL;
