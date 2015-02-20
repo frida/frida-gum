@@ -16,6 +16,8 @@
 TEST_LIST_BEGIN (memory)
   MEMORY_TESTENTRY (read_from_valid_address_should_succeed)
   MEMORY_TESTENTRY (read_from_invalid_address_should_fail)
+  MEMORY_TESTENTRY (read_from_unaligned_address_should_succeed)
+  MEMORY_TESTENTRY (multipage_read_should_return_correct_data)
   MEMORY_TESTENTRY (write_to_valid_address_should_succeed)
   MEMORY_TESTENTRY (write_to_invalid_address_should_fail)
   MEMORY_TESTENTRY (match_pattern_from_string_does_proper_validation)
@@ -47,7 +49,7 @@ MEMORY_TESTCASE (read_from_valid_address_should_succeed)
   result = gum_memory_read (GUM_ADDRESS (magic), sizeof (magic), &n_bytes_read);
   g_assert (result != NULL);
 
-  g_assert_cmpint (n_bytes_read, ==, sizeof (magic));
+  g_assert_cmpuint (n_bytes_read, ==, sizeof (magic));
 
   g_assert_cmphex (result[0], ==, magic[0]);
   g_assert_cmphex (result[1], ==, magic[1]);
@@ -59,6 +61,63 @@ MEMORY_TESTCASE (read_from_invalid_address_should_fail)
 {
   GumAddress invalid_address = 0x42;
   g_assert (gum_memory_read (invalid_address, 1, NULL) == NULL);
+}
+
+MEMORY_TESTCASE (read_from_unaligned_address_should_succeed)
+{
+  gpointer page;
+  guint page_size;
+  guint8 * last_byte;
+  gsize n_bytes_read;
+  guint8 * data;
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  last_byte = ((guint8 *) page) + page_size - 1;
+  *last_byte = 42;
+  data = gum_memory_read (GUM_ADDRESS (last_byte), 1, &n_bytes_read);
+  g_assert (data != NULL);
+  g_assert_cmpuint (n_bytes_read, ==, 1);
+  g_assert_cmpuint (*data, ==, 42);
+  g_free (data);
+
+  gum_free_pages (page);
+}
+
+MEMORY_TESTCASE (multipage_read_should_return_correct_data)
+{
+  GRand * rand;
+  guint8 * pages;
+  guint size, i, start_offset;
+  gchar * expected_checksum, * actual_checksum;
+  guint8 * data;
+  gsize n_bytes_read;
+
+  rand = g_rand_new_with_seed (42);
+  pages = (guint8 *) gum_alloc_n_pages (2, GUM_PAGE_RW);
+  size = 2 * gum_query_page_size ();
+  start_offset = (size / 2) - 1;
+  for (i = start_offset; i != size; i++)
+  {
+    pages[i] = (guint8) g_rand_int_range (rand, 0, 255);
+  }
+  expected_checksum = g_compute_checksum_for_data (G_CHECKSUM_SHA1,
+      pages + start_offset, size - start_offset);
+
+  data = gum_memory_read (GUM_ADDRESS (pages + start_offset),
+      size - start_offset, &n_bytes_read);
+  g_assert (data != NULL);
+  g_assert_cmpuint (n_bytes_read, ==, size - start_offset);
+  actual_checksum =
+      g_compute_checksum_for_data (G_CHECKSUM_SHA1, data, n_bytes_read);
+  g_assert_cmpstr (actual_checksum, ==, expected_checksum);
+  g_free (actual_checksum);
+  g_free (data);
+
+  g_free (expected_checksum);
+  gum_free_pages (pages);
+  g_rand_free (rand);
 }
 
 MEMORY_TESTCASE (write_to_valid_address_should_succeed)
