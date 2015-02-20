@@ -151,20 +151,32 @@ gum_darwin_read (mach_port_t task,
                  gsize * n_bytes_read)
 {
   guint8 * result;
-  mach_vm_size_t result_len;
-  gboolean retry;
+  gsize offset, page_size;
   kern_return_t kr;
 
   result = g_malloc (len);
+  offset = 0;
+  page_size = gum_query_page_size ();
 
-  do
+  while (offset != len)
   {
-    result_len = 0;
-    retry = FALSE;
+    GumAddress chunk_address;
+    gsize chunk_size;
+    vm_offset_t result_data;
+    mach_msg_type_number_t result_size;
 
-    kr = mach_vm_read_overwrite (task, address, len,
-        (vm_address_t) result, &result_len);
-    if (kr != KERN_SUCCESS)
+    chunk_address = address + offset;
+    chunk_size = MIN (len - offset, page_size);
+
+    kr = mach_vm_read (task, chunk_address, chunk_size,
+        &result_data, &result_size);
+    if (kr == KERN_SUCCESS)
+    {
+      memcpy (result + offset, (gpointer) result_data, result_size);
+      vm_deallocate (task, result_data, result_size);
+      offset += result_size;
+    }
+    else
     {
       mach_vm_address_t region_address;
       mach_vm_size_t region_size = (mach_vm_size_t) 0;
@@ -175,7 +187,7 @@ gum_darwin_read (mach_port_t task,
 
       while (TRUE)
       {
-        region_address = address;
+        region_address = chunk_address;
         info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
         region_kr = mach_vm_region_recurse (task, &region_address, &region_size,
             &depth, (vm_region_recurse_info_t) &info, &info_count);
@@ -189,20 +201,26 @@ gum_darwin_read (mach_port_t task,
       }
 
       if (region_kr == KERN_SUCCESS &&
-          address >= region_address &&
-          address < region_address + region_size &&
+          chunk_address >= region_address &&
+          chunk_address < region_address + region_size &&
           (info.protection & VM_PROT_READ) == VM_PROT_READ)
       {
-        gsize max_len = region_size - (address - region_address);
-        if (len > max_len)
+        gsize max_size = region_size - (chunk_address - region_address);
+        if (chunk_size > max_size)
         {
-          len = max_len;
-          retry = TRUE;
+          len -= chunk_size - max_size;
         }
+        else
+        {
+          break;
+        }
+      }
+      else
+      {
+        break;
       }
     }
   }
-  while (retry);
 
   if (kr != KERN_SUCCESS)
   {
@@ -211,7 +229,7 @@ gum_darwin_read (mach_port_t task,
   }
 
   if (n_bytes_read != NULL)
-    *n_bytes_read = result_len;
+    *n_bytes_read = offset;
 
   return result;
 }
