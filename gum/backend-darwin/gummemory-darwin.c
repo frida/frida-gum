@@ -151,11 +151,15 @@ gum_darwin_read (mach_port_t task,
                  gsize * n_bytes_read)
 {
   guint8 * result;
-  gsize offset, page_size;
+  gsize offset;
+  mach_port_t self;
+  gsize page_size;
   kern_return_t kr;
 
   result = g_malloc (len);
   offset = 0;
+
+  self = mach_task_self ();
   page_size = gum_query_page_size ();
 
   while (offset != len)
@@ -177,7 +181,7 @@ gum_darwin_read (mach_port_t task,
     g_assert_cmpuint (result_size, ==, page_size);
     memcpy (result + offset, (gpointer) (result_data + page_offset),
         chunk_size);
-    mach_vm_deallocate (mach_task_self (), result_data, result_size);
+    mach_vm_deallocate (self, result_data, result_size);
     offset += chunk_size;
   }
 
