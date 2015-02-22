@@ -11,6 +11,12 @@
 #include <ffi.h>
 #include <string.h>
 
+#ifdef FFI_GO_CLOSURES
+# define HAVE_NEW_LIBFFI 1
+#else
+# define HAVE_NEW_LIBFFI 0
+#endif
+
 #define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
 
@@ -1376,20 +1382,27 @@ static const GumFFITypeMapping gum_ffi_type_mappings[] =
 static const GumFFIABIMapping gum_ffi_abi_mappings[] =
 {
   { "default", FFI_DEFAULT_ABI },
-#if defined (X86_WIN32)
+#if defined (X86_WIN64)
+  { "win64", FFI_WIN64 },
+#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 8
+  { "unix64", FFI_UNIX64 },
+#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 4
   { "sysv", FFI_SYSV },
   { "stdcall", FFI_STDCALL },
   { "thiscall", FFI_THISCALL },
   { "fastcall", FFI_FASTCALL },
-  { "mscdecl", FFI_MS_CDECL }
-#elif defined (X86_WIN64)
-  { "win64", FFI_WIN64 }
-#elif defined (X86_ANY)
-  { "sysv", FFI_SYSV },
-  { "unix64", FFI_UNIX64 }
+# if HAVE_NEW_LIBFFI
+  { "pascal", FFI_PASCAL },
+  { "register", FFI_REGISTER },
+# endif
+# if HAVE_NEW_LIBFFI || X86_WIN32
+  { "mscdecl", FFI_MS_CDECL },
+# endif
 #elif defined (ARM)
   { "sysv", FFI_SYSV },
-  { "vfp", FFI_VFP }
+# if GLIB_SIZEOF_VOID_P == 4
+  { "vfp", FFI_VFP },
+# endif
 #endif
 };
 
