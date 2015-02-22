@@ -132,7 +132,7 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
 
 RELOCATOR_TESTCASE (call_near_get_pc_thunk)
 {
-  guint8 input[] = {
+  const guint8 input[] = {
     0xe8, 0x01, 0x00, 0x00, 0x00, /* call +1         */
 
     0xcc,                         /* int 3          */
@@ -143,7 +143,7 @@ RELOCATOR_TESTCASE (call_near_get_pc_thunk)
     0xbb, 0x00, 0x00, 0x00, 0x00  /* mov ebx, <imm> */
   };
 
-  *((gpointer *) (expected_output + 1)) = input + 5;
+  *((gconstpointer *) (expected_output + 1)) = input + 5;
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
   SETUP_RELOCATOR_WITH (input);
@@ -473,9 +473,8 @@ RELOCATOR_TESTCASE (rip_relative_move_different_target)
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
 
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
-
-  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
@@ -499,9 +498,8 @@ RELOCATOR_TESTCASE (rip_relative_move_same_target)
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 6);
 
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
-
-  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
@@ -531,9 +529,8 @@ RELOCATOR_TESTCASE (rip_relative_push)
 
   *((gpointer *) (expected_output + 4)) = (gpointer) (input + 6);
 
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
-
-  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
@@ -568,9 +565,8 @@ RELOCATOR_TESTCASE (rip_relative_push_red_zone)
 
   *((gpointer *) (expected_output + 12)) = (gpointer) (input + 6);
 
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_UNIX);
   SETUP_RELOCATOR_WITH (input);
-
-  fixture->rl.target_abi = GUM_ABI_UNIX;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
@@ -594,9 +590,8 @@ RELOCATOR_TESTCASE (rip_relative_cmpxchg)
 
   *((gpointer *) (expected_output + 3)) = (gpointer) (input + 9);
 
+  gum_x86_writer_set_target_abi (&fixture->cw, GUM_ABI_WINDOWS);
   SETUP_RELOCATOR_WITH (input);
-
-  fixture->rl.target_abi = GUM_ABI_WINDOWS;
 
   gum_x86_relocator_read_one (&fixture->rl, NULL);
   gum_x86_relocator_write_one (&fixture->rl);
