@@ -46,7 +46,9 @@ gum_x86_relocator_init (GumX86Relocator * relocator,
 {
   cs_err err;
 
-  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &relocator->capstone);
+  err = cs_open (CS_ARCH_X86,
+      (output->target_cpu == GUM_CPU_AMD64) ? CS_MODE_64 : CS_MODE_32,
+      &relocator->capstone);
   g_assert_cmpint (err, ==, CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert_cmpint (err, ==, CS_ERR_OK);
@@ -61,13 +63,6 @@ gum_x86_relocator_reset (GumX86Relocator * relocator,
                          GumX86Writer * output)
 {
   guint i;
-
-#if GLIB_SIZEOF_VOID_P == 4
-  relocator->target_cpu = GUM_CPU_IA32;
-#else
-  relocator->target_cpu = GUM_CPU_AMD64;
-#endif
-  relocator->target_abi = GUM_NATIVE_ABI;
 
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
@@ -275,7 +270,7 @@ gum_x86_relocator_write_one_instruction (GumX86Relocator * self)
     default:
       if (gum_x86_reader_insn_is_jcc (ctx.insn))
         rewritten = gum_x86_relocator_rewrite_conditional_branch (self, &ctx);
-      else if (self->target_cpu == GUM_CPU_AMD64)
+      else if (self->output->target_cpu == GUM_CPU_AMD64)
         rewritten = gum_x86_relocator_rewrite_if_rip_relative (self, &ctx);
       break;
   }
@@ -477,6 +472,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   };
   gint rip_reg_index, i;
   GumCpuReg other_reg, rip_reg;
+  GumAbiType target_abi = self->output->target_abi;
   guint8 code[16];
 
   if (x86->modrm_offset == 0)
@@ -520,7 +516,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
     gum_x86_writer_put_push_reg (ctx->code_writer, GUM_REG_RAX);
   }
 
-  if (self->target_abi == GUM_ABI_UNIX)
+  if (target_abi == GUM_ABI_UNIX)
   {
     gum_x86_writer_put_lea_reg_reg_offset (ctx->code_writer, GUM_REG_RSP,
         GUM_REG_RSP, -GUM_RED_ZONE_SIZE);
@@ -535,7 +531,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
         rip_reg, x86->disp);
     gum_x86_writer_put_mov_reg_offset_ptr_reg (ctx->code_writer,
         GUM_REG_RSP,
-        0x08 + ((self->target_abi == GUM_ABI_UNIX) ? GUM_RED_ZONE_SIZE : 0),
+        0x08 + ((target_abi == GUM_ABI_UNIX) ? GUM_RED_ZONE_SIZE : 0),
         rip_reg);
   }
   else
@@ -546,7 +542,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   }
 
   gum_x86_writer_put_pop_reg (ctx->code_writer, rip_reg);
-  if (self->target_abi == GUM_ABI_UNIX)
+  if (target_abi == GUM_ABI_UNIX)
   {
     gum_x86_writer_put_lea_reg_reg_offset (ctx->code_writer, GUM_REG_RSP,
         GUM_REG_RSP, GUM_RED_ZONE_SIZE);
