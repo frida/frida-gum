@@ -38,6 +38,8 @@ static gboolean gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * sel
     GumCodeGenCtx * ctx);
 
 static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
+static gboolean gum_x86_call_is_to_get_pc_thunk (cs_insn * insn,
+    GumCpuType cpu_type);
 
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
@@ -162,7 +164,8 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
       break;
 
     case X86_INS_CALL:
-      self->eob = !gum_x86_call_is_to_next_instruction (insn);
+      self->eob = !gum_x86_call_is_to_next_instruction (insn) &&
+          !gum_x86_call_is_to_get_pc_thunk (insn, self->output->target_cpu);
       self->eoi = FALSE;
       break;
 
@@ -375,23 +378,31 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
   cs_x86_op * op = &ctx->insn->detail->x86.operands[0];
   GumX86Writer * cw = ctx->code_writer;
 
-  (void) self;
-
-  if (gum_x86_call_is_to_next_instruction (ctx->insn))
+  if (ctx->insn->id == X86_INS_CALL)
   {
-    if (cw->target_cpu == GUM_CPU_AMD64)
+    if (gum_x86_call_is_to_next_instruction (ctx->insn))
     {
-      gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
-      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
-          GUM_ADDRESS (ctx->end));
-      gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
-    }
-    else
-    {
-      gum_x86_writer_put_push_u32 (cw, GPOINTER_TO_SIZE (ctx->end));
-    }
+      if (cw->target_cpu == GUM_CPU_AMD64)
+      {
+        gum_x86_writer_put_push_reg (cw, GUM_REG_XAX);
+        gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
+            GUM_ADDRESS (ctx->end));
+        gum_x86_writer_put_xchg_reg_reg_ptr (cw, GUM_REG_XAX, GUM_REG_XSP);
+      }
+      else
+      {
+        gum_x86_writer_put_push_u32 (cw, GPOINTER_TO_SIZE (ctx->end));
+      }
 
-    return TRUE;
+      return TRUE;
+    }
+    else if (gum_x86_call_is_to_get_pc_thunk (ctx->insn,
+        self->output->target_cpu))
+    {
+      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
+          GUM_ADDRESS (ctx->end));
+      return TRUE;
+    }
   }
 
   if (op->type == X86_OP_IMM)
@@ -558,4 +569,14 @@ gum_x86_call_is_to_next_instruction (cs_insn * insn)
 
   return (op->type == X86_OP_IMM
       && (uint64_t) op->imm == insn->address + insn->size);
+}
+
+static gboolean
+gum_x86_call_is_to_get_pc_thunk (cs_insn * insn, GumCpuType cpu_type)
+{
+  static const guint8 get_pc_thunk[4] = { 0x8b, 0x1c, 0x24, 0xc3 };
+  cs_x86_op * op = &insn->detail->x86.operands[0];
+
+  return cpu_type == GUM_CPU_IA32 && op->type == X86_OP_IMM && memcmp (
+      GSIZE_TO_POINTER (op->imm), get_pc_thunk, sizeof (get_pc_thunk)) == 0;
 }
