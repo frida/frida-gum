@@ -92,21 +92,43 @@ gum_memory_read (GumAddress address,
                  gsize * n_bytes_read)
 {
   guint8 * result;
-  SIZE_T result_len = 0;
-  BOOL success;
+  gsize offset;
+  HANDLE self;
+  gsize page_size;
 
-  result = (guint8 *) g_malloc (len);
+  result = g_malloc (len);
+  offset = 0;
 
-  success = ReadProcessMemory (GetCurrentProcess (),
-      GSIZE_TO_POINTER (address), result, len, &result_len);
-  if (!success)
+  self = GetCurrentProcess ();
+  page_size = gum_query_page_size ();
+
+  while (offset != len)
+  {
+    GumAddress chunk_address, page_address;
+    gsize chunk_size, page_offset;
+    SIZE_T n_bytes_read;
+    BOOL success;
+
+    chunk_address = address + offset;
+    page_address = chunk_address & ~(page_size - 1);
+    page_offset = chunk_address - page_address;
+    chunk_size = MIN (len - offset, page_size - page_offset);
+
+    success = ReadProcessMemory (self, GSIZE_TO_POINTER (chunk_address),
+        result + offset, chunk_size, &n_bytes_read);
+    if (!success)
+      break;
+    offset += n_bytes_read;
+  }
+
+  if (offset == 0)
   {
     g_free (result);
     result = NULL;
   }
 
   if (n_bytes_read != NULL)
-    *n_bytes_read = result_len;
+    *n_bytes_read = offset;
 
   return result;
 }
