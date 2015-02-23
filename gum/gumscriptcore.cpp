@@ -1395,7 +1395,7 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
   { "pascal", FFI_PASCAL },
   { "register", FFI_REGISTER },
 # endif
-# if HAVE_NEW_LIBFFI || X86_WIN32
+# if HAVE_NEW_LIBFFI || defined (X86_WIN32)
   { "mscdecl", FFI_MS_CDECL },
 # endif
 #elif defined (ARM)
