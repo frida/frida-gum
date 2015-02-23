@@ -13,9 +13,6 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-#define GUM_MEMRANGE_IS_NOT_MAPPED(address, size) \
-    (gum_memory_get_protection (address, size, NULL) == FALSE)
-
 typedef gboolean (* GumFoundFreeRangeFunc) (const GumMemoryRange * range,
     gpointer user_data);
 
@@ -84,82 +81,78 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 
 static gboolean
 gum_memory_get_protection (GumAddress address,
-                           gsize len,
+                           gsize n,
+                           gsize * size,
                            GumPageProtection * prot)
 {
-  gboolean success = FALSE;
+  gboolean success;
   FILE * fp;
   gchar line[1024 + 1];
 
-  if (prot == NULL)
-  {
-    GumPageProtection ignored_prot;
-
-    return gum_memory_get_protection (address, len, &ignored_prot);
-  }
-
-  *prot = GUM_PAGE_NO_ACCESS;
-
-  if (len > 1)
+  if (n > 1)
   {
     GumAddress page_size, start_page, end_page, cur_page;
 
     page_size = gum_query_page_size ();
 
     start_page = address & ~(page_size - 1);
-    end_page = (address + len - 1) & ~(page_size - 1);
+    end_page = (address + n - 1) & ~(page_size - 1);
 
-    success = gum_memory_get_protection (start_page, 1, prot);
-
-    for (cur_page = start_page + page_size;
-        cur_page != end_page + page_size;
-        cur_page += page_size)
+    success = gum_memory_get_protection (start_page, 1, NULL, prot);
+    if (success)
     {
-      GumPageProtection cur_prot;
+      *size = page_size - (address - start_page);
+      for (cur_page = start_page + page_size;
+          cur_page != end_page + page_size;
+          cur_page += page_size)
+      {
+        GumPageProtection cur_prot;
 
-      if (gum_memory_get_protection (cur_page, 1, &cur_prot))
-      {
-        success = TRUE;
-        *prot &= cur_prot;
+        if (gum_memory_get_protection (cur_page, 1, NULL, &cur_prot)
+            && (cur_prot != GUM_PAGE_NO_ACCESS || *prot == GUM_PAGE_NO_ACCESS))
+        {
+          *size += page_size;
+          *prot &= cur_prot;
+        }
+        else
+        {
+          break;
+        }
       }
-      else
-      {
-        *prot = GUM_PAGE_NO_ACCESS;
-        break;
-      }
+      *size = MIN (*size, n);
     }
 
     return success;
   }
+
+  success = FALSE;
+  *prot = GUM_PAGE_NO_ACCESS;
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
 
   while (fgets (line, sizeof (line), fp) != NULL)
   {
-    gint n;
+    gint n_items;
     gpointer start, end;
     gchar protection[16];
 
-    n = sscanf (line, "%p-%p %s ", &start, &end, protection);
-    g_assert_cmpint (n, ==, 3);
+    n_items = sscanf (line, "%p-%p %s ", &start, &end, protection);
+    g_assert_cmpint (n_items, ==, 3);
 
     if (GUM_ADDRESS (start) > address)
       break;
     else if (address >= GUM_ADDRESS (start) &&
-        address + len - 1 < GUM_ADDRESS (end))
+        address + n - 1 < GUM_ADDRESS (end))
     {
       success = TRUE;
 
-      if (prot != NULL)
-      {
-        if (protection[0] == 'r')
-          *prot |= GUM_PAGE_READ;
-        if (protection[1] == 'w')
-          *prot |= GUM_PAGE_WRITE;
-        if (protection[2] == 'x')
-          *prot |= GUM_PAGE_EXECUTE;
-      }
+      if (protection[0] == 'r')
+        *prot |= GUM_PAGE_READ;
+      if (protection[1] == 'w')
+        *prot |= GUM_PAGE_WRITE;
+      if (protection[2] == 'x')
+        *prot |= GUM_PAGE_EXECUTE;
 
       break;
     }
@@ -174,24 +167,26 @@ gboolean
 gum_memory_is_readable (GumAddress address,
                         gsize len)
 {
+  gsize size;
   GumPageProtection prot;
 
-  if (!gum_memory_get_protection (address, len, &prot))
+  if (!gum_memory_get_protection (address, len, &size, &prot))
     return FALSE;
 
-  return (prot & GUM_PAGE_READ) != 0;
+  return size >= len && (prot & GUM_PAGE_READ) != 0;
 }
 
 static gboolean
 gum_memory_is_writable (GumAddress address,
                         gsize len)
 {
+  gsize size;
   GumPageProtection prot;
 
-  if (!gum_memory_get_protection (address, len, &prot))
+  if (!gum_memory_get_protection (address, len, &size, &prot))
     return FALSE;
 
-  return (prot & GUM_PAGE_WRITE) != 0;
+  return size >= len && (prot & GUM_PAGE_WRITE) != 0;
 }
 
 guint8 *
@@ -201,11 +196,14 @@ gum_memory_read (GumAddress address,
 {
   guint8 * result = NULL;
   gsize result_len = 0;
+  gsize size;
+  GumPageProtection prot;
 
-  if (gum_memory_is_readable (address, len))
+  if (gum_memory_get_protection (address, len, &size, &prot)
+      && (prot & GUM_PAGE_READ) != 0)
   {
-    result = g_memdup (GSIZE_TO_POINTER (address), len);
-    result_len = len;
+    result_len = MIN (len, size);
+    result = g_memdup (GSIZE_TO_POINTER (address), result_len);
   }
 
   if (n_bytes_read != NULL)
@@ -219,15 +217,15 @@ gum_memory_write (GumAddress address,
                   guint8 * bytes,
                   gsize len)
 {
-  gboolean result = FALSE;
+  gboolean success = FALSE;
 
   if (gum_memory_is_writable (address, len))
   {
     memcpy (GSIZE_TO_POINTER (address), bytes, len);
-    result = TRUE;
+    success = TRUE;
   }
 
-  return result;
+  return success;
 }
 
 gboolean
