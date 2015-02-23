@@ -399,8 +399,7 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
     else if (gum_x86_call_is_to_get_pc_thunk (ctx->insn,
         self->output->target_cpu))
     {
-      gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XBX,
-          GUM_ADDRESS (ctx->end));
+      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_EBX, (guint32) ctx->end);
       return TRUE;
     }
   }
