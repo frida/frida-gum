@@ -143,7 +143,7 @@ RELOCATOR_TESTCASE (call_near_get_pc_thunk)
     0xbb, 0x00, 0x00, 0x00, 0x00  /* mov ebx, <imm> */
   };
 
-  *((guint32 *) (expected_output + 1)) = (guint32) (input + 5);
+  *((guint32 *) (expected_output + 1)) = GPOINTER_TO_SIZE (input + 5);
 
   gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
   SETUP_RELOCATOR_WITH (input);
