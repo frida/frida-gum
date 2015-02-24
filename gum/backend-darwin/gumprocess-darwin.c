@@ -191,6 +191,26 @@ static const char * gum_symbol_name_from_darwin (const char * s);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
+gboolean
+gum_process_is_debugger_attached (void)
+{
+  int mib[4];
+  struct kinfo_proc info;
+  size_t size;
+  int result;
+
+  mib[0] = CTL_KERN;
+  mib[1] = KERN_PROC;
+  mib[2] = KERN_PROC_PID;
+  mib[3] = getpid ();
+
+  size = sizeof (info);
+  result = sysctl (mib, G_N_ELEMENTS (mib), &info, &size, NULL, 0);
+  g_assert_cmpint (result, ==, 0);
+
+  return (info.kp_proc.p_flag & P_TRACED) != 0;
+}
+
 GumThreadId
 gum_process_get_current_thread_id (void)
 {

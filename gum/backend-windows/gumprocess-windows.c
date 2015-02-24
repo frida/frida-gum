@@ -19,6 +19,12 @@ static void gum_cpu_context_to_windows (const GumCpuContext * cpu_context,
     CONTEXT * context);
 static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
+gboolean
+gum_process_is_debugger_attached (void)
+{
+  return IsDebuggerPresent ();
+}
+
 GumThreadId
 gum_process_get_current_thread_id (void)
 {

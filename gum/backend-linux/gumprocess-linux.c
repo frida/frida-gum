@@ -86,6 +86,26 @@ static volatile gboolean gum_modify_thread_did_store_cpu_context;
 static GumCpuContext gum_modify_thread_cpu_context;
 #endif
 
+gboolean
+gum_process_is_debugger_attached (void)
+{
+  gboolean result;
+  gchar * status, * p;
+  gboolean success;
+
+  success = g_file_get_contents ("/proc/self/status", &status, NULL, NULL);
+  g_assert (success);
+
+  p = strstr (status, "TracerPid:");
+  g_assert (p != NULL);
+
+  result = atoi (p + 10) != 0;
+
+  g_free (status);
+
+  return result;
+}
+
 GumThreadId
 gum_process_get_current_thread_id (void)
 {
