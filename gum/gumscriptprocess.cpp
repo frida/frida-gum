@@ -41,6 +41,8 @@ struct _GumScriptMatchContext
   Local<Object> receiver;
 };
 
+static void gum_script_process_on_is_debugger_attached (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_process_on_get_current_thread_id (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_process_on_enumerate_threads (
@@ -75,6 +77,9 @@ _gum_script_process_init (GumScriptProcess * self,
       String::NewFromUtf8 (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
   process->Set (String::NewFromUtf8 (isolate, "pointerSize"),
       Number::New (isolate, GLIB_SIZEOF_VOID_P), ReadOnly);
+  process->Set (String::NewFromUtf8 (isolate, "isDebuggerAttached"),
+      FunctionTemplate::New (isolate,
+      gum_script_process_on_is_debugger_attached));
   process->Set (String::NewFromUtf8 (isolate, "getCurrentThreadId"),
       FunctionTemplate::New (isolate,
       gum_script_process_on_get_current_thread_id));
@@ -106,6 +111,14 @@ void
 _gum_script_process_finalize (GumScriptProcess * self)
 {
   (void) self;
+}
+
+static void
+gum_script_process_on_is_debugger_attached (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (static_cast<bool> (
+      gum_process_is_debugger_attached ()));
 }
 
 static void

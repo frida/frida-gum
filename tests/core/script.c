@@ -73,6 +73,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
+  SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
 #endif
@@ -540,6 +541,15 @@ SCRIPT_TESTCASE (process_pointer_size_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.pointerSize);");
   EXPECT_SEND_MESSAGE_WITH (G_STRINGIFY (GLIB_SIZEOF_VOID_P));
+}
+
+SCRIPT_TESTCASE (process_debugger_status_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.isDebuggerAttached());");
+  if (gum_process_is_debugger_attached ())
+    EXPECT_SEND_MESSAGE_WITH ("true");
+  else
+    EXPECT_SEND_MESSAGE_WITH ("false");
 }
 
 #ifndef HAVE_ANDROID
