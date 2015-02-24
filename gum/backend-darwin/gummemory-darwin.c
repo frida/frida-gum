@@ -78,7 +78,7 @@ gum_memory_enumerate_free_ranges (GumFoundFreeRangeFunc func,
 
   while (TRUE)
   {
-    mach_vm_size_t size;
+    mach_vm_size_t size = 0;
     natural_t depth = 0;
     vm_region_submap_info_data_64_t info;
     mach_msg_type_number_t info_count = VM_REGION_SUBMAP_INFO_COUNT_64;
