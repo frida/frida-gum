@@ -166,14 +166,26 @@ gum_darwin_read (mach_port_t task,
   {
     GumAddress chunk_address, page_address;
     gsize chunk_size, page_offset;
-    vm_offset_t result_data;
-    mach_msg_type_number_t result_size;
 
     chunk_address = address + offset;
     page_address = chunk_address & ~(page_size - 1);
     page_offset = chunk_address - page_address;
     chunk_size = MIN (len - offset, page_size - page_offset);
 
+#ifdef HAVE_IOS
+    mach_vm_size_t n_bytes_read;
+
+    /* mach_vm_read corrupts memory on iOS */
+    kr = mach_vm_read_overwrite (task, chunk_address, chunk_size,
+        (vm_address_t) (result + offset), &n_bytes_read);
+    if (kr != KERN_SUCCESS)
+      break;
+    g_assert_cmpuint (n_bytes_read, ==, chunk_size);
+#else
+    vm_offset_t result_data;
+    mach_msg_type_number_t result_size;
+
+    /* mach_vm_read_overwrite leaks memory on Mac OS X */
     kr = mach_vm_read (task, page_address, page_size,
         &result_data, &result_size);
     if (kr != KERN_SUCCESS)
@@ -182,6 +194,8 @@ gum_darwin_read (mach_port_t task,
     memcpy (result + offset, (gpointer) (result_data + page_offset),
         chunk_size);
     mach_vm_deallocate (self, result_data, result_size);
+#endif
+
     offset += chunk_size;
   }
 
