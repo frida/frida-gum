@@ -124,8 +124,6 @@ static GumWeakRef * gum_weak_ref_new (gint id, Handle<Value> target,
 static void gum_weak_ref_free (GumWeakRef * ref);
 static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
     GumWeakRef> & data);
-static void gum_script_core_on_console_log (
-    const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_perform (GumScriptJob * job, GumScriptCore * self);
 static void gum_script_core_on_set_timeout (
     const FunctionCallbackInfo<Value> & info);
@@ -220,11 +218,6 @@ _gum_script_core_init (GumScriptCore * self,
       FunctionTemplate::New (isolate, gum_script_core_on_weak_ref_unbind,
           data));
   scope->Set (String::NewFromUtf8 (isolate, "WeakRef"), weak);
-
-  Handle<ObjectTemplate> console = ObjectTemplate::New ();
-  console->Set (String::NewFromUtf8 (isolate, "log"),
-      FunctionTemplate::New (isolate, gum_script_core_on_console_log, data));
-  scope->Set (String::NewFromUtf8 (isolate, "console"), console);
 
   scope->Set (String::NewFromUtf8 (isolate, "setTimeout"),
       FunctionTemplate::New (isolate, gum_script_core_on_set_timeout, data));
@@ -521,13 +514,6 @@ gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
   GumWeakRef * self = data.GetParameter ();
 
   g_hash_table_remove (self->core->weak_refs, GINT_TO_POINTER (self->id));
-}
-
-static void
-gum_script_core_on_console_log (const FunctionCallbackInfo<Value> & info)
-{
-  String::Utf8Value message (info[0]);
-  g_print ("%s\n", *message);
 }
 
 void

@@ -44,6 +44,20 @@
         value: new NativePointer("0")
     });
 
+    var Console = function () {
+        this.log = function () {
+            var message = {
+                type: 'log',
+                payload: Array.prototype.join.call(arguments, " ")
+            };
+            engine._send(JSON.stringify(message), null);
+        };
+    };
+    Object.defineProperty(engine, 'console', {
+        enumerable: true,
+        value: new Console()
+    });
+
     Object.defineProperty(Memory, 'dup', {
         enumerable: true,
         value: function (mem, size) {
@@ -53,7 +67,7 @@
         }
     });
 
-    var MessageDispatcher = function MessageDispatcher() {
+    var MessageDispatcher = function () {
         var messages = [];
         var operations = {};
 
@@ -95,7 +109,7 @@
         initialize.call(this);
     };
 
-    var MessageRecvOperation = function MessageRecvOperation(callback) {
+    var MessageRecvOperation = function (callback) {
         var completed = false;
 
         this.wait = function wait() {
