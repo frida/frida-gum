@@ -117,8 +117,8 @@ static void
 gum_script_process_on_is_debugger_attached (
     const FunctionCallbackInfo<Value> & info)
 {
-  info.GetReturnValue ().Set (static_cast<bool> (
-      gum_process_is_debugger_attached ()));
+  info.GetReturnValue ().Set (
+      gum_process_is_debugger_attached () ? true : false);
 }
 
 static void
