@@ -60,6 +60,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (utf16_string_can_be_read)
   SCRIPT_TESTENTRY (utf16_string_can_be_written)
   SCRIPT_TESTENTRY (utf16_string_can_be_allocated)
+  SCRIPT_TESTENTRY (stl_string_can_be_allocated)
 #ifdef G_OS_WIN32
   SCRIPT_TESTENTRY (ansi_string_can_be_read)
   SCRIPT_TESTENTRY (ansi_string_can_be_written)
@@ -1542,6 +1543,13 @@ SCRIPT_TESTCASE (utf16_string_can_be_allocated)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String("
       "Memory.allocUtf16String('Bjørheimsbygd')));");
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+}
+
+SCRIPT_TESTCASE (stl_string_can_be_allocated)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readStlString("
+      "Memory.allocStlString('Bjørheimsbygd')));");
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 }
 

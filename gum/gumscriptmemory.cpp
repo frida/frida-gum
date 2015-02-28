@@ -12,6 +12,8 @@
 # include "backend-windows/gumwinexceptionhook.h"
 #endif
 
+#include <string>
+#include <malloc/malloc.h>
 #include <gio/gio.h>
 #include <setjmp.h>
 #include <stdlib.h>
@@ -68,6 +70,7 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_BYTE_ARRAY,
   GUM_MEMORY_VALUE_UTF8_STRING,
   GUM_MEMORY_VALUE_UTF16_STRING,
+  GUM_MEMORY_VALUE_STL_STRING,
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
@@ -93,6 +96,9 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 static void gum_script_memory_on_alloc_utf8_string (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_on_alloc_utf16_string (
+    const FunctionCallbackInfo<Value> & info);
+
+static void gum_script_memory_on_alloc_stl_string (
     const FunctionCallbackInfo<Value> & info);
 
 static void gum_script_memory_on_copy (
@@ -166,6 +172,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (U64)
 GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
+GUM_DEFINE_MEMORY_READ (STL_STRING)
 
 #ifdef G_OS_WIN32
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
@@ -203,6 +210,7 @@ _gum_script_memory_init (GumScriptMemory * self,
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING);
+  GUM_EXPORT_MEMORY_READ("StlString", STL_STRING);
 #ifdef G_OS_WIN32
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING);
 
@@ -215,6 +223,9 @@ _gum_script_memory_init (GumScriptMemory * self,
           data));
   memory->Set (String::NewFromUtf8 (isolate, "allocUtf16String"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc_utf16_string,
+          data));
+  memory->Set (String::NewFromUtf8 (isolate, "allocStlString"),
+      FunctionTemplate::New (isolate, gum_script_memory_on_alloc_stl_string,
           data));
   memory->Set (String::NewFromUtf8 (isolate, "scan"),
       FunctionTemplate::New (isolate, gum_script_memory_on_scan,
@@ -389,6 +400,25 @@ gum_script_memory_on_alloc_utf16_string (
   gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, &items_written, NULL);
   gsize size = (items_written + 1) * sizeof (gunichar2);
   GumHeapBlock * block = _gum_heap_block_new (str_heap, size, self->core);
+  info.GetReturnValue ().Set (
+      Local<Object>::New (self->core->isolate, *block->instance));
+}
+
+static void
+gum_script_memory_on_alloc_stl_string (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (
+      info.Data ().As<External> ()->Value ());
+
+  String::Utf8Value str (info[0]);
+  const gchar * s = *str;
+  std::string *stl_str = new std::string (s);
+
+  guint size = malloc_size ((void *)stl_str);
+
+  GumHeapBlock * block = _gum_heap_block_new (stl_str, size,
+      self->core);
   info.GetReturnValue ().Set (
       Local<Object>::New (self->core->isolate, *block->instance));
 }
@@ -609,6 +639,33 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
         }
 
         g_free (str_utf8);
+
+        break;
+      }
+      case GUM_MEMORY_VALUE_STL_STRING:
+      {
+        std::string * data = reinterpret_cast<std::string *> (address);
+        if (data == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        int64_t length = -1;
+        if (info.Length () > 1)
+          length = info[1]->IntegerValue();
+        if (length < 0)
+          length = data->length();
+
+        if (length != 0)
+        {
+          result = String::NewFromUtf8 (isolate, data->c_str(), String::kNormalString,
+              length);
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
 
         break;
       }
