@@ -725,7 +725,8 @@ gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
   if (rd.width == 64)
     flags |= 0x8000000;
 
-  gum_arm64_writer_put_instruction (self, rd.sf | 0xb000000 | flags | rd.index | (rl.index << 5) | (rr.index << 16));
+  gum_arm64_writer_put_instruction (self, rd.sf | 0xb000000 | flags | rd.index |
+      (rl.index << 5) | (rr.index << 16));
 }
 
 void
