@@ -707,6 +707,29 @@ gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self,
 }
 
 void
+gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
+                                      GumArm64Reg dst_reg,
+                                      GumArm64Reg left_reg,
+                                      GumArm64Reg right_reg)
+{
+  GumArm64RegInfo rd, rl, rr;
+  guint32 flags = 0;
+
+  gum_arm64_writer_describe_reg (self, dst_reg, &rd);
+  gum_arm64_writer_describe_reg (self, left_reg, &rl);
+  gum_arm64_writer_describe_reg (self, right_reg, &rr);
+
+  g_assert_cmpuint (rd.width, ==, rl.width);
+  g_assert_cmpuint (rd.width, ==, rr.width);
+
+  if (rd.width == 64)
+    flags |= 0x8000000;
+
+  gum_arm64_writer_put_instruction (self, rd.sf | 0xb000000 | flags | rd.index |
+      (rl.index << 5) | (rr.index << 16));
+}
+
+void
 gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self,
                                       GumArm64Reg dst_reg,
                                       GumArm64Reg left_reg,

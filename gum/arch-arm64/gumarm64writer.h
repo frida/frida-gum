@@ -70,6 +70,7 @@ void gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self, GumArm64Reg
 void gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self, GumArm64Reg src_reg, GumArm64Reg dst_reg, gsize dst_offset);
 void gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg src_reg);
 void gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, gsize right_value);
+void gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, GumArm64Reg right_reg);
 void gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, gsize right_value);
 
 void gum_arm64_writer_put_nop (GumArm64Writer * self);
