@@ -713,6 +713,7 @@ gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
                                       GumArm64Reg right_reg)
 {
   GumArm64RegInfo rd, rl, rr;
+  guint32 flags = 0;
 
   gum_arm64_writer_describe_reg (self, dst_reg, &rd);
   gum_arm64_writer_describe_reg (self, left_reg, &rl);
@@ -721,7 +722,6 @@ gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
   g_assert_cmpuint (rd.width, ==, rl.width);
   g_assert_cmpuint (rd.width, ==, rr.width);
 
-  guint32 flags = 0;
   if (rd.width == 64)
     flags |= 0x8000000;
 
