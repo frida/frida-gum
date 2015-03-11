@@ -620,7 +620,8 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
       self->code[0] = 0xff;
       self->code[1] = 0x25;
       *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (target);
+      *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (
+          GPOINTER_TO_SIZE (target));
       self->code += 14;
     }
   }
@@ -661,7 +662,7 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
     self->code[0] = 0xff;
     self->code[1] = 0x25;
     *((gint32 *) (self->code + 2)) = GINT32_TO_LE (0); /* rip + 0 */
-    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE ((guint64) target);
+    *((guint64 *) (self->code + 6)) = GUINT64_TO_LE (GPOINTER_TO_SIZE (target));
     self->code += 14;
   }
 }

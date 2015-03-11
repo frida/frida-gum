@@ -244,7 +244,8 @@ gum_arm64_writer_flush (GumArm64Writer * self)
         last_slot++;
       }
 
-      distance = (gint64) cur_slot - (gint64) r->insn;
+      distance = (gint64) GPOINTER_TO_SIZE (cur_slot) -
+          (gint64) GPOINTER_TO_SIZE (r->insn);
 
       insn = GUINT32_FROM_LE (*r->insn);
       insn |= ((distance / 4) & 0x7ffff) << 5;

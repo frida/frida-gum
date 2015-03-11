@@ -324,11 +324,13 @@ gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
     return TRUE;
 
   base_address = range->base_address;
-  distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
+  distance = ABS (ctx->address_spec->near_address -
+      GSIZE_TO_POINTER (base_address));
   if (distance > ctx->address_spec->max_distance)
   {
     base_address = range->base_address + range->size - ctx->size;
-    distance = ABS (ctx->address_spec->near_address - (gpointer) base_address);
+    distance = ABS (ctx->address_spec->near_address -
+        GSIZE_TO_POINTER (base_address));
   }
 
   if (distance > ctx->address_spec->max_distance)
