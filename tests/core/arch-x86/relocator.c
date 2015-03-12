@@ -10,7 +10,8 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (one_to_one)
   RELOCATOR_TESTENTRY (call_near_relative)
   RELOCATOR_TESTENTRY (call_near_relative_to_next_instruction)
-  RELOCATOR_TESTENTRY (call_near_get_pc_thunk)
+  RELOCATOR_TESTENTRY (call_near_gnu_get_pc_thunk)
+  RELOCATOR_TESTENTRY (call_near_android_get_pc_thunk)
   RELOCATOR_TESTENTRY (call_near_indirect)
   RELOCATOR_TESTENTRY (jmp_short_outside_block)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
@@ -130,7 +131,34 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
       sizeof (expected_output)), ==, 0);
 }
 
-RELOCATOR_TESTCASE (call_near_get_pc_thunk)
+RELOCATOR_TESTCASE (call_near_gnu_get_pc_thunk)
+{
+  const guint8 input[] = {
+    0xe8, 0x01, 0x00, 0x00, 0x00, /* call +1         */
+
+    0xcc,                         /* int 3          */
+    0x8b, 0x0c, 0x24,             /* mov ecx, [esp] */
+    0xc3                          /* ret            */
+  };
+  guint8 expected_output[] = {
+    0xb9, 0x00, 0x00, 0x00, 0x00  /* mov ecx, <imm> */
+  };
+
+  *((guint32 *) (expected_output + 1)) = GPOINTER_TO_SIZE (input + 5);
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+  g_assert (!gum_x86_relocator_eob (&fixture->rl));
+  gum_x86_relocator_write_all (&fixture->rl);
+  g_assert_cmpuint (gum_x86_writer_offset (&fixture->cw), ==,
+      sizeof (expected_output));
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (call_near_android_get_pc_thunk)
 {
   const guint8 input[] = {
     0xe8, 0x01, 0x00, 0x00, 0x00, /* call +1         */

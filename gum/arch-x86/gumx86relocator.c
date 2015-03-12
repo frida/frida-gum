@@ -38,8 +38,8 @@ static gboolean gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * sel
     GumCodeGenCtx * ctx);
 
 static gboolean gum_x86_call_is_to_next_instruction (cs_insn * insn);
-static gboolean gum_x86_call_is_to_get_pc_thunk (cs_insn * insn,
-    GumCpuType cpu_type);
+static gboolean gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
+    GumCpuType cpu_type, GumCpuReg * pc_reg);
 
 void
 gum_x86_relocator_init (GumX86Relocator * relocator,
@@ -165,7 +165,8 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
 
     case X86_INS_CALL:
       self->eob = !gum_x86_call_is_to_next_instruction (insn) &&
-          !gum_x86_call_is_to_get_pc_thunk (insn, self->output->target_cpu);
+          !gum_x86_call_try_parse_get_pc_thunk (insn, self->output->target_cpu,
+              NULL);
       self->eoi = FALSE;
       break;
 
@@ -380,6 +381,8 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
   if (ctx->insn->id == X86_INS_CALL)
   {
+    GumCpuReg pc_reg;
+
     if (gum_x86_call_is_to_next_instruction (ctx->insn))
     {
       if (cw->target_cpu == GUM_CPU_AMD64)
@@ -396,11 +399,10 @@ gum_x86_relocator_rewrite_unconditional_branch (GumX86Relocator * self,
 
       return TRUE;
     }
-    else if (gum_x86_call_is_to_get_pc_thunk (ctx->insn,
-        self->output->target_cpu))
+    else if (gum_x86_call_try_parse_get_pc_thunk (ctx->insn,
+        self->output->target_cpu, &pc_reg))
     {
-      gum_x86_writer_put_mov_reg_u32 (cw, GUM_REG_EBX,
-          GPOINTER_TO_SIZE (ctx->end));
+      gum_x86_writer_put_mov_reg_u32 (cw, pc_reg, GPOINTER_TO_SIZE (ctx->end));
       return TRUE;
     }
   }
@@ -572,11 +574,31 @@ gum_x86_call_is_to_next_instruction (cs_insn * insn)
 }
 
 static gboolean
-gum_x86_call_is_to_get_pc_thunk (cs_insn * insn, GumCpuType cpu_type)
+gum_x86_call_try_parse_get_pc_thunk (cs_insn * insn,
+                                     GumCpuType cpu_type,
+                                     GumCpuReg * pc_reg)
 {
-  static const guint8 get_pc_thunk[4] = { 0x8b, 0x1c, 0x24, 0xc3 };
-  cs_x86_op * op = &insn->detail->x86.operands[0];
+  cs_x86_op * op;
+  guint8 * p;
+  gboolean is_thunk;
 
-  return cpu_type == GUM_CPU_IA32 && op->type == X86_OP_IMM && memcmp (
-      GSIZE_TO_POINTER (op->imm), get_pc_thunk, sizeof (get_pc_thunk)) == 0;
+  if (cpu_type != GUM_CPU_IA32)
+    return FALSE;
+
+  op = &insn->detail->x86.operands[0];
+  if (op->type != X86_OP_IMM)
+    return FALSE;
+  p = (guint8 *) GSIZE_TO_POINTER (op->imm);
+
+  is_thunk =
+      ( p[0]         == 0x8b) &&
+      ((p[1] & 0xc7) == 0x04) &&
+      ( p[2]         == 0x24) &&
+      ( p[3]         == 0xc3);
+  if (!is_thunk)
+    return FALSE;
+
+  if (pc_reg != NULL)
+    *pc_reg = (GumCpuReg) ((p[1] & 0x38) >> 3);
+  return TRUE;
 }
