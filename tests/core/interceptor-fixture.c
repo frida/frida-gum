@@ -32,16 +32,30 @@
 # define G_MODULE_SUFFIX "dylib"
 #endif
 
+#if defined (G_OS_WIN32)
+# define GUM_TEST_SHLIB_OS "windows"
+#elif defined (HAVE_MAC)
+# define GUM_TEST_SHLIB_OS "mac"
+#elif defined (HAVE_LINUX)
+# define GUM_TEST_SHLIB_OS "linux"
+#elif defined (HAVE_IOS)
+# define GUM_TEST_SHLIB_OS "ios"
+#elif defined (HAVE_ANDROID)
+# define GUM_TEST_SHLIB_OS "android"
+#else
+# error Unknown OS
+#endif
+
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_TEST_SHLIB_FLAVOR "ia32"
+#  define GUM_TEST_SHLIB_ARCH "ia32"
 # else
-#  define GUM_TEST_SHLIB_FLAVOR "amd64"
+#  define GUM_TEST_SHLIB_ARCH "amd64"
 # endif
 #elif defined (HAVE_ARM)
-# define GUM_TEST_SHLIB_FLAVOR "arm"
+# define GUM_TEST_SHLIB_ARCH "arm"
 #elif defined (HAVE_ARM64)
-# define GUM_TEST_SHLIB_FLAVOR "arm64"
+# define GUM_TEST_SHLIB_ARCH "arm64"
 #else
 # error Unknown CPU
 #endif
@@ -119,8 +133,8 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     testdir = test_util_get_data_dir ();
 
     filename = g_build_filename (testdir,
-        "targetfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
-        NULL);
+        "targetfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
+        "." G_MODULE_SUFFIX, NULL);
     lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
     if (lib == NULL)
       g_print ("failed to open '%s'\n", filename);
@@ -140,8 +154,8 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
     g_assert (target_nop_function_c != NULL);
 
     filename = g_build_filename (testdir,
-        "specialfunctions-" GUM_TEST_SHLIB_FLAVOR "." G_MODULE_SUFFIX,
-        NULL);
+        "specialfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
+        "." G_MODULE_SUFFIX, NULL);
     lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
     g_assert (lib != NULL);
     g_free (filename);

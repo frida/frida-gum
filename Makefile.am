@@ -34,10 +34,10 @@ RM = rm
 DEBUG_PORT = 5042
 
 push: all
-	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-arm.so\""
+	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-android-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-android-arm.so\""
 	adb push "$(top_builddir)/tests/gum-tests" "${RPFX}/tests/"
-	adb push "$(top_srcdir)/tests/data/targetfunctions-arm.so" "${RPFX}/tests/data/"
-	adb push "$(top_srcdir)/tests/data/specialfunctions-arm.so" "${RPFX}/tests/data/"
+	adb push "$(top_srcdir)/tests/data/targetfunctions-android-arm.so" "${RPFX}/tests/data/"
+	adb push "$(top_srcdir)/tests/data/specialfunctions-android-arm.so" "${RPFX}/tests/data/"
 
 check: push
 	adb shell "\"${RPFX}/tests/gum-tests\""
@@ -76,10 +76,10 @@ check: all
 		"$(top_builddir)/tests/gum-tests" \
 		"${RURL}:\"${RPFX}/tests/\""
 	${RSYNC} \
-		"$(top_srcdir)/tests/data/targetfunctions-arm.dylib" \
-		"$(top_srcdir)/tests/data/targetfunctions-arm64.dylib" \
-		"$(top_srcdir)/tests/data/specialfunctions-arm.dylib" \
-		"$(top_srcdir)/tests/data/specialfunctions-arm64.dylib" \
+		"$(top_srcdir)/tests/data/targetfunctions-ios-arm.dylib" \
+		"$(top_srcdir)/tests/data/targetfunctions-ios-arm64.dylib" \
+		"$(top_srcdir)/tests/data/specialfunctions-ios-arm.dylib" \
+		"$(top_srcdir)/tests/data/specialfunctions-ios-arm64.dylib" \
 		"${RURL}:\"${RPFX}/tests/data/\""
 	ssh "${RURL}" "\"${RPFX}/tests/gum-tests\""
 endif

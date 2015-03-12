@@ -1,15 +1,13 @@
 #!/bin/sh
 
+set -x
+
 src=$(dirname $0)
-arch=$1
+os=$1
+arch=$2
 
-if [ -z "$arch" ]; then
-  echo "usage: $0 <arch>"
-  exit 1
-fi
-
-if [ -z "$FRIDA_ROOT" ] ; then
-  echo "Must set FRIDA_ROOT env var first"
+if [ -z "$os" -o -z "$arch" ]; then
+  echo "usage: $0 <os> <arch>"
   exit 1
 fi
 
@@ -55,7 +53,7 @@ GUM_TEST_TARGETFUNCTIONS_1.0 {
     *;
 };
 EOF
-  targetfuncs_ldflags="-Wl,--version-script=$tmp1 -Wl,-soname,targetfunctions-$arch.$shlib_suffix"
+  targetfuncs_ldflags="-Wl,--version-script=$tmp1 -Wl,-soname,targetfunctions-$os-$arch.$shlib_suffix"
 
   cat >"$tmp2" << EOF
 GUM_TEST_SPECIALFUNCTIONS_1.0 {
@@ -66,7 +64,7 @@ GUM_TEST_SPECIALFUNCTIONS_1.0 {
     *;
 };
 EOF
-  specialfuncs_ldflags="-Wl,--version-script=$tmp2 -Wl,-soname,specialfunctions-$arch.$shlib_suffix"
+  specialfuncs_ldflags="-Wl,--version-script=$tmp2 -Wl,-soname,specialfunctions-$os-$arch.$shlib_suffix"
 fi
 
 common_cflags="$CFLAGS -Wall -pipe -gdwarf-2 -g3 -I../../gum $($PKG_CONFIG --cflags glib-2.0)"
@@ -74,22 +72,21 @@ common_ldflags="$LDFLAGS -shared $extra_ldflags $($PKG_CONFIG --libs glib-2.0)"
 
 $CC $common_cflags -O0 -c targetfunctions.c || exit 1
 $CC \
-      $common_ldflags \
-      $targetfuncs_ldflags \
-      -o $src/../data/targetfunctions-$arch.$shlib_suffix \
       targetfunctions.o \
-      "$glib_library" || exit 1
+      -o $src/../data/targetfunctions-$os-$arch.$shlib_suffix \
+      $common_ldflags \
+      $targetfuncs_ldflags || exit 1
+
 rm targetfunctions.o
-strip $strip_options $src/../data/targetfunctions-$arch.$shlib_suffix || exit 1
+strip $strip_options $src/../data/targetfunctions-$os-$arch.$shlib_suffix || exit 1
 
 $CC $common_cflags -O2 -c specialfunctions.c || exit 1
 $CC \
-      $common_ldflags \
-      $specialfuncs_ldflags \
-      -o $src/../data/specialfunctions-$arch.$shlib_suffix \
       specialfunctions.o \
-      "$glib_library" || exit 1
+      -o $src/../data/specialfunctions-$os-$arch.$shlib_suffix \
+      $common_ldflags \
+      $specialfuncs_ldflags || exit 1
 rm specialfunctions.o
-strip $strip_options $src/../data/specialfunctions-$arch.$shlib_suffix || exit 1
+strip $strip_options $src/../data/specialfunctions-$os-$arch.$shlib_suffix || exit 1
 
 rm "$tmp1" "$tmp2"
