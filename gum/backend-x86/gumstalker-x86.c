@@ -1043,7 +1043,7 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
   for (i = 0; i != count; i++)
   {
     printf ("%s0x%" G_GINT64_MODIFIER "x\t%s %s\n",
-        prefix, (gsize) insn[i].address, insn[i].mnemonic, insn[i].op_str);
+        prefix, insn[i].address, insn[i].mnemonic, insn[i].op_str);
   }
 
   cs_free (insn, count);
@@ -1060,8 +1060,8 @@ gum_hexdump (guint8 * data, guint size, const gchar * prefix)
   for (i = 0; i != size; i++)
   {
     if (line_offset == 0)
-      printf ("%s0x%" G_GINT64_MODIFIER "x\t%02x", prefix, (guint64) data + i,
-          data[i]);
+      printf ("%s0x%" G_GINT64_MODIFIER "x\t%02x",
+          prefix, (guint64) GPOINTER_TO_SIZE (data + i), data[i]);
     else
       printf (" %02x", data[i]);
 
