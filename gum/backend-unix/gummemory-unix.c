@@ -89,6 +89,16 @@ gum_memory_get_protection (GumAddress address,
   FILE * fp;
   gchar line[1024 + 1];
 
+  if (size == NULL || prot == NULL)
+  {
+    gsize ignored_size;
+    GumPageProtection ignored_prot;
+
+    return gum_memory_get_protection (address, n,
+        (size != NULL) ? size : &ignored_size,
+        (prot != NULL) ? prot : &ignored_prot);
+  }
+
   if (n > 1)
   {
     GumAddress page_size, start_page, end_page, cur_page;
@@ -126,6 +136,7 @@ gum_memory_get_protection (GumAddress address,
   }
 
   success = FALSE;
+  *size = 0;
   *prot = GUM_PAGE_NO_ACCESS;
 
   fp = fopen ("/proc/self/maps", "r");
@@ -146,14 +157,13 @@ gum_memory_get_protection (GumAddress address,
         address + n - 1 < GUM_ADDRESS (end))
     {
       success = TRUE;
-
+      *size = 1;
       if (protection[0] == 'r')
         *prot |= GUM_PAGE_READ;
       if (protection[1] == 'w')
         *prot |= GUM_PAGE_WRITE;
       if (protection[2] == 'x')
         *prot |= GUM_PAGE_EXECUTE;
-
       break;
     }
   }
