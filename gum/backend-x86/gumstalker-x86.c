@@ -1811,29 +1811,47 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
-#if defined (HAVE_MAC) && GLIB_SIZEOF_VOID_P == 4
+#if defined (G_OS_UNIX) && GLIB_SIZEOF_VOID_P == 4
   GumX86Writer * cw = gc->code_writer;
+#if defined (HAVE_MAC)
   guint8 code[] = {
     /* 00 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
     /* 06 */ 0xba, 0xbb, 0xbb, 0xbb, 0xbb,       /* mov edx, 0xbbbbbbbb   */
     /* 0b */ 0x0f, 0x34,                         /* sysenter              */
-    /* 0d */ 0xcc, 0xcc, 0xcc, 0xcc              /* <saved edx goes here> */
+    /* 0d */ 0xcc, 0xcc, 0xcc, 0xcc              /* <saved ret-addr here> */
   };
-  gpointer * saved_edx;
+  const gsize store_ret_addr_offset = 0x00 + 2;
+  const gsize load_continuation_addr_offset = 0x06 + 1;
+  const gsize saved_ret_addr_offset = 0x0d;
+#elif defined (HAVE_LINUX)
+  guint8 code[] = {
+    /* 00 */ 0x8b, 0x54, 0x24, 0x0c,             /* mov edx, [esp + 12]   */
+    /* 04 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
+    /* 0a */ 0xba, 0xbb, 0xbb, 0xbb, 0xbb,       /* mov edx, 0xbbbbbbbb   */
+    /* 0f */ 0x89, 0x54, 0x24, 0x0c,             /* mov [esp + 12], edx   */
+    /* 13 */ 0x8b, 0x54, 0x24, 0x04,             /* mov edx, [esp + 4]    */
+    /* 17 */ 0x0f, 0x34,                         /* sysenter              */
+    /* 19 */ 0xcc, 0xcc, 0xcc, 0xcc              /* <saved ret-addr here> */
+  };
+  const gsize store_ret_addr_offset = 0x04 + 2;
+  const gsize load_continuation_addr_offset = 0x0a + 1;
+  const gsize saved_ret_addr_offset = 0x19;
+#endif
+  gpointer * saved_ret_addr;
   gpointer continuation;
   gconstpointer resolve_dynamically_label = cw->code;
 
   gum_exec_block_close_prolog (block, gc);
 
-  saved_edx = (gpointer *) (cw->code + 0xd); /* address of 0xcccccccc */
-  continuation = cw->code + 0xd + 4; /* after 0xcccccccc */
-  *((gpointer *) (code + 2)) = saved_edx; /* fill in 0xaaaaaaaa */
-  *((gpointer *) (code + 7)) = continuation; /* fill in 0xbbbbbbbb */
+  saved_ret_addr = (gpointer *) (cw->code + saved_ret_addr_offset);
+  continuation = cw->code + saved_ret_addr_offset + 4;
+  *((gpointer *) (code + store_ret_addr_offset)) = saved_ret_addr;
+  *((gpointer *) (code + load_continuation_addr_offset)) = continuation;
 
   gum_x86_writer_put_bytes (cw, code, sizeof (code));
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_REG_EDX,
-      GUM_ADDRESS (saved_edx));
+      GUM_ADDRESS (saved_ret_addr));
 
   if ((block->ctx->sink_mask & GUM_RET) != 0)
   {
@@ -1890,7 +1908,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   gum_exec_block_open_prolog (block, GUM_PROLOG_MINIMAL, gc);
 
   gum_x86_writer_put_mov_reg_near_ptr (cw, GUM_THUNK_REG_ARG1,
-      GUM_ADDRESS (saved_edx));
+      GUM_ADDRESS (saved_ret_addr));
   gum_x86_writer_put_mov_reg_address (cw, GUM_THUNK_REG_ARG0,
       GUM_ADDRESS (block->ctx));
   gum_x86_writer_put_sub_reg_imm (cw, GUM_REG_ESP,
