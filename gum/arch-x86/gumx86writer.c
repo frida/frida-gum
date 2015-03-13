@@ -328,7 +328,7 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
   }
   else
   {
-    static const GumCpuReg reg_for_arg_unix[6] = {
+    static const GumCpuReg reg_for_arg_unix_64[6] = {
       GUM_REG_RDI,
       GUM_REG_RSI,
       GUM_REG_RDX,
@@ -336,24 +336,40 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       GUM_REG_R8,
       GUM_REG_R9
     };
-    static const GumCpuReg reg_for_arg_windows[4] = {
+    static const GumCpuReg reg_for_arg_unix_32[6] = {
+      GUM_REG_EDI,
+      GUM_REG_ESI,
+      GUM_REG_EDX,
+      GUM_REG_ECX,
+      GUM_REG_R8D,
+      GUM_REG_R9D
+    };
+    static const GumCpuReg reg_for_arg_windows_64[4] = {
       GUM_REG_RCX,
       GUM_REG_RDX,
       GUM_REG_R8,
       GUM_REG_R9
     };
-    const GumCpuReg * reg_for_arg;
+    static const GumCpuReg reg_for_arg_windows_32[4] = {
+      GUM_REG_ECX,
+      GUM_REG_EDX,
+      GUM_REG_R8D,
+      GUM_REG_R9D
+    };
+    const GumCpuReg * reg_for_arg_64, * reg_for_arg_32;
     gint reg_for_arg_count;
 
     if (self->target_abi == GUM_ABI_UNIX)
     {
-      reg_for_arg = reg_for_arg_unix;
-      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_unix);
+      reg_for_arg_64 = reg_for_arg_unix_64;
+      reg_for_arg_32 = reg_for_arg_unix_32;
+      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_unix_64);
     }
     else
     {
-      reg_for_arg = reg_for_arg_windows;
-      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_windows);
+      reg_for_arg_64 = reg_for_arg_windows_64;
+      reg_for_arg_32 = reg_for_arg_windows_32;
+      reg_for_arg_count = G_N_ELEMENTS (reg_for_arg_windows_64);
     }
 
     for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
@@ -364,14 +380,22 @@ gum_x86_writer_put_argument_list_setup (GumX86Writer * self,
       {
         if (arg->type == GUM_ARG_POINTER)
         {
-          gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg[arg_index],
+          gum_x86_writer_put_mov_reg_u64 (self, reg_for_arg_64[arg_index],
               GPOINTER_TO_SIZE (arg->value.pointer));
         }
         else if (gum_meta_reg_from_cpu_reg (arg->value.reg) !=
-            gum_meta_reg_from_cpu_reg (reg_for_arg[arg_index]))
+            gum_meta_reg_from_cpu_reg (reg_for_arg_64[arg_index]))
         {
-          gum_x86_writer_put_mov_reg_reg (self, reg_for_arg[arg_index],
-              arg->value.reg);
+          if (arg->value.reg >= GUM_REG_EAX && arg->value.reg <= GUM_REG_EIP)
+          {
+            gum_x86_writer_put_mov_reg_reg (self, reg_for_arg_32[arg_index],
+                arg->value.reg);
+          }
+          else
+          {
+            gum_x86_writer_put_mov_reg_reg (self, reg_for_arg_64[arg_index],
+                arg->value.reg);
+          }
         }
       }
       else
