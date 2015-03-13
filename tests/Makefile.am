@@ -38,7 +38,7 @@ binding_libadd += $(builddir)/gumpp/libgum-tests-gumpp.la
 endif
 
 gum_tests_SOURCES = \
-	$(NULL)
+	dummy.cpp
 gum_tests_LDFLAGS = \
 	$(GUM_LDFLAGS)
 gum_tests_LDADD = \
