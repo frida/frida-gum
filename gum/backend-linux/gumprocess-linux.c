@@ -17,6 +17,7 @@
 # include <ucontext.h>
 #endif
 #include <unistd.h>
+#include <gio/gio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -571,6 +572,109 @@ gum_store_address_if_export_name_matches (const GumExportDetails * details,
   }
 
   return TRUE;
+}
+
+GumCpuType
+gum_linux_cpu_type_from_file (const gchar * path,
+                              GError ** error)
+{
+  GumCpuType result = -1;
+  GFile * file;
+  GFileInputStream * base_stream;
+  GDataInputStream * stream = NULL;
+  GError * read_error;
+  guint16 e_machine;
+
+  file = g_file_new_for_path (path);
+
+  base_stream = g_file_read (file, NULL, error);
+  if (base_stream == NULL)
+    goto beach;
+
+  if (!g_seekable_seek (G_SEEKABLE (base_stream), 0x12, G_SEEK_SET, NULL,
+      error))
+    goto beach;
+
+  stream = g_data_input_stream_new (G_INPUT_STREAM (base_stream));
+
+  read_error = NULL;
+  e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
+  if (read_error != NULL)
+  {
+    g_propagate_error (error, read_error);
+    goto beach;
+  }
+
+  switch (e_machine)
+  {
+    case 0x0003:
+      result = GUM_CPU_IA32;
+      break;
+    case 0x003e:
+      result = GUM_CPU_AMD64;
+      break;
+    case 0x0028:
+      result = GUM_CPU_ARM;
+      break;
+    case 0x00b7:
+      result = GUM_CPU_ARM64;
+      break;
+    default:
+      g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
+          "Unsupported executable");
+      break;
+  }
+
+beach:
+  if (stream != NULL)
+    g_object_unref (stream);
+
+  if (base_stream != NULL)
+    g_object_unref (base_stream);
+
+  g_object_unref (file);
+
+  return result;
+}
+
+GumCpuType
+gum_linux_cpu_type_from_pid (pid_t pid,
+                             GError ** error)
+{
+  GumCpuType result = -1;
+  gchar * auxv_path;
+  guint8 * auxv;
+  gsize auxv_size, i;
+
+  auxv_path = g_strdup_printf ("/proc/%d/auxv", pid);
+
+  if (!g_file_get_contents (auxv_path, (gchar **) &auxv, &auxv_size, error))
+    goto beach;
+
+#ifdef HAVE_I386
+  result = GUM_CPU_AMD64;
+#else
+  result = GUM_CPU_ARM64;
+#endif
+
+  for (i = 0; i < auxv_size; i += 16)
+  {
+    if (auxv[4] != 0 || auxv[5] != 0 ||
+        auxv[6] != 0 || auxv[7] != 0)
+    {
+#ifdef HAVE_I386
+      result = GUM_CPU_IA32;
+#else
+      result = GUM_CPU_ARM;
+#endif
+      break;
+    }
+  }
+
+beach:
+  g_free (auxv_path);
+
+  return result;
 }
 
 #ifndef HAVE_ANDROID

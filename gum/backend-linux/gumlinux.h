@@ -11,6 +11,8 @@
 
 G_BEGIN_DECLS
 
+GumCpuType gum_linux_cpu_type_from_file (const gchar * path, GError ** error);
+GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
 GUM_API void gum_linux_enumerate_ranges (pid_t pid,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
 
