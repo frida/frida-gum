@@ -20,6 +20,14 @@ namespace Gum {
 		SYSAPI
 	}
 
+	[CCode (cprefix = "GUM_CPU_")]
+	public enum CpuType {
+		IA32,
+		AMD64,
+		ARM,
+		ARM64
+	}
+
 	[Compact]
 	public class Closure {
 		public Closure (Gum.CallingConvention conv, Gum.ClosureTarget target, GLib.Variant args);
