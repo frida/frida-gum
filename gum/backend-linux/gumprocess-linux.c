@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -596,6 +596,8 @@ gum_linux_cpu_type_from_file (const gchar * path,
     goto beach;
 
   stream = g_data_input_stream_new (G_INPUT_STREAM (base_stream));
+  g_data_input_stream_set_byte_order (stream,
+      G_DATA_STREAM_BYTE_ORDER_LITTLE_ENDIAN);
 
   read_error = NULL;
   e_machine = g_data_input_stream_read_uint16 (stream, NULL, &read_error);
