@@ -19,9 +19,10 @@ fi
 tmp1="$(mktemp /tmp/build-targetfunctions.XXXXXX)"
 tmp2="$(mktemp /tmp/build-targetfunctions.XXXXXX)"
 
-if [ "$(uname -s)" = "Darwin" ]; then
+if [ "$os" = "mac" -o "$os" = "ios" ]; then
   shlib_suffix=dylib
   extra_ldflags="-Wl,-undefined,error -Wl,-dead_strip"
+  strip_command=strip
   strip_options=-Sx
 
   cat >"$tmp1" << EOF
@@ -39,6 +40,7 @@ EOF
 else
   shlib_suffix=so
   extra_ldflags="-Wl,--gc-sections -Wl,-no-undefined"
+  strip_command=$STRIP
   strip_options=--strip-all
 
   cat >"$tmp1" << EOF
@@ -78,7 +80,7 @@ $CC \
       $targetfuncs_ldflags || exit 1
 
 rm targetfunctions.o
-strip $strip_options $src/../data/targetfunctions-$os-$arch.$shlib_suffix || exit 1
+$strip_command $strip_options $src/../data/targetfunctions-$os-$arch.$shlib_suffix || exit 1
 
 $CC $common_cflags -O2 -c specialfunctions.c || exit 1
 $CC \
@@ -87,6 +89,6 @@ $CC \
       $common_ldflags \
       $specialfuncs_ldflags || exit 1
 rm specialfunctions.o
-strip $strip_options $src/../data/specialfunctions-$os-$arch.$shlib_suffix || exit 1
+$strip_command $strip_options $src/../data/specialfunctions-$os-$arch.$shlib_suffix || exit 1
 
 rm "$tmp1" "$tmp2"
