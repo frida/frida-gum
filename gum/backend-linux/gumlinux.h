@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2012-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,10 +11,11 @@
 
 G_BEGIN_DECLS
 
-GumCpuType gum_linux_cpu_type_from_file (const gchar * path, GError ** error);
-GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
-GUM_API void gum_linux_enumerate_ranges (pid_t pid,
-    GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
+GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,
+    GError ** error);
+GUM_API GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
+GUM_API void gum_linux_enumerate_ranges (pid_t pid, GumPageProtection prot,
+    GumFoundRangeFunc func, gpointer user_data);
 
 G_END_DECLS
 
