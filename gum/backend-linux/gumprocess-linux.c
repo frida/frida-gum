@@ -42,6 +42,7 @@ typedef Elf64_Sym GumElfSymbol;
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
+typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumFindModuleContext
@@ -49,6 +50,14 @@ struct _GumFindModuleContext
   const gchar * module_name;
   GumAddress base;
   gchar * path;
+};
+
+struct _GumEnumerateModuleRangesContext
+{
+  const gchar * module_name;
+  gboolean name_is_absolute;
+  GumFoundRangeFunc func;
+  gpointer user_data;
 };
 
 struct _GumFindExportContext
@@ -64,6 +73,8 @@ static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 #endif
 
+static gboolean gum_emit_range_if_module_name_matches (
+    const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
@@ -267,14 +278,14 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
     guint8 * start, * end;
-    gchar perms[4 + 1] = { 0, };
+    gchar perms[5] = { 0, };
     gint n;
     gboolean readable;
     gchar * name;
     GumMemoryRange range;
     GumModuleDetails details;
 
-    n = sscanf (line, "%p-%p %s %*x %*s %*s %s", &start, &end, perms, path);
+    n = sscanf (line, "%p-%p %4c %*x %*s %*s %s", &start, &end, perms, path);
     if (n == 3)
       continue;
     g_assert_cmpint (n, ==, 4);
@@ -340,27 +351,44 @@ gum_linux_enumerate_ranges (pid_t pid,
 
   while (carry_on && fgets (line, line_size, fp) != NULL)
   {
-    GumAddress start, end;
-    gchar perms[4 + 1] = { 0, };
-    gint n;
-    GumPageProtection cur_prot;
+    GumRangeDetails details;
+    GumMemoryRange range;
+    GumFileMapping file;
+    GumAddress end;
+    gchar perms[5] = { 0, };
+    guint64 inode;
+    gint length, n;
 
-    n = sscanf (line, "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %4s", &start, &end, perms);
-    g_assert_cmpint (n, ==, 3);
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+        "%4c "
+        "%" G_GINT64_MODIFIER "x %*s %" G_GINT64_MODIFIER "d"
+        "%n",
+        &range.base_address, &end,
+        perms,
+        &file.offset, &inode,
+        &length);
+    g_assert (n == 5 || n == 6);
 
-    cur_prot = gum_page_protection_from_proc_perms_string (perms);
+    range.size = end - range.base_address;
 
-    if ((cur_prot & prot) == prot)
+    if (inode != 0)
     {
-      GumMemoryRange range;
-      GumRangeDetails details;
+      file.path = strchr (line + length, '/');
+      *strchr (file.path, '\n') = '\0';
 
-      range.base_address = GUM_ADDRESS (start);
-      range.size = end - start;
+      details.file = &file;
+    }
+    else
+    {
+      details.file = NULL;
+    }
 
-      details.range = &range;
-      details.prot = cur_prot;
+    details.range = &range;
+    details.prot = gum_page_protection_from_proc_perms_string (perms);
 
+    if ((details.prot & prot) == prot)
+    {
       carry_on = func (&details, user_data);
     }
   }
@@ -465,60 +493,15 @@ gum_module_enumerate_ranges (const gchar * module_name,
                              GumFoundRangeFunc func,
                              gpointer user_data)
 {
-  FILE * fp;
-  const guint line_size = GUM_MAPS_LINE_SIZE;
-  gchar * line, * path;
-  gboolean carry_on = TRUE;
+  GumEnumerateModuleRangesContext ctx;
 
-  fp = fopen ("/proc/self/maps", "r");
-  g_assert (fp != NULL);
+  ctx.module_name = module_name;
+  ctx.name_is_absolute = index (module_name, '/') != NULL;
+  ctx.func = func;
+  ctx.user_data = user_data;
 
-  line = g_malloc (line_size);
-  path = g_malloc (PATH_MAX);
-
-  while (carry_on && fgets (line, line_size, fp) != NULL)
-  {
-    guint8 * start, * end;
-    gchar perms[4 + 1] = { 0, };
-    gint n;
-    gchar * name;
-
-    n = sscanf (line, "%p-%p %4s %*x %*s %*s %s", &start, &end, perms, path);
-    if (n == 3)
-      continue;
-    g_assert_cmpint (n, ==, 4);
-
-    if (path[0] == '[')
-      continue;
-
-    name = g_path_get_basename (path);
-    if (strcmp (name, module_name) == 0)
-    {
-      GumPageProtection cur_prot;
-
-      cur_prot = gum_page_protection_from_proc_perms_string (perms);
-
-      if ((cur_prot & prot) == prot)
-      {
-        GumMemoryRange range;
-        GumRangeDetails details;
-
-        range.base_address = GUM_ADDRESS (start);
-        range.size = end - start;
-
-        details.range = &range;
-        details.prot = cur_prot;
-
-        carry_on = func (&details, user_data);
-      }
-    }
-    g_free (name);
-  }
-
-  g_free (path);
-  g_free (line);
-
-  fclose (fp);
+  gum_process_enumerate_ranges (prot, gum_emit_range_if_module_name_matches,
+      &ctx);
 }
 
 GumAddress
@@ -543,6 +526,26 @@ gum_module_find_export_by_name (const gchar * module_name,
       gum_store_address_if_export_name_matches, &ctx);
 
   return ctx.result;
+}
+
+static gboolean
+gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
+                                       gpointer user_data)
+{
+  GumEnumerateModuleRangesContext * ctx = user_data;
+  const gchar * name, * s;
+
+  if (details->file == NULL)
+    return TRUE;
+
+  name = details->file->path;
+  if (!ctx->name_is_absolute && (s = strrchr (name, '/')) != NULL)
+    name = s + 1;
+
+  if (strcmp (name, ctx->module_name) != 0)
+    return TRUE;
+
+  return ctx->func (details, ctx->user_data);
 }
 
 static gboolean
