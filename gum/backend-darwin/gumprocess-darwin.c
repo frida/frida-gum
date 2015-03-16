@@ -472,6 +472,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
         details.range = &range;
         details.prot = cur_prot;
+        details.file = NULL; /* TODO */
 
         if (!func (&details, user_data))
           return;
@@ -1095,6 +1096,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
 
       details.range = &range;
       details.prot = cur_prot;
+      details.file = NULL; /* TODO */
 
       if (!func (&details, user_data))
         return;
