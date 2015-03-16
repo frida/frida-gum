@@ -36,7 +36,7 @@
 # define GUM_TEST_SHLIB_OS "windows"
 #elif defined (HAVE_MAC)
 # define GUM_TEST_SHLIB_OS "mac"
-#elif defined (HAVE_LINUX)
+#elif defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
 # define GUM_TEST_SHLIB_OS "linux"
 #elif defined (HAVE_IOS)
 # define GUM_TEST_SHLIB_OS "ios"
