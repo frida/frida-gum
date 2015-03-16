@@ -235,6 +235,12 @@ namespace Gum {
 	public struct RangeDetails {
 		public Gum.MemoryRange? range;
 		public Gum.PageProtection prot;
+		public Gum.FileMapping? file;
+	}
+
+	public struct FileMapping {
+		public string path;
+		public uint64 offset;
 	}
 
 	public struct Address : uint64 {

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +16,7 @@ typedef struct _GumModuleDetails GumModuleDetails;
 typedef guint GumExportType;
 typedef struct _GumExportDetails GumExportDetails;
 typedef struct _GumRangeDetails GumRangeDetails;
+typedef struct _GumFileMapping GumFileMapping;
 
 enum _GumThreadState
 {
@@ -57,6 +58,13 @@ struct _GumRangeDetails
 {
   const GumMemoryRange * range;
   GumPageProtection prot;
+  const GumFileMapping * file;
+};
+
+struct _GumFileMapping
+{
+  const gchar * path;
+  guint64 offset;
 };
 
 G_BEGIN_DECLS
