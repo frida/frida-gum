@@ -265,6 +265,7 @@ gum_process_enumerate_ranges (GumPageProtection prot,
 
         details.range = &range;
         details.prot = cur_prot;
+        details.file = NULL; /* TODO */
 
         if (!func (&details, user_data))
           return;
@@ -376,6 +377,7 @@ gum_module_enumerate_ranges (const gchar * module_name,
 
         details.range = &range;
         details.prot = cur_prot;
+        details.file = NULL; /* TODO */
 
         if (!func (&details, user_data))
           return;
