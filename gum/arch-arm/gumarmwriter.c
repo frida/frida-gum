@@ -170,7 +170,7 @@ gum_arm_writer_put_breakpoint (GumArmWriter * self)
     case GUM_OS_LINUX:
     case GUM_OS_ANDROID:
     default: /* TODO: handle other OSes */
-      gum_arm_writer_put_instruction (self, 0x07f001f0);
+      gum_arm_writer_put_instruction (self, 0xe7f001f0);
       break;
   }
 }
