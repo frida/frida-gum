@@ -73,7 +73,6 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
-  g_assert ((GPOINTER_TO_SIZE (function_address) & 0x2) == 0);
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       function_address);
@@ -242,7 +241,6 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
-  g_assert ((GPOINTER_TO_SIZE (function_address) & 0x2) == 0);
 
   ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
       function_address);
@@ -422,7 +420,7 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 
     gum_thumb_writer_flush (tw);
     g_assert_cmpuint (gum_thumb_writer_offset (tw),
-        ==, GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+        <=, GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
   }
   else
   {
