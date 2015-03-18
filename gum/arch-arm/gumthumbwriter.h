@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -20,6 +20,8 @@ typedef struct _GumThumbLiteralRef GumThumbLiteralRef;
 
 struct _GumThumbWriter
 {
+  GumOS target_os;
+
   guint16 * base;
   guint16 * code;
   GumAddress pc;
@@ -37,6 +39,8 @@ struct _GumThumbWriter
 void gum_thumb_writer_init (GumThumbWriter * writer, gpointer code_address);
 void gum_thumb_writer_reset (GumThumbWriter * writer, gpointer code_address);
 void gum_thumb_writer_free (GumThumbWriter * writer);
+
+void gum_thumb_writer_set_target_os (GumThumbWriter * self, GumOS os);
 
 gpointer gum_thumb_writer_cur (GumThumbWriter * self);
 guint gum_thumb_writer_offset (GumThumbWriter * self);

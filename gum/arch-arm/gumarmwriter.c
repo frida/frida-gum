@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #include "gumarmwriter.h"
 
 #include "gummemory.h"
+#include "gumprocess.h"
 
 #include <string.h>
 
@@ -35,6 +36,8 @@ void
 gum_arm_writer_reset (GumArmWriter * writer,
                       gpointer code_address)
 {
+  writer->target_os = gum_process_get_native_os ();
+
   writer->base = code_address;
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
@@ -48,6 +51,13 @@ gum_arm_writer_free (GumArmWriter * writer)
   gum_arm_writer_flush (writer);
 
   gum_free (writer->literal_refs);
+}
+
+void
+gum_arm_writer_set_target_os (GumArmWriter * self,
+                              GumOS os)
+{
+  self->target_os = os;
 }
 
 gpointer
@@ -150,6 +160,19 @@ void
 gum_arm_writer_put_nop (GumArmWriter * self)
 {
   gum_arm_writer_put_instruction (self, 0xe1a00000);
+}
+
+void
+gum_arm_writer_put_breakpoint (GumArmWriter * self)
+{
+  switch (self->target_os)
+  {
+    case GUM_OS_LINUX:
+    case GUM_OS_ANDROID:
+    default: /* TODO: handle other OSes */
+      gum_arm_writer_put_instruction (self, 0x07f001f0);
+      break;
+  }
 }
 
 void

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #include "gumthumbwriter.h"
 
 #include "gummemory.h"
+#include "gumprocess.h"
 
 #include <string.h>
 
@@ -76,6 +77,8 @@ void
 gum_thumb_writer_reset (GumThumbWriter * writer,
                         gpointer code_address)
 {
+  writer->target_os = gum_process_get_native_os ();
+
   writer->base = code_address;
   writer->code = code_address;
   writer->pc = GUM_ADDRESS (code_address);
@@ -93,6 +96,13 @@ gum_thumb_writer_free (GumThumbWriter * writer)
   gum_free (writer->id_to_address);
   gum_free (writer->label_refs);
   gum_free (writer->literal_refs);
+}
+
+void
+gum_thumb_writer_set_target_os (GumThumbWriter * self,
+                                GumOS os)
+{
+  self->target_os = os;
 }
 
 gpointer
@@ -769,8 +779,17 @@ gum_thumb_writer_put_bkpt_imm (GumThumbWriter * self,
 void
 gum_thumb_writer_put_breakpoint (GumThumbWriter * self)
 {
-  gum_thumb_writer_put_bkpt_imm (self, 0);
-  gum_thumb_writer_put_bx_reg (self, GUM_AREG_LR);
+  switch (self->target_os)
+  {
+    case GUM_OS_LINUX:
+    case GUM_OS_ANDROID:
+      gum_thumb_writer_put_instruction (self, 0xde01);
+      break;
+    default:
+      gum_thumb_writer_put_bkpt_imm (self, 0);
+      gum_thumb_writer_put_bx_reg (self, GUM_AREG_LR);
+      break;
+  }
 }
 
 void

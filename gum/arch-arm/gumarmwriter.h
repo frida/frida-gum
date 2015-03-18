@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -18,6 +18,8 @@ typedef struct _GumArmLiteralRef GumArmLiteralRef;
 
 struct _GumArmWriter
 {
+  GumOS target_os;
+
   guint32 * base;
   guint32 * code;
   GumAddress pc;
@@ -30,6 +32,8 @@ void gum_arm_writer_init (GumArmWriter * writer, gpointer code_address);
 void gum_arm_writer_reset (GumArmWriter * writer, gpointer code_address);
 void gum_arm_writer_free (GumArmWriter * writer);
 
+void gum_arm_writer_set_target_os (GumArmWriter * self, GumOS os);
+
 gpointer gum_arm_writer_cur (GumArmWriter * self);
 guint gum_arm_writer_offset (GumArmWriter * self);
 void gum_arm_writer_skip (GumArmWriter * self, guint n_bytes);
@@ -40,6 +44,7 @@ void gum_arm_writer_put_ldr_reg_address (GumArmWriter * self, GumArmReg reg, Gum
 void gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self, GumArmReg reg, guint32 val);
 
 void gum_arm_writer_put_nop (GumArmWriter * self);
+void gum_arm_writer_put_breakpoint (GumArmWriter * self);
 
 void gum_arm_writer_put_bytes (GumArmWriter * self, const guint8 * data, guint n);
 
