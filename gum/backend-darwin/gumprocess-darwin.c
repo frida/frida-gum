@@ -182,6 +182,9 @@ static GSList * find_image_text_section_ids (gconstpointer address);
 static gboolean find_image_symtab_command (gconstpointer address,
     const struct symtab_command ** sc);
 
+static gboolean gum_module_path_equals (const gchar * path,
+    const gchar * name_or_path);
+
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
 static void gum_cpu_context_from_darwin (const gum_thread_state_t * state,
     GumCpuContext * ctx);
@@ -364,7 +367,7 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   guint8 * table_base;
   gum_nlist_t * symbase, * sym;
   gchar * strbase;
-  guint symbol_idx;
+  guint symbol_index;
 
   if (!find_image_address_and_slide (module_name, &address, &slide))
     goto beach;
@@ -381,9 +384,9 @@ gum_module_do_enumerate_exports (const gchar * module_name,
   symbase = (gum_nlist_t *) (table_base + sc->symoff);
   strbase = (gchar *) (table_base + sc->stroff);
 
-  for (symbol_idx = 0, sym = symbase;
-      symbol_idx != sc->nsyms;
-      symbol_idx++, sym++)
+  for (symbol_index = 0, sym = symbase;
+      symbol_index != sc->nsyms;
+      symbol_index++, sym++)
   {
     GumExportDetails details;
 
@@ -1471,25 +1474,16 @@ find_image_address_and_slide (const gchar * image_name,
                               gpointer * address,
                               gpointer * slide)
 {
-  gboolean name_is_absolute;
-  guint count, idx;
-
-  name_is_absolute = index (image_name, '/') != NULL;
+  guint count, i;
 
   count = _dyld_image_count ();
 
-  for (idx = 0; idx != count; idx++)
+  for (i = 0; i != count; i++)
   {
-    const gchar * name, * s;
-
-    name = _dyld_get_image_name (idx);
-    if (!name_is_absolute && (s = strrchr (name, '/')) != NULL)
-      name = s + 1;
-
-    if (strcmp (name, image_name) == 0)
+    if (gum_module_path_equals (_dyld_get_image_name (i), image_name))
     {
-      *address = (gpointer) _dyld_get_image_header (idx);
-      *slide = (gpointer) _dyld_get_image_vmaddr_slide (idx);
+      *address = (gpointer) _dyld_get_image_header (i);
+      *slide = (gpointer) _dyld_get_image_vmaddr_slide (i);
       return TRUE;
     }
   }
@@ -1618,6 +1612,21 @@ find_image_symtab_command (gconstpointer address,
   }
 
   return FALSE;
+}
+
+static gboolean
+gum_module_path_equals (const gchar * path,
+                        const gchar * name_or_path)
+{
+  gchar * s;
+
+  if (name_or_path[0] == '/')
+    return strcmp (name_or_path, path) == 0;
+
+  if ((s = strrchr (path, '/')) != NULL)
+    return strcmp (name_or_path, s + 1) == 0;
+
+  return strcmp (name_or_path, path) == 0;
 }
 
 static GumThreadState

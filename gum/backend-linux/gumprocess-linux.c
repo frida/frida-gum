@@ -55,7 +55,6 @@ struct _GumFindModuleContext
 struct _GumEnumerateModuleRangesContext
 {
   const gchar * module_name;
-  gboolean name_is_absolute;
   GumFoundRangeFunc func;
   gpointer user_data;
 };
@@ -79,6 +78,9 @@ static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
+
+static gboolean gum_module_path_equals (const gchar * path,
+    const gchar * name_or_path);
 
 #ifndef HAVE_ANDROID
 static void gum_cpu_context_from_linux (const ucontext_t * uc,
@@ -496,7 +498,6 @@ gum_module_enumerate_ranges (const gchar * module_name,
   GumEnumerateModuleRangesContext ctx;
 
   ctx.module_name = module_name;
-  ctx.name_is_absolute = index (module_name, '/') != NULL;
   ctx.func = func;
   ctx.user_data = user_data;
 
@@ -533,16 +534,10 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
                                        gpointer user_data)
 {
   GumEnumerateModuleRangesContext * ctx = user_data;
-  const gchar * name, * s;
 
   if (details->file == NULL)
     return TRUE;
-
-  name = details->file->path;
-  if (!ctx->name_is_absolute && (s = strrchr (name, '/')) != NULL)
-    name = s + 1;
-
-  if (strcmp (name, ctx->module_name) != 0)
+  else if (!gum_module_path_equals (details->file->path, ctx->module_name))
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
@@ -554,7 +549,7 @@ gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
 {
   GumFindModuleContext * ctx = user_data;
 
-  if (strcmp (details->name, ctx->module_name) != 0)
+  if (!gum_module_path_equals (details->name, ctx->module_name))
     return TRUE;
 
   ctx->base = details->range->base_address;
@@ -680,6 +675,21 @@ beach:
   g_free (auxv_path);
 
   return result;
+}
+
+static gboolean
+gum_module_path_equals (const gchar * path,
+                        const gchar * name_or_path)
+{
+  gchar * s;
+
+  if (name_or_path[0] == '/')
+    return strcmp (name_or_path, path) == 0;
+
+  if ((s = strrchr (path, '/')) != NULL)
+    return strcmp (name_or_path, s + 1) == 0;
+
+  return strcmp (name_or_path, path) == 0;
 }
 
 #ifndef HAVE_ANDROID
