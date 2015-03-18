@@ -1430,7 +1430,7 @@ STALKER_TESTCASE (no_register_clobber)
   gum_x86_writer_put_label (&cw, my_func_lbl);
   gum_x86_writer_put_nop (&cw);
   gum_x86_writer_put_jmp_short_label (&cw, my_beach_lbl);
-  gum_x86_writer_put_int3 (&cw);
+  gum_x86_writer_put_breakpoint (&cw);
 
   gum_x86_writer_put_label (&cw, my_beach_lbl);
   gum_x86_writer_put_nop (&cw);

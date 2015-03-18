@@ -105,7 +105,7 @@ CODEWRITER_TESTCASE (jump_label)
   gum_x86_writer_put_jmp_short_label (&fixture->cw, beach_lbl);
 
   gum_x86_writer_put_label (&fixture->cw, handle_error_lbl);
-  gum_x86_writer_put_int3 (&fixture->cw);
+  gum_x86_writer_put_breakpoint (&fixture->cw);
 
   gum_x86_writer_put_label (&fixture->cw, beach_lbl);
   gum_x86_writer_put_nop (&fixture->cw);

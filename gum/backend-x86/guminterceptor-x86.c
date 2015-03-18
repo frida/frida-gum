@@ -139,7 +139,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
         (guint8 *) ctx->function_address + reloc_bytes);
   }
 
-  gum_x86_writer_put_int3 (cw);
+  gum_x86_writer_put_breakpoint (cw);
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
@@ -277,7 +277,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
         (guint8 *) ctx->function_address + reloc_bytes);
   }
 
-  gum_x86_writer_put_int3 (cw);
+  gum_x86_writer_put_breakpoint (cw);
 
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),

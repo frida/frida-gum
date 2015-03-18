@@ -1229,7 +1229,7 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
     gum_exec_block_write_jmp_transfer_code (block, &continue_target, &gc);
   }
 
-  gum_x86_writer_put_int3 (cw); /* should never get here */
+  gum_x86_writer_put_breakpoint (cw); /* should never get here */
 
   gum_x86_writer_flush (cw);
 

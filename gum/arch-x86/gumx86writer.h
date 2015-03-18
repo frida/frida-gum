@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -122,8 +122,8 @@ void gum_x86_writer_init (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_reset (GumX86Writer * writer, gpointer code_address);
 void gum_x86_writer_free (GumX86Writer * writer);
 
-void gum_x86_writer_set_target_cpu (GumX86Writer * writer, GumCpuType cpu_type);
-void gum_x86_writer_set_target_abi (GumX86Writer * writer, GumAbiType abi_type);
+void gum_x86_writer_set_target_cpu (GumX86Writer * self, GumCpuType cpu_type);
+void gum_x86_writer_set_target_abi (GumX86Writer * self, GumAbiType abi_type);
 
 gpointer gum_x86_writer_cur (GumX86Writer * self);
 guint gum_x86_writer_offset (GumX86Writer * self);
@@ -232,7 +232,7 @@ void gum_x86_writer_put_lfence (GumX86Writer * self);
 void gum_x86_writer_put_rdtsc (GumX86Writer * self);
 void gum_x86_writer_put_pause (GumX86Writer * self);
 void gum_x86_writer_put_nop (GumX86Writer * self);
-void gum_x86_writer_put_int3 (GumX86Writer * self);
+void gum_x86_writer_put_breakpoint (GumX86Writer * self);
 void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
 
 void gum_x86_writer_put_byte (GumX86Writer * self, guint8 b);

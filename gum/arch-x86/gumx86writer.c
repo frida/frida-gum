@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2009-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -130,17 +130,17 @@ gum_x86_writer_free (GumX86Writer * writer)
 }
 
 void
-gum_x86_writer_set_target_cpu (GumX86Writer * writer,
+gum_x86_writer_set_target_cpu (GumX86Writer * self,
                                GumCpuType cpu_type)
 {
-  writer->target_cpu = cpu_type;
+  self->target_cpu = cpu_type;
 }
 
 void
-gum_x86_writer_set_target_abi (GumX86Writer * writer,
+gum_x86_writer_set_target_abi (GumX86Writer * self,
                                GumAbiType abi_type)
 {
-  writer->target_abi = abi_type;
+  self->target_abi = abi_type;
 }
 
 gpointer
@@ -2181,7 +2181,7 @@ gum_x86_writer_put_nop (GumX86Writer * self)
 }
 
 void
-gum_x86_writer_put_int3 (GumX86Writer * self)
+gum_x86_writer_put_breakpoint (GumX86Writer * self)
 {
   self->code[0] = 0xcc;
   self->code++;
