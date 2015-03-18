@@ -549,7 +549,7 @@ gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
 {
   GumFindModuleContext * ctx = user_data;
 
-  if (!gum_module_path_equals (details->name, ctx->module_name))
+  if (!gum_module_path_equals (details->path, ctx->module_name))
     return TRUE;
 
   ctx->base = details->range->base_address;
