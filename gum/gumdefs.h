@@ -31,12 +31,22 @@
 
 typedef guint64 GumAddress;
 #define GUM_ADDRESS(a) ((GumAddress) GPOINTER_TO_SIZE (a))
+typedef guint GumOS;
 typedef guint GumCallingConvention;
 typedef guint GumAbiType;
 typedef guint GumCpuType;
 typedef guint GumArgType;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
+
+enum _GumOS
+{
+  GUM_OS_WINDOWS,
+  GUM_OS_MAC,
+  GUM_OS_LINUX,
+  GUM_OS_IOS,
+  GUM_OS_ANDROID
+};
 
 enum _GumCallingConvention
 {

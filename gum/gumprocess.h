@@ -80,6 +80,7 @@ typedef gboolean (* GumFoundExportFunc) (const GumExportDetails * details,
 typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
 
+GUM_API GumOS gum_process_get_native_os (void);
 GUM_API gboolean gum_process_is_debugger_attached (void);
 GUM_API GumThreadId gum_process_get_current_thread_id (void);
 GUM_API gboolean gum_process_modify_thread (GumThreadId thread_id,

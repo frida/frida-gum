@@ -171,6 +171,9 @@
     <ClCompile Include="gum\gumprintf.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumprocess.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="libs\gum\heap\gumheapapi.c">
       <Filter>libs\heap</Filter>
     </ClCompile>

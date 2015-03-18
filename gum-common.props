@@ -69,6 +69,7 @@
     <ClCompile Include="gum\gummemorymap.c" />
     <ClCompile Include="gum\gummetalhash.c" />
     <ClCompile Include="gum\gumprintf.c" />
+    <ClCompile Include="gum\gumprocess.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />
     <ClCompile Include="gum\gumscriptcore.cpp" />

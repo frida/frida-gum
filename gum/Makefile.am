@@ -199,6 +199,7 @@ libfrida_gum_la_SOURCES = \
 	gummetalhash.h \
 	gumprintf.c \
 	gumprintf.h \
+	gumprocess.c \
 	gumreturnaddress.c \
 	gumtls.h \
 	arch-x86/gumx86writer.c \
