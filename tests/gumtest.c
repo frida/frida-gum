@@ -173,20 +173,22 @@ main (gint argc, gchar * argv[])
       g_main_context_iteration (context, FALSE);
   }
 
+#if DEBUG_HEAP_LEAKS
   _test_util_deinit ();
 
-#ifdef HAVE_I386
+# ifdef HAVE_I386
   lowlevel_helpers_deinit ();
-#endif
+# endif
 
   gum_deinit ();
-#if GLIB_CHECK_VERSION (2, 42, 0)
+# if GLIB_CHECK_VERSION (2, 42, 0)
   gio_deinit ();
   glib_deinit ();
-#endif
+# endif
 
-#ifdef G_OS_WIN32
+# ifdef G_OS_WIN32
   WSACleanup ();
+# endif
 #endif
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
