@@ -32,14 +32,8 @@ static GSList * gum_destructors = NULL;
 void
 gum_init (void)
 {
-  gum_init_with_features (GUM_FEATURE_DEFAULT);
-}
-
-void
-gum_init_with_features (GumFeatureFlags features)
-{
   static GOnce init_once = G_ONCE_INIT;
-  g_once (&init_once, do_init, GINT_TO_POINTER (features));
+  g_once (&init_once, do_init, NULL);
 }
 
 void
@@ -55,9 +49,7 @@ gum_deinit (void)
 
   _gum_interceptor_deinit ();
 
-#ifdef HAVE_SYMBOL_BACKEND
   _gum_symbol_util_deinit ();
-#endif
 
   gum_capstone_deinit ();
 }
@@ -65,7 +57,6 @@ gum_deinit (void)
 static gpointer
 do_init (gpointer data)
 {
-  GumFeatureFlags features = (GumFeatureFlags) GPOINTER_TO_INT (data);
   cs_opt_mem gum_cs_mem_callbacks = {
     gum_capstone_malloc,
     gum_capstone_calloc,
@@ -73,8 +64,6 @@ do_init (gpointer data)
     gum_capstone_free,
     gum_vsnprintf
   };
-
-  (void) features;
 
   page_size = gum_query_page_size ();
 
@@ -87,10 +76,7 @@ do_init (gpointer data)
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
 
-#ifdef HAVE_SYMBOL_BACKEND
-  if ((features & GUM_FEATURE_SYMBOL_LOOKUP) != 0)
-    _gum_symbol_util_init ();
-#endif
+  _gum_symbol_util_init ();
 
   _gum_interceptor_init ();
 

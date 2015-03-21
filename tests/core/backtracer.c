@@ -26,13 +26,11 @@ static void print_backtrace (GumReturnAddressArray * ret_addrs);
 BACKTRACER_TESTCASE (basics)
 {
   GumReturnAddressArray ret_addrs = { 0, };
-#ifdef HAVE_SYMBOL_BACKEND
   guint expected_line_number;
   GumReturnAddress first_address;
   GumReturnAddressDetails rad;
 
   expected_line_number = __LINE__ + 9;
-#endif
 
   if (fixture->backtracer == NULL)
   {
@@ -43,10 +41,9 @@ BACKTRACER_TESTCASE (basics)
   gum_backtracer_generate (fixture->backtracer, NULL, &ret_addrs);
   g_assert_cmpuint (ret_addrs.len, >=, 2);
 
-#ifdef HAVE_SYMBOL_BACKEND
-# if PRINT_BACKTRACES
+#if PRINT_BACKTRACES
   print_backtrace (&ret_addrs);
-# endif
+#endif
 
   first_address = ret_addrs.items[0];
   g_assert (first_address != NULL);
@@ -55,11 +52,10 @@ BACKTRACER_TESTCASE (basics)
   g_assert (g_str_has_prefix (rad.module_name, "gum-tests") ||
       g_str_has_prefix (rad.module_name, "lt-gum-tests"));
   g_assert_cmpstr (rad.function_name, ==, __FUNCTION__);
-# ifndef HAVE_DARWIN
+#ifndef HAVE_DARWIN
   g_assert (g_str_has_suffix (rad.file_name, "backtracer.c"));
   g_assert (rad.line_number == expected_line_number ||
       rad.line_number == expected_line_number + 1);
-# endif
 #endif
 }
 

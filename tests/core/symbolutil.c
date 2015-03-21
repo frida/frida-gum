@@ -19,17 +19,13 @@
 #endif
 
 TEST_LIST_BEGIN (symbolutil)
-#ifdef HAVE_SYMBOL_BACKEND
   SYMUTIL_TESTENTRY (symbol_details_from_address)
   SYMUTIL_TESTENTRY (symbol_name_from_address)
   SYMUTIL_TESTENTRY (find_external_public_function)
   SYMUTIL_TESTENTRY (find_local_static_function)
   SYMUTIL_TESTENTRY (find_functions_named)
   SYMUTIL_TESTENTRY (find_functions_matching)
-#endif
 TEST_LIST_END ()
-
-#ifdef HAVE_SYMBOL_BACKEND
 
 static void GUM_CDECL gum_dummy_function_0 (void);
 static void GUM_STDCALL gum_dummy_function_1 (void);
@@ -119,4 +115,3 @@ gum_dummy_function_1 (void)
   g_print ("%s\n", G_STRFUNC);
 }
 
-#endif

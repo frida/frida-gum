@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -25,19 +25,7 @@
 
 G_BEGIN_DECLS
 
-typedef guint GumFeatureFlags;
-
-enum _GumFeatureFlags
-{
-  GUM_FEATURE_SYMBOL_LOOKUP = (1 << 0),
-
-  GUM_FEATURE_NONE          = 0,
-  GUM_FEATURE_ALL           = (GUM_FEATURE_SYMBOL_LOOKUP),
-  GUM_FEATURE_DEFAULT       = GUM_FEATURE_ALL
-};
-
 GUM_API void gum_init (void);
-GUM_API void gum_init_with_features (GumFeatureFlags features);
 GUM_API void gum_deinit (void);
 
 G_END_DECLS

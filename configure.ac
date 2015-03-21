@@ -168,11 +168,8 @@ if [[ "x$HAVE_MAC" = "xyes" ]]; then
 fi
 AC_SUBST(GUM_TEST_LIBS)
 
-if [[ "x$HAVE_BFD" = "xyes" ]] || [[ "x$enable_objc" = "xyes" ]]; then
-  enable_symbol_backend=yes
-  AC_DEFINE(HAVE_SYMBOL_BACKEND, 1, [Define to 1 if a symbol backend is available.])
-else
-  enable_symbol_backend=no
+if [[ "x$HAVE_BFD" != "xyes" -a "x$enable_objc" != "xyes" ]]; then
+  AC_MSG_ERROR([libbfd or Obj-C is required.])
 fi
 
 if [[ "x$enable_symbol_backend" = "xyes" ]]; then
