@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -24,14 +24,16 @@ static void gum_dbghelp_impl_unlock (void);
 GumDbgHelpImpl *
 gum_dbghelp_impl_obtain (void)
 {
-  GumDbgHelpImpl * impl;
   HMODULE mod;
+  GumDbgHelpImpl * impl;
 
-  impl = g_new0 (GumDbgHelpImpl, 1);
-  impl->priv = g_new (GumDbgHelpImplPrivate, 1);
-  impl->priv->module = load_dbghelp ();
+  mod = load_dbghelp ();
+  if (mod == NULL)
+    return NULL;
 
-  mod = impl->priv->module;
+  impl = g_slice_new0 (GumDbgHelpImpl);
+  impl->priv = g_slice_new (GumDbgHelpImplPrivate);
+  impl->priv->module = mod;
 
   INIT_IMPL_FUNC (StackWalk64);
   INIT_IMPL_FUNC (SymInitialize);
@@ -53,8 +55,8 @@ void
 gum_dbghelp_impl_release (GumDbgHelpImpl * impl)
 {
   FreeLibrary (impl->priv->module);
-  g_free (impl->priv);
-  g_free (impl);
+  g_slice_free (GumDbgHelpImplPrivate, impl->priv);
+  g_slice_free (GumDbgHelpImpl, impl);
 }
 
 static HMODULE

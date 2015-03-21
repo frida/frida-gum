@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumsymbolutil.h"
 
+#include "gum-init.h"
 #include "gumdbghelp.h"
-#include "gumsymbolutil-priv.h"
 
 #include <psapi.h>
 
@@ -34,41 +34,68 @@ struct _GumSymbolInfo
 #pragma pack(pop)
 #endif
 
+static gpointer do_init (gpointer data);
+static void do_deinit (void);
+
 static BOOL CALLBACK enum_functions_callback (SYMBOL_INFO * sym_info,
     gulong symbol_size, gpointer user_context);
 static gboolean is_function (SYMBOL_INFO * sym_info);
 
-static GumDbgHelpImpl * dbghelp = NULL;
-
-void
-_gum_symbol_util_init (void)
+static GumDbgHelpImpl *
+gum_symbol_util_try_get_dbghelp (void)
 {
-  dbghelp = gum_dbghelp_impl_obtain ();
+  static GOnce init_once = G_ONCE_INIT;
 
-  dbghelp->SymInitialize (GetCurrentProcess (), NULL, TRUE);
+  g_once (&init_once, do_init, NULL);
+
+  return init_once.retval;
 }
 
-void
-_gum_symbol_util_deinit (void)
+static gpointer
+do_init (gpointer data)
 {
+  GumDbgHelpImpl * dbghelp;
+
+  (void) data;
+
+  dbghelp = gum_dbghelp_impl_obtain ();
   if (dbghelp == NULL)
-    return;
+    return NULL;
+
+  dbghelp->SymInitialize (GetCurrentProcess (), NULL, TRUE);
+
+  _gum_register_destructor (do_deinit);
+
+  return dbghelp;
+}
+
+static void
+do_deinit (void)
+{
+  GumDbgHelpImpl * dbghelp;
+
+  dbghelp = gum_symbol_util_try_get_dbghelp ();
+  g_assert (dbghelp != NULL);
 
   dbghelp->SymCleanup (GetCurrentProcess ());
 
   gum_dbghelp_impl_release (dbghelp);
-  dbghelp = NULL;
 }
 
 gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumSymbolDetails * details)
 {
+  GumDbgHelpImpl * dbghelp;
   GumSymbolInfo si = { 0, };
   IMAGEHLP_LINE64 li = { 0, };
   DWORD displacement_dw;
   DWORD64 displacement_qw;
   BOOL has_sym_info, has_file_info;
+
+  dbghelp = gum_symbol_util_try_get_dbghelp ();
+  if (dbghelp == NULL)
+    return FALSE;
 
   memset (details, 0, sizeof (GumSymbolDetails));
   details->address = GUM_ADDRESS (address);
@@ -140,11 +167,16 @@ GArray *
 gum_find_functions_matching (const gchar * str)
 {
   GArray * matches;
+  GumDbgHelpImpl * dbghelp;
   gchar * match_formatted_str;
   HANDLE cur_process_handle;
   guint64 any_module_base;
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+  dbghelp = gum_symbol_util_try_get_dbghelp ();
+  if (dbghelp == NULL)
+    return matches;
 
   match_formatted_str = g_strdup_printf ("*!%s", str);
 

@@ -392,9 +392,6 @@
     <ClInclude Include="gum\gummemory-priv.h">
       <Filter>core</Filter>
     </ClInclude>
-    <ClInclude Include="gum\gumsymbolutil-priv.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="gum\gumtls.h">
       <Filter>core</Filter>
     </ClInclude>

@@ -1,13 +1,13 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumsymbolutil.h"
 
+#include "gum-init.h"
 #include "gummemory.h"
-#include "gumsymbolutil-priv.h"
 
 #include <bfd.h>
 #include <dlfcn.h>
@@ -27,6 +27,9 @@ struct _SymbolCollection
   guint num_dynamic_symbols;
 };
 
+static gpointer do_init (gpointer data);
+static void do_deinit (void);
+
 static void build_symbols_database (void);
 #ifdef HAVE_GLIBC
 static int add_symbols_for_shared_object (struct dl_phdr_info * info,
@@ -45,23 +48,32 @@ static void close_bfd_and_release_symbols (bfd * abfd, SymbolCollection * sc);
 
 static GHashTable * function_address_by_name_ht = NULL;
 
-void
-_gum_symbol_util_init (void)
+static void
+gum_symbol_util_init (void)
+{
+  static GOnce init_once = G_ONCE_INIT;
+
+  g_once (&init_once, do_init, NULL);
+}
+
+static gpointer
+do_init (gpointer data)
 {
   function_address_by_name_ht = g_hash_table_new_full (g_str_hash,
       g_str_equal, g_free, NULL);
 
   build_symbols_database ();
+
+  _gum_register_destructor (do_deinit);
+
+  return NULL;
 }
 
-void
-_gum_symbol_util_deinit (void)
+static void
+do_deinit (void)
 {
-  if (function_address_by_name_ht != NULL)
-  {
-    g_hash_table_unref (function_address_by_name_ht);
-    function_address_by_name_ht = NULL;
-  }
+  g_hash_table_unref (function_address_by_name_ht);
+  function_address_by_name_ht = NULL;
 }
 
 gboolean
@@ -75,6 +87,8 @@ gum_symbol_details_from_address (gpointer address,
   SymbolCollection sc = { 0, };
   bfd_vma offset;
   asection * section;
+
+  gum_symbol_util_init ();
 
   if (!dladdr (address, &dl_info))
     goto beach;
@@ -155,6 +169,8 @@ gum_symbol_name_from_address (gpointer address)
 gpointer
 gum_find_function (const gchar * name)
 {
+  gum_symbol_util_init ();
+
   return g_hash_table_lookup (function_address_by_name_ht, name);
 }
 
@@ -180,6 +196,8 @@ gum_find_functions_matching (const gchar * str)
   GHashTableIter iter;
   const gchar * function_name;
   gpointer function_address;
+
+  gum_symbol_util_init ();
 
   matches = g_array_new (FALSE, FALSE, sizeof (gpointer));
 

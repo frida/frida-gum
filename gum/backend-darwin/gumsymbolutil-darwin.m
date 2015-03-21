@@ -1,12 +1,10 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumsymbolutil.h"
-
-#include "gumsymbolutil-priv.h"
 
 #import <Foundation/Foundation.h>
 #import "VMUSymbolicator.h"
@@ -16,21 +14,36 @@
 #define GUM_POOL_RELEASE() \
   [pool release]
 
+static gpointer do_init (gpointer data);
+static void do_deinit (void);
+
 static gboolean gum_symbol_is_function (VMUSymbol * symbol);
 static const char * gum_symbol_name_from_darwin (const char * s);
 
 static VMUSymbolicator * symbolicator = nil;
 
-void
-_gum_symbol_util_init (void)
+static void
+gum_symbol_util_init (void)
+{
+  static GOnce init_once = G_ONCE_INIT;
+
+  g_once (&init_once, do_init, NULL);
+}
+
+static gpointer
+do_init (gpointer data)
 {
   GUM_POOL_ALLOC ();
   symbolicator = [[VMUSymbolicator symbolicatorForTask: mach_task_self ()] retain];
   GUM_POOL_RELEASE ();
+
+  _gum_register_destructor (do_deinit);
+
+  return NULL;
 }
 
-void
-_gum_symbol_util_deinit (void)
+static void
+do_deinit (void)
 {
   GUM_POOL_ALLOC ();
   [symbolicator release];
@@ -44,6 +57,8 @@ gum_symbol_details_from_address (gpointer address,
 {
   gboolean result = FALSE;
   VMUSymbol * symbol;
+
+  gum_symbol_util_init ();
 
   GUM_POOL_ALLOC ();
 
@@ -83,6 +98,8 @@ gum_symbol_name_from_address (gpointer address)
   gchar * result = NULL;
   VMUSymbol * symbol;
 
+  gum_symbol_util_init ();
+
   GUM_POOL_ALLOC ();
 
   symbol = [symbolicator symbolForAddress:GPOINTER_TO_SIZE (address)];
@@ -103,6 +120,8 @@ gum_find_function (const gchar * name)
   gpointer result = NULL;
   NSArray * symbols;
   NSUInteger i;
+
+  gum_symbol_util_init ();
 
   GUM_POOL_ALLOC ();
 
@@ -130,6 +149,8 @@ gum_find_functions_named (const gchar * name)
   GArray * result;
   NSArray * symbols;
   NSUInteger i;
+
+  gum_symbol_util_init ();
 
   GUM_POOL_ALLOC ();
 
@@ -160,6 +181,8 @@ gum_find_functions_matching (const gchar * str)
   GPatternSpec * pspec;
   NSArray * symbols;
   NSUInteger count, i;
+
+  gum_symbol_util_init ();
 
   GUM_POOL_ALLOC ();
 

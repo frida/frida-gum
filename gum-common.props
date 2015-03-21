@@ -48,7 +48,6 @@
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
-    <ClInclude Include="gum\gumsymbolutil-priv.h" />
     <ClInclude Include="gum\gumsysinternals.h" />
     <ClInclude Include="gum\gumtls.h" />
   </ItemGroup>

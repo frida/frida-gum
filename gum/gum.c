@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,7 +10,6 @@
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gumprintf.h"
-#include "gumsymbolutil-priv.h"
 
 #include <capstone.h>
 #include <glib-object.h>
@@ -49,8 +48,6 @@ gum_deinit (void)
 
   _gum_interceptor_deinit ();
 
-  _gum_symbol_util_deinit ();
-
   gum_capstone_deinit ();
 }
 
@@ -75,8 +72,6 @@ do_init (gpointer data)
 #endif
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
-
-  _gum_symbol_util_init ();
 
   _gum_interceptor_init ();
 
