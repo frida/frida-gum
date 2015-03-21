@@ -73,7 +73,7 @@ load_dbghelp (void)
   filename = wcsrchr (path, L'\\');
   g_assert (filename != NULL);
   filename++;
-  memcpy (filename, L"dbghelp.dll", (11 + 1) * sizeof (WCHAR));
+  wsprintf (filename, L"dbghelp-%d.dll", (GLIB_SIZEOF_VOID_P == 4) ? 32 : 64);
 
   return LoadLibraryW (path);
 }
