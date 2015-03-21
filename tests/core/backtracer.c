@@ -30,7 +30,7 @@ BACKTRACER_TESTCASE (basics)
   GumReturnAddress first_address;
   GumReturnAddressDetails rad;
 
-  expected_line_number = __LINE__ + 9;
+  expected_line_number = __LINE__ + 8;
 
   if (fixture->backtracer == NULL)
   {
