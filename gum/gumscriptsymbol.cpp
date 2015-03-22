@@ -302,21 +302,27 @@ gum_script_symbol_on_to_string (const FunctionCallbackInfo<Value> & info)
   GumSymbol * self = static_cast<GumSymbol *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   GumSymbolDetails * d = &self->details;
-  gchar * str;
+  GString * s;
+
+  s = g_string_new ("0");
 
   if (self->resolved)
   {
-    str = g_strdup_printf ("0x%" G_GINT64_MODIFIER "x %s!%s %s:%u",
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s",
         d->address,
-        d->module_name, d->symbol_name,
-        d->file_name, d->line_number);
+        d->module_name, d->symbol_name);
+    if (d->file_name[0] != '\0')
+    {
+      g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
+    }
   }
-  else
+  else if (d->address != 0)
   {
-    str = g_strdup_printf ("0x%" G_GINT64_MODIFIER "x", d->address);
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
   }
 
-  info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), str));
+  info.GetReturnValue ().Set (
+      String::NewFromUtf8 (info.GetIsolate (), s->str));
 
-  g_free (str);
+  g_string_free (s, TRUE);
 }
