@@ -22,6 +22,8 @@ struct _GumSymbol
 
 static void gum_script_symbol_on_from_address (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_symbol_on_from_name (
+    const FunctionCallbackInfo<Value> & info);
 
 static GumSymbol * gum_symbol_new (Handle<Object> instance,
     GumScriptSymbol * module);
@@ -56,6 +58,9 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   Handle<ObjectTemplate> symbol = ObjectTemplate::New (isolate);
   symbol->Set (String::NewFromUtf8 (isolate, "fromAddress"),
       FunctionTemplate::New (isolate, gum_script_symbol_on_from_address,
+      data));
+  symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
+      FunctionTemplate::New (isolate, gum_script_symbol_on_from_name,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "DebugSymbol"), symbol);
 }
@@ -119,6 +124,41 @@ gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
   symbol->details.address = GPOINTER_TO_SIZE (address);
   symbol->resolved =
       gum_symbol_details_from_address (address, &symbol->details);
+  instance->SetAlignedPointerInInternalField (0, symbol);
+  info.GetReturnValue ().Set (instance);
+}
+
+static void
+gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptSymbol * self = static_cast<GumScriptSymbol *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Value> name_val = info[0];
+  if (!name_val->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "DebugSymbol.fromName: argument must be a string "
+        "specifying a symbol name")));
+    return;
+  }
+  String::Utf8Value name (name_val);
+
+  Local<Object> value (Local<Object>::New (isolate, *self->value));
+  Local<Object> instance (value->Clone ());
+  GumSymbol * symbol = gum_symbol_new (instance, self);
+  gpointer address = gum_find_function (*name);
+  if (address != NULL)
+  {
+    symbol->resolved =
+        gum_symbol_details_from_address (address, &symbol->details);
+  }
+  else
+  {
+    symbol->resolved = FALSE;
+    symbol->details.address = 0;
+  }
   instance->SetAlignedPointerInInternalField (0, symbol);
   info.GetReturnValue ().Set (instance);
 }
