@@ -6,8 +6,6 @@
 
 #include "gumdbghelpbacktracer.h"
 
-#include "gumdbghelp.h"
-
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_BACKTRACER_MACHINE_TYPE IMAGE_FILE_MACHINE_I386
 #else
@@ -63,8 +61,6 @@ gum_dbghelp_backtracer_init (GumDbghelpBacktracer * self)
 {
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
         GUM_TYPE_DBGHELP_BACKTRACER, GumDbghelpBacktracerPrivate);
-
-  self->priv->dbghelp = gum_dbghelp_impl_obtain ();
 }
 
 static void
@@ -78,10 +74,16 @@ gum_dbghelp_backtracer_finalize (GObject * object)
 }
 
 GumBacktracer *
-gum_dbghelp_backtracer_new (void)
+gum_dbghelp_backtracer_new (GumDbgHelpImpl * dbghelp)
 {
-  return GUM_BACKTRACER_CAST (
-      g_object_new (GUM_TYPE_DBGHELP_BACKTRACER, NULL));
+  GumDbghelpBacktracer * backtracer;
+
+  g_assert (dbghelp != NULL);
+
+  backtracer = g_object_new (GUM_TYPE_DBGHELP_BACKTRACER, NULL);
+  backtracer->priv->dbghelp = dbghelp;
+
+  return GUM_BACKTRACER_CAST (backtracer);
 }
 
 static void

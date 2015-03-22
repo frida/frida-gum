@@ -7,6 +7,8 @@
 #ifndef __GUM_DBGHELP_BACKTRACER_H__
 #define __GUM_DBGHELP_BACKTRACER_H__
 
+#include "gumdbghelp.h"
+
 #include <glib-object.h>
 #include <gum/gum.h>
 
@@ -43,7 +45,7 @@ G_BEGIN_DECLS
 
 GUM_API GType gum_dbghelp_backtracer_get_type (void) G_GNUC_CONST;
 
-GUM_API GumBacktracer * gum_dbghelp_backtracer_new (void);
+GUM_API GumBacktracer * gum_dbghelp_backtracer_new (GumDbgHelpImpl * dbghelp);
 
 G_END_DECLS
 
