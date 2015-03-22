@@ -237,6 +237,9 @@
     <ClCompile Include="gum\gumscriptsymbol.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86backtracer.c">
+      <Filter>core\arch-x86</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
@@ -478,6 +481,9 @@
     </ClInclude>
     <ClInclude Include="gum\gumscriptsymbol.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumx86backtracer.h">
+      <Filter>core\arch-x86</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

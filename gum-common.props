@@ -88,12 +88,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClInclude Include="gum\arch-x86\gumx86backtracer.h" />
     <ClInclude Include="gum\arch-x86\gumx86reader.h" />
     <ClInclude Include="gum\arch-x86\gumx86relocator.h" />
     <ClInclude Include="gum\arch-x86\gumx86writer.h" />
   </ItemGroup>
 
   <ItemGroup>
+    <ClCompile Include="gum\arch-x86\gumx86backtracer.c" />
     <ClCompile Include="gum\arch-x86\gumx86reader.c" />
     <ClCompile Include="gum\arch-x86\gumx86relocator.c" />
     <ClCompile Include="gum\arch-x86\gumx86writer.c" />

@@ -22,9 +22,6 @@
     <Filter Include="libs\prof">
       <UniqueIdentifier>{fa7da979-98f4-4b4c-a916-25724d1fd31e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="vapi">
-      <UniqueIdentifier>{4f6067a4-9b67-4259-a2b6-8c902581f2c6}</UniqueIdentifier>
-    </Filter>
     <Filter Include="core\arch-arm">
       <UniqueIdentifier>{422492e7-f2de-49a2-923f-f70237e2f44c}</UniqueIdentifier>
     </Filter>
@@ -33,6 +30,9 @@
     </Filter>
     <Filter Include="core\arch-x86">
       <UniqueIdentifier>{41ad8d23-ee83-4901-a2ac-26b1e995b0b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="core\arch-x86\vapi">
+      <UniqueIdentifier>{4f6067a4-9b67-4259-a2b6-8c902581f2c6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -236,6 +236,9 @@
     </ClCompile>
     <ClCompile Include="gum\gumscriptsymbol.cpp">
       <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\arch-x86\gumx86backtracer.c">
+      <Filter>core\arch-x86</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -479,10 +482,13 @@
     <ClInclude Include="gum\gumscriptsymbol.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\arch-x86\gumx86backtracer.h">
+      <Filter>core\arch-x86</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi">
-      <Filter>vapi</Filter>
+      <Filter>core\arch-x86\vapi</Filter>
     </None>
   </ItemGroup>
 </Project>
