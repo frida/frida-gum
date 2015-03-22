@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,7 +26,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (system_error_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
-  SCRIPT_TESTENTRY (callbacks_can_be_detached);
+  SCRIPT_TESTENTRY (invocations_provide_backtrace)
+  SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (interceptor_performance)
@@ -1109,6 +1110,26 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_SEND_MESSAGE_WITH ("\"<c2\"");
   EXPECT_SEND_MESSAGE_WITH ("\"<b1\"");
   EXPECT_SEND_MESSAGE_WITH ("\"<a0\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (invocations_provide_backtrace)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send(this.backtrace().length > 0);"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send(this.backtrace().length > 0);"
+      "  }"
+      "});",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 

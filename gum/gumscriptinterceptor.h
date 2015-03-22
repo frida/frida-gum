@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,6 +7,7 @@
 #ifndef __GUM_SCRIPT_INTERCEPTOR_H__
 #define __GUM_SCRIPT_INTERCEPTOR_H__
 
+#include "gumbacktracer.h"
 #include "guminterceptor.h"
 #include "gumscriptcore.h"
 
@@ -19,6 +20,7 @@ struct _GumScriptInterceptor
   GumScriptCore * core;
 
   GumInterceptor * interceptor;
+  GumBacktracer * backtracer;
 
   GQueue * attach_entries;
   GHashTable * replacement_by_address;
