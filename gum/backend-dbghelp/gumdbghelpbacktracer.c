@@ -161,9 +161,7 @@ gum_dbghelp_backtracer_generate (GumBacktracer * backtracer,
     frame.AddrStack.Offset = context.Rsp;
 #endif
 
-#ifdef _DEBUG
     skip_count = 1; /* leave out this function */
-#endif
 #if GLIB_SIZEOF_VOID_P == 8
     skip_count++;
 #endif
