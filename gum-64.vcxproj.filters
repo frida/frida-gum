@@ -470,6 +470,9 @@
     <ClInclude Include="gum\arch-arm\gumthumbwriter.h">
       <Filter>core\arch-arm</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumprocess.h">
+      <Filter>core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="vapi\gum-1.0.vapi">

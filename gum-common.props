@@ -30,6 +30,7 @@
     <ClInclude Include="gum\gummemorymap.h" />
     <ClInclude Include="gum\gummetalhash.h" />
     <ClInclude Include="gum\gumprintf.h" />
+    <ClInclude Include="gum\gumprocess.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumscript-runtime.h" />
