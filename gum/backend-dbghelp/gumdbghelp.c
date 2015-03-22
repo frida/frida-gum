@@ -6,6 +6,8 @@
 
 #include "gumdbghelp.h"
 
+#include "gumprocess.h"
+
 struct _GumDbgHelpImplPrivate
 {
   HMODULE module;
@@ -63,14 +65,20 @@ static HMODULE
 load_dbghelp (void)
 {
   HMODULE mod;
+  BOOL success;
+  DWORD length;
   WCHAR path[MAX_PATH + 1] = { 0, };
   WCHAR * filename;
 
-  mod = GetModuleHandleW (NULL);
-  g_assert (mod != NULL);
+  success = GetModuleHandleExW (
+      GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+      GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+      GUM_FUNCPTR_TO_POINTER (load_dbghelp),
+      &mod);
+  g_assert (success);
 
-  if (GetModuleFileNameW (mod, path, MAX_PATH) == 0)
-    return NULL;
+  length = GetModuleFileNameW (mod, path, MAX_PATH);
+  g_assert (length != 0);
 
   filename = wcsrchr (path, L'\\');
   g_assert (filename != NULL);
