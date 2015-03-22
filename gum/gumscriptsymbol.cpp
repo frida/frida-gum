@@ -259,14 +259,14 @@ gum_script_symbol_on_to_string (const FunctionCallbackInfo<Value> & info)
 
   if (self->resolved)
   {
-    str = g_strdup_printf ("0x%" G_GUINT64_FORMAT "x %s!%s %s:%u",
+    str = g_strdup_printf ("0x%" G_GINT64_MODIFIER "x %s!%s %s:%u",
         d->address,
         d->module_name, d->symbol_name,
         d->file_name, d->line_number);
   }
   else
   {
-    str = g_strdup_printf ("0x%" G_GUINT64_FORMAT "x", d->address);
+    str = g_strdup_printf ("0x%" G_GINT64_MODIFIER "x", d->address);
   }
 
   info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), str));
