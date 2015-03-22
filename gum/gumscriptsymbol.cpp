@@ -245,8 +245,15 @@ gum_script_symbol_on_get_line_number (Local<String> property,
 
   (void) property;
 
-  info.GetReturnValue ().Set (
-      static_cast<uint32_t> (self->details.line_number));
+  if (self->resolved)
+  {
+    info.GetReturnValue ().Set (
+        static_cast<uint32_t> (self->details.line_number));
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
+  }
 }
 
 static void
