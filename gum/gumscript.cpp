@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -18,6 +18,7 @@
 #include "gumscriptscope.h"
 #include "gumscriptsocket.h"
 #include "gumscriptstalker.h"
+#include "gumscriptsymbol.h"
 #include "gumscriptthread.h"
 
 #include <gio/gio.h>
@@ -49,6 +50,7 @@ struct _GumScriptPrivate
   GumScriptSocket socket;
   GumScriptInterceptor interceptor;
   GumScriptStalker stalker;
+  GumScriptSymbol symbol;
   GumScriptInstruction instruction;
   GumPersistent<Context>::type * context;
   GumPersistent<Script>::type * raw_script;
@@ -234,6 +236,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_interceptor_init (&priv->interceptor, &priv->core,
         global_templ);
     _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
+    _gum_script_symbol_init (&priv->symbol, &priv->core, global_templ);
     _gum_script_instruction_init (&priv->instruction, &priv->core,
         global_templ);
 
@@ -249,6 +252,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_socket_realize (&priv->socket);
     _gum_script_interceptor_realize (&priv->interceptor);
     _gum_script_stalker_realize (&priv->stalker);
+    _gum_script_symbol_realize (&priv->symbol);
     _gum_script_instruction_realize (&priv->instruction);
 
     gchar * combined_source = g_strconcat (
@@ -303,6 +307,7 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_core_flush (&priv->core);
 
     _gum_script_instruction_dispose (&priv->instruction);
+    _gum_script_symbol_dispose (&priv->symbol);
     _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
     _gum_script_socket_dispose (&priv->socket);
@@ -320,6 +325,7 @@ gum_script_destroy_context (GumScript * self)
   priv->context = NULL;
 
   _gum_script_instruction_finalize (&priv->instruction);
+  _gum_script_symbol_finalize (&priv->symbol);
   _gum_script_stalker_finalize (&priv->stalker);
   _gum_script_interceptor_finalize (&priv->interceptor);
   _gum_script_socket_finalize (&priv->socket);

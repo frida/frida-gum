@@ -95,6 +95,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
   SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
+  SCRIPT_TESTENTRY (address_can_be_resolved_to_symbol)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
@@ -125,6 +126,15 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(DebugSymbol.fromAddress(" GUM_PTR_CONST ").name);",
+      target_function_int);
+  EXPECT_SEND_MESSAGE_WITH ("\"target_function_int\"");
   EXPECT_NO_MESSAGES ();
 }
 

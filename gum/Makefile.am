@@ -167,6 +167,8 @@ script_sources += \
 	gumscriptstalker.cpp \
 	gumscripteventsink.h \
 	gumscripteventsink.cpp \
+	gumscriptsymbol.h \
+	gumscriptsymbol.cpp \
 	gumscriptinstruction.h \
 	gumscriptinstruction.cpp
 fridainclude_HEADERS += \
