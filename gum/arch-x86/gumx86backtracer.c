@@ -41,9 +41,11 @@ gum_x86_backtracer_class_init (GumX86BacktracerClass * klass)
 
 static void
 gum_x86_backtracer_iface_init (gpointer g_iface,
-                                   gpointer iface_data)
+                               gpointer iface_data)
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
+
+  (void) iface_data;
 
   iface->generate = gum_x86_backtracer_generate;
 }
