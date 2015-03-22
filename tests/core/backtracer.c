@@ -32,9 +32,9 @@ BACKTRACER_TESTCASE (basics)
 
   expected_line_number = __LINE__ + 8;
 
-  if (fixture->backtracer == NULL)
+  if (!g_test_slow ())
   {
-    g_print ("<skipping, no backtracer support> ");
+    g_print ("<skipping, run in slow mode> ");
     return;
   }
 
