@@ -160,7 +160,7 @@ gum_symbol_details_from_address (gpointer address,
     }
     else
     {
-      details->file_name = '\0';
+      details->file_name[0] = '\0';
       details->line_number = 0;
     }
   }
