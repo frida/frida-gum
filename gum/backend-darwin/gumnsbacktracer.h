@@ -40,7 +40,9 @@ G_BEGIN_DECLS
 
 GType gum_ns_backtracer_get_type (void) G_GNUC_CONST;
 
-GumBacktracer * gum_ns_backtracer_new (void);
+GUM_API gboolean gum_ns_backtracer_is_available (void);
+
+GUM_API GumBacktracer * gum_ns_backtracer_new (void);
 
 G_END_DECLS
 

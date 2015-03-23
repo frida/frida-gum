@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,13 +7,14 @@
 #include "gumbacktracer.h"
 
 #ifdef G_OS_WIN32
-# include "arch-x86/gumx86backtracer.h"
 # include "backend-dbghelp/gumdbghelpbacktracer.h"
-#elif defined (HAVE_DARWIN) && defined (HAVE_OBJC)
+#elif defined (HAVE_DARWIN)
 # include "backend-darwin/gumnsbacktracer.h"
 #elif defined (HAVE_GLIBC)
 # include "backend-glibc/gumgnubacktracer.h"
-#elif defined (HAVE_I386)
+#endif
+
+#if defined (HAVE_I386)
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_ARM)
 # include "arch-arm/gumarmbacktracer.h"
@@ -49,11 +50,20 @@ gum_backtracer_make_default (void)
     return gum_dbghelp_backtracer_new (dbghelp);
   else
     return gum_x86_backtracer_new ();
-#elif defined (HAVE_DARWIN) && defined (HAVE_OBJC)
-  return gum_ns_backtracer_new ();
+#elif defined (HAVE_DARWIN)
+  if (gum_ns_backtracer_is_available ())
+    return gum_ns_backtracer_new ();
+  else
+# if defined (HAVE_I386)
+    return gum_x86_backtracer_new ();
+# elif defined (HAVE_ARM)
+    return gum_arm_backtracer_new ();
+# else
+    return NULL;
+# endif
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
-#elif defined (HAVE_I386) && !defined(__clang__)
+#elif defined (HAVE_I386)
   return gum_x86_backtracer_new ();
 #elif defined (HAVE_ARM)
   return gum_arm_backtracer_new ();

@@ -143,15 +143,8 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-AC_ARG_ENABLE(objc, [AC_HELP_STRING([--enable-objc], [enable Obj-C dependent code [default=no]])],, [enable_objc=no])
-if [[ "x$enable_objc" = "xyes" ]]; then
-  AC_DEFINE(HAVE_OBJC, 1, [Define to 1 if Obj-C dependent code is available.])
-fi
-AM_CONDITIONAL(ENABLE_OBJC, [test "x$enable_objc" = "xyes"])
-
-GUM_EXTRA_LIBS=""
-if [[ "x$enable_objc" = "xyes" ]]; then
-  GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -Wl,-framework,Foundation -F/System/Library/PrivateFrameworks -Wl,-framework,Symbolication"
+if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
+  GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -lobjc"
 fi
 GUM_EXTRA_LIBS="$V8_LDFLAGS $V8_LIBS $GUM_EXTRA_LIBS"
 AC_SUBST(GUM_EXTRA_LIBS)
@@ -168,8 +161,8 @@ if [[ "x$HAVE_MAC" = "xyes" ]]; then
 fi
 AC_SUBST(GUM_TEST_LIBS)
 
-if [[ "x$HAVE_BFD" != "xyes" -a "x$enable_objc" != "xyes" ]]; then
-  AC_MSG_ERROR([libbfd or Obj-C is required.])
+if [[ "x$HAVE_DARWIN" != "xyes" -a "x$HAVE_BFD" != "xyes" ]]; then
+  AC_MSG_ERROR([libbfd required.])
 fi
 
 if [[ "x$enable_symbol_backend" = "xyes" ]]; then

@@ -6,11 +6,15 @@
 
 #include "gumsymbolutil.h"
 
+#include "gum-init.h"
+
+#include <dlfcn.h>
 #import <Foundation/Foundation.h>
+#include <objc/runtime.h>
 #import "VMUSymbolicator.h"
 
 #define GUM_POOL_ALLOC() \
-  NSAutoreleasePool * pool = [[NSAutoreleasePool alloc] init]
+  NSAutoreleasePool * pool = [[gum_ns_autorelease_pool alloc] init]
 #define GUM_POOL_RELEASE() \
   [pool release]
 
@@ -20,34 +24,105 @@ static void do_deinit (void);
 static gboolean gum_symbol_is_function (VMUSymbol * symbol);
 static const char * gum_symbol_name_from_darwin (const char * s);
 
-static VMUSymbolicator * symbolicator = nil;
+static void * gum_foundation;
+static void * gum_symbolication;
+static Class gum_ns_autorelease_pool;
+static Class gum_ns_string;
 
-static void
-gum_symbol_util_init (void)
+static VMUSymbolicator *
+gum_symbol_util_try_get_symbolicator (void)
 {
   static GOnce init_once = G_ONCE_INIT;
 
   g_once (&init_once, do_init, NULL);
+
+  return init_once.retval;
 }
 
 static gpointer
 do_init (gpointer data)
 {
+  void * cf;
+  id symbolicator_class;
+  VMUSymbolicator * symbolicator;
+
+  cf = dlopen ("/System/Library/Frameworks/"
+      "CoreFoundation.framework/CoreFoundation",
+      RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  if (cf == NULL)
+    return NULL;
+  dlclose (cf);
+
+  gum_foundation = dlopen ("/System/Library/Frameworks/"
+      "Foundation.framework/Foundation",
+      RTLD_LAZY | RTLD_GLOBAL);
+  if (gum_foundation == NULL)
+    goto api_error;
+
+  gum_ns_autorelease_pool = objc_getClass ("NSAutoreleasePool");
+  g_assert (gum_ns_autorelease_pool != nil);
+  gum_ns_string = objc_getClass ("NSString");
+  g_assert (gum_ns_string != nil);
+
+  gum_symbolication = dlopen ("/System/Library/PrivateFrameworks/"
+      "Symbolication.framework/Symbolication",
+      RTLD_LAZY | RTLD_GLOBAL);
+  if (gum_symbolication == NULL)
+    goto api_error;
+
+  symbolicator_class = objc_getClass ("VMUSymbolicator");
+  if (symbolicator_class == NULL)
+    goto api_error;
+
   GUM_POOL_ALLOC ();
-  symbolicator = [[VMUSymbolicator symbolicatorForTask: mach_task_self ()] retain];
+  symbolicator =
+      [[symbolicator_class symbolicatorForTask: mach_task_self ()] retain];
+  g_print ("created symbolicator %p\n", symbolicator);
   GUM_POOL_RELEASE ();
 
   _gum_register_destructor (do_deinit);
 
-  return NULL;
+  return symbolicator;
+
+api_error:
+  {
+    if (gum_symbolication != NULL)
+    {
+      dlclose (gum_symbolication);
+      gum_symbolication = NULL;
+    }
+
+    if (gum_foundation != NULL)
+    {
+      dlclose (gum_foundation);
+      gum_foundation = NULL;
+    }
+
+    return NULL;
+  }
 }
 
 static void
 do_deinit (void)
 {
+  VMUSymbolicator * symbolicator;
+
   GUM_POOL_ALLOC ();
+
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  g_assert (symbolicator != nil);
   [symbolicator release];
   symbolicator = nil;
+
+  dlclose (gum_symbolication);
+  gum_symbolication = NULL;
+
+  gum_ns_string = nil;
+  gum_ns_autorelease_pool = nil;
+
+  dlclose (gum_foundation);
+  gum_foundation = NULL;
+
   GUM_POOL_RELEASE ();
 }
 
@@ -55,10 +130,13 @@ gboolean
 gum_symbol_details_from_address (gpointer address,
                                  GumSymbolDetails * details)
 {
+  VMUSymbolicator * symbolicator;
   gboolean result = FALSE;
   VMUSymbol * symbol;
 
-  gum_symbol_util_init ();
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  if (symbolicator == nil)
+    return FALSE;
 
   GUM_POOL_ALLOC ();
 
@@ -82,7 +160,7 @@ gum_symbol_details_from_address (gpointer address,
     }
     else
     {
-      strcpy (details->file_name, "<unknown>");
+      details->file_name = '\0';
       details->line_number = 0;
     }
   }
@@ -95,10 +173,13 @@ gum_symbol_details_from_address (gpointer address,
 gchar *
 gum_symbol_name_from_address (gpointer address)
 {
+  VMUSymbolicator * symbolicator;
   gchar * result = NULL;
   VMUSymbol * symbol;
 
-  gum_symbol_util_init ();
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  if (symbolicator == nil)
+    return NULL;
 
   GUM_POOL_ALLOC ();
 
@@ -117,16 +198,21 @@ gum_symbol_name_from_address (gpointer address)
 gpointer
 gum_find_function (const gchar * name)
 {
+  VMUSymbolicator * symbolicator;
   gpointer result = NULL;
+  NSString * underscore;
   NSArray * symbols;
   NSUInteger i;
 
-  gum_symbol_util_init ();
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  if (symbolicator == nil)
+    return NULL;
 
   GUM_POOL_ALLOC ();
 
-  symbols = [symbolicator symbolsForName:
-      [@"_" stringByAppendingString:[NSString stringWithUTF8String:name]]];
+  underscore = [gum_ns_string stringWithUTF8String:"_"];
+  symbols = [symbolicator symbolsForName:[underscore stringByAppendingString:
+      [gum_ns_string stringWithUTF8String:name]]];
   for (i = 0; i != [symbols count]; i++)
   {
     VMUSymbol * symbol = [symbols objectAtIndex:i];
@@ -147,16 +233,20 @@ GArray *
 gum_find_functions_named (const gchar * name)
 {
   GArray * result;
+  VMUSymbolicator * symbolicator;
   NSArray * symbols;
   NSUInteger i;
 
-  gum_symbol_util_init ();
+  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  if (symbolicator == nil)
+    return result;
 
   GUM_POOL_ALLOC ();
 
-  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
-
-  symbols = [symbolicator symbolsForName:[NSString stringWithUTF8String:name]];
+  symbols =
+      [symbolicator symbolsForName:[gum_ns_string stringWithUTF8String:name]];
   for (i = 0; i != [symbols count]; i++)
   {
     VMUSymbol * symbol = [symbols objectAtIndex:i];
@@ -177,16 +267,19 @@ gum_find_functions_named (const gchar * name)
 GArray *
 gum_find_functions_matching (const gchar * str)
 {
+  VMUSymbolicator * symbolicator;
   GArray * result;
   GPatternSpec * pspec;
   NSArray * symbols;
   NSUInteger count, i;
 
-  gum_symbol_util_init ();
+  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
+
+  symbolicator = gum_symbol_util_try_get_symbolicator ();
+  if (symbolicator == nil)
+    return result;
 
   GUM_POOL_ALLOC ();
-
-  result = g_array_new (FALSE, FALSE, sizeof (gpointer));
 
   pspec = g_pattern_spec_new (str);
 

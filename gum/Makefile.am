@@ -107,12 +107,9 @@ fridainclude_HEADERS += \
 endif
 
 if OS_DARWIN
-if ENABLE_OBJC
 backend_sources += \
 	backend-darwin/gumnsbacktracer.m \
-	backend-darwin/gumsymbolutil-darwin.m
-endif
-backend_sources += \
+	backend-darwin/gumsymbolutil-darwin.m \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c
 fridainclude_HEADERS += \
@@ -129,11 +126,8 @@ backend_sources += \
 endif
 
 if HAVE_BFD
-if ENABLE_OBJC
-else
 backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
-endif
 endif
 
 if OS_ANDROID
