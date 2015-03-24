@@ -24,6 +24,8 @@ static void gum_script_symbol_on_from_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_from_name (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_symbol_on_find_functions_matching (
+    const FunctionCallbackInfo<Value> & info);
 
 static GumSymbol * gum_symbol_new (Handle<Object> instance,
     GumScriptSymbol * module);
@@ -62,6 +64,9 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
       FunctionTemplate::New (isolate, gum_script_symbol_on_from_name,
       data));
+  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsMatching"),
+      FunctionTemplate::New (isolate,
+      gum_script_symbol_on_find_functions_matching, data));
   scope->Set (String::NewFromUtf8 (isolate, "DebugSymbol"), symbol);
 }
 
@@ -161,6 +166,35 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
   }
   instance->SetAlignedPointerInInternalField (0, symbol);
   info.GetReturnValue ().Set (instance);
+}
+
+static void
+gum_script_symbol_on_find_functions_matching (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptSymbol * self = static_cast<GumScriptSymbol *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Value> str_val = info[0];
+  if (!str_val->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "DebugSymbol.findFunctionsMatching: argument must be a string "
+        "specifying a glob")));
+    return;
+  }
+  String::Utf8Value str (str_val);
+
+  GArray * functions = gum_find_functions_matching (*str);
+  Local<Array> result = Array::New (isolate, functions->len);
+  for (guint i = 0; i != functions->len; i++)
+  {
+    gpointer address = g_array_index (functions, gpointer, i);
+    result->Set (i, _gum_script_pointer_new (address, self->core));
+  }
+  info.GetReturnValue ().Set (result);
+  g_array_free (functions, TRUE);
 }
 
 static GumSymbol *

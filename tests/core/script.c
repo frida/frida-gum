@@ -97,6 +97,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
   SCRIPT_TESTENTRY (address_can_be_resolved_to_symbol)
   SCRIPT_TESTENTRY (name_can_be_resolved_to_symbol)
+  SCRIPT_TESTENTRY (functions_can_be_found_by_globbing)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
   SCRIPT_TESTENTRY (file_can_be_written_to)
 #ifdef HAVE_I386
@@ -149,6 +150,14 @@ SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
       GUM_ADDRESS (target_function_int));
   EXPECT_SEND_MESSAGE_WITH (expected);
   g_free (expected);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (functions_can_be_found_by_globbing)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(DebugSymbol.findFunctionsMatching(\"gum_dummy_function_*\").length);");
+  EXPECT_SEND_MESSAGE_WITH ("2");
   EXPECT_NO_MESSAGES ();
 }
 
