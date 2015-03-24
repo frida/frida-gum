@@ -97,6 +97,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_callback_is_a_native_pointer)
   SCRIPT_TESTENTRY (address_can_be_resolved_to_symbol)
   SCRIPT_TESTENTRY (name_can_be_resolved_to_symbol)
+  SCRIPT_TESTENTRY (function_can_be_found_by_name)
   SCRIPT_TESTENTRY (functions_can_be_found_by_name)
   SCRIPT_TESTENTRY (functions_can_be_found_by_matching)
   SCRIPT_TESTENTRY (instruction_can_be_parsed)
@@ -151,6 +152,19 @@ SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
       GUM_ADDRESS (target_function_int));
   EXPECT_SEND_MESSAGE_WITH (expected);
   g_free (expected);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (function_can_be_found_by_name)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send("
+      "DebugSymbol.findFunctionByName(\"g_thread_new\") !== null"
+  ");"
+  "send("
+      "DebugSymbol.findFunctionByName(\"g_thread_!@#$\") === null"
+  ");");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 

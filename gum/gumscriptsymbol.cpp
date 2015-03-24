@@ -24,6 +24,8 @@ static void gum_script_symbol_on_from_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_from_name (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_symbol_on_find_function_by_name (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_find_functions_named (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_find_functions_matching (
@@ -66,6 +68,9 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
       FunctionTemplate::New (isolate, gum_script_symbol_on_from_name,
       data));
+  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionByName"),
+      FunctionTemplate::New (isolate,
+      gum_script_symbol_on_find_function_by_name, data));
   symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsNamed"),
       FunctionTemplate::New (isolate,
       gum_script_symbol_on_find_functions_named, data));
@@ -174,6 +179,31 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
+gum_script_symbol_on_find_function_by_name (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptSymbol * self = static_cast<GumScriptSymbol *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Value> name_val = info[0];
+  if (!name_val->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "DebugSymbol.findFunctionByName: argument must be a string "
+        "specifying a name")));
+    return;
+  }
+  String::Utf8Value name (name_val);
+
+  gpointer address = gum_find_function (*name);
+  if (address != NULL)
+    info.GetReturnValue ().Set (_gum_script_pointer_new (address, self->core));
+  else
+    info.GetReturnValue ().SetNull ();
+}
+
+static void
 gum_script_symbol_on_find_functions_named (
     const FunctionCallbackInfo<Value> & info)
 {
@@ -185,7 +215,7 @@ gum_script_symbol_on_find_functions_named (
   if (!name_val->IsString ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.findFunctionsMatching: argument must be a string "
+        "DebugSymbol.findFunctionsNamed: argument must be a string "
         "specifying a name")));
     return;
   }
