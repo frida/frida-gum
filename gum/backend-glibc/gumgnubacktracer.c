@@ -4,9 +4,10 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "gumgnubacktracer.h"
+
 #include <execinfo.h>
 #include <string.h>
-#include "gumgnubacktracer.h"
 
 static void gum_gnu_backtracer_iface_init (gpointer g_iface,
     gpointer iface_data);
