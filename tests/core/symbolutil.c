@@ -52,7 +52,7 @@ SYMUTIL_TESTCASE (symbol_name_from_address)
 
 SYMUTIL_TESTCASE (find_external_public_function)
 {
-  g_assert (gum_find_function ("g_socket_init") != NULL);
+  g_assert (gum_find_function ("g_thread_new") != NULL);
 }
 
 SYMUTIL_TESTCASE (find_local_static_function)
@@ -68,7 +68,7 @@ SYMUTIL_TESTCASE (find_functions_named)
 {
   GArray * functions;
 
-  functions = gum_find_functions_named ("g_socket_init");
+  functions = gum_find_functions_named ("g_thread_new");
   g_assert_cmpuint (functions->len, >=, 1);
   g_array_free (functions, TRUE);
 }
