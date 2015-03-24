@@ -41,6 +41,8 @@ struct _CSRange
 static gpointer do_init (gpointer data);
 static void do_deinit (void);
 
+static gpointer gum_cs_symbol_address (CSSymbolRef symbol);
+
 static void * gum_cs;
 
 static CSSymbolicatorRef gum_symbolicator;
@@ -73,6 +75,7 @@ GUM_DECLARE_CS_FUNC (SymbolGetRange, CSRange, (CSSymbolRef symbol));
 GUM_DECLARE_CS_FUNC (SymbolGetSymbolOwner, CSSymbolOwnerRef,
     (CSSymbolRef symbol));
 GUM_DECLARE_CS_FUNC (SymbolIsFunction, Boolean, (CSSymbolRef symbol));
+GUM_DECLARE_CS_FUNC (SymbolIsThumb, Boolean, (CSSymbolRef symbol));
 
 GUM_DECLARE_CS_FUNC (SymbolOwnerGetName, const char *,
     (CSSymbolOwnerRef owner));
@@ -137,6 +140,7 @@ do_init (gpointer data)
   GUM_TRY_ASSIGN_CS_FUNC (SymbolGetRange);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolGetSymbolOwner);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolIsFunction);
+  GUM_TRY_ASSIGN_CS_FUNC (SymbolIsThumb);
 
   GUM_TRY_ASSIGN_CS_FUNC (SymbolOwnerGetName);
 
@@ -244,7 +248,7 @@ gum_find_function (const gchar * name)
       ^(CSSymbolRef symbol)
   {
     if (result == NULL && CSSymbolIsFunction (symbol))
-      result = GSIZE_TO_POINTER (CSSymbolGetRange (symbol).location);
+      result = gum_cs_symbol_address (symbol);
     return 0;
   });
 
@@ -266,7 +270,7 @@ gum_find_functions_named (const gchar * name)
   {
     if (CSSymbolIsFunction (symbol))
     {
-      gpointer address = GSIZE_TO_POINTER (CSSymbolGetRange (symbol).location);
+      gpointer address = gum_cs_symbol_address (symbol);
       g_array_append_val (result, address);
     }
     return 0;
@@ -296,7 +300,7 @@ gum_find_functions_matching (const gchar * str)
       const char * name = CSSymbolGetName (symbol);
       if (name != NULL && g_pattern_match_string (pspec, name))
       {
-        gpointer address = GSIZE_TO_POINTER (CSSymbolGetRange (symbol).location);
+        gpointer address = gum_cs_symbol_address (symbol);
         g_array_append_val (result, address);
       }
     }
@@ -308,3 +312,14 @@ gum_find_functions_matching (const gchar * str)
   return result;
 }
 
+static gpointer
+gum_cs_symbol_address (CSSymbolRef symbol)
+{
+  uint64_t address;
+
+  address = CSSymbolGetRange (symbol).location;
+  if (CSSymbolIsThumb (symbol))
+    address |= 1;
+
+  return GSIZE_TO_POINTER (address);
+}
