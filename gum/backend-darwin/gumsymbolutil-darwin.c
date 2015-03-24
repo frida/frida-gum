@@ -41,7 +41,6 @@ struct _CSRange
 static gpointer do_init (gpointer data);
 static void do_deinit (void);
 
-static void * gum_cf;
 static void * gum_cs;
 
 static CSSymbolicatorRef gum_symbolicator;
@@ -98,15 +97,18 @@ gum_symbol_util_try_init (void)
 static gpointer
 do_init (gpointer data)
 {
+  void * cf;
+
   /*
    * CoreFoundation must be loaded by the main thread, so we should avoid
    * loading it. This must be done by the user of frida-gum explicitly.
    */
-  gum_cf = dlopen ("/System/Library/Frameworks/"
+  cf = dlopen ("/System/Library/Frameworks/"
       "CoreFoundation.framework/CoreFoundation",
       RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-  if (gum_cf == NULL)
+  if (cf == NULL)
     return NULL;
+  dlclose (cf);
 
   gum_cs = dlopen ("/System/Library/PrivateFrameworks/"
       "CoreSymbolication.framework/CoreSymbolication",
@@ -157,12 +159,6 @@ api_error:
       gum_cs = NULL;
     }
 
-    if (gum_cf != NULL)
-    {
-      dlclose (gum_cf);
-      gum_cf = NULL;
-    }
-
     return GSIZE_TO_POINTER (FALSE);
   }
 }
@@ -175,9 +171,6 @@ do_deinit (void)
 
   dlclose (gum_cs);
   gum_cs = NULL;
-
-  dlclose (gum_cf);
-  gum_cf = NULL;
 }
 
 gboolean
