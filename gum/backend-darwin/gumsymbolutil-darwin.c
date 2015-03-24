@@ -52,10 +52,7 @@ static CSSymbolicatorRef gum_symbolicator;
     static G_PASTE (G_PASTE (CS, N), Func) G_PASTE (CS, N)
 
 GUM_DECLARE_CS_FUNC (IsNull, Boolean, (CSTypeRef cs));
-GUM_DECLARE_CS_FUNC (Retain, CSTypeRef, (CSTypeRef cs));
 GUM_DECLARE_CS_FUNC (Release, void, (CSTypeRef cs));
-GUM_DECLARE_CS_FUNC (GetRetainCount, CFIndex, (CSTypeRef cs));
-GUM_DECLARE_CS_FUNC (Show, void, (CSTypeRef cs));
 
 GUM_DECLARE_CS_FUNC (SymbolicatorCreateWithTask, CSSymbolicatorRef,
     (task_t task));
@@ -125,10 +122,7 @@ do_init (gpointer data)
     goto api_error;
 
   GUM_TRY_ASSIGN_CS_FUNC (IsNull);
-  GUM_TRY_ASSIGN_CS_FUNC (Retain);
   GUM_TRY_ASSIGN_CS_FUNC (Release);
-  GUM_TRY_ASSIGN_CS_FUNC (GetRetainCount);
-  GUM_TRY_ASSIGN_CS_FUNC (Show);
 
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorCreateWithTask);
   GUM_TRY_ASSIGN_CS_FUNC (SymbolicatorGetSymbolWithAddressAtTime);
