@@ -24,6 +24,8 @@ static void gum_script_symbol_on_from_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_from_name (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_symbol_on_find_functions_named (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_find_functions_matching (
     const FunctionCallbackInfo<Value> & info);
 
@@ -64,6 +66,9 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
       FunctionTemplate::New (isolate, gum_script_symbol_on_from_name,
       data));
+  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsNamed"),
+      FunctionTemplate::New (isolate,
+      gum_script_symbol_on_find_functions_named, data));
   symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsMatching"),
       FunctionTemplate::New (isolate,
       gum_script_symbol_on_find_functions_matching, data));
@@ -166,6 +171,35 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
   }
   instance->SetAlignedPointerInInternalField (0, symbol);
   info.GetReturnValue ().Set (instance);
+}
+
+static void
+gum_script_symbol_on_find_functions_named (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptSymbol * self = static_cast<GumScriptSymbol *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Value> name_val = info[0];
+  if (!name_val->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "DebugSymbol.findFunctionsMatching: argument must be a string "
+        "specifying a name")));
+    return;
+  }
+  String::Utf8Value name (name_val);
+
+  GArray * functions = gum_find_functions_named (*name);
+  Local<Array> result = Array::New (isolate, functions->len);
+  for (guint i = 0; i != functions->len; i++)
+  {
+    gpointer address = g_array_index (functions, gpointer, i);
+    result->Set (i, _gum_script_pointer_new (address, self->core));
+  }
+  info.GetReturnValue ().Set (result);
+  g_array_free (functions, TRUE);
 }
 
 static void
