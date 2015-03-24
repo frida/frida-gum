@@ -108,13 +108,13 @@ endif
 
 if OS_DARWIN
 backend_sources += \
-	backend-darwin/gumnsbacktracer.m \
+	backend-darwin/gumdarwinbacktracer.c \
 	backend-darwin/gumsymbolutil-darwin.c \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
-	backend-darwin/gumnsbacktracer.h
+	backend-darwin/gumdarwinbacktracer.h
 else
 backend_sources += \
 	backend-unix/gummemory-unix.c

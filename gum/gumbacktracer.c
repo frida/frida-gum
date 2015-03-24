@@ -8,13 +8,12 @@
 
 #ifdef G_OS_WIN32
 # include "backend-dbghelp/gumdbghelpbacktracer.h"
+# include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_DARWIN)
-# include "backend-darwin/gumnsbacktracer.h"
+# include "backend-darwin/gumdarwinbacktracer.h"
 #elif defined (HAVE_GLIBC)
 # include "backend-glibc/gumgnubacktracer.h"
-#endif
-
-#if defined (HAVE_I386)
+#elif defined (HAVE_I386)
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_ARM)
 # include "arch-arm/gumarmbacktracer.h"
@@ -51,16 +50,7 @@ gum_backtracer_make_default (void)
   else
     return gum_x86_backtracer_new ();
 #elif defined (HAVE_DARWIN)
-  if (gum_ns_backtracer_is_available ())
-    return gum_ns_backtracer_new ();
-  else
-# if defined (HAVE_I386)
-    return gum_x86_backtracer_new ();
-# elif defined (HAVE_ARM)
-    return gum_arm_backtracer_new ();
-# else
-    return NULL;
-# endif
+  return gum_darwin_backtracer_new ();
 #elif defined (HAVE_GLIBC)
   return gum_gnu_backtracer_new ();
 #elif defined (HAVE_I386)

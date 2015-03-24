@@ -143,9 +143,6 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
-  GUM_EXTRA_LIBS="$GUM_EXTRA_LIBS -lobjc"
-fi
 GUM_EXTRA_LIBS="$V8_LDFLAGS $V8_LIBS $GUM_EXTRA_LIBS"
 AC_SUBST(GUM_EXTRA_LIBS)
 
