@@ -42,6 +42,10 @@ gum_ns_backtracer_try_init (void)
   {
     void * cf;
 
+    /*
+     * CoreFoundation must be loaded by the main thread, so we should avoid
+     * loading it. This must be done by the user of frida-gum explicitly.
+     */
     cf = dlopen ("/System/Library/Frameworks/"
         "CoreFoundation.framework/CoreFoundation",
         RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
