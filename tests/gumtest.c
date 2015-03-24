@@ -33,7 +33,7 @@ main (gint argc, gchar * argv[])
   guint num_tests;
   gdouble t;
 
-#if DEBUG_HEAP_LEAKS
+#if defined (G_OS_WIN32) && DEBUG_HEAP_LEAKS
   {
     int tmp_flag;
 
