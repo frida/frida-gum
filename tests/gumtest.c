@@ -9,7 +9,7 @@
 #include "testutil.h"
 
 #ifdef HAVE_I386
-#include "lowlevel-helpers.h"
+# include "lowlevel-helpers.h"
 #endif
 
 #include <glib.h>
@@ -17,10 +17,14 @@
 #include <gum/gum.h>
 
 #ifdef G_OS_WIN32
-#include <windows.h>
-#include <conio.h>
-#include <crtdbg.h>
-#include <stdio.h>
+# include <windows.h>
+# include <conio.h>
+# include <crtdbg.h>
+# include <stdio.h>
+#endif
+
+#ifdef HAVE_DARWIN
+# include <dlfcn.h>
 #endif
 
 static guint get_number_of_tests_in_suite (GTestSuite * suite);
@@ -61,6 +65,12 @@ main (gint argc, gchar * argv[])
     err = WSAStartup (version_requested, &wsa_data);
     g_assert_cmpint (err, ==, 0);
   }
+#endif
+
+#ifdef HAVE_DARWIN
+  /* Simulate an application where CoreFoundation is available */
+  dlopen ("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation",
+      RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
