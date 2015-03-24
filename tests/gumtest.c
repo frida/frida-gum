@@ -108,9 +108,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_MAC
   TEST_RUN_LIST (stalker_mac);
 #endif
-#ifndef HAVE_IOS
   TEST_RUN_LIST (backtracer);
-#endif
 
 #ifdef HAVE_LIBS
   /* Heap */
