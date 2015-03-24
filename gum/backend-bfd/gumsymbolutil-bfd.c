@@ -8,18 +8,16 @@
 
 #include "gum-init.h"
 #include "gummemory.h"
+#include "gumprocess.h"
 
 #include <bfd.h>
 #include <dlfcn.h>
-#ifdef HAVE_GLIBC
-#include <link.h>
-#endif
+#include <elf.h>
 #include <string.h>
-#include <strings.h>
 
-typedef struct _SymbolCollection SymbolCollection;
+typedef struct _GumSymbolCollection GumSymbolCollection;
 
-struct _SymbolCollection
+struct _GumSymbolCollection
 {
   asymbol ** static_symbols;
   guint num_static_symbols;
@@ -30,23 +28,20 @@ struct _SymbolCollection
 static gpointer do_init (gpointer data);
 static void do_deinit (void);
 
-static void build_symbols_database (void);
-#ifdef HAVE_GLIBC
-static int add_symbols_for_shared_object (struct dl_phdr_info * info,
-    size_t size, void * data);
-#endif
-static void add_symbols_for_file (const gchar * filename,
+static void gum_build_symbols_database (void);
+static gboolean gum_consume_symbols_from_range (const GumRangeDetails * details,
+    gpointer user_data);
+static void gum_consume_symbols_from_file (const gchar * path,
     gpointer base_address);
-static void add_interesting_symbols (bfd * abfd, asymbol ** symbols,
+static void gum_consume_symbols (bfd * abfd, asymbol ** symbols,
     long num_symbols, gpointer base_address);
-static void maybe_add_function_symbol (bfd * abfd, asymbol * sym,
-    gpointer base_address);
 
-static bfd * open_bfd_and_load_symbols (const gchar * filename,
-    SymbolCollection * sc);
-static void close_bfd_and_release_symbols (bfd * abfd, SymbolCollection * sc);
+static bfd * gum_open_bfd_and_load_symbols (const gchar * path,
+    GumSymbolCollection * sc);
+static void gum_close_bfd_and_release_symbols (bfd * abfd,
+    GumSymbolCollection * sc);
 
-static GHashTable * function_address_by_name_ht = NULL;
+static GHashTable * gum_function_address_by_name = NULL;
 
 static void
 gum_symbol_util_init (void)
@@ -59,10 +54,10 @@ gum_symbol_util_init (void)
 static gpointer
 do_init (gpointer data)
 {
-  function_address_by_name_ht = g_hash_table_new_full (g_str_hash,
+  gum_function_address_by_name = g_hash_table_new_full (g_str_hash,
       g_str_equal, g_free, NULL);
 
-  build_symbols_database ();
+  gum_build_symbols_database ();
 
   _gum_register_destructor (do_deinit);
 
@@ -72,8 +67,8 @@ do_init (gpointer data)
 static void
 do_deinit (void)
 {
-  g_hash_table_unref (function_address_by_name_ht);
-  function_address_by_name_ht = NULL;
+  g_hash_table_unref (gum_function_address_by_name);
+  gum_function_address_by_name = NULL;
 }
 
 gboolean
@@ -84,7 +79,7 @@ gum_symbol_details_from_address (gpointer address,
   Dl_info dl_info;
   const gchar * module_name;
   bfd * abfd = NULL;
-  SymbolCollection sc = { 0, };
+  GumSymbolCollection sc = { 0, };
   bfd_vma offset;
   asection * section;
 
@@ -106,7 +101,7 @@ gum_symbol_details_from_address (gpointer address,
 
   result = TRUE;
 
-  abfd = open_bfd_and_load_symbols (dl_info.dli_fname, &sc);
+  abfd = gum_open_bfd_and_load_symbols (dl_info.dli_fname, &sc);
   if (abfd == NULL)
     goto beach;
 
@@ -151,7 +146,7 @@ gum_symbol_details_from_address (gpointer address,
   }
 
 beach:
-  close_bfd_and_release_symbols (abfd, &sc);
+  gum_close_bfd_and_release_symbols (abfd, &sc);
   return result;
 }
 
@@ -171,7 +166,7 @@ gum_find_function (const gchar * name)
 {
   gum_symbol_util_init ();
 
-  return g_hash_table_lookup (function_address_by_name_ht, name);
+  return g_hash_table_lookup (gum_function_address_by_name, name);
 }
 
 GArray *
@@ -203,7 +198,7 @@ gum_find_functions_matching (const gchar * str)
 
   pspec = g_pattern_spec_new (str);
 
-  g_hash_table_iter_init (&iter, function_address_by_name_ht);
+  g_hash_table_iter_init (&iter, gum_function_address_by_name);
   while (g_hash_table_iter_next (&iter, (gpointer *) &function_name,
       &function_address))
   {
@@ -217,103 +212,125 @@ gum_find_functions_matching (const gchar * str)
 }
 
 static void
-build_symbols_database (void)
+gum_build_symbols_database (void)
 {
-  g_hash_table_remove_all (function_address_by_name_ht);
+  g_hash_table_remove_all (gum_function_address_by_name);
 
-  add_symbols_for_file ("/proc/self/exe", NULL);
-
-#ifdef HAVE_GLIBC
-  dl_iterate_phdr (add_symbols_for_shared_object, NULL);
-#endif
+  gum_process_enumerate_ranges (GUM_PAGE_RX, gum_consume_symbols_from_range,
+      NULL);
 }
 
-#ifdef HAVE_GLIBC
-
-static int
-add_symbols_for_shared_object (struct dl_phdr_info * info,
-                               size_t size,
-                               void * data)
+static gboolean
+gum_consume_symbols_from_range (const GumRangeDetails * details,
+                                gpointer user_data)
 {
-  if (info->dlpi_name != NULL && info->dlpi_name[0] != '\0')
-  {
-    gpointer base_address = GSIZE_TO_POINTER (info->dlpi_addr);
-    add_symbols_for_file (info->dlpi_name, base_address);
-  }
+  gpointer header;
+  guint16 type;
+  gpointer base_address;
 
-  return 0;
+  if (details->file == NULL || details->file->offset != 0)
+    return TRUE;
+
+  header = GSIZE_TO_POINTER (details->range->base_address);
+  if (memcmp (header, ELFMAG, SELFMAG) != 0)
+    return TRUE;
+
+  type = *((guint16 *) (header + EI_NIDENT));
+  if (type != ET_EXEC && type != ET_DYN)
+    return TRUE;
+
+  if (type == ET_DYN)
+    base_address = GSIZE_TO_POINTER (details->range->base_address);
+  else
+    base_address = NULL;
+  gum_consume_symbols_from_file (details->file->path, base_address);
+
+  return TRUE;
 }
-
-#endif
 
 static void
-add_symbols_for_file (const gchar * filename,
-                      gpointer base_address)
+gum_consume_symbols_from_file (const gchar * path,
+                               gpointer base_address)
 {
   bfd * abfd = NULL;
-  SymbolCollection sc = { 0, };
+  GumSymbolCollection sc = { 0, };
 
-  abfd = open_bfd_and_load_symbols (filename, &sc);
+  abfd = gum_open_bfd_and_load_symbols (path, &sc);
   if (abfd != NULL)
   {
-    add_interesting_symbols (abfd, sc.static_symbols, sc.num_static_symbols,
+    gum_consume_symbols (abfd, sc.static_symbols, sc.num_static_symbols,
         base_address);
-    add_interesting_symbols (abfd, sc.dynamic_symbols, sc.num_dynamic_symbols,
+    gum_consume_symbols (abfd, sc.dynamic_symbols, sc.num_dynamic_symbols,
         base_address);
   }
 
-  close_bfd_and_release_symbols (abfd, &sc);
+  gum_close_bfd_and_release_symbols (abfd, &sc);
 }
 
 static void
-add_interesting_symbols (bfd * abfd,
-                         asymbol ** symbols,
-                         long num_symbols,
-                         gpointer base_address)
+gum_consume_symbols (bfd * abfd,
+                     asymbol ** symbols,
+                     long num_symbols,
+                     gpointer base_address)
 {
   long i;
+  gpointer address;
+#ifdef HAVE_ARM
+  GHashTable * thumb_symbols;
 
-  for (i = 0; i < num_symbols; i++)
+  thumb_symbols = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+
+  for (i = 0; i != num_symbols; i++)
+  {
+    asymbol * sym = symbols[i];
+
+    if (bfd_is_target_special_symbol (abfd, sym) &&
+        sym->name[0] == '$' && sym->name[1] == 't')
+    {
+      address = base_address + bfd_asymbol_value (sym);
+      g_hash_table_insert (thumb_symbols, address, address);
+    }
+  }
+#endif
+
+  for (i = 0; i != num_symbols; i++)
   {
     asymbol * sym = symbols[i];
 
     if (sym->name == NULL || sym->name[0] == '\0')
       continue;
+    else if ((sym->flags & BSF_FUNCTION) == 0)
+      continue;
+    else if ((sym->flags & (BSF_LOCAL | BSF_GLOBAL)) == 0)
+      continue;
 
-    maybe_add_function_symbol (abfd, sym, base_address);
+    address = (guint8 *) base_address + bfd_asymbol_value (sym);
+    if (address == NULL)
+      continue;
+#ifdef HAVE_ARM
+    if (g_hash_table_contains (thumb_symbols, address))
+      address++;
+#endif
+
+    g_hash_table_insert (gum_function_address_by_name, g_strdup (sym->name),
+        address);
   }
-}
 
-static void
-maybe_add_function_symbol (bfd * abfd,
-                           asymbol * sym,
-                           gpointer base_address)
-{
-  gpointer address;
-
-  if ((sym->flags & BSF_FUNCTION) == 0)
-    return;
-  if ((sym->flags & (BSF_LOCAL | BSF_GLOBAL)) == 0)
-    return;
-
-  address = (guint8 *) base_address + bfd_asymbol_value (sym);
-  if (address == NULL)
-    return;
-
-  g_hash_table_insert (function_address_by_name_ht, g_strdup (sym->name),
-      address);
+#ifdef HAVE_ARM
+  g_hash_table_unref (thumb_symbols);
+#endif
 }
 
 static bfd *
-open_bfd_and_load_symbols (const gchar * filename,
-                           SymbolCollection * sc)
+gum_open_bfd_and_load_symbols (const gchar * path,
+                               GumSymbolCollection * sc)
 {
   bfd * abfd;
   long static_size, dynamic_size;
 
-  memset (sc, 0, sizeof (SymbolCollection));
+  memset (sc, 0, sizeof (GumSymbolCollection));
 
-  abfd = bfd_openr (filename, NULL);
+  abfd = bfd_openr (path, NULL);
   if (abfd == NULL || !bfd_check_format (abfd, bfd_object))
     goto open_failed;
 
@@ -339,13 +356,13 @@ open_bfd_and_load_symbols (const gchar * filename,
   return abfd;
 
 open_failed:
-  close_bfd_and_release_symbols (abfd, sc);
+  gum_close_bfd_and_release_symbols (abfd, sc);
   return NULL;
 }
 
 static void
-close_bfd_and_release_symbols (bfd * abfd,
-                               SymbolCollection * sc)
+gum_close_bfd_and_release_symbols (bfd * abfd,
+                                   GumSymbolCollection * sc)
 {
   if (abfd != NULL)
     bfd_close (abfd);
