@@ -11,8 +11,8 @@
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_DARWIN)
 # include "backend-darwin/gumdarwinbacktracer.h"
-#elif defined (HAVE_GLIBC)
-# include "backend-glibc/gumgnubacktracer.h"
+#elif defined (HAVE_LIBUNWIND)
+# include "backend-libunwind/gumunwbacktracer.h"
 #elif defined (HAVE_I386)
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_ARM)
@@ -51,8 +51,8 @@ gum_backtracer_make_default (void)
     return gum_x86_backtracer_new ();
 #elif defined (HAVE_DARWIN)
   return gum_darwin_backtracer_new ();
-#elif defined (HAVE_GLIBC)
-  return gum_gnu_backtracer_new ();
+#elif defined (HAVE_LIBUNWIND)
+  return gum_unw_backtracer_new ();
 #elif defined (HAVE_I386)
   return gum_x86_backtracer_new ();
 #elif defined (HAVE_ARM)

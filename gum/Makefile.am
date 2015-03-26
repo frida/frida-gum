@@ -120,20 +120,16 @@ backend_sources += \
 	backend-unix/gummemory-unix.c
 endif
 
-if HAVE_GLIBC
+if HAVE_LIBUNWIND
 backend_sources += \
-	backend-glibc/gumgnubacktracer.c
+	backend-libunwind/gumunwbacktracer.c
+fridainclude_HEADERS += \
+	backend-libunwind/gumunwbacktracer.h
 endif
 
 if HAVE_BFD
 backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
-endif
-
-if OS_ANDROID
-else
-backend_sources += backend-gcc/gumgccbacktracer.c
-fridainclude_HEADERS += backend-gcc/gumgccbacktracer.h
 endif
 
 if HAVE_V8

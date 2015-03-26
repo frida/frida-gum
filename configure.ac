@@ -100,23 +100,6 @@ if [[ "x$HAVE_IOS" = "xyes" ]]; then
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 
-if [[ "x$HAVE_LINUX" = "xyes" ]]; then
-  AC_TRY_LINK(
-      [
-        #include <stdlib.h>
-        #include <execinfo.h>
-      ],
-      [ backtrace (NULL, 0); ],
-      HAVE_GLIBC=yes,
-      HAVE_GLIBC=no)
-else
-  HAVE_GLIBC=no
-fi
-if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
-  AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
-fi
-AM_CONDITIONAL(HAVE_GLIBC, test "$HAVE_GLIBC" = "yes")
-
 AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
 
@@ -135,6 +118,12 @@ GUM_CFLAGS="$GUM_CFLAGS $V8_CFLAGS"
 GUM_LDFLAGS="$GUM_LDFLAGS $V8_LDFLAGS"
 GUM_LIBS="$GUM_LIBS $V8_LIBS"
 
+PKG_CHECK_MODULES(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])
+if [[ "x$HAVE_LIBUNWIND" = "xyes" ]]; then
+  AC_DEFINE(HAVE_LIBUNWIND, 1, [Define to 1 if libunwind is available.])
+fi
+AM_CONDITIONAL(HAVE_LIBUNWIND, [test "x$HAVE_LIBUNWIND" = "xyes"])
+
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr], HAVE_BFD=yes, HAVE_BFD=no, [-ldl -lz]), HAVE_BFD=no)
   test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd -ldl -lz"
@@ -143,7 +132,16 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-GUM_EXTRA_LIBS="$V8_LDFLAGS $V8_LIBS $GUM_EXTRA_LIBS"
+if [[ "x$HAVE_LINUX" = "xyes" -o "x$HAVE_ANDROID" = "xyes" ]]; then
+  if [[ "x$HAVE_LIBUNWIND" != "xyes" ]]; then
+    AC_MSG_ERROR([libunwind is required.])
+  fi
+  if [[ "x$HAVE_BFD" != "xyes" ]]; then
+    AC_MSG_ERROR([libbfd and zlib required.])
+  fi
+fi
+
+GUM_EXTRA_LIBS="$V8_LDFLAGS $V8_LIBS $LIBUNWIND_LDFLAGS $LIBUNWIND_LIBS"
 AC_SUBST(GUM_EXTRA_LIBS)
 
 GUM_LDFLAGS="$GUM_LDFLAGS $GUM_EXTRA_LIBS"
@@ -157,10 +155,6 @@ if [[ "x$HAVE_MAC" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
 fi
 AC_SUBST(GUM_TEST_LIBS)
-
-if [[ "x$HAVE_DARWIN" != "xyes" -a "x$HAVE_BFD" != "xyes" ]]; then
-  AC_MSG_ERROR([libbfd and zlib required.])
-fi
 
 if [[ "x$enable_symbol_backend" = "xyes" ]]; then
   AC_DEFINE(HAVE_LIBS, 1, [Define to 1 if helper libs are available.])
