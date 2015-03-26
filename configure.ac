@@ -55,6 +55,7 @@ AM_CONDITIONAL(ARCH_ARM64, test "$HAVE_ARM64" = "yes")
 case $host_os in
   linux*)  HAVE_LINUX=yes  ;;
   darwin*) HAVE_DARWIN=yes ;;
+  nto-qnx*)    HAVE_QNX=yes;;
   *)			   ;;
 esac
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
@@ -64,8 +65,12 @@ fi
 if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
   AC_DEFINE(HAVE_DARWIN, 1, [Define to 1 if OS is Darwin based.])
 fi
+if [[ "x$HAVE_QNX" = "xyes" ]]; then
+  AC_DEFINE(HAVE_QNX, 1, [Define to 1 if OS is QNX based.])
+fi
 AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
+AM_CONDITIONAL(OS_QNX, test "x$HAVE_QNX" = "xyes")
 
 case $host_os in
   darwin*)
@@ -132,7 +137,7 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-if [[ "x$HAVE_LINUX" = "xyes" -o "x$HAVE_ANDROID" = "xyes" ]]; then
+if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   if [[ "x$HAVE_LIBUNWIND" != "xyes" ]]; then
     AC_MSG_ERROR([libunwind is required.])
   fi
@@ -155,24 +160,6 @@ if [[ "x$HAVE_MAC" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
 fi
 AC_SUBST(GUM_TEST_LIBS)
-
-if [[ "x$enable_symbol_backend" = "xyes" ]]; then
-  AC_DEFINE(HAVE_LIBS, 1, [Define to 1 if helper libs are available.])
-fi
-AM_CONDITIONAL(ENABLE_LIBS, [test "x$enable_symbol_backend" = "xyes" ])
-
-AC_ARG_ENABLE(bindings, [AC_HELP_STRING([--enable-bindings], [build bindings [default=auto]])],, [enable_bindings=auto])
-if [[ "x$enable_bindings" = "xauto" ]]; then
-  if [[ "x$enable_symbol_backend" = "xyes" ]]; then
-    enable_bindings=yes
-  else
-    enable_bindings=no
-  fi
-fi
-if [[ "x$enable_bindings" = "xyes" ]]; then
-  AC_DEFINE(HAVE_BINDINGS, 1, [Define to 1 if bindings are available.])
-fi
-AM_CONDITIONAL(ENABLE_BINDINGS, [test "x$enable_bindings" != "xno" -a "x$enable_symbol_backend" = "xyes" ])
 
 AC_CONFIG_FILES([
 	frida-gum-1.0.pc

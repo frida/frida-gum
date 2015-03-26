@@ -157,9 +157,7 @@ TESTUTIL_TESTCASE (line_diff)
 /* Implementation */
 
 static gchar * _test_util_system_module_name = NULL;
-#ifdef HAVE_LIBS
 static GumHeapApiList * _test_util_heap_apis = NULL;
-#endif
 
 void
 _test_util_deinit (void)
@@ -167,16 +165,13 @@ _test_util_deinit (void)
   g_free (_test_util_system_module_name);
   _test_util_system_module_name = NULL;
 
-#ifdef HAVE_LIBS
   if (_test_util_heap_apis != NULL)
   {
     gum_heap_api_list_free (_test_util_heap_apis);
     _test_util_heap_apis = NULL;
   }
-#endif
 }
 
-#ifdef HAVE_LIBS
 GumSampler *
 heap_access_counter_new (void)
 {
@@ -185,7 +180,6 @@ heap_access_counter_new (void)
       g_slice_free_chain_with_offset, g_malloc, g_malloc0, g_free,
       g_memdup, NULL);
 }
-#endif
 
 void
 assert_basename_equals (const gchar * expected_filename,
@@ -369,7 +363,6 @@ test_util_get_system_module_name (void)
 const GumHeapApiList *
 test_util_heap_apis (void)
 {
-#ifdef HAVE_LIBS
   if (_test_util_heap_apis == NULL)
   {
     GumHeapApi api = { 0 };
@@ -391,9 +384,6 @@ test_util_heap_apis (void)
   }
 
   return _test_util_heap_apis;
-#else
-  return NULL;
-#endif
 }
 
 #ifdef G_OS_WIN32
