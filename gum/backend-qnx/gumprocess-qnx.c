@@ -231,7 +231,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
     details.range = &range;
     details.prot = gum_page_protection_from_page_data_flags (membufs[i].flags);
 
-    //TODO: there doesn't seem to be a way to get the file mapping.
+    /* TODO: there doesn't seem to be a way to get the file mapping. */
     details.file = NULL;
 
     if ((details.prot & prot) == prot)
@@ -267,7 +267,7 @@ int gum_process_enumerate_modules_callback (const struct dl_phdr_info *info,
   GumMemoryRange range;
 
   range.base_address = info->dlpi_addr;
-  //TODO: we don't know the size of this file.
+  /* TODO: we don't know the size of this file. */
   range.size = NULL;
 
   details.name = info->dlpi_name;
