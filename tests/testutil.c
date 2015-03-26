@@ -28,6 +28,11 @@
 #endif
 #include <stdlib.h>
 #include <string.h>
+# ifdef HAVE_QNX
+#  include <fcntl.h>
+#  include <sys/procfs.h>
+#  include <devctl.h>
+# endif
 
 #define TESTUTIL_TESTCASE(NAME) \
     void test_testutil_ ## NAME (void)
@@ -306,6 +311,30 @@ test_util_get_data_dir (void)
 #elif defined (G_OS_WIN32)
   g_assert_not_reached (); /* FIXME: once this is needed on Windows */
   return NULL;
+#elif defined (HAVE_QNX)
+  gint fd;
+  gchar * result;
+
+  fd = open ("/proc/self/as", O_RDONLY);
+  if (fd == -1)
+    return NULL;
+
+  static struct {
+    procfs_debuginfo info;
+    char buff[PATH_MAX];
+  } name;
+
+  if (devctl (fd, DCMD_PROC_MAPDEBUG_BASE, &name, sizeof (name), 0))
+  {
+    close (fd);
+    return NULL;
+  }
+
+  close (fd);
+
+  result = find_data_dir_from_executable_path (name.info.path);
+
+  return result;
 #else
 # error Implement support for your OS here
 #endif
@@ -653,7 +682,7 @@ on_end_element (GMarkupParseContext * context,
 static void
 on_text (GMarkupParseContext * context,
          const gchar * text,
-         gsize text_len,  
+         gsize text_len,
          gpointer user_data,
          GError ** error)
 {
