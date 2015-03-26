@@ -105,6 +105,12 @@ fridainclude_HEADERS += \
 	backend-linux/gumlinux.h
 endif
 
+if OS_QNX
+backend_sources += \
+	backend-qnx/gumprocess-qnx.c \
+	backend-qnx/gumsymbolutil-qnx.c
+endif
+
 if OS_DARWIN
 backend_sources += \
 	backend-darwin/gumdarwinbacktracer.c \
