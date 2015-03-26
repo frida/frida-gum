@@ -60,13 +60,9 @@ gum_unw_backtracer_generate (GumBacktracer * backtracer,
   guint i;
 
   if (cpu_context != NULL)
-  {
     gum_cpu_context_to_unw (cpu_context, &context);
-  }
   else
-  {
     unw_getcontext (&context);
-  }
 
   unw_init_local (&cursor, &context);
   for (i = 0;
