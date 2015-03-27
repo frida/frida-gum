@@ -3,7 +3,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;HAVE_LIBS=1;HAVE_BINDINGS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>

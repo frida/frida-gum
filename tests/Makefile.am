@@ -1,15 +1,8 @@
 SUBDIRS = \
-	core
-
-if ENABLE_LIBS
-SUBDIRS += \
+	core \
 	heap \
-	prof
-endif
-
-if ENABLE_BINDINGS
-SUBDIRS += gumpp
-endif
+	prof \
+	gumpp
 
 if OS_ANDROID
 else
@@ -22,21 +15,6 @@ endif
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
 
-libs_libadd = $(NULL)
-binding_ldadd = $(NULL)
-binding_libadd = $(NULL)
-
-if ENABLE_LIBS
-libs_libadd += \
-	$(builddir)/heap/libgum-tests-heap.la \
-	$(builddir)/prof/libgum-tests-prof.la
-endif
-
-if ENABLE_BINDINGS
-binding_ldadd += $(top_builddir)/bindings/gumpp/libfrida-gumpp-1.0.la
-binding_libadd += $(builddir)/gumpp/libgum-tests-gumpp.la
-endif
-
 gum_tests_SOURCES = \
 	dummy.cpp
 gum_tests_LDFLAGS = \
@@ -44,7 +22,7 @@ gum_tests_LDFLAGS = \
 gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
 	$(top_builddir)/gum/libfrida-gum-1.0.la \
-	$(binding_ldadd) \
+	$(top_builddir)/bindings/gumpp/libfrida-gumpp-1.0.la \
 	$(GUM_TEST_LIBS) \
 	$(GUM_LIBS) \
 	$(GUM_EXTRA_LIBS)
@@ -67,8 +45,9 @@ libgum_tests_la_SOURCES = \
 	lowlevel-helpers.h
 libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
-	$(libs_libadd) \
-	$(binding_libadd)
+	$(builddir)/heap/libgum-tests-heap.la \
+	$(builddir)/prof/libgum-tests-prof.la \
+	$(builddir)/gumpp/libgum-tests-gumpp.la
 
 AM_CPPFLAGS = \
 	-include config.h \

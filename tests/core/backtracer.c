@@ -11,9 +11,7 @@
 
 TEST_LIST_BEGIN (backtracer)
   BACKTRACER_TESTENTRY (basics)
-#ifdef HAVE_LIBS
   BACKTRACER_TESTENTRY (full_cycle)
-#endif
 #if ENABLE_PERFORMANCE_TEST
   BACKTRACER_TESTENTRY (performance)
 #endif
@@ -58,8 +56,6 @@ BACKTRACER_TESTCASE (basics)
       rad.line_number == expected_line_number + 1);
 #endif
 }
-
-#ifdef HAVE_LIBS
 
 BACKTRACER_TESTCASE (full_cycle)
 {
@@ -126,8 +122,6 @@ BACKTRACER_TESTCASE (full_cycle)
   g_object_unref (probe);
   g_object_unref (tracker);
 }
-
-#endif
 
 #if ENABLE_PERFORMANCE_TEST
 

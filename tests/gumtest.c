@@ -120,7 +120,6 @@ main (gint argc, gchar * argv[])
 #endif
   TEST_RUN_LIST (backtracer);
 
-#ifdef HAVE_LIBS
   /* Heap */
   TEST_RUN_LIST (allocation_tracker);
 #ifdef G_OS_WIN32
@@ -154,12 +153,9 @@ main (gint argc, gchar * argv[])
 #ifdef G_OS_WIN32
   TEST_RUN_LIST (profiler);
 #endif
-#endif
 
   /* GUM++ */
-#ifdef HAVE_BINDINGS
   TEST_RUN_LIST (gumpp_backtracer);
-#endif
 
 #ifdef _MSC_VER
 #pragma warning (pop)

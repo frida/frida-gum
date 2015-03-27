@@ -25,6 +25,11 @@
 # else
 #  include <stdio.h>
 # endif
+# ifdef HAVE_QNX
+#  include <devctl.h>
+#  include <fcntl.h>
+#  include <sys/procfs.h>
+# endif
 #endif
 #include <stdlib.h>
 #include <string.h>
@@ -157,9 +162,7 @@ TESTUTIL_TESTCASE (line_diff)
 /* Implementation */
 
 static gchar * _test_util_system_module_name = NULL;
-#ifdef HAVE_LIBS
 static GumHeapApiList * _test_util_heap_apis = NULL;
-#endif
 
 void
 _test_util_deinit (void)
@@ -167,16 +170,13 @@ _test_util_deinit (void)
   g_free (_test_util_system_module_name);
   _test_util_system_module_name = NULL;
 
-#ifdef HAVE_LIBS
   if (_test_util_heap_apis != NULL)
   {
     gum_heap_api_list_free (_test_util_heap_apis);
     _test_util_heap_apis = NULL;
   }
-#endif
 }
 
-#ifdef HAVE_LIBS
 GumSampler *
 heap_access_counter_new (void)
 {
@@ -185,7 +185,6 @@ heap_access_counter_new (void)
       g_slice_free_chain_with_offset, g_malloc, g_malloc0, g_free,
       g_memdup, NULL);
 }
-#endif
 
 void
 assert_basename_equals (const gchar * expected_filename,
@@ -312,6 +311,31 @@ test_util_get_data_dir (void)
 #elif defined (G_OS_WIN32)
   g_assert_not_reached (); /* FIXME: once this is needed on Windows */
   return NULL;
+#elif defined (HAVE_QNX)
+  gint fd;
+  gchar * result;
+
+  fd = open ("/proc/self/as", O_RDONLY);
+  if (fd == -1)
+    return NULL;
+
+  static struct
+  {
+    procfs_debuginfo info;
+    char buff[PATH_MAX];
+  } name;
+
+  if (devctl (fd, DCMD_PROC_MAPDEBUG_BASE, &name, sizeof (name), 0) != EOK)
+  {
+    close (fd);
+    return NULL;
+  }
+
+  close (fd);
+
+  result = find_data_dir_from_executable_path (name.info.path);
+
+  return result;
 #else
 # error Implement support for your OS here
 #endif
@@ -369,7 +393,6 @@ test_util_get_system_module_name (void)
 const GumHeapApiList *
 test_util_heap_apis (void)
 {
-#ifdef HAVE_LIBS
   if (_test_util_heap_apis == NULL)
   {
     GumHeapApi api = { 0 };
@@ -391,9 +414,6 @@ test_util_heap_apis (void)
   }
 
   return _test_util_heap_apis;
-#else
-  return NULL;
-#endif
 }
 
 #ifdef G_OS_WIN32
@@ -663,7 +683,7 @@ on_end_element (GMarkupParseContext * context,
 static void
 on_text (GMarkupParseContext * context,
          const gchar * text,
-         gsize text_len,  
+         gsize text_len,
          gpointer user_data,
          GError ** error)
 {

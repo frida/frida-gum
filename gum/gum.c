@@ -42,9 +42,7 @@ gum_deinit (void)
   g_slist_free (gum_destructors);
   gum_destructors = NULL;
 
-#ifdef HAVE_LIBS
   _gum_allocator_probe_deinit ();
-#endif
 
   _gum_interceptor_deinit ();
 

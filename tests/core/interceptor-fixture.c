@@ -42,6 +42,8 @@
 # define GUM_TEST_SHLIB_OS "ios"
 #elif defined (HAVE_ANDROID)
 # define GUM_TEST_SHLIB_OS "android"
+#elif defined (HAVE_QNX)
+# define GUM_TEST_SHLIB_OS "qnx"
 #else
 # error Unknown OS
 #endif

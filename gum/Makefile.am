@@ -61,7 +61,6 @@ arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
 script_sources = $(NULL)
-libs_libadd = $(NULL)
 
 if ARCH_I386
 archincludedir = $(includedir)/frida-1.0/gum/arch-x86
@@ -104,6 +103,12 @@ backend_sources += \
 	backend-linux/gumprocess-linux.c
 fridainclude_HEADERS += \
 	backend-linux/gumlinux.h
+endif
+
+if OS_QNX
+backend_sources += \
+	backend-qnx/gumprocess-qnx.c \
+	backend-qnx/gumsymbolutil-qnx.c
 endif
 
 if OS_DARWIN
@@ -165,12 +170,6 @@ fridainclude_HEADERS += \
 	gumscript.h
 endif
 
-if ENABLE_LIBS
-libs_libadd += \
-	$(top_builddir)/libs/gum/heap/libfrida-gum-heap-1.0.la \
-	$(top_builddir)/libs/gum/prof/libfrida-gum-prof-1.0.la
-endif
-
 container_sources = \
 	gumarray.c \
 	gumhash.c \
@@ -208,7 +207,8 @@ libfrida_gum_la_SOURCES = \
 	$(script_sources) \
 	$(backend_sources)
 libfrida_gum_la_LIBADD = \
-	$(libs_libadd) \
+	$(top_builddir)/libs/gum/heap/libfrida-gum-heap-1.0.la \
+	$(top_builddir)/libs/gum/prof/libfrida-gum-prof-1.0.la \
 	$(arch_libs)
 libfrida_gum_la_LIBTOOLFLAGS = \
 	--tag=disable-shared

@@ -26,6 +26,8 @@
 # define GUM_SCRIPT_PLATFORM "darwin"
 #elif defined (G_OS_WIN32)
 # define GUM_SCRIPT_PLATFORM "windows"
+#elif defined (HAVE_QNX)
+# define GUM_SCRIPT_PLATFORM "qnx"
 #endif
 
 using namespace v8;
