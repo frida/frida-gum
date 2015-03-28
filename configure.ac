@@ -137,7 +137,7 @@ else
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
-if [[ "x$HAVE_LINUX" = "xyes" ]]; then
+if [[ "x$HAVE_LINUX" = "xyes" -o "x$HAVE_QNX" = "xyes" ]]; then
   if [[ "x$HAVE_LIBUNWIND" != "xyes" ]]; then
     AC_MSG_ERROR([libunwind is required.])
   fi
