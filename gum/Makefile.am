@@ -108,6 +108,8 @@ endif
 if OS_QNX
 backend_sources += \
 	backend-qnx/gumprocess-qnx.c
+fridainclude_HEADERS += \
+	backend-qnx/gumqnx.h
 endif
 
 if OS_DARWIN
