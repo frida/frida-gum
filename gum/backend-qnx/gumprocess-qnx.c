@@ -548,7 +548,7 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
 {
 #if defined (HAVE_I386)
-  X86_CPU_REGISTERS * regs = (X86_CPU_REGISTERS *) gregs;
+  const X86_CPU_REGISTERS * regs = &gregs->x86;
 
   ctx->eip = regs->eip;
 
@@ -561,7 +561,7 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
   ctx->ecx = regs->ecx;
   ctx->eax = regs->eax;
 #elif defined (HAVE_ARM)
-  ARM_CPU_REGISTERS * regs = (ARM_CPU_REGISTERS *) gregs;
+  ARM_CPU_REGISTERS * regs = &gregs->arm;
 
   ctx->pc = regs->gpr[ARM_REG_R15];
   ctx->sp = regs->gpr[ARM_REG_R13];
@@ -579,7 +579,7 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
                         debug_greg_t * gregs)
 {
 #if defined (HAVE_I386)
-  X86_CPU_REGISTERS * regs = (X86_CPU_REGISTERS *) gregs;
+  X86_CPU_REGISTERS * regs = &gregs->x86;
 
   regs->eip = ctx->eip;
 
@@ -592,7 +592,7 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
   regs->ecx = ctx->ecx;
   regs->eax = ctx->eax;
 #elif defined (HAVE_ARM)
-  ARM_CPU_REGISTERS * regs = (ARM_CPU_REGISTERS *) gregs;
+  ARM_CPU_REGISTERS * regs = &gregs->arm;
 
   regs->gpr[ARM_REG_R15] = ctx->pc;
   regs->gpr[ARM_REG_R13] = ctx->sp;
