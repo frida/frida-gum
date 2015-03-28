@@ -107,8 +107,7 @@ endif
 
 if OS_QNX
 backend_sources += \
-	backend-qnx/gumprocess-qnx.c \
-	backend-qnx/gumsymbolutil-qnx.c
+	backend-qnx/gumprocess-qnx.c
 endif
 
 if OS_DARWIN
