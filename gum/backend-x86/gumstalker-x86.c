@@ -1811,7 +1811,7 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
-#if defined (G_OS_UNIX) && GLIB_SIZEOF_VOID_P == 4
+#if defined (G_OS_UNIX) && GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
   GumX86Writer * cw = gc->code_writer;
 #if defined (HAVE_MAC)
   guint8 code[] = {
