@@ -83,10 +83,26 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
                         unw_context_t * uc)
 {
 #if defined (UNW_TARGET_X86)
+# if defined (HAVE_QNX)
+  X86_CPU_REGISTERS * regs = &uc->uc_mcontext.cpu;
+# else
   greg_t * gr = uc->uc_mcontext.gregs;
+# endif
 
   unw_getcontext (uc);
 
+# if defined (HAVE_QNX)
+  regs->eip = ctx->eip;
+
+  regs->edi = ctx->edi;
+  regs->esi = ctx->esi;
+  regs->ebp = ctx->ebp;
+  regs->esp = ctx->esp;
+  regs->ebx = ctx->ebx;
+  regs->edx = ctx->edx;
+  regs->ecx = ctx->ecx;
+  regs->eax = ctx->eax;
+# else
   gr[REG_EIP] = ctx->eip;
 
   gr[REG_EDI] = ctx->edi;
@@ -97,6 +113,7 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   gr[REG_EDX] = ctx->edx;
   gr[REG_ECX] = ctx->ecx;
   gr[REG_EAX] = ctx->eax;
+# endif
 #elif defined (UNW_TARGET_X86_64)
   greg_t * gr = uc->uc_mcontext.gregs;
 
