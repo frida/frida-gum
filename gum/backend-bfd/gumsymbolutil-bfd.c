@@ -12,8 +12,13 @@
 
 #include <bfd.h>
 #include <dlfcn.h>
-#include <elf.h>
 #include <string.h>
+#ifdef HAVE_ELF_H
+# include <elf.h>
+#endif
+#ifdef HAVE_SYS_ELF_H
+# include <sys/elf.h>
+#endif
 
 typedef struct _GumSymbolCollection GumSymbolCollection;
 
