@@ -6,6 +6,17 @@
 
 #include "gumprocess.h"
 
+#include <fcntl.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/elf.h>
+#include <gio/gio.h>
+#include <sys/link.h>
+#include <sys/mman.h>
+#include <sys/procfs.h>
+#include <sys/states.h>
+#include <sys/types.h>
+
 #if GLIB_SIZEOF_VOID_P == 4
 typedef Elf32_Ehdr GumElfEHeader;
 typedef Elf32_Shdr GumElfSHeader;
@@ -76,12 +87,6 @@ static GumThreadState gum_thread_state_from_system_thread_state (int state);
 static GumPageProtection gum_page_protection_from_page_data_flags (
     const gint flags);
 
-G_LOCK_DEFINE_STATIC (gum_modify_thread);
-static volatile gboolean gum_modify_thread_did_load_cpu_context;
-static volatile gboolean gum_modify_thread_did_modify_cpu_context;
-static volatile gboolean gum_modify_thread_did_store_cpu_context;
-static GumCpuContext gum_modify_thread_cpu_context;
-
 gboolean
 gum_process_is_debugger_attached (void)
 {
@@ -120,7 +125,7 @@ void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
                                gpointer user_data)
 {
-  gint fd;
+  gint fd, res;
   debug_process_t info;
   debug_thread_t thread;
   gboolean carry_on = TRUE;
@@ -128,7 +133,8 @@ gum_process_enumerate_threads (GumFoundThreadFunc func,
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
 
-  g_assert (devctl (fd, DCMD_PROC_INFO, &info, sizeof (info), NULL) != 0);
+  res = devctl (fd, DCMD_PROC_INFO, &info, sizeof (info), NULL);
+  g_assert (res != 0);
 
   thread.tid = 1;
   while (carry_on &&
@@ -541,36 +547,62 @@ static void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
 {
+#if defined (HAVE_I386)
+  X86_CPU_REGISTERS * regs = (X86_CPU_REGISTERS *) gregs;
+
+  ctx->eip = regs->eip;
+
+  ctx->edi = regs->edi;
+  ctx->esi = regs->esi;
+  ctx->ebp = regs->ebp;
+  ctx->esp = regs->esp;
+  ctx->ebx = regs->ebx;
+  ctx->edx = regs->edx;
+  ctx->ecx = regs->ecx;
+  ctx->eax = regs->eax;
+#elif defined (HAVE_ARM)
   ARM_CPU_REGISTERS * regs = (ARM_CPU_REGISTERS *) gregs;
-  ctx->r[7] = regs->gpr[ARM_REG_R7];
-  ctx->r[6] = regs->gpr[ARM_REG_R6];
-  ctx->r[5] = regs->gpr[ARM_REG_R5];
-  ctx->r[4] = regs->gpr[ARM_REG_R4];
-  ctx->r[3] = regs->gpr[ARM_REG_R3];
-  ctx->r[2] = regs->gpr[ARM_REG_R2];
-  ctx->r[1] = regs->gpr[ARM_REG_R1];
-  ctx->r[0] = regs->gpr[ARM_REG_R0];
-  ctx->sp = regs->gpr[ARM_REG_R13];
-  ctx->lr = regs->gpr[ARM_REG_R14];
+
   ctx->pc = regs->gpr[ARM_REG_R15];
+  ctx->sp = regs->gpr[ARM_REG_R13];
+
+  memcpy (ctx->r, regs->gpr, sizeof (ctx->r));
+
+  ctx->lr = regs->gpr[ARM_REG_R14];
+#else
+# error Fix this for other architectures
+#endif
 }
 
 static void
 gum_cpu_context_to_qnx (const GumCpuContext * ctx,
                         debug_greg_t * gregs)
 {
+#if defined (HAVE_I386)
+  X86_CPU_REGISTERS * regs = (X86_CPU_REGISTERS *) gregs;
+
+  regs->eip = ctx->eip;
+
+  regs->edi = ctx->edi;
+  regs->esi = ctx->esi;
+  regs->ebp = ctx->ebp;
+  regs->esp = ctx->esp;
+  regs->ebx = ctx->ebx;
+  regs->edx = ctx->edx;
+  regs->ecx = ctx->ecx;
+  regs->eax = ctx->eax;
+#elif defined (HAVE_ARM)
   ARM_CPU_REGISTERS * regs = (ARM_CPU_REGISTERS *) gregs;
-  regs->gpr[ARM_REG_R7] = ctx->r[7];
-  regs->gpr[ARM_REG_R6] = ctx->r[6];
-  regs->gpr[ARM_REG_R5] = ctx->r[5];
-  regs->gpr[ARM_REG_R4] = ctx->r[4];
-  regs->gpr[ARM_REG_R3] = ctx->r[3];
-  regs->gpr[ARM_REG_R2] = ctx->r[2];
-  regs->gpr[ARM_REG_R1] = ctx->r[1];
-  regs->gpr[ARM_REG_R0] = ctx->r[0];
-  regs->gpr[ARM_REG_R13] = ctx->sp;
-  regs->gpr[ARM_REG_R14] = ctx->lr;
+
   regs->gpr[ARM_REG_R15] = ctx->pc;
+  regs->gpr[ARM_REG_R13] = ctx->sp;
+
+  memcpy (regs->gpr, ctx->r, sizeof (ctx->r));
+
+  regs->gpr[ARM_REG_R14] = ctx->lr;
+#else
+# error Fix this for other architectures
+#endif
 }
 
 static GumThreadState
