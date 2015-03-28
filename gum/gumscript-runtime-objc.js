@@ -137,6 +137,12 @@
 
         this.refresh = function refresh() {
             var numClasses = api.objc_getClassList(NULL, 0);
+            if(numClasses === classNames.length) {
+                // It's impossible to unregister classes in ObjC,
+                // so if the number of classes hasn't changed,
+                // we can assume that the list is up to date
+                return;
+            }
             var rawClasses = Memory.alloc(numClasses * pointerSize);
             numClasses = api.objc_getClassList(rawClasses, numClasses);
             var iterations = 0;
