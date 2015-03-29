@@ -241,7 +241,7 @@ gum_emit_dl_module (const struct dl_phdr_info * info,
 
   range.base_address = info->dlpi_addr;
   /* TODO: we don't know the size of this file. */
-  range.size = NULL;
+  range.size = 0;
 
   details.name = info->dlpi_name;
   details.range = &range;
