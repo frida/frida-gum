@@ -22,6 +22,7 @@ endif
 
 if OS_QNX
 os_sources += \
+	gumbusycyclesampler-qnx.c \
 	gumcyclesampler-qnx.c
 endif
 
