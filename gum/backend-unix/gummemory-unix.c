@@ -269,8 +269,7 @@ gum_clear_cache (gpointer address,
 {
 #ifdef HAVE_ARM
 # ifdef HAVE_QNX
-  /* TODO: do proper cacheflush on qnx */
-  __builtin___clear_cache (address, address + size);
+  msync (address, size, MS_SYNC | MS_INVALIDATE_ICACHE);
 # else
   cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
 # endif
