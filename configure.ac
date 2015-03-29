@@ -136,6 +136,7 @@ if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd -ldl -lz"
 else
   AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
+  test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd"
 fi
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
