@@ -5,7 +5,7 @@ arch_includes = $(NULL)
 
 if ARCH_I386
 arch_sources += \
-	gumcyclesampler.c
+	gumcyclesampler-x86.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-x86
 endif

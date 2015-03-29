@@ -132,7 +132,7 @@
     <ClCompile Include="libs\gum\prof\gumcallcountsampler.c">
       <Filter>libs\prof</Filter>
     </ClCompile>
-    <ClCompile Include="libs\gum\prof\gumcyclesampler.c">
+    <ClCompile Include="libs\gum\prof\gumcyclesampler-x86.c">
       <Filter>libs\prof</Filter>
     </ClCompile>
     <ClCompile Include="libs\gum\prof\gummalloccountsampler.c">
