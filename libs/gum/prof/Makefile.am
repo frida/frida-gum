@@ -15,6 +15,11 @@ endif
 
 os_sources = $(NULL)
 
+if OS_LINUX
+os_sources += \
+	gumbusycyclesampler-linux.c
+endif
+
 if OS_DARWIN
 os_sources += \
 	gumbusycyclesampler-darwin.c
