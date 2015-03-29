@@ -27,6 +27,7 @@
 # endif
 # ifdef HAVE_QNX
 #  include <devctl.h>
+#  include <errno.h>
 #  include <fcntl.h>
 #  include <sys/procfs.h>
 # endif
