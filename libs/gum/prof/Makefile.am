@@ -4,10 +4,13 @@ arch_sources = $(NULL)
 arch_includes = $(NULL)
 
 if ARCH_I386
+if OS_QNX
+else
 arch_sources += \
 	gumcyclesampler-x86.c
 arch_includes += \
 	-I $(top_srcdir)/gum/arch-x86
+endif
 endif
 
 os_sources = $(NULL)
@@ -15,6 +18,11 @@ os_sources = $(NULL)
 if OS_DARWIN
 os_sources += \
 	gumbusycyclesampler-darwin.c
+endif
+
+if OS_QNX
+os_sources += \
+	gumcyclesampler-qnx.c
 endif
 
 fridaincludedir = $(includedir)/frida-1.0/gum/prof
