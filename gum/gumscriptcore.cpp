@@ -864,19 +864,19 @@ gum_script_core_on_native_pointer_add (const FunctionCallbackInfo<Value> & info)
   guint64 lhs = reinterpret_cast<guint64> (
       GUM_NATIVE_POINTER_VALUE (info.Holder ()));
 
-  gpointer result;
+  guint64 rhs;
   Local<FunctionTemplate> native_pointer (
     Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   if (native_pointer->HasInstance (info[0]))
   {
-    guint64 rhs = reinterpret_cast<guint64> (
+    rhs = reinterpret_cast<guint64> (
         GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-    result = GSIZE_TO_POINTER (lhs + rhs);
   }
   else
   {
-    result = GSIZE_TO_POINTER (lhs + info[0]->ToInteger ()->Value ());
+    rhs = info[0]->ToInteger ()->Value ();
   }
+  gpointer result = GSIZE_TO_POINTER (lhs + rhs);
 
   info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
 }
@@ -891,19 +891,19 @@ gum_script_core_on_native_pointer_sub (
   guint64 lhs = reinterpret_cast<guint64> (
       GUM_NATIVE_POINTER_VALUE (info.Holder ()));
 
-  gpointer result;
+  guint64 rhs;
   Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
+    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   if (native_pointer->HasInstance (info[0]))
   {
-    guint64 rhs = reinterpret_cast<guint64> (
+    rhs = reinterpret_cast<guint64> (
         GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-    result = GSIZE_TO_POINTER (lhs - rhs);
   }
   else
   {
-    result = GSIZE_TO_POINTER (lhs - info[0]->ToInteger ()->Value ());
+    rhs = info[0]->ToInteger ()->Value ();
   }
+  gpointer result = GSIZE_TO_POINTER (lhs - rhs);
 
   info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
 }
@@ -918,19 +918,19 @@ gum_script_core_on_native_pointer_and (
   guint64 lhs = reinterpret_cast<guint64> (
       GUM_NATIVE_POINTER_VALUE (info.Holder ()));
 
-  gpointer result;
+  guint64 rhs;
   Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
+    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   if (native_pointer->HasInstance (info[0]))
   {
-    guint64 rhs = reinterpret_cast<guint64> (
+    rhs = reinterpret_cast<guint64> (
         GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-    result = GSIZE_TO_POINTER (lhs & rhs);
   }
   else
   {
-    result = GSIZE_TO_POINTER (lhs & (guint64)(info[0]->ToInteger ()->Value ()));
+    rhs = info[0]->ToInteger ()->Value ();
   }
+  gpointer result = GSIZE_TO_POINTER (lhs & rhs);
 
   info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
 }
@@ -945,19 +945,19 @@ gum_script_core_on_native_pointer_or (
   guint64 lhs = reinterpret_cast<guint64> (
       GUM_NATIVE_POINTER_VALUE (info.Holder ()));
 
-  gpointer result;
+  guint64 rhs;
   Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
+    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   if (native_pointer->HasInstance (info[0]))
   {
-    guint64 rhs = reinterpret_cast<guint64> (
+    rhs = reinterpret_cast<guint64> (
         GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-    result = GSIZE_TO_POINTER (lhs | rhs);
   }
   else
   {
-    result = GSIZE_TO_POINTER (lhs | (guint64)(info[0]->ToInteger ()->Value ()));
+    rhs = info[0]->ToInteger ()->Value ();
   }
+  gpointer result = GSIZE_TO_POINTER (lhs | rhs);
 
   info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
 }
