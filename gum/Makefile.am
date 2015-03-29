@@ -105,13 +105,6 @@ fridainclude_HEADERS += \
 	backend-linux/gumlinux.h
 endif
 
-if OS_QNX
-backend_sources += \
-	backend-qnx/gumprocess-qnx.c
-fridainclude_HEADERS += \
-	backend-qnx/gumqnx.h
-endif
-
 if OS_DARWIN
 backend_sources += \
 	backend-darwin/gumdarwinbacktracer.c \
@@ -124,6 +117,13 @@ fridainclude_HEADERS += \
 else
 backend_sources += \
 	backend-unix/gummemory-unix.c
+endif
+
+if OS_QNX
+backend_sources += \
+	backend-qnx/gumprocess-qnx.c
+fridainclude_HEADERS += \
+	backend-qnx/gumqnx.h
 endif
 
 if HAVE_LIBUNWIND
