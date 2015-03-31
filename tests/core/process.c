@@ -10,6 +10,7 @@
 #ifndef G_OS_WIN32
 #include <dlfcn.h>
 #endif
+#include <stdlib.h>
 
 #define PROCESS_TESTCASE(NAME) \
     void test_process_ ## NAME (void)
@@ -31,6 +32,7 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (darwin_enumerate_modules)
   PROCESS_TESTENTRY (darwin_enumerate_ranges)
   PROCESS_TESTENTRY (darwin_module_exports)
+  PROCESS_TESTENTRY (process_malloc_ranges)
 #endif
 TEST_LIST_END ()
 
@@ -38,6 +40,12 @@ typedef struct _TestForEachContext {
   gboolean value_to_return;
   guint number_of_calls;
 } TestForEachContext;
+
+typedef struct _TestRangeContext {
+  GumMemoryRange range;
+  gboolean found;
+  gboolean found_exact;
+} TestRangeContext;
 
 #ifdef HAVE_DARWIN
 static gboolean store_export_address_if_malloc (
@@ -55,6 +63,12 @@ static gboolean export_found_cb (const GumExportDetails * details,
     gpointer user_data);
 static gboolean range_found_cb (const GumRangeDetails * details,
     gpointer user_data);
+static gboolean range_check_cb (const GumRangeDetails * details,
+    gpointer user_data);
+static gboolean malloc_range_found_cb (
+    const GumMallocRangeDetails * details, gpointer user_data);
+static gboolean malloc_range_check_cb (
+    const GumMallocRangeDetails * details, gpointer user_data);
 
 #ifndef HAVE_ANDROID
 
@@ -99,18 +113,108 @@ PROCESS_TESTCASE (process_modules)
 
 PROCESS_TESTCASE (process_ranges)
 {
-  TestForEachContext ctx;
+  {
+    TestForEachContext ctx;
 
-  ctx.number_of_calls = 0;
-  ctx.value_to_return = TRUE;
-  gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
-  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+    ctx.number_of_calls = 0;
+    ctx.value_to_return = TRUE;
+    gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
+    g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
-  ctx.number_of_calls = 0;
-  ctx.value_to_return = FALSE;
-  gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
-  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+    ctx.number_of_calls = 0;
+    ctx.value_to_return = FALSE;
+    gum_process_enumerate_ranges (GUM_PAGE_RW, range_found_cb, &ctx);
+    g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+  }
+
+  {
+    TestRangeContext ctx;
+    const gsize malloc_buf_size = 100;
+    guint8 * malloc_buf;
+    const gsize stack_buf_size = 50;
+    guint8 stack_buf[stack_buf_size];
+
+    malloc_buf = malloc (malloc_buf_size);
+
+    ctx.range.base_address = GUM_ADDRESS (malloc_buf);
+    ctx.range.size = malloc_buf_size;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
+    g_assert (ctx.found);
+
+    ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
+    ctx.range.size = malloc_buf_size - 1;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
+    g_assert (ctx.found);
+
+    free (malloc_buf);
+
+    ctx.range.base_address = GUM_ADDRESS (stack_buf);
+    ctx.range.size = stack_buf_size;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_ranges (GUM_PAGE_RW, range_check_cb, &ctx);
+    g_assert (ctx.found);
+  }
 }
+
+#ifdef HAVE_DARWIN
+PROCESS_TESTCASE (process_malloc_ranges)
+{
+  {
+    TestForEachContext ctx;
+
+    ctx.number_of_calls = 0;
+    ctx.value_to_return = TRUE;
+    gum_process_enumerate_malloc_ranges (malloc_range_found_cb, &ctx);
+    g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+    ctx.number_of_calls = 0;
+    ctx.value_to_return = FALSE;
+    gum_process_enumerate_malloc_ranges (malloc_range_found_cb, &ctx);
+    g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+  }
+
+  {
+    TestRangeContext ctx;
+    const gsize malloc_buf_size = 100;
+    guint8 * malloc_buf;
+    const gsize stack_buf_size = 50;
+    guint8 stack_buf[stack_buf_size];
+
+    malloc_buf = malloc (malloc_buf_size);
+
+    ctx.range.base_address = GUM_ADDRESS (malloc_buf);
+    ctx.range.size = malloc_buf_size;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
+    g_assert (ctx.found);
+    g_assert (ctx.found_exact);
+
+    ctx.range.base_address = GUM_ADDRESS (malloc_buf) + 1;
+    ctx.range.size = malloc_buf_size - 1;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
+    g_assert (ctx.found);
+    g_assert (!ctx.found_exact);
+
+    free (malloc_buf);
+
+    ctx.range.base_address = GUM_ADDRESS (stack_buf);
+    ctx.range.size = stack_buf_size;
+    ctx.found = FALSE;
+    ctx.found_exact = FALSE;
+    gum_process_enumerate_malloc_ranges (malloc_range_check_cb, &ctx);
+    g_assert (!ctx.found);
+    g_assert (!ctx.found_exact);
+  }
+}
+#endif
 
 PROCESS_TESTCASE (module_exports)
 {
@@ -338,4 +442,70 @@ range_found_cb (const GumRangeDetails * details,
   ctx->number_of_calls++;
 
   return ctx->value_to_return;
+}
+
+static gboolean
+range_check_cb (const GumRangeDetails * details,
+                gpointer user_data)
+{
+  TestRangeContext * ctx = (TestRangeContext *) user_data;
+  GumAddress ctx_start, ctx_end;
+  GumAddress details_start, details_end;
+
+  ctx_start = ctx->range.base_address;
+  ctx_end = ctx_start + ctx->range.size;
+
+  details_start = details->range->base_address;
+  details_end = details_start + details->range->size;
+
+  if (ctx_start == details_start && ctx_end == details_end)
+  {
+    ctx->found_exact = TRUE;
+  }
+
+  if (ctx_start >= details_start && ctx_end <= details_end)
+  {
+    ctx->found = TRUE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+malloc_range_found_cb (const GumMallocRangeDetails * details,
+                       gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}
+
+static gboolean
+malloc_range_check_cb (const GumMallocRangeDetails * details,
+                       gpointer user_data)
+{
+  TestRangeContext * ctx = (TestRangeContext *) user_data;
+  GumAddress ctx_start, ctx_end;
+  GumAddress details_start, details_end;
+
+  ctx_start = ctx->range.base_address;
+  ctx_end = ctx_start + ctx->range.size;
+
+  details_start = details->range->base_address;
+  details_end = details_start + details->range->size;
+
+  /* malloc may allocate a larger memory block than requested */
+  if (ctx_start == details_start && ctx_end <= details_end)
+  {
+    ctx->found_exact = TRUE;
+  }
+
+  if (ctx_start >= details_start && ctx_end <= details_end)
+  {
+    ctx->found = TRUE;
+  }
+
+  return TRUE;
 }

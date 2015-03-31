@@ -12,6 +12,7 @@
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
+#include <malloc/malloc.h>
 #include <sys/sysctl.h>
 
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
@@ -31,6 +32,7 @@ typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
+typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 
 typedef union _DyldInfo DyldInfo;
 typedef struct _DyldInfoLegacy DyldInfoLegacy;
@@ -72,6 +74,13 @@ struct _GumEnumerateExportsContext
   const gchar * module_name;
   GumFoundExportFunc func;
   gpointer user_data;
+};
+
+struct _GumEnumerateMallocRangesContext
+{
+  GumFoundMallocRangeFunc func;
+  gpointer user_data;
+  gboolean carry_on;
 };
 
 struct _DyldInfoLegacy
@@ -152,6 +161,11 @@ typedef struct nlist_64 gum_nlist_t;
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
     void);
+
+static void gum_emit_malloc_ranges (task_t task,
+    void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
+static kern_return_t gum_read_malloc_memory (task_t remote_task,
+    vm_address_t remote_address, vm_size_t size, void ** local_memory);
 
 static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
@@ -344,6 +358,87 @@ gum_process_enumerate_ranges (GumPageProtection prot,
                               gpointer user_data)
 {
   gum_darwin_enumerate_ranges (mach_task_self (), prot, func, user_data);
+}
+
+void
+gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
+                                     gpointer user_data)
+{
+  task_t task;
+  kern_return_t ret;
+  unsigned i;
+  vm_address_t * malloc_zone_addresses;
+  unsigned malloc_zone_count;
+
+  task = mach_task_self ();
+
+  ret = malloc_get_all_zones (task,
+      gum_read_malloc_memory, &malloc_zone_addresses,
+      &malloc_zone_count);
+  if (ret != KERN_SUCCESS)
+    return;
+
+  for (i = 0; i != malloc_zone_count; i++)
+  {
+    vm_address_t zone_address = malloc_zone_addresses[i];
+    malloc_zone_t * zone = (malloc_zone_t *) zone_address;
+
+    if (zone != NULL && zone->introspect != NULL &&
+        zone->introspect->enumerator != NULL)
+    {
+      GumEnumerateMallocRangesContext ctx = { func, user_data, TRUE };
+
+      zone->introspect->enumerator (task, &ctx,
+          MALLOC_PTR_IN_USE_RANGE_TYPE, zone_address,
+          gum_read_malloc_memory,
+          gum_emit_malloc_ranges);
+
+      if (!ctx.carry_on)
+        return;
+    }
+  }
+}
+
+static void
+gum_emit_malloc_ranges (task_t task,
+                        void * user_data,
+                        unsigned type,
+                        vm_range_t * ranges,
+                        unsigned count)
+{
+  GumEnumerateMallocRangesContext * ctx =
+      (GumEnumerateMallocRangesContext *) user_data;
+  GumMemoryRange gum_range;
+  GumMallocRangeDetails details;
+  unsigned i;
+
+  if (!ctx->carry_on)
+    return;
+
+  details.range = &gum_range;
+
+  for (i = 0; i != count; i++)
+  {
+    vm_range_t range = ranges[i];
+
+    gum_range.base_address = range.address;
+    gum_range.size = range.size;
+
+    ctx->carry_on = ctx->func (&details, ctx->user_data);
+    if (!ctx->carry_on)
+      return;
+  }
+}
+
+static kern_return_t
+gum_read_malloc_memory (task_t remote_task,
+                        vm_address_t remote_address,
+                        vm_size_t size,
+                        void ** local_memory)
+{
+  *local_memory = (void *) remote_address;
+
+  return KERN_SUCCESS;
 }
 
 void

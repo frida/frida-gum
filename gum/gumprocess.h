@@ -17,6 +17,7 @@ typedef guint GumExportType;
 typedef struct _GumExportDetails GumExportDetails;
 typedef struct _GumRangeDetails GumRangeDetails;
 typedef struct _GumFileMapping GumFileMapping;
+typedef struct _GumMallocRangeDetails GumMallocRangeDetails;
 
 enum _GumThreadState
 {
@@ -67,6 +68,11 @@ struct _GumFileMapping
   guint64 offset;
 };
 
+struct _GumMallocRangeDetails
+{
+  const GumMemoryRange * range;
+};
+
 G_BEGIN_DECLS
 
 typedef void (* GumModifyThreadFunc) (GumThreadId thread_id,
@@ -79,6 +85,8 @@ typedef gboolean (* GumFoundExportFunc) (const GumExportDetails * details,
     gpointer user_data);
 typedef gboolean (* GumFoundRangeFunc) (const GumRangeDetails * details,
     gpointer user_data);
+typedef gboolean (* GumFoundMallocRangeFunc) (
+    const GumMallocRangeDetails * details, gpointer user_data);
 
 GUM_API GumOS gum_process_get_native_os (void);
 GUM_API gboolean gum_process_is_debugger_attached (void);
@@ -91,6 +99,8 @@ GUM_API void gum_process_enumerate_modules (GumFoundModuleFunc func,
     gpointer user_data);
 GUM_API void gum_process_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
+GUM_API void gum_process_enumerate_malloc_ranges (
+    GumFoundMallocRangeFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 GUM_API void gum_module_enumerate_ranges (const gchar * module_name,
