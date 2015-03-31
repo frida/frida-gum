@@ -861,7 +861,7 @@ gum_script_core_on_native_pointer_is_null (
   info.GetReturnValue ().Set (GUM_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
 }
 
-#define NATIVE_POINTER_OP_IMP(name, op) \
+#define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
     static void \
     gum_script_core_on_native_pointer_ ## name ( \
         const FunctionCallbackInfo<Value> & info) \
@@ -890,11 +890,11 @@ gum_script_core_on_native_pointer_is_null (
         info.GetReturnValue ().Set (_gum_script_pointer_new (result, self)); \
     }
 
-NATIVE_POINTER_OP_IMP (add, +)
-NATIVE_POINTER_OP_IMP (sub, -)
-NATIVE_POINTER_OP_IMP (and, &)
-NATIVE_POINTER_OP_IMP (or,  |)
-NATIVE_POINTER_OP_IMP (xor, ^)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (add, +)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
 
 static void
 gum_script_core_on_native_pointer_to_int32 (
