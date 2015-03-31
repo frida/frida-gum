@@ -401,6 +401,13 @@ gum_linux_enumerate_ranges (pid_t pid,
 }
 
 void
+gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
+                                     gpointer user_data)
+{
+  /* Not implemented */
+}
+
+void
 gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)

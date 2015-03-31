@@ -221,6 +221,13 @@ gum_process_enumerate_ranges (GumPageProtection prot,
 }
 
 void
+gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
+                                     gpointer user_data)
+{
+  /* Not implemented */
+}
+
+void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
