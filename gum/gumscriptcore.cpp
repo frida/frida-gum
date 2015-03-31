@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -153,6 +154,8 @@ static void gum_script_core_on_native_pointer_and (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_or (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_native_pointer_xor (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_int32 (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_string (
@@ -261,6 +264,9 @@ _gum_script_core_init (GumScriptCore * self,
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "or"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_or, data));
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "xor"),
+      FunctionTemplate::New (isolate,
+          gum_script_core_on_native_pointer_xor, data));
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toInt32"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_to_int32, data));
@@ -855,112 +861,40 @@ gum_script_core_on_native_pointer_is_null (
   info.GetReturnValue ().Set (GUM_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
 }
 
-static void
-gum_script_core_on_native_pointer_add (const FunctionCallbackInfo<Value> & info)
-{
-  GumScriptCore * self = static_cast<GumScriptCore *> (
-      info.Data ().As<External> ()->Value ());
+#define NATIVE_POINTER_OP_IMP(name, op) \
+    static void \
+    gum_script_core_on_native_pointer_ ## name ( \
+        const FunctionCallbackInfo<Value> & info) \
+    { \
+        GumScriptCore * self = static_cast<GumScriptCore *> ( \
+            info.Data ().As<External> ()->Value ()); \
+        \
+        guint64 lhs = reinterpret_cast<guint64> ( \
+            GUM_NATIVE_POINTER_VALUE (info.Holder ())); \
+        \
+        guint64 rhs; \
+        Local<FunctionTemplate> native_pointer ( \
+            Local<FunctionTemplate>::New (self->isolate, \
+                *self->native_pointer)); \
+        if (native_pointer->HasInstance (info[0])) \
+        { \
+          rhs = reinterpret_cast<guint64> ( \
+              GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ())); \
+        } \
+        else \
+        { \
+          rhs = info[0]->ToInteger ()->Value (); \
+        } \
+        gpointer result = GSIZE_TO_POINTER (lhs op rhs); \
+        \
+        info.GetReturnValue ().Set (_gum_script_pointer_new (result, self)); \
+    }
 
-  guint64 lhs = reinterpret_cast<guint64> (
-      GUM_NATIVE_POINTER_VALUE (info.Holder ()));
-
-  guint64 rhs;
-  Local<FunctionTemplate> native_pointer (
-    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-  {
-    rhs = reinterpret_cast<guint64> (
-        GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
-  gpointer result = GSIZE_TO_POINTER (lhs + rhs);
-
-  info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
-}
-
-static void
-gum_script_core_on_native_pointer_sub (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumScriptCore * self = static_cast<GumScriptCore *> (
-      info.Data ().As<External> ()->Value ());
-
-  guint64 lhs = reinterpret_cast<guint64> (
-      GUM_NATIVE_POINTER_VALUE (info.Holder ()));
-
-  guint64 rhs;
-  Local<FunctionTemplate> native_pointer (
-    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-  {
-    rhs = reinterpret_cast<guint64> (
-        GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
-  gpointer result = GSIZE_TO_POINTER (lhs - rhs);
-
-  info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
-}
-
-static void
-gum_script_core_on_native_pointer_and (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumScriptCore * self = static_cast<GumScriptCore *> (
-      info.Data ().As<External> ()->Value ());
-
-  guint64 lhs = reinterpret_cast<guint64> (
-      GUM_NATIVE_POINTER_VALUE (info.Holder ()));
-
-  guint64 rhs;
-  Local<FunctionTemplate> native_pointer (
-    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-  {
-    rhs = reinterpret_cast<guint64> (
-        GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
-  gpointer result = GSIZE_TO_POINTER (lhs & rhs);
-
-  info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
-}
-
-static void
-gum_script_core_on_native_pointer_or (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumScriptCore * self = static_cast<GumScriptCore *> (
-      info.Data ().As<External> ()->Value ());
-
-  guint64 lhs = reinterpret_cast<guint64> (
-      GUM_NATIVE_POINTER_VALUE (info.Holder ()));
-
-  guint64 rhs;
-  Local<FunctionTemplate> native_pointer (
-    Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-  {
-    rhs = reinterpret_cast<guint64> (
-        GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
-  gpointer result = GSIZE_TO_POINTER (lhs | rhs);
-
-  info.GetReturnValue ().Set (_gum_script_pointer_new (result, self));
-}
+NATIVE_POINTER_OP_IMP (add, +)
+NATIVE_POINTER_OP_IMP (sub, -)
+NATIVE_POINTER_OP_IMP (and, &)
+NATIVE_POINTER_OP_IMP (or,  |)
+NATIVE_POINTER_OP_IMP (xor, ^)
 
 static void
 gum_script_core_on_native_pointer_to_int32 (
