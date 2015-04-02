@@ -175,20 +175,21 @@ gum_script_process_thread_match (const GumThreadDetails * details,
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
   Isolate * isolate = ctx->isolate;
 
   if (gum_script_is_ignoring (details->id))
     return TRUE;
 
   Local<Object> thread (Object::New (isolate));
-  thread->Set (String::NewFromUtf8 (isolate, "id"),
-      Number::New (isolate, details->id), ReadOnly);
-  thread->Set (String::NewFromUtf8 (isolate, "state"),
-      String::NewFromUtf8 (isolate,
-      gum_script_thread_state_to_string (details->state)), ReadOnly);
-  thread->Set (String::NewFromUtf8 (isolate, "registers"),
-      _gum_script_cpu_context_to_object (&details->cpu_context,
-      ctx->self->core), ReadOnly);
+  _gum_script_set (thread, "id", Number::New (isolate, details->id), core);
+  _gum_script_set (thread, "state", String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (gum_script_thread_state_to_string (
+          details->state))),
+      core);
+  _gum_script_set (thread, "registers", _gum_script_cpu_context_to_object (
+      &details->cpu_context, ctx->self->core), core);
+
   Handle<Value> argv[] = { thread };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
 
@@ -265,18 +266,14 @@ gum_script_process_handle_module_match (const GumModuleDetails * details,
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
   Isolate * isolate = ctx->isolate;
 
   Local<Object> module (Object::New (isolate));
-  module->Set (String::NewFromUtf8 (isolate, "name"),
-      String::NewFromUtf8 (isolate, details->name), ReadOnly);
-  module->Set (String::NewFromUtf8 (isolate, "base"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (details->range->base_address),
-      ctx->self->core), ReadOnly);
-  module->Set (String::NewFromUtf8 (isolate, "size"),
-      Integer::NewFromUnsigned (isolate, details->range->size), ReadOnly);
-  module->Set (String::NewFromUtf8 (isolate, "path"),
-      String::NewFromUtf8 (isolate, details->path), ReadOnly);
+  _gum_script_set_ascii (module, "name", details->name, core);
+  _gum_script_set_pointer (module, "base", details->range->base_address, core);
+  _gum_script_set_uint (module, "size", details->range->size, core);
+  _gum_script_set_utf8 (module, "path", details->path, core);
 
   Handle<Value> argv[] = {
     module
@@ -344,6 +341,7 @@ gum_script_process_handle_range_match (const GumRangeDetails * details,
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
   Isolate * isolate = ctx->isolate;
 
   char prot_str[4] = "---";
@@ -355,13 +353,9 @@ gum_script_process_handle_range_match (const GumRangeDetails * details,
     prot_str[2] = 'x';
 
   Local<Object> range (Object::New (isolate));
-  range->Set (String::NewFromUtf8 (isolate, "base"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (details->range->base_address),
-      ctx->self->core), ReadOnly);
-  range->Set (String::NewFromUtf8 (isolate, "size"),
-      Integer::NewFromUnsigned (isolate, details->range->size), ReadOnly);
-  range->Set (String::NewFromUtf8 (isolate, "protection"),
-      String::NewFromUtf8 (isolate, prot_str), ReadOnly);
+  _gum_script_set_pointer (range, "base", details->range->base_address, core);
+  _gum_script_set_uint (range, "size", details->range->size, core);
+  _gum_script_set_ascii (range, "protection", prot_str, core);
 
   Handle<Value> argv[] = {
     range

@@ -114,6 +114,19 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_pointer_new (gpointer address,
 G_GNUC_INTERNAL gboolean _gum_script_pointer_get (v8::Handle<v8::Value> value,
     gpointer * target, GumScriptCore * core);
 
+G_GNUC_INTERNAL gboolean _gum_script_set (v8::Handle<v8::Object> object,
+    const gchar * key, v8::Handle<v8::Value> value, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_set_uint (v8::Handle<v8::Object> object,
+    const gchar * key, guint value, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_set_pointer (v8::Handle<v8::Object> object,
+    const gchar * key, gpointer value, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_set_pointer (v8::Handle<v8::Object> object,
+    const gchar * key, GumAddress value, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_set_ascii (v8::Handle<v8::Object> object,
+    const gchar * key, const gchar * value, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_set_utf8 (v8::Handle<v8::Object> object,
+    const gchar * key, const gchar * value, GumScriptCore * core);
+
 G_GNUC_INTERNAL gboolean _gum_script_callbacks_get (
     v8::Handle<v8::Object> callbacks, const gchar * name,
     v8::Handle<v8::Function> * callback_function, GumScriptCore * core);

@@ -253,10 +253,13 @@ gum_script_event_sink_drain (gpointer user_data)
       GHashTableIter iter;
       g_hash_table_iter_init (&iter, frequencies);
       gpointer target, count;
+      Local<Context> jc = isolate->GetCurrentContext ();
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        summary->Set (_gum_script_pointer_new (target, self->core),
-            Number::New (isolate, GPOINTER_TO_SIZE (count)), ReadOnly);
+        Maybe<bool> success = summary->ForceSet (jc,
+            _gum_script_pointer_new (target, self->core),
+            Number::New (isolate, GPOINTER_TO_SIZE (count)),
+            static_cast<PropertyAttribute> (ReadOnly | DontDelete));
       }
 
       g_hash_table_unref (frequencies);

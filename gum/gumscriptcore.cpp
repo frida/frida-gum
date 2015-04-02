@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -1622,8 +1622,9 @@ _gum_byte_array_new (gpointer data,
   GumByteArray * buffer;
 
   Local<Object> arr (Object::New (isolate));
-  arr->Set (String::NewFromUtf8 (isolate, "length"), Int32::New (isolate, size),
-      ReadOnly);
+  arr->ForceSet (String::NewFromUtf8 (isolate, "length"),
+      Int32::New (isolate, size),
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
   if (size > 0)
   {
     arr->SetIndexedPropertiesToExternalArrayData (data,
@@ -1746,6 +1747,82 @@ _gum_script_pointer_get (Handle<Value> value,
 }
 
 gboolean
+_gum_script_set (Handle<Object> object,
+                 const gchar * key,
+                 Handle<Value> value,
+                 GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+  Maybe<bool> success = object->ForceSet (isolate->GetCurrentContext (),
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (key)),
+      value,
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
+  return success.IsJust ();
+}
+
+gboolean
+_gum_script_set_uint (Handle<Object> object,
+                      const gchar * key,
+                      guint value,
+                      GumScriptCore * core)
+{
+  return _gum_script_set (object,
+      key,
+      Integer::NewFromUnsigned (core->isolate, value),
+      core);
+}
+
+gboolean
+_gum_script_set_pointer (Handle<Object> object,
+                         const gchar * key,
+                         gpointer value,
+                         GumScriptCore * core)
+{
+  return _gum_script_set (object,
+      key,
+      _gum_script_pointer_new (value, core),
+      core);
+}
+
+gboolean
+_gum_script_set_pointer (Handle<Object> object,
+                         const gchar * key,
+                         GumAddress value,
+                         GumScriptCore * core)
+{
+  return _gum_script_set (object,
+      key,
+      _gum_script_pointer_new (GSIZE_TO_POINTER (value), core),
+      core);
+}
+
+gboolean
+_gum_script_set_ascii (Handle<Object> object,
+                       const gchar * key,
+                       const gchar * value,
+                       GumScriptCore * core)
+{
+  return _gum_script_set (object,
+      key,
+      String::NewFromOneByte (core->isolate,
+          reinterpret_cast<const uint8_t *> (value)),
+      core);
+}
+
+gboolean
+_gum_script_set_utf8 (Handle<Object> object,
+                      const gchar * key,
+                      const gchar * value,
+                      GumScriptCore * core)
+{
+  return _gum_script_set (object,
+      key,
+      String::NewFromUtf8 (core->isolate, value),
+      core);
+}
+
+gboolean
 _gum_script_callbacks_get (Handle<Object> callbacks,
                            const gchar * name,
                            Handle<Function> * callback_function,
@@ -1805,8 +1882,9 @@ _gum_script_cpu_context_to_object (const GumCpuContext * ctx,
 #define GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD(R) \
     GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (R, R)
 #define GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED(A, R) \
-    result->Set (String::NewFromUtf8 (isolate, G_STRINGIFY (A)), \
-        _gum_script_pointer_new (GSIZE_TO_POINTER (ctx->R), core), ReadOnly)
+    result->ForceSet (String::NewFromUtf8 (isolate, G_STRINGIFY (A)), \
+        _gum_script_pointer_new (GSIZE_TO_POINTER (ctx->R), core), \
+        static_cast<PropertyAttribute> (ReadOnly | DontDelete))
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   pc = ctx->eip;
@@ -1900,10 +1978,12 @@ _gum_script_cpu_context_to_object (const GumCpuContext * ctx,
 #undef GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD
 #undef GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED
 
-  result->Set (String::NewFromUtf8 (isolate, "pc"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (pc), core), ReadOnly);
-  result->Set (String::NewFromUtf8 (isolate, "sp"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (sp), core), ReadOnly);
+  result->ForceSet (String::NewFromUtf8 (isolate, "pc"),
+      _gum_script_pointer_new (GSIZE_TO_POINTER (pc), core),
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
+  result->ForceSet (String::NewFromUtf8 (isolate, "sp"),
+      _gum_script_pointer_new (GSIZE_TO_POINTER (sp), core),
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
 
   return result;
 }

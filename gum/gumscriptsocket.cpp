@@ -34,7 +34,7 @@ static void gum_script_socket_on_local_address (
 static void gum_script_socket_on_peer_address (
     const FunctionCallbackInfo<Value> & info);
 static Local<Value> gum_script_socket_address_to_value (
-    struct sockaddr * addr, Isolate * isolate);
+    struct sockaddr * addr, GumScriptCore * core);
 
 void
 _gum_script_socket_init (GumScriptSocket * self,
@@ -45,13 +45,17 @@ _gum_script_socket_init (GumScriptSocket * self,
 
   self->core = core;
 
+  Local<External> data (External::New (isolate, self));
+
   Handle<ObjectTemplate> socket = ObjectTemplate::New (isolate);
   socket->Set (String::NewFromUtf8 (isolate, "type"),
       FunctionTemplate::New (isolate, gum_script_socket_on_type));
   socket->Set (String::NewFromUtf8 (isolate, "localAddress"),
-      FunctionTemplate::New (isolate, gum_script_socket_on_local_address));
+      FunctionTemplate::New (isolate, gum_script_socket_on_local_address,
+      data));
   socket->Set (String::NewFromUtf8 (isolate, "peerAddress"),
-      FunctionTemplate::New (isolate, gum_script_socket_on_peer_address));
+      FunctionTemplate::New (isolate, gum_script_socket_on_peer_address,
+      data));
   scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
 }
 
@@ -147,13 +151,16 @@ gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
 static void
 gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
 {
+  GumScriptSocket * self = static_cast<GumScriptSocket *> (
+      info.Data ().As<External> ()->Value ());
+
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
   if (getsockname (info[0]->ToInteger ()->Value (), addr, &len) == 0)
   {
     info.GetReturnValue ().Set (
-        gum_script_socket_address_to_value (addr, info.GetIsolate ()));
+        gum_script_socket_address_to_value (addr, self->core));
   }
   else
   {
@@ -164,13 +171,16 @@ gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
 static void
 gum_script_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
 {
+  GumScriptSocket * self = static_cast<GumScriptSocket *> (
+      info.Data ().As<External> ()->Value ());
+
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
   if (getpeername (info[0]->ToInteger ()->Value (), addr, &len) == 0)
   {
     info.GetReturnValue ().Set (
-        gum_script_socket_address_to_value (addr, info.GetIsolate ()));
+        gum_script_socket_address_to_value (addr, self->core));
   }
   else
   {
@@ -180,8 +190,10 @@ gum_script_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
 
 static Local<Value>
 gum_script_socket_address_to_value (struct sockaddr * addr,
-                                    Isolate * isolate)
+                                    GumScriptCore * core)
 {
+  Isolate * isolate = core->isolate;
+
   switch (addr->sa_family)
   {
     case AF_INET:
@@ -204,10 +216,8 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
       inet_ntop (AF_INET, &inet_addr->sin_addr, ip, sizeof (ip));
 #endif
       Local<Object> result (Object::New (isolate));
-      result->Set (String::NewFromUtf8 (isolate, "ip"),
-          String::NewFromUtf8 (isolate, ip), ReadOnly);
-      result->Set (String::NewFromUtf8 (isolate, "port"),
-          Int32::New (isolate, ntohs (inet_addr->sin_port)), ReadOnly);
+      _gum_script_set_ascii (result, "ip", ip, core);
+      _gum_script_set_uint (result, "port", ntohs (inet_addr->sin_port), core);
       return result;
     }
     case AF_INET6:
@@ -230,18 +240,14 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
       inet_ntop (AF_INET6, &inet_addr->sin6_addr, ip, sizeof (ip));
 #endif
       Local<Object> result (Object::New (isolate));
-      result->Set (String::NewFromUtf8 (isolate, "ip"),
-          String::NewFromUtf8 (isolate, ip), ReadOnly);
-      result->Set (String::NewFromUtf8 (isolate, "port"),
-          Int32::New (isolate, ntohs (inet_addr->sin6_port)), ReadOnly);
+      _gum_script_set_ascii (result, "ip", ip, core);
+      _gum_script_set_uint (result, "port", ntohs (inet_addr->sin6_port), core);
       return result;
     }
     case AF_UNIX:
     {
       Local<Object> result (Object::New (isolate));
-      result->Set (String::NewFromUtf8 (isolate, "path"),
-          String::NewFromUtf8 (isolate, "") /* FIXME */,
-          ReadOnly);
+      _gum_script_set_ascii (result, "path", "", core); /* FIXME */
       return result;
     }
   }

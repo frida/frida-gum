@@ -91,6 +91,7 @@ _gum_script_module_realize (GumScriptModule * self)
   if (g_once_init_enter (&gonce_value))
   {
     Isolate * isolate = self->core->isolate;
+    Local<Context> context = isolate->GetCurrentContext ();
 
     Local<String> type (String::NewFromUtf8 (isolate, "type"));
     Local<String> name (String::NewFromUtf8 (isolate, "name"));
@@ -100,10 +101,14 @@ _gum_script_module_realize (GumScriptModule * self)
     Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
 
     Local<Object> exp (Object::New (isolate));
-    exp->Set (type, function, DontDelete);
-    exp->Set (name, String::NewFromUtf8 (isolate, ""), DontDelete);
-    exp->Set (address, _gum_script_pointer_new (
+    Maybe<bool> result = exp->ForceSet (context, type, function, DontDelete);
+    g_assert (result.IsJust ());
+    result = exp->ForceSet (context, name, String::NewFromUtf8 (isolate, ""),
+        DontDelete);
+    g_assert (result.IsJust ());
+    result = exp->ForceSet (context, address, _gum_script_pointer_new (
         GSIZE_TO_POINTER (NULL), self->core), DontDelete);
+    g_assert (result.IsJust ());
 
     eternal_module_export.Set (isolate, exp);
     eternal_type.Set (isolate, type);
@@ -191,14 +196,28 @@ gum_script_module_handle_export_match (const GumExportDetails * details,
   GumScriptExportsContext * ctx =
       static_cast<GumScriptExportsContext *> (user_data);
   Isolate * isolate = ctx->isolate;
+  Local<Context> jc = isolate->GetCurrentContext ();
+  PropertyAttribute attrs =
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete);
 
   Local<Object> exp (ctx->exp->Clone ());
   if (details->type != GUM_EXPORT_FUNCTION)
-    exp->Set (ctx->type, ctx->variable, ReadOnly);
-  exp->Set (ctx->name,
-      String::NewFromUtf8 (isolate, details->name), ReadOnly);
-  exp->Set (ctx->address, _gum_script_pointer_new (
-      GSIZE_TO_POINTER (details->address), ctx->self->core), ReadOnly);
+  {
+    Maybe<bool> success = exp->ForceSet (jc, ctx->type, ctx->variable, attrs);
+    g_assert (success.IsJust ());
+  }
+  Maybe<bool> success = exp->ForceSet (jc,
+      ctx->name,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (details->name)),
+      attrs);
+  g_assert (success.IsJust ());
+  success = exp->ForceSet (jc,
+      ctx->address,
+      _gum_script_pointer_new (GSIZE_TO_POINTER (details->address),
+          ctx->self->core),
+      attrs);
+  g_assert (success.IsJust ());
 
   Handle<Value> argv[] = {
     exp
@@ -273,6 +292,7 @@ gum_script_module_handle_range_match (const GumRangeDetails * details,
 {
   GumScriptRangesContext * ctx =
       static_cast<GumScriptRangesContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
   Isolate * isolate = ctx->isolate;
 
   char prot_str[4] = "---";
@@ -284,13 +304,9 @@ gum_script_module_handle_range_match (const GumRangeDetails * details,
     prot_str[2] = 'x';
 
   Local<Object> range (Object::New (isolate));
-  range->Set (String::NewFromUtf8 (isolate, "base"), _gum_script_pointer_new (
-      GSIZE_TO_POINTER (details->range->base_address), ctx->self->core),
-      ReadOnly);
-  range->Set (String::NewFromUtf8 (isolate, "size"),
-      Integer::NewFromUnsigned (isolate, details->range->size), ReadOnly);
-  range->Set (String::NewFromUtf8 (isolate, "protection"),
-      String::NewFromUtf8 (isolate, prot_str), ReadOnly);
+  _gum_script_set_pointer (range, "base", details->range->base_address, core);
+  _gum_script_set_uint (range, "size", details->range->size, core);
+  _gum_script_set_ascii (range, "protection", prot_str, core);
 
   Handle<Value> argv[] = {
     range
