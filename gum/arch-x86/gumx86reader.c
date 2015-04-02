@@ -137,7 +137,7 @@ disassemble_instruction_at (gconstpointer address)
 {
   csh capstone;
   cs_err err;
-  cs_insn * insn;
+  cs_insn * insn = NULL;
 
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
   g_assert_cmpint (err, ==, CS_ERR_OK);

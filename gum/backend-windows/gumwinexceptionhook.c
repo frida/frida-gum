@@ -79,7 +79,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler,
     offset = 0;
     while (hook_instance->system_handler == NULL)
     {
-      cs_insn * insn;
+      cs_insn * insn = NULL;
 
       cs_disasm_ex (capstone,
           (guint8 *) hook_instance->dispatcher_impl + offset, 16,
