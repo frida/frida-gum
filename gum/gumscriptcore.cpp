@@ -24,7 +24,6 @@
 using namespace v8;
 
 typedef struct _GumWeakRef GumWeakRef;
-typedef struct _GumScriptJob GumScriptJob;
 typedef struct _GumFFIFunction GumFFIFunction;
 typedef struct _GumFFICallback GumFFICallback;
 typedef union _GumFFIValue GumFFIValue;
@@ -37,13 +36,6 @@ struct _GumWeakRef
   GumPersistent<Value>::type * target;
   GumPersistent<Function>::type * callback;
   GumScriptCore * core;
-};
-
-struct _GumScriptJob
-{
-  GumScriptCoreJobFunc func;
-  gpointer user_data;
-  GDestroyNotify notify;
 };
 
 struct _GumScheduledCallback
@@ -125,7 +117,6 @@ static GumWeakRef * gum_weak_ref_new (gint id, Handle<Value> target,
 static void gum_weak_ref_free (GumWeakRef * ref);
 static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
     GumWeakRef> & data);
-static void gum_script_core_perform (GumScriptJob * job, GumScriptCore * self);
 static void gum_script_core_on_set_timeout (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_set_interval (
@@ -202,11 +193,13 @@ static void gum_heap_block_on_weak_notify (
 void
 _gum_script_core_init (GumScriptCore * self,
                        GumScript * script,
+                       GumScriptScheduler * scheduler,
                        GMainContext * main_context,
                        v8::Isolate * isolate,
                        Handle<ObjectTemplate> scope)
 {
   self->script = script;
+  self->scheduler = scheduler;
   self->main_context = main_context;
   self->isolate = isolate;
 
@@ -323,9 +316,6 @@ _gum_script_core_realize (GumScriptCore * self)
       Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   self->native_pointer_value = new GumPersistent<Object>::type (self->isolate,
       native_pointer->InstanceTemplate ()->NewInstance ());
-
-  self->thread_pool = g_thread_pool_new (
-      reinterpret_cast<GFunc> (gum_script_core_perform), self, 1, FALSE, NULL);
 }
 
 void
@@ -336,8 +326,7 @@ _gum_script_core_flush (GumScriptCore * self)
   {
     Unlocker ul (self->isolate);
 
-    g_thread_pool_free (self->thread_pool, FALSE, TRUE);
-    self->thread_pool = NULL;
+    gum_script_scheduler_flush_by_tag (self->scheduler, self);
   }
 
   self->isolate->Enter ();
@@ -534,28 +523,12 @@ gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
 
 void
 _gum_script_core_push_job (GumScriptCore * self,
-                           GumScriptCoreJobFunc job_func,
+                           GumScriptJobFunc job_func,
                            gpointer user_data,
                            GDestroyNotify notify)
 {
-  GumScriptJob * job;
-
-  job = g_slice_new (GumScriptJob);
-  job->func = job_func;
-  job->user_data = user_data;
-  job->notify = notify;
-  g_thread_pool_push (self->thread_pool, job, NULL);
-}
-
-static void
-gum_script_core_perform (GumScriptJob * job,
-                         GumScriptCore * self)
-{
-  (void) self;
-
-  job->func (job->user_data);
-  job->notify (job->user_data);
-  g_slice_free (GumScriptJob, job);
+  gum_script_scheduler_push_job (self->scheduler, job_func, user_data, notify,
+      self);
 }
 
 static void

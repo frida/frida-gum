@@ -23,6 +23,7 @@
 
 #include <gio/gio.h>
 #include <string.h>
+#include <v8-platform.h>
 
 #define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
@@ -38,7 +39,6 @@ enum
 struct _GumScriptPrivate
 {
   gchar * source;
-  GMainContext * main_context;
 
   Isolate * isolate;
   GumScriptCore core;
@@ -82,13 +82,91 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
+class GumScriptPlatform : public Platform
+{
+public:
+  GumScriptPlatform (GMainContext * main_context,
+                     GumScriptScheduler * scheduler)
+    : main_context (main_context),
+      scheduler (scheduler),
+      start_time (g_get_monotonic_time ())
+  {
+  }
+
+  GMainContext * GetMainContext () const
+  {
+    return main_context;
+  }
+
+  virtual void CallOnBackgroundThread (Task * task,
+      ExpectedRuntime expected_runtime)
+  {
+    gum_script_scheduler_push_job (scheduler,
+        reinterpret_cast<GumScriptJobFunc> (PerformTask),
+        task,
+        reinterpret_cast<GDestroyNotify> (DisposeTask),
+        NULL);
+  }
+
+  virtual void CallOnForegroundThread (Isolate * isolate, Task * task)
+  {
+    GSource * source = g_idle_source_new ();
+    g_source_set_priority (source, G_PRIORITY_HIGH);
+    g_source_set_callback (source,
+        reinterpret_cast<GSourceFunc> (PerformTaskWhenIdle),
+        task,
+        reinterpret_cast<GDestroyNotify> (DisposeTask));
+    g_source_attach (source, main_context);
+    g_source_unref (source);
+  }
+
+  virtual double MonotonicallyIncreasingTime ()
+  {
+    gint64 delta = g_get_monotonic_time () - start_time;
+    return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
+  }
+
+private:
+  static void PerformTask (Task * task)
+  {
+    task->Run ();
+  }
+
+  static gboolean PerformTaskWhenIdle (Task * task)
+  {
+    PerformTask (task);
+    return FALSE;
+  }
+
+  static void DisposeTask (Task * task)
+  {
+    delete task;
+  }
+
+  GMainContext * main_context;
+  GumScriptScheduler * scheduler;
+  const gint64 start_time;
+
+  GumScriptPlatform (const GumScriptPlatform &) V8_DELETE;
+  void operator= (const GumScriptPlatform &) V8_DELETE;
+};
+
+static GumScriptScheduler * gum_scheduler = NULL;
+static GumScriptPlatform * gum_platform = nullptr;
+
 static gpointer
 gum_script_runtime_init (gpointer data)
 {
   (void) data;
 
+  gum_scheduler = gum_script_scheduler_new ();
+
+  gum_platform = new GumScriptPlatform (g_main_context_get_thread_default (),
+      gum_scheduler);
+
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
+  V8::InitializePlatform (gum_platform);
   V8::Initialize ();
 
   Isolate * isolate = Isolate::New ();
@@ -107,6 +185,13 @@ gum_script_runtime_deinit (void)
   isolate->Dispose ();
 
   V8::Dispose ();
+  V8::ShutdownPlatform ();
+
+  delete gum_platform;
+  gum_platform = nullptr;
+
+  gum_script_scheduler_free (gum_scheduler);
+  gum_scheduler = NULL;
 }
 
 static void
@@ -149,8 +234,6 @@ gum_script_init (GumScript * self)
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
-
-  priv->main_context = g_main_context_get_thread_default ();
 
   priv->isolate = Isolate::GetCurrent ();
   priv->loaded = FALSE;
@@ -232,8 +315,8 @@ gum_script_create_context (GumScript * self,
     HandleScope handle_scope (priv->isolate);
 
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-    _gum_script_core_init (&priv->core, self, priv->main_context, priv->isolate,
-        global_templ);
+    _gum_script_core_init (&priv->core, self, gum_scheduler,
+        gum_platform->GetMainContext (), priv->isolate, global_templ);
     _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);

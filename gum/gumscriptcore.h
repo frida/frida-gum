@@ -11,6 +11,7 @@
     (o)->GetInternalField (0).As<External> ()->Value ()
 
 #include "gumscript.h"
+#include "gumscriptscheduler.h"
 
 #include <v8.h>
 
@@ -22,8 +23,6 @@ typedef struct _GumMessageSink GumMessageSink;
 typedef struct _GumHeapBlock GumHeapBlock;
 typedef struct _GumByteArray GumByteArray;
 
-typedef void (* GumScriptCoreJobFunc) (gpointer user_data);
-
 template <typename T>
 struct GumPersistent
 {
@@ -33,6 +32,7 @@ struct GumPersistent
 struct _GumScriptCore
 {
   GumScript * script;
+  GumScriptScheduler * scheduler;
   GMainContext * main_context;
   v8::Isolate * isolate;
 
@@ -40,8 +40,6 @@ struct _GumScriptCore
 
   GCond event_cond;
   guint event_count;
-
-  GThreadPool * thread_pool;
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
@@ -84,7 +82,8 @@ struct _GumByteArray
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
-    GumScript * script, GMainContext * main_context, v8::Isolate * isolate,
+    GumScript * script, GumScriptScheduler * scheduler,
+    GMainContext * main_context, v8::Isolate * isolate,
     v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_script_core_realize (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);
@@ -99,7 +98,7 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
 
 G_GNUC_INTERNAL void _gum_script_core_push_job (GumScriptCore * self,
-    GumScriptCoreJobFunc job_func, gpointer user_data, GDestroyNotify notify);
+    GumScriptJobFunc job_func, gpointer user_data, GDestroyNotify notify);
 
 G_GNUC_INTERNAL GumByteArray * _gum_byte_array_new (gpointer data, gsize size,
     GumScriptCore * core);
