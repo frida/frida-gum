@@ -31,16 +31,9 @@ typedef Elf64_Sym GumElfSymbol;
 # define GUM_ELF_ST_TYPE(val) ELF64_ST_TYPE(val)
 #endif
 
-typedef struct _GumDlIteratePhdrContext GumDlIteratePhdrContext;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
-
-struct _GumDlIteratePhdrContext
-{
-  GumFoundModuleFunc func;
-  gpointer user_data;
-};
 
 struct _GumFindModuleContext
 {
@@ -64,9 +57,6 @@ struct _GumFindExportContext
 
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
-
-static int gum_emit_dl_module (const struct dl_phdr_info * info, size_t size,
-    void * data);
 
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
@@ -150,6 +140,8 @@ gum_process_enumerate_threads (GumFoundThreadFunc func,
     {
       carry_on = func (&details, user_data);
     }
+
+    thread.tid++;
   }
 
   close (fd);
@@ -169,12 +161,12 @@ gum_qnx_enumerate_ranges (pid_t pid,
                           GumFoundRangeFunc func,
                           gpointer user_data)
 {
-
   gchar * as_path;
   gint fd, res;
   gboolean carry_on = TRUE;
-  procfs_mapinfo membufs[512];
-  gint num_membufs;
+  procfs_mapinfo * mapinfos;
+  gint num_mapinfos;
+  procfs_debuginfo * debuginfo;
   gint i = 0;
 
   as_path = g_strdup_printf ("/proc/%d/as", pid);
@@ -182,26 +174,31 @@ gum_qnx_enumerate_ranges (pid_t pid,
   g_assert (fd != -1);
   g_free (as_path);
 
-  res = devctl (fd, DCMD_PROC_PAGEDATA, &membufs, sizeof (membufs),
-      &num_membufs);
+  res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
   g_assert (res != 0);
 
-  close (fd);
+  mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
+  debuginfo = g_malloc (sizeof (procfs_debug) + 0x100);
 
-  g_assert_cmpint (num_membufs, >, 512);
+  res = devctl (fd, DCMD_PROC_PAGEDATA, &mapinfos,
+      sizeof (procfs_mapinfo) * num_mapinfos, NULL);
+  g_assert (res != 0);
 
-  while (carry_on && i < num_membufs)
+  while (carry_on && i != num_mapinfos)
   {
     GumRangeDetails details;
     GumMemoryRange range;
 
-    range.base_address = membufs[i].vaddr;
-    range.size = membufs[i].size;
+    range.base_address = mapinfos[i].vaddr;
+    range.size = mapinfos[i].size;
 
     details.range = &range;
-    details.prot = gum_page_protection_from_page_data_flags (membufs[i].flags);
-    /* TODO: there doesn't seem to be a way to get the file mapping. */
-    details.file = NULL;
+    details.prot = gum_page_protection_from_page_data_flags (mapinfos[i].flags);
+
+    debuginfo.vaddr = mapinfos[i].vaddr;
+    res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
+        sizeof (procfs_debuginfo) + 0x100, NULL);
+    details.file = debuginfo.path;
 
     if ((details.prot & prot) == prot)
     {
@@ -210,6 +207,10 @@ gum_qnx_enumerate_ranges (pid_t pid,
 
     i++;
   }
+
+  close (fd);
+  g_free (mapinfos);
+  g_free (debuginfo);
 }
 
 void
@@ -231,31 +232,56 @@ void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  GumDlIteratePhdrContext ctx = { func, user_data };
+  gchar * as_path;
+  gint fd, res;
+  gboolean carry_on = TRUE;
+  procfs_mapinfo * mapinfos;
+  gint num_mapinfos;
+  procfs_debuginfo * debuginfo;
+  gint i = 0;
 
-  dl_iterate_phdr (gum_emit_dl_module, &ctx);
-}
+  as_path = g_strdup_printf ("/proc/%d/as", getpid ());
+  fd = open (as_path, O_RDONLY);
+  g_assert (fd != -1);
+  g_free (as_path);
 
-static int
-gum_emit_dl_module (const struct dl_phdr_info * info,
-                    size_t size,
-                    void * data)
-{
-  GumDlIteratePhdrContext * ctx = (GumDlIteratePhdrContext *) data;
-  gboolean carry_on;
-  GumModuleDetails details;
-  GumMemoryRange range;
+  res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
+  g_assert (res != 0);
 
-  range.base_address = info->dlpi_addr;
-  /* TODO: we don't know the size of this file. */
-  range.size = 0;
+  mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
+  debuginfo = g_malloc (sizeof (procfs_debug) + 0x100);
 
-  details.name = info->dlpi_name;
-  details.range = &range;
+  res = devctl (fd, DCMD_PROC_PAGEDATA, &mapinfos,
+      sizeof (procfs_mapinfo) * num_mapinfos, NULL);
+  g_assert (res != 0);
 
-  carry_on = ctx->func (&details, ctx->user_data);
+  while (carry_on && i != num_mapinfos)
+  {
+    GumRangeDetails details;
+    GumMemoryRange range;
 
-  return carry_on ? 0 : 1;
+    range.base_address = mapinfos[i].vaddr;
+    range.size = mapinfos[i].size;
+
+    details.range = &range;
+
+    debuginfo.vaddr = mapinfos[i].vaddr;
+    res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
+        sizeof (procfs_debuginfo) + 0x100, NULL);
+    details.name = debuginfo.path;
+
+    if ((mapinfos[i].flags & PROT_EXEC) != 0
+        && (mapinfos[i].flags & MAP_ELF) != 0)
+    {
+      carry_on = func (&details, user_data);
+    }
+
+    i++;
+  }
+
+  close (fd);
+  g_free (mapinfos);
+  g_free (debuginfo);
 }
 
 void
