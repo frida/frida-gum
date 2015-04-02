@@ -281,6 +281,8 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)
 {
   /* Not implemented */
+  (void) func;
+  (void) user_data;
 }
 
 void

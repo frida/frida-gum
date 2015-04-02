@@ -133,9 +133,10 @@ PROCESS_TESTCASE (process_ranges)
     const gsize malloc_buf_size = 100;
     guint8 * malloc_buf;
     const gsize stack_buf_size = 50;
-    guint8 stack_buf[stack_buf_size];
+    guint8 * stack_buf;
 
     malloc_buf = malloc (malloc_buf_size);
+    stack_buf = g_alloca (stack_buf_size);
 
     ctx.range.base_address = GUM_ADDRESS (malloc_buf);
     ctx.range.size = malloc_buf_size;
