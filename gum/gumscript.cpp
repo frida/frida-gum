@@ -91,6 +91,9 @@ gum_script_runtime_init (gpointer data)
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
   V8::Initialize ();
 
+  Isolate * isolate = Isolate::New ();
+  isolate->Enter ();
+
   _gum_register_destructor (gum_script_runtime_deinit);
 
   return NULL;
@@ -99,6 +102,10 @@ gum_script_runtime_init (gpointer data)
 static void
 gum_script_runtime_deinit (void)
 {
+  Isolate * isolate = Isolate::GetCurrent ();
+  isolate->Exit ();
+  isolate->Dispose ();
+
   V8::Dispose ();
 }
 
