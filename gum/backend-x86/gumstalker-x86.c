@@ -1811,9 +1811,22 @@ static GumVirtualizationRequirements
 gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
                                          GumGeneratorContext * gc)
 {
-#if defined (G_OS_UNIX) && GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
+#if GLIB_SIZEOF_VOID_P == 4 && !defined (HAVE_QNX)
   GumX86Writer * cw = gc->code_writer;
-#if defined (HAVE_MAC)
+#if defined (HAVE_WINDOWS)
+  guint8 code[] = {
+    /* 00 */ 0x50,                                /* push eax              */
+    /* 01 */ 0x8b, 0x02,                          /* mov eax, [edx]        */
+    /* 03 */ 0xa3, 0xaa, 0xaa, 0xaa, 0xaa,        /* mov [0xaaaaaaaa], eax */
+    /* 08 */ 0xc7, 0x02, 0xbb, 0xbb, 0xbb, 0xbb,  /* mov [edx], 0xbbbbbbbb */
+    /* 0e */ 0x58,                                /* pop eax               */
+    /* 0f */ 0x0f, 0x34,                          /* sysenter              */
+    /* 11 */ 0xcc, 0xcc, 0xcc, 0xcc               /* <saved ret-addr here> */
+  };
+  const gsize store_ret_addr_offset = 0x03 + 1;
+  const gsize load_continuation_addr_offset = 0x08 + 2;
+  const gsize saved_ret_addr_offset = 0x11;
+#elif defined (HAVE_MAC)
   guint8 code[] = {
     /* 00 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
     /* 06 */ 0xba, 0xbb, 0xbb, 0xbb, 0xbb,       /* mov edx, 0xbbbbbbbb   */
