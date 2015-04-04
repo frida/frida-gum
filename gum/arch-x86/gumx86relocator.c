@@ -140,8 +140,8 @@ gum_x86_relocator_read_one (GumX86Relocator * self,
     *insn_ptr = NULL;
   }
 
-  if (cs_disasm_ex (self->capstone, self->input_cur, 16,
-        GPOINTER_TO_SIZE (self->input_cur), 1, insn_ptr) != 1)
+  if (cs_disasm (self->capstone, self->input_cur, 16,
+      GPOINTER_TO_SIZE (self->input_cur), 1, insn_ptr) != 1)
   {
     return 0;
   }

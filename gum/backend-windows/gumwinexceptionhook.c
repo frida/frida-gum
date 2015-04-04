@@ -8,7 +8,7 @@
 
 #include "gumx86writer.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <tchar.h>
 
 #define GUM_IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
@@ -81,7 +81,7 @@ gum_win_exception_hook_add (GumWinExceptionHandler handler,
     {
       cs_insn * insn = NULL;
 
-      cs_disasm_ex (capstone,
+      cs_disasm (capstone,
           (guint8 *) hook_instance->dispatcher_impl + offset, 16,
           GPOINTER_TO_SIZE (hook_instance->dispatcher_impl) + offset,
           1, &insn);

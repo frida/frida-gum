@@ -144,7 +144,7 @@ disassemble_instruction_at (gconstpointer address)
   err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert_cmpint (err, ==, CS_ERR_OK);
 
-  cs_disasm_ex (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
+  cs_disasm (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
   g_assert (insn != NULL);
 
   cs_close (&capstone);

@@ -1037,7 +1037,7 @@ gum_disasm (guint8 * code, guint size, const gchar * prefix)
   err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
   g_assert_cmpint (err, == , CS_ERR_OK);
 
-  count = cs_disasm_ex (capstone, code, size, GPOINTER_TO_SIZE (code), 0, &insn);
+  count = cs_disasm (capstone, code, size, GPOINTER_TO_SIZE (code), 0, &insn);
   g_assert (insn != NULL);
 
   for (i = 0; i != count; i++)

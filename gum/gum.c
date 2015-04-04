@@ -11,7 +11,7 @@
 #include "guminterceptor-priv.h"
 #include "gumprintf.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <glib-object.h>
 #include <gio/gio.h>
 #include <string.h>

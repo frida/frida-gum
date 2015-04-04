@@ -145,7 +145,7 @@ gum_script_instruction_on_parse (const FunctionCallbackInfo<Value> & info)
 #endif
 
   cs_insn * insn;
-  if (cs_disasm_ex (self->capstone, static_cast<uint8_t *> (target), 16,
+  if (cs_disasm (self->capstone, static_cast<uint8_t *> (target), 16,
       address, 1, &insn) == 0)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,

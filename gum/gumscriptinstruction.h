@@ -9,7 +9,7 @@
 
 #include "gumscriptcore.h"
 
-#include <capstone.h>
+#include <capstone/capstone.h>
 #include <v8.h>
 
 typedef struct _GumScriptInstruction GumScriptInstruction;

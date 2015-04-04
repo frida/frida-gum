@@ -108,8 +108,8 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   if (self->eoi)
     return 0;
 
-  if (cs_disasm_ex (self->capstone, self->input_cur, 4, self->input_pc, 1,
-        &ci) != 1)
+  if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
+      &ci) != 1)
   {
     return 0;
   }
