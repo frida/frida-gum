@@ -350,14 +350,20 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   GUM_CLOSE_SOCKET (fd);
 
   fd = socket (AF_INET6, SOCK_STREAM, 0);
-  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
-  EXPECT_SEND_MESSAGE_WITH ("\"tcp6\"");
-  GUM_CLOSE_SOCKET (fd);
+  if (fd != -1)
+  {
+    COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+    EXPECT_SEND_MESSAGE_WITH ("\"tcp6\"");
+    GUM_CLOSE_SOCKET (fd);
+  }
 
   fd = socket (AF_INET6, SOCK_DGRAM, 0);
-  COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
-  EXPECT_SEND_MESSAGE_WITH ("\"udp6\"");
-  GUM_CLOSE_SOCKET (fd);
+  if (fd != -1)
+  {
+    COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
+    EXPECT_SEND_MESSAGE_WITH ("\"udp6\"");
+    GUM_CLOSE_SOCKET (fd);
+  }
 
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(-1));");
   EXPECT_SEND_MESSAGE_WITH ("null");
@@ -394,11 +400,17 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
 
   for (i = 0; i != G_N_ELEMENTS (family); i++)
   {
+    GSocket * socket;
     GSocketService * service;
     guint16 client_port, server_port;
     GSocketAddress * client_address, * server_address;
     GInetAddress * loopback;
-    GSocket * socket;
+
+    socket = g_socket_new (family[i], G_SOCKET_TYPE_STREAM,
+        G_SOCKET_PROTOCOL_TCP, NULL);
+    if (socket == NULL)
+      continue;
+    fd = g_socket_get_fd (socket);
 
     service = g_socket_service_new ();
     g_signal_connect (service, "incoming", G_CALLBACK (on_incoming_connection),
@@ -409,10 +421,6 @@ SCRIPT_TESTCASE (socket_endpoints_can_be_inspected)
     loopback = g_inet_address_new_loopback (family[i]);
     server_address = g_inet_socket_address_new (loopback, server_port);
     g_object_unref (loopback);
-
-    socket = g_socket_new (family[i], G_SOCKET_TYPE_STREAM,
-        G_SOCKET_PROTOCOL_TCP, NULL);
-    fd = g_socket_get_fd (socket);
 
     COMPILE_AND_LOAD_SCRIPT ("send(Socket.peerAddress(%d));", fd);
     EXPECT_SEND_MESSAGE_WITH ("null");
