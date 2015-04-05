@@ -66,10 +66,12 @@ static gboolean range_found_cb (const GumRangeDetails * details,
     gpointer user_data);
 static gboolean range_check_cb (const GumRangeDetails * details,
     gpointer user_data);
+#ifdef HAVE_DARWIN
 static gboolean malloc_range_found_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
+#endif
 
 #ifndef HAVE_ANDROID
 
@@ -164,6 +166,7 @@ PROCESS_TESTCASE (process_ranges)
 }
 
 #ifdef HAVE_DARWIN
+
 PROCESS_TESTCASE (process_malloc_ranges)
 {
   {
@@ -216,6 +219,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
     g_assert (!ctx.found_exact);
   }
 }
+
 #endif
 
 PROCESS_TESTCASE (module_exports)
@@ -473,6 +477,8 @@ range_check_cb (const GumRangeDetails * details,
   return TRUE;
 }
 
+#ifdef HAVE_DARWIN
+
 static gboolean
 malloc_range_found_cb (const GumMallocRangeDetails * details,
                        gpointer user_data)
@@ -511,3 +517,5 @@ malloc_range_check_cb (const GumMallocRangeDetails * details,
 
   return TRUE;
 }
+
+#endif
