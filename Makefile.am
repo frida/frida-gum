@@ -24,7 +24,8 @@ DEBUG_PORT = 5042
 
 push: all
 	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-android-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-android-arm.so\""
-	adb push "$(top_builddir)/tests/gum-tests" "${RPFX}/tests/"
+	adb push "$(top_builddir)/tests/.libs/gum-tests" "${RPFX}/tests/"
+	adb push "$(top_builddir)/bindings/gumpp/.libs/libfrida-gumpp-1.0.so" "${RPFX}/tests/"
 if ARCH_I386
 	adb push "$(top_srcdir)/tests/data/targetfunctions-android-ia32.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-android-ia32.so" "${RPFX}/tests/data/"
@@ -35,7 +36,7 @@ if ARCH_ARM
 endif
 
 check: push
-	adb shell "\"${RPFX}/tests/gum-tests\""
+	adb shell "LD_LIBRARY_PATH=\"${RPFX}/tests\" \"${RPFX}/tests/gum-tests\""
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
