@@ -260,6 +260,7 @@ gum_script_event_sink_drain (gpointer user_data)
             _gum_script_pointer_new (target, self->core),
             Number::New (isolate, GPOINTER_TO_SIZE (count)),
             static_cast<PropertyAttribute> (ReadOnly | DontDelete));
+        g_assert (success.IsJust ());
       }
 
       g_hash_table_unref (frequencies);
