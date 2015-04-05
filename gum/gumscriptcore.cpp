@@ -12,12 +12,6 @@
 #include <ffi.h>
 #include <string.h>
 
-#ifdef FFI_GO_CLOSURES
-# define HAVE_NEW_LIBFFI 1
-#else
-# define HAVE_NEW_LIBFFI 0
-#endif
-
 #define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
 
@@ -1348,11 +1342,7 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
   { "stdcall", FFI_STDCALL },
   { "thiscall", FFI_THISCALL },
   { "fastcall", FFI_FASTCALL },
-# if HAVE_NEW_LIBFFI
-  { "pascal", FFI_PASCAL },
-  { "register", FFI_REGISTER },
-# endif
-# if HAVE_NEW_LIBFFI || defined (X86_WIN32)
+# if defined (X86_WIN32)
   { "mscdecl", FFI_MS_CDECL },
 # endif
 #elif defined (ARM)
