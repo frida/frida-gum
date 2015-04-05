@@ -68,7 +68,8 @@ RSYNC = rsync -az
 check: all
 	ssh "${RURL}" "mkdir -p \"${RPFX}/tests/data/\""
 	${RSYNC} \
-		"$(top_builddir)/tests/gum-tests" \
+		"$(top_builddir)/tests/.libs/gum-tests" \
+		"$(top_builddir)/bindings/gumpp/.libs/libfrida-gumpp-1.0.0.dylib" \
 		"${RURL}:\"${RPFX}/tests/\""
 	${RSYNC} \
 		"$(top_srcdir)/tests/data/targetfunctions-ios-arm.dylib" \
@@ -76,5 +77,5 @@ check: all
 		"$(top_srcdir)/tests/data/specialfunctions-ios-arm.dylib" \
 		"$(top_srcdir)/tests/data/specialfunctions-ios-arm64.dylib" \
 		"${RURL}:\"${RPFX}/tests/data/\""
-	ssh "${RURL}" "\"${RPFX}/tests/gum-tests\""
+	ssh "${RURL}" "DYLD_LIBRARY_PATH=\"${RPFX}/tests\" \"${RPFX}/tests/gum-tests\""
 endif
