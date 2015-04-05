@@ -40,6 +40,16 @@
 #define TESTUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
+#ifdef HAVE_DARWIN
+# define GUM_SETJMP(env) setjmp (env)
+# define GUM_LONGJMP(env, val) longjmp (env, val)
+  typedef jmp_buf gum_jmp_buf;
+#else
+# define GUM_SETJMP(env) sigsetjmp (env, 1)
+# define GUM_LONGJMP(env, val) siglongjmp (env, val)
+  typedef sigjmp_buf gum_jmp_buf;
+#endif
+
 TEST_LIST_BEGIN (testutil)
   TESTUTIL_TESTENTRY (line_diff)
   TESTUTIL_TESTENTRY (binary_diff)
@@ -487,7 +497,7 @@ gum_is_debugger_present (void)
 #endif
 }
 
-static sigjmp_buf gum_try_read_and_write_context;
+static gum_jmp_buf gum_try_read_and_write_context;
 static struct sigaction gum_test_old_sigsegv;
 static struct sigaction gum_test_old_sigbus;
 
@@ -510,7 +520,7 @@ gum_test_on_signal (int sig,
       action->sa_handler (sig);
   }
 
-  siglongjmp (gum_try_read_and_write_context, 1337);
+  GUM_LONGJMP (gum_try_read_and_write_context, 1337);
 }
 
 guint8
@@ -533,7 +543,7 @@ gum_try_read_and_write_at (guint8 * a,
   sigaction (SIGSEGV, &action, &gum_test_old_sigsegv);
   sigaction (SIGBUS, &action, &gum_test_old_sigbus);
 
-  if (sigsetjmp (gum_try_read_and_write_context, 1) == 0)
+  if (GUM_SETJMP (gum_try_read_and_write_context) == 0)
   {
     dummy_value_to_trick_optimizer = a[i];
   }
@@ -543,7 +553,7 @@ gum_try_read_and_write_at (guint8 * a,
       *exception_raised_on_read = TRUE;
   }
 
-  if (sigsetjmp (gum_try_read_and_write_context, 1) == 0)
+  if (GUM_SETJMP (gum_try_read_and_write_context) == 0)
   {
     a[i] = 42;
   }
