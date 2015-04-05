@@ -202,7 +202,7 @@ PAGEPOOL_TESTCASE (alloc_and_fill_full_cycle)
 
   g_assert_cmpuint (gum_page_pool_peek_available (pool), ==, 0);
 
-  g_assert_cmpuint (p - start, ==, 4080);
+  g_assert_cmpuint (p - start, ==, page_size - 16);
   g_assert_cmpuint ((end - (p + buffer_size)) - page_size, ==, 15);
 
   for (i = 0; i < pool_size - 1; i++)
