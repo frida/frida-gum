@@ -45,6 +45,8 @@ GUM_API GType gum_cycle_sampler_get_type (void) G_GNUC_CONST;
 
 GUM_API GumSampler * gum_cycle_sampler_new (void);
 
+GUM_API gboolean gum_cycle_sampler_is_available (GumCycleSampler * self);
+
 G_END_DECLS
 
 #endif

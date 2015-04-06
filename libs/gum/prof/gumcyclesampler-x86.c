@@ -94,6 +94,12 @@ gum_cycle_sampler_new (void)
   return GUM_SAMPLER_CAST (g_object_new (GUM_TYPE_CYCLE_SAMPLER, NULL));
 }
 
+gboolean
+gum_cycle_sampler_is_available (GumCycleSampler * self)
+{
+  return TRUE;
+}
+
 static GumSample
 gum_cycle_sampler_sample (GumSampler * sampler)
 {

@@ -18,6 +18,11 @@ os_sources = $(NULL)
 if OS_LINUX
 os_sources += \
 	gumbusycyclesampler-linux.c
+if ARCH_I386
+else
+os_sources += \
+	gumcyclesampler-linux.c
+endif
 endif
 
 if OS_DARWIN

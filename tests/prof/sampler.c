@@ -8,39 +8,34 @@
 #include "sampler-fixture.c"
 
 TEST_LIST_BEGIN (sampler)
-#ifdef HAVE_I386
   SAMPLER_TESTENTRY (cycle)
-#endif
-#ifdef HAVE_BUSY_CYCLE_SAMPLER
   SAMPLER_TESTENTRY (busy_cycle)
-#endif
   SAMPLER_TESTENTRY (malloc_count)
   SAMPLER_TESTENTRY (multiple_call_counters)
   SAMPLER_TESTENTRY (wallclock)
 TEST_LIST_END ()
 
-#ifdef HAVE_BUSY_CYCLE_SAMPLER
 static void spin_for_one_tenth_second (void);
-#endif
 static gpointer malloc_count_helper_thread (gpointer data);
 static void nop_function_a (void);
 static void nop_function_b (void);
-
-#ifdef HAVE_I386
 
 SAMPLER_TESTCASE (cycle)
 {
   GumSample sample_a, sample_b;
 
   fixture->sampler = gum_cycle_sampler_new ();
-  sample_a = gum_sampler_sample (fixture->sampler);
-  sample_b = gum_sampler_sample (fixture->sampler);
-  g_assert_cmpuint (sample_a, !=, sample_b);
+  if (gum_cycle_sampler_is_available (GUM_CYCLE_SAMPLER (fixture->sampler)))
+  {
+    sample_a = gum_sampler_sample (fixture->sampler);
+    sample_b = gum_sampler_sample (fixture->sampler);
+    g_assert_cmpuint (sample_a, !=, sample_b);
+  }
+  else
+  {
+    g_test_message ("skipping test because of unsupported OS");
+  }
 }
-
-#endif
-
-#ifdef HAVE_BUSY_CYCLE_SAMPLER
 
 SAMPLER_TESTCASE (busy_cycle)
 {
@@ -67,8 +62,6 @@ SAMPLER_TESTCASE (busy_cycle)
     g_test_message ("skipping test because of unsupported OS");
   }
 }
-
-#endif
 
 typedef struct _MallocCountHelperContext MallocCountHelperContext;
 
@@ -145,8 +138,6 @@ SAMPLER_TESTCASE (wallclock)
   g_assert_cmpuint (sample_b, >, sample_a);
 }
 
-#ifdef HAVE_BUSY_CYCLE_SAMPLER
-
 static void
 spin_for_one_tenth_second (void)
 {
@@ -165,8 +156,6 @@ spin_for_one_tenth_second (void)
 
   g_timer_destroy (timer);
 }
-
-#endif
 
 static gpointer
 malloc_count_helper_thread (gpointer data)
