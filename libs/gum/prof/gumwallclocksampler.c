@@ -7,11 +7,6 @@
 
 #include "gumwallclocksampler.h"
 
-#ifdef G_OS_WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
-
 static void gum_wallclock_sampler_iface_init (gpointer g_iface,
     gpointer iface_data);
 static GumSample gum_wallclock_sampler_sample (GumSampler * sampler);
@@ -55,17 +50,7 @@ gum_wallclock_sampler_new (void)
 static GumSample
 gum_wallclock_sampler_sample (GumSampler * sampler)
 {
-#ifdef G_OS_WIN32
   (void) sampler;
 
-  return GetTickCount ();
-#else
-  GTimeVal tv;
-
-  (void) sampler;
-
-  g_get_current_time (&tv);
-
-  return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-#endif
+  return g_get_monotonic_time ();
 }
