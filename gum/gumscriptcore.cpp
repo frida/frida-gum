@@ -417,6 +417,9 @@ _gum_script_core_init (GumScriptCore * self,
 void
 _gum_script_core_realize (GumScriptCore * self)
 {
+  Isolate * isolate = self->isolate;
+  Local<Context> context = isolate->GetCurrentContext ();
+
   self->native_functions = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_function_free));
 
@@ -430,14 +433,29 @@ _gum_script_core_realize (GumScriptCore * self)
       NULL, reinterpret_cast<GDestroyNotify> (_gum_heap_block_free));
 
   Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
-  self->native_pointer_value = new GumPersistent<Object>::type (self->isolate,
-      native_pointer->InstanceTemplate ()->NewInstance ());
+      Local<FunctionTemplate>::New (isolate, *self->native_pointer));
+  MaybeLocal<Object> maybe_native_pointer_value =
+      native_pointer->GetFunction ()->NewInstance (context);
+  Local<Object> native_pointer_value;
+  bool success = maybe_native_pointer_value.ToLocal (&native_pointer_value);
+  g_assert (success);
+  self->native_pointer_value = new GumPersistent<Object>::type (isolate,
+      native_pointer_value);
 
   Local<FunctionTemplate> cpu_context (
-      Local<FunctionTemplate>::New (self->isolate, *self->cpu_context));
-  self->cpu_context_value = new GumPersistent<Object>::type (self->isolate,
-      cpu_context->InstanceTemplate ()->NewInstance ());
+      Local<FunctionTemplate>::New (isolate, *self->cpu_context));
+  Local<Value> args[2] = {
+      External::New (isolate, NULL),
+      Boolean::New (isolate, false)
+  };
+  MaybeLocal<Object> maybe_cpu_context_value =
+      cpu_context->GetFunction ()->NewInstance (
+          context, G_N_ELEMENTS (args), args);
+  Local<Object> cpu_context_value;
+  success = maybe_cpu_context_value.ToLocal (&cpu_context_value);
+  g_assert (success);
+  self->cpu_context_value = new GumPersistent<Object>::type (isolate,
+      cpu_context_value);
 }
 
 void
@@ -1411,7 +1429,7 @@ gum_script_core_on_new_cpu_context (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = info.GetIsolate ();
 
-  if (info.Length () < 2 || !info[0]->IsExternal () || info[1]->IsBoolean ())
+  if (info.Length () < 2 || !info[0]->IsExternal () || !info[1]->IsBoolean ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
         isolate, "CpuContext: invalid argument")));
