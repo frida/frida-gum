@@ -187,7 +187,7 @@ gum_script_process_thread_match (const GumThreadDetails * details,
           reinterpret_cast<const uint8_t *> (gum_script_thread_state_to_string (
           details->state))),
       core);
-  _gum_script_set (thread, "registers", _gum_script_cpu_context_to_object (
+  _gum_script_set (thread, "context", _gum_script_cpu_context_new (
       &details->cpu_context, ctx->self->core), core);
 
   Handle<Value> argv[] = { thread };

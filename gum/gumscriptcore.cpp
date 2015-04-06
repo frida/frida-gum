@@ -164,6 +164,13 @@ static void gum_script_core_on_invoke_native_callback (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 static void gum_ffi_callback_free (GumFFICallback * callback);
 
+static void gum_script_core_on_new_cpu_context (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_cpu_context_get_register (Local<String> property,
+    const PropertyCallbackInfo<Value> & info);
+static void gum_script_core_on_cpu_context_set_register (Local<String> property,
+    Local<Value> value, const PropertyCallbackInfo<void> & info);
+
 static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
     Handle<Value> receiver, Isolate * isolate);
 static void gum_message_sink_free (GumMessageSink * sink);
@@ -289,6 +296,122 @@ _gum_script_core_init (GumScriptCore * self,
   native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "NativeCallback"),
       native_callback);
+
+  Local<FunctionTemplate> cpu_context = FunctionTemplate::New (isolate,
+      gum_script_core_on_new_cpu_context, data);
+  cpu_context->SetClassName (
+      String::NewFromUtf8 (isolate, "CpuContext"));
+  Local<ObjectTemplate> cpu_context_object =
+      cpu_context->InstanceTemplate ();
+  cpu_context_object->SetInternalFieldCount (3);
+  Local<AccessorSignature> cpu_context_signature =
+      AccessorSignature::New (isolate, cpu_context);
+
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
+  cpu_context_object->SetAccessor (String::NewFromOneByte (isolate, \
+      reinterpret_cast<const uint8_t *> (G_STRINGIFY (A))), \
+      gum_script_core_on_cpu_context_get_register, \
+      gum_script_core_on_cpu_context_set_register, \
+      Integer::NewFromUnsigned (isolate, \
+          G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
+      DEFAULT, \
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete), \
+      cpu_context_signature)
+#define GUM_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (pc, eip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (sp, esp);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (eax);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ecx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (edx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ebx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (esp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (ebp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (esi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (edi);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (eip);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (pc, rip);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (sp, rsp);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rax);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rcx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rdx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rbx);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rsp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rbp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rsi);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rdi);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r8);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r9);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r10);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r11);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r12);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r13);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r14);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (r15);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (rip);
+#elif defined (HAVE_ARM)
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (pc);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (sp);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r0, r[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r1, r[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r2, r[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r3, r[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r4, r[4]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r5, r[5]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r6, r[6]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r7, r[7]);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
+#elif defined (HAVE_ARM64)
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (pc);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (sp);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x0, x[0]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x1, x[1]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x2, x[2]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x3, x[3]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x4, x[4]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x5, x[5]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x6, x[6]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x7, x[7]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x8, x[8]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x9, x[9]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x10, x[10]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x11, x[11]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x12, x[12]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x13, x[13]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x14, x[14]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x15, x[15]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x16, x[16]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x17, x[17]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x18, x[18]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x19, x[19]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x20, x[20]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x21, x[21]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x22, x[22]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x23, x[23]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x24, x[24]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x25, x[25]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x26, x[26]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x27, x[27]);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x28, x[28]);
+
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (fp);
+  GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
+#endif
+
+  scope->Set (String::NewFromUtf8 (isolate, "CpuContext"), cpu_context);
+  self->cpu_context =
+      new GumPersistent<FunctionTemplate>::type (isolate, cpu_context);
 }
 
 void
@@ -310,6 +433,11 @@ _gum_script_core_realize (GumScriptCore * self)
       Local<FunctionTemplate>::New (self->isolate, *self->native_pointer));
   self->native_pointer_value = new GumPersistent<Object>::type (self->isolate,
       native_pointer->InstanceTemplate ()->NewInstance ());
+
+  Local<FunctionTemplate> cpu_context (
+      Local<FunctionTemplate>::New (self->isolate, *self->cpu_context));
+  self->cpu_context_value = new GumPersistent<Object>::type (self->isolate,
+      cpu_context->InstanceTemplate ()->NewInstance ());
 }
 
 void
@@ -359,6 +487,9 @@ _gum_script_core_dispose (GumScriptCore * self)
 
   delete self->native_pointer_value;
   self->native_pointer_value = NULL;
+
+  delete self->cpu_context_value;
+  self->cpu_context_value = NULL;
 }
 
 void
@@ -369,6 +500,9 @@ _gum_script_core_finalize (GumScriptCore * self)
 
   delete self->native_pointer;
   self->native_pointer = NULL;
+
+  delete self->cpu_context;
+  self->cpu_context = NULL;
 
   g_mutex_clear (&self->mutex);
   g_cond_clear (&self->event_cond);
@@ -787,7 +921,7 @@ gum_script_core_on_new_native_pointer (
   else
   {
     GumScriptCore * self = static_cast<GumScriptCore *> (
-      info.Data ().As<External> ()->Value ());
+        info.Data ().As<External> ()->Value ());
     Isolate * isolate = self->isolate;
 
     String::Utf8Value ptr_as_utf8 (info[0]);
@@ -1269,6 +1403,81 @@ gum_ffi_callback_free (GumFFICallback * callback)
   g_slice_free (GumFFICallback, callback);
 }
 
+static void
+gum_script_core_on_new_cpu_context (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () < 2 || !info[0]->IsExternal () || info[1]->IsBoolean ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "CpuContext: invalid argument")));
+    return;
+  }
+
+  Local<Object> instance = info.Holder ();
+  instance->SetInternalField (0, info[0]);
+  instance->SetInternalField (1, info[1]);
+  instance->SetAlignedPointerInInternalField (2, self);
+}
+
+static void
+gum_script_core_on_cpu_context_get_register (
+    Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
+{
+  Local<Object> instance = info.Holder ();
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      instance->GetAlignedPointerFromInternalField (2));
+  gpointer * cpu_context = static_cast<gpointer *> (
+      instance->GetInternalField (0).As<External> ()->Value ());
+  gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  info.GetReturnValue ().Set (
+      _gum_script_pointer_new (cpu_context[offset], self));
+}
+
+static void
+gum_script_core_on_cpu_context_set_register (
+    Local<String> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<void> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+  Local<Object> instance = info.Holder ();
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      instance->GetAlignedPointerFromInternalField (2));
+  gssize * cpu_context = static_cast<gssize *> (
+      instance->GetInternalField (0).As<External> ()->Value ());
+  bool is_mutable = instance->GetInternalField (1).As<Boolean> ()->Value ();
+  gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  if (!is_mutable)
+  {
+    isolate->ThrowException (Exception::TypeError (
+        String::NewFromUtf8 (isolate, "this CpuContext is not mutable")));
+    return;
+  }
+
+  Local<FunctionTemplate> native_pointer (Local<FunctionTemplate>::New (isolate,
+      *self->native_pointer));
+  gssize raw_value;
+  if (native_pointer->HasInstance (value))
+  {
+    raw_value = reinterpret_cast<gssize> (
+        GUM_NATIVE_POINTER_VALUE (value.As<Object> ()));
+  }
+  else
+  {
+    raw_value = value->ToInteger ()->Value ();
+  }
+
+  cpu_context[offset] = raw_value;
+}
+
 static GumMessageSink *
 gum_message_sink_new (Handle<Function> callback,
                       Handle<Value> receiver,
@@ -1709,6 +1918,56 @@ _gum_script_pointer_get (Handle<Value> value,
   return TRUE;
 }
 
+v8::Local<v8::Object>
+_gum_script_cpu_context_new (const GumCpuContext * cpu_context,
+                             GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+  Local<Object> cpu_context_value (Local<Object>::New (isolate,
+      *core->cpu_context_value));
+  Local<Object> cpu_context_object (cpu_context_value->Clone ());
+  cpu_context_object->SetInternalField (0,
+      External::New (isolate, const_cast<GumCpuContext *> (cpu_context)));
+  const bool is_mutable = false;
+  cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
+  return cpu_context_object;
+}
+
+v8::Local<v8::Object>
+_gum_script_cpu_context_new (GumCpuContext * cpu_context,
+                             GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+  Local<Object> cpu_context_value (Local<Object>::New (isolate,
+      *core->cpu_context_value));
+  Local<Object> cpu_context_object (cpu_context_value->Clone ());
+  cpu_context_object->SetInternalField (0,
+      External::New (isolate, cpu_context));
+  const bool is_mutable = true;
+  cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
+  return cpu_context_object;
+}
+
+gboolean
+_gum_script_cpu_context_get (v8::Handle<v8::Value> value,
+                             GumCpuContext ** target,
+                             GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+
+  Local<FunctionTemplate> cpu_context (Local<FunctionTemplate>::New (
+      isolate, *core->cpu_context));
+  if (!cpu_context->HasInstance (value))
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected CpuContext object")));
+    return FALSE;
+  }
+  *target = GUM_CPU_CONTEXT_VALUE (value.As<Object> ());
+
+  return TRUE;
+}
+
 gboolean
 _gum_script_set (Handle<Object> object,
                  const gchar * key,
@@ -1832,123 +2091,6 @@ _gum_script_callbacks_get_opt (Handle<Object> callbacks,
   }
 
   return TRUE;
-}
-
-Handle<Object>
-_gum_script_cpu_context_to_object (const GumCpuContext * ctx,
-                                   GumScriptCore * core)
-{
-  Isolate * isolate = core->isolate;
-  Local<Object> result (Object::New (isolate));
-  gsize pc, sp;
-
-#define GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD(R) \
-    GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (R, R)
-#define GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED(A, R) \
-    result->ForceSet (String::NewFromUtf8 (isolate, G_STRINGIFY (A)), \
-        _gum_script_pointer_new (GSIZE_TO_POINTER (ctx->R), core), \
-        static_cast<PropertyAttribute> (ReadOnly | DontDelete))
-
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  pc = ctx->eip;
-  sp = ctx->esp;
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (eax);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (ecx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (edx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (ebx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (esp);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (ebp);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (esi);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (edi);
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (eip);
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  pc = ctx->rip;
-  sp = ctx->rsp;
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rax);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rcx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rdx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rbx);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rsp);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rbp);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rsi);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rdi);
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r8);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r9);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r10);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r11);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r12);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r13);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r14);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (r15);
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (rip);
-#elif defined (HAVE_ARM)
-  pc = ctx->pc;
-  sp = ctx->sp;
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r0, r[0]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r1, r[1]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r2, r[2]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r3, r[3]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r4, r[4]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r5, r[5]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r6, r[6]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (r7, r[7]);
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (lr);
-#elif defined (HAVE_ARM64)
-  pc = ctx->pc;
-  sp = ctx->sp;
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x0, x[0]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x1, x[1]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x2, x[2]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x3, x[3]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x4, x[4]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x5, x[5]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x6, x[6]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x7, x[7]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x8, x[8]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x9, x[9]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x10, x[10]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x11, x[11]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x12, x[12]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x13, x[13]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x14, x[14]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x15, x[15]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x16, x[16]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x17, x[17]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x18, x[18]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x19, x[19]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x20, x[20]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x21, x[21]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x22, x[22]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x23, x[23]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x24, x[24]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x25, x[25]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x26, x[26]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x27, x[27]);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED (x28, x[28]);
-
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (fp);
-  GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD (lr);
-#endif
-
-#undef GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD
-#undef GUM_SET_PROPERTY_FROM_CPU_CONTEXT_FIELD_ALIASED
-
-  result->ForceSet (String::NewFromUtf8 (isolate, "pc"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (pc), core),
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
-  result->ForceSet (String::NewFromUtf8 (isolate, "sp"),
-      _gum_script_pointer_new (GSIZE_TO_POINTER (sp), core),
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
-
-  return result;
 }
 
 gboolean

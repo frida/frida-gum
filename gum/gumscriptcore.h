@@ -9,6 +9,9 @@
 
 #define GUM_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()
+#define GUM_CPU_CONTEXT_VALUE(o) \
+    static_cast<GumCpuContext *> ( \
+        (o)->GetInternalField (0).As<External> ()->Value ())
 
 #include "gumscript.h"
 #include "gumscriptscheduler.h"
@@ -63,6 +66,9 @@ struct _GumScriptCore
 
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
   GumPersistent<v8::Object>::type * native_pointer_value;
+
+  GumPersistent<v8::FunctionTemplate>::type * cpu_context;
+  GumPersistent<v8::Object>::type * cpu_context_value;
 };
 
 struct _GumHeapBlock
@@ -113,6 +119,13 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_pointer_new (gpointer address,
 G_GNUC_INTERNAL gboolean _gum_script_pointer_get (v8::Handle<v8::Value> value,
     gpointer * target, GumScriptCore * core);
 
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (
+    const GumCpuContext * cpu_context, GumScriptCore * core);
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (
+    GumCpuContext * cpu_context, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gum_script_cpu_context_get (
+    v8::Handle<v8::Value> value, GumCpuContext ** target, GumScriptCore * core);
+
 G_GNUC_INTERNAL gboolean _gum_script_set (v8::Handle<v8::Object> object,
     const gchar * key, v8::Handle<v8::Value> value, GumScriptCore * core);
 G_GNUC_INTERNAL gboolean _gum_script_set_uint (v8::Handle<v8::Object> object,
@@ -132,9 +145,6 @@ G_GNUC_INTERNAL gboolean _gum_script_callbacks_get (
 G_GNUC_INTERNAL gboolean _gum_script_callbacks_get_opt (
     v8::Handle<v8::Object> callbacks, const gchar * name,
     v8::Handle<v8::Function> * callback_function, GumScriptCore * core);
-
-G_GNUC_INTERNAL v8::Handle<v8::Object> _gum_script_cpu_context_to_object (
-    const GumCpuContext * ctx, GumScriptCore * core);
 
 G_GNUC_INTERNAL gboolean _gum_script_page_protection_get (
     v8::Handle<v8::Value> prot_val, GumPageProtection * prot,
