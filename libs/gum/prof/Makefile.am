@@ -28,6 +28,11 @@ endif
 if OS_DARWIN
 os_sources += \
 	gumbusycyclesampler-darwin.c
+if ARCH_I386
+else
+os_sources += \
+	gumcyclesampler-darwin.c
+endif
 endif
 
 if OS_QNX
