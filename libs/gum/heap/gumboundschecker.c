@@ -58,6 +58,7 @@ struct _GumBoundsCheckerPrivate
   GumHeapApiList * heap_apis;
   gboolean attached;
   volatile gboolean detaching;
+  volatile gboolean handled_invalid_access;
 
   guint pool_size;
   guint front_alignment;
@@ -431,7 +432,7 @@ replacement_malloc (gsize size)
   ctx = gum_interceptor_get_current_invocation ();
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
 
-  if (self->priv->detaching)
+  if (self->priv->detaching || self->priv->handled_invalid_access)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
@@ -457,7 +458,7 @@ replacement_calloc (gsize num,
   ctx = gum_interceptor_get_current_invocation ();
   self = GUM_RINCTX_GET_FUNC_DATA (ctx, GumBoundsChecker *);
 
-  if (self->priv->detaching)
+  if (self->priv->detaching || self->priv->handled_invalid_access)
     goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
@@ -495,6 +496,9 @@ replacement_realloc (gpointer old_address,
     free (old_address);
     return NULL;
   }
+
+  if (self->priv->detaching || self->priv->handled_invalid_access)
+    goto fallback;
 
   GUM_BOUNDS_CHECKER_LOCK ();
 
@@ -605,7 +609,7 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
   return freed;
 }
 
-static void
+static gboolean
 gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
                                           gpointer address)
 {
@@ -614,11 +618,15 @@ gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
   GString * message;
   GumReturnAddressArray accessed_at = { 0, };
 
-  if (priv->output == NULL)
-    return;
-
   if (!gum_page_pool_query_block_details (priv->page_pool, address, &block))
-    return;
+    return FALSE;
+
+  if (priv->handled_invalid_access)
+    return FALSE;
+  priv->handled_invalid_access = TRUE;
+
+  if (priv->output == NULL)
+    return TRUE;
 
   message = g_string_sized_new (300);
 
@@ -672,6 +680,8 @@ gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
   priv->output (message->str, priv->output_user_data);
 
   g_string_free (message, TRUE);
+
+  return TRUE;
 }
 
 static void
@@ -710,6 +720,7 @@ gum_bounds_checker_on_exception (EXCEPTION_RECORD * exception_record,
                                  CONTEXT * context,
                                  gpointer user_data)
 {
+  gboolean handled = FALSE;
   GSList * cur;
 
   (void) context;
@@ -724,12 +735,12 @@ gum_bounds_checker_on_exception (EXCEPTION_RECORD * exception_record,
 
   for (cur = gum_memaccess_instances; cur != NULL; cur = cur->next)
   {
-    gum_bounds_checker_handle_invalid_access (
+    handled |= gum_bounds_checker_handle_invalid_access (
         GUM_BOUNDS_CHECKER_CAST (cur->data),
         (gpointer) exception_record->ExceptionInformation[1]);
   }
 
-  return FALSE;
+  return handled;
 }
 
 #else
@@ -739,26 +750,31 @@ gum_bounds_checker_on_invalid_access (int sig,
                                       siginfo_t * siginfo,
                                       void * context)
 {
-  struct sigaction * action;
+  gboolean handled = FALSE;
   GSList * cur;
+  struct sigaction * action;
 
   for (cur = gum_memaccess_instances; cur != NULL; cur = cur->next)
   {
-    gum_bounds_checker_handle_invalid_access (
+    handled |= gum_bounds_checker_handle_invalid_access (
         GUM_BOUNDS_CHECKER_CAST (cur->data), siginfo->si_addr);
   }
 
-  action =
-      (sig == SIGSEGV) ? &gum_memaccess_old_sigsegv : &gum_memaccess_old_sigbus;
-  if ((action->sa_flags & SA_SIGINFO) != 0)
+  if (!handled)
   {
-    if (action->sa_sigaction != NULL)
-      action->sa_sigaction (sig, siginfo, context);
-  }
-  else
-  {
-    if (action->sa_handler != NULL)
-      action->sa_handler (sig);
+    action = (sig == SIGSEGV)
+        ? &gum_memaccess_old_sigsegv
+        : &gum_memaccess_old_sigbus;
+    if ((action->sa_flags & SA_SIGINFO) != 0)
+    {
+      if (action->sa_sigaction != NULL)
+        action->sa_sigaction (sig, siginfo, context);
+    }
+    else
+    {
+      if (action->sa_handler != NULL)
+        action->sa_handler (sig);
+    }
   }
 }
 
