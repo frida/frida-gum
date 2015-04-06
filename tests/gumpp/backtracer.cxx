@@ -37,7 +37,7 @@ public:
     backtracer->generate (context->get_cpu_context (), return_addresses);
     g_assert_cmpuint (return_addresses.len, >=, 1);
 
-#ifndef HAVE_DARWIN
+#if !defined (HAVE_DARWIN) && !defined (HAVE_ANDROID)
     Gum::ReturnAddress first_address = return_addresses.items[0];
     Gum::ReturnAddressDetails rad;
     g_assert (Gum::ReturnAddressDetails_from_address (first_address, rad));
