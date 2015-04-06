@@ -55,7 +55,7 @@ SAMPLER_TESTCASE (busy_cycle)
     g_usleep (G_USEC_PER_SEC / 10 / 10);
     sleep_diff = gum_sampler_sample (fixture->sampler) - sleep_start;
 
-    g_assert_cmpuint (spin_diff, >, sleep_diff * 50);
+    g_assert_cmpuint (spin_diff, >, sleep_diff * 10);
   }
   else
   {
