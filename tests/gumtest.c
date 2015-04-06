@@ -83,6 +83,7 @@ main (gint argc, gchar * argv[])
   g_test_init (&argc, &argv, NULL);
   gum_init ();
 
+  _test_util_init ();
 #ifdef HAVE_I386
   lowlevel_helpers_init ();
 #endif

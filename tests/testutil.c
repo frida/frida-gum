@@ -172,8 +172,34 @@ TESTUTIL_TESTCASE (line_diff)
 
 /* Implementation */
 
+static gboolean gum_test_assign_own_range_if_matching (
+    const GumModuleDetails * details, gpointer user_data);
+
+static GumMemoryRange _test_util_own_range = { 0, 0 };
 static gchar * _test_util_system_module_name = NULL;
 static GumHeapApiList * _test_util_heap_apis = NULL;
+
+void
+_test_util_init (void)
+{
+  gum_process_enumerate_modules (gum_test_assign_own_range_if_matching,
+      &_test_util_own_range);
+}
+
+static gboolean
+gum_test_assign_own_range_if_matching (const GumModuleDetails * details,
+                                       gpointer user_data)
+{
+  if (GUM_MEMORY_RANGE_INCLUDES (details->range,
+      GUM_ADDRESS (gum_test_assign_own_range_if_matching)))
+  {
+    GumMemoryRange * own_range = user_data;
+    memcpy (own_range, details->range, sizeof (GumMemoryRange));
+    return FALSE;
+  }
+
+  return TRUE;
+}
 
 void
 _test_util_deinit (void)
@@ -501,6 +527,8 @@ static gum_jmp_buf gum_try_read_and_write_context;
 static struct sigaction gum_test_old_sigsegv;
 static struct sigaction gum_test_old_sigbus;
 
+static gboolean gum_test_should_forward_signal_to (gpointer handler);
+
 static void
 gum_test_on_signal (int sig,
                     siginfo_t * siginfo,
@@ -511,16 +539,26 @@ gum_test_on_signal (int sig,
   action = (sig == SIGSEGV) ? &gum_test_old_sigsegv : &gum_test_old_sigbus;
   if ((action->sa_flags & SA_SIGINFO) != 0)
   {
-    if (action->sa_sigaction != NULL)
+    if (gum_test_should_forward_signal_to (action->sa_sigaction))
       action->sa_sigaction (sig, siginfo, context);
   }
   else
   {
-    if (action->sa_handler != NULL)
+    if (gum_test_should_forward_signal_to (action->sa_handler))
       action->sa_handler (sig);
   }
 
   GUM_LONGJMP (gum_try_read_and_write_context, 1337);
+}
+
+static gboolean
+gum_test_should_forward_signal_to (gpointer handler)
+{
+  if (handler == NULL)
+    return FALSE;
+
+  return GUM_MEMORY_RANGE_INCLUDES (&_test_util_own_range,
+      GUM_ADDRESS (handler));
 }
 
 guint8
