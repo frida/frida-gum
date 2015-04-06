@@ -1048,7 +1048,7 @@ SCRIPT_TESTCASE (register_can_be_read)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onLeave: function () {"
-      "    send(this.registers.%s.toInt32());"
+      "    send(this.context.%s.toInt32());"
       "  }"
       "});", target_function_int, register_name);
 
