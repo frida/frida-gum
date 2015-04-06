@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,6 +9,8 @@
 
 #include "gumscriptcore.h"
 
+#include "gumbacktracer.h"
+
 #include <v8.h>
 
 typedef struct _GumScriptThread GumScriptThread;
@@ -16,6 +18,12 @@ typedef struct _GumScriptThread GumScriptThread;
 struct _GumScriptThread
 {
   GumScriptCore * core;
+
+  GumBacktracer * accurate_backtracer;
+  GumBacktracer * fuzzy_backtracer;
+
+  GumPersistent<v8::Symbol>::type * accurate_enum_value;
+  GumPersistent<v8::Symbol>::type * fuzzy_enum_value;
 };
 
 G_GNUC_INTERNAL void _gum_script_thread_init (GumScriptThread * self,

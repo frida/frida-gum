@@ -58,8 +58,6 @@ static void gum_script_invocation_context_on_get_thread_id (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_invocation_context_on_get_depth (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_script_invocation_context_on_get_backtrace (
-    const FunctionCallbackInfo<Value> & info);
 
 static void gum_script_invocation_args_on_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
@@ -148,7 +146,6 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   self->core = core;
 
   self->interceptor = gum_interceptor_obtain ();
-  self->backtracer = NULL;
 
   self->attach_entries = g_queue_new ();
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
@@ -190,8 +187,6 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
       gum_script_invocation_context_on_get_thread_id);
   context->SetAccessor (String::NewFromUtf8 (isolate, "depth"),
       gum_script_invocation_context_on_get_depth);
-  context->Set (isolate, "backtrace", FunctionTemplate::New (isolate,
-      gum_script_invocation_context_on_get_backtrace, data));
   self->invocation_context_value =
       new GumPersistent<Object>::type (isolate, context->NewInstance ());
 
@@ -240,12 +235,6 @@ _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 {
   g_queue_free (self->attach_entries);
   g_hash_table_unref (self->replacement_by_address);
-
-  if (self->backtracer != NULL)
-  {
-    g_object_unref (self->backtracer);
-    self->backtracer = NULL;
-  }
 
   g_object_unref (self->interceptor);
   self->interceptor = NULL;
@@ -498,30 +487,6 @@ gum_script_invocation_context_on_get_depth (Local<String> property,
       info.Holder ()->GetInternalField (1).As <Integer> ()->Int32Value ();
   (void) property;
   info.GetReturnValue ().Set (depth);
-}
-
-static void
-gum_script_invocation_context_on_get_backtrace (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
-      info.Data ().As<External> ()->Value ());
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  Isolate * isolate = info.GetIsolate ();
-
-  GumReturnAddressArray ret_addrs;
-  if (self->backtracer == NULL)
-    self->backtracer = gum_backtracer_make_default ();
-  if (self->backtracer != NULL)
-    gum_backtracer_generate (self->backtracer, context->cpu_context, &ret_addrs);
-  else
-    ret_addrs.len = 0;
-
-  Local<Array> result = Array::New (isolate, ret_addrs.len);
-  for (guint i = 0; i != ret_addrs.len; i++)
-    result->Set (i, _gum_script_pointer_new (ret_addrs.items[i], self->core));
-  info.GetReturnValue ().Set (result);
 }
 
 static void

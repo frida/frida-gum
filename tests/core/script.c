@@ -26,7 +26,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (system_error_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
-  SCRIPT_TESTENTRY (invocations_provide_backtrace)
+  SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
@@ -1179,15 +1179,16 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (invocations_provide_backtrace)
+SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
-      "    send(this.backtrace().length > 0);"
+      "    send(Thread.backtrace(this.context, Backtracer.ACCURATE)"
+      "        .length > 0);"
       "  },"
       "  onLeave: function (retval) {"
-      "    send(this.backtrace().length > 0);"
+      "    send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
       "  }"
       "});",
       target_function_int);
