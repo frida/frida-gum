@@ -224,7 +224,10 @@
                 klass.__name__ = name;
                 klass.__handle__ = env.newGlobalRef(classHandle);
 
-                klass.prototype.$new = makeConstructor();
+                var ctor = makeConstructor();
+                if (ctor !== null) {
+                    klass.prototype.$new = ctor;
+                }
                 klass.prototype.$dispose = dispose;
 
                 klass.prototype.$isSameObject = function (obj) {
@@ -276,7 +279,7 @@
                 }
                 env.deleteLocalRef(constructors);
 
-                return makeMethodDispatcher("<init>", jsMethods);
+                return (jsMethods.length > 0) ? makeMethodDispatcher("<init>", jsMethods) : null;
             };
 
             var addMethods = function () {
