@@ -67,7 +67,7 @@ test_cobject_tracker_fixture_enable_backtracer (
 
   g_object_unref (fixture->tracker);
 
-  backtracer = gum_backtracer_make_default ();
+  backtracer = gum_backtracer_make_accurate ();
   test_cobject_tracker_fixture_create_tracker (fixture, backtracer);
   g_object_unref (backtracer);
 }

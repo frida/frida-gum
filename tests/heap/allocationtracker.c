@@ -453,7 +453,7 @@ ALLOCTRACKER_TESTCASE (backtracer_gtype_interop)
   GumAllocatorProbe * probe;
   ZooZebra * zebra;
 
-  backtracer = gum_backtracer_make_default ();
+  backtracer = gum_backtracer_make_accurate ();
   tracker = gum_allocation_tracker_new_with_backtracer (backtracer);
   gum_allocation_tracker_begin (tracker);
 

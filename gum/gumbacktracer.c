@@ -13,7 +13,9 @@
 # include "backend-darwin/gumdarwinbacktracer.h"
 #elif defined (HAVE_LIBUNWIND)
 # include "backend-libunwind/gumunwbacktracer.h"
-#elif defined (HAVE_I386)
+#endif
+
+#if defined (HAVE_I386)
 # include "arch-x86/gumx86backtracer.h"
 #elif defined (HAVE_ARM)
 # include "arch-arm/gumarmbacktracer.h"
@@ -39,21 +41,28 @@ gum_backtracer_get_type (void)
 }
 
 GumBacktracer *
-gum_backtracer_make_default (void)
+gum_backtracer_make_accurate (void)
 {
 #if defined (G_OS_WIN32)
   GumDbgHelpImpl * dbghelp;
 
   dbghelp = gum_dbghelp_impl_obtain ();
-  if (dbghelp != NULL)
-    return gum_dbghelp_backtracer_new (dbghelp);
-  else
-    return gum_x86_backtracer_new ();
+  if (dbghelp == NULL)
+    return NULL;
+  return gum_dbghelp_backtracer_new (dbghelp);
 #elif defined (HAVE_DARWIN)
   return gum_darwin_backtracer_new ();
 #elif defined (HAVE_LIBUNWIND)
   return gum_unw_backtracer_new ();
-#elif defined (HAVE_I386)
+#else
+  return NULL;
+#endif
+}
+
+GumBacktracer *
+gum_backtracer_make_fuzzy (void)
+{
+#if defined (HAVE_I386)
   return gum_x86_backtracer_new ();
 #elif defined (HAVE_ARM)
   return gum_arm_backtracer_new ();

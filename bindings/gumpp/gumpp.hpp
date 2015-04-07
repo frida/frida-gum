@@ -125,7 +125,8 @@ namespace Gum
     virtual void generate (const CpuContext * cpu_context, ReturnAddressArray & return_addresses) const = 0;
   };
 
-  GUMPP_CAPI Backtracer * Backtracer_make_default ();
+  GUMPP_CAPI Backtracer * Backtracer_make_accurate ();
+  GUMPP_CAPI Backtracer * Backtracer_make_fuzzy ();
 
   typedef void * ReturnAddress;
 

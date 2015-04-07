@@ -35,7 +35,8 @@ G_BEGIN_DECLS
 
 GType gum_backtracer_get_type (void);
 
-GUM_API GumBacktracer * gum_backtracer_make_default (void);
+GUM_API GumBacktracer * gum_backtracer_make_accurate (void);
+GUM_API GumBacktracer * gum_backtracer_make_fuzzy (void);
 
 GUM_API void gum_backtracer_generate (GumBacktracer * self,
     const GumCpuContext * cpu_context,

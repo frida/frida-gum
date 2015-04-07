@@ -202,7 +202,7 @@ gum_sanity_checker_begin (GumSanityChecker * self,
   GumBacktracer * backtracer = NULL;
 
   if (priv->backtrace_block_size != 0)
-    backtracer = gum_backtracer_make_default ();
+    backtracer = gum_backtracer_make_accurate ();
 
   if ((flags & GUM_CHECK_BLOCK_LEAKS) != 0)
   {

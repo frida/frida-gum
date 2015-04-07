@@ -25,7 +25,7 @@ class BacktraceTestListener : public Gum::InvocationListener
 {
 public:
   BacktraceTestListener ()
-    : backtracer (Gum::Backtracer_make_default ())
+    : backtracer (Gum::Backtracer_make_accurate ())
   {
   }
 
@@ -58,7 +58,7 @@ public:
 
 GUMPP_TESTCASE (can_get_stack_trace_from_invocation_context)
 {
-  GumBacktracer * backtracer = gum_backtracer_make_default ();
+  GumBacktracer * backtracer = gum_backtracer_make_accurate ();
   if (backtracer == NULL)
   {
     g_print ("<skipping, no backtracer support> ");

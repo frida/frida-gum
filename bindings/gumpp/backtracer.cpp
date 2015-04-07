@@ -10,10 +10,9 @@ namespace Gum
   class BacktracerImpl : public ObjectWrapper<BacktracerImpl, Backtracer, GumBacktracer>
   {
   public:
-    BacktracerImpl ()
+    BacktracerImpl (GumBacktracer * handle)
     {
-      Runtime::ref ();
-      assign_handle (gum_backtracer_make_default ());
+      assign_handle (handle);
     }
 
     virtual ~BacktracerImpl ()
@@ -27,5 +26,27 @@ namespace Gum
     }
   };
 
-  extern "C" Backtracer * Backtracer_make_default () { return new BacktracerImpl (); }
+  extern "C" Backtracer * Backtracer_make_accurate ()
+  {
+    Runtime::ref ();
+    GumBacktracer * handle = gum_backtracer_make_accurate ();
+    if (handle == NULL)
+    {
+      Runtime::unref ();
+      return nullptr;
+    }
+    return new BacktracerImpl (handle);
+  }
+
+  extern "C" Backtracer * Backtracer_make_fuzzy ()
+  {
+    Runtime::ref ();
+    GumBacktracer * handle = gum_backtracer_make_fuzzy ();
+    if (handle == NULL)
+    {
+      Runtime::unref ();
+      return nullptr;
+    }
+    return new BacktracerImpl (handle);
+  }
 }

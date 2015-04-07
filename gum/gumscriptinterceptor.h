@@ -7,7 +7,6 @@
 #ifndef __GUM_SCRIPT_INTERCEPTOR_H__
 #define __GUM_SCRIPT_INTERCEPTOR_H__
 
-#include "gumbacktracer.h"
 #include "guminterceptor.h"
 #include "gumscriptcore.h"
 
@@ -20,7 +19,6 @@ struct _GumScriptInterceptor
   GumScriptCore * core;
 
   GumInterceptor * interceptor;
-  GumBacktracer * backtracer;
 
   GQueue * attach_entries;
   GHashTable * replacement_by_address;
