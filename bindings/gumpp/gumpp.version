@@ -1,7 +1,8 @@
 LIBGUMPP_1.0 {
   global:
     Interceptor_obtain;
-    Backtracer_make_default;
+    Backtracer_make_accurate;
+    Backtracer_make_fuzzy;
     ReturnAddressDetails_from_address;
     SanityChecker_new;
     SanityChecker_new_with_heap_api;

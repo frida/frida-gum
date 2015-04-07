@@ -3,7 +3,7 @@ extra_ldflags =
 if OS_LINUX
 extra_ldflags += -Wl,--version-script -Wl,$(srcdir)/gumpp.version
 else
-extra_ldflags += -export-symbols-regex "^(Interceptor_obtain|Backtracer_make_default|ReturnAddressDetails_from_address|SanityChecker_new|SanityChecker_new_with_heap_api|BusyCycleSampler_new|CycleSampler_new|MallocCountSampler_new|WallClockSampler_new|CallCountSampler_new|CallCountSampler_new_by_name|Profiler_new|find_function_ptr|find_matching_functions_array)$$"
+extra_ldflags += -export-symbols-regex "^(Interceptor_obtain|Backtracer_make_accurate|Backtracer_make_fuzzy|ReturnAddressDetails_from_address|SanityChecker_new|SanityChecker_new_with_heap_api|BusyCycleSampler_new|CycleSampler_new|MallocCountSampler_new|WallClockSampler_new|CallCountSampler_new|CallCountSampler_new_by_name|Profiler_new|find_function_ptr|find_matching_functions_array)$$"
 endif
 
 lib_LTLIBRARIES = libfrida-gumpp-1.0.la

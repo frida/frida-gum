@@ -26,7 +26,7 @@ static void
 test_backtracer_fixture_setup (TestBacktracerFixture * fixture,
                                gconstpointer data)
 {
-  fixture->backtracer = gum_backtracer_make_default ();
+  fixture->backtracer = gum_backtracer_make_accurate ();
 }
 
 static void
