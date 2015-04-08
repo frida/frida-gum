@@ -62,6 +62,10 @@ GUM_API void gum_script_unload (GumScript * self);
 
 GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
+GUM_API gboolean gum_script_enable_remote_debugger (guint16 port,
+    GError ** error);
+GUM_API void gum_script_disable_remote_debugger (void);
+
 GUM_API void gum_script_ignore (GumThreadId thread_id);
 GUM_API void gum_script_unignore (GumThreadId thread_id);
 GUM_API gboolean gum_script_is_ignoring (GumThreadId thread_id);

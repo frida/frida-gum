@@ -110,6 +110,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
+  SCRIPT_TESTENTRY (remote_debugging_can_be_enabled)
 TEST_LIST_END ()
 
 SCRIPT_TESTCASE (instruction_can_be_parsed)
@@ -1831,6 +1832,29 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
       "});"
       "WeakRef.unbind(id);");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+}
+
+SCRIPT_TESTCASE (remote_debugging_can_be_enabled)
+{
+  GMainLoop * loop;
+  const guint16 port = 5858;
+  gboolean success;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
+
+  success = gum_script_enable_remote_debugger (port, NULL);
+  g_assert (success);
+
+  g_print ("Debugger enabled. You may now connect to port %u.\n", port);
+  g_main_loop_run (loop);
+
+  g_main_loop_unref (loop);
 }
 
 GUM_NOINLINE static int

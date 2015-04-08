@@ -9,6 +9,7 @@
 
 #include "gum-init.h"
 #include "gumscriptcore.h"
+#include "gumscriptdebug.h"
 #include "gumscriptfile.h"
 #include "gumscriptinstruction.h"
 #include "gumscriptinterceptor.h"
@@ -52,12 +53,14 @@ struct _GumScriptPrivate
   GumScriptStalker stalker;
   GumScriptSymbol symbol;
   GumScriptInstruction instruction;
+  GumScriptDebug debug;
   GumPersistent<Context>::type * context;
   GumPersistent<Script>::type * raw_script;
   gboolean loaded;
 };
 
-static void gum_script_runtime_deinit (void);
+static gpointer gum_script_runtime_do_init (gpointer data);
+static void gum_script_runtime_do_deinit (void);
 
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -154,8 +157,18 @@ private:
 static GumScriptScheduler * gum_scheduler = NULL;
 static GumScriptPlatform * gum_platform = nullptr;
 
+static Isolate *
+gum_script_runtime_init (void)
+{
+  static GOnce init_once = G_ONCE_INIT;
+
+  g_once (&init_once, gum_script_runtime_do_init, NULL);
+
+  return static_cast<Isolate *> (init_once.retval);
+}
+
 static gpointer
-gum_script_runtime_init (gpointer data)
+gum_script_runtime_do_init (gpointer data)
 {
   (void) data;
 
@@ -172,13 +185,13 @@ gum_script_runtime_init (gpointer data)
   Isolate * isolate = Isolate::New ();
   isolate->Enter ();
 
-  _gum_register_destructor (gum_script_runtime_deinit);
+  _gum_register_destructor (gum_script_runtime_do_deinit);
 
-  return NULL;
+  return isolate;
 }
 
 static void
-gum_script_runtime_deinit (void)
+gum_script_runtime_do_deinit (void)
 {
   Isolate * isolate = Isolate::GetCurrent ();
   isolate->Exit ();
@@ -228,14 +241,11 @@ static void
 gum_script_init (GumScript * self)
 {
   GumScriptPrivate * priv;
-  static GOnce init_once = G_ONCE_INIT;
-
-  g_once (&init_once, gum_script_runtime_init, NULL);
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
-  priv->isolate = Isolate::GetCurrent ();
+  priv->isolate = gum_script_runtime_init ();
   priv->loaded = FALSE;
 }
 
@@ -329,6 +339,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_symbol_init (&priv->symbol, &priv->core, global_templ);
     _gum_script_instruction_init (&priv->instruction, &priv->core,
         global_templ);
+    _gum_script_debug_init (&priv->debug, &priv->core, global_templ);
 
     Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
@@ -344,6 +355,7 @@ gum_script_create_context (GumScript * self,
     _gum_script_stalker_realize (&priv->stalker);
     _gum_script_symbol_realize (&priv->symbol);
     _gum_script_instruction_realize (&priv->instruction);
+    _gum_script_debug_realize (&priv->debug);
 
     gchar * combined_source = g_strconcat (
 #include "gumscript-runtime.h"
@@ -396,6 +408,7 @@ gum_script_destroy_context (GumScript * self)
 
     _gum_script_core_flush (&priv->core);
 
+    _gum_script_debug_dispose (&priv->debug);
     _gum_script_instruction_dispose (&priv->instruction);
     _gum_script_symbol_dispose (&priv->symbol);
     _gum_script_stalker_dispose (&priv->stalker);
@@ -414,6 +427,7 @@ gum_script_destroy_context (GumScript * self)
   delete priv->context;
   priv->context = NULL;
 
+  _gum_script_debug_finalize (&priv->debug);
   _gum_script_instruction_finalize (&priv->instruction);
   _gum_script_symbol_finalize (&priv->symbol);
   _gum_script_stalker_finalize (&priv->stalker);
@@ -497,6 +511,20 @@ gum_script_post_message (GumScript * self,
                          const gchar * message)
 {
   _gum_script_core_post_message (&self->priv->core, message);
+}
+
+gboolean
+gum_script_enable_remote_debugger (guint16 port,
+                                   GError ** error)
+{
+  return _gum_script_debug_enable_remote_debugger (gum_script_runtime_init (),
+      port, error);
+}
+
+void
+gum_script_disable_remote_debugger (void)
+{
+  _gum_script_debug_disable_remote_debugger ();
 }
 
 static void

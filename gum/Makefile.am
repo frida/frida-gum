@@ -168,7 +168,9 @@ script_sources += \
 	gumscriptsymbol.h \
 	gumscriptsymbol.cpp \
 	gumscriptinstruction.h \
-	gumscriptinstruction.cpp
+	gumscriptinstruction.cpp \
+	gumscriptdebug.h \
+	gumscriptdebug.cpp
 fridainclude_HEADERS += \
 	gumscript.h
 endif
