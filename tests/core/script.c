@@ -495,7 +495,7 @@ on_incoming_connection (GSocketService * service,
   input = g_io_stream_get_input_stream (G_IO_STREAM (connection));
   buf = g_malloc (1);
   g_input_stream_read_async (input, buf, 1, G_PRIORITY_DEFAULT, NULL,
-      on_read_ready, NULL);
+      on_read_ready, g_object_ref (connection));
 
   return TRUE;
 }
@@ -505,9 +505,15 @@ on_read_ready (GObject * source_object,
                GAsyncResult * res,
                gpointer user_data)
 {
+  GSocketConnection * connection = user_data;
+
   GError * error = NULL;
   g_input_stream_read_finish (G_INPUT_STREAM (source_object), res, &error);
   g_clear_error (&error);
+
+  g_io_stream_close_async (G_IO_STREAM (connection), G_PRIORITY_LOW, NULL,
+      NULL, NULL);
+  g_object_unref (connection);
 }
 
 #endif /* !HAVE_ANDROID */
