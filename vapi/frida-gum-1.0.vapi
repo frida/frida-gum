@@ -96,7 +96,7 @@ namespace Gum {
 
 		public void post_message (string message);
 
-		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler func);
+		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? func);
 		public static void post_debug_message (string message);
 
 		public static void ignore (Gum.ThreadId thread_id);
