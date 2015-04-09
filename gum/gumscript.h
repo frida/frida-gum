@@ -34,6 +34,8 @@ typedef struct _GumScriptPrivate    GumScriptPrivate;
 typedef void (* GumScriptMessageHandler) (GumScript * script,
     const gchar * message, const guint8 * data, gint data_length,
     gpointer user_data);
+typedef void (* GumScriptDebugMessageHandler) (const gchar * message,
+    gpointer user_data);
 
 struct _GumScript
 {
@@ -62,9 +64,9 @@ GUM_API void gum_script_unload (GumScript * self);
 
 GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
-GUM_API gboolean gum_script_enable_remote_debugger (guint16 port,
-    GError ** error);
-GUM_API void gum_script_disable_remote_debugger (void);
+GUM_API void gum_script_set_debug_message_handler (
+    GumScriptDebugMessageHandler func, gpointer data, GDestroyNotify notify);
+GUM_API void gum_script_post_debug_message (const gchar * message);
 
 GUM_API void gum_script_ignore (GumThreadId thread_id);
 GUM_API void gum_script_unignore (GumThreadId thread_id);

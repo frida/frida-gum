@@ -213,9 +213,6 @@
     <ClCompile Include="gum\gumscriptinstruction.cpp">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gumscriptdebug.cpp">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
@@ -456,9 +453,6 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscriptinstruction.h">
-      <Filter>core</Filter>
-    </ClInclude>
-    <ClInclude Include="gum\gumscriptdebug.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-arm64\gumarm64.h">

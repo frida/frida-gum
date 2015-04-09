@@ -4,23 +4,28 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumscriptdebug.h"
-
 #include <gio/gio.h>
 #include <string.h>
-#include <v8-debug.h>
 
-#define GUM_MAX_DEBUG_MESSAGE_SIZE (1024 * 1024)
-#define GUM_CHUNK_SIZE 10
+#define GUM_MAX_DEBUG_MESSAGE_SIZE 2048
+#define GUM_CHUNK_SIZE 512
 
-#define GUM_DEBUG_SESSION(obj) (reinterpret_cast<GumDebugSession *> (obj))
+#define GUM_DEBUG_SERVER(obj) ((GumDebugServer *) (obj))
+#define GUM_DEBUG_SESSION(obj) ((GumDebugSession *) (obj))
 
-using namespace v8;
-
+typedef struct _GumDebugServer  GumDebugServer;
 typedef struct _GumDebugSession GumDebugSession;
+
+struct _GumDebugServer
+{
+  GSocketService * service;
+  GSList * sessions;
+};
 
 struct _GumDebugSession
 {
+  GumDebugServer * server;
+
   GIOStream * stream;
   GInputStream * input;
   GOutputStream * output;
@@ -34,12 +39,16 @@ struct _GumDebugSession
   GQueue * outgoing;
 };
 
-static gboolean gum_script_debug_on_incoming_connection (
+static void gum_debug_server_remove_session (GumDebugServer * self,
+    GumDebugSession * session);
+static gboolean gum_debug_server_on_incoming_connection (
     GSocketService * service, GSocketConnection * connection,
     GObject * source_object, gpointer user_data);
-static void gum_script_debug_on_message (const Debug::Message & message);
+static void gum_debug_server_on_message (const gchar * message,
+    gpointer user_data);
 
-static GumDebugSession * gum_debug_session_new (GIOStream * stream);
+static GumDebugSession * gum_debug_session_new (GumDebugServer * server,
+    GIOStream * stream);
 static void gum_debug_session_free (GumDebugSession * self);
 
 static void gum_debug_session_open (GumDebugSession * self);
@@ -52,89 +61,70 @@ static void gum_debug_session_on_read_ready (GObject * source_object,
 static void gum_debug_session_on_write_all_ready (GObject * source_object,
     GAsyncResult * res, gpointer user_data);
 
-static Isolate * gum_isolate = nullptr;
-static GumPersistent<Context>::type * gum_context = nullptr;
-static GSocketService * gum_service = NULL;
-static GSList * gum_sessions = NULL;
-
-gboolean
-_gum_script_debug_enable_remote_debugger (Isolate * isolate,
-                                          guint16 port,
-                                          GError ** error)
+GumDebugServer *
+gum_debug_server_new (guint16 port)
 {
-  GSocketService * service = NULL;
+  GumDebugServer * server;
+  GSocketService * service;
+  gboolean port_available;
 
-  if (gum_service != NULL)
-    goto error_already_enabled;
+  server = g_slice_new (GumDebugServer);
 
   service = g_socket_service_new ();
-  if (!g_socket_listener_add_inet_port (G_SOCKET_LISTENER (service), port, NULL,
-      error))
-    goto error;
+  port_available = g_socket_listener_add_inet_port (G_SOCKET_LISTENER (service),
+      port, NULL, NULL);
+  g_assert (port_available);
   g_signal_connect (service, "incoming",
-      G_CALLBACK (gum_script_debug_on_incoming_connection),
-      NULL);
+      G_CALLBACK (gum_debug_server_on_incoming_connection), server);
+  server->service = service;
+
+  server->sessions = NULL;
+
   g_socket_service_start (service);
 
-  {
-    Locker locker (isolate);
-    Isolate::Scope isolate_scope (isolate);
-    HandleScope handle_scope (isolate);
+  gum_script_set_debug_message_handler (gum_debug_server_on_message, server,
+      NULL);
 
-    Debug::SetMessageHandler (gum_script_debug_on_message);
-
-    gum_isolate = isolate;
-    gum_context = new GumPersistent<Context>::type (isolate,
-        Debug::GetDebugContext ());
-    gum_service = service;
-  }
-
-  return TRUE;
-
-error_already_enabled:
-  {
-    g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "already enabled");
-    goto error;
-  }
-
-error:
-  {
-    if (service != NULL)
-      g_object_unref (service);
-    return FALSE;
-  }
+  return server;
 }
 
 void
-_gum_script_debug_disable_remote_debugger (void)
+gum_debug_server_free (GumDebugServer * server)
 {
-  if (gum_service == NULL)
-    return;
+  gum_script_set_debug_message_handler (NULL, NULL, NULL);
 
-  delete gum_context;
-  gum_context = nullptr;
+  while (server->sessions != NULL)
+  {
+    gum_debug_server_remove_session (server,
+        GUM_DEBUG_SESSION (server->sessions->data));
+  }
 
-  gum_isolate = nullptr;
+  g_socket_service_stop (server->service);
+  g_object_unref (server->service);
 
-  Debug::SetMessageHandler (nullptr);
+  g_slice_free (GumDebugServer, server);
+}
 
-  while (gum_sessions != NULL)
-    gum_debug_session_free (GUM_DEBUG_SESSION (gum_sessions->data));
+static void
+gum_debug_server_remove_session (GumDebugServer * self,
+                                 GumDebugSession * session)
+{
+  self->sessions = g_slist_remove (self->sessions, session);
 
-  g_socket_service_stop (gum_service);
-  g_object_unref (gum_service);
-  gum_service = NULL;
+  gum_debug_session_free (session);
 }
 
 static gboolean
-gum_script_debug_on_incoming_connection (GSocketService * service,
+gum_debug_server_on_incoming_connection (GSocketService * service,
                                          GSocketConnection * connection,
                                          GObject * source_object,
                                          gpointer user_data)
 {
+  GumDebugServer * server = GUM_DEBUG_SERVER (user_data);
   GumDebugSession * session;
 
-  session = gum_debug_session_new (G_IO_STREAM (connection));
+  session = gum_debug_session_new (server, G_IO_STREAM (connection));
+  server->sessions = g_slist_prepend (server->sessions, session);
 
   gum_debug_session_open (session);
 
@@ -142,26 +132,27 @@ gum_script_debug_on_incoming_connection (GSocketService * service,
 }
 
 static void
-gum_script_debug_on_message (const Debug::Message & message)
+gum_debug_server_on_message (const gchar * message,
+                             gpointer user_data)
 {
-  Isolate * isolate = message.GetIsolate ();
+  GumDebugServer * server = GUM_DEBUG_SERVER (user_data);
 
-  HandleScope scope (isolate);
-  Local<String> json = message.GetJSON ();
-  String::Utf8Value json_str (json);
-  for (GSList * cur = gum_sessions; cur != NULL; cur = cur->next)
+  for (GSList * cur = server->sessions; cur != NULL; cur = cur->next)
   {
     GumDebugSession * session = GUM_DEBUG_SESSION (cur->data);
-    gum_debug_session_send (session, 0, *json_str);
+
+    gum_debug_session_send (session, 0, message);
   }
 }
 
 static GumDebugSession *
-gum_debug_session_new (GIOStream * stream)
+gum_debug_session_new (GumDebugServer * server,
+                       GIOStream * stream)
 {
   GumDebugSession * session;
 
   session = g_slice_new (GumDebugSession);
+  session->server = server;
   session->stream = stream;
   g_object_ref (stream);
   session->input = g_io_stream_get_input_stream (stream);
@@ -175,18 +166,13 @@ gum_debug_session_new (GIOStream * stream)
 
   session->outgoing = g_queue_new ();
 
-  gum_sessions = g_slist_prepend (gum_sessions, session);
-
   return session;
 }
 
 static void
 gum_debug_session_free (GumDebugSession * session)
 {
-  gum_sessions = g_slist_remove (gum_sessions, session);
-
-  g_queue_free_full (session->outgoing,
-      reinterpret_cast<GDestroyNotify> (g_bytes_unref));
+  g_queue_free_full (session->outgoing, (GDestroyNotify) g_bytes_unref);
 
   g_free (session->buffer);
 
@@ -201,9 +187,9 @@ gum_debug_session_open (GumDebugSession * self)
 {
   gum_debug_session_send (self, 4,
       "Type", "connect",
-      "V8-Version", V8::GetVersion (),
+      "V8-Version", "4.3.62",
       "Protocol-Version", "1",
-      "Embedding-Host", "Frida",
+      "Embedding-Host", "Frida v4.0.0",
       "");
 
   gum_debug_session_read_next_chunk (self);
@@ -217,8 +203,7 @@ gum_debug_session_read_next_chunk (GumDebugSession * self)
   {
     self->capacity = MIN (self->capacity + (GUM_CHUNK_SIZE - available),
         GUM_MAX_DEBUG_MESSAGE_SIZE);
-    self->buffer =
-        static_cast<char *> (g_realloc (self->buffer, self->capacity));
+    self->buffer = g_realloc (self->buffer, self->capacity);
 
     available = self->capacity - self->length;
   }
@@ -235,7 +220,7 @@ gum_debug_session_read_next_chunk (GumDebugSession * self)
   }
   else
   {
-    gum_debug_session_free (self);
+    gum_debug_server_remove_session (self->server, self);
   }
 }
 
@@ -267,7 +252,7 @@ gum_debug_session_send (GumDebugSession * self,
 
   content = va_arg (vl, const gchar *);
   g_string_append_printf (m, "Content-Length: %" G_GSIZE_MODIFIER "u\r\n\r\n%s",
-      static_cast<gsize> (strlen (content)), content);
+      (gsize) strlen (content), content);
 
   va_end (vl);
 
@@ -355,31 +340,12 @@ gum_debug_session_on_read_ready (GObject * source_object,
     }
     else if (self->length >= self->message_length)
     {
-      gboolean pending_error = FALSE;
+      gchar * message;
 
-      {
-        Locker locker (gum_isolate);
-        Isolate::Scope isolate_scope (gum_isolate);
-        HandleScope handle_scope (gum_isolate);
-        Local<Context> context (Local<Context>::New (gum_isolate, *gum_context));
-        Context::Scope context_scope (context);
-
-        glong command_length;
-        uint16_t * command = g_utf8_to_utf16 (self->buffer + self->header_length,
-            self->message_length - self->header_length, NULL, &command_length, NULL);
-        if (command != NULL)
-        {
-          Debug::SendCommand (gum_isolate, command, command_length);
-          Debug::ProcessDebugMessages ();
-        }
-        else
-        {
-          pending_error = TRUE;
-        }
-      }
-
-      if (pending_error)
-        goto error_protocol;
+      message = g_strndup (self->buffer + self->header_length,
+          self->message_length - self->header_length);
+      gum_script_post_debug_message (message);
+      g_free (message);
 
       self->length -= self->message_length;
       if (self->length > 0)
@@ -401,7 +367,7 @@ gum_debug_session_on_read_ready (GObject * source_object,
 error_gone:
 error_protocol:
   {
-    gum_debug_session_free (self);
+    gum_debug_server_remove_session (self->server, self);
   }
 }
 
@@ -416,9 +382,9 @@ gum_debug_session_on_write_all_ready (GObject * source_object,
   if (!g_output_stream_write_all_finish (self->output, res, NULL, NULL))
     return; /* read will fail */
 
-  g_bytes_unref (static_cast<GBytes *> (g_queue_pop_head (self->outgoing)));
+  g_bytes_unref (g_queue_pop_head (self->outgoing));
 
-  message = static_cast<GBytes *> (g_queue_peek_head (self->outgoing));
+  message = g_queue_peek_head (self->outgoing);
   if (message != NULL)
   {
     g_output_stream_write_all_async (self->output,
@@ -429,29 +395,5 @@ gum_debug_session_on_write_all_ready (GObject * source_object,
         gum_debug_session_on_write_all_ready,
         self);
   }
-}
-
-void
-_gum_script_debug_init (GumScriptDebug * self,
-                        GumScriptCore * core,
-                        Handle<ObjectTemplate> scope)
-{
-}
-
-void
-_gum_script_debug_realize (GumScriptDebug * self)
-{
-  (void) self;
-}
-
-void
-_gum_script_debug_dispose (GumScriptDebug * self)
-{
-  (void) self;
-}
-
-void
-_gum_script_debug_finalize (GumScriptDebug * self)
-{
 }
 

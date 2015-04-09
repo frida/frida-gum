@@ -9,7 +9,6 @@
 
 #include "gum-init.h"
 #include "gumscriptcore.h"
-#include "gumscriptdebug.h"
 #include "gumscriptfile.h"
 #include "gumscriptinstruction.h"
 #include "gumscriptinterceptor.h"
@@ -24,6 +23,7 @@
 
 #include <gio/gio.h>
 #include <string.h>
+#include <v8-debug.h>
 #include <v8-platform.h>
 
 #define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
@@ -53,7 +53,6 @@ struct _GumScriptPrivate
   GumScriptStalker stalker;
   GumScriptSymbol symbol;
   GumScriptInstruction instruction;
-  GumScriptDebug debug;
   GumPersistent<Context>::type * context;
   GumPersistent<Script>::type * raw_script;
   gboolean loaded;
@@ -72,6 +71,8 @@ static void gum_script_get_property (GObject * object, guint property_id,
 static void gum_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 static void gum_script_destroy_context (GumScript * self);
+
+static void gum_script_on_debug_message (const Debug::Message & message);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -157,8 +158,13 @@ private:
 static GumScriptScheduler * gum_scheduler = NULL;
 static GumScriptPlatform * gum_platform = nullptr;
 
+static GumScriptDebugMessageHandler gum_debug_handler = NULL;
+static gpointer gum_debug_data = NULL;
+static GDestroyNotify gum_debug_notify = NULL;
+static GumPersistent<Context>::type * gum_debug_context = nullptr;
+
 static Isolate *
-gum_script_runtime_init (void)
+gum_script_runtime_get_isolate (void)
 {
   static GOnce init_once = G_ONCE_INIT;
 
@@ -193,6 +199,8 @@ gum_script_runtime_do_init (gpointer data)
 static void
 gum_script_runtime_do_deinit (void)
 {
+  gum_script_set_debug_message_handler (NULL, NULL, NULL);
+
   Isolate * isolate = Isolate::GetCurrent ();
   isolate->Exit ();
   isolate->Dispose ();
@@ -245,7 +253,7 @@ gum_script_init (GumScript * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
-  priv->isolate = gum_script_runtime_init ();
+  priv->isolate = gum_script_runtime_get_isolate ();
   priv->loaded = FALSE;
 }
 
@@ -339,7 +347,6 @@ gum_script_create_context (GumScript * self,
     _gum_script_symbol_init (&priv->symbol, &priv->core, global_templ);
     _gum_script_instruction_init (&priv->instruction, &priv->core,
         global_templ);
-    _gum_script_debug_init (&priv->debug, &priv->core, global_templ);
 
     Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
@@ -355,7 +362,6 @@ gum_script_create_context (GumScript * self,
     _gum_script_stalker_realize (&priv->stalker);
     _gum_script_symbol_realize (&priv->symbol);
     _gum_script_instruction_realize (&priv->instruction);
-    _gum_script_debug_realize (&priv->debug);
 
     gchar * combined_source = g_strconcat (
 #include "gumscript-runtime.h"
@@ -408,7 +414,6 @@ gum_script_destroy_context (GumScript * self)
 
     _gum_script_core_flush (&priv->core);
 
-    _gum_script_debug_dispose (&priv->debug);
     _gum_script_instruction_dispose (&priv->instruction);
     _gum_script_symbol_dispose (&priv->symbol);
     _gum_script_stalker_dispose (&priv->stalker);
@@ -427,7 +432,6 @@ gum_script_destroy_context (GumScript * self)
   delete priv->context;
   priv->context = NULL;
 
-  _gum_script_debug_finalize (&priv->debug);
   _gum_script_instruction_finalize (&priv->instruction);
   _gum_script_symbol_finalize (&priv->symbol);
   _gum_script_stalker_finalize (&priv->stalker);
@@ -513,18 +517,75 @@ gum_script_post_message (GumScript * self,
   _gum_script_core_post_message (&self->priv->core, message);
 }
 
-gboolean
-gum_script_enable_remote_debugger (guint16 port,
-                                   GError ** error)
+void
+gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
+                                      gpointer data,
+                                      GDestroyNotify notify)
 {
-  return _gum_script_debug_enable_remote_debugger (gum_script_runtime_init (),
-      port, error);
+  Isolate * isolate = gum_script_runtime_get_isolate ();
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+
+  if (gum_debug_handler != NULL)
+  {
+    delete gum_debug_context;
+    gum_debug_context = nullptr;
+
+    Debug::SetMessageHandler (nullptr);
+
+    if (gum_debug_notify != NULL)
+      gum_debug_notify (gum_debug_data);
+    gum_debug_handler = NULL;
+    gum_debug_data = NULL;
+    gum_debug_notify = NULL;
+  }
+
+  if (func != NULL)
+  {
+    gum_debug_handler = func;
+    gum_debug_data = data;
+    gum_debug_notify = notify;
+
+    Debug::SetMessageHandler (gum_script_on_debug_message);
+
+    gum_debug_context = new GumPersistent<Context>::type (isolate,
+        Debug::GetDebugContext ());
+  }
+}
+
+static void
+gum_script_on_debug_message (const Debug::Message & message)
+{
+  Isolate * isolate = message.GetIsolate ();
+  HandleScope scope (isolate);
+
+  Local<String> json = message.GetJSON ();
+  String::Utf8Value json_str (json);
+  gum_debug_handler (*json_str, gum_debug_data);
 }
 
 void
-gum_script_disable_remote_debugger (void)
+gum_script_post_debug_message (const gchar * message)
 {
-  _gum_script_debug_disable_remote_debugger ();
+  g_assert (gum_debug_handler != NULL);
+
+  Isolate * isolate = gum_script_runtime_get_isolate ();
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+  Local<Context> context (Local<Context>::New (isolate, *gum_debug_context));
+  Context::Scope context_scope (context);
+
+  glong command_length;
+  uint16_t * command = g_utf8_to_utf16 (message, strlen (message), NULL,
+      &command_length, NULL);
+  g_assert (command != NULL);
+
+  Debug::SendCommand (isolate, command, command_length);
+  Debug::ProcessDebugMessages ();
+
+  g_free (command);
 }
 
 static void
