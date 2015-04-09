@@ -577,8 +577,28 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
 
     Debug::SetMessageHandler (gum_script_on_debug_message);
 
-    gum_debug_context = new GumPersistent<Context>::type (isolate,
-        Debug::GetDebugContext ());
+    Local<Context> context = Debug::GetDebugContext ();
+    gum_debug_context = new GumPersistent<Context>::type (isolate, context);
+    Context::Scope context_scope (context);
+
+    gchar * source = g_strconcat (
+#include "gumscript-debug.h"
+        static_cast<void *> (NULL));
+    Local<String> source_value (String::NewFromUtf8 (isolate, source));
+    g_free (source);
+    TryCatch trycatch;
+    Handle<Script> script = Script::Compile (source_value);
+    if (script.IsEmpty ())
+    {
+      Handle<Message> message = trycatch.Message ();
+      Handle<Value> exception = trycatch.Exception ();
+      String::Utf8Value exception_str (exception);
+      g_printerr ("gumscript-debug.js line %d: %s",
+          message->GetLineNumber (),
+          *exception_str);
+      g_assert_not_reached ();
+    }
+    script->Run ();
   }
 }
 
