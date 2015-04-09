@@ -255,6 +255,9 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 
+static void on_message (GumScript * script, const gchar * message,
+    const guint8 * data, gint data_length, gpointer user_data);
+
 static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
 static int target_function_nested_a (int arg);

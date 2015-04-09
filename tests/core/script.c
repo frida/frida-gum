@@ -1838,6 +1838,7 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
 
 SCRIPT_TESTCASE (debugger_can_be_enabled)
 {
+  GumScript * badger, * snake;
   GMainLoop * loop;
   const guint16 port = 5858;
   GumDebugServer * server;
@@ -1847,6 +1848,20 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
     g_print ("<skipping, run in slow mode> ");
     return;
   }
+
+  badger = gum_script_from_string ("badger",
+      "setInterval(function () {\n"
+      "  send('badger');\n"
+      "}, 1000);", NULL);
+  gum_script_set_message_handler (badger, on_message, "badger", NULL);
+  gum_script_load (badger);
+
+  snake = gum_script_from_string ("snake",
+      "setInterval(function () {\n"
+      "  send('snake');\n"
+      "}, 1000);", NULL);
+  gum_script_set_message_handler (snake, on_message, "snake", NULL);
+  gum_script_load (snake);
 
   loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
 
@@ -1858,6 +1873,17 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   gum_debug_server_free (server);
 
   g_main_loop_unref (loop);
+}
+
+static void
+on_message (GumScript * script,
+            const gchar * message,
+            const guint8 * data,
+            gint data_length,
+            gpointer user_data)
+{
+  gchar * sender = user_data;
+  g_print ("Message from %s: %s\n", sender, message);
 }
 
 GUM_NOINLINE static int
