@@ -34,11 +34,13 @@ using namespace v8;
 enum
 {
   PROP_0,
+  PROP_NAME,
   PROP_SOURCE
 };
 
 struct _GumScriptPrivate
 {
+  gchar * name;
   gchar * source;
 
   Isolate * isolate;
@@ -227,6 +229,10 @@ gum_script_class_init (GumScriptClass * klass)
   object_class->get_property = gum_script_get_property;
   object_class->set_property = gum_script_set_property;
 
+  g_object_class_install_property (object_class, PROP_NAME,
+      g_param_spec_string ("name", "Name", "Name", NULL,
+      static_cast<GParamFlags> (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
       static_cast<GParamFlags> (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
@@ -274,8 +280,10 @@ static void
 gum_script_finalize (GObject * object)
 {
   GumScript * self = GUM_SCRIPT (object);
+  GumScriptPrivate * priv = self->priv;
 
-  g_free (self->priv->source);
+  g_free (priv->name);
+  g_free (priv->source);
 
   G_OBJECT_CLASS (gum_script_parent_class)->finalize (object);
 }
@@ -291,6 +299,9 @@ gum_script_get_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_NAME:
+      g_value_set_string (value, priv->name);
+      break;
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
       break;
@@ -310,6 +321,10 @@ gum_script_set_property (GObject * object,
 
   switch (property_id)
   {
+    case PROP_NAME:
+      g_free (priv->name);
+      priv->name = g_value_dup_string (value);
+      break;
     case PROP_SOURCE:
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
@@ -363,16 +378,31 @@ gum_script_create_context (GumScript * self,
     _gum_script_symbol_realize (&priv->symbol);
     _gum_script_instruction_realize (&priv->instruction);
 
+    gchar * resource_name_str = g_strconcat (priv->name, ".js", NULL);
+    Local<String> resource_name (String::NewFromUtf8 (priv->isolate,
+        resource_name_str));
+    ScriptOrigin origin (resource_name);
+    g_free (resource_name_str);
+
     gchar * combined_source = g_strconcat (
 #include "gumscript-runtime.h"
         "\n",
         priv->source,
         static_cast<void *> (NULL));
-    Local<String> source_value (String::NewFromUtf8 (priv->isolate, combined_source));
+    Local<String> source (String::NewFromUtf8 (priv->isolate,
+        combined_source));
     g_free (combined_source);
+
     TryCatch trycatch;
-    Handle<Script> raw_script = Script::Compile (source_value);
-    if (raw_script.IsEmpty ())
+    MaybeLocal<Script> maybe_raw_script =
+        Script::Compile (context, source, &origin);
+    Local<Script> raw_script;
+    if (maybe_raw_script.ToLocal (&raw_script))
+    {
+      priv->raw_script =
+          new GumPersistent<Script>::type (priv->isolate, raw_script);
+    }
+    else
     {
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
@@ -381,11 +411,7 @@ gum_script_create_context (GumScript * self,
           message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
           *exception_str);
     }
-    else
-    {
-      priv->raw_script =
-          new GumPersistent<Script>::type (priv->isolate, raw_script);
-    }
+
   }
 
   if (priv->raw_script == NULL)
@@ -448,10 +474,12 @@ gum_script_destroy_context (GumScript * self)
 }
 
 GumScript *
-gum_script_from_string (const gchar * source,
+gum_script_from_string (const gchar * name,
+                        const gchar * source,
                         GError ** error)
 {
   GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
+      "name", name,
       "source", source,
       NULL));
 

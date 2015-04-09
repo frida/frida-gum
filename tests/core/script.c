@@ -765,9 +765,9 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
 {
   GError * err = NULL;
 
-  g_assert (gum_script_from_string ("'", NULL) == NULL);
+  g_assert (gum_script_from_string ("testcase", "'", NULL) == NULL);
 
-  g_assert (gum_script_from_string ("'", &err) == NULL);
+  g_assert (gum_script_from_string ("testcase", "'", &err) == NULL);
   g_assert (err != NULL);
   g_assert_cmpstr (err->message, ==,
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
