@@ -83,6 +83,7 @@ namespace Gum {
 
 	public class Script : GLib.Object {
 		public delegate void MessageHandler (Gum.Script script, string message, uint8[] data);
+		public delegate void DebugMessageHandler (string message);
 
 		public static Script from_string (string source) throws GLib.IOError;
 
@@ -94,6 +95,9 @@ namespace Gum {
 		public void unload ();
 
 		public void post_message (string message);
+
+		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler func);
+		public static void post_debug_message (string message);
 
 		public static void ignore (Gum.ThreadId thread_id);
 		public static void unignore (Gum.ThreadId thread_id);
