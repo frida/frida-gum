@@ -385,7 +385,7 @@ gum_debug_session_on_read_ready (GObject * source_object,
       if (self->length > 0)
       {
         memmove (self->buffer, self->buffer + self->message_length,
-            self->message_length);
+            self->length);
         more_data = TRUE;
       }
       self->message_length = 0;
