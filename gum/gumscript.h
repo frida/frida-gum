@@ -7,7 +7,7 @@
 #ifndef __GUM_SCRIPT_H__
 #define __GUM_SCRIPT_H__
 
-#include <glib-object.h>
+#include <gio/gio.h>
 #include <gum/gumdefs.h>
 #include <gum/guminvocationcontext.h>
 #include <gum/gumstalker.h>
@@ -51,8 +51,13 @@ struct _GumScriptClass
 
 GUM_API GType gum_script_get_type (void) G_GNUC_CONST;
 
-GUM_API GumScript * gum_script_from_string (const gchar * name,
-    const gchar * source, GError ** error);
+GUM_API void gum_script_from_string (const gchar * name,
+    const gchar * source, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
+GUM_API GumScript * gum_script_from_string_finish (GAsyncResult * result,
+    GError ** error);
+GUM_API GumScript * gum_script_from_string_sync (const gchar * name,
+    const gchar * source, GCancellable * cancellable, GError ** error);
 
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 

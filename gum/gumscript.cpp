@@ -21,7 +21,6 @@
 #include "gumscriptsymbol.h"
 #include "gumscriptthread.h"
 
-#include <gio/gio.h>
 #include <string.h>
 #include <v8-debug.h>
 #include <v8-platform.h>
@@ -31,17 +30,21 @@
 
 using namespace v8;
 
+typedef struct _GumScriptFromStringData GumScriptFromStringData;
+
 enum
 {
   PROP_0,
   PROP_NAME,
-  PROP_SOURCE
+  PROP_SOURCE,
+  PROP_MAIN_CONTEXT
 };
 
 struct _GumScriptPrivate
 {
   gchar * name;
   gchar * source;
+  GMainContext * main_context;
 
   Isolate * isolate;
   GumScriptCore core;
@@ -60,7 +63,13 @@ struct _GumScriptPrivate
   gboolean loaded;
 };
 
-static gpointer gum_script_runtime_do_init (gpointer data);
+struct _GumScriptFromStringData
+{
+  gchar * name;
+  gchar * source;
+};
+
+static Isolate * gum_script_runtime_do_init (GMainContext * main_context);
 static void gum_script_runtime_do_deinit (void);
 
 static void gum_script_listener_iface_init (gpointer g_iface,
@@ -73,6 +82,13 @@ static void gum_script_get_property (GObject * object, guint property_id,
 static void gum_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 static void gum_script_destroy_context (GumScript * self);
+
+static GTask * gum_script_from_string_task_new (const gchar * name,
+    const gchar * source, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
+static void gum_script_from_string_task_thread (GTask * task,
+    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_script_from_string_data_free (GumScriptFromStringData * data);
 
 static void gum_script_on_debug_message (const Debug::Message & message);
 
@@ -99,18 +115,13 @@ public:
   {
   }
 
-  GMainContext * GetMainContext () const
-  {
-    return main_context;
-  }
-
   virtual void CallOnBackgroundThread (Task * task,
       ExpectedRuntime expected_runtime)
   {
     gum_script_scheduler_push_job (scheduler,
-        reinterpret_cast<GumScriptJobFunc> (PerformTask),
+        (GumScriptJobFunc) PerformTask,
         task,
-        reinterpret_cast<GDestroyNotify> (DisposeTask),
+        (GDestroyNotify) DisposeTask,
         NULL);
   }
 
@@ -119,9 +130,9 @@ public:
     GSource * source = g_idle_source_new ();
     g_source_set_priority (source, G_PRIORITY_HIGH);
     g_source_set_callback (source,
-        reinterpret_cast<GSourceFunc> (PerformTaskWhenIdle),
+        (GSourceFunc) PerformTaskWhenIdle,
         task,
-        reinterpret_cast<GDestroyNotify> (DisposeTask));
+        (GDestroyNotify) (DisposeTask));
     g_source_attach (source, main_context);
     g_source_unref (source);
   }
@@ -170,20 +181,17 @@ gum_script_runtime_get_isolate (void)
 {
   static GOnce init_once = G_ONCE_INIT;
 
-  g_once (&init_once, gum_script_runtime_do_init, NULL);
+  g_once (&init_once, (GThreadFunc) gum_script_runtime_do_init, NULL);
 
   return static_cast<Isolate *> (init_once.retval);
 }
 
-static gpointer
-gum_script_runtime_do_init (gpointer data)
+static Isolate *
+gum_script_runtime_do_init (GMainContext * main_context)
 {
-  (void) data;
-
   gum_scheduler = gum_script_scheduler_new ();
 
-  gum_platform = new GumScriptPlatform (g_main_context_get_thread_default (),
-      gum_scheduler);
+  gum_platform = new GumScriptPlatform (main_context, gum_scheduler);
 
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
@@ -191,7 +199,6 @@ gum_script_runtime_do_init (gpointer data)
   V8::Initialize ();
 
   Isolate * isolate = Isolate::New ();
-  isolate->Enter ();
 
   _gum_register_destructor (gum_script_runtime_do_deinit);
 
@@ -204,7 +211,6 @@ gum_script_runtime_do_deinit (void)
   gum_script_set_debug_message_handler (NULL, NULL, NULL);
 
   Isolate * isolate = Isolate::GetCurrent ();
-  isolate->Exit ();
   isolate->Dispose ();
 
   V8::Dispose ();
@@ -231,11 +237,16 @@ gum_script_class_init (GumScriptClass * klass)
 
   g_object_class_install_property (object_class, PROP_NAME,
       g_param_spec_string ("name", "Name", "Name", NULL,
-      static_cast<GParamFlags> (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
-      static_cast<GParamFlags> (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
+      g_param_spec_boxed ("main-context", "MainContext",
+      "MainContext being used", G_TYPE_MAIN_CONTEXT,
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
 }
 
@@ -273,6 +284,12 @@ gum_script_dispose (GObject * object)
 
   priv->isolate = NULL;
 
+  if (priv->main_context != NULL)
+  {
+    g_main_context_unref (priv->main_context);
+    priv->main_context = NULL;
+  }
+
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
 }
 
@@ -305,6 +322,9 @@ gum_script_get_property (GObject * object,
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
       break;
+    case PROP_MAIN_CONTEXT:
+      g_value_set_boxed (value, priv->main_context);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
   }
@@ -329,6 +349,11 @@ gum_script_set_property (GObject * object,
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
       break;
+    case PROP_MAIN_CONTEXT:
+      if (priv->main_context != NULL)
+        g_main_context_unref (priv->main_context);
+      priv->main_context = (GMainContext *) g_value_dup_boxed (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
   }
@@ -348,8 +373,8 @@ gum_script_create_context (GumScript * self,
     HandleScope handle_scope (priv->isolate);
 
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-    _gum_script_core_init (&priv->core, self, gum_scheduler,
-        gum_platform->GetMainContext (), priv->isolate, global_templ);
+    _gum_script_core_init (&priv->core, self, gum_scheduler, priv->main_context,
+        priv->isolate, global_templ);
     _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
@@ -388,7 +413,7 @@ gum_script_create_context (GumScript * self,
 #include "gumscript-runtime.h"
         "\n",
         priv->source,
-        static_cast<void *> (NULL));
+        (gpointer) NULL);
     Local<String> source (String::NewFromUtf8 (priv->isolate,
         combined_source));
     g_free (combined_source);
@@ -411,7 +436,6 @@ gum_script_create_context (GumScript * self,
           message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
           *exception_str);
     }
-
   }
 
   if (priv->raw_script == NULL)
@@ -473,23 +497,102 @@ gum_script_destroy_context (GumScript * self)
   priv->loaded = FALSE;
 }
 
-GumScript *
+void
 gum_script_from_string (const gchar * name,
                         const gchar * source,
-                        GError ** error)
+                        GCancellable * cancellable,
+                        GAsyncReadyCallback callback,
+                        gpointer user_data)
 {
-  GumScript * script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
-      "name", name,
-      "source", source,
-      NULL));
+  GTask * task;
 
-  if (!gum_script_create_context (script, error))
-  {
-    g_object_unref (script);
-    script = NULL;
-  }
+  task = gum_script_from_string_task_new (name, source, cancellable, callback,
+      user_data);
+  g_task_run_in_thread (task, gum_script_from_string_task_thread);
+  g_object_unref (task);
+}
+
+GumScript *
+gum_script_from_string_finish (GAsyncResult * result,
+                               GError ** error)
+{
+  return GUM_SCRIPT (g_task_propagate_pointer (G_TASK (result), error));
+}
+
+GumScript *
+gum_script_from_string_sync (const gchar * name,
+                             const gchar * source,
+                             GCancellable * cancellable,
+                             GError ** error)
+{
+  GumScript * script;
+  GTask * task;
+
+  task = gum_script_from_string_task_new (name, source, cancellable,
+      NULL, NULL);
+  g_task_run_in_thread_sync (task, gum_script_from_string_task_thread);
+  script = GUM_SCRIPT (g_task_propagate_pointer (task, error));
+  g_object_unref (task);
 
   return script;
+}
+
+static GTask *
+gum_script_from_string_task_new (const gchar * name,
+                                 const gchar * source,
+                                 GCancellable * cancellable,
+                                 GAsyncReadyCallback callback,
+                                 gpointer user_data)
+{
+  GumScriptFromStringData * data;
+  GTask * task;
+
+  data = g_slice_new (GumScriptFromStringData);
+  data->name = g_strdup (name);
+  data->source = g_strdup (source);
+
+  task = g_task_new (NULL, cancellable, callback, user_data);
+  g_task_set_task_data (task, data,
+      (GDestroyNotify) gum_script_from_string_data_free);
+  g_task_set_return_on_cancel (task, TRUE);
+
+  return task;
+}
+
+static void
+gum_script_from_string_task_thread (GTask * task,
+                                    gpointer source_object,
+                                    gpointer task_data,
+                                    GCancellable * cancellable)
+{
+  GumScriptFromStringData * data = (GumScriptFromStringData *) task_data;
+  GumScript * script;
+  GError * error = NULL;
+
+  script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
+      "name", data->name,
+      "source", data->source,
+      "main-context", g_task_get_context (task),
+      NULL));
+
+  if (gum_script_create_context (script, &error))
+  {
+    g_task_return_pointer (task, script, g_object_unref);
+  }
+  else
+  {
+    g_task_return_error (task, error);
+    g_object_unref (script);
+  }
+}
+
+static void
+gum_script_from_string_data_free (GumScriptFromStringData * data)
+{
+  g_free (data->name);
+  g_free (data->source);
+
+  g_slice_free (GumScriptFromStringData, data);
 }
 
 GumStalker *
@@ -583,7 +686,7 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
 
     gchar * source = g_strconcat (
 #include "gumscript-debug.h"
-        static_cast<void *> (NULL));
+        (gpointer) NULL);
     Local<String> source_value (String::NewFromUtf8 (isolate, source));
     g_free (source);
     TryCatch trycatch;

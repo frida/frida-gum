@@ -85,7 +85,8 @@ namespace Gum {
 		public delegate void MessageHandler (Gum.Script script, string message, uint8[] data);
 		public delegate void DebugMessageHandler (string message);
 
-		public static Script from_string (string name, string source) throws GLib.IOError;
+		public static async Script from_string (string name, string source, Cancellable? cancellable = null) throws GLib.IOError;
+		public static Script from_string_sync (string name, string source, Cancellable? cancellable = null) throws GLib.IOError;
 
 		public unowned Stalker get_stalker ();
 
