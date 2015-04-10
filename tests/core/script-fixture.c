@@ -146,7 +146,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
 
   if (fixture->script != NULL)
   {
-    gum_script_unload (fixture->script);
+    gum_script_unload_sync (fixture->script, NULL);
     g_object_unref (fixture->script);
     fixture->script = NULL;
   }
@@ -165,7 +165,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   gum_script_set_message_handler (fixture->script,
       test_script_fixture_store_message, fixture, NULL);
 
-  gum_script_load (fixture->script);
+  gum_script_load_sync (fixture->script, NULL);
 }
 
 static TestScriptMessageItem *

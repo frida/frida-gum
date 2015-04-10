@@ -64,8 +64,16 @@ GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 GUM_API void gum_script_set_message_handler (GumScript * self,
     GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
 
-GUM_API void gum_script_load (GumScript * self);
-GUM_API void gum_script_unload (GumScript * self);
+GUM_API void gum_script_load (GumScript * self, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
+GUM_API void gum_script_load_finish (GAsyncResult * result);
+GUM_API void gum_script_load_sync (GumScript * self,
+    GCancellable * cancellable);
+GUM_API void gum_script_unload (GumScript * self, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
+GUM_API void gum_script_unload_finish (GAsyncResult * result);
+GUM_API void gum_script_unload_sync (GumScript * self,
+    GCancellable * cancellable);
 
 GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 

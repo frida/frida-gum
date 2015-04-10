@@ -92,8 +92,10 @@ namespace Gum {
 
 		public void set_message_handler (owned Gum.Script.MessageHandler func);
 
-		public void load ();
-		public void unload ();
+		public async void load (Cancellable? cancellable = null);
+		public void load_sync (Cancellable? cancellable = null);
+		public async void unload (Cancellable? cancellable = null);
+		public void unload_sync (Cancellable? cancellable = null);
 
 		public void post_message (string message);
 

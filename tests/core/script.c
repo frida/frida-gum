@@ -783,7 +783,7 @@ SCRIPT_TESTCASE (message_can_be_received)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "recv(function (message) {"
-      "  if (message.type == 'ping')"
+      "  if (message.type === 'ping')"
       "    send('pong');"
       "});");
   EXPECT_NO_MESSAGES ();
@@ -953,7 +953,7 @@ SCRIPT_TESTCASE (interval_can_be_cancelled)
       "var count = 1;"
       "var interval = setInterval(function () {"
       "  send(count++);"
-      "  if (count == 3)"
+      "  if (count === 3)"
       "    clearInterval(interval);"
       "}, 20);");
   while (g_main_context_pending (context))
@@ -1237,7 +1237,7 @@ SCRIPT_TESTCASE (function_can_be_replaced)
   EXPECT_SEND_MESSAGE_WITH ("7");
   EXPECT_NO_MESSAGES ();
 
-  gum_script_unload (fixture->script);
+  gum_script_unload_sync (fixture->script, NULL);
   target_function_int (1);
   EXPECT_NO_MESSAGES ();
 }
@@ -1788,12 +1788,12 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
       "send(typeof badger);"
       "badger = 42;");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
-  gum_script_load (fixture->script);
+  gum_script_load_sync (fixture->script, NULL);
   EXPECT_NO_MESSAGES ();
-  gum_script_unload (fixture->script);
-  gum_script_unload (fixture->script);
+  gum_script_unload_sync (fixture->script, NULL);
+  gum_script_unload_sync (fixture->script, NULL);
   EXPECT_NO_MESSAGES ();
-  gum_script_load (fixture->script);
+  gum_script_load_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
 }
 
@@ -1818,7 +1818,7 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unload)
       "  send(\"weak notify\");"
       "});");
   EXPECT_NO_MESSAGES ();
-  gum_script_unload (fixture->script);
+  gum_script_unload_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
   EXPECT_NO_MESSAGES ();
 }
@@ -1854,14 +1854,14 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
       "  send('badger');\n"
       "}, 1000);", NULL, NULL);
   gum_script_set_message_handler (badger, on_message, "badger", NULL);
-  gum_script_load (badger);
+  gum_script_load_sync (badger, NULL);
 
   snake = gum_script_from_string_sync ("snake",
       "setInterval(function () {\n"
       "  send('snake');\n"
       "}, 1000);", NULL, NULL);
   gum_script_set_message_handler (snake, on_message, "snake", NULL);
-  gum_script_load (snake);
+  gum_script_load_sync (snake, NULL);
 
   loop = g_main_loop_new (g_main_context_get_thread_default (), FALSE);
 

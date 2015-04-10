@@ -89,6 +89,16 @@ static GTask * gum_script_from_string_task_new (const gchar * name,
 static void gum_script_from_string_task_thread (GTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
 static void gum_script_from_string_data_free (GumScriptFromStringData * data);
+static GTask * gum_script_load_task_new (GumScript * self,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
+static void gum_script_load_task_thread (GTask * task, gpointer source_object,
+    gpointer task_data, GCancellable * cancellable);
+static GTask * gum_script_unload_task_new (GumScript * self,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
+static void gum_script_unload_task_thread (GTask * task, gpointer source_object,
+    gpointer task_data, GCancellable * cancellable);
 
 static void gum_script_on_debug_message (const Debug::Message & message);
 
@@ -280,14 +290,20 @@ gum_script_dispose (GObject * object)
   GumScript * self = GUM_SCRIPT (object);
   GumScriptPrivate * priv = self->priv;
 
-  gum_script_unload (self);
-
-  priv->isolate = NULL;
-
-  if (priv->main_context != NULL)
+  if (priv->loaded)
   {
-    g_main_context_unref (priv->main_context);
-    priv->main_context = NULL;
+    /* dispose() will be triggered again at the end of unload() */
+    gum_script_unload (self, NULL, NULL, NULL);
+  }
+  else
+  {
+    priv->isolate = NULL;
+
+    if (priv->main_context != NULL)
+    {
+      g_main_context_unref (priv->main_context);
+      priv->main_context = NULL;
+    }
   }
 
   G_OBJECT_CLASS (gum_script_parent_class)->dispose (object);
@@ -611,26 +627,132 @@ gum_script_set_message_handler (GumScript * self,
 }
 
 void
-gum_script_load (GumScript * self)
+gum_script_load (GumScript * self,
+                 GCancellable * cancellable,
+                 GAsyncReadyCallback callback,
+                 gpointer user_data)
 {
+  GTask * task;
+
+  task = gum_script_load_task_new (self, cancellable, callback, user_data);
+  g_task_run_in_thread (task, gum_script_load_task_thread);
+  g_object_unref (task);
+}
+
+void
+gum_script_load_finish (GAsyncResult * result)
+{
+  g_task_propagate_pointer (G_TASK (result), NULL);
+}
+
+void
+gum_script_load_sync (GumScript * self,
+                      GCancellable * cancellable)
+{
+  GTask * task;
+
+  task = gum_script_load_task_new (self, cancellable, NULL, NULL);
+  g_task_run_in_thread_sync (task, gum_script_load_task_thread);
+  g_task_propagate_pointer (task, NULL);
+  g_object_unref (task);
+}
+
+static GTask *
+gum_script_load_task_new (GumScript * self,
+                          GCancellable * cancellable,
+                          GAsyncReadyCallback callback,
+                          gpointer user_data)
+{
+  GTask * task;
+
+  task = g_task_new (self, cancellable, callback, user_data);
+  g_task_set_return_on_cancel (task, TRUE);
+
+  return task;
+}
+
+static void
+gum_script_load_task_thread (GTask * task,
+                             gpointer source_object,
+                             gpointer task_data,
+                             GCancellable * cancellable)
+{
+  GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
 
   if (priv->raw_script == NULL)
-    gum_script_create_context (self, NULL);
+  {
+    gboolean created;
 
-  if (priv->raw_script != NULL && !priv->loaded)
+    created = gum_script_create_context (self, NULL);
+    g_assert (created);
+  }
+
+  if (!priv->loaded)
   {
     priv->loaded = TRUE;
 
     ScriptScope scope (self);
-    Local<Script> raw_script (Local<Script>::New (priv->isolate, *priv->raw_script));
+    Local<Script> raw_script (Local<Script>::New (priv->isolate,
+        *priv->raw_script));
     raw_script->Run ();
   }
+
+  g_task_return_pointer (task, NULL, NULL);
 }
 
 void
-gum_script_unload (GumScript * self)
+gum_script_unload (GumScript * self,
+                   GCancellable * cancellable,
+                   GAsyncReadyCallback callback,
+                   gpointer user_data)
 {
+  GTask * task;
+
+  task = gum_script_unload_task_new (self, cancellable, callback, user_data);
+  g_task_run_in_thread (task, gum_script_unload_task_thread);
+  g_object_unref (task);
+}
+
+void
+gum_script_unload_finish (GAsyncResult * result)
+{
+  g_task_propagate_pointer (G_TASK (result), NULL);
+}
+
+void
+gum_script_unload_sync (GumScript * self,
+                        GCancellable * cancellable)
+{
+  GTask * task;
+
+  task = gum_script_unload_task_new (self, cancellable, NULL, NULL);
+  g_task_run_in_thread_sync (task, gum_script_unload_task_thread);
+  g_task_propagate_pointer (task, NULL);
+  g_object_unref (task);
+}
+
+static GTask *
+gum_script_unload_task_new (GumScript * self,
+                            GCancellable * cancellable,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+  GTask * task;
+
+  task = g_task_new (self, cancellable, callback, user_data);
+  g_task_set_return_on_cancel (task, TRUE);
+
+  return task;
+}
+
+static void
+gum_script_unload_task_thread (GTask * task,
+                               gpointer source_object,
+                               gpointer task_data,
+                               GCancellable * cancellable)
+{
+  GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
 
   if (priv->loaded)
@@ -639,6 +761,8 @@ gum_script_unload (GumScript * self)
 
     gum_script_destroy_context (self);
   }
+
+  g_task_return_pointer (task, NULL, NULL);
 }
 
 void
