@@ -14,6 +14,7 @@
 #include "gumscriptinterceptor.h"
 #include "gumscriptmemory.h"
 #include "gumscriptmodule.h"
+#include "gumscriptplatform.h"
 #include "gumscriptprocess.h"
 #include "gumscriptscope.h"
 #include "gumscriptsocket.h"
@@ -23,7 +24,6 @@
 
 #include <string.h>
 #include <v8-debug.h>
-#include <v8-platform.h>
 
 #define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
 #define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
@@ -69,7 +69,7 @@ struct _GumScriptFromStringData
   gchar * source;
 };
 
-static Isolate * gum_script_runtime_do_init (GMainContext * main_context);
+static Isolate * gum_script_runtime_do_init (void);
 static void gum_script_runtime_do_deinit (void);
 
 static void gum_script_listener_iface_init (gpointer g_iface,
@@ -114,72 +114,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
-class GumScriptPlatform : public Platform
-{
-public:
-  GumScriptPlatform (GMainContext * main_context,
-                     GumScriptScheduler * scheduler)
-    : main_context (main_context),
-      scheduler (scheduler),
-      start_time (g_get_monotonic_time ())
-  {
-  }
-
-  virtual void CallOnBackgroundThread (Task * task,
-      ExpectedRuntime expected_runtime)
-  {
-    gum_script_scheduler_push_job (scheduler,
-        (GumScriptJobFunc) PerformTask,
-        task,
-        (GDestroyNotify) DisposeTask,
-        NULL);
-  }
-
-  virtual void CallOnForegroundThread (Isolate * isolate, Task * task)
-  {
-    GSource * source = g_idle_source_new ();
-    g_source_set_priority (source, G_PRIORITY_HIGH);
-    g_source_set_callback (source,
-        (GSourceFunc) PerformTaskWhenIdle,
-        task,
-        (GDestroyNotify) (DisposeTask));
-    g_source_attach (source, main_context);
-    g_source_unref (source);
-  }
-
-  virtual double MonotonicallyIncreasingTime ()
-  {
-    gint64 delta = g_get_monotonic_time () - start_time;
-    return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
-  }
-
-private:
-  static void PerformTask (Task * task)
-  {
-    task->Run ();
-  }
-
-  static gboolean PerformTaskWhenIdle (Task * task)
-  {
-    PerformTask (task);
-    return FALSE;
-  }
-
-  static void DisposeTask (Task * task)
-  {
-    delete task;
-  }
-
-  GMainContext * main_context;
-  GumScriptScheduler * scheduler;
-  const gint64 start_time;
-
-  GumScriptPlatform (const GumScriptPlatform &) V8_DELETE;
-  void operator= (const GumScriptPlatform &) V8_DELETE;
-};
-
-static GumScriptScheduler * gum_scheduler = NULL;
 static GumScriptPlatform * gum_platform = nullptr;
+static GumScriptScheduler * gum_scheduler = NULL;
 
 static GumScriptDebugMessageHandler gum_debug_handler = NULL;
 static gpointer gum_debug_data = NULL;
@@ -197,11 +133,11 @@ gum_script_runtime_get_isolate (void)
 }
 
 static Isolate *
-gum_script_runtime_do_init (GMainContext * main_context)
+gum_script_runtime_do_init (void)
 {
   gum_scheduler = gum_script_scheduler_new ();
 
-  gum_platform = new GumScriptPlatform (main_context, gum_scheduler);
+  gum_platform = new GumScriptPlatform (gum_scheduler);
 
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
@@ -384,10 +320,6 @@ gum_script_create_context (GumScript * self,
   g_assert (priv->context == NULL);
 
   {
-    Locker locker (priv->isolate);
-    Isolate::Scope isolate_scope (priv->isolate);
-    HandleScope handle_scope (priv->isolate);
-
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
     _gum_script_core_init (&priv->core, self, gum_scheduler, priv->main_context,
         priv->isolate, global_templ);
@@ -470,12 +402,9 @@ gum_script_destroy_context (GumScript * self)
 
   g_assert (priv->context != NULL);
 
-  Locker locker (priv->isolate);
-  Isolate::Scope isolate_scope (priv->isolate);
-  HandleScope handle_scope (priv->isolate);
-
   {
-    Local<Context> context (Local<Context>::New (priv->isolate, *priv->context));
+    Local<Context> context (Local<Context>::New (priv->isolate,
+        *priv->context));
     Context::Scope context_scope (context);
 
     _gum_script_core_flush (&priv->core);
@@ -583,6 +512,7 @@ gum_script_from_string_task_thread (GTask * task,
 {
   GumScriptFromStringData * data = (GumScriptFromStringData *) task_data;
   GumScript * script;
+  Isolate * isolate;
   GError * error = NULL;
 
   script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
@@ -590,8 +520,17 @@ gum_script_from_string_task_thread (GTask * task,
       "source", data->source,
       "main-context", g_task_get_context (task),
       NULL));
+  isolate = script->priv->isolate;
 
-  if (gum_script_create_context (script, &error))
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    gum_script_create_context (script, &error);
+  }
+
+  if (error == NULL)
   {
     g_task_return_pointer (task, script, g_object_unref);
   }
@@ -680,22 +619,28 @@ gum_script_load_task_thread (GTask * task,
   GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
 
-  if (priv->raw_script == NULL)
   {
-    gboolean created;
+    Locker locker (priv->isolate);
+    Isolate::Scope isolate_scope (priv->isolate);
+    HandleScope handle_scope (priv->isolate);
 
-    created = gum_script_create_context (self, NULL);
-    g_assert (created);
-  }
+    if (priv->raw_script == NULL)
+    {
+      gboolean created;
 
-  if (!priv->loaded)
-  {
-    priv->loaded = TRUE;
+      created = gum_script_create_context (self, NULL);
+      g_assert (created);
+    }
 
-    ScriptScope scope (self);
-    Local<Script> raw_script (Local<Script>::New (priv->isolate,
-        *priv->raw_script));
-    raw_script->Run ();
+    if (!priv->loaded)
+    {
+      priv->loaded = TRUE;
+
+      ScriptScope scope (self);
+      Local<Script> raw_script (Local<Script>::New (priv->isolate,
+          *priv->raw_script));
+      raw_script->Run ();
+    }
   }
 
   g_task_return_pointer (task, NULL, NULL);
@@ -755,11 +700,17 @@ gum_script_unload_task_thread (GTask * task,
   GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
 
-  if (priv->loaded)
   {
-    priv->loaded = FALSE;
+    Locker locker (priv->isolate);
+    Isolate::Scope isolate_scope (priv->isolate);
+    HandleScope handle_scope (priv->isolate);
 
-    gum_script_destroy_context (self);
+    if (priv->loaded)
+    {
+      priv->loaded = FALSE;
+
+      gum_script_destroy_context (self);
+    }
   }
 
   g_task_return_pointer (task, NULL, NULL);
@@ -778,6 +729,7 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
                                       GDestroyNotify notify)
 {
   Isolate * isolate = gum_script_runtime_get_isolate ();
+
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);

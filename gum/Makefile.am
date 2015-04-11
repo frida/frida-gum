@@ -142,6 +142,8 @@ if HAVE_V8
 script_sources += \
 	gumscript.cpp \
 	gumscript-runtime.h \
+	gumscriptplatform.h \
+	gumscriptplatform.cpp \
 	gumscriptscheduler.h \
 	gumscriptscheduler.c \
 	gumscriptscope.h \

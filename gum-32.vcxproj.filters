@@ -240,6 +240,9 @@
     <ClCompile Include="gum\arch-x86\gumx86backtracer.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscriptplatform.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumscriptscheduler.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -487,6 +490,9 @@
     </ClInclude>
     <ClInclude Include="gum\arch-x86\gumx86backtracer.h">
       <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptplatform.h">
+      <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscriptscheduler.h">
       <Filter>core</Filter>
