@@ -51,6 +51,11 @@ G_GNUC_INTERNAL GType gum_script_task_get_type (void) G_GNUC_CONST;
 G_GNUC_INTERNAL GumScriptTask * gum_script_task_new (GumScriptTaskFunc func,
     gpointer source_object, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer callback_data);
+G_GNUC_INTERNAL gpointer gum_script_task_get_source_object (
+    GumScriptTask * self);
+G_GNUC_INTERNAL gpointer gum_script_task_get_source_tag (GumScriptTask * self);
+G_GNUC_INTERNAL void gum_script_task_set_source_tag (GumScriptTask * self,
+    gpointer source_tag);
 G_GNUC_INTERNAL GMainContext * gum_script_task_get_context (
     GumScriptTask * self);
 G_GNUC_INTERNAL void gum_script_task_set_task_data (GumScriptTask * self,

@@ -70,8 +70,8 @@ struct _GumScriptFromStringData
   gchar * source;
 };
 
-static Isolate * gum_script_runtime_do_init (void);
-static void gum_script_runtime_do_deinit (void);
+static GumScriptPlatform * gum_script_do_init (void);
+static void gum_script_do_deinit (void);
 
 static void gum_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
@@ -109,59 +109,54 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
-static GumScriptPlatform * gum_platform = nullptr;
-static GumScriptScheduler * gum_scheduler = NULL;
-
 static GumScriptDebugMessageHandler gum_debug_handler = NULL;
 static gpointer gum_debug_data = NULL;
 static GDestroyNotify gum_debug_notify = NULL;
 static GumPersistent<Context>::type * gum_debug_context = nullptr;
 
-static Isolate *
-gum_script_runtime_get_isolate (void)
+static GumScriptPlatform *
+gum_script_get_platform (void)
 {
   static GOnce init_once = G_ONCE_INIT;
 
-  g_once (&init_once, (GThreadFunc) gum_script_runtime_do_init, NULL);
+  g_once (&init_once, (GThreadFunc) gum_script_do_init, NULL);
 
-  return static_cast<Isolate *> (init_once.retval);
+  return static_cast<GumScriptPlatform *> (init_once.retval);
 }
 
 static Isolate *
-gum_script_runtime_do_init (void)
+gum_script_get_isolate (void)
 {
-  gum_scheduler = gum_script_scheduler_new ();
+  return gum_script_get_platform ()->GetIsolate ();
+}
 
-  gum_platform = new GumScriptPlatform (gum_scheduler);
+static GumScriptScheduler *
+gum_script_get_scheduler (void)
+{
+  return gum_script_get_platform ()->GetScheduler ();
+}
 
+static GumScriptPlatform *
+gum_script_do_init (void)
+{
   V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
                           static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
-  V8::InitializePlatform (gum_platform);
-  V8::Initialize ();
 
-  Isolate * isolate = Isolate::New ();
+  GumScriptPlatform * platform = new GumScriptPlatform ();
 
-  _gum_register_destructor (gum_script_runtime_do_deinit);
+  _gum_register_destructor (gum_script_do_deinit);
 
-  return isolate;
+  return platform;
 }
 
 static void
-gum_script_runtime_do_deinit (void)
+gum_script_do_deinit (void)
 {
+  GumScriptPlatform * platform = gum_script_get_platform ();
+
   gum_script_set_debug_message_handler (NULL, NULL, NULL);
 
-  Isolate * isolate = Isolate::GetCurrent ();
-  isolate->Dispose ();
-
-  V8::Dispose ();
-  V8::ShutdownPlatform ();
-
-  delete gum_platform;
-  gum_platform = nullptr;
-
-  g_object_unref (gum_scheduler);
-  gum_scheduler = NULL;
+  delete platform;
 }
 
 static void
@@ -211,7 +206,7 @@ gum_script_init (GumScript * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
-  priv->isolate = gum_script_runtime_get_isolate ();
+  priv->isolate = gum_script_get_isolate ();
   priv->loaded = FALSE;
 }
 
@@ -316,8 +311,8 @@ gum_script_create_context (GumScript * self,
 
   {
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-    _gum_script_core_init (&priv->core, self, gum_scheduler, priv->main_context,
-        priv->isolate, global_templ);
+    _gum_script_core_init (&priv->core, self, gum_script_get_scheduler (),
+        priv->main_context, priv->isolate, global_templ);
     _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
@@ -448,7 +443,7 @@ gum_script_from_string (const gchar * name,
 
   task = gum_script_from_string_task_new (name, source, cancellable, callback,
       user_data);
-  gum_script_task_run_in_v8_thread (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread (task, gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -471,7 +466,7 @@ gum_script_from_string_sync (const gchar * name,
 
   task = gum_script_from_string_task_new (name, source, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread_sync (task, gum_script_get_scheduler ());
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
@@ -571,7 +566,7 @@ gum_script_load (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_load, self, cancellable, callback,
       user_data);
-  gum_script_task_run_in_v8_thread (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread (task, gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -589,7 +584,7 @@ gum_script_load_sync (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_load, self, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread_sync (task, gum_script_get_scheduler ());
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -640,7 +635,7 @@ gum_script_unload (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_unload, self, cancellable, callback,
       user_data);
-  gum_script_task_run_in_v8_thread (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread (task, gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -658,7 +653,7 @@ gum_script_unload_sync (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_unload, self, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  gum_script_task_run_in_v8_thread_sync (task, gum_script_get_scheduler ());
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -700,7 +695,7 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
                                       gpointer data,
                                       GDestroyNotify notify)
 {
-  Isolate * isolate = gum_script_runtime_get_isolate ();
+  Isolate * isolate = gum_script_get_isolate ();
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
@@ -769,7 +764,7 @@ gum_script_post_debug_message (const gchar * message)
 {
   g_assert (gum_debug_handler != NULL);
 
-  Isolate * isolate = gum_script_runtime_get_isolate ();
+  Isolate * isolate = gum_script_get_isolate ();
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);

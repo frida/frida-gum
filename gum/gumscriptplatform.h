@@ -14,9 +14,11 @@
 class GumScriptPlatform : public v8::Platform
 {
 public:
-  typedef void (* TaskFunc) (gpointer data);
+  GumScriptPlatform ();
+  ~GumScriptPlatform ();
 
-  GumScriptPlatform (GumScriptScheduler * scheduler);
+  v8::Isolate * GetIsolate () const { return isolate; }
+  GumScriptScheduler * GetScheduler () const { return scheduler; }
 
   virtual void CallOnBackgroundThread (v8::Task * task,
       ExpectedRuntime expected_runtime);
@@ -27,6 +29,7 @@ private:
   static void PerformTask (v8::Task * task);
   static void DisposeTask (v8::Task * task);
 
+  v8::Isolate * isolate;
   GumScriptScheduler * scheduler;
   const gint64 start_time;
 

@@ -6,12 +6,28 @@
 
 #include "gumscriptplatform.h"
 
+#include <v8.h>
+
 using namespace v8;
 
-GumScriptPlatform::GumScriptPlatform (GumScriptScheduler * scheduler)
-  : scheduler (scheduler),
+GumScriptPlatform::GumScriptPlatform ()
+  : scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ())
 {
+  V8::InitializePlatform (this);
+  V8::Initialize ();
+
+  isolate = Isolate::New ();
+}
+
+GumScriptPlatform::~GumScriptPlatform ()
+{
+  isolate->Dispose ();
+
+  V8::Dispose ();
+  V8::ShutdownPlatform ();
+
+  g_object_unref (scheduler);
 }
 
 void

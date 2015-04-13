@@ -99,6 +99,8 @@ gum_script_scheduler_dispose (GObject * obj)
 
   if (!priv->disposed)
   {
+    priv->disposed = TRUE;
+
     g_thread_pool_free (priv->thread_pool, FALSE, TRUE);
     priv->thread_pool = NULL;
 
@@ -112,8 +114,6 @@ gum_script_scheduler_dispose (GObject * obj)
 
     g_main_context_unref (priv->v8_context);
     priv->v8_context = NULL;
-
-    priv->disposed = TRUE;
   }
 
   g_assert (priv->pending == NULL);
