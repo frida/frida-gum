@@ -670,11 +670,11 @@ gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
 void
 _gum_script_core_push_job (GumScriptCore * self,
                            GumScriptJobFunc job_func,
-                           gpointer user_data,
-                           GDestroyNotify notify)
+                           gpointer data,
+                           GDestroyNotify data_destroy)
 {
-  gum_script_scheduler_push_job (self->scheduler, job_func, user_data, notify,
-      self);
+  gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
+      data, data_destroy, self);
 }
 
 static void

@@ -65,9 +65,9 @@ struct _GumScriptEventSinkOptions
 
 G_BEGIN_DECLS
 
-GType gum_script_event_sink_get_type (void) G_GNUC_CONST;
+G_GNUC_INTERNAL GType gum_script_event_sink_get_type (void) G_GNUC_CONST;
 
-GumEventSink * gum_script_event_sink_new (
+G_GNUC_INTERNAL GumEventSink * gum_script_event_sink_new (
     const GumScriptEventSinkOptions * options);
 
 G_END_DECLS

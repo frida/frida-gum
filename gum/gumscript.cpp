@@ -20,6 +20,7 @@
 #include "gumscriptsocket.h"
 #include "gumscriptstalker.h"
 #include "gumscriptsymbol.h"
+#include "gumscripttask.h"
 #include "gumscriptthread.h"
 
 #include <string.h>
@@ -83,21 +84,15 @@ static void gum_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 static void gum_script_destroy_context (GumScript * self);
 
-static GTask * gum_script_from_string_task_new (const gchar * name,
+static GumScriptTask * gum_script_from_string_task_new (const gchar * name,
     const gchar * source, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
-static void gum_script_from_string_task_thread (GTask * task,
+static void gum_script_from_string_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
 static void gum_script_from_string_data_free (GumScriptFromStringData * data);
-static GTask * gum_script_load_task_new (GumScript * self,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
-static void gum_script_load_task_thread (GTask * task, gpointer source_object,
+static void gum_script_do_load (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
-static GTask * gum_script_unload_task_new (GumScript * self,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
-static void gum_script_unload_task_thread (GTask * task, gpointer source_object,
+static void gum_script_do_unload (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
 
 static void gum_script_on_debug_message (const Debug::Message & message);
@@ -165,7 +160,7 @@ gum_script_runtime_do_deinit (void)
   delete gum_platform;
   gum_platform = nullptr;
 
-  gum_script_scheduler_free (gum_scheduler);
+  g_object_unref (gum_scheduler);
   gum_scheduler = NULL;
 }
 
@@ -449,11 +444,11 @@ gum_script_from_string (const gchar * name,
                         GAsyncReadyCallback callback,
                         gpointer user_data)
 {
-  GTask * task;
+  GumScriptTask * task;
 
   task = gum_script_from_string_task_new (name, source, cancellable, callback,
       user_data);
-  g_task_run_in_thread (task, gum_script_from_string_task_thread);
+  gum_script_task_run_in_v8_thread (task, gum_scheduler);
   g_object_unref (task);
 }
 
@@ -461,7 +456,8 @@ GumScript *
 gum_script_from_string_finish (GAsyncResult * result,
                                GError ** error)
 {
-  return GUM_SCRIPT (g_task_propagate_pointer (G_TASK (result), error));
+  return GUM_SCRIPT (gum_script_task_propagate_pointer (
+      GUM_SCRIPT_TASK (result), error));
 }
 
 GumScript *
@@ -471,18 +467,18 @@ gum_script_from_string_sync (const gchar * name,
                              GError ** error)
 {
   GumScript * script;
-  GTask * task;
+  GumScriptTask * task;
 
-  task = gum_script_from_string_task_new (name, source, cancellable,
-      NULL, NULL);
-  g_task_run_in_thread_sync (task, gum_script_from_string_task_thread);
-  script = GUM_SCRIPT (g_task_propagate_pointer (task, error));
+  task = gum_script_from_string_task_new (name, source, cancellable, NULL,
+      NULL);
+  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
   return script;
 }
 
-static GTask *
+static GumScriptTask *
 gum_script_from_string_task_new (const gchar * name,
                                  const gchar * source,
                                  GCancellable * cancellable,
@@ -490,25 +486,25 @@ gum_script_from_string_task_new (const gchar * name,
                                  gpointer user_data)
 {
   GumScriptFromStringData * data;
-  GTask * task;
+  GumScriptTask * task;
 
   data = g_slice_new (GumScriptFromStringData);
   data->name = g_strdup (name);
   data->source = g_strdup (source);
 
-  task = g_task_new (NULL, cancellable, callback, user_data);
-  g_task_set_task_data (task, data,
+  task = gum_script_task_new (gum_script_from_string_task_run, NULL,
+      cancellable, callback, user_data);
+  gum_script_task_set_task_data (task, data,
       (GDestroyNotify) gum_script_from_string_data_free);
-  g_task_set_return_on_cancel (task, TRUE);
 
   return task;
 }
 
 static void
-gum_script_from_string_task_thread (GTask * task,
-                                    gpointer source_object,
-                                    gpointer task_data,
-                                    GCancellable * cancellable)
+gum_script_from_string_task_run (GumScriptTask * task,
+                                 gpointer source_object,
+                                 gpointer task_data,
+                                 GCancellable * cancellable)
 {
   GumScriptFromStringData * data = (GumScriptFromStringData *) task_data;
   GumScript * script;
@@ -518,7 +514,7 @@ gum_script_from_string_task_thread (GTask * task,
   script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
       "name", data->name,
       "source", data->source,
-      "main-context", g_task_get_context (task),
+      "main-context", gum_script_task_get_context (task),
       NULL));
   isolate = script->priv->isolate;
 
@@ -532,11 +528,11 @@ gum_script_from_string_task_thread (GTask * task,
 
   if (error == NULL)
   {
-    g_task_return_pointer (task, script, g_object_unref);
+    gum_script_task_return_pointer (task, script, g_object_unref);
   }
   else
   {
-    g_task_return_error (task, error);
+    gum_script_task_return_error (task, error);
     g_object_unref (script);
   }
 }
@@ -571,50 +567,38 @@ gum_script_load (GumScript * self,
                  GAsyncReadyCallback callback,
                  gpointer user_data)
 {
-  GTask * task;
+  GumScriptTask * task;
 
-  task = gum_script_load_task_new (self, cancellable, callback, user_data);
-  g_task_run_in_thread (task, gum_script_load_task_thread);
+  task = gum_script_task_new (gum_script_do_load, self, cancellable, callback,
+      user_data);
+  gum_script_task_run_in_v8_thread (task, gum_scheduler);
   g_object_unref (task);
 }
 
 void
 gum_script_load_finish (GAsyncResult * result)
 {
-  g_task_propagate_pointer (G_TASK (result), NULL);
+  gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
 void
 gum_script_load_sync (GumScript * self,
                       GCancellable * cancellable)
 {
-  GTask * task;
+  GumScriptTask * task;
 
-  task = gum_script_load_task_new (self, cancellable, NULL, NULL);
-  g_task_run_in_thread_sync (task, gum_script_load_task_thread);
-  g_task_propagate_pointer (task, NULL);
+  task = gum_script_task_new (gum_script_do_load, self, cancellable, NULL,
+      NULL);
+  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
 
-static GTask *
-gum_script_load_task_new (GumScript * self,
-                          GCancellable * cancellable,
-                          GAsyncReadyCallback callback,
-                          gpointer user_data)
-{
-  GTask * task;
-
-  task = g_task_new (self, cancellable, callback, user_data);
-  g_task_set_return_on_cancel (task, TRUE);
-
-  return task;
-}
-
 static void
-gum_script_load_task_thread (GTask * task,
-                             gpointer source_object,
-                             gpointer task_data,
-                             GCancellable * cancellable)
+gum_script_do_load (GumScriptTask * task,
+                    gpointer source_object,
+                    gpointer task_data,
+                    GCancellable * cancellable)
 {
   GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
@@ -643,7 +627,7 @@ gum_script_load_task_thread (GTask * task,
     }
   }
 
-  g_task_return_pointer (task, NULL, NULL);
+  gum_script_task_return_pointer (task, NULL, NULL);
 }
 
 void
@@ -652,50 +636,38 @@ gum_script_unload (GumScript * self,
                    GAsyncReadyCallback callback,
                    gpointer user_data)
 {
-  GTask * task;
+  GumScriptTask * task;
 
-  task = gum_script_unload_task_new (self, cancellable, callback, user_data);
-  g_task_run_in_thread (task, gum_script_unload_task_thread);
+  task = gum_script_task_new (gum_script_do_unload, self, cancellable, callback,
+      user_data);
+  gum_script_task_run_in_v8_thread (task, gum_scheduler);
   g_object_unref (task);
 }
 
 void
 gum_script_unload_finish (GAsyncResult * result)
 {
-  g_task_propagate_pointer (G_TASK (result), NULL);
+  gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
 void
 gum_script_unload_sync (GumScript * self,
                         GCancellable * cancellable)
 {
-  GTask * task;
+  GumScriptTask * task;
 
-  task = gum_script_unload_task_new (self, cancellable, NULL, NULL);
-  g_task_run_in_thread_sync (task, gum_script_unload_task_thread);
-  g_task_propagate_pointer (task, NULL);
+  task = gum_script_task_new (gum_script_do_unload, self, cancellable, NULL,
+      NULL);
+  gum_script_task_run_in_v8_thread_sync (task, gum_scheduler);
+  gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
 
-static GTask *
-gum_script_unload_task_new (GumScript * self,
-                            GCancellable * cancellable,
-                            GAsyncReadyCallback callback,
-                            gpointer user_data)
-{
-  GTask * task;
-
-  task = g_task_new (self, cancellable, callback, user_data);
-  g_task_set_return_on_cancel (task, TRUE);
-
-  return task;
-}
-
 static void
-gum_script_unload_task_thread (GTask * task,
-                               gpointer source_object,
-                               gpointer task_data,
-                               GCancellable * cancellable)
+gum_script_do_unload (GumScriptTask * task,
+                      gpointer source_object,
+                      gpointer task_data,
+                      GCancellable * cancellable)
 {
   GumScript * self = GUM_SCRIPT (source_object);
   GumScriptPrivate * priv = self->priv;
@@ -713,7 +685,7 @@ gum_script_unload_task_thread (GTask * task,
     }
   }
 
-  g_task_return_pointer (task, NULL, NULL);
+  gum_script_task_return_pointer (task, NULL, NULL);
 }
 
 void

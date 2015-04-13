@@ -146,6 +146,8 @@ script_sources += \
 	gumscriptplatform.cpp \
 	gumscriptscheduler.h \
 	gumscriptscheduler.c \
+	gumscripttask.h \
+	gumscripttask.c \
 	gumscriptscope.h \
 	gumscriptcore.h \
 	gumscriptcore.cpp \

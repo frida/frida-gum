@@ -7,29 +7,52 @@
 #ifndef __GUM_SCRIPT_SCHEDULER_H__
 #define __GUM_SCRIPT_SCHEDULER_H__
 
-#include <glib.h>
+#include <glib-object.h>
 
-G_BEGIN_DECLS
+#define GUM_TYPE_SCRIPT_SCHEDULER (gum_script_scheduler_get_type ())
+#define GUM_SCRIPT_SCHEDULER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
+    GUM_TYPE_SCRIPT_SCHEDULER, GumScriptScheduler))
+#define GUM_SCRIPT_SCHEDULER_CAST(obj) ((GumScriptScheduler *) (obj))
+#define GUM_SCRIPT_SCHEDULER_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
+    GUM_TYPE_SCRIPT_SCHEDULER, GumScriptSchedulerClass))
+#define GUM_IS_SCRIPT_SCHEDULER(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
+    GUM_TYPE_SCRIPT_SCHEDULER))
+#define GUM_IS_SCRIPT_SCHEDULER_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
+    (klass), GUM_TYPE_SCRIPT_SCHEDULER))
+#define GUM_SCRIPT_SCHEDULER_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
+    (obj), GUM_TYPE_SCRIPT_SCHEDULER, GumScriptSchedulerClass))
 
 typedef struct _GumScriptScheduler GumScriptScheduler;
+typedef struct _GumScriptSchedulerClass GumScriptSchedulerClass;
 
-typedef void (* GumScriptJobFunc) (gpointer user_data);
+typedef struct _GumScriptSchedulerPrivate GumScriptSchedulerPrivate;
+
+typedef void (* GumScriptJobFunc) (gpointer data);
 
 struct _GumScriptScheduler
 {
-  GMutex mutex;
-  GCond cond;
-  GSList * pending;
-  GThreadPool * thread_pool;
+  GObject parent;
+
+  GumScriptSchedulerPrivate * priv;
 };
 
-G_GNUC_INTERNAL GumScriptScheduler * gum_script_scheduler_new (void);
-G_GNUC_INTERNAL void gum_script_scheduler_free (
-    GumScriptScheduler * scheduler);
+struct _GumScriptSchedulerClass
+{
+  GObjectClass parent_class;
+};
 
-G_GNUC_INTERNAL void gum_script_scheduler_push_job (GumScriptScheduler * self,
-    GumScriptJobFunc job_func, gpointer user_data, GDestroyNotify notify,
-    gpointer tag);
+G_BEGIN_DECLS
+
+G_GNUC_INTERNAL GType gum_script_scheduler_get_type (void) G_GNUC_CONST;
+
+G_GNUC_INTERNAL GumScriptScheduler * gum_script_scheduler_new (void);
+
+G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_v8_thread (
+    GumScriptScheduler * self, gint priority, GumScriptJobFunc func,
+    gpointer data, GDestroyNotify data_destroy, gpointer tag);
+G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_thread_pool (
+    GumScriptScheduler * self, GumScriptJobFunc func, gpointer data,
+    GDestroyNotify data_destroy, gpointer tag);
 G_GNUC_INTERNAL void gum_script_scheduler_flush_by_tag (
     GumScriptScheduler * self, gpointer tag);
 
