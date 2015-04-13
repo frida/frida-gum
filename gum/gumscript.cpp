@@ -312,7 +312,7 @@ gum_script_create_context (GumScript * self,
   {
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
     _gum_script_core_init (&priv->core, self, gum_script_get_scheduler (),
-        priv->main_context, priv->isolate, global_templ);
+        priv->isolate, global_templ);
     _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);

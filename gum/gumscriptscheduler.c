@@ -139,6 +139,12 @@ gum_script_scheduler_new (void)
   return g_object_new (GUM_TYPE_SCRIPT_SCHEDULER, NULL);
 }
 
+GMainContext *
+gum_script_scheduler_get_v8_context (GumScriptScheduler * self)
+{
+  return self->priv->v8_context;
+}
+
 void
 gum_script_scheduler_push_job_on_v8_thread (GumScriptScheduler * self,
                                             gint priority,

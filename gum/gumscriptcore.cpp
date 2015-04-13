@@ -195,13 +195,11 @@ void
 _gum_script_core_init (GumScriptCore * self,
                        GumScript * script,
                        GumScriptScheduler * scheduler,
-                       GMainContext * main_context,
                        v8::Isolate * isolate,
                        Handle<ObjectTemplate> scope)
 {
   self->script = script;
   self->scheduler = scheduler;
-  self->main_context = main_context;
   self->isolate = isolate;
 
   g_mutex_init (&self->mutex);
@@ -743,7 +741,8 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
       reinterpret_cast<GDestroyNotify> (gum_scheduled_callback_free));
   gum_script_core_add_scheduled_callback (self, callback);
 
-  g_source_attach (source, self->main_context);
+  g_source_attach (source,
+      gum_script_scheduler_get_v8_context (self->scheduler));
 
   info.GetReturnValue ().Set (id);
 }

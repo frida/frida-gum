@@ -88,8 +88,7 @@ struct _GumByteArray
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
-    GumScript * script, GumScriptScheduler * scheduler,
-    GMainContext * main_context, v8::Isolate * isolate,
+    GumScript * script, GumScriptScheduler * scheduler, v8::Isolate * isolate,
     v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_script_core_realize (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);
