@@ -32,6 +32,7 @@
 using namespace v8;
 
 typedef struct _GumScriptFromStringData GumScriptFromStringData;
+typedef struct _GumScriptPostMessageData GumScriptPostMessageData;
 
 enum
 {
@@ -70,6 +71,12 @@ struct _GumScriptFromStringData
   gchar * source;
 };
 
+struct _GumScriptPostMessageData
+{
+  GumScript * script;
+  gchar * message;
+};
+
 static GumScriptPlatform * gum_script_do_init (void);
 static void gum_script_do_deinit (void);
 
@@ -94,6 +101,8 @@ static void gum_script_do_load (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
 static void gum_script_do_unload (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
+static void gum_script_do_post_message (GumScriptPostMessageData * data);
+static void gum_script_post_message_data_free (GumScriptPostMessageData * data);
 
 static void gum_script_on_debug_message (const Debug::Message & message);
 
@@ -687,7 +696,31 @@ void
 gum_script_post_message (GumScript * self,
                          const gchar * message)
 {
-  _gum_script_core_post_message (&self->priv->core, message);
+  GumScriptPostMessageData * data;
+
+  data = g_slice_new (GumScriptPostMessageData);
+  data->script = self;
+  g_object_ref (self);
+  data->message = g_strdup (message);
+
+  gum_script_scheduler_push_job_on_v8_thread (gum_script_get_scheduler (),
+      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_script_do_post_message, data,
+      (GDestroyNotify) gum_script_post_message_data_free, NULL);
+}
+
+static void
+gum_script_do_post_message (GumScriptPostMessageData * data)
+{
+  _gum_script_core_post_message (&data->script->priv->core, data->message);
+}
+
+static void
+gum_script_post_message_data_free (GumScriptPostMessageData * data)
+{
+  g_free (data->message);
+  g_object_unref (data->script);
+
+  g_slice_free (GumScriptPostMessageData, data);
 }
 
 void
