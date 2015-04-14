@@ -666,8 +666,11 @@ gum_script_load (GumScript * self,
 }
 
 void
-gum_script_load_finish (GAsyncResult * result)
+gum_script_load_finish (GumScript * self,
+                        GAsyncResult * result)
 {
+  (void) self;
+
   gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
@@ -735,8 +738,11 @@ gum_script_unload (GumScript * self,
 }
 
 void
-gum_script_unload_finish (GAsyncResult * result)
+gum_script_unload_finish (GumScript * self,
+                          GAsyncResult * result)
 {
+  (void) self;
+
   gum_script_task_propagate_pointer (GUM_SCRIPT_TASK (result), NULL);
 }
 
