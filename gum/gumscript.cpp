@@ -186,7 +186,19 @@ gum_script_do_deinit (void)
 {
   GumScriptPlatform * platform = gum_script_get_platform ();
 
-  gum_script_set_debug_message_handler (NULL, NULL, NULL);
+  if (gum_debug_handler_data_destroy != NULL)
+    gum_debug_handler_data_destroy (gum_debug_handler_data);
+  gum_debug_handler = NULL;
+  gum_debug_handler_data = NULL;
+  gum_debug_handler_data_destroy = NULL;
+
+  if (gum_debug_handler_context != NULL)
+  {
+    g_main_context_unref (gum_debug_handler_context);
+    gum_debug_handler_context = NULL;
+  }
+
+  gum_script_do_disable_debugger ();
 
   delete platform;
 }
