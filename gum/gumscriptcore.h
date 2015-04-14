@@ -32,9 +32,13 @@ struct GumPersistent
   typedef v8::Persistent<T, v8::CopyablePersistentTraits<T> > type;
 };
 
+typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
+    const gchar * message, const guint8 * data, gint data_length);
+
 struct _GumScriptCore
 {
   GumScript * script;
+  GumScriptCoreMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GMainContext * main_context;
   v8::Isolate * isolate;
@@ -43,10 +47,6 @@ struct _GumScriptCore
 
   GCond event_cond;
   volatile guint event_count;
-
-  GumScriptMessageHandler message_handler_func;
-  gpointer message_handler_data;
-  GDestroyNotify message_handler_notify;
 
   GumMessageSink * incoming_message_sink;
 
@@ -88,7 +88,8 @@ struct _GumByteArray
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
-    GumScript * script, GumScriptScheduler * scheduler, v8::Isolate * isolate,
+    GumScript * script, GumScriptCoreMessageEmitter message_emitter,
+    GumScriptScheduler * scheduler, v8::Isolate * isolate,
     v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_script_core_realize (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);

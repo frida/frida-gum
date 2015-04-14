@@ -32,6 +32,7 @@
 using namespace v8;
 
 typedef struct _GumScriptFromStringData GumScriptFromStringData;
+typedef struct _GumScriptEmitMessageData GumScriptEmitMessageData;
 typedef struct _GumScriptPostMessageData GumScriptPostMessageData;
 
 enum
@@ -63,12 +64,24 @@ struct _GumScriptPrivate
   GumPersistent<Context>::type * context;
   GumPersistent<Script>::type * raw_script;
   gboolean loaded;
+
+  GumScriptMessageHandler message_handler;
+  gpointer message_handler_data;
+  GDestroyNotify message_handler_data_destroy;
 };
 
 struct _GumScriptFromStringData
 {
   gchar * name;
   gchar * source;
+};
+
+struct _GumScriptEmitMessageData
+{
+  GumScript * script;
+  gchar * message;
+  guint8 * data;
+  gint data_length;
 };
 
 struct _GumScriptPostMessageData
@@ -96,13 +109,17 @@ static GumScriptTask * gum_script_from_string_task_new (const gchar * name,
     GAsyncReadyCallback callback, gpointer user_data);
 static void gum_script_from_string_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
-static void gum_script_from_string_data_free (GumScriptFromStringData * data);
+static void gum_script_from_string_data_free (GumScriptFromStringData * d);
+static void gum_script_emit_message (GumScript * self,
+    const gchar * message, const guint8 * data, gint data_length);
+static void gum_script_do_emit_message (GumScriptEmitMessageData * d);
+static void gum_script_emit_message_data_free (GumScriptEmitMessageData * d);
 static void gum_script_do_load (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
 static void gum_script_do_unload (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
-static void gum_script_do_post_message (GumScriptPostMessageData * data);
-static void gum_script_post_message_data_free (GumScriptPostMessageData * data);
+static void gum_script_do_post_message (GumScriptPostMessageData * d);
+static void gum_script_post_message_data_free (GumScriptPostMessageData * d);
 
 static void gum_script_on_debug_message (const Debug::Message & message);
 
@@ -119,8 +136,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                             gum_script_listener_iface_init));
 
 static GumScriptDebugMessageHandler gum_debug_handler = NULL;
-static gpointer gum_debug_data = NULL;
-static GDestroyNotify gum_debug_notify = NULL;
+static gpointer gum_debug_handler_data = NULL;
+static GDestroyNotify gum_debug_handler_data_destroy = NULL;
 static GumPersistent<Context>::type * gum_debug_context = nullptr;
 
 static GumScriptPlatform *
@@ -225,6 +242,8 @@ gum_script_dispose (GObject * object)
   GumScript * self = GUM_SCRIPT (object);
   GumScriptPrivate * priv = self->priv;
 
+  gum_script_set_message_handler (self, NULL, NULL, NULL);
+
   if (priv->loaded)
   {
     /* dispose() will be triggered again at the end of unload() */
@@ -320,8 +339,8 @@ gum_script_create_context (GumScript * self,
 
   {
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-    _gum_script_core_init (&priv->core, self, gum_script_get_scheduler (),
-        priv->isolate, global_templ);
+    _gum_script_core_init (&priv->core, self, gum_script_emit_message,
+        gum_script_get_scheduler (), priv->isolate, global_templ);
     _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
     _gum_script_process_init (&priv->process, &priv->core, global_templ);
     _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
@@ -489,18 +508,14 @@ gum_script_from_string_task_new (const gchar * name,
                                  GAsyncReadyCallback callback,
                                  gpointer user_data)
 {
-  GumScriptFromStringData * data;
-  GumScriptTask * task;
+  GumScriptFromStringData * d = g_slice_new (GumScriptFromStringData);
+  d->name = g_strdup (name);
+  d->source = g_strdup (source);
 
-  data = g_slice_new (GumScriptFromStringData);
-  data->name = g_strdup (name);
-  data->source = g_strdup (source);
-
-  task = gum_script_task_new (gum_script_from_string_task_run, NULL,
-      cancellable, callback, user_data);
-  gum_script_task_set_task_data (task, data,
+  GumScriptTask * task = gum_script_task_new (gum_script_from_string_task_run,
+      NULL, cancellable, callback, user_data);
+  gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_script_from_string_data_free);
-
   return task;
 }
 
@@ -510,14 +525,14 @@ gum_script_from_string_task_run (GumScriptTask * task,
                                  gpointer task_data,
                                  GCancellable * cancellable)
 {
-  GumScriptFromStringData * data = (GumScriptFromStringData *) task_data;
+  GumScriptFromStringData * d = (GumScriptFromStringData *) task_data;
   GumScript * script;
   Isolate * isolate;
   GError * error = NULL;
 
   script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
-      "name", data->name,
-      "source", data->source,
+      "name", d->name,
+      "source", d->source,
       "main-context", gum_script_task_get_context (task),
       NULL));
   isolate = script->priv->isolate;
@@ -542,12 +557,12 @@ gum_script_from_string_task_run (GumScriptTask * task,
 }
 
 static void
-gum_script_from_string_data_free (GumScriptFromStringData * data)
+gum_script_from_string_data_free (GumScriptFromStringData * d)
 {
-  g_free (data->name);
-  g_free (data->source);
+  g_free (d->name);
+  g_free (d->source);
 
-  g_slice_free (GumScriptFromStringData, data);
+  g_slice_free (GumScriptFromStringData, d);
 }
 
 GumStalker *
@@ -558,11 +573,62 @@ gum_script_get_stalker (GumScript * self)
 
 void
 gum_script_set_message_handler (GumScript * self,
-                                GumScriptMessageHandler func,
+                                GumScriptMessageHandler handler,
                                 gpointer data,
-                                GDestroyNotify notify)
+                                GDestroyNotify data_destroy)
 {
-  _gum_script_core_set_message_handler (&self->priv->core, func, data, notify);
+  GumScriptPrivate * priv = self->priv;
+
+  if (priv->message_handler_data_destroy != NULL)
+    priv->message_handler_data_destroy (priv->message_handler_data);
+  priv->message_handler = handler;
+  priv->message_handler_data = data;
+  priv->message_handler_data_destroy = data_destroy;
+}
+
+static void
+gum_script_emit_message (GumScript * self,
+                         const gchar * message,
+                         const guint8 * data,
+                         gint data_length)
+{
+  GumScriptEmitMessageData * d = g_slice_new (GumScriptEmitMessageData);
+  d->script = self;
+  g_object_ref (self);
+  d->message = g_strdup (message);
+  d->data = (guint8 *) g_memdup (data, data_length);
+  d->data_length = data_length;
+
+  GSource * source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) gum_script_do_emit_message,
+      d,
+      (GDestroyNotify) gum_script_emit_message_data_free);
+  g_source_attach (source, self->priv->main_context);
+  g_source_unref (source);
+}
+
+static void
+gum_script_do_emit_message (GumScriptEmitMessageData * d)
+{
+  GumScript * self = d->script;
+  GumScriptPrivate * priv = self->priv;
+
+  if (priv->message_handler != NULL)
+  {
+    priv->message_handler (self, d->message, d->data, d->data_length,
+        priv->message_handler_data);
+  }
+}
+
+static void
+gum_script_emit_message_data_free (GumScriptEmitMessageData * d)
+{
+  g_free (d->data);
+  g_free (d->message);
+  g_object_unref (d->script);
+
+  g_slice_free (GumScriptEmitMessageData, d);
 }
 
 void
@@ -696,37 +762,35 @@ void
 gum_script_post_message (GumScript * self,
                          const gchar * message)
 {
-  GumScriptPostMessageData * data;
-
-  data = g_slice_new (GumScriptPostMessageData);
-  data->script = self;
+  GumScriptPostMessageData * d = g_slice_new (GumScriptPostMessageData);
+  d->script = self;
   g_object_ref (self);
-  data->message = g_strdup (message);
+  d->message = g_strdup (message);
 
   gum_script_scheduler_push_job_on_v8_thread (gum_script_get_scheduler (),
-      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_script_do_post_message, data,
+      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_script_do_post_message, d,
       (GDestroyNotify) gum_script_post_message_data_free, NULL);
 }
 
 static void
-gum_script_do_post_message (GumScriptPostMessageData * data)
+gum_script_do_post_message (GumScriptPostMessageData * d)
 {
-  _gum_script_core_post_message (&data->script->priv->core, data->message);
+  _gum_script_core_post_message (&d->script->priv->core, d->message);
 }
 
 static void
-gum_script_post_message_data_free (GumScriptPostMessageData * data)
+gum_script_post_message_data_free (GumScriptPostMessageData * d)
 {
-  g_free (data->message);
-  g_object_unref (data->script);
+  g_free (d->message);
+  g_object_unref (d->script);
 
-  g_slice_free (GumScriptPostMessageData, data);
+  g_slice_free (GumScriptPostMessageData, d);
 }
 
 void
-gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
+gum_script_set_debug_message_handler (GumScriptDebugMessageHandler handler,
                                       gpointer data,
-                                      GDestroyNotify notify)
+                                      GDestroyNotify data_destroy)
 {
   Isolate * isolate = gum_script_get_isolate ();
 
@@ -741,18 +805,18 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler func,
 
     Debug::SetMessageHandler (nullptr);
 
-    if (gum_debug_notify != NULL)
-      gum_debug_notify (gum_debug_data);
+    if (gum_debug_handler_data_destroy != NULL)
+      gum_debug_handler_data_destroy (gum_debug_handler_data);
     gum_debug_handler = NULL;
-    gum_debug_data = NULL;
-    gum_debug_notify = NULL;
+    gum_debug_handler_data = NULL;
+    gum_debug_handler_data_destroy = NULL;
   }
 
-  if (func != NULL)
+  if (handler != NULL)
   {
-    gum_debug_handler = func;
-    gum_debug_data = data;
-    gum_debug_notify = notify;
+    gum_debug_handler = handler;
+    gum_debug_handler_data = data;
+    gum_debug_handler_data_destroy = data_destroy;
 
     Debug::SetMessageHandler (gum_script_on_debug_message);
 
@@ -789,7 +853,7 @@ gum_script_on_debug_message (const Debug::Message & message)
 
   Local<String> json = message.GetJSON ();
   String::Utf8Value json_str (json);
-  gum_debug_handler (*json_str, gum_debug_data);
+  gum_debug_handler (*json_str, gum_debug_handler_data);
 }
 
 void

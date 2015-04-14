@@ -194,11 +194,13 @@ static void gum_heap_block_on_weak_notify (
 void
 _gum_script_core_init (GumScriptCore * self,
                        GumScript * script,
+                       GumScriptCoreMessageEmitter message_emitter,
                        GumScriptScheduler * scheduler,
                        v8::Isolate * isolate,
                        Handle<ObjectTemplate> scope)
 {
   self->script = script;
+  self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->isolate = isolate;
 
@@ -498,9 +500,6 @@ _gum_script_core_dispose (GumScriptCore * self)
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
-  if (self->message_handler_notify != NULL)
-    self->message_handler_notify (self->message_handler_data);
-
   delete self->native_pointer_value;
   self->native_pointer_value = NULL;
 
@@ -525,27 +524,12 @@ _gum_script_core_finalize (GumScriptCore * self)
 }
 
 void
-_gum_script_core_set_message_handler (GumScriptCore * self,
-                                      GumScriptMessageHandler func,
-                                      gpointer data,
-                                      GDestroyNotify notify)
-{
-  self->message_handler_func = func;
-  self->message_handler_data = data;
-  self->message_handler_notify = notify;
-}
-
-void
 _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                const guint8 * data,
                                gint data_length)
 {
-  if (self->message_handler_func != NULL)
-  {
-    self->message_handler_func (self->script, message, data, data_length,
-        self->message_handler_data);
-  }
+  self->message_emitter (self->script, message, data, data_length);
 }
 
 void

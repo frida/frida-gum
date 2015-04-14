@@ -62,7 +62,8 @@ GUM_API GumScript * gum_script_from_string_sync (const gchar * name,
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 
 GUM_API void gum_script_set_message_handler (GumScript * self,
-    GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
+    GumScriptMessageHandler handler, gpointer data,
+    GDestroyNotify data_destroy);
 
 GUM_API void gum_script_load (GumScript * self, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
@@ -78,7 +79,8 @@ GUM_API void gum_script_unload_sync (GumScript * self,
 GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
 GUM_API void gum_script_set_debug_message_handler (
-    GumScriptDebugMessageHandler func, gpointer data, GDestroyNotify notify);
+    GumScriptDebugMessageHandler handler, gpointer data,
+    GDestroyNotify data_destroy);
 GUM_API void gum_script_post_debug_message (const gchar * message);
 
 GUM_API void gum_script_ignore (GumThreadId thread_id);

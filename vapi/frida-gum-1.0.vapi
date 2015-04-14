@@ -90,7 +90,7 @@ namespace Gum {
 
 		public unowned Stalker get_stalker ();
 
-		public void set_message_handler (owned Gum.Script.MessageHandler func);
+		public void set_message_handler (owned Gum.Script.MessageHandler handler);
 
 		public async void load (Cancellable? cancellable = null);
 		public void load_sync (Cancellable? cancellable = null);
@@ -99,7 +99,7 @@ namespace Gum {
 
 		public void post_message (string message);
 
-		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? func);
+		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? handler);
 		public static void post_debug_message (string message);
 
 		public static void ignore (Gum.ThreadId thread_id);
