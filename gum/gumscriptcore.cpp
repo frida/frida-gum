@@ -552,15 +552,23 @@ void
 _gum_script_core_post_message (GumScriptCore * self,
                                const gchar * message)
 {
-  if (self->incoming_message_sink != NULL)
+  bool delivered = false;
+
   {
+    Locker locker (self->isolate);
+
+    if (self->incoming_message_sink != NULL)
     {
       ScriptScope scope (self->script);
       gum_message_sink_handle_message (self->incoming_message_sink, message);
-      self->event_count++;
+      delivered = true;
     }
+  }
 
+  if (delivered)
+  {
     GUM_SCRIPT_CORE_LOCK ();
+    self->event_count++;
     g_cond_broadcast (&self->event_cond);
     GUM_SCRIPT_CORE_UNLOCK ();
   }
@@ -679,20 +687,16 @@ static void
 gum_script_core_add_scheduled_callback (GumScriptCore * self,
                                         GumScheduledCallback * callback)
 {
-  GUM_SCRIPT_CORE_LOCK ();
   self->scheduled_callbacks =
       g_slist_prepend (self->scheduled_callbacks, callback);
-  GUM_SCRIPT_CORE_UNLOCK ();
 }
 
 static void
 gum_script_core_remove_scheduled_callback (GumScriptCore * self,
                                            GumScheduledCallback * callback)
 {
-  GUM_SCRIPT_CORE_LOCK ();
   self->scheduled_callbacks =
       g_slist_remove (self->scheduled_callbacks, callback);
-  GUM_SCRIPT_CORE_UNLOCK ();
 }
 
 static void
@@ -777,7 +781,6 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
   gint id = id_val->ToInt32 ()->Value ();
 
   GumScheduledCallback * callback = NULL;
-  GUM_SCRIPT_CORE_LOCK ();
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
     GumScheduledCallback * cb =
@@ -790,7 +793,6 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
       break;
     }
   }
-  GUM_SCRIPT_CORE_UNLOCK ();
 
   if (callback != NULL)
     g_source_destroy (callback->source);
@@ -906,23 +908,18 @@ gum_script_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptCore * self = static_cast<GumScriptCore *> (
       info.Data ().As<External> ()->Value ());
-  guint start_count;
 
-  start_count = self->event_count;
-  while (self->event_count == start_count)
+  self->isolate->Exit ();
   {
-    self->isolate->Exit ();
+    Unlocker ul (self->isolate);
 
-    {
-      Unlocker ul (self->isolate);
-
-      GUM_SCRIPT_CORE_LOCK ();
+    GUM_SCRIPT_CORE_LOCK ();
+    guint start_count = self->event_count;
+    while (self->event_count == start_count)
       g_cond_wait (&self->event_cond, &self->mutex);
-      GUM_SCRIPT_CORE_UNLOCK ();
-    }
-
-    self->isolate->Enter ();
+    GUM_SCRIPT_CORE_UNLOCK ();
   }
+  self->isolate->Enter ();
 }
 
 static void

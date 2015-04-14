@@ -42,7 +42,7 @@ struct _GumScriptCore
   GMutex mutex;
 
   GCond event_cond;
-  guint event_count;
+  volatile guint event_count;
 
   GumScriptMessageHandler message_handler_func;
   gpointer message_handler_data;
