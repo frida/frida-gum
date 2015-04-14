@@ -1365,7 +1365,9 @@ SCRIPT_TESTCASE (memory_can_be_protected)
       buf, gum_query_page_size ());
   EXPECT_SEND_MESSAGE_WITH ("true");
 
-  g_object_unref (fixture->script); /* avoid overlapping signal handlers */
+  /* avoid overlapping signal handlers */
+  gum_script_unload_sync (fixture->script, NULL);
+  g_object_unref (fixture->script);
   fixture->script = NULL;
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
