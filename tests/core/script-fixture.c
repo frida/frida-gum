@@ -191,9 +191,11 @@ test_script_fixture_try_pop_message (TestScriptFixture * fixture,
     g_source_set_callback (source, (GSourceFunc) test_script_fixture_stop_loop,
         fixture, NULL);
     g_source_attach (source, fixture->context);
-    g_source_unref (source);
 
     g_main_loop_run (fixture->loop);
+
+    g_source_destroy (source);
+    g_source_unref (source);
   }
 
   return g_queue_pop_head (fixture->messages);
