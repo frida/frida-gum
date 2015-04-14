@@ -112,7 +112,7 @@ static void gum_script_from_string_task_run (GumScriptTask * task,
 static void gum_script_from_string_data_free (GumScriptFromStringData * d);
 static void gum_script_emit_message (GumScript * self,
     const gchar * message, const guint8 * data, gint data_length);
-static void gum_script_do_emit_message (GumScriptEmitMessageData * d);
+static gboolean gum_script_do_emit_message (GumScriptEmitMessageData * d);
 static void gum_script_emit_message_data_free (GumScriptEmitMessageData * d);
 static void gum_script_do_load (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
@@ -121,7 +121,11 @@ static void gum_script_do_unload (GumScriptTask * task, gpointer source_object,
 static void gum_script_do_post_message (GumScriptPostMessageData * d);
 static void gum_script_post_message_data_free (GumScriptPostMessageData * d);
 
-static void gum_script_on_debug_message (const Debug::Message & message);
+static void gum_script_do_enable_debugger (void);
+static void gum_script_do_disable_debugger (void);
+static void gum_script_emit_debug_message (const Debug::Message & message);
+static gboolean gum_script_do_emit_debug_message (const gchar * message);
+static void gum_script_do_process_debug_messages (void);
 
 static void gum_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -135,9 +139,11 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
+G_LOCK_DEFINE_STATIC (gum_debug);
 static GumScriptDebugMessageHandler gum_debug_handler = NULL;
 static gpointer gum_debug_handler_data = NULL;
 static GDestroyNotify gum_debug_handler_data_destroy = NULL;
+static GMainContext * gum_debug_handler_context = NULL;
 static GumPersistent<Context>::type * gum_debug_context = nullptr;
 
 static GumScriptPlatform *
@@ -608,7 +614,7 @@ gum_script_emit_message (GumScript * self,
   g_source_unref (source);
 }
 
-static void
+static gboolean
 gum_script_do_emit_message (GumScriptEmitMessageData * d)
 {
   GumScript * self = d->script;
@@ -619,6 +625,8 @@ gum_script_do_emit_message (GumScriptEmitMessageData * d)
     priv->message_handler (self, d->message, d->data, d->data_length,
         priv->message_handler_data);
   }
+
+  return FALSE;
 }
 
 static void
@@ -792,81 +800,128 @@ gum_script_set_debug_message_handler (GumScriptDebugMessageHandler handler,
                                       gpointer data,
                                       GDestroyNotify data_destroy)
 {
+  GMainContext * old_context, * new_context;
+
+  if (gum_debug_handler_data_destroy != NULL)
+    gum_debug_handler_data_destroy (gum_debug_handler_data);
+
+  gum_debug_handler = handler;
+  gum_debug_handler_data = data;
+  gum_debug_handler_data_destroy = data_destroy;
+
+  new_context = (handler != NULL) ? g_main_context_ref_thread_default () : NULL;
+
+  G_LOCK (gum_debug);
+  old_context = gum_debug_handler_context;
+  gum_debug_handler_context = new_context;
+  G_UNLOCK (gum_debug);
+
+  if (old_context != NULL)
+    g_main_context_unref (old_context);
+
+  gum_script_scheduler_push_job_on_v8_thread (gum_script_get_scheduler (),
+      G_PRIORITY_DEFAULT,
+      (handler != NULL)
+          ? (GumScriptJobFunc) gum_script_do_enable_debugger
+          : (GumScriptJobFunc) gum_script_do_disable_debugger,
+      NULL, NULL, NULL);
+}
+
+static void
+gum_script_do_enable_debugger (void)
+{
   Isolate * isolate = gum_script_get_isolate ();
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);
 
-  if (gum_debug_handler != NULL)
-  {
-    delete gum_debug_context;
-    gum_debug_context = nullptr;
+  Debug::SetMessageHandler (gum_script_emit_debug_message);
 
-    Debug::SetMessageHandler (nullptr);
+  Local<Context> context = Debug::GetDebugContext ();
+  gum_debug_context = new GumPersistent<Context>::type (isolate, context);
+  Context::Scope context_scope (context);
 
-    if (gum_debug_handler_data_destroy != NULL)
-      gum_debug_handler_data_destroy (gum_debug_handler_data);
-    gum_debug_handler = NULL;
-    gum_debug_handler_data = NULL;
-    gum_debug_handler_data_destroy = NULL;
-  }
-
-  if (handler != NULL)
-  {
-    gum_debug_handler = handler;
-    gum_debug_handler_data = data;
-    gum_debug_handler_data_destroy = data_destroy;
-
-    Debug::SetMessageHandler (gum_script_on_debug_message);
-
-    Local<Context> context = Debug::GetDebugContext ();
-    gum_debug_context = new GumPersistent<Context>::type (isolate, context);
-    Context::Scope context_scope (context);
-
-    gchar * source = g_strconcat (
+  gchar * source = g_strconcat (
 #include "gumscript-debug.h"
-        (gpointer) NULL);
-    Local<String> source_value (String::NewFromUtf8 (isolate, source));
-    g_free (source);
-    TryCatch trycatch;
-    Handle<Script> script = Script::Compile (source_value);
-    if (script.IsEmpty ())
-    {
-      Handle<Message> message = trycatch.Message ();
-      Handle<Value> exception = trycatch.Exception ();
-      String::Utf8Value exception_str (exception);
-      g_printerr ("gumscript-debug.js line %d: %s",
-          message->GetLineNumber (),
-          *exception_str);
-      g_assert_not_reached ();
-    }
-    script->Run ();
+      (gpointer) NULL);
+  Local<String> source_value (String::NewFromUtf8 (isolate, source));
+  g_free (source);
+  TryCatch trycatch;
+  Handle<Script> script = Script::Compile (source_value);
+  if (script.IsEmpty ())
+  {
+    Handle<Message> message = trycatch.Message ();
+    Handle<Value> exception = trycatch.Exception ();
+    String::Utf8Value exception_str (exception);
+    g_printerr ("gumscript-debug.js line %d: %s",
+        message->GetLineNumber (),
+        *exception_str);
+    g_assert_not_reached ();
   }
+  script->Run ();
 }
 
 static void
-gum_script_on_debug_message (const Debug::Message & message)
+gum_script_do_disable_debugger (void)
+{
+  Isolate * isolate = gum_script_get_isolate ();
+
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+
+  delete gum_debug_context;
+  gum_debug_context = nullptr;
+
+  Debug::SetMessageHandler (nullptr);
+}
+
+static void
+gum_script_emit_debug_message (const Debug::Message & message)
 {
   Isolate * isolate = message.GetIsolate ();
   HandleScope scope (isolate);
 
   Local<String> json = message.GetJSON ();
   String::Utf8Value json_str (json);
-  gum_debug_handler (*json_str, gum_debug_handler_data);
+
+  G_LOCK (gum_debug);
+  GMainContext * context = (gum_debug_handler_context != NULL)
+      ? g_main_context_ref (gum_debug_handler_context)
+      : NULL;
+  G_UNLOCK (gum_debug);
+
+  if (context == NULL)
+    return;
+
+  GSource * source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) gum_script_do_emit_debug_message,
+      g_strdup (*json_str),
+      g_free);
+  g_source_attach (source, context);
+  g_source_unref (source);
+
+  g_main_context_unref (context);
+}
+
+static gboolean
+gum_script_do_emit_debug_message (const gchar * message)
+{
+  if (gum_debug_handler != NULL)
+    gum_debug_handler (message, gum_debug_handler_data);
+
+  return FALSE;
 }
 
 void
 gum_script_post_debug_message (const gchar * message)
 {
-  g_assert (gum_debug_handler != NULL);
+  if (gum_debug_handler == NULL)
+    return;
 
   Isolate * isolate = gum_script_get_isolate ();
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-  Local<Context> context (Local<Context>::New (isolate, *gum_debug_context));
-  Context::Scope context_scope (context);
 
   glong command_length;
   uint16_t * command = g_utf8_to_utf16 (message, strlen (message), NULL,
@@ -874,9 +929,26 @@ gum_script_post_debug_message (const gchar * message)
   g_assert (command != NULL);
 
   Debug::SendCommand (isolate, command, command_length);
-  Debug::ProcessDebugMessages ();
 
   g_free (command);
+
+  gum_script_scheduler_push_job_on_v8_thread (gum_script_get_scheduler (),
+      G_PRIORITY_DEFAULT,
+      (GumScriptJobFunc) gum_script_do_process_debug_messages, NULL, NULL,
+      NULL);
+}
+
+static void
+gum_script_do_process_debug_messages (void)
+{
+  Isolate * isolate = gum_script_get_isolate ();
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+  Local<Context> context (Local<Context>::New (isolate, *gum_debug_context));
+  Context::Scope context_scope (context);
+
+  Debug::ProcessDebugMessages ();
 }
 
 static void
