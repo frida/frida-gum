@@ -554,8 +554,6 @@ SCRIPT_TESTCASE (execution_can_be_traced)
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"stop\"}");
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
@@ -883,18 +881,11 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
       "  send(1337);"
       "}, 20);");
   EXPECT_NO_MESSAGES ();
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
-  EXPECT_NO_MESSAGES ();
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("1337");
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_NO_MESSAGES ();
 }
 
@@ -909,11 +900,7 @@ SCRIPT_TESTCASE (timeout_can_be_cancelled)
       "  send(1337);"
       "}, 20);"
       "clearTimeout(timeout);");
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_NO_MESSAGES ();
 }
 
@@ -928,18 +915,11 @@ SCRIPT_TESTCASE (interval_can_be_scheduled)
       "  send(1337);"
       "}, 20);");
   EXPECT_NO_MESSAGES ();
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
-  EXPECT_NO_MESSAGES ();
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("1337");
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("1337");
 }
 
@@ -956,22 +936,14 @@ SCRIPT_TESTCASE (interval_can_be_cancelled)
       "  if (count === 3)"
       "    clearInterval(interval);"
       "}, 20);");
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("1");
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_SEND_MESSAGE_WITH ("2");
 
   g_usleep (25000);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
   EXPECT_NO_MESSAGES ();
 }
 

@@ -43,7 +43,7 @@
 #define POST_MESSAGE(MSG) \
     gum_script_post_message (fixture->script, MSG)
 #define EXPECT_NO_MESSAGES() \
-    g_assert (test_script_fixture_try_pop_message (fixture, 20) == NULL)
+    g_assert (test_script_fixture_try_pop_message (fixture, 1) == NULL)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
     ## __VA_ARGS__)
