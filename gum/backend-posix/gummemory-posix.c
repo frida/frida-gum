@@ -8,6 +8,7 @@
 
 #include "gumprocess.h"
 
+#include <unistd.h>
 #include <sys/mman.h>
 
 typedef struct _GumAllocNearContext GumAllocNearContext;
@@ -173,16 +174,16 @@ gum_enumerate_free_ranges (GumFoundRangeFunc func,
 {
   GumEnumerateFreeRangesContext ctx = { func, user_data, 0 };
 
-  gum_process_enumerate_ranges (gum_emit_free_range, &ctx);
+  gum_process_enumerate_ranges (GUM_PAGE_RWX, gum_emit_free_range, &ctx);
 }
 
 static gboolean
 gum_emit_free_range (const GumRangeDetails * details,
                      gpointer user_data)
 {
-  GumEnumerateFreeRangesContext ctx =
+  GumEnumerateFreeRangesContext * ctx =
       (GumEnumerateFreeRangesContext *) user_data;
-  GumMemoryRange * range = details->range;
+  const GumMemoryRange * range = details->range;
   GumAddress start = range->base_address;
   GumAddress end = start + range->size;
   gboolean carry_on = TRUE;
