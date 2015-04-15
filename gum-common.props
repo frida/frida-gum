@@ -4,7 +4,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(IntDir)gum;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -93,6 +93,19 @@
     <ClCompile Include="gum\gumscripteventsink.cpp" />
     <ClCompile Include="gum\gumscriptsymbol.cpp" />
     <ClCompile Include="gum\gumscriptinstruction.cpp" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <CustomBuild Include="gum\generate-script-runtime.py">
+      <FileType>Document</FileType>
+      <Outputs>$(IntDir)gum\script-runtime.stamp;$(IntDir)gum\gumscript-runtime.h;$(IntDir)gum\gumscript-debug.h</Outputs>
+      <Message>Generating Script runtime</Message>
+      <Command>mkdir "$(IntDir)gum" 2&gt;NUL
+"gum\generate-script-runtime.py" "$(ProjectDir)gum" "$(IntDir)gum" || exit 1
+REM. &gt; "$(IntDir)gum\script-runtime.stamp"</Command>
+      <LinkObjects>false</LinkObjects>
+      <AdditionalInputs>gum\gumscript-runtime-core.js;gum\gumscript-runtime-dalvik.js;gum\gumscript-runtime-objc.js;gum\gumscript-debug.js;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
 
   <ItemGroup>
