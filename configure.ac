@@ -69,6 +69,7 @@ if [[ "x$HAVE_DARWIN" = "xyes" ]]; then
 fi
 if [[ "x$HAVE_QNX" = "xyes" ]]; then
   AC_DEFINE(HAVE_QNX, 1, [Define to 1 if OS is QNX based.])
+  AC_DEFINE(_QNX_SOURCE, 1, [Enable QNX extensions.])
 fi
 AM_CONDITIONAL(OS_LINUX, test "x$HAVE_LINUX" = "xyes")
 AM_CONDITIONAL(OS_DARWIN, test "x$HAVE_DARWIN" = "xyes")
