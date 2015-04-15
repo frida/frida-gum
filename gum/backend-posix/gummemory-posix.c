@@ -6,6 +6,8 @@
 
 #include "gummemory.h"
 
+#include "gumprocess.h"
+
 #include <sys/mman.h>
 
 typedef struct _GumAllocNearContext GumAllocNearContext;
@@ -192,12 +194,17 @@ gum_emit_free_range (const GumRangeDetails * details,
 
     if (gap_size > 0)
     {
-      GumMemoryRange gap;
+      GumRangeDetails d;
+      GumMemoryRange r;
 
-      gap.base_address = ctx->prev_end;
-      gap.size = gap_size;
+      d.range = &r;
+      d.prot = GUM_PAGE_NO_ACCESS;
+      d.file = NULL;
 
-      carry_on = ctx->func (&gap, ctx->user_data);
+      r.base_address = ctx->prev_end;
+      r.size = gap_size;
+
+      carry_on = ctx->func (&d, ctx->user_data);
     }
   }
 
