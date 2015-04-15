@@ -100,6 +100,7 @@ endif
 
 if OS_LINUX
 backend_sources += \
+	backend-linux/gummemory-linux.c \
 	backend-linux/gumprocess-linux.c
 fridainclude_HEADERS += \
 	backend-linux/gumlinux.h
@@ -116,7 +117,7 @@ fridainclude_HEADERS += \
 	backend-darwin/gumdarwinbacktracer.h
 else
 backend_sources += \
-	backend-unix/gummemory-unix.c
+	backend-posix/gummemory-posix.c
 endif
 
 if OS_QNX
