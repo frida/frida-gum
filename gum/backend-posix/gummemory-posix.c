@@ -29,7 +29,7 @@ struct _GumEnumerateFreeRangesContext
 };
 
 static gboolean gum_try_alloc_in_range_if_near_enough (
-    const GumMemoryRange * range, gpointer user_data);
+    const GumRangeDetails * details, gpointer user_data);
 
 static void gum_enumerate_free_ranges (GumFoundRangeFunc func,
     gpointer user_data);
@@ -119,9 +119,10 @@ gum_alloc_n_pages_near (guint n_pages,
 }
 
 static gboolean
-gum_try_alloc_in_range_if_near_enough (const GumMemoryRange * range,
+gum_try_alloc_in_range_if_near_enough (const GumRangeDetails * details,
                                        gpointer user_data)
 {
+  const GumMemoryRange * range = details->range;
   GumAllocNearContext * ctx = user_data;
   GumAddress base_address;
   gsize distance;
