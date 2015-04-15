@@ -124,7 +124,8 @@ endif
 
 if OS_QNX
 backend_sources += \
-	backend-qnx/gumprocess-qnx.c
+	backend-qnx/gumprocess-qnx.c \
+	backend-qnx/gummemory-qnx.c
 fridainclude_HEADERS += \
 	backend-qnx/gumqnx.h
 endif

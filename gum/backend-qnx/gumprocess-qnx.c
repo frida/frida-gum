@@ -5,6 +5,7 @@
  */
 
 #include "gumprocess.h"
+#include "gumqnx-priv.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -68,14 +69,13 @@ static gboolean gum_store_address_if_export_name_matches (
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
+/*
 static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
     GumCpuContext * ctx);
 static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
     debug_greg_t * gregs);
+*/
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
-
-static GumPageProtection gum_page_protection_from_page_data_flags (
-    const gint flags);
 
 gboolean
 gum_process_is_debugger_attached (void)
@@ -124,7 +124,7 @@ gum_process_enumerate_threads (GumFoundThreadFunc func,
   g_assert (fd != -1);
 
   res = devctl (fd, DCMD_PROC_INFO, &info, sizeof (info), NULL);
-  g_assert (res != 0);
+  g_assert (res == 0);
 
   thread.tid = 1;
   while (carry_on &&
@@ -175,30 +175,33 @@ gum_qnx_enumerate_ranges (pid_t pid,
   g_free (as_path);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
-  g_assert (res != 0);
+  g_assert (res == 0);
 
   mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
-  debuginfo = g_malloc (sizeof (procfs_debug) + 0x100);
+  debuginfo = g_malloc (sizeof (procfs_debuginfo) + 0x100);
 
-  res = devctl (fd, DCMD_PROC_PAGEDATA, &mapinfos,
-      sizeof (procfs_mapinfo) * num_mapinfos, NULL);
-  g_assert (res != 0);
+  res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
+      sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
+  g_assert (res == 0);
 
   while (carry_on && i != num_mapinfos)
   {
     GumRangeDetails details;
     GumMemoryRange range;
+    GumFileMapping file;
 
     range.base_address = mapinfos[i].vaddr;
     range.size = mapinfos[i].size;
 
     details.range = &range;
-    details.prot = gum_page_protection_from_page_data_flags (mapinfos[i].flags);
+    details.prot = _gum_page_protection_from_posix (mapinfos[i].flags);
 
-    debuginfo.vaddr = mapinfos[i].vaddr;
+    debuginfo->vaddr = mapinfos[i].vaddr;
     res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
         sizeof (procfs_debuginfo) + 0x100, NULL);
-    details.file = debuginfo.path;
+    g_assert (res == 0);
+    file.path = debuginfo->path;
+    details.file = &file;
 
     if ((details.prot & prot) == prot)
     {
@@ -246,18 +249,20 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   g_free (as_path);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
-  g_assert (res != 0);
+  g_assert (res == 0);
+
+  if (num_mapinfos == 0)
+    return;
 
   mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
-  debuginfo = g_malloc (sizeof (procfs_debug) + 0x100);
+  debuginfo = g_malloc (sizeof (procfs_debuginfo) + 0x100);
 
-  res = devctl (fd, DCMD_PROC_PAGEDATA, &mapinfos,
-      sizeof (procfs_mapinfo) * num_mapinfos, NULL);
-  g_assert (res != 0);
-
-  while (carry_on && i != num_mapinfos)
+  res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
+      sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
+  g_assert (res == 0);
+  while (carry_on && (i != num_mapinfos))
   {
-    GumRangeDetails details;
+    GumModuleDetails details;
     GumMemoryRange range;
 
     range.base_address = mapinfos[i].vaddr;
@@ -265,17 +270,17 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     details.range = &range;
 
-    debuginfo.vaddr = mapinfos[i].vaddr;
+    debuginfo->vaddr = mapinfos[i].vaddr;
     res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
         sizeof (procfs_debuginfo) + 0x100, NULL);
-    details.name = debuginfo.path;
+    g_assert (res == 0);
+    details.name = debuginfo->path;
 
     if ((mapinfos[i].flags & PROT_EXEC) != 0
         && (mapinfos[i].flags & MAP_ELF) != 0)
     {
       carry_on = func (&details, user_data);
     }
-
     i++;
   }
 
@@ -576,6 +581,7 @@ gum_module_path_equals (const gchar * path,
   return strcmp (name_or_path, path) == 0;
 }
 
+/*
 static void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
@@ -637,6 +643,7 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 # error Fix this for other architectures
 #endif
 }
+*/
 
 static GumThreadState
 gum_thread_state_from_system_thread_state (gint state)
@@ -670,20 +677,5 @@ gum_thread_state_from_system_thread_state (gint state)
       g_assert_not_reached ();
       break;
   }
-}
-
-static GumPageProtection
-gum_page_protection_from_page_data_flags (const gint flags)
-{
-  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
-
-  if (flags & PROT_READ)
-    prot |= GUM_PAGE_READ;
-  if (flags & PROT_WRITE)
-    prot |= GUM_PAGE_WRITE;
-  if (flags & PROT_EXEC)
-    prot |= GUM_PAGE_EXECUTE;
-
-  return prot;
 }
 
