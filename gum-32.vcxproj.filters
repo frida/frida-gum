@@ -34,6 +34,9 @@
     <Filter Include="core\arch-arm64">
       <UniqueIdentifier>{12159555-5953-43fc-873d-2754adb9b815}</UniqueIdentifier>
     </Filter>
+    <Filter Include="core\generated">
+      <UniqueIdentifier>{d60eae2c-aafe-4076-aa0c-4924a6f969a4}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gum\gum.c">
@@ -425,9 +428,6 @@
     <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
       <Filter>libs\heap</Filter>
     </ClInclude>
-    <ClInclude Include="gum\gumscript-runtime.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="gum\gumscriptscope.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -508,6 +508,12 @@
     </ClInclude>
     <ClInclude Include="gum\gumscripttask.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gum\gumscript-runtime.h">
+      <Filter>core\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gum\gumscript-debug.h">
+      <Filter>core\generated</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

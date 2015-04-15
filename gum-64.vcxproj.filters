@@ -34,6 +34,9 @@
     <Filter Include="core\arch-x86\vapi">
       <UniqueIdentifier>{4f6067a4-9b67-4259-a2b6-8c902581f2c6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="core\generated">
+      <UniqueIdentifier>{6b0373d5-25e0-48e1-9d21-9b168ba6610b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="gum\arch-x86\gumx86reader.c">
@@ -425,9 +428,6 @@
     <ClInclude Include="libs\gum\heap\gumallocatorprobe-priv.h">
       <Filter>libs\heap</Filter>
     </ClInclude>
-    <ClInclude Include="gum\gumscript-runtime.h">
-      <Filter>core</Filter>
-    </ClInclude>
     <ClInclude Include="gum\gumscriptscope.h">
       <Filter>core</Filter>
     </ClInclude>
@@ -508,6 +508,12 @@
     </ClInclude>
     <ClInclude Include="gum\gumscripttask.h">
       <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gum\gumscript-debug.h">
+      <Filter>core\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gum\gumscript-runtime.h">
+      <Filter>core\generated</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

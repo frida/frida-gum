@@ -33,8 +33,9 @@
     <ClInclude Include="gum\gumprocess.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
     <ClInclude Include="gum\gumscript.h" />
-    <ClInclude Include="gum\gumscript-runtime.h" />
     <ClInclude Include="gum\gumscriptplatform.h" />
+    <ClInclude Include="$(IntDir)gum\gumscript-runtime.h" />
+    <ClInclude Include="$(IntDir)gum\gumscript-debug.h" />
     <ClInclude Include="gum\gumscriptbundle.h" />
     <ClInclude Include="gum\gumscriptscheduler.h" />
     <ClInclude Include="gum\gumscripttask.h" />
