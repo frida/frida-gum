@@ -515,4 +515,9 @@
       <Filter>core\arch-x86\vapi</Filter>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="gum\generate-script-runtime.py">
+      <Filter>core</Filter>
+    </CustomBuild>
+  </ItemGroup>
 </Project>
