@@ -6,7 +6,8 @@
 
 #include "gumscriptplatform.h"
 
-#include <v8.h>
+#include "gumscript-debug.h"
+#include "gumscript-runtime.h"
 
 using namespace v8;
 
@@ -31,48 +32,27 @@ GumScriptPlatform::InitRuntime ()
   Local<Context> context (Context::New (isolate));
   Context::Scope context_scope (context);
 
-  Local<String> resource_name (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> ("frida.js"),
-      NewStringType::kNormal).ToLocalChecked ());
-  ScriptOrigin origin (resource_name);
-
-  gchar * c_string = g_strconcat (
-#include "gumscript-runtime.h"
-      (gpointer) NULL);
-  Local<String> source_string (String::NewFromUtf8 (isolate, c_string));
-  g_free (c_string);
-  ScriptCompiler::Source source (source_string, origin);
-
-  runtime.Reset (isolate, ScriptCompiler::CompileUnboundScript (isolate,
-      &source).ToLocalChecked ());
+  user_runtime = gum_script_bundle_new (isolate, gum_script_runtime_sources);
+  debug_runtime = gum_script_bundle_new (isolate, gum_script_debug_sources);
 }
 
 GumScriptPlatform::~GumScriptPlatform ()
 {
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    gum_script_bundle_free (debug_runtime);
+    gum_script_bundle_free (user_runtime);
+  }
+
   isolate->Dispose ();
 
   V8::Dispose ();
   V8::ShutdownPlatform ();
 
   g_object_unref (scheduler);
-}
-
-Isolate *
-GumScriptPlatform::GetIsolate () const
-{
-  return isolate;
-}
-
-Local<UnboundScript>
-GumScriptPlatform::GetRuntime () const
-{
-  return v8::Local<v8::UnboundScript>::New (isolate, runtime);
-}
-
-GumScriptScheduler *
-GumScriptPlatform::GetScheduler () const
-{
-  return scheduler;
 }
 
 void

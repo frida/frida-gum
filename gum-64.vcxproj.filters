@@ -243,6 +243,9 @@
     <ClCompile Include="gum\gumscriptplatform.cpp">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumscriptbundle.cpp">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumscriptscheduler.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -495,6 +498,9 @@
       <Filter>core\arch-x86</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscriptplatform.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumscriptbundle.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumscriptscheduler.h">

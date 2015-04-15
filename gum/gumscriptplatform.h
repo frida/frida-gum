@@ -7,6 +7,7 @@
 #ifndef __GUM_SCRIPT_PLATFORM_H__
 #define __GUM_SCRIPT_PLATFORM_H__
 
+#include "gumscriptbundle.h"
 #include "gumscriptscheduler.h"
 
 #include <v8.h>
@@ -18,9 +19,10 @@ public:
   GumScriptPlatform ();
   ~GumScriptPlatform ();
 
-  v8::Isolate * GetIsolate () const;
-  v8::Local<v8::UnboundScript> GetRuntime () const;
-  GumScriptScheduler * GetScheduler () const;
+  v8::Isolate * GetIsolate () const { return isolate; }
+  GumScriptBundle * GetUserRuntime () const { return user_runtime; }
+  GumScriptBundle * GetDebugRuntime () const { return debug_runtime; }
+  GumScriptScheduler * GetScheduler () const { return scheduler; }
 
   virtual void CallOnBackgroundThread (v8::Task * task,
       ExpectedRuntime expected_runtime);
@@ -34,7 +36,8 @@ private:
   static void DisposeTask (v8::Task * task);
 
   v8::Isolate * isolate;
-  v8::Persistent<v8::UnboundScript> runtime;
+  GumScriptBundle * user_runtime;
+  GumScriptBundle * debug_runtime;
   GumScriptScheduler * scheduler;
   const gint64 start_time;
 

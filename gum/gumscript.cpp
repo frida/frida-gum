@@ -161,12 +161,6 @@ gum_script_get_isolate (void)
   return gum_script_get_platform ()->GetIsolate ();
 }
 
-static Local<UnboundScript>
-gum_script_get_runtime (void)
-{
-  return gum_script_get_platform ()->GetRuntime ();
-}
-
 static GumScriptScheduler *
 gum_script_get_scheduler (void)
 {
@@ -713,9 +707,7 @@ gum_script_do_load (GumScriptTask * task,
 
       ScriptScope scope (self);
 
-      Local<Script> runtime (
-          gum_script_get_runtime ()->BindToCurrentContext ());
-      runtime->Run ();
+      gum_script_bundle_run (gum_script_get_platform ()->GetUserRuntime ());
 
       Local<Script> code (Local<Script>::New (priv->isolate, *priv->code));
       code->Run ();
@@ -862,24 +854,7 @@ gum_script_do_enable_debugger (void)
   gum_debug_context = new GumPersistent<Context>::type (isolate, context);
   Context::Scope context_scope (context);
 
-  gchar * source = g_strconcat (
-#include "gumscript-debug.h"
-      (gpointer) NULL);
-  Local<String> source_value (String::NewFromUtf8 (isolate, source));
-  g_free (source);
-  TryCatch trycatch;
-  Handle<Script> script = Script::Compile (source_value);
-  if (script.IsEmpty ())
-  {
-    Handle<Message> message = trycatch.Message ();
-    Handle<Value> exception = trycatch.Exception ();
-    String::Utf8Value exception_str (exception);
-    g_printerr ("gumscript-debug.js line %d: %s",
-        message->GetLineNumber (),
-        *exception_str);
-    g_assert_not_reached ();
-  }
-  script->Run ();
+  gum_script_bundle_run (gum_script_get_platform ()->GetDebugRuntime ());
 }
 
 static void

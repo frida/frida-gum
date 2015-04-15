@@ -35,6 +35,7 @@
     <ClInclude Include="gum\gumscript.h" />
     <ClInclude Include="gum\gumscript-runtime.h" />
     <ClInclude Include="gum\gumscriptplatform.h" />
+    <ClInclude Include="gum\gumscriptbundle.h" />
     <ClInclude Include="gum\gumscriptscheduler.h" />
     <ClInclude Include="gum\gumscripttask.h" />
     <ClInclude Include="gum\gumscriptscope.h" />
@@ -77,6 +78,7 @@
     <ClCompile Include="gum\gumreturnaddress.c" />
     <ClCompile Include="gum\gumscript.cpp" />
     <ClCompile Include="gum\gumscriptplatform.cpp" />
+    <ClCompile Include="gum\gumscriptbundle.cpp" />
     <ClCompile Include="gum\gumscriptscheduler.c" />
     <ClCompile Include="gum\gumscripttask.c" />
     <ClCompile Include="gum\gumscriptcore.cpp" />

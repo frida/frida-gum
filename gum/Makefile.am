@@ -1,3 +1,5 @@
+BUILT_SOURCES = $(NULL)
+
 lib_LTLIBRARIES = libfrida-gum-1.0.la
 noinst_LTLIBRARIES = libfrida-gum.la
 
@@ -145,6 +147,8 @@ script_sources += \
 	gumscript-runtime.h \
 	gumscriptplatform.h \
 	gumscriptplatform.cpp \
+	gumscriptbundle.h \
+	gumscriptbundle.cpp \
 	gumscriptscheduler.h \
 	gumscriptscheduler.c \
 	gumscripttask.h \
@@ -176,6 +180,19 @@ script_sources += \
 	gumscriptinstruction.cpp
 fridainclude_HEADERS += \
 	gumscript.h
+
+script_runtime_sources = \
+	gumscript-runtime-core.js \
+	gumscript-runtime-dalvik.js \
+	gumscript-runtime-objc.js \
+	gumscript-debug.js
+
+BUILT_SOURCES += script-runtime-stamp
+
+script-runtime-stamp: generate-script-runtime.py $(script_runtime_sources)
+	@mkdir -p "$(@D)"
+	python "$(srcdir)/generate-script-runtime.py" "$(srcdir)" "$(builddir)"
+	@touch $@
 endif
 
 container_sources = \
