@@ -1434,6 +1434,8 @@ gum_script_core_on_cpu_context_get_register (
       instance->GetInternalField (0).As<External> ()->Value ());
   gsize offset = info.Data ().As<Integer> ()->Value ();
 
+  (void) property;
+
   info.GetReturnValue ().Set (
       _gum_script_pointer_new (cpu_context[offset], self));
 }
@@ -1452,6 +1454,8 @@ gum_script_core_on_cpu_context_set_register (
       instance->GetInternalField (0).As<External> ()->Value ());
   bool is_mutable = instance->GetInternalField (1).As<Boolean> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
+
+  (void) property;
 
   if (!is_mutable)
   {

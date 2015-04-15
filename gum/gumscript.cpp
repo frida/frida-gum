@@ -919,7 +919,7 @@ gum_script_post_debug_message (const gchar * message)
   Isolate * isolate = gum_script_get_isolate ();
 
   glong command_length;
-  uint16_t * command = g_utf8_to_utf16 (message, strlen (message), NULL,
+  uint16_t * command = g_utf8_to_utf16 (message, (glong) strlen (message), NULL,
       &command_length, NULL);
   g_assert (command != NULL);
 

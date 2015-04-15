@@ -40,16 +40,6 @@
 #define TESTUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE ("TestUtil", test_testutil, NAME)
 
-#ifdef HAVE_DARWIN
-# define GUM_SETJMP(env) setjmp (env)
-# define GUM_LONGJMP(env, val) longjmp (env, val)
-  typedef jmp_buf gum_jmp_buf;
-#else
-# define GUM_SETJMP(env) sigsetjmp (env, 1)
-# define GUM_LONGJMP(env, val) siglongjmp (env, val)
-  typedef sigjmp_buf gum_jmp_buf;
-#endif
-
 TEST_LIST_BEGIN (testutil)
   TESTUTIL_TESTENTRY (line_diff)
   TESTUTIL_TESTENTRY (binary_diff)
@@ -498,6 +488,16 @@ gum_try_read_and_write_at (guint8 * a,
 }
 
 #else
+
+#ifdef HAVE_DARWIN
+# define GUM_SETJMP(env) setjmp (env)
+# define GUM_LONGJMP(env, val) longjmp (env, val)
+  typedef jmp_buf gum_jmp_buf;
+#else
+# define GUM_SETJMP(env) sigsetjmp (env, 1)
+# define GUM_LONGJMP(env, val) siglongjmp (env, val)
+  typedef sigjmp_buf gum_jmp_buf;
+#endif
 
 gboolean
 gum_is_debugger_present (void)

@@ -97,6 +97,8 @@ gum_cycle_sampler_new (void)
 gboolean
 gum_cycle_sampler_is_available (GumCycleSampler * self)
 {
+  (void) self;
+
   return TRUE;
 }
 

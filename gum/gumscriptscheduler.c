@@ -250,6 +250,8 @@ static void
 gum_script_scheduler_perform_pool_job (GumScriptJob * job,
                                        GumScriptScheduler * self)
 {
+  (void) self;
+
   job->func (job->data);
 
   gum_script_job_free (job);

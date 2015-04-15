@@ -59,6 +59,8 @@ void
 GumScriptPlatform::CallOnBackgroundThread (Task * task,
                                            ExpectedRuntime expected_runtime)
 {
+  (void) expected_runtime;
+
   gum_script_scheduler_push_job_on_thread_pool (scheduler,
       (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
 }
@@ -67,6 +69,8 @@ void
 GumScriptPlatform::CallOnForegroundThread (Isolate * isolate,
                                            Task * task)
 {
+  (void) isolate;
+
   gum_script_scheduler_push_job_on_v8_thread (scheduler, G_PRIORITY_HIGH,
       (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
 }
