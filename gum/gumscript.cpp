@@ -27,7 +27,6 @@
 #include <v8-debug.h>
 
 #define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
-#define GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT 1
 
 using namespace v8;
 
@@ -62,7 +61,7 @@ struct _GumScriptPrivate
   GumScriptSymbol symbol;
   GumScriptInstruction instruction;
   GumPersistent<Context>::type * context;
-  GumPersistent<Script>::type * raw_script;
+  GumPersistent<Script>::type * code;
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
@@ -160,6 +159,12 @@ static Isolate *
 gum_script_get_isolate (void)
 {
   return gum_script_get_platform ()->GetIsolate ();
+}
+
+static Local<UnboundScript>
+gum_script_get_runtime (void)
+{
+  return gum_script_get_platform ()->GetRuntime ();
 }
 
 static GumScriptScheduler *
@@ -393,23 +398,17 @@ gum_script_create_context (GumScript * self,
     ScriptOrigin origin (resource_name);
     g_free (resource_name_str);
 
-    gchar * combined_source = g_strconcat (
-#include "gumscript-runtime.h"
-        "\n",
-        priv->source,
-        (gpointer) NULL);
     Local<String> source (String::NewFromUtf8 (priv->isolate,
-        combined_source));
-    g_free (combined_source);
+        priv->source));
 
     TryCatch trycatch;
-    MaybeLocal<Script> maybe_raw_script =
+    MaybeLocal<Script> maybe_code =
         Script::Compile (context, source, &origin);
-    Local<Script> raw_script;
-    if (maybe_raw_script.ToLocal (&raw_script))
+    Local<Script> code;
+    if (maybe_code.ToLocal (&code))
     {
-      priv->raw_script =
-          new GumPersistent<Script>::type (priv->isolate, raw_script);
+      priv->code =
+          new GumPersistent<Script>::type (priv->isolate, code);
     }
     else
     {
@@ -417,12 +416,11 @@ gum_script_create_context (GumScript * self,
       Handle<Value> exception = trycatch.Exception ();
       String::Utf8Value exception_str (exception);
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_FAILED, "Script(line %d): %s",
-          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-          *exception_str);
+          message->GetLineNumber (), *exception_str);
     }
   }
 
-  if (priv->raw_script == NULL)
+  if (priv->code == NULL)
   {
     gum_script_destroy_context (self);
     return FALSE;
@@ -458,8 +456,8 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_core_dispose (&priv->core);
   }
 
-  delete priv->raw_script;
-  priv->raw_script = NULL;
+  delete priv->code;
+  priv->code = NULL;
   delete priv->context;
   priv->context = NULL;
 
@@ -701,7 +699,7 @@ gum_script_do_load (GumScriptTask * task,
     Isolate::Scope isolate_scope (priv->isolate);
     HandleScope handle_scope (priv->isolate);
 
-    if (priv->raw_script == NULL)
+    if (priv->code == NULL)
     {
       gboolean created;
 
@@ -714,9 +712,13 @@ gum_script_do_load (GumScriptTask * task,
       priv->loaded = TRUE;
 
       ScriptScope scope (self);
-      Local<Script> raw_script (Local<Script>::New (priv->isolate,
-          *priv->raw_script));
-      raw_script->Run ();
+
+      Local<Script> runtime (
+          gum_script_get_runtime ()->BindToCurrentContext ());
+      runtime->Run ();
+
+      Local<Script> code (Local<Script>::New (priv->isolate, *priv->code));
+      code->Run ();
     }
   }
 
@@ -1012,8 +1014,7 @@ public:
       gchar * exception_str_escaped = g_strescape (*exception_str, "");
       gchar * error = g_strdup_printf (
           "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-          message->GetLineNumber () - GUM_SCRIPT_RUNTIME_SOURCE_LINE_COUNT,
-          exception_str_escaped);
+          message->GetLineNumber (), exception_str_escaped);
       _gum_script_core_emit_message (&priv->core, error, NULL, 0);
       g_free (exception_str_escaped);
       g_free (error);

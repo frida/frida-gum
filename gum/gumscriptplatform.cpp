@@ -18,6 +18,33 @@ GumScriptPlatform::GumScriptPlatform ()
   V8::Initialize ();
 
   isolate = Isolate::New ();
+
+  InitRuntime ();
+}
+
+void
+GumScriptPlatform::InitRuntime ()
+{
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+  Local<Context> context (Context::New (isolate));
+  Context::Scope context_scope (context);
+
+  Local<String> resource_name (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> ("frida.js"),
+      NewStringType::kNormal).ToLocalChecked ());
+  ScriptOrigin origin (resource_name);
+
+  gchar * c_string = g_strconcat (
+#include "gumscript-runtime.h"
+      (gpointer) NULL);
+  Local<String> source_string (String::NewFromUtf8 (isolate, c_string));
+  g_free (c_string);
+  ScriptCompiler::Source source (source_string, origin);
+
+  runtime.Reset (isolate, ScriptCompiler::CompileUnboundScript (isolate,
+      &source).ToLocalChecked ());
 }
 
 GumScriptPlatform::~GumScriptPlatform ()
@@ -28,6 +55,24 @@ GumScriptPlatform::~GumScriptPlatform ()
   V8::ShutdownPlatform ();
 
   g_object_unref (scheduler);
+}
+
+Isolate *
+GumScriptPlatform::GetIsolate () const
+{
+  return isolate;
+}
+
+Local<UnboundScript>
+GumScriptPlatform::GetRuntime () const
+{
+  return v8::Local<v8::UnboundScript>::New (isolate, runtime);
+}
+
+GumScriptScheduler *
+GumScriptPlatform::GetScheduler () const
+{
+  return scheduler;
 }
 
 void
