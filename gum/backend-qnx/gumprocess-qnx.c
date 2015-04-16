@@ -18,6 +18,7 @@
 #include <sys/states.h>
 #include <sys/types.h>
 #include <sys/neutrino.h>
+#include <dlfcn.h>
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
@@ -57,6 +58,12 @@ struct _GumFindExportContext
 {
   GumAddress result;
   const gchar * symbol_name;
+};
+
+struct _dl_phdr_internal {
+    struct _dl_phdr_internal * p_next;
+    gint  unknown;
+    Link_map * linkmap;
 };
 
 static void gum_do_modify_thread (int sig, siginfo_t * siginfo,
@@ -310,24 +317,24 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)
 {
   /* Not implemented */
+  g_assert_not_reached ();
 }
 
 void
 gum_process_enumerate_modules (GumFoundModuleFunc func,
                                gpointer user_data)
 {
-  gchar * as_path;
   gint fd, res;
   gboolean carry_on = TRUE;
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
   procfs_debuginfo * debuginfo;
   gint i = 0;
+  struct _dl_phdr_internal ** handle;
+  struct _dl_phdr_internal * phdr;
 
-  as_path = g_strdup_printf ("/proc/%d/as", getpid ());
-  fd = open (as_path, O_RDONLY);
+  fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
-  g_free (as_path);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
   g_assert (res == 0);
@@ -336,11 +343,13 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     return;
 
   mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
-  debuginfo = g_malloc (sizeof (procfs_debuginfo) + 0x100);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
       sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
   g_assert (res == 0);
+
+  handle = dlopen(NULL, RTLD_NOW);
+
   while (carry_on && (i != num_mapinfos))
   {
     GumModuleDetails details;
@@ -350,15 +359,24 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     range.size = mapinfos[i].size;
 
     details.range = &range;
+    details.path = NULL;
 
-    debuginfo->vaddr = mapinfos[i].vaddr;
-    res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
-        sizeof (procfs_debuginfo) + 0x100, NULL);
-    g_assert (res == 0);
-    details.name = debuginfo->path;
+    phdr = *handle;
+    while (phdr && phdr->linkmap)
+    {
+      Link_map * linkmap = phdr->linkmap;
+      if (linkmap->l_addr == range.base_address)
+      {
+        if (linkmap->l_path != NULL)
+        {
+          details.path = linkmap->l_path;
+        }
+        break;
+      }
+      phdr = phdr->p_next;
+    }
 
-    if ((mapinfos[i].flags & PROT_EXEC) != 0
-        && (mapinfos[i].flags & MAP_ELF) != 0)
+    if (details.path)
     {
       carry_on = func (&details, user_data);
     }
