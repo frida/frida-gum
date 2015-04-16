@@ -174,7 +174,7 @@ gum_enumerate_free_ranges (GumFoundRangeFunc func,
 {
   GumEnumerateFreeRangesContext ctx = { func, user_data, 0 };
 
-  gum_process_enumerate_ranges (GUM_PAGE_RWX, gum_emit_free_range, &ctx);
+  gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, gum_emit_free_range, &ctx);
 }
 
 static gboolean
