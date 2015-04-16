@@ -17,6 +17,9 @@
 #include <sys/procfs.h>
 #include <sys/states.h>
 #include <sys/types.h>
+#include <sys/neutrino.h>
+
+#define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
 #if GLIB_SIZEOF_VOID_P == 4
 typedef Elf32_Ehdr GumElfEHeader;
@@ -56,6 +59,8 @@ struct _GumFindExportContext
   const gchar * symbol_name;
 };
 
+static void gum_do_modify_thread (int sig, siginfo_t * siginfo,
+    void * context);
 static void gum_store_cpu_context (GumThreadId thread_id,
     GumCpuContext * cpu_context, gpointer user_data);
 
@@ -69,32 +74,23 @@ static gboolean gum_store_address_if_export_name_matches (
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
-/*
 static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
     GumCpuContext * ctx);
 static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
     debug_greg_t * gregs);
-*/
+
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
+
+G_LOCK_DEFINE_STATIC (gum_modify_thread);
+static volatile gboolean gum_modify_thread_did_load_cpu_context;
+static volatile gboolean gum_modify_thread_did_modify_cpu_context;
+static volatile gboolean gum_modify_thread_did_store_cpu_context;
+static GumCpuContext gum_modify_thread_cpu_context;
 
 gboolean
 gum_process_is_debugger_attached (void)
 {
-  gboolean result;
-  gchar * status, * p;
-  gboolean success;
-
-  success = g_file_get_contents ("/proc/self/status", &status, NULL, NULL);
-  g_assert (success);
-
-  p = strstr (status, "TracerPid:");
-  g_assert (p != NULL);
-
-  result = atoi (p + 10) != 0;
-
-  g_free (status);
-
-  return result;
+  g_assert_not_reached ();
 }
 
 GumThreadId
@@ -108,8 +104,93 @@ gum_process_modify_thread (GumThreadId thread_id,
                            GumModifyThreadFunc func,
                            gpointer user_data)
 {
-  g_assert_not_reached ();
+  gboolean success = FALSE;
+  struct sigaction action, old_action;
+
+  if ( thread_id == gum_process_get_current_thread_id ())
+  {
+    //TODO: don't know how to implement this.
+    //g_assert_not_reached ();
+    procfs_greg gregs;
+    int fd, res;
+    volatile gboolean modified = FALSE;
+
+    fd = open ("/proc/self/as", O_RDONLY);
+    g_assert (fd != -1);
+
+    res = devctl (fd, DCMD_PROC_CURTHREAD, &thread_id, sizeof (thread_id), NULL);
+    g_assert (res == 0);
+
+    res = devctl (fd, DCMD_PROC_GETGREG, &gregs, sizeof (gregs), NULL);
+    g_assert (res == 0);
+
+    if (!modified)
+    {
+      GumCpuContext cpu_context;
+
+      gum_cpu_context_from_qnx (&gregs, &cpu_context);
+      func (thread_id, &cpu_context, user_data);
+      gum_cpu_context_to_qnx (&cpu_context, &gregs);
+
+      modified = TRUE;
+
+      res = devctl (fd, DCMD_PROC_SETGREG, &gregs, sizeof (gregs), NULL);
+      /* TODO: this doesn't appear to work. not sure why. disabling the assert for the
+       * moment: */
+      /* g_assert (res == 0); */
+    }
+
+    close (fd);
+    success = TRUE;
+  }
+  else
+  {
+    G_LOCK (gum_modify_thread);
+
+    gum_modify_thread_did_load_cpu_context = FALSE;
+    gum_modify_thread_did_modify_cpu_context = FALSE;
+    gum_modify_thread_did_store_cpu_context = FALSE;
+
+    action.sa_sigaction = gum_do_modify_thread;
+    sigemptyset (&action.sa_mask);
+    action.sa_flags = SA_SIGINFO;
+    sigaction (GUM_HIJACK_SIGNAL, &action, &old_action);
+
+    if (SignalKill (0, getpid (), thread_id, GUM_HIJACK_SIGNAL, 0, 0) != -1)
+    {
+      /* FIXME: timeout? */
+      while (!gum_modify_thread_did_load_cpu_context)
+        g_thread_yield ();
+      func (thread_id, &gum_modify_thread_cpu_context, user_data);
+      gum_modify_thread_did_modify_cpu_context = TRUE;
+      while (!gum_modify_thread_did_store_cpu_context)
+        g_thread_yield ();
+
+      success = TRUE;
+    }
+
+    sigaction (GUM_HIJACK_SIGNAL, &old_action, NULL);
+
+    G_UNLOCK (gum_modify_thread);
+  }
+  return success;
 }
+
+static void
+gum_do_modify_thread (int sig,
+                      siginfo_t * siginfo,
+                      void * context)
+{
+  debug_greg_t * gregs = (debug_greg_t *) context;
+
+  gum_cpu_context_from_qnx (gregs, &gum_modify_thread_cpu_context);
+  gum_modify_thread_did_load_cpu_context = TRUE;
+  while (!gum_modify_thread_did_modify_cpu_context)
+    ;
+  gum_cpu_context_to_qnx (&gum_modify_thread_cpu_context, gregs);
+  gum_modify_thread_did_store_cpu_context = TRUE;
+}
+
 
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
@@ -581,7 +662,7 @@ gum_module_path_equals (const gchar * path,
   return strcmp (name_or_path, path) == 0;
 }
 
-/*
+
 static void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
@@ -643,7 +724,6 @@ gum_cpu_context_to_qnx (const GumCpuContext * ctx,
 # error Fix this for other architectures
 #endif
 }
-*/
 
 static GumThreadState
 gum_thread_state_from_system_thread_state (gint state)
