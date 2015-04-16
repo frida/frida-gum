@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/procfs.h>
+#include <stdio.h>
 
 GumPageProtection
 _gum_page_protection_from_posix (const gint flags)
@@ -125,6 +126,7 @@ gum_memory_get_protection (GumAddress address,
 
   close (fd);
   g_free (mapinfos);
+  return success;
 }
 
 
@@ -166,22 +168,26 @@ gum_memory_read (GumAddress address,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  guint8 * result = NULL;
-  gsize result_len = 0;
-  gsize size;
-  GumPageProtection prot;
+  FILE *fp = NULL;
+  guint8 * buffer = NULL;
+  gint num_read = 0;
+  gint res = 0;
 
-  if (gum_memory_get_protection (address, len, &size, &prot)
-      && (prot & GUM_PAGE_READ) != 0)
-  {
-    result_len = MIN (len, size);
-    result = g_memdup (GSIZE_TO_POINTER (address), result_len);
+  fp = fopen("/proc/self/as", "r");
+  res = fseek (fp, address, SEEK_SET);
+  g_assert (res == 0);
+
+  buffer = g_malloc (len);
+  num_read = fread (buffer, 1, len, fp);
+  if (!num_read) {
+    g_free (buffer);
+    buffer = NULL;
   }
+  if (n_bytes_read)
+    *n_bytes_read = num_read;
 
-  if (n_bytes_read != NULL)
-    *n_bytes_read = result_len;
-
-  return result;
+  fclose(fp);
+  return buffer;
 }
 
 gboolean
@@ -190,12 +196,22 @@ gum_memory_write (GumAddress address,
                   gsize len)
 {
   gboolean success = FALSE;
+  FILE *fp = NULL;
+  gint res = 0;
+  gint num_written = 0;
 
-  if (gum_memory_is_writable (address, len))
-  {
-    memcpy (GSIZE_TO_POINTER (address), bytes, len);
+  if (!gum_memory_is_writable (address, len))
+    return success;
+
+  fp = fopen("/proc/self/as", "w");
+  res = fseek (fp, address, SEEK_SET);
+  g_assert (res == 0);
+
+  num_written = fwrite (bytes, 1, len, fp);
+  printf("\nnum_written: %d, len: %d\n", num_written, len);
+  if (num_written == len)
     success = TRUE;
-  }
 
+  fclose(fp);
   return success;
 }
