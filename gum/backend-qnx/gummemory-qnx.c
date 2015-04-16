@@ -208,7 +208,6 @@ gum_memory_write (GumAddress address,
   g_assert (res == 0);
 
   num_written = fwrite (bytes, 1, len, fp);
-  printf("\nnum_written: %d, len: %d\n", num_written, len);
   if (num_written == len)
     success = TRUE;
 
