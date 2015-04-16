@@ -1,6 +1,4 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 

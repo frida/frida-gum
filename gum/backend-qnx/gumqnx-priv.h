@@ -1,7 +1,4 @@
-
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
@@ -12,6 +9,5 @@
 
 G_GNUC_INTERNAL GumPageProtection _gum_page_protection_from_posix (
     const gint flags);
-
 
 #endif

@@ -1,32 +1,16 @@
 /*
- * Copyright (C) 2008-2011 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gummemory.h"
+
 #include "gumqnx-priv.h"
 
-#include <gio/gio.h>
 #include <fcntl.h>
+#include <gio/gio.h>
+#include <stdio.h>
 #include <sys/mman.h>
 #include <sys/procfs.h>
-#include <stdio.h>
-
-GumPageProtection
-_gum_page_protection_from_posix (const gint flags)
-{
-  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
-
-  if (flags & PROT_READ)
-    prot |= GUM_PAGE_READ;
-  if (flags & PROT_WRITE)
-    prot |= GUM_PAGE_WRITE;
-  if (flags & PROT_EXEC)
-    prot |= GUM_PAGE_EXECUTE;
-
-  return prot;
-}
 
 static gboolean
 gum_memory_get_protection (GumAddress address,
@@ -39,7 +23,7 @@ gum_memory_get_protection (GumAddress address,
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
   gpointer start, end;
-  gint i = 0;
+  gint i;
 
   if (size == NULL || prot == NULL)
   {
@@ -65,8 +49,8 @@ gum_memory_get_protection (GumAddress address,
     {
       *size = page_size - (address - start_page);
       for (cur_page = start_page + page_size;
-          cur_page != end_page + page_size;
-          cur_page += page_size)
+           cur_page != end_page + page_size;
+           cur_page += page_size)
       {
         GumPageProtection cur_prot;
 
@@ -87,7 +71,6 @@ gum_memory_get_protection (GumAddress address,
     return success;
   }
 
-
   success = FALSE;
   *size = 0;
   *prot = GUM_PAGE_NO_ACCESS;
@@ -98,13 +81,13 @@ gum_memory_get_protection (GumAddress address,
   res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
   g_assert (res == 0);
 
-  mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
+  mapinfos = g_malloc (num_mapinfos * sizeof (procfs_mapinfo));
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
       sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
   g_assert (res == 0);
 
-  while (i != num_mapinfos)
+  for (i = 0; i != num_mapinfos; i++)
   {
     start = GSIZE_TO_POINTER (mapinfos[i].vaddr & 0xffffffff);
     end = start + mapinfos[i].size;
@@ -120,15 +103,13 @@ gum_memory_get_protection (GumAddress address,
       *prot = _gum_page_protection_from_posix (mapinfos[i].flags);
       break;
     }
-
-    i++;
   }
 
-  close (fd);
   g_free (mapinfos);
+  close (fd);
+
   return success;
 }
-
 
 void
 gum_clear_cache (gpointer address,
@@ -168,25 +149,27 @@ gum_memory_read (GumAddress address,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  FILE *fp = NULL;
+  FILE * fp = NULL;
   guint8 * buffer = NULL;
   gint num_read = 0;
   gint res = 0;
 
-  fp = fopen("/proc/self/as", "r");
+  fp = fopen ("/proc/self/as", "r");
   res = fseek (fp, address, SEEK_SET);
   g_assert (res == 0);
 
   buffer = g_malloc (len);
   num_read = fread (buffer, 1, len, fp);
-  if (!num_read) {
+  if (num_read == 0)
+  {
     g_free (buffer);
     buffer = NULL;
   }
-  if (n_bytes_read)
+  if (n_bytes_read != NULL)
     *n_bytes_read = num_read;
 
-  fclose(fp);
+  fclose (fp);
+
   return buffer;
 }
 
@@ -196,14 +179,14 @@ gum_memory_write (GumAddress address,
                   gsize len)
 {
   gboolean success = FALSE;
-  FILE *fp = NULL;
+  FILE * fp = NULL;
   gint res = 0;
   gint num_written = 0;
 
   if (!gum_memory_is_writable (address, len))
     return success;
 
-  fp = fopen("/proc/self/as", "w");
+  fp = fopen ("/proc/self/as", "w");
   res = fseek (fp, address, SEEK_SET);
   g_assert (res == 0);
 
@@ -211,6 +194,22 @@ gum_memory_write (GumAddress address,
   if (num_written == len)
     success = TRUE;
 
-  fclose(fp);
+  fclose (fp);
+
   return success;
+}
+
+GumPageProtection
+_gum_page_protection_from_posix (const gint flags)
+{
+  GumPageProtection prot = GUM_PAGE_NO_ACCESS;
+
+  if (flags & PROT_READ)
+    prot |= GUM_PAGE_READ;
+  if (flags & PROT_WRITE)
+    prot |= GUM_PAGE_WRITE;
+  if (flags & PROT_EXEC)
+    prot |= GUM_PAGE_EXECUTE;
+
+  return prot;
 }

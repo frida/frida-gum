@@ -1,24 +1,23 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
- *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumprocess.h"
+
 #include "gumqnx-priv.h"
 
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <gio/gio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/elf.h>
-#include <gio/gio.h>
 #include <sys/link.h>
 #include <sys/mman.h>
+#include <sys/neutrino.h>
 #include <sys/procfs.h>
 #include <sys/states.h>
 #include <sys/types.h>
-#include <sys/neutrino.h>
-#include <dlfcn.h>
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
@@ -39,6 +38,7 @@ typedef Elf64_Sym GumElfSymbol;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
+typedef struct _GumDlPhdrInternal GumDlPhdrInternal;
 
 struct _GumFindModuleContext
 {
@@ -60,9 +60,10 @@ struct _GumFindExportContext
   const gchar * symbol_name;
 };
 
-struct _dl_phdr_internal {
-    struct _dl_phdr_internal * p_next;
-    gint  unknown;
+struct _GumDlPhdrInternal
+{
+    GumDlPhdrInternal * p_next;
+    gint unknown;
     Link_map * linkmap;
 };
 
@@ -114,10 +115,8 @@ gum_process_modify_thread (GumThreadId thread_id,
   gboolean success = FALSE;
   struct sigaction action, old_action;
 
-  if ( thread_id == gum_process_get_current_thread_id ())
+  if (thread_id == gum_process_get_current_thread_id ())
   {
-    //TODO: don't know how to implement this.
-    //g_assert_not_reached ();
     procfs_greg gregs;
     int fd, res;
     volatile gboolean modified = FALSE;
@@ -142,8 +141,8 @@ gum_process_modify_thread (GumThreadId thread_id,
       modified = TRUE;
 
       res = devctl (fd, DCMD_PROC_SETGREG, &gregs, sizeof (gregs), NULL);
-      /* TODO: this doesn't appear to work. not sure why. disabling the assert for the
-       * moment: */
+      /* TODO: this doesn't appear to work. not sure why. disabling the
+       * assert for the moment: */
       /* g_assert (res == 0); */
     }
 
@@ -180,6 +179,7 @@ gum_process_modify_thread (GumThreadId thread_id,
 
     G_UNLOCK (gum_modify_thread);
   }
+
   return success;
 }
 
@@ -255,7 +255,7 @@ gum_qnx_enumerate_ranges (pid_t pid,
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
   procfs_debuginfo * debuginfo;
-  gint i = 0;
+  gint i;
 
   as_path = g_strdup_printf ("/proc/%d/as", pid);
   fd = open (as_path, O_RDONLY);
@@ -265,38 +265,36 @@ gum_qnx_enumerate_ranges (pid_t pid,
   res = devctl (fd, DCMD_PROC_PAGEDATA, 0, 0, &num_mapinfos);
   g_assert (res == 0);
 
-  mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
+  mapinfos = g_malloc (num_mapinfos * sizeof (procfs_mapinfo));
   debuginfo = g_malloc (sizeof (procfs_debuginfo) + 0x100);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
-      sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
+      num_mapinfos * sizeof (procfs_mapinfo), &num_mapinfos);
   g_assert (res == 0);
 
-  while (carry_on && i != num_mapinfos)
+  for (i = 0; carry_on && i != num_mapinfos; i++)
   {
     GumRangeDetails details;
     GumMemoryRange range;
     GumFileMapping file;
 
+    details.range = &range;
+    details.file = &file;
+    details.prot = _gum_page_protection_from_posix (mapinfos[i].flags);
+
     range.base_address = mapinfos[i].vaddr;
     range.size = mapinfos[i].size;
-
-    details.range = &range;
-    details.prot = _gum_page_protection_from_posix (mapinfos[i].flags);
 
     debuginfo->vaddr = mapinfos[i].vaddr;
     res = devctl (fd, DCMD_PROC_MAPDEBUG, debuginfo,
         sizeof (procfs_debuginfo) + 0x100, NULL);
     g_assert (res == 0);
     file.path = debuginfo->path;
-    details.file = &file;
 
     if ((details.prot & prot) == prot)
     {
       carry_on = func (&details, user_data);
     }
-
-    i++;
   }
 
   close (fd);
@@ -328,10 +326,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   gboolean carry_on = TRUE;
   procfs_mapinfo * mapinfos;
   gint num_mapinfos;
-  procfs_debuginfo * debuginfo;
-  gint i = 0;
-  struct _dl_phdr_internal ** handle;
-  struct _dl_phdr_internal * phdr;
+  gint i;
+  GumDlPhdrInternal ** handle;
+  GumDlPhdrInternal * phdr;
 
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
@@ -345,47 +342,43 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   mapinfos = g_malloc (sizeof (procfs_mapinfo) * num_mapinfos);
 
   res = devctl (fd, DCMD_PROC_PAGEDATA, mapinfos,
-      sizeof (procfs_mapinfo) * num_mapinfos, &num_mapinfos);
+      num_mapinfos * sizeof (procfs_mapinfo), &num_mapinfos);
   g_assert (res == 0);
 
-  handle = dlopen(NULL, RTLD_NOW);
+  handle = dlopen (NULL, RTLD_NOW);
 
-  while (carry_on && (i != num_mapinfos))
+  for (i = 0; carry_on && i != num_mapinfos; i++)
   {
     GumModuleDetails details;
     GumMemoryRange range;
 
-    range.base_address = mapinfos[i].vaddr;
-    range.size = mapinfos[i].size;
-
     details.range = &range;
     details.path = NULL;
 
-    phdr = *handle;
-    while (phdr && phdr->linkmap)
+    range.base_address = mapinfos[i].vaddr;
+    range.size = mapinfos[i].size;
+
+    for (phdr = *handle;
+         phdr != NULL && phdr->linkmap != NULL;
+         phdr = phdr->p_next)
     {
       Link_map * linkmap = phdr->linkmap;
       if (linkmap->l_addr == range.base_address)
       {
         if (linkmap->l_path != NULL)
-        {
           details.path = linkmap->l_path;
-        }
         break;
       }
-      phdr = phdr->p_next;
     }
 
     if (details.path)
     {
       carry_on = func (&details, user_data);
     }
-    i++;
   }
 
-  close (fd);
   g_free (mapinfos);
-  g_free (debuginfo);
+  close (fd);
 }
 
 void
@@ -679,7 +672,6 @@ gum_module_path_equals (const gchar * path,
 
   return strcmp (name_or_path, path) == 0;
 }
-
 
 static void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
