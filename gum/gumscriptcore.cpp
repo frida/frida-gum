@@ -212,6 +212,11 @@ _gum_script_core_init (GumScriptCore * self,
 
   Local<External> data (External::New (isolate, self));
 
+  Handle<ObjectTemplate> frida = ObjectTemplate::New ();
+  frida->Set (String::NewFromUtf8 (isolate, "version"),
+      String::NewFromUtf8 (isolate, FRIDA_VERSION), ReadOnly);
+  scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
+
   Handle<ObjectTemplate> weak = ObjectTemplate::New ();
   weak->Set (String::NewFromUtf8 (isolate, "bind"),
       FunctionTemplate::New (isolate, gum_script_core_on_weak_ref_bind, data));

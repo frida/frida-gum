@@ -71,6 +71,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
+  SCRIPT_TESTENTRY (frida_version_is_available)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
@@ -580,6 +581,12 @@ SCRIPT_TESTCASE (call_can_be_probed)
 }
 
 #endif /* HAVE_I386 */
+
+SCRIPT_TESTCASE (frida_version_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Frida.version);");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+}
 
 SCRIPT_TESTCASE (process_arch_is_available)
 {
