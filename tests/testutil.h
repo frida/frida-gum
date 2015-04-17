@@ -50,6 +50,8 @@
 #define SYSTEM_MODULE_NAME test_util_get_system_module_name ()
 #if defined (G_OS_WIN32)
 # define SYSTEM_MODULE_EXPORT "Sleep"
+#elif defined (HAVE_QNX)
+# define SYSTEM_MODULE_EXPORT "bt_get_backtrace"
 #else
 # define SYSTEM_MODULE_EXPORT "sendto"
 #endif

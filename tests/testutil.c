@@ -399,6 +399,8 @@ test_util_get_system_module_name (void)
   return "libSystem.B.dylib";
 #elif defined (HAVE_ANDROID)
   return "libc.so";
+#elif defined (HAVE_QNX)
+  return "libbacktrace.so.1";
 #else
   if (_test_util_system_module_name == NULL)
   {
