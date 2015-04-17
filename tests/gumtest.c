@@ -97,7 +97,9 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (testutil);
   TEST_RUN_LIST (memory);
   TEST_RUN_LIST (process);
+#ifndef HAVE_QNX
   TEST_RUN_LIST (symbolutil);
+#endif
   TEST_RUN_LIST (codewriter);
   TEST_RUN_LIST (relocator);
   TEST_RUN_LIST (armwriter);
