@@ -12,11 +12,8 @@
 #include <sys/mman.h>
 #include <sys/procfs.h>
 
-static gboolean
-gum_memory_get_protection (GumAddress address,
-                           gsize n,
-                           gsize * size,
-                           GumPageProtection * prot);
+static gboolean gum_memory_get_protection (GumAddress address, gsize n,
+    gsize * size, GumPageProtection * prot);
 
 void
 gum_clear_cache (gpointer address,
