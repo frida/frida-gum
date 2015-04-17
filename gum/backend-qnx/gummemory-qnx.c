@@ -16,6 +16,100 @@ static gboolean
 gum_memory_get_protection (GumAddress address,
                            gsize n,
                            gsize * size,
+                           GumPageProtection * prot);
+
+void
+gum_clear_cache (gpointer address,
+                 gsize size)
+{
+  g_assert_not_reached ();
+}
+
+gboolean
+gum_memory_is_readable (GumAddress address,
+                        gsize len)
+{
+  gsize size;
+  GumPageProtection prot;
+
+  if (!gum_memory_get_protection (address, len, &size, &prot))
+    return FALSE;
+
+  return size >= len && (prot & GUM_PAGE_READ) != 0;
+}
+
+static gboolean
+gum_memory_is_writable (GumAddress address,
+                        gsize len)
+{
+  gsize size;
+  GumPageProtection prot;
+
+  if (!gum_memory_get_protection (address, len, &size, &prot))
+    return FALSE;
+
+  return size >= len && (prot & GUM_PAGE_WRITE) != 0;
+}
+
+guint8 *
+gum_memory_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
+{
+  FILE * fp = NULL;
+  guint8 * buffer = NULL;
+  gint num_read = 0;
+  gint res = 0;
+
+  fp = fopen ("/proc/self/as", "r");
+  res = fseek (fp, address, SEEK_SET);
+  g_assert (res == 0);
+
+  buffer = g_malloc (len);
+  num_read = fread (buffer, 1, len, fp);
+  if (num_read == 0)
+  {
+    g_free (buffer);
+    buffer = NULL;
+  }
+  if (n_bytes_read != NULL)
+    *n_bytes_read = num_read;
+
+  fclose (fp);
+
+  return buffer;
+}
+
+gboolean
+gum_memory_write (GumAddress address,
+                  guint8 * bytes,
+                  gsize len)
+{
+  gboolean success = FALSE;
+  FILE * fp = NULL;
+  gint res = 0;
+  gint num_written = 0;
+
+  if (!gum_memory_is_writable (address, len))
+    return success;
+
+  fp = fopen ("/proc/self/as", "w");
+  res = fseek (fp, address, SEEK_SET);
+  g_assert (res == 0);
+
+  num_written = fwrite (bytes, 1, len, fp);
+  if (num_written == len)
+    success = TRUE;
+
+  fclose (fp);
+
+  return success;
+}
+
+static gboolean
+gum_memory_get_protection (GumAddress address,
+                           gsize n,
+                           gsize * size,
                            GumPageProtection * prot)
 {
   gboolean success;
@@ -107,94 +201,6 @@ gum_memory_get_protection (GumAddress address,
 
   g_free (mapinfos);
   close (fd);
-
-  return success;
-}
-
-void
-gum_clear_cache (gpointer address,
-                 gsize size)
-{
-  g_assert_not_reached ();
-}
-
-gboolean
-gum_memory_is_readable (GumAddress address,
-                        gsize len)
-{
-  gsize size;
-  GumPageProtection prot;
-
-  if (!gum_memory_get_protection (address, len, &size, &prot))
-    return FALSE;
-
-  return size >= len && (prot & GUM_PAGE_READ) != 0;
-}
-
-static gboolean
-gum_memory_is_writable (GumAddress address,
-                        gsize len)
-{
-  gsize size;
-  GumPageProtection prot;
-
-  if (!gum_memory_get_protection (address, len, &size, &prot))
-    return FALSE;
-
-  return size >= len && (prot & GUM_PAGE_WRITE) != 0;
-}
-
-guint8 *
-gum_memory_read (GumAddress address,
-                 gsize len,
-                 gsize * n_bytes_read)
-{
-  FILE * fp = NULL;
-  guint8 * buffer = NULL;
-  gint num_read = 0;
-  gint res = 0;
-
-  fp = fopen ("/proc/self/as", "r");
-  res = fseek (fp, address, SEEK_SET);
-  g_assert (res == 0);
-
-  buffer = g_malloc (len);
-  num_read = fread (buffer, 1, len, fp);
-  if (num_read == 0)
-  {
-    g_free (buffer);
-    buffer = NULL;
-  }
-  if (n_bytes_read != NULL)
-    *n_bytes_read = num_read;
-
-  fclose (fp);
-
-  return buffer;
-}
-
-gboolean
-gum_memory_write (GumAddress address,
-                  guint8 * bytes,
-                  gsize len)
-{
-  gboolean success = FALSE;
-  FILE * fp = NULL;
-  gint res = 0;
-  gint num_written = 0;
-
-  if (!gum_memory_is_writable (address, len))
-    return success;
-
-  fp = fopen ("/proc/self/as", "w");
-  res = fseek (fp, address, SEEK_SET);
-  g_assert (res == 0);
-
-  num_written = fwrite (bytes, 1, len, fp);
-  if (num_written == len)
-    success = TRUE;
-
-  fclose (fp);
 
   return success;
 }
