@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 static gboolean gum_memory_get_protection (GumAddress address, gsize n,
     gsize * size, GumPageProtection * prot);

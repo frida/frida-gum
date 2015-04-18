@@ -386,7 +386,8 @@ gum_script_create_context (GumScript * self,
     _gum_script_symbol_realize (&priv->symbol);
     _gum_script_instruction_realize (&priv->instruction);
 
-    gchar * resource_name_str = g_strconcat (priv->name, ".js", NULL);
+    gchar * resource_name_str = g_strconcat (priv->name, ".js",
+        (gpointer) NULL);
     Local<String> resource_name (String::NewFromUtf8 (priv->isolate,
         resource_name_str));
     ScriptOrigin origin (resource_name);
