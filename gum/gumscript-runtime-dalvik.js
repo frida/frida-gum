@@ -568,8 +568,13 @@
                         "env.exceptionClear();" +
                         "throw new Error(\"Out of memory\");" +
                     "}" +
-                    "synchronizeVtable.call(this, env);" +
-                    returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
+                    "try {" +
+                        "synchronizeVtable.call(this, env);" +
+                        returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
+                    "} catch (e) {" +
+                        "env.popLocalFrame(NULL);" +
+                        "throw e;" +
+                    "}" +
                     "var throwable = env.exceptionOccurred();" +
                     "if (!throwable.isNull()) {" +
                         "env.exceptionClear();" +
