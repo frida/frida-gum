@@ -6,9 +6,11 @@
 
 #include "gumqnx-priv.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <sys/procfs.h>
 
@@ -19,7 +21,7 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
-  g_assert_not_reached ();
+  msync (address, size, MS_SYNC | MS_INVALIDATE_ICACHE);
 }
 
 gboolean
@@ -101,6 +103,67 @@ gum_memory_write (GumAddress address,
   fclose (fp);
 
   return success;
+}
+
+gboolean
+gum_try_mprotect (gpointer address,
+                  gsize size,
+                  GumPageProtection page_prot)
+{
+  gsize page_size;
+  gpointer aligned_address;
+  gsize aligned_size;
+  gint posix_page_prot;
+  gint result;
+
+  g_assert (size != 0);
+
+  page_size = gum_query_page_size ();
+  aligned_address = GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (address) & ~(page_size - 1));
+  aligned_size =
+      (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
+
+  result = mprotect (aligned_address, aligned_size, posix_page_prot);
+  if (result == -1 && errno == EACCES &&
+      (page_prot & GUM_PAGE_WRITE) == GUM_PAGE_WRITE)
+  {
+    FILE * fp;
+    char * buffer;
+    gpointer address_mmaped;
+    gint read_count;
+
+    fp = fopen ("/proc/self/as", "r");
+    g_assert (fp != NULL);
+
+    buffer = g_malloc (aligned_size);
+    g_assert (buffer != NULL);
+
+    fseek (fp, GPOINTER_TO_SIZE (aligned_address), SEEK_SET);
+
+    read_count = fread (buffer, 1, aligned_size, fp);
+    if (read_count != aligned_size)
+    {
+      g_free (buffer);
+      fclose (fp);
+
+      return FALSE;
+    }
+
+    address_mmaped = mmap (aligned_address, aligned_size,
+        PROT_READ | PROT_WRITE, MAP_PRIVATE|MAP_FIXED, NOFD, 0);
+    g_assert (address_mmaped == aligned_address);
+
+    memcpy (aligned_address, buffer, aligned_size);
+
+    result = mprotect (aligned_address, aligned_size, posix_page_prot);
+
+    g_free (buffer);
+    fclose (fp);
+  }
+
+  return result == 0;
 }
 
 static gboolean
