@@ -154,6 +154,7 @@
             for (var classId in classes) {
                 if (classes.hasOwnProperty(classId)) {
                     var klass = classes[classId];
+                    klass.__methods__.forEach(env.deleteGlobalRef, env);
                     env.deleteGlobalRef(klass.__handle__);
                 }
             }
@@ -226,11 +227,19 @@
             var initializeClass = function initializeClass() {
                 klass.__name__ = name;
                 klass.__handle__ = env.newGlobalRef(classHandle);
+                klass.__methods__ = [];
 
-                var ctor = makeConstructor();
-                if (ctor !== null) {
-                    klass.prototype.$new = ctor;
-                }
+                var ctor = null;
+                Object.defineProperty(klass.prototype, "$new", {
+                    get: function () {
+                        if (ctor === null) {
+                            vm.perform(function () {
+                                ctor = makeConstructor(klass.__handle__, vm.getEnv());
+                            });
+                        }
+                        return ctor;
+                    }
+                });
                 klass.prototype.$dispose = dispose;
 
                 klass.prototype.$isSameObject = function (obj) {
@@ -252,7 +261,7 @@
                 WeakRef.unbind(this.$weakRef);
             };
 
-            var makeConstructor = function () {
+            var makeConstructor = function (classHandle, env) {
                 var Constructor = env.javaLangReflectConstructor();
                 var invokeObjectMethodNoArgs = env.method('pointer', []);
 
@@ -285,43 +294,83 @@
                         env.deleteLocalRef(types);
                     }
 
-                    jsMethods.push(makeMethod(CONSTRUCTOR_METHOD, methodId, jsRetType, jsArgTypes));
+                    jsMethods.push(makeMethod(CONSTRUCTOR_METHOD, methodId, jsRetType, jsArgTypes, env));
                 }
                 env.deleteLocalRef(constructors);
 
-                return (jsMethods.length > 0) ? makeMethodDispatcher("<init>", jsMethods) : null;
+                if (jsMethods.length === 0)
+                    throw new Error("no supported overloads");
+
+                return makeMethodDispatcher("<init>", jsMethods);
             };
 
             var addMethods = function () {
-                var Method = env.javaLangReflectMethod();
-                var Modifier = env.javaLangReflectModifier();
                 var invokeObjectMethodNoArgs = env.method('pointer', []);
-                var invokeIntMethodNoArgs = env.method('int32', []);
+                var Method_getName = env.javaLangReflectMethod().getName;
 
+                var methodHandles = klass.__methods__;
                 var jsMethods = {};
+
                 var methods = invokeObjectMethodNoArgs(env.handle, classHandle, env.javaLangClass().getDeclaredMethods);
                 var numMethods = env.getArrayLength(methods);
                 for (var methodIndex = 0; methodIndex !== numMethods; methodIndex++) {
                     var method = env.getObjectArrayElement(methods, methodIndex);
-                    var methodId = env.fromReflectedMethod(method);
-                    var name = invokeObjectMethodNoArgs(env.handle, method, Method.getName);
-                    var retType = invokeObjectMethodNoArgs(env.handle, method, Method.getGenericReturnType);
-                    var argTypes = invokeObjectMethodNoArgs(env.handle, method, Method.getGenericParameterTypes);
-                    var modifiers = invokeIntMethodNoArgs(env.handle, method, Method.getModifiers);
+                    var name = invokeObjectMethodNoArgs(env.handle, method, Method_getName);
+                    var jsName = env.stringFromJni(name);
+                    env.deleteLocalRef(name);
+                    var methodHandle = env.newGlobalRef(method);
+                    methodHandles.push(methodHandle);
                     env.deleteLocalRef(method);
 
-                    var jsName = env.stringFromJni(name);
+                    var jsOverloads;
+                    if (jsMethods.hasOwnProperty(jsName)) {
+                        jsOverloads = jsMethods[jsName];
+                    } else {
+                        jsOverloads = [];
+                        jsMethods[jsName] = jsOverloads;
+                    }
+                    jsOverloads.push(methodHandle);
+                }
+
+                Object.keys(jsMethods).forEach(function (name) {
+                    var m = null;
+                    Object.defineProperty(klass.prototype, name, {
+                        get: function () {
+                            if (m === null) {
+                                vm.perform(function () {
+                                    m = makeMethodFromOverloads(name, jsMethods[name], vm.getEnv());
+                                });
+                            }
+                            return m;
+                        }
+                    });
+                });
+            }
+
+            var makeMethodFromOverloads = function (name, overloads, env) {
+                var Method = env.javaLangReflectMethod();
+                var Modifier = env.javaLangReflectModifier();
+                var invokeObjectMethodNoArgs = env.method('pointer', []);
+                var invokeIntMethodNoArgs = env.method('int32', []);
+                var invokeUInt8MethodNoArgs = env.method('uint8', []);
+
+                var methods = overloads.map(function (handle) {
+                    var methodId = env.fromReflectedMethod(handle);
+                    var retType = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericReturnType);
+                    var argTypes = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericParameterTypes);
+                    var modifiers = invokeIntMethodNoArgs(env.handle, handle, Method.getModifiers);
+                    var isVarArgs = invokeUInt8MethodNoArgs(env.handle, handle, Method.isVarArgs) ? true : false;
+
                     var jsType = (modifiers & Modifier.STATIC) !== 0 ? STATIC_METHOD : INSTANCE_METHOD;
+
                     var jsRetType;
                     var jsArgTypes = [];
-
-                    env.deleteLocalRef(name);
 
                     try {
                         jsRetType = typeFromClassName(env.getTypeName(retType));
                     } catch (e) {
                         env.deleteLocalRef(argTypes);
-                        continue;
+                        return null;
                     } finally {
                         env.deleteLocalRef(retType);
                     }
@@ -331,73 +380,68 @@
                         for (var argTypeIndex = 0; argTypeIndex !== numArgTypes; argTypeIndex++) {
                             var t = env.getObjectArrayElement(argTypes, argTypeIndex);
                             try {
-                                var argType = typeFromClassName(env.getTypeName(t));
+                                var argClassName = (isVarArgs && argTypeIndex === numArgTypes - 1) ? env.getArrayTypeName(t) : env.getTypeName(t);
+                                var argType = typeFromClassName(argClassName);
                                 jsArgTypes.push(argType);
                             } finally {
                                 env.deleteLocalRef(t);
                             }
                         }
                     } catch (e) {
-                        continue;
+                        return null;
                     } finally {
                         env.deleteLocalRef(argTypes);
                     }
 
-                    var jsOverloads;
-                    if (jsMethods.hasOwnProperty(jsName)) {
-                        jsOverloads = jsMethods[jsName];
-                    } else {
-                        jsOverloads = [];
-                        jsMethods[jsName] = jsOverloads;
-                    }
-                    jsOverloads.push(makeMethod(jsType, methodId, jsRetType, jsArgTypes));
-                }
+                    return makeMethod(jsType, methodId, jsRetType, jsArgTypes, env);
+                }).filter(function (m) {
+                    return m !== null;
+                });
 
-                for (var methodName in jsMethods) {
-                    if (jsMethods.hasOwnProperty(methodName)) {
-                        var overloads = jsMethods[methodName];
-                        if (methodName === 'valueOf') {
-                            var hasDefaultValueOf = overloads.some(function implementsDefaultValueOf(overload) {
-                                return overload.type === INSTANCE_METHOD && overload.argumentTypes.length === 0;
-                            });
-                            if (!hasDefaultValueOf) {
-                                var defaultValueOf = function defaultValueOf() {
-                                    return this;
-                                };
+                if (methods.length === 0)
+                    throw new Error("no supported overloads");
 
-                                Object.defineProperty(defaultValueOf, 'holder', {
-                                    enumerable: true,
-                                    value: klass
-                                });
+                if (name === "valueOf") {
+                    var hasDefaultValueOf = methods.some(function implementsDefaultValueOf(m) {
+                        return m.type === INSTANCE_METHOD && m.argumentTypes.length === 0;
+                    });
+                    if (!hasDefaultValueOf) {
+                        var defaultValueOf = function defaultValueOf() {
+                            return this;
+                        };
 
-                                Object.defineProperty(defaultValueOf, 'type', {
-                                    enumerable: true,
-                                    value: INSTANCE_METHOD
-                                });
+                        Object.defineProperty(defaultValueOf, 'holder', {
+                            enumerable: true,
+                            value: klass
+                        });
 
-                                Object.defineProperty(defaultValueOf, 'returnType', {
-                                    enumerable: true,
-                                    value: typeFromClassName('int')
-                                });
+                        Object.defineProperty(defaultValueOf, 'type', {
+                            enumerable: true,
+                            value: INSTANCE_METHOD
+                        });
 
-                                Object.defineProperty(defaultValueOf, 'argumentTypes', {
-                                    enumerable: true,
-                                    value: []
-                                });
+                        Object.defineProperty(defaultValueOf, 'returnType', {
+                            enumerable: true,
+                            value: typeFromClassName('int')
+                        });
 
-                                Object.defineProperty(defaultValueOf, 'canInvokeWith', {
-                                    enumerable: true,
-                                    value: function (args) {
-                                        return args.length === 0;
-                                    }
-                                });
+                        Object.defineProperty(defaultValueOf, 'argumentTypes', {
+                            enumerable: true,
+                            value: []
+                        });
 
-                                overloads.push(defaultValueOf);
+                        Object.defineProperty(defaultValueOf, 'canInvokeWith', {
+                            enumerable: true,
+                            value: function (args) {
+                                return args.length === 0;
                             }
-                        }
-                        klass.prototype[methodName] = makeMethodDispatcher(methodName, overloads);
+                        });
+
+                        methods.push(defaultValueOf);
                     }
                 }
+
+                return makeMethodDispatcher(name, methods);
             };
 
             var makeMethodDispatcher = function (name, methods) {
@@ -525,7 +569,7 @@
                 return f;
             };
 
-            var makeMethod = function (type, methodId, retType, argTypes) {
+            var makeMethod = function (type, methodId, retType, argTypes, env) {
                 var targetMethodId = methodId;
                 var originalMethodId = null;
 
@@ -734,6 +778,10 @@
 
             initializeClass();
 
+            // Guard against use-after-"free"
+            classHandle = null;
+            env = null;
+
             return klass;
         };
 
@@ -855,9 +903,10 @@
             var type = types[className];
             if (!type) {
                 if (className.indexOf("[") === 0) {
-                    throw new Error("Unsupported type: " + className);
+                    type = arrayType(className.substring(1));
+                } else {
+                    type = objectType(className, true);
                 }
-                type = objectType(className, true);
             }
 
             var result = {
@@ -1042,6 +1091,54 @@
                     }
 
                     return o.$handle;
+                }
+            };
+        };
+
+        var arrayType = function (rawElementClassName) {
+            var elementClassName;
+            var isPrimitive;
+            if (rawElementClassName[0] === "L" && rawElementClassName[rawElementClassName.length - 1] === ";") {
+                elementClassName = rawElementClassName.substring(1, rawElementClassName.length - 1);
+                isPrimitive = false;
+            } else {
+                elementClassName = rawElementClassName;
+                isPrimitive = true;
+                throw new Error("Primitive arrays not yet supported");
+            }
+            var elementType = typeFromClassName(elementClassName);
+            return {
+                type: 'pointer',
+                size: 1,
+                isCompatible: function (v) {
+                    if (typeof v !== 'object' || !v.hasOwnProperty('length')) {
+                        return false;
+                    }
+                    return v.every(function (element) {
+                        return elementType.isCompatible(element);
+                    });
+                },
+                fromJni: function (h, env) {
+                    var result = [];
+                    var length = env.getArrayLength(h);
+                    for (var i = 0; i !== length; i++) {
+                        var handle = env.getObjectArrayElement(h, i);
+                        try {
+                            result.push(elementType.fromJni.call(this, handle, env));
+                        } finally {
+                            env.deleteLocalRef(handle);
+                        }
+                    }
+                    return result;
+                },
+                toJni: function (elements, env) {
+                    var elementClass = factory.use(elementClassName);
+                    var result = env.newObjectArray(elements.length, elementClass.$classHandle, NULL);
+                    for (var i = 0; i !== elements.length; i++) {
+                        var handle = elementType.toJni.call(this, elements[i], env);
+                        env.setObjectArrayElement(result, i, handle);
+                    }
+                    return result;
                 }
             };
         };
@@ -1393,7 +1490,8 @@
                     getName: this.getMethodId(handle, "getName", "()Ljava/lang/String;"),
                     getGenericParameterTypes: this.getMethodId(handle, "getGenericParameterTypes", "()[Ljava/lang/reflect/Type;"),
                     getGenericReturnType: this.getMethodId(handle, "getGenericReturnType", "()Ljava/lang/reflect/Type;"),
-                    getModifiers: this.getMethodId(handle, "getModifiers", "()I")
+                    getModifiers: this.getMethodId(handle, "getModifiers", "()I"),
+                    isVarArgs: this.getMethodId(handle, "isVarArgs", "()Z")
                 };
                 this.deleteLocalRef(handle);
             }
@@ -1442,6 +1540,15 @@
             //     return "L";
             } else {
                 return "java.lang.Object";
+            }
+        };
+
+        Env.prototype.getArrayTypeName = function (type) {
+            if (this.isInstanceOf(type, this.javaLangClass().handle)) {
+                return "[L" + this.getClassName(type) + ";";
+            } else {
+                // TODO: handle primitive types
+                return "[Ljava.lang.Object;";
             }
         };
 
