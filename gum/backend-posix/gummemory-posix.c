@@ -6,6 +6,8 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
+
 #include "gumprocess.h"
 
 #include <unistd.h>
@@ -54,7 +56,7 @@ gum_alloc_n_pages (guint n_pages,
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
-  posix_page_prot = gum_page_protection_to_posix (page_prot);
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
 
   result = mmap (NULL, size, posix_page_prot, flags, -1, 0);
   g_assert (result != NULL);
@@ -78,7 +80,7 @@ gum_alloc_n_pages_near (guint n_pages,
 
   ctx.result = NULL;
   ctx.size = (1 + n_pages) * page_size;
-  ctx.posix_page_prot = gum_page_protection_to_posix (page_prot);
+  ctx.posix_page_prot = _gum_page_protection_to_posix (page_prot);
   ctx.address_spec = address_spec;
 
   gum_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough, &ctx);
@@ -189,7 +191,7 @@ gum_emit_free_range (const GumRangeDetails * details,
 }
 
 gint
-gum_page_protection_to_posix (GumPageProtection page_prot)
+_gum_page_protection_to_posix (GumPageProtection page_prot)
 {
   gint posix_page_prot = PROT_NONE;
 

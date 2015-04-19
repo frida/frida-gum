@@ -6,6 +6,8 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
+
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
@@ -78,15 +80,6 @@ gum_memory_write (GumAddress address,
   return success;
 }
 
-void
-gum_clear_cache (gpointer address,
-                 gsize size)
-{
-#ifdef HAVE_ARM
-  cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
-#endif
-}
-
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
@@ -105,11 +98,20 @@ gum_try_mprotect (gpointer address,
       GPOINTER_TO_SIZE (address) & ~(page_size - 1));
   aligned_size =
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  posix_page_prot = gum_page_protection_to_posix (page_prot);
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
 
   result = mprotect (aligned_address, aligned_size, posix_page_prot);
 
   return result == 0;
+}
+
+void
+gum_clear_cache (gpointer address,
+                 gsize size)
+{
+#ifdef HAVE_ARM
+  cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
+#endif
 }
 
 static gboolean
