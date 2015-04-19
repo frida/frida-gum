@@ -191,7 +191,7 @@
 
         this.cast = function (obj, klass) {
             var handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
-            var C = klass.$class;
+            var C = klass.$classWrapper;
             return new C(C.__handle__, handle);
         };
 
@@ -215,7 +215,7 @@
 
             eval("klass = function " + basename(name) + "(classHandle, handle) {" +
                  "var env = vm.getEnv();" +
-                 "this.$class = klass;" +
+                 "this.$classWrapper = klass;" +
                  "this.$classHandle = env.newGlobalRef(classHandle);" +
                  "this.$handle = (handle !== null) ? env.newGlobalRef(handle) : null;" +
                  "this.$weakRef = WeakRef.bind(this, makeHandleDestructor(this.$handle, this.$classHandle));" +
@@ -237,6 +237,13 @@
                     var env = vm.getEnv();
                     return env.isSameObject(obj.$handle, this.$handle);
                 };
+
+                Object.defineProperty(klass.prototype, 'class', {
+                    get: function () {
+                        var Clazz = factory.use("java.lang.Class");
+                        return factory.cast(this.$classHandle, Clazz);
+                    }
+                });
 
                 addMethods();
             };
@@ -411,7 +418,7 @@
                         throw new Error(name + ": cannot call static method by way of an instance");
                     } else if (methods[0].type === INSTANCE_METHOD && !isInstance) {
                         if (name === 'toString') {
-                            return "<" + this.$class.__name__ + ">";
+                            return "<" + this.$classWrapper.__name__ + ">";
                         }
                         throw new Error(name + ": cannot call instance method without an instance");
                     }
