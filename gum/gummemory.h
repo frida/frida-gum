@@ -88,6 +88,8 @@ gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
 gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot, GumAddressSpec * address_spec);
 void gum_free_pages (gpointer mem);
 
+gint gum_page_protection_to_posix (GumPageProtection page_prot);
+
 G_END_DECLS
 
 #endif
