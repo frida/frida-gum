@@ -6,6 +6,8 @@
 
 #include "gummemory.h"
 
+#include "gummemory-priv.h"
+
 #include "gumprocess.h"
 
 #include <unistd.h>
@@ -37,37 +39,10 @@ static void gum_enumerate_free_ranges (GumFoundRangeFunc func,
 static gboolean gum_emit_free_range (const GumRangeDetails * details,
     gpointer user_data);
 
-static gint gum_page_protection_to_posix (GumPageProtection page_prot);
-
 guint
 gum_query_page_size (void)
 {
   return sysconf (_SC_PAGE_SIZE);
-}
-
-gboolean
-gum_try_mprotect (gpointer address,
-                  gsize size,
-                  GumPageProtection page_prot)
-{
-  gsize page_size;
-  gpointer aligned_address;
-  gsize aligned_size;
-  gint posix_page_prot;
-  gint result;
-
-  g_assert (size != 0);
-
-  page_size = gum_query_page_size ();
-  aligned_address = GSIZE_TO_POINTER (
-      GPOINTER_TO_SIZE (address) & ~(page_size - 1));
-  aligned_size =
-      (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
-  posix_page_prot = gum_page_protection_to_posix (page_prot);
-
-  result = mprotect (aligned_address, aligned_size, posix_page_prot);
-
-  return result == 0;
 }
 
 gpointer
@@ -81,7 +56,7 @@ gum_alloc_n_pages (guint n_pages,
 
   page_size = gum_query_page_size ();
   size = (1 + n_pages) * page_size;
-  posix_page_prot = gum_page_protection_to_posix (page_prot);
+  posix_page_prot = _gum_page_protection_to_posix (page_prot);
 
   result = mmap (NULL, size, posix_page_prot, flags, -1, 0);
   g_assert (result != NULL);
@@ -105,7 +80,7 @@ gum_alloc_n_pages_near (guint n_pages,
 
   ctx.result = NULL;
   ctx.size = (1 + n_pages) * page_size;
-  ctx.posix_page_prot = gum_page_protection_to_posix (page_prot);
+  ctx.posix_page_prot = _gum_page_protection_to_posix (page_prot);
   ctx.address_spec = address_spec;
 
   gum_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough, &ctx);
@@ -215,8 +190,8 @@ gum_emit_free_range (const GumRangeDetails * details,
   return carry_on;
 }
 
-static gint
-gum_page_protection_to_posix (GumPageProtection page_prot)
+gint
+_gum_page_protection_to_posix (GumPageProtection page_prot)
 {
   gint posix_page_prot = PROT_NONE;
 
