@@ -179,8 +179,11 @@
                     C = ensureClass(klassObj.$handle, className);
                 } else {
                     var handle = env.findClass(className.replace(/\./g, "/"));
-                    C = ensureClass(handle, className);
-                    env.deleteLocalRef(handle);
+                    try {
+                        C = ensureClass(handle, className);
+                    } finally {
+                        env.deleteLocalRef(handle);
+                    }
                 }
             }
             return new C(C.__handle__, null);
