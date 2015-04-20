@@ -6,6 +6,7 @@
 
 #include "guminterceptor-priv.h"
 
+#include "gumarmreader.h"
 #include "gumarmrelocator.h"
 #include "gumarmwriter.h"
 #include "gummemory.h"
@@ -462,7 +463,17 @@ gum_function_context_clear_cache (FunctionContext * ctx)
 gpointer
 _gum_interceptor_resolve_redirect (gpointer address)
 {
-  return NULL;
+  gpointer target;
+
+  /* We don't handle thumb for the moment */
+  if ((GPOINTER_TO_SIZE (address) & 1) == 1)
+    return NULL;
+
+  target = gum_arm_reader_try_get_relative_jump_target (address);
+  if (target == NULL)
+    target = gum_arm_reader_try_get_indirect_jump_target (address);
+
+  return target;
 }
 
 gboolean
