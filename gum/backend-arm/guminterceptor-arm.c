@@ -465,7 +465,13 @@ _gum_interceptor_resolve_redirect (gpointer address)
 {
   gpointer target;
 
+  /* We don't handle thumb for the moment */
+  if ((GPOINTER_TO_SIZE (address) & 1) == 1)
+    return NULL;
+
   target = gum_arm_reader_try_get_relative_jump_target (address);
+  if (target == NULL)
+    target = gum_arm_reader_try_get_indirect_jump_target (address);
 
   return target;
 }
