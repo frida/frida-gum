@@ -106,8 +106,10 @@ static void gum_script_core_on_weak_ref_bind (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_unbind (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_clear_weak_ref_entry (gint id, GumWeakRef * ref);
 static GumWeakRef * gum_weak_ref_new (gint id, Handle<Value> target,
     Handle<Function> callback, GumScriptCore * core);
+static void gum_weak_ref_clear (GumWeakRef * ref);
 static void gum_weak_ref_free (GumWeakRef * ref);
 static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
     GumWeakRef> & data);
@@ -476,6 +478,8 @@ _gum_script_core_flush (GumScriptCore * self)
 
   self->isolate->Enter ();
 
+  g_hash_table_foreach (self->weak_refs,
+      (GHFunc) gum_script_core_clear_weak_ref_entry, NULL);
   g_hash_table_remove_all (self->weak_refs);
 }
 
@@ -617,6 +621,15 @@ gum_script_core_on_weak_ref_unbind (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (removed);
 }
 
+static void
+gum_script_core_clear_weak_ref_entry (gint id,
+                                      GumWeakRef * ref)
+{
+  (void) id;
+
+  gum_weak_ref_clear (ref);
+}
+
 static GumWeakRef *
 gum_weak_ref_new (gint id,
                   Handle<Value> target,
@@ -638,17 +651,27 @@ gum_weak_ref_new (gint id,
 }
 
 static void
+gum_weak_ref_clear (GumWeakRef * ref)
+{
+  if (ref->target != nullptr)
+  {
+    ref->target->ClearWeak ();
+    delete ref->target;
+    ref->target = nullptr;
+  }
+}
+
+static void
 gum_weak_ref_free (GumWeakRef * ref)
 {
+  gum_weak_ref_clear (ref);
+
   {
     ScriptScope scope (ref->core->script);
     Isolate * isolate = ref->core->isolate;
     Local<Function> callback (Local<Function>::New (isolate, *ref->callback));
     callback->Call (Null (isolate), 0, NULL);
   }
-
-  ref->target->ClearWeak ();
-  delete ref->target;
   delete ref->callback;
 
   g_slice_free (GumWeakRef, ref);
