@@ -19,6 +19,7 @@ GumScriptPlatform::GumScriptPlatform ()
   V8::Initialize ();
 
   isolate = Isolate::New ();
+  isolate->SetFatalErrorHandler (OnFatalError);
 
   InitRuntime ();
 }
@@ -34,6 +35,13 @@ GumScriptPlatform::InitRuntime ()
 
   user_runtime = gum_script_bundle_new (isolate, gum_script_runtime_sources);
   debug_runtime = gum_script_bundle_new (isolate, gum_script_debug_sources);
+}
+
+void
+GumScriptPlatform::OnFatalError (const char * location,
+                                 const char * message)
+{
+  g_log ("V8", G_LOG_LEVEL_ERROR, "%s: %s", location, message);
 }
 
 GumScriptPlatform::~GumScriptPlatform ()

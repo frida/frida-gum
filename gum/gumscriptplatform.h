@@ -31,6 +31,7 @@ public:
 
 private:
   void InitRuntime ();
+  static void OnFatalError (const char * location, const char * message);
 
   static void PerformTask (v8::Task * task);
   static void DisposeTask (v8::Task * task);
