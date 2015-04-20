@@ -152,10 +152,12 @@ gum_try_mprotect (gpointer address,
     }
 
     address_mmaped = mmap (aligned_address, aligned_size,
-        PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_FIXED, NOFD, 0);
+        PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, NOFD, 0);
     g_assert (address_mmaped == aligned_address);
 
     memcpy (aligned_address, buffer, aligned_size);
+
+    gum_clear_cache (aligned_address, aligned_size);
 
     result = mprotect (aligned_address, aligned_size, posix_page_prot);
 
