@@ -3,7 +3,7 @@
  */
 
 #ifndef __GUM_ARM_READER_H__
-#define __GUM_ARMX86_READER_H__
+#define __GUM_ARM_READER_H__
 
 #include "gumdefs.h"
 

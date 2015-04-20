@@ -47,7 +47,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
       op1->type == ARM_OP_REG && op1->reg == ARM_REG_PC &&
       op2->type == ARM_OP_IMM)
   {
-    result = address + 8 + op2->imm;
+    result = (gpointer) address + 8 + op2->imm;
   }
   else
     goto beach;
@@ -85,7 +85,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
       op0->type == ARM_OP_REG && op0->reg == ARM_REG_PC &&
       op1->type == ARM_OP_MEM && op1->mem.base == ARM_REG_R12)
   {
-    result = *(guint32*) (result + op1->mem.disp);
+    result = *((gpointer *) (result + op1->mem.disp));
   }
   else
   {
