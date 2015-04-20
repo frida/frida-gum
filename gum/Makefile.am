@@ -82,9 +82,11 @@ endif
 if ARCH_ARM
 archincludedir = $(includedir)/frida-1.0/gum/arch-arm
 archinclude_HEADERS = \
-	arch-arm/gumarmbacktracer.h
+	arch-arm/gumarmbacktracer.h \
+	arch-arm/gumarmreader.h
 arch_sources += \
-	arch-arm/gumarmbacktracer.c
+	arch-arm/gumarmbacktracer.c \
+	arch-arm/gumarmreader.c
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \
