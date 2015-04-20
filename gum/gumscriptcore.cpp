@@ -647,6 +647,7 @@ gum_weak_ref_free (GumWeakRef * ref)
     callback->Call (Null (isolate), 0, NULL);
   }
 
+  ref->target->ClearWeak ();
   delete ref->target;
   delete ref->callback;
 
