@@ -397,10 +397,18 @@ gum_interceptor_replace_function (GumInterceptor * self,
                                   gpointer replacement_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
+  gpointer next_hop;
 
   GUM_INTERCEPTOR_LOCK ();
 
-  function_address = maybe_follow_redirect_at (self, function_address);
+  while (TRUE)
+  {
+    next_hop = maybe_follow_redirect_at (self, function_address);
+    if (next_hop != function_address)
+      function_address = next_hop;
+    else
+      break;
+  }
 
   replace_function_at (self, function_address, replacement_function,
       replacement_function_data);
@@ -413,10 +421,18 @@ gum_interceptor_revert_function (GumInterceptor * self,
                                  gpointer function_address)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
+  gpointer next_hop;
 
   GUM_INTERCEPTOR_LOCK ();
 
-  function_address = maybe_follow_redirect_at (self, function_address);
+  while (TRUE)
+  {
+    next_hop = maybe_follow_redirect_at (self, function_address);
+    if (next_hop != function_address)
+      function_address = next_hop;
+    else
+      break;
+  }
 
   revert_function_at (self, function_address);
 
