@@ -6,6 +6,8 @@
         dispatcher = new MessageDispatcher();
     };
 
+    const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
+
     Object.defineProperty(engine, 'recv', {
         enumerable: true,
         value: function recv() {
@@ -64,6 +66,90 @@
             var result = Memory.alloc(size);
             Memory.copy(result, mem, size);
             return result;
+        }
+    });
+
+    Object.defineProperty(Memory, 'readShort', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readS16(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeShort', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeS16(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readUShort', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readU16(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeUShort', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeU16(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readInt', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readS32(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeInt', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeS32(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readUInt', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readU32(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeUInt', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeU32(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readLong', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory['readS' + longSize](mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeLong', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory['writeS' + longSize](mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readULong', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory['readU' + longSize](mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeULong', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory['writeU' + longSize](mem, value);
         }
     });
 

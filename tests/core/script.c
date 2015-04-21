@@ -53,6 +53,18 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (s64_can_be_written)
   SCRIPT_TESTENTRY (u64_can_be_read)
   SCRIPT_TESTENTRY (u64_can_be_written)
+  SCRIPT_TESTENTRY (short_can_be_read)
+  SCRIPT_TESTENTRY (short_can_be_written)
+  SCRIPT_TESTENTRY (ushort_can_be_read)
+  SCRIPT_TESTENTRY (ushort_can_be_written)
+  SCRIPT_TESTENTRY (int_can_be_read)
+  SCRIPT_TESTENTRY (int_can_be_written)
+  SCRIPT_TESTENTRY (uint_can_be_read)
+  SCRIPT_TESTENTRY (uint_can_be_written)
+  SCRIPT_TESTENTRY (long_can_be_read)
+  SCRIPT_TESTENTRY (long_can_be_written)
+  SCRIPT_TESTENTRY (ulong_can_be_read)
+  SCRIPT_TESTENTRY (ulong_can_be_written)
   SCRIPT_TESTENTRY (byte_array_can_be_read)
   SCRIPT_TESTENTRY (byte_array_can_be_written)
   SCRIPT_TESTENTRY (c_string_can_be_read)
@@ -1497,6 +1509,96 @@ SCRIPT_TESTCASE (u64_can_be_written)
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeU64(" GUM_PTR_CONST
       ", 1201239876783);", &val);
   g_assert_cmpint (val, ==, G_GUINT64_CONSTANT (1201239876783));
+}
+
+SCRIPT_TESTCASE (short_can_be_read)
+{
+  short val = -12123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readShort(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-12123");
+}
+
+SCRIPT_TESTCASE (short_can_be_written)
+{
+  short val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST ", -12123);",
+    &val);
+  g_assert_cmpint (val, ==, -12123);
+}
+
+SCRIPT_TESTCASE (ushort_can_be_read)
+{
+  unsigned short val = 12123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUShort(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("12123");
+}
+
+SCRIPT_TESTCASE (ushort_can_be_written)
+{
+  unsigned short val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST ", 12123);",
+    &val);
+  g_assert_cmpint (val, ==, 12123);
+}
+
+SCRIPT_TESTCASE (int_can_be_read)
+{
+  int val = -120123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readInt(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-120123");
+}
+
+SCRIPT_TESTCASE (int_can_be_written)
+{
+  int val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeInt(" GUM_PTR_CONST ", -120123);",
+    &val);
+  g_assert_cmpint (val, ==, -120123);
+}
+
+SCRIPT_TESTCASE (uint_can_be_read)
+{
+  unsigned int val = 120123;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUInt(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("120123");
+}
+
+SCRIPT_TESTCASE (uint_can_be_written)
+{
+  unsigned int val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUInt(" GUM_PTR_CONST ", 120123);",
+    &val);
+  g_assert_cmpint (val, ==, 120123);
+}
+
+SCRIPT_TESTCASE (long_can_be_read)
+{
+  long val = -2147483648;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readLong(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("-2147483648");
+}
+
+SCRIPT_TESTCASE (long_can_be_written)
+{
+  long val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeLong(" GUM_PTR_CONST ", 1350966097);",
+    &val);
+  g_assert_cmpint (val, ==, 1350966097);
+}
+
+SCRIPT_TESTCASE (ulong_can_be_read)
+{
+  unsigned long val = 4294967295;
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readULong(" GUM_PTR_CONST "));", &val);
+  EXPECT_SEND_MESSAGE_WITH ("4294967295");
+}
+
+SCRIPT_TESTCASE (ulong_can_be_written)
+{
+  unsigned long val = 0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeULong(" GUM_PTR_CONST ", 4294967295);",
+    &val);
+  g_assert_cmpint (val, ==, 4294967295);
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_read)
