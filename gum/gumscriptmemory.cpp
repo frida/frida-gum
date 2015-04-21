@@ -66,6 +66,7 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_S64,
   GUM_MEMORY_VALUE_U64,
   GUM_MEMORY_VALUE_BYTE_ARRAY,
+  GUM_MEMORY_VALUE_C_STRING,
   GUM_MEMORY_VALUE_UTF8_STRING,
   GUM_MEMORY_VALUE_UTF16_STRING,
   GUM_MEMORY_VALUE_ANSI_STRING
@@ -164,6 +165,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (U32)
 GUM_DEFINE_MEMORY_READ_WRITE (S64)
 GUM_DEFINE_MEMORY_READ_WRITE (U64)
 GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
+GUM_DEFINE_MEMORY_READ (C_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
@@ -197,8 +199,8 @@ _gum_script_memory_init (GumScriptMemory * self,
   GUM_EXPORT_MEMORY_READ_WRITE ("S64", S64);
   GUM_EXPORT_MEMORY_READ_WRITE ("U64", U64);
   GUM_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY);
+  GUM_EXPORT_MEMORY_READ ("CString", C_STRING);
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
-
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING);
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING);
 
@@ -550,6 +552,34 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
         GumByteArray * arr = _gum_byte_array_new (data_copy, size, self->core);
         result = Local<Object>::New (isolate, *arr->instance);
+        break;
+      }
+      case GUM_MEMORY_VALUE_C_STRING:
+      {
+        const char * data = static_cast<const char *> (address);
+        if (data == NULL)
+        {
+          result = Null (isolate);
+          break;
+        }
+
+        int64_t length = -1;
+        if (info.Length () > 1)
+          length = info[1]->IntegerValue();
+        if (length < 0)
+          length = strlen (data);
+
+        if (length != 0)
+        {
+          result = String::NewFromOneByte (isolate,
+              reinterpret_cast<const uint8_t *> (data), NewStringType::kNormal,
+              length).ToLocalChecked ();
+        }
+        else
+        {
+          result = String::Empty (isolate);
+        }
+
         break;
       }
       case GUM_MEMORY_VALUE_UTF8_STRING:

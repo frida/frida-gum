@@ -55,6 +55,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (u64_can_be_written)
   SCRIPT_TESTENTRY (byte_array_can_be_read)
   SCRIPT_TESTENTRY (byte_array_can_be_written)
+  SCRIPT_TESTENTRY (c_string_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_read)
   SCRIPT_TESTENTRY (utf8_string_can_be_written)
   SCRIPT_TESTENTRY (utf8_string_can_be_allocated)
@@ -1526,6 +1527,30 @@ SCRIPT_TESTCASE (byte_array_can_be_written)
   g_assert_cmpint (val[1], ==, 0x02);
   g_assert_cmpint (val[2], ==, 0x03);
   g_assert_cmpint (val[3], ==, 0xff);
+}
+
+SCRIPT_TESTCASE (c_string_can_be_read)
+{
+  const gchar * str = "Hello";
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST "));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 3));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Hel\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", 0));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST ", -1));",
+      str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(ptr(\"0\")));", str);
+  EXPECT_SEND_MESSAGE_WITH ("null");
 }
 
 SCRIPT_TESTCASE (utf8_string_can_be_read)
