@@ -11,12 +11,16 @@
 
 #include "gumarmwriter.h"
 
+#include <capstone/capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumArmRelocator GumArmRelocator;
 
 struct _GumArmRelocator
 {
+  csh capstone;
+
   const guint8 * input_start;
   const guint8 * input_cur;
   GumAddress input_pc;
