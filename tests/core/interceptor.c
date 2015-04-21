@@ -478,7 +478,7 @@ INTERCEPTOR_TESTCASE (replace_function)
 {
   gpointer (* malloc_impl) (gsize size);
   guint counter = 0;
-  gpointer ret;
+  volatile gpointer ret;
 
 #ifdef HAVE_LINUX
   /*
