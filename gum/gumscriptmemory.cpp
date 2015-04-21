@@ -84,9 +84,9 @@ struct _GumMemoryScanContext
 
 static void gum_script_memory_on_alloc (
     const FunctionCallbackInfo<Value> & info);
-#ifdef G_OS_WIN32
 static void gum_script_memory_on_alloc_ansi_string (
     const FunctionCallbackInfo<Value> & info);
+#ifdef G_OS_WIN32
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
 static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
@@ -166,10 +166,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (U64)
 GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
-
-#ifdef G_OS_WIN32
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
-#endif
 
 void
 _gum_script_memory_init (GumScriptMemory * self,
@@ -203,13 +200,11 @@ _gum_script_memory_init (GumScriptMemory * self,
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING);
-#ifdef G_OS_WIN32
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING);
 
   memory->Set (String::NewFromUtf8 (isolate, "allocAnsiString"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc_ansi_string,
           data));
-#endif
   memory->Set (String::NewFromUtf8 (isolate, "allocUtf8String"),
       FunctionTemplate::New (isolate, gum_script_memory_on_alloc_utf8_string,
           data));
@@ -303,22 +298,27 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
 }
 
-#ifdef G_OS_WIN32
-
 static void
 gum_script_memory_on_alloc_ansi_string (
     const FunctionCallbackInfo<Value> & info)
 {
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->core->isolate;
 
+#ifdef G_OS_WIN32
   String::Utf8Value str (info[0]);
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
   GumHeapBlock * block = _gum_heap_block_new (str_heap, strlen (str_heap),
       self->core);
-  info.GetReturnValue ().Set (
-      Local<Object>::New (self->core->isolate, *block->instance));
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
+#else
+  isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+      "ANSI API is only applicable on Windows")));
+#endif
 }
+
+#ifdef G_OS_WIN32
 
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi,
@@ -612,9 +612,9 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
         break;
       }
-#ifdef G_OS_WIN32
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
+#ifdef G_OS_WIN32
         const char * str_ansi = static_cast<const char *> (address);
         if (str_ansi == NULL)
         {
@@ -642,10 +642,13 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
         {
           result = String::Empty (isolate);
         }
+#else
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "ANSI API is only applicable on Windows")));
+#endif
 
         break;
       }
-#endif
       default:
         g_assert_not_reached ();
     }
@@ -655,7 +658,8 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
   if (!scope.exception_occurred)
   {
-    info.GetReturnValue ().Set (result);
+    if (!result.IsEmpty ())
+      info.GetReturnValue ().Set (result);
   }
   else
   {
@@ -807,9 +811,9 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         memcpy (static_cast<char *> (address), s, size);
         break;
       }
-#ifdef G_OS_WIN32
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
+#ifdef G_OS_WIN32
         gchar dummy_to_trap_bad_pointer_early = '\0';
         memcpy (address, &dummy_to_trap_bad_pointer_early, sizeof (gchar));
 
@@ -817,10 +821,13 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         gchar * str_ansi = gum_ansi_string_from_utf8 (*str);
         strcpy (static_cast<char *> (address), str_ansi);
         g_free (str_ansi);
+#else
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "ANSI API is only applicable on Windows")));
+#endif
 
         break;
       }
-#endif
       default:
         g_assert_not_reached ();
     }
