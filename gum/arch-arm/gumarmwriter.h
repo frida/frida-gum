@@ -43,6 +43,11 @@ void gum_arm_writer_flush (GumArmWriter * self);
 void gum_arm_writer_put_ldr_reg_address (GumArmWriter * self, GumArmReg reg, GumAddress address);
 void gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self, GumArmReg reg, guint32 val);
 
+void gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self, GumArmReg dst_reg,
+    GumArmReg src_reg, guint32 imm_val);
+void gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self, GumArmReg dst_reg,
+    GumArmReg src_reg, guint32 imm_val);
+
 void gum_arm_writer_put_nop (GumArmWriter * self);
 void gum_arm_writer_put_breakpoint (GumArmWriter * self);
 

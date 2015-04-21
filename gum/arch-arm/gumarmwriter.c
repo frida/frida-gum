@@ -157,6 +157,26 @@ gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
+                                    GumArmReg dst_reg,
+                                    GumArmReg src_reg,
+                                    guint32 imm_val)
+{
+  gum_arm_writer_put_instruction (self, 0xe2800000 | dst_reg << 12 |
+      src_reg << 16 | (imm_val & 0xfff));
+}
+
+void
+gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self,
+                                    GumArmReg dst_reg,
+                                    GumArmReg src_reg,
+                                    guint32 imm_val)
+{
+  gum_arm_writer_put_instruction (self, 0xe5900000 | dst_reg << 12 |
+      src_reg << 16 | (imm_val & 0xfff));
+}
+
+void
 gum_arm_writer_put_nop (GumArmWriter * self)
 {
   gum_arm_writer_put_instruction (self, 0xe1a00000);

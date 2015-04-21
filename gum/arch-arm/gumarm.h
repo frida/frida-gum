@@ -34,7 +34,8 @@ enum _GumArmMnemonic
   GUM_ARM_PUSH,
   GUM_ARM_POP,
   GUM_ARM_LDRPC,
-  GUM_ARM_MOV
+  GUM_ARM_MOV,
+  GUM_ARM_LDR
 };
 
 enum _GumArmReg
