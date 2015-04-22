@@ -334,7 +334,7 @@ gum_memory_access_monitor_handle_exception_if_ours (
 
     if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (details.address)))
     {
-      details.range = r;
+      details.range_index = i;
       details.page_index = ((guint8 *) details.address -
           (guint8 *) r->base_address) / priv->page_size;
       details.pages_completed = priv->pages_total -

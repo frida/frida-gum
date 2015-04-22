@@ -60,7 +60,7 @@ struct _GumMemoryAccessDetails
   gpointer from;
   gpointer address;
 
-  const GumMemoryRange * range;
+  guint range_index;
   guint page_index;
   guint pages_completed;
   guint pages_total;
