@@ -25,6 +25,8 @@ static gboolean gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm_relocator_rewrite_pc_relative_ldr (GumArmRelocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_pc_relative_add (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
 
 static gint gum_capstone_reg_to_arm_reg (gint cs_reg);
 
@@ -138,6 +140,11 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
           insn->mnemonic = GUM_ARM_MOV;
           break;
       }
+
+      if (ci->id == ARM_INS_ADD &&
+          ci->detail->arm.operands[1].type == ARM_OP_REG &&
+          ci->detail->arm.operands[1].imm == ARM_REG_PC)
+        insn->mnemonic = GUM_ARM_ADDPC;
       break;
     }
 
@@ -249,6 +256,8 @@ gum_arm_relocator_write_one (GumArmRelocator * self)
       rewritten = gum_arm_relocator_rewrite_pc_relative_ldr (self, &ctx);
       break;
 
+    case GUM_ARM_ADDPC:
+      rewritten = gum_arm_relocator_rewrite_pc_relative_add (self, &ctx);
     default:
       break;
   }
@@ -411,6 +420,33 @@ gum_arm_relocator_rewrite_pc_relative_ldr (GumArmRelocator * self,
       disp & 0xff);
   gum_arm_writer_put_ldr_reg_reg_imm (ctx->output, dest_reg, dest_reg, 0);
 
+  return TRUE;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_pc_relative_add (GumArmRelocator * self,
+                                           GumCodeGenCtx * ctx)
+{
+  cs_insn * ci = ctx->capstone_insn;
+  gint dest_reg, src_reg, val;
+
+  dest_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[0].reg);
+  src_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[2].reg);
+
+  val = ctx->insn->pc;
+
+  /* first let's add the value of 'PC' */
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+      val & 0xff);
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+      0xc00 | ((val >> 8) & 0xff));
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+      0x800 | ((val >> 16) & 0xff));
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+      0x400 | ((val >> 24) & 0xff));
+
+  /* now let's add the src_reg to that */
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, src_reg, 0);
   return TRUE;
 }
 
