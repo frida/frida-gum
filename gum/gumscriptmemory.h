@@ -7,6 +7,7 @@
 #ifndef __GUM_SCRIPT_MEMORY_H__
 #define __GUM_SCRIPT_MEMORY_H__
 
+#include "gummemoryaccessmonitor.h"
 #include "gumscriptcore.h"
 
 #include <v8.h>
@@ -17,7 +18,12 @@ struct _GumScriptMemory
 {
   GumScriptCore * core;
 
+  GumPersistent<v8::String>::type * base_key;
   GumPersistent<v8::String>::type * length_key;
+  GumPersistent<v8::String>::type * size_key;
+
+  GumMemoryAccessMonitor * monitor;
+  GumPersistent<v8::Function>::type * on_access;
 };
 
 G_GNUC_INTERNAL void _gum_script_memory_init (GumScriptMemory * self,

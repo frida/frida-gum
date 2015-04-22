@@ -84,6 +84,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
+#ifdef G_OS_WIN32
+  SCRIPT_TESTENTRY (memory_access_can_be_monitored)
+#endif
   SCRIPT_TESTENTRY (frida_version_is_available)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
@@ -1316,6 +1319,47 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
+#ifdef G_OS_WIN32
+
+SCRIPT_TESTCASE (memory_access_can_be_monitored)
+{
+  volatile guint8 * a, * b;
+  guint page_size;
+
+  a = gum_alloc_n_pages (2, GUM_PAGE_RW);
+  b = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  page_size = gum_query_page_size ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "MemoryAccessMonitor.enable([{ base: " GUM_PTR_CONST ", size: %u },"
+        "{ base: " GUM_PTR_CONST ", size: %u }], {"
+        "onAccess: function (details) {"
+          "send([details.operation, !!details.from, details.address,"
+            "details.rangeIndex, details.pageIndex, details.pagesCompleted,"
+            "details.pagesTotal]);"
+        "}"
+      "});",
+      a + page_size, page_size, b, page_size);
+  EXPECT_NO_MESSAGES ();
+
+  a[0] = 1;
+  a[page_size - 1] = 2;
+  EXPECT_NO_MESSAGES ();
+
+  a[page_size] = 3;
+  EXPECT_SEND_MESSAGE_WITH ("[\"write\",true,\"0x%" G_GSIZE_MODIFIER "x\","
+      "0,0,1,2]", GPOINTER_TO_SIZE (a + page_size));
+
+  a[0] = b[page_size - 1];
+  EXPECT_SEND_MESSAGE_WITH ("[\"read\",true,\"0x%" G_GSIZE_MODIFIER "x\","
+      "1,0,2,2]", GPOINTER_TO_SIZE (b + page_size - 1));
+
+  gum_free_pages ((gpointer) b);
+  gum_free_pages ((gpointer) a);
+}
+
+#endif
+
 SCRIPT_TESTCASE (pointer_can_be_read)
 {
   gpointer val = GSIZE_TO_POINTER (0x1337000);
@@ -1573,9 +1617,9 @@ SCRIPT_TESTCASE (uint_can_be_written)
 
 SCRIPT_TESTCASE (long_can_be_read)
 {
-  long val = -2147483648;
+  long val = -123;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readLong(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("-2147483648");
+  EXPECT_SEND_MESSAGE_WITH ("-123");
 }
 
 SCRIPT_TESTCASE (long_can_be_written)

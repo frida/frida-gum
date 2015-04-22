@@ -112,6 +112,20 @@ static void gum_script_do_memory_scan (gpointer user_data);
 static gboolean gum_script_process_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 
+static void gum_script_memory_access_monitor_on_enable (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_memory_access_monitor_on_disable (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
+    const GumMemoryAccessDetails * details, gpointer user_data);
+
+static const gchar * gum_script_memory_operation_to_string (
+    GumMemoryOperation operation);
+static gboolean gum_script_memory_ranges_get (GumScriptMemory * self,
+    Handle<Value> value, GumMemoryRange ** ranges, guint * num_ranges);
+static gboolean gum_script_memory_range_get (GumScriptMemory * self,
+    Handle<Value> obj, GumMemoryRange * range);
+
 #ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
@@ -218,6 +232,15 @@ _gum_script_memory_init (GumScriptMemory * self,
           data));
   scope->Set (String::NewFromUtf8 (isolate, "Memory"), memory);
 
+  Handle<ObjectTemplate> monitor = ObjectTemplate::New ();
+  monitor->Set (String::NewFromUtf8 (isolate, "enable"),
+      FunctionTemplate::New (isolate,
+          gum_script_memory_access_monitor_on_enable, data));
+  monitor->Set (String::NewFromUtf8 (isolate, "disable"),
+      FunctionTemplate::New (isolate,
+          gum_script_memory_access_monitor_on_disable, data));
+  scope->Set (String::NewFromUtf8 (isolate, "MemoryAccessMonitor"), monitor);
+
   G_LOCK (gum_memaccess);
   if (gum_memaccess_refcount++ == 0)
   {
@@ -244,21 +267,42 @@ _gum_script_memory_realize (GumScriptMemory * self)
 {
   Isolate * isolate = self->core->isolate;
 
+  self->base_key = new GumPersistent<String>::type (isolate,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> ("base"),
+          NewStringType::kNormal,
+          -1).ToLocalChecked ());
   self->length_key = new GumPersistent<String>::type (isolate,
-      String::NewFromUtf8 (isolate, "length"));
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> ("length"),
+          NewStringType::kNormal,
+          -1).ToLocalChecked ());
+  self->size_key = new GumPersistent<String>::type (isolate,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> ("size"),
+          NewStringType::kNormal,
+          -1).ToLocalChecked ());
 }
 
 void
 _gum_script_memory_dispose (GumScriptMemory * self)
 {
+  delete self->size_key;
   delete self->length_key;
-  self->length_key = NULL;
+  delete self->base_key;
+  self->size_key = nullptr;
+  self->length_key = nullptr;
+  self->base_key = nullptr;
 }
 
 void
 _gum_script_memory_finalize (GumScriptMemory * self)
 {
-  (void) self;
+  if (self->monitor != NULL)
+  {
+    g_object_unref (self->monitor);
+    self->monitor = NULL;
+  }
 
 #ifdef G_OS_WIN32
   gum_win_exception_hook_remove (gum_script_memory_on_exception, self);
@@ -1133,4 +1177,238 @@ gum_script_process_scan_match (GumAddress address,
   }
 
   return proceed;
+}
+
+static void
+gum_script_memory_access_monitor_on_enable (
+    const FunctionCallbackInfo<Value> & info)
+{
+#ifdef G_OS_WIN32
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (
+      info.Data ().As<External> ()->Value ());
+  GumScriptCore * core = self->core;
+  Isolate * isolate = info.GetIsolate ();
+
+  GumMemoryRange * ranges;
+  guint num_ranges;
+  if (!gum_script_memory_ranges_get (self, info[0], &ranges, &num_ranges))
+    return;
+
+  Local<Value> callbacks_value = info[1];
+  if (!callbacks_value->IsObject ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "MemoryAccessMonitor.enable: second argument must be a callback "
+        "object")));
+    return;
+  }
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  Local<Function> on_access;
+  if (!_gum_script_callbacks_get (callbacks, "onAccess", &on_access, core))
+  {
+    g_free (ranges);
+    return;
+  }
+
+  if (self->monitor != NULL)
+  {
+    gum_memory_access_monitor_disable (self->monitor);
+    g_object_unref (self->monitor);
+    self->monitor = NULL;
+  }
+  self->monitor = gum_memory_access_monitor_new (ranges, num_ranges,
+      gum_script_handle_memory_access, self, NULL);
+
+  g_free (ranges);
+
+  delete self->on_access;
+  self->on_access = new GumPersistent<Function>::type (isolate, on_access);
+
+  GError * error = NULL;
+  if (!gum_memory_access_monitor_enable (self->monitor, &error))
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        error->message)));
+    g_error_free (error);
+
+    delete self->on_access;
+    self->on_access = nullptr;
+
+    g_object_unref (self->monitor);
+    self->monitor = NULL;
+  }
+#else
+  Isolate * isolate = info.GetIsolate ();
+
+  isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+      "MemoryAccessMonitor is only available on Windows for now")));
+#endif
+}
+
+static void
+gum_script_memory_access_monitor_on_disable (
+    const FunctionCallbackInfo<Value> & info)
+{
+#ifdef G_OS_WIN32
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (
+      info.Data ().As<External> ()->Value ());
+
+  if (self->monitor != NULL)
+  {
+    gum_memory_access_monitor_disable (self->monitor);
+    g_object_unref (self->monitor);
+    self->monitor = NULL;
+  }
+
+  delete self->on_access;
+  self->on_access = nullptr;
+#else
+  Isolate * isolate = info.GetIsolate ();
+
+  isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+      "MemoryAccessMonitor is only available on Windows for now")));
+#endif
+}
+
+static void
+gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
+                                 const GumMemoryAccessDetails * details,
+                                 gpointer user_data)
+{
+  GumScriptMemory * self = static_cast<GumScriptMemory *> (user_data);
+  GumScriptCore * core = self->core;
+  Isolate * isolate = core->isolate;
+  Local<Context> context = isolate->GetCurrentContext ();
+  ScriptScope script_scope (core->script);
+
+  (void) monitor;
+
+  Local<Object> d (Object::New (isolate));
+  _gum_script_set_ascii (d, "operation",
+      gum_script_memory_operation_to_string (details->operation), core);
+  _gum_script_set_pointer (d, "from", details->from, core);
+  _gum_script_set_pointer (d, "address", details->address, core);
+
+  _gum_script_set_uint (d, "rangeIndex", details->range_index, core);
+  _gum_script_set_uint (d, "pageIndex", details->page_index, core);
+  _gum_script_set_uint (d, "pagesCompleted", details->pages_completed, core);
+  _gum_script_set_uint (d, "pagesTotal", details->pages_total, core);
+
+  Local<Function> on_access (Local<Function>::New (isolate, *self->on_access));
+  Handle<Value> argv[] = {
+    d
+  };
+  on_access->Call (context, Null (isolate), 1, argv);
+}
+
+static const gchar *
+gum_script_memory_operation_to_string (GumMemoryOperation operation)
+{
+  switch (operation)
+  {
+    case GUM_MEMOP_READ: return "read";
+    case GUM_MEMOP_WRITE: return "write";
+    case GUM_MEMOP_EXECUTE: return "execute";
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+static gboolean
+gum_script_memory_ranges_get (GumScriptMemory * self,
+                              Handle<Value> value,
+                              GumMemoryRange ** ranges,
+                              guint * num_ranges)
+{
+  Isolate * isolate = self->core->isolate;
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  if (!value->IsObject ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected a range object or an array of range objects")));
+    return FALSE;
+  }
+
+  Local<Object> obj = Handle<Object>::Cast (value);
+  Local<String> length_key (Local<String>::New (isolate, *self->length_key));
+  if (obj->Has (length_key))
+  {
+    uint32_t length =
+        obj->Get (context, length_key).ToLocalChecked ()->Uint32Value ();
+    if (length == 0 || length > 1024)
+    {
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+          "expected one or more range objects")));
+      return FALSE;
+    }
+
+    GumMemoryRange * result = g_new (GumMemoryRange, length);
+    for (uint32_t i = 0; i != length; i++)
+    {
+      Local<Value> range = obj->Get (context, i).ToLocalChecked ();
+      if (!gum_script_memory_range_get (self, range, &result[i]))
+      {
+        g_free (result);
+        return FALSE;
+      }
+    }
+    *ranges = result;
+    *num_ranges = length;
+    return TRUE;
+  }
+  else
+  {
+    GumMemoryRange * result = g_new (GumMemoryRange, 1);
+    if (gum_script_memory_range_get (self, obj, result))
+    {
+      *ranges = result;
+      *num_ranges = 1;
+      return TRUE;
+    }
+    else
+    {
+      g_free (result);
+      return FALSE;
+    }
+  }
+}
+
+static gboolean
+gum_script_memory_range_get (GumScriptMemory * self,
+                             Handle<Value> value,
+                             GumMemoryRange * range)
+{
+  GumScriptCore * core = self->core;
+  Isolate * isolate = self->core->isolate;
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  if (!value->IsObject ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected a range object")));
+    return FALSE;
+  }
+  Local<Object> obj = Handle<Object>::Cast (value);
+
+  Local<String> base_key (Local<String>::New (isolate, *self->base_key));
+  Local<Value> base_val = obj->Get (context, base_key).ToLocalChecked ();
+  gpointer base;
+  if (!_gum_script_pointer_get (base_val, &base, core))
+    return FALSE;
+
+  Local<String> size_key (Local<String>::New (isolate, *self->size_key));
+  Local<Value> size_val = obj->Get (context, size_key).ToLocalChecked ();
+  if (!size_val->IsNumber ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "memory range has invalid or missing size property")));
+    return FALSE;
+  }
+  Local<Number> size = Local<Number>::Cast (size_val);
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = size->Uint32Value ();
+
+  return TRUE;
 }
