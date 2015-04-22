@@ -25,7 +25,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
+#ifndef HAVE_QNX
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
+#endif
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
 #ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
