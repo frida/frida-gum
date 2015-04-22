@@ -392,17 +392,23 @@ gum_arm_relocator_rewrite_pc_relative_ldr (GumArmRelocator * self,
                                            GumCodeGenCtx * ctx)
 {
   cs_insn * ci = ctx->capstone_insn;
-  gint dest_reg, base_reg;
+  gint dest_reg, base_reg, disp;
 
   dest_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[0].reg);
   base_reg = ci->detail->arm.operands[1].mem.base;
+  disp = ci->detail->arm.operands[1].mem.disp;
 
   if (base_reg != ARM_REG_PC)
     return FALSE;
 
   gum_arm_writer_put_ldr_reg_address (ctx->output, dest_reg, ctx->insn->pc);
+  if (disp > 0xff)
+  {
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+        0xc00 | ((disp >> 8) & 0xff));
+  }
   gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
-      ci->detail->arm.operands[1].mem.disp);
+      disp & 0xff);
   gum_arm_writer_put_ldr_reg_reg_imm (ctx->output, dest_reg, dest_reg, 0);
 
   return TRUE;
