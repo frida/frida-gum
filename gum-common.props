@@ -71,7 +71,6 @@
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumlist.c" />
     <ClCompile Include="gum\gummemory.c" />
-    <ClCompile Include="gum\gummemoryaccessmonitor.c" />
     <ClCompile Include="gum\gummemorymap.c" />
     <ClCompile Include="gum\gummetalhash.c" />
     <ClCompile Include="gum\gumprintf.c" />
@@ -162,6 +161,7 @@ REM. &gt; "$(IntDir)gum\script-runtime.stamp"</Command>
   <ItemGroup>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c" />
+    <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c" />
     <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c" />
   </ItemGroup>
 

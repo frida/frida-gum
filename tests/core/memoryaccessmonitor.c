@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -91,19 +91,19 @@ MAMONITOR_TESTCASE (notify_should_include_progress)
 
   g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 0);
-  g_assert_cmpuint (d->pages_remaining, ==, 0);
+  g_assert_cmpuint (d->pages_total, ==, 0);
 
   ENABLE_MONITOR ();
 
   bytes[fixture->offset_in_second_page] = 0x37;
   g_assert_cmpuint (d->page_index, ==, 1);
   g_assert_cmpuint (d->pages_completed, ==, 1);
-  g_assert_cmpuint (d->pages_remaining, ==, 1);
+  g_assert_cmpuint (d->pages_total, ==, 2);
 
   bytes[fixture->offset_in_first_page] = 0x13;
   g_assert_cmpuint (d->page_index, ==, 0);
   g_assert_cmpuint (d->pages_completed, ==, 2);
-  g_assert_cmpuint (d->pages_remaining, ==, 0);
+  g_assert_cmpuint (d->pages_total, ==, 2);
 }
 
 MAMONITOR_TESTCASE (disable)

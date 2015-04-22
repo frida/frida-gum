@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -60,17 +60,20 @@ struct _GumMemoryAccessDetails
   gpointer from;
   gpointer address;
 
+  const GumMemoryRange * range;
   guint page_index;
   guint pages_completed;
-  guint pages_remaining;
+  guint pages_total;
 };
 
 GUM_API GType gum_memory_access_monitor_get_type (void) G_GNUC_CONST;
 
-GUM_API GumMemoryAccessMonitor * gum_memory_access_monitor_new (void);
+GUM_API GumMemoryAccessMonitor * gum_memory_access_monitor_new (
+    const GumMemoryRange * ranges, guint num_ranges, GumMemoryAccessNotify func,
+    gpointer data, GDestroyNotify data_destroy);
 
-GUM_API void gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
-    const GumMemoryRange * range, GumMemoryAccessNotify func, gpointer data);
+GUM_API gboolean gum_memory_access_monitor_enable (
+    GumMemoryAccessMonitor * self, GError ** error);
 GUM_API void gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self);
 
 G_END_DECLS

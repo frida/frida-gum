@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010, 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -43,14 +43,15 @@ test_memory_access_monitor_fixture_setup (TestMAMonitorFixture * fixture,
 
   fixture->number_of_notifies = 0;
 
-  fixture->monitor = gum_memory_access_monitor_new ();
+  fixture->monitor = NULL;
 }
 
 static void
 test_memory_access_monitor_fixture_teardown (TestMAMonitorFixture * fixture,
                                              gconstpointer data)
 {
-  g_object_unref (fixture->monitor);
+  if (fixture->monitor != NULL)
+    g_object_unref (fixture->monitor);
 
   gum_free_pages (GSIZE_TO_POINTER (fixture->range.base_address));
 }
@@ -67,8 +68,11 @@ memory_access_notify_cb (GumMemoryAccessMonitor * monitor,
 }
 
 #define ENABLE_MONITOR() \
-    gum_memory_access_monitor_enable (fixture->monitor, &fixture->range, \
-        memory_access_notify_cb, fixture); \
+    g_assert (fixture->monitor == NULL); \
+    fixture->monitor = gum_memory_access_monitor_new (&fixture->range, 1, \
+        memory_access_notify_cb, fixture, NULL); \
+    g_assert (fixture->monitor != NULL); \
+    g_assert (gum_memory_access_monitor_enable (fixture->monitor, NULL)); \
     g_assert_cmpuint (fixture->number_of_notifies, ==, 0)
 #define DISABLE_MONITOR() \
     gum_memory_access_monitor_disable (fixture->monitor)

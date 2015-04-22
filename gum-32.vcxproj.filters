@@ -162,9 +162,6 @@
     <ClCompile Include="gum\gummemory.c">
       <Filter>core</Filter>
     </ClCompile>
-    <ClCompile Include="gum\gummemoryaccessmonitor.c">
-      <Filter>core</Filter>
-    </ClCompile>
     <ClCompile Include="gum\gummemorymap.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -254,6 +251,9 @@
     </ClCompile>
     <ClCompile Include="gum\gumscripttask.c">
       <Filter>core</Filter>
+    </ClCompile>
+    <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c">
+      <Filter>core\backend-windows</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
