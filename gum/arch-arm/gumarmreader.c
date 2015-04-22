@@ -34,7 +34,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   cs_arm_op * op2;
   cs_arm_op * op3;
 
-  /* First instruction: add r12, pc, 0
+  /*
+   * First instruction: add r12, pc, 0
    */
   insn = disassemble_instruction_at (address);
   op0 = &insn->detail->arm.operands[0];
@@ -51,7 +52,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   else
     goto beach;
 
-  /* Second instruction: add r12, r12, 96, 20
+  /*
+   * Second instruction: add r12, r12, 96, 20
    */
   insn = disassemble_instruction_at (address + 4);
   op0 = &insn->detail->arm.operands[0];
@@ -65,7 +67,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
   {
     if (insn->detail->arm.op_count == 4)
     {
-      /* I couldn't really find the documentation of WHY this
+      /*
+       * I couldn't really find the documentation of WHY this
        * should be shifted by 12, but it seems to be how both
        * objdump and IDA decode.
        */
@@ -80,7 +83,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
     goto beach;
   }
 
-  /* Third instruction: ldr pc, [r12, x]
+  /*
+   * Third instruction: ldr pc, [r12, x]
    */
   insn = disassemble_instruction_at (address + 8);
   op0 = &insn->detail->arm.operands[0];

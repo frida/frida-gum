@@ -144,7 +144,9 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
       if (ci->id == ARM_INS_ADD &&
           ci->detail->arm.operands[1].type == ARM_OP_REG &&
           ci->detail->arm.operands[1].imm == ARM_REG_PC)
+      {
         insn->mnemonic = GUM_ARM_ADDPC;
+      }
       break;
     }
 
@@ -447,6 +449,7 @@ gum_arm_relocator_rewrite_pc_relative_add (GumArmRelocator * self,
 
   /* now let's add the src_reg to that */
   gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, src_reg, 0);
+
   return TRUE;
 }
 
