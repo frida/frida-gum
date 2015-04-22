@@ -109,7 +109,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (arm64writer);
   TEST_RUN_LIST (arm64relocator);
   TEST_RUN_LIST (interceptor);
-#if defined (HAVE_V8)
+#if defined (HAVE_V8) && !defined(HAVE_QNX)
   TEST_RUN_LIST (script);
 #endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
@@ -121,7 +121,9 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_MAC
   TEST_RUN_LIST (stalker_mac);
 #endif
+#ifndef HAVE_QNX
   TEST_RUN_LIST (backtracer);
+#endif
 
   /* Heap */
   TEST_RUN_LIST (allocation_tracker);
@@ -157,8 +159,10 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (profiler);
 #endif
 
+#ifndef HAVE_QNX
   /* GUM++ */
   TEST_RUN_LIST (gumpp_backtracer);
+#endif
 
 #ifdef _MSC_VER
 #pragma warning (pop)

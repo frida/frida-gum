@@ -17,8 +17,10 @@ TEST_LIST_BEGIN (boundschecker)
   BOUNDSCHECKER_TESTENTRY (protected_after_free)
   BOUNDSCHECKER_TESTENTRY (calloc_initializes_to_zero)
   BOUNDSCHECKER_TESTENTRY (custom_front_alignment)
+#ifndef HAVE_QNX
   BOUNDSCHECKER_TESTENTRY (output_report_on_access_beyond_end)
   BOUNDSCHECKER_TESTENTRY (output_report_on_access_after_free)
+#endif
 TEST_LIST_END ()
 
 BOUNDSCHECKER_TESTCASE (output_report_on_access_beyond_end)
