@@ -196,8 +196,10 @@ RELOCATOR_TESTCASE (pc_relative_ldr_should_be_rewritten)
       0xe59f3004,               /* ldr lr, [pc, #4]  */
       0xe2833028,               /* add r3, r3, #0x28 */
       0xe5933000,               /* ldr r3, [r3]      */
-    }, 3,
-    -1, -1,
+      0xffffffff                /* <calculated PC    */
+                                /*  goes here>       */
+    }, 4,
+    3, 0,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -213,8 +215,10 @@ RELOCATOR_TESTCASE (pc_relative_ldr_with_large_displacement_should_be_rewritten)
       0xe2833c03,               /* add r3, r3, <0x03 >>> 0xc*2> */
       0xe283308c,               /* add r3, r3, #0x8c */
       0xe5933000,               /* ldr r3, [r3]      */
-    }, 4,
-    -1, -1,
+      0xffffffff                /* <calculated PC    */
+                                /*  goes here>       */
+    }, 5,
+    4, 0,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -226,13 +230,12 @@ RELOCATOR_TESTCASE (pc_relative_add_should_be_rewritten)
     GUM_ARM_ADDPC,
     { 0xe08f3003 }, 1,          /* add r3, pc, r3   */
     {
-      0xe2833008,               /* add r3, r3, 0xXX */
-      0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
-      0xe2833800,               /* add r3, r3, <0xXX >>> 0xc*2> */
-      0xe2833400,               /* add r3, r3, <0xXX >>> 0xc*2> */
+      0xe59f3000,               /* ldr lr, [pc, #0] */
       0xe2833000,               /* add r3, r3, 0x00 */
-    }, 5,
-    -1, -1,
+      0xffffffff                /* <calculated PC   */
+                                /*  goes here>      */
+    }, 6,
+    2, 0,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
