@@ -374,16 +374,15 @@ gum_linux_enumerate_ranges (pid_t pid,
 
     range.size = end - range.base_address;
 
+    details.file = NULL;
     if (inode != 0)
     {
       file.path = strchr (line + length, '/');
-      *strchr (file.path, '\n') = '\0';
-
-      details.file = &file;
-    }
-    else
-    {
-      details.file = NULL;
+      if (file.path != NULL)
+      {
+        *strchr (file.path, '\n') = '\0';
+        details.file = &file;
+      }
     }
 
     details.range = &range;
