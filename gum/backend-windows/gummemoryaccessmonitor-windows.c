@@ -138,9 +138,9 @@ gum_memory_access_monitor_new (const GumMemoryRange * ranges,
     gsize aligned_start, aligned_end;
     guint num_pages;
 
-    aligned_start = r->base_address & ~(priv->page_size - 1);
+    aligned_start = r->base_address & ~((gsize) priv->page_size - 1);
     aligned_end = (r->base_address + r->size + priv->page_size - 1) &
-        ~(priv->page_size - 1);
+        ~((gsize) priv->page_size - 1);
     r->base_address = aligned_start;
     r->size = aligned_end - aligned_start;
 
