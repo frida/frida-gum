@@ -116,6 +116,7 @@ static void gum_script_memory_access_monitor_on_enable (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_memory_access_monitor_on_disable (
     const FunctionCallbackInfo<Value> & info);
+#ifdef G_OS_WIN32
 static void gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, gpointer user_data);
 
@@ -126,7 +127,6 @@ static gboolean gum_script_memory_ranges_get (GumScriptMemory * self,
 static gboolean gum_script_memory_range_get (GumScriptMemory * self,
     Handle<Value> obj, GumMemoryRange * range);
 
-#ifdef G_OS_WIN32
 static gboolean gum_script_memory_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
     gpointer user_data);
@@ -1270,6 +1270,8 @@ gum_script_memory_access_monitor_on_disable (
 #endif
 }
 
+#ifdef G_OS_WIN32
+
 static void
 gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
                                  const GumMemoryAccessDetails * details,
@@ -1298,7 +1300,9 @@ gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
   Handle<Value> argv[] = {
     d
   };
-  on_access->Call (context, Null (isolate), 1, argv);
+  MaybeLocal<Value> result =
+      on_access->Call (context, Null (isolate), 1, argv);
+  (void) result;
 }
 
 static const gchar *
@@ -1412,3 +1416,6 @@ gum_script_memory_range_get (GumScriptMemory * self,
 
   return TRUE;
 }
+
+#endif
+
