@@ -109,9 +109,6 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (arm64writer);
   TEST_RUN_LIST (arm64relocator);
   TEST_RUN_LIST (interceptor);
-#if defined (HAVE_V8) && !defined(HAVE_QNX)
-  TEST_RUN_LIST (script);
-#endif
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
 #endif
@@ -157,6 +154,10 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (sampler);
 #ifdef G_OS_WIN32
   TEST_RUN_LIST (profiler);
+#endif
+
+#if defined (HAVE_V8) && !defined(HAVE_QNX)
+  TEST_RUN_LIST (script);
 #endif
 
 #ifndef HAVE_QNX
