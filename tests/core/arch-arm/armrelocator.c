@@ -234,8 +234,7 @@ RELOCATOR_TESTCASE (pc_relative_add_should_be_rewritten)
       0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
       0xe2833800,               /* add r3, r3, <0xXX >>> 0xc*2> */
       0xe2833400,               /* add r3, r3, <0xXX >>> 0xc*2> */
-      0xe2833000,               /* add r3, r3, 0x00 */
-    }, 5,
+    }, 4,
     -1, -1,
     -1, -1
   };
