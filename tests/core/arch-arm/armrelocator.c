@@ -70,7 +70,7 @@ struct _BranchScenario
   gsize input_length;
   guint32 expected_output[10];
   gsize expected_output_length;
-  gsize pc_offset;
+  gssize pc_offset;
   gssize expected_pc_distance;
   gssize lr_offset;
   gssize expected_lr_distance;
@@ -230,12 +230,13 @@ RELOCATOR_TESTCASE (pc_relative_add_should_be_rewritten)
     GUM_ARM_ADDPC,
     { 0xe08f3003 }, 1,          /* add r3, pc, r3   */
     {
-      0xe59f3000,               /* ldr lr, [pc, #0] */
+      0xe2833008,               /* add r3, r3, 0xXX */
+      0xe2833c08,               /* add r3, r3, <0xXX >>> 0xc*2> */
+      0xe2833800,               /* add r3, r3, <0xXX >>> 0xc*2> */
+      0xe2833400,               /* add r3, r3, <0xXX >>> 0xc*2> */
       0xe2833000,               /* add r3, r3, 0x00 */
-      0xffffffff                /* <calculated PC   */
-                                /*  goes here>      */
-    }, 6,
-    2, 0,
+    }, 5,
+    -1, -1,
     -1, -1
   };
   branch_scenario_execute (&bs, fixture);
@@ -246,7 +247,6 @@ branch_scenario_execute (BranchScenario * bs,
                          TestArmRelocatorFixture * fixture)
 {
   gsize i;
-  guint32 calculated_pc;
   const GumArmInstruction * insn = NULL;
 
   for (i = 0; i != bs->input_length; i++)
@@ -256,9 +256,14 @@ branch_scenario_execute (BranchScenario * bs,
 
   SETUP_RELOCATOR_WITH (bs->input);
 
-  calculated_pc = fixture->rl.input_pc + 8 + bs->expected_pc_distance;
-  *((guint32 *) (bs->expected_output + bs->pc_offset)) =
-      GUINT32_TO_LE (calculated_pc);
+  if (bs->pc_offset != -1)
+  {
+    guint32 calculated_pc;
+
+    calculated_pc = fixture->rl.input_pc + 8 + bs->expected_pc_distance;
+    *((guint32 *) (bs->expected_output + bs->pc_offset)) =
+        GUINT32_TO_LE (calculated_pc);
+  }
 
   if (bs->lr_offset != -1)
   {
