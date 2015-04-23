@@ -111,6 +111,8 @@ BACKTRACER_TESTCASE (full_cycle)
       g_assert_cmpuint (rad.line_number, ==, expected_line_number);
 #else
     g_assert (first_address != NULL);
+    (void) expected_line_number;
+    (void) alternate_line_number;
 #endif
   }
 

@@ -79,11 +79,8 @@ gum_script_task_iface_init (GAsyncResultIface * iface)
 static void
 gum_script_task_init (GumScriptTask * self)
 {
-  GumScriptTaskPrivate * priv;
-
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_SCRIPT_TASK,
       GumScriptTaskPrivate);
-  priv = self->priv;
 }
 
 static void

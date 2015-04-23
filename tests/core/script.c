@@ -540,15 +540,11 @@ on_read_ready (GObject * source_object,
 
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
-  GMainContext * context;
-
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
-
-  context = g_main_context_get_thread_default ();
 
   COMPILE_AND_LOAD_SCRIPT (
     "var me = Process.getCurrentThreadId();"
@@ -895,10 +891,6 @@ SCRIPT_TESTCASE (thread_can_be_forced_to_sleep)
 
 SCRIPT_TESTCASE (timeout_can_be_scheduled)
 {
-  GMainContext * context;
-
-  context = g_main_context_get_thread_default ();
-
   COMPILE_AND_LOAD_SCRIPT (
       "setTimeout(function () {"
       "  send(1337);"
@@ -914,10 +906,6 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
 
 SCRIPT_TESTCASE (timeout_can_be_cancelled)
 {
-  GMainContext * context;
-
-  context = g_main_context_get_thread_default ();
-
   COMPILE_AND_LOAD_SCRIPT (
       "var timeout = setTimeout(function () {"
       "  send(1337);"
@@ -929,10 +917,6 @@ SCRIPT_TESTCASE (timeout_can_be_cancelled)
 
 SCRIPT_TESTCASE (interval_can_be_scheduled)
 {
-  GMainContext * context;
-
-  context = g_main_context_get_thread_default ();
-
   COMPILE_AND_LOAD_SCRIPT (
       "setInterval(function () {"
       "  send(1337);"
@@ -948,10 +932,6 @@ SCRIPT_TESTCASE (interval_can_be_scheduled)
 
 SCRIPT_TESTCASE (interval_can_be_cancelled)
 {
-  GMainContext * context;
-
-  context = g_main_context_get_thread_default ();
-
   COMPILE_AND_LOAD_SCRIPT (
       "var count = 1;"
       "var interval = setInterval(function () {"
