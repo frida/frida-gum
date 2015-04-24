@@ -50,11 +50,9 @@ arm64include_HEADERS = \
 
 libfrida_gum_1_0_la_SOURCES = $(NULL)
 libfrida_gum_1_0_la_LDFLAGS = \
-	-export-symbols-regex "^gum_.*" \
-	$(GUM_LDFLAGS)
+	-export-symbols-regex "^gum_.*"
 libfrida_gum_1_0_la_LIBADD = \
-	libfrida-gum.la \
-	$(GUM_LIBS)
+	libfrida-gum.la
 libfrida_gum_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
