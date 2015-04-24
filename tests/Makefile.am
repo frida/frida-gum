@@ -24,8 +24,7 @@ gum_tests_LDADD = \
 	$(top_builddir)/gum/libfrida-gum-1.0.la \
 	$(top_builddir)/bindings/gumpp/libfrida-gumpp-1.0.la \
 	$(GUM_TEST_LIBS) \
-	$(GUM_LIBS) \
-	$(GUM_EXTRA_LIBS)
+	$(GUM_LIBS)
 if OS_MAC
 gum_tests_LDFLAGS += \
 	-sectcreate __TEXT __info_plist "$(srcdir)/gum-tests.plist"

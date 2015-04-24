@@ -7,5 +7,5 @@ Name: GUM
 Description: GUM library
 Requires: glib-2.0 gobject-2.0 capstone
 Version: @VERSION@
-Libs: -L${libdir} -lfrida-gum-1.0 @GUM_EXTRA_LIBS@
+Libs: -L${libdir} -lfrida-gum-1.0 @GUM_LIBS@
 Cflags: -I${includedir}/frida-1.0
