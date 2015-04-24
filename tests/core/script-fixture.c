@@ -75,6 +75,7 @@ typedef struct _TestScriptMessageItem
   gchar * data;
 } TestScriptMessageItem;
 
+static void test_script_message_item_free (TestScriptMessageItem * item);
 static TestScriptMessageItem * test_script_fixture_try_pop_message (
     TestScriptFixture * fixture, guint timeout);
 static gboolean test_script_fixture_stop_loop (TestScriptFixture * fixture);
@@ -92,11 +93,23 @@ static void
 test_script_fixture_teardown (TestScriptFixture * fixture,
                               gconstpointer data)
 {
-  if (fixture->script != NULL)
-    g_object_unref (fixture->script);
+  TestScriptMessageItem * item;
 
-  EXPECT_NO_MESSAGES ();
+  if (fixture->script != NULL)
+  {
+    gum_script_unload_sync (fixture->script, NULL);
+    g_object_unref (fixture->script);
+  }
+
+  while (g_main_context_pending (fixture->context))
+    g_main_context_iteration (fixture->context, FALSE);
+
+  while ((item = test_script_fixture_try_pop_message (fixture, 1)) != NULL)
+  {
+    test_script_message_item_free (item);
+  }
   g_queue_free (fixture->messages);
+
   g_main_loop_unref (fixture->loop);
   g_main_context_unref (fixture->context);
 }
