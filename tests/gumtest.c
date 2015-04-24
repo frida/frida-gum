@@ -144,19 +144,23 @@ main (gint argc, gchar * argv[])
   else
 #endif
   {
+#ifndef HAVE_IOS
     TEST_RUN_LIST (boundschecker);
+#endif
   }
 #ifdef G_OS_WIN32
   TEST_RUN_LIST (sanitychecker);
 #endif
 
   /* Prof */
+#ifndef HAVE_IOS
   TEST_RUN_LIST (sampler);
+#endif
 #ifdef G_OS_WIN32
   TEST_RUN_LIST (profiler);
 #endif
 
-#if defined (HAVE_V8) && !defined(HAVE_QNX)
+#if defined (HAVE_V8) && !defined (HAVE_QNX)
   TEST_RUN_LIST (script);
 #endif
 
