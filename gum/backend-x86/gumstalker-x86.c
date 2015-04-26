@@ -1165,6 +1165,10 @@ gum_exec_ctx_obtain_block_for (GumExecCtx * ctx,
       case X86_INS_SYSENTER:
         requirements = gum_exec_block_virtualize_sysenter_insn (block, &gc);
         break;
+      case X86_INS_JECXZ:
+      case X86_INS_JRCXZ:
+        requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
+        break;
       default:
         if (gum_x86_reader_insn_is_jcc (insn.ci))
           requirements = gum_exec_block_virtualize_branch_insn (block, &gc);
@@ -1751,13 +1755,38 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
     gum_x86_relocator_skip_one_no_label (gc->relocator);
     gum_exec_block_write_call_invoke_code (block, &target, gc);
   }
-  else
+  else if (insn->ci->id == X86_INS_JECXZ || insn->ci->id == X86_INS_JRCXZ)
   {
-    gpointer cond_false_lbl_id;
+    gpointer is_true, is_false;
+    GumBranchTarget false_target = { 0, };
 
     gum_x86_relocator_skip_one_no_label (gc->relocator);
 
-    cond_false_lbl_id =
+    is_true =
+        GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->begin) << 16) | 0xbeef);
+    is_false =
+        GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->begin) << 16) | 0xbabe);
+
+    gum_exec_block_close_prolog (block, gc);
+
+    gum_x86_writer_put_jcc_short_label (cw, 0xe3, is_true, GUM_NO_HINT);
+    gum_x86_writer_put_jmp_near_label (cw, is_false);
+
+    gum_x86_writer_put_label (cw, is_true);
+    gum_exec_block_write_jmp_transfer_code (block, &target, gc);
+
+    gum_x86_writer_put_label (cw, is_false);
+    false_target.is_indirect = FALSE;
+    false_target.absolute_address = insn->end;
+    gum_exec_block_write_jmp_transfer_code (block, &false_target, gc);
+  }
+  else
+  {
+    gpointer is_false;
+
+    gum_x86_relocator_skip_one_no_label (gc->relocator);
+
+    is_false =
         GUINT_TO_POINTER ((GPOINTER_TO_UINT (insn->begin) << 16) | 0xbeef);
 
     if (is_conditional)
@@ -1773,7 +1802,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
 #endif
           gum_x86_reader_jcc_opcode_negate (
               gum_x86_reader_jcc_insn_to_short_opcode (insn->begin)),
-          cond_false_lbl_id, GUM_NO_HINT);
+          is_false, GUM_NO_HINT);
     }
 
     gum_exec_block_write_jmp_transfer_code (block, &target, gc);
@@ -1785,7 +1814,7 @@ gum_exec_block_virtualize_branch_insn (GumExecBlock * block,
       cond_target.is_indirect = FALSE;
       cond_target.absolute_address = insn->end;
 
-      gum_x86_writer_put_label (cw, cond_false_lbl_id);
+      gum_x86_writer_put_label (cw, is_false);
       gum_exec_block_write_jmp_transfer_code (block, &cond_target, gc);
     }
   }
