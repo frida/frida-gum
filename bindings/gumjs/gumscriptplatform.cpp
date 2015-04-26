@@ -11,10 +11,35 @@
 
 using namespace v8;
 
+class GumArrayBufferAllocator : public ArrayBuffer::Allocator
+{
+  virtual void *
+  Allocate (size_t length)
+  {
+    return g_malloc0 (length);
+  }
+
+  virtual void *
+  AllocateUninitialized (size_t length)
+  {
+    return g_malloc (length);
+  }
+
+  virtual void
+  Free (void * data, size_t length)
+  {
+    (void) length;
+
+    g_free (data);
+  }
+};
+
 GumScriptPlatform::GumScriptPlatform ()
   : scheduler (gum_script_scheduler_new ()),
-    start_time (g_get_monotonic_time ())
+    start_time (g_get_monotonic_time ()),
+    array_buffer_allocator (new GumArrayBufferAllocator ())
 {
+  V8::SetArrayBufferAllocator (array_buffer_allocator);
   V8::InitializePlatform (this);
   V8::Initialize ();
 
@@ -61,6 +86,8 @@ GumScriptPlatform::~GumScriptPlatform ()
   V8::ShutdownPlatform ();
 
   g_object_unref (scheduler);
+
+  delete array_buffer_allocator;
 }
 
 void

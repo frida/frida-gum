@@ -41,6 +41,7 @@ private:
   GumScriptBundle * debug_runtime;
   GumScriptScheduler * scheduler;
   const gint64 start_time;
+  v8::ArrayBuffer::Allocator * array_buffer_allocator;
 
   GumScriptPlatform (const GumScriptPlatform &);
   void operator= (const GumScriptPlatform &);

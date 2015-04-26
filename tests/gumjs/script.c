@@ -8,6 +8,7 @@
 
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
+  SCRIPT_TESTENTRY (array_buffer_can_be_created)
   SCRIPT_TESTENTRY (message_can_be_sent)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
@@ -794,6 +795,12 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
   g_assert (err != NULL);
   g_assert_cmpstr (err->message, ==,
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
+}
+
+SCRIPT_TESTCASE (array_buffer_can_be_created)
+{
+  COMPILE_AND_LOAD_SCRIPT ("new ArrayBuffer(16);");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (message_can_be_sent)
