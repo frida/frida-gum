@@ -34,7 +34,7 @@
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Script", test_script, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("GumJS/Script", test_script, NAME, \
         TestScriptFixture)
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
