@@ -144,7 +144,7 @@ main (gint argc, gchar * argv[])
   else
 #endif
   {
-#ifndef HAVE_IOS
+#ifdef G_OS_WIN32
     TEST_RUN_LIST (boundschecker);
 #endif
   }
@@ -165,7 +165,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (script);
 #endif
 
-#ifndef HAVE_QNX
+#ifdef G_OS_WIN32
   /* Gum++ */
   TEST_RUN_LIST (gumpp_backtracer);
 #endif
