@@ -18,10 +18,6 @@ libgum_tests_core_la_LIBTOOLFLAGS = \
 	--tag=CC
 endif
 
-if HAVE_V8
-script_sources += script.c
-endif
-
 libgum_tests_core_la_SOURCES = \
 	memory.c \
 	process.c \

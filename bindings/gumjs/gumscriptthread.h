@@ -9,8 +9,7 @@
 
 #include "gumscriptcore.h"
 
-#include "gumbacktracer.h"
-
+#include <gum/gumbacktracer.h>
 #include <v8.h>
 
 typedef struct _GumScriptThread GumScriptThread;

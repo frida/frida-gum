@@ -87,14 +87,14 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_GUMJS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -108,14 +108,14 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_GUMJS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -129,14 +129,14 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_GUMJS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>gum-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gum-32.lib;gumjs-32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -150,14 +150,14 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\stubs;..;..\gum;..\gum\arch-x86;..\gum\arch-arm;..\gum\arch-arm64;..\libs;..\libs\gum\heap;..\libs\gum\prof;..\bindings\gumjs;..\bindings\gumpp;$(IntDir)..\gum-64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_GUMJS=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <DisableSpecificWarnings>4100;4152;4210;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>gum-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gum-64.lib;gumjs-64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>copy /B /Y "$(ProjectDir)..\ext\dbghelp\dbghelp-32.dll" "$(TargetDir)dbghelp-32.dll"
@@ -261,6 +261,19 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="core\memoryaccessmonitor.c" />
+    <ClCompile Include="gumjs\script-debugserver.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="gumjs\script-fixture.c">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </ClCompile>
+    <ClCompile Include="gumjs\script.c" />
     <ClCompile Include="gumpp\backtracer.cxx">
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(IntDir)gumpp\</ObjectFileName>
       <ObjectFileName Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(IntDir)gumpp\</ObjectFileName>
@@ -325,13 +338,6 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="core\script-fixture.c">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="core\script.c" />
     <ClCompile Include="core\arch-x86\stalker-x86-fixture.c">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">true</ExcludedFromBuild>
@@ -363,6 +369,22 @@ copy /B /Y "$(SolutionDir)build\frida-windows\$(Platform)-$(ConfigurationName)\b
     <ClCompile Include="testutil.c" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\bindings\gumjs\gumjs-32.vcxproj">
+      <Project>{8381538f-3cb5-480b-bfa4-960299af6485}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+      <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
+    </ProjectReference>
+    <ProjectReference Include="..\bindings\gumjs\gumjs-64.vcxproj">
+      <Project>{0b39885e-731c-4a45-a7de-44cbdbbf0067}</Project>
+      <Private>false</Private>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <CopyLocalSatelliteAssemblies>false</CopyLocalSatelliteAssemblies>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+      <UseLibraryDependencyInputs>false</UseLibraryDependencyInputs>
+    </ProjectReference>
     <ProjectReference Include="..\bindings\gumpp\gumpp.vcxproj">
       <Project>{bb098fcf-d570-43ff-bb10-985189b2e1ab}</Project>
       <Private>false</Private>

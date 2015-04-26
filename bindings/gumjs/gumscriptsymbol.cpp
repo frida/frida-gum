@@ -6,7 +6,7 @@
 
 #include "gumscriptsymbol.h"
 
-#include "gumsymbolutil.h"
+#include <gum/gumsymbolutil.h>
 
 using namespace v8;
 

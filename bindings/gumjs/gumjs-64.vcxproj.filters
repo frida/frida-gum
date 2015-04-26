@@ -1,0 +1,78 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="gumscript.cpp" />
+    <ClCompile Include="gumscriptplatform.cpp" />
+    <ClCompile Include="gumscriptbundle.cpp" />
+    <ClCompile Include="gumscriptscheduler.c" />
+    <ClCompile Include="gumscripttask.c" />
+    <ClCompile Include="gumscriptcore.cpp" />
+    <ClCompile Include="gumscriptmemory.cpp" />
+    <ClCompile Include="gumscriptprocess.cpp" />
+    <ClCompile Include="gumscriptthread.cpp" />
+    <ClCompile Include="gumscriptmodule.cpp" />
+    <ClCompile Include="gumscriptfile.cpp" />
+    <ClCompile Include="gumscriptsocket.cpp" />
+    <ClCompile Include="gumscriptinterceptor.cpp" />
+    <ClCompile Include="gumscriptstalker.cpp" />
+    <ClCompile Include="gumscripteventsink.cpp" />
+    <ClCompile Include="gumscriptsymbol.cpp" />
+    <ClCompile Include="gumscriptinstruction.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="gumscript.h" />
+    <ClInclude Include="gumscriptplatform.h" />
+    <ClInclude Include="gumscriptbundle.h" />
+    <ClInclude Include="gumscriptscheduler.h" />
+    <ClInclude Include="gumscripttask.h" />
+    <ClInclude Include="gumscriptscope.h" />
+    <ClInclude Include="gumscriptcore.h" />
+    <ClInclude Include="gumscriptmemory.h" />
+    <ClInclude Include="gumscriptprocess.h" />
+    <ClInclude Include="gumscriptthread.h" />
+    <ClInclude Include="gumscriptmodule.h" />
+    <ClInclude Include="gumscriptfile.h" />
+    <ClInclude Include="gumscriptsocket.h" />
+    <ClInclude Include="gumscriptinterceptor.h" />
+    <ClInclude Include="gumscriptstalker.h" />
+    <ClInclude Include="gumscripteventsink.h" />
+    <ClInclude Include="gumscriptsymbol.h" />
+    <ClInclude Include="gumscriptinstruction.h" />
+    <ClInclude Include="$(IntDir)gumjs\gumscript-debug.h">
+      <Filter>runtime\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gumjs\gumscript-runtime.h">
+      <Filter>runtime\generated</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="vapi">
+      <UniqueIdentifier>{4ff23b15-17f8-410f-9acb-0f0c04b81c0d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="runtime">
+      <UniqueIdentifier>{f23cf517-9420-47e4-82ec-0e4c9e360f73}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="runtime\generated">
+      <UniqueIdentifier>{01d728bb-5e76-435e-bc5a-6b88946c51ea}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\vapi\frida-gumjs-1.0.vapi">
+      <Filter>vapi</Filter>
+    </None>
+    <None Include="gumscript-runtime-core.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="gumscript-runtime-dalvik.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="gumscript-runtime-objc.js">
+      <Filter>runtime</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="generate-runtime.py">
+      <Filter>runtime</Filter>
+    </CustomBuild>
+  </ItemGroup>
+</Project>

@@ -7,11 +7,10 @@
 #ifndef __GUM_SCRIPT_EVENT_SINK_H__
 #define __GUM_SCRIPT_EVENT_SINK_H__
 
-#include "gumeventsink.h"
 #include "gumscriptcore.h"
-#include "gumspinlock.h"
 
-#include <glib-object.h>
+#include <gum/gumeventsink.h>
+#include <gum/gumspinlock.h>
 #include <v8.h>
 
 #define GUM_TYPE_SCRIPT_EVENT_SINK (gum_script_event_sink_get_type ())

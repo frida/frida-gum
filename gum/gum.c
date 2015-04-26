@@ -64,7 +64,7 @@ do_init (gpointer data)
 
   gum_memory_init ();
 
-#if GLIB_CHECK_VERSION (2, 42, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
   gio_init ();
 #endif

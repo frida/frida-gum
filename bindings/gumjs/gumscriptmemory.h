@@ -7,9 +7,9 @@
 #ifndef __GUM_SCRIPT_MEMORY_H__
 #define __GUM_SCRIPT_MEMORY_H__
 
-#include "gummemoryaccessmonitor.h"
 #include "gumscriptcore.h"
 
+#include <gum/gummemoryaccessmonitor.h>
 #include <v8.h>
 
 typedef struct _GumScriptMemory GumScriptMemory;

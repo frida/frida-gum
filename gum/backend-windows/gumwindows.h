@@ -7,7 +7,7 @@
 #ifndef __GUM_WINDOWS_H__
 #define __GUM_WINDOWS_H__
 
-#include "gummemory.h"
+#include <gum/gummemory.h>
 
 #include <glib.h>
 #ifndef WIN32_LEAN_AND_MEAN

@@ -11,6 +11,11 @@ pcfiles = \
 	frida-gum-1.0.pc \
 	frida-gumpp-1.0.pc
 
+if ENABLE_GUMJS
+pcfiles += \
+	frida-gumjs-1.0.pc
+endif
+
 all-local: $(pcfiles)
 
 pkgconfigdir = $(libdir)/pkgconfig
@@ -25,7 +30,6 @@ DEBUG_PORT = 5042
 push: all
 	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-android-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-android-arm.so\""
 	adb push "$(top_builddir)/tests/.libs/gum-tests" "${RPFX}/tests/"
-	adb push "$(top_builddir)/bindings/gumpp/.libs/libfrida-gumpp-1.0.so" "${RPFX}/tests/"
 if ARCH_I386
 	adb push "$(top_srcdir)/tests/data/targetfunctions-android-ia32.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-android-ia32.so" "${RPFX}/tests/data/"
@@ -70,7 +74,6 @@ check: all
 	ssh "${RURL}" "mkdir -p \"${RPFX}/tests/data/\""
 	${RSYNC} \
 		"$(top_builddir)/tests/.libs/gum-tests" \
-		"$(top_builddir)/bindings/gumpp/.libs/libfrida-gumpp-1.0.0.dylib" \
 		"${RURL}:\"${RPFX}/tests/\""
 	${RSYNC} \
 		"$(top_srcdir)/tests/data/targetfunctions-ios-arm.dylib" \

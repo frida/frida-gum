@@ -43,6 +43,9 @@
     <Filter Include="Tests\core\arch-arm64">
       <UniqueIdentifier>{6378022e-45dd-4fb7-a3b4-6e107a63a6e4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tests\gumjs">
+      <UniqueIdentifier>{b7b8063e-3ff2-435c-886f-918f4958a6b1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="testutil.c">
@@ -69,9 +72,6 @@
     <ClCompile Include="core\symbolutil.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
-    <ClCompile Include="core\script.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
     <ClCompile Include="core\interceptor-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
@@ -79,9 +79,6 @@
       <Filter>Tests\core</Filter>
     </ClCompile>
     <ClCompile Include="core\interceptor-callbacklistener.c">
-      <Filter>Tests\core</Filter>
-    </ClCompile>
-    <ClCompile Include="core\script-fixture.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
     <ClCompile Include="core\arch-x86\codewriter-fixture.c">
@@ -218,6 +215,15 @@
     </ClCompile>
     <ClCompile Include="core\arch-arm64\arm64writer-fixture.c">
       <Filter>Tests\core\arch-arm64</Filter>
+    </ClCompile>
+    <ClCompile Include="gumjs\script.c">
+      <Filter>Tests\gumjs</Filter>
+    </ClCompile>
+    <ClCompile Include="gumjs\script-debugserver.c">
+      <Filter>Tests\gumjs</Filter>
+    </ClCompile>
+    <ClCompile Include="gumjs\script-fixture.c">
+      <Filter>Tests\gumjs</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

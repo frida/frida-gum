@@ -7,9 +7,9 @@
 #ifndef __GUM_SCRIPT_INTERCEPTOR_H__
 #define __GUM_SCRIPT_INTERCEPTOR_H__
 
-#include "guminterceptor.h"
 #include "gumscriptcore.h"
 
+#include <gum/guminterceptor.h>
 #include <v8.h>
 
 typedef struct _GumScriptInterceptor GumScriptInterceptor;

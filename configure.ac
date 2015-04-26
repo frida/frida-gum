@@ -111,34 +111,31 @@ AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
 AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
 
-GLIB_VERSION=2.24.1
+GLIB_VERSION=2.46.0
+CAPSTONE_VERSION=4.0
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
-    gio-2.0 >= $GLIB_VERSION, libffi >= 3.0.12, capstone"
+    gio-2.0 >= $GLIB_VERSION, capstone >= $CAPSTONE_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
-
-PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
-if [[ "x$HAVE_V8" = "xyes" ]]; then
-  AC_DEFINE(HAVE_V8, 1, [Define to 1 if v8 is available.])
-  GUM_CFLAGS="$GUM_CFLAGS $V8_CFLAGS"
-  GUM_LDFLAGS="$GUM_LDFLAGS $V8_LDFLAGS"
-  GUM_LIBS="$GUM_LIBS $V8_LIBS"
-fi
-AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 
 PKG_CHECK_MODULES(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])
 if [[ "x$HAVE_LIBUNWIND" = "xyes" ]]; then
   AC_DEFINE(HAVE_LIBUNWIND, 1, [Define to 1 if libunwind is available.])
-  GUM_LIBS="$GUM_LIBS $LIBUNWIND_LDFLAGS $LIBUNWIND_LIBS"
+  GUM_LDFLAGS="$GUM_LDFLAGS $LIBUNWIND_LDFLAGS"
+  GUM_LIBS="$GUM_LIBS $LIBUNWIND_LIBS"
+  LIBUNWIND_REQUIRES=libunwind
 fi
+AC_SUBST(LIBUNWIND_REQUIRES)
 AM_CONDITIONAL(HAVE_LIBUNWIND, [test "x$HAVE_LIBUNWIND" = "xyes"])
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   AC_CHECK_HEADER([bfd.h], AC_CHECK_LIB([bfd], [bfd_openr], HAVE_BFD=yes, HAVE_BFD=no, [-ldl -lz]), HAVE_BFD=no)
-  test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd -ldl -lz"
+  test "$HAVE_BFD" = "yes" && BFD_LIBS="-lbfd -ldl -lz"
 else
   AC_CHECK_HEADER(bfd.h, HAVE_BFD=yes, HAVE_BFD=no)
-  test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS -lbfd -lz"
+  test "$HAVE_BFD" = "yes" && BFD_LIBS="-lbfd -lz"
 fi
+test "$HAVE_BFD" = "yes" && GUM_LIBS="$GUM_LIBS $BFD_LIBS"
+AC_SUBST(BFD_LIBS)
 AM_CONDITIONAL(HAVE_BFD, test "$HAVE_BFD" = "yes")
 
 if [[ "x$HAVE_LINUX" = "xyes" -o "x$HAVE_QNX" = "xyes" ]]; then
@@ -154,6 +151,21 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
+LIBFFI_REQUIRES="libffi >= 3.1.1"
+PKG_CHECK_MODULES(V8, [v8], [HAVE_GUMJS=yes], [HAVE_GUMJS=no])
+if [[ "x$HAVE_GUMJS" = "xyes" ]]; then
+  AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if Gum.JS is available.])
+  PKG_CHECK_MODULES(LIBFFI, [$LIBFFI_REQUIRES])
+  GUMJS_CFLAGS="$GUM_CFLAGS $LIBFFI_CFLAGS $V8_CFLAGS"
+  GUMJS_LDFLAGS="$GUM_LDFLAGS $LIBFFI_LDFLAGS $V8_LDFLAGS"
+  GUMJS_LIBS="$GUM_LIBS $LIBFFI_LIBS $V8_LIBS"
+fi
+AM_CONDITIONAL(ENABLE_GUMJS, [test "x$HAVE_GUMJS" = "xyes"])
+AC_SUBST(GUMJS_CFLAGS)
+AC_SUBST(GUMJS_LDFLAGS)
+AC_SUBST(GUMJS_LIBS)
+AC_SUBST(LIBFFI_REQUIRES)
+
 GUM_TEST_LIBS=""
 if [[ "x$HAVE_MAC" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
@@ -162,6 +174,7 @@ AC_SUBST(GUM_TEST_LIBS)
 
 AC_CONFIG_FILES([
   frida-gum-1.0.pc
+  frida-gumjs-1.0.pc
   frida-gumpp-1.0.pc
   Makefile
   libs/Makefile
@@ -170,11 +183,13 @@ AC_CONFIG_FILES([
   libs/gum/prof/Makefile
   gum/Makefile
   bindings/Makefile
+  bindings/gumjs/Makefile
   bindings/gumpp/Makefile
   tests/Makefile
   tests/core/Makefile
   tests/heap/Makefile
   tests/prof/Makefile
+  tests/gumjs/Makefile
   tests/gumpp/Makefile
   vapi/Makefile
 ])

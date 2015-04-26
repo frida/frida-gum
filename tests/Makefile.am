@@ -4,6 +4,11 @@ SUBDIRS = \
 	prof \
 	gumpp
 
+if ENABLE_GUMJS
+SUBDIRS += \
+	gumjs
+endif
+
 if OS_ANDROID
 else
 if OS_IOS
@@ -15,14 +20,30 @@ endif
 noinst_PROGRAMS = gum-tests
 noinst_LTLIBRARIES = libgum-tests.la
 
+extra_testsuites =
+extra_ldflags =
+extra_libs =
+
+if ENABLE_GUMJS
+extra_testsuites += \
+	$(builddir)/gumjs/libgum-tests-gumjs.la
+extra_ldflags += \
+	$(GUMJS_LDFLAGS)
+extra_libs += \
+	$(top_builddir)/bindings/gumjs/libfrida-gumjs.la \
+	$(GUMJS_LIBS)
+endif
+
 gum_tests_SOURCES = \
 	dummy.cpp
 gum_tests_LDFLAGS = \
-	$(GUM_LDFLAGS)
+	$(GUM_LDFLAGS) \
+	$(extra_ldflags)
 gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
+	$(top_builddir)/bindings/gumpp/libfrida-gumpp-static-1.0.la \
+	$(extra_libs) \
 	$(top_builddir)/gum/libfrida-gum-1.0.la \
-	$(top_builddir)/bindings/gumpp/libfrida-gumpp-1.0.la \
 	$(GUM_TEST_LIBS) \
 	$(GUM_LIBS)
 if OS_MAC
@@ -46,7 +67,8 @@ libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(builddir)/heap/libgum-tests-heap.la \
 	$(builddir)/prof/libgum-tests-prof.la \
-	$(builddir)/gumpp/libgum-tests-gumpp.la
+	$(builddir)/gumpp/libgum-tests-gumpp.la \
+	$(extra_testsuites)
 
 AM_CPPFLAGS = \
 	-include config.h \

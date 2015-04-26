@@ -1170,9 +1170,10 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
       "        .length > 0);"
       "  },"
       "  onLeave: function (retval) {"
-#if !(defined (HAVE_IOS) && defined (HAVE_ARM64))
-      "    send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
-#endif
+      "    try {"
+      "      send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
+      "    } catch (e) {"
+      "    }"
       "  }"
       "});",
       target_function_int);

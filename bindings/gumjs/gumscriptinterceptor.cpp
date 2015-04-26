@@ -6,10 +6,10 @@
 
 #include "gumscriptinterceptor.h"
 
-#include "gum-init.h"
 #include "gumscriptscope.h"
-#include "gumtls.h"
 
+#include <gum/gum-init.h>
+#include <gum/gumtls.h>
 #include <errno.h>
 
 #ifdef G_OS_WIN32
