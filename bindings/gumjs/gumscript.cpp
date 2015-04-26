@@ -7,7 +7,6 @@
 
 #include "gumscript.h"
 
-#include "gum-init.h"
 #include "gumscriptcore.h"
 #include "gumscriptfile.h"
 #include "gumscriptinstruction.h"
@@ -23,6 +22,7 @@
 #include "gumscripttask.h"
 #include "gumscriptthread.h"
 
+#include <gum/gum-init.h>
 #include <string.h>
 #include <v8-debug.h>
 

@@ -18,6 +18,8 @@
 /autom4te.cache
 /bindings/Makefile
 /bindings/Makefile.in
+/bindings/gumjs/Makefile
+/bindings/gumjs/Makefile.in
 /bindings/gumpp/Makefile
 /bindings/gumpp/Makefile.in
 /build-aux
@@ -51,6 +53,8 @@
 /tests/core/Makefile
 /tests/core/Makefile.in
 /tests/gum-tests
+/tests/gumjs/Makefile
+/tests/gumjs/Makefile.in
 /tests/gumpp/Makefile
 /tests/gumpp/Makefile.in
 /tests/heap/Makefile

@@ -1,10 +1,11 @@
 prefix=@prefix@
 exec_prefix=${prefix}
-libdir=${exec_prefix}/lib
 includedir=${prefix}/include
+libdir=${exec_prefix}/lib
 
-Name: GUM++
-Description: GUM++ library
+Name: Gum++
+Description: Gum C++ bindings
 Version: @VERSION@
-Libs: -L${libdir} -lfrida-gumpp-1.0
+Requires.private: frida-gum-1.0
 Cflags: -I${includedir}/frida-1.0
+Libs: -L${libdir} -lfrida-gumpp-1.0

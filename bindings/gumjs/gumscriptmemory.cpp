@@ -7,12 +7,12 @@
 #include "gumscriptmemory.h"
 
 #include "gumscriptscope.h"
-#include "gumtls.h"
-#ifdef G_OS_WIN32
-# include "backend-windows/gumwinexceptionhook.h"
-#endif
 
 #include <gio/gio.h>
+#include <gum/gumtls.h>
+#ifdef G_OS_WIN32
+# include <gum/backend-windows/gumwinexceptionhook.h>
+#endif
 #include <setjmp.h>
 #include <stdlib.h>
 #include <string.h>

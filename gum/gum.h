@@ -19,7 +19,6 @@
 #include <gum/gummemoryaccessmonitor.h>
 #include <gum/gumprocess.h>
 #include <gum/gumreturnaddress.h>
-#include <gum/gumscript.h>
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
 

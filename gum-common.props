@@ -3,7 +3,7 @@
 
   <ItemDefinitionGroup>
     <ClCompile>
-      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;HAVE_V8=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GUM_STATIC;HAVE_I386=1;HAVE_WINDOWS=1;HAVE_ASSERT_H=1;HAVE_STRING_H=1;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>$(IntDir)gum;$(ProjectDir)gum\arch-x86;$(ProjectDir)gum;$(ProjectDir)libs;$(ProjectDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -32,26 +32,6 @@
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumprocess.h" />
     <ClInclude Include="gum\gumreturnaddress.h" />
-    <ClInclude Include="gum\gumscript.h" />
-    <ClInclude Include="gum\gumscriptplatform.h" />
-    <ClInclude Include="$(IntDir)gum\gumscript-runtime.h" />
-    <ClInclude Include="$(IntDir)gum\gumscript-debug.h" />
-    <ClInclude Include="gum\gumscriptbundle.h" />
-    <ClInclude Include="gum\gumscriptscheduler.h" />
-    <ClInclude Include="gum\gumscripttask.h" />
-    <ClInclude Include="gum\gumscriptscope.h" />
-    <ClInclude Include="gum\gumscriptcore.h" />
-    <ClInclude Include="gum\gumscriptmemory.h" />
-    <ClInclude Include="gum\gumscriptprocess.h" />
-    <ClInclude Include="gum\gumscriptthread.h" />
-    <ClInclude Include="gum\gumscriptmodule.h" />
-    <ClInclude Include="gum\gumscriptfile.h" />
-    <ClInclude Include="gum\gumscriptsocket.h" />
-    <ClInclude Include="gum\gumscriptinterceptor.h" />
-    <ClInclude Include="gum\gumscriptstalker.h" />
-    <ClInclude Include="gum\gumscripteventsink.h" />
-    <ClInclude Include="gum\gumscriptsymbol.h" />
-    <ClInclude Include="gum\gumscriptinstruction.h" />
     <ClInclude Include="gum\gumspinlock.h" />
     <ClInclude Include="gum\gumstalker.h" />
     <ClInclude Include="gum\gumsymbolutil.h" />
@@ -76,36 +56,6 @@
     <ClCompile Include="gum\gumprintf.c" />
     <ClCompile Include="gum\gumprocess.c" />
     <ClCompile Include="gum\gumreturnaddress.c" />
-    <ClCompile Include="gum\gumscript.cpp" />
-    <ClCompile Include="gum\gumscriptplatform.cpp" />
-    <ClCompile Include="gum\gumscriptbundle.cpp" />
-    <ClCompile Include="gum\gumscriptscheduler.c" />
-    <ClCompile Include="gum\gumscripttask.c" />
-    <ClCompile Include="gum\gumscriptcore.cpp" />
-    <ClCompile Include="gum\gumscriptmemory.cpp" />
-    <ClCompile Include="gum\gumscriptprocess.cpp" />
-    <ClCompile Include="gum\gumscriptthread.cpp" />
-    <ClCompile Include="gum\gumscriptmodule.cpp" />
-    <ClCompile Include="gum\gumscriptfile.cpp" />
-    <ClCompile Include="gum\gumscriptsocket.cpp" />
-    <ClCompile Include="gum\gumscriptinterceptor.cpp" />
-    <ClCompile Include="gum\gumscriptstalker.cpp" />
-    <ClCompile Include="gum\gumscripteventsink.cpp" />
-    <ClCompile Include="gum\gumscriptsymbol.cpp" />
-    <ClCompile Include="gum\gumscriptinstruction.cpp" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <CustomBuild Include="gum\generate-script-runtime.py">
-      <FileType>Document</FileType>
-      <Outputs>$(IntDir)gum\script-runtime.stamp;$(IntDir)gum\gumscript-runtime.h;$(IntDir)gum\gumscript-debug.h</Outputs>
-      <Message>Generating Script runtime</Message>
-      <Command>mkdir "$(IntDir)gum" 2&gt;NUL
-"gum\generate-script-runtime.py" "$(ProjectDir)gum" "$(IntDir)gum" || exit 1
-REM. &gt; "$(IntDir)gum\script-runtime.stamp"</Command>
-      <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>gum\gumscript-runtime-core.js;gum\gumscript-runtime-dalvik.js;gum\gumscript-runtime-objc.js;gum\gumscript-debug.js;%(AdditionalInputs)</AdditionalInputs>
-    </CustomBuild>
   </ItemGroup>
 
   <ItemGroup>
@@ -230,7 +180,7 @@ REM. &gt; "$(IntDir)gum\script-runtime.stamp"</Command>
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="vapi\gum-1.0.vapi" />
+    <None Include="vapi\frida-gum-1.0.vapi" />
   </ItemGroup>
 
 </Project>

@@ -50,9 +50,11 @@ arm64include_HEADERS = \
 
 libfrida_gum_1_0_la_SOURCES = $(NULL)
 libfrida_gum_1_0_la_LDFLAGS = \
-	-export-symbols-regex "^gum_.*"
+	-export-symbols-regex "^gum_.*" \
+	$(GUM_LDFLAGS)
 libfrida_gum_1_0_la_LIBADD = \
-	libfrida-gum.la
+	libfrida-gum.la \
+	$(GUM_LIBS)
 libfrida_gum_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
@@ -60,7 +62,6 @@ arch_sources = $(NULL)
 arch_includes = $(NULL)
 arch_libs = $(NULL)
 backend_sources = $(NULL)
-script_sources = $(NULL)
 
 if ARCH_I386
 archincludedir = $(includedir)/frida-1.0/gum/arch-x86
@@ -142,60 +143,6 @@ backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
 endif
 
-if HAVE_V8
-script_sources += \
-	gumscript.cpp \
-	gumscript-runtime.h \
-	gumscriptplatform.h \
-	gumscriptplatform.cpp \
-	gumscriptbundle.h \
-	gumscriptbundle.cpp \
-	gumscriptscheduler.h \
-	gumscriptscheduler.c \
-	gumscripttask.h \
-	gumscripttask.c \
-	gumscriptscope.h \
-	gumscriptcore.h \
-	gumscriptcore.cpp \
-	gumscriptmemory.h \
-	gumscriptmemory.cpp \
-	gumscriptprocess.h \
-	gumscriptprocess.cpp \
-	gumscriptthread.h \
-	gumscriptthread.cpp \
-	gumscriptmodule.h \
-	gumscriptmodule.cpp \
-	gumscriptfile.h \
-	gumscriptfile.cpp \
-	gumscriptsocket.h \
-	gumscriptsocket.cpp \
-	gumscriptinterceptor.h \
-	gumscriptinterceptor.cpp \
-	gumscriptstalker.h \
-	gumscriptstalker.cpp \
-	gumscripteventsink.h \
-	gumscripteventsink.cpp \
-	gumscriptsymbol.h \
-	gumscriptsymbol.cpp \
-	gumscriptinstruction.h \
-	gumscriptinstruction.cpp
-fridainclude_HEADERS += \
-	gumscript.h
-
-script_runtime_sources = \
-	gumscript-runtime-core.js \
-	gumscript-runtime-dalvik.js \
-	gumscript-runtime-objc.js \
-	gumscript-debug.js
-
-BUILT_SOURCES += script-runtime-stamp
-
-script-runtime-stamp: generate-script-runtime.py $(script_runtime_sources)
-	@mkdir -p "$(@D)"
-	python "$(srcdir)/generate-script-runtime.py" "$(srcdir)" "$(builddir)"
-	@touch $@
-endif
-
 container_sources = \
 	gumarray.c \
 	gumhash.c \
@@ -230,7 +177,6 @@ libfrida_gum_la_SOURCES = \
 	arch-arm64/gumarm64relocator.c \
 	$(arch_sources) \
 	$(container_sources) \
-	$(script_sources) \
 	$(backend_sources)
 libfrida_gum_la_LIBADD = \
 	$(top_builddir)/libs/gum/heap/libfrida-gum-heap-1.0.la \

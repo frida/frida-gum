@@ -76,7 +76,7 @@ main (gint argc, gchar * argv[])
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
   /* needed for the above and GUM's heap library */
   g_setenv ("G_SLICE", "always-malloc", TRUE);
-#if GLIB_CHECK_VERSION (2, 42, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
   gio_init ();
 #endif
@@ -160,12 +160,13 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (profiler);
 #endif
 
-#if defined (HAVE_V8) && !defined (HAVE_QNX)
+#if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
+  /* Gum.JS */
   TEST_RUN_LIST (script);
 #endif
 
 #ifndef HAVE_QNX
-  /* GUM++ */
+  /* Gum++ */
   TEST_RUN_LIST (gumpp_backtracer);
 #endif
 
@@ -197,7 +198,7 @@ main (gint argc, gchar * argv[])
 # endif
 
   gum_deinit ();
-# if GLIB_CHECK_VERSION (2, 42, 0)
+# if GLIB_CHECK_VERSION (2, 46, 0)
   gio_deinit ();
   glib_deinit ();
 # endif

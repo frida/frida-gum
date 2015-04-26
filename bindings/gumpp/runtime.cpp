@@ -13,7 +13,7 @@ namespace Gum
 #ifndef GUMPP_STATIC
   static void init ()
   {
-#if GLIB_CHECK_VERSION (2, 42, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
     glib_init ();
     gio_init ();
 #endif
@@ -23,7 +23,7 @@ namespace Gum
   static void deinit ()
   {
     gum_deinit ();
-#if GLIB_CHECK_VERSION (2, 42, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
     gio_deinit ();
     glib_deinit ();
 #endif
