@@ -29,6 +29,7 @@
 # include <unistd.h>
 #endif
 
+#define ANY_LINE_NUMBER -1
 #define SCRIPT_MESSAGE_TIMEOUT_MSEC 500
 
 #define SCRIPT_TESTCASE(NAME) \
@@ -283,18 +284,20 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
                                                const gchar * description)
 {
   TestScriptMessageItem * item;
-  gchar * expected_message;
+  gint actual_line_number;
+  gchar actual_description[512];
 
   item = test_script_fixture_pop_message (fixture);
-  expected_message = g_strdup_printf ("{"
+  sscanf (item->message, "{"
           "\"type\":\"error\","
           "\"lineNumber\":%d,"
-          "\"description\":\"%s\""
+          "\"description\":\"%[^\"]\""
       "}",
-      line_number, description);
-  g_assert_cmpstr (item->message, ==, expected_message);
+      &actual_line_number, actual_description);
+  if (line_number != ANY_LINE_NUMBER)
+    g_assert_cmpint (actual_line_number, ==, line_number);
+  g_assert_cmpstr (actual_description, ==, description);
   test_script_message_item_free (item);
-  g_free (expected_message);
 }
 
 static gint gum_toupper (gchar * str, gint limit);

@@ -154,13 +154,13 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> interceptor = ObjectTemplate::New (isolate);
-  interceptor->Set (String::NewFromUtf8 (isolate, "attach"),
+  interceptor->Set (String::NewFromUtf8 (isolate, "_attach"),
       FunctionTemplate::New (isolate, gum_script_interceptor_on_attach,
       data));
   interceptor->Set (String::NewFromUtf8 (isolate, "detachAll"),
       FunctionTemplate::New (isolate, gum_script_interceptor_on_detach_all,
       data));
-  interceptor->Set (String::NewFromUtf8 (isolate, "replace"),
+  interceptor->Set (String::NewFromUtf8 (isolate, "_replace"),
       FunctionTemplate::New (isolate, gum_script_interceptor_on_replace,
       data));
   interceptor->Set (String::NewFromUtf8 (isolate, "revert"),

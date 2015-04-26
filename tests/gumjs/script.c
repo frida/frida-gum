@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
+  SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
   SCRIPT_TESTENTRY (interceptor_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
@@ -150,6 +151,10 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation reading 0x1");
 }
 
 SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
@@ -1236,6 +1241,23 @@ SCRIPT_TESTCASE (function_can_be_reverted)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(ptr(\"0x1\"), {"
+      "  onEnter: function (args) {"
+      "  }"
+      "});");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation reading 0x1");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(ptr(\"0x1\"), new NativeCallback(function (arg) {"
+      "}, 'void', []));");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation reading 0x1");
 }
 
 SCRIPT_TESTCASE (interceptor_performance)

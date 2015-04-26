@@ -77,7 +77,7 @@ _gum_script_instruction_init (GumScriptInstruction * self,
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> instruction = ObjectTemplate::New (isolate);
-  instruction->Set (String::NewFromUtf8 (isolate, "parse"),
+  instruction->Set (String::NewFromUtf8 (isolate, "_parse"),
       FunctionTemplate::New (isolate, gum_script_instruction_on_parse, data));
   scope->Set (String::NewFromUtf8 (isolate, "Instruction"), instruction);
 }

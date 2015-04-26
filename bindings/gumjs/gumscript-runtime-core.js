@@ -153,6 +153,30 @@
         }
     });
 
+    Object.defineProperty(Interceptor, 'attach', {
+        enumerable: true,
+        value: function (target, callbacks) {
+            Memory.readU8(target);
+            return Interceptor._attach(target, callbacks);
+        }
+    });
+
+    Object.defineProperty(Interceptor, 'replace', {
+        enumerable: true,
+        value: function (target, replacement) {
+            Memory.readU8(target);
+            Interceptor._replace(target, replacement);
+        }
+    });
+
+    Object.defineProperty(Instruction, 'parse', {
+        enumerable: true,
+        value: function (target) {
+            Memory.readU8(target);
+            return Instruction._parse(target);
+        }
+    });
+
     var MessageDispatcher = function () {
         var messages = [];
         var operations = {};
