@@ -161,7 +161,7 @@ main (gint argc, gchar * argv[])
 #endif
 
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
-  /* Gum.JS */
+  /* GumJS */
   TEST_RUN_LIST (script);
 #endif
 

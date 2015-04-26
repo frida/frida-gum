@@ -3,7 +3,7 @@ exec_prefix=${prefix}
 includedir=${prefix}/include
 libdir=${exec_prefix}/lib
 
-Name: Gum.JS
+Name: GumJS
 Description: Gum JavaScript bindings
 Version: @VERSION@
 Requires: frida-gum-1.0
