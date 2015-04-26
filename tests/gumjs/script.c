@@ -124,6 +124,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_reloaded)
+  SCRIPT_TESTENTRY (types_handle_invalid_construction)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
@@ -1932,6 +1933,44 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_NO_MESSAGES ();
   gum_script_load_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+SCRIPT_TESTCASE (types_handle_invalid_construction)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+      "  NativePointer(\"0x1234\")"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativePointer()` to create a new "
+      "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+      "  NativeFunction(" GUM_PTR_CONST ", 'void', []);"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeFunction()` to create a new "
+      "instance\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+      "  NativeCallback(function () {}, 'void', []);"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeCallback()` to create a new "
+      "instance\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+      "  File(\"/foo\", \"r\");"
+      "} catch (e) {"
+      "  send(e.message);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"Use `new File()` to create a new instance\"");
 }
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)

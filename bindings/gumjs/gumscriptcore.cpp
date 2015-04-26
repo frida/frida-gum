@@ -939,7 +939,16 @@ static void
 gum_script_core_on_new_native_pointer (
     const FunctionCallbackInfo<Value> & info)
 {
+  Isolate * isolate = info.GetIsolate ();
   guint64 ptr;
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new NativePointer()` to create a new instance,"
+        " or use one of the two shorthands: `ptr()` and `NULL`")));
+    return;
+  }
 
   if (info.Length () == 0)
   {
@@ -947,10 +956,6 @@ gum_script_core_on_new_native_pointer (
   }
   else
   {
-    GumScriptCore * self = static_cast<GumScriptCore *> (
-        info.Data ().As<External> ()->Value ());
-    Isolate * isolate = self->isolate;
-
     String::Utf8Value ptr_as_utf8 (info[0]);
     const gchar * ptr_as_string = *ptr_as_utf8;
     gchar * endptr;
@@ -1100,6 +1105,13 @@ gum_script_core_on_new_native_function (
   gboolean is_variadic;
   ffi_abi abi;
   Local<Object> instance;
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new NativeFunction()` to create a new instance")));
+    return;
+  }
 
   func = g_slice_new0 (GumFFIFunction);
   func->core = self;
@@ -1280,6 +1292,13 @@ gum_script_core_on_new_native_callback (
   ffi_abi abi;
   gpointer func = NULL;
   Local<Object> instance;
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new NativeCallback()` to create a new instance")));
+    return;
+  }
 
   callback = g_slice_new0 (GumFFICallback);
   callback->core = self;

@@ -89,6 +89,13 @@ gum_script_file_on_new_file (const FunctionCallbackInfo<Value> & info)
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->core->isolate;
 
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new File()` to create a new instance")));
+    return;
+  }
+
   Local<Value> filename_val = info[0];
   if (!filename_val->IsString ())
   {
