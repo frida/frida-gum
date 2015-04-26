@@ -55,8 +55,6 @@ test_relocator_fixture_teardown (TestRelocatorFixture * fixture,
   gum_free_pages (fixture->output);
 }
 
-#if GLIB_SIZEOF_VOID_P == 8
-
 static void
 test_relocator_fixture_assert_output_equals (TestRelocatorFixture * fixture,
                                              const guint8 * expected_code,
@@ -98,8 +96,6 @@ test_relocator_fixture_assert_output_equals (TestRelocatorFixture * fixture,
   g_assert (same_length);
   g_assert (same_content);
 }
-
-#endif
 
 static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
 

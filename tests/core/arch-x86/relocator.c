@@ -17,16 +17,18 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
   RELOCATOR_TESTENTRY (jmp_register)
   RELOCATOR_TESTENTRY (jmp_indirect)
-  RELOCATOR_TESTENTRY (jcc_short_within_block);
-  RELOCATOR_TESTENTRY (jcc_short_outside_block);
-  RELOCATOR_TESTENTRY (jcc_near_outside_block);
-  RELOCATOR_TESTENTRY (jecxz)
-  RELOCATOR_TESTENTRY (peek_next_write);
-  RELOCATOR_TESTENTRY (skip_instruction);
+  RELOCATOR_TESTENTRY (jcc_short_within_block)
+  RELOCATOR_TESTENTRY (jcc_short_outside_block)
+  RELOCATOR_TESTENTRY (jcc_near_outside_block)
+  RELOCATOR_TESTENTRY (jcxz_short_within_block)
+  RELOCATOR_TESTENTRY (jcxz_short_outside_block)
+  RELOCATOR_TESTENTRY (peek_next_write)
+  RELOCATOR_TESTENTRY (skip_instruction)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_jmp)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
+  RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcxz)
 
 #if GLIB_SIZEOF_VOID_P == 8
   RELOCATOR_TESTENTRY (rip_relative_move_different_target)
@@ -363,16 +365,68 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
   g_assert_cmphex (fixture->output[6], ==, input[6]);
 }
 
-RELOCATOR_TESTCASE (jecxz)
+RELOCATOR_TESTCASE (jcxz_short_within_block)
 {
   guint8 input[] = {
-    0xe3, 0x4c
+    0xe3, 0x02,                         /* jecxz/jrcxz beach */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
+  };
+  const guint8 expected_output[] = {
+    0xe3, 0x04,                         /* jecxz/jrcxz beach */
+    0xff, 0xc0,                         /* inc eax           */
+    0xff, 0xc0,                         /* inc eax           */
+
+/* beach:                                                    */
+    0xc3                                /* retn              */
   };
 
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 4);
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 5);
+
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_relocator_write_one (&fixture->rl);
+  gum_x86_writer_put_inc_reg (&fixture->cw, GUM_REG_EAX);
+  gum_x86_relocator_write_one (&fixture->rl);
+
+  gum_x86_writer_flush (&fixture->cw);
+
+  assert_output_equals (expected_output);
+}
+
+RELOCATOR_TESTCASE (jcxz_short_outside_block)
+{
+  guint8 input[] = {
+    0xe3, 0xfd, /* jecxz/jrcxz -3      */
+    0xc3        /* retn                */
+  };
+  guint8 expected_output[] = {
+    0xe3, 0x02, /* jecxz/jrcxz is_true */
+    0xeb, 0x05, /* jmp is_false        */
+
+/* is_true:                            */
+    0xe9, 0xaa, 0xaa, 0xaa, 0xaa,
+
+/* is_false:                           */
+    0xc3        /* retn                */
+  };
+
+  *((gint32 *) (expected_output + 5)) = (input - 1) - (fixture->output + 9);
+
+  SETUP_RELOCATOR_WITH (input);
+
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_read_one (&fixture->rl, NULL);
+  gum_x86_relocator_write_all (&fixture->rl);
+
+  gum_x86_writer_flush (&fixture->cw);
+
+  assert_output_equals (expected_output);
 }
 
 RELOCATOR_TESTCASE (peek_next_write)
@@ -483,6 +537,23 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
   guint8 input[] = {
     0x74, 0x01, /* jz +1  */
     0xc3        /* ret    */
+  };
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+  g_assert (gum_x86_relocator_eob (&fixture->rl));
+  g_assert (!gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
+  g_assert (gum_x86_relocator_eoi (&fixture->rl));
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
+}
+
+RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcxz)
+{
+  guint8 input[] = {
+    0xe3, 0x01, /* jecxz/jrcxz +1 */
+    0xc3        /* ret            */
   };
 
   SETUP_RELOCATOR_WITH (input);
