@@ -26,6 +26,7 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
+  RELOCATOR_TESTENTRY (capstone)
 
 #if GLIB_SIZEOF_VOID_P == 8
   RELOCATOR_TESTENTRY (rip_relative_move_different_target)
@@ -480,6 +481,22 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
   g_assert (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
+}
+
+RELOCATOR_TESTCASE (capstone)
+{
+  guint8 input[] = {
+    0x0f, 0xb6, 0x4f, 0x01,
+    0xe3, 0x4c, 0xc1, 0xe0,
+    0x04, 0x01, 0xc8, 0x0f,
+    0xb6, 0x4f, 0x02, 0xe3
+  };
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  SETUP_RELOCATOR_WITH (input);
+
+  g_print ("read: %u\n", gum_x86_relocator_read_one (&fixture->rl, NULL));
+  g_print ("read: %u\n", gum_x86_relocator_read_one (&fixture->rl, NULL));
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
