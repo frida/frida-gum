@@ -158,7 +158,7 @@ test_stalker_fixture_follow_and_invoke (TestStalkerFixture * fixture,
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction_follow);
 
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction_call);
-  gum_x86_writer_put_mov_reg_u32 (&cw, GUM_REG_ECX, arg);
+  gum_x86_writer_put_mov_reg_address (&cw, GUM_REG_XCX, GUM_ADDRESS (arg));
   fixture->last_invoke_calladdr = (guint8 *) gum_x86_writer_cur (&cw);
   gum_x86_writer_put_call (&cw, func);
   fixture->last_invoke_retaddr = (guint8 *) gum_x86_writer_cur (&cw);
