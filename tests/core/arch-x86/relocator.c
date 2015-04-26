@@ -20,13 +20,13 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (jcc_short_within_block);
   RELOCATOR_TESTENTRY (jcc_short_outside_block);
   RELOCATOR_TESTENTRY (jcc_near_outside_block);
+  RELOCATOR_TESTENTRY (jecxz)
   RELOCATOR_TESTENTRY (peek_next_write);
   RELOCATOR_TESTENTRY (skip_instruction);
   RELOCATOR_TESTENTRY (eob_and_eoi_on_jmp)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_call)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
   RELOCATOR_TESTENTRY (eob_but_not_eoi_on_jcc)
-  RELOCATOR_TESTENTRY (capstone)
 
 #if GLIB_SIZEOF_VOID_P == 8
   RELOCATOR_TESTENTRY (rip_relative_move_different_target)
@@ -363,6 +363,18 @@ RELOCATOR_TESTCASE (jcc_near_outside_block)
   g_assert_cmphex (fixture->output[6], ==, input[6]);
 }
 
+RELOCATOR_TESTCASE (jecxz)
+{
+  guint8 input[] = {
+    0xe3, 0x4c
+  };
+
+  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 2);
+}
+
 RELOCATOR_TESTCASE (peek_next_write)
 {
   guint8 input[] = {
@@ -481,22 +493,6 @@ RELOCATOR_TESTCASE (eob_but_not_eoi_on_jcc)
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 3);
   g_assert (gum_x86_relocator_eoi (&fixture->rl));
   g_assert_cmpuint (gum_x86_relocator_read_one (&fixture->rl, NULL), ==, 0);
-}
-
-RELOCATOR_TESTCASE (capstone)
-{
-  guint8 input[] = {
-    0x0f, 0xb6, 0x4f, 0x01,
-    0xe3, 0x4c, 0xc1, 0xe0,
-    0x04, 0x01, 0xc8, 0x0f,
-    0xb6, 0x4f, 0x02, 0xe3
-  };
-
-  gum_x86_writer_set_target_cpu (&fixture->cw, GUM_CPU_IA32);
-  SETUP_RELOCATOR_WITH (input);
-
-  g_print ("read: %u\n", gum_x86_relocator_read_one (&fixture->rl, NULL));
-  g_print ("read: %u\n", gum_x86_relocator_read_one (&fixture->rl, NULL));
 }
 
 #if GLIB_SIZEOF_VOID_P == 8
