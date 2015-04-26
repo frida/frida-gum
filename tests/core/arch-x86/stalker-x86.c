@@ -601,7 +601,7 @@ STALKER_TESTCASE (short_conditional_jcxz_true)
 {
   invoke_short_jcxz (fixture, GUM_EXEC, 0);
 
-  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 4);
+  g_assert_cmpuint (fixture->sink->events->len, ==, INVOKER_INSN_COUNT + 3);
   GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
       ==, fixture->code + 0);
   GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
@@ -618,8 +618,10 @@ STALKER_TESTCASE (short_conditional_jcxz_false)
   GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 0),
       ==, fixture->code + 0);
   GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 1),
-      ==, fixture->code + 13);
+      ==, fixture->code + 2);
   GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 2),
+      ==, fixture->code + 13);
+  GUM_ASSERT_CMPADDR (NTH_EXEC_EVENT_LOCATION (INVOKER_IMPL_OFFSET + 3),
       ==, fixture->code + 18);
 }
 
