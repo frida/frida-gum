@@ -25,5 +25,4 @@ namespace Gum {
 		public static void unignore (Gum.ThreadId thread_id);
 		public static void is_ignoring (Gum.ThreadId thread_id);
 	}
-
 }

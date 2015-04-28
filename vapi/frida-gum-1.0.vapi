@@ -1,18 +1,7 @@
 [CCode (cheader_filename = "gum/gum.h")]
 namespace Gum {
 	public void init ();
-	public void init_with_features (Gum.FeatureFlags features);
 	public void deinit ();
-
-	[Flags]
-	[CCode (cprefix = "GUM_FEATURE_")]
-	public enum FeatureFlags {
-		SYMBOL_LOOKUP,
-
-		NONE,
-		ALL,
-		DEFAULT
-	}
 
 	[CCode (cprefix = "GUM_CALL_")]
 	public enum CallingConvention {
