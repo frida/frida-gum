@@ -115,6 +115,16 @@ _gum_script_process_finalize (GumScriptProcess * self)
   (void) self;
 }
 
+/*
+Prototype: 
+Process.isDebuggerAttached()
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_process_on_is_debugger_attached (
     const FunctionCallbackInfo<Value> & info)
@@ -123,6 +133,17 @@ gum_script_process_on_is_debugger_attached (
       gum_process_is_debugger_attached () ? true : false);
 }
 
+/*
+Prototype: 
+Process.getCurrentThreadId()
+
+Docs:
+Returns the current thread ID as an unsigned 32-bit integer.
+
+Example:
+-> Process.getCurrentThreadId()
+3075
+*/
 static void
 gum_script_process_on_get_current_thread_id (
     const FunctionCallbackInfo<Value> & info)
@@ -131,6 +152,16 @@ gum_script_process_on_get_current_thread_id (
       gum_process_get_current_thread_id ()));
 }
 
+/*
+Prototype: 
+Process.enumerateThreads(callback)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_process_on_enumerate_threads (
     const FunctionCallbackInfo<Value> & info)
@@ -220,6 +251,16 @@ gum_script_thread_state_to_string (GumThreadState state)
   g_assert_not_reached ();
 }
 
+/*
+Prototype: 
+Process.enumerateModules(callback)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_process_on_enumerate_modules (
     const FunctionCallbackInfo<Value> & info)
@@ -290,6 +331,16 @@ gum_script_process_handle_module_match (const GumModuleDetails * details,
   return proceed;
 }
 
+/*
+Prototype: 
+Process.enumerateRanges(prot, callback)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_process_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info)

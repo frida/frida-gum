@@ -77,6 +77,16 @@ _gum_script_socket_finalize (GumScriptSocket * self)
   (void) self;
 }
 
+/*
+Prototype: 
+Socket.type(socket_ptr)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
 {
@@ -148,6 +158,16 @@ gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
     info.GetReturnValue ().SetNull ();
 }
 
+/*
+Prototype: 
+Socket.localAddress(socket_ptr)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
 {
@@ -168,6 +188,16 @@ gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+Prototype: 
+Socket.peerAddress(socket_ptr)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
 {

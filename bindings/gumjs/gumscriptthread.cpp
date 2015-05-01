@@ -82,6 +82,16 @@ _gum_script_thread_finalize (GumScriptThread * self)
   self->accurate_enum_value = NULL;
 }
 
+/*
+Prototype: 
+TBW
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_thread_on_backtrace (const FunctionCallbackInfo<Value> & info)
 {
@@ -155,6 +165,16 @@ gum_script_thread_on_backtrace (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (result);
 }
 
+/*
+Prototype: 
+Thread.sleep(delay)
+
+Docs:
+TBW
+
+Example:
+TBW
+*/
 static void
 gum_script_thread_on_sleep (const FunctionCallbackInfo<Value> & info)
 {
