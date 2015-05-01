@@ -78,7 +78,7 @@ _gum_script_socket_finalize (GumScriptSocket * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Socket.type(socket_ptr)
  *
  * Docs:
@@ -159,7 +159,7 @@ gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Socket.localAddress(socket_ptr)
  *
  * Docs:
@@ -189,7 +189,7 @@ gum_script_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Socket.peerAddress(socket_ptr)
  *
  * Docs:

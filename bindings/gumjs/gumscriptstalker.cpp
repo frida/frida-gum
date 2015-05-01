@@ -241,7 +241,7 @@ gum_script_stalker_on_set_queue_drain_interval (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Stalker.garbageCollect()
  *
  * Docs:
@@ -260,7 +260,7 @@ gum_script_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * TBW
  *
  * Docs:
@@ -378,7 +378,7 @@ gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Stalker.unfollow(thread_id)
  *
  * Docs:
@@ -413,7 +413,7 @@ gum_script_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Stalker.addCallProbe(target_address, callback)
  *
  * Docs:
@@ -456,7 +456,7 @@ gum_script_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Stalker.removeCallProbe(id)
  *
  * Docs:

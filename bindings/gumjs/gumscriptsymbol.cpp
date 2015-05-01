@@ -123,7 +123,7 @@ _gum_script_symbol_finalize (GumScriptSymbol * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * DebugSymbol.fromAddress(address)
  *
  * Docs:
@@ -154,7 +154,7 @@ gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * DebugSymbol.fromName(name)
  *
  * Docs:
@@ -199,7 +199,7 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * DebugSymbol.getFunctionByName(name)
  *
  * Docs:
@@ -242,7 +242,7 @@ gum_script_symbol_on_get_function_by_name (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * DebugSymbol.findFunctionsNamed(name)
  *
  * Docs:
@@ -281,7 +281,7 @@ gum_script_symbol_on_find_functions_named (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * DebugSymbol.findFunctionsMatching(glob)
  *
  * Docs:

@@ -133,7 +133,7 @@ _gum_script_module_finalize (GumScriptModule * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Module.enumerateExports(name, callback)
  *
  * Docs:
@@ -245,7 +245,7 @@ gum_script_module_handle_export_match (const GumExportDetails * details,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Module.enumerateRanges(name, prot, callback)
  *
  * Docs:
@@ -344,7 +344,7 @@ gum_script_module_handle_range_match (const GumRangeDetails * details,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Module.findBaseAddress(module_name)
  *
  * Docs:
@@ -384,7 +384,7 @@ gum_script_module_on_find_base_address (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Module.findExportByName(module_name, symbol_name)
  *
  * Docs:

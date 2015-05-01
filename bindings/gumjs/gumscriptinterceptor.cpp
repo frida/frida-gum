@@ -317,7 +317,7 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * [PRIVATE] Interceptor._attach(target, callback)
  *
  * Docs:
@@ -374,7 +374,7 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Interceptor.detachAll()
  *
  * Docs:
@@ -409,7 +409,7 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * [PRIVATE] Interceptor._replace(target, replacement)
  *
  * Docs:
@@ -445,7 +445,7 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Interceptor.revert(target)
  *
  * Docs:

@@ -568,7 +568,7 @@ _gum_script_core_post_message (GumScriptCore * self,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * WeakRef.bind(target, callback_val)
  *
  * Docs:
@@ -610,7 +610,7 @@ gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * WeakRef.unbind(id_val)
  *
  * Docs:
@@ -785,7 +785,7 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * setTimeout(callback, delay)
  *
  * Docs:
@@ -802,7 +802,7 @@ gum_script_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * setInterval(callback, delay)
  *
  * Docs:
@@ -820,7 +820,7 @@ gum_script_core_on_set_interval (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * clearTimeout(id)/clearInterval(id)
  *
  * Docs:
@@ -914,7 +914,7 @@ gum_scheduled_callback_invoke (gpointer user_data)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * [PRIVATE] _send(message[, array=null])
  *
  * Docs:
@@ -957,7 +957,7 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * _setIncomingMessageCallback(callback)
  *
  * Docs:
@@ -992,7 +992,7 @@ gum_script_core_on_set_incoming_message_callback (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * [PRIVATE] _waitForEvent(argument1)
  *
  * Docs:
@@ -1073,7 +1073,7 @@ gum_script_core_on_new_native_pointer (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * NativePointer.isNull(pointer)
  *
  * Docs:
@@ -1125,7 +1125,7 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
 
 /*
- * Prototype: 
+ * Prototype:
  * NativePointer.toInt32(pointer)
  *
  * Docs:
@@ -1143,7 +1143,7 @@ gum_script_core_on_native_pointer_to_int32 (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * NativePointer.toString(pointer[, radix=16])
  *
  * Docs:
@@ -1189,7 +1189,7 @@ gum_script_core_on_native_pointer_to_string (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * NativePointer.toJSON(pointer)
  *
  * Docs:

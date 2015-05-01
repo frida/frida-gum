@@ -116,7 +116,7 @@ _gum_script_process_finalize (GumScriptProcess * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Process.isDebuggerAttached()
  *
  * Docs:
@@ -134,7 +134,7 @@ gum_script_process_on_is_debugger_attached (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Process.getCurrentThreadId()
  *
  * Docs:
@@ -153,7 +153,7 @@ gum_script_process_on_get_current_thread_id (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Process.enumerateThreads(callback)
  *
  * Docs:
@@ -252,7 +252,7 @@ gum_script_thread_state_to_string (GumThreadState state)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Process.enumerateModules(callback)
  *
  * Docs:
@@ -332,7 +332,7 @@ gum_script_process_handle_module_match (const GumModuleDetails * details,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Process.enumerateRanges(prot, callback)
  *
  * Docs:

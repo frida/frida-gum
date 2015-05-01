@@ -83,7 +83,7 @@ _gum_script_thread_finalize (GumScriptThread * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * TBW
  *
  * Docs:
@@ -166,7 +166,7 @@ gum_script_thread_on_backtrace (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Thread.sleep(delay)
  *
  * Docs:

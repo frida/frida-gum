@@ -325,7 +325,7 @@ _gum_script_memory_finalize (GumScriptMemory * self)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.alloc(size)
  *
  * Docs:
@@ -355,7 +355,7 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.allocAnsiString(string)
  *
  * Docs:
@@ -388,7 +388,7 @@ gum_script_memory_on_alloc_ansi_string (
 #ifdef G_OS_WIN32
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.allocUtf8String(string)
  *
  * Docs:
@@ -456,7 +456,7 @@ gum_script_memory_on_alloc_utf8_string (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.allocUtf16String(string)
  *
  * Docs:
@@ -488,7 +488,7 @@ gum_script_memory_on_alloc_utf16_string (
 #endif
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.copy(destination, source, size)
  *
  * Docs:
@@ -546,7 +546,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.protect(address, size, prot)
  *
  * Docs:
@@ -1087,7 +1087,7 @@ not_our_fault:
 #endif
 
 /*
- * Prototype: 
+ * Prototype:
  * Memory.scan(address, size, match_str, callback)
  *
  * Docs:
@@ -1253,7 +1253,7 @@ gum_script_process_scan_match (GumAddress address,
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * MemoryAccessMonitor.enable(num_ranges, callback)
  *
  * Docs:
@@ -1329,7 +1329,7 @@ gum_script_memory_access_monitor_on_enable (
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * MemoryAccessMonitor.disable()
  *
  * Docs:

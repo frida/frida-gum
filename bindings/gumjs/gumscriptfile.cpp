@@ -131,7 +131,7 @@ gum_script_file_on_new_file (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * File.write(data_val)
  *
  * Docs:
@@ -197,7 +197,7 @@ gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * File.flush()
  *
  * Docs:
@@ -225,7 +225,7 @@ gum_script_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
- * Prototype: 
+ * Prototype:
  * File.close()
  *
  * Docs:
