@@ -24,7 +24,7 @@ static void gum_script_symbol_on_from_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_from_name (
     const FunctionCallbackInfo<Value> & info);
-static void gum_script_symbol_on_find_function_by_name (
+static void gum_script_symbol_on_get_function_by_name (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_symbol_on_find_functions_named (
     const FunctionCallbackInfo<Value> & info);
@@ -68,9 +68,9 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
       FunctionTemplate::New (isolate, gum_script_symbol_on_from_name,
       data));
-  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionByName"),
+  symbol->Set (String::NewFromUtf8 (isolate, "getFunctionByName"),
       FunctionTemplate::New (isolate,
-      gum_script_symbol_on_find_function_by_name, data));
+      gum_script_symbol_on_get_function_by_name, data));
   symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsNamed"),
       FunctionTemplate::New (isolate,
       gum_script_symbol_on_find_functions_named, data));
@@ -200,7 +200,7 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 
 /*
  * Prototype: 
- * DebugSymbol.findFunctionByName(name)
+ * DebugSymbol.getFunctionByName(name)
  *
  * Docs:
  * TBW
@@ -209,7 +209,7 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
  * TBW
  */
 static void
-gum_script_symbol_on_find_function_by_name (
+gum_script_symbol_on_get_function_by_name (
     const FunctionCallbackInfo<Value> & info)
 {
   GumScriptSymbol * self = static_cast<GumScriptSymbol *> (
@@ -220,7 +220,7 @@ gum_script_symbol_on_find_function_by_name (
   if (!name_val->IsString ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.findFunctionByName: argument must be a string "
+        "DebugSymbol.getFunctionByName: argument must be a string "
         "specifying a name")));
     return;
   }
@@ -228,9 +228,17 @@ gum_script_symbol_on_find_function_by_name (
 
   gpointer address = gum_find_function (*name);
   if (address != NULL)
+  {
     info.GetReturnValue ().Set (_gum_script_pointer_new (address, self->core));
+  }
   else
-    info.GetReturnValue ().SetNull ();
+  {
+    gchar * message =
+        g_strdup_printf ("unable to find function with name '%s'", *name);
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        message)));
+    g_free (message);
+  }
 }
 
 /*

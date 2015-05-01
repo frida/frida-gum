@@ -183,13 +183,14 @@ SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
 SCRIPT_TESTCASE (function_can_be_found_by_name)
 {
   COMPILE_AND_LOAD_SCRIPT ("send("
-      "DebugSymbol.findFunctionByName(\"g_thread_new\") !== null"
+      "!DebugSymbol.getFunctionByName(\"g_thread_new\").isNull()"
   ");"
   "send("
-      "DebugSymbol.findFunctionByName(\"g_thread_!@#$\") === null"
+      "DebugSymbol.getFunctionByName(\"g_thread_!@#$\")"
   ");");
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: unable to find function with name 'g_thread_!@#$'");
   EXPECT_NO_MESSAGES ();
 }
 
