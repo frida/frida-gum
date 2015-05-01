@@ -316,6 +316,16 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
   delete persistent_receiver;
 }
 
+/*
+ * Prototype: 
+ * [PRIVATE] Interceptor._attach(target, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 {
@@ -363,6 +373,16 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (attach_ret == GUM_ATTACH_OK);
 }
 
+/*
+ * Prototype: 
+ * Interceptor.detachAll()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_interceptor_on_detach_all (const FunctionCallbackInfo<Value> & info)
 {
@@ -388,6 +408,16 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   }
 }
 
+/*
+ * Prototype: 
+ * [PRIVATE] Interceptor._replace(target, replacement)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */  
 static void
 gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 {
@@ -414,6 +444,16 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
   g_hash_table_insert (self->replacement_by_address, target, entry);
 }
 
+/*
+ * Prototype: 
+ * Interceptor.revert(target)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */  
 static void
 gum_script_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
 {

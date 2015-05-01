@@ -240,6 +240,16 @@ gum_script_stalker_on_set_queue_drain_interval (
   self->queue_drain_interval = value->IntegerValue ();
 }
 
+/*
+ * Prototype: 
+ * Stalker.garbageCollect()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
 {
@@ -249,6 +259,16 @@ gum_script_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
   gum_stalker_garbage_collect (_gum_script_stalker_get (self));
 }
 
+/*
+ * Prototype: 
+ * TBW
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
 {
@@ -357,6 +377,16 @@ gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+ * Prototype: 
+ * Stalker.unfollow(thread_id)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
 {
@@ -382,6 +412,16 @@ gum_script_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+ * Prototype: 
+ * Stalker.addCallProbe(target_address, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
 {
@@ -415,6 +455,16 @@ gum_script_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (id);
 }
 
+/*
+ * Prototype: 
+ * Stalker.removeCallProbe(id)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_stalker_on_remove_call_probe (
     const FunctionCallbackInfo<Value> & info)

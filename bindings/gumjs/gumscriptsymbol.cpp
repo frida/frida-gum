@@ -122,6 +122,16 @@ _gum_script_symbol_finalize (GumScriptSymbol * self)
   (void) self;
 }
 
+/*
+ * Prototype: 
+ * DebugSymbol.fromAddress(address)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
 {
@@ -143,6 +153,16 @@ gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (instance);
 }
 
+/*
+ * Prototype: 
+ * DebugSymbol.fromName(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 {
@@ -178,6 +198,16 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (instance);
 }
 
+/*
+ * Prototype: 
+ * DebugSymbol.findFunctionByName(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_function_by_name (
     const FunctionCallbackInfo<Value> & info)
@@ -203,6 +233,16 @@ gum_script_symbol_on_find_function_by_name (
     info.GetReturnValue ().SetNull ();
 }
 
+/*
+ * Prototype: 
+ * DebugSymbol.findFunctionsNamed(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_functions_named (
     const FunctionCallbackInfo<Value> & info)
@@ -232,6 +272,16 @@ gum_script_symbol_on_find_functions_named (
   g_array_free (functions, TRUE);
 }
 
+/*
+ * Prototype: 
+ * DebugSymbol.findFunctionsMatching(glob)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_functions_matching (
     const FunctionCallbackInfo<Value> & info)

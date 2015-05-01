@@ -130,6 +130,16 @@ gum_script_file_on_new_file (const FunctionCallbackInfo<Value> & info)
   instance->SetAlignedPointerInInternalField (0, file);
 }
 
+/*
+ * Prototype: 
+ * File.write(data_val)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
 {
@@ -186,6 +196,16 @@ gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+ * Prototype: 
+ * File.flush()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
 {
@@ -204,6 +224,16 @@ gum_script_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+ * Prototype: 
+ * File.close()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_file_on_file_close (const FunctionCallbackInfo<Value> & info)
 {

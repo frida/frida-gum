@@ -324,6 +324,16 @@ _gum_script_memory_finalize (GumScriptMemory * self)
   G_UNLOCK (gum_memaccess);
 }
 
+/*
+ * Prototype: 
+ * Memory.alloc(size)
+ *
+ * Docs:
+ * Allocate a chunk of memory
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
 {
@@ -344,6 +354,17 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
 }
 
+/*
+ * Prototype: 
+ * Memory.allocAnsiString(string)
+ *
+ * Docs:
+ * Windows only. Allocates an ANSI string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocAnsiString("Frida Rocks!")
+ * "0x1110c7da0"
+ */
 static void
 gum_script_memory_on_alloc_ansi_string (
     const FunctionCallbackInfo<Value> & info)
@@ -366,6 +387,17 @@ gum_script_memory_on_alloc_ansi_string (
 
 #ifdef G_OS_WIN32
 
+/*
+ * Prototype: 
+ * Memory.allocUtf8String(string)
+ *
+ * Docs:
+ * Allocates a UTF-8 string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocUtf8String("Frida Rocks!")
+ * "0x1110c7da0"
+ */
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi,
                          gint length)
@@ -423,6 +455,17 @@ gum_script_memory_on_alloc_utf8_string (
       Local<Object>::New (self->core->isolate, *block->instance));
 }
 
+/*
+ * Prototype: 
+ * Memory.allocUtf16String(string)
+ *
+ * Docs:
+ * Allocates a UTF-16 string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocUtf16String("Frida Rocks!")
+ * "0x11139d6f0"
+ */
 static void
 gum_script_memory_on_alloc_utf16_string (
     const FunctionCallbackInfo<Value> & info)
@@ -444,6 +487,16 @@ gum_script_memory_on_alloc_utf16_string (
 # pragma warning (disable: 4611)
 #endif
 
+/*
+ * Prototype: 
+ * Memory.copy(destination, source, size)
+ *
+ * Docs:
+ * Copies a specified number of bytes from one memory location to another
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 {
@@ -452,12 +505,12 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   Isolate * isolate = self->core->isolate;
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
 
-  gpointer to;
-  if (!_gum_script_pointer_get (info[0], &to, self->core))
+  gpointer destination;
+  if (!_gum_script_pointer_get (info[0], &destination, self->core))
     return;
 
-  gpointer from;
-  if (!_gum_script_pointer_get (info[1], &from, self->core))
+  gpointer source;
+  if (!_gum_script_pointer_get (info[1], &source, self->core))
     return;
 
   uint32_t size = info[2]->Uint32Value ();
@@ -476,7 +529,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 
   if (GUM_SETJMP (scope.env) == 0)
   {
-    memcpy (to, from, size);
+    memcpy (destination, source, size);
   }
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
@@ -492,6 +545,16 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+/*
+ * Prototype: 
+ * Memory.protect(address, size, prot)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_protect (const FunctionCallbackInfo<Value> & info)
 {
@@ -1023,6 +1086,16 @@ not_our_fault:
 
 #endif
 
+/*
+ * Prototype: 
+ * Memory.scan(address, size, match_str, callback)
+ *
+ * Docs:
+ * Scans a memory region for a specific string
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_scan (const FunctionCallbackInfo<Value> & info)
 {
@@ -1179,6 +1252,16 @@ gum_script_process_scan_match (GumAddress address,
   return proceed;
 }
 
+/*
+ * Prototype: 
+ * MemoryAccessMonitor.enable(num_ranges, callback)
+ *
+ * Docs:
+ * Windows only. TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_access_monitor_on_enable (
     const FunctionCallbackInfo<Value> & info)
@@ -1245,6 +1328,16 @@ gum_script_memory_access_monitor_on_enable (
 #endif
 }
 
+/*
+ * Prototype: 
+ * MemoryAccessMonitor.disable()
+ *
+ * Docs:
+ * Windows only. TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_access_monitor_on_disable (
     const FunctionCallbackInfo<Value> & info)
