@@ -505,12 +505,12 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   Isolate * isolate = self->core->isolate;
   GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
 
-  gpointer to;
-  if (!_gum_script_pointer_get (info[0], &to, self->core))
+  gpointer destination;
+  if (!_gum_script_pointer_get (info[0], &destination, self->core))
     return;
 
-  gpointer from;
-  if (!_gum_script_pointer_get (info[1], &from, self->core))
+  gpointer source;
+  if (!_gum_script_pointer_get (info[1], &source, self->core))
     return;
 
   uint32_t size = info[2]->Uint32Value ();
@@ -529,7 +529,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 
   if (GUM_SETJMP (scope.env) == 0)
   {
-    memcpy (to, from, size);
+    memcpy (destination, source, size);
   }
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
