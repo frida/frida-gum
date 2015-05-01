@@ -123,15 +123,15 @@ _gum_script_symbol_finalize (GumScriptSymbol * self)
 }
 
 /*
-Prototype: 
-DebugSymbol.fromAddress(address)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * DebugSymbol.fromAddress(address)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
 {
@@ -154,15 +154,15 @@ gum_script_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-DebugSymbol.fromName(name)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * DebugSymbol.fromName(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 {
@@ -199,15 +199,15 @@ gum_script_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-DebugSymbol.findFunctionByName(name)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * DebugSymbol.findFunctionByName(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_function_by_name (
     const FunctionCallbackInfo<Value> & info)
@@ -234,15 +234,15 @@ gum_script_symbol_on_find_function_by_name (
 }
 
 /*
-Prototype: 
-DebugSymbol.findFunctionsNamed(name)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * DebugSymbol.findFunctionsNamed(name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_functions_named (
     const FunctionCallbackInfo<Value> & info)
@@ -273,15 +273,15 @@ gum_script_symbol_on_find_functions_named (
 }
 
 /*
-Prototype: 
-DebugSymbol.findFunctionsMatching(glob)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * DebugSymbol.findFunctionsMatching(glob)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_symbol_on_find_functions_matching (
     const FunctionCallbackInfo<Value> & info)

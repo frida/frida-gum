@@ -325,15 +325,15 @@ _gum_script_memory_finalize (GumScriptMemory * self)
 }
 
 /*
-Prototype: 
-Memory.alloc(size)
-
-Docs:
-Allocate a chunk of memory
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Memory.alloc(size)
+ *
+ * Docs:
+ * Allocate a chunk of memory
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
 {
@@ -355,16 +355,16 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-Memory.allocAnsiString(string)
-
-Docs:
-Windows only. Allocates an ANSI string and returns a pointer.
-
-Example:
--> Memory.allocAnsiString("Frida Rocks!")
-"0x1110c7da0"
-*/
+ * Prototype: 
+ * Memory.allocAnsiString(string)
+ *
+ * Docs:
+ * Windows only. Allocates an ANSI string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocAnsiString("Frida Rocks!")
+ * "0x1110c7da0"
+ */
 static void
 gum_script_memory_on_alloc_ansi_string (
     const FunctionCallbackInfo<Value> & info)
@@ -388,16 +388,16 @@ gum_script_memory_on_alloc_ansi_string (
 #ifdef G_OS_WIN32
 
 /*
-Prototype: 
-Memory.allocUtf8String(string)
-
-Docs:
-Allocates a UTF-8 string and returns a pointer.
-
-Example:
--> Memory.allocUtf8String("Frida Rocks!")
-"0x1110c7da0"
-*/
+ * Prototype: 
+ * Memory.allocUtf8String(string)
+ *
+ * Docs:
+ * Allocates a UTF-8 string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocUtf8String("Frida Rocks!")
+ * "0x1110c7da0"
+ */
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi,
                          gint length)
@@ -456,16 +456,16 @@ gum_script_memory_on_alloc_utf8_string (
 }
 
 /*
-Prototype: 
-Memory.allocUtf16String(string)
-
-Docs:
-Allocates a UTF-16 string and returns a pointer.
-
-Example:
--> Memory.allocUtf16String("Frida Rocks!")
-"0x11139d6f0"
-*/
+ * Prototype: 
+ * Memory.allocUtf16String(string)
+ *
+ * Docs:
+ * Allocates a UTF-16 string and returns a pointer.
+ *
+ * Example:
+ * -> Memory.allocUtf16String("Frida Rocks!")
+ * "0x11139d6f0"
+ */
 static void
 gum_script_memory_on_alloc_utf16_string (
     const FunctionCallbackInfo<Value> & info)
@@ -488,15 +488,15 @@ gum_script_memory_on_alloc_utf16_string (
 #endif
 
 /*
-Prototype: 
-Memory.copy(destination, source, size)
-
-Docs:
-Copies a specified number of bytes from one memory location to another
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Memory.copy(destination, source, size)
+ *
+ * Docs:
+ * Copies a specified number of bytes from one memory location to another
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 {
@@ -546,15 +546,15 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-Memory.protect(address, size, prot)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Memory.protect(address, size, prot)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_protect (const FunctionCallbackInfo<Value> & info)
 {
@@ -1087,15 +1087,15 @@ not_our_fault:
 #endif
 
 /*
-Prototype: 
-Memory.scan(address, size, match_str, callback)
-
-Docs:
-Scans a memory region for a specific string
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Memory.scan(address, size, match_str, callback)
+ *
+ * Docs:
+ * Scans a memory region for a specific string
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_on_scan (const FunctionCallbackInfo<Value> & info)
 {
@@ -1253,15 +1253,15 @@ gum_script_process_scan_match (GumAddress address,
 }
 
 /*
-Prototype: 
-MemoryAccessMonitor.enable(num_ranges, callback)
-
-Docs:
-Windows only. TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * MemoryAccessMonitor.enable(num_ranges, callback)
+ *
+ * Docs:
+ * Windows only. TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_access_monitor_on_enable (
     const FunctionCallbackInfo<Value> & info)
@@ -1329,15 +1329,15 @@ gum_script_memory_access_monitor_on_enable (
 }
 
 /*
-Prototype: 
-MemoryAccessMonitor.disable()
-
-Docs:
-Windows only. TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * MemoryAccessMonitor.disable()
+ *
+ * Docs:
+ * Windows only. TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_memory_access_monitor_on_disable (
     const FunctionCallbackInfo<Value> & info)

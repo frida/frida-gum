@@ -133,15 +133,15 @@ _gum_script_module_finalize (GumScriptModule * self)
 }
 
 /*
-Prototype: 
-Module.enumerateExports(name, callback)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Module.enumerateExports(name, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_module_on_enumerate_exports (
     const FunctionCallbackInfo<Value> & info)
@@ -245,15 +245,15 @@ gum_script_module_handle_export_match (const GumExportDetails * details,
 }
 
 /*
-Prototype: 
-Module.enumerateRanges(name, prot, callback)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Module.enumerateRanges(name, prot, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_module_on_enumerate_ranges (const FunctionCallbackInfo<Value> & info)
 {
@@ -344,15 +344,15 @@ gum_script_module_handle_range_match (const GumRangeDetails * details,
 }
 
 /*
-Prototype: 
-Module.findBaseAddress(module_name)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Module.findBaseAddress(module_name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_module_on_find_base_address (
     const FunctionCallbackInfo<Value> & info)
@@ -384,15 +384,15 @@ gum_script_module_on_find_base_address (
 }
 
 /*
-Prototype: 
-Module.findExportByName(module_name, symbol_name)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Module.findExportByName(module_name, symbol_name)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_module_on_find_export_by_name (
     const FunctionCallbackInfo<Value> & info)

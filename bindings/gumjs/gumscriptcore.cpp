@@ -568,15 +568,15 @@ _gum_script_core_post_message (GumScriptCore * self,
 }
 
 /*
-Prototype: 
-WeakRef.bind(target, callback_val)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * WeakRef.bind(target, callback_val)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
 {
@@ -610,15 +610,15 @@ gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-WeakRef.unbind(id_val)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * WeakRef.unbind(id_val)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_weak_ref_unbind (const FunctionCallbackInfo<Value> & info)
 {
@@ -785,16 +785,16 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
 }
 
 /*
-Prototype: 
-setTimeout(callback, delay)
-
-Docs:
-Calls a function or executes a code snippet after a specified delay.
-
-Example:
-// Delay for 3 seconds, then log to console
--> setTimeout(function(){console.log("Fired!")}, 3000)
-*/
+ * Prototype: 
+ * setTimeout(callback, delay)
+ *
+ * Docs:
+ * Calls a function or executes a code snippet after a specified delay.
+ *
+ * Example:
+ * // Delay for 3 seconds, then log to console
+ * -> setTimeout(function(){console.log("Fired!")}, 3000)
+ */
 static void
 gum_script_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
 {
@@ -802,17 +802,17 @@ gum_script_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-setInterval(callback, delay)
-
-Docs:
-Calls a function or executes a code snippet repeatedly, with a fixed 
-time delay between each call to that function. Returns an intervalID.
-
-Example:
-// Every 3 seconds, log to console
--> setInterval(function(){console.log("Fired!")}, 3000)
-*/
+ * Prototype: 
+ * setInterval(callback, delay)
+ *
+ * Docs:
+ * Calls a function or executes a code snippet repeatedly, with a fixed 
+ * time delay between each call to that function. Returns an intervalID.
+ *
+ * Example:
+ * // Every 3 seconds, log to console
+ * -> setInterval(function(){console.log("Fired!")}, 3000)
+ */
 static void
 gum_script_core_on_set_interval (const FunctionCallbackInfo<Value> & info)
 {
@@ -820,17 +820,17 @@ gum_script_core_on_set_interval (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-clearTimeout(id)/clearInterval(id)
-
-Docs:
-Clears the delay set by setTimeout/setInterval
-
-Example:
-// Create a timeout, and abort immediately
--> var test = setTimeout(function(){console.log("Fired!")}, 3000);
--> clearTimeout(test)
-*/
+ * Prototype: 
+ * clearTimeout(id)/clearInterval(id)
+ *
+ * Docs:
+ * Clears the delay set by setTimeout/setInterval
+ *
+ * Example:
+ * // Create a timeout, and abort immediately
+ * -> var test = setTimeout(function(){console.log("Fired!")}, 3000);
+ * -> clearTimeout(test)
+ */
 static void
 gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
 {
@@ -914,15 +914,15 @@ gum_scheduled_callback_invoke (gpointer user_data)
 }
 
 /*
-Prototype: 
-[PRIVATE] _send(message[, array=null])
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * [PRIVATE] _send(message[, array=null])
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 {
@@ -957,15 +957,15 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-_setIncomingMessageCallback(callback)
-
-Docs:
-[PRIVATE] Set callback to fire when a message is recieved
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * _setIncomingMessageCallback(callback)
+ *
+ * Docs:
+ * [PRIVATE] Set callback to fire when a message is recieved
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_set_incoming_message_callback (
     const FunctionCallbackInfo<Value> & info)
@@ -992,15 +992,15 @@ gum_script_core_on_set_incoming_message_callback (
 }
 
 /*
-Prototype: 
-[PRIVATE] _waitForEvent(argument1)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * [PRIVATE] _waitForEvent(argument1)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
 {
@@ -1073,15 +1073,15 @@ gum_script_core_on_new_native_pointer (
 }
 
 /*
-Prototype: 
-NativePointer.isNull(pointer)
-
-Docs:
-Returns true if a pointer is null, otherwise false
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * NativePointer.isNull(pointer)
+ *
+ * Docs:
+ * Returns true if a pointer is null, otherwise false
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_native_pointer_is_null (
     const FunctionCallbackInfo<Value> & info)
@@ -1125,15 +1125,15 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
 
 /*
-Prototype: 
-NativePointer.toInt32(pointer)
-
-Docs:
-Represents the pointer as a signed 32-bit integer
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * NativePointer.toInt32(pointer)
+ *
+ * Docs:
+ * Represents the pointer as a signed 32-bit integer
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_native_pointer_to_int32 (
     const FunctionCallbackInfo<Value> & info)
@@ -1143,15 +1143,15 @@ gum_script_core_on_native_pointer_to_int32 (
 }
 
 /*
-Prototype: 
-NativePointer.toString(pointer[, radix=16])
-
-Docs:
-Represents the pointer as a either a base-10 or base-16 output.
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * NativePointer.toString(pointer[, radix=16])
+ *
+ * Docs:
+ * Represents the pointer as a either a base-10 or base-16 output.
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_native_pointer_to_string (
     const FunctionCallbackInfo<Value> & info)
@@ -1189,15 +1189,15 @@ gum_script_core_on_native_pointer_to_string (
 }
 
 /*
-Prototype: 
-NativePointer.toJSON(pointer)
-
-Docs:
-Represents the pointer as a JSON-formatted object
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * NativePointer.toJSON(pointer)
+ *
+ * Docs:
+ * Represents the pointer as a JSON-formatted object
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_core_on_native_pointer_to_json (
     const FunctionCallbackInfo<Value> & info)

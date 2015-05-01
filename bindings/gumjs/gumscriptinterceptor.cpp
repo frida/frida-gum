@@ -317,15 +317,15 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
 }
 
 /*
-Prototype: 
-[PRIVATE] Interceptor._attach(target, callback)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * [PRIVATE] Interceptor._attach(target, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 {
@@ -374,15 +374,15 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-Interceptor.detachAll()
-
-Docs:
-TBW
-
-Example:
-TBW
-*/
+ * Prototype: 
+ * Interceptor.detachAll()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
 static void
 gum_script_interceptor_on_detach_all (const FunctionCallbackInfo<Value> & info)
 {
@@ -409,15 +409,15 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
 }
 
 /*
-Prototype: 
-[PRIVATE] Interceptor._replace(target, replacement)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/  
+ * Prototype: 
+ * [PRIVATE] Interceptor._replace(target, replacement)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */  
 static void
 gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 {
@@ -445,15 +445,15 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 }
 
 /*
-Prototype: 
-Interceptor.revert(target)
-
-Docs:
-TBW
-
-Example:
-TBW
-*/  
+ * Prototype: 
+ * Interceptor.revert(target)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */  
 static void
 gum_script_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
 {
