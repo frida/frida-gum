@@ -113,12 +113,21 @@ INTERCEPTOR_TESTCASE (attach_to_read)
   write (fds[1], &value, sizeof (value));
 
   interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
+
   value = 0;
-  read_impl (fds[0], &value, sizeof (value));
-  g_assert_cmpstr (fixture->result->str, ==, "><");
+  ret = read_impl (fds[0], &value, sizeof (value));
+  g_assert_cmpint (ret, ==, 1);
   g_assert_cmpuint (value, ==, 42);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
 
   close (fds[0]);
+
+  value = 0;
+  ret = read_impl (fds[0], &value, sizeof (value));
+  g_assert_cmpint (ret, ==, -1);
+  g_assert_cmpuint (value, ==, 0);
+  g_assert_cmpstr (fixture->result->str, ==, "><><");
+
   close (fds[1]);
 }
 
