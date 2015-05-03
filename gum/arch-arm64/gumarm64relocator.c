@@ -447,7 +447,7 @@ gum_arm64_relocator_rewrite_conditional_branch (GumArm64Relocator * self,
 
   /* If false */
   gum_arm64_writer_put_ldr_reg_address (ctx->output, GUM_A64REG_X16,
-      GUM_ADDRESS (ctx->output + 4));
+      GUM_ADDRESS (ctx->output->code + 4));
   gum_arm64_writer_put_br_reg (ctx->output, GUM_A64REG_X16);
 
   /* If true */
