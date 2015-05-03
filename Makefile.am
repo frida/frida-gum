@@ -81,5 +81,5 @@ check: all
 		"$(top_srcdir)/tests/data/specialfunctions-ios-arm.dylib" \
 		"$(top_srcdir)/tests/data/specialfunctions-ios-arm64.dylib" \
 		"${RURL}:\"${RPFX}/tests/data/\""
-	ssh "${RURL}" "DYLD_LIBRARY_PATH=\"${RPFX}/tests\" \"${RPFX}/tests/gum-tests\""
+	ssh "${RURL}" "\"${RPFX}/tests/gum-tests\""
 endif
