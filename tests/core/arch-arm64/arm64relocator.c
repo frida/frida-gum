@@ -10,6 +10,7 @@ TEST_LIST_BEGIN (arm64relocator)
   TESTENTRY (one_to_one)
   TESTENTRY (adr_should_be_rewritten)
   TESTENTRY (adrp_should_be_rewritten)
+  TESTENTRY (b_cond_should_be_rewritten)
   TESTENTRY (b_should_be_rewritten)
   TESTENTRY (bl_should_be_rewritten)
   TESTENTRY (eob_and_eoi_on_ret)
@@ -96,6 +97,30 @@ TESTCASE (adrp_should_be_rewritten)
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_ADRP);
+  g_assert (gum_arm64_relocator_write_one (&fixture->rl));
+  gum_arm64_writer_flush (&fixture->aw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
+}
+
+TESTCASE (b_cond_should_be_rewritten)
+{
+  const guint32 input[] = {
+    GUINT32_TO_LE (0x540000c3)  /* b.lo #+6           */
+  };
+  const guint32 expected_output[] = {
+    GUINT32_TO_LE (0x54000063), /* b.lo #+3           */
+    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
+    GUINT32_TO_LE (0xd61f0200), /* br x16             */
+    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
+    GUINT32_TO_LE (0xd61f0200)  /* br x16             */
+  };
+  const GumArm64Instruction * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_B_COND);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,

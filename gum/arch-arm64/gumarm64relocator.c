@@ -27,8 +27,10 @@ struct _GumCodeGenCtx
 
 static gboolean gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
-static gboolean gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
-    GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_unconditional_branch (
+    GumArm64Relocator * self, GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_conditional_branch (
+    GumArm64Relocator * self, GumCodeGenCtx * ctx);
 
 void
 gum_arm64_relocator_init (GumArm64Relocator * relocator,
@@ -122,6 +124,12 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
       self->eob = TRUE;
       self->eoi = TRUE;
     }
+  }
+  else if ((raw_insn & 0xff000010) == 0x54000000)
+  {
+    insn->mnemonic = GUM_ARM64_B_COND;
+    self->eob = TRUE;
+    self->eoi = FALSE;
   }
   else if ((raw_insn & 0xff9ffc1f) == 0xd61f0000)
   {
@@ -229,7 +237,10 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
       break;
     case GUM_ARM64_B:
     case GUM_ARM64_BL:
-      rewritten = gum_arm64_relocator_rewrite_bl (self, &ctx);
+      rewritten = gum_arm64_relocator_rewrite_unconditional_branch (self, &ctx);
+      break;
+    case GUM_ARM64_B_COND:
+      rewritten = gum_arm64_relocator_rewrite_conditional_branch (self, &ctx);
       break;
     default:
       break;
@@ -374,8 +385,8 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
 }
 
 static gboolean
-gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
-                                GumCodeGenCtx * ctx)
+gum_arm64_relocator_rewrite_unconditional_branch (GumArm64Relocator * self,
+                                                  GumCodeGenCtx * ctx)
 {
   union
   {
@@ -405,6 +416,44 @@ gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
         absolute_target);
     gum_arm64_writer_put_blr_reg (ctx->output, GUM_A64REG_LR);
   }
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm64_relocator_rewrite_conditional_branch (GumArm64Relocator * self,
+                                                GumCodeGenCtx * ctx)
+{
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  GumAddress absolute_target;
+  guint32 insn;
+
+  (void) self;
+
+  if ((ctx->raw_insn & 0x800000) != 0)
+    distance.u = 0xfff80000 | ((ctx->raw_insn >> 5) & 0x7ffff);
+  else
+    distance.u = (ctx->raw_insn >> 5) & 0x7ffff;
+
+  absolute_target = ctx->insn->pc + (distance.i * 4);
+
+  /* Rewrite to b.cond going 3 instructions ahead */
+  insn = (ctx->raw_insn & 0xff00001f) | (3 << 5);
+  gum_arm64_writer_put_bytes (ctx->output, (guint8 *) &insn, sizeof (insn));
+
+  /* If false */
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, GUM_A64REG_X16,
+      GUM_ADDRESS (ctx->output + 4));
+  gum_arm64_writer_put_br_reg (ctx->output, GUM_A64REG_X16);
+
+  /* If true */
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, GUM_A64REG_X16,
+      absolute_target);
+  gum_arm64_writer_put_br_reg (ctx->output, GUM_A64REG_X16);
 
   return TRUE;
 }
