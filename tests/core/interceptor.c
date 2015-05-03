@@ -28,6 +28,9 @@ TEST_LIST_BEGIN (interceptor)
 #ifndef HAVE_QNX
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
+#if defined (HAVE_IOS) && defined (HAVE_ARM64)
+  INTERCEPTOR_TESTENTRY (attach_to_read)
+#endif
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
 #ifdef G_OS_WIN32
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
@@ -89,6 +92,34 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
+
+#if defined (HAVE_IOS) && defined (HAVE_ARM64)
+
+#include <unistd.h>
+
+INTERCEPTOR_TESTCASE (attach_to_read)
+{
+  int fds[2];
+  int ret;
+  guint8 value = 42;
+
+  ret = pipe (fds);
+  g_assert (ret == 0);
+
+  write (fds[1], &value, sizeof (value));
+
+  interceptor_fixture_attach_listener (fixture, 0, GSIZE_TO_POINTER (
+      gum_module_find_export_by_name ("libSystem.b.dylib", "read")), '>', '<');
+  value = 0;
+  read (fds[0], &value, sizeof (value));
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+  g_assert_cmpuint (value, ==, 42);
+
+  close (fds[0]);
+  close (fds[1]);
+}
+
+#endif
 
 INTERCEPTOR_TESTCASE (attach_to_own_api)
 {
