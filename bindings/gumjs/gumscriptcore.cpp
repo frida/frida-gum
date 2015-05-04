@@ -478,6 +478,11 @@ _gum_script_core_flush (GumScriptCore * self)
 
   self->isolate->Enter ();
 
+  GMainContext * context =
+      gum_script_scheduler_get_v8_context (self->scheduler);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
+
   g_hash_table_foreach (self->weak_refs,
       (GHFunc) gum_script_core_clear_weak_ref_entry, NULL);
   g_hash_table_remove_all (self->weak_refs);

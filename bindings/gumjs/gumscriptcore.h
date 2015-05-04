@@ -40,7 +40,6 @@ struct _GumScriptCore
   GumScript * script;
   GumScriptCoreMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
-  GMainContext * main_context;
   v8::Isolate * isolate;
 
   GMutex mutex;

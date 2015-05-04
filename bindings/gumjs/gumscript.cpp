@@ -436,6 +436,7 @@ gum_script_destroy_context (GumScript * self)
         *priv->context));
     Context::Scope context_scope (context);
 
+    _gum_script_stalker_flush (&priv->stalker);
     _gum_script_core_flush (&priv->core);
 
     _gum_script_instruction_dispose (&priv->instruction);

@@ -113,7 +113,7 @@ _gum_script_stalker_realize (GumScriptStalker * self)
 }
 
 void
-_gum_script_stalker_dispose (GumScriptStalker * self)
+_gum_script_stalker_flush (GumScriptStalker * self)
 {
   if (self->sink != NULL)
   {
@@ -128,7 +128,11 @@ _gum_script_stalker_dispose (GumScriptStalker * self)
     g_object_unref (self->stalker);
     self->stalker = NULL;
   }
+}
 
+void
+_gum_script_stalker_dispose (GumScriptStalker * self)
+{
   delete self->probe_args;
   self->probe_args = NULL;
 }
@@ -303,7 +307,7 @@ gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
 
   GumScriptEventSinkOptions so;
   so.core = self->core;
-  so.main_context = self->core->main_context;
+  so.main_context = gum_script_scheduler_get_v8_context (self->core->scheduler);
   so.event_mask = GUM_NOTHING;
   so.queue_capacity = self->queue_capacity;
   so.queue_drain_interval = self->queue_drain_interval;

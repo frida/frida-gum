@@ -30,6 +30,7 @@ struct _GumScriptStalker
 G_GNUC_INTERNAL void _gum_script_stalker_init (GumScriptStalker * self,
     GumScriptCore * core, v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_script_stalker_realize (GumScriptStalker * self);
+G_GNUC_INTERNAL void _gum_script_stalker_flush (GumScriptStalker * self);
 G_GNUC_INTERNAL void _gum_script_stalker_dispose (GumScriptStalker * self);
 G_GNUC_INTERNAL void _gum_script_stalker_finalize (GumScriptStalker * self);
 
