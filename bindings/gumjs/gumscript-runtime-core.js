@@ -153,7 +153,7 @@
         }
     });
 
-    Object.defineProperty(Process, 'getThreads', {
+    Object.defineProperty(Process, 'enumerateThreadsSync', {
         enumerable: true,
         value: function () {
             var threads = [];
@@ -168,7 +168,7 @@
         }
     });
 
-    Object.defineProperty(Process, 'getModules', {
+    Object.defineProperty(Process, 'enumerateModulesSync', {
         enumerable: true,
         value: function () {
             var modules = [];
@@ -183,7 +183,7 @@
         }
     });
 
-    Object.defineProperty(Process, 'getRanges', {
+    Object.defineProperty(Process, 'enumerateRangesSync', {
         enumerable: true,
         value: function (prot) {
             var ranges = [];
@@ -198,7 +198,7 @@
         }
     });
 
-    Object.defineProperty(Module, 'getExports', {
+    Object.defineProperty(Module, 'enumerateExportsSync', {
         enumerable: true,
         value: function (name) {
             var exports = [];
@@ -213,7 +213,7 @@
         }
     });
 
-    Object.defineProperty(Module, 'getRanges', {
+    Object.defineProperty(Module, 'enumerateRangesSync', {
         enumerable: true,
         value: function (name, prot) {
             var ranges = [];

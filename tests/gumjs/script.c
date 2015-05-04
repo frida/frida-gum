@@ -95,18 +95,18 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #ifndef HAVE_ANDROID
-  SCRIPT_TESTENTRY (process_threads_can_be_retrieved)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
+  SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
 #endif
-  SCRIPT_TESTENTRY (process_modules_can_be_retrieved)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
-  SCRIPT_TESTENTRY (process_ranges_can_be_retrieved)
+  SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
-  SCRIPT_TESTENTRY (module_exports_can_be_retrieved)
+  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_exports_enumeration_performance)
-  SCRIPT_TESTENTRY (module_ranges_can_be_retrieved)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated)
+  SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
@@ -658,12 +658,6 @@ SCRIPT_TESTCASE (process_debugger_status_is_available)
 
 #ifndef HAVE_ANDROID
 
-SCRIPT_TESTCASE (process_threads_can_be_retrieved)
-{
-  COMPILE_AND_LOAD_SCRIPT ("send(Process.getThreads().length > 1);");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-}
-
 SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -680,13 +674,13 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-#endif
-
-SCRIPT_TESTCASE (process_modules_can_be_retrieved)
+SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Process.getModules().length > 1);");
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateThreadsSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
+
+#endif
 
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
@@ -704,9 +698,9 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-SCRIPT_TESTCASE (process_ranges_can_be_retrieved)
+SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Process.getRanges('--x').length > 1);");
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateModulesSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
@@ -726,10 +720,10 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
-SCRIPT_TESTCASE (module_exports_can_be_retrieved)
+SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Module.getExports(\"%s\").length > 1);",
-      SYSTEM_MODULE_NAME);
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.enumerateRangesSync('--x').length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
@@ -747,6 +741,14 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
       "});", SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_exports_can_be_enumerated_synchronously)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.enumerateExportsSync(\"%s\").length > 1);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (module_exports_enumeration_performance)
@@ -770,13 +772,6 @@ SCRIPT_TESTCASE (module_exports_enumeration_performance)
   test_script_message_item_free (item);
 }
 
-SCRIPT_TESTCASE (module_ranges_can_be_retrieved)
-{
-  COMPILE_AND_LOAD_SCRIPT ("send(Module.getRanges(\"%s\", '--x').length > 0);",
-      SYSTEM_MODULE_NAME);
-  EXPECT_SEND_MESSAGE_WITH ("true");
-}
-
 SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -791,6 +786,14 @@ SCRIPT_TESTCASE (module_ranges_can_be_enumerated)
       "});", SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (module_ranges_can_be_enumerated_synchronously)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Module.enumerateRangesSync(\"%s\", '--x').length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (module_base_address_can_be_found)
