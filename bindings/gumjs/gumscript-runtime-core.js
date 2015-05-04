@@ -153,6 +153,81 @@
         }
     });
 
+    Object.defineProperty(Process, 'getThreads', {
+        enumerable: true,
+        value: function () {
+            var threads = [];
+            Process.enumerateThreads({
+                onMatch: function (t) {
+                    threads.push(t);
+                },
+                onComplete: function () {
+                }
+            });
+            return threads;
+        }
+    });
+
+    Object.defineProperty(Process, 'getModules', {
+        enumerable: true,
+        value: function () {
+            var modules = [];
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    modules.push(m);
+                },
+                onComplete: function () {
+                }
+            });
+            return modules;
+        }
+    });
+
+    Object.defineProperty(Process, 'getRanges', {
+        enumerable: true,
+        value: function (prot) {
+            var ranges = [];
+            Process.enumerateRanges(prot, {
+                onMatch: function (r) {
+                    ranges.push(r);
+                },
+                onComplete: function () {
+                }
+            });
+            return ranges;
+        }
+    });
+
+    Object.defineProperty(Module, 'getExports', {
+        enumerable: true,
+        value: function (name) {
+            var exports = [];
+            Module.enumerateExports(name, {
+                onMatch: function (e) {
+                    exports.push(e);
+                },
+                onComplete: function () {
+                }
+            });
+            return exports;
+        }
+    });
+
+    Object.defineProperty(Module, 'getRanges', {
+        enumerable: true,
+        value: function (name, prot) {
+            var ranges = [];
+            Module.enumerateRanges(name, prot, {
+                onMatch: function (r) {
+                    ranges.push(r);
+                },
+                onComplete: function () {
+                }
+            });
+            return ranges;
+        }
+    });
+
     Object.defineProperty(Interceptor, 'attach', {
         enumerable: true,
         value: function (target, callbacks) {
