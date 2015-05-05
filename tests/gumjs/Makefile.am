@@ -5,6 +5,9 @@ os_sources = $(NULL)
 if OS_MAC
 os_sources += \
 	script-mac.m
+else
+libgum_tests_gumjs_la_LIBTOOLFLAGS = \
+	--tag=CC
 endif
 
 libgum_tests_gumjs_la_SOURCES = \
