@@ -138,6 +138,30 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
 TEST_LIST_END ()
 
+static gint gum_toupper (gchar * str, gint limit);
+static gint gum_sum (gint count, ...);
+
+#ifndef HAVE_ANDROID
+static gboolean on_incoming_connection (GSocketService * service,
+    GSocketConnection * connection, GObject * source_object,
+    gpointer user_data);
+static void on_read_ready (GObject * source_object, GAsyncResult * res,
+    gpointer user_data);
+#endif
+
+static gpointer invoke_target_function_int_worker (gpointer data);
+
+static void on_message (GumScript * script, const gchar * message,
+    const guint8 * data, gint data_length, gpointer user_data);
+
+static int target_function_int (int arg);
+static const gchar * target_function_string (const gchar * arg);
+static int target_function_nested_a (int arg);
+static int target_function_nested_b (int arg);
+static int target_function_nested_c (int arg);
+
+gint gum_script_dummy_global_to_trick_optimizer = 0;
+
 SCRIPT_TESTCASE (instruction_can_be_parsed)
 {
   COMPILE_AND_LOAD_SCRIPT (

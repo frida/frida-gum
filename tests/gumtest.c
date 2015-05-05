@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -163,6 +163,9 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
   /* GumJS */
   TEST_RUN_LIST (script);
+# ifdef HAVE_MAC
+  TEST_RUN_LIST (script_mac);
+# endif
 #endif
 
 #ifdef G_OS_WIN32
