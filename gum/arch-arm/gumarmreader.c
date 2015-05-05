@@ -6,6 +6,8 @@
 
 static cs_insn * disassemble_instruction_at (gconstpointer address);
 
+static guint gum_rotate_right_32bit (guint val, guint rotation);
+
 gpointer
 gum_arm_reader_try_get_relative_jump_target (gconstpointer address)
 {
@@ -47,7 +49,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
       op1->type == ARM_OP_REG && op1->reg == ARM_REG_PC &&
       op2->type == ARM_OP_IMM)
   {
-    result = (gpointer) address + 8 + op2->imm;
+    result = (gpointer) address + 8 +
+        gum_rotate_right_32bit (op2->imm, op3->imm);
   }
   else
     goto beach;
@@ -124,4 +127,12 @@ disassemble_instruction_at (gconstpointer address)
   cs_close (&capstone);
 
   return insn;
+}
+
+static guint
+gum_rotate_right_32bit (guint val,
+                        guint rotation)
+{
+  return ((val >> rotation) & (-1 << (32 - rotation))) |
+      (val << (32 - rotation));
 }
