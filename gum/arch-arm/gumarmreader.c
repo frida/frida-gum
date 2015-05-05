@@ -50,7 +50,7 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
       op2->type == ARM_OP_IMM)
   {
     result = (gpointer) address + 8 +
-      gum_rotate_right_32bit (op2->imm, op3->imm);
+        gum_rotate_right_32bit (op2->imm, op3->imm);
   }
   else
     goto beach;
@@ -130,8 +130,9 @@ disassemble_instruction_at (gconstpointer address)
 }
 
 static guint
-gum_rotate_right_32bit (guint val, guint rotation)
+gum_rotate_right_32bit (guint val,
+                        guint rotation)
 {
   return ((val >> rotation) & (-1 << (32 - rotation))) |
-    (val << (32 - rotation));
+      (val << (32 - rotation));
 }
