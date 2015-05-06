@@ -12,6 +12,7 @@
 TEST_LIST_BEGIN (script_mac)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
   SCRIPT_TESTENTRY (pointer_can_be_cast_to_instance)
+  SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
@@ -36,6 +37,27 @@ SCRIPT_TESTCASE (pointer_can_be_cast_to_instance)
         "send(str.toString());",
         str);
     EXPECT_SEND_MESSAGE_WITH ("\"Badger\"");
+  }
+}
+
+SCRIPT_TESTCASE (method_implementation_can_be_overridden)
+{
+  @autoreleasepool
+  {
+    NSString * str = [NSString stringWithUTF8String:"Badger"];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSString = ObjC.use(\"NSString\");"
+        "NSString.description.implementation ="
+            "ObjC.implement(NSString.description, function (handle, selector) {"
+                "return NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\")).handle;"
+            "});");
+    EXPECT_NO_MESSAGES ();
+
+    NSString * desc = [str description];
+    EXPECT_NO_MESSAGES ();
+
+    g_assert_cmpstr (desc.UTF8String, ==, "Snakes");
   }
 }
 
