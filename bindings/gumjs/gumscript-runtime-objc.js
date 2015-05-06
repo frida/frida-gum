@@ -196,76 +196,93 @@
                 api.free(rawMethods);
             };
 
-            var addMethod = function addMethod(m, type) {
-                try {
-                    var sel = api.method_getName(m);
-                    var name = Memory.readUtf8String(api.sel_getName(sel));
-                    var jsName = jsMethodName(name);
-                    var signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(m)));
-                    var retType = signature.retType;
-                    var argTypes = signature.argTypes.slice(2);
-                    var objc_msgSend = getMsgSendImpl(signature);
+            var addMethod = function addMethod(handle, type) {
+                var sel = api.method_getName(handle);
+                var name = jsMethodName(Memory.readUtf8String(api.sel_getName(sel)));
 
-                    var argVariableNames = argTypes.map(function (t, i) {
-                        return "a" + (i + 1);
-                    });
-                    var callArgs = [
-                        type === '+' ? "this.classHandle" : "this.handle",
-                        "sel"
-                    ].concat(argTypes.map(function (t, i) {
-                        if (t.toNative) {
-                            return "argTypes[" + i + "].toNative.call(this, " + argVariableNames[i] + ")";
-                        }
-                        return argVariableNames[i];
-                    }));
-                    var returnCaptureLeft;
-                    var returnCaptureRight;
-                    if (retType.type === 'void') {
-                        returnCaptureLeft = "";
-                        returnCaptureRight = "";
-                    } else if (retType.fromNative) {
-                        returnCaptureLeft = "return retType.fromNative.call(this, ";
-                        returnCaptureRight = ")";
-                    } else {
-                        returnCaptureLeft = "return ";
-                        returnCaptureRight = "";
-                    }
-                    eval("var f = function (" + argVariableNames.join(", ") + ") { " +
-                        returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
-                    " }");
-                    klass.prototype[jsName] = f;
-
-                    Object.defineProperty(f, 'selector', {
-                        enumerable: true,
-                        value: sel
-                    });
-
-                    var implementation = null;
-                    Object.defineProperty(f, 'implementation', {
-                        enumerable: true,
-                        get: function () {
-                            return new NativeFunction(api.method_getImplementation(m), f.returnType, f.argumentTypes);
-                        },
-                        set: function (imp) {
-                            implementation = imp;
-
-                            api.method_setImplementation(m, imp);
-                        }
-                    });
-
-                    Object.defineProperty(f, 'returnType', {
-                        enumerable: true,
-                        value: retType.type
-                    });
-
-                    Object.defineProperty(f, 'argumentTypes', {
-                        enumerable: true,
-                        value: signature.argTypes.map(function (t) {
-                            return t.type;
-                        })
-                    });
-                } catch (e) {
+                var serial = 1;
+                var suffix = "";
+                while (klass.prototype.hasOwnProperty(name + suffix)) {
+                    serial++;
+                    suffix = "" + serial;
                 }
+                name = name + suffix;
+
+                var m = null;
+                Object.defineProperty(klass.prototype, name, {
+                    get: function () {
+                        if (m === null)
+                            m = makeMethod(handle, type, sel);
+                        return m;
+                    }
+                });
+            };
+
+            var makeMethod = function (handle, type, sel) {
+                var signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(handle)));
+                var retType = signature.retType;
+                var argTypes = signature.argTypes.slice(2);
+                var objc_msgSend = getMsgSendImpl(signature);
+
+                var argVariableNames = argTypes.map(function (t, i) {
+                    return "a" + (i + 1);
+                });
+                var callArgs = [
+                    type === '+' ? "this.classHandle" : "this.handle",
+                    "sel"
+                ].concat(argTypes.map(function (t, i) {
+                    if (t.toNative) {
+                        return "argTypes[" + i + "].toNative.call(this, " + argVariableNames[i] + ")";
+                    }
+                    return argVariableNames[i];
+                }));
+                var returnCaptureLeft;
+                var returnCaptureRight;
+                if (retType.type === 'void') {
+                    returnCaptureLeft = "";
+                    returnCaptureRight = "";
+                } else if (retType.fromNative) {
+                    returnCaptureLeft = "return retType.fromNative.call(this, ";
+                    returnCaptureRight = ")";
+                } else {
+                    returnCaptureLeft = "return ";
+                    returnCaptureRight = "";
+                }
+                eval("var f = function (" + argVariableNames.join(", ") + ") { " +
+                    returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
+                " }");
+
+                Object.defineProperty(f, 'selector', {
+                    enumerable: true,
+                    value: sel
+                });
+
+                var implementation = null;
+                Object.defineProperty(f, 'implementation', {
+                    enumerable: true,
+                    get: function () {
+                        return new NativeFunction(api.method_getImplementation(handle), f.returnType, f.argumentTypes);
+                    },
+                    set: function (imp) {
+                        implementation = imp;
+
+                        api.method_setImplementation(handle, imp);
+                    }
+                });
+
+                Object.defineProperty(f, 'returnType', {
+                    enumerable: true,
+                    value: retType.type
+                });
+
+                Object.defineProperty(f, 'argumentTypes', {
+                    enumerable: true,
+                    value: signature.argTypes.map(function (t) {
+                        return t.type;
+                    })
+                });
+
+                return f;
             };
 
             // TODO: replace with regex once V8 has been upgraded (which should fix crash on iOS)

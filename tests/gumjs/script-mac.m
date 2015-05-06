@@ -18,8 +18,9 @@ SCRIPT_TESTCASE (objc_performance)
   gint duration;
 
   COMPILE_AND_LOAD_SCRIPT (
+      "ObjC.use(\"NSObject\");"
       "var start = Date.now();"
-      "ObjC.use(\"NSView\");"
+      "ObjC.use(\"NSWindow\");"
       "var end = Date.now();"
       "send(end - start);");
   item = test_script_fixture_pop_message (fixture);
