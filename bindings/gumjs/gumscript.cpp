@@ -988,13 +988,25 @@ public:
       Handle<Message> message = trycatch.Message ();
       Handle<Value> exception = trycatch.Exception ();
       String::Utf8Value exception_str (exception);
-      gchar * exception_str_escaped = g_strescape (*exception_str, "");
-      gchar * error = g_strdup_printf (
-          "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
-          message->GetLineNumber (), exception_str_escaped);
-      _gum_script_core_emit_message (&priv->core, error, NULL, 0);
-      g_free (exception_str_escaped);
-      g_free (error);
+      const gchar * exception_message = *exception_str;
+      if (exception_message != NULL)
+      {
+        gchar * exception_message_escaped = g_strescape (exception_message, "");
+        gchar * error = g_strdup_printf (
+            "{\"type\":\"error\",\"lineNumber\":%d,\"description\":\"%s\"}",
+            message->GetLineNumber (), exception_message_escaped);
+        _gum_script_core_emit_message (&priv->core, error, NULL, 0);
+        g_free (error);
+        g_free (exception_message_escaped);
+      }
+      else
+      {
+        gchar * error = g_strdup_printf (
+            "{\"type\":\"error\",\"lineNumber\":%d,\"description\":"
+            "\"Unknown error\"}", message->GetLineNumber ());
+        _gum_script_core_emit_message (&priv->core, error, NULL, 0);
+        g_free (error);
+      }
     }
   }
 
