@@ -1543,6 +1543,7 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   GumFFICallback * self = static_cast<GumFFICallback *> (user_data);
   ScriptScope scope (self->core->script);
   Isolate * isolate = self->core->isolate;
+  GumFFIValue * retval = static_cast<GumFFIValue *> (return_value);
 
   Local<Value> * argv = static_cast<Local<Value> *> (
       g_alloca (cif->nargs * sizeof (Local<Value>)));
@@ -1551,6 +1552,8 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
     if (!gum_script_value_from_ffi_type (self->core, &argv[i],
           static_cast<GumFFIValue *> (args[i]), cif->arg_types[i]))
     {
+      if (cif->rtype != &ffi_type_void)
+        retval->v_pointer = NULL;
       return;
     }
   }
@@ -1560,15 +1563,10 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   Local<Value> result = func->Call (receiver, cif->nargs, argv);
   if (cif->rtype != &ffi_type_void)
   {
-    if (!result.IsEmpty ())
-    {
-      gum_script_value_to_ffi_type (self->core, result,
-          static_cast<GumFFIValue *> (return_value), cif->rtype);
-    }
+    if (!scope.HasPendingException ())
+      gum_script_value_to_ffi_type (self->core, result, retval, cif->rtype);
     else
-    {
-      static_cast<GumFFIValue *> (return_value)->v_pointer = NULL;
-    }
+      retval->v_pointer = NULL;
   }
 }
 

@@ -19,6 +19,8 @@ public:
   ScriptScope (GumScript * parent);
   ~ScriptScope ();
 
+  bool HasPendingException () const;
+
 private:
   GumScript * parent;
   ScriptScopeImpl * impl;

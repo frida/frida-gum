@@ -294,16 +294,18 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
                                                const gchar * description)
 {
   TestScriptMessageItem * item;
+  gchar actual_file_name[64];
   gint actual_line_number;
   gchar actual_description[512];
 
   item = test_script_fixture_pop_message (fixture);
   sscanf (item->message, "{"
           "\"type\":\"error\","
+          "\"fileName\":\"%[^\"]\","
           "\"lineNumber\":%d,"
           "\"description\":\"%[^\"]\""
       "}",
-      &actual_line_number, actual_description);
+      actual_file_name, &actual_line_number, actual_description);
   if (line_number != ANY_LINE_NUMBER)
     g_assert_cmpint (actual_line_number, ==, line_number);
   g_assert_cmpstr (actual_description, ==, description);
