@@ -32,10 +32,13 @@
 #define ANY_LINE_NUMBER -1
 #define SCRIPT_MESSAGE_TIMEOUT_MSEC 500
 
+#ifndef SCRIPT_SUITE
+# define SCRIPT_SUITE ""
+#endif
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
 #define SCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("GumJS/Script", test_script, NAME, \
+    TEST_ENTRY_WITH_FIXTURE ("GumJS/Script" SCRIPT_SUITE, test_script, NAME, \
         TestScriptFixture)
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
@@ -80,11 +83,18 @@ static void test_script_message_item_free (TestScriptMessageItem * item);
 static TestScriptMessageItem * test_script_fixture_try_pop_message (
     TestScriptFixture * fixture, guint timeout);
 static gboolean test_script_fixture_stop_loop (TestScriptFixture * fixture);
+static void test_script_fixture_expect_send_message_with_payload_and_data (
+    TestScriptFixture * fixture, const gchar * payload, const gchar * data);
+static void test_script_fixture_expect_error_message_with (
+    TestScriptFixture * fixture, gint line_number, const gchar * description);
 
 static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
 {
+  (void) test_script_fixture_expect_send_message_with_payload_and_data;
+  (void) test_script_fixture_expect_error_message_with;
+
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();

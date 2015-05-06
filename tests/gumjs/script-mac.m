@@ -4,15 +4,42 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#define SCRIPT_SUITE "/ObjC"
 #include "script-fixture.c"
 
 #import <Cocoa/Cocoa.h>
 
 TEST_LIST_BEGIN (script_mac)
-  SCRIPT_TESTENTRY (objc_performance)
+  SCRIPT_TESTENTRY (class_method_can_be_invoked)
+  SCRIPT_TESTENTRY (pointer_can_be_cast_to_instance)
+  SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
-SCRIPT_TESTCASE (objc_performance)
+SCRIPT_TESTCASE (class_method_can_be_invoked)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var NSDate = ObjC.use(\"NSDate\");"
+      "var now = NSDate.date();"
+      "send(now && typeof now === 'object');");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (pointer_can_be_cast_to_instance)
+{
+  @autoreleasepool
+  {
+    NSString * str = [NSString stringWithUTF8String:"Badger"];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSString = ObjC.use(\"NSString\");"
+        "var str = ObjC.cast(" GUM_PTR_CONST ", NSString);"
+        "send(str.toString());",
+        str);
+    EXPECT_SEND_MESSAGE_WITH ("\"Badger\"");
+  }
+}
+
+SCRIPT_TESTCASE (performance)
 {
   TestScriptMessageItem * item;
   gint duration;
