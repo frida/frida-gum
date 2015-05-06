@@ -26,7 +26,16 @@
 #include <string.h>
 #include <v8-debug.h>
 
-#define GUM_SCRIPT_V8_FLAGS "--harmony --expose-gc"
+#define GUM_SCRIPT_V8_FLAGS \
+    "--es-staging " \
+    "--harmony-arrays " \
+    "--harmony-array-includes " \
+    "--harmony-regexps " \
+    "--harmony-arrow-functions " \
+    "--harmony-proxies " \
+    "--harmony-rest-parameters " \
+    "--harmony-reflect " \
+    "--expose-gc"
 
 using namespace v8;
 
