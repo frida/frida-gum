@@ -1560,8 +1560,15 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   Local<Value> result = func->Call (receiver, cif->nargs, argv);
   if (cif->rtype != &ffi_type_void)
   {
-    gum_script_value_to_ffi_type (self->core, result,
-        static_cast<GumFFIValue *> (return_value), cif->rtype);
+    if (!result.IsEmpty ())
+    {
+      gum_script_value_to_ffi_type (self->core, result,
+          static_cast<GumFFIValue *> (return_value), cif->rtype);
+    }
+    else
+    {
+      static_cast<GumFFIValue *> (return_value)->v_pointer = NULL;
+    }
   }
 }
 
