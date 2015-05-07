@@ -165,7 +165,7 @@
         }
 
         function toJSON() {
-            return "{}";
+            return {};
         }
 
         function toString() {
@@ -347,7 +347,9 @@
         }
 
         function toJSON() {
-            return "{\"handle\":\"" + handle.toString() + "\"}";
+            return {
+                handle: handle.toString()
+            };
         }
     }
 
