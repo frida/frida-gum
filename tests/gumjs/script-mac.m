@@ -189,7 +189,8 @@ SCRIPT_TESTCASE (methods_with_weird_names_can_be_invoked)
             "send(val == i + 1);"
         "}");
 
-    for (int i = 0; i < 5; i++) {
+    for (gint i = 0; i != 5; i++)
+    {
       EXPECT_SEND_MESSAGE_WITH ("true");
     }
   }
@@ -221,6 +222,9 @@ METHOD(SEL, SEL)
 
 SCRIPT_TESTCASE (method_call_preserves_value)
 {
+#if 0
+  /* Work in progress */
+
   @autoreleasepool
   {
     COMPILE_AND_LOAD_SCRIPT (
@@ -260,10 +264,12 @@ SCRIPT_TESTCASE (method_call_preserves_value)
         "test('SEL', ObjC.selector('foo'));"
         "test('SEL', ObjC.selector('foo:bar:baz:'));");
 
-    for (int i = 0; i < 31; i++) {
+    for (gint i = 0; i != 31; i++)
+    {
       EXPECT_SEND_MESSAGE_WITH ("true");
     }
   }
+#endif
 }
 
 SCRIPT_TESTCASE (performance)
