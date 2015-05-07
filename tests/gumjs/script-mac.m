@@ -19,6 +19,8 @@ TEST_LIST_BEGIN (script_mac)
   SCRIPT_TESTENTRY (object_can_be_constructed_from_pointer)
   SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
+  SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
+  SCRIPT_TESTENTRY (method_call_preserves_value)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
@@ -144,6 +146,123 @@ SCRIPT_TESTCASE (attempt_to_access_an_inexistent_method_should_throw)
     COMPILE_AND_LOAD_SCRIPT ("ObjC.classes.NSDate.snakesAndMushrooms();");
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: Unable to find method 'snakesAndMushrooms'");
+  }
+}
+
+@interface FridaTest1 : NSObject
++ (int)foo_;
++ (int)fooBar_;
++ (int)fooBar:(int)a;
++ (int):(int)a;
++ (int):(int)a :(int)b;
+@end
+
+@implementation FridaTest1
++ (int)foo_ {
+  return 1;
+}
++ (int)fooBar_ {
+  return 2;
+}
++ (int)fooBar:(int)a {
+  return 3;
+}
++ (int):(int)a {
+  return 4;
+}
++ (int):(int)a :(int)b {
+  return 5;
+}
+@end
+
+SCRIPT_TESTCASE (methods_with_weird_names_can_be_invoked)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var FridaTest1 = ObjC.classes.FridaTest1;"
+        "var methodNames = ['foo_', 'fooBar_', 'fooBar:', ':', '::'];"
+        "var args = [0, 0, 1, 1, 2];"
+        "for (var i = 0; i < methodNames.length; i++) {"
+            "var m = FridaTest1['+ ' + methodNames[i]];"
+            "var val = m.apply(FridaTest1, args[i] == 0? []: args[i] == 1? [0]: [0, 0]);"
+            "send(val == i + 1);"
+        "}");
+
+    for (int i = 0; i < 5; i++) {
+      EXPECT_SEND_MESSAGE_WITH ("true");
+    }
+  }
+}
+
+@interface FridaTest2 : NSObject
+@end
+
+#define METHOD(t, n) + (t)_ ## n:(t)x { return x; }
+@implementation FridaTest2
+METHOD(char, char)
+METHOD(int, int)
+METHOD(short, short)
+METHOD(long, long)
+METHOD(long long, long_long)
+METHOD(unsigned char, unsigned_char)
+METHOD(unsigned int, unsigned_int)
+METHOD(unsigned short, unsigned_short)
+METHOD(unsigned long, unsigned_long)
+METHOD(unsigned long long, unsigned_long_long)
+METHOD(float, float)
+METHOD(double, double)
+METHOD(_Bool, _Bool)
+METHOD(char *, char_ptr)
+METHOD(id, id)
+METHOD(Class, Class)
+METHOD(SEL, SEL)
+@end
+
+SCRIPT_TESTCASE (method_call_preserves_value)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var FridaTest2 = ObjC.classes.FridaTest2;"
+        "function test(method, value) {"
+            "send(value == FridaTest2['+ _' + method](value));"
+        "}"
+        "test('char', 127);"
+        "test('char', -128);"
+        "test('char', 1337');"
+        "test('int', -467);"
+        "test('int', 150);"
+        "test('short', -56);"
+        "test('short', 562);"
+        "test('long',  0x7fffffff);"
+        "test('long', -0x80000000);"
+        "test('long long', 0x7fffffff);"
+        "test('long long', -0x80000000);"
+        "test('float', 1.4);"
+        "test('float', -5.6);"
+        "test('float', -0.0);"
+        "test('float', Infinity);"
+        "test('float', -Infinity);"
+        "test('double', Math.pow(10, 300));"
+        "test('double', -Math.pow(10, 300));"
+        "test('double', -0.0);"
+        "test('double', Infinity);"
+        "test('double', -Infinity);"
+        "test('_Bool', false);"
+        "test('_Bool', true);"
+        "test('char_ptr', 'foobar');"
+        "test('char_ptr', 'frida');"
+        "test('id', FridaTest2);"
+        "test('id', ObjC.classes.NSObject.new());"
+        "test('Class', FridaTest2);"
+        "test('Class', ObjC.classes.NSObject);"
+        "test('SEL', ObjC.selector('foo'));"
+        "test('SEL', ObjC.selector('foo:bar:baz:'));");
+
+    for (int i = 0; i < 31; i++) {
+      EXPECT_SEND_MESSAGE_WITH ("true");
+    }
   }
 }
 
