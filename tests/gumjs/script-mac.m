@@ -21,6 +21,7 @@ TEST_LIST_BEGIN (script_mac)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
   SCRIPT_TESTENTRY (method_call_preserves_value)
+  SCRIPT_TESTENTRY (objects_can_be_serialized_to_json)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
@@ -270,6 +271,17 @@ SCRIPT_TESTCASE (method_call_preserves_value)
     }
   }
 #endif
+}
+
+SCRIPT_TESTCASE (objects_can_be_serialized_to_json)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "JSON.parse(JSON.stringify(ObjC));"
+        "JSON.parse(JSON.stringify(ObjC.classes.NSObject));");
+    EXPECT_NO_MESSAGES ();
+  }
 }
 
 SCRIPT_TESTCASE (performance)

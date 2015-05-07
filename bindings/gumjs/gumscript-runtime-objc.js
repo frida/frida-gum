@@ -83,19 +83,36 @@
         };
     }
 
+    const registryBuiltins = {
+        "hasOwnProperty": true,
+        "toJSON": true,
+        "toString": true,
+        "valueOf": true
+    };
+
     function Registry(api) {
         const cachedClasses = {};
         let numCachedClasses = 0;
 
         const registry = Proxy.create({
             has(name) {
-                return findClassByName(name) !== null;
+                if (registryBuiltins[name] !== undefined)
+                    return true;
+                return findClass(name) !== null;
             },
             get(target, name) {
-                if (name === "hasOwnProperty")
-                    return this.has;
-                else
-                    return getClassByName(name);
+                switch (name) {
+                    case "hasOwnProperty":
+                        return this.has;
+                    case "toJSON":
+                        return toJSON;
+                    case "toString":
+                        return toString;
+                    case "valueOf":
+                        return valueOf;
+                    default:
+                        return getClass(name);
+                }
             },
             set(target, name, value) {
                 throw new Error("Invalid operation");
@@ -131,14 +148,14 @@
             }
         });
 
-        function getClassByName(name) {
-            const cls = findClassByName(name);
+        function getClass(name) {
+            const cls = findClass(name);
             if (cls === null)
                 throw new Error("Unable to find class '" + name + "'");
             return cls;
         }
 
-        function findClassByName(name) {
+        function findClass(name) {
             let handle = cachedClasses[name];
             if (handle === undefined)
                 handle = api.objc_lookUpClass(Memory.allocUtf8String(name));
@@ -147,12 +164,25 @@
             return new ObjCObject(handle, true, api, registry);
         }
 
+        function toJSON() {
+            return "{}";
+        }
+
+        function toString() {
+            return "Registry";
+        }
+
+        function valueOf() {
+            return "Registry";
+        }
+
         return registry;
     }
 
     const objCObjectBuiltins = {
         "handle": true,
         "hasOwnProperty": true,
+        "toJSON": true,
         "toString": true,
         "valueOf": true
     };
@@ -175,6 +205,8 @@
                         return handle;
                     case "hasOwnProperty":
                         return this.has;
+                    case "toJSON":
+                        return toJSON;
                     case "toString":
                         return target.description().UTF8String;
                     case "valueOf":
@@ -312,6 +344,10 @@
             }
             const fullName = kind + name;
             return [kind, name, fullName];
+        }
+
+        function toJSON() {
+            return "{\"handle\":\"" + handle.toString() + "\"}";
         }
     }
 
