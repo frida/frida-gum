@@ -1,8 +1,11 @@
 (function () {
-    var _runtime = null;
-    var _api = null;
-    var pointerSize = Process.pointerSize;
-    var scratchBuffer = Memory.alloc(pointerSize);
+    "use strict";
+
+    let _runtime = null;
+    let _api = null;
+    const pointerSize = Process.pointerSize;
+    const scratchBuffer = Memory.alloc(pointerSize);
+    const msgSendBySignatureId = {};
 
     Object.defineProperty(this, 'ObjC', {
         enumerable: true,
@@ -14,17 +17,10 @@
         }
     });
 
-    var Runtime = function Runtime() {
-        var api = null;
-        var classFactory = null;
-        var scheduledCallbacks = [];
-
-        var initialize = function initialize() {
-            api = getApi();
-            if (api !== null) {
-                classFactory = new ClassFactory();
-            }
-        };
+    function Runtime() {
+        const api = getApi();
+        const registry = new Registry(api);
+        const scheduledCallbacks = [];
 
         Object.defineProperty(this, 'available', {
             enumerable: true,
@@ -35,9 +31,7 @@
 
         Object.defineProperty(this, 'classes', {
             enumerable: true,
-            get: function () {
-                return classFactory.classes;
-            }
+            value: registry
         });
 
         Object.defineProperty(this, 'mainQueue', {
@@ -47,11 +41,18 @@
             }
         });
 
+        Object.defineProperty(this, 'Object', {
+            enumerable: true,
+            value: function (handle) {
+                return new ObjCObject(handle, null, api, registry);
+            }
+        });
+
         this.schedule = function (queue, work) {
-            var NSAutoreleasePool = this.use('NSAutoreleasePool');
-            var workCallback = new NativeCallback(function () {
-                var pool = NSAutoreleasePool.alloc().init();
-                var pendingException = null;
+            const NSAutoreleasePool = this.classes.NSAutoreleasePool;
+            const workCallback = new NativeCallback(function () {
+                const pool = NSAutoreleasePool.alloc().init();
+                let pendingException = null;
                 try {
                     work();
                 } catch (e) {
@@ -69,20 +70,8 @@
             api.dispatch_async_f(queue, NULL, workCallback);
         };
 
-        this.use = function (className) {
-            return classFactory.use(className);
-        };
-
-        this.cast = function (handle, klass) {
-            return classFactory.cast(handle, klass);
-        };
-
         this.implement = function (method, fn) {
             return new NativeCallback(fn, method.returnType, method.argumentTypes);
-        };
-
-        this.refreshClasses = function () {
-            classFactory.refresh();
         };
 
         this.selector = function (name) {
@@ -92,471 +81,548 @@
         this.selectorAsString = function (sel) {
             return Memory.readUtf8String(api.sel_getName(sel));
         };
+    }
 
-        initialize.call(this);
-    };
+    function Registry(api) {
+        const cachedClasses = {};
+        let numCachedClasses = 0;
 
-    var ClassFactory = function ClassFactory() {
-        var factory = this;
-        var classNames = [];
-        var templateByName = {};
-        var classByHandle = {};
-        var msgSendBySignatureId = {};
-        var api = null;
-
-        var initialize = function initialize() {
-            api = getApi();
-            this.refresh();
-        };
-
-        Object.defineProperty(this, 'classes', {
-            enumerable: true,
-            get: function () {
-                return classNames;
+        const registry = Proxy.create({
+            has(name) {
+                return findClassByName(name) !== null;
+            },
+            get(target, name) {
+                if (name === "hasOwnProperty")
+                    return this.has;
+                else
+                    return getClassByName(name);
+            },
+            set(target, name, value) {
+                throw new Error("Invalid operation");
+            },
+            enumerate() {
+                return this.keys();
+            },
+            iterate() {
+                const props = this.keys();
+                let i = 0;
+                return {
+                    next() {
+                        if (i === props.length)
+                            throw StopIteration;
+                        return props[i++];
+                    }
+                };
+            },
+            keys() {
+                let numClasses = api.objc_getClassList(NULL, 0);
+                if (numClasses !== numCachedClasses) {
+                    // It's impossible to unregister classes in ObjC, so if the number of
+                    // classes hasn't changed, we can assume that the list is up to date.
+                    const rawClasses = Memory.alloc(numClasses * pointerSize);
+                    numClasses = api.objc_getClassList(rawClasses, numClasses);
+                    for (let i = 0; i !== numClasses; i++) {
+                        const handle = Memory.readPointer(rawClasses.add(i * pointerSize));
+                        const name = Memory.readUtf8String(api.class_getName(handle));
+                        cachedClasses[name] = handle;
+                    }
+                }
+                return Object.keys(cachedClasses);
             }
         });
 
-        this.use = function use(className) {
-            var entry = templateByName[className];
-            if (!entry)
-                throw new Error("Cannot find class '" + className + "'");
+        function getClassByName(name) {
+            const cls = findClassByName(name);
+            if (cls === null)
+                throw new Error("Unable to find class '" + name + "'");
+            return cls;
+        }
 
-            if (entry[1] === null) {
-                var klass = ensureClass(entry[0], className);
-                entry[1] = new klass(entry[0], null);
-            }
+        function findClassByName(name) {
+            let handle = cachedClasses[name];
+            if (handle === undefined)
+                handle = api.objc_lookUpClass(Memory.allocUtf8String(name));
+            if (handle.isNull())
+                return null;
+            return new ObjCObject(handle, true, api, registry);
+        }
 
-            return entry[1];
-        };
+        return registry;
+    }
 
-        this.cast = function cast(handle, template) {
-            var ch = template.classHandle;
-            var klass = classByHandle[ch];
-            return new klass(ch, handle);
-        };
-
-        this.refresh = function refresh() {
-            var numClasses = api.objc_getClassList(NULL, 0);
-            if (numClasses === classNames.length) {
-                // It's impossible to unregister classes in ObjC,
-                // so if the number of classes hasn't changed,
-                // we can assume that the list is up to date
-                return;
-            }
-            var rawClasses = Memory.alloc(numClasses * pointerSize);
-            numClasses = api.objc_getClassList(rawClasses, numClasses);
-            var iterations = 0;
-            for (var i = 0; i !== numClasses; i++) {
-                iterations++;
-                var handle = Memory.readPointer(rawClasses.add(i * pointerSize));
-                var name = Memory.readUtf8String(api.class_getName(handle));
-                if (!templateByName.hasOwnProperty(name)) {
-                    templateByName[name] = [handle, null];
-                    classNames.push(name);
-                }
-            }
-        };
-
-        var ensureClass = function ensureClass(classHandle, cachedName) {
-            var handleId = classHandle.toString();
-            var klass = classByHandle[handleId];
-            if (klass) {
-                return klass;
-            }
-
-            var name = cachedName !== null ? cachedName : Memory.readUtf8String(api.class_getName(classHandle));
-            var superHandle = api.class_getSuperclass(classHandle);
-            var superKlass = !superHandle.isNull() ? ensureClass(superHandle, null) : null;
-
-            eval("klass = function " + name + "(ch, handle) {" +
-                (superKlass !== null
-                    ? "superKlass.call(this, ch || classHandle, handle);"
-                    : "this.classHandle = ch || classHandle; this.handle = handle || NULL;") +
-                "initialize(ch, handle);" +
-            "};");
-
-            var initialize = function initialize(/*classHandle, handle*/) {
-            };
-
-            var initializeClass = function initializeClass() {
-                klass.prototype.toString = function toString () {
-                    return this.description().UTF8String();
-                };
-
-                addMethods('+');
-                addMethods('-');
-            };
-
-            var addMethods = function addMethods(type) {
-                var rawMethods = api.class_copyMethodList(type === '+' ? api.object_getClass(classHandle) : classHandle, scratchBuffer);
-                var numMethods = Memory.readU32(scratchBuffer);
-                for (var i = 0; i !== numMethods; i++) {
-                    addMethod(Memory.readPointer(rawMethods.add(i * pointerSize)), type);
-                }
-                api.free(rawMethods);
-            };
-
-            var addMethod = function addMethod(handle, type) {
-                var sel = api.method_getName(handle);
-                var name = jsMethodName(Memory.readUtf8String(api.sel_getName(sel)));
-
-                var serial = 1;
-                var suffix = "";
-                while (klass.prototype.hasOwnProperty(name + suffix)) {
-                    serial++;
-                    suffix = "" + serial;
-                }
-                name = name + suffix;
-
-                var m = null;
-                Object.defineProperty(klass.prototype, name, {
-                    get: function () {
-                        if (m === null)
-                            m = makeMethod(handle, type, sel);
-                        return m;
-                    }
-                });
-            };
-
-            var makeMethod = function (handle, type, sel) {
-                var signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(handle)));
-                var retType = signature.retType;
-                var argTypes = signature.argTypes.slice(2);
-                var objc_msgSend = getMsgSendImpl(signature);
-
-                var argVariableNames = argTypes.map(function (t, i) {
-                    return "a" + (i + 1);
-                });
-                var callArgs = [
-                    type === '+' ? "this.classHandle" : "this.handle",
-                    "sel"
-                ].concat(argTypes.map(function (t, i) {
-                    if (t.toNative) {
-                        return "argTypes[" + i + "].toNative.call(this, " + argVariableNames[i] + ")";
-                    }
-                    return argVariableNames[i];
-                }));
-                var returnCaptureLeft;
-                var returnCaptureRight;
-                if (retType.type === 'void') {
-                    returnCaptureLeft = "";
-                    returnCaptureRight = "";
-                } else if (retType.fromNative) {
-                    returnCaptureLeft = "return retType.fromNative.call(this, ";
-                    returnCaptureRight = ")";
-                } else {
-                    returnCaptureLeft = "return ";
-                    returnCaptureRight = "";
-                }
-                eval("var f = function (" + argVariableNames.join(", ") + ") { " +
-                    returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
-                " }");
-
-                Object.defineProperty(f, 'selector', {
-                    enumerable: true,
-                    value: sel
-                });
-
-                var implementation = null;
-                Object.defineProperty(f, 'implementation', {
-                    enumerable: true,
-                    get: function () {
-                        return new NativeFunction(api.method_getImplementation(handle), f.returnType, f.argumentTypes);
-                    },
-                    set: function (imp) {
-                        implementation = imp;
-
-                        api.method_setImplementation(handle, imp);
-                    }
-                });
-
-                Object.defineProperty(f, 'returnType', {
-                    enumerable: true,
-                    value: retType.type
-                });
-
-                Object.defineProperty(f, 'argumentTypes', {
-                    enumerable: true,
-                    value: signature.argTypes.map(function (t) {
-                        return t.type;
-                    })
-                });
-
-                return f;
-            };
-
-            // TODO: replace with regex once V8 has been upgraded (which should fix crash on iOS)
-            var jsMethodName = function jsMethodName(name) {
-                var result = "";
-                for (var i = 0; i !== name.length; i++) {
-                    var c = name.charAt(i);
-                    if (c === ':') {
-                        result += "_";
-                    } else {
-                        result += c;
-                    }
-                }
-                return result;
-            };
-
-            var parseSignature = function parseSignature(sig) {
-                var id = "";
-
-                var t = nextType(sig);
-                var retType = parseType(t[0]);
-                id += retType.type;
-
-                var argTypes = [];
-                while (t[1].length > 0) {
-                    t = nextType(t[1]);
-                    var argType = parseType(t[0]);
-                    id += argType.type;
-                    argTypes.push(argType);
-                }
-
-                return {
-                    id: id,
-                    retType: retType,
-                    argTypes: argTypes
-                };
-            };
-
-            var parseType = function parseType(t) {
-                var qualifiers = [];
-                while (t.length > 0) {
-                    var q = qualifierById[t[0]];
-                    if (!q) {
-                        break;
-                    }
-                    qualifiers.push(q);
-                    t = t.substring(1);
-                }
-                var converter = converterById[simplifyType(t)];
-                if (!converter) {
-                    throw new Error("No parser for type " + t);
-                }
-                return converter;
-            };
-
-            var simplifyType = function simplifyType(t) {
-                if (t[0] === '^') {
-                    switch (t[1]) {
-                        case '[':
-                        case '{':
-                        case '(':
-                            return t.substring(0, 2) + t.substring(t.length - 1);
-                    }
-                }
-                return t;
-            };
-
-            var nextType = function nextType(t) {
-                var type = "";
-                var n = 0;
-                var scope = null;
-                var depth = 0;
-                var foundFirstDigit = false;
-                while (n < t.length) {
-                    var c = t[n];
-                    if (scope !== null) {
-                        type += c;
-                        if (c === scope[0]) {
-                            depth++;
-                        } else if (c === scope[1]) {
-                            depth--;
-                            if (depth === 0) {
-                                scope = null;
-                            }
-                        }
-                    } else {
-                        var v = t.charCodeAt(n);
-                        var isDigit = v >= 0x30 && v <= 0x39;
-                        if (!foundFirstDigit) {
-                            foundFirstDigit = isDigit;
-                            if (!isDigit) {
-                                type += t[n];
-                                if (c === '[') {
-                                    scope = '[]';
-                                    depth = 1;
-                                } else if (c === '{') {
-                                    scope = '{}';
-                                    depth = 1;
-                                } else if (c === '(') {
-                                    scope = '()';
-                                    depth = 1;
-                                }
-                            }
-                        } else if (!isDigit) {
-                            break;
-                        }
-                    }
-                    n++;
-                }
-                return [type, t.substring(n)];
-            };
-
-            var qualifierById = {
-                'r': 'const',
-                'n': 'in',
-                'N': 'inout',
-                'o': 'out',
-                'O': 'bycopy',
-                'R': 'byref',
-                'V': 'oneway'
-            };
-
-            var converterById = {
-                'c': {
-                    type: 'char',
-                    fromNative: function (v) {
-                        return v ? true : false;
-                    },
-                    toNative: function (v) {
-                        return v ? 1 : 0;
-                    }
-                },
-                'i': {
-                    type: 'int'
-                },
-                'q': {
-                    type: 'int64'
-                },
-                'C': {
-                    type: 'uchar'
-                },
-                'I': {
-                    type: 'uint'
-                },
-                'S': {
-                    type: 'uint16'
-                },
-                'Q': {
-                    type: 'uint64'
-                },
-                'f': {
-                    type: 'float'
-                },
-                'd': {
-                    type: 'double'
-                },
-                'v': {
-                    type: 'void'
-                },
-                '*': {
-                    type: 'pointer',
-                    fromNative: function (h) {
-                        if (h.isNull()) {
-                            return null;
-                        }
-                        return Memory.readUtf8String(h);
-                    }
-                },
-                '@': {
-                    type: 'pointer',
-                    fromNative: function (h) {
-                        if (h.isNull()) {
-                            return null;
-                        } else if (h.toString(16) === this.handle.toString(16)) {
-                            return this;
-                        } else {
-                            var kh = api.object_getClass(h);
-                            var k = ensureClass(kh, null);
-                            return new k(kh, h);
-                        }
-                    },
-                    toNative: function (v) {
-                        if (typeof v === 'string') {
-                            return factory.use('NSString').stringWithUTF8String_(Memory.allocUtf8String(v)).handle;
-                        }
-                        return v;
-                    }
-                },
-                '@?': {
-                    type: 'pointer'
-                },
-                '#': {
-                    type: 'pointer'
-                },
-                ':': {
-                    type: 'pointer'
-                },
-                '^i': {
-                    type: 'pointer'
-                },
-                '^q': {
-                    type: 'pointer'
-                },
-                '^S': {
-                    type: 'pointer'
-                },
-                '^^S': {
-                    type: 'pointer'
-                },
-                '^Q': {
-                    type: 'pointer'
-                },
-                '^v': {
-                    type: 'pointer'
-                },
-                '^*': {
-                    type: 'pointer'
-                },
-                '^@': {
-                    type: 'pointer'
-                },
-                '^?': {
-                    type: 'pointer'
-                },
-                '^{}': {
-                    type: 'pointer'
-                },
-            };
-
-            if (superKlass !== null) {
-                var Surrogate = function () {
-                    this.constructor = klass;
-                };
-                Surrogate.prototype = superKlass.prototype;
-                klass.prototype = new Surrogate();
-
-                klass.__name__ = name;
-                klass.__super__ = superKlass.prototype;
-            }
-
-            initializeClass();
-
-            classByHandle[handleId] = klass;
-
-            return klass;
-        };
-
-        var getMsgSendImpl = function getMsgSendImpl(signature) {
-            var impl = msgSendBySignatureId[signature.id];
-            if (!impl) {
-                var argTypes = [];
-                signature.argTypes.forEach(function (t, i) {
-                    argTypes.push(t.type);
-                    if (i == 1) {
-                        argTypes.push('...');
-                    }
-                });
-                impl = new NativeFunction(api.objc_msgSend, signature.retType.type, argTypes);
-                msgSendBySignatureId[signature.id] = impl;
-            }
-
-            return impl;
-        };
-
-        initialize.call(this);
+    const objCObjectBuiltins = {
+        "handle": true,
+        "hasOwnProperty": true,
+        "toString": true,
+        "valueOf": true
     };
 
-    var getApi = function () {
+    function ObjCObject(handle, cachedIsClass, api, registry) {
+        let cachedClassHandle = null;
+        let hasCachedMethodHandles = false;
+        const cachedMethodHandles = {};
+        const cachedMethodWrappers = {};
+
+        return Proxy.create({
+            has(name) {
+                if (objCObjectBuiltins[name] !== undefined)
+                    return true;
+                return findMethodHandle(name) !== null;
+            },
+            get(target, name) {
+                switch (name) {
+                    case "handle":
+                        return handle;
+                    case "hasOwnProperty":
+                        return this.has;
+                    case "toString":
+                        return target.description().UTF8String;
+                    case "valueOf":
+                        return handle.toString;
+                    default:
+                        return getMethodWrapper(name);
+                }
+            },
+            set(target, name, value) {
+                throw new Error("Invalid operation");
+            },
+            enumerate() {
+                return this.keys();
+            },
+            iterate() {
+                const props = this.keys();
+                let i = 0;
+                return {
+                    next() {
+                        if (i === props.length)
+                            throw StopIteration;
+                        return props[i++];
+                    }
+                };
+            },
+            keys() {
+                if (!hasCachedMethodHandles) {
+                    let cur = api.object_getClass(handle);
+                    do {
+                        const methodHandles = api.class_copyMethodList(cur, scratchBuffer);
+                        try {
+                            const numMethods = Memory.readU32(scratchBuffer);
+                            for (let i = 0; i !== numMethods; i++) {
+                                const methodHandle = Memory.readPointer(methodHandles.add(i * pointerSize));
+                                const sel = api.method_getName(methodHandle);
+                                let name = jsMethodName(Memory.readUtf8String(api.sel_getName(sel)));
+                                let serial = 1;
+                                let n = name;
+                                while (objCObjectBuiltins[n] !== undefined || cachedMethodHandles[n] !== undefined) {
+                                    serial++;
+                                    n = name + serial;
+                                }
+                                cachedMethodHandles[n] = methodHandle;
+                            }
+                        } finally {
+                            api.free(methodHandles);
+                        }
+                        cur = api.class_getSuperclass(cur);
+                    } while (!cur.isNull());
+
+                    hasCachedMethodHandles = true;
+                }
+                return Object.keys(objCObjectBuiltins).concat(Object.keys(cachedMethodHandles));
+            }
+        });
+
+        function classHandle() {
+            if (cachedClassHandle === null)
+                cachedClassHandle = isClass() ? handle : api.object_getClass(handle);
+            return cachedClassHandle;
+        }
+
+        function isClass() {
+            if (cachedIsClass === null)
+                cachedIsClass = api.object_isClass(handle);
+            return cachedIsClass;
+        }
+
+        function findMethodHandle(rawName) {
+            let methodHandle = cachedMethodHandles[rawName];
+            if (methodHandle !== undefined)
+                return methodHandle;
+
+            const details = parseMethodName(rawName);
+            const kind = details[0];
+            const name = details[1];
+            const defaultKind = isClass() ? '+' : '-';
+
+            const sel = api.sel_registerName(Memory.allocUtf8String(name));
+            methodHandle = (kind === '+')
+                ? api.class_getClassMethod(classHandle(), sel)
+                : api.class_getInstanceMethod(classHandle(), sel);
+            if (methodHandle.isNull())
+                return null;
+
+            if (kind === defaultKind)
+                cachedMethodHandles[jsMethodName(name)] = methodHandle;
+
+            return methodHandle;
+        }
+
+        function getMethodWrapper(name) {
+            const method = findMethodWrapper(name);
+            if (method === null)
+                throw new Error("Unable to find method '" + name + "'");
+            return method;
+        }
+
+        function findMethodWrapper(rawName) {
+            let wrapper = cachedMethodWrappers[rawName];
+            if (wrapper !== undefined)
+                return wrapper;
+
+            const details = parseMethodName(rawName);
+            const kind = details[0];
+            const name = details[1];
+            const fullName = details[2];
+
+            wrapper = cachedMethodWrappers[fullName];
+            if (wrapper !== undefined)
+                return wrapper;
+
+            const sel = api.sel_registerName(Memory.allocUtf8String(name));
+            const methodHandle = (kind === '+')
+                ? api.class_getClassMethod(classHandle(), sel)
+                : api.class_getInstanceMethod(classHandle(), sel);
+            if (methodHandle.isNull())
+                return null;
+            wrapper = makeMethodWrapper(methodHandle, sel, api, registry);
+
+            cachedMethodWrappers[fullName] = wrapper;
+
+            return wrapper;
+        }
+
+        function parseMethodName(rawName) {
+            const match = /([+-])\s?(\S+)/.exec(rawName);
+            let name, kind;
+            if (match === null) {
+                kind = isClass() ? '+' : '-';
+                name = objcMethodName(rawName);
+            } else {
+                kind = match[1];
+                name = match[2];
+            }
+            const fullName = kind + name;
+            return [kind, name, fullName];
+        }
+    }
+
+    function makeMethodWrapper(handle, sel, api, registry) {
+        const signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(handle)));
+        const retType = signature.retType;
+        const argTypes = signature.argTypes.slice(2);
+        const objc_msgSend = getMsgSendImpl(signature, api);
+
+        const argVariableNames = argTypes.map(function (t, i) {
+            return "a" + (i + 1);
+        });
+        const callArgs = [
+            "this.handle",
+            "sel"
+        ].concat(argTypes.map(function (t, i) {
+            if (t.toNative) {
+                return "argTypes[" + i + "].toNative.call(this, " + argVariableNames[i] + ", api, registry)";
+            }
+            return argVariableNames[i];
+        }));
+        let returnCaptureLeft;
+        let returnCaptureRight;
+        if (retType.type === 'void') {
+            returnCaptureLeft = "";
+            returnCaptureRight = "";
+        } else if (retType.fromNative) {
+            returnCaptureLeft = "return retType.fromNative.call(this, ";
+            returnCaptureRight = ", api, registry)";
+        } else {
+            returnCaptureLeft = "return ";
+            returnCaptureRight = "";
+        }
+        const m = eval("const m = function (" + argVariableNames.join(", ") + ") { " +
+            returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
+        " }; m;");
+
+        Object.defineProperty(m, 'selector', {
+            enumerable: true,
+            value: sel
+        });
+
+        let implementation = null;
+        Object.defineProperty(m, 'implementation', {
+            enumerable: true,
+            get: function () {
+                return new NativeFunction(api.method_getImplementation(handle), m.returnType, m.argumentTypes);
+            },
+            set: function (imp) {
+                implementation = imp;
+
+                api.method_setImplementation(handle, imp);
+            }
+        });
+
+        Object.defineProperty(m, 'returnType', {
+            enumerable: true,
+            value: retType.type
+        });
+
+        Object.defineProperty(m, 'argumentTypes', {
+            enumerable: true,
+            value: signature.argTypes.map(function (t) {
+                return t.type;
+            })
+        });
+
+        return m;
+    }
+
+    function objcMethodName(name) {
+        return name.replace(/_/g, ":");
+    }
+
+    function jsMethodName(name) {
+        return name.replace(/:/g, "_");
+    }
+
+    function getMsgSendImpl(signature, api) {
+        let impl = msgSendBySignatureId[signature.id];
+        if (!impl) {
+            const argTypes = [];
+            signature.argTypes.forEach(function (t, i) {
+                argTypes.push(t.type);
+                if (i == 1) {
+                    argTypes.push('...');
+                }
+            });
+            impl = new NativeFunction(api.objc_msgSend, signature.retType.type, argTypes);
+            msgSendBySignatureId[signature.id] = impl;
+        }
+
+        return impl;
+    }
+
+    function parseSignature(sig) {
+        let id = "";
+
+        let t = nextType(sig);
+        const retType = parseType(t[0]);
+        id += retType.type;
+
+        const argTypes = [];
+        while (t[1].length > 0) {
+            t = nextType(t[1]);
+            const argType = parseType(t[0]);
+            id += argType.type;
+            argTypes.push(argType);
+        }
+
+        return {
+            id: id,
+            retType: retType,
+            argTypes: argTypes
+        };
+    }
+
+    function parseType(t) {
+        const qualifiers = [];
+        while (t.length > 0) {
+            const q = qualifierById[t[0]];
+            if (q === undefined)
+                break;
+            qualifiers.push(q);
+            t = t.substring(1);
+        }
+        const converter = converterById[simplifyType(t)];
+        if (converter === undefined)
+            throw new Error("No parser for type " + t);
+        return converter;
+    }
+
+    function simplifyType(t) {
+        if (t[0] === '^') {
+            switch (t[1]) {
+                case '[':
+                case '{':
+                case '(':
+                    return t.substring(0, 2) + t.substring(t.length - 1);
+            }
+        }
+        return t;
+    }
+
+    function nextType(t) {
+        let type = "";
+        let n = 0;
+        let scope = null;
+        let depth = 0;
+        let foundFirstDigit = false;
+        while (n < t.length) {
+            const c = t[n];
+            if (scope !== null) {
+                type += c;
+                if (c === scope[0]) {
+                    depth++;
+                } else if (c === scope[1]) {
+                    depth--;
+                    if (depth === 0) {
+                        scope = null;
+                    }
+                }
+            } else {
+                const v = t.charCodeAt(n);
+                const isDigit = v >= 0x30 && v <= 0x39;
+                if (!foundFirstDigit) {
+                    foundFirstDigit = isDigit;
+                    if (!isDigit) {
+                        type += t[n];
+                        if (c === '[') {
+                            scope = '[]';
+                            depth = 1;
+                        } else if (c === '{') {
+                            scope = '{}';
+                            depth = 1;
+                        } else if (c === '(') {
+                            scope = '()';
+                            depth = 1;
+                        }
+                    }
+                } else if (!isDigit) {
+                    break;
+                }
+            }
+            n++;
+        }
+        return [type, t.substring(n)];
+    }
+
+    const qualifierById = {
+        'r': 'const',
+        'n': 'in',
+        'N': 'inout',
+        'o': 'out',
+        'O': 'bycopy',
+        'R': 'byref',
+        'V': 'oneway'
+    };
+
+    const converterById = {
+        'c': {
+            type: 'char',
+            fromNative: function (v) {
+                return v ? true : false;
+            },
+            toNative: function (v) {
+                return v ? 1 : 0;
+            }
+        },
+        'i': {
+            type: 'int'
+        },
+        'q': {
+            type: 'int64'
+        },
+        'C': {
+            type: 'uchar'
+        },
+        'I': {
+            type: 'uint'
+        },
+        'S': {
+            type: 'uint16'
+        },
+        'Q': {
+            type: 'uint64'
+        },
+        'f': {
+            type: 'float'
+        },
+        'd': {
+            type: 'double'
+        },
+        'v': {
+            type: 'void'
+        },
+        '*': {
+            type: 'pointer',
+            fromNative: function (h) {
+                if (h.isNull()) {
+                    return null;
+                }
+                return Memory.readUtf8String(h);
+            }
+        },
+        '@': {
+            type: 'pointer',
+            fromNative: function (h, api, registry) {
+                if (h.isNull()) {
+                    return null;
+                } else if (h.toString(16) === this.handle.toString(16)) {
+                    return this;
+                } else {
+                    return new ObjCObject(h, null, api, registry);
+                }
+            },
+            toNative: function (v, api, registry) {
+                if (typeof v === 'string') {
+                    return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v)).handle;
+                }
+                return v;
+            }
+        },
+        '@?': {
+            type: 'pointer'
+        },
+        '#': {
+            type: 'pointer'
+        },
+        ':': {
+            type: 'pointer'
+        },
+        '^i': {
+            type: 'pointer'
+        },
+        '^q': {
+            type: 'pointer'
+        },
+        '^S': {
+            type: 'pointer'
+        },
+        '^^S': {
+            type: 'pointer'
+        },
+        '^Q': {
+            type: 'pointer'
+        },
+        '^v': {
+            type: 'pointer'
+        },
+        '^*': {
+            type: 'pointer'
+        },
+        '^@': {
+            type: 'pointer'
+        },
+        '^?': {
+            type: 'pointer'
+        },
+        '^{}': {
+            type: 'pointer'
+        }
+    };
+
+    function getApi() {
         if (_api !== null) {
             return _api;
         }
 
-        var temporaryApi = {};
-        var pending = [
+        const temporaryApi = {};
+        const pending = [
             {
                 module: "libsystem_malloc.dylib",
                 functions: {
@@ -573,9 +639,13 @@
                         this.objc_msgSend_noargs = new NativeFunction(address, 'pointer', ['pointer', 'pointer', '...']);
                     },
                     "objc_getClassList": ['int', ['pointer', 'int']],
+                    "objc_lookUpClass": ['pointer', ['pointer']],
                     "class_getName": ['pointer', ['pointer']],
                     "class_copyMethodList": ['pointer', ['pointer', 'pointer']],
+                    "class_getClassMethod": ['pointer', ['pointer', 'pointer']],
+                    "class_getInstanceMethod": ['pointer', ['pointer', 'pointer']],
                     "class_getSuperclass": ['pointer', ['pointer']],
+                    "object_isClass": ['int8', ['pointer']],
                     "object_getClass": ['pointer', ['pointer']],
                     "method_getName": ['pointer', ['pointer']],
                     "method_getTypeEncoding": ['pointer', ['pointer']],
@@ -599,16 +669,16 @@
                 }
             }
         ];
-        var remaining = 0;
+        let remaining = 0;
         pending.forEach(function (api) {
-            var pendingFunctions = api.functions;
-            var pendingVariables = api.variables;
+            const pendingFunctions = api.functions;
+            const pendingVariables = api.variables;
             remaining += Object.keys(pendingFunctions).length + Object.keys(pendingVariables).length;
             Module.enumerateExports(api.module, {
                 onMatch: function (exp) {
-                    var name = exp.name;
+                    const name = exp.name;
                     if (exp.type === 'function') {
-                        var signature = pendingFunctions[name];
+                        const signature = pendingFunctions[name];
                         if (signature) {
                             if (typeof signature === 'function') {
                                 signature.call(temporaryApi, exp.address);
@@ -619,7 +689,7 @@
                             remaining--;
                         }
                     } else if (exp.type === 'variable') {
-                        var handler = pendingVariables[name];
+                        const handler = pendingVariables[name];
                         if (handler) {
                             handler.call(temporaryApi, exp.address);
                             delete pendingVariables[name];
@@ -639,5 +709,5 @@
         }
 
         return _api;
-    };
+    }
 }).call(this);
