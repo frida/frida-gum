@@ -549,18 +549,51 @@
         'V': 'oneway'
     };
 
+    function isObjCObject(o) {
+        // return o instanceof ObjC.Object
+        return typeof o === 'object' &&
+            o.hasOwnProperty('handle') &&
+            o.handle instanceof NativePointer;
+    }
+
+    const fromNativeId = function(h, api, registry) {
+        if (h.isNull()) {
+            return null;
+        } else if (h.toString(16) === this.handle.toString(16)) {
+            return this;
+        } else {
+            return new ObjCObject(h, null, api, registry);
+        }
+    };
+
+    const toNativeId = function(v) {
+        if (typeof v === 'string') {
+            return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v)).handle;
+        }
+        if (isObjCObject(v)) {
+            return v.handle;
+        }
+        return v;
+    };
+
     const converterById = {
         'c': {
             type: 'char',
-            fromNative: function (v) {
-                return v ? true : false;
-            },
             toNative: function (v) {
-                return v ? 1 : 0;
+                if (typeof v === 'boolean') {
+                    return v ? 1 : 0;
+                }
+                return v;
             }
         },
         'i': {
             type: 'int'
+        },
+        's': {
+            type: 'int16'
+        },
+        'l': {
+            type: 'int32'
         },
         'q': {
             type: 'int64'
@@ -574,6 +607,9 @@
         'S': {
             type: 'uint16'
         },
+        'L': {
+            type: 'uint32'
+        },
         'Q': {
             type: 'uint64'
         },
@@ -582,6 +618,15 @@
         },
         'd': {
             type: 'double'
+        },
+        'B': {
+            type: 'bool',
+            fromNative: function (v) {
+                return v ? true : false;
+            },
+            toNative: function (v) {
+                return v ? 1 : 0;
+            }
         },
         'v': {
             type: 'void'
@@ -597,27 +642,16 @@
         },
         '@': {
             type: 'pointer',
-            fromNative: function (h, api, registry) {
-                if (h.isNull()) {
-                    return null;
-                } else if (h.toString(16) === this.handle.toString(16)) {
-                    return this;
-                } else {
-                    return new ObjCObject(h, null, api, registry);
-                }
-            },
-            toNative: function (v, api, registry) {
-                if (typeof v === 'string') {
-                    return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v)).handle;
-                }
-                return v;
-            }
+            fromNative: fromNativeId,
+            toNative: toNativeId
         },
         '@?': {
             type: 'pointer'
         },
         '#': {
-            type: 'pointer'
+            type: 'pointer',
+            fromNative: fromNativeId,
+            toNative: toNativeId
         },
         ':': {
             type: 'pointer'

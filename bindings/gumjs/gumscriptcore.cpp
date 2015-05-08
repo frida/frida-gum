@@ -811,7 +811,7 @@ gum_script_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
  * setInterval(callback, delay)
  *
  * Docs:
- * Calls a function or executes a code snippet repeatedly, with a fixed 
+ * Calls a function or executes a code snippet repeatedly, with a fixed
  * time delay between each call to that function. Returns an intervalID.
  *
  * Example:
@@ -1721,7 +1721,8 @@ static const GumFFITypeMapping gum_ffi_type_mappings[] =
   { "int32", &ffi_type_sint32 },
   { "uint32", &ffi_type_uint32 },
   { "int64", &ffi_type_sint64 },
-  { "uint64", &ffi_type_uint64 }
+  { "uint64", &ffi_type_uint64 },
+  { "bool", &ffi_type_schar }
 };
 
 static const GumFFIABIMapping gum_ffi_abi_mappings[] =
