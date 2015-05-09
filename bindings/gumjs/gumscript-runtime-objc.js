@@ -556,7 +556,7 @@
             o.handle instanceof NativePointer;
     }
 
-    const fromNativeId = function(h, api, registry) {
+    const fromNativeId = function (h, api, registry) {
         if (h.isNull()) {
             return null;
         } else if (h.toString(16) === this.handle.toString(16)) {
@@ -566,7 +566,7 @@
         }
     };
 
-    const toNativeId = function(v) {
+    const toNativeId = function (v) {
         if (typeof v === 'string') {
             return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v)).handle;
         }

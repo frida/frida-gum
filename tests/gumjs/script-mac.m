@@ -228,7 +228,7 @@ SCRIPT_TESTCASE (method_call_preserves_value)
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaTest2 = ObjC.classes.FridaTest2;"
         "function isObjCObject(o) {"
-            "// return o instanceof ObjC.Object"
+            "/* return o instanceof ObjC.Object */"
             "return typeof o === 'object' &&"
                 "o.hasOwnProperty('handle') &&"
                 "o.handle instanceof NativePointer;"
