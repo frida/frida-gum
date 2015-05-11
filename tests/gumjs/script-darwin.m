@@ -17,6 +17,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (class_can_be_retrieved)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
   SCRIPT_TESTENTRY (object_can_be_constructed_from_pointer)
+  SCRIPT_TESTENTRY (string_can_be_constructed)
   SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
@@ -115,6 +116,17 @@ SCRIPT_TESTCASE (object_can_be_constructed_from_pointer)
         "send(str.toString());",
         str);
     EXPECT_SEND_MESSAGE_WITH ("\"Badger\"");
+  }
+}
+
+SCRIPT_TESTCASE (string_can_be_constructed)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSString = ObjC.classes.NSString;"
+        "NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\"));");
+    EXPECT_NO_MESSAGES ();
   }
 }
 

@@ -431,13 +431,7 @@
     function getMsgSendImpl(signature, api) {
         let impl = msgSendBySignatureId[signature.id];
         if (!impl) {
-            const argTypes = [];
-            signature.argTypes.forEach(function (t, i) {
-                argTypes.push(t.type);
-                if (i == 1) {
-                    argTypes.push('...');
-                }
-            });
+            const argTypes = signature.argTypes.map(function (t) { return t.type; });
             impl = new NativeFunction(api.objc_msgSend, signature.retType.type, argTypes);
             msgSendBySignatureId[signature.id] = impl;
         }
