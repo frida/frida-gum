@@ -7,9 +7,9 @@
 #define SCRIPT_SUITE "/ObjC"
 #include "script-fixture.c"
 
-#import <Cocoa/Cocoa.h>
+#import <Foundation/Foundation.h>
 
-TEST_LIST_BEGIN (script_mac)
+TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (classes_can_be_enumerated)
   SCRIPT_TESTENTRY (object_enumeration_should_contain_parent_methods)
   SCRIPT_TESTENTRY (class_enumeration_should_not_contain_instance_methods)

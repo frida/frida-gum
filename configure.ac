@@ -170,6 +170,9 @@ GUM_TEST_LIBS=""
 if [[ "x$HAVE_MAC" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"
 fi
+if [[ "x$HAVE_IOS" = "xyes" ]]; then
+  GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,Foundation"
+fi
 AC_SUBST(GUM_TEST_LIBS)
 
 AC_CONFIG_FILES([

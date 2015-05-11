@@ -163,8 +163,8 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
   /* GumJS */
   TEST_RUN_LIST (script);
-# ifdef HAVE_MAC
-  TEST_RUN_LIST (script_mac);
+# ifdef HAVE_DARWIN
+  TEST_RUN_LIST (script_darwin);
 # endif
 #endif
 

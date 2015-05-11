@@ -2,9 +2,9 @@ noinst_LTLIBRARIES = libgum-tests-gumjs.la
 
 os_sources = $(NULL)
 
-if OS_MAC
+if OS_DARWIN
 os_sources += \
-	script-mac.m
+	script-darwin.m
 else
 libgum_tests_gumjs_la_LIBTOOLFLAGS = \
 	--tag=CC
