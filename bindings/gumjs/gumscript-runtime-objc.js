@@ -702,7 +702,6 @@
                 functions: {
                     "objc_msgSend": function (address) {
                         this.objc_msgSend = address;
-                        this.objc_msgSend_noargs = new NativeFunction(address, 'pointer', ['pointer', 'pointer', '...']);
                     },
                     "objc_getClassList": ['int', ['pointer', 'int']],
                     "objc_lookUpClass": ['pointer', ['pointer']],
