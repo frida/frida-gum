@@ -235,37 +235,66 @@ METHOD(SEL, SEL)
 
 SCRIPT_TESTCASE (method_call_preserves_value)
 {
-#if 0
-  /* Work in progress */
-
   @autoreleasepool
   {
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaTest2 = ObjC.classes.FridaTest2;"
+        "function isObjCObject(o) {"
+            "/* return o instanceof ObjC.Object */"
+            "return typeof o === 'object' &&"
+                "o.hasOwnProperty('handle') &&"
+                "o.handle instanceof NativePointer;"
+        "}"
         "function test(method, value) {"
-            "send(value == FridaTest2['+ _' + method](value));"
+            "var arg_value = value;"
+            "if (typeof value === 'string') {"
+                "arg_value = Memory.allocUtf8String(value);"
+            "}"
+            "var result = FridaTest2['+ _' + method + ':'](arg_value);"
+            "var same = result === value;"
+            "if (typeof result === 'number') {"
+                "if (isNaN(result)) {"
+                    "same = isNaN(value);"
+                "}"
+            "} else if (typeof result === 'object') {"
+                "if (result instanceof NativePointer) {"
+                    "same = value instanceof NativePointer &&"
+                        "result.toString() === value.toString();"
+                "} else if (isObjCObject(result)) {"
+                    "same = result.handle.toString() === value.handle.toString();"
+                "}"
+            "}"
+            "send(same);"
         "}"
         "test('char', 127);"
         "test('char', -128);"
-        "test('char', 1337');"
         "test('int', -467);"
         "test('int', 150);"
         "test('short', -56);"
         "test('short', 562);"
         "test('long',  0x7fffffff);"
         "test('long', -0x80000000);"
-        "test('long long', 0x7fffffff);"
-        "test('long long', -0x80000000);"
-        "test('float', 1.4);"
-        "test('float', -5.6);"
+        "test('long_long', 0x7fffffff);"
+        "test('long_long', -0x80000000);"
+        "test('unsigned_char', 0);"
+        "test('unsigned_char', 255);"
+        "test('unsigned_int', Math.pow(2, 16) - 1);"
+        "test('unsigned_int', 0x1234);"
+        "test('unsigned_short', 0xffff);"
+        "test('unsigned_long', 0xffffffff);"
+        "test('unsigned_long_long', Math.pow(2, 63));"
+        "test('float', 1.5);"
+        "test('float', -5.75);"
         "test('float', -0.0);"
         "test('float', Infinity);"
         "test('float', -Infinity);"
+        "test('float', NaN);"
         "test('double', Math.pow(10, 300));"
         "test('double', -Math.pow(10, 300));"
         "test('double', -0.0);"
         "test('double', Infinity);"
         "test('double', -Infinity);"
+        "test('double', NaN);"
         "test('_Bool', false);"
         "test('_Bool', true);"
         "test('char_ptr', 'foobar');"
@@ -277,12 +306,11 @@ SCRIPT_TESTCASE (method_call_preserves_value)
         "test('SEL', ObjC.selector('foo'));"
         "test('SEL', ObjC.selector('foo:bar:baz:'));");
 
-    for (gint i = 0; i != 31; i++)
+    for (gint i = 0; i != 39; i++)
     {
       EXPECT_SEND_MESSAGE_WITH ("true");
     }
   }
-#endif
 }
 
 SCRIPT_TESTCASE (objects_can_be_serialized_to_json)
