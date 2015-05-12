@@ -88,7 +88,9 @@ SCRIPT_TESTCASE (class_can_be_retrieved)
   {
     COMPILE_AND_LOAD_SCRIPT (
         "var NSDate = ObjC.classes.NSDate;"
+        "send(NSDate instanceof ObjC.Object);"
         "send(\"NSDate\" in ObjC.classes);");
+    EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
   }
 }
@@ -100,7 +102,7 @@ SCRIPT_TESTCASE (class_method_can_be_invoked)
     COMPILE_AND_LOAD_SCRIPT (
         "var NSDate = ObjC.classes.NSDate;"
         "var now = NSDate.date();"
-        "send(now && typeof now === 'object');");
+        "send(now instanceof ObjC.Object);");
     EXPECT_SEND_MESSAGE_WITH ("true");
   }
 }
@@ -141,7 +143,7 @@ SCRIPT_TESTCASE (method_implementation_can_be_overridden)
         "var method = NSString[\"- description\"];"
         "method.implementation ="
             "ObjC.implement(method, function (handle, selector) {"
-                "return NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\")).handle;"
+                "return NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\"));"
             "});");
     EXPECT_NO_MESSAGES ();
 
@@ -239,12 +241,6 @@ SCRIPT_TESTCASE (method_call_preserves_value)
   {
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaTest2 = ObjC.classes.FridaTest2;"
-        "function isObjCObject(o) {"
-            "/* return o instanceof ObjC.Object */"
-            "return typeof o === 'object' &&"
-                "o.hasOwnProperty('handle') &&"
-                "o.handle instanceof NativePointer;"
-        "}"
         "function test(method, value) {"
             "var arg_value = value;"
             "if (typeof value === 'string') {"
@@ -260,7 +256,7 @@ SCRIPT_TESTCASE (method_call_preserves_value)
                 "if (result instanceof NativePointer) {"
                     "same = value instanceof NativePointer &&"
                         "result.toString() === value.toString();"
-                "} else if (isObjCObject(result)) {"
+                "} else if (result instanceof ObjC.Object) {"
                     "same = result.handle.toString() === value.handle.toString();"
                 "}"
             "}"
