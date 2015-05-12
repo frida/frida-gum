@@ -448,6 +448,11 @@ _gum_script_core_realize (GumScriptCore * self)
   g_assert (success);
   self->native_pointer_value = new GumPersistent<Object>::type (isolate,
       native_pointer_value);
+  self->handle_key = new GumPersistent<String>::type (isolate,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> ("handle"),
+          NewStringType::kNormal,
+          -1).ToLocalChecked ());
 
   Local<FunctionTemplate> cpu_context (
       Local<FunctionTemplate>::New (isolate, *self->cpu_context));
@@ -514,7 +519,9 @@ _gum_script_core_dispose (GumScriptCore * self)
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
+  delete self->handle_key;
   delete self->native_pointer_value;
+  self->handle_key = NULL;
   self->native_pointer_value = NULL;
 
   delete self->cpu_context_value;
@@ -2090,16 +2097,49 @@ _gum_script_pointer_get (Handle<Value> value,
                          GumScriptCore * core)
 {
   Isolate * isolate = core->isolate;
+  gboolean success = FALSE;
 
   Local<FunctionTemplate> native_pointer (Local<FunctionTemplate>::New (
       isolate, *core->native_pointer));
-  if (!native_pointer->HasInstance (value))
+  if (native_pointer->HasInstance (value))
+  {
+    *target = GUM_NATIVE_POINTER_VALUE (value.As<Object> ());
+    success = TRUE;
+  }
+  else
+  {
+    /* Cannot use isObject() here as that returns false for proxies */
+    MaybeLocal<Object> maybe_obj;
+    {
+      TryCatch trycatch (isolate);
+      maybe_obj = value->ToObject (isolate);
+      trycatch.Reset ();
+    }
+
+    Local<Object> obj;
+    if (maybe_obj.ToLocal (&obj))
+    {
+      Local<Context> context = isolate->GetCurrentContext ();
+      Local<String> handle_key (Local<String>::New (isolate,
+          *core->handle_key));
+      if (obj->Has (context, handle_key).FromJust ())
+      {
+        Local<Value> handle = obj->Get (context, handle_key).ToLocalChecked ();
+        if (native_pointer->HasInstance (handle))
+        {
+          *target = GUM_NATIVE_POINTER_VALUE (handle.As<Object> ());
+          success = TRUE;
+        }
+      }
+    }
+  }
+
+  if (!success)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
         "expected NativePointer object")));
     return FALSE;
   }
-  *target = GUM_NATIVE_POINTER_VALUE (value.As<Object> ());
 
   return TRUE;
 }

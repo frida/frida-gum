@@ -65,6 +65,7 @@ struct _GumScriptCore
 
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
   GumPersistent<v8::Object>::type * native_pointer_value;
+  GumPersistent<v8::String>::type * handle_key;
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
