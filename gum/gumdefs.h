@@ -85,7 +85,7 @@ enum _GumBranchHint
 
 struct _GumCpuContext
 {
-#if !defined(__arm__) && !defined(__arm64__)
+#if !defined(__arm__) && !defined(__aarch64__)
 # if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
@@ -118,7 +118,7 @@ struct _GumCpuContext
   guint32 ecx;
   guint32 eax;
 # endif
-#elif defined (__arm64__)
+#elif defined (__aarch64__)
   guint64 pc;
   guint64 sp;
 
