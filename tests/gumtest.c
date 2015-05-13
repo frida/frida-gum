@@ -97,7 +97,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (testutil);
   TEST_RUN_LIST (memory);
   TEST_RUN_LIST (process);
-#ifndef HAVE_QNX
+#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TEST_RUN_LIST (symbolutil);
 #endif
   TEST_RUN_LIST (codewriter);
@@ -118,7 +118,7 @@ main (gint argc, gchar * argv[])
 #ifdef HAVE_MAC
   TEST_RUN_LIST (stalker_mac);
 #endif
-#ifndef HAVE_QNX
+#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TEST_RUN_LIST (backtracer);
 #endif
 
@@ -153,7 +153,7 @@ main (gint argc, gchar * argv[])
 #endif
 
   /* Prof */
-#ifndef HAVE_IOS
+#if !defined (HAVE_IOS) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   TEST_RUN_LIST (sampler);
 #endif
 #ifdef G_OS_WIN32

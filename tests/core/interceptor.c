@@ -25,7 +25,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
-#ifndef HAVE_QNX
+#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
 #if defined (HAVE_IOS) && defined (HAVE_ARM64)
@@ -36,7 +36,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_detach_torture)
 #endif
   INTERCEPTOR_TESTENTRY (thread_id)
+#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (intercepted_free_in_thread_exit)
+#endif
   INTERCEPTOR_TESTENTRY (function_arguments)
   INTERCEPTOR_TESTENTRY (function_return_value)
 #ifdef HAVE_I386
@@ -49,8 +51,10 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (listener_ref_count)
   INTERCEPTOR_TESTENTRY (function_data)
 
+#if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
+#endif
 TEST_LIST_END ()
 
 INTERCEPTOR_TESTCASE (attach_one)
