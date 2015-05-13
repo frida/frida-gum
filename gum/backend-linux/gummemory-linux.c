@@ -110,8 +110,8 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
-#ifdef HAVE_ARM
-  cacheflush (GPOINTER_TO_SIZE (address), GPOINTER_TO_SIZE (address + size), 0);
+#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+  __builtin___clear_cache (address, address + size);
 #endif
 }
 
