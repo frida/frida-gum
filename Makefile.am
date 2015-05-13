@@ -28,8 +28,10 @@ RM = rm
 DEBUG_PORT = 5042
 
 push: all
-	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\" && ${RM} \"${RPFX}/tests/gum-tests\" && ${RM} \"${RPFX}/tests/data/targetfunctions-android-arm.so\" && ${RM} \"${RPFX}/tests/data/specialfunctions-android-arm.so\""
-	adb push "$(top_builddir)/tests/gum-tests" "${RPFX}/tests/"
+	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\""
+	cp "$(top_builddir)/tests/gum-tests" "$(top_builddir)/tests/gum-tests.stripped"
+	$$STRIP --strip-all "$(top_builddir)/tests/gum-tests.stripped"
+	adb push "$(top_builddir)/tests/gum-tests.stripped" "${RPFX}/tests/"
 if ARCH_I386
 	adb push "$(top_srcdir)/tests/data/targetfunctions-android-ia32.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-android-ia32.so" "${RPFX}/tests/data/"
@@ -38,9 +40,13 @@ if ARCH_ARM
 	adb push "$(top_srcdir)/tests/data/targetfunctions-android-arm.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-android-arm.so" "${RPFX}/tests/data/"
 endif
+if ARCH_ARM64
+	adb push "$(top_srcdir)/tests/data/targetfunctions-android-arm64.so" "${RPFX}/tests/data/"
+	adb push "$(top_srcdir)/tests/data/specialfunctions-android-arm64.so" "${RPFX}/tests/data/"
+endif
 
 check: push
-	adb shell "LD_LIBRARY_PATH=\"${RPFX}/tests\" \"${RPFX}/tests/gum-tests\""
+	adb shell "\"${RPFX}/tests/gum-tests\""
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
