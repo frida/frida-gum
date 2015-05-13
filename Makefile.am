@@ -27,11 +27,30 @@ MKDIR = mkdir
 RM = rm
 DEBUG_PORT = 5042
 
+if ARCH_I386
+android_arch = x86
+android_toolchain = x86-4.9
+android_toolprefix = i686-linux-android
+android_libdir = /system/lib
+endif
+if ARCH_ARM
+android_arch = arm
+android_toolchain = arm-linux-androideabi-4.9
+android_toolprefix = arm-linux-androideabi
+android_libdir = /system/lib
+endif
+if ARCH_ARM64
+android_arch = arm64
+android_toolchain = aarch64-linux-android-4.9
+android_toolprefix = aarch64-linux-android
+android_libdir = /system/lib64
+endif
+
 push: all
 	adb shell "${MKDIR} \"${RPFX}/tests/\" && ${MKDIR} \"${RPFX}/tests/data/\""
 	cp "$(top_builddir)/tests/gum-tests" "$(top_builddir)/tests/gum-tests.stripped"
 	$$STRIP --strip-all "$(top_builddir)/tests/gum-tests.stripped"
-	adb push "$(top_builddir)/tests/gum-tests.stripped" "${RPFX}/tests/"
+	adb push "$(top_builddir)/tests/gum-tests.stripped" "${RPFX}/tests/gum-tests"
 if ARCH_I386
 	adb push "$(top_srcdir)/tests/data/targetfunctions-android-ia32.so" "${RPFX}/tests/data/"
 	adb push "$(top_srcdir)/tests/data/specialfunctions-android-ia32.so" "${RPFX}/tests/data/"
@@ -50,18 +69,18 @@ check: push
 
 check-gdb: $(top_builddir)/tests/android-gdb.setup
 	adb shell "${RM} -f /data/local/tmp/tests/debug-socket"
-	adb push "${ANDROID_NDK_ROOT}/prebuilt/android-arm/gdbserver/gdbserver" "${RPFX}/tests/"
+	adb push "${ANDROID_NDK_ROOT}/prebuilt/android-$(android_arch)/gdbserver/gdbserver" "${RPFX}/tests/"
 	adb shell "${RPFX}/tests/gdbserver +${RPFX}/tests/debug-socket ${RPFX}/tests/gum-tests" &
 	sleep 1
 	adb forward tcp:${DEBUG_PORT} localfilesystem:${RPFX}/tests/debug-socket
-	${ANDROID_NDK_ROOT}/toolchains/arm-linux-androideabi-4.8/prebuilt/darwin-x86_64/bin/arm-linux-androideabi-gdb -x "$(top_builddir)/tests/android-gdb.setup"
+	${ANDROID_NDK_ROOT}/toolchains/$(android_toolchain)/prebuilt/darwin-x86_64/bin/$(android_toolprefix)-gdb -x "$(top_builddir)/tests/android-gdb.setup"
 
 pull:
 	adb pull /system/bin/linker "$(top_builddir)/tests"
-	adb pull /system/lib/libc.so "$(top_builddir)/tests"
-	adb pull /system/lib/libstdc++.so "$(top_builddir)/tests"
-	adb pull /system/lib/libm.so "$(top_builddir)/tests"
-	adb pull /system/lib/libz.so "$(top_builddir)/tests"
+	adb pull $(android_libdir)/libc.so "$(top_builddir)/tests"
+	adb pull $(android_libdir)/libstdc++.so "$(top_builddir)/tests"
+	adb pull $(android_libdir)/libm.so "$(top_builddir)/tests"
+	adb pull $(android_libdir)/libz.so "$(top_builddir)/tests"
 
 $(top_builddir)/tests/android-gdb.setup: $(top_builddir)/tests/gum-tests
 	echo "set solib-search-path $(abs_top_builddir)/tests:$(abs_top_srcdir)/tests/data:${ANDROID_SYSROOT}/usr/lib" > $@
