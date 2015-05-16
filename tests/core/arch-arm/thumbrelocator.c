@@ -20,6 +20,7 @@ TEST_LIST_BEGIN (thumbrelocator)
   RELOCATOR_TESTENTRY (bl_imm_t1_negative_should_be_rewritten)
   RELOCATOR_TESTENTRY (blx_imm_t2_positive_should_be_rewritten)
   RELOCATOR_TESTENTRY (blx_imm_t2_negative_should_be_rewritten)
+  RELOCATOR_TESTENTRY (cbz_should_be_rewritten)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
 TEST_LIST_END ()
 
@@ -358,6 +359,48 @@ branch_scenario_execute (BranchScenario * bs,
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
       bs->expected_output_length * sizeof (guint16)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (cbz_should_be_rewritten)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0xb1e8),     /* cbz r0, #imm     */
+    GUINT16_TO_LE (0xbd01)      /* pop {r0, pc}     */
+  };
+  const guint16 expected_output_instructions[] = {
+    GUINT16_TO_LE (0xb100),     /* cbz r0, #imm     */
+  /* if_false: jump to next instruction */
+    GUINT16_TO_LE (0xe004),     /* b pc + 8         */
+  /* if_true: */
+    GUINT16_TO_LE (0xb401),     /* push {r0}        */
+    GUINT16_TO_LE (0xb401),     /* push {r0}        */
+    GUINT16_TO_LE (0x4801),     /* ldr r0, [pc, #4] */
+    GUINT16_TO_LE (0x9001),     /* str r0, [sp, #4] */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+  /* next instruction */
+    GUINT16_TO_LE (0xbd01),     /* pop {r0, pc}     */
+    GUINT16_TO_LE (0xffff),
+    GUINT16_TO_LE (0xffff)
+  };
+  guint32 calculated_target;
+  gchar expected_output[10 * sizeof (guint16)];
+  const GumArmInstruction * insn = NULL;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  memcpy (expected_output, expected_output_instructions,
+      sizeof (expected_output_instructions));
+  calculated_target = (fixture->rl.input_pc + 4 + ((0xe8 >> 3) << 1)) | 1;
+  *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
+
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_CBZ);
+  gum_thumb_relocator_read_one (&fixture->rl, &insn);
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  gum_thumb_writer_flush (&fixture->tw);
+  g_assert_cmpint (memcmp (fixture->output, expected_output,
+      sizeof (expected_output)), ==, 0);
 }
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_ret)

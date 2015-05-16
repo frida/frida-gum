@@ -30,6 +30,8 @@ static gboolean gum_thumb_relocator_rewrite_b_imm (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_thumb_relocator_rewrite_cbx (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_thumb_relocator_init (GumThumbRelocator * relocator,
@@ -160,8 +162,15 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
           break;
 
         case 0xb:
-          if (operation == 4 || operation == 5)
+          if ((operation & 0x5) == 0x1)
+          {
+            insn->mnemonic =
+                ((operation & 0x8) == 0x8) ? GUM_ARM_CBNZ : GUM_ARM_CBZ;
+          }
+          else if (operation == 4 || operation == 5)
+          {
             insn->mnemonic = GUM_ARM_PUSH;
+          }
           break;
 
         case 0xe:
@@ -297,6 +306,11 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
     case GUM_ARM_BL_IMM_T1:
     case GUM_ARM_BLX_IMM_T2:
       rewritten = gum_thumb_relocator_rewrite_bl_imm (self, &ctx);
+      break;
+
+    case GUM_ARM_CBZ:
+    case GUM_ARM_CBNZ:
+      rewritten = gum_thumb_relocator_rewrite_cbx (self, &ctx);
       break;
 
     default:
@@ -551,6 +565,45 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   gum_thumb_writer_put_mov_reg_reg (ctx->output, GUM_AREG_LR, GUM_AREG_R0);
   gum_thumb_writer_put_pop_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_blx_reg (ctx->output, GUM_AREG_LR);
+
+  return TRUE;
+}
+
+static gboolean
+gum_thumb_relocator_rewrite_cbx (GumThumbRelocator * self,
+                                 GumCodeGenCtx * ctx)
+{
+  guint16 insn, i, imm5;
+  guint32 distance;
+  GumAddress absolute_target;
+
+  (void) self;
+
+  insn = GUINT16_FROM_LE (*(ctx->raw_insn));
+  i = (insn >> 9) & 1;
+  imm5 = (insn >> 3) & 0x1f;
+
+  distance = (i << 6) | (imm5 << 1);
+
+  absolute_target = ctx->insn->pc + distance;
+
+  /*
+   * Rewrite to cbz/cbnz going to pc (which is 4 bytes ahead) by masking
+   * out the immediate bits.
+   */
+  gum_thumb_writer_put_instruction (ctx->output, insn & 0xfd07);
+
+  /* If false: branch pc + 8 bytes */
+  gum_thumb_writer_put_instruction (ctx->output, 0xe000 | (8 >> 1));
+
+  /* If true: jump to target */
+  gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,
+      absolute_target | 1);
+  gum_thumb_writer_put_str_reg_reg_offset (ctx->output, GUM_AREG_R0,
+      GUM_AREG_SP, 4);
+  gum_thumb_writer_put_pop_regs (ctx->output, 2, GUM_AREG_R0, GUM_AREG_PC);
 
   return TRUE;
 }

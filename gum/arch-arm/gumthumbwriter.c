@@ -59,8 +59,6 @@ static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
     GumArmReg left_reg, GumArmReg right_reg, guint8 right_offset);
-static void gum_thumb_writer_put_instruction (GumThumbWriter * self,
-    guint16 insn);
 
 void
 gum_thumb_writer_init (GumThumbWriter * writer,
@@ -804,7 +802,7 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
   self->pc += n;
 }
 
-static void
+void
 gum_thumb_writer_put_instruction (GumThumbWriter * self,
                                   guint16 insn)
 {

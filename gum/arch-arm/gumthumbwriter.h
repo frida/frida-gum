@@ -85,6 +85,7 @@ void gum_thumb_writer_put_bkpt_imm (GumThumbWriter * self, guint8 imm);
 void gum_thumb_writer_put_breakpoint (GumThumbWriter * self);
 
 void gum_thumb_writer_put_bytes (GumThumbWriter * self, const guint8 * data, guint n);
+void gum_thumb_writer_put_instruction (GumThumbWriter * self, guint16 insn);
 
 G_END_DECLS
 
