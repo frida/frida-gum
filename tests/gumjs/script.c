@@ -10,6 +10,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (array_buffer_can_be_created)
   SCRIPT_TESTENTRY (message_can_be_sent)
+  SCRIPT_TESTENTRY (message_can_be_sent_with_data)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (recv_can_be_waited_for)
@@ -874,6 +875,12 @@ SCRIPT_TESTCASE (message_can_be_sent)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(1234);");
   EXPECT_SEND_MESSAGE_WITH ("1234");
+}
+
+SCRIPT_TESTCASE (message_can_be_sent_with_data)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(1234, [0x13, 0x37]);");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("1234", "13 37");
 }
 
 SCRIPT_TESTCASE (message_can_be_received)

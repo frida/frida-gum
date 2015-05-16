@@ -272,11 +272,6 @@ _gum_script_memory_realize (GumScriptMemory * self)
           reinterpret_cast<const uint8_t *> ("base"),
           NewStringType::kNormal,
           -1).ToLocalChecked ());
-  self->length_key = new GumPersistent<String>::type (isolate,
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> ("length"),
-          NewStringType::kNormal,
-          -1).ToLocalChecked ());
   self->size_key = new GumPersistent<String>::type (isolate,
       String::NewFromOneByte (isolate,
           reinterpret_cast<const uint8_t *> ("size"),
@@ -288,10 +283,8 @@ void
 _gum_script_memory_dispose (GumScriptMemory * self)
 {
   delete self->size_key;
-  delete self->length_key;
   delete self->base_key;
   self->size_key = nullptr;
-  self->length_key = nullptr;
   self->base_key = nullptr;
 }
 
@@ -899,7 +892,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         else
         {
           Local<String> length_key (Local<String>::New (isolate,
-              *self->length_key));
+              *self->core->length_key));
           if (array->Has (length_key))
           {
             uint32_t length = array->Get (length_key)->Uint32Value ();
@@ -1428,7 +1421,8 @@ gum_script_memory_ranges_get (GumScriptMemory * self,
   }
 
   Local<Object> obj = Handle<Object>::Cast (value);
-  Local<String> length_key (Local<String>::New (isolate, *self->length_key));
+  Local<String> length_key (Local<String>::New (isolate,
+      *self->core->length_key));
   if (obj->Has (length_key))
   {
     uint32_t length =

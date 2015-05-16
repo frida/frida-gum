@@ -12,6 +12,8 @@
 #include <ffi.h>
 #include <string.h>
 
+#define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
+
 #define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
 
@@ -468,6 +470,12 @@ _gum_script_core_realize (GumScriptCore * self)
   g_assert (success);
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
+
+  self->length_key = new GumPersistent<String>::type (isolate,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> ("length"),
+          NewStringType::kNormal,
+          -1).ToLocalChecked ());
 }
 
 void
@@ -496,6 +504,9 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
+  delete self->length_key;
+  self->length_key = nullptr;
+
   g_hash_table_unref (self->heap_blocks);
   self->heap_blocks = NULL;
 
@@ -944,20 +955,65 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 
   String::Utf8Value message (info[0]);
 
+  guint8 * malloc_data = NULL;
   const guint8 * data = NULL;
   gint data_length = 0;
-  if (!info[1]->IsNull ())
+  Local<Value> data_value = info[1];
+  if (!data_value->IsUndefined () && !data_value->IsNull ())
   {
-    Local<Object> array = info[1]->ToObject ();
-    if (array->HasIndexedPropertiesInExternalArrayData () &&
-        array->GetIndexedPropertiesExternalArrayDataType ()
-        == kExternalUint8Array)
+    if (data_value->IsObject ())
     {
-      data = static_cast<guint8 *> (
-          array->GetIndexedPropertiesExternalArrayData ());
-      data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
+      Local<Object> array = Local<Object>::Cast (data_value);
+      if (array->HasIndexedPropertiesInExternalArrayData () &&
+          array->GetIndexedPropertiesExternalArrayDataType ()
+          == kExternalUint8Array)
+      {
+        data = static_cast<guint8 *> (
+            array->GetIndexedPropertiesExternalArrayData ());
+        data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
+      }
+      else
+      {
+        Local<String> length_key (Local<String>::New (isolate,
+            *self->length_key));
+        if (array->Has (length_key))
+        {
+          data_length = array->Get (length_key)->Uint32Value ();
+          if (data_length <= GUM_MAX_SEND_ARRAY_LENGTH)
+          {
+            Local<Context> context = isolate->GetCurrentContext ();
+
+            malloc_data = static_cast<guint8 *> (g_malloc (data_length));
+            for (gint i = 0; i != data_length; i++)
+            {
+              gboolean valid = FALSE;
+
+              Local<Value> element_value;
+              if (array->Get (context, i).ToLocal (&element_value))
+              {
+                Maybe<uint32_t> element = element_value->Uint32Value (context);
+                if (element.IsJust ())
+                {
+                  malloc_data[i] = element.FromJust ();
+                  valid = TRUE;
+                }
+              }
+
+              if (!valid)
+              {
+                g_free (malloc_data);
+                malloc_data = NULL;
+                break;
+              }
+            }
+
+            data = malloc_data;
+          }
+        }
+      }
     }
-    else
+
+    if (data == NULL)
     {
       isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
           isolate, "unsupported data value")));
@@ -966,6 +1022,8 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
   }
 
   _gum_script_core_emit_message (self, *message, data, data_length);
+
+  g_free (malloc_data);
 }
 
 /*

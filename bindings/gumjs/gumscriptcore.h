@@ -69,6 +69,8 @@ struct _GumScriptCore
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
+
+  GumPersistent<v8::String>::type * length_key;
 };
 
 struct _GumHeapBlock
