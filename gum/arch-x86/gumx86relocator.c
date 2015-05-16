@@ -456,8 +456,9 @@ gum_x86_relocator_rewrite_conditional_branch (GumX86Relocator * self,
     }
     else if (ctx->insn->id == X86_INS_JECXZ || ctx->insn->id == X86_INS_JRCXZ)
     {
-      gconstpointer is_true = "gum_x86_relocator_is_true";
-      gconstpointer is_false = "gum_x86_relocator_is_false";
+      gsize unique_id = ((ctx->start - self->input_start) << 1);
+      gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+      gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
 
       gum_x86_writer_put_jcc_short_label (ctx->code_writer, 0xe3, is_true,
           GUM_NO_HINT);
