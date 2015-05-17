@@ -961,6 +961,8 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
   Local<Value> data_value = info[1];
   if (!data_value->IsUndefined () && !data_value->IsNull ())
   {
+    gboolean data_valid = FALSE;
+
     if (data_value->IsObject ())
     {
       Local<Object> array = Local<Object>::Cast (data_value);
@@ -971,6 +973,7 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
         data = static_cast<guint8 *> (
             array->GetIndexedPropertiesExternalArrayData ());
         data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
+        data_valid = TRUE;
       }
       else
       {
@@ -984,9 +987,12 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
             Local<Context> context = isolate->GetCurrentContext ();
 
             malloc_data = static_cast<guint8 *> (g_malloc (data_length));
+            data = malloc_data;
+            data_valid = TRUE;
+
             for (gint i = 0; i != data_length; i++)
             {
-              gboolean valid = FALSE;
+              gboolean element_valid = FALSE;
 
               Local<Value> element_value;
               if (array->Get (context, i).ToLocal (&element_value))
@@ -995,25 +1001,23 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
                 if (element.IsJust ())
                 {
                   malloc_data[i] = element.FromJust ();
-                  valid = TRUE;
+                  element_valid = TRUE;
                 }
               }
 
-              if (!valid)
+              if (!element_valid)
               {
+                data_valid = FALSE;
                 g_free (malloc_data);
-                malloc_data = NULL;
                 break;
               }
             }
-
-            data = malloc_data;
           }
         }
       }
     }
 
-    if (data == NULL)
+    if (!data_valid)
     {
       isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
           isolate, "unsupported data value")));

@@ -282,8 +282,15 @@ test_script_fixture_expect_send_message_with_payload_and_data (
   expected_message =
       g_strconcat ("{\"type\":\"send\",\"payload\":", payload, "}", NULL);
   g_assert_cmpstr (item->message, ==, expected_message);
-  g_assert (item->data != NULL);
-  g_assert_cmpstr (item->data, ==, data);
+  if (data != NULL)
+  {
+    g_assert (item->data != NULL);
+    g_assert_cmpstr (item->data, ==, data);
+  }
+  else
+  {
+    g_assert (item->data == NULL);
+  }
   test_script_message_item_free (item);
   g_free (expected_message);
 }

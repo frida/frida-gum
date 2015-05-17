@@ -1737,9 +1737,14 @@ SCRIPT_TESTCASE (ulong_can_be_written)
 SCRIPT_TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
-  COMPILE_AND_LOAD_SCRIPT ("send('stuff', Memory.readByteArray(" GUM_PTR_CONST
-      ", 3));", buf);
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"stuff\"", "13 37 42");
+  COMPILE_AND_LOAD_SCRIPT (
+      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", 3));"
+      "send('snake', Memory.readByteArray(" GUM_PTR_CONST ", 0));"
+      "send('mushroom', Memory.readByteArray(" GUM_PTR_CONST ", -1));",
+      buf);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", NULL);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", NULL);
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_written)

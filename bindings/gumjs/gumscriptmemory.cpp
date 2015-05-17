@@ -648,10 +648,15 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
           data_copy = g_memdup (data, size);
+
+          GumByteArray * arr = _gum_byte_array_new (data_copy, size, self->core);
+          result = Local<Object>::New (isolate, *arr->instance);
+        }
+        else
+        {
+          result = Array::New (isolate, 0);
         }
 
-        GumByteArray * arr = _gum_byte_array_new (data_copy, size, self->core);
-        result = Local<Object>::New (isolate, *arr->instance);
         break;
       }
       case GUM_MEMORY_VALUE_C_STRING:
