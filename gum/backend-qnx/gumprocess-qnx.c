@@ -330,7 +330,6 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   GumDlPhdrInternal ** handle;
   GumDlPhdrInternal * phdr;
 
-  printf ("in gum_process_enumerate_modules\n");
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
 
