@@ -13,6 +13,7 @@
 #include <bfd.h>
 #include <dlfcn.h>
 #include <string.h>
+#include <strings.h>
 #if defined (HAVE_ELF_H)
 # include <elf.h>
 #elif defined (HAVE_SYS_ELF_H)
