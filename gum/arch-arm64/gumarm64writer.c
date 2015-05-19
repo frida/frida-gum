@@ -320,10 +320,10 @@ gum_arm64_writer_add_literal_reference_here (GumArm64Writer * self,
 }
 
 void
-gum_arm64_writer_put_call_with_arguments (GumArm64Writer * self,
-                                          GumAddress func,
-                                          guint n_args,
-                                          ...)
+gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
+                                                  GumAddress func,
+                                                  guint n_args,
+                                                  ...)
 {
   va_list vl;
 
@@ -341,6 +341,23 @@ gum_arm64_writer_put_call_with_arguments (GumArm64Writer * self,
     gum_arm64_writer_put_ldr_reg_address (self, target, func);
     gum_arm64_writer_put_blr_reg (self, target);
   }
+
+  gum_arm64_writer_put_argument_list_teardown (self, n_args);
+}
+
+void
+gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
+                                              GumArm64Reg reg,
+                                              guint n_args,
+                                              ...)
+{
+  va_list vl;
+
+  va_start (vl, n_args);
+  gum_arm64_writer_put_argument_list_setup (self, n_args, vl);
+  va_end (vl);
+
+  gum_arm64_writer_put_blr_reg (self, reg);
 
   gum_arm64_writer_put_argument_list_teardown (self, n_args);
 }

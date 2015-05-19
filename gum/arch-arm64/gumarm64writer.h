@@ -46,8 +46,10 @@ void gum_arm64_writer_flush (GumArm64Writer * self);
 
 void gum_arm64_writer_put_label (GumArm64Writer * self, gconstpointer id);
 
-void gum_arm64_writer_put_call_with_arguments (GumArm64Writer * self,
+void gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
     GumAddress func, guint n_args, ...);
+void gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
+    GumArm64Reg reg, guint n_args, ...);
 
 gboolean gum_arm64_writer_can_branch_imm (GumAddress from, GumAddress to);
 void gum_arm64_writer_put_b_imm (GumArm64Writer * self, GumAddress address);
