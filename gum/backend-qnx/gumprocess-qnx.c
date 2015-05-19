@@ -373,7 +373,11 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     if (details.path)
     {
+      details.name = g_path_get_basename (details.path);
+
       carry_on = func (&details, user_data);
+
+      g_free (details.name);
     }
   }
 
