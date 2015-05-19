@@ -330,6 +330,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   GumDlPhdrInternal ** handle;
   GumDlPhdrInternal * phdr;
 
+  printf ("in gum_process_enumerate_modules\n");
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
 
@@ -373,7 +374,11 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 
     if (details.path)
     {
+      details.name = g_path_get_basename (details.path);
+
       carry_on = func (&details, user_data);
+
+      g_free (details.name);
     }
   }
 
