@@ -133,6 +133,8 @@ static guint
 gum_rotate_right_32bit (guint val,
                         guint rotation)
 {
+  if (rotation == 0x0)
+    return val;
   return ((val >> rotation) & (-1 << (32 - rotation))) |
       (val << (32 - rotation));
 }
