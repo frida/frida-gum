@@ -1,4 +1,6 @@
 (function () {
+    "use strict";
+
     var _runtime = null;
     var _api = null;
     var pointerSize = Process.pointerSize;
@@ -67,6 +69,73 @@
             enumerable: true,
             get: function () {
                 return api !== null;
+            }
+        });
+
+                function _enumerateLoadedClasses(callbacks, onlyDescription) {
+            if (Dalvik.available) {
+                const hash_tombstone = 0xcbcacccd;
+                const loadedClassesOffset = 172;
+                const hashEntrySize = 8;
+                const ptrLoadedClassesHashtable = api.gDvm.add(loadedClassesOffset);
+                const hashTable = Memory.readPointer(ptrLoadedClassesHashtable);
+                const tableSize = Memory.readS32(hashTable);
+                const ptrpEntries = hashTable.add(12);
+                const pEntries = Memory.readPointer(ptrpEntries);
+                const end = tableSize * hashEntrySize;
+
+                for (let offset = 0; offset < end; offset += hashEntrySize) {
+                    let pEntriePtr = pEntries.add(offset);
+                    let hashValue = Memory.readS32(pEntriePtr);
+                    if (hashValue !== 0) {
+                        let dataPtr = Memory.readPointer(pEntriePtr.add(4));
+                        if (dataPtr !== hash_tombstone) {
+                            let descriptionPtr = Memory.readPointer(dataPtr.add(24));
+                            let description = Memory.readCString(descriptionPtr);
+                            if (onlyDescription) {
+                                callbacks.onMatch(description);
+                            } else {
+                                let objectSize = Memory.readU32(dataPtr.add(56));
+                                let sourceFile = Memory.readCString(Memory.readPointer(dataPtr.add(152)));
+                                callbacks.onMatch({
+                                    pointer: pEntriePtr,
+                                    objectSize: objectSize,
+                                    sourceFile: sourceFile,
+                                    description: description
+                                });
+                            }
+                        }
+                    }
+                }
+                callbacks.onComplete();
+            } else {
+                throw new Error("Dalvik API not available");
+            }
+        }
+
+        Object.defineProperty(this, 'enumerateLoadedClassesSync', {
+            enumerable: true,
+            value: function () {
+                if (api !== null) {
+                    let classes = [];
+                    Dalvik.enumerateLoadedClasses({
+                        onMatch: function (c) {
+                            classes.push(c);
+                        },
+                        onComplete: function () {
+                        }
+                    });
+                    return classes;
+                } else {
+                    throw new Error("Dalvik API not available");
+                }
+            }
+        });
+
+        Object.defineProperty(this, 'enumerateLoadedClasses', {
+            enumerable: true,
+            value: function(callbacks) {
+                _enumerateLoadedClasses(callbacks, true);
             }
         });
 
@@ -345,7 +414,7 @@
                         }
                     });
                 });
-            }
+            };
 
             var makeMethodFromOverloads = function (name, overloads, env) {
                 var Method = env.javaLangReflectMethod();
@@ -599,7 +668,7 @@
                     }
                     return argVariableNames[i];
                 }));
-                var returnCapture, returnStatement;
+                var returnCapture, returnStatements;
                 if (rawRetType === 'void') {
                     returnCapture = "";
                     returnStatements = "env.popLocalFrame(NULL);";
@@ -616,7 +685,8 @@
                             "return result;";
                     }
                 }
-                eval("var f = function (" + argVariableNames.join(", ") + ") {" +
+                let f;
+                eval("f = function (" + argVariableNames.join(", ") + ") {" +
                     "var env = vm.getEnv();" +
                     "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
                         "env.exceptionClear();" +
@@ -823,7 +893,7 @@
                 }
                 return argVariableNames[i];
             });
-            var returnCapture, returnStatement, returnNothing;
+            var returnCapture, returnStatements, returnNothing;
             if (rawRetType === 'void') {
                 returnCapture = "";
                 returnStatements = "env.popLocalFrame(NULL);";
@@ -849,7 +919,8 @@
                     returnNothing = "return 0;";
                 }
             }
-            eval("var f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
+            let f;
+            eval("f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
                 "var env = new Env(envHandle);" +
                 "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
                     "return;" +
@@ -1576,6 +1647,9 @@
                 variables: {
                     "gDvmJni": function (address) {
                         this.gDvmJni = address;
+                    },
+                    "gDvm": function (address) {
+                        this.gDvm = address;
                     }
                 }
             }
