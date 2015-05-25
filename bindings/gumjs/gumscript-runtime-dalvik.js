@@ -72,7 +72,7 @@
             }
         });
 
-                function _enumerateLoadedClasses(callbacks, onlyDescription) {
+        function _enumerateLoadedClasses(callbacks, onlyDescription) {
             if (Dalvik.available) {
                 const hash_tombstone = 0xcbcacccd;
                 const loadedClassesOffset = 172;
