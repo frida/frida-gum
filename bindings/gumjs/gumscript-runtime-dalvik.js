@@ -727,7 +727,7 @@
                     }
 
                     var thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
-                    var objectPtr = api.dvmDecodeIndirectRef(thread, instance? this.$handle: this.$classHandle);
+                    var objectPtr = api.dvmDecodeIndirectRef(thread, instance ? this.$handle : this.$classHandle);
                     let classObject;
                     if (instance) {
                         classObject = Memory.readPointer(objectPtr.add(OBJECT_OFFSET_CLAZZ));
