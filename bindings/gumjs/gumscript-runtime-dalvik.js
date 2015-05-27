@@ -693,7 +693,7 @@
                         "throw new Error(\"Out of memory\");" +
                     "}" +
                     "try {" +
-                        "synchronizeVtable.call(this, env);" +
+                        "synchronizeVtable.call(this, env, type === INSTANCE_METHOD);" +
                         returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
                     "} catch (e) {" +
                         "env.popLocalFrame(NULL);" +
@@ -721,14 +721,19 @@
                 });
 
                 var implementation = null;
-                var synchronizeVtable = function (env) {
+                var synchronizeVtable = function (env, instance) {
                     if (originalMethodId === null) {
                         return; // nothing to do – implementation hasn't been replaced
                     }
 
                     var thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
-                    var object = api.dvmDecodeIndirectRef(thread, this.$handle);
-                    var classObject = Memory.readPointer(object.add(OBJECT_OFFSET_CLAZZ));
+                    var objectPtr = api.dvmDecodeIndirectRef(thread, instance ? this.$handle : this.$classHandle);
+                    let classObject;
+                    if (instance) {
+                        classObject = Memory.readPointer(objectPtr.add(OBJECT_OFFSET_CLAZZ));
+                    } else {
+                        classObject = objectPtr;
+                    }
                     var key = classObject.toString(16);
                     var entry = patchedClasses[key];
                     if (!entry) {
