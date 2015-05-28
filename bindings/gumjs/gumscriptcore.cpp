@@ -1613,6 +1613,7 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   ScriptScope scope (self->core->script);
   Isolate * isolate = self->core->isolate;
   GumFFIValue * retval = static_cast<GumFFIValue *> (return_value);
+  memset (retval, 0, sizeof (GumFFIValue));
 
   Local<Value> * argv = static_cast<Local<Value> *> (
       g_alloca (cif->nargs * sizeof (Local<Value>)));
