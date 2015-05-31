@@ -26,6 +26,7 @@ enum _GumArm64Mnemonic
   GUM_ARM64_BL,
   GUM_ARM64_BR,
   GUM_ARM64_BLR,
+  GUM_ARM64_LDR,
   GUM_ARM64_RET
 };
 
