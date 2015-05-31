@@ -150,7 +150,7 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
           }
           else if (operation >= 8)
           {
-            insn->mnemonic = GUM_ARM_LDRPC;
+            insn->mnemonic = GUM_ARM_LDRPC_T1;
           }
           break;
 
@@ -192,7 +192,11 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
 
       wide_insn = ((guint32) raw_insn) << 16 |
           (guint32) *((guint16 *) (self->input_cur + 2));
-      if ((wide_insn & 0xf800d000) == 0xf0009000)
+      if ((wide_insn & 0xff7f0000) == 0xf85f0000)
+      {
+        insn->mnemonic = GUM_ARM_LDRPC_T2;
+      }
+      else if ((wide_insn & 0xf800d000) == 0xf0009000)
       {
         insn->mnemonic = GUM_ARM_B_IMM_T4;
         self->eob = TRUE;
@@ -294,7 +298,8 @@ gum_thumb_relocator_write_one_instruction (GumThumbRelocator * self)
       rewritten = gum_thumb_relocator_rewrite_addh_if_pc_relative (self, &ctx);
       break;
 
-    case GUM_ARM_LDRPC:
+    case GUM_ARM_LDRPC_T1:
+    case GUM_ARM_LDRPC_T2:
       rewritten = gum_thumb_relocator_rewrite_ldr_pc (self, &ctx);
       break;
 
@@ -442,16 +447,47 @@ static gboolean
 gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
-  guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
   GumArmReg reg;
+  gssize imm;
   GumAddress absolute_pc;
 
   (void) self;
 
-  reg = (insn & 0x0700) >> 8;
+  switch (ctx->insn->mnemonic)
+  {
+    case GUM_ARM_LDRPC_T1:
+    {
+      guint16 insn = GUINT16_FROM_LE (*ctx->raw_insn);
+
+      reg = (insn & 0x0700) >> 8;
+      imm = (insn & 0x00ff) * 4;
+
+      break;
+    }
+
+    case GUM_ARM_LDRPC_T2:
+    {
+      guint32 insn;
+
+      insn =
+          ((guint32) GUINT16_FROM_LE (*(ctx->raw_insn))) << 16 |
+          (guint32) GUINT16_FROM_LE (*(ctx->raw_insn + 1));
+
+      reg = (insn & 0x0000f000) >> 12;
+      imm = insn & 0x00000fff;
+      if ((insn & 0x00800000) == 0)
+        imm = -imm;
+
+      break;
+    }
+
+    default:
+      g_assert_not_reached ();
+      break;
+  }
 
   absolute_pc = ctx->insn->pc & ~(4 - 1);
-  absolute_pc += (insn & 0x00ff) * 4;
+  absolute_pc += imm;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, reg, absolute_pc);
   gum_thumb_writer_put_ldr_reg_reg (ctx->output, reg, reg);
