@@ -125,7 +125,8 @@ TESTCASE (adrp_should_be_rewritten)
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-  calculated_pc = fixture->rl.input_pc + 0x14e6000;
+  calculated_pc =
+      (fixture->rl.input_pc & ~G_GUINT64_CONSTANT (4096 - 1)) + 0x14e6000;
   *((guint64 *) (expected_output + 4)) = GUINT64_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);

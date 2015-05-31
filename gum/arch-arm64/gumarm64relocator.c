@@ -396,6 +396,8 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
       distance.u = negative_mask | (imm_hi << 2) | imm_lo;
     else
       distance.u = (imm_hi << 2) | imm_lo;
+
+    absolute_target = ctx->insn->pc + distance.i;
   }
   else if (ctx->insn->mnemonic == GUM_ARM64_ADRP)
   {
@@ -405,6 +407,9 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
       distance.u = negative_mask | (imm_hi << 14) | (imm_lo << 12);
     else
       distance.u = (imm_hi << 14) | (imm_lo << 12);
+
+    absolute_target =
+        (ctx->insn->pc & ~G_GUINT64_CONSTANT (4096 - 1)) + distance.i;
   }
   else
   {
@@ -412,8 +417,6 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
 
     g_assert_not_reached ();
   }
-
-  absolute_target = ctx->insn->pc + distance.i;
 
   gum_arm64_writer_put_ldr_reg_address (ctx->output, reg, absolute_target);
 
