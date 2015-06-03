@@ -4,7 +4,6 @@
     var _runtime = null;
     var _api = null;
     var pointerSize = Process.pointerSize;
-    var scratchBuffer = Memory.alloc(pointerSize);
     var JNI_OK = 0;
     var JNI_VERSION_1_6 = 0x00010006;
 
@@ -1261,8 +1260,9 @@
         };
 
         this.attachCurrentThread = function () {
-            checkJniResult("VM::AttachCurrentThread", attachCurrentThread(handle, scratchBuffer, NULL));
-            return new Env(Memory.readPointer(scratchBuffer));
+            var envBuf = Memory.alloc(pointerSize);
+            checkJniResult("VM::AttachCurrentThread", attachCurrentThread(handle, envBuf, NULL));
+            return new Env(Memory.readPointer(envBuf));
         };
 
         this.detachCurrentThread = function () {
@@ -1270,16 +1270,18 @@
         };
 
         this.getEnv = function () {
-            checkJniResult("VM::GetEnv", getEnv(handle, scratchBuffer, JNI_VERSION_1_6));
-            return new Env(Memory.readPointer(scratchBuffer));
+            var envBuf = Memory.alloc(pointerSize);
+            checkJniResult("VM::GetEnv", getEnv(handle, envBuf, JNI_VERSION_1_6));
+            return new Env(Memory.readPointer(envBuf));
         };
 
         this.tryGetEnv = function () {
-            var result = getEnv(handle, scratchBuffer, JNI_VERSION_1_6);
+            var envBuf = Memory.alloc(pointerSize);
+            var result = getEnv(handle, envBuf, JNI_VERSION_1_6);
             if (result !== JNI_OK) {
                 return null;
             }
-            return new Env(Memory.readPointer(scratchBuffer));
+            return new Env(Memory.readPointer(envBuf));
         };
 
         initialize.call(this);
