@@ -627,44 +627,45 @@
             } else {
                 name = makeClassName;
             }
-            const parent = (properties.parent !== undefined) ? properties.parent : classRegistry.NSObject;
+            const superClass = (properties.super !== undefined) ? properties.super : classRegistry.NSObject;
             const protocols = properties.protocols || [];
-            const overrides = properties.overrides || {};
             const methods = properties.methods || {};
 
-            const classHandle = api.objc_allocateClassPair(parent !== null ? parent.handle : NULL, Memory.allocUtf8String(name), ptr("0"));
+            const classHandle = api.objc_allocateClassPair(superClass !== null ? superClass.handle : NULL, Memory.allocUtf8String(name), ptr("0"));
             const metaClassHandle = api.object_getClass(classHandle);
             try {
                 protocols.forEach(function (protocol) {
                     api.class_addProtocol(classHandle, protocol.handle);
                 });
 
-                Object.keys(overrides).forEach(function (rawMethodName) {
-                    const implementation = overrides[rawMethodName];
-                    let types;
-                    if (rawMethodName in parent) {
-                        types = parent[rawMethodName].types;
-                    } else {
-                        const protocol = protocols.find(function (protocol) {
-                            return rawMethodName in protocol.methods;
-                        });
-                        types = (protocol !== undefined) ? protocol.methods[rawMethodName].types : null;
-                    }
-                    if (types === null)
-                        throw new Error("Unable to find '" + rawMethodName + "' in parent class or any of its protocols");
-                    methods[rawMethodName] = {
-                        types: types,
-                        implementation: implementation
-                    };
-                });
-
                 Object.keys(methods).forEach(function (rawMethodName) {
-                    const method = methods[rawMethodName];
-                    const match = /([+-])\s?(\S+)/.exec(rawMethodName);
+                    const match = /([+-])\s(\S+)/.exec(rawMethodName);
                     if (match === null)
                         throw new Error("Invalid method name");
                     const kind = match[1];
                     const name = match[2];
+
+                    let method;
+                    const value = methods[rawMethodName];
+                    if (typeof value === 'function') {
+                        let types;
+                        if (rawMethodName in superClass) {
+                            types = superClass[rawMethodName].types;
+                        } else {
+                            const protocol = protocols.find(function (protocol) {
+                                return rawMethodName in protocol.methods;
+                            });
+                            types = (protocol !== undefined) ? protocol.methods[rawMethodName].types : null;
+                        }
+                        if (types === null)
+                            throw new Error("Unable to find '" + rawMethodName + "' in super-class or any of its protocols");
+                        method = {
+                            types: types,
+                            implementation: value
+                        };
+                    } else {
+                        method = value;
+                    }
 
                     const target = (kind === '+') ? metaClassHandle : classHandle;
                     let types = method.types;
