@@ -4,7 +4,6 @@
     let _runtime = null;
     let _api = null;
     const pointerSize = Process.pointerSize;
-    const scratchBuffer = Memory.alloc(pointerSize);
     const msgSendBySignatureId = {};
 
     Object.defineProperty(this, 'ObjC', {
@@ -19,7 +18,8 @@
 
     function Runtime() {
         const api = getApi();
-        const registry = new Registry();
+        const classRegistry = new ClassRegistry();
+        const protocolRegistry = new ProtocolRegistry();
         const scheduledCallbacks = [];
 
         Object.defineProperty(this, 'available', {
@@ -31,7 +31,12 @@
 
         Object.defineProperty(this, 'classes', {
             enumerable: true,
-            value: registry
+            value: classRegistry
+        });
+
+        Object.defineProperty(this, 'protocols', {
+            enumerable: true,
+            value: protocolRegistry
         });
 
         Object.defineProperty(this, 'mainQueue', {
@@ -41,9 +46,19 @@
             }
         });
 
+        Object.defineProperty(this, 'registerClass', {
+            enumerable: true,
+            value: registerClass
+        });
+
         Object.defineProperty(this, 'Object', {
             enumerable: true,
             value: ObjCObject
+        });
+
+        Object.defineProperty(this, 'Protocol', {
+            enumerable: true,
+            value: ObjCProtocol
         });
 
         this.schedule = function (queue, work) {
@@ -72,13 +87,17 @@
             return new NativeCallback(fn, method.returnType, method.argumentTypes);
         };
 
-        this.selector = function (name) {
-            return api.sel_registerName(Memory.allocUtf8String(name));
-        };
+        this.selector = selector;
 
-        this.selectorAsString = function (sel) {
+        this.selectorAsString = selectorAsString;
+
+        function selector(name) {
+            return api.sel_registerName(Memory.allocUtf8String(name));
+        }
+
+        function selectorAsString(sel) {
             return Memory.readUtf8String(api.sel_getName(sel));
-        };
+        }
 
         const registryBuiltins = {
             "hasOwnProperty": true,
@@ -87,7 +106,7 @@
             "valueOf": true
         };
 
-        function Registry() {
+        function ClassRegistry() {
             const cachedClasses = {};
             let numCachedClasses = 0;
 
@@ -133,10 +152,10 @@
                     if (numClasses !== numCachedClasses) {
                         // It's impossible to unregister classes in ObjC, so if the number of
                         // classes hasn't changed, we can assume that the list is up to date.
-                        const rawClasses = Memory.alloc(numClasses * pointerSize);
-                        numClasses = api.objc_getClassList(rawClasses, numClasses);
+                        const classHandles = Memory.alloc(numClasses * pointerSize);
+                        numClasses = api.objc_getClassList(classHandles, numClasses);
                         for (let i = 0; i !== numClasses; i++) {
-                            const handle = Memory.readPointer(rawClasses.add(i * pointerSize));
+                            const handle = Memory.readPointer(classHandles.add(i * pointerSize));
                             const name = Memory.readUtf8String(api.class_getName(handle));
                             cachedClasses[name] = handle;
                         }
@@ -166,14 +185,197 @@
             }
 
             function toString() {
-                return "Registry";
+                return "ClassRegistry";
             }
 
             function valueOf() {
-                return "Registry";
+                return "ClassRegistry";
             }
 
             return registry;
+        }
+
+        function ProtocolRegistry() {
+            let cachedProtocols = {};
+
+            const registry = Proxy.create({
+                has(name) {
+                    if (registryBuiltins[name] !== undefined)
+                        return true;
+                    return findProtocol(name) !== null;
+                },
+                get(target, name) {
+                    switch (name) {
+                        case "hasOwnProperty":
+                            return this.has;
+                        case "toJSON":
+                            return toJSON;
+                        case "toString":
+                            return toString;
+                        case "valueOf":
+                            return valueOf;
+                        default:
+                            return getProtocol(name);
+                    }
+                },
+                set(target, name, value) {
+                    throw new Error("Invalid operation");
+                },
+                enumerate() {
+                    return this.keys();
+                },
+                iterate() {
+                    const props = this.keys();
+                    let i = 0;
+                    return {
+                        next() {
+                            if (i === props.length)
+                                throw StopIteration;
+                            return props[i++];
+                        }
+                    };
+                },
+                keys() {
+                    const protocolNames = [];
+                    cachedProtocols = {};
+                    const numProtocolsBuf = Memory.alloc(pointerSize);
+                    let protocolHandles = api.objc_copyProtocolList(numProtocolsBuf);
+                    try {
+                        const numProtocols = Memory.readUInt(numProtocolsBuf);
+                        for (let i = 0; i !== numProtocols; i++) {
+                            const handle = Memory.readPointer(protocolHandles.add(i * pointerSize));
+                            const name = Memory.readUtf8String(api.protocol_getName(handle));
+                            protocolNames.push(name);
+                            cachedProtocols[name] = handle;
+                        }
+                    } finally {
+                        api.free(protocolHandles);
+                    }
+                    return protocolNames;
+                }
+            });
+
+            function getProtocol(name) {
+                const cls = findProtocol(name);
+                if (cls === null)
+                    throw new Error("Unable to find protocol '" + name + "'");
+                return cls;
+            }
+
+            function findProtocol(name) {
+                let handle = cachedProtocols[name];
+                if (handle === undefined)
+                    handle = api.objc_getProtocol(Memory.allocUtf8String(name));
+                if (handle.isNull())
+                    return null;
+                return new ObjCProtocol(handle);
+            }
+
+            function toJSON() {
+                return {};
+            }
+
+            function toString() {
+                return "ProtocolRegistry";
+            }
+
+            function valueOf() {
+                return "ProtocolRegistry";
+            }
+
+            return registry;
+        }
+
+        function registerClass(properties) {
+            const name = properties.name || makeClassName();
+            const parent = (properties.parent !== undefined) ? properties.parent : classRegistry.NSObject;
+            const protocols = properties.protocols || [];
+            const methods = properties.methods || {};
+
+            const classHandle = api.objc_allocateClassPair(parent !== null ? parent.handle : NULL, Memory.allocUtf8String(name), ptr("0"));
+            const metaClassHandle = api.object_getClass(classHandle);
+            try {
+                protocols.forEach(function (protocol) {
+                    api.class_addProtocol(classHandle, protocol.handle);
+                });
+                Object.keys(methods).forEach(function (rawMethodName) {
+                    const method = methods[rawMethodName];
+                    const match = /([+-])\s?(\S+)/.exec(rawMethodName);
+                    if (match === null)
+                        throw new Error("Invalid method name");
+                    const kind = match[1];
+                    const name = match[2];
+
+                    const target = (kind === '+') ? metaClassHandle : classHandle;
+                    const types = unparseSignature(method.retType, [(kind === '+') ? 'class' : 'object', 'selector'].concat(method.argTypes));
+                    // TODO: add support for getting `types` from Protocol
+                    const signature = parseSignature(types);
+                    const implementation = new NativeCallback(
+                        makeMethodImplementationWrapper(signature, method.implementation),
+                        signature.retType.type,
+                        signature.argTypes.map(function (arg) { return arg.type; }));
+                    api.class_addMethod(target, selector(name), implementation, Memory.allocUtf8String(types));
+                });
+            } catch (e) {
+                api.objc_disposeClassPair(classHandle);
+                throw e;
+            }
+            api.objc_registerClassPair(classHandle);
+
+            return new ObjCObject(classHandle);
+        }
+
+        function makeMethodImplementationWrapper(signature, implementation) {
+            const retType = signature.retType;
+            const argTypes = signature.argTypes;
+
+            const argVariableNames = argTypes.map(function (t, i) {
+                if (i === 0)
+                    return "handle";
+                else if (i === 1)
+                    return "sel";
+                else
+                    return "a" + (i - 1);
+            });
+            const callArgs = argTypes.slice(2).map(function (t, i) {
+                const argVariableName = argVariableNames[2 + i];
+                if (t.fromNative) {
+                    return "argTypes[" + (2 + i) + "].fromNative.call(self, " + argVariableName + ")";
+                }
+                return argVariableName;
+            });
+            let returnCaptureLeft;
+            let returnCaptureRight;
+            if (retType.type === 'void') {
+                returnCaptureLeft = "";
+                returnCaptureRight = "";
+            } else if (retType.toNative) {
+                returnCaptureLeft = "return retType.toNative.call(self, ";
+                returnCaptureRight = ")";
+            } else {
+                returnCaptureLeft = "return ";
+                returnCaptureRight = "";
+            }
+
+            const m = eval("const m = function (" + argVariableNames.join(", ") + ") { " +
+                "const self = new ObjCObject(handle);" +
+                returnCaptureLeft + "implementation.call(self" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
+            " }; m;");
+
+            return m;
+        }
+
+        function rawFridaType(t) {
+            return (t === 'object') ? 'pointer' : t;
+        }
+
+        function makeClassName() {
+            for (let i = 1; true; i++) {
+                const name = "FridaAnonymousClass" + i;
+                if (!(name in classRegistry)) {
+                    return name;
+                }
+            }
         }
 
         const objCObjectBuiltins = {
@@ -206,9 +408,9 @@
                         case "toJSON":
                             return toJSON;
                         case "toString":
-                            return target.description().UTF8String;
                         case "valueOf":
-                            return handle.toString;
+                            const description = target.description();
+                            return description.UTF8String.bind(description);
                         default:
                             return getMethodWrapper(name);
                     }
@@ -234,9 +436,10 @@
                     if (!hasCachedMethodHandles) {
                         let cur = api.object_getClass(handle);
                         do {
-                            const methodHandles = api.class_copyMethodList(cur, scratchBuffer);
+                            const numMethodsBuf = Memory.alloc(pointerSize);
+                            const methodHandles = api.class_copyMethodList(cur, numMethodsBuf);
                             try {
-                                const numMethods = Memory.readU32(scratchBuffer);
+                                const numMethods = Memory.readU32(numMethodsBuf);
                                 for (let i = 0; i !== numMethods; i++) {
                                     const methodHandle = Memory.readPointer(methodHandles.add(i * pointerSize));
                                     const sel = api.method_getName(methodHandle);
@@ -351,6 +554,125 @@
             }
         }
 
+        function ObjCProtocol(handle) {
+            let cachedName = null;
+            let cachedProtocols = null;
+            let cachedProperties = null;
+            let cachedMethods = null;
+
+            Object.defineProperty(this, 'handle', {
+                value: handle,
+                enumerable: true
+            });
+
+            Object.defineProperty(this, 'name', {
+                get: function () {
+                    if (cachedName === null)
+                        cachedName = Memory.readUtf8String(api.protocol_getName(handle));
+                    return cachedName;
+                },
+                enumerable: true
+            });
+
+            Object.defineProperty(this, 'protocols', {
+                get: function () {
+                    if (cachedProtocols === null) {
+                        cachedProtocols = {};
+                        const numProtocolsBuf = Memory.alloc(pointerSize);
+                        const protocolHandles = api.protocol_copyProtocolList(handle, numProtocolsBuf);
+                        if (!protocolHandles.isNull()) {
+                            try {
+                                const numProtocols = Memory.readU32(numProtocolsBuf);
+                                for (let i = 0; i !== numProtocols; i++) {
+                                    const protocolHandle = Memory.readPointer(protocolHandles.add(i * pointerSize));
+                                    const protocol = new ObjCProtocol(protocolHandle);
+                                    cachedProtocols[protocol.name] = protocol;
+                                }
+                            } finally {
+                                api.free(protocolHandles);
+                            }
+                        }
+                    }
+                    return cachedProtocols;
+                },
+                enumerable: true
+            });
+
+            Object.defineProperty(this, 'properties', {
+                get: function () {
+                    if (cachedProperties === null) {
+                        cachedProperties = {};
+                        const numBuf = Memory.alloc(pointerSize);
+                        const propertyHandles = api.protocol_copyPropertyList(handle, numBuf);
+                        if (!propertyHandles.isNull()) {
+                            try {
+                                const numProperties = Memory.readU32(numBuf);
+                                for (let i = 0; i !== numProperties; i++) {
+                                    const propertyHandle = Memory.readPointer(propertyHandles.add(i * pointerSize));
+                                    const name = Memory.readUtf8String(api.property_getName(propertyHandle));
+                                    const attributes = {};
+                                    const attributeEntries = api.property_copyAttributeList(propertyHandle, numBuf);
+                                    if (!attributeEntries.isNull()) {
+                                        try {
+                                            const numAttributeValues = Memory.readUInt(numBuf);
+                                            for (let j = 0; j !== numAttributeValues; j++) {
+                                                const attributeEntry = attributeEntries.add(j * (2 * pointerSize));
+                                                const name = Memory.readUtf8String(Memory.readPointer(attributeEntry));
+                                                const value = Memory.readUtf8String(Memory.readPointer(attributeEntry.add(pointerSize)));
+                                                attributes[name] = value;
+                                            }
+                                        } finally {
+                                            api.free(attributeEntries);
+                                        }
+                                    }
+                                    cachedProperties[name] = attributes;
+                                }
+                            } finally {
+                                api.free(propertyHandles);
+                            }
+                        }
+                    }
+                    return cachedProperties;
+                },
+                enumerable: true
+            });
+
+            Object.defineProperty(this, 'methods', {
+                get: function () {
+                    if (cachedMethods === null) {
+                        cachedMethods = {};
+                        const numBuf = Memory.alloc(pointerSize);
+                        collectMethods(cachedMethods, numBuf, { required: true, instance: false });
+                        collectMethods(cachedMethods, numBuf, { required: false, instance: false });
+                        collectMethods(cachedMethods, numBuf, { required: true, instance: true });
+                        collectMethods(cachedMethods, numBuf, { required: false, instance: true });
+                    }
+                    return cachedMethods;
+                },
+                enumerable: true
+            });
+
+            function collectMethods(methods, numBuf, spec) {
+                const methodDescValues = api.protocol_copyMethodDescriptionList(handle, spec.required ? 1 : 0, spec.instance ? 1 : 0, numBuf);
+                if (methodDescValues.isNull())
+                    return;
+                try {
+                    const numMethodDescValues = Memory.readU32(numBuf);
+                    for (let i = 0; i !== numMethodDescValues; i++) {
+                        const methodDesc = methodDescValues.add(i * (2 * pointerSize));
+                        const name = (spec.instance ? '- ' : '+ ') + selectorAsString(Memory.readPointer(methodDesc));
+                        const types = Memory.readUtf8String(Memory.readPointer(methodDesc.add(pointerSize)));
+                        methods[name] = {
+                            required: spec.required,
+                            types: types
+                        };
+                    }
+                } finally {
+                    api.free(methodDescValues);
+                }
+            }
+        }
+
         function makeMethodWrapper(handle, sel) {
             const signature = parseSignature(Memory.readUtf8String(api.method_getTypeEncoding(handle)));
             const retType = signature.retType;
@@ -437,6 +759,14 @@
             return impl;
         }
 
+        function unparseSignature(retType, argTypes) {
+            const frameSize = argTypes.length * pointerSize;
+            return unparseType(retType) + frameSize + argTypes.map(function (argType, i) {
+                const frameOffset = (i * pointerSize);
+                return unparseType(argType) + frameOffset;
+            }).join("");
+        }
+
         function parseSignature(sig) {
             let id = "";
 
@@ -457,6 +787,13 @@
                 retType: retType,
                 argTypes: argTypes
             };
+        }
+
+        function unparseType(t) {
+            const encoding = encodingByType[t];
+            if (encoding === undefined)
+                throw new Error("No known encoding for type " + t);
+            return encoding;
         }
 
         function parseType(t) {
@@ -556,6 +893,27 @@
                 return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
             }
             return v;
+        };
+
+        const encodingByType = {
+            'char': 'c',
+            'int': 'i',
+            'int16': 's',
+            'int32': 'l',
+            'int64': 'q',
+            'uchar': 'C',
+            'uint': 'I',
+            'uint16': 'S',
+            'uint32': 'L',
+            'uint64': 'Q',
+            'float': 'f',
+            'double': 'd',
+            'bool': 'B',
+            'void': 'v',
+            'string': '*',
+            'object': '@',
+            'class': '#',
+            'selector': ':'
         };
 
         const converterById = {
@@ -694,17 +1052,30 @@
                     },
                     "objc_getClassList": ['int', ['pointer', 'int']],
                     "objc_lookUpClass": ['pointer', ['pointer']],
+                    "objc_allocateClassPair": ['pointer', ['pointer', 'pointer', 'pointer']],
+                    "objc_disposeClassPair": ['void', ['pointer']],
+                    "objc_registerClassPair": ['void', ['pointer']],
                     "class_getName": ['pointer', ['pointer']],
                     "class_copyMethodList": ['pointer', ['pointer', 'pointer']],
                     "class_getClassMethod": ['pointer', ['pointer', 'pointer']],
                     "class_getInstanceMethod": ['pointer', ['pointer', 'pointer']],
                     "class_getSuperclass": ['pointer', ['pointer']],
-                    "object_isClass": ['int8', ['pointer']],
+                    "class_addProtocol": ['bool', ['pointer', 'pointer']],
+                    "class_addMethod": ['bool', ['pointer', 'pointer', 'pointer', 'pointer']],
+                    "objc_getProtocol": ['pointer', ['pointer']],
+                    "objc_copyProtocolList": ['pointer', ['pointer']],
+                    "protocol_getName": ['pointer', ['pointer']],
+                    "protocol_copyMethodDescriptionList": ['pointer', ['pointer', 'bool', 'bool', 'pointer']],
+                    "protocol_copyPropertyList": ['pointer', ['pointer', 'pointer']],
+                    "protocol_copyProtocolList": ['pointer', ['pointer', 'pointer']],
+                    "object_isClass": ['bool', ['pointer']],
                     "object_getClass": ['pointer', ['pointer']],
                     "method_getName": ['pointer', ['pointer']],
                     "method_getTypeEncoding": ['pointer', ['pointer']],
                     "method_getImplementation": ['pointer', ['pointer']],
                     "method_setImplementation": ['pointer', ['pointer', 'pointer']],
+                    "property_getName": ['pointer', ['pointer']],
+                    "property_copyAttributeList": ['pointer', ['pointer', 'pointer']],
                     "sel_getName": ['pointer', ['pointer']],
                     "sel_registerName": ['pointer', ['pointer']]
                 },
