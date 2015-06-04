@@ -354,6 +354,8 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
     guint64 u;
   } distance;
 
+  (void) self;
+
   reg = ctx->raw_insn & 0x1f;
   imm19 = (ctx->raw_insn >> 5) & 0x7ffff;
   distance.u = imm19 << 2;
