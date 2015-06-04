@@ -58,6 +58,11 @@
             }
         });
 
+        Object.defineProperty(this, 'registerProxy', {
+            enumerable: true,
+            value: registerProxy
+        });
+
         Object.defineProperty(this, 'registerClass', {
             enumerable: true,
             value: registerClass
@@ -617,6 +622,68 @@
                     api.free(methodDescValues);
                 }
             }
+        }
+
+        function registerProxy(properties) {
+            const protocols = properties.protocols || [];
+            const methods = properties.methods || {};
+            const events = properties.events || {};
+
+            const proxyMethods = {
+                '- dealloc': function () {
+                    this.data.target.release();
+                    unbind(this.self);
+                    this.super.dealloc();
+                },
+                '- respondsToSelector:': function (sel) {
+                    return this.data.target.respondsToSelector_(sel);
+                },
+                '- forwardingTargetForSelector:': function (sel) {
+                    const callback = this.data.events.forward;
+                    if (callback !== undefined)
+                        callback.call(this, selectorAsString(sel));
+                    return this.data.target;
+                },
+                '- methodSignatureForSelector:': function (sel) {
+                    return this.data.target.methodSignatureForSelector_(sel);
+                },
+                '- forwardInvocation:': function (invocation) {
+                    invocation.invokeWithTarget_(this.data.target);
+                }
+            };
+            for (var key in methods) {
+                if (methods.hasOwnProperty(key)) {
+                    if (proxyMethods.hasOwnProperty(key))
+                        throw new Error("The '" + key + "' method is reserved");
+                    proxyMethods[key] = methods[key];
+                }
+            }
+
+            const ProxyClass = registerClass({
+                super: classRegistry.NSProxy,
+                protocols: protocols,
+                methods: proxyMethods
+            });
+
+            return function (target, data) {
+                target = (target instanceof NativePointer) ? new ObjCObject(target) : target;
+                data = data || {};
+
+                const instance = ProxyClass.alloc().autorelease();
+
+                const boundData = getBoundData(instance);
+                boundData.target = target.retain();
+                boundData.events = events;
+                for (var key in data) {
+                    if (data.hasOwnProperty(key)) {
+                        if (boundData.hasOwnProperty(key))
+                            throw new Error("The '" + key + "' property is reserved");
+                        boundData[key] = data[key];
+                    }
+                }
+
+                this.handle = instance.handle;
+            };
         }
 
         function registerClass(properties) {
