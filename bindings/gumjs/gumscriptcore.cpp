@@ -1457,7 +1457,15 @@ gum_script_core_on_invoke_native_function (
     avalue[i] = &ffi_args[i];
   }
 
-  ffi_call (&func->cif, FFI_FN (func->fn), &rvalue, avalue);
+  self->isolate->Exit ();
+
+  {
+    Unlocker ul (self->isolate);
+
+    ffi_call (&func->cif, FFI_FN (func->fn), &rvalue, avalue);
+  }
+
+  self->isolate->Enter ();
 
   Local<Value> result;
   if (!gum_script_value_from_ffi_type (self, &result, &rvalue, func->cif.rtype))
