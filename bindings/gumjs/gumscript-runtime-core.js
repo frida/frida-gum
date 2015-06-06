@@ -198,6 +198,27 @@
         }
     });
 
+    Object.defineProperty(Process, 'getModuleByName', {
+        enumerable: true,
+        value: function (name) {
+            var module = null;
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    if (m.name === name) {
+                        module = m;
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                    if (!module) {
+                        throw new Error('Module ' + name + ' not found');
+                    }
+                }
+            });
+            return module;
+        }
+    });
+
     Object.defineProperty(Module, 'enumerateExportsSync', {
         enumerable: true,
         value: function (name) {
