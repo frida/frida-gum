@@ -211,7 +211,7 @@
                 },
                 onComplete: function () {
                     if (!module) {
-                        throw new Error('Module ' + name + ' not found');
+                        throw new Error("Unable to find module '" + name + "'");
                     }
                 }
             });
