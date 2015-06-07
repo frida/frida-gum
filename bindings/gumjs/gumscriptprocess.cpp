@@ -60,6 +60,10 @@ static void gum_script_process_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_process_handle_range_match (
     const GumRangeDetails * details, gpointer user_data);
+static void gum_script_process_on_enumerate_malloc_ranges (
+    const FunctionCallbackInfo<Value> & info);
+static gboolean gum_script_process_handle_malloc_range_match (
+    const GumMallocRangeDetails * details, gpointer user_data);
 
 void
 _gum_script_process_init (GumScriptProcess * self,
@@ -93,6 +97,9 @@ _gum_script_process_init (GumScriptProcess * self,
       data));
   process->Set (String::NewFromUtf8 (isolate, "enumerateRanges"),
       FunctionTemplate::New (isolate, gum_script_process_on_enumerate_ranges,
+      data));
+  process->Set (String::NewFromUtf8 (isolate, "enumerateMallocRanges"),
+      FunctionTemplate::New (isolate, gum_script_process_on_enumerate_malloc_ranges,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "Process"), process);
 }
@@ -407,6 +414,93 @@ gum_script_process_handle_range_match (const GumRangeDetails * details,
   _gum_script_set_pointer (range, "base", details->range->base_address, core);
   _gum_script_set_uint (range, "size", details->range->size, core);
   _gum_script_set_ascii (range, "protection", prot_str, core);
+
+  Handle<Value> argv[] = {
+    range
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
+
+  gboolean proceed = TRUE;
+  if (!result.IsEmpty () && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+/*
+ * Prototype:
+ * Process.enumerateMallocRanges(callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_process_on_enumerate_malloc_ranges (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptMatchContext ctx;
+
+  ctx.self = static_cast<GumScriptProcess *> (
+      info.Data ().As<External> ()->Value ());
+  ctx.isolate = info.GetIsolate ();
+
+#if !defined(HAVE_DARWIN)
+  ctx->isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
+      ctx.isolate, "Process.enumerateMallocRanges: not implemented yet for "
+      GUM_SCRIPT_PLATFORM)));
+#endif
+
+  Local<Value> callbacks_value = info[0];
+  if (!callbacks_value->IsObject ())
+  {
+    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        ctx.isolate, "Process.enumerateMallocRanges: first argument must be "
+        "a callback object")));
+    return;
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!_gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match,
+      ctx.self->core))
+  {
+    return;
+  }
+  if (!_gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
+      ctx.self->core))
+  {
+    return;
+  }
+
+  ctx.receiver = info.This ();
+
+  gum_process_enumerate_malloc_ranges (gum_script_process_handle_malloc_range_match,
+      &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+
+  return;
+}
+
+
+
+static gboolean
+gum_script_process_handle_malloc_range_match (const GumMallocRangeDetails * details,
+                                              gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
+  Isolate * isolate = ctx->isolate;
+
+  Local<Object> range (Object::New (isolate));
+  _gum_script_set_pointer (range, "base", details->range->base_address, core);
+  _gum_script_set_uint (range, "size", details->range->size, core);
 
   Handle<Value> argv[] = {
     range
