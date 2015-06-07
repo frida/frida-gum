@@ -454,6 +454,7 @@ gum_script_process_on_enumerate_malloc_ranges (
   ctx->isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
       ctx.isolate, "Process.enumerateMallocRanges: not implemented yet for "
       GUM_SCRIPT_PLATFORM)));
+  return;
 #endif
 
   Local<Value> callbacks_value = info[0];
