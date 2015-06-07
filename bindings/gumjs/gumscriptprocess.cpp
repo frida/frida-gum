@@ -62,8 +62,10 @@ static gboolean gum_script_process_handle_range_match (
     const GumRangeDetails * details, gpointer user_data);
 static void gum_script_process_on_enumerate_malloc_ranges (
     const FunctionCallbackInfo<Value> & info);
+#ifdef HAVE_DARWIN
 static gboolean gum_script_process_handle_malloc_range_match (
     const GumMallocRangeDetails * details, gpointer user_data);
+#endif
 
 void
 _gum_script_process_init (GumScriptProcess * self,
@@ -446,16 +448,11 @@ gum_script_process_on_enumerate_malloc_ranges (
 {
   GumScriptMatchContext ctx;
 
-  ctx.self = static_cast<GumScriptProcess *> (
-      info.Data ().As<External> ()->Value ());
   ctx.isolate = info.GetIsolate ();
 
-#if !defined(HAVE_DARWIN)
-  ctx->isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
-      ctx.isolate, "Process.enumerateMallocRanges: not implemented yet for "
-      GUM_SCRIPT_PLATFORM)));
-  return;
-#endif
+#ifdef HAVE_DARWIN
+  ctx.self = static_cast<GumScriptProcess *> (
+      info.Data ().As<External> ()->Value ());
 
   Local<Value> callbacks_value = info[0];
   if (!callbacks_value->IsObject ())
@@ -486,10 +483,15 @@ gum_script_process_on_enumerate_malloc_ranges (
   ctx.on_complete->Call (ctx.receiver, 0, 0);
 
   return;
+#else
+  ctx.isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
+      ctx.isolate, "Process.enumerateMallocRanges: not implemented yet for "
+      GUM_SCRIPT_PLATFORM)));
+  return;
+#endif
 }
 
-
-
+#ifdef HAVE_DARWIN
 static gboolean
 gum_script_process_handle_malloc_range_match (const GumMallocRangeDetails * details,
                                               gpointer user_data)
@@ -517,3 +519,4 @@ gum_script_process_handle_malloc_range_match (const GumMallocRangeDetails * deta
 
   return proceed;
 }
+#endif
