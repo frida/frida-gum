@@ -145,7 +145,7 @@ static void gum_script_core_on_native_pointer_or (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_xor (
     const FunctionCallbackInfo<Value> & info);
-static void gum_script_core_on_native_pointer_cmp (
+static void gum_script_core_on_native_pointer_compare (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_int32 (
     const FunctionCallbackInfo<Value> & info);
@@ -272,9 +272,9 @@ _gum_script_core_init (GumScriptCore * self,
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "xor"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_xor, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "cmp"),
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "compare"),
       FunctionTemplate::New (isolate,
-          gum_script_core_on_native_pointer_cmp, data));
+          gum_script_core_on_native_pointer_compare, data));
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toInt32"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_to_int32, data));
@@ -1205,7 +1205,7 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
 
 /*
  * Prototype:
- * NativePointer.cmp(pointer1, pointer2)
+ * NativePointer.compare(pointer1, pointer2)
  *
  * Docs:
  * Returns 0 if pointer1 and pointer2 points to the same thing.
@@ -1215,7 +1215,7 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
  * TBW
  */
 static void
-gum_script_core_on_native_pointer_cmp(
+gum_script_core_on_native_pointer_compare(
     const FunctionCallbackInfo<Value> & info)
 {
   GumScriptCore * self = static_cast<GumScriptCore *> (
