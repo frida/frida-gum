@@ -198,6 +198,21 @@
         }
     });
 
+    Object.defineProperty(Process, 'enumerateMallocRangesSync', {
+        enumerable: true,
+        value: function () {
+            var ranges = [];
+            Process.enumerateMallocRanges({
+                onMatch: function (r) {
+                    ranges.push(r);
+                },
+                onComplete: function () {
+                }
+            });
+            return ranges;
+        }
+    });
+
     Object.defineProperty(Process, 'getModuleByName', {
         enumerable: true,
         value: function (name) {

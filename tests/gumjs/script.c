@@ -103,6 +103,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
+#ifdef HAVE_DARWIN
+  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
+  SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_synchronously)
+#endif
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_exports_enumeration_performance)
@@ -751,6 +755,31 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
       "send(Process.enumerateRangesSync('--x').length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
+
+#ifdef HAVE_DARWIN
+SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Process.enumerateMallocRanges({"
+        "onMatch: function (range) {"
+        "  send('onMatch');"
+        "  return 'stop';"
+        "},"
+        "onComplete: function () {"
+        "  send('onComplete');"
+        "}"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.enumerateMallocRangesSync().length > 1);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+#endif
 
 SCRIPT_TESTCASE (module_exports_can_be_enumerated)
 {
