@@ -145,6 +145,8 @@ static void gum_script_core_on_native_pointer_or (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_xor (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_native_pointer_compare (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_int32 (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_string (
@@ -270,6 +272,9 @@ _gum_script_core_init (GumScriptCore * self,
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "xor"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_xor, data));
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "compare"),
+      FunctionTemplate::New (isolate,
+          gum_script_core_on_native_pointer_compare, data));
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toInt32"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_to_int32, data));
@@ -1197,6 +1202,45 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
+
+/*
+ * Prototype:
+ * NativePointer.compare(pointer1, pointer2)
+ *
+ * Docs:
+ * Returns 0 if pointer1 and pointer2 points to the same thing.
+ * Otherwise returns -1 if pointer1 < pointer2 and 1 if pointer1 > pointer2
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_core_on_native_pointer_compare(
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+
+  guint64 lhs = reinterpret_cast<guint64> (
+      GUM_NATIVE_POINTER_VALUE (info.Holder ()));
+
+  guint64 rhs;
+  Local<FunctionTemplate> native_pointer (
+      Local<FunctionTemplate>::New (self->isolate,
+          *self->native_pointer));
+  if (native_pointer->HasInstance (info[0]))
+  {
+    rhs = reinterpret_cast<guint64> (
+        GUM_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
+  }
+  else
+  {
+    rhs = info[0]->ToInteger ()->Value ();
+  }
+  int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  info.GetReturnValue ().Set (result);
+}
 
 /*
  * Prototype:

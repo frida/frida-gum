@@ -288,6 +288,13 @@
         }
     });
 
+    NativePointer.prototype.equals = function (ptr) {
+        if (!(ptr instanceof NativePointer)) {
+            throw new Error("Not a pointer");
+        }
+        return this.compare(ptr) === 0;
+    };
+
     var MessageDispatcher = function () {
         var messages = [];
         var operations = {};
