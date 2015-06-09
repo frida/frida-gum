@@ -315,11 +315,13 @@
             "toJSON": true,
             "toString": true,
             "valueOf": true,
+            "$className": true,
             "$protocols": true
         };
 
         function ObjCObject(handle, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
+            let cachedClassName = null;
             let cachedProtocols = null;
             let hasCachedMethodHandles = false;
             const cachedMethodHandles = {};
@@ -343,6 +345,14 @@
                         case "valueOf":
                             const description = target.description();
                             return description.UTF8String.bind(description);
+                        case "$className":
+                            if (cachedClassName === null) {
+                                if (isClass())
+                                    cachedClassName = Memory.readUtf8String(api.class_getName(handle));
+                                else
+                                    cachedClassName = Memory.readUtf8String(api.object_getClassName(handle));
+                            }
+                            return cachedClassName;
                         case "$protocols":
                             if (cachedProtocols === null) {
                                 cachedProtocols = {};
@@ -1269,6 +1279,7 @@
                     "protocol_copyProtocolList": ['pointer', ['pointer', 'pointer']],
                     "object_isClass": ['bool', ['pointer']],
                     "object_getClass": ['pointer', ['pointer']],
+                    "object_getClassName": ['pointer', ['pointer']],
                     "method_getName": ['pointer', ['pointer']],
                     "method_getTypeEncoding": ['pointer', ['pointer']],
                     "method_getImplementation": ['pointer', ['pointer']],
