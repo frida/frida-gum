@@ -315,12 +315,14 @@
             "toJSON": true,
             "toString": true,
             "valueOf": true,
+            "$super": true,
             "$className": true,
             "$protocols": true
         };
 
         function ObjCObject(handle, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
+            let cachedSuper = null;
             let cachedClassName = null;
             let cachedProtocols = null;
             let hasCachedMethodHandles = false;
@@ -345,9 +347,24 @@
                         case "valueOf":
                             const description = target.description();
                             return description.UTF8String.bind(description);
+                        case "$super":
+                            if (cachedSuper === null) {
+                                const superHandle = api.class_getSuperclass(classHandle());
+                                if (!superHandle.isNull()) {
+                                    const specifier = Memory.alloc(2 * pointerSize);
+                                    Memory.writePointer(specifier, handle);
+                                    Memory.writePointer(specifier.add(pointerSize), superHandle);
+                                    cachedSuper = [new ObjCObject(handle, cachedIsClass, specifier)];
+                                } else {
+                                    cachedSuper = [null];
+                                }
+                            }
+                            return cachedSuper[0];
                         case "$className":
                             if (cachedClassName === null) {
-                                if (isClass())
+                                if (superSpecifier)
+                                    cachedClassName = Memory.readUtf8String(api.class_getName(Memory.readPointer(superSpecifier.add(pointerSize))));
+                                else if (isClass())
                                     cachedClassName = Memory.readUtf8String(api.class_getName(handle));
                                 else
                                     cachedClassName = Memory.readUtf8String(api.object_getClassName(handle));
@@ -770,7 +787,7 @@
             const self = new ObjCObject(handle);
             bindings[handle.toString()] = {
                 self: self,
-                super: new ObjCObject(handle, undefined, makeSuperSpecifier(self)),
+                super: self.$super,
                 data: data
             };
         }
@@ -792,7 +809,7 @@
                 const self = new ObjCObject(handle);
                 binding = {
                     self: self,
-                    super: new ObjCObject(handle, undefined, makeSuperSpecifier(self)),
+                    super: self.$super,
                     data: {}
                 };
                 bindings[key] = binding;
@@ -912,13 +929,6 @@
             " }; m;");
 
             return m;
-        }
-
-        function makeSuperSpecifier(obj) {
-            const specifier = Memory.alloc(2 * pointerSize);
-            Memory.writePointer(specifier, obj.handle);
-            Memory.writePointer(specifier.add(pointerSize), obj.superclass().handle);
-            return specifier;
         }
 
         function rawFridaType(t) {
