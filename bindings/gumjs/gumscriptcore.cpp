@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
+ * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
