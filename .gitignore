@@ -34,6 +34,7 @@
 /gum/Makefile
 /gum/Makefile.in
 /gumpp-1.0.pc
+/.idea/*
 /libs/Makefile
 /libs/Makefile.in
 /libs/gum/Makefile

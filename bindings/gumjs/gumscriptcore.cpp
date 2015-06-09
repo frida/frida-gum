@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
+ * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,6 +12,12 @@
 
 #include <ffi.h>
 #include <string.h>
+
+#if GLIB_SIZEOF_VOID_P == 4
+# define GLIB_SIZEOF_VOID_P_IN_NIBBLE 8
+#else
+# define GLIB_SIZEOF_VOID_P_IN_NIBBLE 16
+#endif
 
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
@@ -153,6 +160,8 @@ static void gum_script_core_on_native_pointer_to_string (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_native_pointer_to_json (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_native_pointer_to_match_pattern (
+    const FunctionCallbackInfo<Value> & info);
 
 static void gum_script_core_on_new_native_function (
     const FunctionCallbackInfo<Value> & info);
@@ -284,6 +293,9 @@ _gum_script_core_init (GumScriptCore * self,
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_native_pointer_to_json, data));
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toMatchPattern"),
+      FunctionTemplate::New (isolate,
+          gum_script_core_on_native_pointer_to_match_pattern, data));
   native_pointer->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "NativePointer"), native_pointer);
   self->native_pointer =
@@ -1328,6 +1340,37 @@ gum_script_core_on_native_pointer_to_json (
 
   gchar buf[32];
   sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
+
+  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
+}
+
+/*
+ * Prototype:
+ * NativePointer.toMatchPattern()
+ *
+ * Docs:
+ * Represents the pointer as a pattern.
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_core_on_native_pointer_to_match_pattern (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  gsize ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (info.Holder ()));
+  gchar buf[32];
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
+      G_GSIZE_MODIFIER "x", GSIZE_TO_BE (ptr));
+#else
+  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
+      G_GSIZE_MODIFIER "x", GSIZE_TO_LE (ptr));
+#endif
 
   info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
 }
