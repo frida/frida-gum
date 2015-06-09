@@ -18,7 +18,6 @@
 # define GLIB_SIZEOF_VOID_P_IN_NIBBLE 16
 #endif
 
-
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
 #define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
@@ -1346,7 +1345,7 @@ gum_script_core_on_native_pointer_to_json (
 
 /*
  * Prototype:
- * NativePointer.toMatchPattern(pointer)
+ * NativePointer.toMatchPattern()
  *
  * Docs:
  * Represents the pointer as a pattern.
@@ -1364,11 +1363,13 @@ gum_script_core_on_native_pointer_to_match_pattern (
 
   gsize ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (info.Holder ()));
   gchar buf[32];
-  #if G_BYTE_ORDER == G_LITTLE_ENDIAN
-    sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE) G_GSIZE_MODIFIER "x", GSIZE_TO_BE (ptr));
-  #else
-    sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE) G_GSIZE_MODIFIER "x", GSIZE_TO_LE (ptr));
-  #endif
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
+      G_GSIZE_MODIFIER "x", GSIZE_TO_BE (ptr));
+#else
+  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
+      G_GSIZE_MODIFIER "x", GSIZE_TO_LE (ptr));
+#endif
 
   info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
 }
