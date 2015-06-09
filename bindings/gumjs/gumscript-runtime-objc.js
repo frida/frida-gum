@@ -1085,7 +1085,7 @@
 
         const toNativeId = function (v) {
             if (typeof v === 'string') {
-                return registry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
+                return classRegistry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
             }
             return v;
         };

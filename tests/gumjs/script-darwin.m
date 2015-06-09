@@ -18,6 +18,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
   SCRIPT_TESTENTRY (object_can_be_constructed_from_pointer)
   SCRIPT_TESTENTRY (string_can_be_constructed)
+  SCRIPT_TESTENTRY (string_can_be_passed_as_argument)
   SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
@@ -129,6 +130,19 @@ SCRIPT_TESTCASE (string_can_be_constructed)
         "var NSString = ObjC.classes.NSString;"
         "NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\"));");
     EXPECT_NO_MESSAGES ();
+  }
+}
+
+SCRIPT_TESTCASE (string_can_be_passed_as_argument)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSString = ObjC.classes.NSString;"
+        "var str = NSString.stringWithUTF8String_(Memory.allocUtf8String(\"Snakes\"));"
+        "str = str.stringByAppendingString_(\"Mushrooms\");"
+        "send(str.toString());");
+    EXPECT_SEND_MESSAGE_WITH ("\"SnakesMushrooms\"");
   }
 }
 
