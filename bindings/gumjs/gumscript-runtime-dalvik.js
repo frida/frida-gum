@@ -190,6 +190,10 @@
             return classFactory.cast(obj, C);
         };
 
+        this.getObjectClassname = function (obj) {
+            return classFactory.getObjectClassname(obj);
+        };
+
         initialize.call(this);
     };
 
@@ -262,6 +266,23 @@
             var handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
             var C = klass.$classWrapper;
             return new C(C.__handle__, handle);
+        };
+
+        this.getObjectClassname = function (obj) {
+            let handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
+            if (handle instanceof NativePointer) {
+                let env = vm.getEnv();
+                let jklass = env.getObjectClass(obj);
+                let invokeObjectMethodNoArgs = env.method('pointer', []);
+
+                let stringObj = invokeObjectMethodNoArgs(env.handle, jklass, env.javaLangClass().getName);
+                let clsStr = env.stringFromJni(stringObj);
+                env.deleteLocalRef(stringObj);
+                env.deleteLocalRef(jklass);
+                return clsStr;
+            } else {
+                throw new Error('Not a pointer and also not a class instance.');
+            }
         };
 
         var ensureClass = function (classHandle, cachedName) {
@@ -1433,6 +1454,10 @@
 
         Env.prototype.isSameObject = proxy(24, 'uint8', ['pointer', 'pointer', 'pointer'], function (impl, ref1, ref2) {
             return impl(this.handle, ref1, ref2) ? true : false;
+        });
+
+        Env.prototype.getObjectClass = proxy(31, 'pointer', ['pointer', 'pointer'], function (impl, obj) {
+            return impl(this.handle, obj);
         });
 
         Env.prototype.isInstanceOf = proxy(32, 'uint8', ['pointer', 'pointer', 'pointer'], function (impl, obj, klass) {
