@@ -3,9 +3,6 @@
 
     let _runtime = null;
     let _api = null;
-    const pointerSize = Process.pointerSize;
-    const msgSendBySignatureId = {};
-    const msgSendSuperBySignatureId = {};
 
     Object.defineProperty(this, 'ObjC', {
         enumerable: true,
@@ -18,11 +15,14 @@
     });
 
     function Runtime() {
+        const pointerSize = Process.pointerSize;
         const api = getApi();
         const classRegistry = new ClassRegistry();
         const protocolRegistry = new ProtocolRegistry();
         const scheduledCallbacks = [];
         const bindings = {};
+        const msgSendBySignatureId = {};
+        const msgSendSuperBySignatureId = {};
 
         Object.defineProperty(this, 'available', {
             enumerable: true,
