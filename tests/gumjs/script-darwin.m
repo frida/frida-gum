@@ -13,6 +13,7 @@
 TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (classes_can_be_enumerated)
   SCRIPT_TESTENTRY (object_enumeration_should_contain_parent_methods)
+  SCRIPT_TESTENTRY (object_enumeration_should_contain_protocol_methods)
   SCRIPT_TESTENTRY (class_enumeration_should_not_contain_instance_methods)
   SCRIPT_TESTENTRY (instance_enumeration_should_not_contain_class_methods)
   SCRIPT_TESTENTRY (class_can_be_retrieved)
@@ -25,11 +26,29 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (class_can_be_implemented)
   SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
+  SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
+  SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
   SCRIPT_TESTENTRY (method_call_preserves_value)
   SCRIPT_TESTENTRY (objects_can_be_serialized_to_json)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
+
+@protocol FridaCalculator
+- (int)add:(int)value;
+- (int)sub:(int)value;
+@optional
+- (int)magic;
+@end
+
+@interface FridaDefaultCalculator : NSObject<FridaCalculator>
+@end
+
+@implementation FridaDefaultCalculator
+- (int)add:(int)value { return 1337 + value; }
+- (int)sub:(int)value { return 1337 - value; }
+- (void)secret {}
+@end
 
 SCRIPT_TESTCASE (classes_can_be_enumerated)
 {
@@ -58,6 +77,49 @@ SCRIPT_TESTCASE (object_enumeration_should_contain_parent_methods)
         "var keys = Object.keys(ObjC.classes.NSDate);"
         "send(keys.includes(\"conformsToProtocol_\"));");
     EXPECT_SEND_MESSAGE_WITH ("true");
+  }
+}
+
+SCRIPT_TESTCASE (object_enumeration_should_contain_protocol_methods)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var CalculatorProxy = ObjC.registerProxy({});"
+        "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
+        "var calculator = new ObjC.Object(calculatorProxy, "
+            "ObjC.protocols.FridaCalculator);"
+        "var keys = Object.keys(calculator);"
+        "send(keys.length);"
+        "send(keys.indexOf('add_') !== -1);"
+        "send(keys.indexOf('sub_') !== -1);"
+        "send(keys.indexOf('magic') === -1);"
+        "send(\"magic\" in calculator);"
+        "try {"
+            "calculator.magic();"
+            "send(true);"
+        "} catch (e) {"
+            "send(false);"
+        "}"
+        "send(\"secret\" in calculator);"
+        "try {"
+            "calculator.secret();"
+            "send(true);"
+        "} catch (e) {"
+            "send(false);"
+        "}",
+        calc);
+    EXPECT_SEND_MESSAGE_WITH ("2");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("false");
+    EXPECT_SEND_MESSAGE_WITH ("false");
+    EXPECT_SEND_MESSAGE_WITH ("false");
+    EXPECT_SEND_MESSAGE_WITH ("false");
   }
 }
 
@@ -176,19 +238,6 @@ SCRIPT_TESTCASE (string_can_be_passed_as_argument)
   }
 }
 
-@protocol FridaCalculator
-- (int)add:(int)value;
-- (int)sub:(int)value;
-@end
-
-@interface FridaDefaultCalculator : NSObject<FridaCalculator>
-@end
-
-@implementation FridaDefaultCalculator
-- (int)add:(int)value { return 1337 + value; }
-- (int)sub:(int)value { return 1337 - value; }
-@end
-
 SCRIPT_TESTCASE (class_can_be_implemented)
 {
   @autoreleasepool
@@ -261,6 +310,49 @@ SCRIPT_TESTCASE (attempt_to_access_an_inexistent_method_should_throw)
     COMPILE_AND_LOAD_SCRIPT ("ObjC.classes.NSDate.snakesAndMushrooms();");
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "Error: Unable to find method 'snakesAndMushrooms'");
+  }
+}
+
+SCRIPT_TESTCASE (proxied_method_can_be_invoked)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var CalculatorProxy = ObjC.registerProxy({});"
+        "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
+        "var calculator = new ObjC.Object(calculatorProxy);"
+        "send(\"- add:\" in calculator);"
+        "send(calculator.add_(3));",
+        calc);
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("1340");
+  }
+}
+
+SCRIPT_TESTCASE (proxied_method_can_be_overridden)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var CalculatorProxy = ObjC.registerProxy({});"
+        "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
+        "var calculator = new ObjC.Object(calculatorProxy);"
+        "var method = calculator.add_;"
+        "method.implementation ="
+            "ObjC.implement(method, function (handle, selector, value) {"
+                "return 1227 + value;"
+            "});"
+        "send('ready');",
+        calc);
+    EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
+
+    g_assert_cmpint ([calc add:3], ==, 1230);
   }
 }
 
