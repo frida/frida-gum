@@ -719,7 +719,7 @@
                 if (name in classRegistry)
                     throw new Error("Unable to register already registered class '" + name + "'");
             } else {
-                name = makeClassName;
+                name = makeClassName();
             }
             const superClass = (properties.super !== undefined) ? properties.super : classRegistry.NSObject;
             const protocols = properties.protocols || [];
