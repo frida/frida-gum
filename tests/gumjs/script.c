@@ -92,6 +92,7 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (frida_version_is_available)
   SCRIPT_TESTENTRY (process_arch_is_available)
+  SCRIPT_TESTENTRY (process_get_module_by_name)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
@@ -119,6 +120,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
+  SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
@@ -335,6 +337,57 @@ SCRIPT_TESTCASE (native_pointer_provides_is_null)
       "send(ptr(\"1337\").isNull());");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("false");
+}
+
+SCRIPT_TESTCASE (native_pointer_to_match_pattern)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(\"0x0\").toMatchPattern());"
+      "send(ptr(\"0xa\").toMatchPattern());"
+      "send(ptr(\"0xa1b\").toMatchPattern());"
+      "send(ptr(\"0xa1b2\").toMatchPattern());"
+      "send(ptr(\"0xa1b2c3\").toMatchPattern());"
+      "send(ptr(\"0xa1b2c3d4\").toMatchPattern());"
+#if GLIB_SIZEOF_VOID_P != 4
+      "send(ptr(\"0xa1b2c3d4e5f6a7b8\").toMatchPattern());"
+#endif
+      );
+
+#if GLIB_SIZEOF_VOID_P == 4
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  EXPECT_SEND_MESSAGE_WITH ("\"00000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0a000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"1b0a0000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"b2a10000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"c3b2a100\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"d4c3b2a1\"");
+# else
+  EXPECT_SEND_MESSAGE_WITH ("\"00000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0000000a\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"00000a1b\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0000a1b2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"00a1b2c3\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"a1b2c3d4\"");
+# endif
+#else
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  EXPECT_SEND_MESSAGE_WITH ("\"0000000000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0a00000000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"1b0a000000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"b2a1000000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"c3b2a10000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"d4c3b2a100000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"b8a7f6e5d4c3b2a1\"");
+# else
+  EXPECT_SEND_MESSAGE_WITH ("\"0000000000000000\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"000000000000000a\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0000000000000a1b\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"000000000000a1b2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0000000000a1b2c3\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"00000000a1b2c3d4\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"a1b2c3d4e5f6a7b8\"");
+# endif
+#endif
 }
 
 static gint
@@ -656,6 +709,13 @@ SCRIPT_TESTCASE (process_arch_is_available)
 #elif defined (HAVE_ARM64)
   EXPECT_SEND_MESSAGE_WITH ("\"arm64\"");
 #endif
+}
+
+SCRIPT_TESTCASE (process_get_module_by_name)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.getModuleByName('%s') !== null);", SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (process_platform_is_available)
