@@ -272,11 +272,12 @@
             let handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
             if (handle instanceof NativePointer) {
                 let env = vm.getEnv();
-                let jklass = env.getObjectClass(obj);
                 let invokeObjectMethodNoArgs = env.method('pointer', []);
 
+                let jklass = env.getObjectClass(handle);
                 let stringObj = invokeObjectMethodNoArgs(env.handle, jklass, env.javaLangClass().getName);
                 let clsStr = env.stringFromJni(stringObj);
+                
                 env.deleteLocalRef(stringObj);
                 env.deleteLocalRef(jklass);
                 return clsStr;
