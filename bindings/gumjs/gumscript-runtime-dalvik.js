@@ -266,27 +266,26 @@
         };
 
         this.choose = function (className, callbacks) {
-            let env = vm.getEnv();
-            let klass = this.use(className);
+            const env = vm.getEnv();
+            const klass = this.use(className);
 
             let enumerateInstances = function (className, callbacks) {
-                let thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
-                let ptrClassObject = api.dvmDecodeIndirectRef(thread, klass.$classHandle);
+                const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                const ptrClassObject = api.dvmDecodeIndirectRef(thread, klass.$classHandle);
 
-                let pattern = ptrClassObject.toMatchPattern();
-                let heapSourceBase = api.dvmHeapSourceGetBase();
-                let heapSourceLimit = api.dvmHeapSourceGetLimit();
-
-                let size = heapSourceLimit.toInt32() - heapSourceBase.toInt32();
+                const pattern = ptrClassObject.toMatchPattern();
+                const heapSourceBase = api.dvmHeapSourceGetBase();
+                const heapSourceLimit = api.dvmHeapSourceGetLimit();
+                const size = heapSourceLimit.toInt32() - heapSourceBase.toInt32();
                 Memory.scan(heapSourceBase, size, pattern, {
                     onMatch: function (address, size) {
                         if (api.dvmIsValidObject(address)) {
                             Dalvik.perform(function () {
-                                let env = vm.getEnv();
-                                let thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
-                                let localReference = api.addLocalReferenceFunc(thread, address);
-                                let instance = Dalvik.cast(localReference, klass);
-                                let stopMaybe = callbacks.onMatch(instance);
+                                const env = vm.getEnv();
+                                const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                                const localReference = api.addLocalReferenceFunc(thread, address);
+                                const instance = Dalvik.cast(localReference, klass);
+                                const stopMaybe = callbacks.onMatch(instance);
                                 env.deleteLocalRef(localReference);
                                 if (stopMaybe === 'stop') {
                                     return 'stop';
@@ -295,7 +294,6 @@
                         }
                     },
                     onError: function (reason) {
-                        callbacks.onError(reason);
                     },
                     onComplete: function () {
                         callbacks.onComplete();
@@ -304,7 +302,7 @@
             };
 
             if (api.addLocalReferenceFunc === null) {
-                let libdvm = Process.getModuleByName('libdvm.so');
+                const libdvm = Process.getModuleByName('libdvm.so');
                 Memory.scan(libdvm.base, libdvm.size, '2D E9 F0 41 05 46 15 4E 0C 46 7E 44 11 B3 43 68',
                     {
                         onMatch: function (address, size) {
@@ -1711,7 +1709,9 @@
             return _api;
         }
 
-        var temporaryApi = {addLocalReferenceFunc: null};
+        var temporaryApi = {
+            addLocalReferenceFunc: null
+        };
         var pending = [
             {
                 module: "libdvm.so",
