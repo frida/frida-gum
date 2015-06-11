@@ -186,6 +186,13 @@
             return classFactory.use(className);
         };
 
+        this.choose = function (className, callbacks) {
+            if (classFactory.loader === null) {
+                throw new Error("Not allowed outside Dalvik.perform() callback");
+            }
+            return classFactory.choose(className, callbacks);
+        };
+
         this.cast = function (obj, C) {
             return classFactory.cast(obj, C);
         };
@@ -256,6 +263,67 @@
                 }
             }
             return new C(C.__handle__, null);
+        };
+
+        this.choose = function (className, callbacks) {
+            let env = vm.getEnv();
+            let klass = this.use(className);
+
+            let enumerateInstances = function (className, callbacks) {
+                let thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                let ptrClassObject = api.dvmDecodeIndirectRef(thread, klass.$classHandle);
+
+                let pattern = ptrClassObject.toMatchPattern();
+                let heapSourceBase = api.dvmHeapSourceGetBase();
+                let heapSourceLimit = api.dvmHeapSourceGetLimit();
+
+                let size = heapSourceLimit.toInt32() - heapSourceBase.toInt32();
+                Memory.scan(heapSourceBase, size, pattern, {
+                    onMatch: function (address, size) {
+                        if (api.dvmIsValidObject(address)) {
+                            Dalvik.perform(function () {
+                                let env = vm.getEnv();
+                                let thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                                let localReference = api.addLocalReferenceFunc(thread, address);
+                                let instance = Dalvik.cast(localReference, klass);
+                                let stopMaybe = callbacks.onMatch(instance);
+                                env.deleteLocalRef(localReference);
+                                if (stopMaybe === 'stop') {
+                                    return 'stop';
+                                }
+                            });
+                        }
+                    },
+                    onError: function (reason) {
+                        callbacks.onError(reason);
+                    },
+                    onComplete: function () {
+                        callbacks.onComplete();
+                    }
+                });
+            };
+
+            if (api.addLocalReferenceFunc === null) {
+                let libdvm = Process.getModuleByName('libdvm.so');
+                Memory.scan(libdvm.base, libdvm.size, '2D E9 F0 41 05 46 15 4E 0C 46 7E 44 11 B3 43 68',
+                    {
+                        onMatch: function (address, size) {
+                            // Note that on 32-bit ARM this address must have its least significant bit set to 0 for ARM functions, and 1 for Thumb functions. => So set it to 1
+                            if (Process.arch === 'arm') {
+                                address = address.or(1);
+                            }
+                            api.addLocalReferenceFunc = new NativeFunction(address, 'pointer', ['pointer', 'pointer']);
+                            enumerateInstances(className, callbacks);
+                            return 'stop';
+                        },
+                        onError: function (reason) {
+                        },
+                        onComplete: function () {
+                        }
+                    });
+            } else {
+                enumerateInstances(className, callbacks);
+            }
         };
 
         this.cast = function (obj, klass) {
@@ -1643,13 +1711,32 @@
             return _api;
         }
 
-        var temporaryApi = {};
+        var temporaryApi = {addLocalReferenceFunc: null};
         var pending = [
             {
                 module: "libdvm.so",
                 functions: {
+                    /*
+                     * Converts an indirect reference to to an object reference.
+                     */
                     "_Z20dvmDecodeIndirectRefP6ThreadP8_jobject": ["dvmDecodeIndirectRef", 'pointer', ['pointer', 'pointer']],
-                    "_Z15dvmUseJNIBridgeP6MethodPv": ["dvmUseJNIBridge", 'void', ['pointer', 'pointer']]
+
+                    "_Z15dvmUseJNIBridgeP6MethodPv": ["dvmUseJNIBridge", 'void', ['pointer', 'pointer']],
+
+                    /*
+                     * Returns the base of the HeapSource.
+                     */
+                    "_Z20dvmHeapSourceGetBasev": ["dvmHeapSourceGetBase", 'pointer', []],
+
+                    /*
+                     * Returns the limit of the HeapSource.
+                     */
+                    "_Z21dvmHeapSourceGetLimitv": ["dvmHeapSourceGetLimit", 'pointer', []],
+
+                    /*
+                     *  Returns true if the pointer points to a valid object.
+                     */
+                    "_Z16dvmIsValidObjectPK6Object": ["dvmIsValidObject", 'uint8', ['pointer']]
                 },
                 variables: {
                     "gDvmJni": function (address) {
