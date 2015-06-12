@@ -190,10 +190,6 @@
             return classFactory.cast(obj, C);
         };
 
-        this.getObjectClassname = function (obj) {
-            return classFactory.getObjectClassname(obj);
-        };
-
         initialize.call(this);
     };
 
@@ -268,24 +264,6 @@
             return new C(C.__handle__, handle);
         };
 
-        this.getObjectClassname = function (obj) {
-            let handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
-            if (handle instanceof NativePointer) {
-                let env = vm.getEnv();
-                let invokeObjectMethodNoArgs = env.method('pointer', []);
-
-                let jklass = env.getObjectClass(handle);
-                let stringObj = invokeObjectMethodNoArgs(env.handle, jklass, env.javaLangClass().getName);
-                let clsStr = env.stringFromJni(stringObj);
-                
-                env.deleteLocalRef(stringObj);
-                env.deleteLocalRef(jklass);
-                return clsStr;
-            } else {
-                throw new Error('Not a pointer and also not a class instance.');
-            }
-        };
-
         var ensureClass = function (classHandle, cachedName) {
             var env = vm.getEnv();
 
@@ -341,6 +319,27 @@
                     get: function () {
                         var Clazz = factory.use("java.lang.Class");
                         return factory.cast(this.$classHandle, Clazz);
+                    }
+                });
+
+                function getObjectClassName(klass) {
+                    const env = vm.getEnv();
+                    let jklass;
+                    if (klass.$handle) {
+                        jklass = env.getObjectClass(klass.$handle);
+                    } else {
+                        jklass = klass.$classHandle;
+                    }
+                    const className = env.getClassName(jklass);
+                    if (klass.$handle) {
+                        env.deleteLocalRef(jklass);
+                    }
+                    return className;
+                }
+
+                Object.defineProperty(klass.prototype, "$className", {
+                    get: function () {
+                        return getObjectClassName(this);
                     }
                 });
 
@@ -1630,8 +1629,8 @@
             return javaLangReflectGenericArrayType;
         };
 
-        Env.prototype.getClassName = function (klass) {
-            var name = this.method('pointer', [])(this.handle, klass, this.javaLangClass().getName);
+        Env.prototype.getClassName = function (classHandle) {
+            var name = this.method('pointer', [])(this.handle, classHandle, this.javaLangClass().getName);
             var result = this.stringFromJni(name);
             this.deleteLocalRef(name);
             return result;
