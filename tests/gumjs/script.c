@@ -342,6 +342,14 @@ SCRIPT_TESTCASE (native_pointer_provides_is_null)
 
 SCRIPT_TESTCASE (native_pointer_to_match_pattern)
 {
+  const gchar * extra_checks;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  extra_checks = "";
+#else
+  extra_checks = "send(ptr(\"0xa1b2c3d4e5f6a7b8\").toMatchPattern());";
+#endif
+
   COMPILE_AND_LOAD_SCRIPT (
       "send(ptr(\"0x0\").toMatchPattern());"
       "send(ptr(\"0xa\").toMatchPattern());"
@@ -349,10 +357,8 @@ SCRIPT_TESTCASE (native_pointer_to_match_pattern)
       "send(ptr(\"0xa1b2\").toMatchPattern());"
       "send(ptr(\"0xa1b2c3\").toMatchPattern());"
       "send(ptr(\"0xa1b2c3d4\").toMatchPattern());"
-#if GLIB_SIZEOF_VOID_P != 4
-      "send(ptr(\"0xa1b2c3d4e5f6a7b8\").toMatchPattern());"
-#endif
-      );
+      "%s",
+      extra_checks);
 
 #if GLIB_SIZEOF_VOID_P == 4
 # if G_BYTE_ORDER == G_LITTLE_ENDIAN
