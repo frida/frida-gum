@@ -64,6 +64,7 @@ struct _GumFFIFunction
   gpointer fn;
   ffi_cif cif;
   ffi_type ** atypes;
+  GSList * data;
   GumPersistent<Object>::type * weak_instance;
 };
 
@@ -75,6 +76,7 @@ struct _GumFFICallback
   ffi_closure * closure;
   ffi_cif cif;
   ffi_type ** atypes;
+  GSList * data;
   GumPersistent<Object>::type * weak_instance;
 };
 
@@ -193,7 +195,7 @@ static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message);
 
 static gboolean gum_script_ffi_type_get (GumScriptCore * core,
-    Handle<Value> name, ffi_type ** type);
+    Handle<Value> name, ffi_type ** type, GSList ** data);
 static gboolean gum_script_ffi_abi_get (GumScriptCore * core,
     Handle<Value> name, ffi_abi * abi);
 static gboolean gum_script_value_to_ffi_type (GumScriptCore * core,
@@ -1406,14 +1408,7 @@ gum_script_core_on_new_native_function (
     goto error;
 
   rtype_value = info[1];
-  if (!rtype_value->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeFunction: second argument must be a string specifying "
-        "return type")));
-    goto error;
-  }
-  if (!gum_script_ffi_type_get (self, rtype_value, &rtype))
+  if (!gum_script_ffi_type_get (self, rtype_value, &rtype, &func->data))
     goto error;
 
   atypes_value = info[2];
@@ -1446,7 +1441,7 @@ gum_script_core_on_new_native_function (
       is_variadic = TRUE;
     }
     else if (!gum_script_ffi_type_get (self, type,
-        &func->atypes[is_variadic ? i - 1 : i]))
+        &func->atypes[is_variadic ? i - 1 : i], &func->data))
     {
       goto error;
     }
@@ -1565,7 +1560,15 @@ static void
 gum_ffi_function_free (GumFFIFunction * func)
 {
   delete func->weak_instance;
+
+  while (func->data != NULL)
+  {
+    GSList * head = func->data;
+    g_free (head->data);
+    func->data = g_slist_delete_link (func->data, head);
+  }
   g_free (func->atypes);
+
   g_slice_free (GumFFIFunction, func);
 }
 
@@ -1617,7 +1620,7 @@ gum_script_core_on_new_native_callback (
         "return type")));
     goto error;
   }
-  if (!gum_script_ffi_type_get (self, rtype_value, &rtype))
+  if (!gum_script_ffi_type_get (self, rtype_value, &rtype, &callback->data))
     goto error;
 
   atypes_value = info[2];
@@ -1634,7 +1637,7 @@ gum_script_core_on_new_native_callback (
   for (i = 0; i != nargs; i++)
   {
     if (!gum_script_ffi_type_get (self, atypes_array->Get (i),
-        &callback->atypes[i]))
+        &callback->atypes[i], &callback->data))
     {
       goto error;
     }
@@ -1744,6 +1747,13 @@ gum_ffi_callback_free (GumFFICallback * callback)
   delete callback->receiver;
 
   ffi_closure_free (callback->closure);
+
+  while (callback->data != NULL)
+  {
+    GSList * head = callback->data;
+    g_free (head->data);
+    callback->data = g_slist_delete_link (callback->data, head);
+  }
   g_free (callback->atypes);
 
   g_slice_free (GumFFICallback, callback);
@@ -1916,16 +1926,61 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
 static gboolean
 gum_script_ffi_type_get (GumScriptCore * core,
                          Handle<Value> name,
-                         ffi_type ** type)
+                         ffi_type ** type,
+                         GSList ** data)
 {
-  String::Utf8Value str_value (name);
-  const gchar * str = *str_value;
-  for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
+  if (name->IsString ())
   {
-    const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
-    if (strcmp (str, m->name) == 0)
+    String::Utf8Value str_value (name);
+    const gchar * str = *str_value;
+    for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
-      *type = m->type;
+      const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
+      if (strcmp (str, m->name) == 0)
+      {
+        *type = m->type;
+        return TRUE;
+      }
+    }
+  }
+  else if (name->IsObject ())
+  {
+    Isolate * isolate = core->isolate;
+    Local<Context> context = isolate->GetCurrentContext ();
+
+    Local<Object> fields_value = Handle<Object>::Cast (name);
+    Local<String> length_key (Local<String>::New (isolate, *core->length_key));
+    if (fields_value->Has (length_key))
+    {
+      gsize length = fields_value->Get (length_key)->Uint32Value ();
+
+      ffi_type ** fields = g_new (ffi_type *, length + 1);
+      *data = g_slist_prepend (*data, fields);
+
+      for (gsize i = 0; i != length; i++)
+      {
+        Local<Value> field_value;
+        if (fields_value->Get (context, i).ToLocal (&field_value))
+        {
+          if (!gum_script_ffi_type_get (core, field_value, &fields[i], data))
+            return FALSE;
+        }
+        else
+        {
+          isolate->ThrowException (Exception::TypeError (
+              String::NewFromUtf8 (isolate, "invalid field type specified")));
+          return FALSE;
+        }
+      }
+
+      fields[length] = NULL;
+
+      ffi_type * struct_type = g_new0 (ffi_type, 1);
+      struct_type->type = FFI_TYPE_STRUCT;
+      struct_type->elements = fields;
+      *data = g_slist_prepend (*data, struct_type);
+
+      *type = struct_type;
       return TRUE;
     }
   }
@@ -2036,10 +2091,75 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
   {
     value->v_uint64 = static_cast<guint64> (svalue->IntegerValue ());
   }
+  else if (type->type == FFI_TYPE_STRUCT)
+  {
+    Isolate * isolate = core->isolate;
+    Local<Context> context = isolate->GetCurrentContext ();
+    const ffi_type * const * field_types = type->elements;
+
+    if (!svalue->IsObject ())
+    {
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "expected array with fields")));
+      return FALSE;
+    }
+    Local<Object> field_svalues = Handle<Object>::Cast (svalue);
+    Local<String> length_key (Local<String>::New (isolate,
+        *core->length_key));
+    if (!field_svalues->Has (length_key))
+    {
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "expected array with fields")));
+      return FALSE;
+    }
+
+    gsize provided_length = field_svalues->Get (length_key)->Uint32Value ();
+    gsize length = 0;
+    for (const ffi_type * const * t = field_types; *t != NULL; t++)
+      length++;
+    if (provided_length != length)
+    {
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "provided array length does not match number of fields")));
+      return FALSE;
+    }
+
+    guint8 * field_values = (guint8 *) value;
+    gsize offset = 0;
+    for (gsize i = 0; i != length; i++)
+    {
+      const ffi_type * field_type = field_types[i];
+
+      offset = (offset + field_type->alignment - 1) &
+          ~(field_type->alignment - 1);
+
+      GumFFIValue * field_value =
+          (GumFFIValue *) (field_values + offset);
+      Local<Value> field_svalue;
+      if (field_svalues->Get (context, i).ToLocal (&field_svalue))
+      {
+        if (!gum_script_value_to_ffi_type (core, field_svalue, field_value,
+            field_type))
+        {
+          return FALSE;
+        }
+      }
+      else
+      {
+        isolate->ThrowException (Exception::TypeError (
+            String::NewFromUtf8 (isolate, "invalid field value specified")));
+        return FALSE;
+      }
+
+      offset += field_type->size;
+    }
+
+    return TRUE;
+  }
   else
   {
     core->isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        core->isolate, "value_to_ffi_type: unsupported type")));
+        core->isolate, "unsupported type")));
     return FALSE;
   }
 
@@ -2126,10 +2246,45 @@ gum_script_value_from_ffi_type (GumScriptCore * core,
   {
     *svalue = Number::New (isolate, value->v_uint64);
   }
+  else if (type->type == FFI_TYPE_STRUCT)
+  {
+    const ffi_type * const * field_types = type->elements;
+
+    gsize length = 0;
+    for (const ffi_type * const * t = field_types; *t != NULL; t++)
+      length++;
+
+    Local<Array> field_svalues = Array::New (isolate, length);
+    const guint8 * field_values = (const guint8 *) value;
+    gsize offset = 0;
+    for (gsize i = 0; i != length; i++)
+    {
+      const ffi_type * field_type = field_types[i];
+
+      offset = (offset + field_type->alignment - 1) &
+          ~(field_type->alignment - 1);
+
+      const GumFFIValue * field_value =
+          (const GumFFIValue *) (field_values + offset);
+      Local<Value> field_svalue;
+      if (gum_script_value_from_ffi_type (core, &field_svalue, field_value,
+          field_type))
+      {
+        field_svalues->Set (i, field_svalue);
+      }
+      else
+      {
+        return FALSE;
+      }
+
+      offset += field_type->size;
+    }
+    *svalue = field_svalues;
+  }
   else
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "value_from_ffi_type: unsupported type")));
+        "unsupported type")));
     return FALSE;
   }
 

@@ -1199,25 +1199,30 @@
 
         function unparseSignature(retType, argTypes) {
             const frameSize = argTypes.length * pointerSize;
-            return unparseType(retType) + frameSize + argTypes.map(function (argType, i) {
+            return typeIdFromAlias(retType) + frameSize + argTypes.map(function (argType, i) {
                 const frameOffset = (i * pointerSize);
-                return unparseType(argType) + frameOffset;
+                return typeIdFromAlias(argType) + frameOffset;
             }).join("");
         }
 
         function parseSignature(sig) {
-            let id = "";
+            const cursor = [sig, 0];
 
-            let t = nextType(sig);
-            const retType = parseType(t[0]);
-            id += retType.type;
+            parseQualifiers(cursor);
+            const retType = readType(cursor);
+            readNumber(cursor);
 
             const argTypes = [];
-            while (t[1].length > 0) {
-                t = nextType(t[1]);
-                const argType = parseType(t[0]);
-                id += argType.type;
+
+            let id = retType.type;
+
+            while (dataAvailable(cursor)) {
+                parseQualifiers(cursor);
+                const argType = readType(cursor);
+                readNumber(cursor);
                 argTypes.push(argType);
+
+                id += argType.type;
             }
 
             return {
@@ -1227,83 +1232,87 @@
             };
         }
 
-        function unparseType(t) {
-            const id = idByType[t];
-            if (id === undefined)
-                throw new Error("No known encoding for type " + t);
-            return id;
-        }
+        function readType(cursor) {
+            while (true) {
+                const c = readChar(cursor);
 
-        function parseType(t) {
-            const qualifiers = [];
-            while (t.length > 0) {
-                const q = qualifierById[t[0]];
-                if (q === undefined)
-                    break;
-                qualifiers.push(q);
-                t = t.substring(1);
-            }
-            const converter = converterById[simplifyType(t)];
-            if (converter === undefined)
-                throw new Error("No parser for type " + t);
-            return converter;
-        }
-
-        function simplifyType(t) {
-            if (t[0] === '^') {
-                switch (t[1]) {
-                    case '[':
-                    case '{':
-                    case '(':
-                        return t.substring(0, 2) + t.substring(t.length - 1);
-                }
-            }
-            return t;
-        }
-
-        function nextType(t) {
-            let type = "";
-            let n = 0;
-            let scope = null;
-            let depth = 0;
-            let foundFirstDigit = false;
-            while (n < t.length) {
-                const c = t[n];
-                if (scope !== null) {
-                    type += c;
-                    if (c === scope[0]) {
-                        depth++;
-                    } else if (c === scope[1]) {
-                        depth--;
-                        if (depth === 0) {
-                            scope = null;
-                        }
-                    }
+                const type = singularTypeById[c];
+                if (type !== undefined) {
+                    return type;
+                } else if (c === '[') {
+                    const length = readNumber(cursor);
+                    const elementType = readType(cursor);
+                    skipChar(cursor); // ']'
+                    return arrayType(length, elementType);
+                } else if (c === '{') {
+                    readUntil('=', cursor);
+                    const fields = [];
+                    do {
+                        fields.push(readType(cursor));
+                    } while (peekChar(cursor) !== '}');
+                    skipChar(cursor); // '}'
+                    return structType(fields);
+                } else if (c === '(') {
+                    readUntil('=', cursor);
+                    const fields = [];
+                    do {
+                        fields.push(readType(cursor));
+                    } while (peekChar(cursor) !== '}');
+                    skipChar(cursor); // ')'
+                    return unionType(fields);
+                } else if (c === 'b') {
+                    readNumber(cursor);
+                    return singularTypeById['i'];
+                } else if (c === '^') {
+                    readType(cursor);
+                    return singularTypeById['?'];
                 } else {
-                    const v = t.charCodeAt(n);
-                    const isDigit = v >= 0x30 && v <= 0x39;
-                    if (!foundFirstDigit) {
-                        foundFirstDigit = isDigit;
-                        if (!isDigit) {
-                            type += t[n];
-                            if (c === '[') {
-                                scope = '[]';
-                                depth = 1;
-                            } else if (c === '{') {
-                                scope = '{}';
-                                depth = 1;
-                            } else if (c === '(') {
-                                scope = '()';
-                                depth = 1;
-                            }
-                        }
-                    } else if (!isDigit) {
-                        break;
-                    }
+                    throw new Error("Unable to handle type " + id);
                 }
-                n++;
             }
-            return [type, t.substring(n)];
+        }
+
+        function readNumber(cursor) {
+            let result = "";
+            while (dataAvailable(cursor)) {
+                const c = peekChar(cursor);
+                const v = c.charCodeAt(0);
+                const isDigit = v >= 0x30 && v <= 0x39;
+                if (isDigit) {
+                    result += c;
+                    skipChar(cursor);
+                } else {
+                    break;
+                }
+            }
+            return parseInt(result);
+        }
+
+        function readUntil(token, cursor) {
+            const buffer = cursor[0];
+            const offset = cursor[1];
+            const index = buffer.indexOf(token, offset);
+            if (index === -1)
+                throw new Error("Expected token '" + token + "' not found");
+            const result = buffer.substring(offset, index);
+            cursor[1] = index + 1;
+            return result;
+        }
+
+        function readChar(cursor) {
+            return cursor[0][cursor[1]++];
+        }
+
+        function peekChar(cursor) {
+            return cursor[0][cursor[1]];
+        }
+
+        function skipChar(cursor) {
+            cursor[1]++;
+        }
+
+        function dataAvailable(cursor) {
+            return cursor[1] !== cursor[0].length;
         }
 
         const qualifierById = {
@@ -1316,24 +1325,19 @@
             'V': 'oneway'
         };
 
-        const fromNativeId = function (h) {
-            if (h.isNull()) {
-                return null;
-            } else if (h.toString(16) === this.handle.toString(16)) {
-                return this;
-            } else {
-                return new ObjCObject(h);
+        function parseQualifiers(cursor) {
+            const qualifiers = [];
+            while (true) {
+                const q = qualifierById[peekChar(cursor)];
+                if (q === undefined)
+                    break;
+                qualifiers.push(q);
+                skipChar(cursor);
             }
-        };
+            return qualifiers;
+        }
 
-        const toNativeId = function (v) {
-            if (typeof v === 'string') {
-                return classRegistry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
-            }
-            return v;
-        };
-
-        const idByType = {
+        const idByAlias = {
             'char': 'c',
             'int': 'i',
             'int16': 's',
@@ -1354,9 +1358,80 @@
             'selector': ':'
         };
 
-        const converterById = {
+        function typeIdFromAlias(alias) {
+            const id = idByAlias[alias];
+            if (id === undefined)
+                throw new Error("No known encoding for type " + alias);
+            return id;
+        }
+
+        const fromNativeId = function (h) {
+            if (h.isNull()) {
+                return null;
+            } else if (h.toString(16) === this.handle.toString(16)) {
+                return this;
+            } else {
+                return new ObjCObject(h);
+            }
+        };
+
+        const toNativeId = function (v) {
+            if (typeof v === 'string') {
+                return classRegistry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
+            }
+            return v;
+        };
+
+        function arrayType(length, elementType) {
+            return {
+                type: 'pointer'
+            };
+        }
+
+        function structType(fieldTypes) {
+            return {
+                type: fieldTypes.map(function (t) {
+                    return t.type;
+                }),
+                size: fieldTypes.reduce(function (totalSize, t) {
+                    return totalSize + t.size;
+                }, 0),
+                fromNative: function (v) {
+                    return v.map(function (v, i) {
+                        return fieldTypes[i].fromNative.call(this, v);
+                    }, this);
+                },
+                toNative: function (v) {
+                    return v.map(function (v, i) {
+                        return fieldTypes[i].toNative.call(this, v);
+                    }, this);
+                }
+            };
+        }
+
+        function unionType(fieldTypes) {
+            const largestType = fieldTypes.reduce(function (largest, t) {
+                if (t.size > largest.size)
+                    return t;
+                else
+                    return largest;
+            }, fieldTypes[0]);
+            return {
+                type: [largestType.type],
+                size: largestType.size,
+                fromNative: function (v) {
+                    return [largestType.fromNative.call(this, v)];
+                },
+                toNative: function (v) {
+                    return [largestType.toNative.call(this, v)];
+                }
+            };
+        }
+
+        const singularTypeById = {
             'c': {
                 type: 'char',
+                size: 1,
                 toNative: function (v) {
                     if (typeof v === 'boolean') {
                         return v ? 1 : 0;
@@ -1365,40 +1440,52 @@
                 }
             },
             'i': {
-                type: 'int'
+                type: 'int',
+                size: 4
             },
             's': {
-                type: 'int16'
+                type: 'int16',
+                size: 2
             },
             'l': {
-                type: 'int32'
+                type: 'int32',
+                size: 4
             },
             'q': {
-                type: 'int64'
+                type: 'int64',
+                size: 8
             },
             'C': {
-                type: 'uchar'
+                type: 'uchar',
+                size: 1
             },
             'I': {
-                type: 'uint'
+                type: 'uint',
+                size: 4
             },
             'S': {
-                type: 'uint16'
+                type: 'uint16',
+                size: 2
             },
             'L': {
-                type: 'uint32'
+                type: 'uint32',
+                size: 4
             },
             'Q': {
-                type: 'uint64'
+                type: 'uint64',
+                size: 8
             },
             'f': {
-                type: 'float'
+                type: 'float',
+                size: 4
             },
             'd': {
-                type: 'double'
+                type: 'double',
+                size: 8
             },
             'B': {
                 type: 'bool',
+                size: 1,
                 fromNative: function (v) {
                     return v ? true : false;
                 },
@@ -1407,10 +1494,12 @@
                 }
             },
             'v': {
-                type: 'void'
+                type: 'void',
+                size: 0
             },
             '*': {
                 type: 'pointer',
+                size: pointerSize,
                 fromNative: function (h) {
                     if (h.isNull()) {
                         return null;
@@ -1420,49 +1509,23 @@
             },
             '@': {
                 type: 'pointer',
+                size: pointerSize,
                 fromNative: fromNativeId,
                 toNative: toNativeId
             },
-            '@?': {
-                type: 'pointer'
-            },
             '#': {
                 type: 'pointer',
+                size: pointerSize,
                 fromNative: fromNativeId,
                 toNative: toNativeId
             },
             ':': {
-                type: 'pointer'
+                type: 'pointer',
+                size: pointerSize
             },
-            '^i': {
-                type: 'pointer'
-            },
-            '^q': {
-                type: 'pointer'
-            },
-            '^S': {
-                type: 'pointer'
-            },
-            '^^S': {
-                type: 'pointer'
-            },
-            '^Q': {
-                type: 'pointer'
-            },
-            '^v': {
-                type: 'pointer'
-            },
-            '^*': {
-                type: 'pointer'
-            },
-            '^@': {
-                type: 'pointer'
-            },
-            '^?': {
-                type: 'pointer'
-            },
-            '^{}': {
-                type: 'pointer'
+            '?': {
+                type: 'pointer',
+                size: pointerSize
             }
         };
     }

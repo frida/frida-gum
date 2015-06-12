@@ -339,10 +339,10 @@ SCRIPT_TESTCASE (nsrect_consuming_method_implementation_can_be_overridden)
             "});");
     EXPECT_NO_MESSAGES ();
 
-    r.origin.x = 10;
-    r.origin.y = 15;
-    r.size.width = 30;
-    r.size.height = 35;
+    r.origin.x = 10.0;
+    r.origin.y = 15.0;
+    r.size.width = 30.0;
+    r.size.height = 35.0;
     [widget drawRect:r];
     EXPECT_SEND_MESSAGE_WITH ("1337");
   }
