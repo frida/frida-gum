@@ -24,7 +24,10 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (string_can_be_constructed)
   SCRIPT_TESTENTRY (string_can_be_passed_as_argument)
   SCRIPT_TESTENTRY (class_can_be_implemented)
-  SCRIPT_TESTENTRY (method_implementation_can_be_overridden)
+  SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
+#ifdef HAVE_MAC
+  SCRIPT_TESTENTRY (nsrect_consuming_method_implementation_can_be_overridden)
+#endif
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
   SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
   SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
@@ -281,7 +284,7 @@ SCRIPT_TESTCASE (class_can_be_implemented)
   }
 }
 
-SCRIPT_TESTCASE (method_implementation_can_be_overridden)
+SCRIPT_TESTCASE (basic_method_implementation_can_be_overridden)
 {
   @autoreleasepool
   {
@@ -302,6 +305,50 @@ SCRIPT_TESTCASE (method_implementation_can_be_overridden)
     g_assert_cmpstr (desc.UTF8String, ==, "Snakes");
   }
 }
+
+#ifdef HAVE_MAC
+
+@interface FridaWidget : NSObject
+@end
+
+@implementation FridaWidget
+- (void)drawRect:(NSRect)dirtyRect {}
+@end
+
+SCRIPT_TESTCASE (nsrect_consuming_method_implementation_can_be_overridden)
+{
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  @autoreleasepool
+  {
+    FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
+    NSRect r;
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var FridaWidget = ObjC.classes.FridaWidget;"
+        "var method = FridaWidget[\"- drawRect:\"];"
+        "var oldImpl = method.implementation;"
+        "method.implementation ="
+            "ObjC.implement(method, function (handle, selector, dirtyRect) {"
+                "oldImpl(handle, selector, dirtyRect);"
+                "send(1337);"
+            "});");
+    EXPECT_NO_MESSAGES ();
+
+    r.origin.x = 10;
+    r.origin.y = 15;
+    r.size.width = 30;
+    r.size.height = 35;
+    [widget drawRect:r];
+    EXPECT_SEND_MESSAGE_WITH ("1337");
+  }
+}
+
+#endif
 
 SCRIPT_TESTCASE (attempt_to_access_an_inexistent_method_should_throw)
 {
