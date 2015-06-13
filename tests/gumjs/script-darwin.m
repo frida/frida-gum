@@ -304,11 +304,33 @@ SCRIPT_TESTCASE (basic_method_implementation_can_be_overridden)
   }
 }
 
+typedef struct _FridaRect FridaRect;
+typedef struct _FridaPoint FridaPoint;
+typedef struct _FridaSize FridaSize;
+
+struct _FridaPoint
+{
+  double x;
+  double y;
+};
+
+struct _FridaSize
+{
+  double width;
+  double height;
+};
+
+struct _FridaRect
+{
+  FridaPoint origin;
+  FridaSize size;
+};
+
 @interface FridaWidget : NSObject
 @end
 
 @implementation FridaWidget
-- (int)drawRect:(CGRect)dirtyRect {
+- (int)drawRect:(FridaRect)dirtyRect {
   return (int) dirtyRect.origin.x + (int) dirtyRect.origin.y +
       (int) dirtyRect.size.width + (int) dirtyRect.size.height;
 }
@@ -319,7 +341,7 @@ SCRIPT_TESTCASE (struct_consuming_method_implementation_can_be_overridden)
   @autoreleasepool
   {
     FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
-    CGRect r;
+    FridaRect r;
 
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaWidget = ObjC.classes.FridaWidget;"
