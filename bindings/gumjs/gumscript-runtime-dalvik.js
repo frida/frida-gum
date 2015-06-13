@@ -388,6 +388,27 @@
                     }
                 });
 
+                function getObjectClassName(klass) {
+                    const env = vm.getEnv();
+                    let jklass;
+                    if (klass.$handle) {
+                        jklass = env.getObjectClass(klass.$handle);
+                    } else {
+                        jklass = klass.$classHandle;
+                    }
+                    const className = env.getClassName(jklass);
+                    if (klass.$handle) {
+                        env.deleteLocalRef(jklass);
+                    }
+                    return className;
+                }
+
+                Object.defineProperty(klass.prototype, "$className", {
+                    get: function () {
+                        return getObjectClassName(this);
+                    }
+                });
+
                 addMethods();
             };
 
@@ -1501,6 +1522,10 @@
             return impl(this.handle, ref1, ref2) ? true : false;
         });
 
+        Env.prototype.getObjectClass = proxy(31, 'pointer', ['pointer', 'pointer'], function (impl, obj) {
+            return impl(this.handle, obj);
+        });
+
         Env.prototype.isInstanceOf = proxy(32, 'uint8', ['pointer', 'pointer', 'pointer'], function (impl, obj, klass) {
             return impl(this.handle, obj, klass) ? true : false;
         });
@@ -1670,8 +1695,8 @@
             return javaLangReflectGenericArrayType;
         };
 
-        Env.prototype.getClassName = function (klass) {
-            var name = this.method('pointer', [])(this.handle, klass, this.javaLangClass().getName);
+        Env.prototype.getClassName = function (classHandle) {
+            var name = this.method('pointer', [])(this.handle, classHandle, this.javaLangClass().getName);
             var result = this.stringFromJni(name);
             this.deleteLocalRef(name);
             return result;
