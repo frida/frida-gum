@@ -25,9 +25,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (string_can_be_passed_as_argument)
   SCRIPT_TESTENTRY (class_can_be_implemented)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
-#ifdef HAVE_MAC
-  SCRIPT_TESTENTRY (nsrect_consuming_method_implementation_can_be_overridden)
-#endif
+  SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
   SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
   SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
@@ -306,27 +304,22 @@ SCRIPT_TESTCASE (basic_method_implementation_can_be_overridden)
   }
 }
 
-#ifdef HAVE_MAC
-
 @interface FridaWidget : NSObject
 @end
 
 @implementation FridaWidget
-- (void)drawRect:(NSRect)dirtyRect {}
+- (int)drawRect:(CGRect)dirtyRect {
+  return (int) dirtyRect.origin.x + (int) dirtyRect.origin.y +
+      (int) dirtyRect.size.width + (int) dirtyRect.size.height;
+}
 @end
 
-SCRIPT_TESTCASE (nsrect_consuming_method_implementation_can_be_overridden)
+SCRIPT_TESTCASE (struct_consuming_method_implementation_can_be_overridden)
 {
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
   @autoreleasepool
   {
     FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
-    NSRect r;
+    CGRect r;
 
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaWidget = ObjC.classes.FridaWidget;"
@@ -334,8 +327,9 @@ SCRIPT_TESTCASE (nsrect_consuming_method_implementation_can_be_overridden)
         "var oldImpl = method.implementation;"
         "method.implementation ="
             "ObjC.implement(method, function (handle, selector, dirtyRect) {"
-                "oldImpl(handle, selector, dirtyRect);"
-                "send(1337);"
+                "send(dirtyRect);"
+                "var result = oldImpl(handle, selector, dirtyRect);"
+                "return result;"
             "});");
     EXPECT_NO_MESSAGES ();
 
@@ -343,12 +337,12 @@ SCRIPT_TESTCASE (nsrect_consuming_method_implementation_can_be_overridden)
     r.origin.y = 15.0;
     r.size.width = 30.0;
     r.size.height = 35.0;
-    [widget drawRect:r];
-    EXPECT_SEND_MESSAGE_WITH ("1337");
+    int result = [widget drawRect:r];
+    EXPECT_SEND_MESSAGE_WITH ("[[10,15],[30,35]]");
+    EXPECT_NO_MESSAGES ();
+    g_assert_cmpint (result, ==, 90);
   }
 }
-
-#endif
 
 SCRIPT_TESTCASE (attempt_to_access_an_inexistent_method_should_throw)
 {

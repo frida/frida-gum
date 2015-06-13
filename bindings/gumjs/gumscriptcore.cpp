@@ -64,6 +64,7 @@ struct _GumFFIFunction
   gpointer fn;
   ffi_cif cif;
   ffi_type ** atypes;
+  gsize arglist_size;
   GSList * data;
   GumPersistent<Object>::type * weak_instance;
 };
@@ -1479,6 +1480,14 @@ gum_script_core_on_new_native_function (
     }
   }
 
+  for (i = 0; i != nargs_total; i++)
+  {
+    ffi_type * t = func->atypes[i];
+
+    func->arglist_size = GUM_ALIGN_SIZE (func->arglist_size, t->alignment);
+    func->arglist_size += t->size;
+  }
+
   instance = info.Holder ();
   instance->SetInternalField (0, External::New (isolate, func->fn));
   instance->SetAlignedPointerInInternalField (1, func);
@@ -1516,27 +1525,54 @@ gum_script_core_on_invoke_native_function (
   Local<Object> instance = info.Holder ();
   GumFFIFunction * func = static_cast<GumFFIFunction *> (
       instance->GetAlignedPointerFromInternalField (1));
+  gsize nargs = func->cif.nargs;
 
-  if (info.Length () != static_cast<gint> (func->cif.nargs))
+  if (info.Length () != static_cast<int> (nargs))
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
         "NativeFunction: bad argument count")));
     return;
   }
 
-  GumFFIValue rvalue;
-  void ** avalue = static_cast<void **> (
-      g_alloca (func->cif.nargs * sizeof (void *)));
-  GumFFIValue * ffi_args = static_cast<GumFFIValue *> (
-      g_alloca (func->cif.nargs * sizeof (GumFFIValue)));
-  for (uint32_t i = 0; i != func->cif.nargs; i++)
+  ffi_type * rtype = func->cif.rtype;
+
+  GumFFIValue * rvalue = (GumFFIValue *)
+      g_alloca (rtype->size + rtype->alignment - 1);
+  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, rtype->alignment);
+
+  void ** avalue;
+  guint8 * avalues;
+
+  if (nargs > 0)
   {
-    if (!gum_script_value_to_ffi_type (self, info[i], &ffi_args[i],
-        func->cif.arg_types[i]))
+    avalue = (void **) g_alloca (nargs * sizeof (void *));
+
+    gsize arglist_alignment = func->cif.arg_types[0]->alignment;
+    avalues = (guint8 *) g_alloca (func->arglist_size + arglist_alignment - 1);
+    avalues = GUM_ALIGN_POINTER (guint8 *, avalues, arglist_alignment);
+
+    /* Prefill with zero to clear high bits of values smaller than a pointer. */
+    memset (avalues, 0, func->arglist_size);
+
+    gsize offset = 0;
+    for (gsize i = 0; i != nargs; i++)
     {
-      return;
+      ffi_type * t = func->cif.arg_types[i];
+
+      offset = GUM_ALIGN_SIZE (offset, t->alignment);
+
+      GumFFIValue * v = (GumFFIValue *) (avalues + offset);
+
+      if (!gum_script_value_to_ffi_type (self, info[i], v, t))
+        return;
+      avalue[i] = v;
+
+      offset += t->size;
     }
-    avalue[i] = &ffi_args[i];
+  }
+  else
+  {
+    avalue = NULL;
   }
 
   self->isolate->Exit ();
@@ -1544,16 +1580,19 @@ gum_script_core_on_invoke_native_function (
   {
     Unlocker ul (self->isolate);
 
-    ffi_call (&func->cif, FFI_FN (func->fn), &rvalue, avalue);
+    ffi_call (&func->cif, FFI_FN (func->fn), rvalue, avalue);
   }
 
   self->isolate->Enter ();
 
-  Local<Value> result;
-  if (!gum_script_value_from_ffi_type (self, &result, &rvalue, func->cif.rtype))
-    return;
+  if (rtype != &ffi_type_void)
+  {
+    Local<Value> result;
+    if (!gum_script_value_from_ffi_type (self, &result, rvalue, rtype))
+      return;
 
-  info.GetReturnValue ().Set (result);
+    info.GetReturnValue ().Set (result);
+  }
 }
 
 static void
@@ -1710,18 +1749,28 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   GumFFICallback * self = static_cast<GumFFICallback *> (user_data);
   ScriptScope scope (self->core->script);
   Isolate * isolate = self->core->isolate;
-  GumFFIValue * retval = static_cast<GumFFIValue *> (return_value);
-  memset (retval, 0, sizeof (GumFFIValue));
+
+  ffi_type * rtype = cif->rtype;
+  GumFFIValue * retval = (GumFFIValue *) return_value;
+  if (rtype != &ffi_type_void)
+  {
+    /*
+     * Ensure:
+     * - high bits of values smaller than a pointer are cleared to zero
+     * - we return something predictable in case of a JS exception
+     */
+    retval->v_pointer = NULL;
+  }
 
   Local<Value> * argv = static_cast<Local<Value> *> (
       g_alloca (cif->nargs * sizeof (Local<Value>)));
   for (guint i = 0; i != cif->nargs; i++)
   {
     if (!gum_script_value_from_ffi_type (self->core, &argv[i],
-          static_cast<GumFFIValue *> (args[i]), cif->arg_types[i]))
+        (GumFFIValue *) args[i], cif->arg_types[i]))
     {
-      if (cif->rtype != &ffi_type_void)
-        retval->v_pointer = NULL;
+      for (guint j = 0; j != i; j++)
+        argv[j].~Local<Value> ();
       return;
     }
   }
@@ -1733,9 +1782,10 @@ gum_script_core_on_invoke_native_callback (ffi_cif * cif,
   {
     if (!scope.HasPendingException ())
       gum_script_value_to_ffi_type (self->core, result, retval, cif->rtype);
-    else
-      retval->v_pointer = NULL;
   }
+
+  for (guint i = 0; i != cif->nargs; i++)
+    argv[i].~Local<Value> ();
 }
 
 static void
@@ -2018,6 +2068,8 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
                               GumFFIValue * value,
                               const ffi_type * type)
 {
+  Isolate * isolate = core->isolate;
+
   if (type == &ffi_type_void)
   {
     value->v_pointer = NULL;
@@ -2029,71 +2081,102 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
   }
   else if (type == &ffi_type_sint)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_sint = svalue->IntegerValue ();
   }
   else if (type == &ffi_type_uint)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uint = static_cast<guint> (svalue->IntegerValue ());
   }
   else if (type == &ffi_type_slong)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_slong = svalue->IntegerValue ();
   }
   else if (type == &ffi_type_ulong)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_ulong = static_cast<gulong> (svalue->IntegerValue ());
   }
   else if (type == &ffi_type_schar)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_schar = static_cast<gchar> (svalue->Int32Value ());
   }
   else if (type == &ffi_type_uchar)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uchar = static_cast<guchar> (svalue->Uint32Value ());
   }
   else if (type == &ffi_type_float)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_float = svalue->NumberValue ();
   }
   else if (type == &ffi_type_double)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_double = svalue->NumberValue ();
   }
   else if (type == &ffi_type_sint8)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_sint8 = static_cast<gint8> (svalue->Int32Value ());
   }
   else if (type == &ffi_type_uint8)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uint8 = static_cast<guint8> (svalue->Uint32Value ());
   }
   else if (type == &ffi_type_sint16)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_sint16 = static_cast<gint16> (svalue->Int32Value ());
   }
   else if (type == &ffi_type_uint16)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uint16 = static_cast<guint16> (svalue->Uint32Value ());
   }
   else if (type == &ffi_type_sint32)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_sint32 = static_cast<gint32> (svalue->Int32Value ());
   }
   else if (type == &ffi_type_uint32)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uint32 = static_cast<guint32> (svalue->Uint32Value ());
   }
   else if (type == &ffi_type_sint64)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_sint64 = static_cast<gint64> (svalue->IntegerValue ());
   }
   else if (type == &ffi_type_uint64)
   {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
     value->v_uint64 = static_cast<guint64> (svalue->IntegerValue ());
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
-    Isolate * isolate = core->isolate;
     Local<Context> context = isolate->GetCurrentContext ();
     const ffi_type * const * field_types = type->elements;
 
@@ -2130,8 +2213,7 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
     {
       const ffi_type * field_type = field_types[i];
 
-      offset = (offset + field_type->alignment - 1) &
-          ~(field_type->alignment - 1);
+      offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
       GumFFIValue * field_value =
           (GumFFIValue *) (field_values + offset);
@@ -2153,17 +2235,26 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
 
       offset += field_type->size;
     }
-
-    return TRUE;
   }
   else
   {
-    core->isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        core->isolate, "unsupported type")));
-    return FALSE;
+    goto error_unsupported_type;
   }
 
   return TRUE;
+
+error_expected_number:
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected number")));
+    return FALSE;
+  }
+error_unsupported_type:
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "unsupported type")));
+    return FALSE;
+  }
 }
 
 static gboolean
@@ -2261,8 +2352,7 @@ gum_script_value_from_ffi_type (GumScriptCore * core,
     {
       const ffi_type * field_type = field_types[i];
 
-      offset = (offset + field_type->alignment - 1) &
-          ~(field_type->alignment - 1);
+      offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
       const GumFFIValue * field_value =
           (const GumFFIValue *) (field_values + offset);

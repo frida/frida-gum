@@ -226,6 +226,12 @@ struct _GumCpuContext
 # define GUM_NOINLINE __attribute__((noinline))
 #endif
 
+#define GUM_ALIGN_POINTER(t, p, b) \
+    ((t) GSIZE_TO_POINTER (((GPOINTER_TO_SIZE (p) + ((gsize) (b - 1))) & \
+        ~((gsize) (b - 1)))))
+#define GUM_ALIGN_SIZE(s, b) \
+    ((((gsize) s) + ((gsize) (b - 1))) & ~((gsize) (b - 1)))
+
 #define GUM_FUNCPTR_TO_POINTER(f) (GSIZE_TO_POINTER (f))
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
