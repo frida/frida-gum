@@ -217,9 +217,10 @@
         enumerable: true,
         value: function (name) {
             var module = null;
+            var nameLowercase = name.toLowerCase();
             Process.enumerateModules({
                 onMatch: function (m) {
-                    if (m.name === name) {
+                    if (m.name.toLowerCase() === nameLowercase) {
                         module = m;
                         return 'stop';
                     }
