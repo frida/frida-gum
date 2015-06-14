@@ -32,6 +32,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
   SCRIPT_TESTENTRY (method_call_preserves_value)
   SCRIPT_TESTENTRY (objects_can_be_serialized_to_json)
+  SCRIPT_TESTENTRY (objects_can_be_chosen)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
@@ -572,6 +573,44 @@ SCRIPT_TESTCASE (objects_can_be_serialized_to_json)
         "JSON.parse(JSON.stringify(ObjC));"
         "JSON.parse(JSON.stringify(ObjC.classes.NSObject));");
     EXPECT_NO_MESSAGES ();
+  }
+}
+
+@interface FridaTest3 : NSObject
+@end
+@implementation FridaTest3
+@end
+
+@interface FridaTest4 : FridaTest3
+@end
+@implementation FridaTest4
+@end
+
+SCRIPT_TESTCASE (objects_can_be_chosen)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "function testChoose(obj, cls, noSubclasses) {"
+            "return ObjC.chooseSync({class: cls, subclasses: !noSubclasses}).filter(x => x.handle.equals(obj.handle)).length === 1;"
+        "}"
+        "const FridaTest3 = ObjC.classes.FridaTest3;"
+        "const FridaTest4 = ObjC.classes.FridaTest4;"
+        "const obj3 = FridaTest3.new();"
+        "const obj4 = FridaTest4.new();"
+        "send(testChoose(obj3, FridaTest3));"
+        "send(!testChoose(obj3, FridaTest4));"
+        "send(testChoose(obj4, FridaTest3));"
+        "send(testChoose(obj4, FridaTest4));"
+        "send(testChoose(obj3, FridaTest3, true));"
+        "send(!testChoose(obj3, FridaTest4, true));"
+        "send(!testChoose(obj4, FridaTest3, true));"
+        "send(testChoose(obj4, FridaTest4, true));");
+
+    for (gint i = 0; i != 8; i++)
+    {
+      EXPECT_SEND_MESSAGE_WITH ("true");
+    }
   }
 }
 

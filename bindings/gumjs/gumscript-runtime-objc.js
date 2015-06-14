@@ -83,6 +83,26 @@
             value: getBoundData
         });
 
+        Object.defineProperty(this, 'choose', {
+            enumerable: true,
+            value: choose
+        });
+
+        Object.defineProperty(this, 'chooseSync', {
+            enumerable: true,
+            value: function (specifier) {
+                const instances = [];
+                choose(specifier, {
+                    onMatch: function (i) {
+                        instances.push(i);
+                    },
+                    onComplete: function () {
+                    }
+                });
+                return instances;
+            }
+        });
+
         this.schedule = function (queue, work) {
             const NSAutoreleasePool = this.classes.NSAutoreleasePool;
             const workCallback = new NativeCallback(function () {
@@ -993,6 +1013,78 @@
             return binding;
         }
 
+        function isObjCClass(ptr) {
+            const p = ptr.toString();
+            for (let name in classRegistry) {
+                const cls = classRegistry[name];
+                if (p === cls.handle.toString()) {
+                    return true;
+                }
+                const metaCls = Memory.readPointer(cls.handle);
+                if (p === metaCls.toString()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function getRecursiveSubclasses(ptr) {
+            const subclasses = [];
+            const p = ptr.toString();
+            for (let name in classRegistry) {
+                const cls = classRegistry[name].handle;
+                let c = cls;
+                do {
+                    if (p === c.toString()) {
+                        subclasses.push(cls);
+                        break;
+                    }
+                    c = api.class_getSuperclass(c);
+                } while (c.toString() !== NULL.toString());
+            }
+            return subclasses;
+        }
+
+        function choose(specifier, callbacks) {
+            let cls = specifier;
+            let subclasses = true;
+            if ('class' in specifier) {
+                cls = specifier.class;
+                if ('subclasses' in specifier) {
+                    subclasses = specifier.subclasses;
+                }
+            }
+            if (typeof cls === 'string') {
+                cls = classRegistry[cls];
+            }
+            let ptr = cls;
+            if (cls instanceof ObjCObject) {
+                ptr = cls.handle;
+            }
+
+            if (!(ptr instanceof NativePointer && isObjCClass(ptr))) {
+                throw new Error("Not a class");
+            }
+
+            let classes = [ptr];
+            if (subclasses) {
+                classes = getRecursiveSubclasses(ptr);
+            }
+
+            classes = new Set(classes.map(c => c.toString()));
+
+            Process.enumerateMallocRanges({
+                onMatch: function (range) {
+                    const ptr = range.base;
+                    const cls = Memory.readPointer(ptr);
+                    if (classes.has(cls.toString()) && range.size >= api.class_getInstanceSize(cls)) {
+                        return callbacks.onMatch(new ObjCObject(ptr));
+                    }
+                },
+                onComplete: callbacks.onComplete
+            });
+        }
+
         function makeMethodInvocationWrapper(method, owner, superSpecifier, replaceImplementation) {
             const sel = method.sel;
             let handle = method.handle;
@@ -1583,7 +1675,8 @@
                     "property_getName": ['pointer', ['pointer']],
                     "property_copyAttributeList": ['pointer', ['pointer', 'pointer']],
                     "sel_getName": ['pointer', ['pointer']],
-                    "sel_registerName": ['pointer', ['pointer']]
+                    "sel_registerName": ['pointer', ['pointer']],
+                    "class_getInstanceSize": ['pointer', ['pointer']]
                 },
                 variables: {
                 }
