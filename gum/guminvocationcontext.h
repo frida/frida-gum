@@ -83,6 +83,9 @@ GUM_API gpointer gum_invocation_context_get_return_value (
 GUM_API void gum_invocation_context_replace_return_value (
     GumInvocationContext * context, gpointer value);
 
+GUM_API gpointer gum_invocation_context_get_return_address (
+    GumInvocationContext * context);
+
 GUM_API guint gum_invocation_context_get_thread_id (
     GumInvocationContext * context);
 

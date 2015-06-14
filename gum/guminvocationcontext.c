@@ -40,6 +40,26 @@ gum_invocation_context_replace_return_value (GumInvocationContext * context,
   context->backend->replace_return_value (context, value);
 }
 
+gpointer
+gum_invocation_context_get_return_address (GumInvocationContext * context)
+{
+  GumCpuContext * c = context->cpu_context;
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  return GSIZE_TO_POINTER (c->eip);
+# else
+  return GSIZE_TO_POINTER (c->rip);
+# endif
+#elif defined (HAVE_ARM)
+  return GSIZE_TO_POINTER (c->pc);
+#elif defined (HAVE_ARM64)
+  return GSIZE_TO_POINTER (c->pc);
+#else
+# error Unsupported architecture
+#endif
+}
+
 guint
 gum_invocation_context_get_thread_id (GumInvocationContext * context)
 {
