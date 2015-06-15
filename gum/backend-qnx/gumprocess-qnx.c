@@ -424,7 +424,7 @@ gum_module_enumerate_exports (const gchar * module_name,
       guint dyn_symentsize = 0;
 
       for (GumElfDynEntry * dyn_entry = base_address + phdr->p_offset;
-           dyn_entry < (GumElfDynEntry *)(base_address + phdr->p_offset + phdr->p_filesz);
+           dyn_entry < (GumElfDynEntry *) (base_address + phdr->p_offset + phdr->p_filesz);
            dyn_entry++)
       {
         switch (dyn_entry->d_tag)
@@ -436,11 +436,11 @@ gum_module_enumerate_exports (const gchar * module_name,
             dynsym_section_offset = dyn_entry->d_un.d_ptr;
             break;
           case DT_HASH:
-            {
-              guint * dyn_hash = (guint *)(base_address + dyn_entry->d_un.d_ptr);
-              num_symbols = dyn_hash[1];
-              break;
-            }
+          {
+            guint * dyn_hash = (guint *) (base_address + dyn_entry->d_un.d_ptr);
+            num_symbols = dyn_hash[1];
+            break;
+          }
           case DT_SYMENT:
             dyn_symentsize = dyn_entry->d_un.d_val;
             break;
