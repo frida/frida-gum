@@ -411,10 +411,8 @@
                             }
                             return cachedSuper[0];
                         case "$class":
-                            if (isClass())
-                                return null;
                             if (cachedClass === null)
-                                cachedClass = new ObjCObject(classHandle(), undefined, true);
+                                cachedClass = new ObjCObject(api.object_getClass(handle), undefined, true);
                             return cachedClass;
                         case "$className":
                             if (cachedClassName === null) {
