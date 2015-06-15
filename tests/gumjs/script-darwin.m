@@ -17,6 +17,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (class_enumeration_should_not_contain_instance_methods)
   SCRIPT_TESTENTRY (instance_enumeration_should_not_contain_class_methods)
   SCRIPT_TESTENTRY (class_can_be_retrieved)
+  SCRIPT_TESTENTRY (kind_can_be_retrieved)
   SCRIPT_TESTENTRY (super_can_be_retrieved)
   SCRIPT_TESTENTRY (class_name_can_be_retrieved)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
@@ -161,6 +162,22 @@ SCRIPT_TESTCASE (class_can_be_retrieved)
         "send(\"NSDate\" in ObjC.classes);");
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
+  }
+}
+
+SCRIPT_TESTCASE (kind_can_be_retrieved)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSDate = ObjC.classes.NSDate;"
+        "var now = NSDate.date();"
+        "send(now.$kind);"
+        "send(NSDate.$kind);"
+        "send(NSDate.$class.$kind);");
+    EXPECT_SEND_MESSAGE_WITH ("\"instance\"");
+    EXPECT_SEND_MESSAGE_WITH ("\"class\"");
+    EXPECT_SEND_MESSAGE_WITH ("\"meta-class\"");
   }
 }
 

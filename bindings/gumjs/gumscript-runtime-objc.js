@@ -335,6 +335,7 @@
             "toJSON": true,
             "toString": true,
             "valueOf": true,
+            "$kind": true,
             "$super": true,
             "$class": true,
             "$className": true,
@@ -343,6 +344,7 @@
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
+            let cachedKind = null;
             let cachedSuper = null;
             let cachedClass = null;
             let cachedClassName = null;
@@ -387,6 +389,14 @@
                         case "valueOf":
                             const description = target.description();
                             return description.UTF8String.bind(description);
+                        case "$kind":
+                            if (cachedKind === null) {
+                                if (isClass())
+                                    cachedKind = api.class_isMetaClass(handle) ? 'meta-class' : 'class';
+                                else
+                                    cachedKind = 'instance';
+                            }
+                            return cachedKind;
                         case "$super":
                             if (cachedSuper === null) {
                                 const superHandle = api.class_getSuperclass(classHandle());
@@ -1015,65 +1025,21 @@
             return binding;
         }
 
-        function isObjCClass(ptr) {
-            const p = ptr.toString();
-            for (let name in classRegistry) {
-                const cls = classRegistry[name];
-                if (p === cls.handle.toString()) {
-                    return true;
-                }
-                const metaCls = Memory.readPointer(cls.handle);
-                if (p === metaCls.toString()) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        function getRecursiveSubclasses(ptr) {
-            const subclasses = [];
-            const p = ptr.toString();
-            for (let name in classRegistry) {
-                const cls = classRegistry[name].handle;
-                let c = cls;
-                do {
-                    if (p === c.toString()) {
-                        subclasses.push(cls);
-                        break;
-                    }
-                    c = api.class_getSuperclass(c);
-                } while (c.toString() !== NULL.toString());
-            }
-            return subclasses;
-        }
-
         function choose(specifier, callbacks) {
             let cls = specifier;
             let subclasses = true;
-            if ('class' in specifier) {
+            if (!(specifier instanceof ObjCObject) && typeof specifier === 'object') {
                 cls = specifier.class;
-                if ('subclasses' in specifier) {
+                if (specifier.hasOwnProperty('subclasses'))
                     subclasses = specifier.subclasses;
-                }
             }
-            if (typeof cls === 'string') {
-                cls = classRegistry[cls];
-            }
-            let ptr = cls;
-            if (cls instanceof ObjCObject) {
-                ptr = cls.handle;
-            }
+            if (!(cls instanceof ObjCObject && (cls.$kind === 'class' || cls.$kind === 'meta-class')))
+                throw new Error("Expected an ObjC.Object for a class or meta-class");
+            const ptr = cls.handle;
 
-            if (!(ptr instanceof NativePointer && isObjCClass(ptr))) {
-                throw new Error("Not a class");
-            }
+            const classHandles = subclasses ? getRecursiveSubclasses(ptr) : [ptr];
 
-            let classes = [ptr];
-            if (subclasses) {
-                classes = getRecursiveSubclasses(ptr);
-            }
-
-            classes = new Set(classes.map(c => c.toString()));
+            const classes = new Set(classHandles.map(h => h.toString()));
 
             Process.enumerateMallocRanges({
                 onMatch: function (range) {
@@ -1085,6 +1051,22 @@
                 },
                 onComplete: callbacks.onComplete
             });
+        }
+
+        function getRecursiveSubclasses(ptr) {
+            const subclasses = [];
+            for (let name in classRegistry) {
+                const cls = classRegistry[name].handle;
+                let c = cls;
+                do {
+                    if (c.equals(ptr)) {
+                        subclasses.push(cls);
+                        break;
+                    }
+                    c = api.class_getSuperclass(c);
+                } while (!c.isNull());
+            }
+            return subclasses;
         }
 
         function makeMethodInvocationWrapper(method, owner, superSpecifier, replaceImplementation) {
@@ -1173,17 +1155,16 @@
 
             function getHandle() {
                 if (handle === null) {
-                    if (owner.$class !== null) {
+                    if (owner.$kind === 'instance') {
                         let cur = owner;
                         do {
                             if ("- forwardingTargetForSelector:" in cur) {
                                 const target = cur.forwardingTargetForSelector_(sel);
                                 if (target === null)
                                     break;
-                                const klass = target.$class;
-                                if (klass === null)
+                                if (target.$kind !== 'instance')
                                     break;
-                                const h = api.class_getInstanceMethod(klass.handle, sel);
+                                const h = api.class_getInstanceMethod(target.$class.handle, sel);
                                 if (!h.isNull())
                                     handle = h;
                                 else
@@ -1653,6 +1634,7 @@
                     "objc_allocateClassPair": ['pointer', ['pointer', 'pointer', 'pointer']],
                     "objc_disposeClassPair": ['void', ['pointer']],
                     "objc_registerClassPair": ['void', ['pointer']],
+                    "class_isMetaClass": ['bool', ['pointer']],
                     "class_getName": ['pointer', ['pointer']],
                     "class_copyProtocolList": ['pointer', ['pointer', 'pointer']],
                     "class_copyMethodList": ['pointer', ['pointer', 'pointer']],
