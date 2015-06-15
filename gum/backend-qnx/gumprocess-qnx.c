@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/elf.h>
+#include <sys/elf_dyn.h>
 #include <sys/link.h>
 #include <sys/mman.h>
 #include <sys/neutrino.h>
@@ -21,19 +22,13 @@
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
-#if GLIB_SIZEOF_VOID_P == 4
 typedef Elf32_Ehdr GumElfEHeader;
 typedef Elf32_Shdr GumElfSHeader;
+typedef Elf32_Phdr GumElfPHeader;
 typedef Elf32_Sym GumElfSymbol;
+typedef Elf32_Dyn GumElfDynEntry;
 # define GUM_ELF_ST_BIND(val) ELF32_ST_BIND(val)
 # define GUM_ELF_ST_TYPE(val) ELF32_ST_TYPE(val)
-#else
-typedef Elf64_Ehdr GumElfEHeader;
-typedef Elf64_Shdr GumElfSHeader;
-typedef Elf64_Sym GumElfSymbol;
-# define GUM_ELF_ST_BIND(val) ELF64_ST_BIND(val)
-# define GUM_ELF_ST_TYPE(val) ELF64_ST_TYPE(val)
-#endif
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
@@ -415,25 +410,47 @@ gum_module_enumerate_exports (const gchar * module_name,
   g_assert (base_address != MAP_FAILED);
 
   ehdr = base_address;
-  if (ehdr->e_type != ET_DYN)
+  if (ehdr->e_type != ET_DYN && ehdr->e_type != ET_EXEC)
     goto beach;
 
-  for (i = 0; i != ehdr->e_shnum; i++)
+  for (i = 0; i != ehdr->e_phnum; i++)
   {
-    GumElfSHeader * shdr;
+    GumElfPHeader * phdr;
 
-    shdr = base_address + ehdr->e_shoff + (i * ehdr->e_shentsize);
-    if (shdr->sh_type == SHT_DYNSYM)
+    phdr = base_address + ehdr->e_phoff + (i * ehdr->e_phentsize);
+    if (phdr->p_type == PT_DYNAMIC)
     {
-      GumElfSHeader * strtab_shdr;
+      guint num_symbols = 0;
+      guint dyn_symentsize = 0;
 
-      dynsym_section_offset = shdr->sh_offset;
-      dynsym_section_size = shdr->sh_size;
-      dynsym_entry_size = shdr->sh_entsize;
+      for (GumElfDynEntry * dyn_entry = base_address + phdr->p_offset;
+           dyn_entry < (GumElfDynEntry *) (base_address + phdr->p_offset + phdr->p_filesz);
+           dyn_entry++)
+      {
+        switch (dyn_entry->d_tag)
+        {
+          case DT_STRTAB:
+            dynsym_strtab = base_address + dyn_entry->d_un.d_ptr;
+            break;
+          case DT_SYMTAB:
+            dynsym_section_offset = dyn_entry->d_un.d_ptr;
+            break;
+          case DT_HASH:
+          {
+            guint * dyn_hash = (guint *) (base_address + dyn_entry->d_un.d_ptr);
+            num_symbols = dyn_hash[1];
+            break;
+          }
+          case DT_SYMENT:
+            dyn_symentsize = dyn_entry->d_un.d_val;
+            break;
+        }
+      }
 
-      strtab_shdr = base_address + ehdr->e_shoff +
-          (shdr->sh_link * ehdr->e_shentsize);
-      dynsym_strtab = base_address + strtab_shdr->sh_offset;
+      g_assert (dynsym_strtab != 0 && dynsym_section_offset != 0);
+
+      dynsym_section_size = dyn_symentsize * num_symbols;
+      dynsym_entry_size = dyn_symentsize;
 
       g_assert_cmpuint (dynsym_section_size % dynsym_entry_size, ==, 0);
     }
