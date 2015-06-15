@@ -594,6 +594,8 @@
                     } else {
                         if (!isClass() && kind === '-' && name !== "methodSignatureForSelector:" && "- methodSignatureForSelector:" in self) {
                             const s = self.methodSignatureForSelector_(sel);
+                            if (s === null)
+                                return null;
                             const numArgs = s.numberOfArguments();
                             const frameSize = numArgs * pointerSize;
                             let types = s.methodReturnType() + frameSize;
