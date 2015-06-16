@@ -63,11 +63,11 @@ gum_memory_read (GumAddress address,
   fd = open ("/proc/self/as", O_RDONLY);
   g_assert (fd != -1);
   res = lseek (fd, address, SEEK_SET);
-  g_assert (res == 0);
+  g_assert (res == address);
 
   buffer = g_malloc (len);
   num_read = read (fd, buffer, len);
-  if (num_read == 0)
+  if (num_read == -1)
   {
     g_free (buffer);
     buffer = NULL;
@@ -96,7 +96,7 @@ gum_memory_write (GumAddress address,
   fd = open ("/proc/self/as", O_RDWR);
   g_assert (fd != -1);
   res = lseek (fd, address, SEEK_SET);
-  g_assert (res == 0);
+  g_assert (res == address);
 
   num_written = write (fd, bytes, len);
   if (num_written == len)
