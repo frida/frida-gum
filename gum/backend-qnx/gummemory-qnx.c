@@ -55,17 +55,18 @@ gum_memory_read (GumAddress address,
                  gsize len,
                  gsize * n_bytes_read)
 {
-  FILE * fp = NULL;
+  int fd = -1;
   guint8 * buffer = NULL;
   gint num_read = 0;
   gint res = 0;
 
-  fp = fopen ("/proc/self/as", "r");
-  res = fseek (fp, address, SEEK_SET);
+  fd = open ("/proc/self/as", O_RDONLY);
+  g_assert (fd != -1);
+  res = lseek (fd, address, SEEK_SET);
   g_assert (res == 0);
 
   buffer = g_malloc (len);
-  num_read = fread (buffer, 1, len, fp);
+  num_read = read (fd, buffer, len);
   if (num_read == 0)
   {
     g_free (buffer);
@@ -74,7 +75,7 @@ gum_memory_read (GumAddress address,
   if (n_bytes_read != NULL)
     *n_bytes_read = num_read;
 
-  fclose (fp);
+  close (fd);
 
   return buffer;
 }
@@ -85,22 +86,23 @@ gum_memory_write (GumAddress address,
                   gsize len)
 {
   gboolean success = FALSE;
-  FILE * fp = NULL;
+  int fd = -1;
   gint res = 0;
   gint num_written = 0;
 
   if (!gum_memory_is_writable (address, len))
     return success;
 
-  fp = fopen ("/proc/self/as", "w");
-  res = fseek (fp, address, SEEK_SET);
+  fd = open ("/proc/self/as", O_RDWR);
+  g_assert (fd != -1);
+  res = lseek (fd, address, SEEK_SET);
   g_assert (res == 0);
 
-  num_written = fwrite (bytes, 1, len, fp);
+  num_written = write (fd, bytes, len);
   if (num_written == len)
     success = TRUE;
 
-  fclose (fp);
+  close (fd);
 
   return success;
 }
@@ -129,24 +131,23 @@ gum_try_mprotect (gpointer address,
   if (result == -1 && errno == EACCES &&
       (page_prot & GUM_PAGE_WRITE) == GUM_PAGE_WRITE)
   {
-    FILE * fp;
+    int fd = -1;
     char * buffer;
     gpointer address_mmaped;
     gint read_count;
 
-    fp = fopen ("/proc/self/as", "r");
-    g_assert (fp != NULL);
+    fd = open ("/proc/self/as", O_RDONLY);
+    g_assert (fd != -1);
 
-    buffer = g_malloc (aligned_size);
+    buffer = g_alloca (aligned_size);
     g_assert (buffer != NULL);
 
-    fseek (fp, GPOINTER_TO_SIZE (aligned_address), SEEK_SET);
+    lseek (fd, GPOINTER_TO_SIZE (aligned_address), SEEK_SET);
 
-    read_count = fread (buffer, 1, aligned_size, fp);
+    read_count = read (fd, buffer, aligned_size);
     if (read_count != aligned_size)
     {
-      g_free (buffer);
-      fclose (fp);
+      close (fd);
 
       return FALSE;
     }
@@ -159,8 +160,7 @@ gum_try_mprotect (gpointer address,
 
     result = mprotect (aligned_address, aligned_size, posix_page_prot);
 
-    g_free (buffer);
-    fclose (fp);
+    close (fd);
   }
 
   return result == 0;
