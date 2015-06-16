@@ -3,6 +3,7 @@
 
     let _runtime = null;
     let _api = null;
+    let cachedObjCApi = {};
 
     Object.defineProperty(this, 'ObjC', {
         enumerable: true,
@@ -29,6 +30,16 @@
             get: function () {
                 return api !== null;
             }
+        });
+
+        Object.defineProperty(this, 'nil', {
+            enumerable: true,
+            value: new ObjCObject(NULL)
+        });
+
+        Object.defineProperty(this, 'api', {
+            enumerable: true,
+            value: cachedObjCApi
         });
 
         Object.defineProperty(this, 'classes', {
@@ -328,6 +339,22 @@
             return registry;
         }
 
+        function getPointer(obj) {
+            if (typeof obj === 'string') {
+                return new NativePointer(obj);
+            }
+            if (obj instanceof NativePointer) {
+                return obj;
+            }
+            if (obj instanceof ObjCObject) {
+                return obj.handle;
+            }
+            if (typeof obj === 'object' && obj.hasOwnProperty('handle')) {
+                return getPointer(obj.handle);
+            }
+            throw new Error("Expected NativePointer or ObjC.Object instance");
+        }
+
         const objCObjectBuiltins = {
             "prototype": true,
             "handle": true,
@@ -335,17 +362,22 @@
             "toJSON": true,
             "toString": true,
             "valueOf": true,
+            "equals": true,
+            "isNil": true,
             "$kind": true,
             "$super": true,
+            "$superClass": true,
             "$class": true,
             "$className": true,
-            "$protocols": true
+            "$protocols": true,
+            "$methods": true
         };
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
             let cachedKind = null;
             let cachedSuper = null;
+            let cachedSuperClass = null;
             let cachedClass = null;
             let cachedClassName = null;
             let cachedProtocols = null;
@@ -354,18 +386,10 @@
             let respondsToSelector = null;
             const cachedMethods = {};
             const replacedMethods = {};
+            let cachedNativeMethodNames = null;
             let weakRef = null;
 
-            if (!(handle instanceof NativePointer)) {
-                let valid = false;
-                if (typeof handle === 'object' && handle.hasOwnProperty('handle')) {
-                    handle = handle.handle;
-                    valid = handle instanceof NativePointer;
-                }
-
-                if (!valid)
-                    throw new Error("Expected NativePointer or ObjC.Object instance");
-            }
+            handle = getPointer(handle);
 
             const self = Proxy.create({
                 has(name) {
@@ -389,6 +413,15 @@
                         case "valueOf":
                             const description = target.description();
                             return description.UTF8String.bind(description);
+                        case "equals":
+                            return function equals (ptr) {
+                                ptr = getPointer(ptr);
+                                return handle.equals(ptr);
+                            };
+                        case "isNil":
+                            return function isNil () {
+                                return this.equals(ObjC.nil);
+                            };
                         case "$kind":
                             if (cachedKind === null) {
                                 if (isClass())
@@ -410,6 +443,16 @@
                                 }
                             }
                             return cachedSuper[0];
+                        case "$superClass":
+                            if (cachedSuperClass === null) {
+                                const superClassHandle = api.class_getSuperclass(classHandle());
+                                if (!superClassHandle.isNull()) {
+                                    cachedSuperClass = [new ObjCObject(superClassHandle)];
+                                } else {
+                                    cachedSuperClass = [null];
+                                }
+                            }
+                            return cachedSuperClass[0];
                         case "$class":
                             if (cachedClass === null)
                                 cachedClass = new ObjCObject(api.object_getClass(handle), undefined, true);
@@ -443,7 +486,22 @@
                                 }
                             }
                             return cachedProtocols;
+                        case "$methods":
+                            if (cachedNativeMethodNames === null) {
+                                cachedNativeMethodNames = [];
+
+                                // Fill cachedMethodNames
+                                this.keys();
+
+                                cachedNativeMethodNames = Object.keys(cachedMethods).filter(m => m.match(/^(\+|-)/));
+                            }
+                            return cachedNativeMethodNames;
                         default:
+                            if (handle.isNull()) {
+                                return function() {
+                                    return 0;
+                                };
+                            }
                             if (protocol) {
                                 const details = findProtocolMethod(name);
                                 if (details === null || !details.implemented)
@@ -536,7 +594,7 @@
                         }
                     }
 
-                    return cachedMethodNames;
+                    return Object.keys(objCObjectBuiltins).concat(cachedMethodNames);
                 }
             }, Object.getPrototypeOf(this));
 
@@ -989,7 +1047,7 @@
         }
 
         function bind(obj, data) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
+            const handle = getPointer(obj);
             const self = new ObjCObject(handle);
             bindings[handle.toString()] = {
                 self: self,
@@ -999,7 +1057,7 @@
         }
 
         function unbind(obj) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
+            const handle = getPointer(obj);
             delete bindings[handle.toString()];
         }
 
@@ -1008,7 +1066,7 @@
         }
 
         function getBinding(obj) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
+            const handle = getPointer(obj);
             const key = handle.toString();
             let binding = bindings[key];
             if (binding === undefined) {
@@ -1688,8 +1746,14 @@
                         if (signature) {
                             if (typeof signature === 'function') {
                                 signature.call(temporaryApi, exp.address);
+                                if (api.module === 'libobjc.A.dylib') {
+                                    signature.call(cachedObjCApi, exp.address);
+                                }
                             } else {
                                 temporaryApi[name] = new NativeFunction(exp.address, signature[0], signature[1]);
+                                if (api.module === 'libobjc.A.dylib') {
+                                    cachedObjCApi[name] = temporaryApi[name];
+                                }
                             }
                             delete pendingFunctions[name];
                             remaining--;
