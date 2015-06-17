@@ -229,7 +229,10 @@
             }
 
             function toJSON() {
-                return {};
+                return Object.keys(registry).reduce(function (r, name) {
+                    r[name] = getClass(name).toJSON();
+                    return r;
+                }, {});
             }
 
             function toString() {
@@ -320,7 +323,10 @@
             }
 
             function toJSON() {
-                return {};
+                return Object.keys(registry).reduce(function (r, name) {
+                    r[name] = { handle: cachedProtocols[name] };
+                    return r;
+                }, {});
             }
 
             function toString() {
