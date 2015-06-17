@@ -561,8 +561,12 @@
             }
 
             function isClass() {
-                if (cachedIsClass === undefined)
-                    cachedIsClass = !!api.object_isClass(handle);
+                if (cachedIsClass === undefined) {
+                    if (api.object_isClass)
+                        cachedIsClass = !!api.object_isClass(handle);
+                    else
+                        cachedIsClass = !!api.class_isMetaClass(api.object_getClass(handle));
+                }
                 return cachedIsClass;
             }
 
@@ -1614,11 +1618,8 @@
                 module: "libsystem_malloc.dylib",
                 functions: {
                     "free": ['void', ['pointer']]
-                },
-                variables: {
                 }
-            },
-            {
+            }, {
                 module: "libobjc.A.dylib",
                 functions: {
                     "objc_msgSend": function (address) {
@@ -1660,10 +1661,10 @@
                     "sel_registerName": ['pointer', ['pointer']],
                     "class_getInstanceSize": ['pointer', ['pointer']]
                 },
-                variables: {
+                optionals: {
+                    "object_isClass": 'iOS8'
                 }
-            },
-            {
+            }, {
                 module: "libdispatch.dylib",
                 functions: {
                     "dispatch_async_f": ['void', ['pointer', 'pointer', 'pointer']]
@@ -1677,36 +1678,44 @@
         ];
         let remaining = 0;
         pending.forEach(function (api) {
-            const pendingFunctions = api.functions;
-            const pendingVariables = api.variables;
-            remaining += Object.keys(pendingFunctions).length + Object.keys(pendingVariables).length;
-            Module.enumerateExports(api.module, {
-                onMatch: function (exp) {
-                    const name = exp.name;
-                    if (exp.type === 'function') {
-                        const signature = pendingFunctions[name];
-                        if (signature) {
-                            if (typeof signature === 'function') {
-                                signature.call(temporaryApi, exp.address);
-                            } else {
-                                temporaryApi[name] = new NativeFunction(exp.address, signature[0], signature[1]);
-                            }
-                            delete pendingFunctions[name];
-                            remaining--;
-                        }
-                    } else if (exp.type === 'variable') {
-                        const handler = pendingVariables[name];
-                        if (handler) {
-                            handler.call(temporaryApi, exp.address);
-                            delete pendingVariables[name];
-                            remaining--;
-                        }
+            const functions = api.functions || {};
+            const variables = api.variables || {};
+            const optionals = api.optionals || {};
+
+            remaining += Object.keys(functions).length + Object.keys(variables).length;
+
+            const exportByName = Module
+            .enumerateExportsSync(api.module)
+            .reduce(function (result, exp) {
+                result[exp.name] = exp;
+                return result;
+            }, {});
+
+            Object.keys(functions)
+            .forEach(function (name) {
+                const exp = exportByName[name];
+                if (exp !== undefined && exp.type === 'function') {
+                    const signature = functions[name];
+                    if (typeof signature === 'function') {
+                        signature.call(temporaryApi, exp.address);
+                    } else {
+                        temporaryApi[name] = new NativeFunction(exp.address, signature[0], signature[1]);
                     }
-                    if (remaining === 0) {
-                        return 'stop';
-                    }
-                },
-                onComplete: function () {
+                    remaining--;
+                } else {
+                    const optional = optionals[name];
+                    if (optional)
+                        remaining--;
+                }
+            });
+
+            Object.keys(variables)
+            .forEach(function (name) {
+                const exp = exportByName[name];
+                if (exp !== undefined && exp.type === 'variable') {
+                    const handler = variables[name];
+                    handler.call(temporaryApi, exp.address);
+                    remaining--;
                 }
             });
         });
