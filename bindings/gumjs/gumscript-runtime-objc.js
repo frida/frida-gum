@@ -1089,6 +1089,9 @@
                 if (specifier.hasOwnProperty('subclasses'))
                     subclasses = specifier.subclasses;
             }
+            if (typeof cls === 'string') {
+                cls = ObjC.classes[cls];
+            }
             if (!(cls instanceof ObjCObject && (cls.$kind === 'class' || cls.$kind === 'meta-class')))
                 throw new Error("Expected an ObjC.Object for a class or meta-class");
             const ptr = cls.handle;
