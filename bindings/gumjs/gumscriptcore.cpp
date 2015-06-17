@@ -1365,17 +1365,30 @@ gum_script_core_on_native_pointer_to_match_pattern (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->isolate;
 
+  gchar result[24];
+  gint src, dst;
+  const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
   gsize ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (info.Holder ()));
-  gchar buf[32];
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
-      G_GSIZE_MODIFIER "x", GSIZE_TO_BE (ptr));
-#else
-  sprintf (buf, "%0" G_STRINGIFY (GLIB_SIZEOF_VOID_P_IN_NIBBLE)
-      G_GSIZE_MODIFIER "x", GSIZE_TO_LE (ptr));
-#endif
+  const gchar nibble_to_char[] = {
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+      'a', 'b', 'c', 'd', 'e', 'f'
+  };
 
-  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  for (src = 0, dst = 0; src != num_bits; src += 8)
+#else
+  for (src = num_bits - 8, dst = 0; src >= 0; src -= 8)
+#endif
+  {
+    if (dst != 0)
+      result[dst++] = ' ';
+    result[dst++] = nibble_to_char[(ptr >> (src + 4)) & 0xf];
+    result[dst++] = nibble_to_char[(ptr >> (src + 0)) & 0xf];
+  }
+  result[dst] = '\0';
+
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (result)));
 }
 
 static void
