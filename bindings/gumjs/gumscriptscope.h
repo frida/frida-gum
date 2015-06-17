@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,7 +11,15 @@
 
 #include <v8.h>
 
-class ScriptScopeImpl;
+class ScriptStalkerScope
+{
+public:
+  ScriptStalkerScope (GumScript * parent);
+  ~ScriptStalkerScope ();
+
+private:
+  GumScript * parent;
+};
 
 class ScriptScope
 {
@@ -19,11 +27,17 @@ public:
   ScriptScope (GumScript * parent);
   ~ScriptScope ();
 
-  bool HasPendingException () const;
+  bool HasPendingException () const { return trycatch.HasCaught (); }
 
 private:
   GumScript * parent;
-  ScriptScopeImpl * impl;
+  ScriptStalkerScope stalker_scope;
+  v8::Locker locker;
+  v8::Isolate::Scope isolate_scope;
+  v8::HandleScope handle_scope;
+  v8::Local<v8::Context> context;
+  v8::Context::Scope context_scope;
+  v8::TryCatch trycatch;
 };
 
 #endif

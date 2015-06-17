@@ -19,6 +19,7 @@ libfrida_gumjs_1_0_la_LIBTOOLFLAGS = \
 
 libfrida_gumjs_la_SOURCES = \
 	gumscript.cpp \
+	gumscript-priv.h \
 	gumscript-runtime.h \
 	gumscriptplatform.h \
 	gumscriptplatform.cpp \
@@ -29,6 +30,7 @@ libfrida_gumjs_la_SOURCES = \
 	gumscripttask.h \
 	gumscripttask.c \
 	gumscriptscope.h \
+	gumscriptscope.cpp \
 	gumscriptcore.h \
 	gumscriptcore.cpp \
 	gumscriptmemory.h \

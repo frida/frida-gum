@@ -7,20 +7,7 @@
 
 #include "gumscript.h"
 
-#include "gumscriptcore.h"
-#include "gumscriptfile.h"
-#include "gumscriptinstruction.h"
-#include "gumscriptinterceptor.h"
-#include "gumscriptmemory.h"
-#include "gumscriptmodule.h"
-#include "gumscriptplatform.h"
-#include "gumscriptprocess.h"
-#include "gumscriptscope.h"
-#include "gumscriptsocket.h"
-#include "gumscriptstalker.h"
-#include "gumscriptsymbol.h"
-#include "gumscripttask.h"
-#include "gumscriptthread.h"
+#include "gumscript-priv.h"
 
 #include <gum/gum-init.h>
 #include <string.h>
@@ -49,33 +36,6 @@ enum
   PROP_NAME,
   PROP_SOURCE,
   PROP_MAIN_CONTEXT
-};
-
-struct _GumScriptPrivate
-{
-  gchar * name;
-  gchar * source;
-  GMainContext * main_context;
-
-  Isolate * isolate;
-  GumScriptCore core;
-  GumScriptMemory memory;
-  GumScriptProcess process;
-  GumScriptThread thread;
-  GumScriptModule module;
-  GumScriptFile file;
-  GumScriptSocket socket;
-  GumScriptInterceptor interceptor;
-  GumScriptStalker stalker;
-  GumScriptSymbol symbol;
-  GumScriptInstruction instruction;
-  GumPersistent<Context>::type * context;
-  GumPersistent<Script>::type * code;
-  gboolean loaded;
-
-  GumScriptMessageHandler message_handler;
-  gpointer message_handler_data;
-  GDestroyNotify message_handler_data_destroy;
 };
 
 struct _GumScriptFromStringData
@@ -973,95 +933,5 @@ gum_script_on_leave (GumInvocationListener * listener,
   GumScript * self = GUM_SCRIPT_CAST (listener);
 
   _gum_script_interceptor_on_leave (&self->priv->interceptor, context);
-}
-
-class ScriptScopeImpl
-{
-public:
-  ScriptScopeImpl (GumScript * parent)
-    : parent (parent),
-      locker (parent->priv->isolate),
-      isolate_scope (parent->priv->isolate),
-      handle_scope (parent->priv->isolate),
-      context (Local<Context>::New (parent->priv->isolate, *parent->priv->context)),
-      context_scope (context),
-      trycatch (parent->priv->isolate)
-  {
-  }
-
-  ~ScriptScopeImpl ()
-  {
-    GumScriptPrivate * priv = parent->priv;
-
-    if (trycatch.HasCaught ())
-    {
-      Handle<Message> message = trycatch.Message ();
-      Handle<Value> exception = trycatch.Exception ();
-      trycatch.Reset ();
-
-      GString * error = g_string_new ("{\"type\":\"error\"");
-
-      Local<Value> resource_name = message->GetScriptResourceName ();
-      if (!resource_name->IsUndefined ())
-      {
-        String::Utf8Value resource_name_str (resource_name->ToString ());
-        g_string_append_printf (error, ",\"fileName\":\"%s\"",
-            *resource_name_str);
-
-        Maybe<int> line_number = message->GetLineNumber (context);
-        if (line_number.IsJust ())
-        {
-          g_string_append_printf (error, ",\"lineNumber\":%d",
-              line_number.FromJust ());
-        }
-      }
-
-      String::Utf8Value exception_str (exception);
-      gchar * exception_str_escaped = g_strescape (*exception_str, "");
-      g_string_append_printf (error, ",\"description\":\"%s\"",
-          exception_str_escaped);
-      g_free (exception_str_escaped);
-
-      g_string_append_c (error, '}');
-
-      _gum_script_core_emit_message (&priv->core, error->str, NULL, 0);
-
-      g_string_free (error, TRUE);
-    }
-  }
-
-  bool HasPendingException () const
-  {
-    return trycatch.HasCaught ();
-  }
-
-private:
-  GumScript * parent;
-  Locker locker;
-  Isolate::Scope isolate_scope;
-  HandleScope handle_scope;
-  Local<Context> context;
-  Context::Scope context_scope;
-  TryCatch trycatch;
-};
-
-ScriptScope::ScriptScope (GumScript * parent)
-  : parent (parent),
-    impl (new ScriptScopeImpl (parent))
-{
-}
-
-ScriptScope::~ScriptScope ()
-{
-  delete impl;
-  impl = NULL;
-
-  _gum_script_stalker_process_pending (&parent->priv->stalker);
-}
-
-bool
-ScriptScope::HasPendingException () const
-{
-  return impl->HasPendingException ();
 }
 

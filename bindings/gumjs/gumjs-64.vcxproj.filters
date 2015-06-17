@@ -6,6 +6,7 @@
     <ClCompile Include="gumscriptbundle.cpp" />
     <ClCompile Include="gumscriptscheduler.c" />
     <ClCompile Include="gumscripttask.c" />
+    <ClCompile Include="gumscriptscope.cpp" />
     <ClCompile Include="gumscriptcore.cpp" />
     <ClCompile Include="gumscriptmemory.cpp" />
     <ClCompile Include="gumscriptprocess.cpp" />
@@ -21,6 +22,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gumscript.h" />
+    <ClInclude Include="gumscript-priv.h" />
     <ClInclude Include="gumscriptplatform.h" />
     <ClInclude Include="gumscriptbundle.h" />
     <ClInclude Include="gumscriptscheduler.h" />
