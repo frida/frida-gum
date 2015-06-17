@@ -3,6 +3,7 @@
 
     let _runtime = null;
     let _api = null;
+    let cachedObjCApi = {};
 
     Object.defineProperty(this, 'ObjC', {
         enumerable: true,
@@ -29,6 +30,11 @@
             get: function () {
                 return api !== null;
             }
+        });
+
+        Object.defineProperty(this, 'api', {
+            enumerable: true,
+            value: cachedObjCApi
         });
 
         Object.defineProperty(this, 'classes', {
@@ -335,17 +341,21 @@
             "toJSON": true,
             "toString": true,
             "valueOf": true,
+            "equals": true,
             "$kind": true,
             "$super": true,
+            "$superClass": true,
             "$class": true,
             "$className": true,
-            "$protocols": true
+            "$protocols": true,
+            "$methods": true
         };
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
             let cachedKind = null;
             let cachedSuper = null;
+            let cachedSuperClass = null;
             let cachedClass = null;
             let cachedClassName = null;
             let cachedProtocols = null;
@@ -354,18 +364,10 @@
             let respondsToSelector = null;
             const cachedMethods = {};
             const replacedMethods = {};
+            let cachedNativeMethodNames = null;
             let weakRef = null;
 
-            if (!(handle instanceof NativePointer)) {
-                let valid = false;
-                if (typeof handle === 'object' && handle.hasOwnProperty('handle')) {
-                    handle = handle.handle;
-                    valid = handle instanceof NativePointer;
-                }
-
-                if (!valid)
-                    throw new Error("Expected NativePointer or ObjC.Object instance");
-            }
+            handle = getHandle(handle);
 
             const self = Proxy.create({
                 has(name) {
@@ -389,6 +391,8 @@
                         case "valueOf":
                             const description = target.description();
                             return description.UTF8String.bind(description);
+                        case "equals":
+                            return equals;
                         case "$kind":
                             if (cachedKind === null) {
                                 if (isClass())
@@ -410,6 +414,16 @@
                                 }
                             }
                             return cachedSuper[0];
+                        case "$superClass":
+                            if (cachedSuperClass === null) {
+                                const superClassHandle = api.class_getSuperclass(classHandle());
+                                if (!superClassHandle.isNull()) {
+                                    cachedSuperClass = [new ObjCObject(superClassHandle)];
+                                } else {
+                                    cachedSuperClass = [null];
+                                }
+                            }
+                            return cachedSuperClass[0];
                         case "$class":
                             if (cachedClass === null)
                                 cachedClass = new ObjCObject(api.object_getClass(handle), undefined, true);
@@ -443,6 +457,16 @@
                                 }
                             }
                             return cachedProtocols;
+                        case "$methods":
+                            if (cachedNativeMethodNames === null) {
+                                cachedNativeMethodNames = [];
+
+                                // Fill cachedMethodNames
+                                this.keys();
+
+                                cachedNativeMethodNames = Object.keys(cachedMethods).filter(m => m.match(/^(\+|-)/));
+                            }
+                            return cachedNativeMethodNames;
                         default:
                             if (protocol) {
                                 const details = findProtocolMethod(name);
@@ -536,7 +560,7 @@
                         }
                     }
 
-                    return cachedMethodNames;
+                    return Object.keys(objCObjectBuiltins).concat(cachedMethodNames);
                 }
             }, Object.getPrototypeOf(this));
 
@@ -726,6 +750,10 @@
                 return {
                     handle: handle.toString()
                 };
+            }
+
+            function equals(ptr) {
+                return handle.equals(getHandle(ptr));
             }
         }
 
@@ -992,9 +1020,18 @@
             return new ObjCObject(classHandle);
         }
 
+        function getHandle(obj) {
+            if (obj instanceof NativePointer)
+                return obj;
+            else if (typeof obj === 'object' && obj.hasOwnProperty('handle'))
+                return obj.handle;
+            else
+                throw new Error("Expected NativePointer or ObjC.Object instance");
+        }
+
         function bind(obj, data) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
-            const self = new ObjCObject(handle);
+            const handle = getHandle(obj);
+            const self = (obj instanceof ObjCObject) ? obj : new ObjCObject(handle);
             bindings[handle.toString()] = {
                 self: self,
                 super: self.$super,
@@ -1003,7 +1040,7 @@
         }
 
         function unbind(obj) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
+            const handle = getHandle(obj);
             delete bindings[handle.toString()];
         }
 
@@ -1012,11 +1049,11 @@
         }
 
         function getBinding(obj) {
-            const handle = (obj instanceof NativePointer) ? obj : obj.handle;
+            const handle = getHandle(obj);
             const key = handle.toString();
             let binding = bindings[key];
             if (binding === undefined) {
-                const self = new ObjCObject(handle);
+                const self = (obj instanceof ObjCObject) ? obj : new ObjCObject(handle);
                 binding = {
                     self: self,
                     super: self.$super,
@@ -1124,12 +1161,12 @@
             Object.defineProperty(m, 'implementation', {
                 enumerable: true,
                 get: function () {
-                    const h = getHandle();
+                    const h = getMethodHandle();
 
                     return new NativeFunction(api.method_getImplementation(h), m.returnType, m.argumentTypes);
                 },
                 set: function (imp) {
-                    const h = getHandle();
+                    const h = getMethodHandle();
 
                     if (oldImp === null)
                         oldImp = api.method_getImplementation(h);
@@ -1155,7 +1192,7 @@
                 value: types
             });
 
-            function getHandle() {
+            function getMethodHandle() {
                 if (handle === null) {
                     if (owner.$kind === 'instance') {
                         let cur = owner;
@@ -1678,6 +1715,7 @@
         ];
         let remaining = 0;
         pending.forEach(function (api) {
+            const isObjCApi = api.module === 'libobjc.A.dylib';
             const functions = api.functions || {};
             const variables = api.variables || {};
             const optionals = api.optionals || {};
@@ -1698,8 +1736,12 @@
                     const signature = functions[name];
                     if (typeof signature === 'function') {
                         signature.call(temporaryApi, exp.address);
+                        if (isObjCApi)
+                            signature.call(cachedObjCApi, exp.address);
                     } else {
                         temporaryApi[name] = new NativeFunction(exp.address, signature[0], signature[1]);
+                        if (isObjCApi)
+                            cachedObjCApi[name] = temporaryApi[name];
                     }
                     remaining--;
                 } else {

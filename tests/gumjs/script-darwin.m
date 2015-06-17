@@ -96,7 +96,7 @@ SCRIPT_TESTCASE (object_enumeration_should_contain_protocol_methods)
         "var calculator = new ObjC.Object(calculatorProxy, "
             "ObjC.protocols.FridaCalculator);"
         "var keys = Object.keys(calculator);"
-        "send(keys.length);"
+        "send(keys.length >= 2);"
         "send(keys.indexOf('add_') !== -1);"
         "send(keys.indexOf('sub_') !== -1);"
         "send(keys.indexOf('magic') === -1);"
@@ -115,7 +115,7 @@ SCRIPT_TESTCASE (object_enumeration_should_contain_protocol_methods)
             "send(false);"
         "}",
         calc);
-    EXPECT_SEND_MESSAGE_WITH ("2");
+    EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
