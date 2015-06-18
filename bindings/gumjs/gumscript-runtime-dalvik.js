@@ -762,8 +762,12 @@
                     if (retType.fromJni) {
                         frameCapacity++;
                         returnCapture = "var rawResult = ";
-                        returnStatements = "var result = retType.fromJni.call(this, rawResult, env);" +
-                            "env.popLocalFrame(NULL);" +
+                        returnStatements = "var result;" +
+                            "try {" +
+                                "result = retType.fromJni.call(this, rawResult, env);" +
+                            "} finally {" +
+                                "env.popLocalFrame(NULL);" +
+                            "}" +
                             "return result;";
                     } else {
                         returnCapture = "var result = ";
@@ -993,13 +997,21 @@
                 if (retType.toJni) {
                     frameCapacity++;
                     returnCapture = "var result = ";
+                    returnStatements = "var rawResult;" +
+                        "try {";
                     if (retType.type === 'pointer') {
-                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
+                        returnStatements += "rawResult = retType.toJni.call(this, result, env);" +
+                            "} catch (e) {" +
+                                "env.popLocalFrame(NULL);" +
+                                "throw e;" +
+                            "}" +
                             "return env.popLocalFrame(rawResult);";
                         returnNothing = "return NULL;";
                     } else {
-                        returnStatements = "var rawResult = retType.toJni.call(this, result, env);" +
-                            "env.popLocalFrame(NULL);" +
+                        returnStatements += "rawResult = retType.toJni.call(this, result, env);" +
+                            "} finally {" +
+                                "env.popLocalFrame(NULL);" +
+                            "}" +
                             "return rawResult;";
                         returnNothing = "return 0;";
                     }
