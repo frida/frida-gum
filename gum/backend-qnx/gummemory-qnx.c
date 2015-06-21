@@ -134,7 +134,7 @@ gum_try_mprotect (gpointer address,
     int fd = -1;
     char * buffer;
     gpointer address_mmaped;
-    gint read_count;
+    gint total_read_count = 0;
 
     fd = open ("/proc/self/as", O_RDONLY);
     g_assert (fd != -1);
@@ -144,12 +144,11 @@ gum_try_mprotect (gpointer address,
 
     lseek (fd, GPOINTER_TO_SIZE (aligned_address), SEEK_SET);
 
-    read_count = read (fd, buffer, aligned_size);
-    if (read_count != aligned_size)
+    while (total_read_count < aligned_size)
     {
-      close (fd);
-
-      return FALSE;
+      gint read_count = read (fd, &buffer[total_read_count],
+          aligned_size - total_read_count);
+      total_read_count += read_count;
     }
 
     address_mmaped = mmap (aligned_address, aligned_size,
