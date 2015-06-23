@@ -1242,7 +1242,9 @@
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    if ((className === 'java.lang.CharSequence' || className === 'java.lang.String') && typeof v === 'string') {
+                    if (v === null) {
+                        return true;
+                    } else if ((className === 'java.lang.CharSequence' || className === 'java.lang.String') && typeof v === 'string') {
                         return true;
                     }
 
