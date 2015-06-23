@@ -1515,6 +1515,40 @@
         }
 
         function structType(fieldTypes) {
+            let fromNative, toNative;
+
+            if (fieldTypes.some(function (t) { return !!t.fromNative; })) {
+                const transforms = fieldTypes.map(function (t) {
+                    if (t.fromNative)
+                        return t.fromNative;
+                    else
+                        return identityTransform;
+                });
+                fromNative = function (v) {
+                    return v.map(function (e, i) {
+                        return transforms[i].call(this, e);
+                    });
+                };
+            } else {
+                fromNative = identityTransform;
+            }
+
+            if (fieldTypes.some(function (t) { return !!t.toNative; })) {
+                const transforms = fieldTypes.map(function (t) {
+                    if (t.toNative)
+                        return t.toNative;
+                    else
+                        return identityTransform;
+                });
+                toNative = function (v) {
+                    return v.map(function (e, i) {
+                        return transforms[i].call(this, e);
+                    });
+                };
+            } else {
+                toNative = identityTransform;
+            }
+
             return {
                 type: fieldTypes.map(function (t) {
                     return t.type;
@@ -1522,16 +1556,8 @@
                 size: fieldTypes.reduce(function (totalSize, t) {
                     return totalSize + t.size;
                 }, 0),
-                fromNative: function (v) {
-                    return v.map(function (v, i) {
-                        return fieldTypes[i].fromNative.call(this, v);
-                    }, this);
-                },
-                toNative: function (v) {
-                    return v.map(function (v, i) {
-                        return fieldTypes[i].toNative.call(this, v);
-                    }, this);
-                }
+                fromNative: fromNative,
+                toNative: toNative
             };
         }
 
@@ -1542,15 +1568,36 @@
                 else
                     return largest;
             }, fieldTypes[0]);
+
+            let fromNative, toNative;
+
+            if (largestType.fromNative) {
+                const transform = largestType.fromNative;
+                fromNative = function (v) {
+                    return [transform.call(this, v)];
+                };
+            } else {
+                fromNative = function (v) {
+                    return [v];
+                };
+            }
+
+            if (largestType.toNative) {
+                const transform = largestType.toNative;
+                toNative = function (v) {
+                    return [transform.call(this, v)];
+                };
+            } else {
+                toNative = function (v) {
+                    return [v];
+                };
+            }
+
             return {
                 type: [largestType.type],
                 size: largestType.size,
-                fromNative: function (v) {
-                    return [largestType.fromNative.call(this, v)];
-                },
-                toNative: function (v) {
-                    return [largestType.toNative.call(this, v)];
-                }
+                fromNative: fromNative,
+                toNative: toNative
             };
         }
 
@@ -1654,6 +1701,10 @@
                 size: pointerSize
             }
         };
+
+        function identityTransform(v) {
+            return v;
+        }
     }
 
     function getApi() {
