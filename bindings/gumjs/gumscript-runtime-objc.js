@@ -24,6 +24,8 @@
         const bindings = {};
         const msgSendBySignatureId = {};
         const msgSendSuperBySignatureId = {};
+        let cachedNSString = null;
+        let cachedNSStringCtor = null;
 
         Object.defineProperty(this, 'available', {
             enumerable: true,
@@ -1497,7 +1499,11 @@
 
         const toNativeId = function (v) {
             if (typeof v === 'string') {
-                return classRegistry.NSString.stringWithUTF8String_(Memory.allocUtf8String(v));
+                if (cachedNSString === null) {
+                    cachedNSString = classRegistry.NSString;
+                    cachedNSStringCtor = cachedNSString.stringWithUTF8String_;
+                }
+                return cachedNSStringCtor.call(cachedNSString, Memory.allocUtf8String(v));
             }
             return v;
         };
