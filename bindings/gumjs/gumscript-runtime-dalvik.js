@@ -1242,7 +1242,9 @@
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    if ((className === 'java.lang.CharSequence' || className === 'java.lang.String') && typeof v === 'string') {
+                    if (v === null) {
+                        return true;
+                    } else if ((className === 'java.lang.CharSequence' || className === 'java.lang.String') && typeof v === 'string') {
                         return true;
                     }
 
@@ -1260,7 +1262,9 @@
                     }
                 },
                 toJni: function (o, env) {
-                    if (typeof o === 'string') {
+                    if (o === null) {
+                        return NULL;
+                    } else if (typeof o === 'string') {
                         return env.newStringUtf(o);
                     }
 
