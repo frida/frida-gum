@@ -1260,7 +1260,9 @@
                     }
                 },
                 toJni: function (o, env) {
-                    if (typeof o === 'string') {
+                    if (o === null) {
+                        return NULL;
+                    } else if (typeof o === 'string') {
                         return env.newStringUtf(o);
                     }
 
