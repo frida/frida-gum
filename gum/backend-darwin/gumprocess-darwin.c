@@ -10,7 +10,6 @@
 #include "gumdarwin.h"
 
 #include <dlfcn.h>
-#include <libproc.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
@@ -159,6 +158,11 @@ typedef struct nlist gum_nlist_t;
 typedef struct mach_header_64 gum_mach_header_t;
 typedef struct segment_command_64 gum_segment_command_t;
 typedef struct nlist_64 gum_nlist_t;
+#endif
+
+#ifndef PROC_SETPC_NONE
+extern int proc_regionfilename (int pid, uint64_t address, void * buffer,
+    uint32_t buffersize);
 #endif
 
 typedef const struct dyld_all_image_infos * (* DyldGetAllImageInfosFunc) (
