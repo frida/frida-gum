@@ -605,6 +605,12 @@ SCRIPT_TESTCASE (objects_can_be_serialized_to_json)
 
 SCRIPT_TESTCASE (objects_can_be_chosen)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   @autoreleasepool
   {
     COMPILE_AND_LOAD_SCRIPT (
