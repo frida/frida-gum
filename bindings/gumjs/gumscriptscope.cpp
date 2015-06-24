@@ -34,18 +34,21 @@ ScriptScope::~ScriptScope ()
 
     GString * error = g_string_new ("{\"type\":\"error\"");
 
-    Local<Value> resource_name = message->GetScriptResourceName ();
-    if (!resource_name->IsUndefined ())
+    if (!message.IsEmpty ())
     {
-      String::Utf8Value resource_name_str (resource_name->ToString ());
-      g_string_append_printf (error, ",\"fileName\":\"%s\"",
-          *resource_name_str);
-
-      Maybe<int> line_number = message->GetLineNumber (context);
-      if (line_number.IsJust ())
+      Local<Value> resource_name = message->GetScriptResourceName ();
+      if (!resource_name->IsUndefined ())
       {
-        g_string_append_printf (error, ",\"lineNumber\":%d",
-            line_number.FromJust ());
+        String::Utf8Value resource_name_str (resource_name->ToString ());
+        g_string_append_printf (error, ",\"fileName\":\"%s\"",
+            *resource_name_str);
+
+        Maybe<int> line_number = message->GetLineNumber (context);
+        if (line_number.IsJust ())
+        {
+          g_string_append_printf (error, ",\"lineNumber\":%d",
+              line_number.FromJust ());
+        }
       }
     }
 
