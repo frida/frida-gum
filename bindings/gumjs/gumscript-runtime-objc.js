@@ -1,3 +1,4 @@
+/* jshint esnext: true, evil: true */
 (function () {
     "use strict";
 
@@ -149,12 +150,12 @@
             return Memory.readUtf8String(api.sel_getName(sel));
         }
 
-        const registryBuiltins = {
-            "hasOwnProperty": true,
-            "toJSON": true,
-            "toString": true,
-            "valueOf": true
-        };
+        const registryBuiltins = new Set([
+            "hasOwnProperty",
+            "toJSON",
+            "toString",
+            "valueOf"
+        ]);
 
         function ClassRegistry() {
             const cachedClasses = {};
@@ -162,7 +163,7 @@
 
             const registry = Proxy.create({
                 has(name) {
-                    if (registryBuiltins[name] !== undefined)
+                    if (registryBuiltins.has(name))
                         return true;
                     return findClass(name) !== null;
                 },
@@ -253,7 +254,7 @@
 
             const registry = Proxy.create({
                 has(name) {
-                    if (registryBuiltins[name] !== undefined)
+                    if (registryBuiltins.has(name))
                         return true;
                     return findProtocol(name) !== null;
                 },
@@ -342,22 +343,22 @@
             return registry;
         }
 
-        const objCObjectBuiltins = {
-            "prototype": true,
-            "handle": true,
-            "hasOwnProperty": true,
-            "toJSON": true,
-            "toString": true,
-            "valueOf": true,
-            "equals": true,
-            "$kind": true,
-            "$super": true,
-            "$superClass": true,
-            "$class": true,
-            "$className": true,
-            "$protocols": true,
-            "$methods": true
-        };
+        const objCObjectBuiltins = new Set([
+            "prototype",
+            "handle",
+            "hasOwnProperty",
+            "toJSON",
+            "toString",
+            "valueOf",
+            "equals",
+            "$kind",
+            "$super",
+            "$superClass",
+            "$class",
+            "$className",
+            "$protocols",
+            "$methods"
+        ]);
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
             let cachedClassHandle = null;
@@ -379,7 +380,7 @@
 
             const self = Proxy.create({
                 has(name) {
-                    if (objCObjectBuiltins[name] !== undefined)
+                    if (objCObjectBuiltins.has(name))
                         return true;
                     if (protocol) {
                         const details = findProtocolMethod(name);
@@ -568,7 +569,7 @@
                         }
                     }
 
-                    return Object.keys(objCObjectBuiltins).concat(cachedMethodNames);
+                    return Array.from(objCObjectBuiltins).concat(cachedMethodNames);
                 }
             }, Object.getPrototypeOf(this));
 
@@ -626,9 +627,9 @@
                 }
 
                 if (method === undefined) {
-                    const methodHandle = (kind === '+')
-                        ? api.class_getClassMethod(classHandle(), sel)
-                        : api.class_getInstanceMethod(classHandle(), sel);
+                    const methodHandle = (kind === '+') ?
+                        api.class_getClassMethod(classHandle(), sel) :
+                        api.class_getInstanceMethod(classHandle(), sel);
                     if (!methodHandle.isNull()) {
                         method = {
                             sel: sel,
@@ -820,7 +821,7 @@
                                 const numProperties = Memory.readUInt(numBuf);
                                 for (let i = 0; i !== numProperties; i++) {
                                     const propertyHandle = Memory.readPointer(propertyHandles.add(i * pointerSize));
-                                    const name = Memory.readUtf8String(api.property_getName(propertyHandle));
+                                    const propName = Memory.readUtf8String(api.property_getName(propertyHandle));
                                     const attributes = {};
                                     const attributeEntries = api.property_copyAttributeList(propertyHandle, numBuf);
                                     if (!attributeEntries.isNull()) {
@@ -836,7 +837,7 @@
                                             api.free(attributeEntries);
                                         }
                                     }
-                                    cachedProperties[name] = attributes;
+                                    cachedProperties[propName] = attributes;
                                 }
                             } finally {
                                 api.free(propertyHandles);
@@ -1292,7 +1293,7 @@
 
         function jsMethodName(name) {
             let result = name.replace(/:/g, "_");
-            if (objCObjectBuiltins[result] !== undefined)
+            if (objCObjectBuiltins.has(result))
                 result += "2";
             return result;
         }
@@ -1368,23 +1369,23 @@
                     return arrayType(length, elementType);
                 } else if (c === '{') {
                     readUntil('=', cursor);
-                    const fields = [];
+                    const structFields = [];
                     do {
-                        fields.push(readType(cursor));
+                        structFields.push(readType(cursor));
                     } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // '}'
-                    return structType(fields);
+                    return structType(structFields);
                 } else if (c === '(') {
                     readUntil('=', cursor);
-                    const fields = [];
+                    const unionFields = [];
                     do {
-                        fields.push(readType(cursor));
+                        unionFields.push(readType(cursor));
                     } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // ')'
-                    return unionType(fields);
+                    return unionType(unionFields);
                 } else if (c === 'b') {
                     readNumber(cursor);
-                    return singularTypeById['i'];
+                    return singularTypeById.i;
                 } else if (c === '^') {
                     readType(cursor);
                     return singularTypeById['?'];
@@ -1518,7 +1519,7 @@
             let fromNative, toNative;
 
             if (fieldTypes.some(function (t) { return !!t.fromNative; })) {
-                const transforms = fieldTypes.map(function (t) {
+                const fromTransforms = fieldTypes.map(function (t) {
                     if (t.fromNative)
                         return t.fromNative;
                     else
@@ -1526,7 +1527,7 @@
                 });
                 fromNative = function (v) {
                     return v.map(function (e, i) {
-                        return transforms[i].call(this, e);
+                        return fromTransforms[i].call(this, e);
                     });
                 };
             } else {
@@ -1534,7 +1535,7 @@
             }
 
             if (fieldTypes.some(function (t) { return !!t.toNative; })) {
-                const transforms = fieldTypes.map(function (t) {
+                const toTransforms = fieldTypes.map(function (t) {
                     if (t.toNative)
                         return t.toNative;
                     else
@@ -1542,7 +1543,7 @@
                 });
                 toNative = function (v) {
                     return v.map(function (e, i) {
-                        return transforms[i].call(this, e);
+                        return toTransforms[i].call(this, e);
                     });
                 };
             } else {
@@ -1572,9 +1573,9 @@
             let fromNative, toNative;
 
             if (largestType.fromNative) {
-                const transform = largestType.fromNative;
+                const fromTransform = largestType.fromNative;
                 fromNative = function (v) {
-                    return [transform.call(this, v)];
+                    return [fromTransform.call(this, v)];
                 };
             } else {
                 fromNative = function (v) {
@@ -1583,9 +1584,9 @@
             }
 
             if (largestType.toNative) {
-                const transform = largestType.toNative;
+                const toTransform = largestType.toNative;
                 toNative = function (v) {
-                    return [transform.call(this, v)];
+                    return [toTransform.call(this, v)];
                 };
             } else {
                 toNative = function (v) {

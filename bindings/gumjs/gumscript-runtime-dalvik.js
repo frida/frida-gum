@@ -1,3 +1,4 @@
+/* jshint esnext: true, evil: true */
 (function () {
     "use strict";
 
@@ -1457,9 +1458,9 @@
             return globalRef;
         }
 
-        function vtable() {
+        function vtable(instance) {
             if (cachedVtable === null) {
-                cachedVtable = Memory.readPointer(this.handle);
+                cachedVtable = Memory.readPointer(instance.handle);
             }
             return cachedVtable;
         }
@@ -1468,7 +1469,7 @@
             var impl = null;
             return function () {
                 if (impl === null) {
-                    impl = new NativeFunction(Memory.readPointer(vtable.call(this).add(offset * pointerSize)), retType, argTypes);
+                    impl = new NativeFunction(Memory.readPointer(vtable(this).add(offset * pointerSize)), retType, argTypes);
                 }
                 var args = [impl];
                 args = args.concat.apply(args, arguments);
@@ -1604,7 +1605,7 @@
             var key = offset + "|" + retType + "|" + argTypes.join(":");
             var m = cachedMethods[key];
             if (!m) {
-                m = new NativeFunction(Memory.readPointer(vtable.call(this).add(offset * pointerSize)), retType, ['pointer', 'pointer', 'pointer', '...'].concat(argTypes));
+                m = new NativeFunction(Memory.readPointer(vtable(this).add(offset * pointerSize)), retType, ['pointer', 'pointer', 'pointer', '...'].concat(argTypes));
                 cachedMethods[key] = m;
             }
             return m;
