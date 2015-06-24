@@ -270,11 +270,51 @@
         }
     });
 
+    Object.defineProperty(Process, 'enumerateRanges', {
+        enumerable: true,
+        value: function (specifier, callbacks) {
+            var protection;
+            var coalesce = false;
+            if (typeof specifier === 'string') {
+                protection = specifier;
+            } else {
+                protection = specifier.protection;
+                coalesce = specifier.coalesce;
+            }
+
+            if (coalesce) {
+                var current = null;
+                var onMatch = callbacks.onMatch;
+                Process._enumerateRanges(protection, {
+                    onMatch: function (r) {
+                        if (current !== null) {
+                            if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
+                                current.size += r.size;
+                            } else {
+                                onMatch(current);
+                                current = r;
+                            }
+                        } else {
+                            current = r;
+                        }
+                    },
+                    onComplete: function () {
+                        if (current !== null)
+                            onMatch(current);
+                        callbacks.onComplete();
+                    }
+                });
+            } else {
+                Process._enumerateRanges(protection, callbacks);
+            }
+        }
+    });
+
     Object.defineProperty(Process, 'enumerateRangesSync', {
         enumerable: true,
-        value: function (prot) {
+        value: function (specifier) {
             var ranges = [];
-            Process.enumerateRanges(prot, {
+            Process.enumerateRanges(specifier, {
                 onMatch: function (r) {
                     ranges.push(r);
                 },

@@ -97,7 +97,7 @@ _gum_script_process_init (GumScriptProcess * self,
   process->Set (String::NewFromUtf8 (isolate, "enumerateModules"),
       FunctionTemplate::New (isolate, gum_script_process_on_enumerate_modules,
       data));
-  process->Set (String::NewFromUtf8 (isolate, "enumerateRanges"),
+  process->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
       FunctionTemplate::New (isolate, gum_script_process_on_enumerate_ranges,
       data));
   process->Set (String::NewFromUtf8 (isolate, "enumerateMallocRanges"),
@@ -342,7 +342,7 @@ gum_script_process_handle_module_match (const GumModuleDetails * details,
 
 /*
  * Prototype:
- * Process.enumerateRanges(prot, callback)
+ * Process._enumerateRanges(prot, callback)
  *
  * Docs:
  * TBW

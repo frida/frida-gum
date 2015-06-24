@@ -107,6 +107,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_with_neighbors_coalesced)
   SCRIPT_TESTENTRY (process_range_can_be_looked_up_from_address)
 #ifdef HAVE_DARWIN
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
@@ -852,6 +853,18 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.enumerateRangesSync('--x').length > 1);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_ranges_can_be_enumerated_with_neighbors_coalesced)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var a = Process.enumerateRangesSync('--x');"
+      "var b = Process.enumerateRangesSync({"
+        "protection: '--x',"
+        "coalesce: true"
+      "});"
+      "send(b.length <= a.length);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
