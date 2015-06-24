@@ -125,6 +125,8 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (
     const GumCpuContext * cpu_context, GumScriptCore * core);
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (
     GumCpuContext * cpu_context, GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_script_cpu_context_free_later (
+    GumPersistent<v8::Object>::type * cpu_context, GumScriptCore * core);
 G_GNUC_INTERNAL gboolean _gum_script_cpu_context_get (
     v8::Handle<v8::Value> value, GumCpuContext ** target, GumScriptCore * core);
 

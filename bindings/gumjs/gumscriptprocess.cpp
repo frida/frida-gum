@@ -227,8 +227,9 @@ gum_script_process_thread_match (const GumThreadDetails * details,
           reinterpret_cast<const uint8_t *> (gum_script_thread_state_to_string (
           details->state))),
       core);
-  _gum_script_set (thread, "context", _gum_script_cpu_context_new (
-      &details->cpu_context, ctx->self->core), core);
+  Local<Object> cpu_context =
+      _gum_script_cpu_context_new (&details->cpu_context, ctx->self->core);
+  _gum_script_set (thread, "context", cpu_context, core);
 
   Handle<Value> argv[] = { thread };
   Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
@@ -239,6 +240,10 @@ gum_script_process_thread_match (const GumThreadDetails * details,
     String::Utf8Value str (result);
     proceed = (strcmp (*str, "stop") != 0);
   }
+
+  _gum_script_cpu_context_free_later (
+      new GumPersistent<Object>::type (isolate, cpu_context),
+      core);
 
   return proceed;
 }

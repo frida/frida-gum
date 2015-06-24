@@ -18,6 +18,17 @@
 # define GUM_SYSTEM_ERROR_FIELD "errno"
 #endif
 
+#define GUM_IC_INVOCATION   0
+#define GUM_IC_DEPTH        1
+#define GUM_IC_CPU          2
+
+#define GUM_ARGS_INVOCATION 0
+
+#define GUM_RV_VALUE        0
+#define GUM_RV_INVOCATION   1
+
+#define GUM_RETVAL_ 0
+
 using namespace v8;
 
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
@@ -35,6 +46,9 @@ struct _GumScriptReplaceEntry
   gpointer target;
   GumPersistent<Value>::type * replacement;
 };
+
+static void gum_script_interceptor_detach_cpu_context (
+    GumScriptInterceptor * self, Handle<Object> invocation_context);
 
 static void gum_script_interceptor_on_attach (
     const FunctionCallbackInfo<Value> & info);
@@ -179,7 +193,7 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> context = ObjectTemplate::New (isolate);
-  context->SetInternalFieldCount (2);
+  context->SetInternalFieldCount (3);
   context->SetAccessor (String::NewFromUtf8 (isolate, "returnAddress"),
       gum_script_invocation_context_on_get_return_address, NULL, data);
   context->SetAccessor (String::NewFromUtf8 (isolate, "context"),
@@ -191,8 +205,10 @@ _gum_script_interceptor_realize (GumScriptInterceptor * self)
       gum_script_invocation_context_on_get_thread_id);
   context->SetAccessor (String::NewFromUtf8 (isolate, "depth"),
       gum_script_invocation_context_on_get_depth);
+  Local<Object> context_value = context->NewInstance ();
+  context_value->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
   self->invocation_context_value =
-      new GumPersistent<Object>::type (isolate, context->NewInstance ());
+      new GumPersistent<Object>::type (isolate, context_value);
 
   Handle<ObjectTemplate> args = ObjectTemplate::New (isolate);
   args->SetInternalFieldCount (1);
@@ -255,14 +271,15 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
       gum_invocation_context_get_listener_function_data (context));
   int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
 
-  ScriptScope scope (self->core->script);
-  Isolate * isolate = self->core->isolate;
+  GumScriptCore * core = self->core;
+  ScriptScope scope (core->script);
+  Isolate * isolate = core->isolate;
 
   Local<Object> invocation_context_value (Local<Object>::New (isolate,
       *self->invocation_context_value));
   Local<Object> receiver (invocation_context_value->Clone ());
-  receiver->SetAlignedPointerInInternalField (0, context);
-  receiver->SetInternalField (1, Integer::New (isolate, *depth));
+  receiver->SetAlignedPointerInInternalField (GUM_IC_INVOCATION, context);
+  receiver->SetInternalField (GUM_IC_DEPTH, Integer::New (isolate, *depth));
   GumPersistent<Value>::type * persistent_receiver =
       new GumPersistent<Value>::type (isolate, receiver);
   *GUM_LINCTX_GET_FUNC_INVDATA (context,
@@ -273,11 +290,13 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
     Local<Object> invocation_args_value (Local<Object>::New (isolate,
         *self->invocation_args_value));
     Local<Object> args (invocation_args_value->Clone ());
-    args->SetAlignedPointerInInternalField (0, context);
+    args->SetAlignedPointerInInternalField (GUM_ARGS_INVOCATION, context);
 
     Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
     Handle<Value> argv[] = { args };
     on_enter->Call (receiver, 1, argv);
+
+    gum_script_interceptor_detach_cpu_context (self, receiver);
   }
 
   (*depth)++;
@@ -299,25 +318,41 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
   ScriptScope scope (self->core->script);
   Isolate * isolate = self->core->isolate;
 
-  GumPersistent<Value>::type * persistent_receiver =
-    *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Value>::type *);
-  Local<Value> receiver (Local<Value>::New (isolate, *persistent_receiver));
+  GumPersistent<Object>::type * persistent_receiver =
+      *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Object>::type *);
+  Local<Object> receiver (Local<Object>::New (isolate, *persistent_receiver));
 
   if (entry->on_leave != NULL)
   {
     Local<Object> invocation_return_value (Local<Object>::New (isolate,
         *self->invocation_return_value));
     Local<Object> return_value (invocation_return_value->Clone ());
-    return_value->SetInternalField (0, External::New (isolate,
+    return_value->SetInternalField (GUM_RV_VALUE, External::New (isolate,
         gum_invocation_context_get_return_value (context)));
-    return_value->SetAlignedPointerInInternalField (1, context);
+    return_value->SetAlignedPointerInInternalField (GUM_RV_INVOCATION, context);
 
     Local<Function> on_leave (Local<Function>::New (isolate, *entry->on_leave));
     Handle<Value> argv[] = { return_value };
     on_leave->Call (receiver, 1, argv);
+
+    gum_script_interceptor_detach_cpu_context (self, receiver);
   }
 
   delete persistent_receiver;
+}
+
+static void
+gum_script_interceptor_detach_cpu_context (GumScriptInterceptor * self,
+                                           Handle<Object> invocation_context)
+{
+  GumPersistent<Object>::type * cpu_context =
+      static_cast<GumPersistent<Object>::type *> (
+          invocation_context->GetAlignedPointerFromInternalField (GUM_IC_CPU));
+  if (cpu_context != NULL)
+  {
+    _gum_script_cpu_context_free_later (cpu_context, self->core);
+    invocation_context->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
+  }
 }
 
 /*
@@ -421,7 +456,7 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
  *
  * Example:
  * TBW
- */  
+ */
 static void
 gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 {
@@ -457,7 +492,7 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
  *
  * Example:
  * TBW
- */  
+ */
 static void
 gum_script_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
 {
@@ -486,7 +521,7 @@ gum_script_invocation_context_on_get_return_address (Local<String> property,
   GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
       info.Data ().As<External> ()->Value ());
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
   (void) property;
   gpointer return_address = gum_invocation_context_get_return_address (context);
   info.GetReturnValue ().Set (
@@ -499,11 +534,24 @@ gum_script_invocation_context_on_get_context (Local<String> property,
 {
   GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
       info.Data ().As<External> ()->Value ());
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+  Local<Object> instance = info.Holder ();
+  Isolate * isolate = info.GetIsolate ();
+
   (void) property;
-  info.GetReturnValue ().Set (
-      _gum_script_cpu_context_new (context->cpu_context, self->core));
+
+  GumPersistent<Object>::type * context =
+      static_cast<GumPersistent<Object>::type *> (
+          instance->GetAlignedPointerFromInternalField (GUM_IC_CPU));
+  if (context == NULL)
+  {
+    GumInvocationContext * ic = static_cast<GumInvocationContext *> (
+        instance->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+    context = new GumPersistent<Object>::type (isolate,
+        _gum_script_cpu_context_new (ic->cpu_context, self->core));
+    instance->SetAlignedPointerInInternalField (GUM_IC_CPU, context);
+  }
+
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *context));
 }
 
 static void
@@ -511,7 +559,7 @@ gum_script_invocation_context_on_get_system_error (Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
   (void) property;
   info.GetReturnValue ().Set (context->system_error);
 }
@@ -522,7 +570,7 @@ gum_script_invocation_context_on_set_system_error (Local<String> property,
     const PropertyCallbackInfo<void> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
   (void) property;
   context->system_error = value->Int32Value ();
 }
@@ -532,7 +580,7 @@ gum_script_invocation_context_on_get_thread_id (Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
   (void) property;
   info.GetReturnValue ().Set (gum_invocation_context_get_thread_id (context));
 }
@@ -541,8 +589,8 @@ static void
 gum_script_invocation_context_on_get_depth (Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
-  int32_t depth =
-      info.Holder ()->GetInternalField (1).As <Integer> ()->Int32Value ();
+  int32_t depth = info.Holder ()->GetInternalField (GUM_IC_DEPTH)
+      .As <Integer> ()->Int32Value ();
   (void) property;
   info.GetReturnValue ().Set (depth);
 }
@@ -554,7 +602,7 @@ gum_script_invocation_args_on_get_nth (uint32_t index,
   GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
       info.Data ().As<External> ()->Value ());
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_ARGS_INVOCATION));
   info.GetReturnValue ().Set (_gum_script_pointer_new (
       gum_invocation_context_get_nth_argument (ctx, index), self->core));
 }
@@ -567,7 +615,7 @@ gum_script_invocation_args_on_set_nth (uint32_t index,
   GumScriptInterceptor * self = static_cast<GumScriptInterceptor *> (
       info.Data ().As<External> ()->Value ());
   GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_ARGS_INVOCATION));
 
   gpointer raw_value;
   if (!_gum_script_pointer_get (value, &raw_value, self->core))
@@ -584,7 +632,7 @@ gum_script_invocation_return_value_on_replace (
       info.Data ().As<External> ()->Value ());
   Local<Object> holder (info.Holder ());
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      holder->GetAlignedPointerFromInternalField (1));
+      holder->GetAlignedPointerFromInternalField (GUM_RV_INVOCATION));
 
   gpointer value;
   Local<FunctionTemplate> native_pointer (
@@ -595,5 +643,6 @@ gum_script_invocation_return_value_on_replace (
   else
     value = GSIZE_TO_POINTER (info[0].As<Integer> ()->Value ());
   gum_invocation_context_replace_return_value (context, value);
-  holder->SetInternalField (0, External::New (info.GetIsolate (), value));
+  holder->SetInternalField (GUM_RV_VALUE,
+      External::New (info.GetIsolate (), value));
 }

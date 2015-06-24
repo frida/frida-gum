@@ -32,6 +32,7 @@ typedef struct _GumFFICallback GumFFICallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
+typedef struct _GumCpuContextWrapper GumCpuContextWrapper;
 
 struct _GumWeakRef
 {
@@ -112,6 +113,12 @@ struct _GumFFIABIMapping
 {
   const gchar * name;
   ffi_abi abi;
+};
+
+struct _GumCpuContextWrapper
+{
+  GumPersistent<Object>::type * instance;
+  GumCpuContext * cpu_context;
 };
 
 static void gum_script_core_on_weak_ref_bind (
@@ -208,6 +215,8 @@ static void gum_byte_array_on_weak_notify (
     const WeakCallbackData<Object, GumByteArray> & data);
 static void gum_heap_block_on_weak_notify (
     const WeakCallbackData<Object, GumHeapBlock> & data);
+static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
+    GumCpuContextWrapper> & data);
 
 void
 _gum_script_core_init (GumScriptCore * self,
@@ -2588,6 +2597,43 @@ _gum_script_cpu_context_new (GumCpuContext * cpu_context,
   const bool is_mutable = true;
   cpu_context_object->SetInternalField (1, Boolean::New (isolate, is_mutable));
   return cpu_context_object;
+}
+
+void
+_gum_script_cpu_context_free_later (GumPersistent<Object>::type * cpu_context,
+                                    GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+  GumCpuContextWrapper * wrapper;
+
+  Local<Object> instance (Local<Object>::New (isolate, *cpu_context));
+  GumCpuContext * original = static_cast<GumCpuContext *> (
+      instance->GetInternalField (0).As<External> ()->Value ());
+  GumCpuContext * copy = g_slice_dup (GumCpuContext, original);
+  instance->SetInternalField (0, External::New (isolate, copy));
+  const bool is_mutable = false;
+  instance->SetInternalField (1, Boolean::New (isolate, is_mutable));
+
+  wrapper = g_slice_new (GumCpuContextWrapper);
+  wrapper->instance = cpu_context;
+  wrapper->cpu_context = copy;
+
+  cpu_context->SetWeak (wrapper, gum_cpu_context_on_weak_notify);
+  cpu_context->MarkIndependent ();
+}
+
+static void
+gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
+    GumCpuContextWrapper> & data)
+{
+  GumCpuContextWrapper * wrapper = data.GetParameter ();
+
+  wrapper->instance->ClearWeak ();
+  delete wrapper->instance;
+
+  g_slice_free (GumCpuContext, wrapper->cpu_context);
+
+  g_slice_free (GumCpuContextWrapper, wrapper);
 }
 
 gboolean
