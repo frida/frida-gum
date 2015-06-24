@@ -1200,7 +1200,7 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       GumMemoryRange range;
       GumRangeDetails details;
       GumFileMapping file;
-      gchar file_path[1024];
+      gchar file_path[MAXPATHLEN];
       gint len;
 
       range.base_address = address;
