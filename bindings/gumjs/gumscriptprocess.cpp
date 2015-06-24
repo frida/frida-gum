@@ -417,6 +417,15 @@ gum_script_process_handle_range_match (const GumRangeDetails * details,
   _gum_script_set_uint (range, "size", details->range->size, core);
   _gum_script_set_ascii (range, "protection", prot_str, core);
 
+  const GumFileMapping * f = details->file;
+  if (f != NULL)
+  {
+    Local<Object> file (Object::New (isolate));
+    _gum_script_set_utf8 (range, "path", f->path, core);
+    _gum_script_set_uint (range, "offset", f->offset, core);
+    _gum_script_set (range, "file", file, core);
+  }
+
   Handle<Value> argv[] = {
     range
   };
