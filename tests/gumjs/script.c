@@ -94,7 +94,6 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (frida_version_is_available)
   SCRIPT_TESTENTRY (process_arch_is_available)
-  SCRIPT_TESTENTRY (process_get_module_by_name)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
@@ -104,8 +103,11 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
+  SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
+  SCRIPT_TESTENTRY (process_range_can_be_looked_up_from_address)
 #ifdef HAVE_DARWIN
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_synchronously)
@@ -719,13 +721,6 @@ SCRIPT_TESTCASE (process_arch_is_available)
 #endif
 }
 
-SCRIPT_TESTCASE (process_get_module_by_name)
-{
-  COMPILE_AND_LOAD_SCRIPT (
-      "send(Process.getModuleByName('%s') !== null);", SYSTEM_MODULE_NAME);
-  EXPECT_SEND_MESSAGE_WITH ("true");
-}
-
 SCRIPT_TESTCASE (process_platform_is_available)
 {
   COMPILE_AND_LOAD_SCRIPT ("send(Process.platform);");
@@ -801,6 +796,42 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
+SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
+{
+  GModule * m;
+  gpointer f;
+  gboolean found;
+
+  m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
+  found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
+  g_assert (found);
+  g_module_close (m);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.findModuleByAddress(" GUM_PTR_CONST ") !== null);",
+      f);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Object.keys(Process.getModuleByAddress(" GUM_PTR_CONST
+      ")).length > 0);",
+      f);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.findModuleByName('%s') !== null);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Object.keys(Process.getModuleByName('%s')).length > 0);",
+      SYSTEM_MODULE_NAME);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
 SCRIPT_TESTCASE (process_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -821,6 +852,29 @@ SCRIPT_TESTCASE (process_ranges_can_be_enumerated_synchronously)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.enumerateRangesSync('--x').length > 1);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
+{
+  GModule * m;
+  gpointer f;
+  gboolean found;
+
+  m = g_module_open (SYSTEM_MODULE_NAME, G_MODULE_BIND_LAZY);
+  found = g_module_symbol (m, SYSTEM_MODULE_EXPORT, &f);
+  g_assert (found);
+  g_module_close (m);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Process.findRangeByAddress(" GUM_PTR_CONST ") !== null);",
+      f);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Object.keys(Process.getRangeByAddress(" GUM_PTR_CONST
+      ")).length > 0);",
+      f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

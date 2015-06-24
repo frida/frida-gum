@@ -168,6 +168,64 @@
         }
     });
 
+    Object.defineProperty(Process, 'findModuleByAddress', {
+        enumerable: true,
+        value: function (address) {
+            var module = null;
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    var base = m.base;
+                    if (base.compare(address) < 0 && base.add(m.size).compare(address) > 0) {
+                        module = m;
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                }
+            });
+            return module;
+        }
+    });
+
+    Object.defineProperty(Process, 'getModuleByAddress', {
+        enumerable: true,
+        value: function (address) {
+            var module = Process.findModuleByAddress(address);
+            if (module === null)
+                throw new Error("Unable to find module containing " + address);
+            return module;
+        }
+    });
+
+    Object.defineProperty(Process, 'findModuleByName', {
+        enumerable: true,
+        value: function (name) {
+            var module = null;
+            var nameLowercase = name.toLowerCase();
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    if (m.name.toLowerCase() === nameLowercase) {
+                        module = m;
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                }
+            });
+            return module;
+        }
+    });
+
+    Object.defineProperty(Process, 'getModuleByName', {
+        enumerable: true,
+        value: function (name) {
+            var module = Process.findModuleByName(name);
+            if (module === null)
+                throw new Error("Unable to find module '" + name + "'");
+            return module;
+        }
+    });
+
     Object.defineProperty(Process, 'enumerateModulesSync', {
         enumerable: true,
         value: function () {
@@ -180,6 +238,35 @@
                 }
             });
             return modules;
+        }
+    });
+
+    Object.defineProperty(Process, 'findRangeByAddress', {
+        enumerable: true,
+        value: function (address) {
+            var range = null;
+            Process.enumerateRanges('---', {
+                onMatch: function (r) {
+                    var base = r.base;
+                    if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
+                        range = r;
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                }
+            });
+            return range;
+        }
+    });
+
+    Object.defineProperty(Process, 'getRangeByAddress', {
+        enumerable: true,
+        value: function (address) {
+            var range = Process.findRangeByAddress(address);
+            if (range === null)
+                throw new Error("Unable to find range containing " + address);
+            return range;
         }
     });
 
@@ -210,28 +297,6 @@
                 }
             });
             return ranges;
-        }
-    });
-
-    Object.defineProperty(Process, 'getModuleByName', {
-        enumerable: true,
-        value: function (name) {
-            var module = null;
-            var nameLowercase = name.toLowerCase();
-            Process.enumerateModules({
-                onMatch: function (m) {
-                    if (m.name.toLowerCase() === nameLowercase) {
-                        module = m;
-                        return 'stop';
-                    }
-                },
-                onComplete: function () {
-                    if (!module) {
-                        throw new Error("Unable to find module '" + name + "'");
-                    }
-                }
-            });
-            return module;
         }
     });
 
