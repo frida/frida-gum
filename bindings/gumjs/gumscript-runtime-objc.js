@@ -19,6 +19,7 @@
     function Runtime() {
         const pointerSize = Process.pointerSize;
         const api = getApi();
+        const realizedClasses = new Set([]);
         const classRegistry = new ClassRegistry();
         const protocolRegistry = new ProtocolRegistry();
         const scheduledCallbacks = [];
@@ -377,6 +378,18 @@
             let weakRef = null;
 
             handle = getHandle(handle);
+
+            if (cachedIsClass === undefined) {
+                // We need to ensure the class is realized, otherwise calling APIs like object_isClass() will crash.
+                // The first message delivery will realize the class, but users intercepting calls to objc_msgSend()
+                // and inspecting the first argument will run into this situation.
+                const klass = api.object_getClass(handle);
+                const key = klass.toString();
+                if (!realizedClasses.has(key)) {
+                    api.objc_lookUpClass(api.class_getName(klass));
+                    realizedClasses.add(key);
+                }
+            }
 
             const self = Proxy.create({
                 has(name) {
