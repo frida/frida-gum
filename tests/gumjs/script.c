@@ -1441,10 +1441,7 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
       "        .length > 0);"
       "  },"
       "  onLeave: function (retval) {"
-      "    try {"
-      "      send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
-      "    } catch (e) {"
-      "    }"
+      "    send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
       "  }"
       "});",
       target_function_int);
@@ -1452,9 +1449,7 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("true");
-#if !(defined (HAVE_IOS) && defined (HAVE_ARM64))
   EXPECT_SEND_MESSAGE_WITH ("true");
-#endif
   EXPECT_NO_MESSAGES ();
 }
 
