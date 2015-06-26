@@ -27,8 +27,6 @@
 #define GUM_RV_VALUE        0
 #define GUM_RV_INVOCATION   1
 
-#define GUM_RETVAL_ 0
-
 using namespace v8;
 
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
@@ -47,6 +45,8 @@ struct _GumScriptReplaceEntry
   GumPersistent<Value>::type * replacement;
 };
 
+static Local<Object> gum_script_interceptor_create_invocation_context_object (
+    GumScriptInterceptor * self, GumInvocationContext * context, int32_t depth);
 static void gum_script_interceptor_detach_cpu_context (
     GumScriptInterceptor * self, Handle<Object> invocation_context);
 
@@ -271,32 +271,35 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
       gum_invocation_context_get_listener_function_data (context));
   int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
 
-  GumScriptCore * core = self->core;
-  ScriptScope scope (core->script);
-  Isolate * isolate = core->isolate;
-
-  Local<Object> invocation_context_value (Local<Object>::New (isolate,
-      *self->invocation_context_value));
-  Local<Object> receiver (invocation_context_value->Clone ());
-  receiver->SetAlignedPointerInInternalField (GUM_IC_INVOCATION, context);
-  receiver->SetInternalField (GUM_IC_DEPTH, Integer::New (isolate, *depth));
-  GumPersistent<Value>::type * persistent_receiver =
-      new GumPersistent<Value>::type (isolate, receiver);
-  *GUM_LINCTX_GET_FUNC_INVDATA (context,
-      GumPersistent<Value>::type *) = persistent_receiver;
-
-  if (entry->on_enter != NULL)
+  if (entry->on_enter != nullptr)
   {
+    GumScriptCore * core = self->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
+
+    Local<Object> receiver (
+        gum_script_interceptor_create_invocation_context_object (self, context,
+        *depth));
+
     Local<Object> invocation_args_value (Local<Object>::New (isolate,
         *self->invocation_args_value));
     Local<Object> args (invocation_args_value->Clone ());
     args->SetAlignedPointerInInternalField (GUM_ARGS_INVOCATION, context);
-
-    Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
     Handle<Value> argv[] = { args };
+
     on_enter->Call (receiver, 1, argv);
 
     gum_script_interceptor_detach_cpu_context (self, receiver);
+
+    if (entry->on_leave != nullptr)
+    {
+      GumPersistent<Value>::type * persistent_receiver =
+          new GumPersistent<Value>::type (isolate, receiver);
+      *GUM_LINCTX_GET_FUNC_INVDATA (context,
+          GumPersistent<Value>::type *) = persistent_receiver;
+    }
   }
 
   (*depth)++;
@@ -315,15 +318,22 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
 
   (*depth)--;
 
-  ScriptScope scope (self->core->script);
-  Isolate * isolate = self->core->isolate;
-
-  GumPersistent<Object>::type * persistent_receiver =
-      *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Object>::type *);
-  Local<Object> receiver (Local<Object>::New (isolate, *persistent_receiver));
-
-  if (entry->on_leave != NULL)
+  if (entry->on_leave != nullptr)
   {
+    ScriptScope scope (self->core->script);
+    Isolate * isolate = self->core->isolate;
+
+    Local<Function> on_leave (Local<Function>::New (isolate, *entry->on_leave));
+
+    GumPersistent<Object>::type * persistent_receiver =
+        (entry->on_enter != nullptr)
+        ? *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Object>::type *)
+        : nullptr;
+    Local<Object> receiver ((persistent_receiver != nullptr)
+        ? Local<Object>::New (isolate, *persistent_receiver)
+        : gum_script_interceptor_create_invocation_context_object (self,
+        context, *depth));
+
     Local<Object> invocation_return_value (Local<Object>::New (isolate,
         *self->invocation_return_value));
     Local<Object> return_value (invocation_return_value->Clone ());
@@ -331,14 +341,28 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
         gum_invocation_context_get_return_value (context)));
     return_value->SetAlignedPointerInInternalField (GUM_RV_INVOCATION, context);
 
-    Local<Function> on_leave (Local<Function>::New (isolate, *entry->on_leave));
     Handle<Value> argv[] = { return_value };
     on_leave->Call (receiver, 1, argv);
 
     gum_script_interceptor_detach_cpu_context (self, receiver);
-  }
 
-  delete persistent_receiver;
+    delete persistent_receiver;
+  }
+}
+
+static Local<Object>
+gum_script_interceptor_create_invocation_context_object (
+    GumScriptInterceptor * self,
+    GumInvocationContext * context,
+    int32_t depth)
+{
+  Isolate * isolate = self->core->isolate;
+  Local<Object> invocation_context_value (Local<Object>::New (isolate,
+      *self->invocation_context_value));
+  Local<Object> result (invocation_context_value->Clone ());
+  result->SetAlignedPointerInInternalField (GUM_IC_INVOCATION, context);
+  result->SetInternalField (GUM_IC_DEPTH, Integer::New (isolate, depth));
+  return result;
 }
 
 static void

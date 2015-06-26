@@ -1527,15 +1527,54 @@ SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
 
 SCRIPT_TESTCASE (interceptor_performance)
 {
+  GTimer * timer;
+  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
+
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
-      "  },"
-      "  onLeave: function (retval) {"
       "  }"
       "});", target_function_int);
-  /* while (TRUE) */
+
+#if 1
+  timer = g_timer_new ();
+
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
     target_function_int (7);
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
+    gdouble elapsed;
+
+    g_timer_reset (timer);
+    target_function_int (7);
+    elapsed = g_timer_elapsed (timer, NULL);
+
+    measurement[i] = elapsed * G_USEC_PER_SEC;
+  }
+
+  t_min = G_MAXUINT;
+  t_max = 0;
+  t_total = 0;
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
+    guint m = measurement[i];
+
+    t_min = MIN (m, t_min);
+    t_max = MAX (m, t_max);
+    t_total += m;
+  }
+  t_avg = t_total / G_N_ELEMENTS (measurement);
+
+  g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
+
+  g_timer_destroy (timer);
+#else
+  while (TRUE)
+    target_function_int (7);
+#endif
 }
 
 SCRIPT_TESTCASE (memory_can_be_scanned)
