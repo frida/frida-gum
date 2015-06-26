@@ -62,7 +62,7 @@ void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self, GumArm64Reg reg,
 void gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
     GumArm64Reg reg, gconstpointer label_id);
 
-void gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self, GumAddress pc);
+void gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self);
 void gum_arm64_writer_put_pop_cpu_context (GumArm64Writer * self);
 void gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self, GumArm64Reg reg_a, GumArm64Reg reg_b);
 void gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self, GumArm64Reg reg_a, GumArm64Reg reg_b);

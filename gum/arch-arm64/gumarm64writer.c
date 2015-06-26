@@ -504,8 +504,7 @@ gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
 }
 
 void
-gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self,
-                                       GumAddress pc)
+gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self)
 {
   /* upper part */
   gum_arm64_writer_put_push_reg_reg (self, GUM_A64REG_FP, GUM_A64REG_LR);
@@ -529,9 +528,9 @@ gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self,
       GUM_A64REG_SP, 30 * 8);
   gum_arm64_writer_put_push_reg_reg (self, GUM_A64REG_X1, GUM_A64REG_X0);
 
-  /* alignment padding + PC */
-  gum_arm64_writer_put_ldr_reg_address (self, GUM_A64REG_X0, pc);
-  gum_arm64_writer_put_push_reg_reg (self, GUM_A64REG_X0, GUM_A64REG_X0);
+  /* alignment padding + dummy PC */
+  gum_arm64_writer_put_sub_reg_reg_imm (self, GUM_A64REG_SP,
+      GUM_A64REG_SP, 16);
 }
 
 void

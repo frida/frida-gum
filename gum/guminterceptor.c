@@ -777,7 +777,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 #elif defined (HAVE_ARM)
     cpu_context->pc = (guint32) *caller_ret_addr;
 #elif defined (HAVE_ARM64)
-    /* handled by the trampoline code */
+    cpu_context->pc = (guint64) *caller_ret_addr;
 #else
 # error Unsupported architecture
 #endif
@@ -865,7 +865,7 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 #elif defined (HAVE_ARM)
   cpu_context->pc = (guint32) *caller_ret_addr;
 #elif defined (HAVE_ARM64)
-  /* handled by the trampoline code */
+  cpu_context->pc = (guint64) *caller_ret_addr;
 #else
 # error Unsupported architecture
 #endif
