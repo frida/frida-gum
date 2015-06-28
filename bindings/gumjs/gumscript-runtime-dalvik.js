@@ -1728,6 +1728,18 @@
             return javaLangReflectGenericArrayType;
         };
 
+        let javaLangString = null;
+        Env.prototype.javaLangString = function () {
+            if (javaLangString === null) {
+                const handle = this.findClass("java/lang/String");
+                javaLangString = {
+                    handle: register(this.newGlobalRef(handle))
+                };
+                this.deleteLocalRef(handle);
+            }
+            return javaLangString;
+        };
+
         Env.prototype.getClassName = function (classHandle) {
             var name = this.method('pointer', [])(this.handle, classHandle, this.javaLangClass().getName);
             var result = this.stringFromJni(name);
