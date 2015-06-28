@@ -67,6 +67,11 @@ struct _InterceptorThreadContext
   GumInvocationStack * stack;
 
   GumArray * listener_data_slots;
+
+#ifdef HAVE_QNX
+  gpointer thread_side_stack;
+  guint thread_side_stack_size;
+#endif
 };
 
 struct _GumInvocationStackEntry
@@ -147,6 +152,11 @@ static gboolean is_patched_function (GumInterceptor * self,
 
 static void gum_function_context_wait_for_idle_trampoline (
     FunctionContext * ctx);
+
+#ifdef HAVE_QNX
+static void _gum_exec_callback_func_with_side_stack (GumInvocationListener * listener_instance,
+    GumInvocationContext * invocation_ctx, gpointer func, gpointer side_stack);
+#endif
 
 static GMutex _gum_interceptor_mutex;
 static GumInterceptor * _the_interceptor = NULL;
@@ -804,8 +814,14 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       state.invocation_data = stack_entry->listener_invocation_data[i];
       invocation_ctx->backend->data = &state;
 
+#ifdef HAVE_QNX
+      _gum_exec_callback_func_with_side_stack (entry->listener_instance, invocation_ctx,
+        entry->listener_interface->on_enter,
+        interceptor_ctx->thread_side_stack + interceptor_ctx->thread_side_stack_size - 4);
+#else
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
+#endif
     }
 
 #ifdef G_OS_WIN32
@@ -884,8 +900,14 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     state.invocation_data = stack_entry->listener_invocation_data[i];
     invocation_ctx->backend->data = &state;
 
+#ifdef HAVE_QNX
+    _gum_exec_callback_func_with_side_stack (entry->listener_instance, invocation_ctx,
+      entry->listener_interface->on_leave,
+      interceptor_ctx->thread_side_stack + interceptor_ctx->thread_side_stack_size - 4);
+#else
     entry->listener_interface->on_leave (entry->listener_instance,
         invocation_ctx);
+#endif
   }
 
 #ifdef G_OS_WIN32
@@ -900,6 +922,23 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 #endif
 }
+
+#ifdef HAVE_QNX
+__attribute__ ((naked))
+static void
+_gum_exec_callback_func_with_side_stack (GumInvocationListener * listener_instance,
+                               GumInvocationContext * invocation_ctx,
+                               gpointer func,
+                               gpointer side_stack)
+{
+  __asm__ ("stmfd sp!, {r4, lr}\n\t"
+      "mov r4, sp\n\t"
+      "mov sp, r3\n\t"
+      "blx r2\n\t"
+      "mov sp, r4\n\t"
+      "ldmfd sp!, {r4, pc}");
+}
+#endif
 
 gboolean
 _gum_function_context_try_begin_invocation (FunctionContext * function_ctx,
@@ -1085,6 +1124,12 @@ interceptor_thread_context_new (void)
   context->listener_data_slots = gum_array_sized_new (FALSE, TRUE,
       sizeof (ListenerDataSlot), GUM_MAX_LISTENERS_PER_FUNCTION);
 
+#ifdef HAVE_QNX
+  context->thread_side_stack_size = 2 * 1024 * 1024;
+  context->thread_side_stack = gum_alloc_n_pages (
+      context->thread_side_stack_size / gum_query_page_size (), GUM_PAGE_RW);
+#endif
+
   return context;
 }
 
@@ -1094,6 +1139,10 @@ interceptor_thread_context_destroy (InterceptorThreadContext * context)
   gum_array_free (context->listener_data_slots, TRUE);
 
   gum_array_free (context->stack, TRUE);
+
+#ifdef HAVE_QNX
+  gum_free (context->thread_side_stack);
+#endif
 
   gum_free (context);
 }
