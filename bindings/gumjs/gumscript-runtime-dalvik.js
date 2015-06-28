@@ -450,7 +450,7 @@
                         env.deleteLocalRef(types);
                     }
 
-                    jsMethods.push(makeMethod(CONSTRUCTOR_METHOD, methodId, jsRetType, jsArgTypes, env));
+                    jsMethods.push(makeMethod(basename(name), CONSTRUCTOR_METHOD, methodId, jsRetType, jsArgTypes, env));
                 }
                 env.deleteLocalRef(constructors);
 
@@ -549,7 +549,7 @@
                         env.deleteLocalRef(argTypes);
                     }
 
-                    return makeMethod(jsType, methodId, jsRetType, jsArgTypes, env);
+                    return makeMethod(name, jsType, methodId, jsRetType, jsArgTypes, env);
                 }).filter(function (m) {
                     return m !== null;
                 });
@@ -725,7 +725,7 @@
                 return f;
             };
 
-            var makeMethod = function (type, methodId, retType, argTypes, env) {
+            var makeMethod = function (methodName, type, methodId, retType, argTypes, env) {
                 var targetMethodId = methodId;
                 var originalMethodId = null;
 
@@ -777,7 +777,7 @@
                     }
                 }
                 let f;
-                eval("f = function (" + argVariableNames.join(", ") + ") {" +
+                eval("f = function " + methodName +"(" + argVariableNames.join(", ") + ") {" +
                     "var env = vm.getEnv();" +
                     "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
                         "env.exceptionClear();" +
@@ -975,6 +975,7 @@
             var type = method.type;
             var retType = method.returnType;
             var argTypes = method.argumentTypes;
+            var methodName = method.name;
             var rawRetType = retType.type;
             var rawArgTypes = argTypes.map(function (t) { return t.type; });
 
@@ -1003,7 +1004,7 @@
                             "if (retType.isCompatible.call(this, result)) {" +
                                 "rawResult = retType.toJni.call(this, result, env);" +
                             "} else {" +
-                                "throw new Error(\"Expected return value compatible with '" + retType.className + "'.\");" +
+                                "throw new Error(\"Implementation for " + methodName + " expected return value compatible with '" + retType.className + "'.\");" +
                             "}";
                     if (retType.type === 'pointer') {
                         returnStatements += "} catch (e) {" +
@@ -1027,7 +1028,7 @@
                 }
             }
             let f;
-            eval("f = function (" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
+            eval("f = function " + methodName + "(" + ["envHandle", "thisHandle"].concat(argVariableNames).join(", ") + ") {" +
                 "var env = new Env(envHandle);" +
                 "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
                     "return;" +
