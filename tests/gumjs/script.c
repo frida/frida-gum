@@ -70,6 +70,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (long_can_be_written)
   SCRIPT_TESTENTRY (ulong_can_be_read)
   SCRIPT_TESTENTRY (ulong_can_be_written)
+  SCRIPT_TESTENTRY (float_can_be_read)
+  SCRIPT_TESTENTRY (float_can_be_written)
+  SCRIPT_TESTENTRY (double_can_be_read)
+  SCRIPT_TESTENTRY (double_can_be_written)
   SCRIPT_TESTENTRY (byte_array_can_be_read)
   SCRIPT_TESTENTRY (byte_array_can_be_written)
   SCRIPT_TESTENTRY (c_string_can_be_read)
@@ -1952,6 +1956,36 @@ SCRIPT_TESTCASE (ulong_can_be_written)
   g_assert_cmpint (val, ==, 4294967295);
 }
 
+SCRIPT_TESTCASE (float_can_be_read)
+{
+  float val = 123.456f;
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readFloat(" GUM_PTR_CONST ") - 123.456) < 0.00001);", &val);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (float_can_be_written)
+{
+  float val = 0.f;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeFloat(" GUM_PTR_CONST ", 123.456);",
+    &val);
+  g_assert_cmpfloat (ABS (val - 123.456f), <, 0.00001f);
+}
+
+SCRIPT_TESTCASE (double_can_be_read)
+{
+  double val = 123.456;
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readDouble(" GUM_PTR_CONST ") - 123.456)  < 0.00001);", &val);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
+
+SCRIPT_TESTCASE (double_can_be_written)
+{
+  double val = 0.0;
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeDouble(" GUM_PTR_CONST ", 123.456);",
+    &val);
+  g_assert_cmpfloat (ABS (val - 123.456), <, 0.00001);
+}
+
 SCRIPT_TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
@@ -2174,6 +2208,8 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
       "U16",
       "S32",
       "U32",
+      "Float",
+      "Double",
       /*
        * We don't know if the compiler will decide to access the lower or higher
        * part first, so we can't know the exact error message for these two.
@@ -2212,6 +2248,8 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
       "U16",
       "S32",
       "U32",
+      "Float",
+      "Double",
 #if GLIB_SIZEOF_VOID_P == 8
       "S64",
       "U64"
