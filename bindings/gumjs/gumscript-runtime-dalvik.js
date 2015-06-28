@@ -999,18 +999,21 @@
                     frameCapacity++;
                     returnCapture = "var result = ";
                     returnStatements = "var rawResult;" +
-                        "try {";
+                        "try {" +
+                            "if (retType.isCompatible.call(this, result)) {" +
+                                "rawResult = retType.toJni.call(this, result, env);" +
+                            "} else {" +
+                                "throw new Error(\"Expected return value compatible with '" + retType.className + "'.\");" +
+                            "}";
                     if (retType.type === 'pointer') {
-                        returnStatements += "rawResult = retType.toJni.call(this, result, env);" +
-                            "} catch (e) {" +
+                        returnStatements += "} catch (e) {" +
                                 "env.popLocalFrame(NULL);" +
                                 "throw e;" +
                             "}" +
                             "return env.popLocalFrame(rawResult);";
                         returnNothing = "return NULL;";
                     } else {
-                        returnStatements += "rawResult = retType.toJni.call(this, result, env);" +
-                            "} finally {" +
+                        returnStatements += "} finally {" +
                                 "env.popLocalFrame(NULL);" +
                             "}" +
                             "return rawResult;";
@@ -1113,14 +1116,19 @@
                 type: 'int8',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'number';
+                    return Number.isInteger(v) && v >= -128 && v <= 127;
                 }
             },
             'char': {
                 type: 'uint16',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'string' && v.length === 1;
+                    if (typeof v === 'string' && v.length === 1) {
+                        const charCode = v.charCodeAt(0);
+                        return charCode >= 0 && charCode <= 65535;
+                    } else {
+                        return false;
+                    }
                 },
                 fromJni: function (c) {
                     return String.fromCharCode(c);
@@ -1133,21 +1141,22 @@
                 type: 'int16',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'number';
+                    return Number.isInteger(v) && v >= -32768 && v <= 32767;
                 }
             },
             'int': {
                 type: 'int32',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'number';
+                    return Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
                 }
             },
             'long': {
                 type: 'int64',
                 size: 2,
                 isCompatible: function (v) {
-                    return typeof v === 'number';
+                    // JavaScripts safe integer range is to small for it
+                    return Number.isInteger(v); // && v >= -9223372036854775808 && v <= 9223372036854775807;
                 }
             },
             'float': {
@@ -1167,15 +1176,15 @@
             'void': {
                 type: 'void',
                 size: 0,
-                isCompatible: function () {
-                    return false;
+                isCompatible: function (v) {
+                    return v === undefined;
                 }
             },
             '[B': {
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'object' && v.hasOwnProperty('length');
+                    return isCompatiblePrimitiveArray(v, 'byte');
                 },
                 fromJni: function () {
                     throw new Error("Not yet implemented ([B)");
@@ -1188,7 +1197,7 @@
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'object' && v.hasOwnProperty('length');
+                    return isCompatiblePrimitiveArray(v, 'char');
                 },
                 fromJni: function () {
                     throw new Error("Not yet implemented ([C)");
@@ -1201,7 +1210,7 @@
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'object' && v.hasOwnProperty('length');
+                    return isCompatiblePrimitiveArray(v, 'int');
                 },
                 fromJni: function () {
                     throw new Error("Not yet implemented ([I)");
@@ -1214,7 +1223,8 @@
                 type: 'pointer',
                 size: 1,
                 isCompatible: function (v) {
-                    return typeof v === 'object' && v.hasOwnProperty('length') && (v.length === 0 || typeof v[0] === 'string');
+                    return typeof v === 'object' && v.hasOwnProperty('length') &&
+                        Array.prototype.every.call(v, elem => typeof elem === 'string');
                 },
                 fromJni: function (h, env) {
                     var result = [];
@@ -1237,6 +1247,11 @@
                 }
             }
         };
+
+        function isCompatiblePrimitiveArray(v, typename) {
+            return typeof v === 'object' && v.hasOwnProperty('length') &&
+                Array.prototype.every.call(v, elem => types[typename].isCompatible(elem));
+        }
 
         var objectType = function (className, unbox) {
             return {
