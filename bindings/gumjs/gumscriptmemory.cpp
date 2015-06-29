@@ -65,6 +65,8 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_U32,
   GUM_MEMORY_VALUE_S64,
   GUM_MEMORY_VALUE_U64,
+  GUM_MEMORY_VALUE_FLOAT,
+  GUM_MEMORY_VALUE_DOUBLE,
   GUM_MEMORY_VALUE_BYTE_ARRAY,
   GUM_MEMORY_VALUE_C_STRING,
   GUM_MEMORY_VALUE_UTF8_STRING,
@@ -178,6 +180,8 @@ GUM_DEFINE_MEMORY_READ_WRITE (S32)
 GUM_DEFINE_MEMORY_READ_WRITE (U32)
 GUM_DEFINE_MEMORY_READ_WRITE (S64)
 GUM_DEFINE_MEMORY_READ_WRITE (U64)
+GUM_DEFINE_MEMORY_READ_WRITE (FLOAT)
+GUM_DEFINE_MEMORY_READ_WRITE (DOUBLE)
 GUM_DEFINE_MEMORY_READ_WRITE (BYTE_ARRAY)
 GUM_DEFINE_MEMORY_READ (C_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
@@ -212,6 +216,8 @@ _gum_script_memory_init (GumScriptMemory * self,
   GUM_EXPORT_MEMORY_READ_WRITE ("U32", U32);
   GUM_EXPORT_MEMORY_READ_WRITE ("S64", S64);
   GUM_EXPORT_MEMORY_READ_WRITE ("U64", U64);
+  GUM_EXPORT_MEMORY_READ_WRITE ("Float", FLOAT);
+  GUM_EXPORT_MEMORY_READ_WRITE ("Double", DOUBLE);
   GUM_EXPORT_MEMORY_READ_WRITE ("ByteArray", BYTE_ARRAY);
   GUM_EXPORT_MEMORY_READ ("CString", C_STRING);
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING);
@@ -630,6 +636,13 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
       case GUM_MEMORY_VALUE_U64:
         result = Number::New (isolate, *static_cast<const guint64 *> (address));
         break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        result = Number::New (isolate, *static_cast<const gfloat *> (address));
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        result = Number::New (isolate,
+            *static_cast<const gdouble *> (address));
+        break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
         const guint8 * data = static_cast<const guint8 *> (address);
@@ -879,6 +892,18 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       {
         guint64 value = info[1]->IntegerValue ();
         *static_cast<guint64 *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_FLOAT:
+      {
+        gfloat value = info[1]->NumberValue ();
+        *static_cast<gfloat *> (address) = value;
+        break;
+      }
+      case GUM_MEMORY_VALUE_DOUBLE:
+      {
+        gdouble value = info[1]->NumberValue ();
+        *static_cast<gdouble *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
