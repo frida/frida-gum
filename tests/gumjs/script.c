@@ -1968,7 +1968,7 @@ SCRIPT_TESTCASE (float_can_be_written)
 {
   float val = 0.f;
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeFloat(" GUM_PTR_CONST ", 123.456);",
-    &val);
+      &val);
   g_assert_cmpfloat (ABS (val - 123.456f), <, 0.00001f);
 }
 
@@ -1984,7 +1984,7 @@ SCRIPT_TESTCASE (double_can_be_written)
 {
   double val = 0.0;
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeDouble(" GUM_PTR_CONST ", 123.456);",
-    &val);
+      &val);
   g_assert_cmpfloat (ABS (val - 123.456), <, 0.00001);
 }
 
