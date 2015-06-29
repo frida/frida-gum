@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -303,7 +303,7 @@ gpointer
 _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
                                               guint n)
 {
-  if (n < 4)
+  if (n < 8)
   {
     return (gpointer) context->cpu_context->x[n];
   }
@@ -311,7 +311,7 @@ _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
   {
     gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
 
-    return stack_argument[n - 4];
+    return stack_argument[n - 8];
   }
 }
 
@@ -321,7 +321,7 @@ _gum_interceptor_invocation_replace_nth_argument (
     guint n,
     gpointer value)
 {
-  if (n < 4)
+  if (n < 8)
   {
     context->cpu_context->x[n] = (guint64) value;
   }
@@ -329,7 +329,7 @@ _gum_interceptor_invocation_replace_nth_argument (
   {
     gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
 
-    stack_argument[n - 4] = value;
+    stack_argument[n - 8] = value;
   }
 }
 
