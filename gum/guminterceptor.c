@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -33,7 +33,7 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 #define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
 #ifdef HAVE_QNX
-#define GUM_THREAD_SIDE_STACK_SIZE  2 * 1024 * 1024
+# define GUM_THREAD_SIDE_STACK_SIZE (2 * 1024 * 1024)
 #endif
 
 typedef struct _ListenerEntry            ListenerEntry;
