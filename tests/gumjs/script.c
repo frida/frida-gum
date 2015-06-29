@@ -1959,7 +1959,8 @@ SCRIPT_TESTCASE (ulong_can_be_written)
 SCRIPT_TESTCASE (float_can_be_read)
 {
   float val = 123.456f;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readFloat(" GUM_PTR_CONST ") - 123.456) < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readFloat(" GUM_PTR_CONST
+      ") - 123.456) < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
@@ -1974,7 +1975,8 @@ SCRIPT_TESTCASE (float_can_be_written)
 SCRIPT_TESTCASE (double_can_be_read)
 {
   double val = 123.456;
-  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readDouble(" GUM_PTR_CONST ") - 123.456)  < 0.00001);", &val);
+  COMPILE_AND_LOAD_SCRIPT ("send(Math.abs(Memory.readDouble(" GUM_PTR_CONST
+      ") - 123.456)  < 0.00001);", &val);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

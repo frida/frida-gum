@@ -640,7 +640,8 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
         result = Number::New (isolate, *static_cast<const gfloat *> (address));
         break;
       case GUM_MEMORY_VALUE_DOUBLE:
-        result = Number::New (isolate, *static_cast<const gdouble *> (address));
+        result = Number::New (isolate,
+            *static_cast<const gdouble *> (address));
         break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
