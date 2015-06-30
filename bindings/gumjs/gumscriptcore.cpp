@@ -226,6 +226,10 @@ _gum_script_core_init (GumScriptCore * self,
                        v8::Isolate * isolate,
                        Handle<ObjectTemplate> scope)
 {
+  GumScriptFlavor flavor;
+
+  g_object_get (script, "flavor", &flavor, NULL);
+
   self->script = script;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
@@ -313,27 +317,30 @@ _gum_script_core_init (GumScriptCore * self,
   self->native_pointer =
       new GumPersistent<FunctionTemplate>::type (isolate, native_pointer);
 
-  Local<FunctionTemplate> native_function = FunctionTemplate::New (isolate,
-      gum_script_core_on_new_native_function, data);
-  native_function->SetClassName (
-      String::NewFromUtf8 (isolate, "NativeFunction"));
-  native_function->Inherit (native_pointer);
-  Local<ObjectTemplate> native_function_object =
-      native_function->InstanceTemplate ();
-  native_function_object->SetCallAsFunctionHandler (
-      gum_script_core_on_invoke_native_function, data);
-  native_function_object->SetInternalFieldCount (2);
-  scope->Set (String::NewFromUtf8 (isolate, "NativeFunction"),
-      native_function);
+  if (flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    Local<FunctionTemplate> native_function = FunctionTemplate::New (isolate,
+        gum_script_core_on_new_native_function, data);
+    native_function->SetClassName (
+        String::NewFromUtf8 (isolate, "NativeFunction"));
+    native_function->Inherit (native_pointer);
+    Local<ObjectTemplate> native_function_object =
+        native_function->InstanceTemplate ();
+    native_function_object->SetCallAsFunctionHandler (
+        gum_script_core_on_invoke_native_function, data);
+    native_function_object->SetInternalFieldCount (2);
+    scope->Set (String::NewFromUtf8 (isolate, "NativeFunction"),
+        native_function);
 
-  Local<FunctionTemplate> native_callback = FunctionTemplate::New (isolate,
-      gum_script_core_on_new_native_callback, data);
-  native_callback->SetClassName (
-      String::NewFromUtf8 (isolate, "NativeCallback"));
-  native_callback->Inherit (native_pointer);
-  native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::NewFromUtf8 (isolate, "NativeCallback"),
-      native_callback);
+    Local<FunctionTemplate> native_callback = FunctionTemplate::New (isolate,
+        gum_script_core_on_new_native_callback, data);
+    native_callback->SetClassName (
+        String::NewFromUtf8 (isolate, "NativeCallback"));
+    native_callback->Inherit (native_pointer);
+    native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
+    scope->Set (String::NewFromUtf8 (isolate, "NativeCallback"),
+        native_callback);
+  }
 
   Local<FunctionTemplate> cpu_context = FunctionTemplate::New (isolate,
       gum_script_core_on_new_cpu_context, data);

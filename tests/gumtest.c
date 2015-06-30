@@ -167,6 +167,9 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (script_darwin);
 # endif
 #endif
+#ifdef HAVE_IOS
+  TEST_RUN_LIST (kscript);
+#endif
 
 #ifdef G_OS_WIN32
   /* Gum++ */

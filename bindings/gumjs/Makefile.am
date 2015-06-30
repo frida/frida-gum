@@ -33,6 +33,8 @@ libfrida_gumjs_la_SOURCES = \
 	gumscriptscope.cpp \
 	gumscriptcore.h \
 	gumscriptcore.cpp \
+	gumscriptkernel.h \
+	gumscriptkernel.cpp \
 	gumscriptmemory.h \
 	gumscriptmemory.cpp \
 	gumscriptprocess.h \

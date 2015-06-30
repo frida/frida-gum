@@ -190,8 +190,8 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   source = g_strdup_vprintf (source_template, args);
   va_end (args);
 
-  fixture->script =
-      gum_script_from_string_sync ("testcase", source, NULL, &err);
+  fixture->script = gum_script_from_string_sync ("testcase", source,
+      GUM_SCRIPT_FLAVOR_USER, NULL, &err);
   g_assert (fixture->script != NULL);
   g_assert (err == NULL);
 

@@ -2,6 +2,10 @@
 (function () {
     "use strict";
 
+    const flavor = typeof Process === 'undefined' ? 'kernel' : 'user';
+    if (flavor !== 'user')
+        return;
+
     let _runtime = null;
     let _api = null;
     let cachedObjCApi = {};

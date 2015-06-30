@@ -30,6 +30,13 @@ G_BEGIN_DECLS
 typedef struct _GumScript           GumScript;
 typedef struct _GumScriptClass      GumScriptClass;
 typedef struct _GumScriptPrivate    GumScriptPrivate;
+typedef guint                       GumScriptFlavor;
+
+enum _GumScriptFlavor
+{
+  GUM_SCRIPT_FLAVOR_KERNEL,
+  GUM_SCRIPT_FLAVOR_USER
+};
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
     const gchar * message, const guint8 * data, gint data_length,
@@ -52,12 +59,13 @@ struct _GumScriptClass
 GUM_API GType gum_script_get_type (void) G_GNUC_CONST;
 
 GUM_API void gum_script_from_string (const gchar * name,
-    const gchar * source, GCancellable * cancellable,
+    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
 GUM_API GumScript * gum_script_from_string_finish (GAsyncResult * result,
     GError ** error);
 GUM_API GumScript * gum_script_from_string_sync (const gchar * name,
-    const gchar * source, GCancellable * cancellable, GError ** error);
+    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
+    GError ** error);
 
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 

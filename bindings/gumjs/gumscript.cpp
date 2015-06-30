@@ -35,6 +35,7 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
+  PROP_FLAVOR,
   PROP_MAIN_CONTEXT
 };
 
@@ -42,6 +43,7 @@ struct _GumScriptFromStringData
 {
   gchar * name;
   gchar * source;
+  GumScriptFlavor flavor;
 };
 
 struct _GumScriptEmitMessageData
@@ -73,7 +75,7 @@ static void gum_script_set_property (GObject * object, guint property_id,
 static void gum_script_destroy_context (GumScript * self);
 
 static GumScriptTask * gum_script_from_string_task_new (const gchar * name,
-    const gchar * source, GCancellable * cancellable,
+    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
 static void gum_script_from_string_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
@@ -191,6 +193,11 @@ gum_script_class_init (GumScriptClass * klass)
       g_param_spec_string ("source", "Source", "Source code", NULL,
       (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (object_class, PROP_FLAVOR,
+      g_param_spec_uint ("flavor", "Flavor", "Flavor", GUM_SCRIPT_FLAVOR_KERNEL,
+      GUM_SCRIPT_FLAVOR_USER, GUM_SCRIPT_FLAVOR_USER,
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
       "MainContext being used", G_TYPE_MAIN_CONTEXT,
@@ -278,6 +285,9 @@ gum_script_get_property (GObject * object,
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
       break;
+    case PROP_FLAVOR:
+      g_value_set_uint (value, priv->flavor);
+      break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, priv->main_context);
       break;
@@ -305,6 +315,9 @@ gum_script_set_property (GObject * object,
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
       break;
+    case PROP_FLAVOR:
+      priv->flavor = g_value_get_uint (value);
+      break;
     case PROP_MAIN_CONTEXT:
       if (priv->main_context != NULL)
         g_main_context_unref (priv->main_context);
@@ -327,33 +340,47 @@ gum_script_create_context (GumScript * self,
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
     _gum_script_core_init (&priv->core, self, gum_script_emit_message,
         gum_script_get_scheduler (), priv->isolate, global_templ);
-    _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
-    _gum_script_process_init (&priv->process, &priv->core, global_templ);
-    _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
-    _gum_script_module_init (&priv->module, &priv->core, global_templ);
-    _gum_script_file_init (&priv->file, &priv->core, global_templ);
-    _gum_script_socket_init (&priv->socket, &priv->core, global_templ);
-    _gum_script_interceptor_init (&priv->interceptor, &priv->core,
-        global_templ);
-    _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
-    _gum_script_symbol_init (&priv->symbol, &priv->core, global_templ);
-    _gum_script_instruction_init (&priv->instruction, &priv->core,
-        global_templ);
+    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+    {
+      _gum_script_memory_init (&priv->memory, &priv->core, global_templ);
+      _gum_script_process_init (&priv->process, &priv->core, global_templ);
+      _gum_script_thread_init (&priv->thread, &priv->core, global_templ);
+      _gum_script_module_init (&priv->module, &priv->core, global_templ);
+      _gum_script_file_init (&priv->file, &priv->core, global_templ);
+      _gum_script_socket_init (&priv->socket, &priv->core, global_templ);
+      _gum_script_interceptor_init (&priv->interceptor, &priv->core,
+          global_templ);
+      _gum_script_stalker_init (&priv->stalker, &priv->core, global_templ);
+      _gum_script_symbol_init (&priv->symbol, &priv->core, global_templ);
+      _gum_script_instruction_init (&priv->instruction, &priv->core,
+          global_templ);
+    }
+    else
+    {
+      _gum_script_kernel_init (&priv->kernel, &priv->core, global_templ);
+    }
 
     Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
     Context::Scope context_scope (context);
     _gum_script_core_realize (&priv->core);
-    _gum_script_memory_realize (&priv->memory);
-    _gum_script_process_realize (&priv->process);
-    _gum_script_thread_realize (&priv->thread);
-    _gum_script_module_realize (&priv->module);
-    _gum_script_file_realize (&priv->file);
-    _gum_script_socket_realize (&priv->socket);
-    _gum_script_interceptor_realize (&priv->interceptor);
-    _gum_script_stalker_realize (&priv->stalker);
-    _gum_script_symbol_realize (&priv->symbol);
-    _gum_script_instruction_realize (&priv->instruction);
+    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+    {
+      _gum_script_memory_realize (&priv->memory);
+      _gum_script_process_realize (&priv->process);
+      _gum_script_thread_realize (&priv->thread);
+      _gum_script_module_realize (&priv->module);
+      _gum_script_file_realize (&priv->file);
+      _gum_script_socket_realize (&priv->socket);
+      _gum_script_interceptor_realize (&priv->interceptor);
+      _gum_script_stalker_realize (&priv->stalker);
+      _gum_script_symbol_realize (&priv->symbol);
+      _gum_script_instruction_realize (&priv->instruction);
+    }
+    else
+    {
+      _gum_script_kernel_realize (&priv->kernel);
+    }
 
     gchar * resource_name_str = g_strconcat (priv->name, ".js",
         (gpointer) NULL);
@@ -405,19 +432,27 @@ gum_script_destroy_context (GumScript * self)
         *priv->context));
     Context::Scope context_scope (context);
 
-    _gum_script_stalker_flush (&priv->stalker);
+    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+      _gum_script_stalker_flush (&priv->stalker);
     _gum_script_core_flush (&priv->core);
 
-    _gum_script_instruction_dispose (&priv->instruction);
-    _gum_script_symbol_dispose (&priv->symbol);
-    _gum_script_stalker_dispose (&priv->stalker);
-    _gum_script_interceptor_dispose (&priv->interceptor);
-    _gum_script_socket_dispose (&priv->socket);
-    _gum_script_file_dispose (&priv->file);
-    _gum_script_module_dispose (&priv->module);
-    _gum_script_thread_dispose (&priv->thread);
-    _gum_script_process_dispose (&priv->process);
-    _gum_script_memory_dispose (&priv->memory);
+    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+    {
+      _gum_script_instruction_dispose (&priv->instruction);
+      _gum_script_symbol_dispose (&priv->symbol);
+      _gum_script_stalker_dispose (&priv->stalker);
+      _gum_script_interceptor_dispose (&priv->interceptor);
+      _gum_script_socket_dispose (&priv->socket);
+      _gum_script_file_dispose (&priv->file);
+      _gum_script_module_dispose (&priv->module);
+      _gum_script_thread_dispose (&priv->thread);
+      _gum_script_process_dispose (&priv->process);
+      _gum_script_memory_dispose (&priv->memory);
+    }
+    else
+    {
+      _gum_script_kernel_dispose (&priv->kernel);
+    }
     _gum_script_core_dispose (&priv->core);
   }
 
@@ -426,16 +461,23 @@ gum_script_destroy_context (GumScript * self)
   delete priv->context;
   priv->context = NULL;
 
-  _gum_script_instruction_finalize (&priv->instruction);
-  _gum_script_symbol_finalize (&priv->symbol);
-  _gum_script_stalker_finalize (&priv->stalker);
-  _gum_script_interceptor_finalize (&priv->interceptor);
-  _gum_script_socket_finalize (&priv->socket);
-  _gum_script_file_finalize (&priv->file);
-  _gum_script_module_finalize (&priv->module);
-  _gum_script_thread_finalize (&priv->thread);
-  _gum_script_process_finalize (&priv->process);
-  _gum_script_memory_finalize (&priv->memory);
+  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    _gum_script_instruction_finalize (&priv->instruction);
+    _gum_script_symbol_finalize (&priv->symbol);
+    _gum_script_stalker_finalize (&priv->stalker);
+    _gum_script_interceptor_finalize (&priv->interceptor);
+    _gum_script_socket_finalize (&priv->socket);
+    _gum_script_file_finalize (&priv->file);
+    _gum_script_module_finalize (&priv->module);
+    _gum_script_thread_finalize (&priv->thread);
+    _gum_script_process_finalize (&priv->process);
+    _gum_script_memory_finalize (&priv->memory);
+  }
+  else
+  {
+    _gum_script_kernel_finalize (&priv->kernel);
+  }
   _gum_script_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
@@ -444,14 +486,15 @@ gum_script_destroy_context (GumScript * self)
 void
 gum_script_from_string (const gchar * name,
                         const gchar * source,
+                        GumScriptFlavor flavor,
                         GCancellable * cancellable,
                         GAsyncReadyCallback callback,
                         gpointer user_data)
 {
   GumScriptTask * task;
 
-  task = gum_script_from_string_task_new (name, source, cancellable, callback,
-      user_data);
+  task = gum_script_from_string_task_new (name, source, flavor, cancellable,
+      callback, user_data);
   gum_script_task_run_in_v8_thread (task, gum_script_get_scheduler ());
   g_object_unref (task);
 }
@@ -467,14 +510,15 @@ gum_script_from_string_finish (GAsyncResult * result,
 GumScript *
 gum_script_from_string_sync (const gchar * name,
                              const gchar * source,
+                             GumScriptFlavor flavor,
                              GCancellable * cancellable,
                              GError ** error)
 {
   GumScript * script;
   GumScriptTask * task;
 
-  task = gum_script_from_string_task_new (name, source, cancellable, NULL,
-      NULL);
+  task = gum_script_from_string_task_new (name, source, flavor, cancellable,
+      NULL, NULL);
   gum_script_task_run_in_v8_thread_sync (task, gum_script_get_scheduler ());
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
@@ -485,6 +529,7 @@ gum_script_from_string_sync (const gchar * name,
 static GumScriptTask *
 gum_script_from_string_task_new (const gchar * name,
                                  const gchar * source,
+                                 GumScriptFlavor flavor,
                                  GCancellable * cancellable,
                                  GAsyncReadyCallback callback,
                                  gpointer user_data)
@@ -492,6 +537,7 @@ gum_script_from_string_task_new (const gchar * name,
   GumScriptFromStringData * d = g_slice_new (GumScriptFromStringData);
   d->name = g_strdup (name);
   d->source = g_strdup (source);
+  d->flavor = flavor;
 
   GumScriptTask * task = gum_script_task_new (gum_script_from_string_task_run,
       NULL, cancellable, callback, user_data);
@@ -514,6 +560,7 @@ gum_script_from_string_task_run (GumScriptTask * task,
   script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
+      "flavor", d->flavor,
       "main-context", gum_script_task_get_context (task),
       NULL));
   isolate = script->priv->isolate;

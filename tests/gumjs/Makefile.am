@@ -10,6 +10,11 @@ libgum_tests_gumjs_la_LIBTOOLFLAGS = \
 	--tag=CC
 endif
 
+if OS_IOS
+os_sources += \
+	kscript.c
+endif
+
 libgum_tests_gumjs_la_SOURCES = \
 	script.c \
 	$(os_sources)

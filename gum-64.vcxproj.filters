@@ -171,6 +171,9 @@
     <ClCompile Include="gum\gumprintf.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumkernel.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumprocess.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -397,6 +400,9 @@
     </ClInclude>
     <ClInclude Include="gum\arch-arm\gumthumbwriter.h">
       <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumkernel.h">
+      <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumprocess.h">
       <Filter>core</Filter>

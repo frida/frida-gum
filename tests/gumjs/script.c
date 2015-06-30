@@ -1025,9 +1025,11 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
 {
   GError * err = NULL;
 
-  g_assert (gum_script_from_string_sync ("testcase", "'", NULL, NULL) == NULL);
+  g_assert (gum_script_from_string_sync ("testcase", "'",
+      GUM_SCRIPT_FLAVOR_USER, NULL, NULL) == NULL);
 
-  g_assert (gum_script_from_string_sync ("testcase", "'", NULL, &err) == NULL);
+  g_assert (gum_script_from_string_sync ("testcase", "'",
+      GUM_SCRIPT_FLAVOR_USER, NULL, &err) == NULL);
   g_assert (err != NULL);
   g_assert_cmpstr (err->message, ==,
       "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
@@ -2394,14 +2396,14 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
   badger = gum_script_from_string_sync ("badger",
       "setInterval(function () {\n"
       "  send('badger');\n"
-      "}, 1000);", NULL, NULL);
+      "}, 1000);", GUM_SCRIPT_FLAVOR_USER, NULL, NULL);
   gum_script_set_message_handler (badger, on_message, "badger", NULL);
   gum_script_load_sync (badger, NULL);
 
   snake = gum_script_from_string_sync ("snake",
       "setInterval(function () {\n"
       "  send('snake');\n"
-      "}, 1000);", NULL, NULL);
+      "}, 1000);", GUM_SCRIPT_FLAVOR_USER, NULL, NULL);
   gum_script_set_message_handler (snake, on_message, "snake", NULL);
   gum_script_load_sync (snake, NULL);
 

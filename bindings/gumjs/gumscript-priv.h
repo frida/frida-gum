@@ -12,6 +12,7 @@
 #include "gumscriptfile.h"
 #include "gumscriptinstruction.h"
 #include "gumscriptinterceptor.h"
+#include "gumscriptkernel.h"
 #include "gumscriptmemory.h"
 #include "gumscriptmodule.h"
 #include "gumscriptplatform.h"
@@ -29,10 +30,12 @@ struct _GumScriptPrivate
 {
   gchar * name;
   gchar * source;
+  GumScriptFlavor flavor;
   GMainContext * main_context;
 
   v8::Isolate * isolate;
   GumScriptCore core;
+  GumScriptKernel kernel;
   GumScriptMemory memory;
   GumScriptProcess process;
   GumScriptThread thread;

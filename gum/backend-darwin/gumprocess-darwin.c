@@ -1210,14 +1210,17 @@ gum_darwin_enumerate_ranges (mach_port_t task,
       details.prot = cur_prot;
       details.file = NULL;
 
-      len = proc_regionfilename (pid, address, file_path, sizeof (file_path));
-      file_path[len] = '\0';
-      if (len != 0)
+      if (pid != 0)
       {
-        file.path = file_path;
-        file.offset = 0; /* TODO */
+        len = proc_regionfilename (pid, address, file_path, sizeof (file_path));
+        file_path[len] = '\0';
+        if (len != 0)
+        {
+          file.path = file_path;
+          file.offset = 0; /* TODO */
 
-        details.file = &file;
+          details.file = &file;
+        }
       }
 
       if (!func (&details, user_data))

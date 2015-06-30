@@ -17,6 +17,7 @@ fridainclude_HEADERS = \
 	guminterceptor.h \
 	guminvocationcontext.h \
 	guminvocationlistener.h \
+	gumkernel.h \
 	gumlist.h \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
@@ -118,6 +119,7 @@ if OS_DARWIN
 backend_sources += \
 	backend-darwin/gumdarwinbacktracer.c \
 	backend-darwin/gumsymbolutil-darwin.c \
+	backend-darwin/gumkernel-darwin.c \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c
 fridainclude_HEADERS += \
@@ -162,6 +164,7 @@ libfrida_gum_la_SOURCES = \
 	guminterceptor.c \
 	guminvocationcontext.c \
 	guminvocationlistener.c \
+	gumkernel.c \
 	gummemory.c \
 	gummemorymap.c \
 	gummetalhash.c \

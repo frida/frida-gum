@@ -23,6 +23,7 @@
     <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
+    <ClInclude Include="gum\gumkernel.h" />
     <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
     <ClInclude Include="gum\gummemory-priv.h" />
@@ -49,6 +50,7 @@
     <ClCompile Include="gum\guminterceptor.c" />
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
+    <ClCompile Include="gum\gumkernel.c" />
     <ClCompile Include="gum\gumlist.c" />
     <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gummemorymap.c" />

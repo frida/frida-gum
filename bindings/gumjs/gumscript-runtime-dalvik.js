@@ -2,6 +2,10 @@
 (function () {
     "use strict";
 
+    const flavor = typeof Process === 'undefined' ? 'kernel' : 'user';
+    if (flavor !== 'user')
+        return;
+
     var _runtime = null;
     var _api = null;
     var pointerSize = Process.pointerSize;

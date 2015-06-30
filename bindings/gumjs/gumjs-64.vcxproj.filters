@@ -8,6 +8,7 @@
     <ClCompile Include="gumscripttask.c" />
     <ClCompile Include="gumscriptscope.cpp" />
     <ClCompile Include="gumscriptcore.cpp" />
+    <ClCompile Include="gumscriptkernel.cpp" />
     <ClCompile Include="gumscriptmemory.cpp" />
     <ClCompile Include="gumscriptprocess.cpp" />
     <ClCompile Include="gumscriptthread.cpp" />
@@ -29,6 +30,7 @@
     <ClInclude Include="gumscripttask.h" />
     <ClInclude Include="gumscriptscope.h" />
     <ClInclude Include="gumscriptcore.h" />
+    <ClInclude Include="gumscriptkernel.h" />
     <ClInclude Include="gumscriptmemory.h" />
     <ClInclude Include="gumscriptprocess.h" />
     <ClInclude Include="gumscriptthread.h" />
