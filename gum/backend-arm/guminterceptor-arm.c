@@ -253,6 +253,15 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
    */
   ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
   gum_thumb_writer_put_push_regs (tw, 1, GUM_AREG_R0);
+#ifdef HAVE_QNX
+  gum_thumb_writer_put_push_regs (tw, 1, GUM_AREG_R1);
+  gum_thumb_writer_put_mov_reg_reg (tw, GUM_AREG_R0, GUM_AREG_SP);
+  gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R1,
+      GUM_ADDRESS (_gum_interceptor_thread_get_orig_stack));
+  gum_thumb_writer_put_blx_reg (tw, GUM_AREG_R1);
+  gum_thumb_writer_put_mov_reg_reg (tw, GUM_AREG_SP, GUM_AREG_R0);
+  gum_thumb_writer_put_pop_regs (tw, 1, GUM_AREG_R1);
+#endif
   gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R0,
       GUM_ADDRESS (_gum_function_context_end_invocation));
   gum_thumb_writer_put_blx_reg (tw, GUM_AREG_R0);
@@ -288,6 +297,13 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_thumb_writer_put_blx_reg (tw, GUM_AREG_R3);
   gum_thumb_writer_put_cbz_reg_label (tw, GUM_AREG_R0, skip_label);
 
+#ifdef HAVE_QNX
+  gum_thumb_writer_put_mov_reg_reg (tw, GUM_AREG_R0, GUM_AREG_SP);
+  gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R1,
+      GUM_ADDRESS (_gum_interceptor_thread_get_side_stack));
+  gum_thumb_writer_put_blx_reg (tw, GUM_AREG_R1);
+  gum_thumb_writer_put_mov_reg_reg (tw, GUM_AREG_SP, GUM_AREG_R0);
+#endif
   /* update LR to trap the return */
   gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R0,
       GUM_ADDRESS (ctx->on_leave_trampoline));
@@ -298,6 +314,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_thumb_writer_put_str_reg_reg_offset (tw, GUM_AREG_R0,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
 
+
   /* clear PC and SP from GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (tw, GUM_AREG_SP, 8);
   /* restore r[0-8] and jump to replacement_function */
@@ -305,6 +322,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
       GUM_AREG_R0, GUM_AREG_R1, GUM_AREG_R2, GUM_AREG_R3,
       GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
       GUM_AREG_PC);
+
 
   /* call from within the replacement — let the call pass through */
   gum_thumb_writer_put_label (tw, skip_label);

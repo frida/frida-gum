@@ -53,6 +53,11 @@ gboolean _gum_function_context_try_begin_invocation (
     const GumCpuContext * cpu_context);
 gpointer _gum_function_context_end_invocation (void);
 
+#ifdef HAVE_QNX
+gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
+gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
+#endif
+
 void _gum_function_context_init (void);
 void _gum_function_context_deinit (void);
 void _gum_function_context_make_monitor_trampoline (FunctionContext * ctx);
