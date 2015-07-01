@@ -2213,13 +2213,13 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
       "S32",
       "U32",
       "Float",
-      "Double",
       /*
        * We don't know if the compiler will decide to access the lower or higher
-       * part first, so we can't know the exact error message for these two.
+       * part first, so we can't know the exact error message for these.
        * Hence we limit this part of the test to 64 bit builds...
        */
 #if GLIB_SIZEOF_VOID_P == 8
+      "Double",
       "S64",
       "U64",
 #endif
