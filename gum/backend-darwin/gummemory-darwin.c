@@ -150,17 +150,20 @@ gum_darwin_read (mach_port_t task,
                  gsize len,
                  gsize * n_bytes_read)
 {
+  gsize page_size;
   guint8 * result;
   gsize offset;
   mach_port_t self;
-  gsize page_size;
   kern_return_t kr;
+
+  page_size = gum_query_page_size ();
+  if (address < page_size)
+    return NULL;
 
   result = g_malloc (len);
   offset = 0;
 
   self = mach_task_self ();
-  page_size = gum_query_page_size ();
 
   while (offset != len)
   {
@@ -217,7 +220,12 @@ gum_darwin_write (mach_port_t task,
                   guint8 * bytes,
                   gsize len)
 {
+  gsize page_size;
   kern_return_t kr;
+
+  page_size = gum_query_page_size ();
+  if (address < page_size)
+    return FALSE;
 
   kr = mach_vm_write (task, address, (vm_offset_t) bytes, len);
 
