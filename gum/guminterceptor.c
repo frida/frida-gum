@@ -823,17 +823,20 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 
 #ifdef HAVE_QNX
     gpointer stack_address = &stack_address;
-    if (interceptor_ctx->thread_side_stack < stack_address &&
-        stack_address < interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE)
+    if (stack_address > interceptor_ctx->thread_side_stack &&
+        stack_address < interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE)
     {
       /* we're already on the side stack, no need to switch. */
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
     }
     else
+    {
       gum_exec_callback_func_with_side_stack (entry->listener_instance,
           invocation_ctx, entry->listener_interface->on_enter,
           interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    }
 #else
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
@@ -918,17 +921,20 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
 
 #ifdef HAVE_QNX
     gpointer stack_address = &stack_address;
-    if (interceptor_ctx->thread_side_stack < stack_address &&
-        stack_address < interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE)
+    if (stack_address > interceptor_ctx->thread_side_stack &&
+        stack_address < interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE)
     {
       /* we're already on the side stack, no need to switch. */
       entry->listener_interface->on_leave (entry->listener_instance,
           invocation_ctx);
     }
     else
+    {
       gum_exec_callback_func_with_side_stack (entry->listener_instance,
           invocation_ctx, entry->listener_interface->on_leave,
           interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    }
 #else
     entry->listener_interface->on_leave (entry->listener_instance,
         invocation_ctx);
@@ -976,7 +982,8 @@ _gum_interceptor_thread_get_side_stack (gpointer original_stack)
   interceptor_ctx = get_interceptor_thread_context ();
 
   if (interceptor_ctx->thread_side_stack < original_stack &&
-        original_stack < interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE)
+      original_stack < interceptor_ctx->thread_side_stack +
+          GUM_THREAD_SIDE_STACK_SIZE)
     return original_stack;
 
   aligned_side_stack = interceptor_ctx->thread_side_stack +
@@ -1007,8 +1014,9 @@ _gum_interceptor_thread_get_orig_stack (gpointer current_stack)
   if (interceptor_ctx->stack->len != 1)
     return current_stack;
 
-  if (interceptor_ctx->thread_side_stack < current_stack &&
-        current_stack < interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE)
+  if (current_stack > interceptor_ctx->thread_side_stack &&
+      current_stack < interceptor_ctx->thread_side_stack +
+          GUM_THREAD_SIDE_STACK_SIZE)
   {
     entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
     memcpy (entry->saved_original_stack - 8, current_stack, 8);

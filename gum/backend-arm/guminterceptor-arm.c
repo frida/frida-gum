@@ -314,7 +314,6 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_thumb_writer_put_str_reg_reg_offset (tw, GUM_AREG_R0,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
 
-
   /* clear PC and SP from GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (tw, GUM_AREG_SP, 8);
   /* restore r[0-8] and jump to replacement_function */
@@ -322,7 +321,6 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
       GUM_AREG_R0, GUM_AREG_R1, GUM_AREG_R2, GUM_AREG_R3,
       GUM_AREG_R4, GUM_AREG_R5, GUM_AREG_R6, GUM_AREG_R7,
       GUM_AREG_PC);
-
 
   /* call from within the replacement — let the call pass through */
   gum_thumb_writer_put_label (tw, skip_label);
