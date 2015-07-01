@@ -779,9 +779,12 @@ gum_darwin_enumerate_threads (mach_port_t task,
                               GumFoundThreadFunc func,
                               gpointer user_data)
 {
+  mach_port_t self;
   thread_act_array_t threads;
   mach_msg_type_number_t count;
   kern_return_t kr;
+
+  self = mach_task_self ();
 
   kr = task_threads (task, &threads, &count);
   if (kr == KERN_SUCCESS)
@@ -817,8 +820,8 @@ gum_darwin_enumerate_threads (mach_port_t task,
     }
 
     for (i = 0; i != count; i++)
-      mach_port_deallocate (task, threads[i]);
-    vm_deallocate (task, (vm_address_t) threads, count * sizeof (thread_t));
+      mach_port_deallocate (self, threads[i]);
+    vm_deallocate (self, (vm_address_t) threads, count * sizeof (thread_t));
   }
 }
 
