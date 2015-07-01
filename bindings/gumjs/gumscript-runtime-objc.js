@@ -217,6 +217,9 @@
                         }
                     }
                     return Object.keys(cachedClasses);
+                },
+                getOwnPropertyNames() {
+                    return this.keys();
                 }
             });
 
