@@ -84,6 +84,9 @@ struct _GumInvocationStackEntry
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
+#ifdef HAVE_QNX
+  gpointer saved_original_stack;
+#endif
 };
 
 struct _ListenerDataSlot
@@ -819,9 +822,21 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
       invocation_ctx->backend->data = &state;
 
 #ifdef HAVE_QNX
+    gpointer stack_address = &stack_address;
+    if (stack_address > interceptor_ctx->thread_side_stack &&
+        stack_address < interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE)
+    {
+      /* we're already on the side stack, no need to switch. */
+      entry->listener_interface->on_enter (entry->listener_instance,
+          invocation_ctx);
+    }
+    else
+    {
       gum_exec_callback_func_with_side_stack (entry->listener_instance,
           invocation_ctx, entry->listener_interface->on_enter,
           interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    }
 #else
       entry->listener_interface->on_enter (entry->listener_instance,
           invocation_ctx);
@@ -905,9 +920,21 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
     invocation_ctx->backend->data = &state;
 
 #ifdef HAVE_QNX
-    gum_exec_callback_func_with_side_stack (entry->listener_instance,
-        invocation_ctx, entry->listener_interface->on_leave,
-        interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    gpointer stack_address = &stack_address;
+    if (stack_address > interceptor_ctx->thread_side_stack &&
+        stack_address < interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE)
+    {
+      /* we're already on the side stack, no need to switch. */
+      entry->listener_interface->on_leave (entry->listener_instance,
+          invocation_ctx);
+    }
+    else
+    {
+      gum_exec_callback_func_with_side_stack (entry->listener_instance,
+          invocation_ctx, entry->listener_interface->on_leave,
+          interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    }
 #else
     entry->listener_interface->on_leave (entry->listener_instance,
         invocation_ctx);
@@ -941,6 +968,62 @@ gum_exec_callback_func_with_side_stack (
       "blx r2\n\t"
       "mov sp, r4\n\t"
       "ldmfd sp!, {r4, pc}");
+}
+
+gpointer
+_gum_interceptor_thread_get_side_stack (gpointer original_stack)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationStackEntry * entry;
+  gint page_size = gum_query_page_size ();
+  gpointer aligned_original_stack;
+  gpointer aligned_side_stack;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+  if (interceptor_ctx->thread_side_stack < original_stack &&
+      original_stack < interceptor_ctx->thread_side_stack +
+          GUM_THREAD_SIDE_STACK_SIZE)
+    return original_stack;
+
+  aligned_side_stack = interceptor_ctx->thread_side_stack +
+      GUM_THREAD_SIDE_STACK_SIZE - page_size;
+
+  aligned_original_stack =
+     GSIZE_TO_POINTER(GPOINTER_TO_SIZE(original_stack) -
+         (GPOINTER_TO_SIZE(original_stack) % page_size));
+
+  memcpy (aligned_side_stack, aligned_original_stack, page_size);
+
+  entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+  /* we need to pop the saved cpu context from the original_stack in order
+   * to get to the REAL original stack of the target function */
+  entry->saved_original_stack = original_stack + (9 * 4) + 8;
+
+  return aligned_side_stack + (original_stack - aligned_original_stack);
+}
+
+gpointer
+_gum_interceptor_thread_get_orig_stack (gpointer current_stack)
+{
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationStackEntry * entry;
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+  if (interceptor_ctx->stack->len != 1)
+    return current_stack;
+
+  if (current_stack > interceptor_ctx->thread_side_stack &&
+      current_stack < interceptor_ctx->thread_side_stack +
+          GUM_THREAD_SIDE_STACK_SIZE)
+  {
+    entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+    memcpy (entry->saved_original_stack - 8, current_stack, 8);
+    return entry->saved_original_stack - 8;
+  }
+  else
+    return current_stack;
 }
 #endif
 
