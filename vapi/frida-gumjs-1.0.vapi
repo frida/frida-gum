@@ -6,7 +6,7 @@ namespace Gum {
 			KERNEL,
 			USER
 		}
-		public delegate void MessageHandler (Gum.Script script, string message, uint8[] data);
+		public delegate void MessageHandler (Gum.Script script, string message, Bytes data);
 		public delegate void DebugMessageHandler (string message);
 
 		public static async Script from_string (string name, string source, Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;

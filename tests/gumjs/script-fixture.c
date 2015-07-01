@@ -136,8 +136,7 @@ test_script_message_item_free (TestScriptMessageItem * item)
 static void
 test_script_fixture_store_message (GumScript * script,
                                    const gchar * message,
-                                   const guint8 * data,
-                                   gint data_length,
+                                   GBytes * data,
                                    gpointer user_data)
 {
   TestScriptFixture * self = (TestScriptFixture *) user_data;
@@ -148,15 +147,18 @@ test_script_fixture_store_message (GumScript * script,
 
   if (data != NULL)
   {
+    const guint8 * data_elements;
+    gsize data_size, i;
     GString * s;
-    gint i;
 
-    s = g_string_sized_new (3 * data_length);
-    for (i = 0; i != data_length; i++)
+    data_elements = g_bytes_get_data (data, &data_size);
+
+    s = g_string_sized_new (3 * data_size);
+    for (i = 0; i != data_size; i++)
     {
       if (i != 0)
         g_string_append_c (s, ' ');
-      g_string_append_printf (s, "%02x", (int) data[i]);
+      g_string_append_printf (s, "%02x", (int) data_elements[i]);
     }
 
     item->data = g_string_free (s, FALSE);

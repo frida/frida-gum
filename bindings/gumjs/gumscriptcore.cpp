@@ -594,10 +594,9 @@ _gum_script_core_finalize (GumScriptCore * self)
 void
 _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
-                               const guint8 * data,
-                               gint data_length)
+                               GBytes * data)
 {
-  self->message_emitter (self->script, message, data, data_length);
+  self->message_emitter (self->script, message, data);
 }
 
 void
@@ -987,83 +986,21 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptCore * self = static_cast<GumScriptCore *> (
       info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
 
   String::Utf8Value message (info[0]);
 
-  guint8 * malloc_data = NULL;
-  const guint8 * data = NULL;
-  gint data_length = 0;
   Local<Value> data_value = info[1];
+  GBytes * data = NULL;
   if (!data_value->IsUndefined () && !data_value->IsNull ())
   {
-    gboolean data_valid = FALSE;
-
-    if (data_value->IsObject ())
-    {
-      Local<Object> array = Local<Object>::Cast (data_value);
-      if (array->HasIndexedPropertiesInExternalArrayData () &&
-          array->GetIndexedPropertiesExternalArrayDataType ()
-          == kExternalUint8Array)
-      {
-        data = static_cast<guint8 *> (
-            array->GetIndexedPropertiesExternalArrayData ());
-        data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
-        data_valid = TRUE;
-      }
-      else
-      {
-        Local<String> length_key (Local<String>::New (isolate,
-            *self->length_key));
-        if (array->Has (length_key))
-        {
-          data_length = array->Get (length_key)->Uint32Value ();
-          if (data_length <= GUM_MAX_SEND_ARRAY_LENGTH)
-          {
-            Local<Context> context = isolate->GetCurrentContext ();
-
-            malloc_data = static_cast<guint8 *> (g_malloc (data_length));
-            data = malloc_data;
-            data_valid = TRUE;
-
-            for (gint i = 0; i != data_length; i++)
-            {
-              gboolean element_valid = FALSE;
-
-              Local<Value> element_value;
-              if (array->Get (context, i).ToLocal (&element_value))
-              {
-                Maybe<uint32_t> element = element_value->Uint32Value (context);
-                if (element.IsJust ())
-                {
-                  malloc_data[i] = element.FromJust ();
-                  element_valid = TRUE;
-                }
-              }
-
-              if (!element_valid)
-              {
-                data_valid = FALSE;
-                g_free (malloc_data);
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    if (!data_valid)
-    {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "unsupported data value")));
+    data = _gum_byte_array_get (data_value, self);
+    if (data == NULL)
       return;
-    }
   }
 
-  _gum_script_core_emit_message (self, *message, data, data_length);
+  _gum_script_core_emit_message (self, *message, data);
 
-  g_free (malloc_data);
+  g_bytes_unref (data);
 }
 
 /*
@@ -2445,6 +2382,82 @@ _gum_byte_array_new (gpointer data,
   return buffer;
 }
 
+GBytes *
+_gum_byte_array_get (Handle<Value> value,
+                     GumScriptCore * core)
+{
+  GBytes * result = _gum_byte_array_try_get (value, core);
+  if (result == NULL)
+  {
+    core->isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        core->isolate, "unsupported data value")));
+    return NULL;
+  }
+
+  return result;
+}
+
+GBytes *
+_gum_byte_array_try_get (Handle<Value> value,
+                         GumScriptCore * core)
+{
+  if (!value->IsObject ())
+    return NULL;
+
+  Handle<Object> array = Handle<Object>::Cast (value);
+  if (array->HasIndexedPropertiesInExternalArrayData () &&
+      array->GetIndexedPropertiesExternalArrayDataType ()
+      == kExternalUint8Array)
+  {
+    return g_bytes_new (
+        array->GetIndexedPropertiesExternalArrayData (),
+        array->GetIndexedPropertiesExternalArrayDataLength ());
+  }
+  else
+  {
+    Local<String> length_key (Local<String>::New (core->isolate,
+        *core->length_key));
+    if (!array->Has (length_key))
+      return NULL;
+
+    gsize data_length = array->Get (length_key)->Uint32Value ();
+    if (data_length > GUM_MAX_SEND_ARRAY_LENGTH)
+      return NULL;
+
+    Local<Context> context = core->isolate->GetCurrentContext ();
+
+    guint8 * data = (guint8 *) g_malloc (data_length);
+    gboolean data_valid = TRUE;
+
+    for (guint i = 0; i != data_length && data_valid; i++)
+    {
+      gboolean element_valid = FALSE;
+
+      Local<Value> element_value;
+      if (array->Get (context, i).ToLocal (&element_value))
+      {
+        Maybe<uint32_t> element = element_value->Uint32Value (context);
+        if (element.IsJust ())
+        {
+          data[i] = element.FromJust ();
+          element_valid = TRUE;
+        }
+      }
+
+      if (!element_valid)
+        data_valid = FALSE;
+    }
+
+    if (!data_valid)
+    {
+      g_free (data);
+      return NULL;
+    }
+
+    return g_bytes_new_take (data, data_length);
+  }
+}
+
 void
 _gum_byte_array_free (GumByteArray * buffer)
 {
@@ -2661,6 +2674,23 @@ _gum_script_cpu_context_get (v8::Handle<v8::Value> value,
   *target = GUM_CPU_CONTEXT_VALUE (value.As<Object> ());
 
   return TRUE;
+}
+
+const gchar *
+_gum_script_thread_state_to_string (GumThreadState state)
+{
+  switch (state)
+  {
+    case GUM_THREAD_RUNNING: return "running";
+    case GUM_THREAD_STOPPED: return "stopped";
+    case GUM_THREAD_WAITING: return "waiting";
+    case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
+    case GUM_THREAD_HALTED: return "halted";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
 }
 
 gboolean

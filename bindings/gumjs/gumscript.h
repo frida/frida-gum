@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -39,8 +39,7 @@ enum _GumScriptFlavor
 };
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
-    const gchar * message, const guint8 * data, gint data_length,
-    gpointer user_data);
+    const gchar * message, GBytes * data, gpointer user_data);
 typedef void (* GumScriptDebugMessageHandler) (const gchar * message,
     gpointer user_data);
 

@@ -60,7 +60,7 @@ ScriptScope::~ScriptScope ()
 
     g_string_append_c (error, '}');
 
-    _gum_script_core_emit_message (&priv->core, error->str, NULL, 0);
+    _gum_script_core_emit_message (&priv->core, error->str, NULL);
 
     g_string_free (error, TRUE);
   }

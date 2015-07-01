@@ -50,8 +50,7 @@ struct _GumScriptEmitMessageData
 {
   GumScript * script;
   gchar * message;
-  guint8 * data;
-  gint data_length;
+  GBytes * data;
 };
 
 struct _GumScriptPostMessageData
@@ -81,7 +80,7 @@ static void gum_script_from_string_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
 static void gum_script_from_string_data_free (GumScriptFromStringData * d);
 static void gum_script_emit_message (GumScript * self,
-    const gchar * message, const guint8 * data, gint data_length);
+    const gchar * message, GBytes * data);
 static gboolean gum_script_do_emit_message (GumScriptEmitMessageData * d);
 static void gum_script_emit_message_data_free (GumScriptEmitMessageData * d);
 static void gum_script_do_load (GumScriptTask * task, gpointer source_object,
@@ -617,15 +616,13 @@ gum_script_set_message_handler (GumScript * self,
 static void
 gum_script_emit_message (GumScript * self,
                          const gchar * message,
-                         const guint8 * data,
-                         gint data_length)
+                         GBytes * data)
 {
   GumScriptEmitMessageData * d = g_slice_new (GumScriptEmitMessageData);
   d->script = self;
   g_object_ref (self);
   d->message = g_strdup (message);
-  d->data = (guint8 *) g_memdup (data, data_length);
-  d->data_length = data_length;
+  d->data = (data != NULL) ? g_bytes_ref (data) : NULL;
 
   GSource * source = g_idle_source_new ();
   g_source_set_callback (source,
@@ -644,7 +641,7 @@ gum_script_do_emit_message (GumScriptEmitMessageData * d)
 
   if (priv->message_handler != NULL)
   {
-    priv->message_handler (self, d->message, d->data, d->data_length,
+    priv->message_handler (self, d->message, d->data,
         priv->message_handler_data);
   }
 
@@ -654,7 +651,7 @@ gum_script_do_emit_message (GumScriptEmitMessageData * d)
 static void
 gum_script_emit_message_data_free (GumScriptEmitMessageData * d)
 {
-  g_free (d->data);
+  g_bytes_unref (d->data);
   g_free (d->message);
   g_object_unref (d->script);
 

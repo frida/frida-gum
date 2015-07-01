@@ -33,7 +33,7 @@ struct GumPersistent
 };
 
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
-    const gchar * message, const guint8 * data, gint data_length);
+    const gchar * message, GBytes * data);
 
 struct _GumScriptCore
 {
@@ -101,7 +101,7 @@ G_GNUC_INTERNAL void _gum_script_core_finalize (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_set_message_handler (GumScriptCore * self,
     GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
 G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
-    const gchar * message, const guint8 * data, gint data_length);
+    const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
 
@@ -109,6 +109,10 @@ G_GNUC_INTERNAL void _gum_script_core_push_job (GumScriptCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
 G_GNUC_INTERNAL GumByteArray * _gum_byte_array_new (gpointer data, gsize size,
+    GumScriptCore * core);
+G_GNUC_INTERNAL GBytes * _gum_byte_array_get (v8::Handle<v8::Value> value,
+    GumScriptCore * core);
+G_GNUC_INTERNAL GBytes * _gum_byte_array_try_get (v8::Handle<v8::Value> value,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_byte_array_free (GumByteArray * buffer);
 
@@ -129,6 +133,9 @@ G_GNUC_INTERNAL void _gum_script_cpu_context_free_later (
     GumPersistent<v8::Object>::type * cpu_context, GumScriptCore * core);
 G_GNUC_INTERNAL gboolean _gum_script_cpu_context_get (
     v8::Handle<v8::Value> value, GumCpuContext ** target, GumScriptCore * core);
+
+G_GNUC_INTERNAL const gchar * _gum_script_thread_state_to_string (
+    GumThreadState state);
 
 G_GNUC_INTERNAL gboolean _gum_script_set (v8::Handle<v8::Object> object,
     const gchar * key, v8::Handle<v8::Value> value, GumScriptCore * core);

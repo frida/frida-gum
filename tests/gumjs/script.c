@@ -168,7 +168,7 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 static gpointer invoke_target_function_int_worker (gpointer data);
 
 static void on_message (GumScript * script, const gchar * message,
-    const guint8 * data, gint data_length, gpointer user_data);
+    GBytes * data, gpointer user_data);
 
 static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
@@ -1999,8 +1999,8 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
       "send('mushroom', Memory.readByteArray(" GUM_PTR_CONST ", -1));",
       buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", NULL);
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", NULL);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", "");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", "");
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_written)
@@ -2422,8 +2422,7 @@ SCRIPT_TESTCASE (debugger_can_be_enabled)
 static void
 on_message (GumScript * script,
             const gchar * message,
-            const guint8 * data,
-            gint data_length,
+            GBytes * data,
             gpointer user_data)
 {
   gchar * sender = user_data;

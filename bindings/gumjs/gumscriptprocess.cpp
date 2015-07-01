@@ -49,9 +49,8 @@ static void gum_script_process_on_get_current_thread_id (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_process_on_enumerate_threads (
     const FunctionCallbackInfo<Value> & info);
-static gboolean gum_script_process_thread_match (
+static gboolean gum_script_handle_thread_match (
     const GumThreadDetails * details, gpointer user_data);
-static const gchar * gum_script_thread_state_to_string (GumThreadState state);
 static void gum_script_process_on_enumerate_modules (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_process_handle_module_match (
@@ -204,14 +203,14 @@ gum_script_process_on_enumerate_threads (
 
   ctx.receiver = info.This ();
 
-  gum_process_enumerate_threads (gum_script_process_thread_match, &ctx);
+  gum_process_enumerate_threads (gum_script_handle_thread_match, &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
 }
 
 static gboolean
-gum_script_process_thread_match (const GumThreadDetails * details,
-                                 gpointer user_data)
+gum_script_handle_thread_match (const GumThreadDetails * details,
+                                gpointer user_data)
 {
   GumScriptMatchContext * ctx =
       static_cast<GumScriptMatchContext *> (user_data);
@@ -224,8 +223,7 @@ gum_script_process_thread_match (const GumThreadDetails * details,
   Local<Object> thread (Object::New (isolate));
   _gum_script_set (thread, "id", Number::New (isolate, details->id), core);
   _gum_script_set (thread, "state", String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> (gum_script_thread_state_to_string (
-          details->state))),
+      (const uint8_t *) _gum_script_thread_state_to_string (details->state)),
       core);
   Local<Object> cpu_context =
       _gum_script_cpu_context_new (&details->cpu_context, ctx->self->core);
@@ -246,23 +244,6 @@ gum_script_process_thread_match (const GumThreadDetails * details,
       core);
 
   return proceed;
-}
-
-static const gchar *
-gum_script_thread_state_to_string (GumThreadState state)
-{
-  switch (state)
-  {
-    case GUM_THREAD_RUNNING: return "running";
-    case GUM_THREAD_STOPPED: return "stopped";
-    case GUM_THREAD_WAITING: return "waiting";
-    case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
-    case GUM_THREAD_HALTED: return "halted";
-    default:
-      break;
-  }
-
-  g_assert_not_reached ();
 }
 
 /*
@@ -311,8 +292,6 @@ gum_script_process_on_enumerate_modules (
   gum_process_enumerate_modules (gum_script_process_handle_module_match, &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
-
-  return;
 }
 
 static gboolean
@@ -396,8 +375,6 @@ gum_script_process_on_enumerate_ranges (
       &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
-
-  return;
 }
 
 static gboolean
@@ -495,13 +472,10 @@ gum_script_process_on_enumerate_malloc_ranges (
       &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
-
-  return;
 #else
   ctx.isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
       ctx.isolate, "Process.enumerateMallocRanges: not implemented yet for "
       GUM_SCRIPT_PLATFORM)));
-  return;
 #endif
 }
 
