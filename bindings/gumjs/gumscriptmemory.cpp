@@ -645,6 +645,13 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
         break;
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
+        if (info.Length () < 2)
+        {
+          isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+              isolate, "expected address and length")));
+          break;
+        }
+
         const guint8 * data = static_cast<const guint8 *> (address);
         if (data == NULL)
         {
@@ -908,6 +915,13 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
+        if (info.Length () < 2)
+        {
+          isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+              isolate, "expected address and data")));
+          break;
+        }
+
         Local<Object> array = info[1].As <Object> ();
         if (array->HasIndexedPropertiesInExternalArrayData () &&
             array->GetIndexedPropertiesExternalArrayDataType ()

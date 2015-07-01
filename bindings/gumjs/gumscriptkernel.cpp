@@ -22,6 +22,15 @@ struct _GumScriptMatchContext
   Local<Object> receiver;
 };
 
+static void gum_script_kernel_on_enumerate_threads (
+    const FunctionCallbackInfo<Value> & info);
+static gboolean gum_script_handle_thread_match (
+    const GumThreadDetails * details, gpointer user_data);
+
+static void gum_script_kmemory_on_read_byte_array (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_script_kmemory_on_write_byte_array (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_kmemory_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_kmemory_handle_range_match (
@@ -38,8 +47,20 @@ _gum_script_kernel_init (GumScriptKernel * self,
 
   Local<External> data (External::New (isolate, self));
 
+  Handle<ObjectTemplate> kernel = ObjectTemplate::New (isolate);
+  kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
+      FunctionTemplate::New (isolate, gum_script_kernel_on_enumerate_threads,
+      data));
+  scope->Set (String::NewFromUtf8 (isolate, "Kernel"), kernel);
+
   Handle<ObjectTemplate> memory = ObjectTemplate::New (isolate);
-  memory->Set (String::NewFromUtf8 (isolate, "enumerateRanges"),
+  memory->Set (String::NewFromUtf8 (isolate, "readByteArray"),
+      FunctionTemplate::New (isolate, gum_script_kmemory_on_read_byte_array,
+      data));
+  memory->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
+      FunctionTemplate::New (isolate, gum_script_kmemory_on_write_byte_array,
+      data));
+  memory->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
       FunctionTemplate::New (isolate, gum_script_kmemory_on_enumerate_ranges,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "Memory"), memory);
@@ -65,7 +86,207 @@ _gum_script_kernel_finalize (GumScriptKernel * self)
 
 /*
  * Prototype:
- * Memory.enumerateRanges(prot, callback)
+ * Kernel.enumerateThreads(callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_kernel_on_enumerate_threads (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptMatchContext ctx;
+
+  ctx.self = static_cast<GumScriptKernel *> (
+      info.Data ().As<External> ()->Value ());
+  ctx.isolate = info.GetIsolate ();
+
+  Local<Value> callbacks_value = info[0];
+  if (!callbacks_value->IsObject ())
+  {
+    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        ctx.isolate, "Kernel.enumerateThreads: argument must be "
+        "a callback object")));
+    return;
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!_gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match,
+      ctx.self->core))
+  {
+    return;
+  }
+  if (!_gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
+      ctx.self->core))
+  {
+    return;
+  }
+
+  ctx.receiver = info.This ();
+
+  gum_kernel_enumerate_threads (gum_script_handle_thread_match, &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+}
+
+static gboolean
+gum_script_handle_thread_match (const GumThreadDetails * details,
+                                gpointer user_data)
+{
+  GumScriptMatchContext * ctx =
+      static_cast<GumScriptMatchContext *> (user_data);
+  GumScriptCore * core = ctx->self->core;
+  Isolate * isolate = ctx->isolate;
+
+  if (gum_script_is_ignoring (details->id))
+    return TRUE;
+
+  Local<Object> thread (Object::New (isolate));
+  _gum_script_set (thread, "id", Number::New (isolate, details->id), core);
+  _gum_script_set (thread, "state", String::NewFromOneByte (isolate,
+      (const uint8_t *) _gum_script_thread_state_to_string (details->state)),
+      core);
+  Local<Object> cpu_context =
+      _gum_script_cpu_context_new (&details->cpu_context, ctx->self->core);
+  _gum_script_set (thread, "context", cpu_context, core);
+
+  Handle<Value> argv[] = { thread };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
+
+  gboolean proceed = TRUE;
+  if (!result.IsEmpty () && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  _gum_script_cpu_context_free_later (
+      new GumPersistent<Object>::type (isolate, cpu_context),
+      core);
+
+  return proceed;
+}
+
+/*
+ * Prototype:
+ * Memory.readByteArray(address, length)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_kmemory_on_read_byte_array (const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptKernel * self = static_cast<GumScriptKernel *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () < 2)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected address and length")));
+    return;
+  }
+
+  gpointer address;
+  if (!_gum_script_pointer_get (info[0], &address, self->core))
+  {
+    return;
+  }
+  else if (address == NULL)
+  {
+    info.GetReturnValue ().Set (Null (isolate));
+    return;
+  }
+
+  int64_t size = info[1]->IntegerValue ();
+
+  Local<Value> result;
+  if (size > 0)
+  {
+    gsize n_bytes_read;
+    guint8 * data = gum_kernel_read (GUM_ADDRESS (address), size,
+        &n_bytes_read);
+    if (data != NULL)
+    {
+      GumByteArray * arr = _gum_byte_array_new (data, n_bytes_read, self->core);
+      result = Local<Object>::New (isolate, *arr->instance);
+    }
+    else
+    {
+      gchar * message = g_strdup_printf (
+          "access violation reading 0x%" G_GSIZE_MODIFIER "x",
+          GPOINTER_TO_SIZE (address));
+      isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+          message)));
+      g_free (message);
+      return;
+    }
+  }
+  else
+  {
+    result = Array::New (isolate, 0);
+  }
+
+  info.GetReturnValue ().Set (result);
+}
+
+/*
+ * Prototype:
+ * Memory.writeByteArray(address, bytes)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_kmemory_on_write_byte_array (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptKernel * self = static_cast<GumScriptKernel *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () < 2)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected address and data")));
+    return;
+  }
+
+  gpointer address;
+  if (!_gum_script_pointer_get (info[0], &address, self->core))
+    return;
+
+  GBytes * bytes = _gum_byte_array_get (info[1], self->core);
+  if (bytes == NULL)
+    return;
+
+  gsize size;
+  guint8 * data = (guint8 *) g_bytes_get_data (bytes, &size);
+
+  if (!gum_kernel_write (GUM_ADDRESS (address), data, size))
+  {
+    gchar * message = g_strdup_printf (
+        "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (address));
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        message)));
+    g_free (message);
+  }
+}
+
+/*
+ * Prototype:
+ * Memory._enumerateRanges(prot, callback)
  *
  * Docs:
  * TBW
@@ -114,8 +335,6 @@ gum_script_kmemory_on_enumerate_ranges (
       &ctx);
 
   ctx.on_complete->Call (ctx.receiver, 0, 0);
-
-  return;
 }
 
 static gboolean

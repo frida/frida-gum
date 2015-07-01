@@ -13,6 +13,47 @@
 static mach_port_t gum_kernel_get_task (void);
 static mach_port_t gum_kernel_do_init (void);
 
+guint8 *
+gum_kernel_read (GumAddress address,
+                 gsize len,
+                 gsize * n_bytes_read)
+{
+  mach_port_t task;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return NULL;
+
+  return gum_darwin_read (task, address, len, n_bytes_read);
+}
+
+gboolean
+gum_kernel_write (GumAddress address,
+                  guint8 * bytes,
+                  gsize len)
+{
+  mach_port_t task;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return FALSE;
+
+  return gum_darwin_write (task, address, bytes, len);
+}
+
+void
+gum_kernel_enumerate_threads (GumFoundThreadFunc func,
+                              gpointer user_data)
+{
+  mach_port_t task;
+
+  task = gum_kernel_get_task ();
+  if (task == MACH_PORT_NULL)
+    return;
+
+  gum_darwin_enumerate_threads (task, func, user_data);
+}
+
 void
 gum_kernel_enumerate_ranges (GumPageProtection prot,
                              GumFoundRangeFunc func,

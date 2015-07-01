@@ -3,7 +3,11 @@
     "use strict";
 
     const engine = this;
-    const flavor = typeof Process === 'undefined' ? 'kernel' : 'user';
+    const KERNEL = 0;
+    const USER = 1;
+    const flavor = (typeof Process === 'undefined') ? KERNEL : USER;
+    const enumerateThreadsParent = (flavor === KERNEL) ? Kernel : Process;
+    const enumerateRangesParent = (flavor === KERNEL) ? Memory : Process;
     let dispatcher;
 
     var initialize = function initialize() {
@@ -48,6 +52,13 @@
         value: new NativePointer("0")
     });
 
+    NativePointer.prototype.equals = function (ptr) {
+        if (!(ptr instanceof NativePointer)) {
+            throw new Error("Not a pointer");
+        }
+        return this.compare(ptr) === 0;
+    };
+
     const Console = function () {
         this.log = function () {
             const message = {
@@ -62,7 +73,7 @@
         value: new Console()
     });
 
-    if (flavor === 'user') {
+    if (flavor === USER) {
         const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
 
         Object.defineProperty(Memory, 'dup', {
@@ -155,21 +166,6 @@
             enumerable: true,
             value: function (mem, value) {
                 return Memory['writeU' + longSize](mem, value);
-            }
-        });
-
-        Object.defineProperty(Process, 'enumerateThreadsSync', {
-            enumerable: true,
-            value: function () {
-                const threads = [];
-                Process.enumerateThreads({
-                    onMatch: function (t) {
-                        threads.push(t);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return threads;
             }
         });
 
@@ -275,69 +271,6 @@
             }
         });
 
-        Object.defineProperty(Process, 'enumerateRanges', {
-            enumerable: true,
-            value: function (specifier, callbacks) {
-                let protection;
-                let coalesce = false;
-                if (typeof specifier === 'string') {
-                    protection = specifier;
-                } else {
-                    protection = specifier.protection;
-                    coalesce = specifier.coalesce;
-                }
-
-                if (coalesce) {
-                    let current = null;
-                    const onMatch = callbacks.onMatch;
-                    Process._enumerateRanges(protection, {
-                        onMatch: function (r) {
-                            if (current !== null) {
-                                if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
-                                    const coalescedRange = {
-                                        base: current.base,
-                                        size: current.size + r.size,
-                                        protection: current.protection
-                                    };
-                                    if (current.hasOwnProperty('file'))
-                                        coalescedRange.file = current.file;
-                                    Object.freeze(coalescedRange);
-                                    current = coalescedRange;
-                                } else {
-                                    onMatch(current);
-                                    current = r;
-                                }
-                            } else {
-                                current = r;
-                            }
-                        },
-                        onComplete: function () {
-                            if (current !== null)
-                                onMatch(current);
-                            callbacks.onComplete();
-                        }
-                    });
-                } else {
-                    Process._enumerateRanges(protection, callbacks);
-                }
-            }
-        });
-
-        Object.defineProperty(Process, 'enumerateRangesSync', {
-            enumerable: true,
-            value: function (specifier) {
-                const ranges = [];
-                Process.enumerateRanges(specifier, {
-                    onMatch: function (r) {
-                        ranges.push(r);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return ranges;
-            }
-        });
-
         Object.defineProperty(Process, 'enumerateMallocRangesSync', {
             enumerable: true,
             value: function () {
@@ -408,12 +341,83 @@
         });
     }
 
-    NativePointer.prototype.equals = function (ptr) {
-        if (!(ptr instanceof NativePointer)) {
-            throw new Error("Not a pointer");
+    Object.defineProperty(enumerateThreadsParent, 'enumerateThreadsSync', {
+        enumerable: true,
+        value: function () {
+            const threads = [];
+            enumerateThreadsParent.enumerateThreads({
+                onMatch: function (t) {
+                    threads.push(t);
+                },
+                onComplete: function () {
+                }
+            });
+            return threads;
         }
-        return this.compare(ptr) === 0;
-    };
+    });
+
+    Object.defineProperty(enumerateRangesParent, 'enumerateRanges', {
+        enumerable: true,
+        value: function (specifier, callbacks) {
+            let protection;
+            let coalesce = false;
+            if (typeof specifier === 'string') {
+                protection = specifier;
+            } else {
+                protection = specifier.protection;
+                coalesce = specifier.coalesce;
+            }
+
+            if (coalesce) {
+                let current = null;
+                const onMatch = callbacks.onMatch;
+                enumerateRangesParent._enumerateRanges(protection, {
+                    onMatch: function (r) {
+                        if (current !== null) {
+                            if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
+                                const coalescedRange = {
+                                    base: current.base,
+                                    size: current.size + r.size,
+                                    protection: current.protection
+                                };
+                                if (current.hasOwnProperty('file'))
+                                    coalescedRange.file = current.file;
+                                Object.freeze(coalescedRange);
+                                current = coalescedRange;
+                            } else {
+                                onMatch(current);
+                                current = r;
+                            }
+                        } else {
+                            current = r;
+                        }
+                    },
+                    onComplete: function () {
+                        if (current !== null)
+                            onMatch(current);
+                        callbacks.onComplete();
+                    }
+                });
+            } else {
+                enumerateRangesParent._enumerateRanges(protection, callbacks);
+            }
+        }
+    });
+
+    Object.defineProperty(enumerateRangesParent, 'enumerateRangesSync', {
+        enumerable: true,
+        value: function (specifier) {
+            const ranges = [];
+            enumerateRangesParent.enumerateRanges(specifier, {
+                onMatch: function (r) {
+                    ranges.push(r);
+                },
+                onComplete: function () {
+                }
+            });
+            return ranges;
+        }
+    });
 
     const MessageDispatcher = function () {
         const messages = [];
