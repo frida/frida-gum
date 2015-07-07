@@ -17,6 +17,7 @@
     const JNI_EDETACHED = -2;
     /* JNI version error */
     const JNI_VERSION = -3;
+    const JNI_ABORT = 2;
 
     const JNI_VERSION_1_6 = 0x00010006;
 
@@ -42,6 +43,12 @@
     const METHOD_OFFSET_INS_SIZE = 14;
     const METHOD_OFFSET_INSNS = 32;
     const METHOD_OFFSET_JNI_ARG_INFO = 36;
+
+    // jobject reference types
+    const JNIInvalidRefType = 0;
+    const JNILocalRefType = 1;
+    const JNIGlobalRefType = 2;
+    const JNIWeakGlobalRefType = 3;
 
     Object.defineProperty(this, 'Dalvik', {
         enumerable: true,
@@ -434,7 +441,7 @@
                 const invokeObjectMethodNoArgs = env.method('pointer', []);
 
                 const jsMethods = [];
-                const jsRetType = objectType(name, false);
+                const jsRetType = getTypeFromJniTypename(name, false);
                 const constructors = invokeObjectMethodNoArgs(env.handle, classHandle, env.javaLangClass().getDeclaredConstructors);
                 try {
                     const numConstructors = env.getArrayLength(constructors);
@@ -450,7 +457,7 @@
                                 for (let typeIndex = 0; typeIndex !== numTypes; typeIndex++) {
                                     const t = env.getObjectArrayElement(types, typeIndex);
                                     try {
-                                        const argType = typeFromClassName(env.getTypeName(t));
+                                        const argType = getTypeFromJniTypename(env.getTypeName(t));
                                         jsArgTypes.push(argType);
                                     } finally {
                                         env.deleteLocalRef(t);
@@ -547,7 +554,7 @@
                     const jsArgTypes = [];
                     let jsRetType;
                     try {
-                        jsRetType = typeFromClassName(env.getTypeName(retType));
+                        jsRetType = getTypeFromJniTypename(env.getTypeName(retType));
                     } catch (e) {
                         env.deleteLocalRef(argTypes);
                         return null;
@@ -561,7 +568,7 @@
                             const t = env.getObjectArrayElement(argTypes, argTypeIndex);
                             try {
                                 const argClassName = (isVarArgs && argTypeIndex === numArgTypes - 1) ? env.getArrayTypeName(t) : env.getTypeName(t);
-                                const argType = typeFromClassName(argClassName);
+                                const argType = getTypeFromJniTypename(argClassName);
                                 jsArgTypes.push(argType);
                             } finally {
                                 env.deleteLocalRef(t);
@@ -602,7 +609,7 @@
 
                         Object.defineProperty(defaultValueOf, 'returnType', {
                             enumerable: true,
-                            value: typeFromClassName('int')
+                            value: getTypeFromJniTypename('int')
                         });
 
                         Object.defineProperty(defaultValueOf, 'argumentTypes', {
@@ -818,13 +825,11 @@
                         "env.popLocalFrame(NULL);" +
                         "throw e;" +
                     "}" +
-                    "const throwable = env.exceptionOccurred();" +
-                    "if (!throwable.isNull()) {" +
-                        "env.exceptionClear();" +
-                        "const description = env.method('pointer', [])(env.handle, throwable, env.javaLangObject().toString);" +
-                        "const descriptionStr = env.stringFromJni(description);" +
-                        "env.popLocalFrame(NULL);" +
-                        "throw new Error(descriptionStr);" +
+                    "try {" +
+                        "env.checkForExceptionAndHandleIt();" +
+                    "} catch (e) {" +
+                        "env.popLocalFrame(NULL); " +
+                        "throw e;" +
                     "}" +
                     returnStatements +
                 "};");
@@ -1114,174 +1119,459 @@
             return new NativeCallback(f, rawRetType, ['pointer', 'pointer'].concat(rawArgTypes));
         }
 
-        const types = {
-            'boolean': {
-                type: 'uint8',
-                size: 1,
-                isCompatible: function (v) {
-                    return typeof v === 'boolean';
-                },
-                fromJni: function (v) {
-                    return v ? true : false;
-                },
-                toJni: function (v) {
-                    return v ? 1 : 0;
-                }
-            },
-            'byte': {
-                type: 'int8',
-                size: 1,
-                isCompatible: function (v) {
-                    return Number.isInteger(v) && v >= -128 && v <= 127;
-                }
-            },
-            'char': {
-                type: 'uint16',
-                size: 1,
-                isCompatible: function (v) {
-                    if (typeof v === 'string' && v.length === 1) {
-                        const charCode = v.charCodeAt(0);
-                        return charCode >= 0 && charCode <= 65535;
-                    } else {
-                        return false;
-                    }
-                },
-                fromJni: function (c) {
-                    return String.fromCharCode(c);
-                },
-                toJni: function (s) {
-                    return s.charCodeAt(0);
-                }
-            },
-            'short': {
-                type: 'int16',
-                size: 1,
-                isCompatible: function (v) {
-                    return Number.isInteger(v) && v >= -32768 && v <= 32767;
-                }
-            },
-            'int': {
-                type: 'int32',
-                size: 1,
-                isCompatible: function (v) {
-                    return Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
-                }
-            },
-            'long': {
-                type: 'int64',
-                size: 2,
-                isCompatible: function (v) {
-                    // JavaScripts safe integer range is to small for it
-                    return Number.isInteger(v); // && v >= -9223372036854775808 && v <= 9223372036854775807;
-                }
-            },
-            'float': {
-                type: 'float',
-                size: 1,
-                isCompatible: function (v) {
-                    return typeof v === 'number';
-                }
-            },
-            'double': {
-                type: 'double',
-                size: 2,
-                isCompatible: function (v) {
-                    return typeof v === 'number';
-                }
-            },
-            'void': {
-                type: 'void',
-                size: 0,
-                isCompatible: function (v) {
-                    return v === undefined;
-                }
-            },
-            '[B': {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    return isCompatiblePrimitiveArray(v, 'byte');
-                },
-                fromJni: function () {
-                    throw new Error("Not yet implemented ([B)");
-                },
-                toJni: function () {
-                    throw new Error("Not yet implemented ([B)");
-                }
-            },
-            '[C': {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    return isCompatiblePrimitiveArray(v, 'char');
-                },
-                fromJni: function () {
-                    throw new Error("Not yet implemented ([C)");
-                },
-                toJni: function () {
-                    throw new Error("Not yet implemented ([C)");
-                }
-            },
-            '[I': {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    return isCompatiblePrimitiveArray(v, 'int');
-                },
-                fromJni: function () {
-                    throw new Error("Not yet implemented ([I)");
-                },
-                toJni: function () {
-                    throw new Error("Not yet implemented ([I)");
-                }
-            },
-            '[Ljava.lang.String;': {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    return typeof v === 'object' && v.hasOwnProperty('length') &&
-                        Array.prototype.every.call(v, elem => typeof elem === 'string');
-                },
-                fromJni: function (h, env) {
-                    const result = [];
-                    const length = env.getArrayLength(h);
-                    for (let i = 0; i !== length; i++) {
-                        const s = env.getObjectArrayElement(h, i);
-                        try {
-                            result.push(env.stringFromJni(s));
-                        } finally {
-                            env.deleteLocalRef(s);
-                        }
-                    }
-                    return result;
-                },
-                toJni: function (strings, env) {
-                    const result = env.newObjectArray(strings.length, env.javaLangString().handle, NULL);
-                    for (let i = 0; i !== strings.length; i++) {
-                        const s = env.newStringUtf(strings[i]);
-                        try {
-                            env.setObjectArrayElement(result, i, s);
-                        } finally {
-                            env.deleteLocalRef(s);
-                        }
-                    }
-                    return result;
+        /*
+         * http://docs.oracle.com/javase/6/docs/technotes/guides/jni/spec/types.html#wp9502
+         * http://www.liaohuqiu.net/posts/android-object-size-dalvik/
+         */
+        function getTypeFromJniTypename(typename, unbox) {
+            function getPrimitiveType(type) {
+                switch (type) {
+                    case 'boolean':
+                        return {
+                            type: 'uint8',
+                            size: 1,
+                            byteSize: 1,
+                            isCompatible: function (v) {
+                                return typeof v === 'boolean';
+                            },
+                            fromJni: function (v) {
+                                return v ? true : false;
+                            },
+                            toJni: function (v) {
+                                return v ? 1 : 0;
+                            },
+                            memoryRead: Memory.readU8,
+                            memoryWrite: Memory.writeU8
+                        };
+                    case 'byte':
+                        return {
+                            type: 'int8',
+                            size: 1,
+                            byteSize: 1,
+                            isCompatible: function (v) {
+                                return Number.isInteger(v) && v >= -128 && v <= 127;
+                            },
+                            memoryRead: Memory.readS8,
+                            memoryWrite: Memory.writeS8
+                        };
+                    case 'char':
+                        return {
+                            type: 'uint16',
+                            size: 1,
+                            byteSize: 2,
+                            isCompatible: function (v) {
+                                if (typeof v === 'string' && v.length === 1) {
+                                    const charCode = v.charCodeAt(0);
+                                    return charCode >= 0 && charCode <= 65535;
+                                } else {
+                                    return false;
+                                }
+                            },
+                            fromJni: function (c) {
+                                return String.fromCharCode(c);
+                            },
+                            toJni: function (s) {
+                                return s.charCodeAt(0);
+                            },
+                            memoryRead: Memory.readU16,
+                            memoryWrite: Memory.writeU16
+                        };
+                    case 'short':
+                        return {
+                            type: 'int16',
+                            size: 1,
+                            byteSize: 2,
+                            isCompatible: function (v) {
+                                return Number.isInteger(v) && v >= -32768 && v <= 32767;
+                            },
+                            memoryRead: Memory.readS16,
+                            memoryWrite: Memory.writeS16
+                        };
+                    case 'int':
+                        return {
+                            type: 'int32',
+                            size: 1,
+                            byteSize: 4,
+                            isCompatible: function (v) {
+                                return Number.isInteger(v) && v >= -2147483648 && v <= 2147483647;
+                            },
+                            memoryRead: Memory.readS32,
+                            memoryWrite: Memory.writeS32
+                        };
+                    case 'long':
+                        return {
+                            type: 'int64',
+                            size: 2,
+                            byteSize: 8,
+                            isCompatible: function (v) {
+                                // JavaScripts safe integer range is to small for it
+                                return Number.isInteger(v); // && v >= -9223372036854775808 && v <= 9223372036854775807;
+                            },
+                            memoryRead: Memory.readS64,
+                            memoryWrite: Memory.writeS64
+                        };
+                    case 'float':
+                        return {
+                            type: 'float',
+                            size: 1,
+                            byteSize: 4,
+                            isCompatible: function (v) {
+                                // TODO
+                                return typeof v === 'number';
+                            },
+                            memoryRead: Memory.readFloat,
+                            memoryWrite: Memory.writeFloat
+                        };
+                    case 'double':
+                        return {
+                            type: 'double',
+                            size: 2,
+                            byteSize: 8,
+                            isCompatible: function (v) {
+                                // TODO
+                                return typeof v === 'number';
+                            },
+                            memoryRead: Memory.readDouble,
+                            memoryWrite: Memory.writeDouble
+                        };
+                    case 'void':
+                        return {
+                            type: 'void',
+                            size: 0,
+                            byteSize: 0,
+                            isCompatible: function (v) {
+                                return v === undefined;
+                            }
+                        };
+                    default:
+                        return undefined;
                 }
             }
-        };
 
-        function typeFromClassName(className) {
-            let type = types[className];
+            function getArrayType(typename, unbox) {
+                function fromJniObjectArray(arr, env, convertFromJniFunc) {
+                    const result = [];
+                    const length = env.getArrayLength.call(env, arr);
+                    for (let i = 0; i < length; i++) {
+                        const elemHandle = env.getObjectArrayElement.call(env, arr, i);
+
+                        // Maybe ArrayIndexOutOfBoundsException: if 'i' does not specify a valid index in the array - should not be the case
+                        env.checkForExceptionAndHandleIt();
+                        try {
+                            result.push(convertFromJniFunc(this, elemHandle));
+                        } finally {
+                            env.deleteLocalRef.call(env, elemHandle);
+                        }
+                    }
+                    return result;
+                }
+
+                function toJniObjectArray(arr, env, classHandle, setObjectArrayFunc) {
+                    const length = arr.length;
+                    const result = env.newObjectArray.call(env, length, classHandle, NULL);
+
+                    // Maybe OutOfMemoryError
+                    env.checkForExceptionAndHandleIt();
+                    if (result.isNull()) {
+                        return NULL;
+                    }
+                    for (let i = 0; i < length; i++) {
+                        setObjectArrayFunc.call(env, i, result);
+                        // maybe ArrayIndexOutOfBoundsException or ArrayStoreException
+                        env.checkForExceptionAndHandleIt();
+                    }
+                    return result;
+                }
+
+                function fromJniPrimitiveArray(arr, typename, env, getArrayLengthFunc, getArrayElementsFunc, releaseArrayElementsFunc) {
+                    const result = [];
+                    const type = getTypeFromJniTypename(typename);
+                    const length = getArrayLengthFunc.call(env, arr);
+                    const cArr = getArrayElementsFunc.call(env, arr);
+                    if (cArr.isNull()) {
+                        throw new Error("Can't get the array elements.");
+                    }
+                    try {
+                        const offset = type.byteSize;
+                        for (let i = 0; i < length; i++) {
+                            const value = type.memoryRead(cArr.add(i * offset));
+                            if (type.fromJni) {
+                                result.push(type.fromJni(value));
+                            } else {
+                                result.push(value);
+                            }
+                        }
+                    } finally {
+                        releaseArrayElementsFunc.call(env, arr, cArr);
+                    }
+
+                    return result;
+                }
+
+                function toJniPrimitiveArray(arr, typename, env, newArrayFunc, setArrayFunc) {
+                    const length = arr.length;
+                    const type = getTypeFromJniTypename(typename);
+                    const result = newArrayFunc.call(env, length);
+                    if (result.isNull()) {
+                        throw new Error("The array can't be constructed.");
+                    }
+                    const cArray = Memory.alloc(length * type.byteSize);
+                    for (let i = 0; i < length; i++) {
+                        if (type.toJni) {
+                            type.memoryWrite(cArray.add(i * type.byteSize), type.toJni(arr[i]));
+                        } else {
+                            type.memoryWrite(cArray.add(i * type.byteSize), arr[i]);
+                        }
+                    }
+                    setArrayFunc.call(env, result, 0, length, cArray);
+                    // check for ArrayIndexOutOfBoundsException
+                    env.checkForExceptionAndHandleIt();
+
+                    return result;
+                }
+
+                function isCompatiblePrimitiveArray(v, typename) {
+                    return typeof v === 'object' && v.hasOwnProperty('length') &&
+                        Array.prototype.every.call(v, elem => getTypeFromJniTypename(typename).isCompatible(elem));
+                }
+
+                switch (typename) {
+                    case '[Z':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'boolean');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'boolean', env, env.getArrayLength, env.getBooleanArrayElements, env.releaseBooleanArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'boolean', env, env.newBooleanArray, env.setBooleanArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[B':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'byte');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'byte', env, env.getArrayLength, env.getByteArrayElements, env.releaseByteArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'byte', env, env.newByteArray, env.setByteArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[C':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'char');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'char', env, env.getArrayLength, env.getCharArrayElements, env.releaseCharArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'char', env, env.newCharArray, env.setCharArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[D':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'double');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'double', env, env.getArrayLength, env.getDoubleArrayElements, env.releaseDoubleArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'double', env, env.newDoubleArray, env.setDoubleArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[F':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'float');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'float', env, env.getArrayLength, env.getFloatArrayElements, env.releaseFloatArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'float', env, env.newFloatArray, env.setFloatArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[I':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'int');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'int', env, env.getArrayLength, env.getIntArrayElements, env.releaseIntArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'int', env, env.newIntArray, env.setIntArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[J':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'long');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'long', env, env.getArrayLength, env.getLongArrayElements, env.releaseLongArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'long', env, env.newLongArray, env.setLongArrayRegion);
+                            }
+                        };
+                        break;
+                    case '[S':
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                return isCompatiblePrimitiveArray(v, 'short');
+                            },
+                            fromJni: function (h, env) {
+                                return fromJniPrimitiveArray(h, 'short', env, env.getArrayLength, env.getShortArrayElements, env.releaseShortArrayElements);
+                            },
+                            toJni: function (arr, env) {
+                                return toJniPrimitiveArray(arr, 'short', env, env.newShortArray, env.setShortArrayRegion);
+                            }
+                        };
+                        break;
+                    default:
+                        // it has to be an objectArray, but maybe it goes wrong
+                        let elementType;
+                        if (typename.indexOf('[') === 0) {
+                            elementType = getTypeFromJniTypename(typename.substring(1), unbox);
+                        } else {
+                            throw new Error("Unsupported type here " + typename);
+                        }
+                        return {
+                            type: 'pointer',
+                            size: 1,
+                            isCompatible: function (v) {
+                                if (typeof v !== 'object' || !v.hasOwnProperty('length')) {
+                                    return false;
+                                }
+                                return v.every(function (element) {
+                                    return elementType.isCompatible(element);
+                                });
+                            },
+                            fromJni: function (arr, env) {
+                                return fromJniObjectArray.call(this, arr, env, function (self, elem) {
+                                    return elementType.fromJni.call(self, elem, env);
+                                });
+                            },
+                            toJni: function (elements, env) {
+                                let classHandle, klassObj;
+                                if (loader !== null) {
+                                    if (typename[0] === "L" && typename[typename.length - 1] === ";") {
+                                        typename = typename.substring(1, typename.length - 1);
+                                    }
+                                    klassObj = loader.loadClass(typename);
+                                    classHandle = klassObj.$classHandle;
+                                } else {
+                                    classHandle = env.findClass(typename.replace(/\./g, "/"));
+                                }
+
+                                try {
+                                    return toJniObjectArray(elements, env, classHandle,
+                                        function (i, result) {
+                                            const handle = elementType.toJni.call(this, elements[i], env);
+                                            try {
+                                                env.setObjectArrayElement(result, i, handle);
+                                            } finally {
+                                                if (elementType.type === 'pointer' && env.getObjectRefType(handle) === JNILocalRefType) {
+                                                    env.deleteLocalRef(handle);
+                                                }
+                                            }
+                                        });
+                                } finally {
+                                    if (loader !== null) {
+                                        klassObj = null;
+                                    } else {
+                                        env.deleteLocalRef(classHandle);
+                                    }
+                                }
+                            }
+                        };
+                }
+            }
+
+            function getObjectType(typename, unbox) {
+                return {
+                    type: 'pointer',
+                    size: 1,
+                    isCompatible: function (v) {
+                        if (v === null) {
+                            return true;
+                        } else if ((typename === 'java.lang.CharSequence' || typename === 'java.lang.String') && typeof v === 'string') {
+                            return true;
+                        }
+
+                        return typeof v === 'object' && v.hasOwnProperty('$handle'); // TODO: improve strictness
+                    },
+                    fromJni: function (h, env) {
+                        if (h.isNull()) {
+                            return null;
+                        } else if (typename === 'java.lang.String' && unbox) {
+                            return env.stringFromJni(h);
+                        } else if (this && this.$handle !== null && env.isSameObject(h, this.$handle)) {
+                            return this;
+                        } else {
+                            return factory.cast(h, factory.use(typename));
+                        }
+                    },
+                    toJni: function (o, env) {
+                        if (o === null) {
+                            return NULL;
+                        } else if (typeof o === 'string') {
+                            return env.newStringUtf(o);
+                        }
+
+                        return o.$handle;
+                    }
+                };
+            }
+
+            if (unbox === undefined) {
+                unbox = true;
+            }
+
+            // check if it's a primitive type
+            let type = getPrimitiveType(typename);
             if (!type) {
-                if (className.indexOf("[") === 0) {
-                    type = arrayType(className.substring(1));
+                // is it an array?
+                if (typename.indexOf("[") === 0) {
+                    type = getArrayType(typename, unbox);
                 } else {
-                    type = objectType(className, true);
+                    if (typename[0] === "L" && typename[typename.length - 1] === ";") {
+                        typename = typename.substring(1, typename.length - 1);
+                    }
+                    type = getObjectType(typename, unbox);
                 }
             }
 
             const result = {
-                className: className
+                className: typename
             };
             for (let key in type) {
                 if (type.hasOwnProperty(key)) {
@@ -1289,95 +1579,6 @@
                 }
             }
             return result;
-        }
-
-        function isCompatiblePrimitiveArray(v, typename) {
-            return typeof v === 'object' && v.hasOwnProperty('length') &&
-                Array.prototype.every.call(v, elem => types[typename].isCompatible(elem));
-        }
-
-        function objectType(className, unbox) {
-            return {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    if (v === null) {
-                        return true;
-                    } else if ((className === 'java.lang.CharSequence' || className === 'java.lang.String') && typeof v === 'string') {
-                        return true;
-                    }
-
-                    return typeof v === 'object' && v.hasOwnProperty('$handle'); // TODO: improve strictness
-                },
-                fromJni: function (h, env) {
-                    if (h.isNull()) {
-                        return null;
-                    } else if (className === 'java.lang.String' && unbox) {
-                        return env.stringFromJni(h);
-                    } else if (this.$handle !== null && env.isSameObject(h, this.$handle)) {
-                        return this;
-                    } else {
-                        return factory.cast(h, factory.use(className));
-                    }
-                },
-                toJni: function (o, env) {
-                    if (o === null) {
-                        return NULL;
-                    } else if (typeof o === 'string') {
-                        return env.newStringUtf(o);
-                    }
-
-                    return o.$handle;
-                }
-            };
-        }
-
-        function arrayType(rawElementClassName) {
-            let elementClassName;
-            let isPrimitive;
-            if (rawElementClassName[0] === "L" && rawElementClassName[rawElementClassName.length - 1] === ";") {
-                elementClassName = rawElementClassName.substring(1, rawElementClassName.length - 1);
-                isPrimitive = false;
-            } else {
-                elementClassName = rawElementClassName;
-                isPrimitive = true;
-                throw new Error("Primitive arrays not yet supported");
-            }
-            const elementType = typeFromClassName(elementClassName);
-            return {
-                type: 'pointer',
-                size: 1,
-                isCompatible: function (v) {
-                    if (typeof v !== 'object' || !v.hasOwnProperty('length')) {
-                        return false;
-                    }
-                    return v.every(function (element) {
-                        return elementType.isCompatible(element);
-                    });
-                },
-                fromJni: function (h, env) {
-                    const result = [];
-                    const length = env.getArrayLength(h);
-                    for (let i = 0; i !== length; i++) {
-                        const handle = env.getObjectArrayElement(h, i);
-                        try {
-                            result.push(elementType.fromJni.call(this, handle, env));
-                        } finally {
-                            env.deleteLocalRef(handle);
-                        }
-                    }
-                    return result;
-                },
-                toJni: function (elements, env) {
-                    const elementClass = factory.use(elementClassName);
-                    const result = env.newObjectArray(elements.length, elementClass.$classHandle, NULL);
-                    for (let i = 0; i !== elements.length; i++) {
-                        const handle = elementType.toJni.call(this, elements[i], env);
-                        env.setObjectArrayElement(result, i, handle);
-                    }
-                    return result;
-                }
-            };
         }
 
         initialize.call(this);
@@ -1537,6 +1738,11 @@
 
         Env.prototype.findClass = proxy(6, 'pointer', ['pointer', 'pointer'], function (impl, name) {
             const result = impl(this.handle, Memory.allocUtf8String(name));
+            this.checkForExceptionAndHandleIt();
+            return result;
+        });
+
+        Env.prototype.checkForExceptionAndHandleIt = function () {
             const throwable = this.exceptionOccurred();
             if (!throwable.isNull()) {
                 try {
@@ -1552,8 +1758,7 @@
                     this.deleteLocalRef(throwable);
                 }
             }
-            return result;
-        });
+        };
 
         Env.prototype.fromReflectedMethod = proxy(7, 'pointer', ['pointer', 'pointer'], function (impl, method) {
             return impl(this.handle, method);
@@ -1664,6 +1869,138 @@
             impl(this.handle, array, index, value);
         });
 
+        Env.prototype.newBooleanArray = proxy(175, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newByteArray = proxy(176, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newCharArray = proxy(177, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newShortArray = proxy(178, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newIntArray = proxy(179, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newLongArray = proxy(180, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newFloatArray = proxy(181, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.newDoubleArray = proxy(182, 'pointer', ['pointer', 'int32'], function (impl, length) {
+            return impl(this.handle, length);
+        });
+
+        Env.prototype.getBooleanArrayElements = proxy(183, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getByteArrayElements = proxy(184, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getCharArrayElements = proxy(185, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getShortArrayElements = proxy(186, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getIntArrayElements = proxy(187, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getLongArrayElements = proxy(188, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getFloatArrayElements = proxy(189, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.getDoubleArrayElements = proxy(190, 'pointer', ['pointer', 'pointer', 'pointer'], function (impl, array) {
+            return impl(this.handle, array, NULL);
+        });
+
+        Env.prototype.releaseBooleanArrayElements = proxy(191, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseByteArrayElements = proxy(192, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseCharArrayElements = proxy(193, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseShortArrayElements = proxy(194, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseIntArrayElements = proxy(195, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseLongArrayElements = proxy(196, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseFloatArrayElements = proxy(197, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.releaseDoubleArrayElements = proxy(198, 'pointer', ['pointer', 'pointer', 'pointer', 'int32'], function (impl, array, cArray) {
+            impl(this.handle, array, cArray, JNI_ABORT);
+        });
+
+        Env.prototype.setBooleanArrayRegion = proxy(207, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setByteArrayRegion = proxy(208, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setCharArrayRegion = proxy(209, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setShortArrayRegion = proxy(210, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setIntArrayRegion = proxy(211, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setLongArrayRegion = proxy(212, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setFloatArrayRegion = proxy(213, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.setDoubleArrayRegion = proxy(214, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
+            impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.getObjectRefType = proxy(232, 'int32', ['pointer', 'pointer'], function (impl, ref) {
+            return impl(this.handle, ref);
+        });
+
         const cachedMethods = {};
         function method(offset, retType, argTypes) {
             const key = offset + "|" + retType + "|" + argTypes.join(":");
@@ -1717,7 +2054,7 @@
                 const handle = this.findClass("java/lang/Object");
                 try {
                     javaLangObject = {
-                        toString: this.getMethodId(handle, "toString", "()Ljava/lang/String;"),
+                        toString: this.getMethodId(handle, "toString", "()Ljava/lang/String;")
                     };
                 } finally {
                     this.deleteLocalRef(handle);
@@ -1847,6 +2184,9 @@
 
         Env.prototype.stringFromJni = function (str) {
             const utf = this.getStringUtfChars(str);
+            if (utf.isNull()) {
+                throw new Error("Can't access the string.");
+            }
             try {
                 return Memory.readUtf8String(utf);
             } finally {
