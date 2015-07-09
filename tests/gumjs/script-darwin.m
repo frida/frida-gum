@@ -20,6 +20,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (kind_can_be_retrieved)
   SCRIPT_TESTENTRY (super_can_be_retrieved)
   SCRIPT_TESTENTRY (class_name_can_be_retrieved)
+  SCRIPT_TESTENTRY (own_method_names_can_be_retrieved)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
   SCRIPT_TESTENTRY (object_can_be_constructed_from_pointer)
   SCRIPT_TESTENTRY (string_can_be_constructed)
@@ -204,6 +205,26 @@ SCRIPT_TESTCASE (class_name_can_be_retrieved)
         "send(typeof now.$className);");
     EXPECT_SEND_MESSAGE_WITH ("\"NSDate\"");
     EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  }
+}
+
+SCRIPT_TESTCASE (own_method_names_can_be_retrieved)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSDate = ObjC.classes.NSDate;"
+        "var now = NSDate.date();"
+        "var ownMethodNames = now.$ownMethods;"
+        "send(ownMethodNames.length > 0);"
+        "send(typeof ownMethodNames[0]);"
+        "var superMethodNames = now.$super.$ownMethods;"
+        "send(superMethodNames.length > 0);"
+        "send(ownMethodNames.length != superMethodNames.length);");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("true");
   }
 }
 

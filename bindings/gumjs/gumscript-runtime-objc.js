@@ -365,7 +365,8 @@
             "$class",
             "$className",
             "$protocols",
-            "$methods"
+            "$methods",
+            "$ownMethods"
         ]);
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
@@ -382,6 +383,7 @@
             const cachedMethods = {};
             const replacedMethods = {};
             let cachedNativeMethodNames = null;
+            let cachedOwnMethodNames = null;
             let weakRef = null;
 
             handle = getHandle(handle);
@@ -496,6 +498,33 @@
                                 cachedNativeMethodNames = Object.keys(cachedMethods).filter(m => m.match(/^(\+|-)/));
                             }
                             return cachedNativeMethodNames;
+                        case "$ownMethods":
+                            if (cachedOwnMethodNames === null) {
+                                const names = [];
+
+                                let klass;
+                                if (superSpecifier)
+                                    klass = Memory.readPointer(superSpecifier.add(pointerSize));
+                                else
+                                    klass = api.object_getClass(handle);
+                                const numMethodsBuf = Memory.alloc(pointerSize);
+                                const methodHandles = api.class_copyMethodList(klass, numMethodsBuf);
+                                try {
+                                    const fullNamePrefix = isClass() ? "+ " : "- ";
+                                    const numMethods = Memory.readUInt(numMethodsBuf);
+                                    for (let i = 0; i !== numMethods; i++) {
+                                        const methodHandle = Memory.readPointer(methodHandles.add(i * pointerSize));
+                                        const sel = api.method_getName(methodHandle);
+                                        const nativeName = Memory.readUtf8String(api.sel_getName(sel));
+                                        names.push(fullNamePrefix + nativeName);
+                                    }
+                                } finally {
+                                    api.free(methodHandles);
+                                }
+
+                                cachedOwnMethodNames = names;
+                            }
+                            return cachedOwnMethodNames;
                         default:
                             if (protocol) {
                                 const details = findProtocolMethod(name);
