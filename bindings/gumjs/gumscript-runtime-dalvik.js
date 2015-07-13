@@ -50,6 +50,8 @@
     const JNIGlobalRefType = 2;
     const JNIWeakGlobalRefType = 3;
 
+    const NULL_OBJECT = NULL;
+
     Object.defineProperty(this, 'Dalvik', {
         enumerable: true,
         get: function () {
@@ -304,9 +306,14 @@
                                 const env = vm.getEnv();
                                 const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
                                 const localReference = api.addLocalReferenceFunc(thread, address);
-                                const instance = Dalvik.cast(localReference, klass);
+                                let instance;
+                                try {
+                                    instance = Dalvik.cast(localReference, klass);
+                                } finally {
+                                    env.deleteLocalRef(localReference);
+                                }
+
                                 const stopMaybe = callbacks.onMatch(instance);
-                                env.deleteLocalRef(localReference);
                                 if (stopMaybe === 'stop') {
                                     return 'stop';
                                 }
@@ -362,8 +369,11 @@
             const superHandle = env.getSuperclass(classHandle);
             let superKlass;
             if (!superHandle.isNull()) {
-                superKlass = ensureClass(superHandle, null);
-                env.deleteLocalRef(superHandle);
+                try {
+                    superKlass = ensureClass(superHandle, null);
+                } finally {
+                    env.deleteLocalRef(superHandle);
+                }
             } else {
                 superKlass = null;
             }
@@ -645,9 +655,7 @@
 
                 function f() {
                     const isInstance = this.$handle !== null;
-                    if (methods[0].type !== INSTANCE_METHOD && isInstance) {
-                        throw new Error(name + ": cannot call static method by way of an instance");
-                    } else if (methods[0].type === INSTANCE_METHOD && !isInstance) {
+                    if (methods[0].type === INSTANCE_METHOD && !isInstance) {
                         if (name === 'toString') {
                             return "<" + this.$classWrapper.__name__ + ">";
                         }
@@ -826,7 +834,7 @@
                         "throw e;" +
                     "}" +
                     "try {" +
-                        "env.checkForExceptionAndHandleIt();" +
+                        "env.checkForExceptionAndThrowIt();" +
                     "} catch (e) {" +
                         "env.popLocalFrame(NULL); " +
                         "throw e;" +
@@ -1250,40 +1258,49 @@
 
             function getArrayType(typename, unbox) {
                 function fromJniObjectArray(arr, env, convertFromJniFunc) {
+                    if (arr.isNull()) {
+                        return null;
+                    }
                     const result = [];
-                    const length = env.getArrayLength.call(env, arr);
+                    const length = env.getArrayLength(arr);
                     for (let i = 0; i < length; i++) {
-                        const elemHandle = env.getObjectArrayElement.call(env, arr, i);
+                        const elemHandle = env.getObjectArrayElement(arr, i);
 
                         // Maybe ArrayIndexOutOfBoundsException: if 'i' does not specify a valid index in the array - should not be the case
-                        env.checkForExceptionAndHandleIt();
+                        env.checkForExceptionAndThrowIt();
                         try {
                             result.push(convertFromJniFunc(this, elemHandle));
                         } finally {
-                            env.deleteLocalRef.call(env, elemHandle);
+                            env.deleteLocalRef(elemHandle);
                         }
                     }
                     return result;
                 }
 
                 function toJniObjectArray(arr, env, classHandle, setObjectArrayFunc) {
+                    if (arr === null) {
+                        return NULL_OBJECT;
+                    }
                     const length = arr.length;
                     const result = env.newObjectArray.call(env, length, classHandle, NULL);
 
                     // Maybe OutOfMemoryError
-                    env.checkForExceptionAndHandleIt();
+                    env.checkForExceptionAndThrowIt();
                     if (result.isNull()) {
-                        return NULL;
+                        return NULL_OBJECT;
                     }
                     for (let i = 0; i < length; i++) {
                         setObjectArrayFunc.call(env, i, result);
                         // maybe ArrayIndexOutOfBoundsException or ArrayStoreException
-                        env.checkForExceptionAndHandleIt();
+                        env.checkForExceptionAndThrowIt();
                     }
                     return result;
                 }
 
                 function fromJniPrimitiveArray(arr, typename, env, getArrayLengthFunc, getArrayElementsFunc, releaseArrayElementsFunc) {
+                    if (arr.isNull()) {
+                        return null;
+                    }
                     const result = [];
                     const type = getTypeFromJniTypename(typename);
                     const length = getArrayLengthFunc.call(env, arr);
@@ -1309,29 +1326,36 @@
                 }
 
                 function toJniPrimitiveArray(arr, typename, env, newArrayFunc, setArrayFunc) {
+                    if (arr === null) {
+                        return NULL_OBJECT;
+                    }
                     const length = arr.length;
                     const type = getTypeFromJniTypename(typename);
                     const result = newArrayFunc.call(env, length);
                     if (result.isNull()) {
                         throw new Error("The array can't be constructed.");
                     }
-                    const cArray = Memory.alloc(length * type.byteSize);
-                    for (let i = 0; i < length; i++) {
-                        if (type.toJni) {
-                            type.memoryWrite(cArray.add(i * type.byteSize), type.toJni(arr[i]));
-                        } else {
-                            type.memoryWrite(cArray.add(i * type.byteSize), arr[i]);
+
+                    // we have to alloc memory only if there are array items
+                    if (length > 0) {
+                        const cArray = Memory.alloc(length * type.byteSize);
+                        for (let i = 0; i < length; i++) {
+                            if (type.toJni) {
+                                type.memoryWrite(cArray.add(i * type.byteSize), type.toJni(arr[i]));
+                            } else {
+                                type.memoryWrite(cArray.add(i * type.byteSize), arr[i]);
+                            }
                         }
+                        setArrayFunc.call(env, result, 0, length, cArray);
+                        // check for ArrayIndexOutOfBoundsException
+                        env.checkForExceptionAndThrowIt();
                     }
-                    setArrayFunc.call(env, result, 0, length, cArray);
-                    // check for ArrayIndexOutOfBoundsException
-                    env.checkForExceptionAndHandleIt();
 
                     return result;
                 }
 
                 function isCompatiblePrimitiveArray(v, typename) {
-                    return typeof v === 'object' && v.hasOwnProperty('length') &&
+                    return v === null || typeof v === 'object' && v.hasOwnProperty('length') &&
                         Array.prototype.every.call(v, elem => getTypeFromJniTypename(typename).isCompatible(elem));
                 }
 
@@ -1468,7 +1492,9 @@
                             type: 'pointer',
                             size: 1,
                             isCompatible: function (v) {
-                                if (typeof v !== 'object' || !v.hasOwnProperty('length')) {
+                                if (v === null) {
+                                    return true;
+                                } else if (typeof v !== 'object' || !v.hasOwnProperty('length')) {
                                     return false;
                                 }
                                 return v.every(function (element) {
@@ -1506,6 +1532,7 @@
                                         });
                                 } finally {
                                     if (loader !== null) {
+                                        classHandle = null;
                                         klassObj = null;
                                     } else {
                                         env.deleteLocalRef(classHandle);
@@ -1542,7 +1569,7 @@
                     },
                     toJni: function (o, env) {
                         if (o === null) {
-                            return NULL;
+                            return NULL_OBJECT;
                         } else if (typeof o === 'string') {
                             return env.newStringUtf(o);
                         }
@@ -1738,11 +1765,11 @@
 
         Env.prototype.findClass = proxy(6, 'pointer', ['pointer', 'pointer'], function (impl, name) {
             const result = impl(this.handle, Memory.allocUtf8String(name));
-            this.checkForExceptionAndHandleIt();
+            this.checkForExceptionAndThrowIt();
             return result;
         });
 
-        Env.prototype.checkForExceptionAndHandleIt = function () {
+        Env.prototype.checkForExceptionAndThrowIt = function () {
             const throwable = this.exceptionOccurred();
             if (!throwable.isNull()) {
                 try {
