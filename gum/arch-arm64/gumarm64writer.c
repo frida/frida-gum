@@ -506,6 +506,12 @@ gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
 void
 gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self)
 {
+  /* push {q0-q7}; store vector registers (for now only the clobberable ones) */
+  gum_arm64_writer_put_instruction (self, 0xadbf1fe6);
+  gum_arm64_writer_put_instruction (self, 0xadbf17e4);
+  gum_arm64_writer_put_instruction (self, 0xadbf0fe2);
+  gum_arm64_writer_put_instruction (self, 0xadbf07e0);
+
   /* upper part */
   gum_arm64_writer_put_push_reg_reg (self, GUM_A64REG_FP, GUM_A64REG_LR);
   gum_arm64_writer_put_push_reg_reg (self, GUM_A64REG_X27, GUM_A64REG_X28);
@@ -559,6 +565,12 @@ gum_arm64_writer_put_pop_cpu_context (GumArm64Writer * self)
   gum_arm64_writer_put_pop_reg_reg (self, GUM_A64REG_X25, GUM_A64REG_X26);
   gum_arm64_writer_put_pop_reg_reg (self, GUM_A64REG_X27, GUM_A64REG_X28);
   gum_arm64_writer_put_pop_reg_reg (self, GUM_A64REG_FP, GUM_A64REG_LR);
+
+  /* pop {q0-q7}; load vector registers (for now only the clobberable ones) */
+  gum_arm64_writer_put_instruction (self, 0xacc107e0);
+  gum_arm64_writer_put_instruction (self, 0xacc10fe2);
+  gum_arm64_writer_put_instruction (self, 0xacc117e4);
+  gum_arm64_writer_put_instruction (self, 0xacc11fe6);
 }
 
 void
