@@ -352,9 +352,19 @@
         };
 
         this.cast = function (obj, klass) {
+            const env = vm.getEnv();
             const handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
-            const C = klass.$classWrapper;
-            return new C(C.__handle__, handle);
+            const realClassHandle = env.getObjectClass(handle);
+            try {
+                if (env.isAssignableFrom(realClassHandle, klass.$classHandle)) {
+                    const C = klass.$classWrapper;
+                    return new C(C.__handle__, handle);
+                } else {
+                    throw new Error("Cast from '" + env.getClassName(realClassHandle) + "' to '" + env.getClassName(klass.$classHandle) + "' isn't possible");
+                }
+            } finally {
+                env.deleteLocalRef(realClassHandle);
+            }
         };
 
         function ensureClass(classHandle, cachedName) {
@@ -418,24 +428,10 @@
                     }
                 });
 
-                function getObjectClassName(klass) {
-                    const env = vm.getEnv();
-                    let jklass;
-                    if (klass.$handle) {
-                        jklass = env.getObjectClass(klass.$handle);
-                    } else {
-                        jklass = klass.$classHandle;
-                    }
-                    const className = env.getClassName(jklass);
-                    if (klass.$handle) {
-                        env.deleteLocalRef(jklass);
-                    }
-                    return className;
-                }
-
                 Object.defineProperty(klass.prototype, "$className", {
                     get: function () {
-                        return getObjectClassName(this);
+                        const env = vm.getEnv();
+                        return env.getObjectClassName(this);
                     }
                 });
 
@@ -1795,6 +1791,10 @@
             return impl(this.handle, klass);
         });
 
+        Env.prototype.isAssignableFrom = proxy(11, 'uint8', ['pointer', 'pointer', 'pointer'], function (impl, klass1, klass2) {
+            return impl(this.handle, klass1, klass2) ? true : false;
+        });
+
         Env.prototype.throw = proxy(13, 'int32', ['pointer', 'pointer'], function (impl, obj) {
             return impl(this.handle, obj);
         });
@@ -2188,6 +2188,20 @@
             } finally {
                 this.deleteLocalRef(name);
             }
+        };
+
+        Env.prototype.getObjectClassName = function (klass) {
+            let jklass;
+            if (klass.$handle) {
+                jklass = this.getObjectClass(klass.$handle);
+            } else {
+                jklass = klass.$classHandle;
+            }
+            const className = this.getClassName(jklass);
+            if (klass.$handle) {
+                this.deleteLocalRef(jklass);
+            }
+            return className;
         };
 
         Env.prototype.getTypeName = function (type) {
