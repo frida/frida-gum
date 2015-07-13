@@ -354,16 +354,11 @@
         this.cast = function (obj, klass) {
             const env = vm.getEnv();
             const handle = obj.hasOwnProperty('$handle') ? obj.$handle : obj;
-            const realClassHandle = env.getObjectClass(handle);
-            try {
-                if (env.isAssignableFrom(realClassHandle, klass.$classHandle)) {
-                    const C = klass.$classWrapper;
-                    return new C(C.__handle__, handle);
-                } else {
-                    throw new Error("Cast from '" + env.getClassName(realClassHandle) + "' to '" + env.getClassName(klass.$classHandle) + "' isn't possible");
-                }
-            } finally {
-                env.deleteLocalRef(realClassHandle);
+            if (env.isInstanceOf(handle, klass.$classHandle)) {
+                const C = klass.$classWrapper;
+                return new C(C.__handle__, handle);
+            } else {
+                throw new Error("Cast from '" + env.getObjectClassName(handle) + "' to '" + env.getClassName(klass.$classHandle) + "' isn't possible");
             }
         };
 
@@ -431,7 +426,7 @@
                 Object.defineProperty(klass.prototype, "$className", {
                     get: function () {
                         const env = vm.getEnv();
-                        return env.getObjectClassName(this);
+                        return this.hasOwnProperty('$handle') ? env.getObjectClassName(this.$handle) : env.getClassName(this.$classHandle);
                     }
                 });
 
@@ -2189,18 +2184,13 @@
             }
         };
 
-        Env.prototype.getObjectClassName = function (klass) {
-            let jklass;
-            if (klass.$handle) {
-                jklass = this.getObjectClass(klass.$handle);
-            } else {
-                jklass = klass.$classHandle;
-            }
-            const className = this.getClassName(jklass);
-            if (klass.$handle) {
+        Env.prototype.getObjectClassName = function (objHandle) {
+            const jklass = this.getObjectClass(objHandle);
+            try {
+                return this.getClassName(jklass);
+            } finally {
                 this.deleteLocalRef(jklass);
             }
-            return className;
         };
 
         Env.prototype.getTypeName = function (type) {
