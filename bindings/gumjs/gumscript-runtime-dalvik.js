@@ -550,24 +550,22 @@
 
                 const methods = overloads.map(function (handle) {
                     const methodId = env.fromReflectedMethod(handle);
-                    const argTypes = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericParameterTypes);
                     const modifiers = invokeIntMethodNoArgs(env.handle, handle, Method.getModifiers);
-                    const isVarArgs = invokeUInt8MethodNoArgs(env.handle, handle, Method.isVarArgs) ? true : false;
-                    const retType = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericReturnType);
 
                     const jsType = (modifiers & Modifier.STATIC) !== 0 ? STATIC_METHOD : INSTANCE_METHOD;
-
-                    const jsArgTypes = [];
+                    const isVarArgs = invokeUInt8MethodNoArgs(env.handle, handle, Method.isVarArgs) ? true : false;
                     let jsRetType;
+                    const jsArgTypes = [];
+                    try {
+                        const retType = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericReturnType);
+                        env.checkForExceptionAndThrowIt();
                     try {
                         jsRetType = getTypeFromJniTypename(env.getTypeName(retType));
-                    } catch (e) {
-                        env.deleteLocalRef(argTypes);
-                        return null;
                     } finally {
                         env.deleteLocalRef(retType);
                     }
-
+                        const argTypes = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericParameterTypes);
+                        env.checkForExceptionAndThrowIt();
                     try {
                         const numArgTypes = env.getArrayLength(argTypes);
                         for (let argTypeIndex = 0; argTypeIndex !== numArgTypes; argTypeIndex++) {
@@ -580,10 +578,11 @@
                                 env.deleteLocalRef(t);
                             }
                         }
-                    } catch (e) {
-                        return null;
                     } finally {
                         env.deleteLocalRef(argTypes);
+                        }
+                    } catch (e) {
+                        return null;
                     }
 
                     return makeMethod(name, jsType, methodId, jsRetType, jsArgTypes, env);
