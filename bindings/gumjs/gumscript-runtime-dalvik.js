@@ -554,27 +554,27 @@
                     try {
                         const retType = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericReturnType);
                         env.checkForExceptionAndThrowIt();
-                    try {
-                        jsRetType = getTypeFromJniTypename(env.getTypeName(retType));
-                    } finally {
-                        env.deleteLocalRef(retType);
-                    }
+                        try {
+                            jsRetType = getTypeFromJniTypename(env.getTypeName(retType));
+                        } finally {
+                            env.deleteLocalRef(retType);
+                        }
                         const argTypes = invokeObjectMethodNoArgs(env.handle, handle, Method.getGenericParameterTypes);
                         env.checkForExceptionAndThrowIt();
-                    try {
-                        const numArgTypes = env.getArrayLength(argTypes);
-                        for (let argTypeIndex = 0; argTypeIndex !== numArgTypes; argTypeIndex++) {
-                            const t = env.getObjectArrayElement(argTypes, argTypeIndex);
-                            try {
-                                const argClassName = (isVarArgs && argTypeIndex === numArgTypes - 1) ? env.getArrayTypeName(t) : env.getTypeName(t);
-                                const argType = getTypeFromJniTypename(argClassName);
-                                jsArgTypes.push(argType);
-                            } finally {
-                                env.deleteLocalRef(t);
+                        try {
+                            const numArgTypes = env.getArrayLength(argTypes);
+                            for (let argTypeIndex = 0; argTypeIndex !== numArgTypes; argTypeIndex++) {
+                                const t = env.getObjectArrayElement(argTypes, argTypeIndex);
+                                try {
+                                    const argClassName = (isVarArgs && argTypeIndex === numArgTypes - 1) ? env.getArrayTypeName(t) : env.getTypeName(t);
+                                    const argType = getTypeFromJniTypename(argClassName);
+                                    jsArgTypes.push(argType);
+                                } finally {
+                                    env.deleteLocalRef(t);
+                                }
                             }
-                        }
-                    } finally {
-                        env.deleteLocalRef(argTypes);
+                        } finally {
+                            env.deleteLocalRef(argTypes);
                         }
                     } catch (e) {
                         return null;
@@ -2075,7 +2075,8 @@
                 const handle = this.findClass("java/lang/Object");
                 try {
                     javaLangObject = {
-                        toString: this.getMethodId(handle, "toString", "()Ljava/lang/String;")
+                        toString: this.getMethodId(handle, "toString", "()Ljava/lang/String;"),
+                        getClass: this.getMethodId(handle, "getClass", "()Ljava/lang/Class;")
                     };
                 } finally {
                     this.deleteLocalRef(handle);
@@ -2144,6 +2145,41 @@
             return javaLangReflectModifier;
         };
 
+        let javaLangReflectTypeVariable = null;
+        Env.prototype.javaLangReflectTypeVariable = function () {
+            if (javaLangReflectTypeVariable === null) {
+                const handle = this.findClass("java/lang/reflect/TypeVariable");
+                try {
+                    javaLangReflectTypeVariable = {
+                        handle: register(this.newGlobalRef(handle)),
+                        getName: this.getMethodId(handle, "getName", "()Ljava/lang/String;"),
+                        getBounds: this.getMethodId(handle, "getBounds", "()[Ljava/lang/reflect/Type;"),
+                        getGenericDeclaration: this.getMethodId(handle, "getGenericDeclaration", "()Ljava/lang/reflect/GenericDeclaration;")
+                    };
+                } finally {
+                    this.deleteLocalRef(handle);
+                }
+            }
+            return javaLangReflectTypeVariable;
+        };
+
+        let javaLangReflectWildcardType = null;
+        Env.prototype.javaLangReflectWildcardType = function () {
+            if (javaLangReflectWildcardType === null) {
+                const handle = this.findClass("java/lang/reflect/WildcardType");
+                try {
+                    javaLangReflectWildcardType = {
+                        handle: register(this.newGlobalRef(handle)),
+                        getLowerBounds: this.getMethodId(handle, "getLowerBounds", "()[Ljava/lang/reflect/Type;"),
+                        getUpperBounds: this.getMethodId(handle, "getUpperBounds", "()[Ljava/lang/reflect/Type;")
+                    };
+                } finally {
+                    this.deleteLocalRef(handle);
+                }
+            }
+            return javaLangReflectWildcardType;
+        };
+
         let javaLangReflectGenericArrayType = null;
         Env.prototype.javaLangReflectGenericArrayType = function () {
             if (javaLangReflectGenericArrayType === null) {
@@ -2158,6 +2194,24 @@
                 }
             }
             return javaLangReflectGenericArrayType;
+        };
+
+        let javaLangReflectParameterizedType = null;
+        Env.prototype.javaLangReflectParameterizedType = function () {
+            if (javaLangReflectParameterizedType === null) {
+                const handle = this.findClass("java/lang/reflect/ParameterizedType");
+                try {
+                    javaLangReflectParameterizedType = {
+                        handle: register(this.newGlobalRef(handle)),
+                        getActualTypeArguments: this.getMethodId(handle, "getActualTypeArguments", "()[Ljava/lang/reflect/Type;"),
+                        getRawType: this.getMethodId(handle, "getRawType", "()Ljava/lang/reflect/Type;"),
+                        getOwnerType: this.getMethodId(handle, "getOwnerType", "()Ljava/lang/reflect/Type;")
+                    };
+                } finally {
+                    this.deleteLocalRef(handle);
+                }
+            }
+            return javaLangReflectParameterizedType;
         };
 
         let javaLangString = null;
@@ -2193,21 +2247,82 @@
             }
         };
 
-        Env.prototype.getTypeName = function (type) {
+        Env.prototype.getActualTypeArgument = function (type) {
+            const actualTypeArguments = this.method('pointer', [])(this.handle, type, this.javaLangReflectParameterizedType().getActualTypeArguments);
+            this.checkForExceptionAndThrowIt();
+            if (!actualTypeArguments.isNull()) {
+                try {
+                    return this.getTypeNameFromFirstTypeElement(actualTypeArguments);
+                } finally {
+                    this.deleteLocalRef(actualTypeArguments);
+                }
+            }
+        };
+
+        Env.prototype.getTypeNameFromFirstTypeElement = function (typeArray) {
+            const length = this.getArrayLength(typeArray);
+            if (length > 0) {
+                const typeArgument0 = this.getObjectArrayElement(typeArray, 0);
+                try {
+                    return this.getTypeName(typeArgument0);
+                } finally {
+                    this.deleteLocalRef(typeArgument0);
+                }
+            } else {
+                // TODO
+                return "java.lang.Object";
+            }
+        };
+
+        Env.prototype.getTypeName = function (type, getGenericsInformation) {
+            const invokeObjectMethodNoArgs = this.method('pointer', []);
+
             if (this.isInstanceOf(type, this.javaLangClass().handle)) {
                 return this.getClassName(type);
-            // } else if (this.isInstanceOf(type, this.javaLangReflectGenericArrayType().handle)) {
-            //     return "L";
+            } else if (this.isInstanceOf(type, this.javaLangReflectParameterizedType().handle)) {
+                const rawType = invokeObjectMethodNoArgs(this.handle, type, this.javaLangReflectParameterizedType().getRawType);
+                this.checkForExceptionAndThrowIt();
+                let result;
+                try {
+                    result = this.getTypeName(rawType);
+                } finally {
+                    this.deleteLocalRef(rawType);
+                }
+
+                if (result === "java.lang.Class" && !getGenericsInformation) {
+                    return this.getActualTypeArgument(type);
+                }
+
+                if (getGenericsInformation) {
+                    result += "<" + this.getActualTypeArgument(type) + ">";
+                }
+                return result;
+            } else if (this.isInstanceOf(type, this.javaLangReflectTypeVariable().handle)) {
+                // TODO
+                return "java.lang.Object";
+            } else if (this.isInstanceOf(type, this.javaLangReflectWildcardType().handle)) {
+                // TODO
+                return "java.lang.Object";
             } else {
                 return "java.lang.Object";
             }
         };
 
         Env.prototype.getArrayTypeName = function (type) {
+            const invokeObjectMethodNoArgs = this.method('pointer', []);
+
             if (this.isInstanceOf(type, this.javaLangClass().handle)) {
-                return "[L" + this.getClassName(type) + ";";
+                return this.getClassName(type);
+            } else if (this.isInstanceOf(type, this.javaLangReflectGenericArrayType().handle)) {
+                const componentType = invokeObjectMethodNoArgs(this.handle, type, this.javaLangReflectGenericArrayType().getGenericComponentType);
+                // check for TypeNotPresentException and MalformedParameterizedTypeException
+                this.checkForExceptionAndThrowIt();
+                try {
+                    return "[L" + this.getTypeName(componentType) + ";";
+                } finally {
+                    this.deleteLocalRef(componentType);
+                }
             } else {
-                // TODO: handle primitive types
                 return "[Ljava.lang.Object;";
             }
         };
