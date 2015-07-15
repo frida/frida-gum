@@ -156,9 +156,15 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
         g_assert_not_reached ();
     }
   }
+  else if ((raw_insn & 0x7f000000) == 0x34000000)
+  {
+    insn->mnemonic = GUM_ARM64_CBZ;
+  }
   else if ((raw_insn & 0xff000000) == 0x58000000)
   {
     insn->mnemonic = GUM_ARM64_LDR;
+    self->eob = TRUE;
+    self->eoi = FALSE;
   }
   else
   {
@@ -249,6 +255,7 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
       rewritten = gum_arm64_relocator_rewrite_unconditional_branch (self, &ctx);
       break;
     case GUM_ARM64_B_COND:
+    case GUM_ARM64_CBZ:
       rewritten = gum_arm64_relocator_rewrite_conditional_branch (self, &ctx);
       break;
     default:
@@ -482,7 +489,7 @@ gum_arm64_relocator_rewrite_conditional_branch (GumArm64Relocator * self,
 
   absolute_target = ctx->insn->pc + (distance.i * 4);
 
-  /* Rewrite to b.cond going 3 instructions ahead */
+  /* Rewrite to b.cond/cbz going 3 instructions ahead */
   insn = (ctx->raw_insn & 0xff00001f) | (3 << 5);
   gum_arm64_writer_put_bytes (ctx->output, (guint8 *) &insn, sizeof (insn));
 
