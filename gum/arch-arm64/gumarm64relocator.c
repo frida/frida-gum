@@ -159,12 +159,12 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
   else if ((raw_insn & 0x7f000000) == 0x34000000)
   {
     insn->mnemonic = GUM_ARM64_CBZ;
+    self->eob = TRUE;
+    self->eoi = FALSE;
   }
   else if ((raw_insn & 0xff000000) == 0x58000000)
   {
     insn->mnemonic = GUM_ARM64_LDR;
-    self->eob = TRUE;
-    self->eoi = FALSE;
   }
   else
   {
