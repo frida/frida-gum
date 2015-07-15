@@ -107,7 +107,9 @@ TEST_LIST_BEGIN (script)
 #endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
+#ifndef HAVE_LINUX
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_address)
+#endif
   SCRIPT_TESTENTRY (process_module_can_be_looked_up_from_name)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_ranges_can_be_enumerated_synchronously)
@@ -801,6 +803,8 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated_synchronously)
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
+#ifndef HAVE_LINUX
+
 SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
 {
   GModule * m;
@@ -823,6 +827,8 @@ SCRIPT_TESTCASE (process_module_can_be_looked_up_from_address)
       f);
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
+
+#endif
 
 SCRIPT_TESTCASE (process_module_can_be_looked_up_from_name)
 {
