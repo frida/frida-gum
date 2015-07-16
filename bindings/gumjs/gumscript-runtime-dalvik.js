@@ -491,7 +491,7 @@
                 return makeMethodDispatcher("<init>", jsMethods);
             }
 
-            function makeField(self, name, handle, env) {
+            function makeField(name, handle, env) {
                 const Field = env.javaLangReflectField();
                 const Modifier = env.javaLangReflectModifier();
                 const invokeObjectMethodNoArgs = env.method('pointer', []);
@@ -511,14 +511,14 @@
                     env.deleteLocalRef(fieldType);
                 }
 
-                const field = createField(self, name, jsType, fieldId, jsFieldType, env);
+                const field = createField(name, jsType, fieldId, jsFieldType, env);
                 if (field === null)
                     throw new Error("No supported field");
 
                 return field;
             }
 
-            function createField(self, name, type, targetFieldId, fieldType, env) {
+            function createField(name, type, targetFieldId, fieldType, env) {
                 const rawFieldType = fieldType.type;
                 let invokeTarget = null;
                 if (type === STATIC_FIELD) {
@@ -619,10 +619,10 @@
                 Object.defineProperty(f, 'value', {
                     enumerable: true,
                     get: function () {
-                        return getter.call(self);
+                        return getter.call(this.self);
                     },
                     set: function (value) {
-                        setter.call(self, value);
+                        setter.call(this.self, value);
                     }
                 });
 
@@ -724,18 +724,14 @@
                 const values = myAssign({}, jsFields, jsMethods);
                 Object.keys(values).forEach(function (name) {
                     let v = null;
-                    let self = null;
                     Object.defineProperty(klass.prototype, name, {
                         get: function () {
                             if (v === null) {
-                                if (self === null) {
-                                    self = this;
-                                }
                                 vm.perform(function () {
                                     const env = vm.getEnv();
                                     let f = {};
                                     if (jsFields.hasOwnProperty(name)) {
-                                        f = makeField(self, name, jsFields[name], env);
+                                        f = makeField(name, jsFields[name], env);
                                     }
 
                                     let m = {};
@@ -745,6 +741,8 @@
                                     v = myAssign(m, f);
                                 });
                             }
+                            // TODO find a better way
+                            v.self = this;
 
                             return v;
                         }
