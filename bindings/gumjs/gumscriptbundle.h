@@ -10,7 +10,7 @@
 #include <glib.h>
 #include <v8.h>
 
-#define GUM_MAX_SCRIPT_SOURCE_CHUNKS 5
+#define GUM_MAX_SCRIPT_SOURCE_CHUNKS 6
 
 typedef struct _GumScriptBundle GumScriptBundle;
 typedef struct _GumScriptSource GumScriptSource;
