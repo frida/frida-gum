@@ -98,63 +98,92 @@
             }
         });
 
-        function _enumerateLoadedClasses(callbacks, onlyDescription) {
-            if (Dalvik.available) {
-                const hash_tombstone = 0xcbcacccd;
-                const loadedClassesOffset = 172;
-                const hashEntrySize = 8;
-                const ptrLoadedClassesHashtable = api.gDvm.add(loadedClassesOffset);
-                const hashTable = Memory.readPointer(ptrLoadedClassesHashtable);
-                const tableSize = Memory.readS32(hashTable);
-                const ptrpEntries = hashTable.add(12);
-                const pEntries = Memory.readPointer(ptrpEntries);
-                const end = tableSize * hashEntrySize;
+        function assertDalvikApiIsAvailable() {
+            if (!Dalvik.available) {
+                throw new Error("Dalvik API not available");
+            }
+        }
 
-                for (let offset = 0; offset < end; offset += hashEntrySize) {
-                    let pEntriePtr = pEntries.add(offset);
-                    let hashValue = Memory.readS32(pEntriePtr);
-                    if (hashValue !== 0) {
-                        let dataPtr = Memory.readPointer(pEntriePtr.add(4));
-                        if (dataPtr !== hash_tombstone) {
-                            let descriptionPtr = Memory.readPointer(dataPtr.add(24));
-                            let description = Memory.readCString(descriptionPtr);
-                            if (onlyDescription) {
-                                callbacks.onMatch(description);
-                            } else {
-                                let objectSize = Memory.readU32(dataPtr.add(56));
-                                let sourceFile = Memory.readCString(Memory.readPointer(dataPtr.add(152)));
-                                callbacks.onMatch({
-                                    pointer: pEntriePtr,
-                                    objectSize: objectSize,
-                                    sourceFile: sourceFile,
-                                    description: description
-                                });
-                            }
+        function assertCalledInDalvikPerformCallback() {
+            if (classFactory.loader === null) {
+                throw new Error("Not allowed outside Dalvik.perform() callback");
+            }
+        }
+
+        this.synchronized = function (obj, fn) {
+            assertCalledInDalvikPerformCallback();
+
+            const objHandle = obj.hasOwnProperty('$handle')? obj.$handle : obj;
+            if (!(objHandle instanceof NativePointer)) {
+                throw new Error("It's neither a pointer nor a Java instance");
+            }
+
+            const env = vm.getEnv();
+            checkJniResult("VM::MonitorEnter", env.monitorEnter(objHandle));
+            try {
+                fn();
+            } finally {
+                try {
+                    checkJniResult("VM::MonitorExit", env.monitorExit(objHandle));
+                } catch (e) {
+                    env.checkForExceptionAndThrowIt();
+                }
+            }
+        };
+
+        function _enumerateLoadedClasses(callbacks, onlyDescription) {
+            assertDalvikApiIsAvailable();
+
+            const hash_tombstone = 0xcbcacccd;
+            const loadedClassesOffset = 172;
+            const hashEntrySize = 8;
+            const ptrLoadedClassesHashtable = api.gDvm.add(loadedClassesOffset);
+            const hashTable = Memory.readPointer(ptrLoadedClassesHashtable);
+            const tableSize = Memory.readS32(hashTable);
+            const ptrpEntries = hashTable.add(12);
+            const pEntries = Memory.readPointer(ptrpEntries);
+            const end = tableSize * hashEntrySize;
+
+            for (let offset = 0; offset < end; offset += hashEntrySize) {
+                let pEntriePtr = pEntries.add(offset);
+                let hashValue = Memory.readS32(pEntriePtr);
+                if (hashValue !== 0) {
+                    let dataPtr = Memory.readPointer(pEntriePtr.add(4));
+                    if (dataPtr !== hash_tombstone) {
+                        let descriptionPtr = Memory.readPointer(dataPtr.add(24));
+                        let description = Memory.readCString(descriptionPtr);
+                        if (onlyDescription) {
+                            callbacks.onMatch(description);
+                        } else {
+                            let objectSize = Memory.readU32(dataPtr.add(56));
+                            let sourceFile = Memory.readCString(Memory.readPointer(dataPtr.add(152)));
+                            callbacks.onMatch({
+                                pointer: pEntriePtr,
+                                objectSize: objectSize,
+                                sourceFile: sourceFile,
+                                description: description
+                            });
                         }
                     }
                 }
-                callbacks.onComplete();
-            } else {
-                throw new Error("Dalvik API not available");
             }
+            callbacks.onComplete();
         }
 
         Object.defineProperty(this, 'enumerateLoadedClassesSync', {
             enumerable: true,
             value: function () {
-                if (api !== null) {
-                    const classes = [];
-                    Dalvik.enumerateLoadedClasses({
-                        onMatch: function (c) {
-                            classes.push(c);
-                        },
-                        onComplete: function () {
-                        }
-                    });
-                    return classes;
-                } else {
-                    throw new Error("Dalvik API not available");
-                }
+                assertDalvikApiIsAvailable();
+
+                const classes = [];
+                Dalvik.enumerateLoadedClasses({
+                    onMatch: function (c) {
+                        classes.push(c);
+                    },
+                    onComplete: function () {
+                    }
+                });
+                return classes;
             }
         });
 
@@ -165,10 +194,33 @@
             }
         });
 
+        this.scheduleOnMainThread = function (fn) {
+            assertCalledInDalvikPerformCallback();
+
+            const ActivityThread = classFactory.use("android.app.ActivityThread");
+            const Handler = classFactory.use("android.os.Handler");
+            const Looper = classFactory.use("android.os.Looper");
+
+            const looper = Looper.getMainLooper();
+            const handler = Handler.$new.overload("android.os.Looper").call(Handler, looper);
+            const message = handler.obtainMessage();
+            Handler.dispatchMessage.implementation = function (msg) {
+                const sameHandler = this.$isSameObject(handler);
+                if (sameHandler) {
+                    const app = ActivityThread.currentApplication();
+                    if (app !== null) {
+                        Handler.dispatchMessage.implementation = null;
+                        fn();
+                    }
+                } else {
+                    this.dispatchMessage(msg);
+                }
+            };
+            message.sendToTarget();
+        };
+
         this.perform = function (fn) {
-            if (api === null) {
-                throw new Error("Dalvik runtime not available");
-            }
+            assertDalvikApiIsAvailable();
 
             if (classFactory.loader !== null) {
                 vm.perform(fn);
@@ -207,21 +259,29 @@
         };
 
         this.use = function (className) {
-            if (classFactory.loader === null) {
-                throw new Error("Not allowed outside Dalvik.perform() callback");
-            }
+            assertCalledInDalvikPerformCallback();
             return classFactory.use(className);
         };
 
         this.choose = function (className, callbacks) {
-            if (classFactory.loader === null) {
-                throw new Error("Not allowed outside Dalvik.perform() callback");
-            }
+            assertCalledInDalvikPerformCallback();
             return classFactory.choose(className, callbacks);
         };
 
         this.cast = function (obj, C) {
             return classFactory.cast(obj, C);
+        };
+
+        // Reference: http://stackoverflow.com/questions/2848575/how-to-detect-ui-thread-on-android
+        this.isMainThread = function () {
+            assertCalledInDalvikPerformCallback();
+            const Looper = classFactory.use("android.os.Looper");
+            const mainLooper = Looper.getMainLooper();
+            const myLooper = Looper.myLooper();
+            if (myLooper === null) {
+                return false;
+            }
+            return mainLooper.$isSameObject(myLooper);
         };
 
         initialize.call(this);
@@ -741,7 +801,8 @@
                                     v = myAssign(m, f);
                                 });
                             }
-                            // TODO find a better way
+                            // TODO there should be a better way to do that
+                            // set the reference for accessing fields
                             v.self = this;
 
                             return v;
@@ -1150,6 +1211,7 @@
                             api.dvmUseJNIBridge(methodId, implementation);
                         } else {
                             Memory.copy(methodId, originalMethodId, METHOD_SIZE);
+                            implementation = null;
                         }
                     }
                 });
@@ -2322,6 +2384,14 @@
 
         Env.prototype.setDoubleArrayRegion = proxy(214, 'void', ['pointer', 'pointer', 'int32', 'int32', 'pointer'], function (impl, array, start, length, cArray) {
             impl(this.handle, array, start, length, cArray);
+        });
+
+        Env.prototype.monitorEnter = proxy(217, 'int32', ['pointer', 'pointer'], function (impl, obj) {
+            return impl(this.handle, obj);
+        });
+
+        Env.prototype.monitorExit = proxy(218, 'int32', ['pointer', 'pointer'], function (impl, obj) {
+            return impl(this.handle, obj);
         });
 
         Env.prototype.getObjectRefType = proxy(232, 'int32', ['pointer', 'pointer'], function (impl, ref) {
