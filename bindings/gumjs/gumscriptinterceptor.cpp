@@ -425,7 +425,7 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 
   /*
    * TODO: Create a helper object implementing the listener interface,
-   *       and allow each to be detached invididually.
+   *       and allow each to be detached individually.
    */
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
       self->interceptor, target, GUM_INVOCATION_LISTENER (self->core->script),
