@@ -52,6 +52,8 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (function_data)
 
 #if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
+  INTERCEPTOR_TESTENTRY (i_can_has_replaceability)
+  INTERCEPTOR_TESTENTRY (already_replaced)
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
 #endif
@@ -542,8 +544,8 @@ INTERCEPTOR_TESTCASE (replace_function)
   malloc_impl = malloc;
 #endif
 
-  gum_interceptor_replace_function (fixture->interceptor,
-      malloc_impl, replacement_malloc, &counter);
+  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+      malloc_impl, replacement_malloc, &counter), ==, GUM_REPLACE_OK);
   ret = malloc_impl (0x42);
 
   /*
@@ -582,6 +584,33 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_assert_cmpint (free_counter, ==, 1);
 
   g_free (ret);
+}
+
+INTERCEPTOR_TESTCASE (i_can_has_replaceability)
+{
+  UnsupportedFunction * unsupported_functions;
+  guint count, i;
+
+  unsupported_functions = unsupported_function_list_new (&count);
+
+  for (i = 0; i < count; i++)
+  {
+    UnsupportedFunction * func = &unsupported_functions[i];
+
+    g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+        func->code + func->code_offset, replacement_malloc, NULL),
+        ==, GUM_REPLACE_WRONG_SIGNATURE);
+  }
+
+  unsupported_function_list_free (unsupported_functions);
+}
+
+INTERCEPTOR_TESTCASE (already_replaced)
+{
+  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+        target_function, malloc, NULL), ==, GUM_REPLACE_OK);
+  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+        target_function, malloc, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
 }
 
 #ifdef G_OS_WIN32

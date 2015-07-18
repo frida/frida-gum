@@ -33,7 +33,7 @@ namespace Gum {
 		public Gum.AttachReturn attach_listener (void * function_address, Gum.InvocationListener listener, void * listener_function_data = null);
 		public void detach_listener (Gum.InvocationListener listener);
 
-		public void replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
+		public Gum.ReplaceReturn replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
 		public void revert_function (void * function_address);
 
 		public static Gum.InvocationContext get_current_invocation ();
@@ -341,6 +341,13 @@ namespace Gum {
 		OK		  =  0,
 		WRONG_SIGNATURE	  = -1,
 		ALREADY_ATTACHED  = -2
+	}
+
+	[CCode (cprefix = "GUM_REPLACE_")]
+	public enum ReplaceReturn {
+		OK		  =  0,
+		WRONG_SIGNATURE	  = -1,
+		ALREADY_REPLACED  = -2
 	}
 
 	[CCode (cprefix = "GUM_")]

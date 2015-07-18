@@ -39,6 +39,13 @@ typedef enum
   GUM_ATTACH_ALREADY_ATTACHED = -2
 } GumAttachReturn;
 
+typedef enum
+{
+  GUM_REPLACE_OK               =  0,
+  GUM_REPLACE_WRONG_SIGNATURE  = -1,
+  GUM_REPLACE_ALREADY_REPLACED = -2
+} GumReplaceReturn;
+
 struct _GumInterceptor
 {
   GObject parent;
@@ -63,9 +70,9 @@ GUM_API GumAttachReturn gum_interceptor_attach_listener (GumInterceptor * self,
 GUM_API void gum_interceptor_detach_listener (GumInterceptor * self,
     GumInvocationListener * listener);
 
-GUM_API void gum_interceptor_replace_function (GumInterceptor * self,
-    gpointer function_address, gpointer replacement_function,
-    gpointer replacement_function_data);
+GUM_API GumReplaceReturn gum_interceptor_replace_function (
+    GumInterceptor * self, gpointer function_address,
+    gpointer replacement_function, gpointer replacement_function_data);
 GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
     gpointer function_address);
 

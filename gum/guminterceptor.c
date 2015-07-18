@@ -407,13 +407,14 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   gum_interceptor_unignore_current_thread (self);
 }
 
-void
+GumReplaceReturn
 gum_interceptor_replace_function (GumInterceptor * self,
                                   gpointer function_address,
                                   gpointer replacement_function,
                                   gpointer replacement_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
+  GumReplaceReturn result = GUM_REPLACE_OK;
   gpointer next_hop;
 
   GUM_INTERCEPTOR_LOCK ();
@@ -427,10 +428,26 @@ gum_interceptor_replace_function (GumInterceptor * self,
       break;
   }
 
+  if (gum_hash_table_lookup (priv->replaced_function_by_address,
+      function_address) != NULL)
+  {
+    result = GUM_REPLACE_ALREADY_REPLACED;
+    goto beach;
+  }
+
+  if (!_gum_interceptor_can_intercept (function_address))
+  {
+    result = GUM_REPLACE_WRONG_SIGNATURE;
+    goto beach;
+  }
+
   replace_function_at (self, function_address, replacement_function,
       replacement_function_data);
 
+beach:
   GUM_INTERCEPTOR_UNLOCK ();
+
+  return result;
 }
 
 void
