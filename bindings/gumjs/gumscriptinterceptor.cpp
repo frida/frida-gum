@@ -447,14 +447,14 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 
       message = g_strdup_printf ("unable to intercept function at %p; "
           "please file a bug", target);
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
           isolate, message)));
       g_free (message);
 
       break;
     }
     case GUM_ATTACH_ALREADY_ATTACHED:
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
           isolate, "already attached to this function")));
       break;
   }
@@ -545,14 +545,14 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
 
       message = g_strdup_printf ("unable to intercept function at %p; "
           "please file a bug", target);
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
           isolate, message)));
       g_free (message);
 
       break;
     }
     case GUM_REPLACE_ALREADY_REPLACED:
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate->ThrowException (Exception::Error (String::NewFromUtf8 (
           isolate, "already replaced this function")));
       break;
   }
