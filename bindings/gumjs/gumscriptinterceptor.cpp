@@ -59,6 +59,7 @@ static void gum_script_interceptor_on_replace (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_interceptor_on_revert (
     const FunctionCallbackInfo<Value> & info);
+static void gum_script_attach_entry_free (GumScriptAttachEntry * entry);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
 static void gum_script_invocation_context_on_get_return_address (
@@ -431,9 +432,32 @@ gum_script_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
       self->interceptor, target, GUM_INVOCATION_LISTENER (self->core->script),
       entry);
 
-  g_queue_push_tail (self->attach_entries, entry);
+  if (attach_ret == GUM_ATTACH_OK)
+    g_queue_push_tail (self->attach_entries, entry);
+  else
+    gum_script_attach_entry_free (entry);
 
-  info.GetReturnValue ().Set (attach_ret == GUM_ATTACH_OK);
+  switch (attach_ret)
+  {
+    case GUM_ATTACH_OK:
+      break;
+    case GUM_ATTACH_WRONG_SIGNATURE:
+    {
+      gchar * message;
+
+      message = g_strdup_printf ("unable to intercept function at %p; "
+          "please file a bug", target);
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, message)));
+      g_free (message);
+
+      break;
+    }
+    case GUM_ATTACH_ALREADY_ATTACHED:
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "already attached to this function")));
+      break;
+  }
 }
 
 /*
@@ -463,11 +487,8 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
 
   while (!g_queue_is_empty (self->attach_entries))
   {
-    GumScriptAttachEntry * entry = static_cast<GumScriptAttachEntry *> (
-        g_queue_pop_tail (self->attach_entries));
-    delete entry->on_enter;
-    delete entry->on_leave;
-    g_slice_free (GumScriptAttachEntry, entry);
+    gum_script_attach_entry_free (static_cast<GumScriptAttachEntry *> (
+        g_queue_pop_tail (self->attach_entries)));
   }
 }
 
@@ -501,10 +522,40 @@ gum_script_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
   entry->target = target;
   entry->replacement = new GumPersistent<Value>::type (isolate, info[1]);
 
-  gum_interceptor_replace_function (self->interceptor, target, replacement,
-      NULL);
+  GumReplaceReturn replace_ret = gum_interceptor_replace_function (
+      self->interceptor, target, replacement, NULL);
 
-  g_hash_table_insert (self->replacement_by_address, target, entry);
+  if (replace_ret == GUM_REPLACE_OK)
+  {
+    g_hash_table_insert (self->replacement_by_address, target, entry);
+  }
+  else
+  {
+    delete entry->replacement;
+    g_slice_free (GumScriptReplaceEntry, entry);
+  }
+
+  switch (replace_ret)
+  {
+    case GUM_REPLACE_OK:
+      break;
+    case GUM_REPLACE_WRONG_SIGNATURE:
+    {
+      gchar * message;
+
+      message = g_strdup_printf ("unable to intercept function at %p; "
+          "please file a bug", target);
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, message)));
+      g_free (message);
+
+      break;
+    }
+    case GUM_REPLACE_ALREADY_REPLACED:
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "already replaced this function")));
+      break;
+  }
 }
 
 /*
@@ -528,6 +579,14 @@ gum_script_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
     return;
 
   g_hash_table_remove (self->replacement_by_address, target);
+}
+
+static void
+gum_script_attach_entry_free (GumScriptAttachEntry * entry)
+{
+  delete entry->on_enter;
+  delete entry->on_leave;
+  g_slice_free (GumScriptAttachEntry, entry);
 }
 
 static void
