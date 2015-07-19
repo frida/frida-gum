@@ -98,6 +98,19 @@
             }
         });
 
+        let androidVersion = null;
+        Object.defineProperty(this, 'androidVersion', {
+            enumerable: true,
+            get: function () {
+                if (androidVersion === null) {
+                    assertCalledInDalvikPerformCallback();
+                    const Build = Dalvik.use("android.os.Build$VERSION");
+                    androidVersion = Build.RELEASE.value;
+                }
+                return androidVersion;
+            }
+        });
+
         function assertDalvikApiIsAvailable() {
             if (!Dalvik.available) {
                 throw new Error("Dalvik API not available");
@@ -371,8 +384,8 @@
                             Dalvik.perform(function () {
                                 const env = vm.getEnv();
                                 const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
-                                const localReference = api.addLocalReferenceFunc(thread, address);
                                 let instance;
+                                const localReference = api.addLocalReference(thread, address);
                                 try {
                                     instance = Dalvik.cast(localReference, klass);
                                 } finally {
@@ -394,16 +407,24 @@
                 });
             };
 
-            if (api.addLocalReferenceFunc === null) {
+            if (api.addLocalReference === null) {
                 const libdvm = Process.getModuleByName('libdvm.so');
-                Memory.scan(libdvm.base, libdvm.size, '2D E9 F0 41 05 46 15 4E 0C 46 7E 44 11 B3 43 68',
+                let pattern;
+                if (Dalvik.androidVersion.indexOf('4.2.') === 0) {
+                    // verified with 4.2.2
+                    pattern = 'F8 B5 06 46 0C 46 31 B3 43 68 00 F1 A8 07 22 46';
+                } else {
+                    // verified with 4.3.1 and 4.4.4
+                    pattern = '2D E9 F0 41 05 46 15 4E 0C 46 7E 44 11 B3 43 68';
+                }
+                Memory.scan(libdvm.base, libdvm.size, pattern,
                     {
                         onMatch: function (address, size) {
                             // Note that on 32-bit ARM this address must have its least significant bit set to 0 for ARM functions, and 1 for Thumb functions. => So set it to 1
                             if (Process.arch === 'arm') {
                                 address = address.or(1);
                             }
-                            api.addLocalReferenceFunc = new NativeFunction(address, 'pointer', ['pointer', 'pointer']);
+                            api.addLocalReference = new NativeFunction(address, 'pointer', ['pointer', 'pointer']);
                             enumerateInstances(className, callbacks);
                             return 'stop';
                         },
@@ -2775,7 +2796,7 @@
         }
 
         const temporaryApi = {
-            addLocalReferenceFunc: null
+            addLocalReference: null
         };
         const pending = [
             {
