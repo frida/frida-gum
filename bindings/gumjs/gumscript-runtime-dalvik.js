@@ -147,7 +147,7 @@
         function _enumerateLoadedClasses(callbacks, onlyDescription) {
             assertDalvikApiIsAvailable();
 
-            const hash_tombstone = 0xcbcacccd;
+            const HASH_TOMBSTONE = ptr("0xcbcacccd");
             const loadedClassesOffset = 172;
             const hashEntrySize = 8;
             const ptrLoadedClassesHashtable = api.gDvm.add(loadedClassesOffset);
@@ -158,25 +158,22 @@
             const end = tableSize * hashEntrySize;
 
             for (let offset = 0; offset < end; offset += hashEntrySize) {
-                let pEntriePtr = pEntries.add(offset);
-                let hashValue = Memory.readS32(pEntriePtr);
-                if (hashValue !== 0) {
-                    let dataPtr = Memory.readPointer(pEntriePtr.add(4));
-                    if (dataPtr !== hash_tombstone) {
-                        let descriptionPtr = Memory.readPointer(dataPtr.add(24));
-                        let description = Memory.readCString(descriptionPtr);
-                        if (onlyDescription) {
-                            callbacks.onMatch(description);
-                        } else {
-                            let objectSize = Memory.readU32(dataPtr.add(56));
-                            let sourceFile = Memory.readCString(Memory.readPointer(dataPtr.add(152)));
-                            callbacks.onMatch({
-                                pointer: pEntriePtr,
-                                objectSize: objectSize,
-                                sourceFile: sourceFile,
-                                description: description
-                            });
-                        }
+                const pEntriePtr = pEntries.add(offset);
+                const dataPtr = Memory.readPointer(pEntriePtr.add(4));
+                if (!(HASH_TOMBSTONE.equals(dataPtr) || NULL.equals(dataPtr))) {
+                    const descriptionPtr = Memory.readPointer(dataPtr.add(24));
+                    const description = Memory.readCString(descriptionPtr);
+                    if (onlyDescription) {
+                        callbacks.onMatch(description);
+                    } else {
+                        const objectSize = Memory.readU32(dataPtr.add(56));
+                        const sourceFile = Memory.readCString(Memory.readPointer(dataPtr.add(152)));
+                        callbacks.onMatch({
+                            pointer: pEntriePtr,
+                            objectSize: objectSize,
+                            sourceFile: sourceFile,
+                            description: description
+                        });
                     }
                 }
             }
