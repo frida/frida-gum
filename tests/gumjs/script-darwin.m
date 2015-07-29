@@ -42,7 +42,7 @@ TEST_LIST_END ()
 
 @protocol FridaCalculator
 - (int)add:(int)value;
-- (void)add:(int)value completion:(void (^)(int))block;
+- (void)add:(int)value completion:(void (^)(int, NSError *))block;
 - (int)sub:(int)value;
 @optional
 - (int)magic;
@@ -53,9 +53,9 @@ TEST_LIST_END ()
 
 @implementation FridaDefaultCalculator
 - (int)add:(int)value { return 1337 + value; }
-- (void)add:(int)value completion:(void (^)(int))block {
+- (void)add:(int)value completion:(void (^)(int, NSError *))block {
   dispatch_async (dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-    block(1337 + value);
+    block(1337 + value, nil);
   });
 }
 - (int)sub:(int)value { return 1337 - value; }
@@ -340,14 +340,14 @@ SCRIPT_TESTCASE (block_can_be_implemented)
         "var calc = new ObjC.Object(" GUM_PTR_CONST ");"
         "var onComplete = new ObjC.Block({"
             "retType: 'void',"
-            "argTypes: ['int'],"
-            "implementation: function (result) {"
-                "send(result);"
+            "argTypes: ['int', 'object'],"
+            "implementation: function (result, error) {"
+                "send([result, error]);"
             "}"
         "});"
         "calc.add_completion_(3, onComplete);",
         calc);
-    EXPECT_SEND_MESSAGE_WITH ("1340");
+    EXPECT_SEND_MESSAGE_WITH ("[1340,null]");
     EXPECT_NO_MESSAGES ();
   }
 }

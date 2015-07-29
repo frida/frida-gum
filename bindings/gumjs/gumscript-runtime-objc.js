@@ -1491,7 +1491,7 @@
             const callArgs = argTypes.slice(1).map(function (t, i) {
                 const argVariableName = argVariableNames[1 + i];
                 if (t.fromNative) {
-                    return "argTypes[" + (1 + i) + "].fromNative.call(self, " + argVariableName + ")";
+                    return "argTypes[" + (1 + i) + "].fromNative.call(this, " + argVariableName + ")";
                 }
                 return argVariableName;
             });
@@ -1501,7 +1501,7 @@
                 returnCaptureLeft = "";
                 returnCaptureRight = "";
             } else if (retType.toNative) {
-                returnCaptureLeft = "return retType.toNative.call(self, ";
+                returnCaptureLeft = "return retType.toNative.call(this, ";
                 returnCaptureRight = ")";
             } else {
                 returnCaptureLeft = "return ";
