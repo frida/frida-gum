@@ -26,6 +26,8 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (string_can_be_constructed)
   SCRIPT_TESTENTRY (string_can_be_passed_as_argument)
   SCRIPT_TESTENTRY (class_can_be_implemented)
+  SCRIPT_TESTENTRY (block_can_be_implemented)
+  SCRIPT_TESTENTRY (block_can_be_invoked)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
@@ -40,6 +42,7 @@ TEST_LIST_END ()
 
 @protocol FridaCalculator
 - (int)add:(int)value;
+- (void)add:(int)value completion:(void (^)(int))block;
 - (int)sub:(int)value;
 @optional
 - (int)magic;
@@ -50,6 +53,11 @@ TEST_LIST_END ()
 
 @implementation FridaDefaultCalculator
 - (int)add:(int)value { return 1337 + value; }
+- (void)add:(int)value completion:(void (^)(int))block {
+  dispatch_async (dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+    block(1337 + value);
+  });
+}
 - (int)sub:(int)value { return 1337 - value; }
 - (void)secret {}
 @end
@@ -318,6 +326,49 @@ SCRIPT_TESTCASE (class_can_be_implemented)
     g_assert (calculator != nil);
     g_assert_cmpint ([calculator add:6], ==, 1234 + 6);
     g_assert_cmpint ([calculator sub:4], ==, 1234 - 4);
+  }
+}
+
+SCRIPT_TESTCASE (block_can_be_implemented)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var calc = new ObjC.Object(" GUM_PTR_CONST ");"
+        "var onComplete = new ObjC.Block({"
+            "retType: 'void',"
+            "argTypes: ['int'],"
+            "implementation: function (result) {"
+                "send(result);"
+            "}"
+        "});"
+        "calc.add_completion_(3, onComplete);",
+        calc);
+    EXPECT_SEND_MESSAGE_WITH ("1340");
+    EXPECT_NO_MESSAGES ();
+  }
+}
+
+SCRIPT_TESTCASE (block_can_be_invoked)
+{
+  @autoreleasepool
+  {
+    NSString * (^block) (NSString *) = ^NSString * (NSString * name) {
+      return [NSString stringWithFormat:@"Hello %@", name];
+    };
+    COMPILE_AND_LOAD_SCRIPT (
+        "var pool = ObjC.classes.NSAutoreleasePool.alloc().init();"
+        "var block = new ObjC.Block(" GUM_PTR_CONST ");"
+        "send(block instanceof ObjC.Block);"
+        "send(block.implementation('Badger').toString());"
+        "pool.release();",
+        block);
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("\"Hello Badger\"");
+    EXPECT_NO_MESSAGES ();
   }
 }
 

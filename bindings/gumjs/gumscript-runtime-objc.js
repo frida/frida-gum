@@ -32,6 +32,7 @@
         const msgSendSuperBySignatureId = {};
         let cachedNSString = null;
         let cachedNSStringCtor = null;
+        const PRIV = Symbol('priv');
 
         Object.defineProperty(this, 'available', {
             enumerable: true,
@@ -63,6 +64,11 @@
         Object.defineProperty(this, 'Protocol', {
             enumerable: true,
             value: ObjCProtocol
+        });
+
+        Object.defineProperty(this, 'Block', {
+            enumerable: true,
+            value: Block
         });
 
         Object.defineProperty(this, 'mainQueue', {
@@ -934,6 +940,123 @@
             }
         }
 
+        let blockDescriptorAllocSize, blockDescriptorDeclaredSize, blockDescriptorOffsets;
+        let blockSize, blockOffsets;
+        if (pointerSize === 4) {
+            blockDescriptorAllocSize = 16; /* sizeof (BlockDescriptor) == 12 */
+            blockDescriptorDeclaredSize = 20;
+            blockDescriptorOffsets = {
+                reserved: 0,
+                size: 4,
+                rest: 8
+            };
+
+            blockSize = 20;
+            blockOffsets = {
+                isa: 0,
+                flags: 4,
+                reserved: 8,
+                invoke: 12,
+                descriptor: 16
+            };
+        } else {
+            blockDescriptorAllocSize = 32; /* sizeof (BlockDescriptor) == 24 */
+            blockDescriptorDeclaredSize = 32;
+            blockDescriptorOffsets = {
+                reserved: 0,
+                size: 8,
+                rest: 16
+            };
+
+            blockSize = 32;
+            blockOffsets = {
+                isa: 0,
+                flags: 8,
+                reserved: 12,
+                invoke: 16,
+                descriptor: 24
+            };
+        }
+
+        const BLOCK_HAS_COPY_DISPOSE = (1 << 25);
+        const BLOCK_HAS_CTOR =         (1 << 26);
+        const BLOCK_IS_GLOBAL =        (1 << 28);
+        const BLOCK_HAS_STRET =        (1 << 29);
+        const BLOCK_HAS_SIGNATURE =    (1 << 30);
+
+        function Block(target) {
+            const priv = {};
+            this[PRIV] = priv;
+
+            if (target instanceof NativePointer) {
+                const descriptor = Memory.readPointer(target.add(blockOffsets.descriptor));
+
+                this.handle = target;
+
+                const flags = Memory.readU32(target.add(blockOffsets.flags));
+                if ((flags & BLOCK_HAS_SIGNATURE) != 0) {
+                    const signatureOffset = ((flags & BLOCK_HAS_COPY_DISPOSE) != 0) ? 2 : 0;
+                    priv.types = Memory.readCString(Memory.readPointer(descriptor.add(blockDescriptorOffsets.rest + (signatureOffset * pointerSize))));
+                    priv.signature = parseSignature(priv.types);
+                }
+            } else {
+                if (!(typeof target === 'object' &&
+                        (target.hasOwnProperty('types') || (target.hasOwnProperty('retType') && target.hasOwnProperty('argTypes'))) &&
+                        target.hasOwnProperty('implementation'))) {
+                    throw new Error('Expected type metadata and implementation');
+                }
+
+                let types = target.types;
+                if (types === undefined) {
+                    types = unparseSignature(target.retType, ['block'].concat(target.argTypes));
+                }
+
+                const descriptor = Memory.alloc(blockDescriptorAllocSize + blockSize);
+                const block = descriptor.add(blockDescriptorAllocSize);
+                const typesStr = Memory.allocUtf8String(types);
+
+                Memory.writeULong(descriptor.add(blockDescriptorOffsets.reserved), 0);
+                Memory.writeULong(descriptor.add(blockDescriptorOffsets.size), blockDescriptorDeclaredSize);
+                Memory.writePointer(descriptor.add(blockDescriptorOffsets.rest), typesStr);
+
+                Memory.writePointer(block.add(blockOffsets.isa), classRegistry.__NSGlobalBlock__);
+                Memory.writeU32(block.add(blockOffsets.flags), BLOCK_HAS_SIGNATURE | BLOCK_IS_GLOBAL);
+                Memory.writeU32(block.add(blockOffsets.reserved), 0);
+                Memory.writePointer(block.add(blockOffsets.descriptor), descriptor);
+
+                this.handle = block;
+
+                priv.descriptor = descriptor;
+                priv.types = types;
+                priv.typesStr = typesStr;
+                priv.signature = parseSignature(types);
+
+                this.implementation = target.implementation;
+            }
+        }
+
+        Object.defineProperty(Block.prototype, 'implementation', {
+            enumerable: true,
+            get: () => {
+                const priv = this[PRIV];
+                const address = Memory.readPointer(this.handle.add(blockOffsets.invoke));
+                const signature = priv.signature;
+                return makeBlockInvocationWrapper(this, signature, new NativeFunction(
+                    address,
+                    signature.retType.type,
+                    signature.argTypes.map(function (arg) { return arg.type; })));
+            },
+            set: (func) => {
+                const priv = this[PRIV];
+                const signature = priv.signature;
+                priv.callback = new NativeCallback(
+                    makeBlockImplementationWrapper(this, signature, func),
+                    signature.retType.type,
+                    signature.argTypes.map(function (arg) { return arg.type; }));
+                Memory.writePointer(this.handle.add(blockOffsets.invoke), priv.callback);
+            }
+        });
+
         function collectProtocols(p, acc) {
             acc = acc || {};
 
@@ -1323,6 +1446,75 @@
             return m;
         }
 
+        function makeBlockInvocationWrapper(block, signature, implementation) {
+            const retType = signature.retType;
+            const argTypes = signature.argTypes.slice(1);
+
+            const argVariableNames = argTypes.map(function (t, i) {
+                return "a" + (i + 1);
+            });
+            const callArgs = argTypes.map(function (t, i) {
+                if (t.toNative) {
+                    return "argTypes[" + i + "].toNative.call(this, " + argVariableNames[i] + ")";
+                }
+                return argVariableNames[i];
+            });
+            let returnCaptureLeft;
+            let returnCaptureRight;
+            if (retType.type === 'void') {
+                returnCaptureLeft = "";
+                returnCaptureRight = "";
+            } else if (retType.fromNative) {
+                returnCaptureLeft = "return retType.fromNative.call(this, ";
+                returnCaptureRight = ")";
+            } else {
+                returnCaptureLeft = "return ";
+                returnCaptureRight = "";
+            }
+            const f = eval("const f = function (" + argVariableNames.join(", ") + ") { " +
+                returnCaptureLeft + "implementation(this" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
+            " }; f;");
+
+            return f.bind(block);
+        }
+
+        function makeBlockImplementationWrapper(block, signature, implementation) {
+            const retType = signature.retType;
+            const argTypes = signature.argTypes;
+
+            const argVariableNames = argTypes.map(function (t, i) {
+                if (i === 0)
+                    return "handle";
+                else
+                    return "a" + i;
+            });
+            const callArgs = argTypes.slice(1).map(function (t, i) {
+                const argVariableName = argVariableNames[1 + i];
+                if (t.fromNative) {
+                    return "argTypes[" + (1 + i) + "].fromNative.call(self, " + argVariableName + ")";
+                }
+                return argVariableName;
+            });
+            let returnCaptureLeft;
+            let returnCaptureRight;
+            if (retType.type === 'void') {
+                returnCaptureLeft = "";
+                returnCaptureRight = "";
+            } else if (retType.toNative) {
+                returnCaptureLeft = "return retType.toNative.call(self, ";
+                returnCaptureRight = ")";
+            } else {
+                returnCaptureLeft = "return ";
+                returnCaptureRight = "";
+            }
+
+            const f = eval("const f = function (" + argVariableNames.join(", ") + ") { " +
+                returnCaptureLeft + "implementation.call(block" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
+            " }; f;");
+
+            return f.bind(block);
+        }
+
         function rawFridaType(t) {
             return (t === 'object') ? 'pointer' : t;
         }
@@ -1406,17 +1598,28 @@
 
         function readType(cursor) {
             while (true) {
-                const c = readChar(cursor);
+                let id = readChar(cursor);
+                if (id === '@') {
+                    let next = peekChar(cursor);
+                    if (next === '?') {
+                        id += next;
+                        skipChar(cursor);
+                    } else if (next === '"') {
+                        skipChar(cursor);
+                        readUntil('"', cursor);
+                        skipChar(cursor); // '"'
+                    }
+                }
 
-                const type = singularTypeById[c];
+                const type = singularTypeById[id];
                 if (type !== undefined) {
                     return type;
-                } else if (c === '[') {
+                } else if (id === '[') {
                     const length = readNumber(cursor);
                     const elementType = readType(cursor);
                     skipChar(cursor); // ']'
                     return arrayType(length, elementType);
-                } else if (c === '{') {
+                } else if (id === '{') {
                     readUntil('=', cursor);
                     const structFields = [];
                     do {
@@ -1424,7 +1627,7 @@
                     } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // '}'
                     return structType(structFields);
-                } else if (c === '(') {
+                } else if (id === '(') {
                     readUntil('=', cursor);
                     const unionFields = [];
                     do {
@@ -1432,10 +1635,10 @@
                     } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // ')'
                     return unionType(unionFields);
-                } else if (c === 'b') {
+                } else if (id === 'b') {
                     readNumber(cursor);
                     return singularTypeById.i;
-                } else if (c === '^') {
+                } else if (id === '^') {
                     readType(cursor);
                     return singularTypeById['?'];
                 } else {
@@ -1526,6 +1729,7 @@
             'void': 'v',
             'string': '*',
             'object': '@',
+            'block': '@?',
             'class': '#',
             'selector': ':'
         };
@@ -1555,6 +1759,20 @@
                 }
                 return cachedNSStringCtor.call(cachedNSString, Memory.allocUtf8String(v));
             }
+            return v;
+        };
+
+        const fromNativeBlock = function (h) {
+            if (h.isNull()) {
+                return null;
+            } else if (h.toString(16) === this.handle.toString(16)) {
+                return this;
+            } else {
+                return new Block(h);
+            }
+        };
+
+        const toNativeBlock = function (v) {
             return v;
         };
 
@@ -1735,6 +1953,12 @@
                 size: pointerSize,
                 fromNative: fromNativeId,
                 toNative: toNativeId
+            },
+            '@?': {
+                type: 'pointer',
+                size: pointerSize,
+                fromNative: fromNativeBlock,
+                toNative: toNativeBlock
             },
             '#': {
                 type: 'pointer',
