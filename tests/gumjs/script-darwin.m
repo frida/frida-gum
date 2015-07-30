@@ -28,6 +28,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (class_can_be_implemented)
   SCRIPT_TESTENTRY (block_can_be_implemented)
   SCRIPT_TESTENTRY (block_can_be_invoked)
+  SCRIPT_TESTENTRY (block_can_be_migrated_to_the_heap_behind_our_back)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
@@ -369,6 +370,43 @@ SCRIPT_TESTCASE (block_can_be_invoked)
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("\"Hello Badger\"");
     EXPECT_NO_MESSAGES ();
+  }
+}
+
+SCRIPT_TESTCASE (block_can_be_migrated_to_the_heap_behind_our_back)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var FridaDefaultCalculator = ObjC.classes.FridaDefaultCalculator;"
+        "var m = FridaDefaultCalculator['- add:completion:'].implementation;"
+        "Interceptor.attach(m, {"
+            "onEnter: function (args) {"
+                "var originalBlockHandle = args[3];"
+                "var block = new ObjC.Block(originalBlockHandle);"
+                "var appCallback = block.implementation;"
+                "block.implementation = function (result, error) {"
+                    "send(this === block);"
+                    "send(this.handle.toString() === originalBlockHandle.toString());"
+                    "appCallback(result, error);"
+                    "send([result, error]);"
+                "};"
+            "}"
+        "});");
+    EXPECT_NO_MESSAGES ();
+
+    __block int calls = 0;
+    [calc add:3 completion:^void (int result, NSError * error) {
+      calls++;
+    }];
+
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("false");
+    EXPECT_SEND_MESSAGE_WITH ("[1340,null]");
+    g_assert_cmpint (calls, ==, 1);
   }
 }
 

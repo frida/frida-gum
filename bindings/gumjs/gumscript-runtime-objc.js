@@ -1509,6 +1509,8 @@
             }
 
             const f = eval("const f = function (" + argVariableNames.join(", ") + ") { " +
+                "if (!this.handle.equals(handle))" +
+                    "this.handle = handle;" +
                 returnCaptureLeft + "implementation.call(block" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; f;");
 
