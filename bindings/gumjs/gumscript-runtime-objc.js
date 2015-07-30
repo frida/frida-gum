@@ -1752,7 +1752,9 @@
         };
 
         const toNativeId = function (v) {
-            if (typeof v === 'string') {
+            if (v === null) {
+                return NULL;
+            } else if (typeof v === 'string') {
                 if (cachedNSString === null) {
                     cachedNSString = classRegistry.NSString;
                     cachedNSStringCtor = cachedNSString.stringWithUTF8String_;
@@ -1773,7 +1775,7 @@
         };
 
         const toNativeBlock = function (v) {
-            return v;
+            return (v !== null) ? v : NULL;
         };
 
         function arrayType(length, elementType) {
