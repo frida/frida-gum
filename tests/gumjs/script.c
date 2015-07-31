@@ -15,6 +15,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (recv_can_be_waited_for)
+  SCRIPT_TESTENTRY (rpc_can_be_performed)
   SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
   SCRIPT_TESTENTRY (timeout_can_be_scheduled)
   SCRIPT_TESTENTRY (timeout_can_be_cancelled)
@@ -1045,6 +1046,48 @@ SCRIPT_TESTCASE (array_buffer_can_be_created)
 {
   COMPILE_AND_LOAD_SCRIPT ("new ArrayBuffer(16);");
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (rpc_can_be_performed)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "'use strict';"
+      "Api.foo = (a, b) => {"
+          "const result = a + b;"
+          "if (result >= 0)"
+              "return result;"
+          "else "
+              "throw new Error('No');"
+      "};"
+      "Api.bar = (a, b) => {"
+          "return new Promise((resolve, reject) => {"
+              "const result = a + b;"
+              "if (result >= 0)"
+                  "resolve(result);"
+              "else "
+                  "reject(new Error('Nope'));"
+          "});"
+      "};");
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("[\"frida:rpc\",1,\"list\"]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",1,\"ok\",[\"foo\",\"bar\"]]");
+
+  POST_MESSAGE ("[\"frida:rpc\",2,\"call\",\"foo\",[1,2]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",2,\"ok\",3]");
+
+  POST_MESSAGE ("[\"frida:rpc\",3,\"call\",\"foo\",[1,-2]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",3,\"error\",\"No\"]");
+
+  POST_MESSAGE ("[\"frida:rpc\",4,\"call\",\"bar\",[3,4]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",4,\"ok\",7]");
+
+  POST_MESSAGE ("[\"frida:rpc\",5,\"call\",\"bar\",[3,-4]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",5,\"error\",\"Nope\"]");
+
+  POST_MESSAGE ("[\"frida:rpc\",6,\"call\",\"baz\",[]]");
+  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",6,\"error\","
+      "\"Unable to find method 'baz'\"]");
 }
 
 SCRIPT_TESTCASE (message_can_be_sent)

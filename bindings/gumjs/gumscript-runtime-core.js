@@ -419,6 +419,11 @@
         }
     });
 
+    Object.defineProperty(engine, 'Api', {
+        enumerable: true,
+        value: {}
+    });
+
     const MessageDispatcher = function () {
         const messages = [];
         const operations = {};
@@ -435,8 +440,48 @@
         };
 
         function handleMessage(rawMessage) {
-            messages.push(JSON.parse(rawMessage));
-            dispatchMessages();
+            const message = JSON.parse(rawMessage);
+            if (message instanceof Array && message[0] === 'frida:rpc') {
+                handleRpcMessage(message[1], message[2], message.slice(3));
+            } else {
+                messages.push(message);
+                dispatchMessages();
+            }
+        }
+
+        function handleRpcMessage(id, operation, params) {
+            if (operation === 'call') {
+                const method = params[0];
+                const args = params[1];
+
+                if (!Api.hasOwnProperty(method)) {
+                    reply(id, 'error', "Unable to find method '" + method + "'");
+                    return;
+                }
+
+                try {
+                    const result = Api[method].apply(Api, args);
+                    if (result instanceof Promise) {
+                        result
+                        .then(value => {
+                            reply(id, 'ok', value);
+                        })
+                        .catch(error => {
+                            reply(id, 'error', error.message);
+                        });
+                    } else {
+                        reply(id, 'ok', result);
+                    }
+                } catch (e) {
+                    reply(id, 'error', e.message);
+                }
+            } else if (operation === 'list') {
+                reply(id, 'ok', Object.keys(Api));
+            }
+        }
+
+        function reply(id, type, result) {
+            send(['frida:rpc', id, type, result]);
         }
 
         function dispatchMessages() {
