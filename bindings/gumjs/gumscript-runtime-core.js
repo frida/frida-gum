@@ -419,9 +419,11 @@
         }
     });
 
-    Object.defineProperty(engine, 'Api', {
+    Object.defineProperty(engine, 'rpc', {
         enumerable: true,
-        value: {}
+        value: {
+            exports: {}
+        }
     });
 
     const MessageDispatcher = function () {
@@ -450,17 +452,19 @@
         }
 
         function handleRpcMessage(id, operation, params) {
+            const exports = rpc.exports;
+
             if (operation === 'call') {
                 const method = params[0];
                 const args = params[1];
 
-                if (!Api.hasOwnProperty(method)) {
+                if (!exports.hasOwnProperty(method)) {
                     reply(id, 'error', "Unable to find method '" + method + "'");
                     return;
                 }
 
                 try {
-                    const result = Api[method].apply(Api, args);
+                    const result = exports[method].apply(exports, args);
                     if (result instanceof Promise) {
                         result
                         .then(value => {
@@ -476,7 +480,7 @@
                     reply(id, 'error', e.message);
                 }
             } else if (operation === 'list') {
-                reply(id, 'ok', Object.keys(Api));
+                reply(id, 'ok', Object.keys(exports));
             }
         }
 

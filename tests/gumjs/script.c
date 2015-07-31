@@ -1052,14 +1052,14 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "'use strict';"
-      "Api.foo = (a, b) => {"
+      "rpc.exports.foo = (a, b) => {"
           "const result = a + b;"
           "if (result >= 0)"
               "return result;"
           "else "
               "throw new Error('No');"
       "};"
-      "Api.bar = (a, b) => {"
+      "rpc.exports.bar = (a, b) => {"
           "return new Promise((resolve, reject) => {"
               "const result = a + b;"
               "if (result >= 0)"
