@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -22,18 +22,28 @@
 #  define WIN32_LEAN_AND_MEAN
 # endif
 # include <windows.h>
-# define GUM_SETJMP(env) setjmp (env)
-# define GUM_LONGJMP(env, val) longjmp (env, val)
+# define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) setjmp ((scope)->env)
+# define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) longjmp ((scope)->env, 1)
   typedef jmp_buf gum_jmp_buf;
 #else
 # include <signal.h>
-# ifdef HAVE_DARWIN
-#  define GUM_SETJMP(env) setjmp (env)
-#  define GUM_LONGJMP(env, val) longjmp (env, val)
+# if defined (HAVE_DARWIN)
+#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) setjmp ((scope)->env)
+#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) longjmp ((scope)->env, 1)
    typedef jmp_buf gum_jmp_buf;
+# elif defined (HAVE_ANDROID)
+  /* Work-around for Bionic bug up to and including Android L */
+#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) \
+       (sigsetjmp ((scope)->env, 1) == 0 \
+           ? sigprocmask (SIG_SETMASK, NULL, &((scope)->mask)), 0 \
+           : -1)
+#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) \
+       sigprocmask (SIG_SETMASK, &((scope)->mask), NULL); \
+       siglongjmp ((scope)->env, 1)
+   typedef sigjmp_buf gum_jmp_buf;
 # else
-#  define GUM_SETJMP(env) sigsetjmp (env, 1)
-#  define GUM_LONGJMP(env, val) siglongjmp (env, val)
+#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) sigsetjmp ((scope)->env, 1)
+#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) siglongjmp ((scope)->env, 1)
    typedef sigjmp_buf gum_jmp_buf;
 # endif
 #endif
@@ -51,6 +61,9 @@ struct _GumMemoryAccessScope
   gboolean exception_occurred;
   gpointer address;
   gum_jmp_buf env;
+#ifdef HAVE_ANDROID
+  sigset_t mask;
+#endif
 };
 #define GUM_MEMORY_ACCESS_SCOPE_INIT { FALSE, NULL, }
 
@@ -526,7 +539,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (GUM_SETJMP (scope.env) == 0)
+  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
   {
     memcpy (destination, source, size);
   }
@@ -601,7 +614,7 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (GUM_SETJMP (scope.env) == 0)
+  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
   {
     switch (type)
     {
@@ -842,7 +855,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (GUM_SETJMP (scope.env) == 0)
+  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
   {
     switch (type)
     {
@@ -1029,9 +1042,9 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
 #ifdef G_OS_WIN32
 
 static void
-gum_script_memory_do_longjmp (gum_jmp_buf * env)
+gum_script_memory_do_longjmp (GumMemoryAccessScope * scope)
 {
-  GUM_LONGJMP (*env, 1);
+  GUM_MEMORY_ACCESS_SCOPE_LONGJMP (scope);
 }
 
 static gboolean
@@ -1063,12 +1076,12 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
 
 #if GLIB_SIZEOF_VOID_P == 4
     context->Esp -= 8;
-    *((gum_jmp_buf **) (context->Esp + 4)) = &scope->env;
-    *((gum_jmp_buf **) (context->Esp + 0)) = NULL;
+    *((GumMemoryAccessScope **) (context->Esp + 4)) = scope;
+    *((GumMemoryAccesScope **) (context->Esp + 0)) = NULL;
     context->Eip = (DWORD) gum_script_memory_do_longjmp;
 #else
     context->Rsp -= 16;
-    context->Rcx = (DWORD64) &scope->env;
+    context->Rcx = (DWORD64) scope;
     *((void **) (context->Rsp + 0)) = NULL;
     context->Rip = (DWORD64) gum_script_memory_do_longjmp;
 #endif
@@ -1099,7 +1112,7 @@ gum_script_memory_on_invalid_access (int sig,
     scope->exception_occurred = TRUE;
 
     scope->address = siginfo->si_addr;
-    GUM_LONGJMP (scope->env, 1);
+    GUM_MEMORY_ACCESS_SCOPE_LONGJMP (scope);
   }
 
 not_our_fault:
@@ -1225,7 +1238,7 @@ gum_script_do_memory_scan (gpointer user_data)
 
   GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
 
-  if (GUM_SETJMP (scope.env) == 0)
+  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
   {
     gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
         ctx);

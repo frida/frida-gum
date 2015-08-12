@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2010 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -583,6 +583,13 @@ gum_try_read_and_write_at (guint8 * a,
   sigaction (SIGSEGV, &action, &gum_test_old_sigsegv);
   sigaction (SIGBUS, &action, &gum_test_old_sigbus);
 
+#ifdef HAVE_ANDROID
+  /* Work-around for Bionic bug up to and including Android L */
+  sigset_t mask;
+
+  sigprocmask (SIG_SETMASK, NULL, &mask);
+#endif
+
   if (GUM_SETJMP (gum_try_read_and_write_context) == 0)
   {
     dummy_value_to_trick_optimizer = a[i];
@@ -593,6 +600,10 @@ gum_try_read_and_write_at (guint8 * a,
       *exception_raised_on_read = TRUE;
   }
 
+#ifdef HAVE_ANDROID
+  sigprocmask (SIG_SETMASK, &mask, NULL);
+#endif
+
   if (GUM_SETJMP (gum_try_read_and_write_context) == 0)
   {
     a[i] = 42;
@@ -602,6 +613,10 @@ gum_try_read_and_write_at (guint8 * a,
     if (exception_raised_on_write != NULL)
       *exception_raised_on_write = TRUE;
   }
+
+#ifdef HAVE_ANDROID
+  sigprocmask (SIG_SETMASK, &mask, NULL);
+#endif
 
   sigaction (SIGSEGV, &gum_test_old_sigsegv, NULL);
   memset (&gum_test_old_sigsegv, 0, sizeof (gum_test_old_sigsegv));
