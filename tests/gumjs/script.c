@@ -208,6 +208,14 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
 
 SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
 {
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   COMPILE_AND_LOAD_SCRIPT (
       "send(DebugSymbol.fromAddress(" GUM_PTR_CONST ").name);",
       target_function_int);
@@ -218,6 +226,14 @@ SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
 SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
 {
   gchar * expected;
+
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
 
   COMPILE_AND_LOAD_SCRIPT (
       "send(DebugSymbol.fromName(\"target_function_int\").address);");
@@ -230,6 +246,14 @@ SCRIPT_TESTCASE (name_can_be_resolved_to_symbol)
 
 SCRIPT_TESTCASE (function_can_be_found_by_name)
 {
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   COMPILE_AND_LOAD_SCRIPT ("send("
       "!DebugSymbol.getFunctionByName(\"g_thread_new\").isNull()"
   ");"
@@ -244,6 +268,14 @@ SCRIPT_TESTCASE (function_can_be_found_by_name)
 
 SCRIPT_TESTCASE (functions_can_be_found_by_name)
 {
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   COMPILE_AND_LOAD_SCRIPT ("send("
       "DebugSymbol.findFunctionsNamed(\"g_thread_new\").length >= 1"
   ");");
@@ -253,6 +285,14 @@ SCRIPT_TESTCASE (functions_can_be_found_by_name)
 
 SCRIPT_TESTCASE (functions_can_be_found_by_matching)
 {
+#ifdef HAVE_ANDROID
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   COMPILE_AND_LOAD_SCRIPT ("send("
       "DebugSymbol.findFunctionsMatching(\"gum_dummy_function_*\").length"
   ");");
