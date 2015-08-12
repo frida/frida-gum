@@ -7,8 +7,23 @@
 
 #include "testutil.h"
 
-#define SYMUTIL_TESTCASE(NAME) \
+#ifdef HAVE_ANDROID
+# define SYMUTIL_TESTCASE(NAME) \
+    static void test_symbolutil_run_ ## NAME (void); \
+    void test_symbolutil_ ## NAME (void) \
+    { \
+      if (!g_test_slow ()) \
+      { \
+        g_print ("<skipping, run in slow mode> "); \
+        return; \
+      } \
+      test_symbolutil_run_ ## NAME (); \
+    } \
+    static void test_symbolutil_run_ ## NAME (void)
+#else
+# define SYMUTIL_TESTCASE(NAME) \
     void test_symbolutil_ ## NAME (void)
+#endif
 #define SYMUTIL_TESTENTRY(NAME) \
     TEST_ENTRY_SIMPLE ("Core/SymbolUtil", test_symbolutil, NAME)
 
