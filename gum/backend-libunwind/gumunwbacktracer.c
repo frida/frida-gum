@@ -150,7 +150,7 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
 
   unw_getcontext (uc);
 
-  mc->pc = ctx->pc;
+  mc->pc = ctx->pc - 4;
   mc->sp = ctx->sp;
 
   memcpy (mc->regs, ctx->x, sizeof (ctx->x));
