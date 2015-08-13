@@ -1077,7 +1077,7 @@ gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
 #if GLIB_SIZEOF_VOID_P == 4
     context->Esp -= 8;
     *((GumMemoryAccessScope **) (context->Esp + 4)) = scope;
-    *((GumMemoryAccesScope **) (context->Esp + 0)) = NULL;
+    *((GumMemoryAccessScope **) (context->Esp + 0)) = NULL;
     context->Eip = (DWORD) gum_script_memory_do_longjmp;
 #else
     context->Rsp -= 16;
