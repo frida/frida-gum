@@ -282,7 +282,7 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     guint8 * start, * end;
     gchar perms[5] = { 0, };
     gint n;
-    gboolean readable;
+    gboolean readable, shared;
     gchar * name;
     GumMemoryRange range;
     GumModuleDetails details;
@@ -293,9 +293,14 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     g_assert_cmpint (n, ==, 4);
 
     readable = perms[0] == 'r';
-    if (strcmp (path, prev_path) == 0 || path[0] == '[')
+    shared = perms[3] == 's';
+    if (!readable || shared)
       continue;
-    else if (!readable || memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
+    else if (strcmp (path, prev_path) == 0)
+      continue;
+    else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
+      continue;
+    else if (memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
       continue;
 
     name = g_path_get_basename (path);
