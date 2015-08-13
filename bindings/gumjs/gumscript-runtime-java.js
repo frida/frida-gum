@@ -1,4 +1,6 @@
 /* jshint esnext: true, evil: true */
+/* global console, Java, Memory, Module, NativePointer, Process, NativeCallback, NativeFunction, NULL */
+
 (function () {
     "use strict";
 
@@ -57,9 +59,9 @@
 
     const NULL_OBJECT = NULL;
 
-    Object.defineProperty(this, 'Dalvik', {
+    Object.defineProperty(this, 'Java', {
         enumerable: true,
-        get: function () {
+        get: () => {
             if (_runtime === null) {
                 _runtime = new Runtime();
             }
@@ -67,11 +69,17 @@
         }
     });
 
+    Object.defineProperty(this, 'Dalvik', {
+        enumerable: true,
+        get: () => {
+            return this.Java;
+        }
+    });
+
     function Runtime() {
         let api = null;
         let vm = null;
         let classFactory = null;
-        let pending = [];
 
         function initialize() {
             api = getApi();
@@ -103,28 +111,28 @@
             enumerable: true,
             get: function () {
                 if (androidVersion === null) {
-                    assertCalledInDalvikPerformCallback();
-                    const Build = Dalvik.use("android.os.Build$VERSION");
+                    assertCalledInJavaPerformCallback();
+                    const Build = Java.use("android.os.Build$VERSION");
                     androidVersion = Build.RELEASE.value;
                 }
                 return androidVersion;
             }
         });
 
-        function assertDalvikApiIsAvailable() {
-            if (!Dalvik.available) {
-                throw new Error("Dalvik API not available");
+        function assertJavaApiIsAvailable() {
+            if (!Java.available) {
+                throw new Error("Java API not available");
             }
         }
 
-        function assertCalledInDalvikPerformCallback() {
+        function assertCalledInJavaPerformCallback() {
             if (classFactory.loader === null) {
-                throw new Error("Not allowed outside Dalvik.perform() callback");
+                throw new Error("Not allowed outside Java.perform() callback");
             }
         }
 
         this.synchronized = function (obj, fn) {
-            assertCalledInDalvikPerformCallback();
+            assertCalledInJavaPerformCallback();
 
             const objHandle = obj.hasOwnProperty('$handle')? obj.$handle : obj;
             if (!(objHandle instanceof NativePointer)) {
@@ -145,7 +153,10 @@
         };
 
         function _enumerateLoadedClasses(callbacks, onlyDescription) {
-            assertDalvikApiIsAvailable();
+            assertJavaApiIsAvailable();
+
+            if (api.flavor !== 'dalvik')
+                throw new Error("Enumerating loaded classes is only supported on Dalvik for now");
 
             const HASH_TOMBSTONE = ptr("0xcbcacccd");
             const loadedClassesOffset = 172;
@@ -183,10 +194,10 @@
         Object.defineProperty(this, 'enumerateLoadedClassesSync', {
             enumerable: true,
             value: function () {
-                assertDalvikApiIsAvailable();
+                assertJavaApiIsAvailable();
 
                 const classes = [];
-                Dalvik.enumerateLoadedClasses({
+                Java.enumerateLoadedClasses({
                     onMatch: function (c) {
                         classes.push(c);
                     },
@@ -205,7 +216,7 @@
         });
 
         this.scheduleOnMainThread = function (fn) {
-            assertCalledInDalvikPerformCallback();
+            assertCalledInJavaPerformCallback();
 
             const ActivityThread = classFactory.use("android.app.ActivityThread");
             const Handler = classFactory.use("android.os.Handler");
@@ -230,51 +241,26 @@
         };
 
         this.perform = function (fn) {
-            assertDalvikApiIsAvailable();
+            assertJavaApiIsAvailable();
 
-            if (classFactory.loader !== null) {
-                vm.perform(fn);
-            } else {
-                pending.push(fn);
-                if (pending.length === 1) {
-                    vm.perform(function () {
-                        const ActivityThread = classFactory.use("android.app.ActivityThread");
-                        const Handler = classFactory.use("android.os.Handler");
-                        const Looper = classFactory.use("android.os.Looper");
-
-                        const looper = Looper.getMainLooper();
-                        const handler = Handler.$new.overload("android.os.Looper").call(Handler, looper);
-                        const message = handler.obtainMessage();
-                        Handler.dispatchMessage.implementation = function (msg) {
-                            const sameHandler = this.$isSameObject(handler);
-                            if (sameHandler) {
-                                const app = ActivityThread.currentApplication();
-                                if (app !== null) {
-                                    Handler.dispatchMessage.implementation = null;
-                                    const loader = app.getClassLoader();
-                                    setTimeout(function () {
-                                        classFactory.loader = loader;
-                                        pending.forEach(vm.perform, vm);
-                                        pending = null;
-                                    }, 0);
-                                }
-                            } else {
-                                this.dispatchMessage(msg);
-                            }
-                        };
-                        message.sendToTarget();
-                    });
-                }
+            if (classFactory.loader === null) {
+                vm.perform(() => {
+                    const ActivityThread = classFactory.use("android.app.ActivityThread");
+                    const app = ActivityThread.currentApplication();
+                    classFactory.loader = app.getClassLoader();
+                });
             }
+
+            vm.perform(fn);
         };
 
         this.use = function (className) {
-            assertCalledInDalvikPerformCallback();
+            assertCalledInJavaPerformCallback();
             return classFactory.use(className);
         };
 
         this.choose = function (className, callbacks) {
-            assertCalledInDalvikPerformCallback();
+            assertCalledInJavaPerformCallback();
             return classFactory.choose(className, callbacks);
         };
 
@@ -284,7 +270,7 @@
 
         // Reference: http://stackoverflow.com/questions/2848575/how-to-detect-ui-thread-on-android
         this.isMainThread = function () {
-            assertCalledInDalvikPerformCallback();
+            assertCalledInJavaPerformCallback();
             const Looper = classFactory.use("android.os.Looper");
             const mainLooper = Looper.getMainLooper();
             const myLooper = Looper.myLooper();
@@ -364,6 +350,9 @@
         };
 
         this.choose = function (className, callbacks) {
+            if (api.flavor !== 'dalvik')
+                throw new Error("choose() is only supported on Dalvik for now");
+
             const env = vm.getEnv();
             const klass = this.use(className);
 
@@ -378,13 +367,13 @@
                 Memory.scan(heapSourceBase, size, pattern, {
                     onMatch: function (address, size) {
                         if (api.dvmIsValidObject(address)) {
-                            Dalvik.perform(function () {
+                            Java.perform(function () {
                                 const env = vm.getEnv();
                                 const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
                                 let instance;
                                 const localReference = api.addLocalReference(thread, address);
                                 try {
-                                    instance = Dalvik.cast(localReference, klass);
+                                    instance = Java.cast(localReference, klass);
                                 } finally {
                                     env.deleteLocalRef(localReference);
                                 }
@@ -407,7 +396,7 @@
             if (api.addLocalReference === null) {
                 const libdvm = Process.getModuleByName('libdvm.so');
                 let pattern;
-                if (Dalvik.androidVersion.indexOf('4.2.') === 0) {
+                if (Java.androidVersion.indexOf('4.2.') === 0) {
                     // verified with 4.2.2
                     pattern = 'F8 B5 06 46 0C 46 31 B3 43 68 00 F1 A8 07 22 46';
                 } else {
@@ -519,6 +508,7 @@
             }
 
             function dispose() {
+                /* jshint validthis: true */
                 WeakRef.unbind(this.$weakRef);
             }
 
@@ -937,6 +927,7 @@
                 });
 
                 function f() {
+                    /* jshint validthis: true */
                     const isInstance = this.$handle !== null;
                     if (methods[0].type === INSTANCE_METHOD && !isInstance) {
                         if (name === 'toString') {
@@ -1137,8 +1128,10 @@
 
                 let implementation = null;
                 function synchronizeVtable(env, instance) {
+                    /* jshint validthis: true */
+
                     if (originalMethodId === null) {
-                        return; // nothing to do – implementation hasn't been replaced
+                        return; // nothing to do -- implementation hasn't been replaced
                     }
 
                     const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
@@ -1192,6 +1185,9 @@
                         return implementation;
                     },
                     set: function (fn) {
+                        if (api.flavor !== 'dalvik')
+                            throw new Error("Overriding methods is only supported on Dalvik for now");
+
                         if (fn === null && originalMethodId === null) {
                             return;
                         }
@@ -1553,6 +1549,7 @@
                         // Maybe ArrayIndexOutOfBoundsException: if 'i' does not specify a valid index in the array - should not be the case
                         env.checkForExceptionAndThrowIt();
                         try {
+                            /* jshint validthis: true */
                             result.push(convertFromJniFunc(this, elemHandle));
                         } finally {
                             env.deleteLocalRef(elemHandle);
@@ -1658,7 +1655,6 @@
                                 return toJniPrimitiveArray(arr, 'boolean', env, env.newBooleanArray, env.setBooleanArrayRegion);
                             }
                         };
-                        break;
                     case '[B':
                         return {
                             type: 'pointer',
@@ -1673,7 +1669,6 @@
                                 return toJniPrimitiveArray(arr, 'byte', env, env.newByteArray, env.setByteArrayRegion);
                             }
                         };
-                        break;
                     case '[C':
                         return {
                             type: 'pointer',
@@ -1688,7 +1683,6 @@
                                 return toJniPrimitiveArray(arr, 'char', env, env.newCharArray, env.setCharArrayRegion);
                             }
                         };
-                        break;
                     case '[D':
                         return {
                             type: 'pointer',
@@ -1703,7 +1697,6 @@
                                 return toJniPrimitiveArray(arr, 'double', env, env.newDoubleArray, env.setDoubleArrayRegion);
                             }
                         };
-                        break;
                     case '[F':
                         return {
                             type: 'pointer',
@@ -1718,7 +1711,6 @@
                                 return toJniPrimitiveArray(arr, 'float', env, env.newFloatArray, env.setFloatArrayRegion);
                             }
                         };
-                        break;
                     case '[I':
                         return {
                             type: 'pointer',
@@ -1733,7 +1725,6 @@
                                 return toJniPrimitiveArray(arr, 'int', env, env.newIntArray, env.setIntArrayRegion);
                             }
                         };
-                        break;
                     case '[J':
                         return {
                             type: 'pointer',
@@ -1748,7 +1739,6 @@
                                 return toJniPrimitiveArray(arr, 'long', env, env.newLongArray, env.setLongArrayRegion);
                             }
                         };
-                        break;
                     case '[S':
                         return {
                             type: 'pointer',
@@ -1763,7 +1753,6 @@
                                 return toJniPrimitiveArray(arr, 'short', env, env.newShortArray, env.setShortArrayRegion);
                             }
                         };
-                        break;
                     default:
                         // it has to be an objectArray, but maybe it goes wrong
                         let elementType;
@@ -1902,7 +1891,7 @@
         let getEnv = null;
 
         function initialize() {
-            handle = Memory.readPointer(api.gDvmJni.add(8));
+            handle = api.vm;
 
             const vtable = Memory.readPointer(handle);
             attachCurrentThread = new NativeFunction(Memory.readPointer(vtable.add(4 * pointerSize)), 'int32', ['pointer', 'pointer', 'pointer']);
@@ -2421,6 +2410,7 @@
             const key = offset + "|" + retType + "|" + argTypes.join(":");
             let m = cachedMethods[key];
             if (!m) {
+                /* jshint validthis: true */
                 m = new NativeFunction(Memory.readPointer(vtable(this).add(offset * pointerSize)), retType, ['pointer', 'pointer', 'pointer', '...'].concat(argTypes));
                 cachedMethods[key] = m;
             }
@@ -2795,8 +2785,14 @@
         const temporaryApi = {
             addLocalReference: null
         };
-        const pending = [
-            {
+        const pending = Process.findModuleByName('libart.so') !== null ? [{
+                module: "libart.so",
+                functions: {
+                    "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']]
+                },
+                variables: {
+                }
+            }] : [{
                 module: "libdvm.so",
                 functions: {
                     /*
@@ -2867,6 +2863,20 @@
             });
         });
         if (remaining === 0) {
+            if (temporaryApi.hasOwnProperty("JNI_GetCreatedJavaVMs")) {
+                temporaryApi.flavor = 'art';
+
+                const vms = Memory.alloc(pointerSize);
+                const vmCount = Memory.alloc(pointerSize);
+                checkJniResult("JNI_GetCreatedJavaVMs", temporaryApi.JNI_GetCreatedJavaVMs(vms, 1, vmCount));
+                if (Memory.readPointer(vmCount).toInt32() === 0)
+                    return null;
+                temporaryApi.vm = Memory.readPointer(vms);
+            } else {
+                temporaryApi.flavor = 'dalvik';
+
+                temporaryApi.vm = Memory.readPointer(temporaryApi.gDvmJni.add(8));
+            }
             _api = temporaryApi;
         }
 

@@ -67,7 +67,7 @@
     <None Include="gumscript-runtime-core.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-runtime-dalvik.js">
+    <None Include="gumscript-runtime-java.js">
       <Filter>runtime</Filter>
     </None>
     <None Include="gumscript-runtime-objc.js">
