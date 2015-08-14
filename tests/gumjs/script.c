@@ -100,6 +100,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (frida_version_is_available)
   SCRIPT_TESTENTRY (process_arch_is_available)
   SCRIPT_TESTENTRY (process_platform_is_available)
+  SCRIPT_TESTENTRY (process_page_size_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #ifndef HAVE_ANDROID
@@ -779,6 +780,12 @@ SCRIPT_TESTCASE (process_platform_is_available)
 #elif defined (G_OS_WIN32)
   EXPECT_SEND_MESSAGE_WITH ("\"windows\"");
 #endif
+}
+
+SCRIPT_TESTCASE (process_page_size_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.pageSize);");
+  EXPECT_SEND_MESSAGE_WITH ("%d", gum_query_page_size ());
 }
 
 SCRIPT_TESTCASE (process_pointer_size_is_available)
