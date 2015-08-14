@@ -361,9 +361,21 @@ gum_script_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumHeapBlock * block = _gum_heap_block_new (g_malloc (size), size,
-      self->core);
-  info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
+  GumNativeResource * res;
+  guint page_size = gum_query_page_size ();
+
+  if (size < page_size)
+  {
+    res = _gum_native_resource_new (g_malloc (size), size, g_free, self->core);
+  }
+  else
+  {
+    guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
+    res = _gum_native_resource_new (gum_alloc_n_pages (n, GUM_PAGE_RW),
+        n * page_size, gum_free_pages, self->core);
+  }
+
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
 
 /*
@@ -388,9 +400,9 @@ gum_script_memory_on_alloc_ansi_string (
 #ifdef G_OS_WIN32
   String::Utf8Value str (info[0]);
   gchar * str_heap = gum_ansi_string_from_utf8 (*str);
-  GumHeapBlock * block = _gum_heap_block_new (str_heap, strlen (str_heap),
-      self->core);
-  info.GetReturnValue ().Set (Local<Object>::New (isolate, *block->instance));
+  GumNativeResource * res = _gum_native_resource_new (str_heap,
+      strlen (str_heap), g_free, self->core);
+  info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 #else
   isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
       "ANSI API is only applicable on Windows")));
@@ -461,10 +473,10 @@ gum_script_memory_on_alloc_utf8_string (
   String::Utf8Value str (info[0]);
   const gchar * s = *str;
   guint size = (g_utf8_offset_to_pointer (s, str.length ()) - s) + 1;
-  GumHeapBlock * block = _gum_heap_block_new (g_memdup (s, size), size,
-      self->core);
+  GumNativeResource * res = _gum_native_resource_new (g_memdup (s, size), size,
+      g_free, self->core);
   info.GetReturnValue ().Set (
-      Local<Object>::New (self->core->isolate, *block->instance));
+      Local<Object>::New (self->core->isolate, *res->instance));
 }
 
 /*
@@ -489,9 +501,10 @@ gum_script_memory_on_alloc_utf16_string (
   glong items_written;
   gunichar2 * str_heap = g_utf8_to_utf16 (*str, -1, NULL, &items_written, NULL);
   gsize size = (items_written + 1) * sizeof (gunichar2);
-  GumHeapBlock * block = _gum_heap_block_new (str_heap, size, self->core);
+  GumNativeResource * res = _gum_native_resource_new (str_heap, size, g_free,
+      self->core);
   info.GetReturnValue ().Set (
-      Local<Object>::New (self->core->isolate, *block->instance));
+      Local<Object>::New (self->core->isolate, *res->instance));
 }
 
 #ifdef _MSC_VER

@@ -213,8 +213,8 @@ static gboolean gum_script_value_from_ffi_type (GumScriptCore * core,
 
 static void gum_byte_array_on_weak_notify (
     const WeakCallbackData<Object, GumByteArray> & data);
-static void gum_heap_block_on_weak_notify (
-    const WeakCallbackData<Object, GumHeapBlock> & data);
+static void gum_native_resource_on_weak_notify (
+    const WeakCallbackData<Object, GumNativeResource> & data);
 static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
     GumCpuContextWrapper> & data);
 
@@ -474,8 +474,8 @@ _gum_script_core_realize (GumScriptCore * self)
   self->byte_arrays = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (_gum_byte_array_free));
 
-  self->heap_blocks = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (_gum_heap_block_free));
+  self->native_resources = g_hash_table_new_full (NULL, NULL,
+      NULL, reinterpret_cast<GDestroyNotify> (_gum_native_resource_free));
 
   Local<FunctionTemplate> native_pointer (
       Local<FunctionTemplate>::New (isolate, *self->native_pointer));
@@ -543,8 +543,8 @@ _gum_script_core_dispose (GumScriptCore * self)
   delete self->length_key;
   self->length_key = nullptr;
 
-  g_hash_table_unref (self->heap_blocks);
-  self->heap_blocks = NULL;
+  g_hash_table_unref (self->native_resources);
+  self->native_resources = NULL;
 
   g_hash_table_unref (self->byte_arrays);
   self->byte_arrays = NULL;
@@ -2481,47 +2481,50 @@ gum_byte_array_on_weak_notify (
   g_hash_table_remove (self->core->byte_arrays, self);
 }
 
-GumHeapBlock *
-_gum_heap_block_new (gpointer data,
-                     gsize size,
-                     GumScriptCore * core)
+GumNativeResource *
+_gum_native_resource_new (gpointer data,
+                          gsize size,
+                          GDestroyNotify notify,
+                          GumScriptCore * core)
 {
-  GumHeapBlock * block;
+  GumNativeResource * resource;
 
-  block = g_slice_new (GumHeapBlock);
-  block->instance = new GumPersistent<Object>::type (core->isolate,
+  resource = g_slice_new (GumNativeResource);
+  resource->instance = new GumPersistent<Object>::type (core->isolate,
       _gum_script_pointer_new (data, core));
-  block->instance->MarkIndependent ();
-  block->instance->SetWeak (block, gum_heap_block_on_weak_notify);
-  block->data = data;
-  block->size = size;
-  block->core = core;
+  resource->instance->MarkIndependent ();
+  resource->instance->SetWeak (resource, gum_native_resource_on_weak_notify);
+  resource->data = data;
+  resource->size = size;
+  resource->notify = notify;
+  resource->core = core;
 
   core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
 
-  g_hash_table_insert (core->heap_blocks, block, block);
+  g_hash_table_insert (core->native_resources, resource, resource);
 
-  return block;
+  return resource;
 }
 
 void
-_gum_heap_block_free (GumHeapBlock * block)
+_gum_native_resource_free (GumNativeResource * resource)
 {
-  block->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -static_cast<gssize> (block->size));
+  resource->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+      -static_cast<gssize> (resource->size));
 
-  delete block->instance;
-  g_free (block->data);
-  g_slice_free (GumHeapBlock, block);
+  delete resource->instance;
+  if (resource->notify != NULL)
+    resource->notify (resource->data);
+  g_slice_free (GumNativeResource, resource);
 }
 
 static void
-gum_heap_block_on_weak_notify (
-    const WeakCallbackData<Object, GumHeapBlock> & data)
+gum_native_resource_on_weak_notify (
+    const WeakCallbackData<Object, GumNativeResource> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
-  GumHeapBlock * self = data.GetParameter ();
-  g_hash_table_remove (self->core->heap_blocks, self);
+  GumNativeResource * self = data.GetParameter ();
+  g_hash_table_remove (self->core->native_resources, self);
 }
 
 Local<Object>

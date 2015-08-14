@@ -1787,11 +1787,26 @@ SCRIPT_TESTCASE (pointer_can_be_written)
 
 SCRIPT_TESTCASE (memory_can_be_allocated)
 {
+  TestScriptMessageItem * item;
+  gpointer p;
+
   COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(8);"
       "Memory.writePointer(p, ptr(\"1337\"));"
       "send(Memory.readPointer(p).toInt32() === 1337);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var p = Memory.alloc(Process.pageSize);"
+      "send(p);");
+  item = test_script_fixture_pop_message (fixture);
+  p = NULL;
+  sscanf (item->message, "{\"type\":\"send\",\"payload\":"
+      "\"%p\"}", &p);
+  g_assert (p != NULL);
+  test_script_message_item_free (item);
+  g_assert_cmpuint ((GPOINTER_TO_SIZE (p) & (gum_query_page_size () - 1)),
+      ==, 0);
 }
 
 SCRIPT_TESTCASE (memory_can_be_copied)

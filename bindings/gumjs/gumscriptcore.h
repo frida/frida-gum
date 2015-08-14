@@ -23,7 +23,7 @@ typedef struct _GumScriptCore GumScriptCore;
 typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumMessageSink GumMessageSink;
 
-typedef struct _GumHeapBlock GumHeapBlock;
+typedef struct _GumNativeResource GumNativeResource;
 typedef struct _GumByteArray GumByteArray;
 
 template <typename T>
@@ -61,7 +61,7 @@ struct _GumScriptCore
 
   GHashTable * byte_arrays;
 
-  GHashTable * heap_blocks;
+  GHashTable * native_resources;
 
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
   GumPersistent<v8::Object>::type * native_pointer_value;
@@ -73,11 +73,12 @@ struct _GumScriptCore
   GumPersistent<v8::String>::type * length_key;
 };
 
-struct _GumHeapBlock
+struct _GumNativeResource
 {
   GumPersistent<v8::Object>::type * instance;
   gpointer data;
   gsize size;
+  GDestroyNotify notify;
   GumScriptCore * core;
 };
 
@@ -116,9 +117,9 @@ G_GNUC_INTERNAL GBytes * _gum_byte_array_try_get (v8::Handle<v8::Value> value,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_byte_array_free (GumByteArray * buffer);
 
-G_GNUC_INTERNAL GumHeapBlock * _gum_heap_block_new (gpointer data,
-    gsize size, GumScriptCore * core);
-G_GNUC_INTERNAL void _gum_heap_block_free (GumHeapBlock * block);
+G_GNUC_INTERNAL GumNativeResource * _gum_native_resource_new (gpointer data,
+    gsize size, GDestroyNotify notify, GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_native_resource_free (GumNativeResource * block);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_pointer_new (gpointer address,
     GumScriptCore * core);
