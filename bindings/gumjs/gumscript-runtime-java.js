@@ -1,5 +1,5 @@
 /* jshint esnext: true, evil: true */
-/* global console, Java, Memory, Module, NativePointer, Process, NativeCallback, NativeFunction, NULL */
+/* global console, Java, Memory, Module, NativePointer, Process, NativeCallback, NativeFunction, ptr, WeakRef, NULL */
 
 (function () {
     "use strict";
@@ -32,24 +32,38 @@
     const STATIC_FIELD = 1;
     const INSTANCE_FIELD = 2;
 
-    // TODO: 64-bit
-    const JNI_ENV_OFFSET_SELF = 12;
+    // ART
+    const ART_METHOD_SIZE = 72;
+    const ART_METHOD_OFFSET_INTERPRETER_CODE = 24;
+    const ART_METHOD_OFFSET_JNI_CODE = 32;
+    const ART_METHOD_OFFSET_QUICK_CODE = 40;
+    const ART_METHOD_OFFSET_GC_MAP = 48;
+    const ART_METHOD_OFFSET_ACCESS_FLAGS = 56;
+    const ART_METHOD_OFFSET_DEX_ITEM_INDEX = 60;
+    const ART_METHOD_OFFSET_DEX_METHOD_INDEX = 64;
+    const ART_METHOD_OFFSET_INDEX = 68;
 
-    const CLASS_OBJECT_SIZE = 160;
-    const CLASS_OBJECT_OFFSET_VTABLE_COUNT = 112;
-    const CLASS_OBJECT_OFFSET_VTABLE = 116;
+    // Dalvik
+    const DVM_JNI_ENV_OFFSET_SELF = 12;
 
-    const OBJECT_OFFSET_CLAZZ = 0;
+    const DVM_CLASS_OBJECT_SIZE = 160;
+    const DVM_CLASS_OBJECT_OFFSET_VTABLE_COUNT = 112;
+    const DVM_CLASS_OBJECT_OFFSET_VTABLE = 116;
 
-    const METHOD_SIZE = 56;
-    const METHOD_OFFSET_CLAZZ = 0;
-    const METHOD_OFFSET_ACCESS_FLAGS = 4;
-    const METHOD_OFFSET_METHOD_INDEX = 8;
-    const METHOD_OFFSET_REGISTERS_SIZE = 10;
-    const METHOD_OFFSET_OUTS_SIZE = 12;
-    const METHOD_OFFSET_INS_SIZE = 14;
-    const METHOD_OFFSET_INSNS = 32;
-    const METHOD_OFFSET_JNI_ARG_INFO = 36;
+    const DVM_OBJECT_OFFSET_CLAZZ = 0;
+
+    const DVM_METHOD_SIZE = 56;
+    const DVM_METHOD_OFFSET_CLAZZ = 0;
+    const DVM_METHOD_OFFSET_ACCESS_FLAGS = 4;
+    const DVM_METHOD_OFFSET_METHOD_INDEX = 8;
+    const DVM_METHOD_OFFSET_REGISTERS_SIZE = 10;
+    const DVM_METHOD_OFFSET_OUTS_SIZE = 12;
+    const DVM_METHOD_OFFSET_INS_SIZE = 14;
+    const DVM_METHOD_OFFSET_INSNS = 32;
+    const DVM_METHOD_OFFSET_JNI_ARG_INFO = 36;
+
+    // access flags
+    const kAccNative = 0x0100;
 
     // jobject reference types
     const JNIInvalidRefType = 0;
@@ -288,6 +302,7 @@
         let classes = {};
         let patchedClasses = {};
         let loader = null;
+        const PENDING_CALLS = Symbol('PENDING_CALLS');
 
         function initialize() {
             api = getApi();
@@ -357,7 +372,7 @@
             const klass = this.use(className);
 
             let enumerateInstances = function (className, callbacks) {
-                const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                const thread = Memory.readPointer(env.handle.add(DVM_JNI_ENV_OFFSET_SELF));
                 const ptrClassObject = api.dvmDecodeIndirectRef(thread, klass.$classHandle);
 
                 const pattern = ptrClassObject.toMatchPattern();
@@ -369,7 +384,7 @@
                         if (api.dvmIsValidObject(address)) {
                             Java.perform(function () {
                                 const env = vm.getEnv();
-                                const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                                const thread = Memory.readPointer(env.handle.add(DVM_JNI_ENV_OFFSET_SELF));
                                 let instance;
                                 const localReference = api.addLocalReference(thread, address);
                                 try {
@@ -1048,23 +1063,26 @@
                 const rawArgTypes = argTypes.map(function (t) {
                     return t.type;
                 });
-                let invokeTarget;
-                if (type == CONSTRUCTOR_METHOD) {
-                    invokeTarget = env.constructor(rawArgTypes);
-                } else if (type == STATIC_METHOD) {
-                    invokeTarget = env.staticMethod(rawRetType, rawArgTypes);
-                } else if (type == INSTANCE_METHOD) {
-                    invokeTarget = env.method(rawRetType, rawArgTypes);
+                let invokeTargetVirtually, invokeTargetDirectly;
+                if (type === CONSTRUCTOR_METHOD) {
+                    invokeTargetVirtually = env.constructor(rawArgTypes);
+                    invokeTargetDirectly = invokeTargetVirtually;
+                } else if (type === STATIC_METHOD) {
+                    invokeTargetVirtually = env.staticMethod(rawRetType, rawArgTypes);
+                    invokeTargetDirectly = invokeTargetVirtually;
+                } else if (type === INSTANCE_METHOD) {
+                    invokeTargetVirtually = env.method(rawRetType, rawArgTypes);
+                    invokeTargetDirectly = env.nonvirtualMethod(rawRetType, rawArgTypes);
                 }
 
                 let frameCapacity = 2;
                 const argVariableNames = argTypes.map(function (t, i) {
                     return "a" + (i + 1);
                 });
-                const callArgs = [
+                const callArgsVirtual = [
                     "env.handle",
                     type === INSTANCE_METHOD ? "this.$handle" : "this.$classHandle",
-                    "targetMethodId"
+                    ((api.flavor === 'art') ? "resolveArtTargetMethodId()" : "targetMethodId")
                 ].concat(argTypes.map(function (t, i) {
                     if (t.toJni) {
                         frameCapacity++;
@@ -1072,6 +1090,14 @@
                     }
                     return argVariableNames[i];
                 }));
+                let callArgsDirect;
+                if (type === INSTANCE_METHOD) {
+                    callArgsDirect = callArgsVirtual.slice();
+                    callArgsDirect.splice(2, 0, "this.$classHandle");
+                } else {
+                    callArgsDirect = callArgsVirtual;
+                }
+
                 let returnCapture, returnStatements;
                 if (rawRetType === 'void') {
                     returnCapture = "";
@@ -1093,6 +1119,7 @@
                     }
                 }
                 let f;
+                const pendingCalls = new Set();
                 eval("f = function " + methodName + "(" + argVariableNames.join(", ") + ") {" +
                     "const env = vm.getEnv();" +
                     "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
@@ -1101,8 +1128,12 @@
                     "}" +
                     "let result, rawResult;" +
                     "try {" +
-                        "synchronizeVtable.call(this, env, type === INSTANCE_METHOD);" +
-                        returnCapture + "invokeTarget(" + callArgs.join(", ") + ");" +
+                        ((api.flavor === 'dalvik') ? "synchronizeDalvikVtable.call(this, env, type === INSTANCE_METHOD);" : "") +
+                        "if (pendingCalls.has(Process.getCurrentThreadId())) {" +
+                            returnCapture + "invokeTargetDirectly(" + callArgsDirect.join(", ") + ");" +
+                        "} else {" +
+                            returnCapture + "invokeTargetVirtually(" + callArgsVirtual.join(", ") + ");" +
+                        "}" +
                     "} catch (e) {" +
                         "env.popLocalFrame(NULL);" +
                         "throw e;" +
@@ -1127,26 +1158,96 @@
                 });
 
                 let implementation = null;
-                function synchronizeVtable(env, instance) {
+                function resolveArtTargetMethodId() {
+                    if (originalMethodId === null)
+                        return methodId;
+
+                    const thread = api["art::Thread::CurrentFromGdb"]();
+                    const target = api["art::mirror::Object::Clone"](methodId, thread);
+                    Memory.copy(target, originalMethodId, ART_METHOD_SIZE);
+                    return target;
+                }
+                function replaceArtImplementation(fn) {
+                    if (fn === null && originalMethodId === null) {
+                        return;
+                    }
+
+                    if (originalMethodId === null)
+                        originalMethodId = Memory.dup(methodId, ART_METHOD_SIZE);
+
+                    if (fn !== null) {
+                        implementation = implement(f, fn);
+
+                        Memory.writePointer(methodId.add(ART_METHOD_OFFSET_JNI_CODE), implementation);
+                        const flagsPtr = methodId.add(ART_METHOD_OFFSET_ACCESS_FLAGS);
+                        Memory.writeU32(flagsPtr, Memory.readU32(flagsPtr) | kAccNative);
+                        Memory.writePointer(methodId.add(ART_METHOD_OFFSET_QUICK_CODE), api.art_quick_generic_jni_trampoline);
+                    } else {
+                        Memory.copy(methodId, originalMethodId, ART_METHOD_SIZE);
+                        implementation = null;
+                    }
+                }
+                function replaceDalvikImplementation(fn) {
+                    if (fn === null && originalMethodId === null) {
+                        return;
+                    }
+
+                    if (originalMethodId === null) {
+                        originalMethodId = Memory.dup(methodId, DVM_METHOD_SIZE);
+                        targetMethodId = Memory.dup(methodId, DVM_METHOD_SIZE);
+                    }
+
+                    if (fn !== null) {
+                        implementation = implement(f, fn);
+
+                        let argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
+                        if (type === INSTANCE_METHOD) {
+                            argsSize++;
+                        }
+
+                        /*
+                         * make method native (with kAccNative)
+                         * insSize and registersSize are set to arguments size
+                         */
+                        const accessFlags = Memory.readU32(methodId.add(DVM_METHOD_OFFSET_ACCESS_FLAGS)) | kAccNative;
+                        const registersSize = argsSize;
+                        const outsSize = 0;
+                        const insSize = argsSize;
+                        // parse method arguments
+                        const jniArgInfo = 0x80000000;
+
+                        Memory.writeU32(methodId.add(DVM_METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
+                        Memory.writeU16(methodId.add(DVM_METHOD_OFFSET_REGISTERS_SIZE), registersSize);
+                        Memory.writeU16(methodId.add(DVM_METHOD_OFFSET_OUTS_SIZE), outsSize);
+                        Memory.writeU16(methodId.add(DVM_METHOD_OFFSET_INS_SIZE), insSize);
+                        Memory.writeU32(methodId.add(DVM_METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
+
+                        api.dvmUseJNIBridge(methodId, implementation);
+                    } else {
+                        Memory.copy(methodId, originalMethodId, DVM_METHOD_SIZE);
+                        implementation = null;
+                    }
+                }
+                function synchronizeDalvikVtable(env, instance) {
                     /* jshint validthis: true */
 
                     if (originalMethodId === null) {
                         return; // nothing to do -- implementation hasn't been replaced
                     }
 
-                    const thread = Memory.readPointer(env.handle.add(JNI_ENV_OFFSET_SELF));
+                    const thread = Memory.readPointer(env.handle.add(DVM_JNI_ENV_OFFSET_SELF));
                     const objectPtr = api.dvmDecodeIndirectRef(thread, instance ? this.$handle : this.$classHandle);
                     let classObject;
                     if (instance) {
-                        classObject = Memory.readPointer(objectPtr.add(OBJECT_OFFSET_CLAZZ));
+                        classObject = Memory.readPointer(objectPtr.add(DVM_OBJECT_OFFSET_CLAZZ));
                     } else {
                         classObject = objectPtr;
                     }
                     let key = classObject.toString(16);
                     let entry = patchedClasses[key];
                     if (!entry) {
-                        const vtablePtr = classObject.add(CLASS_OBJECT_OFFSET_VTABLE);
-                        const vtableCountPtr = classObject.add(CLASS_OBJECT_OFFSET_VTABLE_COUNT);
+                        const vtablePtr = classObject.add(DVM_CLASS_OBJECT_OFFSET_VTABLE);
+                        const vtableCountPtr = classObject.add(DVM_CLASS_OBJECT_OFFSET_VTABLE_COUNT);
                         const vtable = Memory.readPointer(vtablePtr);
                         const vtableCount = Memory.readS32(vtableCountPtr);
 
@@ -1173,7 +1274,7 @@
                     if (!method) {
                         const methodIndex = entry.shadowVtableCount++;
                         Memory.writePointer(entry.shadowVtable.add(methodIndex * pointerSize), targetMethodId);
-                        Memory.writeU16(targetMethodId.add(METHOD_OFFSET_METHOD_INDEX), methodIndex);
+                        Memory.writeU16(targetMethodId.add(DVM_METHOD_OFFSET_METHOD_INDEX), methodIndex);
                         Memory.writeS32(entry.vtableCountPtr, entry.shadowVtableCount);
 
                         entry.targetMethods[key] = f;
@@ -1184,50 +1285,7 @@
                     get: function () {
                         return implementation;
                     },
-                    set: function (fn) {
-                        if (api.flavor !== 'dalvik')
-                            throw new Error("Overriding methods is only supported on Dalvik for now");
-
-                        if (fn === null && originalMethodId === null) {
-                            return;
-                        }
-
-                        if (originalMethodId === null) {
-                            originalMethodId = Memory.dup(methodId, METHOD_SIZE);
-                            targetMethodId = Memory.dup(methodId, METHOD_SIZE);
-                        }
-
-                        if (fn !== null) {
-                            implementation = implement(f, fn);
-
-                            let argsSize = argTypes.reduce(function (acc, t) { return acc + t.size; }, 0);
-                            if (type === INSTANCE_METHOD) {
-                                argsSize++;
-                            }
-
-                            /*
-                             * make method native (with 0x0100)
-                             * insSize and registersSize are set to arguments size
-                             */
-                            const accessFlags = Memory.readU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS)) | 0x0100;
-                            const registersSize = argsSize;
-                            const outsSize = 0;
-                            const insSize = argsSize;
-                            // parse method arguments
-                            const jniArgInfo = 0x80000000;
-
-                            Memory.writeU32(methodId.add(METHOD_OFFSET_ACCESS_FLAGS), accessFlags);
-                            Memory.writeU16(methodId.add(METHOD_OFFSET_REGISTERS_SIZE), registersSize);
-                            Memory.writeU16(methodId.add(METHOD_OFFSET_OUTS_SIZE), outsSize);
-                            Memory.writeU16(methodId.add(METHOD_OFFSET_INS_SIZE), insSize);
-                            Memory.writeU32(methodId.add(METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
-
-                            api.dvmUseJNIBridge(methodId, implementation);
-                        } else {
-                            Memory.copy(methodId, originalMethodId, METHOD_SIZE);
-                            implementation = null;
-                        }
-                    }
+                    set: api.flavor === 'art' ? replaceArtImplementation : replaceDalvikImplementation
                 });
 
                 Object.defineProperty(f, 'returnType', {
@@ -1251,6 +1309,11 @@
                             return t.isCompatible(args[i]);
                         });
                     }
+                });
+
+                Object.defineProperty(f, PENDING_CALLS, {
+                    enumerable: true,
+                    value: pendingCalls
                 });
 
                 return f;
@@ -1306,6 +1369,7 @@
             const methodName = method.name;
             const rawRetType = retType.type;
             const rawArgTypes = argTypes.map(function (t) { return t.type; });
+            const pendingCalls = method[PENDING_CALLS];
 
             let frameCapacity = 2;
             const argVariableNames = argTypes.map(function (t, i) {
@@ -1363,7 +1427,9 @@
                 "}" +
                 "const self = " + ((type === INSTANCE_METHOD) ? "new C(C.__handle__, thisHandle);" : "new C(thisHandle, null);") +
                 "let result;" +
+                "const tid = Process.getCurrentThreadId();" +
                 "try {" +
+                    "pendingCalls.add(tid);" +
                     returnCapture + "fn.call(" + ["self"].concat(callArgs).join(", ") + ");" +
                 "} catch (e) {" +
                     "if (typeof e === 'object' && e.hasOwnProperty('$handle')) {" +
@@ -1372,6 +1438,8 @@
                     "} else {" +
                         "throw e;" +
                     "}" +
+                "} finally {" +
+                    "pendingCalls.delete(tid);" +
                 "}" +
                 returnStatements +
             "};");
@@ -1968,6 +2036,17 @@
         const CALL_DOUBLE_METHOD_OFFSET = 58;
         const CALL_VOID_METHOD_OFFSET = 61;
 
+        const CALL_NONVIRTUAL_OBJECT_METHOD_OFFSET = 64;
+        const CALL_NONVIRTUAL_BOOLEAN_METHOD_OFFSET = 67;
+        const CALL_NONVIRTUAL_BYTE_METHOD_OFFSET = 70;
+        const CALL_NONVIRTUAL_CHAR_METHOD_OFFSET = 73;
+        const CALL_NONVIRTUAL_SHORT_METHOD_OFFSET = 76;
+        const CALL_NONVIRTUAL_INT_METHOD_OFFSET = 79;
+        const CALL_NONVIRTUAL_LONG_METHOD_OFFSET = 82;
+        const CALL_NONVIRTUAL_FLOAT_METHOD_OFFSET = 85;
+        const CALL_NONVIRTUAL_DOUBLE_METHOD_OFFSET = 88;
+        const CALL_NONVIRTUAL_VOID_METHOD_OFFSET = 91;
+
         const CALL_STATIC_OBJECT_METHOD_OFFSET = 114;
         const CALL_STATIC_BOOLEAN_METHOD_OFFSET = 117;
         const CALL_STATIC_BYTE_METHOD_OFFSET = 120;
@@ -2030,6 +2109,19 @@
             'float': CALL_FLOAT_METHOD_OFFSET,
             'double': CALL_DOUBLE_METHOD_OFFSET,
             'void': CALL_VOID_METHOD_OFFSET
+        };
+
+        const callNonvirtualMethodOffset = {
+            'pointer': CALL_NONVIRTUAL_OBJECT_METHOD_OFFSET,
+            'uint8': CALL_NONVIRTUAL_BOOLEAN_METHOD_OFFSET,
+            'int8': CALL_NONVIRTUAL_BYTE_METHOD_OFFSET,
+            'uint16': CALL_NONVIRTUAL_CHAR_METHOD_OFFSET,
+            'int16': CALL_NONVIRTUAL_SHORT_METHOD_OFFSET,
+            'int32': CALL_NONVIRTUAL_INT_METHOD_OFFSET,
+            'int64': CALL_NONVIRTUAL_LONG_METHOD_OFFSET,
+            'float': CALL_NONVIRTUAL_FLOAT_METHOD_OFFSET,
+            'double': CALL_NONVIRTUAL_DOUBLE_METHOD_OFFSET,
+            'void': CALL_NONVIRTUAL_VOID_METHOD_OFFSET
         };
 
         const callStaticMethodOffset = {
@@ -2407,11 +2499,21 @@
 
         const cachedMethods = {};
         function method(offset, retType, argTypes) {
-            const key = offset + "|" + retType + "|" + argTypes.join(":");
+            const key = offset + "v" + retType + "|" + argTypes.join(":");
             let m = cachedMethods[key];
             if (!m) {
                 /* jshint validthis: true */
                 m = new NativeFunction(Memory.readPointer(vtable(this).add(offset * pointerSize)), retType, ['pointer', 'pointer', 'pointer', '...'].concat(argTypes));
+                cachedMethods[key] = m;
+            }
+            return m;
+        }
+        function nonvirtualMethod(offset, retType, argTypes) {
+            const key = offset + "n" + retType + "|" + argTypes.join(":");
+            let m = cachedMethods[key];
+            if (!m) {
+                /* jshint validthis: true */
+                m = new NativeFunction(Memory.readPointer(vtable(this).add(offset * pointerSize)), retType, ['pointer', 'pointer', 'pointer', 'pointer', '...'].concat(argTypes));
                 cachedMethods[key] = m;
             }
             return m;
@@ -2426,6 +2528,13 @@
             if (offset === undefined)
                 throw new Error("Unsupported type: " + retType);
             return method(offset, retType, argTypes);
+        };
+
+        Env.prototype.nonvirtualMethod = function (retType, argTypes) {
+            const offset = callNonvirtualMethodOffset[retType];
+            if (offset === undefined)
+                throw new Error("Unsupported type: " + retType);
+            return nonvirtualMethod(offset, retType, argTypes);
         };
 
         Env.prototype.staticMethod = function (retType, argTypes) {
@@ -2788,7 +2897,12 @@
         const pending = Process.findModuleByName('libart.so') !== null ? [{
                 module: "libart.so",
                 functions: {
-                    "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']]
+                    "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']],
+                    "art_quick_generic_jni_trampoline": address => {
+                        this.art_quick_generic_jni_trampoline = address;
+                    },
+                    "_ZN3art6Thread14CurrentFromGdbEv": ["art::Thread::CurrentFromGdb", 'pointer', []],
+                    "_ZN3art6mirror6Object5CloneEPNS_6ThreadE": ["art::mirror::Object::Clone", 'pointer', ['pointer', 'pointer']],
                 },
                 variables: {
                 }
