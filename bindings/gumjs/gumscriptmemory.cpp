@@ -472,7 +472,7 @@ gum_script_memory_on_alloc_utf8_string (
 
   String::Utf8Value str (info[0]);
   const gchar * s = *str;
-  guint size = (g_utf8_offset_to_pointer (s, str.length ()) - s) + 1;
+  guint size = str.length () + 1;
   GumNativeResource * res = _gum_native_resource_new (g_memdup (s, size), size,
       g_free, self->core);
   info.GetReturnValue ().Set (
