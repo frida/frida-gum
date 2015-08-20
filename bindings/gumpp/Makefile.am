@@ -55,6 +55,7 @@ libfrida_gumpp_static_1_0_la_LIBTOOLFLAGS =	\
 	--tag=disable-shared
 
 AM_CPPFLAGS =					\
+	-DG_LOG_DOMAIN=\"Frida\"		\
 	-include config.h			\
 	-I $(top_srcdir)			\
 	-I $(top_srcdir)/libs			\

@@ -72,6 +72,7 @@ script-runtime-stamp: generate-runtime.py $(script_runtime_sources)
 	@touch $@
 
 AM_CPPFLAGS = \
+	-DG_LOG_DOMAIN=\"Frida\" \
 	-include config.h \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \

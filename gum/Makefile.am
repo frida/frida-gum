@@ -194,6 +194,7 @@ libfrida_gum_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
 AM_CPPFLAGS = \
+	-DG_LOG_DOMAIN=\"Frida\" \
 	-include config.h \
 	-I $(top_srcdir) \
 	-I $(srcdir)/arch-arm64 \
