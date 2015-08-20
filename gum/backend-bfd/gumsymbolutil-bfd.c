@@ -97,7 +97,7 @@ gum_symbol_details_from_address (gpointer address,
 
   details->address = GUM_ADDRESS (address);
 
-  module_name = rindex (dl_info.dli_fname, '/');
+  module_name = g_strrstr (dl_info.dli_fname, "/");
   if (module_name != NULL)
     module_name++;
   else

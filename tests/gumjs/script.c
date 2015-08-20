@@ -509,7 +509,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
   addr.sin_family = AF_INET;
-  addr.sin_port = htons (39876);
+  addr.sin_port = GUINT16_TO_BE (39876);
   addr.sin_addr.s_addr = INADDR_ANY;
   bind (fd, (struct sockaddr *) &addr, sizeof (addr));
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);

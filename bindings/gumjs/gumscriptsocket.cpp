@@ -112,8 +112,8 @@ gum_script_socket_on_type (const FunctionCallbackInfo<Value> & info)
     {
       struct sockaddr_in invalid_sockaddr;
       invalid_sockaddr.sin_family = AF_INET;
-      invalid_sockaddr.sin_port = htons (0);
-      invalid_sockaddr.sin_addr.s_addr = htonl (0xffffffff);
+      invalid_sockaddr.sin_port = GUINT16_TO_BE (0);
+      invalid_sockaddr.sin_addr.s_addr = GUINT32_TO_BE (0xffffffff);
       bind (socket,
           reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
           sizeof (invalid_sockaddr));
@@ -247,7 +247,8 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
 #endif
       Local<Object> result (Object::New (isolate));
       _gum_script_set_ascii (result, "ip", ip, core);
-      _gum_script_set_uint (result, "port", ntohs (inet_addr->sin_port), core);
+      _gum_script_set_uint (result, "port",
+          GUINT16_FROM_BE (inet_addr->sin_port), core);
       return result;
     }
     case AF_INET6:
@@ -271,7 +272,8 @@ gum_script_socket_address_to_value (struct sockaddr * addr,
 #endif
       Local<Object> result (Object::New (isolate));
       _gum_script_set_ascii (result, "ip", ip, core);
-      _gum_script_set_uint (result, "port", ntohs (inet_addr->sin6_port), core);
+      _gum_script_set_uint (result, "port",
+          GUINT16_FROM_BE (inet_addr->sin6_port), core);
       return result;
     }
     case AF_UNIX:
