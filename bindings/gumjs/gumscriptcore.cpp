@@ -1502,9 +1502,10 @@ gum_script_core_on_invoke_native_function (
 
   ffi_type * rtype = func->cif.rtype;
 
-  GumFFIValue * rvalue = (GumFFIValue *)
-      g_alloca (rtype->size + rtype->alignment - 1);
-  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, rtype->alignment);
+  gsize rsize = MAX (rtype->size, sizeof (gsize));
+  gsize ralign = MAX (rtype->alignment, sizeof (gsize));
+  GumFFIValue * rvalue = (GumFFIValue *) g_alloca (rsize + ralign - 1);
+  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
 
   void ** avalue;
   guint8 * avalues;

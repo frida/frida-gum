@@ -316,6 +316,16 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("-6");
   EXPECT_NO_MESSAGES ();
   g_assert_cmpstr (str, ==, "BADGER");
+
+#ifdef G_OS_WIN32
+  COMPILE_AND_LOAD_SCRIPT (
+      "var impl = Module.findExportByName(\"user32.dll\", \"GetKeyState\");"
+      "var f = new NativeFunction(impl, 'int16', ['int']);"
+      "var result = f(0x41);"
+      "send(typeof result);");
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+  EXPECT_NO_MESSAGES ();
+#endif
 }
 
 SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
