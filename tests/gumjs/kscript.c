@@ -101,6 +101,12 @@ KSCRIPT_TESTCASE (byte_array_can_be_read)
 
 KSCRIPT_TESTCASE (byte_array_can_be_written)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<potentially dangerous, run in slow mode> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "var address = Memory.enumerateRangesSync('rw-')[0].base;"
       "var bytes = Memory.readByteArray(address, 3);"
