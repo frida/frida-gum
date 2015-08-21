@@ -504,12 +504,13 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
 {
   int fd;
   struct sockaddr_in addr = { 0, };
+  const guint port = 39876;
 
   fd = socket (AF_INET, SOCK_STREAM, 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("\"tcp\"");
   addr.sin_family = AF_INET;
-  addr.sin_port = GUINT16_TO_BE (39876);
+  addr.sin_port = GUINT16_TO_BE (port);
   addr.sin_addr.s_addr = INADDR_ANY;
   bind (fd, (struct sockaddr *) &addr, sizeof (addr));
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
