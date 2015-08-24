@@ -273,6 +273,10 @@
             return classFactory.use(className);
         };
 
+        this.openDexFile = function (filePath) {
+            return classFactory.openDexFile(filePath);
+        };
+
         this.choose = function (className, callbacks) {
             assertCalledInJavaPerformCallback();
             return classFactory.choose(className, callbacks);
@@ -302,6 +306,7 @@
         let classes = {};
         let patchedClasses = {};
         let loader = null;
+        const FILE_PATH = Symbol('FILE_PATH');
         const PENDING_CALLS = Symbol('PENDING_CALLS');
 
         function initialize() {
@@ -362,6 +367,59 @@
                 }
             }
             return new C(C.__handle__, null);
+        };
+
+        function DexFile(filePath) {
+            this[FILE_PATH] = filePath;
+        }
+
+        DexFile.prototype = {
+            load() {
+                if (loader === null) {
+                    throw new Error("Not allowed outside Java.perform() callback");
+                }
+                const File = Dalvik.use("java.io.File");
+                const f = File.$new(this[FILE_PATH]);
+                if (!f.exists()) {
+                    throw new Error("File isn't available");
+                }
+
+                const currentApplication = Dalvik.use("android.app.ActivityThread").currentApplication();
+                const optimizedDexOutputPath = currentApplication.getDir("outdex", 0);
+                const DexClassLoader = Dalvik.use('dalvik.system.DexClassLoader');
+
+                let classLoader = null;
+                if (loader !== null) {
+                    classLoader = DexClassLoader.$new(f.getAbsolutePath(),
+                        optimizedDexOutputPath.getAbsolutePath(), null, loader);
+                } else {
+                    classLoader = DexClassLoader.$new(f.getAbsolutePath(),
+                        optimizedDexOutputPath.getAbsolutePath(), null, currentApplication.getClassLoader());
+                }
+
+                loader = classLoader;
+            },
+            getClassNames() {
+                if (loader === null) {
+                    throw new Error("Not allowed outside Java.perform() callback");
+                }
+                const classNames = [];
+                const File = Dalvik.use("java.io.File");
+                const DexFile = Dalvik.use("dalvik.system.DexFile");
+                const currentApplication = Dalvik.use("android.app.ActivityThread").currentApplication();
+                const dx = DexFile.loadDex(this[FILE_PATH], File.createTempFile("opt", "dex",
+                    currentApplication.getCacheDir()).getPath(), 0);
+
+                const enumeratorClassNames = dx.entries();
+                while (enumeratorClassNames.hasMoreElements()) {
+                    classNames.push(enumeratorClassNames.nextElement());
+                }
+                return classNames;
+            }
+        };
+
+        this.openDexFile = function (filePath) {
+            return new DexFile(filePath);
         };
 
         this.choose = function (className, callbacks) {
