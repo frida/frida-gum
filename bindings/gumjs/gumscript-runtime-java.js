@@ -273,8 +273,8 @@
             return classFactory.use(className);
         };
 
-        this.openDexFile = function (filePath) {
-            return classFactory.openDexFile(filePath);
+        this.openClassFile = function (filePath) {
+            return classFactory.openClassFile(filePath);
         };
 
         this.choose = function (className, callbacks) {
@@ -418,7 +418,7 @@
             }
         };
 
-        this.openDexFile = function (filePath) {
+        this.openClassFile = function (filePath) {
             return new DexFile(filePath);
         };
 
