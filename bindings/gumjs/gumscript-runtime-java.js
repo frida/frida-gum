@@ -301,6 +301,7 @@
         const factory = this;
         let classes = {};
         let patchedClasses = {};
+        let patchedMethods = new Set();
         let loader = null;
         const PENDING_CALLS = Symbol('PENDING_CALLS');
 
@@ -309,6 +310,10 @@
         }
 
         this.dispose = function (env) {
+            for (let method of patchedMethods)
+                method.implementation = null;
+            patchedMethods.clear();
+
             for (let entryId in patchedClasses) {
                 if (patchedClasses.hasOwnProperty(entryId)) {
                     const entry = patchedClasses[entryId];
@@ -1182,7 +1187,11 @@
                         const flagsPtr = methodId.add(ART_METHOD_OFFSET_ACCESS_FLAGS);
                         Memory.writeU32(flagsPtr, Memory.readU32(flagsPtr) | kAccNative);
                         Memory.writePointer(methodId.add(ART_METHOD_OFFSET_QUICK_CODE), api.art_quick_generic_jni_trampoline);
+
+                        patchedMethods.add(f);
                     } else {
+                        patchedMethods.delete(f);
+
                         Memory.copy(methodId, originalMethodId, ART_METHOD_SIZE);
                         implementation = null;
                     }
@@ -1223,7 +1232,11 @@
                         Memory.writeU32(methodId.add(DVM_METHOD_OFFSET_JNI_ARG_INFO), jniArgInfo);
 
                         api.dvmUseJNIBridge(methodId, implementation);
+
+                        patchedMethods.add(f);
                     } else {
+                        patchedMethods.delete(f);
+
                         Memory.copy(methodId, originalMethodId, DVM_METHOD_SIZE);
                         implementation = null;
                     }
