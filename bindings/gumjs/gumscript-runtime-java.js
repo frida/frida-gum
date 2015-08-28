@@ -2894,9 +2894,9 @@
         }
 
         const temporaryApi = {
-            addLocalReference: null
+            addLocalReference: null,
+            flavor: Process.findModuleByName('libart.so') !== null ? 'art' : 'dalvik',
         };
-        temporaryApi.flavor = Process.findModuleByName('libart.so') !== null? 'art' : 'dalvik';
 
         const pending = temporaryApi.flavor === 'art' ? [{
                 module: "libart.so",
