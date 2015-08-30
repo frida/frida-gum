@@ -11,6 +11,8 @@
     let _runtime = null;
     let _api = null;
     const pointerSize = Process.pointerSize;
+    // jsize === jint === int/int32_t === signed 32 bits (Reference: jni.h)
+    const jsizeSize = 4;
     /* no error */
     const JNI_OK = 0;
     /* generic error */
@@ -2905,9 +2907,11 @@
         }
 
         const temporaryApi = {
-            addLocalReference: null
+            addLocalReference: null,
+            flavor: Process.findModuleByName('libart.so') !== null ? 'art' : 'dalvik',
         };
-        const pending = Process.findModuleByName('libart.so') !== null ? [{
+
+        const pending = temporaryApi.flavor === 'art' ? [{
                 module: "libart.so",
                 functions: {
                     "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']],
@@ -2942,7 +2946,8 @@
                     /*
                      *  Returns true if the pointer points to a valid object.
                      */
-                    "_Z16dvmIsValidObjectPK6Object": ["dvmIsValidObject", 'uint8', ['pointer']]
+                    "_Z16dvmIsValidObjectPK6Object": ["dvmIsValidObject", 'uint8', ['pointer']],
+                    "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']],
                 },
                 variables: {
                     "gDvmJni": function (address) {
@@ -2990,20 +2995,13 @@
             });
         });
         if (remaining === 0) {
-            if (temporaryApi.hasOwnProperty("JNI_GetCreatedJavaVMs")) {
-                temporaryApi.flavor = 'art';
+            const vms = Memory.alloc(pointerSize);
+            const vmCount = Memory.alloc(jsizeSize);
+            checkJniResult("JNI_GetCreatedJavaVMs", temporaryApi.JNI_GetCreatedJavaVMs(vms, 1, vmCount));
+            if (Memory.readInt(vmCount) === 0)
+                return null;
+            temporaryApi.vm = Memory.readPointer(vms);
 
-                const vms = Memory.alloc(pointerSize);
-                const vmCount = Memory.alloc(pointerSize);
-                checkJniResult("JNI_GetCreatedJavaVMs", temporaryApi.JNI_GetCreatedJavaVMs(vms, 1, vmCount));
-                if (Memory.readPointer(vmCount).toInt32() === 0)
-                    return null;
-                temporaryApi.vm = Memory.readPointer(vms);
-            } else {
-                temporaryApi.flavor = 'dalvik';
-
-                temporaryApi.vm = Memory.readPointer(temporaryApi.gDvmJni.add(8));
-            }
             _api = temporaryApi;
         }
 
