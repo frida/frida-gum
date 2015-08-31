@@ -96,6 +96,8 @@
         let api = null;
         let vm = null;
         let classFactory = null;
+        let pending = [];
+        let threadsInPerformNow = 0;
 
         function initialize() {
             api = getApi();
@@ -142,7 +144,7 @@
         }
 
         function assertCalledInJavaPerformCallback() {
-            if (classFactory.loader === null) {
+            if (classFactory.loader === null && threadsInPerformNow === 0) {
                 throw new Error("Not allowed outside Java.perform() callback");
             }
         }
@@ -259,15 +261,49 @@
         this.perform = function (fn) {
             assertJavaApiIsAvailable();
 
+            if (classFactory.loader !== null) {
+                vm.perform(fn);
+            } else {
+                pending.push(fn);
+                if (pending.length === 1) {
+                    vm.perform(() => {
+                        const ActivityThread = classFactory.use("android.app.ActivityThread");
+                        const app = ActivityThread.currentApplication();
+                        if (app !== null) {
+                            classFactory.loader = app.getClassLoader();
+                            pending.forEach(vm.perform, vm);
+                            pending = null;
+                        } else {
+                            const m = ActivityThread.getPackageInfoNoCheck;
+                            m.implementation = () => {
+                                m.implementation = null;
+                                const apk = m.apply(this, arguments);
+                                classFactory.loader = apk.getClassLoader();
+                                pending.forEach(vm.perform, vm);
+                                pending = null;
+                                return apk;
+                            };
+                        }
+                    });
+                }
+            }
+        };
+
+        this.performNow = function (fn) {
+            assertJavaApiIsAvailable();
+
             if (classFactory.loader === null) {
                 vm.perform(() => {
                     const ActivityThread = classFactory.use("android.app.ActivityThread");
                     const app = ActivityThread.currentApplication();
-                    classFactory.loader = app.getClassLoader();
+                    if (app !== null)
+                        classFactory.loader = app.getClassLoader();
                 });
             }
 
+            threadsInPerformNow++;
             vm.perform(fn);
+            threadsInPerformNow--;
         };
 
         this.use = function (className) {
