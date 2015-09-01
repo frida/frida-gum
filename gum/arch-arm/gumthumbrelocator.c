@@ -568,7 +568,7 @@ static gboolean
 gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
-  guint32 insn, s, j1, j2, i1, i2, imm10_h, imm11_l;
+  guint32 insn, s, j1, j2, i1, i2, imm10_h, imm11_l, thumb_bit;
   union
   {
     gint32 i;
@@ -590,10 +590,15 @@ gum_thumb_relocator_rewrite_bl_imm (GumThumbRelocator * self,
   imm10_h = (insn >> 16) & 0x3ff;
   imm11_l = insn & 0x7ff;
 
+  thumb_bit = (insn >> 12) & 1;
+
   distance.u = (s ? 0xff000000 : 0x00000000) |
       (i1 << 23) | (i2 << 22) | (imm10_h << 12) | (imm11_l << 1);
 
-  absolute_target = (ctx->insn->pc + distance.i) | ((insn >> 12) & 1);
+  if (thumb_bit == 0)
+    absolute_target = (ctx->insn->pc & ~((GumAddress) (4 - 1))) + distance.i;
+  else
+    absolute_target = (ctx->insn->pc + distance.i) | 1;
 
   gum_thumb_writer_put_push_regs (ctx->output, 1, GUM_AREG_R0);
   gum_thumb_writer_put_ldr_reg_address (ctx->output, GUM_AREG_R0,
