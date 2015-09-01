@@ -78,9 +78,8 @@
     Object.defineProperty(this, 'Java', {
         enumerable: true,
         get: () => {
-            if (_runtime === null) {
+            if (_runtime === null)
                 _runtime = new Runtime();
-            }
             return _runtime;
         }
     });
@@ -109,7 +108,7 @@
 
         WeakRef.bind(Runtime, function dispose() {
             if (api !== null) {
-                vm.perform(function () {
+                vm.perform(() => {
                     const env = vm.getEnv();
                     classFactory.dispose(env);
                     Env.dispose(env);
@@ -130,7 +129,7 @@
             get: function () {
                 if (androidVersion === null) {
                     assertCalledInJavaPerformCallback();
-                    const Build = Java.use("android.os.Build$VERSION");
+                    const Build = classFactory.use("android.os.Build$VERSION");
                     androidVersion = Build.RELEASE.value;
                 }
                 return androidVersion;
@@ -138,9 +137,8 @@
         });
 
         function assertJavaApiIsAvailable() {
-            if (!Java.available) {
+            if (api === null)
                 throw new Error("Java API not available");
-            }
         }
 
         function assertCalledInJavaPerformCallback() {
@@ -215,7 +213,7 @@
                 assertJavaApiIsAvailable();
 
                 const classes = [];
-                Java.enumerateLoadedClasses({
+                this.enumerateLoadedClasses({
                     onMatch: function (c) {
                         classes.push(c);
                     },
@@ -481,15 +479,15 @@
                 const heapSourceLimit = api.dvmHeapSourceGetLimit();
                 const size = heapSourceLimit.toInt32() - heapSourceBase.toInt32();
                 Memory.scan(heapSourceBase, size, pattern, {
-                    onMatch: function (address, size) {
+                    onMatch(address, size) {
                         if (api.dvmIsValidObject(address)) {
-                            Java.perform(function () {
+                            vm.perform(() => {
                                 const env = vm.getEnv();
                                 const thread = Memory.readPointer(env.handle.add(DVM_JNI_ENV_OFFSET_SELF));
                                 let instance;
                                 const localReference = api.addLocalReference(thread, address);
                                 try {
-                                    instance = Java.cast(localReference, klass);
+                                    instance = factory.cast(localReference, klass);
                                 } finally {
                                     env.deleteLocalRef(localReference);
                                 }
@@ -501,9 +499,9 @@
                             });
                         }
                     },
-                    onError: function (reason) {
+                    onError(reason) {
                     },
-                    onComplete: function () {
+                    onComplete() {
                         callbacks.onComplete();
                     }
                 });
@@ -512,7 +510,7 @@
             if (api.addLocalReference === null) {
                 const libdvm = Process.getModuleByName('libdvm.so');
                 let pattern;
-                if (Java.androidVersion.indexOf('4.2.') === 0) {
+                if (_runtime.androidVersion.indexOf('4.2.') === 0) {
                     // verified with 4.2.2
                     pattern = 'F8 B5 06 46 0C 46 31 B3 43 68 00 F1 A8 07 22 46';
                 } else {
@@ -521,18 +519,17 @@
                 }
                 Memory.scan(libdvm.base, libdvm.size, pattern,
                     {
-                        onMatch: function (address, size) {
+                        onMatch(address, size) {
                             // Note that on 32-bit ARM this address must have its least significant bit set to 0 for ARM functions, and 1 for Thumb functions. => So set it to 1
-                            if (Process.arch === 'arm') {
+                            if (Process.arch === 'arm')
                                 address = address.or(1);
-                            }
                             api.addLocalReference = new NativeFunction(address, 'pointer', ['pointer', 'pointer']);
                             enumerateInstances(className, callbacks);
                             return 'stop';
                         },
-                        onError: function (reason) {
+                        onError(reason) {
                         },
-                        onComplete: function () {
+                        onComplete() {
                         }
                     });
             } else {
@@ -592,7 +589,7 @@
                 Object.defineProperty(klass.prototype, "$new", {
                     get: function () {
                         if (ctor === null) {
-                            vm.perform(function () {
+                            vm.perform(() => {
                                 ctor = makeConstructor(klass.__handle__, vm.getEnv());
                             });
                         }
@@ -906,12 +903,12 @@
 
                 // define access to the fields in the class (klass)
                 const values = myAssign({}, jsFields, jsMethods);
-                Object.keys(values).forEach(function (name) {
+                Object.keys(values).forEach(name => {
                     let v = null;
                     Object.defineProperty(klass.prototype, name, {
                         get: function () {
                             if (v === null) {
-                                vm.perform(function () {
+                                vm.perform(() => {
                                     const env = vm.getEnv();
                                     let f = {};
                                     if (jsFields.hasOwnProperty(name)) {
@@ -1453,8 +1450,8 @@
             const handles = Array.prototype.slice.call(arguments).filter(function (h) {
                 return h !== null;
             });
-            return function () {
-                vm.perform(function () {
+            return () => {
+                vm.perform(() => {
                     const env = vm.getEnv();
                     handles.forEach(env.deleteGlobalRef, env);
                 });
