@@ -177,41 +177,46 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
 RELOCATOR_TESTCASE (bl_sequence_should_be_rewritten)
 {
   const guint16 input[] = {
-    GUINT16_TO_LE (0xf001), GUINT16_TO_LE (0xfbc9), /* bl 0x101798 */
-    GUINT16_TO_LE (0xf7fb), GUINT16_TO_LE (0xeca0), /* blx 0xfb948 */
+    GUINT16_TO_LE (0xb573),      /* push {r0, r1, r4, r5, r6, lr} */
+    GUINT16_TO_LE (0xf001), GUINT16_TO_LE (0xfbc9), /* bl 0x1543c */
+    GUINT16_TO_LE (0xf7fb), GUINT16_TO_LE (0xeca0), /* blx 0xf5ec */
   };
-  const guint16 expected_output_instructions[14] = {
-    GUINT16_TO_LE (0xb401),                   /* push {r0}        */
-    GUINT16_TO_LE (0x4804),                   /* ldr r0, [pc, #8] */
-    GUINT16_TO_LE (0x4686),                   /* mov lr, r0       */
-    GUINT16_TO_LE (0xbc01),                   /* pop {r0}         */
-    GUINT16_TO_LE (0x47f0),                   /* blx lr           */
-    GUINT16_TO_LE (0xb401),                   /* push {r0}        */
-    GUINT16_TO_LE (0x4802),                   /* ldr r0, [pc, #8] */
-    GUINT16_TO_LE (0x4686),                   /* mov lr, r0       */
-    GUINT16_TO_LE (0xbc01),                   /* pop {r0}         */
-    GUINT16_TO_LE (0x47f0),                   /* blx lr           */
-    GUINT16_TO_LE (0xffff),                   /* <calculated PC1  */
-    GUINT16_TO_LE (0xffff),                   /*  goes here>      */
-    GUINT16_TO_LE (0xffff),                   /* <calculated PC2  */
-    GUINT16_TO_LE (0xffff),                   /*  goes here>      */
+  const guint16 expected_output_instructions[16] = {
+    GUINT16_TO_LE (0xb573),      /* push {r0, r1, r4, r5, r6, lr} */
+    GUINT16_TO_LE (0xb401),                  /* push {r0}         */
+    GUINT16_TO_LE (0x4804),                  /* ldr r0, [pc, #16] */
+    GUINT16_TO_LE (0x4686),                  /* mov lr, r0        */
+    GUINT16_TO_LE (0xbc01),                  /* pop {r0}          */
+    GUINT16_TO_LE (0x47f0),                  /* blx lr            */
+    GUINT16_TO_LE (0xb401),                  /* push {r0}         */
+    GUINT16_TO_LE (0x4803),                  /* ldr r0, [pc, #12] */
+    GUINT16_TO_LE (0x4686),                  /* mov lr, r0        */
+    GUINT16_TO_LE (0xbc01),                  /* pop {r0}          */
+    GUINT16_TO_LE (0x47f0),                  /* blx lr            */
+    GUINT16_TO_LE (0x0000),                  /* <padding>         */
+    GUINT16_TO_LE (0xffff),                  /* <calculated PC1   */
+    GUINT16_TO_LE (0xffff),                  /*  goes here>       */
+    GUINT16_TO_LE (0xffff),                  /* <calculated PC2   */
+    GUINT16_TO_LE (0xffff),                  /*  goes here>       */
   };
-  gchar expected_output[14 * sizeof (guint16)];
+  gchar expected_output[16 * sizeof (guint16)];
 
   const GumArmInstruction * insn = NULL;
 
   fixture->tw.pc = 0x200000;
   SETUP_RELOCATOR_WITH (input);
-  fixture->rl.input_pc = 0x100000;
+  fixture->rl.input_pc = 0x13ca4;
 
   memcpy (expected_output, expected_output_instructions,
       sizeof (expected_output_instructions));
-  *((guint32 *) (expected_output + 20)) = GUINT32_TO_LE (0x101798 | 1);
-  *((guint32 *) (expected_output + 24)) = GUINT32_TO_LE (0xfb948);
+  *((guint32 *) (expected_output + 24)) = GUINT32_TO_LE (0x1543c | 1);
+  *((guint32 *) (expected_output + 28)) = GUINT32_TO_LE (0xf5ec);
 
-  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_PUSH);
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 6);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_BL_IMM_T1);
-  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 8);
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 10);
   g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_BLX_IMM_T2);
   gum_thumb_relocator_write_all (&fixture->rl);
   gum_thumb_writer_flush (&fixture->tw);
