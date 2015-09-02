@@ -12,6 +12,7 @@
 # include "lowlevel-helpers.h"
 #endif
 
+#include <capstone/capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
 #include <gum/gum.h>
@@ -101,13 +102,17 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (symbolutil);
 #endif
   TEST_RUN_LIST (codewriter);
-  TEST_RUN_LIST (relocator);
+  if (cs_support (CS_ARCH_X86))
+    TEST_RUN_LIST (relocator);
   TEST_RUN_LIST (armwriter);
-  TEST_RUN_LIST (armrelocator);
+  if (cs_support (CS_ARCH_ARM))
+    TEST_RUN_LIST (armrelocator);
   TEST_RUN_LIST (thumbwriter);
-  TEST_RUN_LIST (thumbrelocator);
+  if (cs_support (CS_ARCH_ARM))
+    TEST_RUN_LIST (thumbrelocator);
   TEST_RUN_LIST (arm64writer);
-  TEST_RUN_LIST (arm64relocator);
+  if (cs_support (CS_ARCH_ARM64))
+    TEST_RUN_LIST (arm64relocator);
   TEST_RUN_LIST (interceptor);
 #if defined (HAVE_I386) && defined (G_OS_WIN32)
   TEST_RUN_LIST (memoryaccessmonitor);
