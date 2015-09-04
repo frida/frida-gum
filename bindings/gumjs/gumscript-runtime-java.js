@@ -569,7 +569,8 @@
                 superKlass = null;
             }
 
-            eval("klass = function " + basename(name) + "(classHandle, handle) {" +
+            // ugly fix for the moment
+            eval("klass = function " + basename(name.replace(/;|\[/g, "")) + "(classHandle, handle) {" +
                  "const env = vm.getEnv();" +
                  "this.$classWrapper = klass;" +
                  "this.$classHandle = env.newGlobalRef(classHandle);" +
@@ -765,7 +766,7 @@
                     setFunction = env.setField(rawFieldType);
                 }
 
-                let inputStatement = null;
+                let inputStatement;
                 if (fieldType.toJni) {
                     inputStatement = "const input = fieldType.toJni.call(this, value, env);";
                 } else {
@@ -782,18 +783,19 @@
                         "throw new Error('Field \"" + name + "\" expected input value compatible with " + fieldType.className + ".');" +
                     "}" +
                     "const env = vm.getEnv();" +
+                    "if (env.pushLocalFrame(" + frameCapacity + ") !== JNI_OK) {" +
+                        "env.exceptionClear();" +
+                        "throw new Error(\"Out of memory\");" +
+                    "}" +
                     "try {" +
                         inputStatement +
                         "setFunction(" + callArgs.join(", ") + ", input);" +
                     "} catch (e) {" +
                         "throw e;" +
+                    "} finally {" +
+                        "env.popLocalFrame(NULL);" +
                     "}" +
-                    "try {" +
-                        "env.checkForExceptionAndThrowIt();" +
-                    "} catch (e) {" +
-                        "env.popLocalFrame(NULL); " +
-                        "throw e;" +
-                    "}" +
+                    "env.checkForExceptionAndThrowIt();" +
                 "}");
 
                 const f = {};
@@ -1931,7 +1933,8 @@
                         // it has to be an objectArray, but maybe it goes wrong
                         let elementType;
                         if (typename.indexOf('[') === 0) {
-                            elementType = getTypeFromJniTypename(typename.substring(1), unbox);
+                            typename = typename.substring(1);
+                            elementType = getTypeFromJniTypename(typename, unbox);
                         } else {
                             throw new Error("Unsupported type here " + typename);
                         }
@@ -1955,11 +1958,11 @@
                             },
                             toJni: function (elements, env) {
                                 let classHandle, klassObj;
+                                if (typename[0] === "L" && typename[typename.length - 1] === ";") {
+                                    typename = typename.substring(1, typename.length - 1);
+                                }
                                 if (loader !== null) {
-                                    if (typename[0] === "L" && typename[typename.length - 1] === ";") {
-                                        typename = typename.substring(1, typename.length - 1);
-                                    }
-                                    klassObj = loader.loadClass(typename);
+                                    klassObj = factory.use(typename);
                                     classHandle = klassObj.$classHandle;
                                 } else {
                                     classHandle = env.findClass(typename.replace(/\./g, "/"));
