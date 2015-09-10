@@ -1228,12 +1228,16 @@
                     "}" +
                     "let result, rawResult;" +
                     "try {" +
-                        ((api.flavor === 'dalvik') ? "synchronizeDalvikVtable.call(this, env, type === INSTANCE_METHOD);" : "") +
-                        "if (pendingCalls.has(Process.getCurrentThreadId())) {" +
-                            returnCapture + "invokeTargetDirectly(" + callArgsDirect.join(", ") + ");" +
-                        "} else {" +
-                            returnCapture + "invokeTargetVirtually(" + callArgsVirtual.join(", ") + ");" +
-                        "}" +
+                        ((api.flavor === 'dalvik') ? (
+                            "synchronizeDalvikVtable.call(this, env, type === INSTANCE_METHOD);" +
+                            returnCapture + "invokeTargetVirtually(" + callArgsVirtual.join(", ") + ");"
+                        ) : (
+                            "if (pendingCalls.has(Process.getCurrentThreadId())) {" +
+                                returnCapture + "invokeTargetDirectly(" + callArgsDirect.join(", ") + ");" +
+                            "} else {" +
+                                returnCapture + "invokeTargetVirtually(" + callArgsVirtual.join(", ") + ");" +
+                            "}"
+                        )) +
                     "} catch (e) {" +
                         "env.popLocalFrame(NULL);" +
                         "throw e;" +
