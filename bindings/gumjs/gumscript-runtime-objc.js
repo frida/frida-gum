@@ -496,39 +496,37 @@
                             return cachedProtocols;
                         case "$methods":
                             if (cachedNativeMethodNames === null) {
-                                cachedNativeMethodNames = [];
+                                const klass = superSpecifier ? Memory.readPointer(superSpecifier.add(pointerSize)) : classHandle();
+                                const meta = api.object_getClass(klass);
 
-                                // Fill cachedMethodNames
-                                this.keys();
+                                const names = new Set();
 
-                                cachedNativeMethodNames = Object.keys(cachedMethods).filter(m => m.match(/^(\+|-)/));
+                                let cur = meta;
+                                do {
+                                    for (let name of collectMethodNames(cur, "+ "))
+                                        names.add(name);
+                                    cur = api.class_getSuperclass(cur);
+                                } while (!cur.isNull());
+
+                                cur = klass;
+                                do {
+                                    for (let name of collectMethodNames(cur, "- "))
+                                        names.add(name);
+                                    cur = api.class_getSuperclass(cur);
+                                } while (!cur.isNull());
+
+                                cachedNativeMethodNames = Array.from(names);
                             }
                             return cachedNativeMethodNames;
                         case "$ownMethods":
                             if (cachedOwnMethodNames === null) {
-                                const names = [];
+                                const klass = superSpecifier ? Memory.readPointer(superSpecifier.add(pointerSize)) : classHandle();
+                                const meta = api.object_getClass(klass);
 
-                                let klass;
-                                if (superSpecifier)
-                                    klass = Memory.readPointer(superSpecifier.add(pointerSize));
-                                else
-                                    klass = api.object_getClass(handle);
-                                const numMethodsBuf = Memory.alloc(pointerSize);
-                                const methodHandles = api.class_copyMethodList(klass, numMethodsBuf);
-                                try {
-                                    const fullNamePrefix = isClass() ? "+ " : "- ";
-                                    const numMethods = Memory.readUInt(numMethodsBuf);
-                                    for (let i = 0; i !== numMethods; i++) {
-                                        const methodHandle = Memory.readPointer(methodHandles.add(i * pointerSize));
-                                        const sel = api.method_getName(methodHandle);
-                                        const nativeName = Memory.readUtf8String(api.sel_getName(sel));
-                                        names.push(fullNamePrefix + nativeName);
-                                    }
-                                } finally {
-                                    api.free(methodHandles);
-                                }
+                                const classMethods = collectMethodNames(meta, "+ ");
+                                const instanceMethods = collectMethodNames(klass, "- ");
 
-                                cachedOwnMethodNames = names;
+                                cachedOwnMethodNames = classMethods.concat(instanceMethods);
                             }
                             return cachedOwnMethodNames;
                         default:
@@ -819,6 +817,26 @@
             function equals(ptr) {
                 return handle.equals(getHandle(ptr));
             }
+        }
+
+        function collectMethodNames(klass, prefix) {
+            const names = [];
+
+            const numMethodsBuf = Memory.alloc(pointerSize);
+            const methodHandles = api.class_copyMethodList(klass, numMethodsBuf);
+            try {
+                const numMethods = Memory.readUInt(numMethodsBuf);
+                for (let i = 0; i !== numMethods; i++) {
+                    const methodHandle = Memory.readPointer(methodHandles.add(i * pointerSize));
+                    const sel = api.method_getName(methodHandle);
+                    const nativeName = Memory.readUtf8String(api.sel_getName(sel));
+                    names.push(prefix + nativeName);
+                }
+            } finally {
+                api.free(methodHandles);
+            }
+
+            return names;
         }
 
         function ObjCProtocol(handle) {
