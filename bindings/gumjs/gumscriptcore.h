@@ -59,8 +59,6 @@ struct _GumScriptCore
 
   GHashTable * native_callbacks;
 
-  GHashTable * byte_arrays;
-
   GHashTable * native_resources;
 
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
@@ -69,8 +67,6 @@ struct _GumScriptCore
 
   GumPersistent<v8::FunctionTemplate>::type * cpu_context;
   GumPersistent<v8::Object>::type * cpu_context_value;
-
-  GumPersistent<v8::String>::type * length_key;
 };
 
 struct _GumNativeResource
@@ -109,13 +105,10 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
 G_GNUC_INTERNAL void _gum_script_core_push_job (GumScriptCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
-G_GNUC_INTERNAL GumByteArray * _gum_byte_array_new (gpointer data, gsize size,
-    GumScriptCore * core);
 G_GNUC_INTERNAL GBytes * _gum_byte_array_get (v8::Handle<v8::Value> value,
     GumScriptCore * core);
 G_GNUC_INTERNAL GBytes * _gum_byte_array_try_get (v8::Handle<v8::Value> value,
     GumScriptCore * core);
-G_GNUC_INTERNAL void _gum_byte_array_free (GumByteArray * buffer);
 
 G_GNUC_INTERNAL GumNativeResource * _gum_native_resource_new (gpointer data,
     gsize size, GDestroyNotify notify, GumScriptCore * core);

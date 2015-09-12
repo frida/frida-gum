@@ -1055,7 +1055,7 @@
 
         Object.defineProperty(Block.prototype, 'implementation', {
             enumerable: true,
-            get: () => {
+            get: function () {
                 const priv = this[PRIV];
                 const address = Memory.readPointer(this.handle.add(blockOffsets.invoke));
                 const signature = priv.signature;
@@ -1064,7 +1064,7 @@
                     signature.retType.type,
                     signature.argTypes.map(function (arg) { return arg.type; })));
             },
-            set: (func) => {
+            set: function (func) {
                 const priv = this[PRIV];
                 const signature = priv.signature;
                 priv.callback = new NativeCallback(

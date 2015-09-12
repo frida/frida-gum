@@ -275,9 +275,9 @@ gum_script_event_sink_drain (gpointer user_data)
     {
       Local<Function> on_receive (Local<Function>::New (isolate,
           *self->on_receive));
-      GumByteArray * buf = _gum_byte_array_new (buffer, size, self->core);
       Local<Value> argv[] = {
-          Local<Object>::New (isolate, *buf->instance)
+          ArrayBuffer::New (isolate, buffer, size,
+              ArrayBufferCreationMode::kInternalized)
       };
       on_receive->Call (on_receive, 1, argv);
     }

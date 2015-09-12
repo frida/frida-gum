@@ -211,8 +211,6 @@ static gboolean gum_script_value_to_ffi_type (GumScriptCore * core,
 static gboolean gum_script_value_from_ffi_type (GumScriptCore * core,
     Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
-static void gum_byte_array_on_weak_notify (
-    const WeakCallbackData<Object, GumByteArray> & data);
 static void gum_native_resource_on_weak_notify (
     const WeakCallbackData<Object, GumNativeResource> & data);
 static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
@@ -471,9 +469,6 @@ _gum_script_core_realize (GumScriptCore * self)
   self->native_callbacks = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_callback_free));
 
-  self->byte_arrays = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (_gum_byte_array_free));
-
   self->native_resources = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (_gum_native_resource_free));
 
@@ -506,12 +501,6 @@ _gum_script_core_realize (GumScriptCore * self)
   g_assert (success);
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
-
-  self->length_key = new GumPersistent<String>::type (isolate,
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> ("length"),
-          NewStringType::kNormal,
-          -1).ToLocalChecked ());
 }
 
 void
@@ -540,14 +529,8 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
-  delete self->length_key;
-  self->length_key = nullptr;
-
   g_hash_table_unref (self->native_resources);
   self->native_resources = NULL;
-
-  g_hash_table_unref (self->byte_arrays);
-  self->byte_arrays = NULL;
 
   g_hash_table_unref (self->native_callbacks);
   self->native_callbacks = NULL;
@@ -1960,46 +1943,42 @@ gum_script_ffi_type_get (GumScriptCore * core,
       }
     }
   }
-  else if (name->IsObject ())
+  else if (name->IsArray ())
   {
     Isolate * isolate = core->isolate;
     Local<Context> context = isolate->GetCurrentContext ();
 
-    Local<Object> fields_value = Handle<Object>::Cast (name);
-    Local<String> length_key (Local<String>::New (isolate, *core->length_key));
-    if (fields_value->Has (length_key))
+    Local<Array> fields_value = Handle<Array>::Cast (name);
+    gsize length = fields_value->Length ();
+
+    ffi_type ** fields = g_new (ffi_type *, length + 1);
+    *data = g_slist_prepend (*data, fields);
+
+    for (gsize i = 0; i != length; i++)
     {
-      gsize length = fields_value->Get (length_key)->Uint32Value ();
-
-      ffi_type ** fields = g_new (ffi_type *, length + 1);
-      *data = g_slist_prepend (*data, fields);
-
-      for (gsize i = 0; i != length; i++)
+      Local<Value> field_value;
+      if (fields_value->Get (context, i).ToLocal (&field_value))
       {
-        Local<Value> field_value;
-        if (fields_value->Get (context, i).ToLocal (&field_value))
-        {
-          if (!gum_script_ffi_type_get (core, field_value, &fields[i], data))
-            return FALSE;
-        }
-        else
-        {
-          isolate->ThrowException (Exception::TypeError (
-              String::NewFromUtf8 (isolate, "invalid field type specified")));
+        if (!gum_script_ffi_type_get (core, field_value, &fields[i], data))
           return FALSE;
-        }
       }
-
-      fields[length] = NULL;
-
-      ffi_type * struct_type = g_new0 (ffi_type, 1);
-      struct_type->type = FFI_TYPE_STRUCT;
-      struct_type->elements = fields;
-      *data = g_slist_prepend (*data, struct_type);
-
-      *type = struct_type;
-      return TRUE;
+      else
+      {
+        isolate->ThrowException (Exception::TypeError (
+            String::NewFromUtf8 (isolate, "invalid field type specified")));
+        return FALSE;
+      }
     }
+
+    fields[length] = NULL;
+
+    ffi_type * struct_type = g_new0 (ffi_type, 1);
+    struct_type->type = FFI_TYPE_STRUCT;
+    struct_type->elements = fields;
+    *data = g_slist_prepend (*data, struct_type);
+
+    *type = struct_type;
+    return TRUE;
   }
 
   core->isolate->ThrowException (Exception::TypeError (
@@ -2147,23 +2126,15 @@ gum_script_value_to_ffi_type (GumScriptCore * core,
     Local<Context> context = isolate->GetCurrentContext ();
     const ffi_type * const * field_types = type->elements;
 
-    if (!svalue->IsObject ())
+    if (!svalue->IsArray ())
     {
       isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
           isolate, "expected array with fields")));
       return FALSE;
     }
-    Local<Object> field_svalues = Handle<Object>::Cast (svalue);
-    Local<String> length_key (Local<String>::New (isolate,
-        *core->length_key));
-    if (!field_svalues->Has (length_key))
-    {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "expected array with fields")));
-      return FALSE;
-    }
+    Local<Array> field_svalues = Handle<Array>::Cast (svalue);
 
-    gsize provided_length = field_svalues->Get (length_key)->Uint32Value ();
+    gsize provided_length = field_svalues->Length ();
     gsize length = 0;
     for (const ffi_type * const * t = field_types; *t != NULL; t++)
       length++;
@@ -2348,41 +2319,6 @@ gum_script_value_from_ffi_type (GumScriptCore * core,
   return TRUE;
 }
 
-GumByteArray *
-_gum_byte_array_new (gpointer data,
-                     gsize size,
-                     GumScriptCore * core)
-{
-  Isolate * isolate = core->isolate;
-  GumByteArray * buffer;
-
-  Local<Object> arr (Object::New (isolate));
-  arr->ForceSet (String::NewFromUtf8 (isolate, "length"),
-      Int32::New (isolate, size),
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
-  if (size > 0)
-  {
-    arr->SetIndexedPropertiesToExternalArrayData (data,
-        kExternalUnsignedByteArray, size);
-  }
-  buffer = g_slice_new (GumByteArray);
-  buffer->instance = new GumPersistent<Object>::type (core->isolate, arr);
-  buffer->instance->MarkIndependent ();
-  buffer->instance->SetWeak (buffer, gum_byte_array_on_weak_notify);
-  buffer->data = data;
-  buffer->size = size;
-  buffer->core = core;
-
-  if (buffer->size > 0)
-  {
-    core->isolate->AdjustAmountOfExternalAllocatedMemory (size);
-  }
-
-  g_hash_table_insert (core->byte_arrays, buffer, buffer);
-
-  return buffer;
-}
-
 GBytes *
 _gum_byte_array_get (Handle<Value> value,
                      GumScriptCore * core)
@@ -2402,26 +2338,18 @@ GBytes *
 _gum_byte_array_try_get (Handle<Value> value,
                          GumScriptCore * core)
 {
-  if (!value->IsObject ())
-    return NULL;
-
-  Handle<Object> array = Handle<Object>::Cast (value);
-  if (array->HasIndexedPropertiesInExternalArrayData () &&
-      array->GetIndexedPropertiesExternalArrayDataType ()
-      == kExternalUint8Array)
+  if (value->IsArrayBuffer ())
   {
-    return g_bytes_new (
-        array->GetIndexedPropertiesExternalArrayData (),
-        array->GetIndexedPropertiesExternalArrayDataLength ());
+    ArrayBuffer::Contents contents =
+        Handle<ArrayBuffer>::Cast (value)->GetContents ();
+
+    return g_bytes_new (contents.Data (), contents.ByteLength ());
   }
-  else
+  else if (value->IsArray ())
   {
-    Local<String> length_key (Local<String>::New (core->isolate,
-        *core->length_key));
-    if (!array->Has (length_key))
-      return NULL;
+    Handle<Array> array = Handle<Array>::Cast (value);
 
-    gsize data_length = array->Get (length_key)->Uint32Value ();
+    gsize data_length = array->Length ();
     if (data_length > GUM_MAX_SEND_ARRAY_LENGTH)
       return NULL;
 
@@ -2457,29 +2385,8 @@ _gum_byte_array_try_get (Handle<Value> value,
 
     return g_bytes_new_take (data, data_length);
   }
-}
 
-void
-_gum_byte_array_free (GumByteArray * buffer)
-{
-  if (buffer->size > 0)
-  {
-    buffer->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-        -static_cast<gssize> (buffer->size));
-  }
-
-  delete buffer->instance;
-  g_free (buffer->data);
-  g_slice_free (GumByteArray, buffer);
-}
-
-static void
-gum_byte_array_on_weak_notify (
-    const WeakCallbackData<Object, GumByteArray> & data)
-{
-  HandleScope handle_scope (data.GetIsolate ());
-  GumByteArray * self = data.GetParameter ();
-  g_hash_table_remove (self->core->byte_arrays, self);
+  return NULL;
 }
 
 GumNativeResource *

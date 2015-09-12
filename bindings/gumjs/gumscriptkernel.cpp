@@ -215,8 +215,8 @@ gum_script_kmemory_on_read_byte_array (const FunctionCallbackInfo<Value> & info)
         &n_bytes_read);
     if (data != NULL)
     {
-      GumByteArray * arr = _gum_byte_array_new (data, n_bytes_read, self->core);
-      result = Local<Object>::New (isolate, *arr->instance);
+      result = ArrayBuffer::New (isolate, data, n_bytes_read,
+          ArrayBufferCreationMode::kInternalized);
     }
     else
     {

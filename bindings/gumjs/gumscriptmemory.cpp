@@ -695,8 +695,8 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
           data_copy = g_memdup (data, size);
 
-          GumByteArray * arr = _gum_byte_array_new (data_copy, size, self->core);
-          result = Local<Object>::New (isolate, *arr->instance);
+          result = ArrayBuffer::New (isolate, data_copy, size,
+              ArrayBufferCreationMode::kInternalized);
         }
         else
         {
@@ -948,43 +948,37 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        Local<Object> array = info[1].As <Object> ();
-        if (array->HasIndexedPropertiesInExternalArrayData () &&
-            array->GetIndexedPropertiesExternalArrayDataType ()
-            == kExternalUint8Array)
+        Local<Value> value = info[1];
+        if (value->IsArrayBuffer ())
         {
-          const guint8 * data = static_cast<guint8 *> (
-              array->GetIndexedPropertiesExternalArrayData ());
-          int data_length =
-              array->GetIndexedPropertiesExternalArrayDataLength ();
-          memcpy (address, data, data_length);
+          ArrayBuffer::Contents contents =
+              Handle<ArrayBuffer>::Cast (value)->GetContents ();
+
+          memcpy (address, contents.Data (), contents.ByteLength ());
         }
-        else
+        else if (value->IsArray ())
         {
-          Local<String> length_key (Local<String>::New (isolate,
-              *self->core->length_key));
-          if (array->Has (length_key))
+          Handle<Array> array = Handle<Array>::Cast (value);
+
+          uint32_t length = array->Length ();
+          if (length <= GUM_MAX_JS_ARRAY_LENGTH)
           {
-            uint32_t length = array->Get (length_key)->Uint32Value ();
-            if (length <= GUM_MAX_JS_ARRAY_LENGTH)
+            for (uint32_t i = 0; i != length; i++)
             {
-              for (uint32_t i = 0; i != length; i++)
-              {
-                uint32_t value = array->Get (i)->ToUint32 ()->Uint32Value ();
-                static_cast<char *> (address)[i] = value;
-              }
-            }
-            else
-            {
-              isolate->ThrowException (Exception::TypeError (
-                  String::NewFromUtf8 (isolate, "invalid array length")));
+              uint32_t value = array->Get (i)->ToUint32 ()->Uint32Value ();
+              static_cast<char *> (address)[i] = value;
             }
           }
           else
           {
             isolate->ThrowException (Exception::TypeError (
-                String::NewFromUtf8 (isolate, "expected array")));
+                String::NewFromUtf8 (isolate, "invalid array length")));
           }
+        }
+        else
+        {
+          isolate->ThrowException (Exception::TypeError (
+              String::NewFromUtf8 (isolate, "expected array")));
         }
 
         break;

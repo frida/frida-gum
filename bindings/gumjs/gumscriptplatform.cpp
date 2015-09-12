@@ -39,11 +39,13 @@ GumScriptPlatform::GumScriptPlatform ()
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ())
 {
-  V8::SetArrayBufferAllocator (array_buffer_allocator);
   V8::InitializePlatform (this);
   V8::Initialize ();
 
-  isolate = Isolate::New ();
+  Isolate::CreateParams params;
+  params.array_buffer_allocator = array_buffer_allocator;
+
+  isolate = Isolate::New (params);
   isolate->SetFatalErrorHandler (OnFatalError);
 
   InitRuntime ();

@@ -147,33 +147,22 @@ gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   Isolate * isolate = info.GetIsolate ();
 
-  gboolean argument_valid = FALSE;
-  const gchar * data = NULL;
+  gpointer data = NULL;
   gint data_length = 0;
 
   Local<Value> data_val = info[0];
-  if (data_val->IsString ())
+  if (data_val->IsArrayBuffer ())
   {
-    argument_valid = TRUE;
-  }
-  else if (data_val->IsObject () && !data_val->IsNull ())
-  {
-    Local<Object> array = data_val->ToObject ();
-    if (array->HasIndexedPropertiesInExternalArrayData () &&
-        array->GetIndexedPropertiesExternalArrayDataType ()
-        == kExternalUnsignedByteArray)
-    {
-      argument_valid = TRUE;
-      data = static_cast<gchar *> (
-          array->GetIndexedPropertiesExternalArrayData ());
-      data_length = array->GetIndexedPropertiesExternalArrayDataLength ();
-    }
-  }
+    ArrayBuffer::Contents contents =
+        Handle<ArrayBuffer>::Cast (data_val)->GetContents ();
 
-  if (!argument_valid)
+    data = contents.Data ();
+    data_length = contents.ByteLength ();
+  }
+  else if (!data_val->IsString ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
-        "File.write: argument must be a string or raw byte array")));
+        "File.write: argument must be a string or ArrayBuffer")));
     return;
   }
 

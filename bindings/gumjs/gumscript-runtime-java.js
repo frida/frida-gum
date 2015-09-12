@@ -273,7 +273,7 @@
                             pending = null;
                         } else {
                             const m = ActivityThread.getPackageInfoNoCheck;
-                            m.implementation = () => {
+                            m.implementation = function () {
                                 m.implementation = null;
                                 const apk = m.apply(this, arguments);
                                 classFactory.loader = apk.getClassLoader();
@@ -3013,7 +3013,7 @@
                 module: "libart.so",
                 functions: {
                     "JNI_GetCreatedJavaVMs": ["JNI_GetCreatedJavaVMs", 'int', ['pointer', 'int', 'pointer']],
-                    "art_quick_generic_jni_trampoline": address => {
+                    "art_quick_generic_jni_trampoline": function (address) {
                         this.art_quick_generic_jni_trampoline = address;
                     },
                     "_ZN3art6Thread14CurrentFromGdbEv": ["art::Thread::CurrentFromGdb", 'pointer', []],

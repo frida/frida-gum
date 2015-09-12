@@ -91,7 +91,7 @@ KSCRIPT_TESTCASE (byte_array_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "var address = Memory.enumerateRangesSync('r--')[0].base;"
-      "send(Memory.readByteArray(address, 3).length === 3);"
+      "send(Memory.readByteArray(address, 3).byteLength === 3);"
       "send('snake', Memory.readByteArray(address, 0));"
       "send('mushroom', Memory.readByteArray(address, -1));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("true", NULL);

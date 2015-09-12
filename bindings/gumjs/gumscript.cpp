@@ -15,13 +15,12 @@
 
 #define GUM_SCRIPT_V8_FLAGS \
     "--es-staging " \
-    "--harmony-arrays " \
     "--harmony-array-includes " \
     "--harmony-regexps " \
-    "--harmony-arrow-functions " \
     "--harmony-proxies " \
     "--harmony-rest-parameters " \
     "--harmony-reflect " \
+    "--harmony-destructuring " \
     "--expose-gc"
 
 using namespace v8;
