@@ -1477,31 +1477,22 @@ gum_script_memory_ranges_get (GumScriptMemory * self,
   Isolate * isolate = self->core->isolate;
   Local<Context> context = isolate->GetCurrentContext ();
 
-  if (!value->IsObject ())
+  if (value->IsArray ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "expected a range object or an array of range objects")));
-    return FALSE;
-  }
+    Local<Array> array = Handle<Array>::Cast (value);
 
-  Local<Object> obj = Handle<Object>::Cast (value);
-  Local<String> length_key (Local<String>::New (isolate,
-      *self->core->length_key));
-  if (obj->Has (length_key))
-  {
-    uint32_t length =
-        obj->Get (context, length_key).ToLocalChecked ()->Uint32Value ();
+    uint32_t length = array->Length ();
     if (length == 0 || length > 1024)
     {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-          "expected one or more range objects")));
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "expected one or more range objects")));
       return FALSE;
     }
 
     GumMemoryRange * result = g_new (GumMemoryRange, length);
     for (uint32_t i = 0; i != length; i++)
     {
-      Local<Value> range = obj->Get (context, i).ToLocalChecked ();
+      Local<Value> range = array->Get (context, i).ToLocalChecked ();
       if (!gum_script_memory_range_get (self, range, &result[i]))
       {
         g_free (result);
@@ -1512,8 +1503,10 @@ gum_script_memory_ranges_get (GumScriptMemory * self,
     *num_ranges = length;
     return TRUE;
   }
-  else
+  else if (value->IsObject ())
   {
+    Local<Object> obj = Handle<Object>::Cast (value);
+
     GumMemoryRange * result = g_new (GumMemoryRange, 1);
     if (gum_script_memory_range_get (self, obj, result))
     {
@@ -1526,6 +1519,12 @@ gum_script_memory_ranges_get (GumScriptMemory * self,
       g_free (result);
       return FALSE;
     }
+  }
+  else
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected a range object or an array of range objects")));
+    return FALSE;
   }
 }
 
