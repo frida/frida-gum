@@ -447,8 +447,8 @@ static gboolean
 gum_thumb_relocator_rewrite_ldr_pc (GumThumbRelocator * self,
                                     GumCodeGenCtx * ctx)
 {
-  GumArmReg reg;
-  gssize imm;
+  GumArmReg reg = GUM_AREG_NONE;
+  gssize imm = 0;
   GumAddress absolute_pc;
 
   (void) self;

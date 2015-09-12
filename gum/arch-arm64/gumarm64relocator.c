@@ -389,7 +389,7 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
     gint64 i;
     guint64 u;
   } distance;
-  GumAddress absolute_target;
+  GumAddress absolute_target = 0;
 
   (void) self;
 

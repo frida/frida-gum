@@ -157,7 +157,7 @@ gum_script_file_on_file_write (const FunctionCallbackInfo<Value> & info)
         Handle<ArrayBuffer>::Cast (data_val)->GetContents ();
 
     data = contents.Data ();
-    data_length = contents.ByteLength ();
+    data_length = (gint) contents.ByteLength ();
   }
   else if (!data_val->IsString ())
   {
