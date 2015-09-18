@@ -2,6 +2,7 @@
 (function () {
     "use strict";
 
+    const engine = this;
     let didLoadSourceMap = false;
     let cachedSourceMap = null;
     Object.defineProperty(Script, 'sourceMap', {
@@ -19,15 +20,44 @@
         }
     });
 
+    engine._setUnhandledExceptionCallback(function (error) {
+        const message = {
+            type: 'error',
+            description: error.toString()
+        };
+
+        const stack = error.stack;
+        if (stack) {
+            message.stack = stack;
+
+            const frames = stack.frames;
+            if (frames) {
+                const frame = frames[0];
+                message.fileName = frame.getFileName();
+                message.lineNumber = frame.getLineNumber();
+                message.columnNumber = frame.getColumnNumber();
+            }
+        }
+
+        engine._send(JSON.stringify(message), null);
+    });
+
+    Error.prepareStackTrace = function (error, stack) {
+        const translatedStack = stack.map(function (frame) {
+            return wrapCallSite(frame);
+        });
+        if (translatedStack[0].toString() === "Error (native)")
+            translatedStack.splice(0, 1);
+        const result = new String(error.toString() + translatedStack.map(function (frame) {
+            return "\n    at " + frame.toString();
+        }).join(""));
+        result.frames = translatedStack;
+        return result;
+    };
+
     /*
      * Based on https://github.com/evanw/node-source-map-support
      */
-
-    Error.prepareStackTrace = function (error, stack) {
-        return error + stack.map(function (frame) {
-            return "\n    at " + wrapCallSite(frame);
-        }).join("");
-    };
 
     const sourceMapCache = {};
     function wrapCallSite(frame) {
@@ -61,7 +91,7 @@
         }
 
         // Code called using eval() needs special handling
-        var origin = frame.isEval() && frame.getEvalOrigin();
+        let origin = frame.isEval() && frame.getEvalOrigin();
         if (origin) {
             origin = mapEvalOrigin(origin);
             frame = cloneCallSite(frame);

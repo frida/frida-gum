@@ -21,6 +21,7 @@
 typedef struct _GumScriptCore GumScriptCore;
 
 typedef struct _GumScheduledCallback GumScheduledCallback;
+typedef struct _GumExceptionSink GumExceptionSink;
 typedef struct _GumMessageSink GumMessageSink;
 
 typedef struct _GumNativeResource GumNativeResource;
@@ -47,6 +48,7 @@ struct _GumScriptCore
   GCond event_cond;
   volatile guint event_count;
 
+  GumExceptionSink * unhandled_exception_sink;
   GumMessageSink * incoming_message_sink;
 
   GHashTable * weak_refs;
@@ -95,8 +97,9 @@ G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_dispose (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_finalize (GumScriptCore * self);
 
-G_GNUC_INTERNAL void _gum_script_core_set_message_handler (GumScriptCore * self,
-    GumScriptMessageHandler func, gpointer data, GDestroyNotify notify);
+G_GNUC_INTERNAL void _gum_script_core_on_unhandled_exception (
+    GumScriptCore * self, v8::Handle<v8::Value> exception);
+
 G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
     const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,

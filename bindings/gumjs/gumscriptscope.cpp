@@ -28,41 +28,10 @@ ScriptScope::~ScriptScope ()
 
   if (trycatch.HasCaught ())
   {
-    Handle<Message> message = trycatch.Message ();
     Handle<Value> exception = trycatch.Exception ();
     trycatch.Reset ();
-
-    GString * error = g_string_new ("{\"type\":\"error\"");
-
-    if (!message.IsEmpty ())
-    {
-      Local<Value> resource_name = message->GetScriptResourceName ();
-      if (!resource_name->IsUndefined ())
-      {
-        String::Utf8Value resource_name_str (resource_name->ToString ());
-        g_string_append_printf (error, ",\"fileName\":\"%s\"",
-            *resource_name_str);
-
-        Maybe<int> line_number = message->GetLineNumber (context);
-        if (line_number.IsJust ())
-        {
-          g_string_append_printf (error, ",\"lineNumber\":%d",
-              line_number.FromJust ());
-        }
-      }
-    }
-
-    String::Utf8Value exception_str (exception);
-    gchar * exception_str_escaped = g_strescape (*exception_str, "");
-    g_string_append_printf (error, ",\"description\":\"%s\"",
-        exception_str_escaped);
-    g_free (exception_str_escaped);
-
-    g_string_append_c (error, '}');
-
-    _gum_script_core_emit_message (&priv->core, error->str, NULL);
-
-    g_string_free (error, TRUE);
+    _gum_script_core_on_unhandled_exception (&priv->core, exception);
+    trycatch.Reset ();
   }
 }
 

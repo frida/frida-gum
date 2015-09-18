@@ -2503,13 +2503,27 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
 
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "index.js:6") != NULL);
-  g_assert (strstr (item->message, "math.js:5") != NULL);
+  g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
+  g_assert (strstr (item->message, "\"payload\":\"Error: Not yet implemented\\n"
+      "    at Object.add (math.js:5:1)\\n"
+      "    at Object.1../math (index.js:6:1)\\n"
+      "    at s (../../node_modules/browserify/node_modules/browser-pack/"
+          "_prelude.js:1:1)\\n"
+      "    at e (../../node_modules/browserify/node_modules/browser-pack/"
+          "_prelude.js:1:1)\\n"
+      "    at ../../node_modules/browserify/node_modules/browser-pack/"
+          "_prelude.js:1:1\"") != NULL);
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
-  g_assert (strstr (item->message, "index.js:12") != NULL);
+  g_assert (strstr (item->message, "\"type\":\"error\"") != NULL);
+  g_assert (strstr (item->message, "\"description\":\"Error: Oops!\"") != NULL);
+  g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+      "    at index.js:12:1\"") != NULL);
+  g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
+  g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
+  g_assert (strstr (item->message, "\"columnNumber\":1") != NULL);
   test_script_message_item_free (item);
 }
 

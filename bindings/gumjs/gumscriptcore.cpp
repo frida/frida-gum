@@ -53,10 +53,15 @@ struct _GumScheduledCallback
   GumScriptCore * core;
 };
 
+struct _GumExceptionSink
+{
+  GumPersistent<Function>::type * callback;
+  Isolate * isolate;
+};
+
 struct _GumMessageSink
 {
   GumPersistent<Function>::type * callback;
-  GumPersistent<Value>::type * receiver;
   Isolate * isolate;
 };
 
@@ -148,6 +153,8 @@ static GumScheduledCallback * gum_scheduled_callback_new (gint id,
 static void gum_scheduled_callback_free (GumScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 static void gum_script_core_on_send (const FunctionCallbackInfo<Value> & info);
+static void gum_script_core_on_set_unhandled_exception_callback (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_set_incoming_message_callback (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_wait_for_event (
@@ -201,8 +208,14 @@ static void gum_script_core_on_cpu_context_get_register (Local<String> property,
 static void gum_script_core_on_cpu_context_set_register (Local<String> property,
     Local<Value> value, const PropertyCallbackInfo<void> & info);
 
+static GumExceptionSink * gum_exception_sink_new (Handle<Function> callback,
+    Isolate * isolate);
+static void gum_exception_sink_free (GumExceptionSink * sink);
+static void gum_exception_sink_handle_exception (GumExceptionSink * self,
+    Handle<Value> exception);
+
 static GumMessageSink * gum_message_sink_new (Handle<Function> callback,
-    Handle<Value> receiver, Isolate * isolate);
+    Isolate * isolate);
 static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message);
@@ -276,6 +289,9 @@ _gum_script_core_init (GumScriptCore * self,
       FunctionTemplate::New (isolate, gum_script_core_on_clear_timeout, data));
   scope->Set (String::NewFromUtf8 (isolate, "_send"),
       FunctionTemplate::New (isolate, gum_script_core_on_send, data));
+  scope->Set (String::NewFromUtf8 (isolate, "_setUnhandledExceptionCallback"),
+      FunctionTemplate::New (isolate,
+          gum_script_core_on_set_unhandled_exception_callback, data));
   scope->Set (String::NewFromUtf8 (isolate, "_setIncomingMessageCallback"),
       FunctionTemplate::New (isolate,
           gum_script_core_on_set_incoming_message_callback, data));
@@ -558,6 +574,9 @@ _gum_script_core_dispose (GumScriptCore * self)
         self->scheduled_callbacks, self->scheduled_callbacks);
   }
 
+  gum_exception_sink_free (self->unhandled_exception_sink);
+  self->unhandled_exception_sink = NULL;
+
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
@@ -584,6 +603,17 @@ _gum_script_core_finalize (GumScriptCore * self)
 
   g_mutex_clear (&self->mutex);
   g_cond_clear (&self->event_cond);
+}
+
+void
+_gum_script_core_on_unhandled_exception (GumScriptCore * self,
+                                         Handle<Value> exception)
+{
+  if (self->unhandled_exception_sink != NULL)
+  {
+    gum_exception_sink_handle_exception (self->unhandled_exception_sink,
+        exception);
+  }
 }
 
 void
@@ -1067,10 +1097,57 @@ gum_script_core_on_send (const FunctionCallbackInfo<Value> & info)
 
 /*
  * Prototype:
+ * _setUnhandledExceptionCallback(callback)
+ *
+ * Docs:
+ * [PRIVATE] Set callback to fire when an unhandled exception occurs
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_core_on_set_unhandled_exception_callback (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  bool argument_valid = false;
+  Local<Function> callback;
+  if (info.Length () >= 1)
+  {
+    Local<Value> argument = info[0];
+    if (argument->IsFunction ())
+    {
+      argument_valid = true;
+      callback = argument.As<Function> ();
+    }
+    else if (argument->IsNull ())
+    {
+      argument_valid = true;
+    }
+  }
+  if (!argument_valid)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid argument")));
+    return;
+  }
+
+  gum_exception_sink_free (self->unhandled_exception_sink);
+  self->unhandled_exception_sink = NULL;
+
+  if (!callback.IsEmpty ())
+    self->unhandled_exception_sink = gum_exception_sink_new (callback, isolate);
+}
+
+/*
+ * Prototype:
  * _setIncomingMessageCallback(callback)
  *
  * Docs:
- * [PRIVATE] Set callback to fire when a message is recieved
+ * [PRIVATE] Set callback to fire when a message is received
  *
  * Example:
  * TBW
@@ -1083,21 +1160,33 @@ gum_script_core_on_set_incoming_message_callback (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->isolate;
 
-  if (info.Length () > 1)
+  bool argument_valid = false;
+  Local<Function> callback;
+  if (info.Length () >= 1)
+  {
+    Local<Value> argument = info[0];
+    if (argument->IsFunction ())
+    {
+      argument_valid = true;
+      callback = argument.As<Function> ();
+    }
+    else if (argument->IsNull ())
+    {
+      argument_valid = true;
+    }
+  }
+  if (!argument_valid)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid argument count")));
+        isolate, "invalid argument")));
     return;
   }
 
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
-  if (info.Length () == 1)
-  {
-    self->incoming_message_sink =
-        gum_message_sink_new (info[0].As<Function> (), info.This (), isolate);
-  }
+  if (!callback.IsEmpty ())
+    self->incoming_message_sink = gum_message_sink_new (callback, isolate);
 }
 
 /*
@@ -1917,16 +2006,49 @@ gum_script_core_on_cpu_context_set_register (
   cpu_context[offset] = raw_value;
 }
 
+static GumExceptionSink *
+gum_exception_sink_new (Handle<Function> callback,
+                        Isolate * isolate)
+{
+  GumExceptionSink * sink;
+
+  sink = g_slice_new (GumExceptionSink);
+  sink->callback = new GumPersistent<Function>::type (isolate, callback);
+  sink->isolate = isolate;
+
+  return sink;
+}
+
+static void
+gum_exception_sink_free (GumExceptionSink * sink)
+{
+  if (sink == NULL)
+    return;
+
+  delete sink->callback;
+
+  g_slice_free (GumExceptionSink, sink);
+}
+
+static void
+gum_exception_sink_handle_exception (GumExceptionSink * self,
+                                     Handle<Value> exception)
+{
+  Isolate * isolate = self->isolate;
+  Handle<Value> argv[] = { exception };
+
+  Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+  callback->Call (Null (isolate), 1, argv);
+}
+
 static GumMessageSink *
 gum_message_sink_new (Handle<Function> callback,
-                      Handle<Value> receiver,
                       Isolate * isolate)
 {
   GumMessageSink * sink;
 
   sink = g_slice_new (GumMessageSink);
   sink->callback = new GumPersistent<Function>::type (isolate, callback);
-  sink->receiver = new GumPersistent<Value>::type (isolate, receiver);
   sink->isolate = isolate;
 
   return sink;
@@ -1939,7 +2061,6 @@ gum_message_sink_free (GumMessageSink * sink)
     return;
 
   delete sink->callback;
-  delete sink->receiver;
 
   g_slice_free (GumMessageSink, sink);
 }
@@ -1952,8 +2073,7 @@ gum_message_sink_handle_message (GumMessageSink * self,
   Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
 
   Local<Function> callback (Local<Function>::New (isolate, *self->callback));
-  Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
-  callback->Call (receiver, 1, argv);
+  callback->Call (Null (isolate), 1, argv);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
