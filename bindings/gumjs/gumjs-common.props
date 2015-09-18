@@ -57,6 +57,7 @@
 
   <ItemGroup>
     <None Include="gumscript-runtime-core.js" />
+    <None Include="gumscript-runtime-source-map.js" />
     <None Include="gumscript-runtime-java.js" />
     <None Include="gumscript-runtime-objc.js" />
   </ItemGroup>
@@ -71,7 +72,7 @@ generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>gumscript-runtime-core.js;gumscript-runtime-java.js;gumscript-runtime-objc.js;gumscript-debug.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>gumscript-runtime-core.js;gumscript-runtime-source-map.js;gumscript-runtime-java.js;gumscript-runtime-objc.js;gumscript-debug.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

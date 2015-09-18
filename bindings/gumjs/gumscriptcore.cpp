@@ -122,8 +122,10 @@ struct _GumCpuContextWrapper
   GumCpuContext * cpu_context;
 };
 
-static void gum_script_core_on_get_source_mapping_url (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
+static void gum_script_core_on_script_get_file_name (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
+static void gum_script_core_on_script_get_source_map_data (
+    Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_bind (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_unbind (
@@ -250,8 +252,10 @@ _gum_script_core_init (GumScriptCore * self,
   scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
 
   Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
-  script_module->SetAccessor (String::NewFromUtf8 (isolate, "sourceMappingURL"),
-      gum_script_core_on_get_source_mapping_url, NULL, data);
+  script_module->SetAccessor (String::NewFromUtf8 (isolate, "fileName"),
+      gum_script_core_on_script_get_file_name, NULL, data);
+  script_module->SetAccessor (String::NewFromUtf8 (isolate, "_sourceMapData"),
+      gum_script_core_on_script_get_source_map_data, NULL, data);
   scope->Set (String::NewFromUtf8 (isolate, "Script"), script_module);
 
   Handle<ObjectTemplate> weak = ObjectTemplate::New ();
@@ -617,28 +621,70 @@ _gum_script_core_post_message (GumScriptCore * self,
 }
 
 static void
-gum_script_core_on_get_source_mapping_url (Local<String> property,
+gum_script_core_on_script_get_file_name (Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumScriptCore * self = static_cast<GumScriptCore *> (
       info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
   GumScriptPrivate * priv = self->script->priv;
 
+  Local<Value> result;
   if (priv->code != nullptr)
   {
+    Isolate * isolate = info.GetIsolate ();
     Local<Script> code (Local<Script>::New (isolate, *priv->code));
-    Local<Value> url (code->GetUnboundScript ()->GetSourceMappingURL ());
+    Local<Value> file_name (code->GetUnboundScript ()->GetScriptName ());
 
-    if (!url->IsUndefined ())
-      info.GetReturnValue ().Set (url);
-    else
-      info.GetReturnValue ().SetNull ();
+    if (file_name->IsString ())
+      result = file_name;
   }
+
+  if (!result.IsEmpty ())
+    info.GetReturnValue ().Set (result);
   else
-  {
     info.GetReturnValue ().SetNull ();
+}
+
+static void
+gum_script_core_on_script_get_source_map_data (Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  GumScriptPrivate * priv = self->script->priv;
+
+  Local<Value> result;
+  if (priv->code != nullptr)
+  {
+    Isolate * isolate = info.GetIsolate ();
+    Local<Script> code (Local<Script>::New (isolate, *priv->code));
+    Local<Value> url_value (code->GetUnboundScript ()->GetSourceMappingURL ());
+
+    if (url_value->IsString ())
+    {
+      String::Utf8Value url_utf8 (url_value);
+      const gchar * url = *url_utf8;
+      if (g_str_has_prefix (url, "data:application/json;base64,"))
+      {
+        gsize size;
+        guchar * data;
+        data = g_base64_decode (url + 29, &size);
+        if (data != NULL)
+        {
+          result = String::NewFromUtf8 (isolate,
+              reinterpret_cast<const char *> (data),
+              String::kNormalString,
+              size);
+        }
+        g_free (data);
+      }
+    }
   }
+
+  if (!result.IsEmpty ())
+    info.GetReturnValue ().Set (result);
+  else
+    info.GetReturnValue ().SetNull ();
 }
 
 /*

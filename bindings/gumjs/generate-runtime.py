@@ -76,6 +76,7 @@ if __name__ == '__main__':
 
     generate_runtime(output_dir, "gumscript-runtime.h", input_dir, [
         "gumscript-runtime-core.js",
+        "gumscript-runtime-source-map.js",
         "gumscript-runtime-java.js",
         "gumscript-runtime-objc.js",
     ])

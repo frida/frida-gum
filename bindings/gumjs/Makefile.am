@@ -62,6 +62,7 @@ libfrida_gumjs_la_LIBTOOLFLAGS = \
 
 script_runtime_sources = \
 	gumscript-runtime-core.js \
+	gumscript-runtime-source-map.js \
 	gumscript-runtime-java.js \
 	gumscript-runtime-objc.js \
 	gumscript-debug.js
