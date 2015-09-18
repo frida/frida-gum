@@ -10,9 +10,9 @@
     const enumerateRangesParent = (flavor === KERNEL) ? Memory : Process;
     let dispatcher;
 
-    var initialize = function initialize() {
+    function initialize() {
         dispatcher = new MessageDispatcher();
-    };
+    }
 
     Object.defineProperty(engine, 'recv', {
         enumerable: true,
@@ -435,7 +435,7 @@
         }
 
         this.registerCallback = function registerCallback(type, callback) {
-            var op = new MessageRecvOperation(callback);
+            const op = new MessageRecvOperation(callback);
             operations[type] = op[1];
             dispatchMessages();
             return op[0];
