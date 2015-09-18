@@ -151,6 +151,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
   SCRIPT_TESTENTRY (script_can_be_reloaded)
+  SCRIPT_TESTENTRY (source_maps_should_be_supported)
   SCRIPT_TESTENTRY (types_handle_invalid_construction)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
@@ -2422,6 +2423,94 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
   EXPECT_NO_MESSAGES ();
   gum_script_load_sync (fixture->script, NULL);
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
+}
+
+SCRIPT_TESTCASE (source_maps_should_be_supported)
+{
+  TestScriptMessageItem * item;
+
+  /*
+   * index.js
+   * --------
+   * 01 'use strict';
+   * 02
+   * 03 const math = require('./math');
+   * 04
+   * 05 try {
+   * 06   math.add(5, 2);
+   * 07 } catch (e) {
+   * 08   send(e.stack);
+   * 09 }
+   * 10
+   * 11 setTimeout(function () {
+   * 12   throw new Error('Oops!');
+   * 13 }, 0);
+   *
+   * math.js
+   * -------
+   * 01 'use strict';
+   * 02
+   * 03 module.exports = {
+   * 04   add(a, b) {
+   * 05     throw new Error('Not yet implemented');
+   * 06   }
+   * 07 };
+   */
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof requ"
+      "ire==\"function\"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);v"
+      "ar f=new Error(\"Cannot find module '\"+o+\"'\");throw f.code=\"MODULE_N"
+      "OT_FOUND\",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){"
+      "var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].expor"
+      "ts}var i=typeof require==\"function\"&&require;for(var o=0;o<r.length;o+"
+      "+)s(r[o]);return s})({1:[function(require,module,exports){"          "\n"
+      "'use strict';"                                                       "\n"
+      ""                                                                    "\n"
+      "const math = require('./math');"                                     "\n"
+      ""                                                                    "\n"
+      "try {"                                                               "\n"
+      /* testcase.js:7 => index.js:6 */
+      "  math.add(5, 2);"                                                   "\n"
+      "} catch (e) {"                                                       "\n"
+      "  send(e.stack);"                                                    "\n"
+      "}"                                                                   "\n"
+      ""                                                                    "\n"
+      "setTimeout(function () {"                                            "\n"
+      /* testcase.js:13 => index.js:12 */
+      "  throw new Error('Oops!');"                                         "\n"
+      "}, 0);"                                                              "\n"
+      ""                                                                    "\n"
+      "},{\"./math\":2}],2:[function(require,module,exports){"              "\n"
+      "'use strict';"                                                       "\n"
+      ""                                                                    "\n"
+      "module.exports = {"                                                  "\n"
+      "  add(a, b) {"                                                       "\n"
+      /* testcase.js:21 => math.js:5 */
+      "    throw new Error('Not yet implemented');"                         "\n"
+      "  }"                                                                 "\n"
+      "};"                                                                  "\n"
+      ""                                                                    "\n"
+      "},{}]},{},[1])"                                                      "\n"
+      "//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3"
+      "VyY2VzIjpbIi4uLy4uL25vZGVfbW9kdWxlcy9icm93c2VyaWZ5L25vZGVfbW9kdWxlcy9icm"
+      "93c2VyLXBhY2svX3ByZWx1ZGUuanMiLCJpbmRleC5qcyIsIm1hdGguanMiXSwibmFtZXMiOl"
+      "tdLCJtYXBwaW5ncyI6IkFBQUE7QUNBQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQT"
+      "tBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBOztBQ2JBO0FBQ0E7QUFDQTtBQU"
+      "NBO0FBQ0E7QUFDQTtBQUNBO0FBQ0EiLCJmaWxlIjoiZ2VuZXJhdGVkLmpzIiwic291cmNlUm"
+      "9vdCI6IiJ9"                                                          "\n"
+  );
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert (strstr (item->message, "testcase.js") == NULL);
+  g_assert (strstr (item->message, "index.js:6") != NULL);
+  g_assert (strstr (item->message, "math.js:5") != NULL);
+  test_script_message_item_free (item);
+
+  item = test_script_fixture_pop_message (fixture);
+  g_assert (strstr (item->message, "testcase.js") == NULL);
+  g_assert (strstr (item->message, "index.js:12") != NULL);
+  test_script_message_item_free (item);
 }
 
 SCRIPT_TESTCASE (types_handle_invalid_construction)
