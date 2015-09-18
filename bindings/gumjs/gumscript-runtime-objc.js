@@ -503,15 +503,15 @@
 
                                 let cur = meta;
                                 do {
-                                    for (let name of collectMethodNames(cur, "+ "))
-                                        names.add(name);
+                                    for (let methodName of collectMethodNames(cur, "+ "))
+                                        names.add(methodName);
                                     cur = api.class_getSuperclass(cur);
                                 } while (!cur.isNull());
 
                                 cur = klass;
                                 do {
-                                    for (let name of collectMethodNames(cur, "- "))
-                                        names.add(name);
+                                    for (let methodName of collectMethodNames(cur, "- "))
+                                        names.add(methodName);
                                     cur = api.class_getSuperclass(cur);
                                 } while (!cur.isNull());
 
@@ -1012,8 +1012,8 @@
                 this.handle = target;
 
                 const flags = Memory.readU32(target.add(blockOffsets.flags));
-                if ((flags & BLOCK_HAS_SIGNATURE) != 0) {
-                    const signatureOffset = ((flags & BLOCK_HAS_COPY_DISPOSE) != 0) ? 2 : 0;
+                if ((flags & BLOCK_HAS_SIGNATURE) !== 0) {
+                    const signatureOffset = ((flags & BLOCK_HAS_COPY_DISPOSE) !== 0) ? 2 : 0;
                     priv.types = Memory.readCString(Memory.readPointer(descriptor.add(blockDescriptorOffsets.rest + (signatureOffset * pointerSize))));
                     priv.signature = parseSignature(priv.types);
                 }
