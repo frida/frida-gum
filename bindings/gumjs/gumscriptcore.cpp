@@ -8,6 +8,7 @@
 
 #include "gumscriptcore.h"
 
+#include "gumscript-priv.h"
 #include "gumscriptscope.h"
 
 #include <ffi.h>
@@ -121,6 +122,8 @@ struct _GumCpuContextWrapper
   GumCpuContext * cpu_context;
 };
 
+static void gum_script_core_on_get_source_mapping_url (Local<String> property,
+    const PropertyCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_bind (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_unbind (
@@ -245,6 +248,11 @@ _gum_script_core_init (GumScriptCore * self,
   frida->Set (String::NewFromUtf8 (isolate, "version"),
       String::NewFromUtf8 (isolate, FRIDA_VERSION), ReadOnly);
   scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
+
+  Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
+  script_module->SetAccessor (String::NewFromUtf8 (isolate, "sourceMappingURL"),
+      gum_script_core_on_get_source_mapping_url, NULL, data);
+  scope->Set (String::NewFromUtf8 (isolate, "Script"), script_module);
 
   Handle<ObjectTemplate> weak = ObjectTemplate::New ();
   weak->Set (String::NewFromUtf8 (isolate, "bind"),
@@ -605,6 +613,31 @@ _gum_script_core_post_message (GumScriptCore * self,
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
     GUM_SCRIPT_CORE_UNLOCK ();
+  }
+}
+
+static void
+gum_script_core_on_get_source_mapping_url (Local<String> property,
+    const PropertyCallbackInfo<Value> & info)
+{
+  GumScriptCore * self = static_cast<GumScriptCore *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+  GumScriptPrivate * priv = self->script->priv;
+
+  if (priv->code != nullptr)
+  {
+    Local<Script> code (Local<Script>::New (isolate, *priv->code));
+    Local<Value> url (code->GetUnboundScript ()->GetSourceMappingURL ());
+
+    if (!url->IsUndefined ())
+      info.GetReturnValue ().Set (url);
+    else
+      info.GetReturnValue ().SetNull ();
+  }
+  else
+  {
+    info.GetReturnValue ().SetNull ();
   }
 }
 
