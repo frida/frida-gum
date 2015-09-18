@@ -16,7 +16,7 @@
 
     Object.defineProperty(engine, 'recv', {
         enumerable: true,
-        value: function recv() {
+        value: function () {
             let type, callback;
             if (arguments.length === 1) {
                 type = '*';
@@ -31,7 +31,7 @@
 
     Object.defineProperty(engine, 'send', {
         enumerable: true,
-        value: function send(payload, data) {
+        value: function (payload, data) {
             const message = {
                 type: 'send',
                 payload: payload
@@ -42,7 +42,7 @@
 
     Object.defineProperty(engine, 'ptr', {
         enumerable: true,
-        value: function ptr(str) {
+        value: function (str) {
             return new NativePointer(str);
         }
     });
