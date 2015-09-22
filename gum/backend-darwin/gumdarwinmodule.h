@@ -143,6 +143,8 @@ void gum_darwin_module_unref (GumDarwinModule * self);
 void gum_darwin_module_set_base_address (GumDarwinModule * self,
     GumAddress base_address);
 
+gboolean gum_darwin_module_resolve (GumDarwinModule * self,
+    const gchar * symbol, GumDarwinSymbolDetails * details);
 GumAddress gum_darwin_module_slide (GumDarwinModule * self);
 const GumDarwinSegment * gum_darwin_module_segment (GumDarwinModule * self,
     gsize index);
