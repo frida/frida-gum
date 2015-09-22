@@ -8,6 +8,7 @@
 #include "gumprocess.h"
 
 #include "gumdarwin.h"
+#include "gumleb.h"
 
 #include <dlfcn.h>
 #include <mach-o/dyld.h>
@@ -240,7 +241,6 @@ static gboolean gum_exports_trie_foreach (const guint8 * exports, gsize size,
     GumFoundExportsTrieTerminalFunc func, gpointer user_data);
 static gboolean gum_exports_trie_traverse (const guint8 * p,
     GumExportsTrieForeachContext * ctx);
-static guint64 gum_read_uleb128 (const guint8 ** data, const guint8 * end);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
@@ -2004,31 +2004,5 @@ gum_exports_trie_traverse (const guint8 * p,
   }
 
   return TRUE;
-}
-
-static guint64
-gum_read_uleb128 (const guint8 ** data,
-                  const guint8 * end)
-{
-  const guint8 * p = *data;
-  guint64 result = 0;
-  gint offset = 0;
-
-  do
-  {
-    guint64 chunk;
-
-    g_assert (p != end);
-    g_assert_cmpint (offset, <=, 63);
-
-    chunk = *p & 0x7f;
-    result |= (chunk << offset);
-    offset += 7;
-  }
-  while (*p++ & 0x80);
-
-  *data = p;
-
-  return result;
 }
 
