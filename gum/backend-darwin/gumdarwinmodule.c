@@ -321,6 +321,9 @@ const GumDarwinSegment *
 gum_darwin_module_segment (GumDarwinModule * self,
                            gsize index)
 {
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return NULL;
+
   return &g_array_index (self->segments, GumDarwinSegment, index);
 }
 
@@ -333,6 +336,9 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
   gconstpointer command;
   gsize command_index;
   GumAddress slide;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return;
 
   header = (struct mach_header *) self->image->data;
   if (header->magic == MH_MAGIC)
@@ -406,6 +412,9 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   gboolean done;
   GumDarwinRebaseDetails details;
   guint64 max_offset;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return;
 
   start = self->image->linkedit + self->info->rebase_off;
   end = start + self->info->rebase_size;
@@ -511,6 +520,9 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   gboolean done;
   GumDarwinBindDetails details;
   guint64 max_offset;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return;
 
   start = self->image->linkedit + self->info->bind_off;
   end = start + self->info->bind_size;
@@ -625,6 +637,9 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   const guint8 * start, * end, * p;
   GumDarwinBindDetails details;
   guint64 max_offset;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return;
 
   start = self->image->linkedit + self->info->lazy_bind_off;
   end = start + self->info->lazy_bind_size;
