@@ -22,15 +22,15 @@ typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 
-typedef void (* GumDarwinFoundSectionFunc) (
+typedef gboolean (* GumDarwinFoundSectionFunc) (
     const GumDarwinSectionDetails * details, gpointer user_data);
-typedef void (* GumDarwinFoundRebaseFunc) (
+typedef gboolean (* GumDarwinFoundRebaseFunc) (
     const GumDarwinRebaseDetails * details, gpointer user_data);
-typedef void (* GumDarwinFoundBindFunc) (
+typedef gboolean (* GumDarwinFoundBindFunc) (
     const GumDarwinBindDetails * details, gpointer user_data);
-typedef void (* GumDarwinFoundInitPointersFunc) (
+typedef gboolean (* GumDarwinFoundInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
-typedef void (* GumDarwinFoundTermPointersFunc) (
+typedef gboolean (* GumDarwinFoundTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
 
 struct _GumDarwinModule

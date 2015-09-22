@@ -85,9 +85,9 @@ static GumDarwinModule * gum_darwin_module_new (const gchar * name,
     mach_port_t task, GumCpuType cpu_type);
 static const guint8 * gum_darwin_module_find_export_node (
     GumDarwinModule * self, const gchar * symbol);
-static void gum_emit_section_init_pointers (
+static gboolean gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static void gum_emit_section_term_pointers (
+static gboolean gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self);
 static gboolean gum_darwin_module_try_load_image_from_cache (
@@ -401,7 +401,8 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
           details.flags = s->flags;
         }
 
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
       }
     }
 
@@ -470,7 +471,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != immediate; i++)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (&details, user_data);
+          if (!func (&details, user_data))
+            return;
           details.offset += self->pointer_size;
         }
 
@@ -484,7 +486,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != count; i++)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (&details, user_data);
+          if (!func (&details, user_data))
+            return;
           details.offset += self->pointer_size;
         }
 
@@ -492,7 +495,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
       }
       case REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB:
@@ -504,7 +508,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != count; ++i)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (&details, user_data);
+          if (!func (&details, user_data))
+            return;
           details.offset += self->pointer_size + skip;
         }
 
@@ -600,17 +605,20 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         break;
       case BIND_OPCODE_DO_BIND:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
         details.offset += self->pointer_size;
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
         details.offset += self->pointer_size + (immediate * self->pointer_size);
         break;
       case BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
@@ -622,7 +630,8 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         for (i = 0; i != count; ++i)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (&details, user_data);
+          if (!func (&details, user_data))
+            return;
           details.offset += self->pointer_size + skip;
         }
 
@@ -715,7 +724,8 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         break;
       case BIND_OPCODE_DO_BIND:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (&details, user_data);
+        if (!func (&details, user_data))
+          return;
         details.offset += self->pointer_size;
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
@@ -754,7 +764,7 @@ gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
       &ctx);
 }
 
-static void
+static gboolean
 gum_emit_section_init_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
@@ -764,11 +774,13 @@ gum_emit_section_init_pointers (const GumDarwinSectionDetails * details,
     GumDarwinInitPointersDetails d;
     d.address = details->vm_address;
     d.count = details->size / ctx->pointer_size;
-    ctx->func (&d, ctx->user_data);
+    return ctx->func (&d, ctx->user_data);
   }
+
+  return TRUE;
 }
 
-static void
+static gboolean
 gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
@@ -778,8 +790,10 @@ gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
     GumDarwinTermPointersDetails d;
     d.address = details->vm_address;
     d.count = details->size / ctx->pointer_size;
-    ctx->func (&d, ctx->user_data);
+    return ctx->func (&d, ctx->user_data);
   }
+
+  return TRUE;
 }
 
 const gchar *
