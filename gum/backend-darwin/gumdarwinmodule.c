@@ -44,12 +44,14 @@ struct _GumEmitInitPointersContext
 {
   GumDarwinFoundInitPointersFunc func;
   gpointer user_data;
+  gsize pointer_size;
 };
 
 struct _GumEmitTermPointersContext
 {
   GumDarwinFoundTermPointersFunc func;
   gpointer user_data;
+  gsize pointer_size;
 };
 
 struct _GumDyldCacheHeader
@@ -83,9 +85,9 @@ static GumDarwinModule * gum_darwin_module_new (const gchar * name,
     mach_port_t task, GumCpuType cpu_type);
 static const guint8 * gum_darwin_module_find_export_node (
     GumDarwinModule * self, const gchar * symbol);
-static void gum_emit_section_init_pointers (GumDarwinModule * self,
+static void gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
-static void gum_emit_section_term_pointers (GumDarwinModule * self,
+static void gum_emit_section_term_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_darwin_module_ensure_image_loaded (GumDarwinModule * self);
 static gboolean gum_darwin_module_try_load_image_from_cache (
@@ -387,7 +389,7 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
           details.flags = s->flags;
         }
 
-        func (self, &details, user_data);
+        func (&details, user_data);
       }
     }
 
@@ -453,7 +455,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != immediate; i++)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (self, &details, user_data);
+          func (&details, user_data);
           details.offset += self->pointer_size;
         }
 
@@ -467,7 +469,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != count; i++)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (self, &details, user_data);
+          func (&details, user_data);
           details.offset += self->pointer_size;
         }
 
@@ -475,7 +477,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
       }
       case REBASE_OPCODE_DO_REBASE_ADD_ADDR_ULEB:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (self, &details, user_data);
+        func (&details, user_data);
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case REBASE_OPCODE_DO_REBASE_ULEB_TIMES_SKIPPING_ULEB:
@@ -487,7 +489,7 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
         for (i = 0; i != count; ++i)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (self, &details, user_data);
+          func (&details, user_data);
           details.offset += self->pointer_size + skip;
         }
 
@@ -580,17 +582,17 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         break;
       case BIND_OPCODE_DO_BIND:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (self, &details, user_data);
+        func (&details, user_data);
         details.offset += self->pointer_size;
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (self, &details, user_data);
+        func (&details, user_data);
         details.offset += self->pointer_size + gum_read_uleb128 (&p, end);
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_IMM_SCALED:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (self, &details, user_data);
+        func (&details, user_data);
         details.offset += self->pointer_size + (immediate * self->pointer_size);
         break;
       case BIND_OPCODE_DO_BIND_ULEB_TIMES_SKIPPING_ULEB:
@@ -602,7 +604,7 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
         for (i = 0; i != count; ++i)
         {
           g_assert_cmpuint (details.offset, <, max_offset);
-          func (self, &details, user_data);
+          func (&details, user_data);
           details.offset += self->pointer_size + skip;
         }
 
@@ -692,7 +694,7 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
         break;
       case BIND_OPCODE_DO_BIND:
         g_assert_cmpuint (details.offset, <, max_offset);
-        func (self, &details, user_data);
+        func (&details, user_data);
         details.offset += self->pointer_size;
         break;
       case BIND_OPCODE_DO_BIND_ADD_ADDR_ULEB:
@@ -713,6 +715,7 @@ gum_darwin_module_enumerate_init_pointers (GumDarwinModule * self,
   GumEmitInitPointersContext ctx;
   ctx.func = func;
   ctx.user_data = user_data;
+  ctx.pointer_size = self->pointer_size;
   gum_darwin_module_enumerate_sections (self, gum_emit_section_init_pointers,
       &ctx);
 }
@@ -725,13 +728,13 @@ gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
   GumEmitTermPointersContext ctx;
   ctx.func = func;
   ctx.user_data = user_data;
+  ctx.pointer_size = self->pointer_size;
   gum_darwin_module_enumerate_sections (self, gum_emit_section_term_pointers,
       &ctx);
 }
 
 static void
-gum_emit_section_init_pointers (GumDarwinModule * self,
-                                const GumDarwinSectionDetails * details,
+gum_emit_section_init_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
   if ((details->flags & SECTION_TYPE) == S_MOD_INIT_FUNC_POINTERS)
@@ -739,14 +742,13 @@ gum_emit_section_init_pointers (GumDarwinModule * self,
     GumEmitInitPointersContext * ctx = user_data;
     GumDarwinInitPointersDetails d;
     d.address = details->vm_address;
-    d.count = details->size / self->pointer_size;
-    ctx->func (self, &d, ctx->user_data);
+    d.count = details->size / ctx->pointer_size;
+    ctx->func (&d, ctx->user_data);
   }
 }
 
 static void
-gum_emit_section_term_pointers (GumDarwinModule * self,
-                                const GumDarwinSectionDetails * details,
+gum_emit_section_term_pointers (const GumDarwinSectionDetails * details,
                                 gpointer user_data)
 {
   if ((details->flags & SECTION_TYPE) == S_MOD_TERM_FUNC_POINTERS)
@@ -754,8 +756,8 @@ gum_emit_section_term_pointers (GumDarwinModule * self,
     GumEmitTermPointersContext * ctx = user_data;
     GumDarwinTermPointersDetails d;
     d.address = details->vm_address;
-    d.count = details->size / self->pointer_size;
-    ctx->func (self, &d, ctx->user_data);
+    d.count = details->size / ctx->pointer_size;
+    ctx->func (&d, ctx->user_data);
   }
 }
 
