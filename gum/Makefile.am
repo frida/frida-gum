@@ -121,10 +121,12 @@ backend_sources += \
 	backend-darwin/gumsymbolutil-darwin.c \
 	backend-darwin/gumkernel-darwin.c \
 	backend-darwin/gummemory-darwin.c \
-	backend-darwin/gumprocess-darwin.c
+	backend-darwin/gumprocess-darwin.c \
+	backend-darwin/gumdarwinmodule.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
-	backend-darwin/gumdarwinbacktracer.h
+	backend-darwin/gumdarwinbacktracer.h \
+	backend-darwin/gumdarwinmodule.h
 else
 backend_sources += \
 	backend-posix/gummemory-posix.c
