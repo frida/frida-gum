@@ -19,6 +19,19 @@
 #  define GUM_API
 #endif
 
+#if !defined (__arm__) && !defined (__aarch64__)
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_NATIVE_CPU GUM_CPU_IA32
+# else
+#  define GUM_NATIVE_CPU GUM_CPU_AMD64
+# endif
+#else
+# if GLIB_SIZEOF_VOID_P == 4
+#  define GUM_NATIVE_CPU GUM_CPU_ARM
+# else
+#  define GUM_NATIVE_CPU GUM_CPU_ARM64
+# endif
+#endif
 #ifdef G_OS_WIN32
 # define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
 # define GUM_NATIVE_ABI_IS_WINDOWS 1
@@ -85,7 +98,7 @@ enum _GumBranchHint
 
 struct _GumCpuContext
 {
-#if !defined(__arm__) && !defined(__aarch64__)
+#if !defined (__arm__) && !defined (__aarch64__)
 # if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
