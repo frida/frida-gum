@@ -198,8 +198,14 @@ gum_darwin_module_unref (GumDarwinModule * self)
   if (--self->ref_count == 0)
   {
     g_ptr_array_unref (self->dependencies);
+
+    g_free (self->rebases);
+    g_free (self->binds);
+    g_free (self->lazy_binds);
     g_free (self->exports);
+
     g_array_unref (self->segments);
+
     if (self->image != NULL)
       gum_darwin_module_image_free (self->image);
 
@@ -416,8 +422,8 @@ gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self))
     return;
 
-  start = self->image->linkedit + self->info->rebase_off;
-  end = start + self->info->rebase_size;
+  start = self->rebases;
+  end = self->rebases_end;
   p = start;
   done = FALSE;
 
@@ -524,8 +530,8 @@ gum_darwin_module_enumerate_binds (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self))
     return;
 
-  start = self->image->linkedit + self->info->bind_off;
-  end = start + self->info->bind_size;
+  start = self->binds;
+  end = self->binds_end;
   p = start;
   done = FALSE;
 
@@ -641,8 +647,8 @@ gum_darwin_module_enumerate_lazy_binds (GumDarwinModule * self,
   if (!gum_darwin_module_ensure_image_loaded (self))
     return;
 
-  start = self->image->linkedit + self->info->lazy_bind_off;
-  end = start + self->info->lazy_bind_size;
+  start = self->lazy_binds;
+  end = self->lazy_binds_end;
   p = start;
 
   details.segment = gum_darwin_module_segment (self, 0);
@@ -1073,12 +1079,27 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   if (image->linkedit == NULL)
   {
     GumAddress memory_linkedit;
-    gsize exports_size;
+    gsize rebases_size, binds_size, lazy_binds_size, exports_size;
 
     if (!gum_darwin_find_linkedit (image->data, image->size, &memory_linkedit))
       goto beach;
-
     memory_linkedit += gum_darwin_module_slide (self);
+
+    self->rebases = gum_darwin_read (self->task, memory_linkedit +
+        self->info->rebase_off, self->info->rebase_size, &rebases_size);
+    self->rebases_end = (self->rebases != NULL) ?
+       self->rebases + rebases_size : NULL;
+
+    self->binds = gum_darwin_read (self->task, memory_linkedit +
+        self->info->bind_off, self->info->bind_size, &binds_size);
+    self->binds_end = (self->binds != NULL) ?
+       self->binds + binds_size : NULL;
+
+    self->lazy_binds = gum_darwin_read (self->task, memory_linkedit +
+        self->info->lazy_bind_off, self->info->lazy_bind_size,
+        &lazy_binds_size);
+    self->lazy_binds_end = (self->lazy_binds != NULL) ?
+       self->lazy_binds + lazy_binds_size : NULL;
 
     self->exports = gum_darwin_read (self->task, memory_linkedit +
         self->info->export_off, self->info->export_size, &exports_size);
@@ -1087,6 +1108,18 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   }
   else
   {
+    self->rebases = g_memdup (image->linkedit + self->info->rebase_off,
+        self->info->rebase_size);
+    self->rebases_end = self->rebases + self->info->rebase_size;
+
+    self->binds = g_memdup (image->linkedit + self->info->bind_off,
+        self->info->bind_size);
+    self->binds_end = self->binds + self->info->bind_size;
+
+    self->lazy_binds = g_memdup (image->linkedit + self->info->lazy_bind_off,
+        self->info->lazy_bind_size);
+    self->lazy_binds_end = self->lazy_binds + self->info->lazy_bind_size;
+
     self->exports = g_memdup (image->linkedit + self->info->export_off,
         self->info->export_size);
     self->exports_end = self->exports + self->info->export_size;

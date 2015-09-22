@@ -46,13 +46,27 @@ struct _GumDarwinModule
   GumAddress base_address;
 
   GumDarwinModuleImage * image;
+
   const struct dyld_info_command * info;
   const struct symtab_command * symtab;
   const struct dysymtab_command * dysymtab;
+
   GumAddress preferred_address;
+
   GArray * segments;
+
+  guint8 * rebases;
+  const guint8 * rebases_end;
+
+  guint8 * binds;
+  const guint8 * binds_end;
+
+  guint8 * lazy_binds;
+  const guint8 * lazy_binds_end;
+
   guint8 * exports;
   const guint8 * exports_end;
+
   GPtrArray * dependencies;
 };
 
