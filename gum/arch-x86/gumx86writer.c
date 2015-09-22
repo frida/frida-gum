@@ -106,11 +106,7 @@ void
 gum_x86_writer_reset (GumX86Writer * writer,
                       gpointer code_address)
 {
-#if GLIB_SIZEOF_VOID_P == 4
-  writer->target_cpu = GUM_CPU_IA32;
-#else
-  writer->target_cpu = GUM_CPU_AMD64;
-#endif
+  writer->target_cpu = GUM_NATIVE_CPU;
   writer->target_abi = GUM_NATIVE_ABI;
 
   writer->base = (guint8 *) code_address;
