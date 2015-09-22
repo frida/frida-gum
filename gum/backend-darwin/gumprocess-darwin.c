@@ -8,6 +8,7 @@
 #include "gumprocess.h"
 
 #include "gumdarwin.h"
+#include "gumdarwinmodule.h"
 #include "gumleb.h"
 
 #include <dlfcn.h>
@@ -34,6 +35,7 @@
 # define EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
 #endif
 
+typedef struct _GumEmitImportsContext GumEmitImportsContext;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumFindExportContext GumFindExportContext;
@@ -53,6 +55,16 @@ typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 
 typedef gboolean (* GumFoundExportsTrieTerminalFunc) (const gchar * symbol,
     const guint8 * node, const guint8 * exports_end, gpointer user_data);
+
+struct _GumEmitImportsContext
+{
+  GumFoundImportFunc func;
+  gpointer user_data;
+
+  GumDarwinModule * module;
+  GHashTable * imports_seen;
+  gboolean carry_on;
+};
 
 struct _GumFindEntrypointContext
 {
@@ -196,6 +208,8 @@ static void gum_emit_malloc_ranges (task_t task,
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
 
+static gboolean gum_emit_import (const GumDarwinBindDetails * details,
+    gpointer user_data);
 static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
     GumFoundExportFunc func, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
@@ -475,6 +489,88 @@ gum_read_malloc_memory (task_t remote_task,
   *local_memory = (void *) remote_address;
 
   return KERN_SUCCESS;
+}
+
+void
+gum_module_enumerate_imports (const gchar * module_name,
+                              GumFoundImportFunc func,
+                              gpointer user_data)
+{
+  gpointer address, slide;
+  GumDarwinModule * module = NULL;
+  GumEmitImportsContext ctx;
+
+  if (!find_image_address_and_slide (module_name, &address, &slide))
+    return;
+
+  module = gum_darwin_module_new_from_memory (module_name, mach_task_self (),
+      GUM_NATIVE_CPU, GUM_ADDRESS (address));
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.module = module;
+  ctx.imports_seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      NULL);
+  ctx.carry_on = TRUE;
+  gum_darwin_module_enumerate_binds (module, gum_emit_import, &ctx);
+  if (ctx.carry_on)
+    gum_darwin_module_enumerate_lazy_binds (module, gum_emit_import, &ctx);
+
+  g_hash_table_unref (ctx.imports_seen);
+
+  gum_darwin_module_unref (module);
+}
+
+static gboolean
+gum_emit_import (const GumDarwinBindDetails * details,
+                 gpointer user_data)
+{
+  GumEmitImportsContext * ctx = user_data;
+  GumImportDetails d;
+  gchar * key;
+
+  d.symbol_name = gum_symbol_name_from_darwin (details->symbol_name);
+  switch (details->library_ordinal)
+  {
+    case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case BIND_SPECIAL_DYLIB_SELF:
+      return TRUE;
+    case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    {
+      gpointer address;
+      Dl_info info;
+
+      address = dlsym (RTLD_DEFAULT, d.symbol_name);
+      if (address == NULL)
+        return TRUE;
+      else if (!dladdr (address, &info))
+        return TRUE;
+      else if (GUM_ADDRESS (info.dli_fbase) == ctx->module->base_address)
+        return TRUE;
+      d.module_name = info.dli_fname;
+
+      break;
+    }
+    default:
+      d.module_name = gum_darwin_module_dependency (ctx->module,
+          details->library_ordinal);
+      break;
+  }
+
+  key = g_strconcat (d.module_name, "|", d.symbol_name, NULL);
+  if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
+  {
+    g_hash_table_insert (ctx->imports_seen, key, key);
+
+    ctx->carry_on = ctx->func (&d, ctx->user_data);
+  }
+  else
+  {
+    g_free (key);
+  }
+
+  return ctx->carry_on;
 }
 
 void

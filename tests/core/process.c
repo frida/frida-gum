@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (process)
 #endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
+  PROCESS_TESTENTRY (module_imports)
   PROCESS_TESTENTRY (module_exports)
   PROCESS_TESTENTRY (module_ranges_can_be_enumerated)
   PROCESS_TESTENTRY (module_base)
@@ -59,6 +60,8 @@ static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
 #endif
 static gboolean module_found_cb (const GumModuleDetails * details,
+    gpointer user_data);
+static gboolean import_found_cb (const GumImportDetails * details,
     gpointer user_data);
 static gboolean export_found_cb (const GumExportDetails * details,
     gpointer user_data);
@@ -221,6 +224,25 @@ PROCESS_TESTCASE (process_malloc_ranges)
 }
 
 #endif
+
+PROCESS_TESTCASE (module_imports)
+{
+#ifdef HAVE_DARWIN
+  TestForEachContext ctx;
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = TRUE;
+  gum_module_enumerate_imports ("gum-tests", import_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+
+  ctx.number_of_calls = 0;
+  ctx.value_to_return = FALSE;
+  gum_module_enumerate_imports ("gum-tests", import_found_cb, &ctx);
+  g_assert_cmpuint (ctx.number_of_calls, ==, 1);
+#else
+  (void) import_found_cb;
+#endif
+}
 
 PROCESS_TESTCASE (module_exports)
 {
@@ -412,6 +434,17 @@ thread_found_cb (const GumThreadDetails * details,
 
 static gboolean
 module_found_cb (const GumModuleDetails * details,
+                 gpointer user_data)
+{
+  TestForEachContext * ctx = (TestForEachContext *) user_data;
+
+  ctx->number_of_calls++;
+
+  return ctx->value_to_return;
+}
+
+static gboolean
+import_found_cb (const GumImportDetails * details,
                  gpointer user_data)
 {
   TestForEachContext * ctx = (TestForEachContext *) user_data;

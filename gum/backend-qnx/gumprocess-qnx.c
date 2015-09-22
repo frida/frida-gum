@@ -382,6 +382,14 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 }
 
 void
+gum_module_enumerate_imports (const gchar * module_name,
+                              GumFoundImportFunc func,
+                              gpointer user_data)
+{
+  /* Not implemented */
+}
+
+void
 gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
