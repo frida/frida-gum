@@ -465,7 +465,7 @@ export_found_cb (const GumExportDetails * details,
 #ifdef HAVE_DARWIN
   if (strcmp (details->name, "malloc") == 0)
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
-  if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
+  else if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
     g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
 #endif
 
