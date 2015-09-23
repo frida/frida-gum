@@ -198,14 +198,14 @@ static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesSlowContext * ctx);
 static gboolean gum_emit_export (const GumDarwinSymbolDetails * details,
     gpointer user_data);
-static gboolean gum_emit_export_context_process (
+static gboolean gum_enumerate_exports_context_process (
     GumEnumerateExportsContext * self, GumDarwinModule * module,
     const GumDarwinSymbolDetails * details);
-static GumDarwinModule * gum_emit_export_context_resolve (
+static GumDarwinModule * gum_enumerate_exports_context_resolve (
     GumEnumerateExportsContext * self, const gchar * module_name);
-static gboolean gum_emit_export_context_collect_range (
+static gboolean gum_enumerate_exports_context_collect_range (
     const GumModuleDetails * details, gpointer user_data);
-static void gum_emit_export_context_free_range_value (gpointer data);
+static void gum_enumerate_exports_context_free_range_value (gpointer data);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
@@ -1214,11 +1214,11 @@ static gboolean
 gum_store_base_address_if_module_path_matches (const GumModuleDetails * details,
                                                gpointer user_data)
 {
-  GumEnumerateImportsContext * self = user_data;
+  GumEnumerateImportsContext * ctx = user_data;
 
-  if (gum_module_path_equals (details->path, self->module_name))
+  if (gum_module_path_equals (details->path, ctx->module_name))
   {
-    self->base_address = details->range->base_address;
+    ctx->base_address = details->range->base_address;
     return FALSE;
   }
 
@@ -1240,11 +1240,11 @@ gum_darwin_enumerate_exports (mach_port_t task,
   ctx.modules = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) gum_darwin_module_unref);
   ctx.ranges = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, gum_emit_export_context_free_range_value);
-  gum_darwin_enumerate_modules (task, gum_emit_export_context_collect_range,
-      &ctx);
+      g_free, gum_enumerate_exports_context_free_range_value);
+  gum_darwin_enumerate_modules (task,
+      gum_enumerate_exports_context_collect_range, &ctx);
 
-  ctx.module = gum_emit_export_context_resolve (&ctx, module_name);
+  ctx.module = gum_enumerate_exports_context_resolve (&ctx, module_name);
   if (ctx.module != NULL)
     gum_darwin_module_enumerate_exports (ctx.module, gum_emit_export, &ctx);
 
@@ -1258,13 +1258,13 @@ gum_emit_export (const GumDarwinSymbolDetails * details,
 {
   GumEnumerateExportsContext * ctx = user_data;
 
-  return gum_emit_export_context_process (ctx, ctx->module, details);
+  return gum_enumerate_exports_context_process (ctx, ctx->module, details);
 }
 
 static gboolean
-gum_emit_export_context_process (GumEnumerateExportsContext * self,
-                                 GumDarwinModule * module,
-                                 const GumDarwinSymbolDetails * details)
+gum_enumerate_exports_context_process (GumEnumerateExportsContext * self,
+                                       GumDarwinModule * module,
+                                       const GumDarwinSymbolDetails * details)
 {
   GumExportDetails d;
 
@@ -1275,7 +1275,7 @@ gum_emit_export_context_process (GumEnumerateExportsContext * self,
 
     target_name = gum_darwin_module_dependency (module,
         details->reexport_library_ordinal);
-    module = gum_emit_export_context_resolve (self, target_name);
+    module = gum_enumerate_exports_context_resolve (self, target_name);
     if (module == NULL)
       return TRUE;
 
@@ -1283,7 +1283,7 @@ gum_emit_export_context_process (GumEnumerateExportsContext * self,
         &reexp_details))
       return TRUE;
 
-    return gum_emit_export_context_process (self, module, &reexp_details);
+    return gum_enumerate_exports_context_process (self, module, &reexp_details);
   }
 
   d.name = gum_symbol_name_from_darwin (details->symbol);
@@ -1320,8 +1320,8 @@ gum_emit_export_context_process (GumEnumerateExportsContext * self,
 }
 
 static GumDarwinModule *
-gum_emit_export_context_resolve (GumEnumerateExportsContext * self,
-                                 const gchar * module_name)
+gum_enumerate_exports_context_resolve (GumEnumerateExportsContext * self,
+                                       const gchar * module_name)
 {
   GumDarwinModule * module;
   GumMemoryRange * range;
@@ -1341,8 +1341,8 @@ gum_emit_export_context_resolve (GumEnumerateExportsContext * self,
 }
 
 static gboolean
-gum_emit_export_context_collect_range (const GumModuleDetails * details,
-                                       gpointer user_data)
+gum_enumerate_exports_context_collect_range (const GumModuleDetails * details,
+                                             gpointer user_data)
 {
   GumEnumerateExportsContext * self = user_data;
 
@@ -1355,7 +1355,7 @@ gum_emit_export_context_collect_range (const GumModuleDetails * details,
 }
 
 static void
-gum_emit_export_context_free_range_value (gpointer data)
+gum_enumerate_exports_context_free_range_value (gpointer data)
 {
   g_slice_free (GumMemoryRange, data);
 }
