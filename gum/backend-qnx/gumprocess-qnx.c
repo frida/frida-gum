@@ -531,6 +531,9 @@ gum_module_find_export_by_name (const gchar * module_name,
 {
   GumFindExportContext ctx;
 
+  if (module_name == NULL)
+    return 0;
+
   ctx.result = 0;
   ctx.symbol_name = symbol_name;
 

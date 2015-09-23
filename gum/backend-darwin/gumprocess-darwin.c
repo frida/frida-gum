@@ -32,6 +32,7 @@ typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
+typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
 
 typedef union _DyldInfo DyldInfo;
 typedef struct _DyldInfoLegacy DyldInfoLegacy;
@@ -91,6 +92,12 @@ struct _GumEnumerateMallocRangesContext
   GumFoundMallocRangeFunc func;
   gpointer user_data;
   gboolean carry_on;
+};
+
+struct _GumCanonicalizeNameContext
+{
+  const gchar * module_name;
+  gchar * module_path;
 };
 
 struct _DyldInfoLegacy
@@ -186,8 +193,6 @@ static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
 static gboolean gum_store_base_address_if_module_path_matches (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (
-    const GumExportDetails * details, gpointer user_data);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
 static void gum_darwin_enumerate_modules_slow (mach_port_t task,
@@ -211,6 +216,9 @@ static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
 static gsize find_image_size (const gchar * image_name);
 
+static gchar * gum_canonicalize_module_name (const gchar * name);
+static gboolean gum_store_module_path_if_module_name_matches (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
@@ -538,30 +546,31 @@ GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  GumFindExportContext ctx;
+  GumAddress result;
+  void * module;
 
-  ctx.result = 0;
-  ctx.symbol_name = symbol_name;
-
-  gum_module_enumerate_exports (module_name,
-      gum_store_address_if_export_name_matches, &ctx);
-
-  return ctx.result;
-}
-
-static gboolean
-gum_store_address_if_export_name_matches (const GumExportDetails * details,
-                                          gpointer user_data)
-{
-  GumFindExportContext * ctx = (GumFindExportContext *) user_data;
-
-  if (strcmp (details->name, ctx->symbol_name) == 0)
+  if (module_name != NULL)
   {
-    ctx->result = details->address;
-    return FALSE;
+    gchar * name;
+
+    name = gum_canonicalize_module_name (module_name);
+    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+    g_free (name);
+
+    if (module == NULL)
+      return 0;
+  }
+  else
+  {
+    module = RTLD_DEFAULT;
   }
 
-  return TRUE;
+  result = GUM_ADDRESS (dlsym (module, symbol_name));
+
+  if (module != RTLD_DEFAULT)
+    dlclose (module);
+
+  return result;
 }
 
 gboolean
@@ -1518,6 +1527,36 @@ find_image_size (const gchar * image_name)
   }
 
   return 0;
+}
+
+static gchar *
+gum_canonicalize_module_name (const gchar * name)
+{
+  GumCanonicalizeNameContext ctx;
+
+  if (name[0] == '/')
+    return g_strdup (name);
+
+  ctx.module_name = name;
+  ctx.module_path = NULL;
+  gum_process_enumerate_modules (gum_store_module_path_if_module_name_matches,
+      &ctx);
+  return ctx.module_path;
+}
+
+static gboolean
+gum_store_module_path_if_module_name_matches (const GumModuleDetails * details,
+                                              gpointer user_data)
+{
+  GumCanonicalizeNameContext * ctx = user_data;
+
+  if (strcmp (details->name, ctx->module_name) == 0)
+  {
+    ctx->module_path = g_strdup (details->path);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
