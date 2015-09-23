@@ -402,18 +402,28 @@ gum_script_module_on_find_export_by_name (
   Isolate * isolate = info.GetIsolate ();
 
   Local<Value> module_name_val = info[0];
-  if (!module_name_val->IsString ())
+  gchar * module_name;
+  if (module_name_val->IsString ())
+  {
+    String::Utf8Value module_name_utf8 (module_name_val);
+    module_name = g_strdup (*module_name_utf8);
+  }
+  else if (module_name_val->IsNull ())
+  {
+    module_name = NULL;
+  }
+  else
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "Module.findExportByName: first argument must be a string "
-        "specifying module name")));
+        "specifying module name, or null")));
     return;
   }
-  String::Utf8Value module_name (module_name_val);
 
   Local<Value> symbol_name_val = info[1];
   if (!symbol_name_val->IsString ())
   {
+    g_free (module_name);
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
         "Module.findExportByName: second argument must be a string "
         "specifying name of exported symbol")));
@@ -422,7 +432,7 @@ gum_script_module_on_find_export_by_name (
   String::Utf8Value symbol_name (symbol_name_val);
 
   GumAddress raw_address =
-      gum_module_find_export_by_name (*module_name, *symbol_name);
+      gum_module_find_export_by_name (module_name, *symbol_name);
   if (raw_address != 0)
   {
     info.GetReturnValue ().Set (
@@ -432,4 +442,6 @@ gum_script_module_on_find_export_by_name (
   {
     info.GetReturnValue ().SetNull ();
   }
+
+  g_free (module_name);
 }
