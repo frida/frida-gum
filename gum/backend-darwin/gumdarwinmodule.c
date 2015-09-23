@@ -16,8 +16,11 @@
 #define MAX_METADATA_SIZE (64 * 1024)
 
 typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
+typedef struct _GumEmitImportContext GumEmitImportContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
+
+typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 
 typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
@@ -40,6 +43,16 @@ struct _GumDarwinSegment
   vm_prot_t protection;
 };
 
+struct _GumEmitImportContext
+{
+  GumFoundImportFunc func;
+  gpointer user_data;
+
+  GumDarwinModule * module;
+  GHashTable * imports_seen;
+  gboolean carry_on;
+};
+
 struct _GumEmitInitPointersContext
 {
   GumDarwinFoundInitPointersFunc func;
@@ -52,6 +65,16 @@ struct _GumEmitTermPointersContext
   GumDarwinFoundTermPointersFunc func;
   gpointer user_data;
   gsize pointer_size;
+};
+
+struct _GumExportsTrieForeachContext
+{
+  GumDarwinFoundSymbolFunc func;
+  gpointer user_data;
+
+  GString * prefix;
+  const guint8 * exports;
+  const guint8 * exports_end;
 };
 
 struct _GumDyldCacheHeader
@@ -83,8 +106,8 @@ struct _GumDyldCacheImageInfo
 
 static GumDarwinModule * gum_darwin_module_new (const gchar * name,
     mach_port_t task, GumCpuType cpu_type);
-static const guint8 * gum_darwin_module_find_export_node (
-    GumDarwinModule * self, const gchar * symbol);
+static gboolean gum_emit_import (const GumDarwinBindDetails * details,
+    gpointer user_data);
 static gboolean gum_emit_section_init_pointers (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_emit_section_term_pointers (
@@ -99,9 +122,25 @@ static gboolean gum_darwin_module_load_image_from_memory (
     GumDarwinModule * self);
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
     GumDarwinModuleImage * image);
+static gboolean gum_fill_text_range_if_text_section (
+    const GumDarwinSectionDetails * details, gpointer user_data);
+static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
 
 static GumDarwinModuleImage * gum_darwin_module_image_new (void);
 static void gum_darwin_module_image_free (GumDarwinModuleImage * image);
+
+static gboolean gum_exports_trie_find (const guint8 * exports,
+    const guint8 * exports_end, const gchar * symbol,
+    GumDarwinSymbolDetails * details);
+static gboolean gum_exports_trie_foreach (const guint8 * exports,
+    const guint8 * exports_end, GumDarwinFoundSymbolFunc func,
+    gpointer user_data);
+static gboolean gum_exports_trie_traverse (const guint8 * p,
+    GumExportsTrieForeachContext * ctx);
+
+static void gum_darwin_symbol_details_init_from_node (
+    GumDarwinSymbolDetails * details, const gchar * symbol, const guint8 * node,
+    const guint8 * exports_end);
 
 static const GumDyldCacheImageInfo * gum_dyld_cache_find_image_by_name (
     const gchar * name, const GumDyldCacheImageInfo * images, gsize image_count,
@@ -227,94 +266,83 @@ gum_darwin_module_resolve (GumDarwinModule * self,
                            const gchar * symbol,
                            GumDarwinSymbolDetails * details)
 {
-  const guint8 * p;
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return FALSE;
 
-  p = gum_darwin_module_find_export_node (self, symbol);
-  if (p == NULL)
-      return FALSE;
-  details->flags = gum_read_uleb128 (&p, self->exports_end);
-  if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  return gum_exports_trie_find (self->exports, self->exports_end, symbol,
+      details);
+}
+
+void
+gum_darwin_module_enumerate_imports (GumDarwinModule * self,
+                                     GumFoundImportFunc func,
+                                     gpointer user_data)
+{
+  GumEmitImportContext ctx;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.module = self;
+  ctx.imports_seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
+      NULL);
+  ctx.carry_on = TRUE;
+  gum_darwin_module_enumerate_binds (self, gum_emit_import, &ctx);
+  if (ctx.carry_on)
+    gum_darwin_module_enumerate_lazy_binds (self, gum_emit_import, &ctx);
+
+  g_hash_table_unref (ctx.imports_seen);
+}
+
+static gboolean
+gum_emit_import (const GumDarwinBindDetails * details,
+                 gpointer user_data)
+{
+  GumEmitImportContext * ctx = user_data;
+  GumImportDetails d;
+  gchar * key;
+
+  d.symbol_name = details->symbol_name;
+  switch (details->library_ordinal)
   {
-    details->reexport_library_ordinal = gum_read_uleb128 (&p, self->exports_end);
-    details->reexport_symbol = (*p != '\0') ? (gchar *) p : symbol;
+    case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
+    case BIND_SPECIAL_DYLIB_SELF:
+      return TRUE;
+    case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
+    {
+      d.module_name = NULL;
+      break;
+    }
+    default:
+      d.module_name = gum_darwin_module_dependency (ctx->module,
+          details->library_ordinal);
+      break;
   }
-  else if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+
+  key = g_strconcat (d.module_name, "|", d.symbol_name, NULL);
+  if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
   {
-    details->stub = gum_read_uleb128 (&p, self->exports_end);
-    details->resolver = gum_read_uleb128 (&p, self->exports_end);
+    g_hash_table_insert (ctx->imports_seen, key, key);
+
+    ctx->carry_on = ctx->func (&d, ctx->user_data);
   }
   else
   {
-    details->offset = gum_read_uleb128 (&p, self->exports_end);
+    g_free (key);
   }
 
-  return TRUE;
+  return ctx->carry_on;
 }
 
-static const guint8 *
-gum_darwin_module_find_export_node (GumDarwinModule * self,
-                                    const gchar * symbol)
+void
+gum_darwin_module_enumerate_exports (GumDarwinModule * self,
+                                     GumDarwinFoundSymbolFunc func,
+                                     gpointer user_data)
 {
-  const guint8 * p;
-
   if (!gum_darwin_module_ensure_image_loaded (self))
-    return NULL;
+    return;
 
-  p = self->exports;
-  while (p != NULL)
-  {
-    gint64 terminal_size;
-    const guint8 * children;
-    guint8 child_count, i;
-    guint64 node_offset;
-
-    terminal_size = gum_read_uleb128 (&p, self->exports_end);
-
-    if (*symbol == '\0' && terminal_size != 0)
-      return p;
-
-    children = p + terminal_size;
-    child_count = *children++;
-    p = children;
-    node_offset = 0;
-    for (i = 0; i != child_count; i++)
-    {
-      const gchar * symbol_cur;
-      gboolean matching_edge;
-
-      symbol_cur = symbol;
-      matching_edge = TRUE;
-      while (*p != '\0')
-      {
-        if (matching_edge)
-        {
-          if (*p != *symbol_cur)
-            matching_edge = FALSE;
-          symbol_cur++;
-        }
-        p++;
-      }
-      p++;
-
-      if (matching_edge)
-      {
-        node_offset = gum_read_uleb128 (&p, self->exports_end);
-        symbol = symbol_cur;
-        break;
-      }
-      else
-      {
-        gum_skip_uleb128 (&p);
-      }
-    }
-
-    if (node_offset != 0)
-      p = self->exports + node_offset;
-    else
-      p = NULL;
-  }
-
-  return NULL;
+  gum_exports_trie_foreach (self->exports, self->exports_end, func, user_data);
 }
 
 GumAddress
@@ -1014,6 +1042,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   gsize command_index;
 
   g_assert (self->image == NULL);
+  self->image = image;
 
   header = (struct mach_header *) image->data;
   if (header->magic == MH_MAGIC)
@@ -1090,6 +1119,11 @@ gum_darwin_module_take_image (GumDarwinModule * self,
     command += lc->cmdsize;
   }
 
+  gum_darwin_module_enumerate_sections (self,
+      gum_fill_text_range_if_text_section, &self->text_range);
+  if (self->text_range.base_address != 0)
+    self->text_range.base_address += gum_darwin_module_slide (self);
+
   if (image->linkedit == NULL)
   {
     GumAddress memory_linkedit;
@@ -1142,12 +1176,37 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   success = self->exports != NULL;
 
 beach:
-  if (success)
-    self->image = image;
-  else
+  if (!success)
+  {
+    self->image = NULL;
     gum_darwin_module_image_free (image);
+  }
 
   return success;
+}
+
+static gboolean
+gum_fill_text_range_if_text_section (const GumDarwinSectionDetails * details,
+                                     gpointer user_data)
+{
+  if (gum_section_flags_indicate_text_section (details->flags))
+  {
+    GumMemoryRange * range = user_data;
+    range->base_address = details->vm_address;
+    range->size = details->size;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+static gboolean
+gum_section_flags_indicate_text_section (uint32_t flags)
+{
+  if ((flags & SECTION_TYPE) != S_REGULAR)
+    return FALSE;
+
+  return (flags & (S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS)) != 0;
 }
 
 static GumDarwinModuleImage *
@@ -1234,6 +1293,175 @@ gum_darwin_module_image_free (GumDarwinModuleImage * image)
   g_array_unref (image->shared_segments);
 
   g_slice_free (GumDarwinModuleImage, image);
+}
+
+static gboolean
+gum_exports_trie_find (const guint8 * exports,
+                       const guint8 * exports_end,
+                       const gchar * symbol,
+                       GumDarwinSymbolDetails * details)
+{
+  const gchar * s;
+  const guint8 * p;
+
+  s = symbol;
+  p = exports;
+  while (p != NULL)
+  {
+    gint64 terminal_size;
+    const guint8 * children;
+    guint8 child_count, i;
+    guint64 node_offset;
+
+    terminal_size = gum_read_uleb128 (&p, exports_end);
+
+    if (*s == '\0' && terminal_size != 0)
+    {
+      gum_darwin_symbol_details_init_from_node (details, symbol, p,
+          exports_end);
+      return TRUE;
+    }
+
+    children = p + terminal_size;
+    child_count = *children++;
+    p = children;
+    node_offset = 0;
+    for (i = 0; i != child_count; i++)
+    {
+      const gchar * symbol_cur;
+      gboolean matching_edge;
+
+      symbol_cur = s;
+      matching_edge = TRUE;
+      while (*p != '\0')
+      {
+        if (matching_edge)
+        {
+          if (*p != *symbol_cur)
+            matching_edge = FALSE;
+          symbol_cur++;
+        }
+        p++;
+      }
+      p++;
+
+      if (matching_edge)
+      {
+        node_offset = gum_read_uleb128 (&p, exports_end);
+        s = symbol_cur;
+        break;
+      }
+      else
+      {
+        gum_skip_uleb128 (&p);
+      }
+    }
+
+    if (node_offset != 0)
+      p = exports + node_offset;
+    else
+      p = NULL;
+  }
+
+  return FALSE;
+}
+
+static gboolean
+gum_exports_trie_foreach (const guint8 * exports,
+                          const guint8 * exports_end,
+                          GumDarwinFoundSymbolFunc func,
+                          gpointer user_data)
+{
+  GumExportsTrieForeachContext ctx;
+  gboolean carry_on;
+
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.prefix = g_string_new ("");
+  ctx.exports = exports;
+  ctx.exports_end = exports_end;
+
+  carry_on = gum_exports_trie_traverse (exports, &ctx);
+
+  g_string_free (ctx.prefix, TRUE);
+
+  return carry_on;
+}
+
+static gboolean
+gum_exports_trie_traverse (const guint8 * p,
+                           GumExportsTrieForeachContext * ctx)
+{
+  GString * prefix = ctx->prefix;
+  const guint8 * exports = ctx->exports;
+  const guint8 * exports_end = ctx->exports_end;
+  gboolean carry_on;
+  guint64 terminal_size;
+  guint8 child_count, i;
+
+  terminal_size = gum_read_uleb128 (&p, exports_end);
+  if (terminal_size != 0)
+  {
+    GumDarwinSymbolDetails details;
+
+    gum_darwin_symbol_details_init_from_node (&details, prefix->str, p,
+        exports_end);
+
+    carry_on = ctx->func (&details, ctx->user_data);
+    if (!carry_on)
+      return FALSE;
+  }
+
+  p += terminal_size;
+  child_count = *p++;
+  for (i = 0; i != child_count; i++)
+  {
+    gsize length = 0;
+
+    while (*p != '\0')
+    {
+      g_string_append_c (prefix, *p++);
+      length++;
+    }
+    p++;
+
+    carry_on = gum_exports_trie_traverse (
+        exports + gum_read_uleb128 (&p, exports_end),
+        ctx);
+    if (!carry_on)
+      return FALSE;
+
+    g_string_truncate (prefix, prefix->len - length);
+  }
+
+  return TRUE;
+}
+
+static void
+gum_darwin_symbol_details_init_from_node (GumDarwinSymbolDetails * details,
+                                          const gchar * symbol,
+                                          const guint8 * node,
+                                          const guint8 * exports_end)
+{
+  const guint8 * p = node;
+
+  details->symbol = symbol;
+  details->flags = gum_read_uleb128 (&p, exports_end);
+  if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  {
+    details->reexport_library_ordinal = gum_read_uleb128 (&p, exports_end);
+    details->reexport_symbol = (*p != '\0') ? (gchar *) p : symbol;
+  }
+  else if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+  {
+    details->stub = gum_read_uleb128 (&p, exports_end);
+    details->resolver = gum_read_uleb128 (&p, exports_end);
+  }
+  else
+  {
+    details->offset = gum_read_uleb128 (&p, exports_end);
+  }
 }
 
 static const GumDyldCacheImageInfo *

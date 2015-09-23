@@ -9,6 +9,8 @@
 
 #include <gum/gum.h>
 
+#define GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
+
 G_BEGIN_DECLS
 
 typedef struct _GumDarwinModule GumDarwinModule;
@@ -22,6 +24,8 @@ typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 
+typedef gboolean (* GumDarwinFoundSymbolFunc) (
+    const GumDarwinSymbolDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundSectionFunc) (
     const GumDarwinSectionDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundRebaseFunc) (
@@ -44,6 +48,7 @@ struct _GumDarwinModule
   gsize pointer_size;
   gsize page_size;
   GumAddress base_address;
+  GumMemoryRange text_range;
 
   GumDarwinModuleImage * image;
 
@@ -88,6 +93,7 @@ struct _GumDarwinModuleImage
 
 struct _GumDarwinSymbolDetails
 {
+  const gchar * symbol;
   guint64 flags;
 
   union
@@ -159,6 +165,10 @@ void gum_darwin_module_set_base_address (GumDarwinModule * self,
 
 gboolean gum_darwin_module_resolve (GumDarwinModule * self,
     const gchar * symbol, GumDarwinSymbolDetails * details);
+void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
+    GumFoundImportFunc func, gpointer user_data);
+void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
+    GumDarwinFoundSymbolFunc func, gpointer user_data);
 GumAddress gum_darwin_module_slide (GumDarwinModule * self);
 const GumDarwinSegment * gum_darwin_module_segment (GumDarwinModule * self,
     gsize index);

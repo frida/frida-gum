@@ -39,6 +39,8 @@ GUM_API void gum_darwin_enumerate_modules (mach_port_t task,
     GumFoundModuleFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_ranges (mach_port_t task,
     GumPageProtection prot, GumFoundRangeFunc func, gpointer user_data);
+GUM_API void gum_darwin_enumerate_imports (mach_port_t task,
+    const gchar * module_name, GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_exports (mach_port_t task,
     const gchar * module_name, GumFoundExportFunc func, gpointer user_data);
 

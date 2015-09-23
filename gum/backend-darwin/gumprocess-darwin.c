@@ -26,20 +26,11 @@
 #define DYLD_IMAGE_INFO_32_SIZE 12
 #define DYLD_IMAGE_INFO_64_SIZE 24
 
-#define SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL(S) \
-      (S->n_value == 0 || \
-       S->n_type >= N_PEXT || \
-       (S->n_type & N_EXT) == 0)
-
-#ifndef EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE
-# define EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
-#endif
-
-typedef struct _GumEmitImportsContext GumEmitImportsContext;
+typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
+typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
 typedef struct _GumFindExportContext GumFindExportContext;
-typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
 
 typedef union _DyldInfo DyldInfo;
@@ -51,19 +42,25 @@ typedef struct _DyldAllImageInfos64 DyldAllImageInfos64;
 typedef struct _DyldImageInfo32 DyldImageInfo32;
 typedef struct _DyldImageInfo64 DyldImageInfo64;
 
-typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
-
-typedef gboolean (* GumFoundExportsTrieTerminalFunc) (const gchar * symbol,
-    const guint8 * node, const guint8 * exports_end, gpointer user_data);
-
-struct _GumEmitImportsContext
+struct _GumEnumerateImportsContext
 {
+  const gchar * module_name;
   GumFoundImportFunc func;
   gpointer user_data;
 
+  GumAddress base_address;
+};
+
+struct _GumEnumerateExportsContext
+{
+  mach_port_t task;
+  GumFoundExportFunc func;
+  gpointer user_data;
+
+  GHashTable * modules;
+  GHashTable * ranges;
+
   GumDarwinModule * module;
-  GHashTable * imports_seen;
-  gboolean carry_on;
 };
 
 struct _GumFindEntrypointContext
@@ -87,19 +84,6 @@ struct _GumFindExportContext
 {
   GumAddress result;
   const gchar * symbol_name;
-};
-
-struct _GumEnumerateExportsContext
-{
-  mach_port_t task;
-  GHashTable * modules;
-
-  const gchar * current_module_name;
-  GumAddress current_base_address;
-  GumMemoryRange current_text_range;
-
-  GumFoundExportFunc func;
-  gpointer user_data;
 };
 
 struct _GumEnumerateMallocRangesContext
@@ -163,16 +147,6 @@ struct _DyldImageInfo64
   guint64 image_file_mod_date;
 };
 
-struct _GumExportsTrieForeachContext
-{
-  GString * prefix;
-  const guint8 * exports;
-  const guint8 * exports_end;
-
-  GumFoundExportsTrieTerminalFunc func;
-  gpointer user_data;
-};
-
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
 typedef arm_unified_thread_state_t gum_thread_state_t;
 # define GUM_THREAD_STATE_COUNT ARM_UNIFIED_THREAD_STATE_COUNT
@@ -208,10 +182,10 @@ static void gum_emit_malloc_ranges (task_t task,
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
 
-static gboolean gum_emit_import (const GumDarwinBindDetails * details,
+static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
-static gboolean gum_module_do_enumerate_exports (const gchar * module_name,
-    GumFoundExportFunc func, gpointer user_data);
+static gboolean gum_store_base_address_if_module_path_matches (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
@@ -222,25 +196,20 @@ static gboolean gum_store_range_of_potential_modules (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesSlowContext * ctx);
-
-static gboolean gum_store_module_address (const GumModuleDetails * details,
+static gboolean gum_emit_export (const GumDarwinSymbolDetails * details,
     gpointer user_data);
-static gboolean gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
-    const gchar * module_name);
-static gboolean gum_emit_trie_export_if_ours (const gchar * symbol,
-    const guint8 * node, const guint8 * exports_end, gpointer user_data);
-static gboolean gum_darwin_find_text_section_range (const guint8 * module,
-    gsize module_size, GumMemoryRange * range);
-static gboolean gum_darwin_section_flags_indicate_text_section (uint32_t flags);
+static gboolean gum_emit_export_context_process (
+    GumEnumerateExportsContext * self, GumDarwinModule * module,
+    const GumDarwinSymbolDetails * details);
+static GumDarwinModule * gum_emit_export_context_resolve (
+    GumEnumerateExportsContext * self, const gchar * module_name);
+static gboolean gum_emit_export_context_collect_range (
+    const GumModuleDetails * details, gpointer user_data);
+static void gum_emit_export_context_free_range_value (gpointer data);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
-static gboolean find_image_vmaddr_and_fileoff (gconstpointer address,
-    gsize * vmaddr, gsize * fileoff);
 static gsize find_image_size (const gchar * image_name);
-static GSList * find_image_text_section_ids (gconstpointer address);
-static gboolean find_image_symtab_command (gconstpointer address,
-    const struct symtab_command ** sc);
 
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
@@ -251,10 +220,6 @@ static void gum_cpu_context_from_darwin (const gum_thread_state_t * state,
 static void gum_cpu_context_to_darwin (const GumCpuContext * ctx,
     gum_thread_state_t * state);
 static const char * gum_symbol_name_from_darwin (const char * s);
-static gboolean gum_exports_trie_foreach (const guint8 * exports, gsize size,
-    GumFoundExportsTrieTerminalFunc func, gpointer user_data);
-static gboolean gum_exports_trie_traverse (const guint8 * p,
-    GumExportsTrieForeachContext * ctx);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
 
@@ -496,81 +461,8 @@ gum_module_enumerate_imports (const gchar * module_name,
                               GumFoundImportFunc func,
                               gpointer user_data)
 {
-  gpointer address, slide;
-  GumDarwinModule * module = NULL;
-  GumEmitImportsContext ctx;
-
-  if (!find_image_address_and_slide (module_name, &address, &slide))
-    return;
-
-  module = gum_darwin_module_new_from_memory (module_name, mach_task_self (),
-      GUM_NATIVE_CPU, GUM_ADDRESS (address));
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  ctx.module = module;
-  ctx.imports_seen = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
-      NULL);
-  ctx.carry_on = TRUE;
-  gum_darwin_module_enumerate_binds (module, gum_emit_import, &ctx);
-  if (ctx.carry_on)
-    gum_darwin_module_enumerate_lazy_binds (module, gum_emit_import, &ctx);
-
-  g_hash_table_unref (ctx.imports_seen);
-
-  gum_darwin_module_unref (module);
-}
-
-static gboolean
-gum_emit_import (const GumDarwinBindDetails * details,
-                 gpointer user_data)
-{
-  GumEmitImportsContext * ctx = user_data;
-  GumImportDetails d;
-  gchar * key;
-
-  d.symbol_name = gum_symbol_name_from_darwin (details->symbol_name);
-  switch (details->library_ordinal)
-  {
-    case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
-    case BIND_SPECIAL_DYLIB_SELF:
-      return TRUE;
-    case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
-    {
-      gpointer address;
-      Dl_info info;
-
-      address = dlsym (RTLD_DEFAULT, d.symbol_name);
-      if (address == NULL)
-        return TRUE;
-      else if (!dladdr (address, &info))
-        return TRUE;
-      else if (GUM_ADDRESS (info.dli_fbase) == ctx->module->base_address)
-        return TRUE;
-      d.module_name = info.dli_fname;
-
-      break;
-    }
-    default:
-      d.module_name = gum_darwin_module_dependency (ctx->module,
-          details->library_ordinal);
-      break;
-  }
-
-  key = g_strconcat (d.module_name, "|", d.symbol_name, NULL);
-  if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
-  {
-    g_hash_table_insert (ctx->imports_seen, key, key);
-
-    ctx->carry_on = ctx->func (&d, ctx->user_data);
-  }
-  else
-  {
-    g_free (key);
-  }
-
-  return ctx->carry_on;
+  return gum_darwin_enumerate_imports (mach_task_self (), module_name, func,
+      user_data);
 }
 
 void
@@ -578,90 +470,8 @@ gum_module_enumerate_exports (const gchar * module_name,
                               GumFoundExportFunc func,
                               gpointer user_data)
 {
-  gum_module_do_enumerate_exports (module_name, func, user_data);
-}
-
-static gboolean
-gum_module_do_enumerate_exports (const gchar * module_name,
-                                 GumFoundExportFunc func,
-                                 gpointer user_data)
-{
-  gboolean carry_on = TRUE;
-  gpointer address, slide;
-  gsize vmaddr, fileoff;
-  GSList * text_section_ids = NULL;
-  const struct symtab_command * sc;
-  guint8 * table_base;
-  gum_nlist_t * symbase, * sym;
-  gchar * strbase;
-  guint symbol_index;
-
-  if (!find_image_address_and_slide (module_name, &address, &slide))
-    goto beach;
-
-  if (!find_image_vmaddr_and_fileoff (address, &vmaddr, &fileoff))
-    goto beach;
-
-  text_section_ids = find_image_text_section_ids (address);
-
-  if (!find_image_symtab_command (address, &sc))
-    goto beach;
-
-  table_base = GSIZE_TO_POINTER (vmaddr - fileoff + GPOINTER_TO_SIZE (slide));
-  symbase = (gum_nlist_t *) (table_base + sc->symoff);
-  strbase = (gchar *) (table_base + sc->stroff);
-
-  for (symbol_index = 0, sym = symbase;
-      symbol_index != sc->nsyms;
-      symbol_index++, sym++)
-  {
-    GumExportDetails details;
-
-    if (SYMBOL_IS_UNDEFINED_DEBUG_OR_LOCAL (sym))
-      continue;
-
-    details.type =
-        g_slist_find (text_section_ids, GSIZE_TO_POINTER (sym->n_sect)) != NULL
-        ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
-    details.name = gum_symbol_name_from_darwin (strbase + sym->n_un.n_strx);
-    details.address = GUM_ADDRESS (
-        GSIZE_TO_POINTER (sym->n_value) + GPOINTER_TO_SIZE (slide));
-    if ((sym->n_desc & N_ARM_THUMB_DEF) != 0)
-      details.address++;
-
-    carry_on = func (&details, user_data);
-
-    if (!carry_on)
-      goto beach;
-  }
-
-  {
-    gum_mach_header_t * header = address;
-    guint8 * p;
-    guint cmd_index;
-
-    p = (guint8 *) (header + 1);
-    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-    {
-      struct load_command * lc = (struct load_command *) p;
-
-      if (lc->cmd == LC_REEXPORT_DYLIB)
-      {
-        struct dylib_command * dc = (struct dylib_command *) lc;
-        const char * name = (const char *)
-            (((guint8 *) dc) + dc->dylib.name.offset);
-        if (!gum_module_do_enumerate_exports (name, func, user_data))
-          return FALSE;
-      }
-
-      p += lc->cmdsize;
-    }
-  }
-
-beach:
-  g_slist_free (text_section_ids);
-
-  return carry_on;
+  return gum_darwin_enumerate_exports (mach_task_self (), module_name, func,
+      user_data);
 }
 
 void
@@ -1363,6 +1173,59 @@ gum_darwin_enumerate_ranges (mach_port_t task,
 }
 
 void
+gum_darwin_enumerate_imports (mach_port_t task,
+                              const gchar * module_name,
+                              GumFoundImportFunc func,
+                              gpointer user_data)
+{
+  GumEnumerateImportsContext ctx;
+  GumDarwinModule * module;
+
+  ctx.module_name = module_name;
+  ctx.func = func;
+  ctx.user_data = user_data;
+
+  ctx.base_address = 0;
+  gum_darwin_enumerate_modules (task,
+      gum_store_base_address_if_module_path_matches, &ctx);
+  if (ctx.base_address == 0)
+    return;
+
+  module = gum_darwin_module_new_from_memory (module_name, task, GUM_NATIVE_CPU,
+      ctx.base_address);
+  gum_darwin_module_enumerate_imports (module, gum_emit_import, &ctx);
+  gum_darwin_module_unref (module);
+}
+
+static gboolean
+gum_emit_import (const GumImportDetails * details,
+                 gpointer user_data)
+{
+  GumEnumerateImportsContext * ctx = user_data;
+  GumImportDetails d;
+
+  d.module_name = details->module_name;
+  d.symbol_name = gum_symbol_name_from_darwin (details->symbol_name);
+
+  return ctx->func (&d, ctx->user_data);
+}
+
+static gboolean
+gum_store_base_address_if_module_path_matches (const GumModuleDetails * details,
+                                               gpointer user_data)
+{
+  GumEnumerateImportsContext * self = user_data;
+
+  if (gum_module_path_equals (details->path, self->module_name))
+  {
+    self->base_address = details->range->base_address;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+void
 gum_darwin_enumerate_exports (mach_port_t task,
                               const gchar * module_name,
                               GumFoundExportFunc func,
@@ -1371,182 +1234,130 @@ gum_darwin_enumerate_exports (mach_port_t task,
   GumEnumerateExportsContext ctx;
 
   ctx.task = task;
-  ctx.modules = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, (GDestroyNotify) g_variant_unref);
   ctx.func = func;
   ctx.user_data = user_data;
 
-  gum_darwin_enumerate_modules (task, gum_store_module_address, &ctx);
+  ctx.modules = g_hash_table_new_full (g_str_hash, g_str_equal,
+      g_free, (GDestroyNotify) gum_darwin_module_unref);
+  ctx.ranges = g_hash_table_new_full (g_str_hash, g_str_equal,
+      g_free, gum_emit_export_context_free_range_value);
+  gum_darwin_enumerate_modules (task, gum_emit_export_context_collect_range,
+      &ctx);
 
-  gum_do_enumerate_exports (&ctx, module_name);
+  ctx.module = gum_emit_export_context_resolve (&ctx, module_name);
+  if (ctx.module != NULL)
+    gum_darwin_module_enumerate_exports (ctx.module, gum_emit_export, &ctx);
 
+  g_hash_table_unref (ctx.ranges);
   g_hash_table_unref (ctx.modules);
 }
 
 static gboolean
-gum_store_module_address (const GumModuleDetails * details,
-                          gpointer user_data)
+gum_emit_export (const GumDarwinSymbolDetails * details,
+                 gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
-  GVariant * value;
 
-  value = g_variant_new_uint64 (details->range->base_address);
-  g_hash_table_insert (ctx->modules, g_strdup (details->name),
-      g_variant_ref (value));
-  g_hash_table_insert (ctx->modules, g_strdup (details->path),
-      g_variant_ref (value));
-  g_variant_unref (value);
-
-  return TRUE;
+  return gum_emit_export_context_process (ctx, ctx->module, details);
 }
 
 static gboolean
-gum_do_enumerate_exports (GumEnumerateExportsContext * ctx,
-                          const gchar * module_name)
+gum_emit_export_context_process (GumEnumerateExportsContext * self,
+                                 GumDarwinModule * module,
+                                 const GumDarwinSymbolDetails * details)
 {
-  gboolean carry_on = TRUE;
-  GVariant * address_value;
-  GumAddress address;
-  guint8 * chunk = NULL;
-  gsize chunk_size;
-  struct mach_header * header;
-  gint64 slide;
-  GumAddress linkedit;
-  const struct dyld_info_command * info;
-  guint8 * exports;
-  gsize exports_size;
+  GumExportDetails d;
 
-  address_value = g_hash_table_lookup (ctx->modules, module_name);
-  if (address_value == NULL)
-    goto beach;
-
-  address = g_variant_get_uint64 (address_value);
-  if (address == 0)
-    goto beach;
-
-  chunk = gum_darwin_read (ctx->task, address, MAX_MACH_HEADER_SIZE,
-      &chunk_size);
-  if (chunk == NULL)
-    goto beach;
-  header = (struct mach_header *) chunk;
-
-  if (!gum_darwin_find_slide (address, chunk, chunk_size, &slide))
-    goto beach;
-
-  if (!gum_darwin_find_linkedit (chunk, chunk_size, &linkedit))
-    goto beach;
-  linkedit += slide;
-
-  if (!gum_darwin_find_command (LC_DYLD_INFO_ONLY, chunk, chunk_size,
-      (gpointer *) &info))
-    goto beach;
-
-  ctx->current_module_name = module_name;
-  ctx->current_base_address = address;
-  if (gum_darwin_find_text_section_range (chunk, chunk_size,
-      &ctx->current_text_range))
+  if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
-    ctx->current_text_range.base_address += slide;
-  }
-  else
-  {
-    ctx->current_text_range.base_address = 0;
-    ctx->current_text_range.size = 0;
+    const gchar * target_name;
+    GumDarwinSymbolDetails reexp_details;
+
+    target_name = gum_darwin_module_dependency (module,
+        details->reexport_library_ordinal);
+    module = gum_emit_export_context_resolve (self, target_name);
+    if (module == NULL)
+      return TRUE;
+
+    if (!gum_darwin_module_resolve (module, details->reexport_symbol,
+        &reexp_details))
+      return TRUE;
+
+    return gum_emit_export_context_process (self, module, &reexp_details);
   }
 
-  exports = gum_darwin_read (ctx->task, linkedit + info->export_off,
-      info->export_size, &exports_size);
+  d.name = gum_symbol_name_from_darwin (details->symbol);
 
-  carry_on = gum_exports_trie_foreach (exports, exports_size,
-      gum_emit_trie_export_if_ours, ctx);
-
-  g_free (exports);
-
-  if (carry_on)
-  {
-    guint8 * cur_cmd;
-    guint cmd_index;
-
-    if (header->magic == MH_MAGIC)
-      cur_cmd = chunk + sizeof (struct mach_header);
-    else
-      cur_cmd = chunk + sizeof (struct mach_header_64);
-    for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-    {
-      struct load_command * lc = (struct load_command *) cur_cmd;
-
-      if (lc->cmd == LC_REEXPORT_DYLIB)
-      {
-        struct dylib_command * dc = (struct dylib_command *) lc;
-        const char * name = (const char *)
-            (((guint8 *) dc) + dc->dylib.name.offset);
-        if (!gum_do_enumerate_exports (ctx, name))
-        {
-          carry_on = FALSE;
-          break;
-        }
-      }
-
-      cur_cmd += lc->cmdsize;
-    }
-  }
-
-beach:
-  g_free (chunk);
-
-  return carry_on;
-}
-
-static gboolean
-gum_emit_trie_export_if_ours (const gchar * symbol,
-                              const guint8 * node,
-                              const guint8 * exports_end,
-                              gpointer user_data)
-{
-  GumEnumerateExportsContext * ctx = user_data;
-  GumExportDetails details;
-  guint64 flags, offset;
-
-  details.name = symbol;
-
-  flags = gum_read_uleb128 (&node, exports_end);
-  if ((flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
-    return TRUE;
-
-  switch (flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
+  switch (details->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
   {
     case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
-      if ((flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+      if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore interposing */
-        gint64 stub;
-
-        stub = gum_read_uleb128 (&node, exports_end);
-        details.address = ctx->current_base_address + stub;
+        d.address = module->base_address + details->stub;
       }
       else
       {
-        offset = gum_read_uleb128 (&node, exports_end);
-        details.address = ctx->current_base_address + offset;
+        d.address = module->base_address + details->offset;
       }
       break;
     case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
-      details.address =
-          ctx->current_base_address + gum_read_uleb128 (&node, exports_end);
+      d.address = module->base_address + details->offset;
       break;
-    case EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
-      details.address = gum_read_uleb128 (&node, exports_end);
+    case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
+      d.address = details->offset;
       break;
     default:
       g_assert_not_reached ();
       break;
   }
 
-  details.type =
-      GUM_MEMORY_RANGE_INCLUDES (&ctx->current_text_range, details.address)
+  d.type =
+      GUM_MEMORY_RANGE_INCLUDES (&module->text_range, d.address)
       ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
 
-  return ctx->func (&details, ctx->user_data);
+  return self->func (&d, self->user_data);
+}
+
+static GumDarwinModule *
+gum_emit_export_context_resolve (GumEnumerateExportsContext * self,
+                                 const gchar * module_name)
+{
+  GumDarwinModule * module;
+  GumMemoryRange * range;
+
+  module = g_hash_table_lookup (self->modules, module_name);
+  if (module != NULL)
+    return module;
+
+  range = g_hash_table_lookup (self->ranges, module_name);
+  if (range == NULL)
+    return NULL;
+
+  module = gum_darwin_module_new_from_memory (module_name, self->task,
+      GUM_NATIVE_CPU, range->base_address);
+  g_hash_table_insert (self->modules, g_strdup (module_name), module);
+  return module;
+}
+
+static gboolean
+gum_emit_export_context_collect_range (const GumModuleDetails * details,
+                                       gpointer user_data)
+{
+  GumEnumerateExportsContext * self = user_data;
+
+  g_hash_table_insert (self->ranges, g_strdup (details->name),
+      g_slice_dup (GumMemoryRange, details->range));
+  g_hash_table_insert (self->ranges, g_strdup (details->path),
+      g_slice_dup (GumMemoryRange, details->range));
+
+  return TRUE;
+}
+
+static void
+gum_emit_export_context_free_range_value (gpointer data)
+{
+  g_slice_free (GumMemoryRange, data);
 }
 
 gboolean
@@ -1626,75 +1437,6 @@ gum_darwin_find_linkedit (const guint8 * module,
   return FALSE;
 }
 
-static gboolean
-gum_darwin_find_text_section_range (const guint8 * module,
-                                    gsize module_size,
-                                    GumMemoryRange * range)
-{
-  struct mach_header * header;
-  const guint8 * p;
-  guint cmd_index;
-
-  header = (struct mach_header *) module;
-  if (header->magic == MH_MAGIC)
-    p = module + sizeof (struct mach_header);
-  else
-    p = module + sizeof (struct mach_header_64);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    struct load_command * lc = (struct load_command *) p;
-
-    if (lc->cmd == LC_SEGMENT || lc->cmd == LC_SEGMENT_64)
-    {
-      gsize i;
-
-      if (header->magic == MH_MAGIC)
-      {
-        struct segment_command * sc = (struct segment_command *) lc;
-
-        struct section * sect = (struct section *) (sc + 1);
-        for (i = 0; i != sc->nsects; i++, sect++)
-        {
-          if (gum_darwin_section_flags_indicate_text_section (sect->flags))
-          {
-            range->base_address = sect->addr;
-            range->size = sect->size;
-            return TRUE;
-          }
-        }
-      }
-      else
-      {
-        struct segment_command_64 * sc = (struct segment_command_64 *) lc;
-
-        struct section_64 * sect = (struct section_64 *) (sc + 1);
-        for (i = 0; i != sc->nsects; i++, sect++)
-        {
-          if (gum_darwin_section_flags_indicate_text_section (sect->flags))
-          {
-            range->base_address = sect->addr;
-            range->size = sect->size;
-            return TRUE;
-          }
-        }
-      }
-    }
-
-    p += lc->cmdsize;
-  }
-
-  return FALSE;
-}
-
-static gboolean
-gum_darwin_section_flags_indicate_text_section (uint32_t flags)
-{
-  if ((flags & SECTION_TYPE) != S_REGULAR)
-    return FALSE;
-
-  return (flags & (S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS)) != 0;
-}
-
 gboolean
 gum_darwin_find_command (guint id,
                          const guint8 * module,
@@ -1748,38 +1490,6 @@ find_image_address_and_slide (const gchar * image_name,
   return FALSE;
 }
 
-static gboolean
-find_image_vmaddr_and_fileoff (gconstpointer address,
-                               gsize * vmaddr,
-                               gsize * fileoff)
-{
-  const gum_mach_header_t * header = address;
-  guint8 * p;
-  guint cmd_index;
-
-  p = (guint8 *) (header + 1);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    struct load_command * lc = (struct load_command *) p;
-
-    if (lc->cmd == GUM_LC_SEGMENT)
-    {
-      gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
-
-      if (strcmp (segcmd->segname, "__LINKEDIT") == 0)
-      {
-        *vmaddr = segcmd->vmaddr;
-        *fileoff = segcmd->fileoff;
-        return TRUE;
-      }
-    }
-
-    p += lc->cmdsize;
-  }
-
-  return FALSE;
-}
-
 static gsize
 find_image_size (const gchar * image_name)
 {
@@ -1808,67 +1518,6 @@ find_image_size (const gchar * image_name)
   }
 
   return 0;
-}
-
-static GSList *
-find_image_text_section_ids (gconstpointer address)
-{
-  GSList * ids = NULL;
-  gsize section_count = 0;
-  const gum_mach_header_t * header = address;
-  guint8 * p;
-  guint cmd_index, section_index;
-
-  p = (guint8 *) (header + 1);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    struct load_command * lc = (struct load_command *) p;
-
-    if (lc->cmd == GUM_LC_SEGMENT)
-    {
-      gum_segment_command_t * segcmd = (gum_segment_command_t *) lc;
-
-      if ((segcmd->initprot & VM_PROT_EXECUTE) != 0)
-      {
-        for (section_index = 0; section_index != segcmd->nsects; section_index++)
-        {
-          ids = g_slist_prepend (ids,
-              GSIZE_TO_POINTER (section_count + section_index + 1));
-        }
-      }
-
-      section_count += segcmd->nsects;
-    }
-
-    p += lc->cmdsize;
-  }
-
-  return g_slist_reverse (ids);
-}
-
-static gboolean
-find_image_symtab_command (gconstpointer address,
-                           const struct symtab_command ** sc)
-{
-  const gum_mach_header_t * header = address;
-  guint8 * p;
-  guint cmd_index;
-
-  p = (guint8 *) (header + 1);
-  for (cmd_index = 0; cmd_index != header->ncmds; cmd_index++)
-  {
-    struct load_command * lc = (struct load_command *) p;
-
-    if (lc->cmd == LC_SYMTAB)
-    {
-      *sc = (struct symtab_command *) lc;
-      return TRUE;
-    }
-
-    p += lc->cmdsize;
-  }
-
-  return FALSE;
 }
 
 static gboolean
@@ -2032,73 +1681,5 @@ static const char *
 gum_symbol_name_from_darwin (const char * s)
 {
   return (s[0] == '_') ? s + 1 : s;
-}
-
-static gboolean
-gum_exports_trie_foreach (const guint8 * exports,
-                          gsize size,
-                          GumFoundExportsTrieTerminalFunc func,
-                          gpointer user_data)
-{
-  GumExportsTrieForeachContext ctx;
-  gboolean carry_on;
-
-  ctx.prefix = g_string_new ("");
-  ctx.exports = exports;
-  ctx.exports_end = exports + size;
-
-  ctx.func = func;
-  ctx.user_data = user_data;
-
-  carry_on = gum_exports_trie_traverse (exports, &ctx);
-
-  g_string_free (ctx.prefix, TRUE);
-
-  return carry_on;
-}
-
-static gboolean
-gum_exports_trie_traverse (const guint8 * p,
-                           GumExportsTrieForeachContext * ctx)
-{
-  GString * prefix = ctx->prefix;
-  const guint8 * exports = ctx->exports;
-  const guint8 * exports_end = ctx->exports_end;
-  gboolean carry_on;
-  guint64 terminal_size;
-  guint8 child_count, i;
-
-  terminal_size = gum_read_uleb128 (&p, exports_end);
-  if (terminal_size != 0)
-  {
-    carry_on = ctx->func (gum_symbol_name_from_darwin (prefix->str), p,
-        exports_end, ctx->user_data);
-    if (!carry_on)
-      return FALSE;
-  }
-
-  p += terminal_size;
-  child_count = *p++;
-  for (i = 0; i != child_count; i++)
-  {
-    gsize length = 0;
-
-    while (*p != '\0')
-    {
-      g_string_append_c (prefix, *p++);
-      length++;
-    }
-    p++;
-
-    carry_on = gum_exports_trie_traverse (
-        exports + gum_read_uleb128 (&p, exports_end),
-        ctx);
-    if (!carry_on)
-      return FALSE;
-
-    g_string_truncate (prefix, prefix->len - length);
-  }
-
-  return TRUE;
 }
 
