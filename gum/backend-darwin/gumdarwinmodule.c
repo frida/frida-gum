@@ -9,13 +9,11 @@
 #include "gumdarwin.h"
 #include "gumleb.h"
 
-#include <mach/mach.h>
 #include <mach-o/fat.h>
 #include <mach-o/loader.h>
 
 #define MAX_METADATA_SIZE (64 * 1024)
 
-typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
 typedef struct _GumEmitImportContext GumEmitImportContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
@@ -25,23 +23,6 @@ typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
-
-struct _GumDarwinModuleImageSegment
-{
-  guint64 offset;
-  guint64 size;
-  gint protection;
-};
-
-struct _GumDarwinSegment
-{
-  gchar name[16];
-  GumAddress vm_address;
-  guint64 vm_size;
-  guint64 file_offset;
-  guint64 file_size;
-  vm_prot_t protection;
-};
 
 struct _GumEmitImportContext
 {
@@ -125,9 +106,6 @@ static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
 static gboolean gum_fill_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
-
-static GumDarwinModuleImage * gum_darwin_module_image_new (void);
-static void gum_darwin_module_image_free (GumDarwinModuleImage * image);
 
 static gboolean gum_exports_trie_find (const guint8 * exports,
     const guint8 * exports_end, const gchar * symbol,
@@ -1209,7 +1187,7 @@ gum_section_flags_indicate_text_section (uint32_t flags)
   return (flags & (S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS)) != 0;
 }
 
-static GumDarwinModuleImage *
+GumDarwinModuleImage *
 gum_darwin_module_image_new (void)
 {
   GumDarwinModuleImage * image;
@@ -1283,7 +1261,7 @@ gum_darwin_module_image_dup (const GumDarwinModuleImage * other)
   return image;
 }
 
-static void
+void
 gum_darwin_module_image_free (GumDarwinModuleImage * image)
 {
   g_free (image->malloc_data);

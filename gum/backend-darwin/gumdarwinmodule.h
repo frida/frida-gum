@@ -8,6 +8,7 @@
 #define __GUM_DARWIN_MODULE_H__
 
 #include <gum/gum.h>
+#include <mach/mach.h>
 
 #define GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
 
@@ -16,13 +17,14 @@ G_BEGIN_DECLS
 typedef struct _GumDarwinModule GumDarwinModule;
 typedef struct _GumDarwinModuleImage GumDarwinModuleImage;
 
-typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
-typedef struct _GumDarwinSegment GumDarwinSegment;
+typedef struct _GumDarwinModuleImageSegment GumDarwinModuleImageSegment;
 typedef struct _GumDarwinSectionDetails GumDarwinSectionDetails;
 typedef struct _GumDarwinRebaseDetails GumDarwinRebaseDetails;
 typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
+typedef struct _GumDarwinSegment GumDarwinSegment;
+typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
 typedef gboolean (* GumDarwinFoundSymbolFunc) (
     const GumDarwinSymbolDetails * details, gpointer user_data);
@@ -91,25 +93,11 @@ struct _GumDarwinModuleImage
   gpointer malloc_data;
 };
 
-struct _GumDarwinSymbolDetails
+struct _GumDarwinModuleImageSegment
 {
-  const gchar * symbol;
-  guint64 flags;
-
-  union
-  {
-    struct {
-      guint64 offset;
-    };
-    struct {
-      guint64 stub;
-      guint64 resolver;
-    };
-    struct {
-      gint reexport_library_ordinal;
-      const gchar * reexport_symbol;
-    };
-  };
+  guint64 offset;
+  guint64 size;
+  gint protection;
 };
 
 struct _GumDarwinSectionDetails
@@ -153,6 +141,37 @@ struct _GumDarwinTermPointersDetails
   guint64 count;
 };
 
+struct _GumDarwinSegment
+{
+  gchar name[16];
+  GumAddress vm_address;
+  guint64 vm_size;
+  guint64 file_offset;
+  guint64 file_size;
+  vm_prot_t protection;
+};
+
+struct _GumDarwinSymbolDetails
+{
+  const gchar * symbol;
+  guint64 flags;
+
+  union
+  {
+    struct {
+      guint64 offset;
+    };
+    struct {
+      guint64 stub;
+      guint64 resolver;
+    };
+    struct {
+      gint reexport_library_ordinal;
+      const gchar * reexport_symbol;
+    };
+  };
+};
+
 GumDarwinModule * gum_darwin_module_new_from_file (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, GMappedFile * cache_file);
 GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
@@ -187,8 +206,10 @@ void gum_darwin_module_enumerate_term_pointers (GumDarwinModule * self,
 const gchar * gum_darwin_module_dependency (GumDarwinModule * self,
     gint ordinal);
 
+GumDarwinModuleImage * gum_darwin_module_image_new (void);
 GumDarwinModuleImage * gum_darwin_module_image_dup (
     const GumDarwinModuleImage * other);
+void gum_darwin_module_image_free (GumDarwinModuleImage * image);
 
 G_END_DECLS
 

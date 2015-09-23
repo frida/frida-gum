@@ -122,10 +122,12 @@ backend_sources += \
 	backend-darwin/gumkernel-darwin.c \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c \
+	backend-darwin/gumdarwinmapper.c \
 	backend-darwin/gumdarwinmodule.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumdarwinbacktracer.h \
+	backend-darwin/gumdarwinmapper.h \
 	backend-darwin/gumdarwinmodule.h
 else
 backend_sources += \

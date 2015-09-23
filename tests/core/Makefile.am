@@ -1,3 +1,4 @@
+noinst_PROGRAMS = mapper-test
 noinst_LTLIBRARIES = libgum-tests-core.la
 
 arch_sources = $(NULL)
@@ -35,6 +36,14 @@ libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
 	$(script_sources)
+
+mapper_test_SOURCES = \
+	mapper.c
+mapper_test_LDADD = \
+	$(top_builddir)/gum/libfrida-gum-1.0.la \
+	$(GUM_LIBS)
+mapper_test_LDFLAGS = \
+	$(GUM_LDFLAGS)
 
 EXTRA_DIST = \
 	targetfunctions.c \
