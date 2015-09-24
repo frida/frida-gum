@@ -1309,11 +1309,9 @@ gum_enumerate_exports_context_process (GumEnumerateExportsContext * self,
       {
         d.address = module->base_address + details->offset;
       }
-      d.address += gum_darwin_module_slide (module);
       break;
     case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
-      d.address = module->base_address + details->offset +
-          gum_darwin_module_slide (module);
+      d.address = module->base_address + details->offset;
       break;
     case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
       d.address = details->offset;
