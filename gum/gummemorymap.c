@@ -8,7 +8,7 @@
 
 #include "gumprocess.h"
 
-typedef struct _GumUpdateMemoryRangesCtx GumUpdateMemoryRangesCtx;
+typedef struct _GumUpdateMemoryRangesContext GumUpdateMemoryRangesContext;
 
 struct _GumMemoryMapPrivate
 {
@@ -18,7 +18,7 @@ struct _GumMemoryMapPrivate
   gsize ranges_max;
 };
 
-struct _GumUpdateMemoryRangesCtx
+struct _GumUpdateMemoryRangesContext
 {
   GArray * ranges;
   gint prev_range_index;
@@ -101,7 +101,7 @@ void
 gum_memory_map_update (GumMemoryMap * self)
 {
   GumMemoryMapPrivate * priv = self->priv;
-  GumUpdateMemoryRangesCtx ctx;
+  GumUpdateMemoryRangesContext ctx;
 
   ctx.ranges = priv->ranges;
   ctx.prev_range_index = -1;
@@ -132,7 +132,8 @@ static gboolean
 gum_memory_map_add_range (const GumRangeDetails * details,
                           gpointer user_data)
 {
-  GumUpdateMemoryRangesCtx * ctx = (GumUpdateMemoryRangesCtx *) user_data;
+  GumUpdateMemoryRangesContext * ctx =
+      (GumUpdateMemoryRangesContext *) user_data;
   GArray * ranges = ctx->ranges;
   const GumMemoryRange * cur = details->range;
   GumMemoryRange * prev;
