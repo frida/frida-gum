@@ -44,6 +44,7 @@ typedef Elf64_Sym GumElfSymbol;
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
+typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
 
 struct _GumFindModuleContext
 {
@@ -57,6 +58,12 @@ struct _GumEnumerateModuleRangesContext
   const gchar * module_name;
   GumFoundRangeFunc func;
   gpointer user_data;
+};
+
+struct _GumCanonicalizeNameContext
+{
+  const gchar * module_name;
+  gchar * module_path;
 };
 
 #ifndef HAVE_ANDROID
