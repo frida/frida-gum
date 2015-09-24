@@ -22,6 +22,7 @@ fridainclude_HEADERS = \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
 	gummemorymap.h \
+	gummodulemap.h \
 	gumprocess.h \
 	gumreturnaddress.h \
 	gumspinlock.h \
@@ -175,6 +176,7 @@ libfrida_gum_la_SOURCES = \
 	gummemorymap.c \
 	gummetalhash.c \
 	gummetalhash.h \
+	gummodulemap.c \
 	gumprintf.c \
 	gumprintf.h \
 	gumprocess.c \
