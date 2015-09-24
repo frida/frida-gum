@@ -46,7 +46,8 @@ struct _GumModuleDetails
 
 enum _GumImportType
 {
-  GUM_IMPORT_FUNCTION = 1,
+  GUM_IMPORT_UNKNOWN,
+  GUM_IMPORT_FUNCTION,
   GUM_IMPORT_VARIABLE
 };
 
