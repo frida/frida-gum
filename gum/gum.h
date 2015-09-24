@@ -17,6 +17,8 @@
 #include <gum/gumlist.h>
 #include <gum/gummemory.h>
 #include <gum/gummemoryaccessmonitor.h>
+#include <gum/gummemorymap.h>
+#include <gum/gummodulemap.h>
 #include <gum/gumprocess.h>
 #include <gum/gumreturnaddress.h>
 #include <gum/gumstalker.h>
