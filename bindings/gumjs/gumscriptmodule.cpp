@@ -131,14 +131,14 @@ _gum_script_module_realize (GumScriptModule * self)
     Local<String> empty_string = String::NewFromUtf8 (isolate, "");
 
     Local<Object> imp (Object::New (isolate));
-    Maybe<bool> result = imp->ForceSet (context, type, function, DontDelete);
+    Maybe<bool> result = imp->ForceSet (context, type, function);
     g_assert (result.IsJust ());
     result = imp->ForceSet (context, name, empty_string, DontDelete);
     g_assert (result.IsJust ());
-    result = imp->ForceSet (context, module, empty_string, DontDelete);
+    result = imp->ForceSet (context, module, empty_string);
     g_assert (result.IsJust ());
     result = imp->ForceSet (context, address, _gum_script_pointer_new (
-        GSIZE_TO_POINTER (NULL), self->core), DontDelete);
+        GSIZE_TO_POINTER (NULL), self->core));
     g_assert (result.IsJust ());
 
     Local<Object> exp (Object::New (isolate));
@@ -255,29 +255,69 @@ gum_script_module_handle_import_match (const GumImportDetails * details,
       static_cast<PropertyAttribute> (ReadOnly | DontDelete);
 
   Local<Object> imp (ctx->imp->Clone ());
-  if (details->type != GUM_IMPORT_FUNCTION)
+
+  switch (details->type)
   {
-    Maybe<bool> success = imp->ForceSet (jc, ctx->type, ctx->variable, attrs);
-    g_assert (success.IsJust ());
+    case GUM_IMPORT_FUNCTION:
+    {
+      /* the default value in our template */
+      break;
+    }
+    case GUM_IMPORT_VARIABLE:
+    {
+      Maybe<bool> success = imp->ForceSet (jc, ctx->type, ctx->variable, attrs);
+      g_assert (success.IsJust ());
+      break;
+    }
+    case GUM_IMPORT_UNKNOWN:
+    {
+      Maybe<bool> success = imp->Delete (jc, ctx->type);
+      g_assert (success.IsJust ());
+      break;
+    }
+    default:
+    {
+      g_assert_not_reached ();
+      break;
+    }
   }
+
   Maybe<bool> success = imp->ForceSet (jc,
       ctx->name,
       String::NewFromOneByte (isolate,
           reinterpret_cast<const uint8_t *> (details->name)),
       attrs);
   g_assert (success.IsJust ());
-  success = imp->ForceSet (jc,
-      ctx->module,
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> (details->module)),
-      attrs);
-  g_assert (success.IsJust ());
-  success = imp->ForceSet (jc,
-      ctx->address,
-      _gum_script_pointer_new (GSIZE_TO_POINTER (details->address),
-          ctx->self->core),
-      attrs);
-  g_assert (success.IsJust ());
+
+  if (details->module != NULL)
+  {
+    success = imp->ForceSet (jc,
+        ctx->module,
+        String::NewFromOneByte (isolate,
+            reinterpret_cast<const uint8_t *> (details->module)),
+        attrs);
+    g_assert (success.IsJust ());
+  }
+  else
+  {
+    success = imp->Delete (jc, ctx->module);
+    g_assert (success.IsJust ());
+  }
+
+  if (details->address != 0)
+  {
+    success = imp->ForceSet (jc,
+        ctx->address,
+        _gum_script_pointer_new (GSIZE_TO_POINTER (details->address),
+            ctx->self->core),
+        attrs);
+    g_assert (success.IsJust ());
+  }
+  else
+  {
+    success = imp->Delete (jc, ctx->address);
+    g_assert (success.IsJust ());
+  }
 
   Handle<Value> argv[] = {
     imp
@@ -373,17 +413,20 @@ gum_script_module_handle_export_match (const GumExportDetails * details,
       static_cast<PropertyAttribute> (ReadOnly | DontDelete);
 
   Local<Object> exp (ctx->exp->Clone ());
+
   if (details->type != GUM_EXPORT_FUNCTION)
   {
     Maybe<bool> success = exp->ForceSet (jc, ctx->type, ctx->variable, attrs);
     g_assert (success.IsJust ());
   }
+
   Maybe<bool> success = exp->ForceSet (jc,
       ctx->name,
       String::NewFromOneByte (isolate,
           reinterpret_cast<const uint8_t *> (details->name)),
       attrs);
   g_assert (success.IsJust ());
+
   success = exp->ForceSet (jc,
       ctx->address,
       _gum_script_pointer_new (GSIZE_TO_POINTER (details->address),
