@@ -193,8 +193,8 @@ namespace Gum {
 	}
 
 	public struct ImportDetails {
-		public string module_name;
-		public string symbol_name;
+		public string module;
+		public string symbol;
 	}
 
 	[CCode (cprefix = "GUM_EXPORT_")]

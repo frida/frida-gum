@@ -51,8 +51,8 @@ enum _GumExportType
 
 struct _GumImportDetails
 {
-  const gchar * module_name;
-  const gchar * symbol_name;
+  const gchar * module;
+  const gchar * symbol;
 };
 
 struct _GumExportDetails

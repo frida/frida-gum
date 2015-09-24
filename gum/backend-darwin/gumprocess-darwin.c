@@ -1213,8 +1213,8 @@ gum_emit_import (const GumImportDetails * details,
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
 
-  d.module_name = details->module_name;
-  d.symbol_name = gum_symbol_name_from_darwin (details->symbol_name);
+  d.module = details->module;
+  d.symbol = gum_symbol_name_from_darwin (details->symbol);
 
   return ctx->func (&d, ctx->user_data);
 }
