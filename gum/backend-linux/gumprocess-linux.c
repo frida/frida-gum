@@ -8,7 +8,6 @@
 
 #include "gumlinux.h"
 
-#include <dlfcn.h>
 #include <elf.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -44,7 +43,7 @@ typedef Elf64_Sym GumElfSymbol;
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
+typedef struct _GumFindExportContext GumFindExportContext;
 
 struct _GumFindModuleContext
 {
@@ -60,10 +59,10 @@ struct _GumEnumerateModuleRangesContext
   gpointer user_data;
 };
 
-struct _GumCanonicalizeNameContext
+struct _GumFindExportContext
 {
-  const gchar * module_name;
-  gchar * module_path;
+  GumAddress result;
+  const gchar * symbol_name;
 };
 
 #ifndef HAVE_ANDROID
@@ -77,10 +76,9 @@ static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (
+    const GumExportDetails * details, gpointer user_data);
 
-static gchar * gum_canonicalize_module_name (const gchar * name);
-static gboolean gum_store_module_path_if_module_name_matches (
-    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
@@ -539,31 +537,18 @@ GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  GumAddress result;
-  void * module;
+  GumFindExportContext ctx;
 
-  if (module_name != NULL)
-  {
-    gchar * name;
+  if (module_name == NULL)
+    return 0; /* TODO */
 
-    name = gum_canonicalize_module_name (module_name);
-    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-    g_free (name);
+  ctx.result = 0;
+  ctx.symbol_name = symbol_name;
 
-    if (module == NULL)
-      return 0;
-  }
-  else
-  {
-    module = RTLD_DEFAULT;
-  }
+  gum_module_enumerate_exports (module_name,
+      gum_store_address_if_export_name_matches, &ctx);
 
-  result = GUM_ADDRESS (dlsym (module, symbol_name));
-
-  if (module != RTLD_DEFAULT)
-    dlclose (module);
-
-  return result;
+  return ctx.result;
 }
 
 static gboolean
@@ -592,6 +577,21 @@ gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
   ctx->base = details->range->base_address;
   ctx->path = g_strdup (details->path);
   return FALSE;
+}
+
+static gboolean
+gum_store_address_if_export_name_matches (const GumExportDetails * details,
+                                          gpointer user_data)
+{
+  GumFindExportContext * ctx = (GumFindExportContext *) user_data;
+
+  if (strcmp (details->name, ctx->symbol_name) == 0)
+  {
+    ctx->result = details->address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 GumCpuType
@@ -697,36 +697,6 @@ beach:
   g_free (auxv_path);
 
   return result;
-}
-
-static gchar *
-gum_canonicalize_module_name (const gchar * name)
-{
-  GumCanonicalizeNameContext ctx;
-
-  if (name[0] == '/')
-    return g_strdup (name);
-
-  ctx.module_name = name;
-  ctx.module_path = NULL;
-  gum_process_enumerate_modules (gum_store_module_path_if_module_name_matches,
-      &ctx);
-  return ctx.module_path;
-}
-
-static gboolean
-gum_store_module_path_if_module_name_matches (const GumModuleDetails * details,
-                                              gpointer user_data)
-{
-  GumCanonicalizeNameContext * ctx = user_data;
-
-  if (strcmp (details->name, ctx->module_name) == 0)
-  {
-    ctx->module_path = g_strdup (details->path);
-    return FALSE;
-  }
-
-  return TRUE;
 }
 
 static gboolean
