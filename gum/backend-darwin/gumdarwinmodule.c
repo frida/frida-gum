@@ -1099,8 +1099,6 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
   gum_darwin_module_enumerate_sections (self,
       gum_fill_text_range_if_text_section, &self->text_range);
-  if (self->text_range.base_address != 0)
-    self->text_range.base_address += gum_darwin_module_slide (self);
 
   if (image->linkedit == NULL)
   {
