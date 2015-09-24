@@ -7,7 +7,9 @@
 #include "gumprocess.h"
 
 #include "gumlinux.h"
+#include "gummodulemap.h"
 
+#include <dlfcn.h>
 #include <elf.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -28,6 +30,7 @@
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
+typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
@@ -70,6 +73,13 @@ struct _GumEnumerateImportsContext
 
   GHashTable * dependency_exports;
   GumElfModule * current_dependency;
+  GumModuleMap * module_map;
+};
+
+struct _GumDependencyExport
+{
+  gchar * module;
+  GumAddress address;
 };
 
 struct _GumFindModuleContext
@@ -141,6 +151,9 @@ static gboolean gum_collect_dependency_exports (
     const GumElfDependencyDetails * details, gpointer user_data);
 static gboolean gum_collect_dependency_export (const GumExportDetails * details,
     gpointer user_data);
+static GumDependencyExport * gum_dependency_export_new (const gchar * module,
+    GumAddress address);
+static void gum_dependency_export_free (GumDependencyExport * export);
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
@@ -515,13 +528,17 @@ gum_module_enumerate_imports (const gchar * module_name,
   ctx.user_data = user_data;
 
   ctx.dependency_exports = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, g_free);
+      g_free, (GDestroyNotify) gum_dependency_export_free);
+  ctx.current_dependency = NULL;
+  ctx.module_map = NULL;
 
   gum_elf_module_enumerate_dependencies (&module,
       gum_collect_dependency_exports, &ctx);
 
   gum_elf_module_enumerate_imports (&module, gum_emit_import, &ctx);
 
+  if (ctx.module_map != NULL)
+    g_object_unref (ctx.module_map);
   g_hash_table_unref (ctx.dependency_exports);
 
   gum_elf_module_close (&module);
@@ -533,11 +550,33 @@ gum_emit_import (const GumImportDetails * details,
 {
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
+  GumDependencyExport * exp;
 
   d.type = details->type;
   d.name = details->name;
-  d.module = g_hash_table_lookup (ctx->dependency_exports, details->name);
-  d.address = 0;
+
+  exp = g_hash_table_lookup (ctx->dependency_exports, details->name);
+  if (exp != NULL)
+  {
+    d.module = exp->module;
+    d.address = exp->address;
+  }
+  else
+  {
+    d.module = NULL;
+    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, details->name));
+
+    if (d.address != 0)
+    {
+      const GumModuleDetails * module;
+
+      if (ctx->module_map == NULL)
+        ctx->module_map = gum_module_map_new ();
+      module = gum_module_map_find (ctx->module_map, d.address);
+      if (module != NULL)
+        d.module = module->path;
+    }
+  }
 
   return ctx->func (&d, ctx->user_data);
 }
@@ -567,10 +606,31 @@ gum_collect_dependency_export (const GumExportDetails * details,
   GumEnumerateImportsContext * ctx = user_data;
   GumElfModule * module = ctx->current_dependency;
 
-  g_hash_table_insert (ctx->dependency_exports, g_strdup (details->name),
-      g_strdup (module->path));
+  g_hash_table_insert (ctx->dependency_exports,
+      g_strdup (details->name),
+      gum_dependency_export_new (module->path, details->address));
 
   return TRUE;
+}
+
+static GumDependencyExport *
+gum_dependency_export_new (const gchar * module,
+                           GumAddress address)
+{
+  GumDependencyExport * export;
+
+  export = g_slice_new (GumDependencyExport);
+  export->module = g_strdup (module);
+  export->address = address;
+
+  return export;
+}
+
+static void
+gum_dependency_export_free (GumDependencyExport * export)
+{
+  g_free (export->module);
+  g_slice_free (GumDependencyExport, export);
 }
 
 void
