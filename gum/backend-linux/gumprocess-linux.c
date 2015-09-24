@@ -534,8 +534,10 @@ gum_emit_import (const GumImportDetails * details,
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
 
-  d.module = g_hash_table_lookup (ctx->dependency_exports, details->symbol);
-  d.symbol = details->symbol;
+  d.type = details->type;
+  d.name = details->name;
+  d.module = g_hash_table_lookup (ctx->dependency_exports, details->name);
+  d.address = 0;
 
   return ctx->func (&d, ctx->user_data);
 }
@@ -920,8 +922,12 @@ gum_emit_elf_import (const GumElfSymbolDetails * details,
   {
     GumImportDetails d;
 
+    d.type = (details->type == STT_FUNC)
+        ? GUM_EXPORT_FUNCTION
+        : GUM_EXPORT_VARIABLE;
+    d.name = details->name;
     d.module = NULL;
-    d.symbol = details->name;
+    d.address = 0;
 
     if (!ctx->func (&d, ctx->user_data))
       return FALSE;

@@ -23,8 +23,11 @@ struct _GumScriptImportsContext
   Local<Object> receiver;
 
   Local<Object> imp;
+  Local<Value> type;
+  Local<Value> name;
   Local<Value> module;
-  Local<Value> symbol;
+  Local<Value> address;
+  Local<Value> variable;
 };
 
 struct _GumScriptExportsContext
@@ -68,13 +71,12 @@ static void gum_script_module_on_find_base_address (
 static void gum_script_module_on_find_export_by_name (
     const FunctionCallbackInfo<Value> & info);
 
-static v8::Eternal<v8::Object> eternal_module_import;
-static v8::Eternal<v8::String> eternal_module;
-static v8::Eternal<v8::String> eternal_symbol;
+static v8::Eternal<v8::Object> eternal_imp;
+static v8::Eternal<v8::Object> eternal_exp;
 
-static v8::Eternal<v8::Object> eternal_module_export;
 static v8::Eternal<v8::String> eternal_type;
 static v8::Eternal<v8::String> eternal_name;
+static v8::Eternal<v8::String> eternal_module;
 static v8::Eternal<v8::String> eternal_address;
 static v8::Eternal<v8::String> eternal_variable;
 
@@ -118,41 +120,42 @@ _gum_script_module_realize (GumScriptModule * self)
     Isolate * isolate = self->core->isolate;
     Local<Context> context = isolate->GetCurrentContext ();
 
-    Local<String> module (String::NewFromUtf8 (isolate, "module"));
-    Local<String> symbol (String::NewFromUtf8 (isolate, "symbol"));
-
-    Local<Object> imp (Object::New (isolate));
-    Maybe<bool> result = imp->ForceSet (context, module,
-        String::NewFromUtf8 (isolate, ""), DontDelete);
-    g_assert (result.IsJust ());
-    result = imp->ForceSet (context, symbol,
-        String::NewFromUtf8 (isolate, ""), DontDelete);
-    g_assert (result.IsJust ());
-
-    eternal_module_import.Set (isolate, imp);
-    eternal_module.Set (isolate, module);
-    eternal_symbol.Set (isolate, symbol);
-
     Local<String> type (String::NewFromUtf8 (isolate, "type"));
     Local<String> name (String::NewFromUtf8 (isolate, "name"));
+    Local<String> module (String::NewFromUtf8 (isolate, "module"));
     Local<String> address (String::NewFromUtf8 (isolate, "address"));
 
     Local<String> function (String::NewFromUtf8 (isolate, "function"));
     Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
 
+    Local<String> empty_string = String::NewFromUtf8 (isolate, "");
+
+    Local<Object> imp (Object::New (isolate));
+    Maybe<bool> result = imp->ForceSet (context, type, function, DontDelete);
+    g_assert (result.IsJust ());
+    result = imp->ForceSet (context, name, empty_string, DontDelete);
+    g_assert (result.IsJust ());
+    result = imp->ForceSet (context, module, empty_string, DontDelete);
+    g_assert (result.IsJust ());
+    result = imp->ForceSet (context, address, _gum_script_pointer_new (
+        GSIZE_TO_POINTER (NULL), self->core), DontDelete);
+    g_assert (result.IsJust ());
+
     Local<Object> exp (Object::New (isolate));
     result = exp->ForceSet (context, type, function, DontDelete);
     g_assert (result.IsJust ());
-    result = exp->ForceSet (context, name, String::NewFromUtf8 (isolate, ""),
-        DontDelete);
+    result = exp->ForceSet (context, name, empty_string, DontDelete);
     g_assert (result.IsJust ());
     result = exp->ForceSet (context, address, _gum_script_pointer_new (
         GSIZE_TO_POINTER (NULL), self->core), DontDelete);
     g_assert (result.IsJust ());
 
-    eternal_module_export.Set (isolate, exp);
+    eternal_imp.Set (isolate, imp);
+    eternal_exp.Set (isolate, exp);
+
     eternal_type.Set (isolate, type);
     eternal_name.Set (isolate, name);
+    eternal_module.Set (isolate, module);
     eternal_address.Set (isolate, address);
     eternal_variable.Set (isolate, variable);
 
@@ -227,9 +230,12 @@ gum_script_module_on_enumerate_imports (
 
   ctx.receiver = info.This ();
 
-  ctx.imp = eternal_module_import.Get (isolate);
+  ctx.imp = eternal_imp.Get (isolate);
+  ctx.type = eternal_type.Get (isolate);
+  ctx.name = eternal_name.Get (isolate);
   ctx.module = eternal_module.Get (isolate);
-  ctx.symbol = eternal_symbol.Get (isolate);
+  ctx.address = eternal_address.Get (isolate);
+  ctx.variable = eternal_variable.Get (isolate);
 
   gum_module_enumerate_imports (*name_str,
       gum_script_module_handle_import_match, &ctx);
@@ -249,27 +255,27 @@ gum_script_module_handle_import_match (const GumImportDetails * details,
       static_cast<PropertyAttribute> (ReadOnly | DontDelete);
 
   Local<Object> imp (ctx->imp->Clone ());
-  if (details->module != NULL)
+  if (details->type != GUM_IMPORT_FUNCTION)
   {
-    Maybe<bool> success = imp->ForceSet (jc,
-        ctx->module,
-        String::NewFromOneByte (isolate,
-            reinterpret_cast<const uint8_t *> (details->module)),
-        attrs);
-    g_assert (success.IsJust ());
-  }
-  else
-  {
-    Maybe<bool> success = imp->ForceSet (jc,
-        ctx->module,
-        Null (isolate),
-        attrs);
+    Maybe<bool> success = imp->ForceSet (jc, ctx->type, ctx->variable, attrs);
     g_assert (success.IsJust ());
   }
   Maybe<bool> success = imp->ForceSet (jc,
-      ctx->symbol,
+      ctx->name,
       String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> (details->symbol)),
+          reinterpret_cast<const uint8_t *> (details->name)),
+      attrs);
+  g_assert (success.IsJust ());
+  success = imp->ForceSet (jc,
+      ctx->module,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (details->module)),
+      attrs);
+  g_assert (success.IsJust ());
+  success = imp->ForceSet (jc,
+      ctx->address,
+      _gum_script_pointer_new (GSIZE_TO_POINTER (details->address),
+          ctx->self->core),
       attrs);
   g_assert (success.IsJust ());
 
@@ -343,7 +349,7 @@ gum_script_module_on_enumerate_exports (
 
   ctx.receiver = info.This ();
 
-  ctx.exp = eternal_module_export.Get (isolate);
+  ctx.exp = eternal_exp.Get (isolate);
   ctx.type = eternal_type.Get (isolate);
   ctx.name = eternal_name.Get (isolate);
   ctx.address = eternal_address.Get (isolate);

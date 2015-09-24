@@ -451,6 +451,9 @@ import_found_cb (const GumImportDetails * details,
 
   ctx->number_of_calls++;
 
+  if (strcmp (details->name, "malloc") == 0)
+    g_assert_cmpint (details->type, ==, GUM_IMPORT_FUNCTION);
+
   return ctx->value_to_return;
 }
 

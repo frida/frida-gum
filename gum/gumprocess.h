@@ -13,6 +13,7 @@ typedef gsize GumThreadId;
 typedef guint GumThreadState;
 typedef struct _GumThreadDetails GumThreadDetails;
 typedef struct _GumModuleDetails GumModuleDetails;
+typedef guint GumImportType;
 typedef guint GumExportType;
 typedef struct _GumImportDetails GumImportDetails;
 typedef struct _GumExportDetails GumExportDetails;
@@ -43,6 +44,12 @@ struct _GumModuleDetails
   const gchar * path;
 };
 
+enum _GumImportType
+{
+  GUM_IMPORT_FUNCTION = 1,
+  GUM_IMPORT_VARIABLE
+};
+
 enum _GumExportType
 {
   GUM_EXPORT_FUNCTION = 1,
@@ -51,8 +58,10 @@ enum _GumExportType
 
 struct _GumImportDetails
 {
+  GumImportType type;
+  const gchar * name;
   const gchar * module;
-  const gchar * symbol;
+  GumAddress address;
 };
 
 struct _GumExportDetails

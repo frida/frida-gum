@@ -192,9 +192,17 @@ namespace Gum {
 		public string path;
 	}
 
+	[CCode (cprefix = "GUM_IMPORT_")]
+	public enum ImportType {
+		FUNCTION = 1,
+		VARIABLE
+	}
+
 	public struct ImportDetails {
+		public Gum.ImportType type;
+		public string name;
 		public string module;
-		public string symbol;
+		public Gum.Address address;
 	}
 
 	[CCode (cprefix = "GUM_EXPORT_")]
