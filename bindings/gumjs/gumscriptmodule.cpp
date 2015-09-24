@@ -249,13 +249,24 @@ gum_script_module_handle_import_match (const GumImportDetails * details,
       static_cast<PropertyAttribute> (ReadOnly | DontDelete);
 
   Local<Object> imp (ctx->imp->Clone ());
+  if (details->module != NULL)
+  {
+    Maybe<bool> success = imp->ForceSet (jc,
+        ctx->module,
+        String::NewFromOneByte (isolate,
+            reinterpret_cast<const uint8_t *> (details->module)),
+        attrs);
+    g_assert (success.IsJust ());
+  }
+  else
+  {
+    Maybe<bool> success = imp->ForceSet (jc,
+        ctx->module,
+        Null (isolate),
+        attrs);
+    g_assert (success.IsJust ());
+  }
   Maybe<bool> success = imp->ForceSet (jc,
-      ctx->module,
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> (details->module)),
-      attrs);
-  g_assert (success.IsJust ());
-  success = imp->ForceSet (jc,
       ctx->symbol,
       String::NewFromOneByte (isolate,
           reinterpret_cast<const uint8_t *> (details->symbol)),
