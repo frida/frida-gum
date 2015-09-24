@@ -286,6 +286,21 @@
             }
         });
 
+        Object.defineProperty(Module, 'enumerateImportsSync', {
+            enumerable: true,
+            value: function (name) {
+                const imports = [];
+                Module.enumerateImports(name, {
+                    onMatch: function (e) {
+                        imports.push(e);
+                    },
+                    onComplete: function () {
+                    }
+                });
+                return imports;
+            }
+        });
+
         Object.defineProperty(Module, 'enumerateExportsSync', {
             enumerable: true,
             value: function (name) {

@@ -10,8 +10,22 @@
 
 using namespace v8;
 
+typedef struct _GumScriptImportsContext GumScriptImportsContext;
 typedef struct _GumScriptExportsContext GumScriptExportsContext;
 typedef struct _GumScriptRangesContext GumScriptRangesContext;
+
+struct _GumScriptImportsContext
+{
+  GumScriptModule * self;
+  Isolate * isolate;
+  Local<Function> on_match;
+  Local<Function> on_complete;
+  Local<Object> receiver;
+
+  Local<Object> imp;
+  Local<Value> module;
+  Local<Value> symbol;
+};
 
 struct _GumScriptExportsContext
 {
@@ -37,6 +51,10 @@ struct _GumScriptRangesContext
   Local<Object> receiver;
 };
 
+static void gum_script_module_on_enumerate_imports (
+    const FunctionCallbackInfo<Value> & info);
+static gboolean gum_script_module_handle_import_match (
+    const GumImportDetails * details, gpointer user_data);
 static void gum_script_module_on_enumerate_exports (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_script_module_handle_export_match (
@@ -49,6 +67,10 @@ static void gum_script_module_on_find_base_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_module_on_find_export_by_name (
     const FunctionCallbackInfo<Value> & info);
+
+static v8::Eternal<v8::Object> eternal_module_import;
+static v8::Eternal<v8::String> eternal_module;
+static v8::Eternal<v8::String> eternal_symbol;
 
 static v8::Eternal<v8::Object> eternal_module_export;
 static v8::Eternal<v8::String> eternal_type;
@@ -68,6 +90,9 @@ _gum_script_module_init (GumScriptModule * self,
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> module = ObjectTemplate::New (isolate);
+  module->Set (String::NewFromUtf8 (isolate, "enumerateImports"),
+      FunctionTemplate::New (isolate, gum_script_module_on_enumerate_imports,
+      data));
   module->Set (String::NewFromUtf8 (isolate, "enumerateExports"),
       FunctionTemplate::New (isolate, gum_script_module_on_enumerate_exports,
       data));
@@ -93,6 +118,21 @@ _gum_script_module_realize (GumScriptModule * self)
     Isolate * isolate = self->core->isolate;
     Local<Context> context = isolate->GetCurrentContext ();
 
+    Local<String> module (String::NewFromUtf8 (isolate, "module"));
+    Local<String> symbol (String::NewFromUtf8 (isolate, "symbol"));
+
+    Local<Object> imp (Object::New (isolate));
+    Maybe<bool> result = imp->ForceSet (context, module,
+        String::NewFromUtf8 (isolate, ""), DontDelete);
+    g_assert (result.IsJust ());
+    result = imp->ForceSet (context, symbol,
+        String::NewFromUtf8 (isolate, ""), DontDelete);
+    g_assert (result.IsJust ());
+
+    eternal_module_import.Set (isolate, imp);
+    eternal_module.Set (isolate, module);
+    eternal_symbol.Set (isolate, symbol);
+
     Local<String> type (String::NewFromUtf8 (isolate, "type"));
     Local<String> name (String::NewFromUtf8 (isolate, "name"));
     Local<String> address (String::NewFromUtf8 (isolate, "address"));
@@ -101,7 +141,7 @@ _gum_script_module_realize (GumScriptModule * self)
     Local<String> variable (String::NewFromUtf8 (isolate, "variable"));
 
     Local<Object> exp (Object::New (isolate));
-    Maybe<bool> result = exp->ForceSet (context, type, function, DontDelete);
+    result = exp->ForceSet (context, type, function, DontDelete);
     g_assert (result.IsJust ());
     result = exp->ForceSet (context, name, String::NewFromUtf8 (isolate, ""),
         DontDelete);
@@ -130,6 +170,111 @@ void
 _gum_script_module_finalize (GumScriptModule * self)
 {
   (void) self;
+}
+
+/*
+ * Prototype:
+ * Module.enumerateImports(name, callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_module_on_enumerate_imports (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumScriptModule * self = static_cast<GumScriptModule *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+  GumScriptImportsContext ctx;
+
+  ctx.self = self;
+  ctx.isolate = isolate;
+
+  Local<Value> name_val = info[0];
+  if (!name_val->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Module.enumerateImports: first argument must be "
+        "a string specifying a module name whose imports to enumerate")));
+    return;
+  }
+  String::Utf8Value name_str (name_val);
+
+  Local<Value> callbacks_value = info[1];
+  if (!callbacks_value->IsObject ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Module.enumerateImports: second argument must be "
+        "a callback object")));
+    return;
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!_gum_script_callbacks_get (callbacks, "onMatch", &ctx.on_match,
+      ctx.self->core))
+  {
+    return;
+  }
+  if (!_gum_script_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
+      ctx.self->core))
+  {
+    return;
+  }
+
+  ctx.receiver = info.This ();
+
+  ctx.imp = eternal_module_import.Get (isolate);
+  ctx.module = eternal_module.Get (isolate);
+  ctx.symbol = eternal_symbol.Get (isolate);
+
+  gum_module_enumerate_imports (*name_str,
+      gum_script_module_handle_import_match, &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+}
+
+static gboolean
+gum_script_module_handle_import_match (const GumImportDetails * details,
+                                       gpointer user_data)
+{
+  GumScriptImportsContext * ctx =
+      static_cast<GumScriptImportsContext *> (user_data);
+  Isolate * isolate = ctx->isolate;
+  Local<Context> jc = isolate->GetCurrentContext ();
+  PropertyAttribute attrs =
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete);
+
+  Local<Object> imp (ctx->imp->Clone ());
+  Maybe<bool> success = imp->ForceSet (jc,
+      ctx->module,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (details->module)),
+      attrs);
+  g_assert (success.IsJust ());
+  success = imp->ForceSet (jc,
+      ctx->symbol,
+      String::NewFromOneByte (isolate,
+          reinterpret_cast<const uint8_t *> (details->symbol)),
+      attrs);
+  g_assert (success.IsJust ());
+
+  Handle<Value> argv[] = {
+    imp
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
+
+  gboolean proceed = TRUE;
+  if (!result.IsEmpty () && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
 }
 
 /*
