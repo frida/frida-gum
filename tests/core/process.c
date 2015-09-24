@@ -227,7 +227,7 @@ PROCESS_TESTCASE (process_malloc_ranges)
 
 PROCESS_TESTCASE (module_imports)
 {
-#ifdef HAVE_DARWIN
+#ifndef HAVE_QNX
   TestForEachContext ctx;
 
   ctx.number_of_calls = 0;

@@ -990,6 +990,7 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated)
 {
+#ifndef HAVE_QNX
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateImports(\"gum-tests\", {"
         "onMatch: function (imp) {"
@@ -1002,6 +1003,7 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+#endif
 }
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
