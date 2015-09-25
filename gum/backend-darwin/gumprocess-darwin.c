@@ -787,6 +787,12 @@ gum_darwin_enumerate_modules (mach_port_t task,
   gchar * file_path = NULL;
   gboolean carry_on = TRUE;
 
+  if (task == mach_task_self ())
+  {
+    gum_process_enumerate_modules (func, user_data);
+    return;
+  }
+
 #if defined (HAVE_ARM) || defined (HAVE_ARM64)
   DyldInfo info_raw;
   count = DYLD_INFO_COUNT;
