@@ -33,7 +33,7 @@ typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-typedef struct _GumFindExportContext GumFindExportContext;
+typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
 
 typedef struct _GumElfModule GumElfModule;
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
@@ -96,10 +96,10 @@ struct _GumEnumerateModuleRangesContext
   gpointer user_data;
 };
 
-struct _GumFindExportContext
+struct _GumCanonicalizeNameContext
 {
-  const gchar * symbol_name;
-  GumAddress result;
+  const gchar * module_name;
+  gchar * module_path;
 };
 
 struct _GumElfModule
@@ -158,11 +158,10 @@ static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_store_address_if_module_has_export (
-    const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (
-    const GumExportDetails * details, gpointer user_data);
 
+static gchar * gum_canonicalize_module_name (const gchar * name);
+static gboolean gum_store_module_path_if_module_name_matches (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
@@ -703,50 +702,33 @@ GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  GumFindExportContext ctx;
+  GumAddress result;
+  void * module;
 
-  ctx.symbol_name = symbol_name;
-  ctx.result = 0;
-
-  if (module_name == NULL)
+  if (module_name != NULL)
   {
-    gum_process_enumerate_modules (gum_store_address_if_module_has_export,
-        &ctx);
+    gchar * name;
+
+    name = gum_canonicalize_module_name (module_name);
+    if (name == NULL)
+      return 0;
+    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+    g_free (name);
+
+    if (module == NULL)
+      return 0;
   }
   else
   {
-    gum_module_enumerate_exports (module_name,
-        gum_store_address_if_export_name_matches, &ctx);
+    module = RTLD_DEFAULT;
   }
 
-  return ctx.result;
-}
+  result = GUM_ADDRESS (dlsym (module, symbol_name));
 
-static gboolean
-gum_store_address_if_module_has_export (const GumModuleDetails * details,
-                                        gpointer user_data)
-{
-  GumFindExportContext * ctx = user_data;
+  if (module != RTLD_DEFAULT)
+    dlclose (module);
 
-  gum_module_enumerate_exports (details->path,
-      gum_store_address_if_export_name_matches, ctx);
-
-  return ctx->result == 0;
-}
-
-static gboolean
-gum_store_address_if_export_name_matches (const GumExportDetails * details,
-                                          gpointer user_data)
-{
-  GumFindExportContext * ctx = user_data;
-
-  if (strcmp (details->name, ctx->symbol_name) == 0)
-  {
-    ctx->result = details->address;
-    return FALSE;
-  }
-
-  return TRUE;
+  return result;
 }
 
 GumCpuType
@@ -852,6 +834,34 @@ beach:
   g_free (auxv_path);
 
   return result;
+}
+
+static gchar *
+gum_canonicalize_module_name (const gchar * name)
+{
+  GumCanonicalizeNameContext ctx;
+
+  ctx.module_name = name;
+  ctx.module_path = NULL;
+  gum_process_enumerate_modules (gum_store_module_path_if_module_name_matches,
+      &ctx);
+
+  return ctx.module_path;
+}
+
+static gboolean
+gum_store_module_path_if_module_name_matches (const GumModuleDetails * details,
+                                              gpointer user_data)
+{
+  GumCanonicalizeNameContext * ctx = user_data;
+
+  if (gum_module_path_equals (details->path, ctx->module_name))
+  {
+    ctx->module_path = g_strdup (details->path);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
