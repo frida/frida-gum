@@ -47,6 +47,11 @@
 #define GUM_ASSERT_CMPADDR(n1, cmp, n2) \
     g_assert_cmphex (GPOINTER_TO_SIZE (n1), cmp, GPOINTER_TO_SIZE (n2))
 
+#ifdef G_OS_WIN32
+# define GUM_TESTS_MODULE_NAME "gum-tests.exe"
+#else
+# define GUM_TESTS_MODULE_NAME "gum-tests"
+#endif
 #define SYSTEM_MODULE_NAME test_util_get_system_module_name ()
 #if defined (G_OS_WIN32)
 # define SYSTEM_MODULE_EXPORT "Sleep"

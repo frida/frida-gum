@@ -992,7 +992,7 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
 {
 #ifndef HAVE_QNX
   COMPILE_AND_LOAD_SCRIPT (
-      "Module.enumerateImports(\"gum-tests\", {"
+      "Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\", {"
         "onMatch: function (imp) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -1009,7 +1009,8 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
 SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Module.enumerateImportsSync(\"gum-tests\").length > 1);");
+      "send(Module.enumerateImportsSync(\"" GUM_TESTS_MODULE_NAME "\")"
+      ".length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 

@@ -12,6 +12,7 @@
 #include <dlfcn.h>
 #endif
 #include <stdlib.h>
+#include <string.h>
 
 #define PROCESS_TESTCASE(NAME) \
     void test_process_ ## NAME (void)
@@ -232,12 +233,12 @@ PROCESS_TESTCASE (module_imports)
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_module_enumerate_imports ("gum-tests", import_found_cb, &ctx);
+  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME, import_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_module_enumerate_imports ("gum-tests", import_found_cb, &ctx);
+  gum_module_enumerate_imports (GUM_TESTS_MODULE_NAME, import_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 #else
   (void) import_found_cb;
