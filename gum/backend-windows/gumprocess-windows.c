@@ -11,12 +11,24 @@
 #include <psapi.h>
 #include <tlhelp32.h>
 
+typedef struct _GumFindExportContext GumFindExportContext;
+
+struct _GumFindExportContext
+{
+  const gchar * symbol_name;
+  GumAddress result;
+};
+
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
 static void gum_cpu_context_from_windows (const CONTEXT * context,
     GumCpuContext * cpu_context);
 static void gum_cpu_context_to_windows (const GumCpuContext * cpu_context,
     CONTEXT * context);
+static gboolean gum_store_address_if_module_has_export (
+    const GumModuleDetails * details, gpointer user_data);
+static gboolean gum_store_address_if_export_name_matches (
+    const GumExportDetails * details, gpointer user_data);
 static HMODULE get_module_handle_utf8 (const gchar * module_name);
 
 gboolean
@@ -462,16 +474,55 @@ GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  HMODULE module;
-
   if (module_name == NULL)
-    return 0;
+  {
+    GumFindExportContext ctx;
 
-  module = get_module_handle_utf8 (module_name);
-  if (module == NULL)
-    return 0;
+    ctx.symbol_name = symbol_name;
+    ctx.result = 0;
 
-  return GUM_ADDRESS (GetProcAddress (module, symbol_name));
+    gum_process_enumerate_modules (gum_store_address_if_module_has_export,
+        &ctx);
+
+    return ctx.result;
+  }
+  else
+  {
+    HMODULE module;
+
+    module = get_module_handle_utf8 (module_name);
+    if (module == NULL)
+      return 0;
+
+    return GUM_ADDRESS (GetProcAddress (module, symbol_name));
+  }
+}
+
+static gboolean
+gum_store_address_if_module_has_export (const GumModuleDetails * details,
+                                        gpointer user_data)
+{
+  GumFindExportContext * ctx = user_data;
+
+  gum_module_enumerate_exports (details->path,
+      gum_store_address_if_export_name_matches, ctx);
+
+  return ctx->result == 0;
+}
+
+static gboolean
+gum_store_address_if_export_name_matches (const GumExportDetails * details,
+                                          gpointer user_data)
+{
+  GumFindExportContext * ctx = user_data;
+
+  if (strcmp (details->name, ctx->symbol_name) == 0)
+  {
+    ctx->result = details->address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static HMODULE
