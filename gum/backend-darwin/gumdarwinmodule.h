@@ -46,6 +46,7 @@ struct _GumDarwinModule
   gchar * name;
 
   mach_port_t task;
+  gboolean is_local;
   GumCpuType cpu_type;
   gsize pointer_size;
   gsize page_size;
@@ -64,15 +65,19 @@ struct _GumDarwinModule
 
   guint8 * rebases;
   const guint8 * rebases_end;
+  gpointer rebases_malloc_data;
 
   guint8 * binds;
   const guint8 * binds_end;
+  gpointer binds_malloc_data;
 
   guint8 * lazy_binds;
   const guint8 * lazy_binds_end;
+  gpointer lazy_binds_malloc_data;
 
   guint8 * exports;
   const guint8 * exports_end;
+  gpointer exports_malloc_data;
 
   GPtrArray * dependencies;
 };

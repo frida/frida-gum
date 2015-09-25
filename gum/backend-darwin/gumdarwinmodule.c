@@ -103,6 +103,9 @@ static gboolean gum_darwin_module_load_image_from_memory (
     GumDarwinModule * self);
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
     GumDarwinModuleImage * image);
+static void gum_darwin_module_read_and_assign (GumDarwinModule * self,
+    GumAddress address, gsize size, guint8 ** start, const guint8 ** end,
+    gpointer * malloc_data);
 static gboolean gum_fill_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
@@ -175,6 +178,7 @@ gum_darwin_module_new (const gchar * name,
   module->name = g_strdup (name);
 
   module->task = task;
+  module->is_local = task == mach_task_self ();
   module->cpu_type = cpu_type;
   switch (cpu_type)
   {
@@ -216,10 +220,10 @@ gum_darwin_module_unref (GumDarwinModule * self)
   {
     g_ptr_array_unref (self->dependencies);
 
-    g_free (self->rebases);
-    g_free (self->binds);
-    g_free (self->lazy_binds);
-    g_free (self->exports);
+    g_free (self->rebases_malloc_data);
+    g_free (self->binds_malloc_data);
+    g_free (self->lazy_binds_malloc_data);
+    g_free (self->exports_malloc_data);
 
     g_array_unref (self->segments);
 
@@ -995,23 +999,33 @@ gum_darwin_module_load_image_from_filesystem (GumDarwinModule * self,
 static gboolean
 gum_darwin_module_load_image_from_memory (GumDarwinModule * self)
 {
-  gpointer data;
+  gpointer data, malloc_data;
   gsize data_size;
   GumDarwinModuleImage * image;
 
   g_assert_cmpint (self->base_address, !=, 0);
 
-  data = gum_darwin_read (self->task, self->base_address, MAX_METADATA_SIZE,
-      &data_size);
-  if (data == NULL)
-    return FALSE;
+  if (self->is_local)
+  {
+    data = GSIZE_TO_POINTER (self->base_address);
+    data_size = MAX_METADATA_SIZE;
+    malloc_data = NULL;
+  }
+  else
+  {
+    data = gum_darwin_read (self->task, self->base_address,
+        MAX_METADATA_SIZE, &data_size);
+    if (data == NULL)
+      return FALSE;
+    malloc_data = data;
+  }
 
   image = gum_darwin_module_image_new ();
 
   image->data = data;
   image->size = data_size;
 
-  image->malloc_data = data;
+  image->malloc_data = malloc_data;
 
   return gum_darwin_module_take_image (self, image);
 }
@@ -1024,6 +1038,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   const struct mach_header * header;
   gconstpointer command;
   gsize command_index;
+  GumAddress linkedit;
 
   g_assert (self->image == NULL);
   self->image = image;
@@ -1106,54 +1121,44 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   gum_darwin_module_enumerate_sections (self,
       gum_fill_text_range_if_text_section, &self->text_range);
 
-  if (image->linkedit == NULL)
+  if (image->linkedit != NULL)
   {
-    GumAddress memory_linkedit;
-    gsize rebases_size, binds_size, lazy_binds_size, exports_size;
-
-    if (!gum_darwin_find_linkedit (image->data, image->size, &memory_linkedit))
-      goto beach;
-    memory_linkedit += gum_darwin_module_slide (self);
-
-    self->rebases = gum_darwin_read (self->task, memory_linkedit +
-        self->info->rebase_off, self->info->rebase_size, &rebases_size);
-    self->rebases_end = (self->rebases != NULL) ?
-       self->rebases + rebases_size : NULL;
-
-    self->binds = gum_darwin_read (self->task, memory_linkedit +
-        self->info->bind_off, self->info->bind_size, &binds_size);
-    self->binds_end = (self->binds != NULL) ?
-       self->binds + binds_size : NULL;
-
-    self->lazy_binds = gum_darwin_read (self->task, memory_linkedit +
-        self->info->lazy_bind_off, self->info->lazy_bind_size,
-        &lazy_binds_size);
-    self->lazy_binds_end = (self->lazy_binds != NULL) ?
-       self->lazy_binds + lazy_binds_size : NULL;
-
-    self->exports = gum_darwin_read (self->task, memory_linkedit +
-        self->info->export_off, self->info->export_size, &exports_size);
-    self->exports_end = (self->exports != NULL) ?
-       self->exports + exports_size : NULL;
+    linkedit = GUM_ADDRESS (image->linkedit);
   }
   else
   {
-    self->rebases = g_memdup (image->linkedit + self->info->rebase_off,
-        self->info->rebase_size);
-    self->rebases_end = self->rebases + self->info->rebase_size;
-
-    self->binds = g_memdup (image->linkedit + self->info->bind_off,
-        self->info->bind_size);
-    self->binds_end = self->binds + self->info->bind_size;
-
-    self->lazy_binds = g_memdup (image->linkedit + self->info->lazy_bind_off,
-        self->info->lazy_bind_size);
-    self->lazy_binds_end = self->lazy_binds + self->info->lazy_bind_size;
-
-    self->exports = g_memdup (image->linkedit + self->info->export_off,
-        self->info->export_size);
-    self->exports_end = self->exports + self->info->export_size;
+    if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
+      goto beach;
+    linkedit += gum_darwin_module_slide (self);
   }
+
+  gum_darwin_module_read_and_assign (self,
+      linkedit + self->info->rebase_off,
+      self->info->rebase_size,
+      &self->rebases,
+      &self->rebases_end,
+      &self->rebases_malloc_data);
+
+  gum_darwin_module_read_and_assign (self,
+      linkedit + self->info->bind_off,
+      self->info->bind_size,
+      &self->binds,
+      &self->binds_end,
+      &self->binds_malloc_data);
+
+  gum_darwin_module_read_and_assign (self,
+      linkedit + self->info->lazy_bind_off,
+      self->info->lazy_bind_size,
+      &self->lazy_binds,
+      &self->lazy_binds_end,
+      &self->lazy_binds_malloc_data);
+
+  gum_darwin_module_read_and_assign (self,
+      linkedit + self->info->export_off,
+      self->info->export_size,
+      &self->exports,
+      &self->exports_end,
+      &self->exports_malloc_data);
 
   success = self->exports != NULL;
 
@@ -1165,6 +1170,32 @@ beach:
   }
 
   return success;
+}
+
+static void
+gum_darwin_module_read_and_assign (GumDarwinModule * self,
+                                   GumAddress address,
+                                   gsize size,
+                                   guint8 ** start,
+                                   const guint8 ** end,
+                                   gpointer * malloc_data)
+{
+  if (self->is_local)
+  {
+    *start = GSIZE_TO_POINTER (address);
+    *end = GSIZE_TO_POINTER (address + size);
+    *malloc_data = NULL;
+  }
+  else
+  {
+    gpointer data;
+    gsize n_bytes_read;
+
+    data = gum_darwin_read (self->task, address, size, &n_bytes_read);
+    *start = data;
+    *end = (data != NULL) ? data + n_bytes_read : NULL;
+    *malloc_data = data;
+  }
 }
 
 static gboolean
