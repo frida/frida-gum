@@ -104,7 +104,7 @@ static gboolean gum_darwin_module_load_image_from_memory (
 static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
     GumDarwinModuleImage * image);
 static void gum_darwin_module_read_and_assign (GumDarwinModule * self,
-    GumAddress address, gsize size, guint8 ** start, const guint8 ** end,
+    GumAddress address, gsize size, const guint8 ** start, const guint8 ** end,
     gpointer * malloc_data);
 static gboolean gum_fill_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
@@ -1038,7 +1038,6 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   const struct mach_header * header;
   gconstpointer command;
   gsize command_index;
-  GumAddress linkedit;
 
   g_assert (self->image == NULL);
   self->image = image;
@@ -1123,42 +1122,58 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
   if (image->linkedit != NULL)
   {
-    linkedit = GUM_ADDRESS (image->linkedit);
+    self->rebases = image->linkedit + self->info->rebase_off;
+    self->rebases_end = self->rebases + self->info->rebase_size;
+    self->rebases_malloc_data = NULL;
+
+    self->binds = image->linkedit + self->info->bind_off;
+    self->binds_end = self->binds + self->info->bind_size;
+    self->binds_malloc_data = NULL;
+
+    self->lazy_binds = image->linkedit + self->info->lazy_bind_off;
+    self->lazy_binds_end = self->lazy_binds + self->info->lazy_bind_size;
+    self->lazy_binds_malloc_data = NULL;
+
+    self->exports = image->linkedit + self->info->export_off;
+    self->exports_end = self->exports + self->info->export_size;
+    self->exports_malloc_data = NULL;
   }
   else
   {
+    GumAddress linkedit;
+
     if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
       goto beach;
     linkedit += gum_darwin_module_slide (self);
+
+    gum_darwin_module_read_and_assign (self,
+        linkedit + self->info->rebase_off,
+        self->info->rebase_size,
+        &self->rebases,
+        &self->rebases_end,
+        &self->rebases_malloc_data);
+
+    gum_darwin_module_read_and_assign (self,
+        linkedit + self->info->bind_off,
+        self->info->bind_size,
+        &self->binds,
+        &self->binds_end,
+        &self->binds_malloc_data);
+
+    gum_darwin_module_read_and_assign (self,
+        linkedit + self->info->lazy_bind_off,
+        self->info->lazy_bind_size,
+        &self->lazy_binds,
+        &self->lazy_binds_end,
+        &self->lazy_binds_malloc_data);
+
+    gum_darwin_module_read_and_assign (self,
+        linkedit + self->info->export_off,
+        self->info->export_size,
+        &self->exports,
+        &self->exports_end,
+        &self->exports_malloc_data);
   }
-
-  gum_darwin_module_read_and_assign (self,
-      linkedit + self->info->rebase_off,
-      self->info->rebase_size,
-      &self->rebases,
-      &self->rebases_end,
-      &self->rebases_malloc_data);
-
-  gum_darwin_module_read_and_assign (self,
-      linkedit + self->info->bind_off,
-      self->info->bind_size,
-      &self->binds,
-      &self->binds_end,
-      &self->binds_malloc_data);
-
-  gum_darwin_module_read_and_assign (self,
-      linkedit + self->info->lazy_bind_off,
-      self->info->lazy_bind_size,
-      &self->lazy_binds,
-      &self->lazy_binds_end,
-      &self->lazy_binds_malloc_data);
-
-  gum_darwin_module_read_and_assign (self,
-      linkedit + self->info->export_off,
-      self->info->export_size,
-      &self->exports,
-      &self->exports_end,
-      &self->exports_malloc_data);
 
   success = self->exports != NULL;
 
@@ -1176,7 +1191,7 @@ static void
 gum_darwin_module_read_and_assign (GumDarwinModule * self,
                                    GumAddress address,
                                    gsize size,
-                                   guint8 ** start,
+                                   const guint8 ** start,
                                    const guint8 ** end,
                                    gpointer * malloc_data)
 {
