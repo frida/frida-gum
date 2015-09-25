@@ -30,8 +30,8 @@ typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumEnumerateExportsContext GumEnumerateExportsContext;
 typedef struct _GumFindEntrypointContext GumFindEntrypointContext;
 typedef struct _GumEnumerateModulesSlowContext GumEnumerateModulesSlowContext;
-typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumEnumerateMallocRangesContext GumEnumerateMallocRangesContext;
+typedef struct _GumModuleResolver GumModuleResolver;
 typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
 
 typedef union _DyldInfo DyldInfo;
@@ -45,22 +45,19 @@ typedef struct _DyldImageInfo64 DyldImageInfo64;
 
 struct _GumEnumerateImportsContext
 {
-  const gchar * module_name;
   GumFoundImportFunc func;
   gpointer user_data;
 
-  GumAddress base_address;
+  GumModuleResolver * resolver;
+  GumModuleMap * module_map;
 };
 
 struct _GumEnumerateExportsContext
 {
-  mach_port_t task;
   GumFoundExportFunc func;
   gpointer user_data;
 
-  GHashTable * modules;
-  GHashTable * ranges;
-
+  GumModuleResolver * resolver;
   GumDarwinModule * module;
 };
 
@@ -81,17 +78,18 @@ struct _GumEnumerateModulesSlowContext
   guint alignment;
 };
 
-struct _GumFindExportContext
-{
-  GumAddress result;
-  const gchar * symbol_name;
-};
-
 struct _GumEnumerateMallocRangesContext
 {
   GumFoundMallocRangeFunc func;
   gpointer user_data;
   gboolean carry_on;
+};
+
+struct _GumModuleResolver
+{
+  mach_port_t task;
+  GumCpuType cpu_type;
+  GHashTable * modules;
 };
 
 struct _GumCanonicalizeNameContext
@@ -188,11 +186,6 @@ static void gum_emit_malloc_ranges (task_t task,
     void * user_data, unsigned type, vm_range_t * ranges, unsigned count);
 static kern_return_t gum_read_malloc_memory (task_t remote_task,
     vm_address_t remote_address, vm_size_t size, void ** local_memory);
-
-static gboolean gum_emit_import (const GumImportDetails * details,
-    gpointer user_data);
-static gboolean gum_store_base_address_if_module_path_matches (
-    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_probe_range_for_entrypoint (const GumRangeDetails * details,
     gpointer user_data);
 static void gum_darwin_enumerate_modules_slow (mach_port_t task,
@@ -201,20 +194,27 @@ static gboolean gum_store_range_of_potential_modules (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesSlowContext * ctx);
+static gboolean gum_emit_import (const GumImportDetails * details,
+    gpointer user_data);
 static gboolean gum_emit_export (const GumDarwinSymbolDetails * details,
     gpointer user_data);
-static gboolean gum_enumerate_exports_context_process (
-    GumEnumerateExportsContext * self, GumDarwinModule * module,
-    const GumDarwinSymbolDetails * details);
-static GumDarwinModule * gum_enumerate_exports_context_resolve (
-    GumEnumerateExportsContext * self, const gchar * module_name);
-static gboolean gum_enumerate_exports_context_collect_range (
-    const GumModuleDetails * details, gpointer user_data);
-static void gum_enumerate_exports_context_free_range_value (gpointer data);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
     gpointer * address, gpointer * slide);
 static gsize find_image_size (const gchar * image_name);
+
+static void gum_module_resolver_open (GumModuleResolver * resolver,
+    mach_port_t task);
+static void gum_module_resolver_close (GumModuleResolver * resolver);
+static GumDarwinModule * gum_module_resolver_find_module (
+    GumModuleResolver * self, const gchar * module_name);
+static gboolean gum_module_resolver_find_export (GumModuleResolver * self,
+    GumDarwinModule * module, const gchar * symbol, GumExportDetails * details);
+static gboolean gum_module_resolver_resolve_export (GumModuleResolver * self,
+    GumDarwinModule * module, const GumDarwinSymbolDetails * symbol,
+    GumExportDetails * export);
+static gboolean gum_store_module (const GumModuleDetails * details,
+    gpointer user_data);
 
 static gchar * gum_canonicalize_module_name (const gchar * name);
 static gboolean gum_store_module_path_if_module_name_matches (
@@ -1188,22 +1188,23 @@ gum_darwin_enumerate_imports (mach_port_t task,
                               gpointer user_data)
 {
   GumEnumerateImportsContext ctx;
+  GumModuleResolver resolver;
   GumDarwinModule * module;
 
-  ctx.module_name = module_name;
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.base_address = 0;
-  gum_darwin_enumerate_modules (task,
-      gum_store_base_address_if_module_path_matches, &ctx);
-  if (ctx.base_address == 0)
-    return;
+  gum_module_resolver_open (&resolver, task);
+  ctx.resolver = &resolver;
+  ctx.module_map = NULL;
 
-  module = gum_darwin_module_new_from_memory (module_name, task, GUM_NATIVE_CPU,
-      ctx.base_address);
-  gum_darwin_module_enumerate_imports (module, gum_emit_import, &ctx);
-  gum_darwin_module_unref (module);
+  module = gum_module_resolver_find_module (ctx.resolver, module_name);
+  if (module != NULL)
+    gum_darwin_module_enumerate_imports (module, gum_emit_import, &ctx);
+
+  if (ctx.module_map != NULL)
+    g_object_unref (ctx.module_map);
+  gum_module_resolver_close (&resolver);
 }
 
 static gboolean
@@ -1213,25 +1214,45 @@ gum_emit_import (const GumImportDetails * details,
   GumEnumerateImportsContext * ctx = user_data;
   GumImportDetails d;
 
+  d.type = GUM_IMPORT_UNKNOWN;
+  d.name = gum_symbol_name_from_darwin (details->name);
   d.module = details->module;
-  d.symbol = gum_symbol_name_from_darwin (details->symbol);
+  d.address = 0;
 
-  return ctx->func (&d, ctx->user_data);
-}
-
-static gboolean
-gum_store_base_address_if_module_path_matches (const GumModuleDetails * details,
-                                               gpointer user_data)
-{
-  GumEnumerateImportsContext * ctx = user_data;
-
-  if (gum_module_path_equals (details->path, ctx->module_name))
+  if (d.module == NULL)
   {
-    ctx->base_address = details->range->base_address;
-    return FALSE;
+    d.address = GUM_ADDRESS (dlsym (RTLD_DEFAULT, d.name));
+
+    if (d.address != 0)
+    {
+      const GumModuleDetails * module_details;
+
+      if (ctx->module_map == NULL)
+        ctx->module_map = gum_module_map_new ();
+      module_details = gum_module_map_find (ctx->module_map, d.address);
+      if (module_details != NULL)
+        d.module = module_details->path;
+    }
   }
 
-  return TRUE;
+  if (d.module != NULL)
+  {
+    GumDarwinModule * module;
+    GumExportDetails exp;
+
+    module = gum_module_resolver_find_module (ctx->resolver, d.module);
+    if (module != NULL)
+    {
+      if (gum_module_resolver_find_export (ctx->resolver, module, details->name,
+          &exp))
+      {
+        d.type = exp.type;
+        d.address = exp.address;
+      }
+    }
+  }
+
+  return ctx->func (&d, ctx->user_data);
 }
 
 void
@@ -1241,24 +1262,18 @@ gum_darwin_enumerate_exports (mach_port_t task,
                               gpointer user_data)
 {
   GumEnumerateExportsContext ctx;
+  GumModuleResolver resolver;
 
-  ctx.task = task;
   ctx.func = func;
   ctx.user_data = user_data;
 
-  ctx.modules = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, (GDestroyNotify) gum_darwin_module_unref);
-  ctx.ranges = g_hash_table_new_full (g_str_hash, g_str_equal,
-      g_free, gum_enumerate_exports_context_free_range_value);
-  gum_darwin_enumerate_modules (task,
-      gum_enumerate_exports_context_collect_range, &ctx);
-
-  ctx.module = gum_enumerate_exports_context_resolve (&ctx, module_name);
+  gum_module_resolver_open (&resolver, task);
+  ctx.resolver = &resolver;
+  ctx.module = gum_module_resolver_find_module (ctx.resolver, module_name);
   if (ctx.module != NULL)
     gum_darwin_module_enumerate_exports (ctx.module, gum_emit_export, &ctx);
 
-  g_hash_table_unref (ctx.ranges);
-  g_hash_table_unref (ctx.modules);
+  gum_module_resolver_close (&resolver);
 }
 
 static gboolean
@@ -1266,107 +1281,15 @@ gum_emit_export (const GumDarwinSymbolDetails * details,
                  gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
+  GumExportDetails export;
 
-  return gum_enumerate_exports_context_process (ctx, ctx->module, details);
-}
-
-static gboolean
-gum_enumerate_exports_context_process (GumEnumerateExportsContext * self,
-                                       GumDarwinModule * module,
-                                       const GumDarwinSymbolDetails * details)
-{
-  GumExportDetails d;
-
-  if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  if (!gum_module_resolver_resolve_export (ctx->resolver, ctx->module, details,
+      &export))
   {
-    const gchar * target_name;
-    GumDarwinSymbolDetails reexp_details;
-
-    target_name = gum_darwin_module_dependency (module,
-        details->reexport_library_ordinal);
-    module = gum_enumerate_exports_context_resolve (self, target_name);
-    if (module == NULL)
-      return TRUE;
-
-    if (!gum_darwin_module_resolve (module, details->reexport_symbol,
-        &reexp_details))
-      return TRUE;
-
-    return gum_enumerate_exports_context_process (self, module, &reexp_details);
+    return TRUE;
   }
 
-  d.name = gum_symbol_name_from_darwin (details->symbol);
-
-  switch (details->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
-  {
-    case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
-      if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
-      {
-        /* XXX: we ignore interposing */
-        d.address = module->base_address + details->stub;
-      }
-      else
-      {
-        d.address = module->base_address + details->offset;
-      }
-      break;
-    case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
-      d.address = module->base_address + details->offset;
-      break;
-    case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
-      d.address = details->offset;
-      break;
-    default:
-      g_assert_not_reached ();
-      break;
-  }
-
-  d.type =
-      GUM_MEMORY_RANGE_INCLUDES (&module->text_range, d.address)
-      ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
-
-  return self->func (&d, self->user_data);
-}
-
-static GumDarwinModule *
-gum_enumerate_exports_context_resolve (GumEnumerateExportsContext * self,
-                                       const gchar * module_name)
-{
-  GumDarwinModule * module;
-  GumMemoryRange * range;
-
-  module = g_hash_table_lookup (self->modules, module_name);
-  if (module != NULL)
-    return module;
-
-  range = g_hash_table_lookup (self->ranges, module_name);
-  if (range == NULL)
-    return NULL;
-
-  module = gum_darwin_module_new_from_memory (module_name, self->task,
-      GUM_NATIVE_CPU, range->base_address);
-  g_hash_table_insert (self->modules, g_strdup (module_name), module);
-  return module;
-}
-
-static gboolean
-gum_enumerate_exports_context_collect_range (const GumModuleDetails * details,
-                                             gpointer user_data)
-{
-  GumEnumerateExportsContext * self = user_data;
-
-  g_hash_table_insert (self->ranges, g_strdup (details->name),
-      g_slice_dup (GumMemoryRange, details->range));
-  g_hash_table_insert (self->ranges, g_strdup (details->path),
-      g_slice_dup (GumMemoryRange, details->range));
-
-  return TRUE;
-}
-
-static void
-gum_enumerate_exports_context_free_range_value (gpointer data)
-{
-  g_slice_free (GumMemoryRange, data);
+  return ctx->func (&export, ctx->user_data);
 }
 
 gboolean
@@ -1527,6 +1450,121 @@ find_image_size (const gchar * image_name)
   }
 
   return 0;
+}
+
+static void
+gum_module_resolver_open (GumModuleResolver * resolver,
+                          mach_port_t task)
+{
+  int pid;
+
+  resolver->task = task;
+  resolver->modules = g_hash_table_new_full (g_str_hash, g_str_equal,
+      g_free, (GDestroyNotify) gum_darwin_module_unref);
+
+  if (pid_for_task (task, &pid) == KERN_SUCCESS &&
+      gum_darwin_cpu_type_from_pid (pid, &resolver->cpu_type))
+  {
+    gum_darwin_enumerate_modules (task, gum_store_module, resolver);
+  }
+}
+
+static void
+gum_module_resolver_close (GumModuleResolver * resolver)
+{
+  g_hash_table_unref (resolver->modules);
+}
+
+static GumDarwinModule *
+gum_module_resolver_find_module (GumModuleResolver * self,
+                                 const gchar * module_name)
+{
+  return g_hash_table_lookup (self->modules, module_name);
+}
+
+static gboolean
+gum_module_resolver_find_export (GumModuleResolver * self,
+                                 GumDarwinModule * module,
+                                 const gchar * symbol,
+                                 GumExportDetails * details)
+{
+  GumDarwinSymbolDetails d;
+
+  if (!gum_darwin_module_resolve (module, symbol, &d))
+    return FALSE;
+
+  return gum_module_resolver_resolve_export (self, module, &d, details);
+}
+
+static gboolean
+gum_module_resolver_resolve_export (GumModuleResolver * self,
+                                    GumDarwinModule * module,
+                                    const GumDarwinSymbolDetails * symbol,
+                                    GumExportDetails * export)
+{
+  if ((symbol->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  {
+    const gchar * target_module_name;
+    GumDarwinModule * target_module;
+
+    target_module_name = gum_darwin_module_dependency (module,
+        symbol->reexport_library_ordinal);
+    target_module = gum_module_resolver_find_module (self, target_module_name);
+    if (target_module == NULL)
+      return FALSE;
+
+    return gum_module_resolver_find_export (self, target_module,
+        symbol->reexport_symbol, export);
+  }
+
+  export->name = gum_symbol_name_from_darwin (symbol->symbol);
+
+  switch (symbol->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
+  {
+    case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
+      if ((symbol->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+      {
+        /* XXX: we ignore interposing */
+        export->address = module->base_address + symbol->stub;
+      }
+      else
+      {
+        export->address = module->base_address + symbol->offset;
+      }
+      break;
+    case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
+      export->address = module->base_address + symbol->offset;
+      break;
+    case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
+      export->address = symbol->offset;
+      break;
+    default:
+      g_assert_not_reached ();
+      break;
+  }
+
+  export->type =
+      GUM_MEMORY_RANGE_INCLUDES (&module->text_range, export->address)
+      ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
+
+  return TRUE;
+}
+
+static gboolean
+gum_store_module (const GumModuleDetails * details,
+                  gpointer user_data)
+{
+  GumModuleResolver * self = user_data;
+  GumDarwinModule * module;
+
+  module = gum_darwin_module_new_from_memory (details->path, self->task,
+      self->cpu_type, details->range->base_address);
+  g_hash_table_insert (self->modules, g_strdup (details->name),
+      module);
+  g_hash_table_insert (self->modules, g_strdup (details->path),
+      gum_darwin_module_ref (module));
+
+  return TRUE;
 }
 
 static gchar *

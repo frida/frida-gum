@@ -280,7 +280,8 @@ gum_emit_import (const GumDarwinBindDetails * details,
   GumImportDetails d;
   gchar * key;
 
-  d.symbol = details->symbol_name;
+  d.type = GUM_IMPORT_UNKNOWN;
+  d.name = details->symbol_name;
   switch (details->library_ordinal)
   {
     case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
@@ -296,8 +297,13 @@ gum_emit_import (const GumDarwinBindDetails * details,
           details->library_ordinal);
       break;
   }
+  d.address = 0;
 
-  key = g_strconcat (d.module, "|", d.symbol, NULL);
+  key = g_strconcat (
+      (d.module != NULL) ? d.module : "",
+      "|",
+      d.name,
+      NULL);
   if (g_hash_table_lookup (ctx->imports_seen, key) == NULL)
   {
     g_hash_table_insert (ctx->imports_seen, key, key);
