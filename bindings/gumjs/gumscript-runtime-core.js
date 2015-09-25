@@ -59,15 +59,29 @@
         return this.compare(ptr) === 0;
     };
 
-    const Console = function () {
-        this.log = function () {
-            const message = {
-                type: 'log',
-                payload: Array.prototype.join.call(arguments, " ")
-            };
-            engine._send(JSON.stringify(message), null);
+    class Console {
+        log() {
+            sendLogMessage('info', Array.prototype.join.call(arguments, " "));
+        }
+
+        warn() {
+            sendLogMessage('warning', Array.prototype.join.call(arguments, " "));
+        }
+
+        error() {
+            sendLogMessage('error', Array.prototype.join.call(arguments, " "));
+        }
+    }
+
+    function sendLogMessage(level, text) {
+        const message = {
+            type: 'log',
+            level: level,
+            payload: text
         };
-    };
+        engine._send(JSON.stringify(message), null);
+    }
+
     Object.defineProperty(engine, 'console', {
         enumerable: true,
         value: new Console()
