@@ -554,6 +554,8 @@ gum_module_find_export_by_name (const gchar * module_name,
     gchar * name;
 
     name = gum_canonicalize_module_name (module_name);
+    if (name == NULL)
+      return 0;
     module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
     g_free (name);
 
