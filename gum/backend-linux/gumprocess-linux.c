@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -98,8 +98,8 @@ struct _GumEnumerateModuleRangesContext
 
 struct _GumFindExportContext
 {
-  GumAddress result;
   const gchar * symbol_name;
+  GumAddress result;
 };
 
 struct _GumElfModule
@@ -705,8 +705,8 @@ gum_module_find_export_by_name (const gchar * module_name,
 {
   GumFindExportContext ctx;
 
-  ctx.result = 0;
   ctx.symbol_name = symbol_name;
+  ctx.result = 0;
 
   if (module_name == NULL)
   {
@@ -729,7 +729,7 @@ gum_store_address_if_module_has_export (const GumModuleDetails * details,
   GumFindExportContext * ctx = user_data;
 
   gum_module_enumerate_exports (details->path,
-      gum_store_address_if_export_name_matches, &ctx);
+      gum_store_address_if_export_name_matches, ctx);
 
   return ctx->result == 0;
 }
