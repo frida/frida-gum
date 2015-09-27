@@ -101,12 +101,30 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
 #if defined (HAVE_IOS) && defined (HAVE_ARM64)
 
+#include <errno.h>
 #include <spawn.h>
 #include <unistd.h>
 
 INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 {
   int ret;
+
+  {
+    int * (* error_impl) (void);
+
+    error_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "__error"));
+
+    interceptor_fixture_attach_listener (fixture, 0, error_impl, '>', '<');
+
+    errno = ECONNREFUSED;
+    ret = *(error_impl ());
+    g_assert_cmpint (ret, ==, ECONNREFUSED);
+    g_assert_cmpstr (fixture->result->str, ==, "><><");
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
 
   {
     ssize_t (* read_impl) (int fd, void * buf, size_t n);
