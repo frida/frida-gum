@@ -101,6 +101,8 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
 #if defined (HAVE_IOS) && defined (HAVE_ARM64)
 
+#include "backend-darwin/gumdarwin.h"
+
 #include <errno.h>
 #include <spawn.h>
 #include <unistd.h>
@@ -181,6 +183,29 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     g_assert_cmpint (ret, ==, 0);
     g_assert_cmpstr (fixture->result->str, ==, "><");
     posix_spawnattr_destroy (&attr);
+  }
+
+  {
+    mach_port_t self;
+    int * (* pid_for_task_impl) (void);
+    int pid = 0;
+
+    self = mach_task_self ();
+
+    pid_for_task_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "pid_for_task"));
+
+    interceptor_fixture_attach_listener (fixture, 0, pid_for_task_impl,
+        '>', '<');
+
+    ret = pid_for_task (self, &pid);
+    g_assert_cmpint (ret, ==, KERN_SUCCESS);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+
+    g_assert_cmpint (pid, ==, getpid ());
   }
 }
 
