@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2008-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2008 Christian Berentsen <jc.berentsen@gmail.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -29,7 +29,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
 #if defined (HAVE_IOS) && defined (HAVE_ARM64)
-  INTERCEPTOR_TESTENTRY (attach_to_read)
+  INTERCEPTOR_TESTENTRY (attach_to_darwin_apis)
 #endif
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
 #ifdef G_OS_WIN32
@@ -101,40 +101,69 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 
 #if defined (HAVE_IOS) && defined (HAVE_ARM64)
 
+#include <spawn.h>
 #include <unistd.h>
 
-INTERCEPTOR_TESTCASE (attach_to_read)
+INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 {
-  ssize_t (* read_impl) (int fd, void * buf, size_t n);
-  int fds[2];
   int ret;
-  guint8 value = 42;
 
-  read_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "read"));
+  {
+    ssize_t (* read_impl) (int fd, void * buf, size_t n);
+    int fds[2];
+    guint8 value = 42;
 
-  ret = pipe (fds);
-  g_assert (ret == 0);
+    read_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "read"));
 
-  write (fds[1], &value, sizeof (value));
+    ret = pipe (fds);
+    g_assert (ret == 0);
 
-  interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
+    write (fds[1], &value, sizeof (value));
 
-  value = 0;
-  ret = read_impl (fds[0], &value, sizeof (value));
-  g_assert_cmpint (ret, ==, 1);
-  g_assert_cmpuint (value, ==, 42);
-  g_assert_cmpstr (fixture->result->str, ==, "><");
+    interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
 
-  close (fds[0]);
+    value = 0;
+    ret = read_impl (fds[0], &value, sizeof (value));
+    g_assert_cmpint (ret, ==, 1);
+    g_assert_cmpuint (value, ==, 42);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
 
-  value = 0;
-  ret = read_impl (fds[0], &value, sizeof (value));
-  g_assert_cmpint (ret, ==, -1);
-  g_assert_cmpuint (value, ==, 0);
-  g_assert_cmpstr (fixture->result->str, ==, "><><");
+    close (fds[0]);
 
-  close (fds[1]);
+    value = 0;
+    ret = read_impl (fds[0], &value, sizeof (value));
+    g_assert_cmpint (ret, ==, -1);
+    g_assert_cmpuint (value, ==, 0);
+    g_assert_cmpstr (fixture->result->str, ==, "><><");
+
+    close (fds[1]);
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
+
+  {
+    int (* posix_spawnattr_setbinpref_np_impl) (posix_spawnattr_t * attr,
+        size_t count, cpu_type_t * pref, size_t * ocount);
+    posix_spawnattr_t attr;
+    cpu_type_t pref;
+    size_t ocount;
+
+    posix_spawnattr_setbinpref_np_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib",
+        "posix_spawnattr_setbinpref_np"));
+
+    interceptor_fixture_attach_listener (fixture, 0,
+        posix_spawnattr_setbinpref_np_impl, '>', '<');
+
+    posix_spawnattr_init (&attr);
+    pref = CPU_TYPE_ARM64;
+    ret = posix_spawnattr_setbinpref_np_impl (&attr, 1, &pref, &ocount);
+    g_assert_cmpint (ret, ==, 0);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+    posix_spawnattr_destroy (&attr);
+  }
 }
 
 #endif
