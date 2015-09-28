@@ -16,6 +16,8 @@
 
 #define IS_WITHIN_INT19_RANGE(i) \
     (((gint) (i)) >= -262144 && ((gint) (i)) <= 262143)
+#define IS_WITHIN_INT21_RANGE(i) \
+    (((gint) (i)) >= -1048576 && ((gint) (i)) <= 1048575)
 #define IS_WITHIN_INT28_RANGE(i) \
     (((gint) (i)) >= -134217728 && ((gint) (i)) <= 134217727)
 
@@ -667,6 +669,37 @@ gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
     gum_arm64_writer_put_instruction (self, 0xb9400000 |
         ((guint32) src_offset / 4) << 10 | (rs.index << 5) | rd.index);
   }
+}
+
+void
+gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
+                                       GumArm64Reg reg,
+                                       GumAddress address)
+{
+  GumArm64RegInfo ri;
+  union
+  {
+    gint64 i;
+    guint64 u;
+  } distance;
+  guint32 imm_hi, imm_lo;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  g_assert_cmpuint (ri.width, ==, 64);
+
+  distance.i = (gint64) address -
+      (gint64) (self->pc & ~((GumAddress) (4096 - 1)));
+  g_assert (distance.i % 4096 == 0);
+  distance.i /= 4096;
+
+  g_assert (IS_WITHIN_INT21_RANGE (distance.i));
+
+  imm_hi = (distance.u & G_GUINT64_CONSTANT (0x1ffffc)) >> 2;
+  imm_lo = (distance.u & G_GUINT64_CONSTANT (0x3));
+
+  gum_arm64_writer_put_instruction (self, 0x90000000 |
+      (imm_lo << 29) | (imm_hi << 5) | ri.index);
 }
 
 void
