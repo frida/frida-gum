@@ -207,6 +207,25 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 
     g_assert_cmpint (pid, ==, getpid ());
   }
+  {
+    mach_port_t (* mach_host_self_impl) (void);
+    mach_port_t host;
+
+    mach_host_self_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "mach_host_self"));
+
+    interceptor_fixture_attach_listener (fixture, 0, mach_host_self_impl,
+        '>', '<');
+
+    host = mach_host_self_impl ();
+    g_assert_cmpint (host, !=, 0);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+
+    g_assert_cmpint (host, ==, mach_host_self_impl ());
+  }
 }
 
 #endif
