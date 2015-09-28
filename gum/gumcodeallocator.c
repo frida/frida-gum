@@ -211,7 +211,8 @@ gum_code_allocator_page_is_near (const GumCodeAllocator * self,
                                  const GumCodePage * page,
                                  const GumAddressSpec * spec)
 {
-  gsize page_data, distance_start, distance_end;
+  gssize page_data;
+  gsize distance_start, distance_end;
 
   page_data = GPOINTER_TO_SIZE (GUM_CODE_PAGE_DATA (page, self));
   distance_start = ABS ((gssize) spec->near_address - page_data);
