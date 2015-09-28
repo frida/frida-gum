@@ -63,7 +63,7 @@ _gum_function_context_deinit (void)
   gum_arm_writer_free (&gum_function_context_arm_writer);
 }
 
-void
+gboolean
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   gpointer function_address;
@@ -75,8 +75,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
-  ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
-      function_address);
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
 
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
@@ -228,9 +227,11 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_thumb_writer_flush (tw);
   g_assert_cmpuint (gum_thumb_writer_offset (tw),
       <=, ctx->trampoline_slice->size);
+
+  return TRUE;
 }
 
-void
+gboolean
 _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
                                                gpointer replacement_function)
 {
@@ -243,8 +244,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
-  ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
-      function_address);
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
 
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
@@ -402,6 +402,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
+
+  return TRUE;
 }
 
 void

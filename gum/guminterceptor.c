@@ -112,7 +112,7 @@ static void the_interceptor_weak_notify (gpointer data,
 
 static FunctionContext * intercept_function_at (GumInterceptor * self,
     gpointer function_address);
-static void replace_function_at (GumInterceptor * self,
+static gboolean replace_function_at (GumInterceptor * self,
     gpointer function_address, gpointer replacement_address,
     gpointer user_data);
 static void revert_function_at (GumInterceptor * self,
@@ -332,6 +332,11 @@ gum_interceptor_attach_listener (GumInterceptor * self,
     }
 
     function_ctx = intercept_function_at (self, function_address);
+    if (function_ctx == NULL)
+    {
+      result = GUM_ATTACH_WRONG_SIGNATURE;
+      goto beach;
+    }
 
     gum_hash_table_insert (priv->monitored_function_by_address,
         function_address, function_ctx);
@@ -441,8 +446,12 @@ gum_interceptor_replace_function (GumInterceptor * self,
     goto beach;
   }
 
-  replace_function_at (self, function_address, replacement_function,
-      replacement_function_data);
+  if (!replace_function_at (self, function_address, replacement_function,
+      replacement_function_data))
+  {
+    result = GUM_REPLACE_WRONG_SIGNATURE;
+    goto beach;
+  }
 
 beach:
   GUM_INTERCEPTOR_UNLOCK ();
@@ -568,7 +577,12 @@ intercept_function_at (GumInterceptor * self,
   ctx->listener_entries =
       gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
 
-  _gum_function_context_make_monitor_trampoline (ctx);
+  if (!_gum_function_context_make_monitor_trampoline (ctx))
+  {
+    function_context_destroy (ctx);
+    return NULL;
+  }
+
   if (!gum_query_is_rwx_supported ())
   {
     gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
@@ -586,7 +600,7 @@ intercept_function_at (GumInterceptor * self,
   return ctx;
 }
 
-static void
+static gboolean
 replace_function_at (GumInterceptor * self,
                      gpointer function_address,
                      gpointer replacement_function,
@@ -599,7 +613,13 @@ replace_function_at (GumInterceptor * self,
 
   ctx->replacement_function_data = replacement_function_data;
 
-  _gum_function_context_make_replace_trampoline (ctx, replacement_function);
+  if (!_gum_function_context_make_replace_trampoline (ctx,
+      replacement_function))
+  {
+    function_context_destroy (ctx);
+    return FALSE;
+  }
+
   if (!gum_query_is_rwx_supported ())
   {
     gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
@@ -616,6 +636,8 @@ replace_function_at (GumInterceptor * self,
 #ifdef G_OS_WIN32
   FlushInstructionCache (GetCurrentProcess (), NULL, 0);
 #endif
+
+  return TRUE;
 }
 
 static void

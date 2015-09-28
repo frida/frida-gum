@@ -16,6 +16,7 @@
 
 #define GUM_INTERCEPTOR_REDIRECT_CODE_SIZE  5
 #define GUM_INTERCEPTOR_GUARD_MAGIC         0x47756D21
+#define GUM_X86_JMP_MAX_DISTANCE            (G_MAXINT32 - 16384)
 
 static void gum_function_context_write_guard_enter_code (FunctionContext * ctx,
     gconstpointer skip_label, GumX86Writer * cw);
@@ -40,7 +41,26 @@ _gum_function_context_deinit (void)
   gum_x86_writer_free (&gum_function_context_writer);
 }
 
-void
+static gboolean
+gum_function_context_prepare_trampoline (FunctionContext * ctx)
+{
+#if GLIB_SIZEOF_VOID_P == 4
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
+  return TRUE;
+#else
+  GumAddressSpec spec;
+  gsize default_alignment = 0;
+
+  spec.near_address = ctx->function_address;
+  spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
+  ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
+      ctx->allocator, &spec, default_alignment);
+
+  return ctx->trampoline_slice != NULL;
+#endif
+}
+
+gboolean
 _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 {
   GumX86Writer * cw = &gum_function_context_writer;
@@ -57,8 +77,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   align_correction_leave = 4;
 #endif
 
-  ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
-      ctx->function_address);
+  if (!gum_function_context_prepare_trampoline (ctx))
+    return FALSE;
 
   gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
@@ -198,9 +218,11 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
       <=, ctx->trampoline_slice->size);
+
+  return TRUE;
 }
 
-void
+gboolean
 _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
                                                gpointer replacement_function)
 {
@@ -209,8 +231,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   GumX86Relocator * rl = &gum_function_context_relocator;
   guint reloc_bytes;
 
-  ctx->trampoline_slice = gum_code_allocator_new_slice_near (ctx->allocator,
-      ctx->function_address);
+  if (!gum_function_context_prepare_trampoline (ctx))
+    return FALSE;
 
   ctx->on_leave_trampoline = ctx->trampoline_slice->data;
   gum_x86_writer_reset (cw, ctx->on_leave_trampoline);
@@ -285,6 +307,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
+
+  return TRUE;
 }
 
 void

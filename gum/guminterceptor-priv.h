@@ -36,6 +36,8 @@ struct _FunctionContext
   GumArray * listener_entries;
 
   gpointer replacement_function_data;
+
+  gpointer backend_data[1];
 };
 
 extern GumTlsKey _gum_interceptor_guard_key;
@@ -60,8 +62,8 @@ gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
 
 void _gum_function_context_init (void);
 void _gum_function_context_deinit (void);
-void _gum_function_context_make_monitor_trampoline (FunctionContext * ctx);
-void _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
+gboolean _gum_function_context_make_monitor_trampoline (FunctionContext * ctx);
+gboolean _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
     gpointer replacement_function);
 void _gum_function_context_destroy_trampoline (FunctionContext * ctx);
 void _gum_function_context_activate_trampoline (FunctionContext * ctx);

@@ -293,7 +293,8 @@ gum_arm64_relocator_eoi (GumArm64Relocator * self)
 
 gboolean
 gum_arm64_relocator_can_relocate (gpointer address,
-                                  guint min_bytes)
+                                  guint min_bytes,
+                                  guint * maximum)
 {
   guint8 * buf;
   GumArm64Writer cw;
@@ -305,11 +306,20 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   gum_arm64_relocator_init (&rl, address, &cw);
 
+  if (maximum != NULL)
+    *maximum = 0;
   do
   {
     reloc_bytes = gum_arm64_relocator_read_one (&rl, NULL);
-    if (reloc_bytes == 0)
+    if (reloc_bytes != 0)
+    {
+      if (maximum != NULL)
+        *maximum = reloc_bytes;
+    }
+    else
+    {
       return FALSE;
+    }
   }
   while (reloc_bytes < min_bytes);
 

@@ -270,7 +270,7 @@ TESTCASE (cannot_relocate_with_early_br)
     GUINT32_TO_LE (0xd61f0200)  /* br x16            */
   };
 
-  g_assert (!gum_arm64_relocator_can_relocate (input, 16));
+  g_assert (!gum_arm64_relocator_can_relocate (input, 16, NULL));
 }
 
 TESTCASE (eob_and_eoi_on_br)

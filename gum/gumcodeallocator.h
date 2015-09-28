@@ -8,6 +8,7 @@
 #define __GUM_CODE_ALLOCATOR_H__
 
 #include "gumlist.h"
+#include "gummemory.h"
 
 typedef struct _GumCodeAllocator GumCodeAllocator;
 typedef struct _GumCodeSlice GumCodeSlice;
@@ -30,7 +31,9 @@ struct _GumCodeSlice
 void gum_code_allocator_init (GumCodeAllocator * allocator, guint slice_size);
 void gum_code_allocator_free (GumCodeAllocator * allocator);
 
-GumCodeSlice * gum_code_allocator_new_slice_near (GumCodeAllocator * self, gpointer address);
+GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
+GumCodeSlice * gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
+    const GumAddressSpec * spec, gsize alignment);
 void gum_code_allocator_free_slice (GumCodeAllocator * self, GumCodeSlice * slice);
 
 #endif

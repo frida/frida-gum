@@ -183,6 +183,9 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     g_assert_cmpint (ret, ==, 0);
     g_assert_cmpstr (fixture->result->str, ==, "><");
     posix_spawnattr_destroy (&attr);
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
   }
 
   {
@@ -207,6 +210,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 
     g_assert_cmpint (pid, ==, getpid ());
   }
+
   {
     mach_port_t (* mach_host_self_impl) (void);
     mach_port_t host;
