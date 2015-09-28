@@ -794,15 +794,17 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
   gboolean will_trap_on_leave = FALSE;
   InterceptorThreadContext * interceptor_ctx = NULL;
 
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#endif
+
 #if !GUM_INTERCEPTOR_FAST_TLS
   if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
     return FALSE;
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
 #endif
 
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#else
+#ifndef G_OS_WIN32
   system_error = errno;
 #endif
 
@@ -910,13 +912,15 @@ _gum_function_context_on_leave (FunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx;
   guint i;
 
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#endif
+
 #if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
 #endif
 
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#else
+#ifndef G_OS_WIN32
   system_error = errno;
 #endif
 
