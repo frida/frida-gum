@@ -439,3 +439,16 @@ gum_free (gpointer mem)
 {
   mspace_free (gum_mspace_get (), mem);
 }
+
+gpointer
+gum_alloc_n_pages_near (guint n_pages,
+                        GumPageProtection page_prot,
+                        const GumAddressSpec * address_spec)
+{
+  gpointer result;
+
+  result = gum_try_alloc_n_pages_near (n_pages, page_prot, address_spec);
+  g_assert (result != NULL);
+
+  return result;
+}

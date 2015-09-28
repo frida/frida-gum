@@ -85,7 +85,10 @@ gpointer gum_memdup (gconstpointer mem, gsize byte_size);
 void gum_free (gpointer mem);
 
 gpointer gum_alloc_n_pages (guint n_pages, GumPageProtection page_prot);
-gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot, GumAddressSpec * address_spec);
+gpointer gum_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot,
+    const GumAddressSpec * address_spec);
+gpointer gum_try_alloc_n_pages_near (guint n_pages, GumPageProtection page_prot,
+    const GumAddressSpec * address_spec);
 void gum_free_pages (gpointer mem);
 
 G_END_DECLS

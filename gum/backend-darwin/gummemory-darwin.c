@@ -22,7 +22,7 @@ struct _GumAllocNearContext
 {
   gpointer result;
   gsize size;
-  GumAddressSpec * address_spec;
+  const GumAddressSpec * address_spec;
   mach_port_t task;
 };
 
@@ -297,9 +297,9 @@ gum_alloc_n_pages (guint n_pages,
 }
 
 gpointer
-gum_alloc_n_pages_near (guint n_pages,
-                        GumPageProtection page_prot,
-                        GumAddressSpec * address_spec)
+gum_try_alloc_n_pages_near (guint n_pages,
+                            GumPageProtection page_prot,
+                            const GumAddressSpec * address_spec)
 {
   gsize page_size;
   GumAllocNearContext ctx;
@@ -313,8 +313,8 @@ gum_alloc_n_pages_near (guint n_pages,
 
   gum_memory_enumerate_free_ranges (gum_try_alloc_in_range_if_near_enough,
       &ctx);
-
-  g_assert (ctx.result != NULL);
+  if (ctx.result == NULL)
+    return NULL;
 
   *((gsize *) ctx.result) = ctx.size;
 

@@ -178,9 +178,9 @@ gum_alloc_n_pages (guint n_pages,
 }
 
 gpointer
-gum_alloc_n_pages_near (guint n_pages,
-                        GumPageProtection page_prot,
-                        GumAddressSpec * address_spec)
+gum_try_alloc_n_pages_near (guint n_pages,
+                            GumPageProtection page_prot,
+                            const GumAddressSpec * address_spec)
 {
   gpointer result = NULL;
   gsize page_size, size;
@@ -214,8 +214,6 @@ gum_alloc_n_pages_near (guint n_pages,
     }
   }
   while (result == NULL);
-
-  g_assert (result != NULL);
 
   return result;
 }
