@@ -99,9 +99,11 @@ endif
 if ARCH_ARM64
 archincludedir = $(includedir)/frida-1.0/gum/arch-arm64
 archinclude_HEADERS = \
-	arch-arm64/gumarm64backtracer.h
+	arch-arm64/gumarm64backtracer.h \
+	arch-arm64/gumarm64reader.h
 arch_sources += \
-	arch-arm64/gumarm64backtracer.c
+	arch-arm64/gumarm64backtracer.c \
+	arch-arm64/gumarm64reader.c
 backend_sources += \
 	backend-arm64/guminterceptor-arm64.c \
 	backend-arm64/gumspinlock-arm64.c \

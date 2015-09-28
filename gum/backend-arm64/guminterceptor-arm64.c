@@ -7,6 +7,7 @@
 #include "guminterceptor-priv.h"
 
 #include "gumarm64relocator.h"
+#include "gumarm64reader.h"
 #include "gumarm64writer.h"
 #include "gummemory.h"
 
@@ -290,7 +291,7 @@ gum_function_context_clear_cache (FunctionContext * ctx)
 gpointer
 _gum_interceptor_resolve_redirect (gpointer address)
 {
-  return NULL;
+  return gum_arm64_reader_try_get_relative_jump_target (address);
 }
 
 gboolean
