@@ -92,7 +92,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClInclude Include="gum\arch-arm64\gumarm64.h" />
     <ClInclude Include="gum\arch-arm64\gumarm64writer.h" />
     <ClInclude Include="gum\arch-arm64\gumarm64relocator.h" />
   </ItemGroup>

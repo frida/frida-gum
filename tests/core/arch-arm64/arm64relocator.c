@@ -23,10 +23,10 @@ TEST_LIST_END ()
 TESTCASE (one_to_one)
 {
   const guint32 input[] = {
-    GUINT32_TO_LE (0xe1a0c00d), /* mov ip, sp    */
-    GUINT32_TO_LE (0xe92d0030), /* push {r4, r5} */
+    GUINT32_TO_LE (0xa9be4ff4), /* stp x20, x19, [sp, #-32]! */
+    GUINT32_TO_LE (0x92800210), /* movn x16, #0x10           */
   };
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -62,7 +62,7 @@ TESTCASE (ldr_should_be_rewritten)
   };
   gchar expected_output[4 * sizeof (guint32)];
   guint64 calculated_pc;
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -72,7 +72,7 @@ TESTCASE (ldr_should_be_rewritten)
   *((guint64 *) (expected_output + 8)) = GUINT64_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_LDR);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_LDR);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -91,7 +91,7 @@ TESTCASE (adr_should_be_rewritten)
   };
   gchar expected_output[3 * sizeof (guint32)];
   guint64 calculated_pc;
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -101,7 +101,7 @@ TESTCASE (adr_should_be_rewritten)
   *((guint64 *) (expected_output + 4)) = GUINT64_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_ADR);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_ADR);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -120,7 +120,7 @@ TESTCASE (adrp_should_be_rewritten)
   };
   gchar expected_output[3 * sizeof (guint32)];
   guint64 calculated_pc;
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -131,7 +131,7 @@ TESTCASE (adrp_should_be_rewritten)
   *((guint64 *) (expected_output + 4)) = GUINT64_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_ADRP);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_ADRP);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -150,12 +150,12 @@ TESTCASE (cbz_should_be_rewritten)
     GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
     GUINT32_TO_LE (0xd61f0200)  /* br x16             */
   };
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_CBZ);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_CBZ);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -174,12 +174,12 @@ TESTCASE (b_cond_should_be_rewritten)
     GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
     GUINT32_TO_LE (0xd61f0200)  /* br x16             */
   };
-  const GumArm64Instruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM64_B_COND);
+  g_assert_cmpint (insn->id, ==, ARM64_INS_B);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -190,7 +190,7 @@ typedef struct _BranchScenario BranchScenario;
 
 struct _BranchScenario
 {
-  GumArm64Mnemonic mnemonic;
+  guint instruction_id;
   guint32 input[1];
   gsize input_length;
   guint32 expected_output[4];
@@ -205,7 +205,7 @@ static void branch_scenario_execute (BranchScenario * bs,
 TESTCASE (b_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM64_B,
+    ARM64_INS_B,
     { 0x17ffff5a }, 1,  /* b #-664            */
     {
       0x58000050,       /* ldr x16, [pc, #8]  */
@@ -221,7 +221,7 @@ TESTCASE (b_should_be_rewritten)
 TESTCASE (bl_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM64_BL,
+    ARM64_INS_BL,
     { 0x97ffff5a }, 1,  /* bl #-664           */
     {
       0x5800005e,       /* ldr lr, [pc, #8]   */
@@ -240,7 +240,7 @@ branch_scenario_execute (BranchScenario * bs,
 {
   gsize i;
   guint64 calculated_pc;
-  const GumArm64Instruction * insn = NULL;
+  const cs_insn * insn;
 
   for (i = 0; i != bs->input_length; i++)
     bs->input[i] = GUINT32_TO_LE (bs->input[i]);
@@ -256,7 +256,7 @@ branch_scenario_execute (BranchScenario * bs,
       GUINT32_TO_LE ((calculated_pc >> 32) & 0xffffffff);
 
   g_assert_cmpuint (gum_arm64_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, bs->mnemonic);
+  g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert (gum_arm64_relocator_write_one (&fixture->rl));
   gum_arm64_writer_flush (&fixture->aw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,

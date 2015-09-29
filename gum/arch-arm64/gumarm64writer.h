@@ -7,9 +7,8 @@
 #ifndef __GUM_ARM64_WRITER_H__
 #define __GUM_ARM64_WRITER_H__
 
-#include "gumarm64.h"
-
-#include <gum/gumarray.h>
+#include <capstone/capstone.h>
+#include <gum/gumdefs.h>
 
 G_BEGIN_DECLS
 
@@ -49,37 +48,50 @@ void gum_arm64_writer_put_label (GumArm64Writer * self, gconstpointer id);
 void gum_arm64_writer_put_call_address_with_arguments (GumArm64Writer * self,
     GumAddress func, guint n_args, ...);
 void gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
-    GumArm64Reg reg, guint n_args, ...);
+    arm64_reg reg, guint n_args, ...);
 
 gboolean gum_arm64_writer_can_branch_imm (GumAddress from, GumAddress to);
 void gum_arm64_writer_put_b_imm (GumArm64Writer * self, GumAddress address);
 void gum_arm64_writer_put_bl_imm (GumArm64Writer * self, GumAddress address);
-void gum_arm64_writer_put_br_reg (GumArm64Writer * self, GumArm64Reg reg);
-void gum_arm64_writer_put_blr_reg (GumArm64Writer * self, GumArm64Reg reg);
+void gum_arm64_writer_put_br_reg (GumArm64Writer * self, arm64_reg reg);
+void gum_arm64_writer_put_blr_reg (GumArm64Writer * self, arm64_reg reg);
 void gum_arm64_writer_put_ret (GumArm64Writer * self);
-void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self, GumArm64Reg reg,
+void gum_arm64_writer_put_cbz_reg_label (GumArm64Writer * self, arm64_reg reg,
     gconstpointer label_id);
 void gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
-    GumArm64Reg reg, gconstpointer label_id);
+    arm64_reg reg, gconstpointer label_id);
 
 void gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self);
 void gum_arm64_writer_put_pop_cpu_context (GumArm64Writer * self);
-void gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self, GumArm64Reg reg_a, GumArm64Reg reg_b);
-void gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self, GumArm64Reg reg_a, GumArm64Reg reg_b);
-void gum_arm64_writer_put_ldr_reg_address (GumArm64Writer * self, GumArm64Reg reg, GumAddress address);
-void gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self, GumArm64Reg reg, guint64 val);
-void gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg src_reg, gsize src_offset);
-void gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self, GumArm64Reg reg, GumAddress address);
-void gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self, GumArm64Reg src_reg, GumArm64Reg dst_reg, gsize dst_offset);
-void gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg src_reg);
-void gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, gsize right_value);
-void gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, GumArm64Reg right_reg);
-void gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self, GumArm64Reg dst_reg, GumArm64Reg left_reg, gsize right_value);
+void gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self, arm64_reg reg_a,
+    arm64_reg reg_b);
+void gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self, arm64_reg reg_a,
+    arm64_reg reg_b);
+void gum_arm64_writer_put_ldr_reg_address (GumArm64Writer * self, arm64_reg reg,
+    GumAddress address);
+void gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self, arm64_reg reg,
+    guint64 val);
+void gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg src_reg, gsize src_offset);
+void gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
+    arm64_reg reg, GumAddress address);
+void gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,
+    arm64_reg src_reg, arm64_reg dst_reg, gsize dst_offset);
+void gum_arm64_writer_put_mov_reg_reg (GumArm64Writer * self, arm64_reg dst_reg,
+    arm64_reg src_reg);
+void gum_arm64_writer_put_add_reg_reg_imm (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg left_reg, gsize right_value);
+void gum_arm64_writer_put_add_reg_reg_reg (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg left_reg, arm64_reg right_reg);
+void gum_arm64_writer_put_sub_reg_reg_imm (GumArm64Writer * self,
+    arm64_reg dst_reg, arm64_reg left_reg, gsize right_value);
 
 void gum_arm64_writer_put_nop (GumArm64Writer * self);
 void gum_arm64_writer_put_brk_imm (GumArm64Writer * self, guint16 imm);
 
-void gum_arm64_writer_put_bytes (GumArm64Writer * self, const guint8 * data, guint n);
+void gum_arm64_writer_put_instruction (GumArm64Writer * self, guint32 insn);
+void gum_arm64_writer_put_bytes (GumArm64Writer * self, const guint8 * data,
+    guint n);
 
 G_END_DECLS
 

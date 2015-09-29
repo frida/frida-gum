@@ -11,16 +11,20 @@
 
 #include "gumarm64writer.h"
 
+#include <capstone/capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumArm64Relocator GumArm64Relocator;
 
 struct _GumArm64Relocator
 {
+  csh capstone;
+
   const guint8 * input_start;
   const guint8 * input_cur;
   GumAddress input_pc;
-  GumArm64Instruction * input_insns;
+  cs_insn ** input_insns;
   GumArm64Writer * output;
 
   guint inpos;
@@ -37,10 +41,9 @@ void gum_arm64_relocator_reset (GumArm64Relocator * relocator,
 void gum_arm64_relocator_free (GumArm64Relocator * relocator);
 
 guint gum_arm64_relocator_read_one (GumArm64Relocator * self,
-    const GumArm64Instruction ** instruction);
+    const cs_insn ** instruction);
 
-GumArm64Instruction * gum_arm64_relocator_peek_next_write_insn (
-    GumArm64Relocator * self);
+cs_insn * gum_arm64_relocator_peek_next_write_insn (GumArm64Relocator * self);
 gpointer gum_arm64_relocator_peek_next_write_source (GumArm64Relocator * self);
 void gum_arm64_relocator_skip_one (GumArm64Relocator * self);
 gboolean gum_arm64_relocator_write_one (GumArm64Relocator * self);

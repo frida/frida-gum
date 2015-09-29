@@ -111,8 +111,8 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   if (self->eoi)
     return 0;
 
-  if (cs_disasm (self->capstone, self->input_cur, 4,
-      GPOINTER_TO_SIZE (self->input_cur), 1, &ci) != 1)
+  if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
+      &ci) != 1)
   {
     return 0;
   }

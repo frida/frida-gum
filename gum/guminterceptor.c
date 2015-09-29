@@ -19,7 +19,7 @@
 #endif
 #include <string.h>
 
-#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 516
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 524
 
 #if defined (HAVE_DARWIN) && !defined (HAVE_ARM64)
 # define GUM_INTERCEPTOR_FAST_TLS 1

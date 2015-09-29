@@ -117,17 +117,17 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   gum_arm64_writer_put_push_cpu_context (aw);
 
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X1,
-      GUM_A64REG_SP, 8);
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X2,
-      GUM_A64REG_X1, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X1,
+      ARM64_REG_SP, 8);
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X2,
+      ARM64_REG_X1, G_STRUCT_OFFSET (GumCpuContext, lr));
 
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_on_enter),
       3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, GUM_A64REG_X1,
-      GUM_ARG_REGISTER, GUM_A64REG_X2);
+      GUM_ARG_REGISTER, ARM64_REG_X1,
+      GUM_ARG_REGISTER, ARM64_REG_X2);
 
   gum_arm64_writer_put_pop_cpu_context (aw);
 
@@ -143,8 +143,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   gum_arm64_relocator_write_all (ar);
 
   resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X16, resume_at);
-  gum_arm64_writer_put_br_reg (aw, GUM_A64REG_X16);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, resume_at);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_flush (aw);
   g_assert_cmpuint (gum_arm64_writer_offset (aw),
@@ -160,20 +160,20 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 
   gum_arm64_writer_put_push_cpu_context (aw);
 
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X1,
-      GUM_A64REG_SP, 8);
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X2,
-      GUM_A64REG_X1, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X1,
+      ARM64_REG_SP, 8);
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X2,
+      ARM64_REG_X1, G_STRUCT_OFFSET (GumCpuContext, lr));
 
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_on_leave),
       3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, GUM_A64REG_X1,
-      GUM_ARG_REGISTER, GUM_A64REG_X2);
+      GUM_ARG_REGISTER, ARM64_REG_X1,
+      GUM_ARG_REGISTER, ARM64_REG_X2);
 
   gum_arm64_writer_put_pop_cpu_context (aw);
-  gum_arm64_writer_put_br_reg (aw, GUM_A64REG_LR);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_LR);
 
   gum_arm64_writer_flush (aw);
   g_assert_cmpuint (gum_arm64_writer_offset (aw),
@@ -205,13 +205,13 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
    */
   ctx->on_leave_trampoline = gum_arm64_writer_cur (aw);
 
-  gum_arm64_writer_put_push_reg_reg (aw, GUM_A64REG_X0, GUM_A64REG_X1);
+  gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_X0, ARM64_REG_X1);
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_end_invocation),
       0);
-  gum_arm64_writer_put_mov_reg_reg (aw, GUM_A64REG_LR, GUM_A64REG_X0);
-  gum_arm64_writer_put_pop_reg_reg (aw, GUM_A64REG_X0, GUM_A64REG_X1);
-  gum_arm64_writer_put_br_reg (aw, GUM_A64REG_LR);
+  gum_arm64_writer_put_mov_reg_reg (aw, ARM64_REG_LR, ARM64_REG_X0);
+  gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X0, ARM64_REG_X1);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_LR);
 
   /*
    * Generate on_enter trampoline
@@ -220,27 +220,27 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   gum_arm64_writer_put_push_cpu_context (aw);
 
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X2,
-      GUM_A64REG_SP, 8);
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, GUM_A64REG_X1,
-      GUM_A64REG_X2, G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X2,
+      ARM64_REG_SP, 8);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X1,
+      ARM64_REG_X2, G_STRUCT_OFFSET (GumCpuContext, lr));
 
   gum_arm64_writer_put_call_address_with_arguments (aw,
       GUM_ADDRESS (_gum_function_context_try_begin_invocation),
       3,
       GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, GUM_A64REG_X1,
-      GUM_ARG_REGISTER, GUM_A64REG_X2);
-  gum_arm64_writer_put_cbz_reg_label (aw, GUM_A64REG_W0, skip_label);
+      GUM_ARG_REGISTER, ARM64_REG_X1,
+      GUM_ARG_REGISTER, ARM64_REG_X2);
+  gum_arm64_writer_put_cbz_reg_label (aw, ARM64_REG_W0, skip_label);
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X0,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X0,
       GUM_ADDRESS (ctx->on_leave_trampoline));
-  gum_arm64_writer_put_str_reg_reg_offset (aw, GUM_A64REG_X0,
-      GUM_A64REG_SP, 8 + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_arm64_writer_put_str_reg_reg_offset (aw, ARM64_REG_X0,
+      ARM64_REG_SP, 8 + G_STRUCT_OFFSET (GumCpuContext, lr));
   gum_arm64_writer_put_pop_cpu_context (aw);
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X16,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16,
       GUM_ADDRESS (replacement_function));
-  gum_arm64_writer_put_br_reg (aw, GUM_A64REG_X16);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_put_label (aw, skip_label);
   gum_arm64_writer_put_pop_cpu_context (aw);
@@ -257,8 +257,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   gum_arm64_relocator_write_all (ar);
 
   resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X16, resume_at);
-  gum_arm64_writer_put_br_reg (aw, GUM_A64REG_X16);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, resume_at);
+  gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
 
   gum_arm64_writer_flush (aw);
   g_assert_cmpuint (gum_arm64_writer_offset (aw),
@@ -292,12 +292,12 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
       gum_arm64_writer_put_b_imm (aw, on_enter);
       break;
     case 8:
-      gum_arm64_writer_put_adrp_reg_address (aw, GUM_A64REG_X16, on_enter);
-      gum_arm64_writer_put_br_reg (aw, GUM_A64REG_X16);
+      gum_arm64_writer_put_adrp_reg_address (aw, ARM64_REG_X16, on_enter);
+      gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
       break;
     case 16:
-      gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X16, on_enter);
-      gum_arm64_writer_put_br_reg (aw, GUM_A64REG_X16);
+      gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, on_enter);
+      gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
       break;
     default:
       g_assert_not_reached ();

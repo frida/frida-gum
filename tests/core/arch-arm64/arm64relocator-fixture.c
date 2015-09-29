@@ -25,6 +25,7 @@ typedef struct _TestArm64RelocatorFixture
   guint8 * output;
   GumArm64Writer aw;
   GumArm64Relocator rl;
+  gboolean rl_initialized;
 } TestArm64RelocatorFixture;
 
 static void
@@ -41,7 +42,8 @@ static void
 test_arm64_relocator_fixture_teardown (TestArm64RelocatorFixture * fixture,
                                        gconstpointer data)
 {
-  gum_arm64_relocator_free (&fixture->rl);
+  if (fixture->rl_initialized)
+    gum_arm64_relocator_free (&fixture->rl);
   gum_arm64_writer_free (&fixture->aw);
   gum_free_pages (fixture->output);
 }
@@ -50,7 +52,8 @@ static const guint8 cleared_outbuf[TEST_OUTBUF_SIZE] = { 0, };
 
 #define SETUP_RELOCATOR_WITH(CODE) \
     gum_arm64_relocator_init (&fixture->rl, CODE, &fixture->aw); \
-    fixture->rl.input_pc = 2048
+    fixture->rl.input_pc = 2048; \
+    fixture->rl_initialized = TRUE
 
 #define assert_outbuf_still_zeroed_from_offset(OFF) \
     g_assert_cmpint (memcmp (fixture->output + OFF, cleared_outbuf + OFF, \

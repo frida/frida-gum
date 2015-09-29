@@ -46,7 +46,6 @@ arminclude_HEADERS = \
 
 arm64includedir = $(includedir)/frida-1.0/gum/arch-arm64
 arm64include_HEADERS = \
-	arch-arm64/gumarm64.h \
 	arch-arm64/gumarm64writer.h \
 	arch-arm64/gumarm64relocator.h
 

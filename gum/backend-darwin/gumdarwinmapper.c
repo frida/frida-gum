@@ -861,10 +861,10 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   ctx.aw = &aw;
 
   self->constructor_offset = gum_arm64_writer_offset (&aw);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_LR);
-  gum_arm64_writer_put_mov_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_SP);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_X19, GUM_A64REG_X20);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_X21, GUM_A64REG_X22);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
+  gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_SP);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
 
   g_slist_foreach (self->children,
       (GFunc) gum_emit_arm64_child_constructor_call, &ctx);
@@ -875,16 +875,16 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   gum_darwin_module_enumerate_init_pointers (module,
       (GumDarwinFoundInitPointersFunc) gum_emit_arm64_init_calls, &ctx);
 
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_X21, GUM_A64REG_X22);
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_X19, GUM_A64REG_X20);
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_LR);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
   gum_arm64_writer_put_ret (&aw);
 
   self->destructor_offset = gum_arm64_writer_offset (&aw);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_LR);
-  gum_arm64_writer_put_mov_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_SP);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_X19, GUM_A64REG_X20);
-  gum_arm64_writer_put_push_reg_reg (&aw, GUM_A64REG_X21, GUM_A64REG_X22);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
+  gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_SP);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
 
   gum_darwin_module_enumerate_term_pointers (module,
       (GumDarwinFoundTermPointersFunc) gum_emit_arm64_term_calls, &ctx);
@@ -893,13 +893,13 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
       (GFunc) gum_emit_arm64_child_destructor_call, &ctx);
   g_slist_free (children_reversed);
 
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_X21, GUM_A64REG_X22);
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_X19, GUM_A64REG_X20);
-  gum_arm64_writer_put_pop_reg_reg (&aw, GUM_A64REG_FP, GUM_A64REG_LR);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
+  gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
   gum_arm64_writer_put_ret (&aw);
 
   self->atexit_stub_offset = gum_arm64_writer_offset (&aw);
-  gum_arm64_writer_put_ldr_reg_u64 (&aw, GUM_A64REG_X0, 0);
+  gum_arm64_writer_put_ldr_reg_u64 (&aw, ARM64_REG_X0, 0);
   gum_arm64_writer_put_ret (&aw);
 
   gum_arm64_writer_flush (&aw);
@@ -913,9 +913,9 @@ gum_emit_arm64_child_constructor_call (GumDarwinMapper * child,
 {
   GumArm64Writer * aw = ctx->aw;
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X0,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X0,
       gum_darwin_mapper_constructor (child));
-  gum_arm64_writer_put_blr_reg (aw, GUM_A64REG_X0);
+  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X0);
 }
 
 static void
@@ -924,9 +924,9 @@ gum_emit_arm64_child_destructor_call (GumDarwinMapper * child,
 {
   GumArm64Writer * aw = ctx->aw;
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X0,
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X0,
       gum_darwin_mapper_destructor (child));
-  gum_arm64_writer_put_blr_reg (aw, GUM_A64REG_X0);
+  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X0);
 }
 
 static gboolean
@@ -949,13 +949,13 @@ gum_emit_arm64_resolve_if_needed (const GumDarwinBindDetails * details,
   entry = self->module->base_address + details->segment->vm_address +
       details->offset;
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X1, value.resolver);
-  gum_arm64_writer_put_blr_reg (aw, GUM_A64REG_X1);
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X1, details->addend);
-  gum_arm64_writer_put_add_reg_reg_reg (aw, GUM_A64REG_X0, GUM_A64REG_X0,
-      GUM_A64REG_X1);
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X1, entry);
-  gum_arm64_writer_put_str_reg_reg_offset (aw, GUM_A64REG_X0, GUM_A64REG_X1, 0);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, value.resolver);
+  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X1);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, details->addend);
+  gum_arm64_writer_put_add_reg_reg_reg (aw, ARM64_REG_X0, ARM64_REG_X0,
+      ARM64_REG_X1);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X1, entry);
+  gum_arm64_writer_put_str_reg_reg_offset (aw, ARM64_REG_X0, ARM64_REG_X1, 0);
 
   return TRUE;
 }
@@ -967,19 +967,19 @@ gum_emit_arm64_init_calls (const GumDarwinInitPointersDetails * details,
   GumArm64Writer * aw = ctx->aw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X19, details->address);
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X20, details->count);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, details->address);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, details->count);
 
   gum_arm64_writer_put_label (aw, next_label);
 
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, GUM_A64REG_X0,
-      GUM_A64REG_X19, 0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X0,
+      ARM64_REG_X19, 0);
   /* TODO: pass argc, argv, envp, apple, program vars */
-  gum_arm64_writer_put_blr_reg (aw, GUM_A64REG_X0);
+  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X0);
 
-  gum_arm64_writer_put_add_reg_reg_imm (aw, GUM_A64REG_X19, GUM_A64REG_X19, 8);
-  gum_arm64_writer_put_sub_reg_reg_imm (aw, GUM_A64REG_X20, GUM_A64REG_X20, 1);
-  gum_arm64_writer_put_cbnz_reg_label (aw, GUM_A64REG_X20, next_label);
+  gum_arm64_writer_put_add_reg_reg_imm (aw, ARM64_REG_X19, ARM64_REG_X19, 8);
+  gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20, 1);
+  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X20, next_label);
 
   return TRUE;
 }
@@ -991,19 +991,19 @@ gum_emit_arm64_term_calls (const GumDarwinTermPointersDetails * details,
   GumArm64Writer * aw = ctx->aw;
   gconstpointer next_label = GSIZE_TO_POINTER (details->address);
 
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X19, details->address +
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X19, details->address +
       ((details->count - 1) * 8));
-  gum_arm64_writer_put_ldr_reg_address (aw, GUM_A64REG_X20, details->count);
+  gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X20, details->count);
 
   gum_arm64_writer_put_label (aw, next_label);
 
-  gum_arm64_writer_put_ldr_reg_reg_offset (aw, GUM_A64REG_X0,
-      GUM_A64REG_X19, 0);
-  gum_arm64_writer_put_blr_reg (aw, GUM_A64REG_X0);
+  gum_arm64_writer_put_ldr_reg_reg_offset (aw, ARM64_REG_X0,
+      ARM64_REG_X19, 0);
+  gum_arm64_writer_put_blr_reg (aw, ARM64_REG_X0);
 
-  gum_arm64_writer_put_sub_reg_reg_imm (aw, GUM_A64REG_X19, GUM_A64REG_X19, 8);
-  gum_arm64_writer_put_sub_reg_reg_imm (aw, GUM_A64REG_X20, GUM_A64REG_X20, 1);
-  gum_arm64_writer_put_cbnz_reg_label (aw, GUM_A64REG_X20, next_label);
+  gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_X19, ARM64_REG_X19, 8);
+  gum_arm64_writer_put_sub_reg_reg_imm (aw, ARM64_REG_X20, ARM64_REG_X20, 1);
+  gum_arm64_writer_put_cbnz_reg_label (aw, ARM64_REG_X20, next_label);
 
   return TRUE;
 }
