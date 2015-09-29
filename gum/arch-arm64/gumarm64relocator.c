@@ -338,21 +338,31 @@ gum_arm64_relocator_can_relocate (gpointer address,
     eoi = FALSE;
     for (i = 0; i != count && !eoi; i++)
     {
+      cs_arm64 * d = &insn[i].detail->arm64;
+
       switch (insn[i].id)
       {
         case ARM64_INS_B:
         {
-          cs_arm64 * d = &insn[i].detail->arm64;
           cs_arm64_op * op = &d->operands[0];
-          if (op->type == ARM64_OP_IMM)
-          {
-            gssize offset =
-                (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-            if (offset >= 0 && offset < n)
-              n = offset;
-          }
+          g_assert (op->type == ARM64_OP_IMM);
+          gssize offset =
+              (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
+          if (offset >= 0 && offset < n)
+            n = offset;
           eoi = d->cc == ARM64_CC_INVALID || d->cc == ARM64_CC_AL ||
               d->cc == ARM64_CC_NV;
+          break;
+        }
+        case ARM64_INS_CBZ:
+        case ARM64_INS_CBNZ:
+        {
+          cs_arm64_op * op = &d->operands[1];
+          g_assert (op->type == ARM64_OP_IMM);
+          gssize offset =
+              (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
+          if (offset >= 0 && offset < n)
+            n = offset;
           break;
         }
         case ARM64_INS_BR:
