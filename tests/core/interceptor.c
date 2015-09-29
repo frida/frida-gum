@@ -104,7 +104,10 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 #include "backend-darwin/gumdarwin.h"
 
 #include <errno.h>
+#include <fcntl.h>
+#include <netinet/in.h>
 #include <spawn.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
@@ -191,6 +194,49 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     g_assert_cmpstr (fixture->result->str, ==, "><><");
 
     close (fds[1]);
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
+
+  {
+    int server, client;
+    int (* accept_impl) (int socket, struct sockaddr * address,
+        socklen_t * address_len);
+    struct sockaddr_in addr = { 0, };
+    socklen_t addr_len;
+
+    server = socket (AF_INET, SOCK_STREAM, 0);
+    g_assert (server != -1);
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = g_random_int_range (1337, 31337);
+    addr.sin_addr.s_addr = INADDR_ANY;
+    ret = bind (server, (struct sockaddr *) &addr, sizeof (addr));
+    g_assert (ret == 0);
+
+    ret = listen (server, 1);
+    g_assert (ret == 0);
+
+    client = socket (AF_INET, SOCK_STREAM, 0);
+    g_assert (client != -1);
+    ret = fcntl (client, F_SETFL, O_NONBLOCK);
+    g_assert (ret == 0);
+    ret = connect (client, (struct sockaddr *) &addr, sizeof (addr));
+    g_assert (ret == -1 && errno == EINPROGRESS);
+
+    accept_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "accept"));
+
+    interceptor_fixture_attach_listener (fixture, 0, accept_impl, '>', '<');
+
+    addr_len = sizeof (addr);
+    ret = accept_impl (server, (struct sockaddr *) &addr, &addr_len);
+    g_assert (ret >= 0);
+
+    close (ret);
+    close (client);
+    close (server);
 
     interceptor_fixture_detach_listener (fixture, 0);
     g_string_truncate (fixture->result, 0);
