@@ -473,7 +473,7 @@ gum_arm64_writer_put_blr_reg (GumArm64Writer * self,
 void
 gum_arm64_writer_put_ret (GumArm64Writer * self)
 {
-  gum_arm64_writer_put_instruction (self, 0xd65f0000 | (ARM64_REG_LR << 5));
+  gum_arm64_writer_put_instruction (self, 0xd65f0000 | (GUM_MREG_LR << 5));
 }
 
 void
