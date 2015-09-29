@@ -10,6 +10,8 @@
 
 #include "gummemory.h"
 
+#include <capstone/capstone.h>
+
 #define GUM_MAX_INPUT_INSN_COUNT (100)
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
@@ -296,6 +298,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
                                   guint min_bytes,
                                   guint * maximum)
 {
+  guint n = 0;
   guint8 * buf;
   GumArm64Writer cw;
   GumArm64Relocator rl;
@@ -306,28 +309,74 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   gum_arm64_relocator_init (&rl, address, &cw);
 
-  if (maximum != NULL)
-    *maximum = 0;
   do
   {
     reloc_bytes = gum_arm64_relocator_read_one (&rl, NULL);
     if (reloc_bytes != 0)
-    {
-      if (maximum != NULL)
-        *maximum = reloc_bytes;
-    }
+      n = reloc_bytes;
     else
-    {
-      return FALSE;
-    }
+      break;
   }
   while (reloc_bytes < min_bytes);
+
+  if (!rl.eoi)
+  {
+    csh capstone;
+    cs_err err;
+    cs_insn * insn;
+    size_t count, i;
+    gboolean eoi;
+
+    err = cs_open (CS_ARCH_ARM64, CS_MODE_LITTLE_ENDIAN, &capstone);
+    g_assert_cmpint (err, == , CS_ERR_OK);
+    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+    g_assert_cmpint (err, ==, CS_ERR_OK);
+
+    count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
+    g_assert (insn != NULL);
+
+    eoi = FALSE;
+    for (i = 0; i != count && !eoi; i++)
+    {
+      switch (insn[i].id)
+      {
+        case ARM64_INS_B:
+        {
+          cs_arm64 * d = &insn[i].detail->arm64;
+          cs_arm64_op * op = &d->operands[0];
+          if (op->type == ARM64_OP_IMM)
+          {
+            gssize offset =
+                (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
+            if (offset >= 0 && offset < n)
+              n = offset;
+          }
+          eoi = d->cc == ARM64_CC_INVALID || d->cc == ARM64_CC_AL ||
+              d->cc == ARM64_CC_NV;
+          break;
+        }
+        case ARM64_INS_BR:
+        case ARM64_INS_RET:
+          eoi = TRUE;
+          break;
+        default:
+          break;
+      }
+    }
+
+    cs_free (insn, count);
+
+    cs_close (&capstone);
+  }
 
   gum_arm64_relocator_free (&rl);
 
   gum_arm64_writer_free (&cw);
 
-  return TRUE;
+  if (maximum != NULL)
+    *maximum = n;
+
+  return n >= min_bytes;
 }
 
 guint
