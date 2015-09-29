@@ -52,7 +52,8 @@ gum_function_context_prepare_trampoline (FunctionContext * ctx)
   gpointer function_address = ctx->function_address;
   guint redirect_limit;
 
-  if (gum_arm64_relocator_can_relocate (function_address, 16, &redirect_limit))
+  if (gum_arm64_relocator_can_relocate (function_address, 16,
+      GUM_SCENARIO_ONLINE, &redirect_limit))
   {
     data->redirect_code_size = 16;
 

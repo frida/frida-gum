@@ -281,6 +281,7 @@ gum_arm64_relocator_eoi (GumArm64Relocator * self)
 gboolean
 gum_arm64_relocator_can_relocate (gpointer address,
                                   guint min_bytes,
+                                  GumRelocationScenario scenario,
                                   guint * maximum)
 {
   guint n = 0;
@@ -296,10 +297,35 @@ gum_arm64_relocator_can_relocate (gpointer address,
 
   do
   {
-    reloc_bytes = gum_arm64_relocator_read_one (&rl, NULL);
-    if (reloc_bytes != 0)
-      n = reloc_bytes;
+    const cs_insn * insn;
+    gboolean safe_to_relocate_further;
+
+    reloc_bytes = gum_arm64_relocator_read_one (&rl, &insn);
+    if (reloc_bytes == 0)
+      break;
+
+    n = reloc_bytes;
+
+    if (scenario == GUM_SCENARIO_ONLINE)
+    {
+      switch (insn->id)
+      {
+        case ARM64_INS_BL:
+        case ARM64_INS_BLR:
+        case ARM64_INS_SVC:
+          safe_to_relocate_further = FALSE;
+          break;
+        default:
+          safe_to_relocate_further = TRUE;
+          break;
+      }
+    }
     else
+    {
+      safe_to_relocate_further = TRUE;
+    }
+
+    if (!safe_to_relocate_further)
       break;
   }
   while (reloc_bytes < min_bytes);

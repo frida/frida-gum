@@ -184,7 +184,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
     write (fds[1], &value, sizeof (value));
     g_thread_join (read_thread);
-    g_assert_cmpstr (fixture->result->str, ==, "><");
+    g_assert_cmpstr (fixture->result->str, ==, "");
 
     close (fds[0]);
 
@@ -192,7 +192,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     ret = read_impl (fds[0], &value, sizeof (value));
     g_assert_cmpint (ret, ==, -1);
     g_assert_cmpuint (value, ==, 0);
-    g_assert_cmpstr (fixture->result->str, ==, "><><");
+    g_assert_cmpstr (fixture->result->str, ==, "><");
 
     close (fds[1]);
 

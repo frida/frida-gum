@@ -51,6 +51,7 @@ typedef guint GumCpuType;
 typedef guint GumArgType;
 typedef guint GumBranchHint;
 typedef struct _GumCpuContext GumCpuContext;
+typedef guint GumRelocationScenario;
 
 enum _GumOS
 {
@@ -146,6 +147,12 @@ struct _GumCpuContext
   guint32 r[8];
   guint32 lr;
 #endif
+};
+
+enum _GumRelocationScenario
+{
+  GUM_SCENARIO_OFFLINE,
+  GUM_SCENARIO_ONLINE
 };
 
 #ifndef __arm__
