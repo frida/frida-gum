@@ -110,6 +110,8 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 #include <sys/socket.h>
 #include <unistd.h>
 
+static gpointer perform_read (gpointer data);
+
 INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 {
   int ret;
@@ -167,6 +169,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
   {
     ssize_t (* read_impl) (int fd, void * buf, size_t n);
     int fds[2];
+    GThread * read_thread;
     guint8 value = 42;
 
     read_impl = GSIZE_TO_POINTER (
@@ -175,14 +178,12 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     ret = pipe (fds);
     g_assert (ret == 0);
 
-    write (fds[1], &value, sizeof (value));
-
+    read_thread =
+        g_thread_new ("perform-read", perform_read, GSIZE_TO_POINTER (fds[0]));
+    g_usleep (G_USEC_PER_SEC / 10);
     interceptor_fixture_attach_listener (fixture, 0, read_impl, '>', '<');
-
-    value = 0;
-    ret = read_impl (fds[0], &value, sizeof (value));
-    g_assert_cmpint (ret, ==, 1);
-    g_assert_cmpuint (value, ==, 42);
+    write (fds[1], &value, sizeof (value));
+    g_thread_join (read_thread);
     g_assert_cmpstr (fixture->result->str, ==, "><");
 
     close (fds[0]);
@@ -309,6 +310,20 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 
     g_assert_cmpint (host, ==, mach_host_self_impl ());
   }
+}
+
+static gpointer
+perform_read (gpointer data)
+{
+  gint fd = GPOINTER_TO_SIZE (data);
+  guint8 value = 0;
+  int ret;
+
+  ret = read (fd, &value, sizeof (value));
+  g_assert_cmpint (ret, ==, 1);
+  g_assert_cmpuint (value, ==, 42);
+
+  return NULL;
 }
 
 #endif
