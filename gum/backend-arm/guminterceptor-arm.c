@@ -244,8 +244,7 @@ _gum_interceptor_backend_make_monitor_trampoline (GumInterceptorBackend * self,
 
 gboolean
 _gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
-                                                  GumFunctionContext * ctx,
-                                                  gpointer replacement_function)
+                                                  GumFunctionContext * ctx)
 {
   gconstpointer skip_label = "gum_interceptor_replacement_skip";
   gpointer function_address;
@@ -322,7 +321,7 @@ _gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
   gum_thumb_writer_put_mov_reg_reg (tw, GUM_AREG_LR, GUM_AREG_R0);
   /* replace LR in the GumCpuContext on stack so we can pop it into PC */
   gum_thumb_writer_put_ldr_reg_address (tw, GUM_AREG_R0,
-      GUM_ADDRESS (replacement_function));
+      GUM_ADDRESS (ctx->replacement_function));
   gum_thumb_writer_put_str_reg_reg_offset (tw, GUM_AREG_R0,
       GUM_AREG_SP, G_STRUCT_OFFSET (GumCpuContext, lr));
 

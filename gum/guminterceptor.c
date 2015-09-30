@@ -19,7 +19,11 @@
 #endif
 #include <string.h>
 
-#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 548
+#ifdef HAVE_ARM64
+# define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
+#else
+# define GUM_INTERCEPTOR_CODE_SLICE_SIZE 548
+#endif
 
 #if defined (HAVE_DARWIN) && !defined (HAVE_ARM64)
 # define GUM_INTERCEPTOR_FAST_TLS 1
@@ -615,10 +619,10 @@ replace_function_at (GumInterceptor * self,
 
   ctx = gum_function_context_new (self, function_address, &priv->allocator);
 
+  ctx->replacement_function = replacement_function;
   ctx->replacement_function_data = replacement_function_data;
 
-  if (!_gum_interceptor_backend_make_replace_trampoline (priv->backend, ctx,
-      replacement_function))
+  if (!_gum_interceptor_backend_make_replace_trampoline (priv->backend, ctx))
   {
     gum_function_context_destroy (ctx);
     return FALSE;

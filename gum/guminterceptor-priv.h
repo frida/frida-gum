@@ -36,6 +36,7 @@ struct _GumFunctionContext
 
   GumArray * listener_entries;
 
+  gpointer replacement_function;
   gpointer replacement_function_data;
 
   gpointer backend_data[1];
@@ -67,8 +68,7 @@ void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
 gboolean _gum_interceptor_backend_make_monitor_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 gboolean _gum_interceptor_backend_make_replace_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx,
-    gpointer replacement_function);
+    GumInterceptorBackend * self, GumFunctionContext * ctx);
 void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
 void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,

@@ -241,8 +241,7 @@ _gum_interceptor_backend_make_monitor_trampoline (GumInterceptorBackend * self,
 
 gboolean
 _gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
-                                                  GumFunctionContext * ctx,
-                                                  gpointer replacement_function)
+                                                  GumFunctionContext * ctx)
 {
   gconstpointer skip_label = "gum_interceptor_replacement_skip";
   GumX86Writer * cw = &self->writer;
@@ -295,7 +294,7 @@ _gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
   gum_x86_writer_put_mov_reg_address (cw, GUM_REG_XAX,
       GUM_ADDRESS (ctx->on_leave_trampoline));
   gum_x86_writer_put_mov_reg_ptr_reg (cw, GUM_REG_XSP, GUM_REG_XAX);
-  gum_x86_writer_put_jmp (cw, replacement_function);
+  gum_x86_writer_put_jmp (cw, ctx->replacement_function);
 
   gum_x86_writer_put_label (cw, skip_label);
   gum_x86_writer_put_pop_reg (cw, GUM_REG_XAX);
