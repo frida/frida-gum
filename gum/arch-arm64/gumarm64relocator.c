@@ -504,14 +504,12 @@ gum_arm64_relocator_rewrite_conditional_branch (GumArm64Relocator * self,
 
   (void) self;
 
-  /* Rewrite to b.cond/cbz going 3 instructions ahead */
+  /* Rewrite to b.cond/cbz going 2 instructions ahead */
   gum_arm64_writer_put_instruction (ctx->output,
-      (ctx->raw_insn & 0xff00001f) | (3 << 5));
+      (ctx->raw_insn & 0xff00001f) | (2 << 5));
 
-  /* If false */
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-      GUM_ADDRESS (ctx->output->code + 4));
-  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+  /* If false: jump 3 instructions ahead */
+  gum_arm64_writer_put_b_imm (ctx->output, ctx->output->pc + (3 * 4));
 
   /* If true */
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,

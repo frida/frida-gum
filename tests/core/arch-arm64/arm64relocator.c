@@ -141,14 +141,13 @@ TESTCASE (adrp_should_be_rewritten)
 TESTCASE (cbz_should_be_rewritten)
 {
   const guint32 input[] = {
-    GUINT32_TO_LE (0xb40000c0)  /* cbz x0, #+6        */
+    GUINT32_TO_LE (0xb40000c0)  /* cbz x0, #+6       */
   };
   const guint32 expected_output[] = {
-    GUINT32_TO_LE (0xb4000060), /* cbz x0, #+3        */
-    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
-    GUINT32_TO_LE (0xd61f0200), /* br x16             */
-    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
-    GUINT32_TO_LE (0xd61f0200)  /* br x16             */
+    GUINT32_TO_LE (0xb4000040), /* cbz x0, #+2       */
+    GUINT32_TO_LE (0x14000003), /* b +3              */
+    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
+    GUINT32_TO_LE (0xd61f0200)  /* br x16            */
   };
   const cs_insn * insn;
 
@@ -165,14 +164,13 @@ TESTCASE (cbz_should_be_rewritten)
 TESTCASE (b_cond_should_be_rewritten)
 {
   const guint32 input[] = {
-    GUINT32_TO_LE (0x540000c3)  /* b.lo #+6           */
+    GUINT32_TO_LE (0x540000c3)  /* b.lo #+6          */
   };
   const guint32 expected_output[] = {
-    GUINT32_TO_LE (0x54000063), /* b.lo #+3           */
-    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
-    GUINT32_TO_LE (0xd61f0200), /* br x16             */
-    GUINT32_TO_LE (0x58000090), /* ldr x16, [pc, #16] */
-    GUINT32_TO_LE (0xd61f0200)  /* br x16             */
+    GUINT32_TO_LE (0x54000043), /* b.lo #+2          */
+    GUINT32_TO_LE (0x14000003), /* b +3              */
+    GUINT32_TO_LE (0x58000050), /* ldr x16, [pc, #8] */
+    GUINT32_TO_LE (0xd61f0200)  /* br x16            */
   };
   const cs_insn * insn;
 
