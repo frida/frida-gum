@@ -15,9 +15,10 @@
 #include "gumspinlock.h"
 #include "gumtls.h"
 
-typedef struct _FunctionContext          FunctionContext;
+typedef struct _GumInterceptorBackend GumInterceptorBackend;
+typedef struct _GumFunctionContext    GumFunctionContext;
 
-struct _FunctionContext
+struct _GumFunctionContext
 {
   GumInterceptor * interceptor;
 
@@ -45,13 +46,13 @@ extern GumTlsKey _gum_interceptor_guard_key;
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
-gboolean _gum_function_context_on_enter (FunctionContext * function_ctx,
+gboolean _gum_function_context_on_enter (GumFunctionContext * function_ctx,
     GumCpuContext * cpu_context, gpointer * caller_ret_addr);
-void _gum_function_context_on_leave (FunctionContext * function_ctx,
+void _gum_function_context_on_leave (GumFunctionContext * function_ctx,
     GumCpuContext * cpu_context, gpointer * caller_ret_addr);
 
 gboolean _gum_function_context_try_begin_invocation (
-    FunctionContext * function_ctx, gpointer caller_ret_addr,
+    GumFunctionContext * function_ctx, gpointer caller_ret_addr,
     const GumCpuContext * cpu_context);
 gpointer _gum_function_context_end_invocation (void);
 
@@ -60,17 +61,25 @@ gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
 gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
 #endif
 
-void _gum_function_context_init (void);
-void _gum_function_context_deinit (void);
-gboolean _gum_function_context_make_monitor_trampoline (FunctionContext * ctx);
-gboolean _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
+GumInterceptorBackend * _gum_interceptor_backend_create (
+    GumCodeAllocator * allocator);
+void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
+gboolean _gum_interceptor_backend_make_monitor_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx);
+gboolean _gum_interceptor_backend_make_replace_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx,
     gpointer replacement_function);
-void _gum_function_context_destroy_trampoline (FunctionContext * ctx);
-void _gum_function_context_activate_trampoline (FunctionContext * ctx);
-void _gum_function_context_deactivate_trampoline (FunctionContext * ctx);
+void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
+    GumFunctionContext * ctx);
+void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
+    GumFunctionContext * ctx);
+void _gum_interceptor_backend_deactivate_trampoline (
+    GumInterceptorBackend * self, GumFunctionContext * ctx);
 
-gpointer _gum_interceptor_resolve_redirect (gpointer address);
-gboolean _gum_interceptor_can_intercept (gpointer function_address);
+gpointer _gum_interceptor_backend_resolve_redirect (
+    GumInterceptorBackend * self, gpointer address);
+gboolean _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
+    gpointer function_address);
 
 gpointer _gum_interceptor_invocation_get_nth_argument (
     GumInvocationContext * context, guint n);

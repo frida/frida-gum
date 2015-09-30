@@ -24,51 +24,62 @@
 #define FUNCTION_CONTEXT_ADDRESS_IS_THUMB(ctx) ( \
     (GPOINTER_TO_SIZE (ctx->function_address) & 0x1) == 0x1)
 
-static void gum_function_context_clear_cache (FunctionContext * ctx);
+struct _GumInterceptorBackend
+{
+  GumArmWriter arm_writer;
+  GumArmRelocator arm_relocator;
 
-static void gum_function_context_write_guard_enter_code (FunctionContext * ctx,
-    gconstpointer skip_label, GumThumbWriter * tw);
-static void gum_function_context_write_guard_leave_code (FunctionContext * ctx,
-    GumThumbWriter * tw);
+  GumThumbWriter thumb_writer;
+  GumThumbRelocator thumb_relocator;
+};
+
+static void gum_function_context_clear_cache (GumFunctionContext * ctx);
+
+static void gum_function_context_write_guard_enter_code (
+    GumFunctionContext * ctx, gconstpointer skip_label, GumThumbWriter * tw);
+static void gum_function_context_write_guard_leave_code (
+    GumFunctionContext * ctx, GumThumbWriter * tw);
 
 #ifdef HAVE_DARWIN
 static void gum_darwin_write_ldr_r1_tls_guard_ptr (GumThumbWriter * tw);
 #endif
 
-static GumArmWriter gum_function_context_arm_writer;
-static GumArmRelocator gum_function_context_arm_relocator;
-
-static GumThumbWriter gum_function_context_thumb_writer;
-static GumThumbRelocator gum_function_context_thumb_relocator;
-
-void
-_gum_function_context_init (void)
+GumInterceptorBackend *
+_gum_interceptor_backend_create (GumCodeAllocator * allocator)
 {
-  gum_arm_writer_init (&gum_function_context_arm_writer, NULL);
-  gum_arm_relocator_init (&gum_function_context_arm_relocator, NULL,
-      &gum_function_context_arm_writer);
+  GumInterceptorBackend * backend;
 
-  gum_thumb_writer_init (&gum_function_context_thumb_writer, NULL);
-  gum_thumb_relocator_init (&gum_function_context_thumb_relocator, NULL,
-      &gum_function_context_thumb_writer);
+  backend = g_slice_new (GumInterceptorBackend);
+
+  gum_arm_writer_init (&backend->arm_writer, NULL);
+  gum_arm_relocator_init (&backend->arm_relocator, NULL, &backend->arm_writer);
+
+  gum_thumb_writer_init (&backend->thumb_writer, NULL);
+  gum_thumb_relocator_init (&backend->thumb_relocator, NULL,
+      &backend->thumb_writer);
+
+  return backend;
 }
 
 void
-_gum_function_context_deinit (void)
+_gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
-  gum_thumb_relocator_free (&gum_function_context_thumb_relocator);
-  gum_thumb_writer_free (&gum_function_context_thumb_writer);
+  gum_thumb_relocator_free (&backend->thumb_relocator);
+  gum_thumb_writer_free (&backend->thumb_writer);
 
-  gum_arm_relocator_free (&gum_function_context_arm_relocator);
-  gum_arm_writer_free (&gum_function_context_arm_writer);
+  gum_arm_relocator_free (&backend->arm_relocator);
+  gum_arm_writer_free (&backend->arm_writer);
+
+  g_slice_free (GumInterceptorBackend, backend);
 }
 
 gboolean
-_gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_make_monitor_trampoline (GumInterceptorBackend * self,
+                                                  GumFunctionContext * ctx)
 {
   gpointer function_address;
   gboolean is_thumb;
-  GumThumbWriter * tw = &gum_function_context_thumb_writer;
+  GumThumbWriter * tw = &self->thumb_writer;
   gconstpointer skip_label = "gum_interceptor_on_enter_skip";
   guint reloc_bytes;
 
@@ -128,7 +139,7 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   /* stack is now restored, let's execute the overwritten prologue */
   if (is_thumb)
   {
-    GumThumbRelocator * tr = &gum_function_context_thumb_relocator;
+    GumThumbRelocator * tr = &self->thumb_relocator;
 
     gum_thumb_relocator_reset (tr, function_address, tw);
 
@@ -151,8 +162,8 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
   }
   else
   {
-    GumArmWriter * aw = &gum_function_context_arm_writer;
-    GumArmRelocator * ar = &gum_function_context_arm_relocator;
+    GumArmWriter * aw = &self->arm_writer;
+    GumArmRelocator * ar = &self->arm_relocator;
     guint arm_code_size;
 
     /* switch back to ARM mode */
@@ -232,13 +243,14 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 }
 
 gboolean
-_gum_function_context_make_replace_trampoline (FunctionContext * ctx,
-                                               gpointer replacement_function)
+_gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
+                                                  GumFunctionContext * ctx,
+                                                  gpointer replacement_function)
 {
   gconstpointer skip_label = "gum_interceptor_replacement_skip";
   gpointer function_address;
   gboolean is_thumb;
-  GumThumbWriter * tw = &gum_function_context_thumb_writer;
+  GumThumbWriter * tw = &self->thumb_writer;
   guint reloc_bytes;
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
@@ -341,7 +353,7 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 
   if (is_thumb)
   {
-    GumThumbRelocator * tr = &gum_function_context_thumb_relocator;
+    GumThumbRelocator * tr = &self->thumb_relocator;
 
     gum_thumb_relocator_reset (tr, function_address, tw);
 
@@ -364,8 +376,8 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
   }
   else
   {
-    GumArmWriter * aw = &gum_function_context_arm_writer;
-    GumArmRelocator * ar = &gum_function_context_arm_relocator;
+    GumArmWriter * aw = &self->arm_writer;
+    GumArmRelocator * ar = &self->arm_relocator;
     guint arm_code_size;
 
     /* switch back to ARM mode */
@@ -407,14 +419,16 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 }
 
 void
-_gum_function_context_destroy_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
+                                             GumFunctionContext * ctx)
 {
   gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
 
 void
-_gum_function_context_activate_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
+                                              GumFunctionContext * ctx)
 {
   gpointer function_address;
 
@@ -422,7 +436,7 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 
   if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
   {
-    GumThumbWriter * tw = &gum_function_context_thumb_writer;
+    GumThumbWriter * tw = &self->thumb_writer;
 
     gum_thumb_writer_reset (tw, function_address);
 
@@ -443,7 +457,7 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
   }
   else
   {
-    GumArmWriter * aw = &gum_function_context_arm_writer;
+    GumArmWriter * aw = &self->arm_writer;
 
     gum_arm_writer_reset (aw, function_address);
 
@@ -460,7 +474,8 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 }
 
 void
-_gum_function_context_deactivate_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
+                                                GumFunctionContext * ctx)
 {
   guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
 
@@ -470,7 +485,7 @@ _gum_function_context_deactivate_trampoline (FunctionContext * ctx)
 }
 
 static void
-gum_function_context_clear_cache (FunctionContext * ctx)
+gum_function_context_clear_cache (GumFunctionContext * ctx)
 {
   gum_clear_cache (FUNCTION_CONTEXT_ADDRESS (ctx),
       ctx->overwritten_prologue_len);
@@ -479,7 +494,8 @@ gum_function_context_clear_cache (FunctionContext * ctx)
 }
 
 gpointer
-_gum_interceptor_resolve_redirect (gpointer address)
+_gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
+                                           gpointer address)
 {
   gpointer target;
 
@@ -495,7 +511,8 @@ _gum_interceptor_resolve_redirect (gpointer address)
 }
 
 gboolean
-_gum_interceptor_can_intercept (gpointer function_address)
+_gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
+                                        gpointer function_address)
 {
   if ((GPOINTER_TO_SIZE (function_address) & 1) != 0)
   {
@@ -559,7 +576,7 @@ _gum_interceptor_invocation_replace_return_value (
 }
 
 static void
-gum_function_context_write_guard_enter_code (FunctionContext * ctx,
+gum_function_context_write_guard_enter_code (GumFunctionContext * ctx,
                                              gconstpointer skip_label,
                                              GumThumbWriter * tw)
 {
@@ -583,7 +600,7 @@ gum_function_context_write_guard_enter_code (FunctionContext * ctx,
 }
 
 static void
-gum_function_context_write_guard_leave_code (FunctionContext * ctx,
+gum_function_context_write_guard_leave_code (GumFunctionContext * ctx,
                                              GumThumbWriter * tw)
 {
   (void) ctx;

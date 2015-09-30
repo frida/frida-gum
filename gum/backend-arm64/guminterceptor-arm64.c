@@ -17,37 +17,47 @@
 #define GUM_ARM64_B_MAX_DISTANCE    0x00fffffff
 #define GUM_ARM64_ADRP_MAX_DISTANCE 0x1fffff000
 
-typedef struct _GumInterceptorArm64BackendData GumInterceptorArm64BackendData;
+typedef struct _GumFunctionContextBackendData GumFunctionContextBackendData;
 
-struct _GumInterceptorArm64BackendData
+struct _GumInterceptorBackend
+{
+  GumArm64Writer writer;
+  GumArm64Relocator relocator;
+};
+
+struct _GumFunctionContextBackendData
 {
   guint redirect_code_size;
 };
 
-static void gum_function_context_clear_cache (FunctionContext * ctx);
+static void gum_function_context_clear_cache (GumFunctionContext * ctx);
 
-static GumArm64Writer gum_function_context_writer;
-static GumArm64Relocator gum_function_context_relocator;
-
-void
-_gum_function_context_init (void)
+GumInterceptorBackend *
+_gum_interceptor_backend_create (GumCodeAllocator * allocator)
 {
-  gum_arm64_writer_init (&gum_function_context_writer, NULL);
-  gum_arm64_relocator_init (&gum_function_context_relocator, NULL,
-      &gum_function_context_writer);
+  GumInterceptorBackend * backend;
+
+  backend = g_slice_new (GumInterceptorBackend);
+  gum_arm64_writer_init (&backend->writer, NULL);
+  gum_arm64_relocator_init (&backend->relocator, NULL, &backend->writer);
+
+  return backend;
 }
 
 void
-_gum_function_context_deinit (void)
+_gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
-  gum_arm64_relocator_free (&gum_function_context_relocator);
-  gum_arm64_writer_free (&gum_function_context_writer);
+  gum_arm64_relocator_free (&backend->relocator);
+  gum_arm64_writer_free (&backend->writer);
+
+  g_slice_free (GumInterceptorBackend, backend);
 }
 
 static gboolean
-gum_function_context_prepare_trampoline (FunctionContext * ctx)
+gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
+                                            GumFunctionContext * ctx)
 {
-  GumInterceptorArm64BackendData * data = (GumInterceptorArm64BackendData *)
+  GumFunctionContextBackendData * data = (GumFunctionContextBackendData *)
       ctx->backend_data;
   gpointer function_address = ctx->function_address;
   guint redirect_limit;
@@ -96,17 +106,18 @@ gum_function_context_prepare_trampoline (FunctionContext * ctx)
 }
 
 gboolean
-_gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_make_monitor_trampoline (GumInterceptorBackend * self,
+                                                  GumFunctionContext * ctx)
 {
-  GumInterceptorArm64BackendData * data = (GumInterceptorArm64BackendData *)
-      ctx->backend_data;
-  GumArm64Writer * aw = &gum_function_context_writer;
-  GumArm64Relocator * ar = &gum_function_context_relocator;
+  GumArm64Writer * aw = &self->writer;
+  GumArm64Relocator * ar = &self->relocator;
   gpointer function_address = ctx->function_address;
+  GumFunctionContextBackendData * data = (GumFunctionContextBackendData *)
+      ctx->backend_data;
   guint reloc_bytes;
   GumAddress resume_at;
 
-  if (!gum_function_context_prepare_trampoline (ctx))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
@@ -184,19 +195,20 @@ _gum_function_context_make_monitor_trampoline (FunctionContext * ctx)
 }
 
 gboolean
-_gum_function_context_make_replace_trampoline (FunctionContext * ctx,
-                                               gpointer replacement_function)
+_gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
+                                                  GumFunctionContext * ctx,
+                                                  gpointer replacement_function)
 {
-  GumInterceptorArm64BackendData * data = (GumInterceptorArm64BackendData *)
+  GumArm64Writer * aw = &self->writer;
+  GumArm64Relocator * ar = &self->relocator;
+  gpointer function_address = ctx->function_address;
+  GumFunctionContextBackendData * data = (GumFunctionContextBackendData *)
       ctx->backend_data;
   gconstpointer skip_label = "gum_interceptor_replacement_skip";
-  gpointer function_address = ctx->function_address;
-  GumArm64Writer * aw = &gum_function_context_writer;
-  GumArm64Relocator * ar = &gum_function_context_relocator;
   guint reloc_bytes;
   GumAddress resume_at;
 
-  if (!gum_function_context_prepare_trampoline (ctx))
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
@@ -272,18 +284,20 @@ _gum_function_context_make_replace_trampoline (FunctionContext * ctx,
 }
 
 void
-_gum_function_context_destroy_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
+                                             GumFunctionContext * ctx)
 {
   gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
 
 void
-_gum_function_context_activate_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
+                                              GumFunctionContext * ctx)
 {
-  GumInterceptorArm64BackendData * data = (GumInterceptorArm64BackendData *)
+  GumArm64Writer * aw = &self->writer;
+  GumFunctionContextBackendData * data = (GumFunctionContextBackendData *)
       ctx->backend_data;
-  GumArm64Writer * aw = &gum_function_context_writer;
   GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
 
   gum_arm64_writer_reset (aw, ctx->function_address);
@@ -309,7 +323,8 @@ _gum_function_context_activate_trampoline (FunctionContext * ctx)
 }
 
 void
-_gum_function_context_deactivate_trampoline (FunctionContext * ctx)
+_gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
+                                                GumFunctionContext * ctx)
 {
   memcpy (ctx->function_address, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
@@ -317,20 +332,22 @@ _gum_function_context_deactivate_trampoline (FunctionContext * ctx)
 }
 
 static void
-gum_function_context_clear_cache (FunctionContext * ctx)
+gum_function_context_clear_cache (GumFunctionContext * ctx)
 {
   gum_clear_cache (ctx->function_address, ctx->overwritten_prologue_len);
   gum_clear_cache (ctx->trampoline_slice->data, ctx->trampoline_slice->size);
 }
 
 gpointer
-_gum_interceptor_resolve_redirect (gpointer address)
+_gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
+                                           gpointer address)
 {
   return gum_arm64_reader_try_get_relative_jump_target (address);
 }
 
 gboolean
-_gum_interceptor_can_intercept (gpointer function_address)
+_gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
+                                        gpointer function_address)
 {
   return TRUE;
 }

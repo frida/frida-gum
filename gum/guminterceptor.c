@@ -49,6 +49,7 @@ struct _GumInterceptorPrivate
   GumHashTable * monitored_function_by_address;
   GumHashTable * replaced_function_by_address;
 
+  GumInterceptorBackend * backend;
   GumCodeAllocator allocator;
 
   volatile guint selected_thread_id;
@@ -110,7 +111,7 @@ static void gum_interceptor_finalize (GObject * object);
 static void the_interceptor_weak_notify (gpointer data,
     GObject * where_the_object_was);
 
-static FunctionContext * intercept_function_at (GumInterceptor * self,
+static GumFunctionContext * intercept_function_at (GumInterceptor * self,
     gpointer function_address);
 static gboolean replace_function_at (GumInterceptor * self,
     gpointer function_address, gpointer replacement_address,
@@ -119,17 +120,19 @@ static void revert_function_at (GumInterceptor * self,
     gpointer function_address);
 static void detach_if_matching_listener (gpointer key, gpointer value,
     gpointer user_data);
-static FunctionContext * function_context_new (GumInterceptor * interceptor,
-    gpointer function_address, GumCodeAllocator * allocator);
-static void function_context_destroy (FunctionContext * function_ctx);
-static void function_context_add_listener (FunctionContext * function_ctx,
-    GumInvocationListener * listener, gpointer function_data);
-static void function_context_remove_listener (FunctionContext * function_ctx,
-    GumInvocationListener * listener);
-static gboolean function_context_has_listener (FunctionContext * function_ctx,
-    GumInvocationListener * listener);
-static ListenerEntry * function_context_find_listener_entry (
-    FunctionContext * function_ctx, GumInvocationListener * listener);
+static GumFunctionContext * gum_function_context_new (
+    GumInterceptor * interceptor, gpointer function_address,
+    GumCodeAllocator * allocator);
+static void gum_function_context_destroy (GumFunctionContext * function_ctx);
+static void gum_function_context_add_listener (
+    GumFunctionContext * function_ctx, GumInvocationListener * listener,
+    gpointer function_data);
+static void gum_function_context_remove_listener (
+    GumFunctionContext * function_ctx, GumInvocationListener * listener);
+static gboolean gum_function_context_has_listener (
+    GumFunctionContext * function_ctx, GumInvocationListener * listener);
+static ListenerEntry * gum_function_context_find_listener_entry (
+    GumFunctionContext * function_ctx, GumInvocationListener * listener);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
 static InterceptorThreadContext * interceptor_thread_context_new (void);
@@ -141,7 +144,7 @@ static gpointer interceptor_thread_context_get_listener_data (
 static void interceptor_thread_context_forget_listener_data (
     InterceptorThreadContext * self, GumInvocationListener * listener);
 static GumInvocationStackEntry * gum_invocation_stack_push (
-    GumInvocationStack * stack, FunctionContext * function_ctx,
+    GumInvocationStack * stack, GumFunctionContext * function_ctx,
     gpointer caller_ret_addr, const GumCpuContext * cpu_context);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
@@ -157,7 +160,7 @@ static gboolean is_patched_function (GumInterceptor * self,
     gpointer function_address);
 
 static void gum_function_context_wait_for_idle_trampoline (
-    FunctionContext * ctx);
+    GumFunctionContext * ctx);
 
 #ifdef HAVE_QNX
 static void gum_exec_callback_func_with_side_stack (
@@ -195,16 +198,12 @@ _gum_interceptor_init (void)
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
   _gum_interceptor_thread_contexts = gum_array_new (FALSE, FALSE,
       sizeof (InterceptorThreadContext *));
-
-  _gum_function_context_init ();
 }
 
 void
 _gum_interceptor_deinit (void)
 {
   guint i;
-
-  _gum_function_context_deinit ();
 
   for (i = 0; i != _gum_interceptor_thread_contexts->len; i++)
   {
@@ -239,6 +238,7 @@ gum_interceptor_init (GumInterceptor * self)
       g_direct_equal, NULL, NULL);
 
   gum_code_allocator_init (&priv->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
+  priv->backend = _gum_interceptor_backend_create (&priv->allocator);
 }
 
 static void
@@ -246,6 +246,8 @@ gum_interceptor_finalize (GObject * object)
 {
   GumInterceptor * self = GUM_INTERCEPTOR (object);
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
+
+  _gum_interceptor_backend_destroy (priv->backend);
 
   g_mutex_clear (&priv->mutex);
 
@@ -306,7 +308,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
   GumAttachReturn result = GUM_ATTACH_OK;
   gpointer next_hop;
-  FunctionContext * function_ctx;
+  GumFunctionContext * function_ctx;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
@@ -320,12 +322,13 @@ gum_interceptor_attach_listener (GumInterceptor * self,
       break;
   }
 
-  function_ctx = (FunctionContext *) gum_hash_table_lookup (
+  function_ctx = (GumFunctionContext *) gum_hash_table_lookup (
       priv->monitored_function_by_address,
       function_address);
   if (function_ctx == NULL)
   {
-    if (!_gum_interceptor_can_intercept (function_address))
+    if (!_gum_interceptor_backend_can_intercept (priv->backend,
+        function_address))
     {
       result = GUM_ATTACH_WRONG_SIGNATURE;
       goto beach;
@@ -343,14 +346,14 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   }
   else
   {
-    if (function_context_has_listener (function_ctx, listener))
+    if (gum_function_context_has_listener (function_ctx, listener))
     {
       result = GUM_ATTACH_ALREADY_ATTACHED;
       goto beach;
     }
   }
 
-  function_context_add_listener (function_ctx, listener,
+  gum_function_context_add_listener (function_ctx, listener,
       listener_function_data);
 
 beach:
@@ -440,7 +443,7 @@ gum_interceptor_replace_function (GumInterceptor * self,
     goto beach;
   }
 
-  if (!_gum_interceptor_can_intercept (function_address))
+  if (!_gum_interceptor_backend_can_intercept (priv->backend, function_address))
   {
     result = GUM_REPLACE_WRONG_SIGNATURE;
     goto beach;
@@ -566,20 +569,21 @@ gum_invocation_stack_translate (GumInvocationStack * self,
   return return_address;
 }
 
-static FunctionContext *
+static GumFunctionContext *
 intercept_function_at (GumInterceptor * self,
                        gpointer function_address)
 {
-  FunctionContext * ctx;
+  GumInterceptorPrivate * priv = self->priv;
+  GumFunctionContext * ctx;
 
-  ctx = function_context_new (self, function_address, &self->priv->allocator);
+  ctx = gum_function_context_new (self, function_address, &priv->allocator);
 
   ctx->listener_entries =
       gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
 
-  if (!_gum_function_context_make_monitor_trampoline (ctx))
+  if (!_gum_interceptor_backend_make_monitor_trampoline (priv->backend, ctx))
   {
-    function_context_destroy (ctx);
+    gum_function_context_destroy (ctx);
     return NULL;
   }
 
@@ -590,7 +594,7 @@ intercept_function_at (GumInterceptor * self,
   }
 
   make_function_prologue_at_least_read_write (function_address);
-  _gum_function_context_activate_trampoline (ctx);
+  _gum_interceptor_backend_activate_trampoline (priv->backend, ctx);
   make_function_prologue_read_execute (function_address);
 
 #ifdef G_OS_WIN32
@@ -607,16 +611,16 @@ replace_function_at (GumInterceptor * self,
                      gpointer replacement_function_data)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
-  FunctionContext * ctx;
+  GumFunctionContext * ctx;
 
-  ctx = function_context_new (self, function_address, &priv->allocator);
+  ctx = gum_function_context_new (self, function_address, &priv->allocator);
 
   ctx->replacement_function_data = replacement_function_data;
 
-  if (!_gum_function_context_make_replace_trampoline (ctx,
+  if (!_gum_interceptor_backend_make_replace_trampoline (priv->backend, ctx,
       replacement_function))
   {
-    function_context_destroy (ctx);
+    gum_function_context_destroy (ctx);
     return FALSE;
   }
 
@@ -627,7 +631,7 @@ replace_function_at (GumInterceptor * self,
   }
 
   make_function_prologue_at_least_read_write (function_address);
-  _gum_function_context_activate_trampoline (ctx);
+  _gum_interceptor_backend_activate_trampoline (priv->backend, ctx);
   make_function_prologue_read_execute (function_address);
 
   gum_hash_table_insert (priv->replaced_function_by_address, function_address,
@@ -645,15 +649,15 @@ revert_function_at (GumInterceptor * self,
                     gpointer function_address)
 {
   GumInterceptorPrivate * priv = GUM_INTERCEPTOR_GET_PRIVATE (self);
-  FunctionContext * ctx;
+  GumFunctionContext * ctx;
 
-  ctx = (FunctionContext *) gum_hash_table_lookup (
+  ctx = (GumFunctionContext *) gum_hash_table_lookup (
       priv->replaced_function_by_address, function_address);
   g_assert (ctx != NULL);
 
   gum_hash_table_remove (priv->replaced_function_by_address, function_address);
 
-  function_context_destroy (ctx);
+  gum_function_context_destroy (ctx);
 
 #ifdef G_OS_WIN32
   FlushInstructionCache (GetCurrentProcess (), NULL, 0);
@@ -666,16 +670,16 @@ detach_if_matching_listener (gpointer key,
                              gpointer user_data)
 {
   gpointer function_address = key;
-  FunctionContext * function_ctx = (FunctionContext *) value;
+  GumFunctionContext * function_ctx = (GumFunctionContext *) value;
   DetachContext * detach_ctx = (DetachContext *) user_data;
 
-  if (function_context_has_listener (function_ctx, detach_ctx->listener))
+  if (gum_function_context_has_listener (function_ctx, detach_ctx->listener))
   {
-    function_context_remove_listener (function_ctx, detach_ctx->listener);
+    gum_function_context_remove_listener (function_ctx, detach_ctx->listener);
 
     if (function_ctx->listener_entries->len == 0)
     {
-      function_context_destroy (function_ctx);
+      gum_function_context_destroy (function_ctx);
 
       detach_ctx->pending_removals =
           g_list_prepend (detach_ctx->pending_removals, function_address);
@@ -683,14 +687,14 @@ detach_if_matching_listener (gpointer key,
   }
 }
 
-static FunctionContext *
-function_context_new (GumInterceptor * interceptor,
-                      gpointer function_address,
-                      GumCodeAllocator * allocator)
+static GumFunctionContext *
+gum_function_context_new (GumInterceptor * interceptor,
+                          gpointer function_address,
+                          GumCodeAllocator * allocator)
 {
-  FunctionContext * ctx;
+  GumFunctionContext * ctx;
 
-  ctx = gum_new0 (FunctionContext, 1);
+  ctx = gum_new0 (GumFunctionContext, 1);
   ctx->interceptor = interceptor;
   ctx->function_address = function_address;
 
@@ -700,16 +704,18 @@ function_context_new (GumInterceptor * interceptor,
 }
 
 static void
-function_context_destroy (FunctionContext * function_ctx)
+gum_function_context_destroy (GumFunctionContext * function_ctx)
 {
   if (function_ctx->trampoline_slice != NULL)
   {
+    GumInterceptorBackend * backend = function_ctx->interceptor->priv->backend;
+
     make_function_prologue_at_least_read_write (function_ctx->function_address);
-    _gum_function_context_deactivate_trampoline (function_ctx);
+    _gum_interceptor_backend_deactivate_trampoline (backend, function_ctx);
     make_function_prologue_read_execute (function_ctx->function_address);
 
     gum_function_context_wait_for_idle_trampoline (function_ctx);
-    _gum_function_context_destroy_trampoline (function_ctx);
+    _gum_interceptor_backend_destroy_trampoline (backend, function_ctx);
   }
 
   if (function_ctx->listener_entries != NULL)
@@ -719,9 +725,9 @@ function_context_destroy (FunctionContext * function_ctx)
 }
 
 static void
-function_context_add_listener (FunctionContext * function_ctx,
-                               GumInvocationListener * listener,
-                               gpointer function_data)
+gum_function_context_add_listener (GumFunctionContext * function_ctx,
+                                   GumInvocationListener * listener,
+                                   gpointer function_data)
 {
   ListenerEntry * entry;
 
@@ -734,13 +740,13 @@ function_context_add_listener (FunctionContext * function_ctx,
 }
 
 static void
-function_context_remove_listener (FunctionContext * function_ctx,
-                                  GumInvocationListener * listener)
+gum_function_context_remove_listener (GumFunctionContext * function_ctx,
+                                      GumInvocationListener * listener)
 {
   ListenerEntry * entry;
   guint i;
 
-  entry = function_context_find_listener_entry (function_ctx, listener);
+  entry = gum_function_context_find_listener_entry (function_ctx, listener);
   g_assert (entry != NULL);
 
   for (i = 0; i < function_ctx->listener_entries->len; i++)
@@ -758,15 +764,16 @@ function_context_remove_listener (FunctionContext * function_ctx,
 }
 
 static gboolean
-function_context_has_listener (FunctionContext * function_ctx,
-                               GumInvocationListener * listener)
+gum_function_context_has_listener (GumFunctionContext * function_ctx,
+                                   GumInvocationListener * listener)
 {
-  return function_context_find_listener_entry (function_ctx, listener) != NULL;
+  return gum_function_context_find_listener_entry (function_ctx,
+      listener) != NULL;
 }
 
 static ListenerEntry *
-function_context_find_listener_entry (FunctionContext * function_ctx,
-                                      GumInvocationListener * listener)
+gum_function_context_find_listener_entry (GumFunctionContext * function_ctx,
+                                          GumInvocationListener * listener)
 {
   guint i;
 
@@ -783,7 +790,7 @@ function_context_find_listener_entry (FunctionContext * function_ctx,
 }
 
 gboolean
-_gum_function_context_on_enter (FunctionContext * function_ctx,
+_gum_function_context_on_enter (GumFunctionContext * function_ctx,
                                 GumCpuContext * cpu_context,
                                 gpointer * caller_ret_addr)
 {
@@ -902,7 +909,7 @@ _gum_function_context_on_enter (FunctionContext * function_ctx,
 }
 
 void
-_gum_function_context_on_leave (FunctionContext * function_ctx,
+_gum_function_context_on_leave (GumFunctionContext * function_ctx,
                                 GumCpuContext * cpu_context,
                                 gpointer * caller_ret_addr)
 {
@@ -1071,7 +1078,7 @@ _gum_interceptor_thread_get_orig_stack (gpointer current_stack)
 #endif
 
 gboolean
-_gum_function_context_try_begin_invocation (FunctionContext * function_ctx,
+_gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
                                             gpointer caller_ret_addr,
                                             const GumCpuContext * cpu_context)
 {
@@ -1337,7 +1344,7 @@ interceptor_thread_context_forget_listener_data (
 
 static GumInvocationStackEntry *
 gum_invocation_stack_push (GumInvocationStack * stack,
-                           FunctionContext * function_ctx,
+                           GumFunctionContext * function_ctx,
                            gpointer caller_ret_addr,
                            const GumCpuContext * cpu_context)
 {
@@ -1412,7 +1419,8 @@ maybe_follow_redirect_at (GumInterceptor * self,
   {
     gpointer target;
 
-    target = _gum_interceptor_resolve_redirect (address);
+    target = _gum_interceptor_backend_resolve_redirect (self->priv->backend,
+        address);
     if (target != NULL)
       return target;
   }
@@ -1443,7 +1451,7 @@ is_patched_function (GumInterceptor * self,
 }
 
 static void
-gum_function_context_wait_for_idle_trampoline (FunctionContext * ctx)
+gum_function_context_wait_for_idle_trampoline (GumFunctionContext * ctx)
 {
   if (ctx->trampoline_usage_counter == NULL)
     return;
