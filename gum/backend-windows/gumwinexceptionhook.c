@@ -11,8 +11,6 @@
 #include <capstone/capstone.h>
 #include <tchar.h>
 
-#define GUM_IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
-
 typedef struct _GumWinExceptionHook GumWinExceptionHook;
 typedef struct _GumWinExceptionHandlerEntry GumWinExceptionHandlerEntry;
 
