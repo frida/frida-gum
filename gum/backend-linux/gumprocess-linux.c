@@ -15,15 +15,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef HAVE_ANDROID
-# include <ucontext.h>
-#endif
 #include <unistd.h>
 #include <gio/gio.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#ifndef HAVE_ANDROID
+# include <link.h>
+# include <ucontext.h>
+#endif
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
@@ -31,9 +32,8 @@
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
-typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-typedef struct _GumCanonicalizeNameContext GumCanonicalizeNameContext;
+typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 
 typedef struct _GumElfModule GumElfModule;
 typedef struct _GumElfDependencyDetails GumElfDependencyDetails;
@@ -82,24 +82,18 @@ struct _GumDependencyExport
   GumAddress address;
 };
 
-struct _GumFindModuleContext
-{
-  const gchar * module_name;
-  GumAddress base;
-  gchar * path;
-};
-
 struct _GumEnumerateModuleRangesContext
 {
-  const gchar * module_name;
+  gchar * module_name;
   GumFoundRangeFunc func;
   gpointer user_data;
 };
 
-struct _GumCanonicalizeNameContext
+struct _GumResolveModuleNameContext
 {
-  const gchar * module_name;
-  gchar * module_path;
+  gchar * name;
+  gchar * path;
+  GumAddress base;
 };
 
 struct _GumElfModule
@@ -156,11 +150,9 @@ static GumDependencyExport * gum_dependency_export_new (const gchar * module,
 static void gum_dependency_export_free (GumDependencyExport * export);
 static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
-static gboolean gum_store_base_and_path_if_name_matches (
-    const GumModuleDetails * details, gpointer user_data);
 
-static gchar * gum_canonicalize_module_name (const gchar * name);
-static gboolean gum_store_module_path_if_module_name_matches (
+static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
+static gboolean gum_store_module_path_and_base_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
@@ -653,12 +645,16 @@ gum_module_enumerate_ranges (const gchar * module_name,
 {
   GumEnumerateModuleRangesContext ctx;
 
-  ctx.module_name = module_name;
+  ctx.module_name = gum_resolve_module_name (module_name, NULL);
+  if (ctx.module_name == NULL)
+    return;
   ctx.func = func;
   ctx.user_data = user_data;
 
   gum_process_enumerate_ranges (prot, gum_emit_range_if_module_name_matches,
       &ctx);
+
+  g_free (ctx.module_name);
 }
 
 static gboolean
@@ -669,7 +665,7 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
 
   if (details->file == NULL)
     return TRUE;
-  else if (!gum_module_path_equals (details->file->path, ctx->module_name))
+  else if (strcmp (details->file->path, ctx->module_name) != 0)
     return TRUE;
 
   return ctx->func (details, ctx->user_data);
@@ -678,24 +674,15 @@ gum_emit_range_if_module_name_matches (const GumRangeDetails * details,
 GumAddress
 gum_module_find_base_address (const gchar * module_name)
 {
-  GumFindModuleContext ctx = { module_name, 0, NULL };
-  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches, &ctx);
-  g_free (ctx.path);
-  return ctx.base;
-}
+  GumAddress base;
+  gchar * canonical_name;
 
-static gboolean
-gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
-                                         gpointer user_data)
-{
-  GumFindModuleContext * ctx = user_data;
+  canonical_name = gum_resolve_module_name (module_name, &base);
+  if (canonical_name == NULL)
+    return 0;
+  g_free (canonical_name);
 
-  if (!gum_module_path_equals (details->path, ctx->module_name))
-    return TRUE;
-
-  ctx->base = details->range->base_address;
-  ctx->path = g_strdup (details->path);
-  return FALSE;
+  return base;
 }
 
 GumAddress
@@ -709,7 +696,7 @@ gum_module_find_export_by_name (const gchar * module_name,
   {
     gchar * name;
 
-    name = gum_canonicalize_module_name (module_name);
+    name = gum_resolve_module_name (module_name, NULL);
     if (name == NULL)
       return 0;
     module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
@@ -837,27 +824,49 @@ beach:
 }
 
 static gchar *
-gum_canonicalize_module_name (const gchar * name)
+gum_resolve_module_name (const gchar * name,
+                         GumAddress * base)
 {
-  GumCanonicalizeNameContext ctx;
+  GumResolveModuleNameContext ctx;
 
-  ctx.module_name = name;
-  ctx.module_path = NULL;
-  gum_process_enumerate_modules (gum_store_module_path_if_module_name_matches,
+#ifndef HAVE_ANDROID
+  struct link_map * map;
+
+  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  if (map != NULL)
+  {
+    ctx.name = g_file_read_link (map->l_name, NULL);
+    if (ctx.name == NULL)
+      ctx.name = g_strdup (map->l_name);
+    dlclose (map);
+  }
+  else
+#endif
+    ctx.name = g_strdup (name);
+  ctx.path = NULL;
+  ctx.base = 0;
+
+  gum_process_enumerate_modules (gum_store_module_path_and_base_if_name_matches,
       &ctx);
 
-  return ctx.module_path;
+  g_free (ctx.name);
+
+  if (base != NULL)
+    *base = ctx.base;
+
+  return ctx.path;
 }
 
 static gboolean
-gum_store_module_path_if_module_name_matches (const GumModuleDetails * details,
-                                              gpointer user_data)
+gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details,
+                                                gpointer user_data)
 {
-  GumCanonicalizeNameContext * ctx = user_data;
+  GumResolveModuleNameContext * ctx = user_data;
 
-  if (gum_module_path_equals (details->path, ctx->module_name))
+  if (gum_module_path_equals (details->path, ctx->name))
   {
-    ctx->module_path = g_strdup (details->path);
+    ctx->path = g_strdup (details->path);
+    ctx->base = details->range->base_address;
     return FALSE;
   }
 
@@ -884,21 +893,18 @@ gum_elf_module_open (GumElfModule * module,
                      const gchar * module_name)
 {
   gboolean success = FALSE;
-  GumFindModuleContext m = { module_name, 0, NULL };
+  GumAddress base;
   guint type;
 
-  module->path = NULL;
   module->fd = -1;
   module->file_size = 0;
   module->data = NULL;
   module->ehdr = NULL;
-  module->address = NULL;
-
-  gum_process_enumerate_modules (gum_store_base_and_path_if_name_matches, &m);
-  if (m.base == 0)
+  module->address = 0;
+  module->path = gum_resolve_module_name (module_name, &base);
+  if (module->path == NULL)
     goto beach;
-  module->path = m.path;
-  module->address = GSIZE_TO_POINTER (m.base);
+  module->address = GSIZE_TO_POINTER (base);
 
   module->fd = open (module->path, O_RDONLY);
   if (module->fd == -1)
