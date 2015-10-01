@@ -173,6 +173,12 @@ PROCESS_TESTCASE (process_ranges)
 
 PROCESS_TESTCASE (process_malloc_ranges)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   {
     TestForEachContext ctx;
 
