@@ -964,8 +964,15 @@ SCRIPT_TESTCASE (process_range_can_be_looked_up_from_address)
 }
 
 #ifdef HAVE_DARWIN
+
 SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateMallocRanges({"
         "onMatch: function (range) {"
@@ -982,10 +989,17 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated)
 
 SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "send(Process.enumerateMallocRangesSync().length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
+
 #endif
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated)
