@@ -22,6 +22,10 @@ namespace Gum
 
   static void deinit ()
   {
+#if GLIB_CHECK_VERSION (2, 46, 0)
+    gio_shutdown ();
+    glib_shutdown ();
+#endif
     gum_deinit ();
 #if GLIB_CHECK_VERSION (2, 46, 0)
     gio_deinit ();

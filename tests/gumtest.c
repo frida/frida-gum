@@ -202,6 +202,11 @@ main (gint argc, gchar * argv[])
   }
 
 #if DEBUG_HEAP_LEAKS
+# if GLIB_CHECK_VERSION (2, 46, 0)
+  gio_shutdown ();
+  glib_shutdown ();
+# endif
+
   _test_util_deinit ();
 
 # ifdef HAVE_I386
