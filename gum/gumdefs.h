@@ -264,18 +264,25 @@ enum _GumRelocationScenario
 #define GUM_INT28_MASK 0x03ffffff
 
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
-    (((gint) (i)) >= 0 && ((gint) (i)) <= 127)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (127))
 #define GUM_IS_WITHIN_INT8_RANGE(i) \
-    (((gint) (i)) >= -128 && ((gint) (i)) <= 127)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-128) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (127))
 #define GUM_IS_WITHIN_INT11_RANGE(i) \
-    (((gint) (i)) >= -1024 && ((gint) (i)) <= 1023)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-1024) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (1023))
 #define GUM_IS_WITHIN_INT19_RANGE(i) \
-    (((gint) (i)) >= -262144 && ((gint) (i)) <= 262143)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-262144) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (262143))
 #define GUM_IS_WITHIN_INT21_RANGE(i) \
-    (((gint) (i)) >= -1048576 && ((gint) (i)) <= 1048575)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-1048576) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (1048575))
 #define GUM_IS_WITHIN_INT28_RANGE(i) \
-    (((gint) (i)) >= -134217728 && ((gint) (i)) <= 134217727)
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-134217728) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (134217727))
 #define GUM_IS_WITHIN_INT32_RANGE(i) \
-    (((gint) (i)) >= G_MININT32 && ((gint) (i)) <= G_MAXINT32)
+    (((gint64) (i)) >= (gint64) G_MININT32 && \
+     ((gint64) (i)) <= (gint64) G_MAXINT32)
 
 #endif
