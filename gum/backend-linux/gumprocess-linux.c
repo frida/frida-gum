@@ -885,6 +885,7 @@ gum_elf_module_open (GumElfModule * module,
 {
   gboolean success = FALSE;
   GumFindModuleContext m = { module_name, 0, NULL };
+  guint type;
 
   module->path = NULL;
   module->fd = -1;
@@ -911,7 +912,8 @@ gum_elf_module_open (GumElfModule * module,
   g_assert (module->data != MAP_FAILED);
 
   module->ehdr = module->data;
-  if (module->ehdr->e_type != ET_DYN)
+  type = module->ehdr->e_type;
+  if (type != ET_EXEC && type != ET_DYN)
     goto beach;
   success = TRUE;
 
