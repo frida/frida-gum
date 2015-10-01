@@ -1577,21 +1577,25 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
 SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
 {
   COMPILE_AND_LOAD_SCRIPT (
+      "var mode = '%s';"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
       "    send(Thread.backtrace(this.context, Backtracer.ACCURATE)"
       "        .length > 0);"
       "  },"
       "  onLeave: function (retval) {"
-      "    send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
+      "    if (mode === 'slow')"
+      "      send(Thread.backtrace(this.context, Backtracer.FUZZY).length > 0);"
       "  }"
       "});",
+      g_test_slow () ? "slow" : "fast",
       target_function_int);
 
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
   EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
+  if (g_test_slow ())
+    EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 
