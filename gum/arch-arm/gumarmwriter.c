@@ -6,6 +6,7 @@
 
 #include "gumarmwriter.h"
 
+#include "gumarmreg.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 
@@ -18,9 +19,6 @@ struct _GumArmLiteralRef
   guint32 * insn;
   guint32 val;
 };
-
-static void gum_arm_writer_put_instruction (GumArmWriter * self,
-    guint32 insn);
 
 void
 gum_arm_writer_init (GumArmWriter * writer,
@@ -141,7 +139,7 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
 
 void
 gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
-                                    GumArmReg reg,
+                                    arm_reg reg,
                                     GumAddress address)
 {
   gum_arm_writer_put_ldr_reg_u32 (self, reg, (guint32) address);
@@ -149,31 +147,45 @@ gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
 
 void
 gum_arm_writer_put_ldr_reg_u32 (GumArmWriter * self,
-                                GumArmReg reg,
+                                arm_reg reg,
                                 guint32 val)
 {
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
   gum_arm_writer_add_literal_reference_here (self, val);
-  gum_arm_writer_put_instruction (self, 0xe51f0000 | (reg << 12));
+  gum_arm_writer_put_instruction (self, 0xe51f0000 | (ri.index << 12));
 }
 
 void
 gum_arm_writer_put_add_reg_reg_imm (GumArmWriter * self,
-                                    GumArmReg dst_reg,
-                                    GumArmReg src_reg,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
                                     guint32 imm_val)
 {
-  gum_arm_writer_put_instruction (self, 0xe2800000 | dst_reg << 12 |
-      src_reg << 16 | (imm_val & 0xfff));
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0xe2800000 | rd.index << 12 |
+      rs.index << 16 | (imm_val & GUM_INT12_MASK));
 }
 
 void
 gum_arm_writer_put_ldr_reg_reg_imm (GumArmWriter * self,
-                                    GumArmReg dst_reg,
-                                    GumArmReg src_reg,
+                                    arm_reg dst_reg,
+                                    arm_reg src_reg,
                                     guint32 imm_val)
 {
-  gum_arm_writer_put_instruction (self, 0xe5900000 | dst_reg << 12 |
-      src_reg << 16 | (imm_val & 0xfff));
+  GumArmRegInfo rd, rs;
+
+  gum_arm_reg_describe (dst_reg, &rd);
+  gum_arm_reg_describe (src_reg, &rs);
+
+  gum_arm_writer_put_instruction (self, 0xe5900000 | rd.index << 12 |
+      rs.index << 16 | (imm_val & GUM_INT12_MASK));
 }
 
 void
@@ -196,6 +208,14 @@ gum_arm_writer_put_breakpoint (GumArmWriter * self)
 }
 
 void
+gum_arm_writer_put_instruction (GumArmWriter * self,
+                                guint32 insn)
+{
+  *self->code++ = GUINT32_TO_LE (insn);
+  self->pc += 4;
+}
+
+void
 gum_arm_writer_put_bytes (GumArmWriter * self,
                           const guint8 * data,
                           guint n)
@@ -206,12 +226,3 @@ gum_arm_writer_put_bytes (GumArmWriter * self,
   self->code += n / sizeof (guint32);
   self->pc += n;
 }
-
-static void
-gum_arm_writer_put_instruction (GumArmWriter * self,
-                                guint32 insn)
-{
-  *self->code++ = GUINT32_TO_LE (insn);
-  self->pc += 4;
-}
-

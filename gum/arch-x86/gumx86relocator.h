@@ -7,8 +7,6 @@
 #ifndef __GUM_X86_RELOCATOR_H__
 #define __GUM_X86_RELOCATOR_H__
 
-#include "gumdefs.h"
-
 #include "gumx86writer.h"
 
 #include <capstone/capstone.h>

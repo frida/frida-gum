@@ -6,6 +6,7 @@
 
 #include "gumthumbwriter.h"
 
+#include "gumarmreg.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 
@@ -14,11 +15,6 @@
 #define GUM_MAX_LABEL_COUNT       100
 #define GUM_MAX_LREF_COUNT        (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
-
-#define IS_WITHIN_INT8_RANGE(i) \
-    (((gint) (i)) >= -128 && ((gint) (i)) <= 127)
-#define IS_WITHIN_UINT7_RANGE(i) \
-    (((gint) (i)) >= 0 && ((gint) (i)) <= 127)
 
 typedef struct _GumThumbArgument GumThumbArgument;
 
@@ -46,7 +42,7 @@ struct _GumThumbArgument
 
   union
   {
-    GumArmReg reg;
+    arm_reg reg;
     GumAddress address;
   } value;
 };
@@ -58,7 +54,7 @@ static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
-    GumArmReg left_reg, GumArmReg right_reg, guint8 right_offset);
+    arm_reg left_reg, arm_reg right_reg, guint8 right_offset);
 
 void
 gum_thumb_writer_init (GumThumbWriter * writer,
@@ -146,18 +142,22 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       insn = GUINT16_FROM_LE (*r->insn);
       if ((insn & 0xf000) == 0xd000)
       {
-        g_assert (IS_WITHIN_INT8_RANGE (distance));
-
-        insn |= distance & 0x00ff;
+        g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
+        insn |= distance & GUM_INT8_MASK;
+      }
+      else if ((insn & 0xf800) == 0xe000)
+      {
+        g_assert (GUM_IS_WITHIN_INT11_RANGE (distance));
+        insn |= distance & GUM_INT11_MASK;
       }
       else
       {
         guint16 i, imm5;
 
-        g_assert (IS_WITHIN_UINT7_RANGE (distance));
+        g_assert (GUM_IS_WITHIN_UINT7_RANGE (distance));
 
         i = (distance >> 5) & 1;
-        imm5 = distance & 0x001f;
+        imm5 = distance & GUM_INT5_MASK;
 
         insn |= (i << 9) | (imm5 << 3);
       }
@@ -281,18 +281,18 @@ gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
   gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
   va_end (vl);
 
-  gum_thumb_writer_put_push_regs (self, 1, GUM_AREG_R0);
-  gum_thumb_writer_put_ldr_reg_address (self, GUM_AREG_R0, func);
-  gum_thumb_writer_put_mov_reg_reg (self, GUM_AREG_LR, GUM_AREG_R0);
-  gum_thumb_writer_put_pop_regs (self, 1, GUM_AREG_R0);
-  gum_thumb_writer_put_blx_reg (self, GUM_AREG_LR);
+  gum_thumb_writer_put_push_regs (self, 1, ARM_REG_R0);
+  gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, func);
+  gum_thumb_writer_put_mov_reg_reg (self, ARM_REG_LR, ARM_REG_R0);
+  gum_thumb_writer_put_pop_regs (self, 1, ARM_REG_R0);
+  gum_thumb_writer_put_blx_reg (self, ARM_REG_LR);
 
   gum_thumb_writer_put_argument_list_teardown (self, n_args);
 }
 
 void
 gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
-                                              GumArmReg reg,
+                                              arm_reg reg,
                                               guint n_args,
                                               ...)
 {
@@ -325,7 +325,7 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     if (arg->type == GUM_ARG_ADDRESS)
       arg->value.address = va_arg (vl, GumAddress);
     else if (arg->type == GUM_ARG_REGISTER)
-      arg->value.reg = va_arg (vl, GumArmReg);
+      arg->value.reg = va_arg (vl, arm_reg);
     else
       g_assert_not_reached ();
   }
@@ -333,7 +333,7 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
   for (arg_index = n_args - 1; arg_index >= 0; arg_index--)
   {
     GumThumbArgument * arg = &args[arg_index];
-    GumArmReg r = GUM_AREG_R0 + arg_index;
+    arm_reg r = ARM_REG_R0 + arg_index;
 
     if (arg_index < 4)
     {
@@ -351,8 +351,8 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     {
       if (arg->type == GUM_ARG_ADDRESS)
       {
-        gum_thumb_writer_put_ldr_reg_address (self, GUM_AREG_R0, arg->value.address);
-        gum_thumb_writer_put_push_regs (self, 1, GUM_AREG_R0);
+        gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, arg->value.address);
+        gum_thumb_writer_put_push_regs (self, 1, ARM_REG_R0);
       }
       else
       {
@@ -372,24 +372,44 @@ gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_bx_reg (GumThumbWriter * self,
-                             GumArmReg reg)
+                             arm_reg reg)
 {
-  gum_thumb_writer_put_instruction (self, 0x4700 | (reg << 3));
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction (self, 0x4700 | (ri.index << 3));
 }
 
 void
 gum_thumb_writer_put_blx_reg (GumThumbWriter * self,
-                              GumArmReg reg)
+                              arm_reg reg)
 {
-  gum_thumb_writer_put_instruction (self, 0x4780 | (reg << 3));
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction (self, 0x4780 | (ri.index << 3));
 }
 
 void
 gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self,
-                                  GumArmReg reg,
+                                  arm_reg reg,
                                   guint8 imm_value)
 {
-  gum_thumb_writer_put_instruction (self, 0x2800 | (reg << 8) | imm_value);
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
+  gum_thumb_writer_put_instruction (self, 0x2800 | (ri.index << 8) | imm_value);
+}
+
+void
+gum_thumb_writer_put_b_label (GumThumbWriter * self,
+                              gconstpointer label_id)
+{
+  gum_thumb_writer_add_label_reference_here (self, label_id);
+  gum_thumb_writer_put_instruction (self, 0xe000);
 }
 
 void
@@ -410,31 +430,39 @@ gum_thumb_writer_put_bne_label (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_cbz_reg_label (GumThumbWriter * self,
-                                    GumArmReg reg,
+                                    arm_reg reg,
                                     gconstpointer label_id)
 {
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
   gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_instruction (self, 0xb100 | reg);
+  gum_thumb_writer_put_instruction (self, 0xb100 | ri.index);
 }
 
 void
 gum_thumb_writer_put_cbnz_reg_label (GumThumbWriter * self,
-                                     GumArmReg reg,
+                                     arm_reg reg,
                                      gconstpointer label_id)
 {
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
   gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_instruction (self, 0xb900 | reg);
+  gum_thumb_writer_put_instruction (self, 0xb900 | ri.index);
 }
 
 void
 gum_thumb_writer_put_push_regs (GumThumbWriter * self,
                                 guint n_regs,
-                                GumArmReg first_reg,
+                                arm_reg first_reg,
                                 ...)
 {
   guint16 insn = 0xb400;
   va_list vl;
-  GumArmReg cur_reg;
+  arm_reg cur_reg;
   guint reg_idx;
 
   g_assert_cmpuint (n_regs, !=, 0);
@@ -443,15 +471,19 @@ gum_thumb_writer_put_push_regs (GumThumbWriter * self,
   cur_reg = first_reg;
   for (reg_idx = 0; reg_idx != n_regs; reg_idx++)
   {
-    g_assert ((cur_reg >= GUM_AREG_R0 && cur_reg <= GUM_AREG_R7) ||
-        cur_reg == GUM_AREG_LR);
+    GumArmRegInfo ri;
 
-    if (cur_reg == GUM_AREG_LR)
+    gum_arm_reg_describe (cur_reg, &ri);
+
+    g_assert ((ri.meta >= GUM_ARM_MREG_R0 && ri.meta <= GUM_ARM_MREG_R7) ||
+        ri.meta == GUM_ARM_MREG_LR);
+
+    if (ri.meta == GUM_ARM_MREG_LR)
       insn |= 0x100;
     else
-      insn |= (1 << (cur_reg - GUM_AREG_R0));
+      insn |= (1 << ri.index);
 
-    cur_reg = va_arg (vl, GumArmReg);
+    cur_reg = va_arg (vl, arm_reg);
   }
   va_end (vl);
 
@@ -461,12 +493,12 @@ gum_thumb_writer_put_push_regs (GumThumbWriter * self,
 void
 gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
                                guint n_regs,
-                               GumArmReg first_reg,
+                               arm_reg first_reg,
                                ...)
 {
   guint16 insn = 0xbc00;
   va_list vl;
-  GumArmReg cur_reg;
+  arm_reg cur_reg;
   guint reg_idx;
 
   g_assert_cmpuint (n_regs, !=, 0);
@@ -475,15 +507,19 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
   cur_reg = first_reg;
   for (reg_idx = 0; reg_idx != n_regs; reg_idx++)
   {
-    g_assert ((cur_reg >= GUM_AREG_R0 && cur_reg <= GUM_AREG_R7) ||
-        cur_reg == GUM_AREG_PC);
+    GumArmRegInfo ri;
 
-    if (cur_reg == GUM_AREG_PC)
+    gum_arm_reg_describe (cur_reg, &ri);
+
+    g_assert ((ri.meta >= GUM_ARM_MREG_R0 && ri.meta <= GUM_ARM_MREG_R7) ||
+        ri.meta == GUM_ARM_MREG_PC);
+
+    if (ri.meta == GUM_ARM_MREG_PC)
       insn |= 0x100;
     else
-      insn |= (1 << (cur_reg - GUM_AREG_R0));
+      insn |= (1 << ri.index);
 
-    cur_reg = va_arg (vl, GumArmReg);
+    cur_reg = va_arg (vl, arm_reg);
   }
   va_end (vl);
 
@@ -492,7 +528,7 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_ldr_reg_address (GumThumbWriter * self,
-                                      GumArmReg reg,
+                                      arm_reg reg,
                                       GumAddress address)
 {
   gum_thumb_writer_put_ldr_reg_u32 (self, reg, (guint32) address);
@@ -500,25 +536,29 @@ gum_thumb_writer_put_ldr_reg_address (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
-                                  GumArmReg reg,
+                                  arm_reg reg,
                                   guint32 val)
 {
+  GumArmRegInfo ri;
+
+  gum_arm_reg_describe (reg, &ri);
+
   gum_thumb_writer_add_literal_reference_here (self, val);
-  gum_thumb_writer_put_instruction (self, 0x4800 | (reg << 8));
+  gum_thumb_writer_put_instruction (self, 0x4800 | (ri.index << 8));
 }
 
 void
 gum_thumb_writer_put_ldr_reg_reg (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
-                                  GumArmReg src_reg)
+                                  arm_reg dst_reg,
+                                  arm_reg src_reg)
 {
   gum_thumb_writer_put_ldr_reg_reg_offset (self, dst_reg, src_reg, 0);
 }
 
 void
 gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
-                                         GumArmReg dst_reg,
-                                         GumArmReg src_reg,
+                                         arm_reg dst_reg,
+                                         arm_reg src_reg,
                                          guint8 src_offset)
 {
   guint16 insn;
@@ -532,16 +572,16 @@ gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_str_reg_reg (GumThumbWriter * self,
-                                  GumArmReg src_reg,
-                                  GumArmReg dst_reg)
+                                  arm_reg src_reg,
+                                  arm_reg dst_reg)
 {
   gum_thumb_writer_put_str_reg_reg_offset (self, src_reg, dst_reg, 0);
 }
 
 void
 gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self,
-                                         GumArmReg src_reg,
-                                         GumArmReg dst_reg,
+                                         arm_reg src_reg,
+                                         arm_reg dst_reg,
                                          guint8 dst_offset)
 {
   guint16 insn;
@@ -553,25 +593,29 @@ gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self,
 }
 
 static guint16
-gum_thumb_writer_make_ldr_or_str_reg_reg_offset (GumArmReg left_reg,
-                                                 GumArmReg right_reg,
+gum_thumb_writer_make_ldr_or_str_reg_reg_offset (arm_reg left_reg,
+                                                 arm_reg right_reg,
                                                  guint8 right_offset)
 {
+  GumArmRegInfo lr, rr;
   guint16 insn;
+
+  gum_arm_reg_describe (left_reg, &lr);
+  gum_arm_reg_describe (right_reg, &rr);
 
   g_assert (right_offset % 4 == 0);
 
-  if (right_reg == GUM_AREG_SP)
+  if (rr.meta == GUM_ARM_MREG_SP)
   {
     g_assert_cmpuint (right_offset, <=, 1020);
 
-    insn = 0x9000 | (left_reg << 8) | (right_offset / 4);
+    insn = 0x9000 | (lr.index << 8) | (right_offset / 4);
   }
   else
   {
     g_assert_cmpuint (right_offset, <=, 124);
 
-    insn = 0x6000 | (right_offset / 4) << 6 | (right_reg << 3) | left_reg;
+    insn = 0x6000 | (right_offset / 4) << 6 | (rr.index << 3) | lr.index;
   }
 
   return insn;
@@ -579,30 +623,36 @@ gum_thumb_writer_make_ldr_or_str_reg_reg_offset (GumArmReg left_reg,
 
 void
 gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
-                                  GumArmReg src_reg)
+                                  arm_reg dst_reg,
+                                  arm_reg src_reg)
 {
+  GumArmRegInfo dst, src;
   guint16 insn;
 
-  if (dst_reg <= GUM_AREG_R7 && src_reg <= GUM_AREG_R7)
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (src_reg, &src);
+
+  if (dst.meta <= GUM_ARM_MREG_R7 && src.meta <= GUM_ARM_MREG_R7)
   {
-    insn = 0x1c00 | (src_reg << 3) | dst_reg;
+    insn = 0x1c00 | (src.index << 3) | dst.index;
   }
   else
   {
     guint16 dst_is_high;
+    guint dst_index;
 
-    if (dst_reg > GUM_AREG_R7)
+    if (dst.meta > GUM_ARM_MREG_R7)
     {
       dst_is_high = 1;
-      dst_reg -= GUM_AREG_R7 + 1;
+      dst_index = dst.index - GUM_ARM_MREG_R8;
     }
     else
     {
       dst_is_high = 0;
+      dst_index = dst.index;
     }
 
-    insn = 0x4600 | (dst_is_high << 7) | (src_reg << 3) | dst_reg;
+    insn = 0x4600 | (dst_is_high << 7) | (src.index << 3) | dst_index;
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -610,20 +660,29 @@ gum_thumb_writer_put_mov_reg_reg (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_mov_reg_u8 (GumThumbWriter * self,
-                                 GumArmReg dst_reg,
+                                 arm_reg dst_reg,
                                  guint8 imm_value)
 {
-  gum_thumb_writer_put_instruction (self, 0x2000 | (dst_reg << 8) | imm_value);
+  GumArmRegInfo dst;
+
+  gum_arm_reg_describe (dst_reg, &dst);
+
+  gum_thumb_writer_put_instruction (self, 0x2000 | (dst.index << 8) |
+      imm_value);
 }
 
 void
 gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
+                                  arm_reg dst_reg,
                                   gssize imm_value)
 {
-  guint16 insn, sign_mask = 0x0000;
+  GumArmRegInfo dst;
+  guint16 sign_mask, insn;
 
-  if (dst_reg == GUM_AREG_SP)
+  gum_arm_reg_describe (dst_reg, &dst);
+
+  sign_mask = 0x0000;
+  if (dst.meta == GUM_ARM_MREG_SP)
   {
     g_assert (imm_value % 4 == 0);
 
@@ -637,7 +696,7 @@ gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
     if (imm_value < 0)
       sign_mask = 0x0800;
 
-    insn = 0x3000 | sign_mask | (dst_reg << 8) | ABS (imm_value);
+    insn = 0x3000 | sign_mask | (dst.index << 8) | ABS (imm_value);
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -645,35 +704,40 @@ gum_thumb_writer_put_add_reg_imm (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_add_reg_reg (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
-                                  GumArmReg src_reg)
+                                  arm_reg dst_reg,
+                                  arm_reg src_reg)
 {
   gum_thumb_writer_put_add_reg_reg_reg (self, dst_reg, dst_reg, src_reg);
 }
 
 void
 gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self,
-                                      GumArmReg dst_reg,
-                                      GumArmReg left_reg,
-                                      GumArmReg right_reg)
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
+                                      arm_reg right_reg)
 {
+  GumArmRegInfo dst, left, right;
   guint16 insn;
 
-  if (left_reg == dst_reg)
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+  gum_arm_reg_describe (right_reg, &right);
+
+  if (left.meta == dst.meta)
   {
     insn = 0x4400;
-    if (dst_reg <= GUM_AREG_R7)
-      insn |= dst_reg;
+    if (dst.meta <= GUM_ARM_MREG_R7)
+      insn |= dst.index;
     else
-      insn |= 0x0080 | (dst_reg - GUM_AREG_R8);
-    if (right_reg <= GUM_AREG_R7)
-      insn |= (right_reg << 3);
+      insn |= 0x0080 | (dst.index - GUM_ARM_MREG_R8);
+    if (right.meta <= GUM_ARM_MREG_R7)
+      insn |= (right.index << 3);
     else
-      insn |= 0x0040 | ((right_reg - GUM_AREG_R8) << 3);
+      insn |= 0x0040 | ((right.index - GUM_ARM_MREG_R8) << 3);
   }
   else
   {
-    insn = 0x1800 | (right_reg << 6) | (left_reg << 3) | dst_reg;
+    insn = 0x1800 | (right.index << 6) | (left.index << 3) | dst.index;
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -681,31 +745,35 @@ gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
-                                      GumArmReg dst_reg,
-                                      GumArmReg left_reg,
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
                                       gssize right_value)
 {
+  GumArmRegInfo dst, left;
   guint16 insn;
 
-  if (left_reg == dst_reg)
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+
+  if (left.meta == dst.meta)
   {
     gum_thumb_writer_put_add_reg_imm (self, dst_reg, right_value);
     return;
   }
 
-  if (left_reg == GUM_AREG_SP || left_reg == GUM_AREG_PC)
+  if (left.meta == GUM_ARM_MREG_SP || left.meta == GUM_ARM_MREG_PC)
   {
     guint16 base_mask;
 
     g_assert_cmpint (right_value, >=, 0);
     g_assert (right_value % 4 == 0);
 
-    if (left_reg == GUM_AREG_SP)
+    if (left.meta == GUM_ARM_MREG_SP)
       base_mask = 0x0800;
     else
       base_mask = 0x0000;
 
-    insn = 0xa000 | base_mask | (dst_reg << 8) | (right_value / 4);
+    insn = 0xa000 | base_mask | (dst.index << 8) | (right_value / 4);
   }
   else
   {
@@ -716,8 +784,8 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
     if (right_value < 0)
       sign_mask = 0x0200;
 
-    insn = 0x1c00 | sign_mask | (ABS (right_value) << 6) | (left_reg << 3) |
-        dst_reg;
+    insn = 0x1c00 | sign_mask | (ABS (right_value) << 6) | (left.index << 3) |
+        dst.index;
   }
 
   gum_thumb_writer_put_instruction (self, insn);
@@ -725,7 +793,7 @@ gum_thumb_writer_put_add_reg_reg_imm (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_sub_reg_imm (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
+                                  arm_reg dst_reg,
                                   gssize imm_value)
 {
   gum_thumb_writer_put_add_reg_imm (self, dst_reg, -imm_value);
@@ -733,29 +801,34 @@ gum_thumb_writer_put_sub_reg_imm (GumThumbWriter * self,
 
 void
 gum_thumb_writer_put_sub_reg_reg (GumThumbWriter * self,
-                                  GumArmReg dst_reg,
-                                  GumArmReg src_reg)
+                                  arm_reg dst_reg,
+                                  arm_reg src_reg)
 {
   gum_thumb_writer_put_sub_reg_reg_reg (self, dst_reg, dst_reg, src_reg);
 }
 
 void
 gum_thumb_writer_put_sub_reg_reg_reg (GumThumbWriter * self,
-                                      GumArmReg dst_reg,
-                                      GumArmReg left_reg,
-                                      GumArmReg right_reg)
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
+                                      arm_reg right_reg)
 {
+  GumArmRegInfo dst, left, right;
   guint16 insn;
 
-  insn = 0x1a00 | (right_reg << 6) | (left_reg << 3) | dst_reg;
+  gum_arm_reg_describe (dst_reg, &dst);
+  gum_arm_reg_describe (left_reg, &left);
+  gum_arm_reg_describe (right_reg, &right);
+
+  insn = 0x1a00 | (right.index << 6) | (left.index << 3) | dst.index;
 
   gum_thumb_writer_put_instruction (self, insn);
 }
 
 void
 gum_thumb_writer_put_sub_reg_reg_imm (GumThumbWriter * self,
-                                      GumArmReg dst_reg,
-                                      GumArmReg left_reg,
+                                      arm_reg dst_reg,
+                                      arm_reg left_reg,
                                       gssize right_value)
 {
   gum_thumb_writer_put_add_reg_reg_imm (self, dst_reg, left_reg, -right_value);
@@ -785,9 +858,17 @@ gum_thumb_writer_put_breakpoint (GumThumbWriter * self)
       break;
     default:
       gum_thumb_writer_put_bkpt_imm (self, 0);
-      gum_thumb_writer_put_bx_reg (self, GUM_AREG_LR);
+      gum_thumb_writer_put_bx_reg (self, ARM_REG_LR);
       break;
   }
+}
+
+void
+gum_thumb_writer_put_instruction (GumThumbWriter * self,
+                                  guint16 insn)
+{
+  *self->code++ = GUINT16_TO_LE (insn);
+  self->pc += 2;
 }
 
 void
@@ -801,12 +882,3 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
   self->code += n / sizeof (guint16);
   self->pc += n;
 }
-
-void
-gum_thumb_writer_put_instruction (GumThumbWriter * self,
-                                  guint16 insn)
-{
-  *self->code++ = GUINT16_TO_LE (insn);
-  self->pc += 2;
-}
-

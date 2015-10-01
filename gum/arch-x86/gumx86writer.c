@@ -13,9 +13,6 @@
 #define GUM_MAX_LABEL_COUNT (10 * 1000)
 #define GUM_MAX_LREF_COUNT  (3 * GUM_MAX_LABEL_COUNT)
 
-#define IS_WITHIN_INT8_RANGE(i) ((i) >= -128 && (i) <= 127)
-#define IS_WITHIN_INT32_RANGE(i) ((i) >= G_MININT32 && (i) <= G_MAXINT32)
-
 typedef struct _GumArgument
 {
   GumArgType type;
@@ -173,7 +170,7 @@ gum_x86_writer_flush (GumX86Writer * self)
 
     if (r->size == GUM_LREF_SHORT)
     {
-      g_assert (IS_WITHIN_INT8_RANGE (distance));
+      g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
       *((gint8 *) (r->address - 1)) = distance;
     }
     else
@@ -552,7 +549,7 @@ gum_x86_writer_put_call_reg_offset_ptr (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
 
   if (self->target_cpu == GUM_CPU_IA32)
     g_return_if_fail (ri.width == 32 && !ri.index_is_extended);
@@ -621,7 +618,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
 
   distance = (gssize) target - (gssize) (self->code + 2);
 
-  if (IS_WITHIN_INT8_RANGE (distance))
+  if (GUM_IS_WITHIN_INT8_RANGE (distance))
   {
     self->code[0] = 0xeb;
     *((gint8 *) (self->code + 1)) = distance;
@@ -631,7 +628,7 @@ gum_x86_writer_put_jmp (GumX86Writer * self,
   {
     distance = (gssize) target - (gssize) (self->code + 5);
 
-    if (IS_WITHIN_INT32_RANGE (distance))
+    if (GUM_IS_WITHIN_INT32_RANGE (distance))
     {
       self->code[0] = 0xe9;
       *((gint32 *) (self->code + 1)) = GINT32_TO_LE ((gint32) distance);
@@ -658,7 +655,7 @@ gum_x86_writer_put_short_jmp (GumX86Writer * self,
   gint64 distance;
 
   distance = (gssize) target - (gssize) (self->code + 2);
-  g_assert (IS_WITHIN_INT8_RANGE (distance));
+  g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
 
   self->code[0] = 0xeb;
   *((gint8 *) (self->code + 1)) = distance;
@@ -673,7 +670,7 @@ gum_x86_writer_put_near_jmp (GumX86Writer * self,
 
   distance = (gssize) target - (gssize) (self->code + 5);
 
-  if (IS_WITHIN_INT32_RANGE (distance))
+  if (GUM_IS_WITHIN_INT32_RANGE (distance))
   {
     self->code[0] = 0xe9;
     *((gint32 *) (self->code + 1)) = GINT32_TO_LE (distance);
@@ -790,14 +787,14 @@ gum_x86_writer_put_jcc (GumX86Writer * self,
 
   distance = (gssize) target - (gssize) (self->code + short_instruction_size);
 
-  if (IS_WITHIN_INT8_RANGE (distance))
+  if (GUM_IS_WITHIN_INT8_RANGE (distance))
   {
     gum_x86_writer_put_jcc_short (self, opcode, target, hint);
   }
   else
   {
     distance = (gssize) target - (gssize) (self->code + near_instruction_size);
-    g_assert (IS_WITHIN_INT32_RANGE (distance));
+    g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
 
     gum_x86_writer_put_jcc_near (self, opcode, target, hint);
   }
@@ -815,7 +812,7 @@ gum_x86_writer_put_jcc_short (GumX86Writer * self,
     *self->code++ = (hint == GUM_LIKELY) ? 0x3e : 0x2e;
   self->code[0] = opcode;
   distance = (gssize) target - (gssize) (self->code + 2);
-  g_assert (IS_WITHIN_INT8_RANGE (distance));
+  g_assert (GUM_IS_WITHIN_INT8_RANGE (distance));
   *((gint8 *) (self->code + 1)) = distance;
   self->code += 2;
 }
@@ -833,7 +830,7 @@ gum_x86_writer_put_jcc_near (GumX86Writer * self,
   self->code[0] = 0x0f;
   self->code[1] = 0x10 + opcode;
   distance = (gssize) target - (gssize) (self->code + 6);
-  g_assert (IS_WITHIN_INT32_RANGE (distance));
+  g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
   *((gint32 *) (self->code + 2)) = GINT32_TO_LE (distance);
   self->code += 6;
 }
@@ -869,7 +866,7 @@ gum_x86_writer_put_add_or_sub_reg_imm (GumX86Writer * self,
 
   gum_x86_writer_describe_cpu_reg (self, reg, &ri);
 
-  immediate_fits_in_i8 = IS_WITHIN_INT8_RANGE (imm_value);
+  immediate_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (imm_value);
 
   gum_x86_writer_put_prefix_for_registers (self, &ri, 32, &ri, NULL);
 
@@ -1164,7 +1161,7 @@ gum_x86_writer_put_lock_inc_or_dec_imm32_ptr (GumX86Writer * self,
   else
   {
     gint64 distance = (gssize) target - (gssize) (self->code + 7);
-    g_assert (IS_WITHIN_INT32_RANGE (distance));
+    g_assert (GUM_IS_WITHIN_INT32_RANGE (distance));
     *((gint32 *) (self->code + 3)) = GINT32_TO_LE (distance);
   }
 
@@ -1381,7 +1378,7 @@ gum_x86_writer_put_mov_reg_offset_ptr_u32 (GumX86Writer * self,
   else
     g_return_if_fail (dst.width == 64);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (dst_offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (dst_offset);
 
   *self->code++ = 0xc7;
 
@@ -1438,7 +1435,7 @@ gum_x86_writer_put_mov_reg_offset_ptr_reg (GumX86Writer * self,
   else
     g_return_if_fail (dst.width == 64);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (dst_offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (dst_offset);
 
   gum_x86_writer_put_prefix_for_registers (self, &src, 32, &dst, &src, NULL);
 
@@ -1496,7 +1493,7 @@ gum_x86_writer_put_mov_reg_reg_offset_ptr (GumX86Writer * self,
   else
     g_return_if_fail (src.width == 64);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (src_offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (src_offset);
 
   gum_x86_writer_put_prefix_for_registers (self, &dst, 32, &src, &dst, NULL);
 
@@ -1552,7 +1549,7 @@ gum_x86_writer_put_mov_reg_base_index_scale_offset_ptr (GumX86Writer * self,
   g_return_if_fail (index.meta != GUM_META_REG_XSP);
   g_return_if_fail (scale == 1 || scale == 2 || scale == 4 || scale == 8);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
 
   if (self->target_cpu == GUM_CPU_AMD64)
   {
@@ -2084,7 +2081,7 @@ gum_x86_writer_put_cmp_reg_offset_ptr_reg (GumX86Writer * self,
 
   gum_x86_writer_put_prefix_for_registers (self, &b, 32, &b, NULL);
 
-  offset_fits_in_i8 = IS_WITHIN_INT8_RANGE (offset);
+  offset_fits_in_i8 = GUM_IS_WITHIN_INT8_RANGE (offset);
   g_assert (offset_fits_in_i8);
 
   if (a.meta == GUM_META_REG_XSP)

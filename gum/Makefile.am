@@ -38,11 +38,11 @@ x86include_HEADERS = \
 
 armincludedir = $(includedir)/frida-1.0/gum/arch-arm
 arminclude_HEADERS = \
-	arch-arm/gumarm.h \
 	arch-arm/gumarmwriter.h \
 	arch-arm/gumarmrelocator.h \
 	arch-arm/gumthumbwriter.h \
-	arch-arm/gumthumbrelocator.h
+	arch-arm/gumthumbrelocator.h \
+	arch-arm/gumarmreg.h
 
 arm64includedir = $(includedir)/frida-1.0/gum/arch-arm64
 arm64include_HEADERS = \
@@ -190,6 +190,7 @@ libfrida_gum_la_SOURCES = \
 	arch-arm/gumarmrelocator.c \
 	arch-arm/gumthumbwriter.c \
 	arch-arm/gumthumbrelocator.c \
+	arch-arm/gumarmreg.c \
 	arch-arm64/gumarm64writer.c \
 	arch-arm64/gumarm64relocator.c \
 	$(arch_sources) \

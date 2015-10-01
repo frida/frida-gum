@@ -204,6 +204,9 @@
     <ClCompile Include="gum\arch-arm\gumthumbwriter.c">
       <Filter>core\arch-arm</Filter>
     </ClCompile>
+    <ClCompile Include="gum\arch-arm\gumarmreg.c">
+      <Filter>core\arch-arm</Filter>
+    </ClCompile>
     <ClCompile Include="gum\arch-x86\gumx86backtracer.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
@@ -389,9 +392,6 @@
     <ClInclude Include="gum\arch-arm64\gumarm64writer.h">
       <Filter>core\arch-arm64</Filter>
     </ClInclude>
-    <ClInclude Include="gum\arch-arm\gumarm.h">
-      <Filter>core\arch-arm</Filter>
-    </ClInclude>
     <ClInclude Include="gum\arch-arm\gumarmrelocator.h">
       <Filter>core\arch-arm</Filter>
     </ClInclude>
@@ -402,6 +402,9 @@
       <Filter>core\arch-arm</Filter>
     </ClInclude>
     <ClInclude Include="gum\arch-arm\gumthumbwriter.h">
+      <Filter>core\arch-arm</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\arch-arm\gumarmreg.h">
       <Filter>core\arch-arm</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumkernel.h">

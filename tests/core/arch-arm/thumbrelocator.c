@@ -33,18 +33,18 @@ RELOCATOR_TESTCASE (one_to_one)
     GUINT16_TO_LE (0xb580), /* push {r7, lr}  */
     GUINT16_TO_LE (0xaf00), /* add r7, sp, #0 */
   };
-  const GumArmInstruction * insn;
+  const cs_insn * insn;
 
   SETUP_RELOCATOR_WITH (input);
 
   insn = NULL;
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_PUSH);
+  g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
   assert_outbuf_still_zeroed_from_offset (0);
 
   insn = NULL;
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADDSP);
+  g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   assert_outbuf_still_zeroed_from_offset (0);
 
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
@@ -93,7 +93,7 @@ RELOCATOR_TESTCASE (ldrpc_t1_should_be_rewritten)
   gchar expected_output[4 * sizeof (guint16)];
 
   guint32 calculated_pc;
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -103,7 +103,7 @@ RELOCATOR_TESTCASE (ldrpc_t1_should_be_rewritten)
   *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_LDRPC_T1);
+  g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -124,7 +124,7 @@ RELOCATOR_TESTCASE (ldrpc_t2_should_be_rewritten)
   gchar expected_output[4 * sizeof (guint16)];
 
   guint32 calculated_pc;
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -134,7 +134,7 @@ RELOCATOR_TESTCASE (ldrpc_t2_should_be_rewritten)
   *((guint32 *) (expected_output + 4)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 4);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_LDRPC_T2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_LDR);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -157,7 +157,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
   gchar expected_output[6 * sizeof (guint16)];
 
   guint32 calculated_pc;
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -167,7 +167,7 @@ RELOCATOR_TESTCASE (addh_should_be_rewritten_if_pc_relative)
   *((guint32 *) (expected_output + 8)) = GUINT32_TO_LE (calculated_pc);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_ADDH);
+  g_assert_cmpint (insn->id, ==, ARM_INS_ADD);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
@@ -201,7 +201,7 @@ RELOCATOR_TESTCASE (bl_sequence_should_be_rewritten)
   };
   gchar expected_output[16 * sizeof (guint16)];
 
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   fixture->tw.pc = 0x200000;
   SETUP_RELOCATOR_WITH (input);
@@ -213,36 +213,22 @@ RELOCATOR_TESTCASE (bl_sequence_should_be_rewritten)
   *((guint32 *) (expected_output + 28)) = GUINT32_TO_LE (0xf5ec);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_PUSH);
+  g_assert_cmpint (insn->id, ==, ARM_INS_PUSH);
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 6);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_BL_IMM_T1);
+  g_assert_cmpint (insn->id, ==, ARM_INS_BL);
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 10);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_BLX_IMM_T2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_BLX);
   gum_thumb_relocator_write_all (&fixture->rl);
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }
 
-/*
- * Branch instruction coverage based on DDI0487A_b_armv8_arm.pdf
- *
- * B imm (F7.1.18)
- * [ ] T1
- * [x] T2
- * [ ] T3
- * [x] T4
- *
- * BL, BLX imm (F7.1.25)
- * [x] T1
- * [x] T2
- */
-
 typedef struct _BranchScenario BranchScenario;
 
 struct _BranchScenario
 {
-  GumArmMnemonic mnemonic;
+  guint instruction_id;
   guint16 input[2];
   gsize input_length;
   gsize instruction_length;
@@ -258,7 +244,7 @@ static void branch_scenario_execute (BranchScenario * bs,
 RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_B_IMM_T2,
+    ARM_INS_B,
     { 0xe004 }, 1, 2,           /* b pc + 8         */
     {
       0xb401,                   /* push {r0}        */
@@ -278,7 +264,7 @@ RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
 RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_B_IMM_T2,
+    ARM_INS_B,
     { 0xe7fc }, 1, 2,           /* b pc - 8         */
     {
       0xb401,                   /* push {r0}        */
@@ -298,7 +284,7 @@ RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
 RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_B_IMM_T4,
+    ARM_INS_B,
     { 0xf001, 0xb91a }, 2, 4,   /* b pc + 0x1234    */
     {
       0xb401,                   /* push {r0}        */
@@ -318,7 +304,7 @@ RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
 RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_B_IMM_T4,
+    ARM_INS_B,
     { 0xf7fe, 0xbee6 }, 2, 4,   /* b pc - 0x1234    */
     {
       0xb401,                   /* push {r0}        */
@@ -338,7 +324,7 @@ RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
 RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_BL_IMM_T1,
+    ARM_INS_BL,
     { 0xf001, 0xf91a }, 2, 4,   /* bl pc + 0x1234   */
     {
       0xb401,                   /* push {r0}        */
@@ -358,7 +344,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
 RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_BL_IMM_T1,
+    ARM_INS_BL,
     { 0xf7fe, 0xfee6 }, 2, 4,   /* bl pc - 0x1234   */
     {
       0xb401,                   /* push {r0}        */
@@ -378,7 +364,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
 RELOCATOR_TESTCASE (blx_imm_t2_positive_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_BLX_IMM_T2,
+    ARM_INS_BLX,
     { 0xf001, 0xe91a }, 2, 4,   /* blx pc + 0x1234  */
     {
       0xb401,                   /* push {r0}        */
@@ -398,7 +384,7 @@ RELOCATOR_TESTCASE (blx_imm_t2_positive_should_be_rewritten)
 RELOCATOR_TESTCASE (blx_imm_t2_negative_should_be_rewritten)
 {
   BranchScenario bs = {
-    GUM_ARM_BLX_IMM_T2,
+    ARM_INS_BLX,
     { 0xf7fe, 0xeee6 }, 2, 4,   /* blx pc - 0x1234  */
     {
       0xb401,                   /* push {r0}        */
@@ -421,7 +407,7 @@ branch_scenario_execute (BranchScenario * bs,
 {
   gsize i;
   guint32 calculated_pc;
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   for (i = 0; i != bs->input_length; i++)
     bs->input[i] = GUINT16_TO_LE (bs->input[i]);
@@ -438,7 +424,7 @@ branch_scenario_execute (BranchScenario * bs,
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn),
       ==, bs->instruction_length);
-  g_assert_cmpint (insn->mnemonic, ==, bs->mnemonic);
+  g_assert_cmpint (insn->id, ==, bs->instruction_id);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, bs->expected_output,
@@ -468,7 +454,7 @@ RELOCATOR_TESTCASE (cbz_should_be_rewritten)
   };
   guint32 calculated_target;
   gchar expected_output[10 * sizeof (guint16)];
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -478,7 +464,7 @@ RELOCATOR_TESTCASE (cbz_should_be_rewritten)
   *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_CBZ);
+  g_assert_cmpint (insn->id, ==, ARM_INS_CBZ);
   gum_thumb_relocator_read_one (&fixture->rl, &insn);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
@@ -510,7 +496,7 @@ RELOCATOR_TESTCASE (cbnz_should_be_rewritten)
   };
   guint32 calculated_target;
   gchar expected_output[10 * sizeof (guint16)];
-  const GumArmInstruction * insn = NULL;
+  const cs_insn * insn = NULL;
 
   SETUP_RELOCATOR_WITH (input);
 
@@ -520,7 +506,7 @@ RELOCATOR_TESTCASE (cbnz_should_be_rewritten)
   *((guint32 *) (expected_output + 16)) = GUINT32_TO_LE (calculated_target);
 
   g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
-  g_assert_cmpint (insn->mnemonic, ==, GUM_ARM_CBNZ);
+  g_assert_cmpint (insn->id, ==, ARM_INS_CBNZ);
   gum_thumb_relocator_read_one (&fixture->rl, &insn);
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));
   g_assert (gum_thumb_relocator_write_one (&fixture->rl));

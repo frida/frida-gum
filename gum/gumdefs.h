@@ -256,4 +256,26 @@ enum _GumRelocationScenario
 #define GUM_FUNCPTR_TO_POINTER(f) (GSIZE_TO_POINTER (f))
 #define GUM_POINTER_TO_FUNCPTR(t, p) ((t) GPOINTER_TO_SIZE (p))
 
+#define GUM_INT5_MASK  0x0000001f
+#define GUM_INT8_MASK  0x000000ff
+#define GUM_INT11_MASK 0x000007ff
+#define GUM_INT12_MASK 0x00000fff
+#define GUM_INT19_MASK 0x0007ffff
+#define GUM_INT28_MASK 0x03ffffff
+
+#define GUM_IS_WITHIN_UINT7_RANGE(i) \
+    (((gint) (i)) >= 0 && ((gint) (i)) <= 127)
+#define GUM_IS_WITHIN_INT8_RANGE(i) \
+    (((gint) (i)) >= -128 && ((gint) (i)) <= 127)
+#define GUM_IS_WITHIN_INT11_RANGE(i) \
+    (((gint) (i)) >= -1024 && ((gint) (i)) <= 1023)
+#define GUM_IS_WITHIN_INT19_RANGE(i) \
+    (((gint) (i)) >= -262144 && ((gint) (i)) <= 262143)
+#define GUM_IS_WITHIN_INT21_RANGE(i) \
+    (((gint) (i)) >= -1048576 && ((gint) (i)) <= 1048575)
+#define GUM_IS_WITHIN_INT28_RANGE(i) \
+    (((gint) (i)) >= -134217728 && ((gint) (i)) <= 134217727)
+#define GUM_IS_WITHIN_INT32_RANGE(i) \
+    (((gint) (i)) >= G_MININT32 && ((gint) (i)) <= G_MAXINT32)
+
 #endif

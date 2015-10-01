@@ -10,8 +10,6 @@
 
 #include "gummemory.h"
 
-#include <capstone/capstone.h>
-
 #define GUM_MAX_INPUT_INSN_COUNT (100)
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
@@ -20,20 +18,24 @@ struct _GumCodeGenCtx
 {
   const cs_insn * insn;
   cs_arm64 * detail;
-  guint32 raw_insn;
 
   GumArm64Writer * output;
 };
 
 static gboolean gum_arm64_branch_is_unconditional (const cs_insn * insn);
+
 static gboolean gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
-static gboolean gum_arm64_relocator_rewrite_unconditional_branch (
-    GumArm64Relocator * self, GumCodeGenCtx * ctx);
-static gboolean gum_arm64_relocator_rewrite_conditional_branch (
-    GumArm64Relocator * self, GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_arm64_relocator_init (GumArm64Relocator * relocator,
@@ -133,7 +135,7 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
     *insn_ptr = NULL;
   }
 
-  if (cs_disasm (self->capstone, self->input_cur, 16, self->input_pc, 1,
+  if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
       insn_ptr) != 1)
   {
     return 0;
@@ -156,6 +158,13 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
     case ARM64_INS_BLR:
       self->eob = TRUE;
       self->eoi = FALSE;
+      break;
+    case ARM64_INS_CBZ:
+    case ARM64_INS_CBNZ:
+      self->eob = TRUE;
+      self->eoi = FALSE;
+      break;
+    default:
       break;
   }
 
@@ -206,17 +215,16 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
 {
   const cs_insn * insn;
   GumCodeGenCtx ctx;
-  gboolean rewritten = FALSE;
+  gboolean rewritten;
 
   if ((insn = gum_arm64_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
+  gum_arm64_relocator_increment_outpos (self);
   ctx.insn = insn;
   ctx.detail = &ctx.insn->detail->arm64;
-  ctx.raw_insn = GUINT32_FROM_LE (*((guint32 *) ctx.insn->bytes));
-  gum_arm64_relocator_increment_outpos (self);
   ctx.output = self->output;
 
-  switch (ctx.insn->id)
+  switch (insn->id)
   {
     case ARM64_INS_LDR:
       rewritten = gum_arm64_relocator_rewrite_ldr (self, &ctx);
@@ -228,29 +236,25 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
     case ARM64_INS_B:
     {
       if (gum_arm64_branch_is_unconditional (ctx.insn))
-      {
-        rewritten = gum_arm64_relocator_rewrite_unconditional_branch (self,
-            &ctx);
-      }
+        rewritten = gum_arm64_relocator_rewrite_b (self, &ctx);
       else
-      {
-        rewritten = gum_arm64_relocator_rewrite_conditional_branch (self, &ctx);
-      }
+        rewritten = gum_arm64_relocator_rewrite_b_cond (self, &ctx);
       break;
     }
     case ARM64_INS_BL:
-      rewritten = gum_arm64_relocator_rewrite_unconditional_branch (self, &ctx);
+      rewritten = gum_arm64_relocator_rewrite_bl (self, &ctx);
       break;
     case ARM64_INS_CBZ:
     case ARM64_INS_CBNZ:
-      rewritten = gum_arm64_relocator_rewrite_conditional_branch (self, &ctx);
+      rewritten = gum_arm64_relocator_rewrite_cbz (self, &ctx);
       break;
     default:
+      rewritten = FALSE;
       break;
   }
 
   if (!rewritten)
-    gum_arm64_writer_put_instruction (ctx.output, ctx.raw_insn);
+    gum_arm64_writer_put_bytes (ctx.output, insn->bytes, insn->size);
 
   return TRUE;
 }
@@ -468,53 +472,89 @@ gum_arm64_relocator_rewrite_adr (GumArm64Relocator * self,
 
   (void) self;
 
+  g_assert_cmpuint (label->type, ==, ARM64_OP_IMM);
+
   gum_arm64_writer_put_ldr_reg_address (ctx->output, dst->reg, label->imm);
   return TRUE;
 }
 
 static gboolean
-gum_arm64_relocator_rewrite_unconditional_branch (GumArm64Relocator * self,
-                                                  GumCodeGenCtx * ctx)
+gum_arm64_relocator_rewrite_b (GumArm64Relocator * self,
+                               GumCodeGenCtx * ctx)
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
   (void) self;
 
-  if (ctx->insn->id == ARM64_INS_B)
-  {
-    gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
-        target->imm);
-    gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
-  }
-  else
-  {
-    gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR,
-        target->imm);
-    gum_arm64_writer_put_blr_reg (ctx->output, ARM64_REG_LR);
-  }
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
+      target->imm);
+  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
 
   return TRUE;
 }
 
 static gboolean
-gum_arm64_relocator_rewrite_conditional_branch (GumArm64Relocator * self,
-                                                GumCodeGenCtx * ctx)
+gum_arm64_relocator_rewrite_b_cond (GumArm64Relocator * self,
+                                    GumCodeGenCtx * ctx)
+{
+  const cs_arm64_op * target = &ctx->detail->operands[0];
+  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
+
+  (void) self;
+
+  gum_arm64_writer_put_b_cond_label (ctx->output, ctx->detail->cc, is_true);
+  gum_arm64_writer_put_b_label (ctx->output, is_false);
+
+  gum_arm64_writer_put_label (ctx->output, is_true);
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
+      target->imm);
+  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+
+  gum_arm64_writer_put_label (ctx->output, is_false);
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
+                                GumCodeGenCtx * ctx)
 {
   const cs_arm64_op * target = &ctx->detail->operands[0];
 
   (void) self;
 
-  /* Rewrite to b.cond/cbz going 2 instructions ahead */
-  gum_arm64_writer_put_instruction (ctx->output,
-      (ctx->raw_insn & 0xff00001f) | (2 << 5));
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_LR, target->imm);
+  gum_arm64_writer_put_blr_reg (ctx->output, ARM64_REG_LR);
 
-  /* If false: jump 3 instructions ahead */
-  gum_arm64_writer_put_b_imm (ctx->output, ctx->output->pc + (3 * 4));
+  return TRUE;
+}
 
-  /* If true */
+static gboolean
+gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
+                                 GumCodeGenCtx * ctx)
+{
+  const cs_arm64_op * source = &ctx->detail->operands[0];
+  const cs_arm64_op * target = &ctx->detail->operands[1];
+  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
+
+  (void) self;
+
+  if (ctx->insn->id == ARM64_INS_CBZ)
+    gum_arm64_writer_put_cbz_reg_label (ctx->output, source->reg, is_true);
+  else
+    gum_arm64_writer_put_cbnz_reg_label (ctx->output, source->reg, is_true);
+  gum_arm64_writer_put_b_label (ctx->output, is_false);
+
+  gum_arm64_writer_put_label (ctx->output, is_true);
   gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
       target->imm);
   gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+
+  gum_arm64_writer_put_label (ctx->output, is_false);
 
   return TRUE;
 }

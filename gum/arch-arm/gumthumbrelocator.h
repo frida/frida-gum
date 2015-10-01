@@ -22,7 +22,7 @@ struct _GumThumbRelocator
   const guint8 * input_start;
   const guint8 * input_cur;
   GumAddress input_pc;
-  GumArmInstruction * input_insns;
+  cs_insn ** input_insns;
   GumThumbWriter * output;
 
   guint inpos;
@@ -38,9 +38,10 @@ void gum_thumb_relocator_reset (GumThumbRelocator * relocator,
     gconstpointer input_code, GumThumbWriter * output);
 void gum_thumb_relocator_free (GumThumbRelocator * relocator);
 
-guint gum_thumb_relocator_read_one (GumThumbRelocator * self, const GumArmInstruction ** instruction);
+guint gum_thumb_relocator_read_one (GumThumbRelocator * self,
+    const cs_insn ** instruction);
 
-GumArmInstruction * gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self);
+cs_insn * gum_thumb_relocator_peek_next_write_insn (GumThumbRelocator * self);
 gpointer gum_thumb_relocator_peek_next_write_source (GumThumbRelocator * self);
 void gum_thumb_relocator_skip_one (GumThumbRelocator * self);
 gboolean gum_thumb_relocator_write_one (GumThumbRelocator * self);
@@ -50,7 +51,8 @@ gboolean gum_thumb_relocator_eob (GumThumbRelocator * self);
 gboolean gum_thumb_relocator_eoi (GumThumbRelocator * self);
 
 gboolean gum_thumb_relocator_can_relocate (gpointer address, guint min_bytes);
-guint gum_thumb_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
+guint gum_thumb_relocator_relocate (gpointer from, guint min_bytes,
+    gpointer to);
 
 G_END_DECLS
 

@@ -7,8 +7,6 @@
 #ifndef __GUM_ARM_RELOCATOR_H__
 #define __GUM_ARM_RELOCATOR_H__
 
-#include "gumdefs.h"
-
 #include "gumarmwriter.h"
 
 #include <capstone/capstone.h>
@@ -24,7 +22,7 @@ struct _GumArmRelocator
   const guint8 * input_start;
   const guint8 * input_cur;
   GumAddress input_pc;
-  GumArmInstruction * input_insns;
+  cs_insn ** input_insns;
   GumArmWriter * output;
 
   guint inpos;
@@ -40,9 +38,10 @@ void gum_arm_relocator_reset (GumArmRelocator * relocator,
     gconstpointer input_code, GumArmWriter * output);
 void gum_arm_relocator_free (GumArmRelocator * relocator);
 
-guint gum_arm_relocator_read_one (GumArmRelocator * self, const GumArmInstruction ** instruction);
+guint gum_arm_relocator_read_one (GumArmRelocator * self,
+    const cs_insn ** instruction);
 
-GumArmInstruction * gum_arm_relocator_peek_next_write_insn (GumArmRelocator * self);
+cs_insn * gum_arm_relocator_peek_next_write_insn (GumArmRelocator * self);
 gpointer gum_arm_relocator_peek_next_write_source (GumArmRelocator * self);
 void gum_arm_relocator_skip_one (GumArmRelocator * self);
 gboolean gum_arm_relocator_write_one (GumArmRelocator * self);

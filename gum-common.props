@@ -77,11 +77,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ClInclude Include="gum\arch-arm\gumarm.h" />
     <ClInclude Include="gum\arch-arm\gumarmwriter.h" />
     <ClInclude Include="gum\arch-arm\gumarmrelocator.h" />
     <ClInclude Include="gum\arch-arm\gumthumbwriter.h" />
     <ClInclude Include="gum\arch-arm\gumthumbrelocator.h" />
+    <ClInclude Include="gum\arch-arm\gumarmreg.h" />
   </ItemGroup>
 
   <ItemGroup>
@@ -89,6 +89,7 @@
     <ClCompile Include="gum\arch-arm\gumarmrelocator.c" />
     <ClCompile Include="gum\arch-arm\gumthumbwriter.c" />
     <ClCompile Include="gum\arch-arm\gumthumbrelocator.c" />
+    <ClCompile Include="gum\arch-arm\gumarmreg.c" />
   </ItemGroup>
 
   <ItemGroup>

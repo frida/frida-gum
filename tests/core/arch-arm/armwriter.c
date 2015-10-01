@@ -15,9 +15,9 @@ TEST_LIST_END ()
 
 ARMWRITER_TESTCASE (ldr_u32)
 {
-  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, GUM_AREG_R0, 0x1337);
-  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, GUM_AREG_R1, 0x1227);
-  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, GUM_AREG_R2, 0x1337);
+  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_R0, 0x1337);
+  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_R1, 0x1227);
+  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_R2, 0x1337);
   gum_arm_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0xe59f0004);
   assert_output_n_equals (1, 0xe59f1004);
@@ -28,7 +28,7 @@ ARMWRITER_TESTCASE (ldr_u32)
 
 ARMWRITER_TESTCASE (ldr_pc_u32)
 {
-  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, GUM_AREG_PC, 0xdeadbeef);
+  gum_arm_writer_put_ldr_reg_u32 (&fixture->aw, ARM_REG_PC, 0xdeadbeef);
   gum_arm_writer_flush (&fixture->aw);
   assert_output_n_equals (0, 0xe51ff004);
   g_assert_cmphex (GUINT32_FROM_LE (fixture->output[1 + 0]), ==, 0xdeadbeef);

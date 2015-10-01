@@ -14,13 +14,6 @@
 #define GUM_MAX_LABEL_REF_COUNT   (3 * GUM_MAX_LABEL_COUNT)
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
-#define IS_WITHIN_INT19_RANGE(i) \
-    (((gint) (i)) >= -262144 && ((gint) (i)) <= 262143)
-#define IS_WITHIN_INT21_RANGE(i) \
-    (((gint) (i)) >= -1048576 && ((gint) (i)) <= 1048575)
-#define IS_WITHIN_INT28_RANGE(i) \
-    (((gint) (i)) >= -134217728 && ((gint) (i)) <= 134217727)
-
 typedef struct _GumArm64Argument GumArm64Argument;
 typedef guint GumArm64MemPairOperandSize;
 typedef guint GumArm64MetaReg;
@@ -97,13 +90,12 @@ enum _GumArm64MetaReg
   GUM_MREG_R28,
   GUM_MREG_R29,
   GUM_MREG_R30,
+  GUM_MREG_R31,
 
-  GUM_MREG_FP = 29,
-  GUM_MREG_LR = 30,
-  GUM_MREG_SP = 31,
-  GUM_MREG_ZR = 31,
-
-  GUM_MREG_PC
+  GUM_MREG_FP = GUM_MREG_R29,
+  GUM_MREG_LR = GUM_MREG_R30,
+  GUM_MREG_SP = GUM_MREG_R31,
+  GUM_MREG_ZR = GUM_MREG_R31
 };
 
 struct _GumArm64RegInfo
@@ -200,17 +192,28 @@ gum_arm64_writer_flush (GumArm64Writer * self)
     {
       GumArm64LabelRef * r = &self->label_refs[label_idx];
       gpointer target_address;
-      gssize distance_in_insns;
+      gssize distance;
+      guint32 insn;
 
       target_address =
           gum_arm64_writer_lookup_address_for_label_id (self, r->id);
       g_assert (target_address != NULL);
 
-      distance_in_insns =
-          ((gssize) target_address - (gssize) r->insn) / sizeof (guint32);
-      g_assert (IS_WITHIN_INT19_RANGE (distance_in_insns));
+      distance = ((gssize) target_address - (gssize) r->insn) / 4;
 
-      *r->insn |= (distance_in_insns & 0x7ffff) << 5;
+      insn = GUINT32_FROM_LE (*r->insn);
+      if (insn == 0x14000000)
+      {
+        g_assert (GUM_IS_WITHIN_INT28_RANGE (distance));
+        insn |= distance & GUM_INT28_MASK;
+      }
+      else
+      {
+        g_assert (GUM_IS_WITHIN_INT19_RANGE (distance));
+        insn |= (distance & GUM_INT19_MASK) << 5;
+      }
+
+      *r->insn = GUINT32_TO_LE (insn);
     }
     self->label_refs_len = 0;
   }
@@ -247,7 +250,7 @@ gum_arm64_writer_flush (GumArm64Writer * self)
           (gint64) GPOINTER_TO_SIZE (r->insn);
 
       insn = GUINT32_FROM_LE (*r->insn);
-      insn |= ((distance / 4) & 0x7ffff) << 5;
+      insn |= ((distance / 4) & GUM_INT19_MASK) << 5;
       *r->insn = GUINT32_TO_LE (insn);
     }
     self->literal_refs_len = 0;
@@ -415,7 +418,7 @@ gum_arm64_writer_can_branch_imm (GumAddress from,
 {
   gint64 distance = (gint64) to - (gint64) from;
 
-  return IS_WITHIN_INT28_RANGE (distance);
+  return GUM_IS_WITHIN_INT28_RANGE (distance);
 }
 
 void
@@ -424,11 +427,28 @@ gum_arm64_writer_put_b_imm (GumArm64Writer * self,
 {
   gint64 distance = (gint64) address - (gint64) self->pc;
 
-  g_assert (IS_WITHIN_INT28_RANGE (distance));
+  g_assert (GUM_IS_WITHIN_INT28_RANGE (distance));
   g_assert_cmpint (distance % 4, ==, 0);
 
   gum_arm64_writer_put_instruction (self,
-      0x14000000 | ((distance / 4) & 0x3ffffff));
+      0x14000000 | ((distance / 4) & GUM_INT28_MASK));
+}
+
+void
+gum_arm64_writer_put_b_label (GumArm64Writer * self,
+                              gconstpointer label_id)
+{
+  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_put_instruction (self, 0x14000000);
+}
+
+void
+gum_arm64_writer_put_b_cond_label (GumArm64Writer * self,
+                                   arm64_cc cc,
+                                   gconstpointer label_id)
+{
+  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_put_instruction (self, 0x54000000 | (cc - 1));
 }
 
 void
@@ -437,11 +457,11 @@ gum_arm64_writer_put_bl_imm (GumArm64Writer * self,
 {
   gint64 distance = (gint64) address - (gint64) self->pc;
 
-  g_assert (IS_WITHIN_INT28_RANGE (distance));
+  g_assert (GUM_IS_WITHIN_INT28_RANGE (distance));
   g_assert_cmpint (distance % 4, ==, 0);
 
   gum_arm64_writer_put_instruction (self,
-      0x94000000 | ((distance / 4) & 0x3ffffff));
+      0x94000000 | ((distance / 4) & GUM_INT28_MASK));
 }
 
 void
@@ -692,7 +712,7 @@ gum_arm64_writer_put_adrp_reg_address (GumArm64Writer * self,
   g_assert (distance.i % 4096 == 0);
   distance.i /= 4096;
 
-  g_assert (IS_WITHIN_INT21_RANGE (distance.i));
+  g_assert (GUM_IS_WITHIN_INT21_RANGE (distance.i));
 
   imm_hi = (distance.u & G_GUINT64_CONSTANT (0x1ffffc)) >> 2;
   imm_lo = (distance.u & G_GUINT64_CONSTANT (0x3));

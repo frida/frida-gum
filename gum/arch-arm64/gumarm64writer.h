@@ -52,6 +52,10 @@ void gum_arm64_writer_put_call_reg_with_arguments (GumArm64Writer * self,
 
 gboolean gum_arm64_writer_can_branch_imm (GumAddress from, GumAddress to);
 void gum_arm64_writer_put_b_imm (GumArm64Writer * self, GumAddress address);
+void gum_arm64_writer_put_b_label (GumArm64Writer * self,
+    gconstpointer label_id);
+void gum_arm64_writer_put_b_cond_label (GumArm64Writer * self, arm64_cc cc,
+    gconstpointer label_id);
 void gum_arm64_writer_put_bl_imm (GumArm64Writer * self, GumAddress address);
 void gum_arm64_writer_put_br_reg (GumArm64Writer * self, arm64_reg reg);
 void gum_arm64_writer_put_blr_reg (GumArm64Writer * self, arm64_reg reg);

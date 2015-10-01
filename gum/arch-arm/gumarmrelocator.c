@@ -14,21 +14,23 @@ typedef struct _GumCodeGenCtx GumCodeGenCtx;
 
 struct _GumCodeGenCtx
 {
-  const GumArmInstruction * insn;
-  guint32 raw_insn;
-  cs_insn * capstone_insn;
+  const cs_insn * insn;
+  cs_arm * detail;
+  GumAddress pc;
 
   GumArmWriter * output;
 };
 
-static gboolean gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
-    GumCodeGenCtx * ctx);
-static gboolean gum_arm_relocator_rewrite_pc_relative_ldr (
-    GumArmRelocator * self, GumCodeGenCtx * ctx);
-static gboolean gum_arm_relocator_rewrite_pc_relative_add (
-    GumArmRelocator * self, GumCodeGenCtx * ctx);
+static gboolean gum_arm_branch_is_unconditional (const cs_insn * insn);
 
-static gint gum_capstone_reg_to_arm_reg (gint cs_reg);
+static gboolean gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_add (GumArmRelocator * self,
+    GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_b (GumArmRelocator * self,
+    cs_mode target_mode, GumCodeGenCtx * ctx);
+static gboolean gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
+    cs_mode target_mode, GumCodeGenCtx * ctx);
 
 void
 gum_arm_relocator_init (GumArmRelocator * relocator,
@@ -41,9 +43,7 @@ gum_arm_relocator_init (GumArmRelocator * relocator,
   g_assert_cmpint (err, ==, CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert_cmpint (err, ==, CS_ERR_OK);
-
-  relocator->input_insns = gum_new (GumArmInstruction,
-      GUM_MAX_INPUT_INSN_COUNT);
+  relocator->input_insns = gum_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   gum_arm_relocator_reset (relocator, input_code, output);
 }
@@ -53,9 +53,20 @@ gum_arm_relocator_reset (GumArmRelocator * relocator,
                          gconstpointer input_code,
                          GumArmWriter * output)
 {
+  guint i;
+
   relocator->input_start = input_code;
   relocator->input_cur = input_code;
   relocator->input_pc = GUM_ADDRESS (input_code);
+  for (i = 0; i != GUM_MAX_INPUT_INSN_COUNT; i++)
+  {
+    cs_insn * insn = relocator->input_insns[i];
+    if (insn != NULL)
+    {
+      cs_free (insn, 1);
+      relocator->input_insns[i] = NULL;
+    }
+  }
   relocator->output = output;
 
   relocator->inpos = 0;
@@ -68,6 +79,9 @@ gum_arm_relocator_reset (GumArmRelocator * relocator,
 void
 gum_arm_relocator_free (GumArmRelocator * relocator)
 {
+  gum_arm_relocator_reset (relocator, relocator->input_start,
+      relocator->output);
+
   gum_free (relocator->input_insns);
 
   cs_close (&relocator->capstone);
@@ -101,78 +115,46 @@ gum_arm_relocator_increment_outpos (GumArmRelocator * self)
 
 guint
 gum_arm_relocator_read_one (GumArmRelocator * self,
-                            const GumArmInstruction ** instruction)
+                            const cs_insn ** instruction)
 {
-  cs_insn * ci = NULL;
-  guint32 raw_insn;
-  guint category;
-  GumArmInstruction * insn;
+  cs_insn ** insn_ptr, * insn;
 
   if (self->eoi)
     return 0;
 
+  insn_ptr = &self->input_insns[gum_arm_relocator_inpos (self)];
+
+  if (*insn_ptr != NULL)
+  {
+    cs_free (*insn_ptr, 1);
+    *insn_ptr = NULL;
+  }
+
   if (cs_disasm (self->capstone, self->input_cur, 4, self->input_pc, 1,
-      &ci) != 1)
+      insn_ptr) != 1)
   {
     return 0;
   }
-  g_assert (ci != NULL);
 
-  raw_insn = GUINT32_FROM_LE (*((guint32 *) self->input_cur));
-  insn = &self->input_insns[gum_arm_relocator_inpos (self)];
+  insn = *insn_ptr;
 
-  category = (raw_insn >> 25) & 7;
-
-  insn->mnemonic = GUM_ARM_UNKNOWN;
-  insn->address = self->input_cur;
-  insn->length = ci->size;
-  insn->pc = self->input_pc + 8;
-
-  switch (category)
+  switch (insn->id)
   {
-    case 0: /* data processing */
-    case 1:
-    {
-      guint opcode = (raw_insn >> 21) & 0xf;
-      switch (opcode)
-      {
-        case 0xd:
-          insn->mnemonic = GUM_ARM_MOV;
-          break;
-      }
-
-      if (ci->id == ARM_INS_ADD &&
-          ci->detail->arm.operands[1].type == ARM_OP_REG &&
-          ci->detail->arm.operands[1].imm == ARM_REG_PC)
-      {
-        insn->mnemonic = GUM_ARM_ADDPC;
-      }
+    case ARM_INS_B:
+    case ARM_INS_BX:
+      self->eob = TRUE;
+      self->eoi = gum_arm_branch_is_unconditional (insn);
       break;
-    }
-
-    case 2: /* load/store */
-      if (ci->id == ARM_INS_LDR)
-        insn->mnemonic = GUM_ARM_LDR;
+    case ARM_INS_BL:
+    case ARM_INS_BLX:
+      self->eob = TRUE;
+      self->eoi = FALSE;
       break;
-
-    case 4: /* load/store multiple */
-    {
-      guint base_register = (raw_insn >> 16) & 0xf;
-      guint is_load = (raw_insn >> 20) & 1;
-      if (base_register == GUM_AREG_SP)
-        insn->mnemonic = is_load ? GUM_ARM_POP : GUM_ARM_PUSH;
-      break;
-    }
-
-    case 5: /* control */
-      if (((raw_insn >> 28) & 0xf) == 0xf)
+    case ARM_INS_POP:
+      if (cs_reg_read (self->capstone, insn, ARM_REG_PC))
       {
-        insn->mnemonic = GUM_ARM_BLX_IMM_A2;
-      }
-      else
-      {
-        insn->mnemonic = ((raw_insn & 0x1000000) == 0) ?
-            GUM_ARM_B_IMM_A1 : GUM_ARM_BL_IMM_A1;
+        self->eob = TRUE;
+        self->eoi = TRUE;
       }
       break;
   }
@@ -182,41 +164,37 @@ gum_arm_relocator_read_one (GumArmRelocator * self,
   if (instruction != NULL)
     *instruction = insn;
 
-  self->input_cur += insn->length;
-  self->input_pc += insn->length;
-
-  cs_free (ci, 1);
+  self->input_cur += insn->size;
+  self->input_pc += insn->size;
 
   return self->input_cur - self->input_start;
 }
 
-GumArmInstruction *
+cs_insn *
 gum_arm_relocator_peek_next_write_insn (GumArmRelocator * self)
 {
   if (self->outpos == self->inpos)
     return NULL;
 
-  return &self->input_insns[gum_arm_relocator_outpos (self)];
+  return self->input_insns[gum_arm_relocator_outpos (self)];
 }
 
 gpointer
 gum_arm_relocator_peek_next_write_source (GumArmRelocator * self)
 {
-  GumArmInstruction * next;
+  cs_insn * next;
 
   next = gum_arm_relocator_peek_next_write_insn (self);
   if (next == NULL)
     return NULL;
 
-  /* FIXME */
-  g_assert_not_reached ();
-  return NULL;
+  return GSIZE_TO_POINTER (next->address);
 }
 
 void
 gum_arm_relocator_skip_one (GumArmRelocator * self)
 {
-  GumArmInstruction * next;
+  cs_insn * next;
 
   next = gum_arm_relocator_peek_next_write_insn (self);
   g_assert (next != NULL);
@@ -226,48 +204,45 @@ gum_arm_relocator_skip_one (GumArmRelocator * self)
 gboolean
 gum_arm_relocator_write_one (GumArmRelocator * self)
 {
+  const cs_insn * insn;
   GumCodeGenCtx ctx;
-  cs_insn * ci;
-  gboolean rewritten = FALSE;
+  gboolean rewritten;
 
-  if ((ctx.insn = gum_arm_relocator_peek_next_write_insn (self)) == NULL)
+  if ((insn = gum_arm_relocator_peek_next_write_insn (self)) == NULL)
     return FALSE;
   gum_arm_relocator_increment_outpos (self);
-
-  if (cs_disasm (self->capstone, ctx.insn->address, 4,
-      GPOINTER_TO_SIZE (ctx.insn->address), 1, &ci) != 1)
-  {
-    return 0;
-  }
-  g_assert (ci != NULL);
-
-  ctx.raw_insn = GUINT32_FROM_LE (*((guint32 *) ctx.insn->address));
-  ctx.capstone_insn = ci;
-
+  ctx.insn = insn;
+  ctx.detail = &ctx.insn->detail->arm;
+  ctx.pc = insn->address + 8;
   ctx.output = self->output;
 
-  switch (ctx.insn->mnemonic)
+  switch (insn->id)
   {
-    case GUM_ARM_B_IMM_A1:
-    case GUM_ARM_BL_IMM_A1:
-    case GUM_ARM_BLX_IMM_A2:
-      rewritten = gum_arm_relocator_rewrite_branch_imm (self, &ctx);
+    case ARM_INS_LDR:
+      rewritten = gum_arm_relocator_rewrite_ldr (self, &ctx);
       break;
-
-    case GUM_ARM_LDR:
-      rewritten = gum_arm_relocator_rewrite_pc_relative_ldr (self, &ctx);
+    case ARM_INS_ADD:
+      rewritten = gum_arm_relocator_rewrite_add (self, &ctx);
       break;
-
-    case GUM_ARM_ADDPC:
-      rewritten = gum_arm_relocator_rewrite_pc_relative_add (self, &ctx);
+    case ARM_INS_B:
+      rewritten = gum_arm_relocator_rewrite_b (self, CS_MODE_ARM, &ctx);
+      break;
+    case ARM_INS_BX:
+      rewritten = gum_arm_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
+      break;
+    case ARM_INS_BL:
+      rewritten = gum_arm_relocator_rewrite_bl (self, CS_MODE_ARM, &ctx);
+      break;
+    case ARM_INS_BLX:
+      rewritten = gum_arm_relocator_rewrite_bl (self, CS_MODE_THUMB, &ctx);
+      break;
     default:
+      rewritten = FALSE;
       break;
   }
 
   if (!rewritten)
-    gum_arm_writer_put_bytes (ctx.output, ctx.insn->address, ctx.insn->length);
-
-  cs_free (ci, 1);
+    gum_arm_writer_put_bytes (ctx.output, insn->bytes, insn->size);
 
   return TRUE;
 }
@@ -353,112 +328,103 @@ gum_arm_relocator_relocate (gpointer from,
 }
 
 static gboolean
-gum_arm_relocator_rewrite_branch_imm (GumArmRelocator * self,
-                                      GumCodeGenCtx * ctx)
+gum_arm_branch_is_unconditional (const cs_insn * insn)
 {
-  union
+  switch (insn->detail->arm.cc)
   {
-    gint32 i;
-    guint32 u;
-  } distance;
-  GumAddress absolute_target;
-
-  (void) self;
-
-  if ((ctx->raw_insn & 0x00800000) != 0)
-    distance.u = 0xfc000000 | ((ctx->raw_insn & 0x00ffffff) << 2);
-  else
-    distance.u = ((ctx->raw_insn & 0x007fffff) << 2);
-
-  if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2 &&
-      (ctx->raw_insn & 0x01000000) != 0)
-  {
-    distance.u |= 2;
-  }
-
-  absolute_target = ctx->insn->pc + distance.i;
-  if (ctx->insn->mnemonic == GUM_ARM_BLX_IMM_A2)
-    absolute_target |= 1;
-
-  switch (ctx->insn->mnemonic)
-  {
-    case GUM_ARM_BL_IMM_A1:
-    case GUM_ARM_BLX_IMM_A2:
-      gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_LR,
-          ctx->output->pc + 4 + 4);
-      break;
-
+    case ARM_CC_INVALID:
+    case ARM_CC_AL:
+      return TRUE;
     default:
-      break;
+      return FALSE;
   }
-
-  gum_arm_writer_put_ldr_reg_address (ctx->output, GUM_AREG_PC,
-      absolute_target);
-
-  return TRUE;
 }
 
 static gboolean
-gum_arm_relocator_rewrite_pc_relative_ldr (GumArmRelocator * self,
-                                           GumCodeGenCtx * ctx)
+gum_arm_relocator_rewrite_ldr (GumArmRelocator * self,
+                               GumCodeGenCtx * ctx)
 {
-  cs_insn * ci = ctx->capstone_insn;
-  gint dest_reg, base_reg, disp;
+  const cs_arm_op * dst = &ctx->detail->operands[0];
+  const cs_arm_op * src = &ctx->detail->operands[1];
+  gint disp;
 
-  dest_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[0].reg);
-  base_reg = ci->detail->arm.operands[1].mem.base;
-  disp = ci->detail->arm.operands[1].mem.disp;
-
-  if (base_reg != ARM_REG_PC)
+  if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
-  gum_arm_writer_put_ldr_reg_address (ctx->output, dest_reg, ctx->insn->pc);
+  disp = src->mem.disp;
+
+  gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
   if (disp > 0xff)
   {
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
         0xc00 | ((disp >> 8) & 0xff));
   }
-  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
+  gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
       disp & 0xff);
-  gum_arm_writer_put_ldr_reg_reg_imm (ctx->output, dest_reg, dest_reg, 0);
+  gum_arm_writer_put_ldr_reg_reg_imm (ctx->output, dst->reg, dst->reg, 0);
 
   return TRUE;
 }
 
 static gboolean
-gum_arm_relocator_rewrite_pc_relative_add (GumArmRelocator * self,
-                                           GumCodeGenCtx * ctx)
+gum_arm_relocator_rewrite_add (GumArmRelocator * self,
+                               GumCodeGenCtx * ctx)
 {
-  cs_insn * ci = ctx->capstone_insn;
-  gint dest_reg, src_reg, val;
+  const cs_arm_op * dst = &ctx->detail->operands[0];
+  const cs_arm_op * left = &ctx->detail->operands[1];
+  const cs_arm_op * right = &ctx->detail->operands[2];
 
-  dest_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[0].reg);
-  src_reg = gum_capstone_reg_to_arm_reg (ci->detail->arm.operands[2].reg);
+  if (left->reg != ARM_REG_PC || right->type != ARM_OP_REG)
+    return FALSE;
 
-  val = ctx->insn->pc;
-
-  if (dest_reg == src_reg)
+  if (right->reg == dst->reg)
   {
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
-        val & 0xff);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
-        0xc00 | ((val >> 8) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
-        0x800 | ((val >> 16) & 0xff));
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, dest_reg,
-        0x400 | ((val >> 24) & 0xff));
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        ctx->pc & 0xff);
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0xc00 | ((ctx->pc >> 8) & 0xff));
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0x800 | ((ctx->pc >> 16) & 0xff));
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, dst->reg,
+        0x400 | ((ctx->pc >> 24) & 0xff));
   }
   else
   {
-    gum_arm_writer_put_ldr_reg_address (ctx->output, dest_reg, val);
-    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dest_reg, src_reg, 0);
+    gum_arm_writer_put_ldr_reg_address (ctx->output, dst->reg, ctx->pc);
+    gum_arm_writer_put_add_reg_reg_imm (ctx->output, dst->reg, right->reg, 0);
   }
 
   return TRUE;
 }
 
-static gint
-gum_capstone_reg_to_arm_reg (gint cs_reg)
+static gboolean
+gum_arm_relocator_rewrite_b (GumArmRelocator * self,
+                             cs_mode target_mode,
+                             GumCodeGenCtx * ctx)
 {
-  return cs_reg - ARM_REG_R0;
+  const cs_arm_op * target = &ctx->detail->operands[0];
+
+  if (target->type != ARM_OP_IMM)
+    return FALSE;
+
+  gum_arm_writer_put_ldr_reg_address (ctx->output, ARM_REG_PC,
+      (target_mode == CS_MODE_THUMB) ? target->imm | 1 : target->imm);
+  return TRUE;
+}
+
+static gboolean
+gum_arm_relocator_rewrite_bl (GumArmRelocator * self,
+                              cs_mode target_mode,
+                              GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * target = &ctx->detail->operands[0];
+
+  if (target->type != ARM_OP_IMM)
+    return FALSE;
+
+  gum_arm_writer_put_ldr_reg_address (ctx->output, ARM_REG_LR,
+      ctx->output->pc + (2 * 4));
+  gum_arm_writer_put_ldr_reg_address (ctx->output, ARM_REG_PC,
+      (target_mode == CS_MODE_THUMB) ? target->imm | 1 : target->imm);
+  return TRUE;
 }
