@@ -514,7 +514,10 @@
         }
 
         function reply(id, type, result) {
-            send(['frida:rpc', id, type, result]);
+            if (result instanceof ArrayBuffer)
+                send(['frida:rpc', id, type], result);
+            else
+                send(['frida:rpc', id, type, result]);
         }
 
         function dispatchMessages() {
