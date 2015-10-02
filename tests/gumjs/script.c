@@ -1196,7 +1196,7 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
       "\"Unable to find method 'baz'\"]");
 
   POST_MESSAGE ("[\"frida:rpc\",7,\"call\",\"badger\",[]]");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",7,\"ok\"]",
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("[\"frida:rpc\",7,\"ok\",{}]",
       "59 6f");
 }
 
