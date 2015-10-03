@@ -39,12 +39,13 @@ struct _GumExceptorPrivate
 {
   GMutex mutex;
 
+  GumInterceptor * interceptor;
   GSList * handlers;
   GumTlsKey scope_tls;
 
 #ifndef G_OS_WIN32
-  struct sigaction old_sigsegv;
-  struct sigaction old_sigbus;
+  struct sigaction ** old_handlers;
+  gint num_old_handlers;
 #endif
 };
 
@@ -63,6 +64,7 @@ struct _GumExceptorScopeImpl
 #endif
 };
 
+static void gum_exceptor_dispose (GObject * object);
 static void gum_exceptor_finalize (GObject * object);
 static void the_exceptor_weak_notify (gpointer data,
     GObject * where_the_object_was);
@@ -75,6 +77,9 @@ static gboolean gum_exceptor_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
     gpointer user_data);
 #else
+static sig_t gum_exceptor_replacement_signal (int sig, sig_t handler);
+static int gum_exceptor_replacement_sigaction (int sig,
+    const struct sigaction * act, struct sigaction * oact);
 static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
     void * context);
 static void gum_exceptor_parse_context (gconstpointer context,
@@ -98,6 +103,7 @@ gum_exceptor_class_init (GumExceptorClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumExceptorPrivate));
 
+  object_class->dispose = gum_exceptor_dispose;
   object_class->finalize = gum_exceptor_finalize;
 }
 
@@ -111,20 +117,67 @@ gum_exceptor_init (GumExceptor * self)
 
   g_mutex_init (&priv->mutex);
 
+  priv->interceptor = gum_interceptor_obtain ();
+
   GUM_TLS_KEY_INIT (&priv->scope_tls);
 
 #ifdef G_OS_WIN32
   gum_win_exception_hook_add (gum_exceptor_on_exception, self);
 #else
+  const gint handled_signals[] = { SIGSEGV, SIGBUS };
+  gint highest, i;
   struct sigaction action;
+  GumReplaceReturn replace_ret;
+
+  highest = handled_signals[0];
+  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
+    highest = MAX (handled_signals[i], highest);
+  g_assert_cmpint (highest, >, 0);
+  priv->num_old_handlers = highest + 1;
+  priv->old_handlers = g_new0 (struct sigaction *, priv->num_old_handlers);
+
   action.sa_sigaction = gum_exceptor_on_signal;
   sigemptyset (&action.sa_mask);
   action.sa_flags = SA_SIGINFO;
-  sigaction (SIGSEGV, &action, &priv->old_sigsegv);
-  sigaction (SIGBUS, &action, &priv->old_sigbus);
+  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
+  {
+    gint sig = handled_signals[i];
+    struct sigaction * old_handler;
+
+    old_handler = g_slice_new0 (struct sigaction);
+    priv->old_handlers[sig] = old_handler;
+    sigaction (sig, &action, old_handler);
+  }
+
+  replace_ret = gum_interceptor_replace_function (priv->interceptor, signal,
+      gum_exceptor_replacement_signal, self);
+  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
+  replace_ret = gum_interceptor_replace_function (priv->interceptor, sigaction,
+      gum_exceptor_replacement_sigaction, self);
+  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
 #endif
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
+}
+
+static void
+gum_exceptor_dispose (GObject * object)
+{
+  GumExceptor * self = GUM_EXCEPTOR (object);
+  GumExceptorPrivate * priv = self->priv;
+
+  if (priv->interceptor != NULL)
+  {
+#ifndef G_OS_WIN32
+    gum_interceptor_revert_function (priv->interceptor, signal);
+    gum_interceptor_revert_function (priv->interceptor, sigaction);
+#endif
+
+    g_object_unref (priv->interceptor);
+    priv->interceptor = NULL;
+  }
+
+  G_OBJECT_CLASS (gum_exceptor_parent_class)->dispose (object);
 }
 
 static void
@@ -138,8 +191,18 @@ gum_exceptor_finalize (GObject * object)
 #ifdef G_OS_WIN32
   gum_win_exception_hook_remove (gum_exceptor_on_exception, self);
 #else
-  sigaction (SIGSEGV, &priv->old_sigsegv, NULL);
-  sigaction (SIGBUS, &priv->old_sigbus, NULL);
+  gint i;
+
+  for (i = 0; i != priv->num_old_handlers; i++)
+  {
+    struct sigaction * old_handler = priv->old_handlers[i];
+    if (old_handler != NULL)
+    {
+      sigaction (i, old_handler, NULL);
+      g_slice_free (struct sigaction, old_handler);
+    }
+  }
+  g_free (priv->old_handlers);
 #endif
 
   GUM_TLS_KEY_FREE (priv->scope_tls);
@@ -405,6 +468,84 @@ gum_exceptor_on_exception (EXCEPTION_RECORD * exception_record,
 
 #else
 
+static struct sigaction *
+gum_exceptor_get_old_handler (GumExceptor * self,
+                              gint sig)
+{
+  GumExceptorPrivate * priv = self->priv;
+
+  if (sig < 0 || sig >= priv->num_old_handlers)
+    return NULL;
+
+  return priv->old_handlers[sig];
+}
+
+static sig_t
+gum_exceptor_replacement_signal (int sig,
+                                 sig_t handler)
+{
+  GumExceptor * self;
+  GumExceptorPrivate * priv;
+  GumInvocationContext * ctx;
+  struct sigaction * old_handler;
+  sig_t result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_CAST (
+      gum_invocation_context_get_replacement_function_data (ctx));
+  priv = self->priv;
+
+  old_handler = gum_exceptor_get_old_handler (self, sig);
+  if (old_handler == NULL)
+    goto passthrough;
+
+  result = ((old_handler->sa_flags & SA_SIGINFO) != 0)
+      ? old_handler->sa_handler
+      : SIG_DFL;
+
+  old_handler->sa_handler = handler;
+  old_handler->sa_flags &= ~SA_SIGINFO;
+
+  return result;
+
+passthrough:
+  return signal (sig, handler);
+}
+
+static int
+gum_exceptor_replacement_sigaction (int sig,
+                                    const struct sigaction * act,
+                                    struct sigaction * oact)
+{
+  GumExceptor * self;
+  GumExceptorPrivate * priv;
+  GumInvocationContext * ctx;
+  struct sigaction * old_handler;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_CAST (
+      gum_invocation_context_get_replacement_function_data (ctx));
+  priv = self->priv;
+
+  old_handler = gum_exceptor_get_old_handler (self, sig);
+  if (old_handler == NULL)
+    goto passthrough;
+
+  if (oact != NULL)
+    *oact = *old_handler;
+  if (act != NULL)
+    *old_handler = *act;
+
+  return 0;
+
+passthrough:
+  return sigaction (sig, act, oact);
+}
+
 static void
 gum_exceptor_on_signal (int sig,
                         siginfo_t * siginfo,
@@ -447,7 +588,7 @@ gum_exceptor_on_signal (int sig,
     return;
   }
 
-  action = (sig == SIGSEGV) ? &priv->old_sigsegv : &priv->old_sigbus;
+  action = priv->old_handlers[sig];
   if ((action->sa_flags & SA_SIGINFO) != 0)
   {
     if (action->sa_sigaction != NULL)
