@@ -332,22 +332,39 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   if (impl->exception_occurred)
     return FALSE;
 
+  impl->exception_occurred = TRUE;
   memcpy (&scope->exception, details, sizeof (GumExceptionDetails));
 
+  /*
+   * Place IP at the start of the function as if the call already happened,
+   * and set up stack and registers accordingly.
+   */
 #ifdef HAVE_I386
+  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+
+  /* Align to 16 byte boundary (Mac ABI) */
+  GUM_CPU_CONTEXT_XSP (cpu_context) &= ~(gsize) (16 - 1);
+  /* Avoid the red zone (when applicable) */
+  GUM_CPU_CONTEXT_XSP (cpu_context) -= GUM_RED_ZONE_SIZE;
+  /* Reserve spill space for first four arguments (Win64 ABI) */
+  GUM_CPU_CONTEXT_XSP (cpu_context) -= 4 * 8;
+
 # if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->esp -= 8;
-  *((GumExceptorScope **) (cpu_context->esp + 4)) = GPOINTER_TO_SIZE (impl);
-  *((GumExceptorScope **) (cpu_context->esp + 0)) = NULL;
-  cpu_context->eip = GPOINTER_TO_SIZE (
-      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+  /* 32-bit: First argument goes on the stack (cdecl) */
+  *((GumExceptorScopeImpl **) cpu_context->esp) = impl;
 # else
-  cpu_context->rsp -= 16;
+  /* 64-bit: First argument goes in a register */
+#  if GUM_NATIVE_ABI_IS_WINDOWS
   cpu_context->rcx = GPOINTER_TO_SIZE (impl);
-  *((void **) (cpu_context->rsp + 0)) = NULL;
-  cpu_context->rip = GPOINTER_TO_SIZE (
-      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+#  else
+  cpu_context->rdi = GPOINTER_TO_SIZE (impl);
+#  endif
 # endif
+
+  /* Dummy return address (we won't return) */
+  GUM_CPU_CONTEXT_XSP (cpu_context) -= sizeof (gpointer);
+  *((gsize *) GUM_CPU_CONTEXT_XSP (cpu_context)) = 1337;
 #endif
 
   return TRUE;
@@ -456,7 +473,7 @@ gum_exceptor_unparse_context (const GumCpuContext * ctx,
 static void
 gum_exceptor_scope_impl_perform_longjmp (GumExceptorScopeImpl * impl)
 {
-#if defined (HAVE_ANDROID)
+#ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &impl->mask, NULL);
 #endif
   GUM_NATIVE_LONGJMP (impl->env, 1);
