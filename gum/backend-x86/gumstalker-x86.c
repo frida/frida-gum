@@ -32,7 +32,6 @@
 #define GUM_DATA_ALIGNMENT                     8
 #define GUM_CODE_SLAB_SIZE_IN_PAGES         1024
 #define GUM_EXEC_BLOCK_MIN_SIZE             1024
-#define GUM_RED_ZONE_SIZE                    128
 
 typedef struct _GumInfectContext GumInfectContext;
 typedef struct _GumDisinfectContext GumDisinfectContext;

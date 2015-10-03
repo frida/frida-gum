@@ -223,6 +223,7 @@ enum _GumRelocationScenario
 # define GUM_THUNK_REG_ARG0 GUM_REG_XCX
 # define GUM_THUNK_REG_ARG1 GUM_REG_XDX
 #endif
+#define GUM_RED_ZONE_SIZE 128
 
 #ifdef _MSC_VER
 # define GUM_CDECL __cdecl

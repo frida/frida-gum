@@ -12,7 +12,6 @@
 #include <string.h>
 
 #define GUM_MAX_INPUT_INSN_COUNT (100)
-#define GUM_RED_ZONE_SIZE        (128)
 
 typedef struct _GumCodeGenCtx GumCodeGenCtx;
 
