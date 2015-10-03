@@ -10,6 +10,7 @@ fridainclude_HEADERS = \
 	gumbacktracer.h \
 	gumcodeallocator.h \
 	gumdefs.h \
+	gumexceptor.h \
 	gumevent.h \
 	gumeventsink.h \
 	gumfunction.h \
@@ -166,6 +167,7 @@ libfrida_gum_la_SOURCES = \
 	gum-init.h \
 	gumbacktracer.c \
 	gumcodeallocator.c \
+	gumexceptor.c \
 	gumeventsink.c \
 	guminterceptor.c \
 	guminvocationcontext.c \

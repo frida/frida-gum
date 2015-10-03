@@ -69,6 +69,9 @@
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumexceptor.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumeventsink.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -358,6 +361,9 @@
     </ClInclude>
     <ClInclude Include="libs\gum\heap\gumsanitychecker.h">
       <Filter>libs\heap</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumexceptor.h">
+      <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumevent.h">
       <Filter>core</Filter>

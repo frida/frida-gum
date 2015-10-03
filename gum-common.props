@@ -15,6 +15,7 @@
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
+    <ClInclude Include="gum\gumexceptor.h" />
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumfunction.h" />
@@ -46,6 +47,7 @@
     <ClCompile Include="gum\gumarray.c" />
     <ClCompile Include="gum\gumbacktracer.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
+    <ClCompile Include="gum\gumexceptor.c" />
     <ClCompile Include="gum\gumeventsink.c" />
     <ClCompile Include="gum\gumhash.c" />
     <ClCompile Include="gum\guminterceptor.c" />

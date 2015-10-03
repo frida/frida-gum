@@ -249,6 +249,7 @@ _gum_script_core_init (GumScriptCore * self,
   self->script = script;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
+  self->exceptor = gum_exceptor_obtain ();
   self->isolate = isolate;
 
   g_mutex_init (&self->mutex);
@@ -600,6 +601,9 @@ _gum_script_core_finalize (GumScriptCore * self)
 
   delete self->cpu_context;
   self->cpu_context = NULL;
+
+  g_object_unref (self->exceptor);
+  self->exceptor = NULL;
 
   g_mutex_clear (&self->mutex);
   g_cond_clear (&self->event_cond);

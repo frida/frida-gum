@@ -13,6 +13,7 @@
     static_cast<GumCpuContext *> ( \
         (o)->GetInternalField (0).As<External> ()->Value ())
 
+#include "gumexceptor.h"
 #include "gumscript.h"
 #include "gumscriptscheduler.h"
 
@@ -41,6 +42,7 @@ struct _GumScriptCore
   GumScript * script;
   GumScriptCoreMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
+  GumExceptor * exceptor;
   v8::Isolate * isolate;
 
   GMutex mutex;

@@ -8,13 +8,6 @@
 
 #include "gumscriptscope.h"
 
-#include <gio/gio.h>
-#include <gum/gumtls.h>
-#ifdef G_OS_WIN32
-# include <gum/backend-windows/gumwinexceptionhook.h>
-#endif
-#include <setjmp.h>
-#include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
 #ifdef G_OS_WIN32
@@ -22,50 +15,14 @@
 #  define WIN32_LEAN_AND_MEAN
 # endif
 # include <windows.h>
-# define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) setjmp ((scope)->env)
-# define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) longjmp ((scope)->env, 1)
-  typedef jmp_buf gum_jmp_buf;
-#else
-# include <signal.h>
-# if defined (HAVE_DARWIN)
-#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) setjmp ((scope)->env)
-#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) longjmp ((scope)->env, 1)
-   typedef jmp_buf gum_jmp_buf;
-# elif defined (HAVE_ANDROID)
-  /* Work-around for Bionic bug up to and including Android L */
-#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) \
-       (sigsetjmp ((scope)->env, 1) == 0 \
-           ? sigprocmask (SIG_SETMASK, NULL, &((scope)->mask)), 0 \
-           : -1)
-#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) \
-       sigprocmask (SIG_SETMASK, &((scope)->mask), NULL); \
-       siglongjmp ((scope)->env, 1)
-   typedef sigjmp_buf gum_jmp_buf;
-# else
-#  define GUM_MEMORY_ACCESS_SCOPE_SETJMP(scope) sigsetjmp ((scope)->env, 1)
-#  define GUM_MEMORY_ACCESS_SCOPE_LONGJMP(scope) siglongjmp ((scope)->env, 1)
-   typedef sigjmp_buf gum_jmp_buf;
-# endif
 #endif
 
 #define GUM_MAX_JS_ARRAY_LENGTH (100 * 1024 * 1024)
 
 using namespace v8;
 
-typedef struct _GumMemoryAccessScope GumMemoryAccessScope;
 typedef guint GumMemoryValueType;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
-
-struct _GumMemoryAccessScope
-{
-  gboolean exception_occurred;
-  gpointer address;
-  gum_jmp_buf env;
-#ifdef HAVE_ANDROID
-  sigset_t mask;
-#endif
-};
-#define GUM_MEMORY_ACCESS_SCOPE_INIT { FALSE, NULL, }
 
 enum _GumMemoryValueType
 {
@@ -134,28 +91,12 @@ static void gum_script_memory_access_monitor_on_disable (
 #ifdef G_OS_WIN32
 static void gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, gpointer user_data);
-
 static const gchar * gum_script_memory_operation_to_string (
     GumMemoryOperation operation);
 static gboolean gum_script_memory_ranges_get (GumScriptMemory * self,
     Handle<Value> value, GumMemoryRange ** ranges, guint * num_ranges);
 static gboolean gum_script_memory_range_get (GumScriptMemory * self,
     Handle<Value> obj, GumMemoryRange * range);
-
-static gboolean gum_script_memory_on_exception (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context,
-    gpointer user_data);
-#else
-static void gum_script_memory_on_invalid_access (int sig, siginfo_t * siginfo,
-    void * context);
-#endif
-
-G_LOCK_DEFINE_STATIC (gum_memaccess);
-static guint gum_memaccess_refcount = 0;
-static GumTlsKey gum_memaccess_scope_tls;
-#ifndef G_OS_WIN32
-static struct sigaction gum_memaccess_old_sigsegv;
-static struct sigaction gum_memaccess_old_sigbus;
 #endif
 
 #define GUM_DEFINE_MEMORY_READ(T) \
@@ -259,26 +200,6 @@ _gum_script_memory_init (GumScriptMemory * self,
       FunctionTemplate::New (isolate,
           gum_script_memory_access_monitor_on_disable, data));
   scope->Set (String::NewFromUtf8 (isolate, "MemoryAccessMonitor"), monitor);
-
-  G_LOCK (gum_memaccess);
-  if (gum_memaccess_refcount++ == 0)
-  {
-    GUM_TLS_KEY_INIT (&gum_memaccess_scope_tls);
-
-#ifndef G_OS_WIN32
-    struct sigaction action;
-    action.sa_sigaction = gum_script_memory_on_invalid_access;
-    sigemptyset (&action.sa_mask);
-    action.sa_flags = SA_SIGINFO;
-    sigaction (SIGSEGV, &action, &gum_memaccess_old_sigsegv);
-    sigaction (SIGBUS, &action, &gum_memaccess_old_sigbus);
-#endif
-  }
-  G_UNLOCK (gum_memaccess);
-
-#ifdef G_OS_WIN32
-  gum_win_exception_hook_add (gum_script_memory_on_exception, self);
-#endif
 }
 
 void
@@ -315,25 +236,6 @@ _gum_script_memory_finalize (GumScriptMemory * self)
     g_object_unref (self->monitor);
     self->monitor = NULL;
   }
-
-#ifdef G_OS_WIN32
-  gum_win_exception_hook_remove (gum_script_memory_on_exception, self);
-#endif
-
-  G_LOCK (gum_memaccess);
-  if (--gum_memaccess_refcount == 0)
-  {
-#ifndef G_OS_WIN32
-    sigaction (SIGSEGV, &gum_memaccess_old_sigsegv, NULL);
-    memset (&gum_memaccess_old_sigsegv, 0, sizeof (gum_memaccess_old_sigsegv));
-    sigaction (SIGBUS, &gum_memaccess_old_sigbus, NULL);
-    memset (&gum_memaccess_old_sigbus, 0, sizeof (gum_memaccess_old_sigbus));
-#endif
-
-    GUM_TLS_KEY_FREE (gum_memaccess_scope_tls);
-    gum_memaccess_scope_tls = 0;
-  }
-  G_UNLOCK (gum_memaccess);
 }
 
 /*
@@ -528,7 +430,8 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->core->isolate;
-  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
+  GumExceptor * exceptor = self->core->exceptor;
+  GumExceptorScope scope;
 
   gpointer destination;
   if (!_gum_script_pointer_get (info[0], &destination, self->core))
@@ -550,16 +453,12 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
-
-  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
+  if (gum_exceptor_try (exceptor, &scope))
   {
     memcpy (destination, source, size);
   }
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
-
-  if (scope.exception_occurred)
+  if (gum_exceptor_catch (exceptor, &scope))
   {
     gchar * message = g_strdup_printf (
         "access violation accessing 0x%" G_GSIZE_MODIFIER "x",
@@ -618,16 +517,15 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->core->isolate;
-  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
+  GumExceptor * exceptor = self->core->exceptor;
+  GumExceptorScope scope;
   Local<Value> result;
 
   gpointer address;
   if (!_gum_script_pointer_get (info[0], &address, self->core))
     return;
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
-
-  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
+  if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
     {
@@ -835,14 +733,7 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
     }
   }
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
-
-  if (!scope.exception_occurred)
-  {
-    if (!result.IsEmpty ())
-      info.GetReturnValue ().Set (result);
-  }
-  else
+  if (gum_exceptor_catch (exceptor, &scope))
   {
     gchar * message = g_strdup_printf (
         "access violation reading 0x%" G_GSIZE_MODIFIER "x",
@@ -850,6 +741,11 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
     isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
         message)));
     g_free (message);
+  }
+  else
+  {
+    if (!result.IsEmpty ())
+      info.GetReturnValue ().Set (result);
   }
 }
 
@@ -860,15 +756,14 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->core->isolate;
-  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
+  GumExceptor * exceptor = self->core->exceptor;
+  GumExceptorScope scope;
 
   gpointer address;
   if (!_gum_script_pointer_get (info[0], &address, self->core))
     return;
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
-
-  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
+  if (gum_exceptor_try (exceptor, &scope))
   {
     switch (type)
     {
@@ -1027,9 +922,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
     }
   }
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
-
-  if (scope.exception_occurred)
+  if (gum_exceptor_catch (exceptor, &scope))
   {
     gchar * message = g_strdup_printf (
         "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
@@ -1038,109 +931,10 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
         message)));
     g_free (message);
   }
-
-  return;
 }
 
 #ifdef _MSC_VER
 # pragma warning (pop)
-#endif
-
-#ifdef G_OS_WIN32
-
-static void
-gum_script_memory_do_longjmp (GumMemoryAccessScope * scope)
-{
-  GUM_MEMORY_ACCESS_SCOPE_LONGJMP (scope);
-}
-
-static gboolean
-gum_script_memory_on_exception (EXCEPTION_RECORD * exception_record,
-                                CONTEXT * context,
-                                gpointer user_data)
-{
-  GumMemoryAccessScope * scope;
-
-  (void) user_data;
-
-  if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)
-    return FALSE;
-
-  /* must be a READ or WRITE */
-  if (exception_record->ExceptionInformation[0] > 1)
-    return FALSE;
-
-  scope = (GumMemoryAccessScope *)
-      GUM_TLS_KEY_GET_VALUE (gum_memaccess_scope_tls);
-  if (scope == NULL)
-    return FALSE;
-
-  if (!scope->exception_occurred)
-  {
-    scope->exception_occurred = TRUE;
-
-    scope->address = (gpointer) exception_record->ExceptionInformation[1];
-
-#if GLIB_SIZEOF_VOID_P == 4
-    context->Esp -= 8;
-    *((GumMemoryAccessScope **) (context->Esp + 4)) = scope;
-    *((GumMemoryAccessScope **) (context->Esp + 0)) = NULL;
-    context->Eip = (DWORD) gum_script_memory_do_longjmp;
-#else
-    context->Rsp -= 16;
-    context->Rcx = (DWORD64) scope;
-    *((void **) (context->Rsp + 0)) = NULL;
-    context->Rip = (DWORD64) gum_script_memory_do_longjmp;
-#endif
-
-    return TRUE;
-  }
-
-  return FALSE;
-}
-
-#else
-
-static void
-gum_script_memory_on_invalid_access (int sig,
-                                     siginfo_t * siginfo,
-                                     void * context)
-{
-  GumMemoryAccessScope * scope;
-  struct sigaction * action;
-
-  scope = (GumMemoryAccessScope *)
-      GUM_TLS_KEY_GET_VALUE (gum_memaccess_scope_tls);
-  if (scope == NULL)
-    goto not_our_fault;
-
-  if (!scope->exception_occurred)
-  {
-    scope->exception_occurred = TRUE;
-
-    scope->address = siginfo->si_addr;
-    GUM_MEMORY_ACCESS_SCOPE_LONGJMP (scope);
-  }
-
-not_our_fault:
-  action =
-      (sig == SIGSEGV) ? &gum_memaccess_old_sigsegv : &gum_memaccess_old_sigbus;
-  if ((action->sa_flags & SA_SIGINFO) != 0)
-  {
-    if (action->sa_sigaction != NULL)
-      action->sa_sigaction (sig, siginfo, context);
-    else
-      abort ();
-  }
-  else
-  {
-    if (action->sa_handler != NULL)
-      action->sa_handler (sig);
-    else
-      abort ();
-  }
-}
-
 #endif
 
 /*
@@ -1241,35 +1035,36 @@ static void
 gum_script_do_memory_scan (gpointer user_data)
 {
   GumMemoryScanContext * ctx = static_cast<GumMemoryScanContext *> (user_data);
-  GumMemoryAccessScope scope = GUM_MEMORY_ACCESS_SCOPE_INIT;
+  GumScriptCore * core = ctx->core;
+  GumExceptor * exceptor = core->exceptor;
+  GumExceptorScope scope;
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, &scope);
-
-  if (GUM_MEMORY_ACCESS_SCOPE_SETJMP (&scope) == 0)
+  if (gum_exceptor_try (exceptor, &scope))
   {
     gum_memory_scan (&ctx->range, ctx->pattern, gum_script_process_scan_match,
         ctx);
   }
 
-  GUM_TLS_KEY_SET_VALUE (gum_memaccess_scope_tls, NULL);
-
   {
-    ScriptScope script_scope (ctx->core->script);
-    Isolate * isolate = ctx->core->isolate;
+    ScriptScope script_scope (core->script);
+    Isolate * isolate = core->isolate;
 
     Local<Value> receiver (Local<Value>::New (isolate,
         *ctx->receiver));
 
-    if (scope.exception_occurred && ctx->on_error != NULL)
+    if (gum_exceptor_catch (exceptor, &scope))
     {
-      gchar * message = g_strdup_printf (
-          "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-          GPOINTER_TO_SIZE (scope.address));
-      Local<Function> on_error (Local<Function>::New (isolate,
-          *ctx->on_error));
-      Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-      on_error->Call (receiver, 1, argv);
-      g_free (message);
+      if (ctx->on_error != NULL)
+      {
+        gchar * message = g_strdup_printf (
+            "access violation reading 0x%" G_GSIZE_MODIFIER "x",
+            GPOINTER_TO_SIZE (scope.address));
+        Local<Function> on_error (Local<Function>::New (isolate,
+            *ctx->on_error));
+        Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
+        on_error->Call (receiver, 1, argv);
+        g_free (message);
+      }
     }
 
     Local<Function> on_complete (Local<Function>::New (isolate,
