@@ -135,6 +135,8 @@ G_GNUC_INTERNAL gboolean _gum_script_cpu_context_get (
 
 G_GNUC_INTERNAL const gchar * _gum_script_thread_state_to_string (
     GumThreadState state);
+G_GNUC_INTERNAL const gchar * _gum_script_memory_operation_to_string (
+    GumMemoryOperation operation);
 
 G_GNUC_INTERNAL gboolean _gum_script_set (v8::Handle<v8::Object> object,
     const gchar * key, v8::Handle<v8::Value> value, GumScriptCore * core);

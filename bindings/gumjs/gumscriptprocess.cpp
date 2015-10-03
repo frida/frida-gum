@@ -83,6 +83,8 @@ static void gum_script_exception_handler_free (
 static gboolean gum_script_exception_handler_on_exception (
     GumExceptionDetails * details, gpointer user_data);
 
+const gchar * gum_script_exception_type_to_string (GumExceptionType type);
+
 void
 _gum_script_process_init (GumScriptProcess * self,
                           GumScriptCore * core,
@@ -628,9 +630,29 @@ gum_script_exception_handler_on_exception (GumExceptionDetails * details,
   Local<Function> callback (Local<Function>::New (isolate, *handler->callback));
 
   Local<Object> ex (Object::New (isolate));
+  _gum_script_set_ascii (ex, "type",
+      gum_script_exception_type_to_string (details->type), core);
+  _gum_script_set_pointer (ex, "address", details->address, core);
+  if (details->type == GUM_EXCEPTION_ACCESS_VIOLATION)
+  {
+    const GumExceptionMemoryAccessDetails * mad = &details->memory_access;
+    Local<Object> ma (Object::New (isolate));
+    _gum_script_set_ascii (ma, "operation",
+        _gum_script_memory_operation_to_string (mad->operation), core);
+    _gum_script_set_pointer (ma, "address", mad->address, core);
+    _gum_script_set (ex, "memoryAccess", ma, core);
+  }
+  Local<Object> cpu_context =
+      _gum_script_cpu_context_new (&details->cpu_context, core);
+  _gum_script_set (ex, "context", cpu_context, core);
 
   Handle<Value> argv[] = { ex };
   Local<Value> result = callback->Call (Null (isolate), 1, argv);
+
+  _gum_script_cpu_context_free_later (
+      new GumPersistent<Object>::type (isolate, cpu_context),
+      core);
+
   if (!result.IsEmpty () && result->IsBoolean ())
   {
     bool handled = result.As<Boolean> ()->Value ();
@@ -638,4 +660,22 @@ gum_script_exception_handler_on_exception (GumExceptionDetails * details,
   }
 
   return FALSE;
+}
+
+const gchar *
+gum_script_exception_type_to_string (GumExceptionType type)
+{
+  switch (type)
+  {
+    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
+    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
+    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
+    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
+    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
 }

@@ -2807,6 +2807,19 @@ _gum_script_thread_state_to_string (GumThreadState state)
   g_assert_not_reached ();
 }
 
+const gchar *
+_gum_script_memory_operation_to_string (GumMemoryOperation operation)
+{
+  switch (operation)
+  {
+    case GUM_MEMOP_READ: return "read";
+    case GUM_MEMOP_WRITE: return "write";
+    case GUM_MEMOP_EXECUTE: return "execute";
+    default:
+      g_assert_not_reached ();
+  }
+}
+
 gboolean
 _gum_script_set (Handle<Object> object,
                  const gchar * key,

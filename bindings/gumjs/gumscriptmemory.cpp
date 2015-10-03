@@ -91,8 +91,6 @@ static void gum_script_memory_access_monitor_on_disable (
 #ifdef G_OS_WIN32
 static void gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
     const GumMemoryAccessDetails * details, gpointer user_data);
-static const gchar * gum_script_memory_operation_to_string (
-    GumMemoryOperation operation);
 static gboolean gum_script_memory_ranges_get (GumScriptMemory * self,
     Handle<Value> value, GumMemoryRange ** ranges, guint * num_ranges);
 static gboolean gum_script_memory_range_get (GumScriptMemory * self,
@@ -1232,7 +1230,7 @@ gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
 
   Local<Object> d (Object::New (isolate));
   _gum_script_set_ascii (d, "operation",
-      gum_script_memory_operation_to_string (details->operation), core);
+      _gum_script_memory_operation_to_string (details->operation), core);
   _gum_script_set_pointer (d, "from", details->from, core);
   _gum_script_set_pointer (d, "address", details->address, core);
 
@@ -1248,19 +1246,6 @@ gum_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
   MaybeLocal<Value> result =
       on_access->Call (context, Null (isolate), 1, argv);
   (void) result;
-}
-
-static const gchar *
-gum_script_memory_operation_to_string (GumMemoryOperation operation)
-{
-  switch (operation)
-  {
-    case GUM_MEMOP_READ: return "read";
-    case GUM_MEMOP_WRITE: return "write";
-    case GUM_MEMOP_EXECUTE: return "execute";
-    default:
-      g_assert_not_reached ();
-  }
 }
 
 static gboolean
