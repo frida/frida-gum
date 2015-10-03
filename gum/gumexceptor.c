@@ -19,6 +19,7 @@
 #ifndef G_OS_WIN32
 # include <signal.h>
 #endif
+#include <stdlib.h>
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
@@ -339,7 +340,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
    * Place IP at the start of the function as if the call already happened,
    * and set up stack and registers accordingly.
    */
-#ifdef HAVE_I386
+#if defined (HAVE_I386)
   GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
 
@@ -365,6 +366,23 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   /* Dummy return address (we won't return) */
   GUM_CPU_CONTEXT_XSP (cpu_context) -= sizeof (gpointer);
   *((gsize *) GUM_CPU_CONTEXT_XSP (cpu_context)) = 1337;
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  cpu_context->pc = GPOINTER_TO_SIZE (
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+
+  /* Align to 16 byte boundary */
+  cpu_context->sp &= ~(gsize) (16 - 1);
+  /* Avoid the red zone (when applicable) */
+  cpu_context->sp -= GUM_RED_ZONE_SIZE;
+
+# if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->r[0] = GPOINTER_TO_SIZE (impl);
+# else
+  cpu_context->x[0] = GPOINTER_TO_SIZE (impl);
+# endif
+
+  /* Dummy return address (we won't return) */
+  cpu_context->lr = 1337;
 #endif
 
   return TRUE;
