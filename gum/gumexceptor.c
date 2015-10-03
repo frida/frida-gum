@@ -54,7 +54,7 @@ static gboolean gum_exceptor_on_exception (
     EXCEPTION_RECORD * exception_record, CONTEXT * context,
     gpointer user_data);
 #else
-static void gum_exceptor_on_invalid_access (int sig, siginfo_t * siginfo,
+static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
     void * context);
 #endif
 
@@ -90,7 +90,7 @@ gum_exceptor_init (GumExceptor * self)
   gum_win_exception_hook_add (gum_exceptor_on_exception, self);
 #else
   struct sigaction action;
-  action.sa_sigaction = gum_exceptor_on_invalid_access;
+  action.sa_sigaction = gum_exceptor_on_signal;
   sigemptyset (&action.sa_mask);
   action.sa_flags = SA_SIGINFO;
   sigaction (SIGSEGV, &action, &priv->old_sigsegv);
@@ -243,9 +243,9 @@ gum_exceptor_on_exception (EXCEPTION_RECORD * exception_record,
 #else
 
 static void
-gum_exceptor_on_invalid_access (int sig,
-                                siginfo_t * siginfo,
-                                void * context)
+gum_exceptor_on_signal (int sig,
+                        siginfo_t * siginfo,
+                        void * context)
 {
   GumExceptor * self = the_exceptor;
   GumExceptorPrivate * priv = self->priv;
