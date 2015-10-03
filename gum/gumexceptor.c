@@ -11,11 +11,16 @@
 #endif
 #include "gumtls.h"
 
+#ifdef HAVE_DARWIN
+# include "backend-darwin/gumdarwin.h"
+#endif
+
 #include <setjmp.h>
 #ifndef G_OS_WIN32
 # include <signal.h>
 #endif
 
+typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
 # define GUM_NATIVE_SETJMP setjmp
 # define GUM_NATIVE_LONGJMP longjmp
@@ -28,12 +33,19 @@
 
 struct _GumExceptorPrivate
 {
+  GSList * handlers;
   GumTlsKey scope_tls;
 
 #ifndef G_OS_WIN32
   struct sigaction old_sigsegv;
   struct sigaction old_sigbus;
 #endif
+};
+
+struct _GumExceptionHandlerEntry
+{
+  GumExceptionHandler func;
+  gpointer user_data;
 };
 
 struct _GumExceptorScopeImpl
@@ -56,6 +68,10 @@ static gboolean gum_exceptor_on_exception (
 #else
 static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
     void * context);
+static void gum_exceptor_parse_context (gconstpointer context,
+    GumCpuContext * ctx);
+static void gum_exceptor_unparse_context (const GumCpuContext * ctx,
+    gpointer context);
 #endif
 
 static void gum_exceptor_scope_impl_perform_longjmp (
@@ -154,6 +170,51 @@ the_exceptor_weak_notify (gpointer data,
   G_UNLOCK (gum_exceptor);
 }
 
+void
+gum_exceptor_add (GumExceptor * self,
+                  GumExceptionHandler func,
+                  gpointer user_data)
+{
+  GumExceptorPrivate * priv = self->priv;
+  GumExceptionHandlerEntry * entry;
+
+  entry = g_slice_new (GumExceptionHandlerEntry);
+  entry->func = func;
+  entry->user_data = user_data;
+
+  G_LOCK (gum_exceptor);
+  priv->handlers = g_slist_append (priv->handlers, entry);
+  G_UNLOCK (gum_exceptor);
+}
+
+void
+gum_exceptor_remove (GumExceptor * self,
+                     GumExceptionHandler func,
+                     gpointer user_data)
+{
+  GumExceptorPrivate * priv = self->priv;
+  GumExceptionHandlerEntry * matching_entry;
+  GSList * cur;
+
+  for (matching_entry = NULL, cur = priv->handlers;
+      matching_entry == NULL && cur != NULL;
+      cur = cur->next)
+  {
+    GumExceptionHandlerEntry * entry = (GumExceptionHandlerEntry *) cur->data;
+
+    if (entry->func == func && entry->user_data == user_data)
+      matching_entry = entry;
+  }
+
+  g_assert (matching_entry != NULL);
+
+  G_LOCK (gum_exceptor);
+  priv->handlers = g_slist_remove (priv->handlers, matching_entry);
+  G_UNLOCK (gum_exceptor);
+
+  g_slice_free (GumExceptionHandlerEntry, matching_entry);
+}
+
 GumExceptorSetJmp
 _gum_exceptor_get_setjmp (void)
 {
@@ -249,24 +310,51 @@ gum_exceptor_on_signal (int sig,
 {
   GumExceptor * self = the_exceptor;
   GumExceptorPrivate * priv = self->priv;
-  GumExceptorScope * scope;
-  GumExceptorScopeImpl * impl;
+  GumExceptionDetails ed;
+  GumExceptionMemoryAccessDetails mad;
+  GumCpuContext cpu_context;
+  GSList * cur;
   struct sigaction * action;
 
-  scope = (GumExceptorScope *) GUM_TLS_KEY_GET_VALUE (priv->scope_tls);
-  if (scope == NULL)
-    goto not_our_fault;
-  impl = scope->impl;
+  ed.cpu_context = &cpu_context;
 
-  if (!impl->exception_occurred)
+  gum_exceptor_parse_context (context, &cpu_context);
+
+#if defined (HAVE_I386)
+  ed.address = GUM_CPU_CONTEXT_XIP (&cpu_context);
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  ed.address = cpu_context.pc;
+#else
+# error Unsupported architecture
+#endif
+
+  switch (sig)
   {
-    impl->exception_occurred = TRUE;
+    case SIGSEGV:
+    case SIGBUS:
+      ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
+      ed.memory_access = &mad;
 
-    scope->address = siginfo->si_addr;
-    gum_exceptor_scope_impl_perform_longjmp (impl);
+      /* TODO: can we determine this without disassembling PC? */
+      mad.operation = GUM_MEMOP_READ;
+      mad.address = siginfo->si_addr;
+      break;
+    default:
+      g_assert_not_reached ();
   }
 
-not_our_fault:
+
+  for (cur = priv->handlers; cur != NULL; cur = cur->next)
+  {
+    GumExceptionHandlerEntry * entry = (GumExceptionHandlerEntry *) cur->data;
+
+    if (entry->func (&ed, entry->user_data))
+    {
+      gum_exceptor_unparse_context (&cpu_context, context);
+      return;
+    }
+  }
+
   action = (sig == SIGSEGV) ? &priv->old_sigsegv : &priv->old_sigbus;
   if ((action->sa_flags & SA_SIGINFO) != 0)
   {
@@ -283,6 +371,48 @@ not_our_fault:
       abort ();
   }
 }
+
+#ifdef HAVE_DARWIN
+
+static void
+gum_exceptor_parse_context (gconstpointer context,
+                            GumCpuContext * ctx)
+{
+  const ucontext_t * uc = context;
+
+  gum_darwin_parse_native_thread_state (&uc->uc_mcontext->__ss, ctx);
+}
+
+static void
+gum_exceptor_unparse_context (const GumCpuContext * ctx,
+                              gpointer context)
+{
+  ucontext_t * uc = context;
+
+  gum_darwin_unparse_native_thread_state (ctx, &uc->uc_mcontext->__ss);
+}
+
+#endif
+
+#if 0
+  GumExceptorScope * scope;
+  GumExceptorScopeImpl * impl;
+
+  scope = (GumExceptorScope *) GUM_TLS_KEY_GET_VALUE (priv->scope_tls);
+  if (scope == NULL)
+    goto not_our_fault;
+  impl = scope->impl;
+
+  if (!impl->exception_occurred)
+  {
+    impl->exception_occurred = TRUE;
+
+    scope->address = siginfo->si_addr;
+    gum_exceptor_scope_impl_perform_longjmp (impl);
+  }
+
+not_our_fault:
+#endif
 
 #endif
 
