@@ -152,16 +152,6 @@ struct _DyldImageInfo64
   guint64 image_file_mod_date;
 };
 
-#if defined (HAVE_ARM) || defined (HAVE_ARM64)
-typedef arm_unified_thread_state_t gum_thread_state_t;
-# define GUM_THREAD_STATE_COUNT ARM_UNIFIED_THREAD_STATE_COUNT
-# define GUM_THREAD_STATE_FLAVOR ARM_UNIFIED_THREAD_STATE
-#else
-typedef x86_thread_state_t gum_thread_state_t;
-# define GUM_THREAD_STATE_COUNT x86_THREAD_STATE_COUNT
-# define GUM_THREAD_STATE_FLAVOR x86_THREAD_STATE
-#endif
-
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
@@ -223,10 +213,6 @@ static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
 static GumThreadState gum_thread_state_from_darwin (integer_t run_state);
-static void gum_cpu_context_from_darwin (const gum_thread_state_t * state,
-    GumCpuContext * ctx);
-static void gum_cpu_context_to_darwin (const GumCpuContext * ctx,
-    gum_thread_state_t * state);
 static const char * gum_symbol_name_from_darwin (const char * s);
 
 static DyldGetAllImageInfosFunc get_all_image_infos_impl = NULL;
@@ -285,9 +271,9 @@ gum_process_modify_thread (GumThreadId thread_id,
 
       if (thread == thread_id)
       {
-        gum_thread_state_t state;
-        mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
-        thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
+        GumDarwinUnifiedThreadState state;
+        mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+        thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
         GumCpuContext cpu_context;
 
         kr = thread_suspend (thread);
@@ -302,9 +288,9 @@ gum_process_modify_thread (GumThreadId thread_id,
           break;
         }
 
-        gum_cpu_context_from_darwin (&state, &cpu_context);
+        gum_darwin_parse_unified_thread_state (&state, &cpu_context);
         func (thread_id, &cpu_context, user_data);
-        gum_cpu_context_to_darwin (&cpu_context, &state);
+        gum_darwin_unparse_unified_thread_state (&cpu_context, &state);
 
         kr = thread_set_state (thread, state_flavor, (thread_state_t) &state,
             state_count);
@@ -744,9 +730,9 @@ gum_darwin_enumerate_threads (mach_port_t task,
       GumThreadDetails details;
       thread_basic_info_data_t info;
       mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-      gum_thread_state_t state;
-      mach_msg_type_number_t state_count = GUM_THREAD_STATE_COUNT;
-      thread_state_flavor_t state_flavor = GUM_THREAD_STATE_FLAVOR;
+      GumDarwinUnifiedThreadState state;
+      mach_msg_type_number_t state_count = GUM_DARWIN_THREAD_STATE_COUNT;
+      thread_state_flavor_t state_flavor = GUM_DARWIN_THREAD_STATE_FLAVOR;
 
       kr = thread_info (thread, THREAD_BASIC_INFO, (thread_info_t) &info,
           &info_count);
@@ -760,7 +746,7 @@ gum_darwin_enumerate_threads (mach_port_t task,
 
       details.id = (GumThreadId) thread;
       details.state = gum_thread_state_from_darwin (info.run_state);
-      gum_cpu_context_from_darwin (&state, &details.cpu_context);
+      gum_darwin_parse_unified_thread_state (&state, &details.cpu_context);
 
       if (!func (&details, user_data))
         break;
@@ -1636,13 +1622,26 @@ gum_thread_state_from_darwin (integer_t run_state)
   }
 }
 
-static void
-gum_cpu_context_from_darwin (const gum_thread_state_t * state,
-                             GumCpuContext * ctx)
+void
+gum_darwin_parse_unified_thread_state (const GumDarwinUnifiedThreadState * ts,
+                                       GumCpuContext * ctx)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  const x86_thread_state32_t * ts = &state->uts.ts32;
+  gum_darwin_parse_native_thread_state (&ts->uts.ts32, ctx);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  gum_darwin_parse_native_thread_state (&ts->uts.ts64, ctx);
+#elif defined (HAVE_ARM)
+  gum_darwin_parse_native_thread_state (&ts->ts_32, ctx);
+#elif defined (HAVE_ARM64)
+  gum_darwin_parse_native_thread_state (&ts->ts_64, ctx);
+#endif
+}
 
+void
+gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
+                                      GumCpuContext * ctx)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   ctx->eip = ts->__eip;
 
   ctx->edi = ts->__edi;
@@ -1654,8 +1653,6 @@ gum_cpu_context_from_darwin (const gum_thread_state_t * state,
   ctx->ecx = ts->__ecx;
   ctx->eax = ts->__eax;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  const x86_thread_state64_t * ts = &state->uts.ts64;
-
   ctx->rip = ts->__rip;
 
   ctx->r15 = ts->__r15;
@@ -1676,7 +1673,6 @@ gum_cpu_context_from_darwin (const gum_thread_state_t * state,
   ctx->rcx = ts->__rcx;
   ctx->rax = ts->__rax;
 #elif defined (HAVE_ARM)
-  const arm_thread_state32_t * ts = &state->ts_32;
   guint n;
 
   ctx->pc = ts->__pc;
@@ -1686,7 +1682,6 @@ gum_cpu_context_from_darwin (const gum_thread_state_t * state,
     ctx->r[n] = ts->__r[n];
   ctx->lr = ts->__lr;
 #elif defined (HAVE_ARM64)
-  const arm_thread_state64_t * ts = &state->ts_64;
   guint n;
 
   ctx->pc = ts->__pc;
@@ -1699,13 +1694,26 @@ gum_cpu_context_from_darwin (const gum_thread_state_t * state,
 #endif
 }
 
-static void
-gum_cpu_context_to_darwin (const GumCpuContext * ctx,
-                           gum_thread_state_t * state)
+void
+gum_darwin_unparse_unified_thread_state (const GumCpuContext * ctx,
+                                         GumDarwinUnifiedThreadState * ts)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  x86_thread_state32_t * ts = &state->uts.ts32;
+  gum_darwin_unparse_native_thread_state (ctx, &ts->uts.ts32);
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  gum_darwin_unparse_native_thread_state (ctx, &ts->uts.ts64);
+#elif defined (HAVE_ARM)
+  gum_darwin_unparse_native_thread_state (ctx, &ts->ts_32);
+#elif defined (HAVE_ARM64)
+  gum_darwin_unparse_native_thread_state (ctx, &ts->ts_64);
+#endif
+}
 
+void
+gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
+                                        GumDarwinNativeThreadState * ts)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   ts->__eip = ctx->eip;
 
   ts->__edi = ctx->edi;
@@ -1717,8 +1725,6 @@ gum_cpu_context_to_darwin (const GumCpuContext * ctx,
   ts->__ecx = ctx->ecx;
   ts->__eax = ctx->eax;
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  x86_thread_state64_t * ts = &state->uts.ts64;
-
   ts->__rip = ctx->rip;
 
   ts->__r15 = ctx->r15;
@@ -1739,7 +1745,6 @@ gum_cpu_context_to_darwin (const GumCpuContext * ctx,
   ts->__rcx = ctx->rcx;
   ts->__rax = ctx->rax;
 #elif defined (HAVE_ARM)
-  arm_thread_state32_t * ts = &state->ts_32;
   guint n;
 
   ts->__pc = ctx->pc;
@@ -1749,7 +1754,6 @@ gum_cpu_context_to_darwin (const GumCpuContext * ctx,
     ts->__r[n] = ctx->r[n];
   ts->__lr = ctx->lr;
 #elif defined (HAVE_ARM64)
-  arm_thread_state64_t * ts = &state->ts_64;
   guint n;
 
   ts->__pc = ctx->pc;
