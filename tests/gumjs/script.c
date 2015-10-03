@@ -158,6 +158,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
+  SCRIPT_TESTENTRY (exceptions_can_be_handled)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
 TEST_LIST_END ()
 
@@ -2658,6 +2659,31 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
       "});"
       "WeakRef.unbind(id);");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+}
+
+SCRIPT_TESTCASE (exceptions_can_be_handled)
+{
+  gpointer page;
+  gboolean exception_on_read, exception_on_write;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "'use strict';"
+      "Process.setExceptionHandler(() => {"
+      "  send('w00t');"
+      "});");
+
+  EXPECT_NO_MESSAGES ();
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RW);
+  gum_mprotect (page, gum_query_page_size (), GUM_PAGE_NO_ACCESS);
+  gum_try_read_and_write_at (page, 0, &exception_on_read, &exception_on_write);
+  g_assert (exception_on_read);
+  g_assert (exception_on_write);
+  gum_free_pages (page);
+
+  EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 #include "script-debugserver.c"

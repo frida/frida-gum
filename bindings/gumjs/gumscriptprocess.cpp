@@ -65,6 +65,8 @@ static void gum_script_process_on_enumerate_malloc_ranges (
 static gboolean gum_script_process_handle_malloc_range_match (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
+static void gum_script_process_on_set_exception_handler (
+    const FunctionCallbackInfo<Value> & info);
 
 void
 _gum_script_process_init (GumScriptProcess * self,
@@ -102,8 +104,11 @@ _gum_script_process_init (GumScriptProcess * self,
       FunctionTemplate::New (isolate, gum_script_process_on_enumerate_ranges,
       data));
   process->Set (String::NewFromUtf8 (isolate, "enumerateMallocRanges"),
-      FunctionTemplate::New (isolate, gum_script_process_on_enumerate_malloc_ranges,
-      data));
+      FunctionTemplate::New (isolate,
+      gum_script_process_on_enumerate_malloc_ranges, data));
+  process->Set (String::NewFromUtf8 (isolate, "setExceptionHandler"),
+      FunctionTemplate::New (isolate,
+      gum_script_process_on_set_exception_handler, data));
   scope->Set (String::NewFromUtf8 (isolate, "Process"), process);
 }
 
@@ -482,6 +487,7 @@ gum_script_process_on_enumerate_malloc_ranges (
 }
 
 #ifdef HAVE_DARWIN
+
 static gboolean
 gum_script_process_handle_malloc_range_match (const GumMallocRangeDetails * details,
                                               gpointer user_data)
@@ -509,4 +515,21 @@ gum_script_process_handle_malloc_range_match (const GumMallocRangeDetails * deta
 
   return proceed;
 }
+
 #endif
+
+/*
+ * Prototype:
+ * Process.setExceptionHandler(callback)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_script_process_on_set_exception_handler (
+    const FunctionCallbackInfo<Value> & info)
+{
+}
