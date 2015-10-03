@@ -52,14 +52,6 @@ struct _GumExceptorClass
   GObjectClass parent_class;
 };
 
-struct _GumExceptionDetails
-{
-  GumExceptionType type;
-  GumAddress address;
-  GumExceptionMemoryAccessDetails * memory_access;
-  GumCpuContext * cpu_context;
-};
-
 enum _GumExceptionType
 {
   GUM_EXCEPTION_ACCESS_VIOLATION,
@@ -76,9 +68,17 @@ struct _GumExceptionMemoryAccessDetails
   gpointer address;
 };
 
+struct _GumExceptionDetails
+{
+  GumExceptionType type;
+  GumAddress address;
+  GumExceptionMemoryAccessDetails memory_access;
+  GumCpuContext cpu_context;
+};
+
 struct _GumExceptorScope
 {
-  gpointer address;
+  GumExceptionDetails exception;
 
   GumExceptorScopeImpl * impl;
 };

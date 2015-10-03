@@ -462,7 +462,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   {
     gchar * message = g_strdup_printf (
         "access violation accessing 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.address));
+        GPOINTER_TO_SIZE (scope.exception.memory_access.address));
     isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
         message)));
     g_free (message);
@@ -737,7 +737,7 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
   {
     gchar * message = g_strdup_printf (
         "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.address));
+        GPOINTER_TO_SIZE (scope.exception.memory_access.address));
     isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
         message)));
     g_free (message);
@@ -926,7 +926,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
   {
     gchar * message = g_strdup_printf (
         "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.address));
+        GPOINTER_TO_SIZE (scope.exception.memory_access.address));
     isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
         message)));
     g_free (message);
@@ -1058,7 +1058,7 @@ gum_script_do_memory_scan (gpointer user_data)
       {
         gchar * message = g_strdup_printf (
             "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-            GPOINTER_TO_SIZE (scope.address));
+            GPOINTER_TO_SIZE (scope.exception.memory_access.address));
         Local<Function> on_error (Local<Function>::New (isolate,
             *ctx->on_error));
         Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
