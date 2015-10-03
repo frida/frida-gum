@@ -6,6 +6,8 @@
 
 #include "gumscriptprocess.h"
 
+#include "gumscriptscope.h"
+
 #include <string.h>
 
 #if defined (HAVE_I386)
@@ -33,6 +35,12 @@
 using namespace v8;
 
 typedef struct _GumScriptMatchContext GumScriptMatchContext;
+
+struct _GumScriptExceptionHandler
+{
+  GumPersistent<Function>::type * callback;
+  GumScriptCore * core;
+};
 
 struct _GumScriptMatchContext
 {
@@ -67,6 +75,13 @@ static gboolean gum_script_process_handle_malloc_range_match (
 #endif
 static void gum_script_process_on_set_exception_handler (
     const FunctionCallbackInfo<Value> & info);
+
+static GumScriptExceptionHandler * gum_script_exception_handler_new (
+    Handle<Function> callback, GumScriptCore * core);
+static void gum_script_exception_handler_free (
+    GumScriptExceptionHandler * handler);
+static gboolean gum_script_exception_handler_on_exception (
+    GumExceptionDetails * details, gpointer user_data);
 
 void
 _gum_script_process_init (GumScriptProcess * self,
@@ -121,7 +136,8 @@ _gum_script_process_realize (GumScriptProcess * self)
 void
 _gum_script_process_dispose (GumScriptProcess * self)
 {
-  (void) self;
+  gum_script_exception_handler_free (self->exception_handler);
+  self->exception_handler = NULL;
 }
 
 void
@@ -532,4 +548,94 @@ static void
 gum_script_process_on_set_exception_handler (
     const FunctionCallbackInfo<Value> & info)
 {
+  GumScriptProcess * self = static_cast<GumScriptProcess *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  bool argument_valid = false;
+  Local<Function> callback;
+  if (info.Length () >= 1)
+  {
+    Local<Value> argument = info[0];
+    if (argument->IsFunction ())
+    {
+      argument_valid = true;
+      callback = argument.As<Function> ();
+    }
+    else if (argument->IsNull ())
+    {
+      argument_valid = true;
+    }
+  }
+  if (!argument_valid)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid argument")));
+    return;
+  }
+
+  gum_script_exception_handler_free (self->exception_handler);
+  self->exception_handler = NULL;
+
+  if (!callback.IsEmpty ())
+  {
+    self->exception_handler = gum_script_exception_handler_new (callback,
+        self->core);
+  }
+}
+
+static GumScriptExceptionHandler *
+gum_script_exception_handler_new (Handle<Function> callback,
+                                  GumScriptCore * core)
+{
+  GumScriptExceptionHandler * handler;
+
+  handler = g_slice_new (GumScriptExceptionHandler);
+  handler->callback =
+      new GumPersistent<Function>::type (core->isolate, callback);
+  handler->core = core;
+
+  gum_exceptor_add (core->exceptor, gum_script_exception_handler_on_exception,
+      handler);
+
+  return handler;
+}
+
+static void
+gum_script_exception_handler_free (GumScriptExceptionHandler * handler)
+{
+  if (handler == NULL)
+    return;
+
+  gum_exceptor_remove (handler->core->exceptor,
+      gum_script_exception_handler_on_exception, handler);
+
+  delete handler->callback;
+
+  g_slice_free (GumScriptExceptionHandler, handler);
+}
+
+static gboolean
+gum_script_exception_handler_on_exception (GumExceptionDetails * details,
+                                           gpointer user_data)
+{
+  GumScriptExceptionHandler * handler = (GumScriptExceptionHandler *) user_data;
+  GumScriptCore * core = handler->core;
+
+  ScriptScope scope (core->script);
+  Isolate * isolate = core->isolate;
+
+  Local<Function> callback (Local<Function>::New (isolate, *handler->callback));
+
+  Local<Object> ex (Object::New (isolate));
+
+  Handle<Value> argv[] = { ex };
+  Local<Value> result = callback->Call (Null (isolate), 1, argv);
+  if (!result.IsEmpty () && result->IsBoolean ())
+  {
+    bool handled = result.As<Boolean> ()->Value ();
+    return handled ? TRUE : FALSE;
+  }
+
+  return FALSE;
 }

@@ -12,10 +12,13 @@
 #include <v8.h>
 
 typedef struct _GumScriptProcess GumScriptProcess;
+typedef struct _GumScriptExceptionHandler GumScriptExceptionHandler;
 
 struct _GumScriptProcess
 {
   GumScriptCore * core;
+
+  GumScriptExceptionHandler * exception_handler;
 };
 
 G_GNUC_INTERNAL void _gum_script_process_init (GumScriptProcess * self,
