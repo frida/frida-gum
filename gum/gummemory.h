@@ -10,12 +10,20 @@
 
 #include <gum/gumdefs.h>
 
+typedef guint GumMemoryOperation;
 typedef guint GumPageProtection;
 typedef struct _GumAddressSpec GumAddressSpec;
 typedef struct _GumMemoryRange GumMemoryRange;
 typedef struct _GumMatchPattern GumMatchPattern;
 
 typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
+
+enum _GumMemoryOperation
+{
+  GUM_MEMOP_READ,
+  GUM_MEMOP_WRITE,
+  GUM_MEMOP_EXECUTE
+};
 
 enum _GumPageProtection
 {

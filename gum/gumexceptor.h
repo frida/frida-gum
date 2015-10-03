@@ -8,7 +8,7 @@
 #define __GUM_EXCEPTOR_H__
 
 #include <glib-object.h>
-#include <gum/gumdefs.h>
+#include <gum/gummemory.h>
 
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 #define GUM_EXCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -25,13 +25,20 @@
 
 G_BEGIN_DECLS
 
-typedef struct _GumExceptor           GumExceptor;
-typedef struct _GumExceptorClass      GumExceptorClass;
-typedef struct _GumExceptorPrivate    GumExceptorPrivate;
-typedef struct _GumExceptorScope      GumExceptorScope;
-typedef struct _GumExceptorScopeImpl  GumExceptorScopeImpl;
-typedef gpointer                      GumExceptorJmpBuf;
-typedef gint (* GumExceptorSetJmp)   (GumExceptorJmpBuf buf, gboolean save_mask);
+typedef struct _GumExceptor GumExceptor;
+typedef struct _GumExceptorClass GumExceptorClass;
+typedef struct _GumExceptorPrivate GumExceptorPrivate;
+
+typedef struct _GumExceptionDetails GumExceptionDetails;
+typedef guint GumExceptionType;
+typedef struct _GumExceptionMemoryAccessDetails GumExceptionMemoryAccessDetails;
+typedef gboolean (* GumExceptionHandler) (GumExceptionDetails * details,
+    gpointer user_data);
+
+typedef struct _GumExceptorScope GumExceptorScope;
+typedef struct _GumExceptorScopeImpl GumExceptorScopeImpl;
+typedef gpointer GumExceptorJmpBuf;
+typedef gint (* GumExceptorSetJmp) (GumExceptorJmpBuf buf, gboolean save_mask);
 
 struct _GumExceptor
 {
@@ -45,6 +52,30 @@ struct _GumExceptorClass
   GObjectClass parent_class;
 };
 
+struct _GumExceptionDetails
+{
+  GumExceptionType type;
+  GumAddress address;
+  GumExceptionMemoryAccessDetails * memory_access;
+  GumCpuContext * cpu_context;
+};
+
+enum _GumExceptionType
+{
+  GUM_EXCEPTION_ACCESS_VIOLATION,
+  GUM_EXCEPTION_ILLEGAL_INSTRUCTION,
+  GUM_EXCEPTION_STACK_OVERFLOW,
+  GUM_EXCEPTION_ARITHMETIC,
+  GUM_EXCEPTION_BREAKPOINT,
+  GUM_EXCEPTION_SINGLE_STEP,
+};
+
+struct _GumExceptionMemoryAccessDetails
+{
+  GumMemoryOperation operation;
+  gpointer address;
+};
+
 struct _GumExceptorScope
 {
   gpointer address;
@@ -55,6 +86,11 @@ struct _GumExceptorScope
 GUM_API GType gum_exceptor_get_type (void) G_GNUC_CONST;
 
 GUM_API GumExceptor * gum_exceptor_obtain (void);
+
+GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
+    gpointer user_data);
+GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
+    gpointer user_data);
 
 /*
  * The setjmp() API does not allow longjmp() to be called after the function
