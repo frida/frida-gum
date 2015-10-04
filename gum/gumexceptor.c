@@ -374,6 +374,11 @@ gum_exception_details_to_string (const GumExceptionDetails * details)
       break;
   }
 
+  if (details->memory.operation != GUM_MEMOP_INVALID)
+  {
+    g_string_append_printf (message, " accessing %p", details->memory.address);
+  }
+
   return g_string_free (message, FALSE);
 }
 

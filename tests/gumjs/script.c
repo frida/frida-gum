@@ -209,7 +209,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
 
   COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation reading 0x1");
+      "Error: access violation accessing 0x1");
 }
 
 SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
@@ -1698,13 +1698,13 @@ SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
       "  }"
       "});");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation reading 0x1");
+      "Error: access violation accessing 0x1");
 
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.replace(ptr(\"0x1\"), new NativeCallback(function (arg) {"
       "}, 'void', []));");
   EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation reading 0x1");
+      "Error: access violation accessing 0x1");
 }
 
 SCRIPT_TESTCASE (interceptor_performance)
@@ -1809,7 +1809,7 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
         "  send('onComplete');"
         "}"
       "});");
-  EXPECT_SEND_MESSAGE_WITH ("\"onError: access violation reading 0x530\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onError: access violation accessing 0x530\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
@@ -2433,7 +2433,7 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
     source = g_strconcat ("Memory.read", type_name[i], "(ptr(\"1328\"));",
         NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
     g_free (source);
   }
 }
@@ -2467,7 +2467,7 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("Memory.write", primitive_type_name[i],
         "(ptr(\"1328\"), 13);", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
     g_free (source);
   }
 
@@ -2478,7 +2478,7 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     source = g_strconcat ("Memory.write", string_type_name[i],
         "(ptr(\"1328\"), 'Hey');", NULL);
     COMPILE_AND_LOAD_SCRIPT (source);
-    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
     g_free (source);
   }
 }
