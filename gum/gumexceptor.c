@@ -493,16 +493,17 @@ gum_exceptor_detach (GumExceptor * self)
   GumExceptorPrivate * priv = self->priv;
   DWORD page_prot;
 
-  priv->system_handler = NULL;
-
   *priv->dispatcher_impl_call_immediate =
       (gssize) priv->system_handler -
       (gssize) (priv->dispatcher_impl_call_immediate + 1);
-  priv->dispatcher_impl_call_immediate = NULL;
 
   VirtualProtect (priv->dispatcher_impl, 4096,
       priv->previous_page_protection, &page_prot);
+
+  priv->system_handler = NULL;
+
   priv->dispatcher_impl = NULL;
+  priv->dispatcher_impl_call_immediate = NULL;
   priv->previous_page_protection = 0;
 
   if (priv->trampoline != NULL)
