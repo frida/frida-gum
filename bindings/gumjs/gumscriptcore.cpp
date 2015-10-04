@@ -1648,6 +1648,7 @@ gum_script_core_on_invoke_native_function (
   GumFFIFunction * func = static_cast<GumFFIFunction *> (
       instance->GetAlignedPointerFromInternalField (1));
   gsize nargs = func->cif.nargs;
+  GumExceptorScope scope;
 
   if (info.Length () != static_cast<int> (nargs))
   {
@@ -1703,10 +1704,19 @@ gum_script_core_on_invoke_native_function (
   {
     Unlocker ul (self->isolate);
 
-    ffi_call (&func->cif, FFI_FN (func->fn), rvalue, avalue);
+    if (gum_exceptor_try (self->exceptor, &scope))
+    {
+      ffi_call (&func->cif, FFI_FN (func->fn), rvalue, avalue);
+    }
   }
 
   self->isolate->Enter ();
+
+  if (gum_exceptor_catch (self->exceptor, &scope))
+  {
+    _gum_script_throw (&scope.exception, self);
+    return;
+  }
 
   if (rtype != &ffi_type_void)
   {

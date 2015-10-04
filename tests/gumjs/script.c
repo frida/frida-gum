@@ -137,6 +137,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
@@ -330,6 +331,22 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
   EXPECT_NO_MESSAGES ();
 #endif
+}
+
+SCRIPT_TESTCASE (native_function_crash_results_in_exception)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "'use strict';"
+      "const targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
+          "'pointer', ['pointer']);"
+      "try {"
+      "  targetWithString(NULL);"
+      "} catch (e) {"
+      "  send(e.type);"
+      "}",
+      target_function_string);
+  EXPECT_SEND_MESSAGE_WITH ("\"access-violation\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
