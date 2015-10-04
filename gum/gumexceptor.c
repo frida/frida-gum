@@ -838,8 +838,10 @@ gum_exceptor_on_signal (int sig,
     case SIGBUS:
       ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
 
-      /* TODO: can we determine this without disassembling PC? */
-      md->operation = GUM_MEMOP_READ;
+      if (siginfo->si_addr == ed.address)
+        md->operation = GUM_MEMOP_EXECUTE;
+      else
+        md->operation = GUM_MEMOP_READ; /* FIXME */
       md->address = siginfo->si_addr;
       break;
     default:
