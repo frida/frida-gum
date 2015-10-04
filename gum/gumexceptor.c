@@ -607,11 +607,13 @@ gum_exceptor_dispatch (EXCEPTION_RECORD * exception_record,
 
 #else
 
+static void gum_exceptor_detach_handler (GumExceptor * self, int sig);
 static sig_t gum_exceptor_replacement_signal (int sig, sig_t handler);
 static int gum_exceptor_replacement_sigaction (int sig,
     const struct sigaction * act, struct sigaction * oact);
 static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
     void * context);
+static gboolean gum_is_signal_handler_chainable (sig_t handler);
 static void gum_exceptor_parse_context (gconstpointer context,
     GumCpuContext * ctx);
 static void gum_exceptor_unparse_context (const GumCpuContext * ctx,
@@ -661,16 +663,26 @@ gum_exceptor_detach (GumExceptor * self)
   gum_interceptor_revert_function (priv->interceptor, sigaction);
 
   for (i = 0; i != priv->num_old_handlers; i++)
-  {
-    struct sigaction * old_handler = priv->old_handlers[i];
-    if (old_handler != NULL)
-    {
-      sigaction (i, old_handler, NULL);
-      g_slice_free (struct sigaction, old_handler);
-    }
-  }
+    gum_exceptor_detach_handler (self, i);
   g_free (priv->old_handlers);
   priv->old_handlers = NULL;
+  priv->num_old_handlers = 0;
+}
+
+static void
+gum_exceptor_detach_handler (GumExceptor * self,
+                             int sig)
+{
+  GumExceptorPrivate * priv = self->priv;
+  struct sigaction * old_handler;
+
+  old_handler = priv->old_handlers[sig];
+  if (old_handler != NULL)
+  {
+    priv->old_handlers[sig] = NULL;
+    sigaction (sig, old_handler, NULL);
+    g_slice_free (struct sigaction, old_handler);
+  }
 }
 
 static struct sigaction *
@@ -800,15 +812,28 @@ gum_exceptor_on_signal (int sig,
     if (action->sa_sigaction != NULL)
       action->sa_sigaction (sig, siginfo, context);
     else
-      abort ();
+      goto panic;
   }
   else
   {
-    if (action->sa_handler != NULL)
+    if (gum_is_signal_handler_chainable (action->sa_handler))
       action->sa_handler (sig);
+    else if (action->sa_handler == SIG_IGN)
+      return;
     else
-      abort ();
+      goto panic;
   }
+
+  return;
+
+panic:
+  gum_exceptor_detach_handler (self, sig);
+}
+
+static gboolean
+gum_is_signal_handler_chainable (sig_t handler)
+{
+  return handler != SIG_DFL && handler != SIG_IGN && handler != SIG_ERR;
 }
 
 #if defined (HAVE_DARWIN)
