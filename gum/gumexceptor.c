@@ -767,9 +767,9 @@ gum_exceptor_on_signal (int sig,
   ed.native_context = context;
 
 #if defined (HAVE_I386)
-  ed.address = GUM_CPU_CONTEXT_XIP (cpu_context);
+  ed.address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-  ed.address = cpu_context->pc;
+  ed.address = GSIZE_TO_POINTER (cpu_context->pc);
 #else
 # error Unsupported architecture
 #endif
