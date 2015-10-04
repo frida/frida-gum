@@ -427,16 +427,17 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 {
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->core->isolate;
-  GumExceptor * exceptor = self->core->exceptor;
+  GumScriptCore * core = self->core;
+  Isolate * isolate = core->isolate;
+  GumExceptor * exceptor = core->exceptor;
   GumExceptorScope scope;
 
   gpointer destination;
-  if (!_gum_script_pointer_get (info[0], &destination, self->core))
+  if (!_gum_script_pointer_get (info[0], &destination, core))
     return;
 
   gpointer source;
-  if (!_gum_script_pointer_get (info[1], &source, self->core))
+  if (!_gum_script_pointer_get (info[1], &source, core))
     return;
 
   uint32_t size = info[2]->Uint32Value ();
@@ -458,12 +459,7 @@ gum_script_memory_on_copy (const FunctionCallbackInfo<Value> & info)
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    gchar * message = g_strdup_printf (
-        "access violation accessing 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.exception.memory.address));
-    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
-        message)));
-    g_free (message);
+    _gum_script_throw (&scope.exception, core);
   }
 }
 
@@ -514,13 +510,14 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 {
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->core->isolate;
-  GumExceptor * exceptor = self->core->exceptor;
+  GumScriptCore * core = self->core;
+  Isolate * isolate = core->isolate;
+  GumExceptor * exceptor = core->exceptor;
   GumExceptorScope scope;
   Local<Value> result;
 
   gpointer address;
-  if (!_gum_script_pointer_get (info[0], &address, self->core))
+  if (!_gum_script_pointer_get (info[0], &address, core))
     return;
 
   if (gum_exceptor_try (exceptor, &scope))
@@ -529,7 +526,7 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
     {
       case GUM_MEMORY_VALUE_POINTER:
         result = _gum_script_pointer_new (
-            *static_cast<const gpointer *> (address), self->core);
+            *static_cast<const gpointer *> (address), core);
         break;
       case GUM_MEMORY_VALUE_S8:
         result = Integer::New (isolate, *static_cast<const gint8 *> (address));
@@ -733,12 +730,7 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    gchar * message = g_strdup_printf (
-        "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.exception.memory.address));
-    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
-        message)));
-    g_free (message);
+    _gum_script_throw (&scope.exception, core);
   }
   else
   {
@@ -753,12 +745,13 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
 {
   GumScriptMemory * self = static_cast<GumScriptMemory *> (
       info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->core->isolate;
-  GumExceptor * exceptor = self->core->exceptor;
+  GumScriptCore * core = self->core;
+  Isolate * isolate = core->isolate;
+  GumExceptor * exceptor = core->exceptor;
   GumExceptorScope scope;
 
   gpointer address;
-  if (!_gum_script_pointer_get (info[0], &address, self->core))
+  if (!_gum_script_pointer_get (info[0], &address, core))
     return;
 
   if (gum_exceptor_try (exceptor, &scope))
@@ -768,7 +761,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
       case GUM_MEMORY_VALUE_POINTER:
       {
         gpointer value;
-        if (_gum_script_pointer_get (info[1], &value, self->core))
+        if (_gum_script_pointer_get (info[1], &value, core))
           *static_cast<gpointer *> (address) = value;
         break;
       }
@@ -922,12 +915,7 @@ gum_script_memory_do_write (const FunctionCallbackInfo<Value> & info,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    gchar * message = g_strdup_printf (
-        "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (scope.exception.memory.address));
-    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
-        message)));
-    g_free (message);
+    _gum_script_throw (&scope.exception, core);
   }
 }
 
@@ -1054,9 +1042,7 @@ gum_script_do_memory_scan (gpointer user_data)
     {
       if (ctx->on_error != NULL)
       {
-        gchar * message = g_strdup_printf (
-            "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-            GPOINTER_TO_SIZE (scope.exception.memory.address));
+        gchar * message = gum_exception_details_to_string (&scope.exception);
         Local<Function> on_error (Local<Function>::New (isolate,
             *ctx->on_error));
         Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
