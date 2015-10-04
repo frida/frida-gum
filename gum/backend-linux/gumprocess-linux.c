@@ -176,10 +176,6 @@ static GumElfSHeader * gum_elf_module_find_section_header (GumElfModule * self,
     GumElfSHeaderType type);
 
 #ifndef HAVE_ANDROID
-static void gum_cpu_context_from_linux (const ucontext_t * uc,
-    GumCpuContext * ctx);
-static void gum_cpu_context_to_linux (const GumCpuContext * ctx,
-    ucontext_t * uc);
 static GumThreadState gum_thread_state_from_proc_status_character (gchar c);
 #endif
 static GumPageProtection gum_page_protection_from_proc_perms_string (
@@ -238,9 +234,9 @@ gum_process_modify_thread (GumThreadId thread_id,
     {
       GumCpuContext cpu_context;
 
-      gum_cpu_context_from_linux (&uc, &cpu_context);
+      gum_linux_parse_ucontext (&uc, &cpu_context);
       func (thread_id, &cpu_context, user_data);
-      gum_cpu_context_to_linux (&cpu_context, &uc);
+      gum_linux_unparse_ucontext (&cpu_context, &uc);
 
       modified = TRUE;
       setcontext (&uc);
@@ -291,11 +287,11 @@ gum_do_modify_thread (int sig,
 {
   ucontext_t * uc = (ucontext_t *) context;
 
-  gum_cpu_context_from_linux (uc, &gum_modify_thread_cpu_context);
+  gum_linux_parse_ucontext (uc, &gum_modify_thread_cpu_context);
   gum_modify_thread_did_load_cpu_context = TRUE;
   while (!gum_modify_thread_did_modify_cpu_context)
     ;
-  gum_cpu_context_to_linux (&gum_modify_thread_cpu_context, uc);
+  gum_linux_unparse_ucontext (&gum_modify_thread_cpu_context, uc);
   gum_modify_thread_did_store_cpu_context = TRUE;
 }
 #endif
@@ -1107,11 +1103,9 @@ gum_elf_module_find_section_header (GumElfModule * self,
   return NULL;
 }
 
-#ifndef HAVE_ANDROID
-
-static void
-gum_cpu_context_from_linux (const ucontext_t * uc,
-                            GumCpuContext * ctx)
+void
+gum_linux_parse_ucontext (const ucontext_t * uc,
+                          GumCpuContext * ctx)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   const greg_t * gr = uc->uc_mcontext.gregs;
@@ -1148,14 +1142,41 @@ gum_cpu_context_from_linux (const ucontext_t * uc,
   ctx->rdx = gr[REG_RDX];
   ctx->rcx = gr[REG_RCX];
   ctx->rax = gr[REG_RAX];
+#elif defined (HAVE_ARM)
+  const struct sigcontext * sc = &uc->uc_mcontext;
+
+  ctx->pc = sc->arm_pc;
+  ctx->sp = sc->arm_sp;
+
+  ctx->r[0] = sc->arm_r0;
+  ctx->r[1] = sc->arm_r1;
+  ctx->r[2] = sc->arm_r2;
+  ctx->r[3] = sc->arm_r3;
+  ctx->r[4] = sc->arm_r4;
+  ctx->r[5] = sc->arm_r5;
+  ctx->r[6] = sc->arm_r6;
+  ctx->r[7] = sc->arm_r7;
+  ctx->lr = sc->arm_lr;
+#elif defined (HAVE_ARM64)
+  const struct sigcontext * sc = &uc->uc_mcontext;
+  gsize i;
+
+  ctx->pc = sc->pc;
+  ctx->sp = sc->sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    ctx->x[i] = sc->regs[i];
+  ctx->fp = sc->regs[29];
+  ctx->lr = sc->regs[30];
+  memset (ctx->q, 0, sizeof (ctx->q));
 #else
 # error FIXME
 #endif
 }
 
-static void
-gum_cpu_context_to_linux (const GumCpuContext * ctx,
-                          ucontext_t * uc)
+void
+gum_linux_unparse_ucontext (const GumCpuContext * ctx,
+                            ucontext_t * uc)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
   greg_t * gr = uc->uc_mcontext.gregs;
@@ -1192,10 +1213,38 @@ gum_cpu_context_to_linux (const GumCpuContext * ctx,
   gr[REG_RDX] = ctx->rdx;
   gr[REG_RCX] = ctx->rcx;
   gr[REG_RAX] = ctx->rax;
+#elif defined (HAVE_ARM)
+  struct sigcontext * sc = &uc->uc_mcontext;
+
+  sc->arm_pc = ctx->pc;
+  sc->arm_sp = ctx->sp;
+
+  sc->arm_r0 = ctx->r[0];
+  sc->arm_r1 = ctx->r[1];
+  sc->arm_r2 = ctx->r[2];
+  sc->arm_r3 = ctx->r[3];
+  sc->arm_r4 = ctx->r[4];
+  sc->arm_r5 = ctx->r[5];
+  sc->arm_r6 = ctx->r[6];
+  sc->arm_r7 = ctx->r[7];
+  sc->arm_lr = ctx->lr;
+#elif defined (HAVE_ARM64)
+  struct sigcontext * sc = &uc->uc_mcontext;
+  gsize i;
+
+  sc->pc = ctx->pc;
+  sc->sp = ctx->sp;
+
+  for (i = 0; i != G_N_ELEMENTS (ctx->x); i++)
+    sc->regs[i] = ctx->x[i];
+  sc->regs[29] = ctx->fp;
+  sc->regs[30] = ctx->lr;
 #else
 # error FIXME
 #endif
 }
+
+#ifndef HAVE_ANDROID
 
 static GumThreadState
 gum_thread_state_from_proc_status_character (gchar c)

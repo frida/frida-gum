@@ -6,13 +6,16 @@
 
 #include "gumexceptor.h"
 
+#include "guminterceptor.h"
+#include "gumtls.h"
 #ifdef G_OS_WIN32
 # include "backend-windows/gumwinexceptionhook.h"
 #endif
-#include "gumtls.h"
-
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumdarwin.h"
+#endif
+#ifdef HAVE_LINUX
+# include "backend-linux/gumlinux.h"
 #endif
 
 #include <setjmp.h>
@@ -605,7 +608,7 @@ gum_exceptor_on_signal (int sig,
   }
 }
 
-#ifdef HAVE_DARWIN
+#if defined (HAVE_DARWIN)
 
 static void
 gum_exceptor_parse_context (gconstpointer context,
@@ -623,6 +626,26 @@ gum_exceptor_unparse_context (const GumCpuContext * ctx,
   ucontext_t * uc = context;
 
   gum_darwin_unparse_native_thread_state (ctx, &uc->uc_mcontext->__ss);
+}
+
+#elif defined (HAVE_LINUX)
+
+static void
+gum_exceptor_parse_context (gconstpointer context,
+                            GumCpuContext * ctx)
+{
+  const ucontext_t * uc = context;
+
+  gum_linux_parse_ucontext (uc, ctx);
+}
+
+static void
+gum_exceptor_unparse_context (const GumCpuContext * ctx,
+                              gpointer context)
+{
+  ucontext_t * uc = context;
+
+  gum_linux_unparse_ucontext (ctx, uc);
 }
 
 #endif

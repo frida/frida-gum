@@ -17,6 +17,11 @@ GUM_API GumCpuType gum_linux_cpu_type_from_pid (pid_t pid, GError ** error);
 GUM_API void gum_linux_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
+GUM_API void gum_linux_parse_ucontext (const ucontext_t * uc,
+    GumCpuContext * ctx);
+GUM_API void gum_linux_unparse_ucontext (const GumCpuContext * ctx,
+    ucontext_t * uc);
+
 G_END_DECLS
 
 #endif
