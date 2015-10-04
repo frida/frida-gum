@@ -20,6 +20,7 @@ typedef gboolean (* GumMemoryIsNearFunc) (gpointer memory, gpointer address);
 
 enum _GumMemoryOperation
 {
+  GUM_MEMOP_INVALID,
   GUM_MEMOP_READ,
   GUM_MEMOP_WRITE,
   GUM_MEMOP_EXECUTE

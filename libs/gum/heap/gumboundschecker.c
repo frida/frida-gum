@@ -567,11 +567,11 @@ gum_bounds_checker_on_exception (GumExceptionDetails * details,
   if (details->type != GUM_EXCEPTION_ACCESS_VIOLATION)
     return FALSE;
 
-  op = details->memory_access.operation;
+  op = details->memory.operation;
   if (op != GUM_MEMOP_READ && op != GUM_MEMOP_WRITE)
     return FALSE;
 
-  address = details->memory_access.address;
+  address = details->memory.address;
 
   if (!gum_page_pool_query_block_details (priv->page_pool, address, &block))
     return FALSE;

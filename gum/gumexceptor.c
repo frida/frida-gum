@@ -8,6 +8,10 @@
 
 #include "guminterceptor.h"
 #include "gumtls.h"
+#ifdef G_OS_WIN32
+# include "backend-windows/gumwindows.h"
+# include "arch-x86/gumx86writer.h"
+#endif
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumdarwin.h"
 #endif
@@ -16,10 +20,13 @@
 #endif
 
 #include <setjmp.h>
-#ifndef G_OS_WIN32
+#include <stdlib.h>
+#ifdef G_OS_WIN32
+# include <capstone/capstone.h>
+# include <tchar.h>
+#else
 # include <signal.h>
 #endif
-#include <stdlib.h>
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
@@ -30,6 +37,10 @@ typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 # define GUM_NATIVE_SETJMP sigsetjmp
 # define GUM_NATIVE_LONGJMP siglongjmp
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
+#endif
+#ifdef G_OS_WIN32
+typedef BOOL (WINAPI * GumWindowsExceptionHandler) (
+    EXCEPTION_RECORD * exception_record, CONTEXT * context);
 #endif
 
 #define GUM_EXCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
@@ -43,7 +54,15 @@ struct _GumExceptorPrivate
   GSList * handlers;
   GumTlsKey scope_tls;
 
-#ifndef G_OS_WIN32
+#ifdef G_OS_WIN32
+  GumWindowsExceptionHandler system_handler;
+
+  gpointer dispatcher_impl;
+  gint32 * dispatcher_impl_call_immediate;
+  DWORD previous_page_protection;
+
+  gpointer trampoline;
+#else
   struct sigaction ** old_handlers;
   gint num_old_handlers;
 #endif
@@ -57,8 +76,8 @@ struct _GumExceptionHandlerEntry
 
 struct _GumExceptorScopeImpl
 {
-  gboolean exception_occurred;
   GumExceptorNativeJmpBuf env;
+  gboolean exception_occurred;
 #ifdef HAVE_ANDROID
   sigset_t mask;
 #endif
@@ -72,21 +91,8 @@ static void the_exceptor_weak_notify (gpointer data,
 static gboolean gum_exceptor_handle_scope_exception (
     GumExceptionDetails * details, gpointer user_data);
 
-#ifdef G_OS_WIN32
-static gboolean gum_exceptor_on_exception (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context,
-    gpointer user_data);
-#else
-static sig_t gum_exceptor_replacement_signal (int sig, sig_t handler);
-static int gum_exceptor_replacement_sigaction (int sig,
-    const struct sigaction * act, struct sigaction * oact);
-static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
-    void * context);
-static void gum_exceptor_parse_context (gconstpointer context,
-    GumCpuContext * ctx);
-static void gum_exceptor_unparse_context (const GumCpuContext * ctx,
-    gpointer context);
-#endif
+static void gum_exceptor_attach (GumExceptor * self);
+static void gum_exceptor_detach (GumExceptor * self);
 
 static void gum_exceptor_scope_impl_perform_longjmp (
     GumExceptorScopeImpl * impl);
@@ -121,41 +127,7 @@ gum_exceptor_init (GumExceptor * self)
 
   GUM_TLS_KEY_INIT (&priv->scope_tls);
 
-#ifdef G_OS_WIN32
-  gum_win_exception_hook_add (gum_exceptor_on_exception, self);
-#else
-  const gint handled_signals[] = { SIGSEGV, SIGBUS };
-  gint highest, i;
-  struct sigaction action;
-  GumReplaceReturn replace_ret;
-
-  highest = handled_signals[0];
-  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
-    highest = MAX (handled_signals[i], highest);
-  g_assert_cmpint (highest, >, 0);
-  priv->num_old_handlers = highest + 1;
-  priv->old_handlers = g_new0 (struct sigaction *, priv->num_old_handlers);
-
-  action.sa_sigaction = gum_exceptor_on_signal;
-  sigemptyset (&action.sa_mask);
-  action.sa_flags = SA_SIGINFO;
-  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
-  {
-    gint sig = handled_signals[i];
-    struct sigaction * old_handler;
-
-    old_handler = g_slice_new0 (struct sigaction);
-    priv->old_handlers[sig] = old_handler;
-    sigaction (sig, &action, old_handler);
-  }
-
-  replace_ret = gum_interceptor_replace_function (priv->interceptor, signal,
-      gum_exceptor_replacement_signal, self);
-  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
-  replace_ret = gum_interceptor_replace_function (priv->interceptor, sigaction,
-      gum_exceptor_replacement_sigaction, self);
-  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
-#endif
+  gum_exceptor_attach (self);
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 }
@@ -168,10 +140,7 @@ gum_exceptor_dispose (GObject * object)
 
   if (priv->interceptor != NULL)
   {
-#ifndef G_OS_WIN32
-    gum_interceptor_revert_function (priv->interceptor, signal);
-    gum_interceptor_revert_function (priv->interceptor, sigaction);
-#endif
+    gum_exceptor_detach (self);
 
     g_object_unref (priv->interceptor);
     priv->interceptor = NULL;
@@ -187,23 +156,6 @@ gum_exceptor_finalize (GObject * object)
   GumExceptorPrivate * priv = self->priv;
 
   gum_exceptor_remove (self, gum_exceptor_handle_scope_exception, self);
-
-#ifdef G_OS_WIN32
-  gum_win_exception_hook_remove (gum_exceptor_on_exception, self);
-#else
-  gint i;
-
-  for (i = 0; i != priv->num_old_handlers; i++)
-  {
-    struct sigaction * old_handler = priv->old_handlers[i];
-    if (old_handler != NULL)
-    {
-      sigaction (i, old_handler, NULL);
-      g_slice_free (struct sigaction, old_handler);
-    }
-  }
-  g_free (priv->old_handlers);
-#endif
 
   GUM_TLS_KEY_FREE (priv->scope_tls);
 
@@ -386,7 +338,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   GumExceptor * self = GUM_EXCEPTOR_CAST (user_data);
   GumExceptorScope * scope;
   GumExceptorScopeImpl * impl;
-  GumCpuContext * cpu_context = &details->cpu_context;
+  GumCpuContext * context = &details->context;
 
   scope = (GumExceptorScope *) GUM_TLS_KEY_GET_VALUE (self->priv->scope_tls);
   if (scope == NULL)
@@ -398,54 +350,55 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
   impl->exception_occurred = TRUE;
   memcpy (&scope->exception, details, sizeof (GumExceptionDetails));
+  scope->exception.native_context = NULL;
 
   /*
    * Place IP at the start of the function as if the call already happened,
    * and set up stack and registers accordingly.
    */
 #if defined (HAVE_I386)
-  GUM_CPU_CONTEXT_XIP (cpu_context) = GPOINTER_TO_SIZE (
+  GUM_CPU_CONTEXT_XIP (context) = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
 
   /* Align to 16 byte boundary (Mac ABI) */
-  GUM_CPU_CONTEXT_XSP (cpu_context) &= ~(gsize) (16 - 1);
+  GUM_CPU_CONTEXT_XSP (context) &= ~(gsize) (16 - 1);
   /* Avoid the red zone (when applicable) */
-  GUM_CPU_CONTEXT_XSP (cpu_context) -= GUM_RED_ZONE_SIZE;
+  GUM_CPU_CONTEXT_XSP (context) -= GUM_RED_ZONE_SIZE;
   /* Reserve spill space for first four arguments (Win64 ABI) */
-  GUM_CPU_CONTEXT_XSP (cpu_context) -= 4 * 8;
+  GUM_CPU_CONTEXT_XSP (context) -= 4 * 8;
 
 # if GLIB_SIZEOF_VOID_P == 4
   /* 32-bit: First argument goes on the stack (cdecl) */
-  *((GumExceptorScopeImpl **) cpu_context->esp) = impl;
+  *((GumExceptorScopeImpl **) context->esp) = impl;
 # else
   /* 64-bit: First argument goes in a register */
 #  if GUM_NATIVE_ABI_IS_WINDOWS
-  cpu_context->rcx = GPOINTER_TO_SIZE (impl);
+  context->rcx = GPOINTER_TO_SIZE (impl);
 #  else
-  cpu_context->rdi = GPOINTER_TO_SIZE (impl);
+  context->rdi = GPOINTER_TO_SIZE (impl);
 #  endif
 # endif
 
   /* Dummy return address (we won't return) */
-  GUM_CPU_CONTEXT_XSP (cpu_context) -= sizeof (gpointer);
-  *((gsize *) GUM_CPU_CONTEXT_XSP (cpu_context)) = 1337;
+  GUM_CPU_CONTEXT_XSP (context) -= sizeof (gpointer);
+  *((gsize *) GUM_CPU_CONTEXT_XSP (context)) = 1337;
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
-  cpu_context->pc = GPOINTER_TO_SIZE (
+  context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
 
   /* Align to 16 byte boundary */
-  cpu_context->sp &= ~(gsize) (16 - 1);
+  context->sp &= ~(gsize) (16 - 1);
   /* Avoid the red zone (when applicable) */
-  cpu_context->sp -= GUM_RED_ZONE_SIZE;
+  context->sp -= GUM_RED_ZONE_SIZE;
 
 # if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->r[0] = GPOINTER_TO_SIZE (impl);
+  context->r[0] = GPOINTER_TO_SIZE (impl);
 # else
-  cpu_context->x[0] = GPOINTER_TO_SIZE (impl);
+  context->x[0] = GPOINTER_TO_SIZE (impl);
 # endif
 
   /* Dummy return address (we won't return) */
-  cpu_context->lr = 1337;
+  context->lr = 1337;
 #endif
 
   return TRUE;
@@ -453,20 +406,274 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
 #ifdef G_OS_WIN32
 
-static gboolean
-gum_exceptor_on_exception (EXCEPTION_RECORD * exception_record,
-                           CONTEXT * context,
-                           gpointer user_data)
+static BOOL gum_exceptor_dispatch (EXCEPTION_RECORD * exception_record,
+    CONTEXT * context);
+
+static void
+gum_exceptor_attach (GumExceptor * self)
 {
-  GumExceptor * self = GUM_EXCEPTOR_CAST (user_data);
+  GumExceptorPrivate * priv = self->priv;
+  HMODULE ntdll_mod;
+  csh capstone;
+  cs_err err;
+  guint offset;
 
-  (void) user_data;
-  /* address = (gpointer) exception_record->ExceptionInformation[1]; */
+  ntdll_mod = GetModuleHandle (_T ("ntdll.dll"));
+  g_assert (ntdll_mod != NULL);
 
-  return FALSE;
+  priv->dispatcher_impl = GUM_FUNCPTR_TO_POINTER (
+      GetProcAddress (ntdll_mod, "KiUserExceptionDispatcher"));
+  g_assert (priv->dispatcher_impl != NULL);
+
+  err = cs_open (CS_ARCH_X86, GUM_CPU_MODE, &capstone);
+  g_assert_cmpint (err, == , CS_ERR_OK);
+  err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+  g_assert_cmpint (err, == , CS_ERR_OK);
+
+  offset = 0;
+  while (priv->system_handler == NULL)
+  {
+    cs_insn * insn = NULL;
+
+    cs_disasm (capstone,
+        (guint8 *) priv->dispatcher_impl + offset, 16,
+        GPOINTER_TO_SIZE (priv->dispatcher_impl) + offset,
+        1, &insn);
+    g_assert (insn != NULL);
+
+    offset += insn->size;
+
+    if (insn->id == X86_INS_CALL)
+    {
+      cs_x86_op * op = &insn->detail->x86.operands[0];
+      if (op->type == X86_OP_IMM)
+      {
+        guint8 * call_begin, * call_end;
+        gssize distance;
+
+        call_begin = (guint8 *) insn->address;
+        call_end = call_begin + insn->size;
+
+        priv->system_handler = GUM_POINTER_TO_FUNCPTR (
+            GumWindowsExceptionHandler, op->imm);
+
+        VirtualProtect (priv->dispatcher_impl, 4096,
+            PAGE_EXECUTE_READWRITE, &priv->previous_page_protection);
+        priv->dispatcher_impl_call_immediate = (gint32 *) (call_begin + 1);
+
+        distance = (gssize) gum_exceptor_dispatch - (gssize) call_end;
+        if (!GUM_IS_WITHIN_INT32_RANGE (distance))
+        {
+          GumAddressSpec as;
+          GumX86Writer cw;
+
+          as.near_address = priv->dispatcher_impl;
+          as.max_distance = (G_MAXINT32 - 16384);
+          priv->trampoline = gum_alloc_n_pages_near (1, GUM_PAGE_RWX, &as);
+
+          gum_x86_writer_init (&cw, priv->trampoline);
+          gum_x86_writer_put_jmp (&cw,
+              GUM_FUNCPTR_TO_POINTER (gum_exceptor_dispatch));
+          gum_x86_writer_free (&cw);
+
+          distance = (gssize) priv->trampoline - (gssize) call_end;
+        }
+
+        *priv->dispatcher_impl_call_immediate = distance;
+      }
+    }
+
+    cs_free (insn, 1);
+  }
+}
+
+static void
+gum_exceptor_detach (GumExceptor * self)
+{
+  GumExceptorPrivate * priv = self->priv;
+  DWORD page_prot;
+
+  priv->system_handler = NULL;
+
+  *priv->dispatcher_impl_call_immediate =
+      (gssize) priv->system_handler -
+      (gssize) (priv->dispatcher_impl_call_immediate + 1);
+  priv->dispatcher_impl_call_immediate = NULL;
+
+  VirtualProtect (priv->dispatcher_impl, 4096,
+      priv->previous_page_protection, &page_prot);
+  priv->dispatcher_impl = NULL;
+  priv->previous_page_protection = 0;
+
+  if (priv->trampoline != NULL)
+  {
+    gum_free_pages (priv->trampoline);
+    priv->trampoline = NULL;
+  }
+}
+
+static BOOL
+gum_exceptor_dispatch (EXCEPTION_RECORD * exception_record,
+                       CONTEXT * context)
+{
+  GumExceptor * self = the_exceptor;
+  GumExceptorPrivate * priv = self->priv;
+  GumExceptionDetails ed;
+  GumExceptionMemoryDetails * md = &ed.memory;
+  GumCpuContext * cpu_context = &ed.context;
+
+  switch (exception_record->ExceptionCode)
+  {
+    case EXCEPTION_ACCESS_VIOLATION:
+    case EXCEPTION_DATATYPE_MISALIGNMENT:
+    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
+      ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
+      break;
+    case EXCEPTION_GUARD_PAGE:
+      ed.type = GUM_EXCEPTION_GUARD_PAGE;
+      break;
+    case EXCEPTION_ILLEGAL_INSTRUCTION:
+    case EXCEPTION_PRIV_INSTRUCTION:
+      ed.type = GUM_EXCEPTION_ILLEGAL_INSTRUCTION;
+      break;
+    case EXCEPTION_STACK_OVERFLOW:
+      ed.type = GUM_EXCEPTION_STACK_OVERFLOW;
+      break;
+    case EXCEPTION_FLT_DENORMAL_OPERAND:
+    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
+    case EXCEPTION_FLT_INEXACT_RESULT:
+    case EXCEPTION_FLT_INVALID_OPERATION:
+    case EXCEPTION_FLT_OVERFLOW:
+    case EXCEPTION_FLT_STACK_CHECK:
+    case EXCEPTION_FLT_UNDERFLOW:
+    case EXCEPTION_INT_DIVIDE_BY_ZERO:
+    case EXCEPTION_INT_OVERFLOW:
+      ed.type = GUM_EXCEPTION_ARITHMETIC;
+      break;
+    case EXCEPTION_BREAKPOINT:
+      ed.type = GUM_EXCEPTION_BREAKPOINT;
+      break;
+    case EXCEPTION_SINGLE_STEP:
+      ed.type = GUM_EXCEPTION_SINGLE_STEP;
+      break;
+    default:
+      ed.type = GUM_EXCEPTION_SYSTEM;
+      break;
+  }
+
+  ed.address = exception_record->ExceptionAddress;
+
+  switch (exception_record->ExceptionCode)
+  {
+    case EXCEPTION_ACCESS_VIOLATION:
+    case EXCEPTION_GUARD_PAGE:
+    case EXCEPTION_IN_PAGE_ERROR:
+      switch (exception_record->ExceptionInformation[0])
+      {
+        case 0:
+          md->operation = GUM_MEMOP_READ;
+          break;
+        case 1:
+          md->operation = GUM_MEMOP_WRITE;
+          break;
+        case 8:
+          md->operation = GUM_MEMOP_EXECUTE;
+          break;
+        default:
+          md->operation = GUM_MEMOP_INVALID;
+          break;
+      }
+      md->address =
+          GSIZE_TO_POINTER (exception_record->ExceptionInformation[1]);
+      break;
+    default:
+      md->operation = GUM_MEMOP_INVALID;
+      md->address = 0;
+      break;
+  }
+
+  gum_windows_parse_context (context, cpu_context);
+  ed.native_context = context;
+
+  if (gum_exceptor_handle (self, &ed))
+  {
+    gum_windows_unparse_context (cpu_context, context);
+    return TRUE;
+  }
+
+  return priv->system_handler (exception_record, context);
 }
 
 #else
+
+static sig_t gum_exceptor_replacement_signal (int sig, sig_t handler);
+static int gum_exceptor_replacement_sigaction (int sig,
+    const struct sigaction * act, struct sigaction * oact);
+static void gum_exceptor_on_signal (int sig, siginfo_t * siginfo,
+    void * context);
+static void gum_exceptor_parse_context (gconstpointer context,
+    GumCpuContext * ctx);
+static void gum_exceptor_unparse_context (const GumCpuContext * ctx,
+    gpointer context);
+
+static void
+gum_exceptor_attach (GumExceptor * self)
+{
+  GumExceptorPrivate * priv = self->priv;
+  const gint handled_signals[] = { SIGSEGV, SIGBUS };
+  gint highest, i;
+  struct sigaction action;
+  GumReplaceReturn replace_ret;
+
+  highest = handled_signals[0];
+  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
+    highest = MAX (handled_signals[i], highest);
+  g_assert_cmpint (highest, >, 0);
+  priv->num_old_handlers = highest + 1;
+  priv->old_handlers = g_new0 (struct sigaction *, priv->num_old_handlers);
+
+  action.sa_sigaction = gum_exceptor_on_signal;
+  sigemptyset (&action.sa_mask);
+  action.sa_flags = SA_SIGINFO;
+  for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
+  {
+    gint sig = handled_signals[i];
+    struct sigaction * old_handler;
+
+    old_handler = g_slice_new0 (struct sigaction);
+    priv->old_handlers[sig] = old_handler;
+    sigaction (sig, &action, old_handler);
+  }
+
+  replace_ret = gum_interceptor_replace_function (priv->interceptor, signal,
+      gum_exceptor_replacement_signal, self);
+  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
+  replace_ret = gum_interceptor_replace_function (priv->interceptor, sigaction,
+      gum_exceptor_replacement_sigaction, self);
+  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
+}
+
+static void
+gum_exceptor_detach (GumExceptor * self)
+{
+  GumExceptorPrivate * priv = self->priv;
+  gint i;
+
+  gum_interceptor_revert_function (priv->interceptor, signal);
+  gum_interceptor_revert_function (priv->interceptor, sigaction);
+
+  for (i = 0; i != priv->num_old_handlers; i++)
+  {
+    struct sigaction * old_handler = priv->old_handlers[i];
+    if (old_handler != NULL)
+    {
+      sigaction (i, old_handler, NULL);
+      g_slice_free (struct sigaction, old_handler);
+    }
+  }
+  g_free (priv->old_handlers);
+  priv->old_handlers = NULL;
+}
 
 static struct sigaction *
 gum_exceptor_get_old_handler (GumExceptor * self,
@@ -554,11 +761,12 @@ gum_exceptor_on_signal (int sig,
   GumExceptor * self = the_exceptor;
   GumExceptorPrivate * priv = self->priv;
   GumExceptionDetails ed;
-  GumExceptionMemoryAccessDetails * mad = &ed.memory_access;
-  GumCpuContext * cpu_context = &ed.cpu_context;
+  GumExceptionMemoryDetails * md = &ed.memory;
+  GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
 
   gum_exceptor_parse_context (context, cpu_context);
+  ed.native_context = context;
 
 #if defined (HAVE_I386)
   ed.address = GUM_CPU_CONTEXT_XIP (cpu_context);
@@ -575,8 +783,8 @@ gum_exceptor_on_signal (int sig,
       ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
 
       /* TODO: can we determine this without disassembling PC? */
-      mad->operation = GUM_MEMOP_READ;
-      mad->address = siginfo->si_addr;
+      md->operation = GUM_MEMOP_READ;
+      md->address = siginfo->si_addr;
       break;
     default:
       g_assert_not_reached ();

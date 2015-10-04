@@ -434,6 +434,9 @@ static void
 gum_stalker_dispose (GObject * object)
 {
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+  GumStalker * self = GUM_STALKER (object);
+  GumStalkerPrivate * priv = self->priv;
+
   if (priv->exceptor != NULL)
   {
     gum_exceptor_remove (priv->exceptor, gum_stalker_on_exception, self);
@@ -2703,6 +2706,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
   GumStalker * self = GUM_STALKER_CAST (user_data);
   GumExecCtx * ctx;
   GumExecBlock * block;
+  CONTEXT * context = details->native_context;
 
   if (details->type != GUM_EXCEPTION_SINGLE_STEP)
     return FALSE;

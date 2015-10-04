@@ -633,24 +633,27 @@ gum_script_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_script_set_ascii (ex, "type",
       gum_script_exception_type_to_string (details->type), core);
   _gum_script_set_pointer (ex, "address", details->address, core);
-  if (details->type == GUM_EXCEPTION_ACCESS_VIOLATION)
+
+  const GumExceptionMemoryDetails * md = &details->memory;
+  if (md->operation != GUM_MEMOP_INVALID)
   {
-    const GumExceptionMemoryAccessDetails * mad = &details->memory_access;
-    Local<Object> ma (Object::New (isolate));
-    _gum_script_set_ascii (ma, "operation",
-        _gum_script_memory_operation_to_string (mad->operation), core);
-    _gum_script_set_pointer (ma, "address", mad->address, core);
-    _gum_script_set (ex, "memoryAccess", ma, core);
+    Local<Object> memory (Object::New (isolate));
+    _gum_script_set_ascii (memory, "operation",
+        _gum_script_memory_operation_to_string (md->operation), core);
+    _gum_script_set_pointer (memory, "address", md->address, core);
+    _gum_script_set (ex, "memory", memory, core);
   }
-  Local<Object> cpu_context =
-      _gum_script_cpu_context_new (&details->cpu_context, core);
-  _gum_script_set (ex, "context", cpu_context, core);
+
+  Local<Object> context =
+      _gum_script_cpu_context_new (&details->context, core);
+  _gum_script_set (ex, "context", context, core);
+  _gum_script_set_pointer (ex, "nativeContext", details->native_context, core);
 
   Handle<Value> argv[] = { ex };
   Local<Value> result = callback->Call (Null (isolate), 1, argv);
 
   _gum_script_cpu_context_free_later (
-      new GumPersistent<Object>::type (isolate, cpu_context),
+      new GumPersistent<Object>::type (isolate, context),
       core);
 
   if (!result.IsEmpty () && result->IsBoolean ())
@@ -667,12 +670,16 @@ gum_script_exception_type_to_string (GumExceptionType type)
 {
   switch (type)
   {
+    case GUM_EXCEPTION_EXIT: return "exit";
+    case GUM_EXCEPTION_ABORT: return "abort";
     case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
     case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
     case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
     case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
     case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
     case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    case GUM_EXCEPTION_SYSTEM: return "system";
     default:
       break;
   }

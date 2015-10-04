@@ -317,12 +317,12 @@ gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
   GumMemoryAccessDetails d;
   guint i;
 
-  if (details->type != GUM_EXCEPTION_GUARD_VIOLATION)
+  if (details->type != GUM_EXCEPTION_GUARD_PAGE)
     return FALSE;
 
-  d.operation = details->memory_access.operation;
+  d.operation = details->memory.operation;
   d.from = details->address;
-  d.address = details->memory_access.address;
+  d.address = details->memory.address;
 
   for (i = 0; i != priv->num_ranges; i++)
   {

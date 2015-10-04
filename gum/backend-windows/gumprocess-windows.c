@@ -21,10 +21,6 @@ struct _GumFindExportContext
 
 static gboolean gum_windows_get_thread_details (DWORD thread_id,
     GumThreadDetails * details);
-static void gum_cpu_context_from_windows (const CONTEXT * context,
-    GumCpuContext * cpu_context);
-static void gum_cpu_context_to_windows (const GumCpuContext * cpu_context,
-    CONTEXT * context);
 static gboolean gum_store_address_if_module_has_export (
     const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_store_address_if_export_name_matches (
@@ -65,9 +61,9 @@ gum_process_modify_thread (GumThreadId thread_id,
   if (!GetThreadContext (thread, &context))
     goto beach;
 
-  gum_cpu_context_from_windows (&context, &cpu_context);
+  gum_windows_parse_context (&context, &cpu_context);
   func (thread_id, &cpu_context, user_data);
-  gum_cpu_context_to_windows (&cpu_context, &context);
+  gum_windows_unparse_context (&cpu_context, &context);
 
   if (!SetThreadContext (thread, &context))
   {
@@ -139,7 +135,7 @@ gum_windows_get_thread_details (DWORD thread_id,
     details->state = GUM_THREAD_RUNNING;
 
     RtlCaptureContext (&context);
-    gum_cpu_context_from_windows (&context, &details->cpu_context);
+    gum_windows_parse_context (&context, &details->cpu_context);
 
     success = TRUE;
   }
@@ -164,7 +160,7 @@ gum_windows_get_thread_details (DWORD thread_id,
         context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
         if (GetThreadContext (thread, &context))
         {
-          gum_cpu_context_from_windows (&context, &details->cpu_context);
+          gum_windows_parse_context (&context, &details->cpu_context);
           success = TRUE;
         }
 
@@ -538,9 +534,9 @@ get_module_handle_utf8 (const gchar * module_name)
   return module;
 }
 
-static void
-gum_cpu_context_from_windows (const CONTEXT * context,
-                              GumCpuContext * cpu_context)
+void
+gum_windows_parse_context (const CONTEXT * context,
+                           GumCpuContext * cpu_context)
 {
 #if GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = context->Eip;
@@ -576,9 +572,9 @@ gum_cpu_context_from_windows (const CONTEXT * context,
 #endif
 }
 
-static void
-gum_cpu_context_to_windows (const GumCpuContext * cpu_context,
-                            CONTEXT * context)
+void
+gum_windows_unparse_context (const GumCpuContext * cpu_context,
+                             CONTEXT * context)
 {
 #if GLIB_SIZEOF_VOID_P == 4
   context->Eip = cpu_context->eip;

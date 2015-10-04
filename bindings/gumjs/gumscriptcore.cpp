@@ -2812,6 +2812,7 @@ _gum_script_memory_operation_to_string (GumMemoryOperation operation)
 {
   switch (operation)
   {
+    case GUM_MEMOP_INVALID: return "invalid";
     case GUM_MEMOP_READ: return "read";
     case GUM_MEMOP_WRITE: return "write";
     case GUM_MEMOP_EXECUTE: return "execute";

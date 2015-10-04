@@ -31,7 +31,7 @@ typedef struct _GumExceptorPrivate GumExceptorPrivate;
 
 typedef struct _GumExceptionDetails GumExceptionDetails;
 typedef guint GumExceptionType;
-typedef struct _GumExceptionMemoryAccessDetails GumExceptionMemoryAccessDetails;
+typedef struct _GumExceptionMemoryDetails GumExceptionMemoryDetails;
 typedef gboolean (* GumExceptionHandler) (GumExceptionDetails * details,
     gpointer user_data);
 
@@ -54,16 +54,19 @@ struct _GumExceptorClass
 
 enum _GumExceptionType
 {
+  GUM_EXCEPTION_EXIT = 1,
+  GUM_EXCEPTION_ABORT,
   GUM_EXCEPTION_ACCESS_VIOLATION,
-  GUM_EXCEPTION_GUARD_VIOLATION,
+  GUM_EXCEPTION_GUARD_PAGE,
   GUM_EXCEPTION_ILLEGAL_INSTRUCTION,
   GUM_EXCEPTION_STACK_OVERFLOW,
   GUM_EXCEPTION_ARITHMETIC,
   GUM_EXCEPTION_BREAKPOINT,
   GUM_EXCEPTION_SINGLE_STEP,
+  GUM_EXCEPTION_SYSTEM
 };
 
-struct _GumExceptionMemoryAccessDetails
+struct _GumExceptionMemoryDetails
 {
   GumMemoryOperation operation;
   gpointer address;
@@ -73,8 +76,9 @@ struct _GumExceptionDetails
 {
   GumExceptionType type;
   gpointer address;
-  GumExceptionMemoryAccessDetails memory_access;
-  GumCpuContext cpu_context;
+  GumExceptionMemoryDetails memory;
+  GumCpuContext context;
+  gpointer native_context;
 };
 
 struct _GumExceptorScope
