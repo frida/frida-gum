@@ -2768,7 +2768,6 @@ gum_exception_type_to_string (GumExceptionType type)
 {
   switch (type)
   {
-    case GUM_EXCEPTION_EXIT: return "exit";
     case GUM_EXCEPTION_ABORT: return "abort";
     case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
     case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";

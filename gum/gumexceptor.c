@@ -340,9 +340,6 @@ gum_exception_details_to_string (const GumExceptionDetails * details)
 
   switch (details->type)
   {
-    case GUM_EXCEPTION_EXIT:
-      g_string_append (message, "exit was called");
-      break;
     case GUM_EXCEPTION_ABORT:
       g_string_append (message, "abort was called");
       break;
@@ -674,7 +671,15 @@ static void
 gum_exceptor_attach (GumExceptor * self)
 {
   GumExceptorPrivate * priv = self->priv;
-  const gint handled_signals[] = { SIGSEGV, SIGBUS };
+  const gint handled_signals[] = {
+    SIGABRT,
+    SIGSEGV,
+    SIGBUS,
+    SIGILL,
+    SIGFPE,
+    SIGTRAP,
+    SIGSYS,
+  };
   gint highest, i;
   struct sigaction action;
 
@@ -826,6 +831,29 @@ gum_exceptor_on_signal (int sig,
   GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
 
+  switch (sig)
+  {
+    case SIGABRT:
+      ed.type = GUM_EXCEPTION_ABORT;
+      break;
+    case SIGSEGV:
+    case SIGBUS:
+      ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
+      break;
+    case SIGILL:
+      ed.type = GUM_EXCEPTION_ILLEGAL_INSTRUCTION;
+      break;
+    case SIGFPE:
+      ed.type = GUM_EXCEPTION_ARITHMETIC;
+      break;
+    case SIGTRAP:
+      ed.type = GUM_EXCEPTION_BREAKPOINT;
+      break;
+    default:
+      ed.type = GUM_EXCEPTION_SYSTEM;
+      break;
+  }
+
   gum_exceptor_parse_context (context, cpu_context);
   ed.native_context = context;
 
@@ -841,8 +869,6 @@ gum_exceptor_on_signal (int sig,
   {
     case SIGSEGV:
     case SIGBUS:
-      ed.type = GUM_EXCEPTION_ACCESS_VIOLATION;
-
       if (siginfo->si_addr == ed.address)
         md->operation = GUM_MEMOP_EXECUTE;
       else
@@ -850,7 +876,9 @@ gum_exceptor_on_signal (int sig,
       md->address = siginfo->si_addr;
       break;
     default:
-      g_assert_not_reached ();
+      md->operation = GUM_MEMOP_INVALID;
+      md->address = NULL;
+      break;
   }
 
   if (gum_exceptor_handle (self, &ed))
