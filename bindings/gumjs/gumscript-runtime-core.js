@@ -90,6 +90,14 @@
     if (flavor === USER) {
         const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
 
+        Process.setExceptionHandler((ex) => {
+            const message = {
+                type: 'error',
+                description: ex.toString()
+            };
+            engine._send(JSON.stringify(message), null);
+        });
+
         Object.defineProperty(Memory, 'dup', {
             enumerable: true,
             value: function (mem, size) {

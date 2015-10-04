@@ -310,6 +310,12 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
   gint actual_column_number;
 
   item = test_script_fixture_pop_message (fixture);
+
+  actual_description[0] = '\0';
+  actual_stack[0] = '\0';
+  actual_file_name[0] = '\0';
+  actual_line_number = -1;
+  actual_column_number = -1;
   sscanf (item->message, "{"
           "\"type\":\"error\","
           "\"description\":\"%[^\"]\","
@@ -323,6 +329,14 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
       actual_file_name,
       &actual_line_number,
       &actual_column_number);
+  if (actual_column_number == -1)
+  {
+    sscanf (item->message, "{"
+            "\"type\":\"error\","
+            "\"description\":\"%[^\"]\""
+        "}",
+        actual_description);
+  }
   if (line_number != ANY_LINE_NUMBER)
     g_assert_cmpint (actual_line_number, ==, line_number);
   g_assert_cmpstr (actual_description, ==, description);

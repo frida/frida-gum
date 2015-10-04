@@ -160,6 +160,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
   SCRIPT_TESTENTRY (exceptions_can_be_handled)
+  SCRIPT_TESTENTRY (default_exception_handler_is_present_and_emits_errors)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
 TEST_LIST_END ()
 
@@ -2700,6 +2701,22 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
 
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
   EXPECT_SEND_MESSAGE_WITH ("\"w00t\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (default_exception_handler_is_present_and_emits_errors)
+{
+  gboolean exception_on_read, exception_on_write;
+
+  COMPILE_AND_LOAD_SCRIPT ("'use strict';");
+  EXPECT_NO_MESSAGES ();
+
+  gum_try_read_and_write_at (GSIZE_TO_POINTER (1328), 0,
+      &exception_on_read, &exception_on_write);
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+      "Error: access violation accessing 0x530");
   EXPECT_NO_MESSAGES ();
 }
 
