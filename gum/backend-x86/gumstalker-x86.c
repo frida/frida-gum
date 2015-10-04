@@ -2706,6 +2706,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
   GumStalker * self = GUM_STALKER_CAST (user_data);
   GumExecCtx * ctx;
   GumExecBlock * block;
+  GumCpuContext * cpu_context = &details->context;
   CONTEXT * context = details->native_context;
 
   if (details->type != GUM_EXCEPTION_SINGLE_STEP)
@@ -2733,8 +2734,8 @@ gum_stalker_on_exception (GumExceptionDetails * details,
       block->previous_dr2 = context->Dr2;
       block->previous_dr7 = context->Dr7;
 
-      instruction_after_call_here = context->Eip +
-          gum_x86_reader_insn_length ((guint8 *) context->Eip);
+      instruction_after_call_here = cpu_context->eip +
+          gum_x86_reader_insn_length ((guint8 *) cpu_context->eip);
       context->Dr0 = instruction_after_call_here;
       enable_hardware_breakpoint (&context->Dr7, 0);
 
@@ -2742,7 +2743,7 @@ gum_stalker_on_exception (GumExceptionDetails * details,
       enable_hardware_breakpoint (&context->Dr7, 1);
 
       instruction_after_call_above_us = (DWORD)
-          find_system_call_above_us (self, (gpointer *) context->Esp);
+          find_system_call_above_us (self, (gpointer *) cpu_context->esp);
       if (instruction_after_call_above_us != 0)
       {
         context->Dr2 = instruction_after_call_above_us;
@@ -2762,8 +2763,8 @@ gum_stalker_on_exception (GumExceptionDetails * details,
       context->Dr7 = block->previous_dr7;
 
       gum_exec_ctx_replace_current_block_with (ctx,
-          GSIZE_TO_POINTER (context->Eip));
-      context->Eip = (DWORD) ctx->resume_at;
+          GSIZE_TO_POINTER (cpu_context->eip));
+      cpu_context->eip = (DWORD) ctx->resume_at;
 
       block->state = GUM_EXEC_NORMAL;
 
