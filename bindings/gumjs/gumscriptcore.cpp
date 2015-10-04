@@ -231,6 +231,7 @@ static gboolean gum_script_value_from_ffi_type (GumScriptCore * core,
 
 static void gum_native_resource_on_weak_notify (
     const WeakCallbackData<Object, GumNativeResource> & data);
+static const gchar * gum_exception_type_to_string (GumExceptionType type);
 static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
     GumCpuContextWrapper> & data);
 
@@ -2701,6 +2702,77 @@ _gum_script_pointer_get (Handle<Value> value,
   }
 
   return TRUE;
+}
+
+void
+_gum_script_throw (GumExceptionDetails * details,
+                   GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+
+  Local<Object> ex, context;
+  _gum_script_parse_exception_details (details, ex, context, core);
+  _gum_script_cpu_context_free_later (
+      new GumPersistent<Object>::type (isolate, context),
+      core);
+  isolate->ThrowException (ex);
+}
+
+void
+_gum_script_parse_exception_details (GumExceptionDetails * details,
+                                     Local<Object> & exception,
+                                     Local<Object> & cpu_context,
+                                     GumScriptCore * core)
+{
+  Isolate * isolate = core->isolate;
+
+  gchar * message = gum_exception_details_to_string (details);
+  Local<Object> ex =
+      Exception::Error (String::NewFromUtf8 (isolate, message)).As<Object> ();
+  g_free (message);
+
+  _gum_script_set_ascii (ex, "type",
+      gum_exception_type_to_string (details->type), core);
+  _gum_script_set_pointer (ex, "address", details->address, core);
+
+  const GumExceptionMemoryDetails * md = &details->memory;
+  if (md->operation != GUM_MEMOP_INVALID)
+  {
+    Local<Object> memory (Object::New (isolate));
+    _gum_script_set_ascii (memory, "operation",
+        _gum_script_memory_operation_to_string (md->operation), core);
+    _gum_script_set_pointer (memory, "address", md->address, core);
+    _gum_script_set (ex, "memory", memory, core);
+  }
+
+  Local<Object> context = _gum_script_cpu_context_new (&details->context, core);
+  _gum_script_set (ex, "context", context, core);
+  _gum_script_set_pointer (ex, "nativeContext", details->native_context, core);
+
+  exception = ex;
+  cpu_context = context;
+}
+
+static const gchar *
+gum_exception_type_to_string (GumExceptionType type)
+{
+  switch (type)
+  {
+    case GUM_EXCEPTION_EXIT: return "exit";
+    case GUM_EXCEPTION_ABORT: return "abort";
+    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
+    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
+    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
+    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
+    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    case GUM_EXCEPTION_SYSTEM: return "system";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
 }
 
 v8::Local<v8::Object>

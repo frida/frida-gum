@@ -331,6 +331,52 @@ gum_exceptor_catch (GumExceptor * self,
   return exception_occurred;
 }
 
+gchar *
+gum_exception_details_to_string (const GumExceptionDetails * details)
+{
+  GString * message;
+
+  message = g_string_new ("");
+
+  switch (details->type)
+  {
+    case GUM_EXCEPTION_EXIT:
+      g_string_append (message, "exit was called");
+      break;
+    case GUM_EXCEPTION_ABORT:
+      g_string_append (message, "abort was called");
+      break;
+    case GUM_EXCEPTION_ACCESS_VIOLATION:
+      g_string_append (message, "access violation");
+      break;
+    case GUM_EXCEPTION_GUARD_PAGE:
+      g_string_append (message, "guard page was hit");
+      break;
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION:
+      g_string_append (message, "illegal instruction");
+      break;
+    case GUM_EXCEPTION_STACK_OVERFLOW:
+      g_string_append (message, "stack overflow");
+      break;
+    case GUM_EXCEPTION_ARITHMETIC:
+      g_string_append (message, "arithmetic error");
+      break;
+    case GUM_EXCEPTION_BREAKPOINT:
+      g_string_append (message, "breakpoint triggered");
+      break;
+    case GUM_EXCEPTION_SINGLE_STEP:
+      g_string_append (message, "single-step triggered");
+      break;
+    case GUM_EXCEPTION_SYSTEM:
+      g_string_append (message, "system error");
+      break;
+    default:
+      break;
+  }
+
+  return g_string_free (message, FALSE);
+}
+
 static gboolean
 gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
                                      gpointer user_data)

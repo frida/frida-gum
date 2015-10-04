@@ -108,6 +108,9 @@ GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
 GUM_API gboolean gum_exceptor_catch (GumExceptor * self,
     GumExceptorScope * scope);
 
+GUM_API gchar * gum_exception_details_to_string (
+    const GumExceptionDetails * details);
+
 GUM_API GumExceptorSetJmp _gum_exceptor_get_setjmp (void);
 GUM_API GumExceptorJmpBuf _gum_exceptor_prepare_try (GumExceptor * self,
     GumExceptorScope * scope);

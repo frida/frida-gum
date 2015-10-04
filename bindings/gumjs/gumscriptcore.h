@@ -124,6 +124,12 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_pointer_new (gpointer address,
 G_GNUC_INTERNAL gboolean _gum_script_pointer_get (v8::Handle<v8::Value> value,
     gpointer * target, GumScriptCore * core);
 
+G_GNUC_INTERNAL void _gum_script_throw (GumExceptionDetails * details,
+    GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_script_parse_exception_details (
+    GumExceptionDetails * details, v8::Local<v8::Object> & exception,
+    v8::Local<v8::Object> & cpu_context, GumScriptCore * core);
+
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (
     const GumCpuContext * cpu_context, GumScriptCore * core);
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_script_cpu_context_new (

@@ -629,25 +629,8 @@ gum_script_exception_handler_on_exception (GumExceptionDetails * details,
 
   Local<Function> callback (Local<Function>::New (isolate, *handler->callback));
 
-  Local<Object> ex (Object::New (isolate));
-  _gum_script_set_ascii (ex, "type",
-      gum_script_exception_type_to_string (details->type), core);
-  _gum_script_set_pointer (ex, "address", details->address, core);
-
-  const GumExceptionMemoryDetails * md = &details->memory;
-  if (md->operation != GUM_MEMOP_INVALID)
-  {
-    Local<Object> memory (Object::New (isolate));
-    _gum_script_set_ascii (memory, "operation",
-        _gum_script_memory_operation_to_string (md->operation), core);
-    _gum_script_set_pointer (memory, "address", md->address, core);
-    _gum_script_set (ex, "memory", memory, core);
-  }
-
-  Local<Object> context =
-      _gum_script_cpu_context_new (&details->context, core);
-  _gum_script_set (ex, "context", context, core);
-  _gum_script_set_pointer (ex, "nativeContext", details->native_context, core);
+  Local<Object> ex, context;
+  _gum_script_parse_exception_details (details, ex, context, core);
 
   Handle<Value> argv[] = { ex };
   Local<Value> result = callback->Call (Null (isolate), 1, argv);
@@ -663,26 +646,4 @@ gum_script_exception_handler_on_exception (GumExceptionDetails * details,
   }
 
   return FALSE;
-}
-
-const gchar *
-gum_script_exception_type_to_string (GumExceptionType type)
-{
-  switch (type)
-  {
-    case GUM_EXCEPTION_EXIT: return "exit";
-    case GUM_EXCEPTION_ABORT: return "abort";
-    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
-    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
-    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
-    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
-    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
-    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
-    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
-    case GUM_EXCEPTION_SYSTEM: return "system";
-    default:
-      break;
-  }
-
-  g_assert_not_reached ();
 }
