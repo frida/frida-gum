@@ -8,9 +8,6 @@
 
 #include "guminterceptor.h"
 #include "gumtls.h"
-#ifdef G_OS_WIN32
-# include "backend-windows/gumwinexceptionhook.h"
-#endif
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumdarwin.h"
 #endif

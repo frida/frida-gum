@@ -6,9 +6,13 @@
 
 #include "gummemoryaccessmonitor.h"
 
-#include "gumwinexceptionhook.h"
+#include "gumexceptor.h"
 
 #include <gio/gio.h>
+#ifndef WIN32_LEAN_AND_MEAN
+# define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 
 typedef struct _GumLiveRangeDetails GumLiveRangeDetails;
 typedef struct _GumRangeStats GumRangeStats;
@@ -21,6 +25,7 @@ struct _GumMemoryAccessMonitorPrivate
   guint page_size;
 
   gboolean enabled;
+  GumExceptor * exceptor;
 
   GumMemoryRange * ranges;
   guint num_ranges;
@@ -58,9 +63,8 @@ static void gum_memory_access_monitor_enumerate_live_ranges (
     GumMemoryAccessMonitor * self, GumFoundLiveRangeFunc func,
     gpointer user_data);
 
-static gboolean gum_memory_access_monitor_handle_exception_if_ours (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context,
-    gpointer user_data);
+static gboolean gum_memory_access_monitor_on_exception (
+    GumExceptionDetails * details, gpointer user_data);
 
 G_DEFINE_TYPE (GumMemoryAccessMonitor, gum_memory_access_monitor,
     G_TYPE_OBJECT);
@@ -176,8 +180,9 @@ gum_memory_access_monitor_enable (GumMemoryAccessMonitor * self,
   else if (stats.guarded_size != 0)
     goto error_guarded_pages;
 
-  gum_win_exception_hook_add (
-      gum_memory_access_monitor_handle_exception_if_ours, self);
+  priv->exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (priv->exceptor, gum_memory_access_monitor_on_exception,
+      self);
 
   gum_memory_access_monitor_enumerate_live_ranges (self,
       gum_set_guard_flag, self);
@@ -211,8 +216,10 @@ gum_memory_access_monitor_disable (GumMemoryAccessMonitor * self)
   gum_memory_access_monitor_enumerate_live_ranges (self,
       gum_clear_guard_flag, self);
 
-  gum_win_exception_hook_remove (
-      gum_memory_access_monitor_handle_exception_if_ours, self);
+  gum_exceptor_remove (priv->exceptor, gum_memory_access_monitor_on_exception,
+      self);
+  g_object_unref (priv->exceptor);
+  priv->exceptor = NULL;
 
   priv->enabled = FALSE;
 }
@@ -302,46 +309,35 @@ gum_memory_access_monitor_enumerate_live_ranges (GumMemoryAccessMonitor * self,
 }
 
 static gboolean
-gum_memory_access_monitor_handle_exception_if_ours (
-    EXCEPTION_RECORD * exception_record,
-    CONTEXT * context,
-    gpointer user_data)
+gum_memory_access_monitor_on_exception (GumExceptionDetails * details,
+                                        gpointer user_data)
 {
   GumMemoryAccessMonitor * self = GUM_MEMORY_ACCESS_MONITOR_CAST (user_data);
   GumMemoryAccessMonitorPrivate * priv = self->priv;
-  GumMemoryAccessDetails details;
+  GumMemoryAccessDetails d;
   guint i;
 
-  (void) context;
-
-  if (exception_record->ExceptionCode != STATUS_GUARD_PAGE_VIOLATION)
+  if (details->type != GUM_EXCEPTION_GUARD_VIOLATION)
     return FALSE;
 
-  switch (exception_record->ExceptionInformation[0])
-  {
-    case 0: details.operation = GUM_MEMOP_READ; break;
-    case 1: details.operation = GUM_MEMOP_WRITE; break;
-    case 8: details.operation = GUM_MEMOP_EXECUTE; break;
-    default:
-      g_assert_not_reached ();
-  }
-  details.from = exception_record->ExceptionAddress;
-  details.address = (gpointer) exception_record->ExceptionInformation[1];
+  d.operation = details->memory_access.operation;
+  d.from = details->address;
+  d.address = details->memory_access.address;
 
   for (i = 0; i != priv->num_ranges; i++)
   {
     const GumMemoryRange * r = &priv->ranges[i];
 
-    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (details.address)))
+    if (GUM_MEMORY_RANGE_INCLUDES (r, GUM_ADDRESS (d.address)))
     {
-      details.range_index = i;
-      details.page_index = ((guint8 *) details.address -
+      d.range_index = i;
+      d.page_index = ((guint8 *) d.address -
           (guint8 *) r->base_address) / priv->page_size;
-      details.pages_completed = priv->pages_total -
+      d.pages_completed = priv->pages_total -
           (g_atomic_int_add (&priv->pages_remaining, -1) - 1);
-      details.pages_total = priv->pages_total;
+      d.pages_total = priv->pages_total;
 
-      priv->notify_func (self, &details, priv->notify_data);
+      priv->notify_func (self, &d, priv->notify_data);
 
       return TRUE;
     }

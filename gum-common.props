@@ -111,14 +111,12 @@
 
   <ItemGroup>
     <ClInclude Include="gum\backend-windows\gumwindows.h" />
-    <ClInclude Include="gum\backend-windows\gumwinexceptionhook.h" />
   </ItemGroup>
 
   <ItemGroup>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c" />
     <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c" />
-    <ClCompile Include="gum\backend-windows\gumwinexceptionhook.c" />
   </ItemGroup>
 
   <ItemGroup>

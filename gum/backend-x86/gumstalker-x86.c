@@ -16,16 +16,17 @@
 #include "gumx86relocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
+#ifdef G_OS_WIN32
+# include "gumexceptor.h"
+#endif
 
 #include <stdlib.h>
 #include <string.h>
 #ifdef G_OS_WIN32
-#include "backend-windows/gumwinexceptionhook.h"
-
-#define VC_EXTRALEAN
-#include <windows.h>
-#include <psapi.h>
-#include <tchar.h>
+# define VC_EXTRALEAN
+# include <windows.h>
+# include <psapi.h>
+# include <tchar.h>
 #endif
 
 #define GUM_CODE_ALIGNMENT                     8
@@ -68,6 +69,7 @@ struct _GumStalkerPrivate
   GHashTable * probe_array_by_address;
 
 #ifdef G_OS_WIN32
+  GumExceptor * exceptor;
   gpointer user32_start, user32_end;
   gpointer ki_user_callback_dispatcher_impl;
 #endif
@@ -243,6 +245,7 @@ enum _GumVirtualizationRequirements
 #endif
 #define GUM_THUNK_ARGLIST_STACK_RESERVE 64 /* x64 ABI compatibility */
 
+static void gum_stalker_dispose (GObject * object);
 static void gum_stalker_finalize (GObject * object);
 
 G_GNUC_INTERNAL void _gum_stalker_do_follow_me (GumStalker * self,
@@ -337,8 +340,7 @@ static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
 static void gum_tls_key_set (GumTlsKey key, gpointer data);
 
 #ifdef G_OS_WIN32
-static gboolean gum_stalker_handle_exception (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context,
+static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
 #endif
 
@@ -351,6 +353,7 @@ gum_stalker_class_init (GumStalkerClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumStalkerPrivate));
 
+  object_class->dispose = gum_stalker_dispose;
   object_class->finalize = gum_stalker_finalize;
 }
 
@@ -373,7 +376,8 @@ gum_stalker_init (GumStalker * self)
       g_hash_table_new_full (NULL, NULL, NULL, gum_stalker_free_probe_array);
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
-  gum_win_exception_hook_add (gum_stalker_handle_exception, self);
+  priv->exceptor = gum_exceptor_obtain ();
+  gum_exceptor_add (priv->exceptor, gum_stalker_on_exception, self);
 
   {
     HMODULE ntmod, usermod;
@@ -427,14 +431,25 @@ gum_stalker_init (GumStalker * self)
 }
 
 static void
+gum_stalker_dispose (GObject * object)
+{
+#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
+  if (priv->exceptor != NULL)
+  {
+    gum_exceptor_remove (priv->exceptor, gum_stalker_on_exception, self);
+    g_object_unref (priv->exceptor);
+    priv->exceptor = NULL;
+  }
+#endif
+
+  G_OBJECT_CLASS (gum_stalker_parent_class)->dispose (object);
+}
+
+static void
 gum_stalker_finalize (GObject * object)
 {
   GumStalker * self = GUM_STALKER (object);
   GumStalkerPrivate * priv = self->priv;
-
-#if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4
-  gum_win_exception_hook_remove (gum_stalker_handle_exception, self);
-#endif
 
   g_hash_table_unref (priv->probe_array_by_address);
   g_hash_table_unref (priv->probe_target_by_id);
@@ -2682,14 +2697,14 @@ find_system_call_above_us (GumStalker * stalker, gpointer * start_esp)
 }
 
 static gboolean
-gum_stalker_handle_exception (EXCEPTION_RECORD * exception_record,
-    CONTEXT * context, gpointer user_data)
+gum_stalker_on_exception (GumExceptionDetails * details,
+                          gpointer user_data)
 {
   GumStalker * self = GUM_STALKER_CAST (user_data);
   GumExecCtx * ctx;
   GumExecBlock * block;
 
-  if (exception_record->ExceptionCode != STATUS_SINGLE_STEP)
+  if (details->type != GUM_EXCEPTION_SINGLE_STEP)
     return FALSE;
 
   ctx = gum_stalker_get_exec_ctx (self);

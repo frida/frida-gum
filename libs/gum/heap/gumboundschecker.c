@@ -6,23 +6,12 @@
 
 #include "gumboundschecker.h"
 
+#include "gumexceptor.h"
 #include "guminterceptor.h"
-#include "gummemory.h"
 #include "gumpagepool.h"
-#ifdef G_OS_WIN32
-# include "backend-windows/gumwinexceptionhook.h"
-#endif
 
 #include <stdlib.h>
 #include <string.h>
-#ifdef G_OS_WIN32
-# ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-# endif
-# include <windows.h>
-#else
-# include <signal.h>
-#endif
 
 #define DEFAULT_POOL_SIZE       4096
 #define DEFAULT_FRONT_ALIGNMENT   16
@@ -55,6 +44,7 @@ struct _GumBoundsCheckerPrivate
   gpointer output_user_data;
 
   GumInterceptor * interceptor;
+  GumExceptor * exceptor;
   GumHeapApiList * heap_apis;
   gboolean attached;
   volatile gboolean detaching;
@@ -86,26 +76,12 @@ static gpointer gum_bounds_checker_try_alloc (GumBoundsChecker * self,
 static gboolean gum_bounds_checker_try_free (GumBoundsChecker * self,
     gpointer address, GumInvocationContext * ctx);
 
+static gboolean gum_bounds_checker_on_exception (GumExceptionDetails * details,
+    gpointer user_data);
 static void gum_bounds_checker_append_backtrace (
     const GumReturnAddressArray * arr, GString * s);
 
-#ifdef G_OS_WIN32
-static gboolean gum_bounds_checker_on_exception (
-    EXCEPTION_RECORD * exception_record, CONTEXT * context, gpointer user_data);
-#else
-static void gum_bounds_checker_on_invalid_access (int sig, siginfo_t * siginfo,
-    void * context);
-#endif
-
 G_DEFINE_TYPE (GumBoundsChecker, gum_bounds_checker, G_TYPE_OBJECT);
-
-G_LOCK_DEFINE_STATIC (gum_memaccess);
-static guint gum_memaccess_refcount = 0;
-#ifndef G_OS_WIN32
-static struct sigaction gum_memaccess_old_sigsegv;
-static struct sigaction gum_memaccess_old_sigbus;
-#endif
-static GSList * gum_memaccess_instances = NULL;
 
 static void
 gum_bounds_checker_class_init (GumBoundsCheckerClass * klass)
@@ -150,28 +126,11 @@ gum_bounds_checker_init (GumBoundsChecker * self)
   g_mutex_init (&priv->mutex);
 
   priv->interceptor = gum_interceptor_obtain ();
+  priv->exceptor = gum_exceptor_obtain ();
   priv->pool_size = DEFAULT_POOL_SIZE;
   priv->front_alignment = DEFAULT_FRONT_ALIGNMENT;
 
-  G_LOCK (gum_memaccess);
-  if (gum_memaccess_refcount++ == 0)
-  {
-#ifndef G_OS_WIN32
-    struct sigaction action;
-    action.sa_sigaction = gum_bounds_checker_on_invalid_access;
-    sigemptyset (&action.sa_mask);
-    action.sa_flags = SA_SIGINFO;
-    sigaction (SIGSEGV, &action, &gum_memaccess_old_sigsegv);
-    sigaction (SIGBUS, &action, &gum_memaccess_old_sigbus);
-#endif
-  }
-  gum_memaccess_instances =
-      g_slist_prepend (gum_memaccess_instances, self);
-  G_UNLOCK (gum_memaccess);
-
-#ifdef G_OS_WIN32
-  gum_win_exception_hook_add (gum_bounds_checker_on_exception, self);
-#endif
+  gum_exceptor_add (priv->exceptor, gum_bounds_checker_on_exception, self);
 }
 
 static void
@@ -186,25 +145,9 @@ gum_bounds_checker_dispose (GObject * object)
 
     gum_bounds_checker_detach (self);
 
-#ifdef G_OS_WIN32
-    gum_win_exception_hook_remove (gum_bounds_checker_on_exception, self);
-#endif
-
-    G_LOCK (gum_memaccess);
-    if (--gum_memaccess_refcount == 0)
-    {
-#ifndef G_OS_WIN32
-      sigaction (SIGSEGV, &gum_memaccess_old_sigsegv, NULL);
-      memset (&gum_memaccess_old_sigsegv, 0,
-          sizeof (gum_memaccess_old_sigsegv));
-      sigaction (SIGBUS, &gum_memaccess_old_sigbus, NULL);
-      memset (&gum_memaccess_old_sigbus, 0,
-          sizeof (gum_memaccess_old_sigbus));
-#endif
-    }
-    gum_memaccess_instances =
-        g_slist_remove (gum_memaccess_instances, self);
-    G_UNLOCK (gum_memaccess);
+    gum_exceptor_remove (priv->exceptor, gum_bounds_checker_on_exception, self);
+    g_object_unref (priv->exceptor);
+    priv->exceptor = NULL;
 
     g_object_unref (priv->interceptor);
     priv->interceptor = NULL;
@@ -610,13 +553,25 @@ gum_bounds_checker_try_free (GumBoundsChecker * self,
 }
 
 static gboolean
-gum_bounds_checker_handle_invalid_access (GumBoundsChecker * self,
-                                          gpointer address)
+gum_bounds_checker_on_exception (GumExceptionDetails * details,
+                                 gpointer user_data)
 {
+  GumBoundsChecker * self = GUM_BOUNDS_CHECKER_CAST (user_data);
   GumBoundsCheckerPrivate * priv = self->priv;
+  GumMemoryOperation op;
+  gconstpointer address;
   GumBlockDetails block;
   GString * message;
   GumReturnAddressArray accessed_at = { 0, };
+
+  if (details->type != GUM_EXCEPTION_ACCESS_VIOLATION)
+    return FALSE;
+
+  op = details->memory_access.operation;
+  if (op != GUM_MEMOP_READ && op != GUM_MEMOP_WRITE)
+    return FALSE;
+
+  address = details->memory_access.address;
 
   if (!gum_page_pool_query_block_details (priv->page_pool, address, &block))
     return FALSE;
@@ -712,70 +667,3 @@ gum_bounds_checker_append_backtrace (const GumReturnAddressArray * arr,
     }
   }
 }
-
-#ifdef G_OS_WIN32
-
-static gboolean
-gum_bounds_checker_on_exception (EXCEPTION_RECORD * exception_record,
-                                 CONTEXT * context,
-                                 gpointer user_data)
-{
-  gboolean handled = FALSE;
-  GSList * cur;
-
-  (void) context;
-  (void) user_data;
-
-  if (exception_record->ExceptionCode != STATUS_ACCESS_VIOLATION)
-    return FALSE;
-
-  /* must be a READ or WRITE */
-  if (exception_record->ExceptionInformation[0] > 1)
-    return FALSE;
-
-  for (cur = gum_memaccess_instances; cur != NULL; cur = cur->next)
-  {
-    handled |= gum_bounds_checker_handle_invalid_access (
-        GUM_BOUNDS_CHECKER_CAST (cur->data),
-        (gpointer) exception_record->ExceptionInformation[1]);
-  }
-
-  return handled;
-}
-
-#else
-
-static void
-gum_bounds_checker_on_invalid_access (int sig,
-                                      siginfo_t * siginfo,
-                                      void * context)
-{
-  gboolean handled = FALSE;
-  GSList * cur;
-  struct sigaction * action;
-
-  for (cur = gum_memaccess_instances; cur != NULL; cur = cur->next)
-  {
-    handled |= gum_bounds_checker_handle_invalid_access (
-        GUM_BOUNDS_CHECKER_CAST (cur->data), siginfo->si_addr);
-  }
-
-  if (!handled)
-  {
-    action = (sig == SIGSEGV)
-        ? &gum_memaccess_old_sigsegv
-        : &gum_memaccess_old_sigbus;
-    if ((action->sa_flags & SA_SIGINFO) != 0)
-    {
-      if (action->sa_sigaction != NULL)
-        action->sa_sigaction (sig, siginfo, context);
-    }
-    else
-    {
-      if (action->sa_handler != NULL)
-        action->sa_handler (sig);
-    }
-  }
-}
-
-#endif

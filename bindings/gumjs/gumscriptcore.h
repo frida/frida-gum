@@ -13,10 +13,10 @@
     static_cast<GumCpuContext *> ( \
         (o)->GetInternalField (0).As<External> ()->Value ())
 
-#include "gumexceptor.h"
 #include "gumscript.h"
 #include "gumscriptscheduler.h"
 
+#include <gum/gumexceptor.h>
 #include <v8.h>
 
 typedef struct _GumScriptCore GumScriptCore;

@@ -55,6 +55,7 @@ struct _GumExceptorClass
 enum _GumExceptionType
 {
   GUM_EXCEPTION_ACCESS_VIOLATION,
+  GUM_EXCEPTION_GUARD_VIOLATION,
   GUM_EXCEPTION_ILLEGAL_INSTRUCTION,
   GUM_EXCEPTION_STACK_OVERFLOW,
   GUM_EXCEPTION_ARITHMETIC,
@@ -71,7 +72,7 @@ struct _GumExceptionMemoryAccessDetails
 struct _GumExceptionDetails
 {
   GumExceptionType type;
-  GumAddress address;
+  gpointer address;
   GumExceptionMemoryAccessDetails memory_access;
   GumCpuContext cpu_context;
 };
