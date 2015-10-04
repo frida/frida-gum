@@ -624,7 +624,6 @@ gum_exceptor_attach (GumExceptor * self)
   const gint handled_signals[] = { SIGSEGV, SIGBUS };
   gint highest, i;
   struct sigaction action;
-  GumReplaceReturn replace_ret;
 
   highest = handled_signals[0];
   for (i = 0; i != G_N_ELEMENTS (handled_signals); i++)
@@ -646,12 +645,10 @@ gum_exceptor_attach (GumExceptor * self)
     sigaction (sig, &action, old_handler);
   }
 
-  replace_ret = gum_interceptor_replace_function (priv->interceptor, signal,
+  gum_interceptor_replace_function (priv->interceptor, signal,
       gum_exceptor_replacement_signal, self);
-  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
-  replace_ret = gum_interceptor_replace_function (priv->interceptor, sigaction,
+  gum_interceptor_replace_function (priv->interceptor, sigaction,
       gum_exceptor_replacement_sigaction, self);
-  g_assert_cmpint (replace_ret, ==, GUM_REPLACE_OK);
 }
 
 static void
