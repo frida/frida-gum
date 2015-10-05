@@ -21,6 +21,7 @@
 
 #include <setjmp.h>
 #include <stdlib.h>
+#include <string.h>
 #ifdef G_OS_WIN32
 # include <capstone/capstone.h>
 # include <tchar.h>
@@ -34,7 +35,11 @@ typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 # define GUM_NATIVE_LONGJMP longjmp
   typedef jmp_buf GumExceptorNativeJmpBuf;
 #else
-# define GUM_NATIVE_SETJMP sigsetjmp
+# ifdef sigsetjmp
+#   define GUM_NATIVE_SETJMP __sigsetjmp
+# else
+#   define GUM_NATIVE_SETJMP sigsetjmp
+# endif
 # define GUM_NATIVE_LONGJMP siglongjmp
   typedef sigjmp_buf GumExceptorNativeJmpBuf;
 #endif
@@ -758,7 +763,6 @@ gum_exceptor_replacement_signal (int sig,
                                  sig_t handler)
 {
   GumExceptor * self;
-  GumExceptorPrivate * priv;
   GumInvocationContext * ctx;
   struct sigaction * old_handler;
   sig_t result;
@@ -768,7 +772,6 @@ gum_exceptor_replacement_signal (int sig,
 
   self = GUM_EXCEPTOR_CAST (
       gum_invocation_context_get_replacement_function_data (ctx));
-  priv = self->priv;
 
   old_handler = gum_exceptor_get_old_handler (self, sig);
   if (old_handler == NULL)
@@ -793,7 +796,6 @@ gum_exceptor_replacement_sigaction (int sig,
                                     struct sigaction * oact)
 {
   GumExceptor * self;
-  GumExceptorPrivate * priv;
   GumInvocationContext * ctx;
   struct sigaction * old_handler;
 
@@ -802,7 +804,6 @@ gum_exceptor_replacement_sigaction (int sig,
 
   self = GUM_EXCEPTOR_CAST (
       gum_invocation_context_get_replacement_function_data (ctx));
-  priv = self->priv;
 
   old_handler = gum_exceptor_get_old_handler (self, sig);
   if (old_handler == NULL)
