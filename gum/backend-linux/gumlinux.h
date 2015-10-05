@@ -9,6 +9,8 @@
 
 #include "gumprocess.h"
 
+#include <ucontext.h>
+
 G_BEGIN_DECLS
 
 GUM_API GumCpuType gum_linux_cpu_type_from_file (const gchar * path,

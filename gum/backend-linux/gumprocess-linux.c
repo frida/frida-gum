@@ -23,7 +23,6 @@
 #include <sys/types.h>
 #ifndef HAVE_ANDROID
 # include <link.h>
-# include <ucontext.h>
 #endif
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
