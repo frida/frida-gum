@@ -269,7 +269,7 @@ TESTCASE (cannot_relocate_with_early_br)
   };
 
   g_assert (!gum_arm64_relocator_can_relocate (input, 16, GUM_SCENARIO_OFFLINE,
-      NULL));
+      NULL, NULL));
 }
 
 TESTCASE (eob_and_eoi_on_br)

@@ -37,6 +37,7 @@ struct _GumInterceptorBackend
 struct _GumFunctionContextBackendData
 {
   guint redirect_code_size;
+  arm64_reg scratch_reg;
 };
 
 static void gum_interceptor_backend_create_thunks (
@@ -235,7 +236,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   guint redirect_limit;
 
   if (gum_arm64_relocator_can_relocate (function_address, 16,
-      GUM_SCENARIO_ONLINE, &redirect_limit))
+      GUM_SCENARIO_ONLINE, &redirect_limit, &data->scratch_reg))
   {
     data->redirect_code_size = 16;
 
@@ -274,6 +275,9 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
     if (ctx->trampoline_slice == NULL)
       return FALSE;
   }
+
+  if (data->scratch_reg == ARM64_REG_INVALID)
+    return FALSE;
 
   return TRUE;
 }
@@ -319,8 +323,8 @@ _gum_interceptor_backend_make_monitor_trampoline (GumInterceptorBackend * self,
     GumAddress resume_at;
 
     resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
-    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, resume_at);
-    gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+    gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, resume_at);
+    gum_arm64_writer_put_br_reg (aw, data->scratch_reg);
   }
 
   gum_arm64_writer_flush (aw);
@@ -385,8 +389,8 @@ _gum_interceptor_backend_make_replace_trampoline (GumInterceptorBackend * self,
     GumAddress resume_at;
 
     resume_at = GUM_ADDRESS (function_address) + reloc_bytes;
-    gum_arm64_writer_put_ldr_reg_address (aw, ARM64_REG_X16, resume_at);
-    gum_arm64_writer_put_br_reg (aw, ARM64_REG_X16);
+    gum_arm64_writer_put_ldr_reg_address (aw, data->scratch_reg, resume_at);
+    gum_arm64_writer_put_br_reg (aw, data->scratch_reg);
   }
 
   ctx->on_leave_trampoline = self->replace_leave_thunk;

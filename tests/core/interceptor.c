@@ -310,6 +310,37 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 
     g_assert_cmpint (host, ==, mach_host_self_impl ());
   }
+
+  {
+    gpointer (* xpc_dictionary_create_impl) (const gchar * const * keys,
+        gconstpointer * values, gsize count);
+    gpointer (* xpc_retain_impl) (gpointer object);
+    void (* xpc_release_impl) (gpointer object);
+    gpointer dict;
+
+    xpc_dictionary_create_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_dictionary_create"));
+    xpc_retain_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_retain"));
+    xpc_release_impl = GSIZE_TO_POINTER (
+        gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_release"));
+
+    dict = xpc_dictionary_create_impl (NULL, NULL, 0);
+
+    xpc_retain_impl (dict);
+
+    interceptor_fixture_attach_listener (fixture, 0, xpc_retain_impl, '>', '<');
+
+    xpc_retain_impl (dict);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+
+    xpc_release_impl (dict);
+    xpc_release_impl (dict);
+    xpc_release_impl (dict);
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
 }
 
 static gpointer

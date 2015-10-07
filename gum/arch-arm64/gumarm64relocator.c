@@ -286,7 +286,8 @@ gboolean
 gum_arm64_relocator_can_relocate (gpointer address,
                                   guint min_bytes,
                                   GumRelocationScenario scenario,
-                                  guint * maximum)
+                                  guint * maximum,
+                                  arm64_reg * available_scratch_reg)
 {
   guint n = 0;
   guint8 * buf;
@@ -392,6 +393,40 @@ gum_arm64_relocator_can_relocate (gpointer address,
     cs_free (insn, count);
 
     cs_close (&capstone);
+  }
+
+  if (available_scratch_reg != NULL)
+  {
+    gboolean x16_used, x17_used;
+    guint insn_index;
+
+    x16_used = FALSE;
+    x17_used = FALSE;
+
+    for (insn_index = 0; insn_index != n / 4; insn_index++)
+    {
+      const cs_insn * insn = rl.input_insns[insn_index];
+      const cs_arm64 * info = &insn->detail->arm64;
+      uint8_t op_index;
+
+      for (op_index = 0; op_index != info->op_count; op_index++)
+      {
+        const cs_arm64_op * op = &info->operands[op_index];
+
+        if (op->type == ARM64_OP_REG)
+        {
+          x16_used |= op->reg == ARM64_REG_X16;
+          x17_used |= op->reg == ARM64_REG_X17;
+        }
+      }
+    }
+
+    if (!x16_used)
+      *available_scratch_reg = ARM64_REG_X16;
+    else if (!x17_used)
+      *available_scratch_reg = ARM64_REG_X17;
+    else
+      *available_scratch_reg = ARM64_REG_INVALID;
   }
 
   gum_arm64_relocator_free (&rl);
