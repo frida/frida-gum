@@ -92,6 +92,7 @@ GUM_API void gum_script_post_debug_message (const gchar * message);
 
 GUM_API void gum_script_ignore (GumThreadId thread_id);
 GUM_API void gum_script_unignore (GumThreadId thread_id);
+GUM_API void gum_script_unignore_later (GumThreadId thread_id);
 GUM_API gboolean gum_script_is_ignoring (GumThreadId thread_id);
 
 G_END_DECLS

@@ -6,6 +6,7 @@
 
 #include "gumscriptinterceptor.h"
 
+#include "gumscript-priv.h"
 #include "gumscriptscope.h"
 
 #include <gum/gum-init.h>
@@ -44,6 +45,10 @@ struct _GumScriptReplaceEntry
   gpointer target;
   GumPersistent<Value>::type * replacement;
 };
+
+static void gum_script_interceptor_adjust_ignore_level_unlocked (
+    GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
+static gboolean gum_flush_pending_unignores (gpointer user_data);
 
 static Local<Object> gum_script_interceptor_create_invocation_context_object (
     GumScriptInterceptor * self, GumInvocationContext * context, int32_t depth);
@@ -85,12 +90,23 @@ static void gum_script_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
 
 static GHashTable * gum_ignored_threads = NULL;
+static GSList * gum_pending_unignores = NULL;
+static GSource * gum_pending_timeout = NULL;
 static GumInterceptor * gum_interceptor_instance = NULL;
 static GRWLock gum_ignored_lock;
 
 static void
 gum_ignored_threads_deinit (void)
 {
+  if (gum_pending_timeout != NULL)
+  {
+    g_source_destroy (gum_pending_timeout);
+    g_source_unref (gum_pending_timeout);
+    gum_pending_timeout = NULL;
+  }
+  g_slist_free (gum_pending_unignores);
+  gum_pending_unignores = NULL;
+
   g_object_unref (gum_interceptor_instance);
   gum_interceptor_instance = NULL;
 
@@ -103,13 +119,29 @@ gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
                                             gint adjustment)
 {
   GumInterceptor * interceptor;
-  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
-  gint level;
 
   interceptor = gum_interceptor_obtain ();
 
   gum_interceptor_ignore_current_thread (interceptor);
   g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  gum_script_interceptor_adjust_ignore_level_unlocked (thread_id, adjustment,
+      interceptor);
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  g_object_unref (interceptor);
+}
+
+static void
+gum_script_interceptor_adjust_ignore_level_unlocked (
+    GumThreadId thread_id,
+    gint adjustment,
+    GumInterceptor * interceptor)
+{
+  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
+  gint level;
 
   if (G_UNLIKELY (gum_ignored_threads == NULL))
   {
@@ -134,11 +166,6 @@ gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
   {
     g_hash_table_remove (gum_ignored_threads, thread_id_ptr);
   }
-
-  g_rw_lock_writer_unlock (&gum_ignored_lock);
-  gum_interceptor_unignore_current_thread (interceptor);
-
-  g_object_unref (interceptor);
 }
 
 void
@@ -151,6 +178,75 @@ void
 gum_script_unignore (GumThreadId thread_id)
 {
   gum_script_interceptor_adjust_ignore_level (thread_id, -1);
+}
+
+void
+gum_script_unignore_later (GumThreadId thread_id)
+{
+  GumInterceptor * interceptor;
+  GMainContext * main_context;
+  GSource * source;
+
+  interceptor = gum_interceptor_obtain ();
+
+  gum_interceptor_ignore_current_thread (interceptor);
+  main_context = gum_script_scheduler_get_v8_context (
+      gum_script_get_platform ()->GetScheduler ());
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  gum_pending_unignores = g_slist_prepend (gum_pending_unignores,
+      GSIZE_TO_POINTER (thread_id));
+
+  if (gum_pending_timeout != NULL)
+  {
+    g_source_destroy (gum_pending_timeout);
+    g_source_unref (gum_pending_timeout);
+  }
+  source = g_timeout_source_new_seconds (5);
+  g_source_set_callback (source, gum_flush_pending_unignores, source, NULL);
+  g_source_attach (source, main_context);
+  gum_pending_timeout = source;
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  g_object_unref (interceptor);
+}
+
+static gboolean
+gum_flush_pending_unignores (gpointer user_data)
+{
+  GSource * source = (GSource *) user_data;
+  GumInterceptor * interceptor;
+
+  interceptor = gum_interceptor_obtain ();
+
+  gum_interceptor_ignore_current_thread (interceptor);
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  if (gum_pending_timeout == source)
+  {
+    g_source_unref (gum_pending_timeout);
+    gum_pending_timeout = NULL;
+  }
+
+  while (gum_pending_unignores != NULL)
+  {
+    GumThreadId thread_id;
+
+    thread_id = GPOINTER_TO_SIZE (gum_pending_unignores->data);
+    gum_pending_unignores = g_slist_delete_link (gum_pending_unignores,
+        gum_pending_unignores);
+    gum_script_interceptor_adjust_ignore_level_unlocked (thread_id, -1,
+        interceptor);
+  }
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  g_object_unref (interceptor);
+
+  return FALSE;
 }
 
 gboolean

@@ -55,6 +55,8 @@ struct _GumScriptPrivate
   GDestroyNotify message_handler_data_destroy;
 };
 
+G_GNUC_INTERNAL GumScriptPlatform * gum_script_get_platform (void);
+
 G_END_DECLS
 
 #endif

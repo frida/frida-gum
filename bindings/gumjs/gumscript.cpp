@@ -114,7 +114,7 @@ static GDestroyNotify gum_debug_handler_data_destroy = NULL;
 static GMainContext * gum_debug_handler_context = NULL;
 static GumPersistent<Context>::type * gum_debug_context = nullptr;
 
-static GumScriptPlatform *
+GumScriptPlatform *
 gum_script_get_platform (void)
 {
   static GOnce init_once = G_ONCE_INIT;
