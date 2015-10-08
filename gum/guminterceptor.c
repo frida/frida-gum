@@ -819,19 +819,19 @@ _gum_function_context_on_enter (GumFunctionContext * function_ctx,
   system_error = errno;
 #endif
 
-  if (G_UNLIKELY (priv->selected_thread_id != 0))
+  if (priv->selected_thread_id != 0)
   {
     invoke_listeners =
         gum_process_get_current_thread_id () == priv->selected_thread_id;
   }
 
-  if (G_LIKELY (invoke_listeners))
+  if (invoke_listeners)
   {
     interceptor_ctx = get_interceptor_thread_context ();
     invoke_listeners = (interceptor_ctx->ignore_level == 0);
   }
 
-  if (G_LIKELY (invoke_listeners))
+  if (invoke_listeners)
   {
     GumInvocationStackEntry * stack_entry;
     GumInvocationContext * invocation_ctx;
