@@ -85,11 +85,15 @@ static void gum_script_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
 
 static GHashTable * gum_ignored_threads = NULL;
-G_LOCK_DEFINE_STATIC (gum_ignored_threads);
+static GumInterceptor * gum_interceptor_instance = NULL;
+static GRWLock gum_ignored_lock;
 
 static void
 gum_ignored_threads_deinit (void)
 {
+  g_object_unref (gum_interceptor_instance);
+  gum_interceptor_instance = NULL;
+
   g_hash_table_unref (gum_ignored_threads);
   gum_ignored_threads = NULL;
 }
@@ -98,14 +102,22 @@ static void
 gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
                                             gint adjustment)
 {
+  GumInterceptor * interceptor;
   gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
   gint level;
 
-  G_LOCK (gum_ignored_threads);
+  interceptor = gum_interceptor_obtain ();
+
+  gum_interceptor_ignore_current_thread (interceptor);
+  g_rw_lock_writer_lock (&gum_ignored_lock);
 
   if (G_UNLIKELY (gum_ignored_threads == NULL))
   {
     gum_ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+
+    gum_interceptor_instance = interceptor;
+    g_object_ref (interceptor);
+
     _gum_register_destructor (gum_ignored_threads_deinit);
   }
 
@@ -123,7 +135,10 @@ gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
     g_hash_table_remove (gum_ignored_threads, thread_id_ptr);
   }
 
-  G_UNLOCK (gum_ignored_threads);
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  g_object_unref (interceptor);
 }
 
 void
@@ -143,12 +158,12 @@ gum_script_is_ignoring (GumThreadId thread_id)
 {
   gboolean is_ignored;
 
-  G_LOCK (gum_ignored_threads);
+  g_rw_lock_reader_lock (&gum_ignored_lock);
 
   is_ignored = gum_ignored_threads != NULL &&
       g_hash_table_contains (gum_ignored_threads, GSIZE_TO_POINTER (thread_id));
 
-  G_UNLOCK (gum_ignored_threads);
+  g_rw_lock_reader_unlock (&gum_ignored_lock);
 
   return is_ignored;
 }
