@@ -121,16 +121,14 @@ gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
   GumInterceptor * interceptor;
 
   interceptor = gum_interceptor_obtain ();
-
   gum_interceptor_ignore_current_thread (interceptor);
-  g_rw_lock_writer_lock (&gum_ignored_lock);
 
+  g_rw_lock_writer_lock (&gum_ignored_lock);
   gum_script_interceptor_adjust_ignore_level_unlocked (thread_id, adjustment,
       interceptor);
-
   g_rw_lock_writer_unlock (&gum_ignored_lock);
-  gum_interceptor_unignore_current_thread (interceptor);
 
+  gum_interceptor_unignore_current_thread (interceptor);
   g_object_unref (interceptor);
 }
 
@@ -183,33 +181,51 @@ gum_script_unignore (GumThreadId thread_id)
 void
 gum_script_unignore_later (GumThreadId thread_id)
 {
-  GumInterceptor * interceptor;
   GMainContext * main_context;
+  GumInterceptor * interceptor;
   GSource * source;
 
-  interceptor = gum_interceptor_obtain ();
-
-  gum_interceptor_ignore_current_thread (interceptor);
   main_context = gum_script_scheduler_get_v8_context (
       gum_script_get_platform ()->GetScheduler ());
+
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+
   g_rw_lock_writer_lock (&gum_ignored_lock);
 
   gum_pending_unignores = g_slist_prepend (gum_pending_unignores,
       GSIZE_TO_POINTER (thread_id));
+  source = gum_pending_timeout;
+  gum_pending_timeout = NULL;
 
-  if (gum_pending_timeout != NULL)
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+
+  if (source != NULL)
   {
-    g_source_destroy (gum_pending_timeout);
-    g_source_unref (gum_pending_timeout);
+    g_source_destroy (source);
+    g_source_unref (source);
   }
   source = g_timeout_source_new_seconds (5);
   g_source_set_callback (source, gum_flush_pending_unignores, source, NULL);
   g_source_attach (source, main_context);
-  gum_pending_timeout = source;
+
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  if (gum_pending_timeout == NULL)
+  {
+    gum_pending_timeout = source;
+    source = NULL;
+  }
 
   g_rw_lock_writer_unlock (&gum_ignored_lock);
-  gum_interceptor_unignore_current_thread (interceptor);
 
+  if (source != NULL)
+  {
+    g_source_destroy (source);
+    g_source_unref (source);
+  }
+
+  gum_interceptor_unignore_current_thread (interceptor);
   g_object_unref (interceptor);
 }
 
@@ -220,8 +236,8 @@ gum_flush_pending_unignores (gpointer user_data)
   GumInterceptor * interceptor;
 
   interceptor = gum_interceptor_obtain ();
-
   gum_interceptor_ignore_current_thread (interceptor);
+
   g_rw_lock_writer_lock (&gum_ignored_lock);
 
   if (gum_pending_timeout == source)
@@ -242,8 +258,8 @@ gum_flush_pending_unignores (gpointer user_data)
   }
 
   g_rw_lock_writer_unlock (&gum_ignored_lock);
-  gum_interceptor_unignore_current_thread (interceptor);
 
+  gum_interceptor_unignore_current_thread (interceptor);
   g_object_unref (interceptor);
 
   return FALSE;
