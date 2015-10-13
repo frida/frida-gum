@@ -15,7 +15,7 @@
 #include <unistd.h>
 
 #define GUM_ARM64_LOGICAL_PAGE_SIZE 4096
-#define GUM_ARM64_B_MAX_DISTANCE    0x00fffffff
+#define GUM_ARM64_B_MAX_DISTANCE    0x007ffffff
 #define GUM_ARM64_ADRP_MAX_DISTANCE 0x1fffff000
 
 typedef struct _GumFunctionContextBackendData GumFunctionContextBackendData;
