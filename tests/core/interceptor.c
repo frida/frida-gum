@@ -56,6 +56,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (already_replaced)
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
+  INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
 #endif
 TEST_LIST_END ()
 
@@ -804,6 +805,31 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_assert_cmpint (free_counter, ==, 1);
 
   g_free (ret);
+}
+
+INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
+{
+  guint target_counter = 0;
+
+  g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
+      target_function, replacement_target_function, &target_counter),
+      ==, GUM_REPLACE_OK);
+  interceptor_fixture_attach_listener (fixture, 0, target_function, '>', '<');
+  target_function (fixture->result);
+  g_assert_cmpstr (fixture->result->str, ==, ">/|\\<");
+  gum_interceptor_revert_function (fixture->interceptor, target_function);
+}
+
+static gpointer
+replacement_target_function (GString * str)
+{
+  gpointer result;
+
+  g_string_append_c (str, '/');
+  result = target_function (str);
+  g_string_append_c (str, '\\');
+
+  return result;
 }
 
 INTERCEPTOR_TESTCASE (i_can_has_replaceability)
