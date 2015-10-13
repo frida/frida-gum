@@ -293,6 +293,18 @@ gum_exceptor_handle (GumExceptor * self,
   return handled;
 }
 
+#ifndef G_OS_WIN32
+
+static void
+gum_exceptor_abort (GumExceptor * self,
+                    GumExceptionDetails * details)
+{
+  /* TODO: should we create a backtrace and log it? */
+  abort ();
+}
+
+#endif
+
 GumExceptorSetJmp
 _gum_exceptor_get_setjmp (void)
 {
@@ -830,7 +842,7 @@ gum_exceptor_on_signal (int sig,
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
-  struct sigaction * action;
+  struct sigaction * action = priv->old_handlers[sig];
 
   switch (sig)
   {
@@ -882,13 +894,15 @@ gum_exceptor_on_signal (int sig,
       break;
   }
 
+  if (action == NULL)
+    gum_exceptor_abort (self, &ed);
+
   if (gum_exceptor_handle (self, &ed))
   {
     gum_exceptor_unparse_context (cpu_context, context);
     return;
   }
 
-  action = priv->old_handlers[sig];
   if ((action->sa_flags & SA_SIGINFO) != 0)
   {
     if (action->sa_sigaction != NULL)
