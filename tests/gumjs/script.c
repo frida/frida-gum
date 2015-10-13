@@ -346,7 +346,6 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
       "}",
       target_function_string);
   EXPECT_SEND_MESSAGE_WITH ("\"access-violation\"");
-  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
