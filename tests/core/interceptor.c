@@ -119,6 +119,12 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 {
   int ret;
 
+  if (!gum_query_is_rwx_supported ())
+  {
+    g_print ("<skipping, kernel does not support rwx pages> ");
+    return;
+  }
+
   {
     int * (* error_impl) (void);
 
