@@ -12,6 +12,7 @@
 #include "gumleb.h"
 
 #include <dlfcn.h>
+#include <stdlib.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
 #include <mach-o/nlist.h>
@@ -559,6 +560,34 @@ gum_module_find_export_by_name (const gchar * module_name,
     dlclose (module);
 
   return result;
+}
+
+gboolean
+gum_darwin_is_ios9_or_newer (void)
+{
+#ifdef HAVE_IOS
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    char buf[256];
+    size_t size;
+    int res;
+    gboolean ios9_or_newer;
+
+    size = sizeof (buf);
+    res = sysctlbyname ("kern.osrelease", buf, &size, NULL, 0);
+    g_assert_cmpint (res, ==, 0);
+
+    ios9_or_newer = atoi (buf) >= 15;
+
+    g_once_init_leave (&cached_result, ios9_or_newer + 1);
+  }
+
+  return cached_result - 1;
+#else
+  return FALSE;
+#endif
 }
 
 gboolean

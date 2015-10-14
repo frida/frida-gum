@@ -46,6 +46,8 @@ typedef arm_thread_state64_t GumDarwinNativeThreadState;
 
 G_BEGIN_DECLS
 
+GUM_API gboolean gum_darwin_is_ios9_or_newer (void);
+
 GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
     gsize len, gsize * n_bytes_read);
 GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,

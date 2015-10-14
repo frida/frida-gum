@@ -9,7 +9,6 @@
 #include "gumdarwin.h"
 #include "gummemory-priv.h"
 
-#include <stdlib.h>
 #include <unistd.h>
 #include <libkern/OSCacheControl.h>
 #include <mach/mach.h>
@@ -61,19 +60,11 @@ gum_darwin_query_page_size (mach_port_t task,
       break;
     case GUM_CPU_ARM:
     {
-      gboolean ios9_or_newer;
-      char buf[256];
-      size_t size;
-      int res;
-
-      size = sizeof (buf);
-      res = sysctlbyname ("kern.osrelease", buf, &size, NULL, 0);
-      g_assert_cmpint (res, ==, 0);
-
-      ios9_or_newer = atoi (buf) >= 15;
-
-      if (ios9_or_newer)
+      if (gum_darwin_is_ios9_or_newer ())
       {
+        char buf[256];
+        size_t size;
+        int res;
         guint64 hw_page_size;
 
         size = sizeof (buf);
