@@ -60,6 +60,7 @@ struct _GumEnumerateExportsContext
 
   GumModuleResolver * resolver;
   GumDarwinModule * module;
+  gboolean carry_on;
 };
 
 struct _GumFindEntrypointContext
@@ -1293,8 +1294,30 @@ gum_darwin_enumerate_exports (mach_port_t task,
   gum_module_resolver_open (&resolver, task);
   ctx.resolver = &resolver;
   ctx.module = gum_module_resolver_find_module (ctx.resolver, module_name);
+  ctx.carry_on = TRUE;
   if (ctx.module != NULL)
+  {
     gum_darwin_module_enumerate_exports (ctx.module, gum_emit_export, &ctx);
+
+    if (gum_darwin_is_ios9_or_newer ())
+    {
+      GPtrArray * reexports = ctx.module->reexports;
+      guint i;
+
+      for (i = 0; ctx.carry_on && i != reexports->len; i++)
+      {
+        GumDarwinModule * reexport;
+
+        reexport = gum_module_resolver_find_module (&resolver,
+            g_ptr_array_index (reexports, i));
+        if (reexport != NULL)
+        {
+          ctx.module = reexport;
+          gum_darwin_module_enumerate_exports (reexport, gum_emit_export, &ctx);
+        }
+      }
+    }
+  }
 
   gum_module_resolver_close (&resolver);
 }
@@ -1312,7 +1335,9 @@ gum_emit_export (const GumDarwinSymbolDetails * details,
     return TRUE;
   }
 
-  return ctx->func (&export, ctx->user_data);
+  ctx->carry_on = ctx->func (&export, ctx->user_data);
+
+  return ctx->carry_on;
 }
 
 gboolean
