@@ -1545,7 +1545,7 @@ gum_module_resolver_find_export (GumModuleResolver * self,
   {
     m = module;
   }
-  else
+  else if (gum_darwin_is_ios9_or_newer ())
   {
     GPtrArray * reexports = module->reexports;
     guint i;
@@ -1566,6 +1566,10 @@ gum_module_resolver_find_export (GumModuleResolver * self,
 
     if (!found)
       return FALSE;
+  }
+  else
+  {
+    return FALSE;
   }
 
   return gum_module_resolver_resolve_export (self, m, &d, details);
