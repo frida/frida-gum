@@ -202,6 +202,7 @@ gum_darwin_module_new (const gchar * name,
 
   module->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
   module->dependencies = g_ptr_array_sized_new (5);
+  module->reexports = g_ptr_array_sized_new (5);
 
   return module;
 }
@@ -219,6 +220,7 @@ gum_darwin_module_unref (GumDarwinModule * self)
   if (--self->ref_count == 0)
   {
     g_ptr_array_unref (self->dependencies);
+    g_ptr_array_unref (self->reexports);
 
     g_free (self->rebases_malloc_data);
     g_free (self->binds_malloc_data);
@@ -1098,6 +1100,9 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
         name = command + dc->dylib.name.offset;
         g_ptr_array_add (self->dependencies, (gpointer) name);
+
+        if (lc->cmd == LC_REEXPORT_DYLIB)
+          g_ptr_array_add (self->reexports, (gpointer) name);
 
         break;
       }

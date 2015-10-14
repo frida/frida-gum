@@ -80,6 +80,7 @@ struct _GumDarwinModule
   gpointer exports_malloc_data;
 
   GPtrArray * dependencies;
+  GPtrArray * reexports;
 };
 
 struct _GumDarwinModuleImage
