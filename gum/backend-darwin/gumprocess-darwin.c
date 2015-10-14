@@ -1482,12 +1482,39 @@ gum_module_resolver_find_export (GumModuleResolver * self,
                                  const gchar * symbol,
                                  GumExportDetails * details)
 {
+  GumDarwinModule * m;
   GumDarwinSymbolDetails d;
+  gboolean found;
 
-  if (!gum_darwin_module_resolve (module, symbol, &d))
-    return FALSE;
+  found = gum_darwin_module_resolve (module, symbol, &d);
+  if (found)
+  {
+    m = module;
+  }
+  else
+  {
+    GPtrArray * reexports = module->reexports;
+    guint i;
 
-  return gum_module_resolver_resolve_export (self, module, &d, details);
+    for (i = 0; !found && i != reexports->len; i++)
+    {
+      GumDarwinModule * reexport;
+
+      reexport = gum_module_resolver_find_module (self,
+          g_ptr_array_index (reexports, i));
+      if (reexport != NULL)
+      {
+        found = gum_darwin_module_resolve (reexport, symbol, &d);
+        if (found)
+          m = reexport;
+      }
+    }
+
+    if (!found)
+      return FALSE;
+  }
+
+  return gum_module_resolver_resolve_export (self, m, &d, details);
 }
 
 static gboolean
