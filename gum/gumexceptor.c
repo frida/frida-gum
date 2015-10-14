@@ -390,7 +390,8 @@ gum_exception_details_to_string (const GumExceptionDetails * details)
 
   if (details->memory.operation != GUM_MEMOP_INVALID)
   {
-    g_string_append_printf (message, " accessing %p", details->memory.address);
+    g_string_append_printf (message, " accessing 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (details->memory.address));
   }
 
   return g_string_free (message, FALSE);
