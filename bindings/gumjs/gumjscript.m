@@ -8,7 +8,7 @@
 
 #include "guminvocationlistener.h"
 
-@import JavaScriptCore;
+#import <JavaScriptCore/JavaScriptCore.h>
 
 typedef struct _GumScriptEmitMessageData GumScriptEmitMessageData;
 
@@ -30,7 +30,7 @@ struct _GumScriptPrivate
 
   JSVirtualMachine * vm;
   JSContext * context;
-  BOOL loaded;
+  gboolean loaded;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
@@ -126,7 +126,7 @@ gum_script_init (GumScript * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
-  priv->loaded = NO;
+  priv->loaded = FALSE;
 
   priv->stalker = gum_stalker_new ();
 }
@@ -221,18 +221,58 @@ gum_script_set_property (GObject * object,
   }
 }
 
-static BOOL
+static gboolean
 gum_script_create_context (GumScript * self,
                            GError ** error)
 {
   GumScriptPrivate * priv = self->priv;
 
-  g_assert (priv->context == NULL);
+  g_assert (priv->context == nil);
 
-  priv->vm = [JSVirtualMachine new];
-  priv->context = [[JSContext alloc] initWithVirtualMachine:priv->vm];
+  @autoreleasepool
+  {
+    priv->vm = [JSVirtualMachine new];
+    priv->context = [[JSContext alloc] initWithVirtualMachine:priv->vm];
 
-  return YES;
+    JSStringRef source = JSStringCreateWithUTF8CString (priv->source);
+
+    gchar * url_str = g_strconcat (priv->name, ".js", NULL);
+    JSStringRef url = JSStringCreateWithUTF8CString (url_str);
+    g_free (url_str);
+
+    JSValueRef ex;
+    bool valid = JSCheckScriptSyntax (priv->context.JSGlobalContextRef, source,
+        url, 1, &ex);
+
+    JSStringRelease (url);
+    JSStringRelease (source);
+
+    if (valid)
+    {
+      [priv->context setExceptionHandler:^(JSContext * context, JSValue * value) {
+        NSLog (@"%@", value);
+      }];
+    }
+    else
+    {
+      JSValue * exception = [JSValue valueWithJSValueRef:ex
+                                               inContext:priv->context];
+      NSDictionary * properties = [exception toObject];
+      NSNumber * line = [properties objectForKey:@"line"];
+      g_set_error (error,
+          G_IO_ERROR,
+          G_IO_ERROR_FAILED,
+          "Script(line %d): %s",
+          [line intValue],
+          [exception toString].UTF8String);
+
+      gum_script_destroy_context (self);
+
+      return FALSE;
+    }
+  }
+
+  return TRUE;
 }
 
 static void
@@ -240,7 +280,15 @@ gum_script_destroy_context (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
 
-  priv->loaded = NO;
+  g_assert (priv->context != nil);
+
+  [priv->context release];
+  priv->context = nil;
+
+  [priv->vm release];
+  priv->vm = nil;
+
+  priv->loaded = FALSE;
 }
 
 void
@@ -350,7 +398,7 @@ gum_script_do_emit_message (GumScriptEmitMessageData * d)
         priv->message_handler_data);
   }
 
-  return NO;
+  return FALSE;
 }
 
 static void
@@ -392,7 +440,29 @@ gum_script_load_sync (GumScript * self,
 {
   GumScriptPrivate * priv = self->priv;
 
-  priv->loaded = YES;
+  if (priv->context == nil)
+  {
+    gboolean created;
+
+    created = gum_script_create_context (self, NULL);
+    g_assert (created);
+  }
+
+  if (!priv->loaded)
+  {
+    priv->loaded = TRUE;
+
+    @autoreleasepool
+    {
+      NSString * source = [NSString stringWithUTF8String:priv->source];
+      NSString * filename = [[NSString stringWithUTF8String:priv->name]
+                                    stringByAppendingString:@".js"];
+      NSURL * url = [NSURL URLWithString:
+          [@"file:///" stringByAppendingString:filename]];
+      [priv->context evaluateScript:source
+                      withSourceURL:url];
+    }
+  }
 }
 
 void
@@ -424,7 +494,12 @@ gum_script_unload_sync (GumScript * self,
 {
   GumScriptPrivate * priv = self->priv;
 
-  priv->loaded = NO;
+  if (priv->loaded)
+  {
+    priv->loaded = FALSE;
+
+    gum_script_destroy_context (self);
+  }
 }
 
 void

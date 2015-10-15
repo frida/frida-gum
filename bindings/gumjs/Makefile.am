@@ -82,8 +82,7 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscript.m \
 	$(NULL)
 libfrida_gumjsc_la_OBJCFLAGS = \
-	$(GUMJSC_CFLAGS) \
-	-fmodules
+	$(GUMJSC_CFLAGS)
 libfrida_gumjsc_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 

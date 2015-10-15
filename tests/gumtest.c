@@ -165,20 +165,16 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (profiler);
 #endif
 
-  /* V8 requires support for rwx pages */
-  if (gum_query_is_rwx_supported ())
-  {
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
-    /* GumJS */
-    TEST_RUN_LIST (script);
+  /* GumJS */
+  TEST_RUN_LIST (script);
 # ifdef HAVE_DARWIN
-    TEST_RUN_LIST (script_darwin);
+  TEST_RUN_LIST (script_darwin);
 # endif
 #endif
 #ifdef HAVE_IOS
-    TEST_RUN_LIST (kscript);
+  TEST_RUN_LIST (kscript);
 #endif
-  }
 
 #ifdef G_OS_WIN32
   /* Gum++ */

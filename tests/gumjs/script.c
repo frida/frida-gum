@@ -1156,8 +1156,7 @@ SCRIPT_TESTCASE (invalid_script_should_return_null)
   g_assert (gum_script_from_string_sync ("testcase", "'",
       GUM_SCRIPT_FLAVOR_USER, NULL, &err) == NULL);
   g_assert (err != NULL);
-  g_assert_cmpstr (err->message, ==,
-      "Script(line 1): SyntaxError: Unexpected token ILLEGAL");
+  g_assert (g_str_has_prefix (err->message, "Script(line 1): SyntaxError: "));
 }
 
 SCRIPT_TESTCASE (array_buffer_can_be_created)
