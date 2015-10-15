@@ -57,8 +57,37 @@ libfrida_gumjs_la_SOURCES = \
 	gumscriptsymbol.cpp \
 	gumscriptinstruction.h \
 	gumscriptinstruction.cpp
+libfrida_gumjs_la_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
+	$(GUMJS_CFLAGS)
 libfrida_gumjs_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
+
+if OS_DARWIN
+
+lib_LTLIBRARIES += libfrida-gumjsc-1.0.la
+noinst_LTLIBRARIES += libfrida-gumjsc.la
+
+libfrida_gumjsc_1_0_la_SOURCES = $(NULL)
+libfrida_gumjsc_1_0_la_LDFLAGS = \
+	-export-symbols-regex "^gum_.*" \
+	$(GUMJSC_LDFLAGS)
+libfrida_gumjsc_1_0_la_LIBADD = \
+	libfrida-gumjsc.la \
+	$(GUMJSC_LIBS)
+libfrida_gumjsc_1_0_la_LIBTOOLFLAGS = \
+	--tag=disable-shared
+
+libfrida_gumjsc_la_SOURCES = \
+	gumjscript.m \
+	$(NULL)
+libfrida_gumjsc_la_OBJCFLAGS = \
+	$(GUMJSC_CFLAGS) \
+	-fmodules
+libfrida_gumjsc_la_LIBTOOLFLAGS = \
+	--tag=disable-shared
+
+endif
 
 script_runtime_sources = \
 	gumscript-runtime-core.js \
@@ -76,5 +105,4 @@ AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"Frida\" \
 	-include config.h \
 	-I $(top_srcdir) \
-	-I $(top_srcdir)/gum \
-	$(GUMJS_CFLAGS)
+	-I $(top_srcdir)/gum
