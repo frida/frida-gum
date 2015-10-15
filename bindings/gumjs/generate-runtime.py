@@ -2,9 +2,11 @@
 
 import codecs
 import os
+import platform
+import subprocess
 import sys
 
-def generate_runtime(output_dir, output, input_dir, inputs):
+def generate_runtime_v8(output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
 #include "gumscriptbundle.h"
@@ -20,6 +22,39 @@ static const {entry_type} {entries_identifier}[] =
     {{
 """.format(filename=input_name))
             with codecs.open(os.path.join(input_dir, input_name), 'rb', 'utf-8') as input_file:
+                write_code(input_file.read(), output_file)
+            output_file.write("      NULL\n    }\n  },\n")
+
+        output_file.write("\n  { NULL, { NULL } }\n};")
+
+def generate_runtime_jsc(output_dir, output, input_dir, inputs):
+    with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
+        output_file.write("""\
+#import "gumjscriptbundle.h"
+
+static const {entry_type} {entries_identifier}[] =
+{{""".format(entry_type="GumScriptSource",
+            entries_identifier=underscorify(output) + "_sources"))
+
+        for input_name_es6 in inputs:
+            input_path_es6 = os.path.join(input_dir, input_name_es6)
+
+            base, ext = os.path.splitext(input_name_es6)
+            input_name_es5 = base + "-es5" + ext
+            input_path_es5 = os.path.join(output_dir, input_name_es5)
+
+            try:
+                subprocess.call(["babel", input_path_es6, "-o", input_path_es5])
+            except:
+                print("Please install babel: npm install -g babel", file=sys.stderr)
+                sys.exit(1)
+
+            output_file.write("""
+  {{
+    "{filename}",
+    {{
+""".format(filename=input_name_es5))
+            with codecs.open(input_path_es5, 'rb', 'utf-8') as input_file:
                 write_code(input_file.read(), output_file)
             output_file.write("      NULL\n    }\n  },\n")
 
@@ -74,13 +109,16 @@ if __name__ == '__main__':
     input_dir = sys.argv[1]
     output_dir = sys.argv[2]
 
-    generate_runtime(output_dir, "gumscript-runtime.h", input_dir, [
+    modules = [
         "gumscript-runtime-core.js",
         "gumscript-runtime-source-map.js",
         "gumscript-runtime-java.js",
         "gumscript-runtime-objc.js",
-    ])
+    ]
+    generate_runtime_v8(output_dir, "gumscript-runtime.h", input_dir, modules)
+    if platform.system() == 'Darwin':
+        generate_runtime_jsc(output_dir, "gumjscript-runtime.h", input_dir, modules)
 
-    generate_runtime(output_dir, "gumscript-debug.h", input_dir, [
+    generate_runtime_v8(output_dir, "gumscript-debug.h", input_dir, [
         "gumscript-debug.js",
     ])

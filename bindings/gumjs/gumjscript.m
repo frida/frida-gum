@@ -7,6 +7,7 @@
 #include "gumscript.h"
 
 #include "guminvocationlistener.h"
+#import "gumjscript-runtime.h"
 
 #import <JavaScriptCore/JavaScriptCore.h>
 
@@ -249,7 +250,8 @@ gum_script_create_context (GumScript * self,
 
     if (valid)
     {
-      [priv->context setExceptionHandler:^(JSContext * context, JSValue * value) {
+      [priv->context setExceptionHandler:^(JSContext * context, JSValue * value)
+      {
         NSLog (@"%@", value);
       }];
     }
@@ -454,11 +456,16 @@ gum_script_load_sync (GumScript * self,
 
     @autoreleasepool
     {
+      [GumScriptBundle load:gum_jscript_runtime_sources
+                intoContext:priv->context];
+
       NSString * source = [NSString stringWithUTF8String:priv->source];
+
       NSString * filename = [[NSString stringWithUTF8String:priv->name]
                                     stringByAppendingString:@".js"];
       NSURL * url = [NSURL URLWithString:
           [@"file:///" stringByAppendingString:filename]];
+
       [priv->context evaluateScript:source
                       withSourceURL:url];
     }

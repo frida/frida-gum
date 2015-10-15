@@ -80,6 +80,9 @@ libfrida_gumjsc_1_0_la_LIBTOOLFLAGS = \
 
 libfrida_gumjsc_la_SOURCES = \
 	gumjscript.m \
+	gumjscript-runtime.h \
+	gumjscriptbundle.h \
+	gumjscriptbundle.m \
 	$(NULL)
 libfrida_gumjsc_la_OBJCFLAGS = \
 	$(GUMJSC_CFLAGS)
