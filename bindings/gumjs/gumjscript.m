@@ -8,6 +8,7 @@
 
 #include "guminvocationlistener.h"
 #import "gumjscript-runtime.h"
+#import "gumjscriptcore.h"
 
 #import <JavaScriptCore/JavaScriptCore.h>
 
@@ -31,6 +32,7 @@ struct _GumScriptPrivate
 
   JSVirtualMachine * vm;
   JSContext * context;
+  GumScriptCore * core;
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
@@ -235,6 +237,15 @@ gum_script_create_context (GumScript * self,
     priv->vm = [JSVirtualMachine new];
     priv->context = [[JSContext alloc] initWithVirtualMachine:priv->vm];
 
+    [priv->context setExceptionHandler:^(JSContext * context, JSValue * value)
+    {
+      NSLog (@"%@", value);
+    }];
+
+    priv->core = [[GumScriptCore alloc] initWithScript:self
+                                               emitter:gum_script_emit_message
+                                               context:priv->context];
+
     JSStringRef source = JSStringCreateWithUTF8CString (priv->source);
 
     gchar * url_str = g_strconcat (priv->name, ".js", NULL);
@@ -248,14 +259,7 @@ gum_script_create_context (GumScript * self,
     JSStringRelease (url);
     JSStringRelease (source);
 
-    if (valid)
-    {
-      [priv->context setExceptionHandler:^(JSContext * context, JSValue * value)
-      {
-        NSLog (@"%@", value);
-      }];
-    }
-    else
+    if (!valid)
     {
       JSValue * exception = [JSValue valueWithJSValueRef:ex
                                                inContext:priv->context];
@@ -283,6 +287,9 @@ gum_script_destroy_context (GumScript * self)
   GumScriptPrivate * priv = self->priv;
 
   g_assert (priv->context != nil);
+
+  [priv->core release];
+  priv->core = nil;
 
   [priv->context release];
   priv->context = nil;
