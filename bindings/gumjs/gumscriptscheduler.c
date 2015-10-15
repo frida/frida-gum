@@ -211,7 +211,7 @@ gum_script_scheduler_flush_by_tag (GumScriptScheduler * self,
 
 static void
 gum_script_scheduler_on_job_created (GumScriptScheduler * self,
-                                   GumScriptJob * job)
+                                     GumScriptJob * job)
 {
   GumScriptSchedulerPrivate * priv = self->priv;
 
