@@ -9,6 +9,7 @@
 #include "guminvocationlistener.h"
 #include "gumjscript-runtime.h"
 #include "gumjscriptcore.h"
+#include "gumjscriptvalue.h"
 #include "gumscriptscheduler.h"
 #include "gumscripttask.h"
 
@@ -344,8 +345,7 @@ gum_script_create_context (GumScript * self,
 
     message = JSValueToStringCopy (ctx, exception, NULL);
     message_str = _gum_script_string_get (message);
-    line = _gum_script_object_get_uint ((JSObjectRef) exception, "line",
-        ctx);
+    line = _gum_script_object_get_uint (ctx, (JSObjectRef) exception, "line");
 
     g_set_error (error,
         G_IO_ERROR,
@@ -368,8 +368,6 @@ gum_script_create_context (GumScript * self,
 
   _gum_script_core_init (&priv->core, self, gum_script_emit_message,
       gum_script_get_scheduler (), priv->ctx, global);
-
-  _gum_script_core_realize (&priv->core);
 
   gum_script_bundle_load (gum_jscript_runtime_sources, priv->ctx);
 
@@ -622,15 +620,19 @@ gum_script_do_load (GumScriptTask * task,
   if (!priv->loaded)
   {
     JSStringRef source, url;
-    JSValueRef result, exception;
+    GumScriptScope scope;
 
     priv->loaded = TRUE;
 
     source = JSStringCreateWithUTF8CString (priv->source);
     url = gum_script_create_url (self);
 
-    result = JSEvaluateScript (priv->ctx, source,
-        JSContextGetGlobalObject (priv->ctx), url, 1, &exception);
+    _gum_script_scope_enter (&scope, &priv->core);
+
+    JSEvaluateScript (priv->ctx, source, JSContextGetGlobalObject (priv->ctx),
+        url, 1, &scope.exception);
+
+    _gum_script_scope_leave (&scope);
 
     JSStringRelease (url);
     JSStringRelease (source);

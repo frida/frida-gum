@@ -87,6 +87,9 @@ libfrida_gumjsc_la_SOURCES = \
 	gumscriptscheduler.c \
 	gumscripttask.h \
 	gumscripttask.c \
+	gumjscriptvalue.h \
+	gumjscriptvalue.c \
+	gumjscriptmacros.h \
 	gumjscriptcore.h \
 	gumjscriptcore.c \
 	$(NULL)
