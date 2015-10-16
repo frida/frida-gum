@@ -8,6 +8,7 @@
     if (flavor !== 'user')
         return;
 
+    const engine = global;
     let _runtime = null;
     let _api = null;
     const pointerSize = Process.pointerSize;
@@ -75,7 +76,7 @@
 
     const NULL_OBJECT = NULL;
 
-    Object.defineProperty(this, 'Java', {
+    Object.defineProperty(engine, 'Java', {
         enumerable: true,
         get: () => {
             if (_runtime === null)
@@ -84,10 +85,10 @@
         }
     });
 
-    Object.defineProperty(this, 'Dalvik', {
+    Object.defineProperty(engine, 'Dalvik', {
         enumerable: true,
         get: () => {
-            return this.Java;
+            return engine.Java;
         }
     });
 
@@ -3115,4 +3116,4 @@
     function basename(className) {
         return className.slice(className.lastIndexOf(".") + 1);
     }
-}).call(this);
+})();

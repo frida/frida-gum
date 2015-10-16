@@ -6,11 +6,12 @@
     if (flavor !== 'user')
         return;
 
+    const engine = global;
     let _runtime = null;
     let _api = null;
     let cachedObjCApi = {};
 
-    Object.defineProperty(this, 'ObjC', {
+    Object.defineProperty(engine, 'ObjC', {
         enumerable: true,
         get: function () {
             if (_runtime === null) {
@@ -2126,4 +2127,4 @@
 
         return _api;
     }
-}).call(this);
+})();

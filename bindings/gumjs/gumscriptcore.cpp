@@ -493,6 +493,9 @@ _gum_script_core_realize (GumScriptCore * self)
   Isolate * isolate = self->isolate;
   Local<Context> context = isolate->GetCurrentContext ();
 
+  Local<Object> global = context->Global ();
+  global->Set (String::NewFromUtf8 (isolate, "global"), global);
+
   self->native_functions = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_function_free));
 

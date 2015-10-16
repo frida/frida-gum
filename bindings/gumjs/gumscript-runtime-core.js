@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    const engine = this;
+    const engine = global;
     const KERNEL = 0;
     const USER = 1;
     const flavor = (typeof Process === 'undefined') ? KERNEL : USER;
@@ -539,7 +539,7 @@
             complete(message);
         }
 
-        initialize.call(this);
+        initialize();
     };
 
     function MessageRecvOperation(callback) {
@@ -558,5 +558,5 @@
         return [this, complete];
     }
 
-    initialize.call(this);
-}).call(this);
+    initialize();
+})();

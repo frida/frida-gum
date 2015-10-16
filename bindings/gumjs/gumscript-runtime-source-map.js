@@ -2,7 +2,7 @@
 (function () {
     "use strict";
 
-    const engine = this;
+    const engine = global;
     let didLoadSourceMap = false;
     let cachedSourceMap = null;
     Object.defineProperty(Script, 'sourceMap', {
@@ -1408,4 +1408,4 @@
 
         return -1;
     }
-}).call(this);
+})();
