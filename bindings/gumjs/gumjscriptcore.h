@@ -40,4 +40,9 @@ G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
 
+G_GNUC_INTERNAL gchar * _gum_script_string_get (JSStringRef str);
+
+G_GNUC_INTERNAL guint _gum_script_object_get_uint (JSObjectRef obj,
+    const gchar * key, GumScriptCore * core);
+
 #endif

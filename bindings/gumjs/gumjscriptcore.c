@@ -57,3 +57,31 @@ _gum_script_core_post_message (GumScriptCore * self,
                                const gchar * message)
 {
 }
+
+gchar *
+_gum_script_string_get (JSStringRef str)
+{
+  gsize size;
+  gchar * result;
+
+  size = JSStringGetMaximumUTF8CStringSize (str);
+  result = g_malloc (size);
+  JSStringGetUTF8CString (str, result, size);
+
+  return result;
+}
+
+guint
+_gum_script_object_get_uint (JSObjectRef obj,
+                             const gchar * key,
+                             GumScriptCore * core)
+{
+  JSStringRef property;
+  JSValueRef value;
+
+  property = JSStringCreateWithUTF8CString (key);
+  value = JSObjectGetProperty (core->context, obj, property, NULL);
+  JSStringRelease (property);
+
+  return (guint) JSValueToNumber (core->context, value, NULL);
+}

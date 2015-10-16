@@ -333,12 +333,23 @@ gum_script_create_context (GumScript * self,
 
   if (!valid)
   {
+    JSStringRef message;
+    gchar * message_str;
+    guint line;
+
+    message = JSValueToStringCopy (priv->context, ex, NULL);
+    message_str = _gum_script_string_get (message);
+    line = _gum_script_object_get_uint ((JSObjectRef) ex, "line", &priv->core);
+
     g_set_error (error,
         G_IO_ERROR,
         G_IO_ERROR_FAILED,
-        "Script(line %d): %s",
-        1337,
-        "WAT");
+        "Script(line %u): %s",
+        line,
+        message_str);
+
+    g_free (message_str);
+    JSStringRelease (message);
 
     gum_script_destroy_context (self);
 
