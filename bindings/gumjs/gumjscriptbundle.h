@@ -8,7 +8,7 @@
 #define __GUM_JSCRIPT_BUNDLE_H__
 
 #include <glib.h>
-#import <JavaScriptCore/JavaScriptCore.h>
+#include <JavaScriptCore/JavaScriptCore.h>
 
 #define GUM_MAX_SCRIPT_SOURCE_CHUNKS 6
 
@@ -20,12 +20,7 @@ struct _GumScriptSource
   const gchar * chunks[GUM_MAX_SCRIPT_SOURCE_CHUNKS];
 };
 
-@interface GumScriptBundle : NSObject
-{
-}
-
-+ (void)load:(const GumScriptSource *)sources intoContext:(JSContext *)context;
-
-@end
+G_GNUC_INTERNAL void gum_script_bundle_load (const GumScriptSource * sources,
+    JSContextRef context);
 
 #endif

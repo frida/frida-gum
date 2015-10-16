@@ -47,10 +47,10 @@ G_GNUC_INTERNAL GType gum_script_scheduler_get_type (void) G_GNUC_CONST;
 
 G_GNUC_INTERNAL GumScriptScheduler * gum_script_scheduler_new (void);
 
-G_GNUC_INTERNAL GMainContext * gum_script_scheduler_get_v8_context (
+G_GNUC_INTERNAL GMainContext * gum_script_scheduler_get_js_context (
     GumScriptScheduler * self);
 
-G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_v8_thread (
+G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_js_thread (
     GumScriptScheduler * self, gint priority, GumScriptJobFunc func,
     gpointer data, GDestroyNotify data_destroy, gpointer tag);
 G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_thread_pool (

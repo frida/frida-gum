@@ -18,9 +18,9 @@ struct _GumScriptSchedulerPrivate
   GMutex mutex;
   GCond cond;
 
-  GThread * v8_thread;
-  GMainLoop * v8_loop;
-  GMainContext * v8_context;
+  GThread * js_thread;
+  GMainLoop * js_loop;
+  GMainContext * js_context;
 
   GThreadPool * thread_pool;
 
@@ -40,12 +40,12 @@ struct _GumScriptJob
 static void gum_script_scheduler_dispose (GObject * obj);
 static void gum_script_scheduler_finalize (GObject * obj);
 
-static gboolean gum_script_scheduler_perform_v8_job (
+static gboolean gum_script_scheduler_perform_js_job (
     GumScriptJob * job);
 static void gum_script_scheduler_perform_pool_job (GumScriptJob * job,
     GumScriptScheduler * self);
 
-static gpointer gum_script_scheduler_run_v8_loop (GumScriptScheduler * self);
+static gpointer gum_script_scheduler_run_js_loop (GumScriptScheduler * self);
 
 static GumScriptJob * gum_script_job_new (
     GumScriptScheduler * self, GumScriptJobFunc func, gpointer data,
@@ -77,11 +77,11 @@ gum_script_scheduler_init (GumScriptScheduler * self)
   g_mutex_init (&priv->mutex);
   g_cond_init (&priv->cond);
 
-  priv->v8_context = g_main_context_new ();
-  priv->v8_loop = g_main_loop_new (priv->v8_context, TRUE);
+  priv->js_context = g_main_context_new ();
+  priv->js_loop = g_main_loop_new (priv->js_context, TRUE);
 
-  priv->v8_thread = g_thread_new ("gum-v8-loop",
-      (GThreadFunc) gum_script_scheduler_run_v8_loop, self);
+  priv->js_thread = g_thread_new ("gum-js-loop",
+      (GThreadFunc) gum_script_scheduler_run_js_loop, self);
 
   priv->thread_pool = g_thread_pool_new (
       (GFunc) gum_script_scheduler_perform_pool_job,
@@ -104,16 +104,16 @@ gum_script_scheduler_dispose (GObject * obj)
     g_thread_pool_free (priv->thread_pool, FALSE, TRUE);
     priv->thread_pool = NULL;
 
-    gum_script_scheduler_push_job_on_v8_thread (self, G_PRIORITY_LOW,
-        (GumScriptJobFunc) g_main_loop_quit, priv->v8_loop, NULL, NULL);
-    g_thread_join (priv->v8_thread);
-    priv->v8_thread = NULL;
+    gum_script_scheduler_push_job_on_js_thread (self, G_PRIORITY_LOW,
+        (GumScriptJobFunc) g_main_loop_quit, priv->js_loop, NULL, NULL);
+    g_thread_join (priv->js_thread);
+    priv->js_thread = NULL;
 
-    g_main_loop_unref (priv->v8_loop);
-    priv->v8_loop = NULL;
+    g_main_loop_unref (priv->js_loop);
+    priv->js_loop = NULL;
 
-    g_main_context_unref (priv->v8_context);
-    priv->v8_context = NULL;
+    g_main_context_unref (priv->js_context);
+    priv->js_context = NULL;
   }
 
   g_assert (priv->pending == NULL);
@@ -140,13 +140,13 @@ gum_script_scheduler_new (void)
 }
 
 GMainContext *
-gum_script_scheduler_get_v8_context (GumScriptScheduler * self)
+gum_script_scheduler_get_js_context (GumScriptScheduler * self)
 {
-  return self->priv->v8_context;
+  return self->priv->js_context;
 }
 
 void
-gum_script_scheduler_push_job_on_v8_thread (GumScriptScheduler * self,
+gum_script_scheduler_push_job_on_js_thread (GumScriptScheduler * self,
                                             gint priority,
                                             GumScriptJobFunc func,
                                             gpointer data,
@@ -161,10 +161,10 @@ gum_script_scheduler_push_job_on_v8_thread (GumScriptScheduler * self,
   source = g_idle_source_new ();
   g_source_set_priority (source, priority);
   g_source_set_callback (source,
-      (GSourceFunc) gum_script_scheduler_perform_v8_job,
+      (GSourceFunc) gum_script_scheduler_perform_js_job,
       job,
       (GDestroyNotify) gum_script_job_free);
-  g_source_attach (source, self->priv->v8_context);
+  g_source_attach (source, self->priv->js_context);
   g_source_unref (source);
 }
 
@@ -239,7 +239,7 @@ gum_script_scheduler_on_job_destroyed (GumScriptScheduler * self,
 }
 
 static gboolean
-gum_script_scheduler_perform_v8_job (GumScriptJob * job)
+gum_script_scheduler_perform_js_job (GumScriptJob * job)
 {
   job->func (job->data);
 
@@ -258,13 +258,13 @@ gum_script_scheduler_perform_pool_job (GumScriptJob * job,
 }
 
 static gpointer
-gum_script_scheduler_run_v8_loop (GumScriptScheduler * self)
+gum_script_scheduler_run_js_loop (GumScriptScheduler * self)
 {
   GumScriptSchedulerPrivate * priv = self->priv;
 
-  g_main_context_push_thread_default (priv->v8_context);
-  g_main_loop_run (priv->v8_loop);
-  g_main_context_pop_thread_default (priv->v8_context);
+  g_main_context_push_thread_default (priv->js_context);
+  g_main_loop_run (priv->js_loop);
+  g_main_context_pop_thread_default (priv->js_context);
 
   return NULL;
 }

@@ -297,16 +297,16 @@ gum_script_task_propagate_error (GumScriptTask * self,
 }
 
 void
-gum_script_task_run_in_v8_thread (GumScriptTask * self,
+gum_script_task_run_in_js_thread (GumScriptTask * self,
                                   GumScriptScheduler * scheduler)
 {
-  gum_script_scheduler_push_job_on_v8_thread (scheduler, G_PRIORITY_DEFAULT,
+  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_script_task_run, g_object_ref (self),
       g_object_unref, NULL);
 }
 
 void
-gum_script_task_run_in_v8_thread_sync (GumScriptTask * self,
+gum_script_task_run_in_js_thread_sync (GumScriptTask * self,
                                        GumScriptScheduler * scheduler)
 {
   GumScriptTaskPrivate * priv = self->priv;
@@ -316,7 +316,7 @@ gum_script_task_run_in_v8_thread_sync (GumScriptTask * self,
   g_mutex_init (&priv->mutex);
   g_cond_init (&priv->cond);
 
-  gum_script_scheduler_push_job_on_v8_thread (scheduler, G_PRIORITY_DEFAULT,
+  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_script_task_run, g_object_ref (self),
       g_object_unref, NULL);
 

@@ -547,7 +547,7 @@ _gum_script_core_flush (GumScriptCore * self)
   self->isolate->Enter ();
 
   GMainContext * context =
-      gum_script_scheduler_get_v8_context (self->scheduler);
+      gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
 
@@ -934,7 +934,7 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
   gum_script_core_add_scheduled_callback (self, callback);
 
   g_source_attach (source,
-      gum_script_scheduler_get_v8_context (self->scheduler));
+      gum_script_scheduler_get_js_context (self->scheduler));
 
   info.GetReturnValue ().Set (id);
 }

@@ -79,14 +79,19 @@ libfrida_gumjsc_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 
 libfrida_gumjsc_la_SOURCES = \
-	gumjscript.m \
+	gumjscript.c \
 	gumjscript-runtime.h \
 	gumjscriptbundle.h \
-	gumjscriptbundle.m \
+	gumjscriptbundle.c \
+	gumscriptscheduler.h \
+	gumscriptscheduler.c \
+	gumscripttask.h \
+	gumscripttask.c \
 	gumjscriptcore.h \
-	gumjscriptcore.m \
+	gumjscriptcore.c \
 	$(NULL)
-libfrida_gumjsc_la_OBJCFLAGS = \
+libfrida_gumjsc_la_CPPFLAGS = \
+	$(AM_CPPFLAGS) \
 	$(GUMJSC_CFLAGS)
 libfrida_gumjsc_la_LIBTOOLFLAGS = \
 	--tag=disable-shared

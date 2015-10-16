@@ -108,7 +108,7 @@ GumScriptPlatform::CallOnForegroundThread (Isolate * isolate,
 {
   (void) isolate;
 
-  gum_script_scheduler_push_job_on_v8_thread (scheduler, G_PRIORITY_HIGH,
+  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_HIGH,
       (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
 }
 

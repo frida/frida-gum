@@ -30,7 +30,7 @@ static const {entry_type} {entries_identifier}[] =
 def generate_runtime_jsc(output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
-#import "gumjscriptbundle.h"
+#include "gumjscriptbundle.h"
 
 static const {entry_type} {entries_identifier}[] =
 {{""".format(entry_type="GumScriptSource",

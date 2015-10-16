@@ -8,26 +8,36 @@
 #define __GUM_JSCRIPT_CORE_H__
 
 #include "gumscript.h"
+#include "gumscriptscheduler.h"
 
 #include <gum/gumexceptor.h>
+#include <JavaScriptCore/JavaScriptCore.h>
 
-#import <JavaScriptCore/JavaScriptCore.h>
+typedef struct _GumScriptCore GumScriptCore;
 
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
     const gchar * message, GBytes * data);
 
-@interface GumScriptCore : NSObject
+struct _GumScriptCore
 {
   GumScript * script;
-  GumScriptCoreMessageEmitter messageEmitter;
+  GumScriptCoreMessageEmitter message_emitter;
+  GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
-  JSContext * context;
-}
+  JSContextRef context;
+};
 
-- (instancetype)initWithScript:(GumScript *)aScript
-                       emitter:(GumScriptCoreMessageEmitter)emitter
-                       context:(JSContext *)context;
+G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
+    GumScript * script, GumScriptCoreMessageEmitter message_emitter,
+    GumScriptScheduler * scheduler, JSContextRef context);
+G_GNUC_INTERNAL void _gum_script_core_realize (GumScriptCore * self);
+G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);
+G_GNUC_INTERNAL void _gum_script_core_dispose (GumScriptCore * self);
+G_GNUC_INTERNAL void _gum_script_core_finalize (GumScriptCore * self);
 
-@end
+G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
+    const gchar * message, GBytes * data);
+G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
+    const gchar * message);
 
 #endif

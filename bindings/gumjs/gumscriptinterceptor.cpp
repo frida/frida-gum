@@ -185,7 +185,7 @@ gum_script_unignore_later (GumThreadId thread_id)
   GumInterceptor * interceptor;
   GSource * source;
 
-  main_context = gum_script_scheduler_get_v8_context (
+  main_context = gum_script_scheduler_get_js_context (
       gum_script_get_platform ()->GetScheduler ());
 
   interceptor = gum_interceptor_obtain ();

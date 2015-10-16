@@ -69,9 +69,9 @@ G_GNUC_INTERNAL void gum_script_task_return_error (GumScriptTask * self,
 G_GNUC_INTERNAL gpointer gum_script_task_propagate_pointer (
     GumScriptTask * self, GError ** error);
 
-G_GNUC_INTERNAL void gum_script_task_run_in_v8_thread (GumScriptTask * self,
+G_GNUC_INTERNAL void gum_script_task_run_in_js_thread (GumScriptTask * self,
     GumScriptScheduler * scheduler);
-G_GNUC_INTERNAL void gum_script_task_run_in_v8_thread_sync (
+G_GNUC_INTERNAL void gum_script_task_run_in_js_thread_sync (
     GumScriptTask * self, GumScriptScheduler * scheduler);
 
 G_END_DECLS

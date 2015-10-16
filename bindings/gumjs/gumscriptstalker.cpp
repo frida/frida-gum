@@ -307,7 +307,7 @@ gum_script_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
 
   GumScriptEventSinkOptions so;
   so.core = self->core;
-  so.main_context = gum_script_scheduler_get_v8_context (self->core->scheduler);
+  so.main_context = gum_script_scheduler_get_js_context (self->core->scheduler);
   so.event_mask = GUM_NOTHING;
   so.queue_capacity = self->queue_capacity;
   so.queue_drain_interval = self->queue_drain_interval;
