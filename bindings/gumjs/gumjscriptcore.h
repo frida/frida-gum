@@ -55,6 +55,8 @@
 
 typedef struct _GumScriptCore GumScriptCore;
 
+typedef struct _GumMessageSink GumMessageSink;
+
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
     const gchar * message, GBytes * data);
 
@@ -65,6 +67,8 @@ struct _GumScriptCore
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSContextRef ctx;
+
+  GumMessageSink * incoming_message_sink;
 
   JSClassRef native_pointer;
 };
