@@ -310,23 +310,19 @@ gum_script_create_context (GumScript * self,
                            GError ** error)
 {
   GumScriptPrivate * priv = self->priv;
+  JSGlobalContextRef context;
   JSStringRef source, url;
-  JSValueRef ex;
+  JSValueRef exception;
   bool valid;
 
   g_assert (priv->context == NULL);
 
-  priv->context = JSGlobalContextCreate (NULL);
-
-  _gum_script_core_init (&priv->core, self, gum_script_emit_message,
-      gum_script_get_scheduler (), priv->context);
-
-  _gum_script_core_realize (&priv->core);
+  context = JSGlobalContextCreate (NULL);
 
   source = JSStringCreateWithUTF8CString (priv->source);
   url = gum_script_create_url (self);
 
-  valid = JSCheckScriptSyntax (priv->context, source, url, 1, &ex);
+  valid = JSCheckScriptSyntax (context, source, url, 1, &exception);
 
   JSStringRelease (url);
   JSStringRelease (source);
@@ -337,9 +333,10 @@ gum_script_create_context (GumScript * self,
     gchar * message_str;
     guint line;
 
-    message = JSValueToStringCopy (priv->context, ex, NULL);
+    message = JSValueToStringCopy (context, exception, NULL);
     message_str = _gum_script_string_get (message);
-    line = _gum_script_object_get_uint ((JSObjectRef) ex, "line", &priv->core);
+    line = _gum_script_object_get_uint ((JSObjectRef) exception, "line",
+        context);
 
     g_set_error (error,
         G_IO_ERROR,
@@ -351,10 +348,19 @@ gum_script_create_context (GumScript * self,
     g_free (message_str);
     JSStringRelease (message);
 
-    gum_script_destroy_context (self);
+    JSGlobalContextRelease (context);
 
     return FALSE;
   }
+
+  priv->context = context;
+
+  _gum_script_core_init (&priv->core, self, gum_script_emit_message,
+      gum_script_get_scheduler (), priv->context);
+
+  _gum_script_core_realize (&priv->core);
+
+  gum_script_bundle_load (gum_jscript_runtime_sources, priv->context);
 
   return TRUE;
 }

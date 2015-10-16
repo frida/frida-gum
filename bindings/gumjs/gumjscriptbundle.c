@@ -6,6 +6,8 @@
 
 #include "gumjscriptbundle.h"
 
+#include "gumjscriptcore.h"
+
 void
 gum_script_bundle_load (const GumScriptSource * sources,
                         JSContextRef context)
@@ -30,8 +32,8 @@ gum_script_bundle_load (const GumScriptSource * sources,
     g_free (str);
 
     result = JSEvaluateScript (context, source, global, url, 1, &exception);
-    g_assert (result != NULL);
-    g_assert (exception == NULL);
+    if (result == NULL)
+      _gum_script_panic (exception, context);
 
     JSStringRelease (url);
     JSStringRelease (source);

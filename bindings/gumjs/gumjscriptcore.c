@@ -74,14 +74,30 @@ _gum_script_string_get (JSStringRef str)
 guint
 _gum_script_object_get_uint (JSObjectRef obj,
                              const gchar * key,
-                             GumScriptCore * core)
+                             JSContextRef context)
 {
   JSStringRef property;
   JSValueRef value;
 
   property = JSStringCreateWithUTF8CString (key);
-  value = JSObjectGetProperty (core->context, obj, property, NULL);
+  value = JSObjectGetProperty (context, obj, property, NULL);
   JSStringRelease (property);
 
-  return (guint) JSValueToNumber (core->context, value, NULL);
+  return (guint) JSValueToNumber (context, value, NULL);
+}
+
+void
+_gum_script_panic (JSValueRef exception,
+                   JSContextRef context)
+{
+  JSStringRef message;
+  gchar * message_str;
+
+  message = JSValueToStringCopy (context, exception, NULL);
+  message_str = _gum_script_string_get (message);
+  g_critical ("%s", message_str);
+  g_free (message_str);
+  JSStringRelease (message);
+
+  abort ();
 }
