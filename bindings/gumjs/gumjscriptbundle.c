@@ -10,12 +10,12 @@
 
 void
 gum_script_bundle_load (const GumScriptSource * sources,
-                        JSContextRef context)
+                        JSContextRef ctx)
 {
   JSObjectRef global;
   const GumScriptSource * cur;
 
-  global = JSContextGetGlobalObject (context);
+  global = JSContextGetGlobalObject (ctx);
 
   for (cur = sources; cur->name != NULL; cur++)
   {
@@ -31,9 +31,9 @@ gum_script_bundle_load (const GumScriptSource * sources,
     url = JSStringCreateWithUTF8CString (str);
     g_free (str);
 
-    result = JSEvaluateScript (context, source, global, url, 1, &exception);
+    result = JSEvaluateScript (ctx, source, global, url, 1, &exception);
     if (result == NULL)
-      _gum_script_panic (exception, context);
+      _gum_script_panic (exception, ctx);
 
     JSStringRelease (url);
     JSStringRelease (source);

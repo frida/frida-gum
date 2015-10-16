@@ -6,29 +6,44 @@
 
 #include "gumjscriptcore.h"
 
+static JSObjectRef gum_on_new_native_pointer (JSContextRef ctx,
+    JSObjectRef constructor, size_t argument_count,
+    const JSValueRef arguments[], JSValueRef * exception);
+
 void
 _gum_script_core_init (GumScriptCore * self,
                        GumScript * script,
                        GumScriptCoreMessageEmitter message_emitter,
                        GumScriptScheduler * scheduler,
-                       JSContextRef context,
+                       JSContextRef ctx,
                        JSObjectRef scope)
 {
   JSObjectRef placeholder;
+  JSClassDefinition def;
+  JSObjectRef native_pointer_ctor;
 
   self->script = script;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
-  self->context = context;
+  self->ctx = ctx;
 
-  placeholder = JSObjectMake (context, NULL, NULL);
+  placeholder = JSObjectMake (ctx, NULL, NULL);
 
-  _gum_script_object_set (scope, "global", scope, context);
+  JSObjectSetPrivate (scope, self);
 
-  _gum_script_object_set (scope, "Kernel", placeholder, context);
-  _gum_script_object_set (scope, "Memory", placeholder, context);
-  _gum_script_object_set (scope, "NativePointer", placeholder, context);
+  _gum_script_object_set (scope, "global", scope, ctx);
+
+  _gum_script_object_set (scope, "Kernel", placeholder, ctx);
+  _gum_script_object_set (scope, "Memory", placeholder, ctx);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "NativePointer";
+  self->native_pointer = JSClassCreate (&def);
+  native_pointer_ctor = JSObjectMakeConstructor (ctx, self->native_pointer,
+      gum_on_new_native_pointer);
+  JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
+  _gum_script_object_set (scope, "NativePointer", native_pointer_ctor, ctx);
 }
 
 void
@@ -46,6 +61,9 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
+  JSClassRelease (self->native_pointer);
+  self->native_pointer = NULL;
+
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
 }
@@ -69,6 +87,73 @@ _gum_script_core_post_message (GumScriptCore * self,
 {
 }
 
+static JSObjectRef
+gum_on_new_native_pointer (JSContextRef ctx,
+                           JSObjectRef constructor,
+                           size_t argument_count,
+                           const JSValueRef arguments[],
+                           JSValueRef * exception)
+{
+  JSClassRef klass;
+  guint64 ptr;
+
+  klass = (JSClassRef) JSObjectGetPrivate (constructor);
+
+  if (argument_count == 0)
+  {
+    ptr = 0;
+  }
+  else
+  {
+    JSValueRef value = arguments[0];
+
+    if (JSValueIsString (ctx, value))
+    {
+      gchar * ptr_as_string, * endptr;
+      gboolean valid;
+
+      ptr_as_string = _gum_script_string_from_value (value, ctx);
+
+      if (g_str_has_prefix (ptr_as_string, "0x"))
+      {
+        ptr = g_ascii_strtoull (ptr_as_string + 2, &endptr, 16);
+        valid = endptr != ptr_as_string + 2;
+        if (!valid)
+        {
+          _gum_script_throw (exception, ctx, "argument is not a valid "
+              "hexadecimal string");
+        }
+      }
+      else
+      {
+        ptr = g_ascii_strtoull (ptr_as_string, &endptr, 10);
+        valid = endptr != ptr_as_string;
+        if (!valid)
+        {
+          _gum_script_throw (exception, ctx, "argument is not a valid decimal "
+              "string");
+        }
+      }
+
+      g_free (ptr_as_string);
+
+      if (!valid)
+        return NULL;
+    }
+    else if (JSValueIsNumber (ctx, value))
+    {
+      ptr = (guint64) JSValueToNumber (ctx, value, NULL);
+    }
+    else
+    {
+      _gum_script_throw (exception, ctx, "invalid argument");
+      return NULL;
+    }
+  }
+
+  return JSObjectMake (ctx, klass, GSIZE_TO_POINTER (ptr));
+}
+
 gchar *
 _gum_script_string_get (JSStringRef str)
 {
@@ -82,75 +167,104 @@ _gum_script_string_get (JSStringRef str)
   return result;
 }
 
-guint
-_gum_script_object_get_uint (JSObjectRef object,
-                             const gchar * key,
-                             JSContextRef context)
-{
-  JSStringRef property;
-  JSValueRef value;
-
-  property = JSStringCreateWithUTF8CString (key);
-  value = JSObjectGetProperty (context, object, property, NULL);
-  g_assert (value != NULL);
-  g_assert (JSValueIsNumber (context, value));
-  JSStringRelease (property);
-
-  return (guint) JSValueToNumber (context, value, NULL);
-}
-
 gchar *
-_gum_script_object_get_string (JSObjectRef object,
-                               const gchar * key,
-                               JSContextRef context)
+_gum_script_string_from_value (JSValueRef value,
+                               JSContextRef ctx)
 {
   gchar * result;
-  JSStringRef property;
-  JSValueRef value;
   JSStringRef str;
 
-  property = JSStringCreateWithUTF8CString (key);
-  value = JSObjectGetProperty (context, object, property, NULL);
-  g_assert (value != NULL);
-  g_assert (JSValueIsString (context, value));
-  JSStringRelease (property);
-
-  str = JSValueToStringCopy (context, value, NULL);
+  str = JSValueToStringCopy (ctx, value, NULL);
+  g_assert (str != NULL);
   result = _gum_script_string_get (str);
   JSStringRelease (str);
 
   return result;
 }
 
+guint
+_gum_script_object_get_uint (JSObjectRef object,
+                             const gchar * key,
+                             JSContextRef ctx)
+{
+  JSStringRef property;
+  JSValueRef value;
+
+  property = JSStringCreateWithUTF8CString (key);
+  value = JSObjectGetProperty (ctx, object, property, NULL);
+  g_assert (value != NULL);
+  g_assert (JSValueIsNumber (ctx, value));
+  JSStringRelease (property);
+
+  return (guint) JSValueToNumber (ctx, value, NULL);
+}
+
+gchar *
+_gum_script_object_get_string (JSObjectRef object,
+                               const gchar * key,
+                               JSContextRef ctx)
+{
+  JSStringRef property;
+  JSValueRef value;
+
+  property = JSStringCreateWithUTF8CString (key);
+  value = JSObjectGetProperty (ctx, object, property, NULL);
+  g_assert (value != NULL);
+  g_assert (JSValueIsString (ctx, value));
+  JSStringRelease (property);
+
+  return _gum_script_string_from_value (value, ctx);
+}
+
 void
 _gum_script_object_set (JSObjectRef object,
                         const gchar * key,
                         JSValueRef value,
-                        JSContextRef context)
+                        JSContextRef ctx)
 {
   JSStringRef property;
 
   property = JSStringCreateWithUTF8CString (key);
-  JSObjectSetProperty (context, object, property, value,
+  JSObjectSetProperty (ctx, object, property, value,
       kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
   JSStringRelease (property);
 }
 
 void
-_gum_script_panic (JSValueRef exception,
-                   JSContextRef context)
+_gum_script_throw (JSValueRef * exception,
+                   JSContextRef ctx,
+                   const gchar * format,
+                   ...)
 {
-  JSStringRef message;
-  gchar * message_str, * stack;
+  va_list args;
+  gchar * message;
+  JSStringRef message_string;
+  JSValueRef message_value;
 
-  message = JSValueToStringCopy (context, exception, NULL);
-  message_str = _gum_script_string_get (message);
-  stack = _gum_script_object_get_string ((JSObjectRef) exception, "stack",
-      context);
-  g_critical ("%s\n%s", message_str, stack);
+  va_start (args, format);
+  message = g_strdup_vprintf (format, args);
+  va_end (args);
+
+  message_string = JSStringCreateWithUTF8CString (message);
+  message_value = JSValueMakeString (ctx, message_string);
+  JSStringRelease (message_string);
+
+  g_free (message);
+
+  *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
+}
+
+void
+_gum_script_panic (JSValueRef exception,
+                   JSContextRef ctx)
+{
+  gchar * message, * stack;
+
+  message = _gum_script_string_from_value (exception, ctx);
+  stack = _gum_script_object_get_string ((JSObjectRef) exception, "stack", ctx);
+  g_critical ("%s\n%s", message, stack);
   g_free (stack);
-  g_free (message_str);
-  JSStringRelease (message);
+  g_free (message);
 
   abort ();
 }

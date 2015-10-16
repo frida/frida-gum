@@ -21,6 +21,6 @@ struct _GumScriptSource
 };
 
 G_GNUC_INTERNAL void gum_script_bundle_load (const GumScriptSource * sources,
-    JSContextRef context);
+    JSContextRef ctx);
 
 #endif
