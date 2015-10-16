@@ -6,6 +6,10 @@
 
 #include "gumjscriptcore.h"
 
+static JSValueRef gum_on_set_incoming_message_callback (JSContextRef ctx,
+    JSObjectRef function, JSObjectRef this_object, size_t argument_count,
+    const JSValueRef arguments[], JSValueRef * exception);
+
 static JSObjectRef gum_on_new_native_pointer (JSContextRef ctx,
     JSObjectRef constructor, size_t argument_count,
     const JSValueRef arguments[], JSValueRef * exception);
@@ -18,9 +22,9 @@ _gum_script_core_init (GumScriptCore * self,
                        JSContextRef ctx,
                        JSObjectRef scope)
 {
-  JSObjectRef placeholder;
   JSClassDefinition def;
   JSObjectRef native_pointer_ctor;
+  JSObjectRef placeholder;
 
   self->script = script;
   self->message_emitter = message_emitter;
@@ -28,14 +32,12 @@ _gum_script_core_init (GumScriptCore * self,
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
 
-  placeholder = JSObjectMake (ctx, NULL, NULL);
-
   JSObjectSetPrivate (scope, self);
 
   _gum_script_object_set (scope, "global", scope, ctx);
 
-  _gum_script_object_set (scope, "Kernel", placeholder, ctx);
-  _gum_script_object_set (scope, "Memory", placeholder, ctx);
+  _gum_script_object_set_callback (scope, "_setIncomingMessageCallback",
+      gum_on_set_incoming_message_callback, self, ctx);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
@@ -44,6 +46,10 @@ _gum_script_core_init (GumScriptCore * self,
       gum_on_new_native_pointer);
   JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
   _gum_script_object_set (scope, "NativePointer", native_pointer_ctor, ctx);
+
+  placeholder = JSObjectMake (ctx, NULL, NULL);
+  _gum_script_object_set (scope, "Kernel", placeholder, ctx);
+  _gum_script_object_set (scope, "Memory", placeholder, ctx);
 }
 
 void
@@ -85,6 +91,17 @@ void
 _gum_script_core_post_message (GumScriptCore * self,
                                const gchar * message)
 {
+}
+
+static JSValueRef
+gum_on_set_incoming_message_callback (JSContextRef ctx,
+                                      JSObjectRef function,
+                                      JSObjectRef this_object,
+                                      size_t argument_count,
+                                      const JSValueRef arguments[],
+                                      JSValueRef * exception)
+{
+  return JSValueMakeUndefined (ctx);
 }
 
 static JSObjectRef
@@ -228,6 +245,24 @@ _gum_script_object_set (JSObjectRef object,
   JSObjectSetProperty (ctx, object, property, value,
       kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
   JSStringRelease (property);
+}
+
+void
+_gum_script_object_set_callback (JSObjectRef object,
+                                 const gchar * key,
+                                 JSObjectCallAsFunctionCallback callback,
+                                 gpointer data,
+                                 JSContextRef ctx)
+{
+  JSStringRef name;
+  JSObjectRef func;
+
+  name = JSStringCreateWithUTF8CString (key);
+  func = JSObjectMakeFunctionWithCallback (ctx, name, callback);
+  JSObjectSetPrivate (func, data);
+  JSObjectSetProperty (ctx, object, name, func,
+      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
+  JSStringRelease (name);
 }
 
 void

@@ -52,6 +52,9 @@ G_GNUC_INTERNAL gchar * _gum_script_object_get_string (JSObjectRef object,
     const gchar * key, JSContextRef ctx);
 G_GNUC_INTERNAL void _gum_script_object_set (JSObjectRef object,
     const gchar * key, JSValueRef value, JSContextRef ctx);
+G_GNUC_INTERNAL void _gum_script_object_set_callback (JSObjectRef object,
+    const gchar * key, JSObjectCallAsFunctionCallback callback, gpointer data,
+    JSContextRef ctx);
 
 G_GNUC_INTERNAL void _gum_script_throw (JSValueRef * exception,
     JSContextRef ctx, const gchar * format, ...);
