@@ -13,6 +13,12 @@
 #include <gum/gumexceptor.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
+#define GUM_SCRIPT_CORE(P) \
+  ((GumScriptCore *) (P))
+
+#define GUM_JSC_CTX_GET_CORE(C) \
+  GUM_SCRIPT_CORE (JSObjectGetPrivate (JSContextGetGlobalObject (C)))
+
 #define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
       size_t argument_count, const JSValueRef arguments[], \
@@ -93,7 +99,7 @@ G_GNUC_INTERNAL void _gum_script_object_set (JSObjectRef object,
 G_GNUC_INTERNAL void _gum_script_object_set_string (JSObjectRef object,
     const gchar * key, const gchar * value, JSContextRef ctx);
 G_GNUC_INTERNAL void _gum_script_object_set_function (JSObjectRef object,
-    const gchar * key, JSObjectCallAsFunctionCallback callback, gpointer data,
+    const gchar * key, JSObjectCallAsFunctionCallback callback,
     JSContextRef ctx);
 
 G_GNUC_INTERNAL void _gum_script_throw (JSValueRef * exception,

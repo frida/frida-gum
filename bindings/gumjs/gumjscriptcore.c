@@ -6,6 +6,7 @@
 
 #include "gumjscriptcore.h"
 
+GUM_DECLARE_JSC_FUNCTION (gum_send);
 GUM_DECLARE_JSC_FUNCTION (gum_set_unhandled_exception_callback);
 GUM_DECLARE_JSC_FUNCTION (gum_set_incoming_message_callback);
 
@@ -43,6 +44,8 @@ _gum_script_core_init (GumScriptCore * self,
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
 
+  JSObjectSetPrivate (scope, self);
+
   _gum_script_object_set (scope, "global", scope, ctx);
 
   frida = JSObjectMake (ctx, NULL, NULL);
@@ -57,10 +60,11 @@ _gum_script_core_init (GumScriptCore * self,
   JSClassRelease (klass);
   _gum_script_object_set (scope, "Script", obj, ctx);
 
+  _gum_script_object_set_function (scope, "_send", gum_send, ctx);
   _gum_script_object_set_function (scope, "_setUnhandledExceptionCallback",
-      gum_set_unhandled_exception_callback, self, ctx);
+      gum_set_unhandled_exception_callback, ctx);
   _gum_script_object_set_function (scope, "_setIncomingMessageCallback",
-      gum_set_incoming_message_callback, self, ctx);
+      gum_set_incoming_message_callback, ctx);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
@@ -108,6 +112,7 @@ _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                GBytes * data)
 {
+  self->message_emitter (self->script, message, data);
 }
 
 void
@@ -124,6 +129,37 @@ GUM_DEFINE_JSC_GETTER (gum_script_get_file_name)
 GUM_DEFINE_JSC_GETTER (gum_script_get_source_map_data)
 {
   return JSValueMakeNull (ctx);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gum_send)
+{
+  GumScriptCore * self;
+  JSValueRef message_value;
+  gchar * message;
+  GBytes * data = NULL;
+
+  self = GUM_JSC_CTX_GET_CORE (ctx);
+
+  if (argument_count == 0)
+    goto invalid_argument;
+
+  message_value = arguments[0];
+  if (!JSValueIsString (ctx, message_value))
+    goto invalid_argument;
+
+  message = _gum_script_string_from_value (message_value, ctx);
+
+  _gum_script_core_emit_message (self, message, data);
+
+  g_free (message);
+
+  return JSValueMakeUndefined (ctx);
+
+invalid_argument:
+  {
+    _gum_script_throw (exception, ctx, "invalid argument");
+    return NULL;
+  }
 }
 
 GUM_DEFINE_JSC_FUNCTION (gum_set_unhandled_exception_callback)
@@ -291,8 +327,7 @@ _gum_script_object_set (JSObjectRef object,
   JSStringRef property;
 
   property = JSStringCreateWithUTF8CString (key);
-  JSObjectSetProperty (ctx, object, property, value,
-      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
+  JSObjectSetProperty (ctx, object, property, value, gum_prop_attrs, NULL);
   JSStringRelease (property);
 }
 
@@ -310,7 +345,6 @@ void
 _gum_script_object_set_function (JSObjectRef object,
                                  const gchar * key,
                                  JSObjectCallAsFunctionCallback callback,
-                                 gpointer data,
                                  JSContextRef ctx)
 {
   JSStringRef name;
@@ -318,9 +352,7 @@ _gum_script_object_set_function (JSObjectRef object,
 
   name = JSStringCreateWithUTF8CString (key);
   func = JSObjectMakeFunctionWithCallback (ctx, name, callback);
-  JSObjectSetPrivate (func, data);
-  JSObjectSetProperty (ctx, object, name, func,
-      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
+  JSObjectSetProperty (ctx, object, name, func, gum_prop_attrs, NULL);
   JSStringRelease (name);
 }
 

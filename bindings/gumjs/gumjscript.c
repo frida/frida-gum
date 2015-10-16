@@ -310,6 +310,8 @@ gum_script_create_context (GumScript * self,
                            GError ** error)
 {
   GumScriptPrivate * priv = self->priv;
+  JSClassDefinition def;
+  JSClassRef ctx_class;
   JSGlobalContextRef ctx;
   JSStringRef source, url;
   JSValueRef exception;
@@ -318,7 +320,13 @@ gum_script_create_context (GumScript * self,
 
   g_assert (priv->ctx == NULL);
 
-  ctx = JSGlobalContextCreate (NULL);
+  def = kJSClassDefinitionEmpty;
+  def.className = "Context";
+  ctx_class = JSClassCreate (&def);
+
+  ctx = JSGlobalContextCreate (ctx_class);
+
+  JSClassRelease (ctx_class);
 
   source = JSStringCreateWithUTF8CString (priv->source);
   url = gum_script_create_url (self);
