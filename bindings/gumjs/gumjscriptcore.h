@@ -102,6 +102,11 @@ G_GNUC_INTERNAL void _gum_script_object_set_function (JSObjectRef object,
     const gchar * key, JSObjectCallAsFunctionCallback callback,
     JSContextRef ctx);
 
+G_GNUC_INTERNAL GBytes * _gum_script_byte_array_get (JSValueRef value,
+    JSContextRef ctx, JSValueRef * exception);
+G_GNUC_INTERNAL GBytes * _gum_script_byte_array_try_get (JSValueRef value,
+    JSContextRef ctx);
+
 G_GNUC_INTERNAL void _gum_script_throw (JSValueRef * exception,
     JSContextRef ctx, const gchar * format, ...);
 G_GNUC_INTERNAL void _gum_script_panic (JSValueRef exception, JSContextRef ctx);

@@ -6,6 +6,8 @@
 
 #include "gumjscriptcore.h"
 
+#define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
+
 GUM_DECLARE_JSC_FUNCTION (gum_send);
 GUM_DECLARE_JSC_FUNCTION (gum_set_unhandled_exception_callback);
 GUM_DECLARE_JSC_FUNCTION (gum_set_incoming_message_callback);
@@ -146,6 +148,20 @@ GUM_DEFINE_JSC_FUNCTION (gum_send)
   message_value = arguments[0];
   if (!JSValueIsString (ctx, message_value))
     goto invalid_argument;
+
+  if (argument_count >= 2)
+  {
+    JSValueRef data_value;
+
+    data_value = arguments[1];
+    if (!JSValueIsUndefined (ctx, data_value) &&
+        !JSValueIsNull (ctx, data_value))
+    {
+      data = _gum_script_byte_array_get (data_value, ctx, exception);
+      if (data == NULL)
+        return NULL;
+    }
+  }
 
   message = _gum_script_string_from_value (message_value, ctx);
 
@@ -354,6 +370,64 @@ _gum_script_object_set_function (JSObjectRef object,
   func = JSObjectMakeFunctionWithCallback (ctx, name, callback);
   JSObjectSetProperty (ctx, object, name, func, gum_prop_attrs, NULL);
   JSStringRelease (name);
+}
+
+GBytes *
+_gum_script_byte_array_get (JSValueRef value,
+                            JSContextRef ctx,
+                            JSValueRef * exception)
+{
+  GBytes * result;
+
+  result = _gum_script_byte_array_try_get (value, ctx);
+  if (result == NULL)
+  {
+    _gum_script_throw (exception, ctx, "unsupported data value");
+    return NULL;
+  }
+
+  return result;
+}
+
+GBytes *
+_gum_script_byte_array_try_get (JSValueRef value,
+                                JSContextRef ctx)
+{
+  if (JSValueIsArray (ctx, value))
+  {
+    JSObjectRef array = (JSObjectRef) value;
+    guint data_length, i;
+    guint8 * data;
+    gboolean data_valid;
+
+    data_length = _gum_script_object_get_uint (array, "length", ctx);
+    if (data_length > GUM_MAX_SEND_ARRAY_LENGTH)
+      return NULL;
+
+    data = g_malloc (data_length);
+    data_valid = TRUE;
+
+    for (i = 0; i != data_length && data_valid; i++)
+    {
+      JSValueRef element;
+
+      element = JSObjectGetPropertyAtIndex (ctx, array, i, NULL);
+      if (JSValueIsNumber (ctx, element))
+        data[i] = (guint8) JSValueToNumber (ctx, element, NULL);
+      else
+        data_valid = FALSE;
+    }
+
+    if (!data_valid)
+    {
+      g_free (data);
+      return NULL;
+    }
+
+    return g_bytes_new_take (data, data_length);
+  }
+
+  return NULL;
 }
 
 void
