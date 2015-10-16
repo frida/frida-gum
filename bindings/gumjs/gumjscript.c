@@ -314,6 +314,7 @@ gum_script_create_context (GumScript * self,
   JSStringRef source, url;
   JSValueRef exception;
   bool valid;
+  JSObjectRef global;
 
   g_assert (priv->context == NULL);
 
@@ -355,8 +356,10 @@ gum_script_create_context (GumScript * self,
 
   priv->context = context;
 
+  global = JSContextGetGlobalObject (context);
+
   _gum_script_core_init (&priv->core, self, gum_script_emit_message,
-      gum_script_get_scheduler (), priv->context);
+      gum_script_get_scheduler (), priv->context, global);
 
   _gum_script_core_realize (&priv->core);
 

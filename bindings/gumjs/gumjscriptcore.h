@@ -29,7 +29,7 @@ struct _GumScriptCore
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,
     GumScript * script, GumScriptCoreMessageEmitter message_emitter,
-    GumScriptScheduler * scheduler, JSContextRef context);
+    GumScriptScheduler * scheduler, JSContextRef context, JSObjectRef scope);
 G_GNUC_INTERNAL void _gum_script_core_realize (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_flush (GumScriptCore * self);
 G_GNUC_INTERNAL void _gum_script_core_dispose (GumScriptCore * self);
@@ -42,8 +42,12 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
 
 G_GNUC_INTERNAL gchar * _gum_script_string_get (JSStringRef str);
 
-G_GNUC_INTERNAL guint _gum_script_object_get_uint (JSObjectRef obj,
+G_GNUC_INTERNAL guint _gum_script_object_get_uint (JSObjectRef object,
     const gchar * key, JSContextRef context);
+G_GNUC_INTERNAL gchar * _gum_script_object_get_string (JSObjectRef object,
+    const gchar * key, JSContextRef context);
+G_GNUC_INTERNAL void _gum_script_object_set (JSObjectRef object,
+    const gchar * key, JSValueRef value, JSContextRef context);
 
 G_GNUC_INTERNAL void _gum_script_panic (JSValueRef exception,
     JSContextRef context);
