@@ -23,8 +23,7 @@ _gum_script_core_init (GumScriptCore * self,
                        JSObjectRef scope)
 {
   JSClassDefinition def;
-  JSObjectRef native_pointer_ctor;
-  JSObjectRef placeholder;
+  JSObjectRef frida, native_pointer_ctor, placeholder;
 
   self->script = script;
   self->message_emitter = message_emitter;
@@ -32,11 +31,13 @@ _gum_script_core_init (GumScriptCore * self,
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
 
-  JSObjectSetPrivate (scope, self);
+  frida = JSObjectMake (ctx, NULL, NULL);
+  _gum_script_object_set_string (frida, "version", FRIDA_VERSION, ctx);
+  _gum_script_object_set (scope, "Frida", frida, ctx);
 
   _gum_script_object_set (scope, "global", scope, ctx);
 
-  _gum_script_object_set_callback (scope, "_setIncomingMessageCallback",
+  _gum_script_object_set_function (scope, "_setIncomingMessageCallback",
       gum_on_set_incoming_message_callback, self, ctx);
 
   def = kJSClassDefinitionEmpty;
@@ -199,10 +200,24 @@ _gum_script_string_from_value (JSValueRef value,
   return result;
 }
 
-guint
-_gum_script_object_get_uint (JSObjectRef object,
-                             const gchar * key,
+JSValueRef
+_gum_script_string_to_value (const gchar * str,
                              JSContextRef ctx)
+{
+  JSValueRef result;
+  JSStringRef str_js;
+
+  str_js = JSStringCreateWithUTF8CString (str);
+  result = JSValueMakeString (ctx, str_js);
+  JSStringRelease (str_js);
+
+  return result;
+}
+
+JSValueRef
+_gum_script_object_get (JSObjectRef object,
+                        const gchar * key,
+                        JSContextRef ctx)
 {
   JSStringRef property;
   JSValueRef value;
@@ -210,8 +225,20 @@ _gum_script_object_get_uint (JSObjectRef object,
   property = JSStringCreateWithUTF8CString (key);
   value = JSObjectGetProperty (ctx, object, property, NULL);
   g_assert (value != NULL);
-  g_assert (JSValueIsNumber (ctx, value));
   JSStringRelease (property);
+
+  return value;
+}
+
+guint
+_gum_script_object_get_uint (JSObjectRef object,
+                             const gchar * key,
+                             JSContextRef ctx)
+{
+  JSValueRef value;
+
+  value = _gum_script_object_get (object, key, ctx);
+  g_assert (JSValueIsNumber (ctx, value));
 
   return (guint) JSValueToNumber (ctx, value, NULL);
 }
@@ -221,14 +248,10 @@ _gum_script_object_get_string (JSObjectRef object,
                                const gchar * key,
                                JSContextRef ctx)
 {
-  JSStringRef property;
   JSValueRef value;
 
-  property = JSStringCreateWithUTF8CString (key);
-  value = JSObjectGetProperty (ctx, object, property, NULL);
-  g_assert (value != NULL);
+  value = _gum_script_object_get (object, key, ctx);
   g_assert (JSValueIsString (ctx, value));
-  JSStringRelease (property);
 
   return _gum_script_string_from_value (value, ctx);
 }
@@ -248,7 +271,17 @@ _gum_script_object_set (JSObjectRef object,
 }
 
 void
-_gum_script_object_set_callback (JSObjectRef object,
+_gum_script_object_set_string (JSObjectRef object,
+                               const gchar * key,
+                               const gchar * value,
+                               JSContextRef ctx)
+{
+  _gum_script_object_set (object, key, _gum_script_string_to_value (value, ctx),
+      ctx);
+}
+
+void
+_gum_script_object_set_function (JSObjectRef object,
                                  const gchar * key,
                                  JSObjectCallAsFunctionCallback callback,
                                  gpointer data,
@@ -273,16 +306,13 @@ _gum_script_throw (JSValueRef * exception,
 {
   va_list args;
   gchar * message;
-  JSStringRef message_string;
   JSValueRef message_value;
 
   va_start (args, format);
   message = g_strdup_vprintf (format, args);
   va_end (args);
 
-  message_string = JSStringCreateWithUTF8CString (message);
-  message_value = JSValueMakeString (ctx, message_string);
-  JSStringRelease (message_string);
+  message_value = _gum_script_string_to_value (message, ctx);
 
   g_free (message);
 

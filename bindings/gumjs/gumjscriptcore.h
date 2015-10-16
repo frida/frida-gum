@@ -45,14 +45,20 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
 G_GNUC_INTERNAL gchar * _gum_script_string_get (JSStringRef str);
 G_GNUC_INTERNAL gchar * _gum_script_string_from_value (JSValueRef value,
     JSContextRef ctx);
+G_GNUC_INTERNAL JSValueRef _gum_script_string_to_value (const gchar * str,
+    JSContextRef ctx);
 
+G_GNUC_INTERNAL JSValueRef _gum_script_object_get (JSObjectRef object,
+    const gchar * key, JSContextRef ctx);
 G_GNUC_INTERNAL guint _gum_script_object_get_uint (JSObjectRef object,
     const gchar * key, JSContextRef ctx);
 G_GNUC_INTERNAL gchar * _gum_script_object_get_string (JSObjectRef object,
     const gchar * key, JSContextRef ctx);
 G_GNUC_INTERNAL void _gum_script_object_set (JSObjectRef object,
     const gchar * key, JSValueRef value, JSContextRef ctx);
-G_GNUC_INTERNAL void _gum_script_object_set_callback (JSObjectRef object,
+G_GNUC_INTERNAL void _gum_script_object_set_string (JSObjectRef object,
+    const gchar * key, const gchar * value, JSContextRef ctx);
+G_GNUC_INTERNAL void _gum_script_object_set_function (JSObjectRef object,
     const gchar * key, JSObjectCallAsFunctionCallback callback, gpointer data,
     JSContextRef ctx);
 
