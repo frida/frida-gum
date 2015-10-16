@@ -6,13 +6,23 @@
 
 #include "gumjscriptcore.h"
 
-static JSValueRef gum_on_set_incoming_message_callback (JSContextRef ctx,
-    JSObjectRef function, JSObjectRef this_object, size_t argument_count,
-    const JSValueRef arguments[], JSValueRef * exception);
+GUM_DECLARE_JSC_FUNCTION (gum_set_unhandled_exception_callback);
+GUM_DECLARE_JSC_FUNCTION (gum_set_incoming_message_callback);
 
-static JSObjectRef gum_on_new_native_pointer (JSContextRef ctx,
-    JSObjectRef constructor, size_t argument_count,
-    const JSValueRef arguments[], JSValueRef * exception);
+GUM_DECLARE_JSC_GETTER (gum_script_get_file_name);
+GUM_DECLARE_JSC_GETTER (gum_script_get_source_map_data);
+
+GUM_DECLARE_JSC_CONSTRUCTOR (gum_native_pointer_construct);
+
+static const JSPropertyAttributes gum_prop_attrs =
+    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
+
+static const JSStaticValue gum_script_values[] =
+{
+  { "fileName", gum_script_get_file_name, NULL, gum_prop_attrs },
+  { "_sourceMapData", gum_script_get_source_map_data, NULL, gum_prop_attrs },
+  { NULL, NULL, NULL, 0 }
+};
 
 void
 _gum_script_core_init (GumScriptCore * self,
@@ -24,6 +34,8 @@ _gum_script_core_init (GumScriptCore * self,
 {
   JSClassDefinition def;
   JSObjectRef frida, native_pointer_ctor, placeholder;
+  JSClassRef klass;
+  JSValueRef obj;
 
   self->script = script;
   self->message_emitter = message_emitter;
@@ -31,20 +43,30 @@ _gum_script_core_init (GumScriptCore * self,
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
 
+  _gum_script_object_set (scope, "global", scope, ctx);
+
   frida = JSObjectMake (ctx, NULL, NULL);
   _gum_script_object_set_string (frida, "version", FRIDA_VERSION, ctx);
   _gum_script_object_set (scope, "Frida", frida, ctx);
 
-  _gum_script_object_set (scope, "global", scope, ctx);
+  def = kJSClassDefinitionEmpty;
+  def.className = "Script";
+  def.staticValues = gum_script_values;
+  klass = JSClassCreate (&def);
+  obj = JSObjectMake (ctx, klass, self);
+  JSClassRelease (klass);
+  _gum_script_object_set (scope, "Script", obj, ctx);
 
+  _gum_script_object_set_function (scope, "_setUnhandledExceptionCallback",
+      gum_set_unhandled_exception_callback, self, ctx);
   _gum_script_object_set_function (scope, "_setIncomingMessageCallback",
-      gum_on_set_incoming_message_callback, self, ctx);
+      gum_set_incoming_message_callback, self, ctx);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
   self->native_pointer = JSClassCreate (&def);
   native_pointer_ctor = JSObjectMakeConstructor (ctx, self->native_pointer,
-      gum_on_new_native_pointer);
+      gum_native_pointer_construct);
   JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
   _gum_script_object_set (scope, "NativePointer", native_pointer_ctor, ctx);
 
@@ -94,23 +116,27 @@ _gum_script_core_post_message (GumScriptCore * self,
 {
 }
 
-static JSValueRef
-gum_on_set_incoming_message_callback (JSContextRef ctx,
-                                      JSObjectRef function,
-                                      JSObjectRef this_object,
-                                      size_t argument_count,
-                                      const JSValueRef arguments[],
-                                      JSValueRef * exception)
+GUM_DEFINE_JSC_GETTER (gum_script_get_file_name)
+{
+  return JSValueMakeNull (ctx);
+}
+
+GUM_DEFINE_JSC_GETTER (gum_script_get_source_map_data)
+{
+  return JSValueMakeNull (ctx);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gum_set_unhandled_exception_callback)
 {
   return JSValueMakeUndefined (ctx);
 }
 
-static JSObjectRef
-gum_on_new_native_pointer (JSContextRef ctx,
-                           JSObjectRef constructor,
-                           size_t argument_count,
-                           const JSValueRef arguments[],
-                           JSValueRef * exception)
+GUM_DEFINE_JSC_FUNCTION (gum_set_incoming_message_callback)
+{
+  return JSValueMakeUndefined (ctx);
+}
+
+GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
 {
   JSClassRef klass;
   guint64 ptr;
