@@ -194,6 +194,8 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
 
   fixture->script = gum_script_from_string_sync ("testcase", source,
       GUM_SCRIPT_FLAVOR_USER, NULL, &err);
+  if (err != NULL)
+    g_printerr ("%s\n", err->message);
   g_assert (fixture->script != NULL);
   g_assert (err == NULL);
 
