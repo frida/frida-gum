@@ -768,3 +768,18 @@ gum_script_on_leave (GumInvocationListener * listener,
 
   _gum_script_interceptor_on_leave (&self->priv->interceptor, context);
 }
+
+void
+_gumjs_panic (JSValueRef exception,
+              JSContextRef ctx)
+{
+  gchar * message, * stack;
+
+  message = _gumjs_string_from_value (ctx, exception);
+  stack = _gumjs_object_get_string (ctx, (JSObjectRef) exception, "stack");
+  g_critical ("%s\n%s", message, stack);
+  g_free (stack);
+  g_free (message);
+
+  abort ();
+}

@@ -13,6 +13,8 @@ G_BEGIN_DECLS
 
 G_GNUC_INTERNAL GumScriptScheduler * _gum_script_get_scheduler (void);
 
+G_GNUC_INTERNAL void _gumjs_panic (JSContextRef ctx, JSValueRef exception);
+
 G_END_DECLS
 
 #endif

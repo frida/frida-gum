@@ -222,8 +222,8 @@ GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
 GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 {
   GumScriptCore * self;
-  JSValueRef message_value;
-  gchar * message;
+  JSValueRef result = NULL;
+  gchar * message = NULL;
   GBytes * data = NULL;
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
@@ -231,36 +231,31 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
   if (argument_count == 0)
     goto invalid_argument;
 
-  message_value = arguments[0];
-  if (!JSValueIsString (ctx, message_value))
-    goto invalid_argument;
+  if (!_gumjs_try_string_from_value (ctx, arguments[0], &message, exception))
+    goto beach;
 
   if (argument_count >= 2)
   {
-    JSValueRef data_value;
-
-    data_value = arguments[1];
-    if (!JSValueIsUndefined (ctx, data_value) &&
-        !JSValueIsNull (ctx, data_value))
-    {
-      data = _gumjs_byte_array_get (ctx, data_value, exception);
-      if (data == NULL)
-        return NULL;
-    }
+    if (!_gumjs_byte_array_try_get_opt (ctx, arguments[1], &data, exception))
+      goto beach;
   }
-
-  message = _gumjs_string_from_value (ctx, message_value);
 
   _gum_script_core_emit_message (self, message, data);
 
-  g_free (message);
-
-  return JSValueMakeUndefined (ctx);
+  result = JSValueMakeUndefined (ctx);
+  goto beach;
 
 invalid_argument:
   {
     _gumjs_throw (ctx, exception, "invalid argument");
-    return NULL;
+    goto beach;
+  }
+beach:
+  {
+    g_bytes_unref (data);
+    g_free (message);
+
+    return result;
   }
 }
 
@@ -274,7 +269,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   if (argument_count == 0)
     goto invalid_argument;
 
-  if (!_gumjs_callback_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -305,7 +300,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
   if (argument_count == 0)
     goto invalid_argument;
 
-  if (!_gumjs_callback_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -357,7 +352,8 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
       gchar * ptr_as_string, * endptr;
       gboolean valid;
 
-      ptr_as_string = _gumjs_string_from_value (ctx, value);
+      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, exception))
+        return NULL;
 
       if (g_str_has_prefix (ptr_as_string, "0x"))
       {
@@ -489,17 +485,3 @@ _gumjs_native_pointer_get (GumScriptCore * core,
   }
 }
 
-void
-_gum_script_panic (JSValueRef exception,
-                   JSContextRef ctx)
-{
-  gchar * message, * stack;
-
-  message = _gumjs_string_from_value (ctx, exception);
-  stack = _gumjs_object_get_string (ctx, (JSObjectRef) exception, "stack");
-  g_critical ("%s\n%s", message, stack);
-  g_free (stack);
-  g_free (message);
-
-  abort ();
-}

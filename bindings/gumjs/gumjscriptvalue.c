@@ -6,6 +6,8 @@
 
 #include "gumjscriptvalue.h"
 
+#include "gumjscript-priv.h"
+
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
 gchar *
@@ -25,15 +27,30 @@ gchar *
 _gumjs_string_from_value (JSContextRef ctx,
                           JSValueRef value)
 {
-  gchar * result;
-  JSStringRef str;
+  gchar * str;
+  JSValueRef exception;
 
-  str = JSValueToStringCopy (ctx, value, NULL);
-  g_assert (str != NULL);
-  result = _gumjs_string_get (str);
-  JSStringRelease (str);
+  if (!_gumjs_try_string_from_value (ctx, value, &str, &exception))
+    _gumjs_panic (ctx, exception);
 
-  return result;
+  return str;
+}
+
+gboolean
+_gumjs_try_string_from_value (JSContextRef ctx,
+                              JSValueRef value,
+                              gchar ** str,
+                              JSValueRef * exception)
+{
+  JSStringRef s;
+
+  s = JSValueToStringCopy (ctx, value, exception);
+  if (s == NULL)
+    return FALSE;
+  *str = _gumjs_string_get (s);
+  JSStringRelease (s);
+
+  return TRUE;
 }
 
 JSValueRef
@@ -55,15 +72,32 @@ _gumjs_object_get (JSContextRef ctx,
                    JSObjectRef object,
                    const gchar * key)
 {
-  JSStringRef property;
-  JSValueRef value;
+  JSValueRef value, exception;
 
-  property = JSStringCreateWithUTF8CString (key);
-  value = JSObjectGetProperty (ctx, object, property, NULL);
-  g_assert (value != NULL);
-  JSStringRelease (property);
+  if (!_gumjs_object_try_get (ctx, object, key, &value, &exception))
+    _gumjs_panic (ctx, exception);
 
   return value;
+}
+
+gboolean
+_gumjs_object_try_get (JSContextRef ctx,
+                       JSObjectRef object,
+                       const gchar * key,
+                       JSValueRef * value,
+                       JSValueRef * exception)
+{
+  JSStringRef property;
+  JSValueRef ex = NULL;
+
+  property = JSStringCreateWithUTF8CString (key);
+  *value = JSObjectGetProperty (ctx, object, property, &ex);
+  JSStringRelease (property);
+
+  if (exception != NULL)
+    *exception = ex;
+
+  return ex == NULL;
 }
 
 guint
@@ -71,12 +105,49 @@ _gumjs_object_get_uint (JSContextRef ctx,
                         JSObjectRef object,
                         const gchar * key)
 {
-  JSValueRef value;
+  guint value;
+  JSValueRef exception;
 
-  value = _gumjs_object_get (ctx, object, key);
-  g_assert (JSValueIsNumber (ctx, value));
+  if (!_gumjs_object_try_get_uint (ctx, object, key, &value, &exception))
+    _gumjs_panic (ctx, exception);
 
-  return (guint) JSValueToNumber (ctx, value, NULL);
+  return value;
+}
+
+gboolean
+_gumjs_object_try_get_uint (JSContextRef ctx,
+                            JSObjectRef object,
+                            const gchar * key,
+                            guint * value,
+                            JSValueRef * exception)
+{
+  JSValueRef v, ex = NULL;
+  double number;
+
+  if (!_gumjs_object_try_get (ctx, object, key, &v, exception))
+    return FALSE;
+
+  if (!JSValueIsNumber (ctx, v))
+    goto invalid_type;
+
+  number = JSValueToNumber (ctx, v, &ex);
+  if (ex != NULL)
+    goto propagate_exception;
+
+  *value = (guint) number;
+  return TRUE;
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected '%s' to be a number", key);
+    return FALSE;
+  }
+propagate_exception:
+  {
+    if (exception != NULL)
+      *exception = ex;
+    return FALSE;
+  }
 }
 
 gchar *
@@ -84,12 +155,37 @@ _gumjs_object_get_string (JSContextRef ctx,
                           JSObjectRef object,
                           const gchar * key)
 {
-  JSValueRef value;
+  gchar * value;
+  JSValueRef exception;
 
-  value = _gumjs_object_get (ctx, object, key);
-  g_assert (JSValueIsString (ctx, value));
+  if (!_gumjs_object_try_get_string (ctx, object, key, &value, &exception))
+    _gumjs_panic (ctx, exception);
 
-  return _gumjs_string_from_value (ctx, value);
+  return value;
+}
+
+gboolean
+_gumjs_object_try_get_string (JSContextRef ctx,
+                              JSObjectRef object,
+                              const gchar * key,
+                              gchar ** value,
+                              JSValueRef * exception)
+{
+  JSValueRef v;
+
+  if (!_gumjs_object_try_get (ctx, object, key, &v, exception))
+    return FALSE;
+
+  if (!JSValueIsString (ctx, v))
+    goto invalid_type;
+
+  return _gumjs_try_string_from_value (ctx, v, value, exception);
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected '%s' to be a string", key);
+    return FALSE;
+  }
 }
 
 void
@@ -98,12 +194,31 @@ _gumjs_object_set (JSContextRef ctx,
                    const gchar * key,
                    JSValueRef value)
 {
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set (ctx, object, key, value, &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set (JSContextRef ctx,
+                       JSObjectRef object,
+                       const gchar * key,
+                       JSValueRef value,
+                       JSValueRef * exception)
+{
   JSStringRef property;
+  JSValueRef ex = NULL;
 
   property = JSStringCreateWithUTF8CString (key);
   JSObjectSetProperty (ctx, object, property, value,
-      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
+      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &ex);
   JSStringRelease (property);
+
+  if (exception != NULL)
+    *exception = ex;
+
+  return ex == NULL;
 }
 
 void
@@ -112,8 +227,21 @@ _gumjs_object_set_string (JSContextRef ctx,
                           const gchar * key,
                           const gchar * value)
 {
-  _gumjs_object_set (ctx, object, key,
-      _gumjs_string_to_value (ctx, value));
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set_string (ctx, object, key, value, &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set_string (JSContextRef ctx,
+                              JSObjectRef object,
+                              const gchar * key,
+                              const gchar * value,
+                              JSValueRef * exception)
+{
+  return _gumjs_object_try_set (ctx, object, key,
+      _gumjs_string_to_value (ctx, value), exception);
 }
 
 void
@@ -122,102 +250,210 @@ _gumjs_object_set_function (JSContextRef ctx,
                             const gchar * key,
                             JSObjectCallAsFunctionCallback callback)
 {
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set_function (ctx, object, key, callback, &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set_function (JSContextRef ctx,
+                                JSObjectRef object,
+                                const gchar * key,
+                                JSObjectCallAsFunctionCallback callback,
+                                JSValueRef * exception)
+{
   JSStringRef name;
   JSObjectRef func;
+  JSValueRef ex = NULL;
 
   name = JSStringCreateWithUTF8CString (key);
   func = JSObjectMakeFunctionWithCallback (ctx, name, callback);
   JSObjectSetProperty (ctx, object, name, func,
-      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, NULL);
+      kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, &ex);
   JSStringRelease (name);
+
+  if (exception != NULL)
+    *exception = ex;
+
+  return ex == NULL;
 }
 
-GBytes *
-_gumjs_byte_array_get (JSContextRef ctx,
-                       JSValueRef value,
-                       JSValueRef * exception)
-{
-  GBytes * result;
-
-  result = _gumjs_byte_array_try_get (ctx, value);
-  if (result == NULL)
-  {
-    _gumjs_throw (ctx, exception, "unsupported data value");
-    return NULL;
-  }
-
-  return result;
-}
-
-GBytes *
+gboolean
 _gumjs_byte_array_try_get (JSContextRef ctx,
-                           JSValueRef value)
+                           JSValueRef value,
+                           GBytes ** bytes,
+                           JSValueRef * exception)
 {
+  if (!_gumjs_byte_array_try_get_opt (ctx, value, bytes, exception))
+    return FALSE;
+
+  if (*bytes == NULL)
+    goto byte_array_required;
+
+  return TRUE;
+
+byte_array_required:
+  {
+    _gumjs_throw (ctx, exception, "byte array required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_byte_array_try_get_opt (JSContextRef ctx,
+                               JSValueRef value,
+                               GBytes ** bytes,
+                               JSValueRef * exception)
+{
+  guint8 * data;
+
   if (JSValueIsArray (ctx, value))
   {
     JSObjectRef array = (JSObjectRef) value;
     guint data_length, i;
-    guint8 * data;
-    gboolean data_valid;
 
-    data_length = _gumjs_object_get_uint (ctx, array, "length");
-    if (data_length > GUM_SCRIPT_MAX_ARRAY_LENGTH)
-      return NULL;
+    if (!_gumjs_object_try_get_uint (ctx, array, "length", &data_length,
+          exception))
+      return FALSE;
 
     data = g_malloc (data_length);
-    data_valid = TRUE;
 
-    for (i = 0; i != data_length && data_valid; i++)
+    for (i = 0; i != data_length; i++)
     {
-      JSValueRef element;
+      JSValueRef element, ex = NULL;
 
-      element = JSObjectGetPropertyAtIndex (ctx, array, i, NULL);
-      if (JSValueIsNumber (ctx, element))
-        data[i] = (guint8) JSValueToNumber (ctx, element, NULL);
-      else
-        data_valid = FALSE;
+      element = JSObjectGetPropertyAtIndex (ctx, array, i, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
+
+      data[i] = (guint8) JSValueToNumber (ctx, element, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
     }
 
-    if (!data_valid)
-    {
-      g_free (data);
-      return NULL;
-    }
-
-    return g_bytes_new_take (data, data_length);
+    *bytes = g_bytes_new_take (data, data_length);
+    return TRUE;
+  }
+  else if (JSValueIsUndefined (ctx, value) || JSValueIsNull (ctx, value))
+  {
+    *bytes = NULL;
+    return TRUE;
   }
 
-  return NULL;
+  goto unsupported_data_value;
+
+unsupported_data_value:
+  {
+    _gumjs_throw (ctx, exception, "unsupported data value");
+    return FALSE;
+  }
+invalid_element_type:
+  {
+    g_free (data);
+    _gumjs_throw (ctx, exception, "invalid element type");
+    return FALSE;
+  }
 }
 
 gboolean
-_gumjs_callback_get_opt (JSContextRef ctx,
+_gumjs_callbacks_try_get (JSContextRef ctx,
+                          JSValueRef callbacks,
+                          const gchar * name,
+                          JSObjectRef * callback,
+                          JSValueRef * exception)
+{
+  if (!_gumjs_callbacks_try_get_opt (ctx, callbacks, name, callback, exception))
+    return FALSE;
+
+  if (*callback == NULL)
+    goto callback_required;
+
+  return TRUE;
+
+callback_required:
+  {
+    _gumjs_throw (ctx, exception, "'%s' callback required", name);
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_callbacks_try_get_opt (JSContextRef ctx,
+                              JSValueRef callbacks,
+                              const gchar * name,
+                              JSObjectRef * callback,
+                              JSValueRef * exception)
+{
+  JSObjectRef obj;
+  JSValueRef value;
+
+  if (!JSValueIsObject (ctx, callbacks))
+    goto invalid_argument;
+  obj = (JSObjectRef) callbacks;
+
+  if (!_gumjs_object_try_get (ctx, obj, name, &value, exception))
+    return FALSE;
+
+  return _gumjs_callback_try_get_opt (ctx, value, callback, exception);
+
+invalid_argument:
+  {
+    _gumjs_throw (ctx, exception, "expected object containing callbacks");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_callback_try_get (JSContextRef ctx,
                          JSValueRef value,
                          JSObjectRef * callback,
                          JSValueRef * exception)
 {
-  JSObjectRef result;
+  if (!_gumjs_callback_try_get_opt (ctx, value, callback, exception))
+    return FALSE;
 
-  if (!JSValueIsNull (ctx, value))
+  if (*callback == NULL)
+    goto callback_required;
+
+  return TRUE;
+
+callback_required:
   {
+    _gumjs_throw (ctx, exception, "callback required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_callback_try_get_opt (JSContextRef ctx,
+                             JSValueRef value,
+                             JSObjectRef * callback,
+                             JSValueRef * exception)
+{
+  if (!JSValueIsUndefined (ctx, value) && !JSValueIsNull (ctx, value))
+  {
+    JSObjectRef obj;
+
     if (!JSValueIsObject (ctx, value))
       goto invalid_argument;
 
-    result = (JSObjectRef) value;
-    if (!JSObjectIsFunction (ctx, result))
+    obj = (JSObjectRef) value;
+    if (!JSObjectIsFunction (ctx, obj))
       goto invalid_argument;
+
+    *callback = obj;
   }
   else
   {
-    result = NULL;
+    *callback = NULL;
   }
 
-  *callback = result;
   return TRUE;
 
 invalid_argument:
   {
-    _gumjs_throw (ctx, exception, "invalid argument");
+    _gumjs_throw (ctx, exception, "expected function");
     return FALSE;
   }
 }
@@ -240,5 +476,6 @@ _gumjs_throw (JSContextRef ctx,
 
   g_free (message);
 
-  *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
+  if (exception != NULL)
+    *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
 }
