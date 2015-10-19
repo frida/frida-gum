@@ -1,0 +1,386 @@
+/*
+ * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
+ * Licence: wxWindows Library Licence, Version 3.1
+ */
+
+#include "gumjscriptinterceptor.h"
+
+#include "gumjscript-priv.h"
+#include "gumjscriptmacros.h"
+#include "gumjscriptvalue.h"
+
+#include <gum/gum-init.h>
+
+typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
+typedef struct _GumScriptReplaceEntry GumScriptReplaceEntry;
+
+struct _GumScriptAttachEntry
+{
+  JSObjectRef on_enter;
+  JSObjectRef on_leave;
+  JSContextRef ctx;
+};
+
+struct _GumScriptReplaceEntry
+{
+  GumInterceptor * interceptor;
+  gpointer target;
+  JSValueRef replacement;
+  JSContextRef ctx;
+};
+
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_attach);
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_detach_all);
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_replace);
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_revert);
+
+static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
+
+static void gum_script_attach_entry_free (GumScriptAttachEntry * entry);
+static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
+
+static void gum_script_interceptor_adjust_ignore_level_unlocked (
+    GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
+static gboolean gum_flush_pending_unignores (gpointer user_data);
+
+static const JSPropertyAttributes gumjs_attrs =
+    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
+
+static const JSStaticFunction gumjs_interceptor_functions[] =
+{
+  { "_attach", gumjs_interceptor_attach, gumjs_attrs },
+  { "detachAll", gumjs_interceptor_detach_all, gumjs_attrs },
+  { "_replace", gumjs_interceptor_replace, gumjs_attrs },
+  { "revert", gumjs_interceptor_revert, gumjs_attrs },
+  { NULL, NULL, 0 }
+};
+
+static GHashTable * gum_ignored_threads = NULL;
+static GSList * gum_pending_unignores = NULL;
+static GSource * gum_pending_timeout = NULL;
+static GumInterceptor * gum_interceptor_instance = NULL;
+static GRWLock gum_ignored_lock;
+
+void
+_gum_script_interceptor_init (GumScriptInterceptor * self,
+                              GumScriptCore * core,
+                              JSObjectRef scope)
+{
+  JSContextRef ctx = core->ctx;
+  JSClassDefinition def;
+  JSClassRef klass;
+  JSObjectRef interceptor;
+
+  self->core = core;
+
+  self->interceptor = gum_interceptor_obtain ();
+
+  self->attach_entries = g_queue_new ();
+  self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_script_replace_entry_free);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "Interceptor";
+  def.staticFunctions = gumjs_interceptor_functions;
+  klass = JSClassCreate (&def);
+  interceptor = JSObjectMake (ctx, klass, self);
+  JSClassRelease (klass);
+  _gum_script_object_set (ctx, scope, "Interceptor", interceptor);
+}
+
+void
+_gum_script_interceptor_dispose (GumScriptInterceptor * self)
+{
+  gum_script_interceptor_detach_all (self);
+
+  g_hash_table_remove_all (self->replacement_by_address);
+}
+
+void
+_gum_script_interceptor_finalize (GumScriptInterceptor * self)
+{
+  g_queue_free (self->attach_entries);
+  g_hash_table_unref (self->replacement_by_address);
+
+  g_object_unref (self->interceptor);
+  self->interceptor = NULL;
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
+{
+  g_print ("gumjs_interceptor_attach\n");
+  return JSValueMakeUndefined (ctx);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_detach_all)
+{
+  GumScriptInterceptor * self = JSObjectGetPrivate (this_object);
+
+  gum_script_interceptor_detach_all (self);
+
+  return JSValueMakeUndefined (ctx);
+}
+
+static void
+gum_script_interceptor_detach_all (GumScriptInterceptor * self)
+{
+  gum_interceptor_detach_listener (self->interceptor,
+      GUM_INVOCATION_LISTENER (self->core->script));
+
+  while (!g_queue_is_empty (self->attach_entries))
+  {
+    gum_script_attach_entry_free (g_queue_pop_tail (self->attach_entries));
+  }
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_replace)
+{
+  return JSValueMakeUndefined (ctx);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_revert)
+{
+  return JSValueMakeUndefined (ctx);
+}
+
+void
+_gum_script_interceptor_on_enter (GumScriptInterceptor * self,
+                                  GumInvocationContext * context)
+{
+  GumScriptAttachEntry * entry;
+  gint * depth;
+
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
+    return;
+
+  entry = gum_invocation_context_get_listener_function_data (context);
+  depth = GUM_LINCTX_GET_THREAD_DATA (context, gint);
+
+  if (entry->on_enter != NULL)
+  {
+  }
+
+  (*depth)++;
+}
+
+void
+_gum_script_interceptor_on_leave (GumScriptInterceptor * self,
+                                  GumInvocationContext * context)
+{
+  GumScriptAttachEntry * entry;
+  gint * depth;
+
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
+    return;
+
+  entry = gum_invocation_context_get_listener_function_data (context);
+  depth = GUM_LINCTX_GET_THREAD_DATA (context, gint);
+
+  (*depth)--;
+
+  if (entry->on_leave != NULL)
+  {
+  }
+}
+
+static void
+gum_script_attach_entry_free (GumScriptAttachEntry * entry)
+{
+  JSValueUnprotect (entry->ctx, entry->on_enter);
+  JSValueUnprotect (entry->ctx, entry->on_leave);
+  g_slice_free (GumScriptAttachEntry, entry);
+}
+
+static void
+gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
+{
+  gum_interceptor_revert_function (entry->interceptor, entry->target);
+  JSValueUnprotect (entry->ctx, entry->replacement);
+  g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+static void
+gum_ignored_threads_deinit (void)
+{
+  if (gum_pending_timeout != NULL)
+  {
+    g_source_destroy (gum_pending_timeout);
+    g_source_unref (gum_pending_timeout);
+    gum_pending_timeout = NULL;
+  }
+  g_slist_free (gum_pending_unignores);
+  gum_pending_unignores = NULL;
+
+  g_object_unref (gum_interceptor_instance);
+  gum_interceptor_instance = NULL;
+
+  g_hash_table_unref (gum_ignored_threads);
+  gum_ignored_threads = NULL;
+}
+
+static void
+gum_script_interceptor_adjust_ignore_level (GumThreadId thread_id,
+                                            gint adjustment)
+{
+  GumInterceptor * interceptor;
+
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+  gum_script_interceptor_adjust_ignore_level_unlocked (thread_id, adjustment,
+      interceptor);
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+
+  gum_interceptor_unignore_current_thread (interceptor);
+  g_object_unref (interceptor);
+}
+
+static void
+gum_script_interceptor_adjust_ignore_level_unlocked (
+    GumThreadId thread_id,
+    gint adjustment,
+    GumInterceptor * interceptor)
+{
+  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
+  gint level;
+
+  if (G_UNLIKELY (gum_ignored_threads == NULL))
+  {
+    gum_ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+
+    gum_interceptor_instance = interceptor;
+    g_object_ref (interceptor);
+
+    _gum_register_destructor (gum_ignored_threads_deinit);
+  }
+
+  level = GPOINTER_TO_INT (
+      g_hash_table_lookup (gum_ignored_threads, thread_id_ptr));
+  level += adjustment;
+
+  if (level > 0)
+  {
+    g_hash_table_insert (gum_ignored_threads, thread_id_ptr,
+        GINT_TO_POINTER (level));
+  }
+  else
+  {
+    g_hash_table_remove (gum_ignored_threads, thread_id_ptr);
+  }
+}
+
+void
+gum_script_ignore (GumThreadId thread_id)
+{
+  gum_script_interceptor_adjust_ignore_level (thread_id, 1);
+}
+
+void
+gum_script_unignore (GumThreadId thread_id)
+{
+  gum_script_interceptor_adjust_ignore_level (thread_id, -1);
+}
+
+void
+gum_script_unignore_later (GumThreadId thread_id)
+{
+  GMainContext * main_context;
+  GumInterceptor * interceptor;
+  GSource * source;
+
+  main_context = gum_script_scheduler_get_js_context (
+      _gum_script_get_scheduler ());
+
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  gum_pending_unignores = g_slist_prepend (gum_pending_unignores,
+      GSIZE_TO_POINTER (thread_id));
+  source = gum_pending_timeout;
+  gum_pending_timeout = NULL;
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+
+  if (source != NULL)
+  {
+    g_source_destroy (source);
+    g_source_unref (source);
+  }
+  source = g_timeout_source_new_seconds (5);
+  g_source_set_callback (source, gum_flush_pending_unignores, source, NULL);
+  g_source_attach (source, main_context);
+
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  if (gum_pending_timeout == NULL)
+  {
+    gum_pending_timeout = source;
+    source = NULL;
+  }
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+
+  if (source != NULL)
+  {
+    g_source_destroy (source);
+    g_source_unref (source);
+  }
+
+  gum_interceptor_unignore_current_thread (interceptor);
+  g_object_unref (interceptor);
+}
+
+static gboolean
+gum_flush_pending_unignores (gpointer user_data)
+{
+  GSource * source = (GSource *) user_data;
+  GumInterceptor * interceptor;
+
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+
+  g_rw_lock_writer_lock (&gum_ignored_lock);
+
+  if (gum_pending_timeout == source)
+  {
+    g_source_unref (gum_pending_timeout);
+    gum_pending_timeout = NULL;
+  }
+
+  while (gum_pending_unignores != NULL)
+  {
+    GumThreadId thread_id;
+
+    thread_id = GPOINTER_TO_SIZE (gum_pending_unignores->data);
+    gum_pending_unignores = g_slist_delete_link (gum_pending_unignores,
+        gum_pending_unignores);
+    gum_script_interceptor_adjust_ignore_level_unlocked (thread_id, -1,
+        interceptor);
+  }
+
+  g_rw_lock_writer_unlock (&gum_ignored_lock);
+
+  gum_interceptor_unignore_current_thread (interceptor);
+  g_object_unref (interceptor);
+
+  return FALSE;
+}
+
+gboolean
+gum_script_is_ignoring (GumThreadId thread_id)
+{
+  gboolean is_ignored;
+
+  g_rw_lock_reader_lock (&gum_ignored_lock);
+
+  is_ignored = gum_ignored_threads != NULL &&
+      g_hash_table_contains (gum_ignored_threads, GSIZE_TO_POINTER (thread_id));
+
+  g_rw_lock_reader_unlock (&gum_ignored_lock);
+
+  return is_ignored;
+}

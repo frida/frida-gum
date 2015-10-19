@@ -14,23 +14,23 @@
 
 struct _GumExceptionSink
 {
-  JSContextRef ctx;
   JSObjectRef callback;
+  JSContextRef ctx;
 };
 
 struct _GumMessageSink
 {
-  JSContextRef ctx;
   JSObjectRef callback;
+  JSContextRef ctx;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gum_script_core_send);
-GUM_DECLARE_JSC_FUNCTION (gum_script_core_set_unhandled_exception_callback);
-GUM_DECLARE_JSC_FUNCTION (gum_script_core_set_incoming_message_callback);
-GUM_DECLARE_JSC_FUNCTION (gum_script_core_wait_for_event);
+GUM_DECLARE_JSC_FUNCTION (gumjs_send);
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback);
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback);
+GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event);
 
-GUM_DECLARE_JSC_GETTER (gum_script_get_file_name);
-GUM_DECLARE_JSC_GETTER (gum_script_get_source_map_data);
+GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name);
+GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
 
 GUM_DECLARE_JSC_CONSTRUCTOR (gum_native_pointer_construct);
 
@@ -46,13 +46,13 @@ static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message, JSValueRef * exception);
 
-static const JSPropertyAttributes gum_prop_attrs =
+static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
 
-static const JSStaticValue gum_script_values[] =
+static const JSStaticValue gumjs_script_values[] =
 {
-  { "fileName", gum_script_get_file_name, NULL, gum_prop_attrs },
-  { "_sourceMapData", gum_script_get_source_map_data, NULL, gum_prop_attrs },
+  { "fileName", gumjs_script_get_file_name, NULL, gumjs_attrs },
+  { "_sourceMapData", gumjs_script_get_source_map_data, NULL, gumjs_attrs },
   { NULL, NULL, NULL, 0 }
 };
 
@@ -64,10 +64,13 @@ _gum_script_core_init (GumScriptCore * self,
                        JSContextRef ctx,
                        JSObjectRef scope)
 {
+  GumScriptFlavor flavor;
   JSClassDefinition def;
-  JSObjectRef frida, native_pointer_ctor, placeholder;
+  JSObjectRef frida, native_pointer_ctor;
   JSClassRef klass;
   JSValueRef obj;
+
+  g_object_get (script, "flavor", &flavor, NULL);
 
   self->script = script;
   self->message_emitter = message_emitter;
@@ -88,19 +91,19 @@ _gum_script_core_init (GumScriptCore * self,
 
   def = kJSClassDefinitionEmpty;
   def.className = "Script";
-  def.staticValues = gum_script_values;
+  def.staticValues = gumjs_script_values;
   klass = JSClassCreate (&def);
   obj = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
   _gum_script_object_set (ctx, scope, "Script", obj);
 
-  _gum_script_object_set_function (ctx, scope, "_send", gum_script_core_send);
+  _gum_script_object_set_function (ctx, scope, "_send", gumjs_send);
   _gum_script_object_set_function (ctx, scope, "_setUnhandledExceptionCallback",
-      gum_script_core_set_unhandled_exception_callback);
+      gumjs_set_unhandled_exception_callback);
   _gum_script_object_set_function (ctx, scope, "_setIncomingMessageCallback",
-      gum_script_core_set_incoming_message_callback);
+      gumjs_set_incoming_message_callback);
   _gum_script_object_set_function (ctx, scope, "_waitForEvent",
-      gum_script_core_wait_for_event);
+      gumjs_wait_for_event);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
@@ -110,9 +113,19 @@ _gum_script_core_init (GumScriptCore * self,
   JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
   _gum_script_object_set (ctx, scope, "NativePointer", native_pointer_ctor);
 
-  placeholder = JSObjectMake (ctx, NULL, NULL);
-  _gum_script_object_set (ctx, scope, "Kernel", placeholder);
-  _gum_script_object_set (ctx, scope, "Memory", placeholder);
+  _gum_script_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
+
+  if (flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    _gum_script_object_set (ctx, scope, "Memory",
+        JSObjectMake (ctx, NULL, NULL));
+    _gum_script_object_set (ctx, scope, "Process",
+        JSObjectMake (ctx, NULL, NULL));
+    _gum_script_object_set (ctx, scope, "Module",
+        JSObjectMake (ctx, NULL, NULL));
+    _gum_script_object_set (ctx, scope, "Instruction",
+        JSObjectMake (ctx, NULL, NULL));
+  }
 }
 
 void
@@ -149,6 +162,7 @@ _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                GBytes * data)
 {
+  g_print ("%s\n", message);
   self->message_emitter (self->script, message, data);
 }
 
@@ -198,17 +212,17 @@ _gum_script_scope_leave (GumScriptScope * self)
   GUM_SCRIPT_CORE_UNLOCK (self->core);
 }
 
-GUM_DEFINE_JSC_GETTER (gum_script_get_file_name)
+GUM_DEFINE_JSC_GETTER (gumjs_script_get_file_name)
 {
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_GETTER (gum_script_get_source_map_data)
+GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
 {
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gum_script_core_send)
+GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 {
   GumScriptCore * self;
   JSValueRef message_value;
@@ -253,7 +267,7 @@ invalid_argument:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gum_script_core_set_unhandled_exception_callback)
+GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
   GumScriptCore * self;
   JSObjectRef callback;
@@ -284,7 +298,7 @@ invalid_argument:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gum_script_core_set_incoming_message_callback)
+GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 {
   GumScriptCore * self;
   JSObjectRef callback;
@@ -312,7 +326,7 @@ invalid_argument:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gum_script_core_wait_for_event)
+GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
 {
   GumScriptCore * self;
   guint start_count;
@@ -395,9 +409,9 @@ gum_exception_sink_new (JSContextRef ctx,
   GumExceptionSink * sink;
 
   sink = g_slice_new (GumExceptionSink);
-  sink->ctx = ctx;
   JSValueProtect (ctx, callback);
   sink->callback = callback;
+  sink->ctx = ctx;
 
   return sink;
 }
@@ -427,9 +441,9 @@ gum_message_sink_new (JSContextRef ctx,
   GumMessageSink * sink;
 
   sink = g_slice_new (GumMessageSink);
-  sink->ctx = ctx;
   JSValueProtect (ctx, callback);
   sink->callback = callback;
+  sink->ctx = ctx;
 
   return sink;
 }

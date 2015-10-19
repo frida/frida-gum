@@ -9,6 +9,7 @@
 #include "guminvocationlistener.h"
 #include "gumjscript-runtime.h"
 #include "gumjscriptcore.h"
+#include "gumjscriptinterceptor.h"
 #include "gumjscriptvalue.h"
 #include "gumscriptscheduler.h"
 #include "gumscripttask.h"
@@ -38,6 +39,7 @@ struct _GumScriptPrivate
 
   JSGlobalContextRef ctx;
   GumScriptCore core;
+  GumScriptInterceptor interceptor;
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
@@ -110,8 +112,8 @@ G_DEFINE_TYPE_EXTENDED (GumScript,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_script_listener_iface_init));
 
-static GumScriptScheduler *
-gum_script_get_scheduler (void)
+GumScriptScheduler *
+_gum_script_get_scheduler (void)
 {
   static GOnce init_once = G_ONCE_INIT;
 
@@ -137,7 +139,7 @@ gum_script_do_deinit (void)
 {
   GumScriptScheduler * scheduler;
 
-  scheduler = gum_script_get_scheduler ();
+  scheduler = _gum_script_get_scheduler ();
   g_object_unref (scheduler);
 }
 
@@ -367,7 +369,11 @@ gum_script_create_context (GumScript * self,
   global = JSContextGetGlobalObject (ctx);
 
   _gum_script_core_init (&priv->core, self, gum_script_emit_message,
-      gum_script_get_scheduler (), priv->ctx, global);
+      _gum_script_get_scheduler (), priv->ctx, global);
+  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    _gum_script_interceptor_init (&priv->interceptor, &priv->core, global);
+  }
 
   gum_script_bundle_load (gum_jscript_runtime_sources, priv->ctx);
 
@@ -383,12 +389,20 @@ gum_script_destroy_context (GumScript * self)
 
   _gum_script_core_flush (&priv->core);
 
+  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    _gum_script_interceptor_dispose (&priv->interceptor);
+  }
   _gum_script_core_dispose (&priv->core);
-
-  _gum_script_core_finalize (&priv->core);
 
   JSGlobalContextRelease (priv->ctx);
   priv->ctx = NULL;
+
+  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+  {
+    _gum_script_interceptor_finalize (&priv->interceptor);
+  }
+  _gum_script_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
 }
@@ -405,7 +419,7 @@ gum_script_from_string (const gchar * name,
 
   task = gum_script_from_string_task_new (name, source, flavor, cancellable,
       callback, user_data);
-  gum_script_task_run_in_js_thread (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread (task, _gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -429,7 +443,7 @@ gum_script_from_string_sync (const gchar * name,
 
   task = gum_script_from_string_task_new (name, source, flavor, cancellable,
       NULL, NULL);
-  gum_script_task_run_in_js_thread_sync (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread_sync (task, _gum_script_get_scheduler ());
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
@@ -574,7 +588,7 @@ gum_script_load (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_load, self, cancellable, callback,
       user_data);
-  gum_script_task_run_in_js_thread (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread (task, _gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -595,7 +609,7 @@ gum_script_load_sync (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_load, self, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_js_thread_sync (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread_sync (task, _gum_script_get_scheduler ());
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -651,7 +665,7 @@ gum_script_unload (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_unload, self, cancellable, callback,
       user_data);
-  gum_script_task_run_in_js_thread (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread (task, _gum_script_get_scheduler ());
   g_object_unref (task);
 }
 
@@ -672,7 +686,7 @@ gum_script_unload_sync (GumScript * self,
 
   task = gum_script_task_new (gum_script_do_unload, self, cancellable, NULL,
       NULL);
-  gum_script_task_run_in_js_thread_sync (task, gum_script_get_scheduler ());
+  gum_script_task_run_in_js_thread_sync (task, _gum_script_get_scheduler ());
   gum_script_task_propagate_pointer (task, NULL);
   g_object_unref (task);
 }
@@ -705,7 +719,7 @@ gum_script_post_message (GumScript * self,
   g_object_ref (self);
   d->message = g_strdup (message);
 
-  gum_script_scheduler_push_job_on_js_thread (gum_script_get_scheduler (),
+  gum_script_scheduler_push_job_on_js_thread (_gum_script_get_scheduler (),
       G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_script_do_post_message, d,
       (GDestroyNotify) gum_script_post_message_data_free, NULL);
 }
@@ -741,11 +755,16 @@ static void
 gum_script_on_enter (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
+  GumScript * self = GUM_SCRIPT_CAST (listener);
+
+  _gum_script_interceptor_on_enter (&self->priv->interceptor, context);
 }
 
 static void
 gum_script_on_leave (GumInvocationListener * listener,
                      GumInvocationContext * context)
 {
-}
+  GumScript * self = GUM_SCRIPT_CAST (listener);
 
+  _gum_script_interceptor_on_leave (&self->priv->interceptor, context);
+}

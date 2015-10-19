@@ -80,6 +80,7 @@ libfrida_gumjsc_1_0_la_LIBTOOLFLAGS = \
 
 libfrida_gumjsc_la_SOURCES = \
 	gumjscript.c \
+	gumjscript-priv.h \
 	gumjscript-runtime.h \
 	gumjscriptbundle.h \
 	gumjscriptbundle.c \
@@ -92,6 +93,8 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptmacros.h \
 	gumjscriptcore.h \
 	gumjscriptcore.c \
+	gumjscriptinterceptor.h \
+	gumjscriptinterceptor.c \
 	$(NULL)
 libfrida_gumjsc_la_CPPFLAGS = \
 	$(AM_CPPFLAGS) \

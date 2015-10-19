@@ -1,0 +1,18 @@
+/*
+ * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ *
+ * Licence: wxWindows Library Licence, Version 3.1
+ */
+
+#ifndef __GUM_JSCRIPT_PRIV_H__
+#define __GUM_JSCRIPT_PRIV_H__
+
+#include "gumscriptscheduler.h"
+
+G_BEGIN_DECLS
+
+G_GNUC_INTERNAL GumScriptScheduler * _gum_script_get_scheduler (void);
+
+G_END_DECLS
+
+#endif
