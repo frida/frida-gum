@@ -109,13 +109,33 @@ _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
 {
-  g_print ("gumjs_interceptor_attach\n");
+  GumScriptInterceptor * self;
+  gpointer target;
+
+  self = JSObjectGetPrivate (this_object);
+
+  if (argument_count < 2)
+    goto invalid_argument;
+
+  if (!_gumjs_native_pointer_get (self->core, arguments[0], &target, exception))
+    return NULL;
+
+  g_print ("gumjs_interceptor_attach target=%p\n", target);
+
   return JSValueMakeUndefined (ctx);
+
+invalid_argument:
+  {
+    _gumjs_throw (ctx, exception, "invalid argument");
+    return NULL;
+  }
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_detach_all)
 {
-  GumScriptInterceptor * self = JSObjectGetPrivate (this_object);
+  GumScriptInterceptor * self;
+
+  self = JSObjectGetPrivate (this_object);
 
   gum_script_interceptor_detach_all (self);
 
