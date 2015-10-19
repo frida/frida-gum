@@ -221,6 +221,15 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
 
   if (entry->on_enter != NULL)
   {
+    GumScriptCore * core = self->core;
+    GumScriptScope scope;
+
+    _gum_script_scope_enter (&scope, core);
+
+    JSObjectCallAsFunction (entry->ctx, entry->on_enter, NULL, 0, NULL,
+        &scope.exception);
+
+    _gum_script_scope_leave (&scope);
   }
 
   (*depth)++;
@@ -243,6 +252,15 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
 
   if (entry->on_leave != NULL)
   {
+    GumScriptCore * core = self->core;
+    GumScriptScope scope;
+
+    _gum_script_scope_enter (&scope, core);
+
+    JSObjectCallAsFunction (entry->ctx, entry->on_leave, NULL, 0, NULL,
+        &scope.exception);
+
+    _gum_script_scope_leave (&scope);
   }
 }
 
