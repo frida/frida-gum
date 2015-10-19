@@ -86,7 +86,7 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   klass = JSClassCreate (&def);
   interceptor = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gum_script_object_set (ctx, scope, "Interceptor", interceptor);
+  _gumjs_object_set (ctx, scope, "Interceptor", interceptor);
 }
 
 void

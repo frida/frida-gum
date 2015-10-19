@@ -71,6 +71,9 @@ G_GNUC_INTERNAL void _gum_script_scope_enter (GumScriptScope * self,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_script_scope_leave (GumScriptScope * self);
 
+G_GNUC_INTERNAL gboolean _gumjs_native_pointer_get (GumScriptCore * core,
+    JSValueRef value, gpointer * target, JSValueRef * exception);
+
 G_GNUC_INTERNAL void _gum_script_panic (JSValueRef exception, JSContextRef ctx);
 
 G_END_DECLS

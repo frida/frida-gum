@@ -346,8 +346,8 @@ gum_script_create_context (GumScript * self,
     guint line;
 
     message = JSValueToStringCopy (ctx, exception, NULL);
-    message_str = _gum_script_string_get (message);
-    line = _gum_script_object_get_uint (ctx, (JSObjectRef) exception, "line");
+    message_str = _gumjs_string_get (message);
+    line = _gumjs_object_get_uint (ctx, (JSObjectRef) exception, "line");
 
     g_set_error (error,
         G_IO_ERROR,

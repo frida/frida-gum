@@ -32,7 +32,7 @@ GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event);
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name);
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
 
-GUM_DECLARE_JSC_CONSTRUCTOR (gum_native_pointer_construct);
+GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct);
 
 static GumExceptionSink * gum_exception_sink_new (JSContextRef ctx,
     JSObjectRef callback);
@@ -83,11 +83,11 @@ _gum_script_core_init (GumScriptCore * self,
 
   JSObjectSetPrivate (scope, self);
 
-  _gum_script_object_set (ctx, scope, "global", scope);
+  _gumjs_object_set (ctx, scope, "global", scope);
 
   frida = JSObjectMake (ctx, NULL, NULL);
-  _gum_script_object_set_string (ctx, frida, "version", FRIDA_VERSION);
-  _gum_script_object_set (ctx, scope, "Frida", frida);
+  _gumjs_object_set_string (ctx, frida, "version", FRIDA_VERSION);
+  _gumjs_object_set (ctx, scope, "Frida", frida);
 
   def = kJSClassDefinitionEmpty;
   def.className = "Script";
@@ -95,35 +95,35 @@ _gum_script_core_init (GumScriptCore * self,
   klass = JSClassCreate (&def);
   obj = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gum_script_object_set (ctx, scope, "Script", obj);
+  _gumjs_object_set (ctx, scope, "Script", obj);
 
-  _gum_script_object_set_function (ctx, scope, "_send", gumjs_send);
-  _gum_script_object_set_function (ctx, scope, "_setUnhandledExceptionCallback",
+  _gumjs_object_set_function (ctx, scope, "_send", gumjs_send);
+  _gumjs_object_set_function (ctx, scope, "_setUnhandledExceptionCallback",
       gumjs_set_unhandled_exception_callback);
-  _gum_script_object_set_function (ctx, scope, "_setIncomingMessageCallback",
+  _gumjs_object_set_function (ctx, scope, "_setIncomingMessageCallback",
       gumjs_set_incoming_message_callback);
-  _gum_script_object_set_function (ctx, scope, "_waitForEvent",
+  _gumjs_object_set_function (ctx, scope, "_waitForEvent",
       gumjs_wait_for_event);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
   self->native_pointer = JSClassCreate (&def);
   native_pointer_ctor = JSObjectMakeConstructor (ctx, self->native_pointer,
-      gum_native_pointer_construct);
+      gumjs_native_pointer_construct);
   JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
-  _gum_script_object_set (ctx, scope, "NativePointer", native_pointer_ctor);
+  _gumjs_object_set (ctx, scope, "NativePointer", native_pointer_ctor);
 
-  _gum_script_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
+  _gumjs_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
 
   if (flavor == GUM_SCRIPT_FLAVOR_USER)
   {
-    _gum_script_object_set (ctx, scope, "Memory",
+    _gumjs_object_set (ctx, scope, "Memory",
         JSObjectMake (ctx, NULL, NULL));
-    _gum_script_object_set (ctx, scope, "Process",
+    _gumjs_object_set (ctx, scope, "Process",
         JSObjectMake (ctx, NULL, NULL));
-    _gum_script_object_set (ctx, scope, "Module",
+    _gumjs_object_set (ctx, scope, "Module",
         JSObjectMake (ctx, NULL, NULL));
-    _gum_script_object_set (ctx, scope, "Instruction",
+    _gumjs_object_set (ctx, scope, "Instruction",
         JSObjectMake (ctx, NULL, NULL));
   }
 }
@@ -246,13 +246,13 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
     if (!JSValueIsUndefined (ctx, data_value) &&
         !JSValueIsNull (ctx, data_value))
     {
-      data = _gum_script_byte_array_get (ctx, data_value, exception);
+      data = _gumjs_byte_array_get (ctx, data_value, exception);
       if (data == NULL)
         return NULL;
     }
   }
 
-  message = _gum_script_string_from_value (ctx, message_value);
+  message = _gumjs_string_from_value (ctx, message_value);
 
   _gum_script_core_emit_message (self, message, data);
 
@@ -262,7 +262,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 
 invalid_argument:
   {
-    _gum_script_throw (ctx, exception, "invalid argument");
+    _gumjs_throw (ctx, exception, "invalid argument");
     return NULL;
   }
 }
@@ -277,7 +277,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   if (argument_count == 0)
     goto invalid_argument;
 
-  if (!_gum_script_callback_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_callback_get_opt (ctx, arguments[0], &callback, exception))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -293,7 +293,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 
 invalid_argument:
   {
-    _gum_script_throw (ctx, exception, "invalid argument");
+    _gumjs_throw (ctx, exception, "invalid argument");
     return NULL;
   }
 }
@@ -308,7 +308,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
   if (argument_count == 0)
     goto invalid_argument;
 
-  if (!_gum_script_callback_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_callback_get_opt (ctx, arguments[0], &callback, exception))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -321,7 +321,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 
 invalid_argument:
   {
-    _gum_script_throw (ctx, exception, "invalid argument");
+    _gumjs_throw (ctx, exception, "invalid argument");
     return NULL;
   }
 }
@@ -340,7 +340,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
+GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   JSClassRef klass;
   guint64 ptr;
@@ -360,7 +360,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
       gchar * ptr_as_string, * endptr;
       gboolean valid;
 
-      ptr_as_string = _gum_script_string_from_value (ctx, value);
+      ptr_as_string = _gumjs_string_from_value (ctx, value);
 
       if (g_str_has_prefix (ptr_as_string, "0x"))
       {
@@ -368,7 +368,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
         valid = endptr != ptr_as_string + 2;
         if (!valid)
         {
-          _gum_script_throw (ctx, exception, "argument is not a valid "
+          _gumjs_throw (ctx, exception, "argument is not a valid "
               "hexadecimal string");
         }
       }
@@ -378,7 +378,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
         valid = endptr != ptr_as_string;
         if (!valid)
         {
-          _gum_script_throw (ctx, exception, "argument is not a valid decimal "
+          _gumjs_throw (ctx, exception, "argument is not a valid decimal "
               "string");
         }
       }
@@ -394,7 +394,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gum_native_pointer_construct)
     }
     else
     {
-      _gum_script_throw (ctx, exception, "invalid argument");
+      _gumjs_throw (ctx, exception, "invalid argument");
       return NULL;
     }
   }
@@ -466,9 +466,30 @@ gum_message_sink_handle_message (GumMessageSink * self,
 {
   JSValueRef message_value;
 
-  message_value = _gum_script_string_to_value (self->ctx, message);
+  message_value = _gumjs_string_to_value (self->ctx, message);
   JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &message_value,
       exception);
+}
+
+gboolean
+_gumjs_native_pointer_get (GumScriptCore * core,
+                           JSValueRef value,
+                           gpointer * target,
+                           JSValueRef * exception)
+{
+  JSContextRef ctx = core->ctx;
+
+  if (JSValueIsObjectOfClass (ctx, value, core->native_pointer))
+  {
+    *target = JSObjectGetPrivate ((JSObjectRef) value);
+    return TRUE;
+  }
+  else
+  {
+    /* TODO: support object with `handle` property */
+    _gumjs_throw (ctx, exception, "expected NativePointer object");
+    return FALSE;
+  }
 }
 
 void
@@ -477,8 +498,8 @@ _gum_script_panic (JSValueRef exception,
 {
   gchar * message, * stack;
 
-  message = _gum_script_string_from_value (ctx, exception);
-  stack = _gum_script_object_get_string (ctx, (JSObjectRef) exception, "stack");
+  message = _gumjs_string_from_value (ctx, exception);
+  stack = _gumjs_object_get_string (ctx, (JSObjectRef) exception, "stack");
   g_critical ("%s\n%s", message, stack);
   g_free (stack);
   g_free (message);

@@ -9,7 +9,7 @@
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
 gchar *
-_gum_script_string_get (JSStringRef str)
+_gumjs_string_get (JSStringRef str)
 {
   gsize size;
   gchar * result;
@@ -22,23 +22,23 @@ _gum_script_string_get (JSStringRef str)
 }
 
 gchar *
-_gum_script_string_from_value (JSContextRef ctx,
-                               JSValueRef value)
+_gumjs_string_from_value (JSContextRef ctx,
+                          JSValueRef value)
 {
   gchar * result;
   JSStringRef str;
 
   str = JSValueToStringCopy (ctx, value, NULL);
   g_assert (str != NULL);
-  result = _gum_script_string_get (str);
+  result = _gumjs_string_get (str);
   JSStringRelease (str);
 
   return result;
 }
 
 JSValueRef
-_gum_script_string_to_value (JSContextRef ctx,
-                             const gchar * str)
+_gumjs_string_to_value (JSContextRef ctx,
+                        const gchar * str)
 {
   JSValueRef result;
   JSStringRef str_js;
@@ -51,9 +51,9 @@ _gum_script_string_to_value (JSContextRef ctx,
 }
 
 JSValueRef
-_gum_script_object_get (JSContextRef ctx,
-                        JSObjectRef object,
-                        const gchar * key)
+_gumjs_object_get (JSContextRef ctx,
+                   JSObjectRef object,
+                   const gchar * key)
 {
   JSStringRef property;
   JSValueRef value;
@@ -67,36 +67,36 @@ _gum_script_object_get (JSContextRef ctx,
 }
 
 guint
-_gum_script_object_get_uint (JSContextRef ctx,
-                             JSObjectRef object,
-                             const gchar * key)
+_gumjs_object_get_uint (JSContextRef ctx,
+                        JSObjectRef object,
+                        const gchar * key)
 {
   JSValueRef value;
 
-  value = _gum_script_object_get (ctx, object, key);
+  value = _gumjs_object_get (ctx, object, key);
   g_assert (JSValueIsNumber (ctx, value));
 
   return (guint) JSValueToNumber (ctx, value, NULL);
 }
 
 gchar *
-_gum_script_object_get_string (JSContextRef ctx,
-                               JSObjectRef object,
-                               const gchar * key)
+_gumjs_object_get_string (JSContextRef ctx,
+                          JSObjectRef object,
+                          const gchar * key)
 {
   JSValueRef value;
 
-  value = _gum_script_object_get (ctx, object, key);
+  value = _gumjs_object_get (ctx, object, key);
   g_assert (JSValueIsString (ctx, value));
 
-  return _gum_script_string_from_value (ctx, value);
+  return _gumjs_string_from_value (ctx, value);
 }
 
 void
-_gum_script_object_set (JSContextRef ctx,
-                        JSObjectRef object,
-                        const gchar * key,
-                        JSValueRef value)
+_gumjs_object_set (JSContextRef ctx,
+                   JSObjectRef object,
+                   const gchar * key,
+                   JSValueRef value)
 {
   JSStringRef property;
 
@@ -107,20 +107,20 @@ _gum_script_object_set (JSContextRef ctx,
 }
 
 void
-_gum_script_object_set_string (JSContextRef ctx,
-                               JSObjectRef object,
-                               const gchar * key,
-                               const gchar * value)
+_gumjs_object_set_string (JSContextRef ctx,
+                          JSObjectRef object,
+                          const gchar * key,
+                          const gchar * value)
 {
-  _gum_script_object_set (ctx, object, key,
-      _gum_script_string_to_value (ctx, value));
+  _gumjs_object_set (ctx, object, key,
+      _gumjs_string_to_value (ctx, value));
 }
 
 void
-_gum_script_object_set_function (JSContextRef ctx,
-                                 JSObjectRef object,
-                                 const gchar * key,
-                                 JSObjectCallAsFunctionCallback callback)
+_gumjs_object_set_function (JSContextRef ctx,
+                            JSObjectRef object,
+                            const gchar * key,
+                            JSObjectCallAsFunctionCallback callback)
 {
   JSStringRef name;
   JSObjectRef func;
@@ -133,16 +133,16 @@ _gum_script_object_set_function (JSContextRef ctx,
 }
 
 GBytes *
-_gum_script_byte_array_get (JSContextRef ctx,
-                            JSValueRef value,
-                            JSValueRef * exception)
+_gumjs_byte_array_get (JSContextRef ctx,
+                       JSValueRef value,
+                       JSValueRef * exception)
 {
   GBytes * result;
 
-  result = _gum_script_byte_array_try_get (ctx, value);
+  result = _gumjs_byte_array_try_get (ctx, value);
   if (result == NULL)
   {
-    _gum_script_throw (ctx, exception, "unsupported data value");
+    _gumjs_throw (ctx, exception, "unsupported data value");
     return NULL;
   }
 
@@ -150,8 +150,8 @@ _gum_script_byte_array_get (JSContextRef ctx,
 }
 
 GBytes *
-_gum_script_byte_array_try_get (JSContextRef ctx,
-                                JSValueRef value)
+_gumjs_byte_array_try_get (JSContextRef ctx,
+                           JSValueRef value)
 {
   if (JSValueIsArray (ctx, value))
   {
@@ -160,7 +160,7 @@ _gum_script_byte_array_try_get (JSContextRef ctx,
     guint8 * data;
     gboolean data_valid;
 
-    data_length = _gum_script_object_get_uint (ctx, array, "length");
+    data_length = _gumjs_object_get_uint (ctx, array, "length");
     if (data_length > GUM_SCRIPT_MAX_ARRAY_LENGTH)
       return NULL;
 
@@ -191,10 +191,10 @@ _gum_script_byte_array_try_get (JSContextRef ctx,
 }
 
 gboolean
-_gum_script_callback_get_opt (JSContextRef ctx,
-                              JSValueRef value,
-                              JSObjectRef * callback,
-                              JSValueRef * exception)
+_gumjs_callback_get_opt (JSContextRef ctx,
+                         JSValueRef value,
+                         JSObjectRef * callback,
+                         JSValueRef * exception)
 {
   JSObjectRef result;
 
@@ -217,16 +217,16 @@ _gum_script_callback_get_opt (JSContextRef ctx,
 
 invalid_argument:
   {
-    _gum_script_throw (ctx, exception, "invalid argument");
+    _gumjs_throw (ctx, exception, "invalid argument");
     return FALSE;
   }
 }
 
 void
-_gum_script_throw (JSContextRef ctx,
-                   JSValueRef * exception,
-                   const gchar * format,
-                   ...)
+_gumjs_throw (JSContextRef ctx,
+              JSValueRef * exception,
+              const gchar * format,
+              ...)
 {
   va_list args;
   gchar * message;
@@ -236,7 +236,7 @@ _gum_script_throw (JSContextRef ctx,
   message = g_strdup_vprintf (format, args);
   va_end (args);
 
-  message_value = _gum_script_string_to_value (ctx, message);
+  message_value = _gumjs_string_to_value (ctx, message);
 
   g_free (message);
 
