@@ -66,7 +66,7 @@ _gum_script_core_init (GumScriptCore * self,
 {
   GumScriptFlavor flavor;
   JSClassDefinition def;
-  JSObjectRef frida, native_pointer_ctor;
+  JSObjectRef frida;
   JSClassRef klass;
   JSValueRef obj;
 
@@ -108,23 +108,20 @@ _gum_script_core_init (GumScriptCore * self,
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
   self->native_pointer = JSClassCreate (&def);
-  native_pointer_ctor = JSObjectMakeConstructor (ctx, self->native_pointer,
-      gumjs_native_pointer_construct);
-  JSObjectSetPrivate (native_pointer_ctor, self->native_pointer);
-  _gumjs_object_set (ctx, scope, "NativePointer", native_pointer_ctor);
-
-  _gumjs_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
+  _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
+      self->native_pointer, gumjs_native_pointer_construct));
 
   if (flavor == GUM_SCRIPT_FLAVOR_USER)
   {
-    _gumjs_object_set (ctx, scope, "Memory",
-        JSObjectMake (ctx, NULL, NULL));
-    _gumjs_object_set (ctx, scope, "Process",
-        JSObjectMake (ctx, NULL, NULL));
-    _gumjs_object_set (ctx, scope, "Module",
-        JSObjectMake (ctx, NULL, NULL));
+    _gumjs_object_set (ctx, scope, "Memory", JSObjectMake (ctx, NULL, NULL));
+    _gumjs_object_set (ctx, scope, "Process", JSObjectMake (ctx, NULL, NULL));
+    _gumjs_object_set (ctx, scope, "Module", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Instruction",
         JSObjectMake (ctx, NULL, NULL));
+  }
+  else
+  {
+    _gumjs_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
   }
 }
 
@@ -342,10 +339,10 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
 
 GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  JSClassRef klass;
+  GumScriptCore * self;
   guint64 ptr;
 
-  klass = (JSClassRef) JSObjectGetPrivate (constructor);
+  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   if (argument_count == 0)
   {
@@ -399,7 +396,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
     }
   }
 
-  return JSObjectMake (ctx, klass, GSIZE_TO_POINTER (ptr));
+  return JSObjectMake (ctx, self->native_pointer, GSIZE_TO_POINTER (ptr));
 }
 
 static GumExceptionSink *
