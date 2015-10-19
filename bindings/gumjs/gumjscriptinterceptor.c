@@ -110,23 +110,65 @@ _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
 {
   GumScriptInterceptor * self;
+  GumScriptCore * core;
   gpointer target;
+  JSObjectRef on_enter, on_leave;
+  GumScriptAttachEntry * entry;
+  GumAttachReturn attach_ret;
 
   self = JSObjectGetPrivate (this_object);
+  core = self->core;
 
   if (argument_count < 2)
     goto invalid_argument;
 
-  if (!_gumjs_native_pointer_get (self->core, arguments[0], &target, exception))
+  if (!_gumjs_native_pointer_get (core, arguments[0], &target, exception))
     return NULL;
 
-  g_print ("gumjs_interceptor_attach target=%p\n", target);
+  if (!_gumjs_callbacks_try_get_opt (ctx, arguments[1], "onEnter", &on_enter,
+        exception))
+    return NULL;
+
+  if (!_gumjs_callbacks_try_get_opt (ctx, arguments[1], "onLeave", &on_leave,
+        exception))
+    return NULL;
+
+  entry = g_slice_new (GumScriptAttachEntry);
+  entry->on_enter = on_enter;
+  entry->on_leave = on_leave;
+  entry->ctx = core->ctx;
+
+  attach_ret = gum_interceptor_attach_listener (self->interceptor, target,
+      GUM_INVOCATION_LISTENER (core->script), entry);
+  if (attach_ret != GUM_ATTACH_OK)
+    goto unable_to_attach;
+
+  g_queue_push_tail (self->attach_entries, entry);
 
   return JSValueMakeUndefined (ctx);
 
 invalid_argument:
   {
     _gumjs_throw (ctx, exception, "invalid argument");
+    return NULL;
+  }
+unable_to_attach:
+  {
+    gum_script_attach_entry_free (entry);
+
+    switch (attach_ret)
+    {
+      case GUM_ATTACH_WRONG_SIGNATURE:
+        _gumjs_throw (ctx, exception, "unable to intercept function at %p; "
+            "please file a bug", target);
+        break;
+      case GUM_ATTACH_ALREADY_ATTACHED:
+        _gumjs_throw (ctx, exception, "already attached to this function");
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
     return NULL;
   }
 }
