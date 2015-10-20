@@ -77,8 +77,6 @@ inline JSC::JSValue toJS(JSC::ExecState* exec, JSValueRef v)
 #endif
     if (!result)
         return JSC::jsNull();
-    if (result.isCell())
-        RELEASE_ASSERT(result.asCell()->methodTable());
     return result;
 }
 
@@ -93,8 +91,6 @@ inline JSC::JSValue toJSForGC(JSC::ExecState* exec, JSValueRef v)
 #else
     JSC::JSValue result = JSC::JSValue::decode(reinterpret_cast<JSC::EncodedJSValue>(const_cast<OpaqueJSValue*>(v)));
 #endif
-    if (result && result.isCell())
-        RELEASE_ASSERT(result.asCell()->methodTable());
     return result;
 }
 
@@ -107,8 +103,6 @@ inline JSC::JSObject* uncheckedToJS(JSObjectRef o)
 inline JSC::JSObject* toJS(JSObjectRef o)
 {
     JSC::JSObject* object = uncheckedToJS(o);
-    if (object)
-        RELEASE_ASSERT(object->methodTable());
     return object;
 }
 
