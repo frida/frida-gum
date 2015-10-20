@@ -1342,7 +1342,7 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
  * TBW
  */
 static void
-gum_script_core_on_native_pointer_compare(
+gum_script_core_on_native_pointer_compare (
     const FunctionCallbackInfo<Value> & info)
 {
   GumScriptCore * self = static_cast<GumScriptCore *> (
