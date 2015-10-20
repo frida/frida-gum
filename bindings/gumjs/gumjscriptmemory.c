@@ -198,6 +198,47 @@ gum_script_memory_read (GumScriptMemory * self,
       case GUM_MEMORY_VALUE_DOUBLE:
         result = JSValueMakeNumber (ctx, *((gdouble *) address));
         break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        guint8 * data;
+        gint length;
+
+        if (argument_count < 2)
+        {
+          _gumjs_throw (ctx, exception, "expected address and length");
+          break;
+        }
+
+        data = address;
+        if (data == NULL)
+        {
+          result = JSValueMakeNull (ctx);
+          break;
+        }
+
+        if (!_gumjs_try_int_from_value (ctx, arguments[1], &length, exception))
+          break;
+
+        if (length > 0)
+        {
+          guint8 dummy_to_trap_bad_pointer_early;
+          JSObjectRef array;
+          gpointer array_data;
+
+          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
+
+          array = _gumjs_array_buffer_new (core, length);
+          array_data = _gumjs_array_buffer_get_data (core, array, NULL);
+          memcpy (array_data, data, length);
+          result = array;
+        }
+        else
+        {
+          result = _gumjs_array_buffer_new (core, 0);
+        }
+
+        break;
+      }
       case GUM_MEMORY_VALUE_C_STRING:
       {
         gchar * data;
