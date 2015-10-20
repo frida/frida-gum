@@ -311,17 +311,6 @@ gum_script_memory_on_alloc_ansi_string (
 
 #ifdef G_OS_WIN32
 
-/*
- * Prototype:
- * Memory.allocUtf8String(string)
- *
- * Docs:
- * Allocates a UTF-8 string and returns a pointer.
- *
- * Example:
- * -> Memory.allocUtf8String("Frida Rocks!")
- * "0x1110c7da0"
- */
 static gchar *
 gum_ansi_string_to_utf8 (const gchar * str_ansi,
                          gint length)
