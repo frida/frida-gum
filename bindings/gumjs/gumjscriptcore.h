@@ -84,6 +84,11 @@ G_GNUC_INTERNAL gpointer _gumjs_array_buffer_get_data (GumScriptCore * core,
 G_GNUC_INTERNAL gboolean _gumjs_array_buffer_try_get_data (GumScriptCore * core,
     JSValueRef value, gpointer * data, gsize * size, JSValueRef * exception);
 
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get (GumScriptCore * core,
+    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get_opt (GumScriptCore * core,
+    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
+
 G_GNUC_INTERNAL void _gumjs_throw_native (GumScriptCore * core,
     GumExceptionDetails * details, JSValueRef * exception);
 

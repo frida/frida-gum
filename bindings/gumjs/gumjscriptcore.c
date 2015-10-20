@@ -243,7 +243,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 
   if (argument_count >= 2)
   {
-    if (!_gumjs_byte_array_try_get_opt (ctx, arguments[1], &data, exception))
+    if (!_gumjs_byte_array_try_get_opt (self, arguments[1], &data, exception))
       goto beach;
   }
 
@@ -510,6 +510,92 @@ _gumjs_array_buffer_new (GumScriptCore * core,
 
   return JSObjectCallAsConstructor (ctx, core->array_buffer, 1, &size_value,
       NULL);
+}
+
+gboolean
+_gumjs_byte_array_try_get (GumScriptCore * core,
+                           JSValueRef value,
+                           GBytes ** bytes,
+                           JSValueRef * exception)
+{
+  if (!_gumjs_byte_array_try_get_opt (core, value, bytes, exception))
+    return FALSE;
+
+  if (*bytes == NULL)
+    goto byte_array_required;
+
+  return TRUE;
+
+byte_array_required:
+  {
+    _gumjs_throw (core->ctx, exception, "byte array required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_byte_array_try_get_opt (GumScriptCore * core,
+                               JSValueRef value,
+                               GBytes ** bytes,
+                               JSValueRef * exception)
+{
+  JSContextRef ctx = core->ctx;
+  gpointer buffer_data;
+  gsize buffer_size;
+  guint8 * data;
+
+  if (_gumjs_array_buffer_try_get_data (core, value, &buffer_data, &buffer_size,
+      NULL))
+  {
+    *bytes = g_bytes_new (buffer_data, buffer_size);
+    return TRUE;
+  }
+  else if (JSValueIsArray (ctx, value))
+  {
+    JSObjectRef array = (JSObjectRef) value;
+    guint data_length, i;
+
+    if (!_gumjs_object_try_get_uint (ctx, array, "length", &data_length,
+          exception))
+      return FALSE;
+
+    data = g_malloc (data_length);
+
+    for (i = 0; i != data_length; i++)
+    {
+      JSValueRef element, ex = NULL;
+
+      element = JSObjectGetPropertyAtIndex (ctx, array, i, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
+
+      data[i] = (guint8) JSValueToNumber (ctx, element, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
+    }
+
+    *bytes = g_bytes_new_take (data, data_length);
+    return TRUE;
+  }
+  else if (JSValueIsUndefined (ctx, value) || JSValueIsNull (ctx, value))
+  {
+    *bytes = NULL;
+    return TRUE;
+  }
+
+  goto unsupported_data_value;
+
+unsupported_data_value:
+  {
+    _gumjs_throw (ctx, exception, "unsupported data value");
+    return FALSE;
+  }
+invalid_element_type:
+  {
+    g_free (data);
+    _gumjs_throw (ctx, exception, "invalid element type");
+    return FALSE;
+  }
 }
 
 void

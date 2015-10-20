@@ -55,11 +55,6 @@ G_GNUC_INTERNAL gboolean _gumjs_object_try_set_function (JSContextRef ctx,
     JSObjectRef object, const gchar * key,
     JSObjectCallAsFunctionCallback callback, JSValueRef * exception);
 
-G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get (JSContextRef ctx,
-    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
-G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get_opt (JSContextRef ctx,
-    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
-
 G_GNUC_INTERNAL gboolean _gumjs_callbacks_try_get (JSContextRef ctx,
     JSValueRef callbacks, const gchar * name, JSObjectRef * callback,
     JSValueRef * exception);
