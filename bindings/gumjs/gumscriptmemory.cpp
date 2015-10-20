@@ -567,17 +567,13 @@ gum_script_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        gpointer data_copy = NULL;
         int64_t size = info[1]->IntegerValue ();
         if (size > 0)
         {
           guint8 dummy_to_trap_bad_pointer_early;
-
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
-          data_copy = g_memdup (data, size);
-
-          result = ArrayBuffer::New (isolate, data_copy, size,
+          result = ArrayBuffer::New (isolate, g_memdup (data, size), size,
               ArrayBufferCreationMode::kInternalized);
         }
         else
