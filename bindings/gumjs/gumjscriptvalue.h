@@ -12,6 +12,9 @@
 
 G_BEGIN_DECLS
 
+G_GNUC_INTERNAL gint _gumjs_int_from_value (JSContextRef ctx, JSValueRef value);
+G_GNUC_INTERNAL gboolean _gumjs_try_int_from_value (JSContextRef ctx,
+    JSValueRef value, gint * i, JSValueRef * exception);
 G_GNUC_INTERNAL gchar * _gumjs_string_get (JSStringRef str);
 G_GNUC_INTERNAL gchar * _gumjs_string_from_value (JSContextRef ctx,
     JSValueRef value);

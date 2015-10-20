@@ -10,6 +10,38 @@
 
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
+gint
+_gumjs_int_from_value (JSContextRef ctx,
+                       JSValueRef value)
+{
+  gint i;
+  JSValueRef exception;
+
+  if (!_gumjs_try_int_from_value (ctx, value, &i, &exception))
+    _gumjs_panic (ctx, exception);
+
+  return i;
+}
+
+gboolean
+_gumjs_try_int_from_value (JSContextRef ctx,
+                           JSValueRef value,
+                           gint * i,
+                           JSValueRef * exception)
+{
+  JSValueRef ex = NULL;
+  double number;
+
+  number = JSValueToNumber (ctx, value, &ex);
+  if (ex == NULL)
+    *i = (gint) number;
+
+  if (exception != NULL)
+    *exception = ex;
+
+  return ex == NULL;
+}
+
 gchar *
 _gumjs_string_get (JSStringRef str)
 {

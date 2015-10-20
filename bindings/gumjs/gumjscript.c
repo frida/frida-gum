@@ -10,6 +10,7 @@
 #include "gumjscript-runtime.h"
 #include "gumjscriptcore.h"
 #include "gumjscriptinterceptor.h"
+#include "gumjscriptmemory.h"
 #include "gumjscriptvalue.h"
 #include "gumscriptscheduler.h"
 #include "gumscripttask.h"
@@ -39,6 +40,7 @@ struct _GumScriptPrivate
 
   JSGlobalContextRef ctx;
   GumScriptCore core;
+  GumScriptMemory memory;
   GumScriptInterceptor interceptor;
   gboolean loaded;
 
@@ -372,6 +374,7 @@ gum_script_create_context (GumScript * self,
       _gum_script_get_scheduler (), priv->ctx, global);
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
+    _gum_script_memory_init (&priv->memory, &priv->core, global);
     _gum_script_interceptor_init (&priv->interceptor, &priv->core, global);
   }
 
@@ -392,6 +395,7 @@ gum_script_destroy_context (GumScript * self)
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
     _gum_script_interceptor_dispose (&priv->interceptor);
+    _gum_script_memory_dispose (&priv->memory);
   }
   _gum_script_core_dispose (&priv->core);
 
@@ -401,6 +405,7 @@ gum_script_destroy_context (GumScript * self)
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
     _gum_script_interceptor_finalize (&priv->interceptor);
+    _gum_script_memory_finalize (&priv->memory);
   }
   _gum_script_core_finalize (&priv->core);
 

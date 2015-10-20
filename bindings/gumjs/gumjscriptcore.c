@@ -46,6 +46,8 @@ static void gum_message_sink_free (GumMessageSink * sink);
 static void gum_message_sink_handle_message (GumMessageSink * self,
     const gchar * message, JSValueRef * exception);
 
+static const gchar * gum_exception_type_to_string (GumExceptionType type);
+
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
 
@@ -113,7 +115,6 @@ _gum_script_core_init (GumScriptCore * self,
 
   if (flavor == GUM_SCRIPT_FLAVOR_USER)
   {
-    _gumjs_object_set (ctx, scope, "Memory", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Process", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Module", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Instruction",
@@ -228,7 +229,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count == 0)
+  if (argument_count < 1)
     goto invalid_argument;
 
   if (!_gumjs_try_string_from_value (ctx, arguments[0], &message, exception))
@@ -266,7 +267,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count == 0)
+  if (argument_count < 1)
     goto invalid_argument;
 
   if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
@@ -297,7 +298,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count == 0)
+  if (argument_count < 1)
     goto invalid_argument;
 
   if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
@@ -464,6 +465,13 @@ gum_message_sink_handle_message (GumMessageSink * self,
       exception);
 }
 
+JSValueRef
+_gumjs_native_pointer_new (GumScriptCore * core,
+                           gpointer address)
+{
+  return JSObjectMake (core->ctx, core->native_pointer, address);
+}
+
 gboolean
 _gumjs_native_pointer_get (GumScriptCore * core,
                            JSValueRef value,
@@ -485,3 +493,46 @@ _gumjs_native_pointer_get (GumScriptCore * core,
   }
 }
 
+void
+_gumjs_throw_native (GumScriptCore * core,
+                     GumExceptionDetails * details,
+                     JSValueRef * exception)
+{
+  JSContextRef ctx = core->ctx;
+  gchar * message;
+  JSValueRef message_value;
+  JSObjectRef ex;
+
+  message = gum_exception_details_to_string (details);
+  message_value = _gumjs_string_to_value (ctx, message);
+  g_free (message);
+
+  ex = JSObjectMakeError (ctx, 1, &message_value, NULL);
+
+  _gumjs_object_set_string (ctx, ex, "type",
+      gum_exception_type_to_string (details->type));
+  /* TODO: fill out the other details */
+
+  *exception = ex;
+}
+
+static const gchar *
+gum_exception_type_to_string (GumExceptionType type)
+{
+  switch (type)
+  {
+    case GUM_EXCEPTION_ABORT: return "abort";
+    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
+    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
+    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
+    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
+    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    case GUM_EXCEPTION_SYSTEM: return "system";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
+}
