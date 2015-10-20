@@ -113,6 +113,10 @@ _gum_script_core_init (GumScriptCore * self,
   _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
 
+  self->array_buffer =
+      (JSObjectRef) _gumjs_object_get (ctx, scope, "ArrayBuffer");
+  JSValueProtect (ctx, self->array_buffer);
+
   if (flavor == GUM_SCRIPT_FLAVOR_USER)
   {
     _gumjs_object_set (ctx, scope, "Process", JSObjectMake (ctx, NULL, NULL));
@@ -141,6 +145,9 @@ _gum_script_core_dispose (GumScriptCore * self)
   gum_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
+  JSValueUnprotect (self->ctx, self->array_buffer);
+  self->array_buffer = NULL;
+
   JSClassRelease (self->native_pointer);
   self->native_pointer = NULL;
 
@@ -160,7 +167,6 @@ _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                GBytes * data)
 {
-  g_print ("%s\n", message);
   self->message_emitter (self->script, message, data);
 }
 
@@ -491,6 +497,19 @@ _gumjs_native_pointer_get (GumScriptCore * core,
     _gumjs_throw (ctx, exception, "expected NativePointer object");
     return FALSE;
   }
+}
+
+JSObjectRef
+_gumjs_array_buffer_new (GumScriptCore * core,
+                         gsize size)
+{
+  JSContextRef ctx = core->ctx;
+  JSValueRef size_value;
+
+  size_value = JSValueMakeNumber (ctx, size);
+
+  return JSObjectCallAsConstructor (ctx, core->array_buffer, 1, &size_value,
+      NULL);
 }
 
 void

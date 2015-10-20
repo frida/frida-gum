@@ -1,0 +1,108 @@
+/*
+ * Copyright (C) 2013 Apple Inc. All Rights Reserved.
+ * Copyright (C) 2011 The Chromium Authors. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY APPLE INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+
+#ifndef InspectorBackendDispatcher_h
+#define InspectorBackendDispatcher_h
+
+#include "InspectorProtocolTypes.h"
+#include <wtf/RefCounted.h>
+#include <wtf/text/WTFString.h>
+
+namespace Inspector {
+
+class BackendDispatcher;
+class FrontendChannel;
+
+typedef String ErrorString;
+
+class SupplementalBackendDispatcher : public RefCounted<SupplementalBackendDispatcher> {
+public:
+    SupplementalBackendDispatcher(BackendDispatcher& backendDispatcher)
+        : m_backendDispatcher(backendDispatcher) { }
+    virtual ~SupplementalBackendDispatcher() { }
+    virtual void dispatch(long callId, const String& method, Ref<InspectorObject>&& message) = 0;
+protected:
+    Ref<BackendDispatcher> m_backendDispatcher;
+};
+
+class JS_EXPORT_PRIVATE BackendDispatcher : public RefCounted<BackendDispatcher> {
+public:
+    static Ref<BackendDispatcher> create(FrontendChannel*);
+
+    class JS_EXPORT_PRIVATE CallbackBase : public RefCounted<CallbackBase> {
+    public:
+        CallbackBase(Ref<BackendDispatcher>&&, int id);
+
+        bool isActive() const;
+        void sendFailure(const ErrorString&);
+        void disable() { m_alreadySent = true; }
+
+    protected:
+        void sendIfActive(RefPtr<InspectorObject>&& partialMessage, const ErrorString& invocationError);
+
+    private:
+        Ref<BackendDispatcher> m_backendDispatcher;
+        int m_id;
+        bool m_alreadySent;
+    };
+
+    void clearFrontend() { m_frontendChannel = nullptr; }
+    bool isActive() const { return !!m_frontendChannel; }
+
+    enum CommonErrorCode {
+        ParseError = 0,
+        InvalidRequest,
+        MethodNotFound,
+        InvalidParams,
+        InternalError,
+        ServerError
+    };
+
+    void registerDispatcherForDomain(const String& domain, SupplementalBackendDispatcher*);
+    void dispatch(const String& message);
+    void sendResponse(long callId, RefPtr<InspectorObject>&& result, const ErrorString& invocationError);
+    void reportProtocolError(const long* const callId, CommonErrorCode, const String& errorMessage) const;
+    void reportProtocolError(const long* const callId, CommonErrorCode, const String& errorMessage, RefPtr<Inspector::Protocol::Array<String>>&& data) const;
+
+    static int getInteger(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static double getDouble(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static String getString(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static bool getBoolean(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static RefPtr<InspectorValue> getValue(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static RefPtr<InspectorObject> getObject(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+    static RefPtr<InspectorArray> getArray(InspectorObject*, const String& name, bool* valueFound, Inspector::Protocol::Array<String>& protocolErrors);
+
+private:
+    BackendDispatcher(FrontendChannel* FrontendChannel)
+        : m_frontendChannel(FrontendChannel) { }
+
+    FrontendChannel* m_frontendChannel;
+    HashMap<String, SupplementalBackendDispatcher*> m_dispatchers;
+};
+
+} // namespace Inspector
+
+#endif // !defined(InspectorBackendDispatcher_h)

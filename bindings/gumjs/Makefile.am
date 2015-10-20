@@ -93,12 +93,26 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptmacros.h \
 	gumjscriptcore.h \
 	gumjscriptcore.c \
+	gumjscriptbuffer.cpp \
 	gumjscriptmemory.h \
 	gumjscriptmemory.c \
 	gumjscriptinterceptor.h \
 	gumjscriptinterceptor.c \
 	$(NULL)
 libfrida_gumjsc_la_CPPFLAGS = \
+	-I $(srcdir)/include/JavaScriptCore/API \
+	-I $(srcdir)/include/JavaScriptCore/assembler \
+	-I $(srcdir)/include/JavaScriptCore/bytecode \
+	-I $(srcdir)/include/JavaScriptCore/disassembler \
+	-I $(srcdir)/include/JavaScriptCore/heap \
+	-I $(srcdir)/include/JavaScriptCore/icu \
+	-I $(srcdir)/include/JavaScriptCore/interpreter \
+	-I $(srcdir)/include/JavaScriptCore/jit \
+	-I $(srcdir)/include/JavaScriptCore/llint \
+	-I $(srcdir)/include/JavaScriptCore/parser \
+	-I $(srcdir)/include/JavaScriptCore/profiler \
+	-I $(srcdir)/include/JavaScriptCore/runtime \
+	-I $(srcdir)/include/WTF \
 	$(AM_CPPFLAGS) \
 	$(GUMJSC_CFLAGS)
 libfrida_gumjsc_la_LIBTOOLFLAGS = \

@@ -47,6 +47,7 @@ struct _GumScriptCore
   GumMessageSink * incoming_message_sink;
 
   JSClassRef native_pointer;
+  JSObjectRef array_buffer;
 };
 
 struct _GumScriptScope
@@ -75,6 +76,13 @@ G_GNUC_INTERNAL JSValueRef _gumjs_native_pointer_new (GumScriptCore * core,
     gpointer address);
 G_GNUC_INTERNAL gboolean _gumjs_native_pointer_get (GumScriptCore * core,
     JSValueRef value, gpointer * target, JSValueRef * exception);
+
+G_GNUC_INTERNAL JSObjectRef _gumjs_array_buffer_new (GumScriptCore * core,
+    gsize size);
+G_GNUC_INTERNAL gpointer _gumjs_array_buffer_get_data (GumScriptCore * core,
+    JSValueRef value, gsize * size);
+G_GNUC_INTERNAL gboolean _gumjs_array_buffer_try_get_data (GumScriptCore * core,
+    JSValueRef value, gpointer * data, gsize * size, JSValueRef * exception);
 
 G_GNUC_INTERNAL void _gumjs_throw_native (GumScriptCore * core,
     GumExceptionDetails * details, JSValueRef * exception);
