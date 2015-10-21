@@ -621,9 +621,25 @@ _gum_script_args_parse (const GumScriptArgs * self,
       case 'F':
       {
         JSObjectRef func;
-        if (!_gumjs_try_function_from_value (ctx, value, &func, exception))
-          goto error;
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable)
+        {
+          if (!_gumjs_callback_try_get_opt (ctx, value, &func, exception))
+            goto error;
+        }
+        else
+        {
+          if (!_gumjs_callback_try_get (ctx, value, &func, exception))
+            goto error;
+        }
+
         *va_arg (ap, JSObjectRef *) = func;
+
         break;
       }
       default:
