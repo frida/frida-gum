@@ -46,7 +46,7 @@ GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
 GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct);
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
-    gboolean repeat, gsize num_args, const JSValueRef args[], JSValueRef * ex);
+    gsize num_args, const JSValueRef args[], gboolean repeat, JSValueRef * ex);
 static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
     GumScheduledCallback * callback);
 static void gum_script_core_remove_scheduled_callback (GumScriptCore * self,
@@ -266,7 +266,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  return gum_script_core_schedule_callback (self, FALSE, num_args, args, ex);
+  return gum_script_core_schedule_callback (self, num_args, args, FALSE, ex);
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
@@ -436,9 +436,9 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 static JSValueRef
 gum_script_core_schedule_callback (GumScriptCore * self,
-                                   gboolean repeat,
                                    gsize num_args,
                                    const JSValueRef args[],
+                                   gboolean repeat,
                                    JSValueRef * ex)
 {
   JSObjectRef func;
