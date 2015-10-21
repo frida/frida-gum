@@ -775,8 +775,8 @@ gum_script_on_leave (GumInvocationListener * listener,
 }
 
 void
-_gumjs_panic (JSValueRef exception,
-              JSContextRef ctx)
+_gumjs_panic (JSContextRef ctx,
+              JSValueRef exception)
 {
   gchar * message, * stack;
 
