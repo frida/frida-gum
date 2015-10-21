@@ -10,6 +10,8 @@
 
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
+static const gchar * gum_exception_type_to_string (GumExceptionType type);
+
 gboolean
 _gumjs_try_int_from_value (JSContextRef ctx,
                            JSValueRef value,
@@ -430,6 +432,133 @@ invalid_argument:
   }
 }
 
+JSValueRef
+_gumjs_native_pointer_new (JSContextRef ctx,
+                           gpointer address,
+                           GumScriptCore * core)
+{
+  return JSObjectMake (ctx, core->native_pointer, address);
+}
+
+gboolean
+_gumjs_native_pointer_try_get (JSContextRef ctx,
+                               JSValueRef value,
+                               GumScriptCore * core,
+                               gpointer * target,
+                               JSValueRef * exception)
+{
+
+  if (JSValueIsObjectOfClass (ctx, value, core->native_pointer))
+  {
+    *target = JSObjectGetPrivate ((JSObjectRef) value);
+    return TRUE;
+  }
+  else
+  {
+    /* TODO: support object with `handle` property */
+    _gumjs_throw (ctx, exception, "expected NativePointer object");
+    return FALSE;
+  }
+}
+
+JSObjectRef
+_gumjs_array_buffer_new (JSContextRef ctx,
+                         gsize size,
+                         GumScriptCore * core)
+{
+  JSValueRef size_value;
+
+  size_value = JSValueMakeNumber (ctx, size);
+
+  return JSObjectCallAsConstructor (ctx, core->array_buffer, 1, &size_value,
+      NULL);
+}
+
+gboolean
+_gumjs_byte_array_try_get (JSContextRef ctx,
+                           JSValueRef value,
+                           GBytes ** bytes,
+                           JSValueRef * exception)
+{
+  if (!_gumjs_byte_array_try_get_opt (ctx, value, bytes, exception))
+    return FALSE;
+
+  if (*bytes == NULL)
+    goto byte_array_required;
+
+  return TRUE;
+
+byte_array_required:
+  {
+    _gumjs_throw (ctx, exception, "byte array required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_byte_array_try_get_opt (JSContextRef ctx,
+                               JSValueRef value,
+                               GBytes ** bytes,
+                               JSValueRef * exception)
+{
+  gpointer buffer_data;
+  gsize buffer_size;
+  guint8 * data;
+
+  if (_gumjs_array_buffer_try_get_data (ctx, value, &buffer_data, &buffer_size,
+      NULL))
+  {
+    *bytes = g_bytes_new (buffer_data, buffer_size);
+    return TRUE;
+  }
+  else if (JSValueIsArray (ctx, value))
+  {
+    JSObjectRef array = (JSObjectRef) value;
+    guint data_length, i;
+
+    if (!_gumjs_object_try_get_uint (ctx, array, "length", &data_length,
+          exception))
+      return FALSE;
+
+    data = g_malloc (data_length);
+
+    for (i = 0; i != data_length; i++)
+    {
+      JSValueRef element, ex = NULL;
+
+      element = JSObjectGetPropertyAtIndex (ctx, array, i, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
+
+      data[i] = (guint8) JSValueToNumber (ctx, element, &ex);
+      if (ex != NULL)
+        goto invalid_element_type;
+    }
+
+    *bytes = g_bytes_new_take (data, data_length);
+    return TRUE;
+  }
+  else if (JSValueIsUndefined (ctx, value) || JSValueIsNull (ctx, value))
+  {
+    *bytes = NULL;
+    return TRUE;
+  }
+
+  goto unsupported_data_value;
+
+unsupported_data_value:
+  {
+    _gumjs_throw (ctx, exception, "unsupported data value");
+    return FALSE;
+  }
+invalid_element_type:
+  {
+    g_free (data);
+    _gumjs_throw (ctx, exception, "invalid element type");
+    return FALSE;
+  }
+}
+
 void
 _gumjs_throw (JSContextRef ctx,
               JSValueRef * exception,
@@ -450,4 +579,48 @@ _gumjs_throw (JSContextRef ctx,
 
   if (exception != NULL)
     *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
+}
+
+void
+_gumjs_throw_native (JSContextRef ctx,
+                     JSValueRef * exception,
+                     GumExceptionDetails * details,
+                     GumScriptCore * core)
+{
+  gchar * message;
+  JSValueRef message_value;
+  JSObjectRef ex;
+
+  message = gum_exception_details_to_string (details);
+  message_value = _gumjs_string_to_value (ctx, message);
+  g_free (message);
+
+  ex = JSObjectMakeError (ctx, 1, &message_value, NULL);
+
+  _gumjs_object_set_string (ctx, ex, "type",
+      gum_exception_type_to_string (details->type));
+  /* TODO: fill out the other details */
+
+  *exception = ex;
+}
+
+static const gchar *
+gum_exception_type_to_string (GumExceptionType type)
+{
+  switch (type)
+  {
+    case GUM_EXCEPTION_ABORT: return "abort";
+    case GUM_EXCEPTION_ACCESS_VIOLATION: return "access-violation";
+    case GUM_EXCEPTION_GUARD_PAGE: return "guard-page";
+    case GUM_EXCEPTION_ILLEGAL_INSTRUCTION: return "illegal-instruction";
+    case GUM_EXCEPTION_STACK_OVERFLOW: return "stack-overflow";
+    case GUM_EXCEPTION_ARITHMETIC: return "arithmetic";
+    case GUM_EXCEPTION_BREAKPOINT: return "breakpoint";
+    case GUM_EXCEPTION_SINGLE_STEP: return "single-step";
+    case GUM_EXCEPTION_SYSTEM: return "system";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
 }

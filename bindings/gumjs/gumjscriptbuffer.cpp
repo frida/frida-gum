@@ -17,27 +17,26 @@
 using namespace JSC;
 
 gpointer
-_gumjs_array_buffer_get_data (GumScriptCore * core,
+_gumjs_array_buffer_get_data (JSContextRef ctx,
                               JSValueRef value,
                               gsize * size)
 {
   gpointer data;
   JSValueRef exception;
 
-  if (!_gumjs_array_buffer_try_get_data (core, value, &data, size, &exception))
-    _gumjs_panic (core->ctx, exception);
+  if (!_gumjs_array_buffer_try_get_data (ctx, value, &data, size, &exception))
+    _gumjs_panic (ctx, exception);
 
   return data;
 }
 
 gboolean
-_gumjs_array_buffer_try_get_data (GumScriptCore * core,
+_gumjs_array_buffer_try_get_data (JSContextRef ctx,
                                   JSValueRef value,
                                   gpointer * data,
                                   gsize * size,
                                   JSValueRef * exception)
 {
-  JSContextRef ctx = core->ctx;
   ExecState * exec = toJS (ctx);
   JSLockHolder lock (exec);
 
@@ -52,7 +51,7 @@ _gumjs_array_buffer_try_get_data (GumScriptCore * core,
   }
   else
   {
-    _gumjs_throw (core->ctx, exception, "expected an ArrayBuffer");
+    _gumjs_throw (ctx, exception, "expected an ArrayBuffer");
     return FALSE;
   }
 }

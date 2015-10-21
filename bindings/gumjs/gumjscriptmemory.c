@@ -147,9 +147,9 @@ gum_script_memory_read (GumScriptMemory * self,
                         const GumScriptArgs * args,
                         JSValueRef * exception)
 {
+  JSContextRef ctx = args->ctx;
   GumScriptCore * core = self->core;
   GumExceptor * exceptor = core->exceptor;
-  JSContextRef ctx = core->ctx;
   JSValueRef result = NULL;
   gpointer address;
   GumExceptorScope scope;
@@ -162,7 +162,7 @@ gum_script_memory_read (GumScriptMemory * self,
     switch (type)
     {
       case GUM_MEMORY_VALUE_POINTER:
-        result = _gumjs_native_pointer_new (core, *((gpointer *) address));
+        result = _gumjs_native_pointer_new (ctx, *((gpointer *) address), core);
         break;
       case GUM_MEMORY_VALUE_S8:
         result = JSValueMakeNumber (ctx, *((gint8 *) address));
@@ -225,14 +225,14 @@ gum_script_memory_read (GumScriptMemory * self,
 
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
-          array = _gumjs_array_buffer_new (core, length);
-          array_data = _gumjs_array_buffer_get_data (core, array, NULL);
+          array = _gumjs_array_buffer_new (ctx, length, core);
+          array_data = _gumjs_array_buffer_get_data (ctx, array, NULL);
           memcpy (array_data, data, length);
           result = array;
         }
         else
         {
-          result = _gumjs_array_buffer_new (core, 0);
+          result = _gumjs_array_buffer_new (ctx, 0, core);
         }
 
         break;
@@ -402,7 +402,7 @@ gum_script_memory_read (GumScriptMemory * self,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    _gumjs_throw_native (core, &scope.exception, exception);
+    _gumjs_throw_native (ctx, exception, &scope.exception, core);
   }
 
   return result;

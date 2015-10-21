@@ -7,8 +7,7 @@
 #ifndef __GUM_JSCRIPT_VALUE_H__
 #define __GUM_JSCRIPT_VALUE_H__
 
-#include <glib.h>
-#include <JavaScriptCore/JavaScriptCore.h>
+#include "gumjscriptcore.h"
 
 G_BEGIN_DECLS
 
@@ -67,8 +66,29 @@ G_GNUC_INTERNAL gboolean _gumjs_callback_try_get (JSContextRef ctx,
 G_GNUC_INTERNAL gboolean _gumjs_callback_try_get_opt (JSContextRef ctx,
     JSValueRef value, JSObjectRef * callback, JSValueRef * exception);
 
+G_GNUC_INTERNAL JSValueRef _gumjs_native_pointer_new (JSContextRef ctx,
+    gpointer address, GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gumjs_native_pointer_try_get (JSContextRef ctx,
+    JSValueRef value, GumScriptCore * core, gpointer * target,
+    JSValueRef * exception);
+
+G_GNUC_INTERNAL JSObjectRef _gumjs_array_buffer_new (JSContextRef ctx,
+    gsize size, GumScriptCore * core);
+G_GNUC_INTERNAL gpointer _gumjs_array_buffer_get_data (JSContextRef ctx,
+    JSValueRef value, gsize * size);
+G_GNUC_INTERNAL gboolean _gumjs_array_buffer_try_get_data (JSContextRef ctx,
+    JSValueRef value, gpointer * data, gsize * size, JSValueRef * exception);
+
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get (JSContextRef ctx,
+    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get_opt (JSContextRef ctx,
+    JSValueRef value, GBytes ** bytes, JSValueRef * exception);
+
 G_GNUC_INTERNAL void _gumjs_throw (JSContextRef ctx, JSValueRef * exception,
     const gchar * format, ...);
+G_GNUC_INTERNAL void _gumjs_throw_native (JSContextRef ctx,
+    JSValueRef * exception, GumExceptionDetails * details,
+    GumScriptCore * core);
 
 G_END_DECLS
 
