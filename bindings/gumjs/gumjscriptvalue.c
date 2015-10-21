@@ -116,31 +116,6 @@ _gumjs_string_to_value (JSContextRef ctx,
   return result;
 }
 
-gboolean
-_gumjs_try_function_from_value (JSContextRef ctx,
-                                JSValueRef value,
-                                JSObjectRef * function,
-                                JSValueRef * exception)
-{
-  JSObjectRef obj;
-
-  if (!JSValueIsObject (ctx, value))
-    goto invalid_type;
-
-  obj = (JSObjectRef) value;
-  if (!JSObjectIsFunction (ctx, obj))
-    goto invalid_type;
-
-  *function = obj;
-  return TRUE;
-
-invalid_type:
-  {
-    _gumjs_throw (ctx, exception, "expected a function");
-    return FALSE;
-  }
-}
-
 JSValueRef
 _gumjs_object_get (JSContextRef ctx,
                    JSObjectRef object,

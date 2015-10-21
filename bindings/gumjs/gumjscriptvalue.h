@@ -23,8 +23,6 @@ G_GNUC_INTERNAL gboolean _gumjs_try_string_from_value (JSContextRef ctx,
     JSValueRef value, gchar ** str, JSValueRef * exception);
 G_GNUC_INTERNAL JSValueRef _gumjs_string_to_value (JSContextRef ctx,
     const gchar * str);
-G_GNUC_INTERNAL gboolean _gumjs_try_function_from_value (JSContextRef ctx,
-    JSValueRef value, JSObjectRef * function, JSValueRef * exception);
 
 G_GNUC_INTERNAL JSValueRef _gumjs_object_get (JSContextRef ctx,
     JSObjectRef object, const gchar * key);
