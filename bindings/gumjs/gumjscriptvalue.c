@@ -13,6 +13,93 @@
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
 gboolean
+_gumjs_args_parse (const GumScriptArgs * self,
+                   const gchar * format,
+                   ...)
+{
+  JSContextRef ctx = self->ctx;
+  JSValueRef * exception = self->exception;
+  va_list ap;
+  guint arg_index;
+  const gchar * t;
+
+  va_start (ap, format);
+
+  for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
+  {
+    JSValueRef value = self->values[arg_index];
+
+    if (arg_index >= self->count)
+      goto missing_argument;
+
+    switch (*t)
+    {
+      case 'i':
+      {
+        gint i;
+        if (!_gumjs_try_int_from_value (ctx, value, &i, exception))
+          goto error;
+        *va_arg (ap, gint *) = i;
+        break;
+      }
+      case 'I':
+      {
+        guint i;
+        if (!_gumjs_try_uint_from_value (ctx, value, &i, exception))
+          goto error;
+        *va_arg (ap, guint *) = i;
+        break;
+      }
+      case 'F':
+      {
+        JSObjectRef func;
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable)
+        {
+          if (!_gumjs_callback_try_get_opt (ctx, value, &func, exception))
+            goto error;
+        }
+        else
+        {
+          if (!_gumjs_callback_try_get (ctx, value, &func, exception))
+            goto error;
+        }
+
+        *va_arg (ap, JSObjectRef *) = func;
+
+        break;
+      }
+      case 'P':
+      {
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  va_end (ap);
+
+  return TRUE;
+
+missing_argument:
+  {
+    _gumjs_throw (ctx, exception, "missing argument");
+    goto error;
+  }
+error:
+  {
+    va_end (ap);
+
+    return FALSE;
+  }
+}
+
+gboolean
 _gumjs_try_int_from_value (JSContextRef ctx,
                            JSValueRef value,
                            gint * i,

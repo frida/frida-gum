@@ -270,7 +270,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
   GumScheduledCallback * callback = NULL;
   GSList * cur;
 
-  if (!_gum_script_args_parse (args, "i", &id))
+  if (!_gumjs_args_parse (args, "i", &id))
     return NULL;
 
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
@@ -296,7 +296,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
   gchar * message;
   GBytes * data;
 
-  if (!_gum_script_args_parse (args, "s|B", &message, &data))
+  if (!_gumjs_args_parse (args, "s|B", &message, &data))
     return NULL;
 
   _gum_script_core_emit_message (args->core, message, data);
@@ -312,7 +312,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumScriptCore * self = args->core;
   JSObjectRef callback;
 
-  if (!_gum_script_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -332,7 +332,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
   GumScriptCore * self = args->core;
   JSObjectRef callback;
 
-  if (!_gum_script_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -427,7 +427,7 @@ gum_script_core_schedule_callback (GumScriptCore * self,
   GSource * source;
   GumScheduledCallback * callback;
 
-  if (!_gum_script_args_parse (args, "FI", &func, &delay))
+  if (!_gumjs_args_parse (args, "FI", &func, &delay))
     return NULL;
 
   id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
@@ -576,91 +576,4 @@ gum_message_sink_handle_message (GumMessageSink * self,
   message_value = _gumjs_string_to_value (self->ctx, message);
   JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &message_value,
       exception);
-}
-
-gboolean
-_gum_script_args_parse (const GumScriptArgs * self,
-                        const gchar * format,
-                        ...)
-{
-  JSContextRef ctx = self->ctx;
-  JSValueRef * exception = self->exception;
-  va_list ap;
-  guint arg_index;
-  const gchar * t;
-
-  va_start (ap, format);
-
-  for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
-  {
-    JSValueRef value = self->values[arg_index];
-
-    if (arg_index >= self->count)
-      goto missing_argument;
-
-    switch (*t)
-    {
-      case 'i':
-      {
-        gint i;
-        if (!_gumjs_try_int_from_value (ctx, value, &i, exception))
-          goto error;
-        *va_arg (ap, gint *) = i;
-        break;
-      }
-      case 'I':
-      {
-        guint i;
-        if (!_gumjs_try_uint_from_value (ctx, value, &i, exception))
-          goto error;
-        *va_arg (ap, guint *) = i;
-        break;
-      }
-      case 'F':
-      {
-        JSObjectRef func;
-        gboolean is_nullable;
-
-        is_nullable = t[1] == '?';
-        if (is_nullable)
-          t++;
-
-        if (is_nullable)
-        {
-          if (!_gumjs_callback_try_get_opt (ctx, value, &func, exception))
-            goto error;
-        }
-        else
-        {
-          if (!_gumjs_callback_try_get (ctx, value, &func, exception))
-            goto error;
-        }
-
-        *va_arg (ap, JSObjectRef *) = func;
-
-        break;
-      }
-      case 'P':
-      {
-      }
-      default:
-        g_assert_not_reached ();
-    }
-  }
-
-  va_end (ap);
-
-  return TRUE;
-
-missing_argument:
-  {
-    _gumjs_throw (ctx, exception, "missing argument");
-    goto error;
-  }
-error:
-  {
-    va_end (ap);
-
-    return FALSE;
-  }
 }

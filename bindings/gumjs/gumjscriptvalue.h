@@ -11,6 +11,9 @@
 
 G_BEGIN_DECLS
 
+G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumScriptArgs * self,
+    const gchar * format, ...);
+
 G_GNUC_INTERNAL gboolean _gumjs_try_int_from_value (JSContextRef ctx,
     JSValueRef value, gint * i, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_try_uint_from_value (JSContextRef ctx,

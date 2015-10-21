@@ -154,7 +154,7 @@ gum_script_memory_read (GumScriptMemory * self,
   gpointer address;
   GumExceptorScope scope;
 
-  if (!_gum_script_args_parse (args, "P", &address))
+  if (!_gumjs_args_parse (args, "P", &address))
     return NULL;
 
   if (gum_exceptor_try (exceptor, &scope))

@@ -118,7 +118,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
 
   self = JSObjectGetPrivate (this_object);
 
-  if (!_gum_script_args_parse (args, "PC{onEnter?,onLeave?}",
+  if (!_gumjs_args_parse (args, "PC{onEnter?,onLeave?}",
       &target, &on_enter, &on_leave))
     return NULL;
 
