@@ -17,7 +17,6 @@ G_BEGIN_DECLS
 
 typedef struct _GumScriptCore GumScriptCore;
 typedef struct _GumScriptScope GumScriptScope;
-typedef struct _GumScriptArgs GumScriptArgs;
 
 typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumExceptionSink GumExceptionSink;
@@ -53,16 +52,6 @@ struct _GumScriptScope
 {
   GumScriptCore * core;
   JSValueRef exception;
-};
-
-struct _GumScriptArgs
-{
-  gsize count;
-  const JSValueRef * values;
-  JSValueRef * exception;
-
-  JSContextRef ctx;
-  GumScriptCore * core;
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,

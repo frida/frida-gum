@@ -7,7 +7,7 @@
 #ifndef __GUM_JSCRIPT_MACROS_H__
 #define __GUM_JSCRIPT_MACROS_H__
 
-#include <JavaScriptCore/JavaScriptCore.h>
+#include "gumjscriptvalue.h"
 
 #define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \

@@ -11,6 +11,18 @@
 
 G_BEGIN_DECLS
 
+typedef struct _GumScriptArgs GumScriptArgs;
+
+struct _GumScriptArgs
+{
+  gsize count;
+  const JSValueRef * values;
+  JSValueRef * exception;
+
+  JSContextRef ctx;
+  GumScriptCore * core;
+};
+
 G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumScriptArgs * self,
     const gchar * format, ...);
 
