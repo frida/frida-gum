@@ -110,16 +110,15 @@ _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
 {
   GumScriptInterceptor * self;
-  GumScriptCore * core;
+  GumScriptCore * core = args->core;
   gpointer target;
   JSObjectRef on_enter, on_leave;
   GumScriptAttachEntry * entry;
   GumAttachReturn attach_ret;
 
   self = JSObjectGetPrivate (this_object);
-  core = self->core;
 
-  if (!_gumjs_argv_parse (core, num_args, args, ex, "PC{onEnter?,onLeave?}",
+  if (!_gum_script_args_parse (args, "PC{onEnter?,onLeave?}",
       &target, &on_enter, &on_leave))
     return NULL;
 
@@ -144,11 +143,11 @@ unable_to_attach:
     switch (attach_ret)
     {
       case GUM_ATTACH_WRONG_SIGNATURE:
-        _gumjs_throw (ctx, ex, "unable to intercept function at %p; "
+        _gumjs_throw (ctx, exception, "unable to intercept function at %p; "
             "please file a bug", target);
         break;
       case GUM_ATTACH_ALREADY_ATTACHED:
-        _gumjs_throw (ctx, ex, "already attached to this function");
+        _gumjs_throw (ctx, exception, "already attached to this function");
         break;
       default:
         g_assert_not_reached ();

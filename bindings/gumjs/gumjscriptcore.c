@@ -46,7 +46,7 @@ GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
 GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct);
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
-    gsize num_args, const JSValueRef args[], gboolean repeat, JSValueRef * ex);
+    const GumScriptArgs * args, gboolean repeat);
 static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
     GumScheduledCallback * callback);
 static void gum_script_core_remove_scheduled_callback (GumScriptCore * self,
@@ -262,23 +262,17 @@ GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
 {
-  GumScriptCore * self;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
-
-  return gum_script_core_schedule_callback (self, num_args, args, FALSE, ex);
+  return gum_script_core_schedule_callback (args->core, args, FALSE);
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
 {
-  GumScriptCore * self;
+  GumScriptCore * self = args->core;
   gint id;
   GumScheduledCallback * callback = NULL;
   GSList * cur;
 
-  self = GUM_JSC_CTX_GET_CORE (ctx);
-
-  if (!_gumjs_argv_parse (self, num_args, args, ex, "i", &id))
+  if (!_gum_script_args_parse (args, "i", &id))
     return NULL;
 
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
@@ -307,7 +301,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (!_gumjs_argv_parse (self, num_args, args, ex, "s|B", &message, &data))
+  if (!_gum_script_args_parse (args, "s|B", &message, &data))
     return NULL;
 
   _gum_script_core_emit_message (self, message, data);
@@ -325,7 +319,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (!_gumjs_argv_parse (self, num_args, args, ex, "F?", &callback))
+  if (!_gum_script_args_parse (args, "F?", &callback))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -347,7 +341,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (!_gumjs_argv_parse (self, num_args, args, ex, "F?", &callback))
+  if (!_gum_script_args_parse (args, "F?", &callback))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -380,20 +374,20 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (num_args == 0)
+  if (args->count == 0)
   {
     ptr = 0;
   }
   else
   {
-    JSValueRef value = args[0];
+    JSValueRef value = args->values[0];
 
     if (JSValueIsString (ctx, value))
     {
       gchar * ptr_as_string, * endptr;
       gboolean valid;
 
-      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, ex))
+      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, exception))
         return NULL;
 
       if (g_str_has_prefix (ptr_as_string, "0x"))
@@ -402,7 +396,8 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
         valid = endptr != ptr_as_string + 2;
         if (!valid)
         {
-          _gumjs_throw (ctx, ex, "argument is not a valid hexadecimal string");
+          _gumjs_throw (ctx, exception,
+              "argument is not a valid hexadecimal string");
         }
       }
       else
@@ -411,7 +406,8 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
         valid = endptr != ptr_as_string;
         if (!valid)
         {
-          _gumjs_throw (ctx, ex, "argument is not a valid decimal string");
+          _gumjs_throw (ctx, exception,
+              "argument is not a valid decimal string");
         }
       }
 
@@ -426,7 +422,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
     }
     else
     {
-      _gumjs_throw (ctx, ex, "invalid argument");
+      _gumjs_throw (ctx, exception, "invalid argument");
       return NULL;
     }
   }
@@ -436,10 +432,8 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 static JSValueRef
 gum_script_core_schedule_callback (GumScriptCore * self,
-                                   gsize num_args,
-                                   const JSValueRef args[],
-                                   gboolean repeat,
-                                   JSValueRef * ex)
+                                   const GumScriptArgs * args,
+                                   gboolean repeat)
 {
   JSObjectRef func;
   guint delay;
@@ -447,7 +441,7 @@ gum_script_core_schedule_callback (GumScriptCore * self,
   GSource * source;
   GumScheduledCallback * callback;
 
-  if (!_gumjs_argv_parse (self, num_args, args, ex, "FI", &func, &delay))
+  if (!_gum_script_args_parse (args, "FI", &func, &delay))
     return NULL;
 
   id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
@@ -464,7 +458,7 @@ gum_script_core_schedule_callback (GumScriptCore * self,
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
 
-  return JSValueMakeNumber (self->ctx, id);
+  return JSValueMakeNumber (args->ctx, id);
 }
 
 static void
@@ -599,14 +593,12 @@ gum_message_sink_handle_message (GumMessageSink * self,
 }
 
 gboolean
-_gumjs_argv_parse (GumScriptCore * self,
-                   gsize num_args,
-                   const JSValueRef args[],
-                   JSValueRef * exception,
-                   const gchar * format,
-                   ...)
+_gum_script_args_parse (const GumScriptArgs * self,
+                        const gchar * format,
+                        ...)
 {
   JSContextRef ctx = self->ctx;
+  JSValueRef * exception = self->exception;
   va_list ap;
   guint arg_index;
   const gchar * t;
@@ -615,9 +607,9 @@ _gumjs_argv_parse (GumScriptCore * self,
 
   for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
   {
-    JSValueRef value = args[arg_index];
+    JSValueRef value = self->values[arg_index];
 
-    if (arg_index >= num_args)
+    if (arg_index >= self->count)
       goto missing_argument;
 
     switch (*t)

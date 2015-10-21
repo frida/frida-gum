@@ -11,35 +11,80 @@
 
 #define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
-      size_t num_args, const JSValueRef args[], JSValueRef * ex)
+      size_t argument_count, const JSValueRef arguments[], \
+      JSValueRef * exception)
 #define GUM_DECLARE_JSC_FUNCTION(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef function, \
-      JSObjectRef this_object, size_t num_args, const JSValueRef args[], \
-      JSValueRef * ex)
+      JSObjectRef this_object, size_t argument_count, \
+      const JSValueRef arguments[], JSValueRef * exception)
 #define GUM_DECLARE_JSC_GETTER(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef object, \
-      JSStringRef property_name, JSValueRef * ex)
+      JSStringRef property_name, JSValueRef * exception)
 
 #define GUM_DEFINE_JSC_CONSTRUCTOR(N) \
+  static JSObjectRef N##_impl (JSContextRef ctx, JSObjectRef constructor, \
+      const GumScriptArgs * args, JSValueRef * exception); \
+  \
   static JSObjectRef \
   N (JSContextRef ctx, \
      JSObjectRef constructor, \
-     size_t num_args, \
-     const JSValueRef args[], \
-     JSValueRef * ex)
+     size_t argument_count, \
+     const JSValueRef arguments[], \
+     JSValueRef * exception) \
+  { \
+    GumScriptArgs args; \
+    \
+    args.count = argument_count; \
+    args.values = arguments; \
+    args.exception = exception; \
+    \
+    args.ctx = ctx; \
+    args.core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx)); \
+    \
+    return N##_impl (ctx, constructor, &args, exception); \
+  } \
+  \
+  static JSObjectRef \
+  N##_impl (JSContextRef ctx, \
+            JSObjectRef constructor, \
+            const GumScriptArgs * args, \
+            JSValueRef * exception)
 #define GUM_DEFINE_JSC_FUNCTION(N) \
+  static JSValueRef N##_impl (JSContextRef ctx, JSObjectRef function, \
+      JSObjectRef this_object, const GumScriptArgs * args, \
+      JSValueRef * exception); \
+  \
   static JSValueRef \
   N (JSContextRef ctx, \
      JSObjectRef function, \
      JSObjectRef this_object, \
-     size_t num_args, \
-     const JSValueRef args[], \
-     JSValueRef * ex)
+     size_t argument_count, \
+     const JSValueRef arguments[], \
+     JSValueRef * exception) \
+  { \
+    GumScriptArgs args; \
+    \
+    args.count = argument_count; \
+    args.values = arguments; \
+    args.exception = exception; \
+    \
+    args.ctx = ctx; \
+    args.core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx)); \
+    \
+    return N##_impl (ctx, function, this_object, &args, exception); \
+  } \
+  \
+  static JSValueRef \
+  N##_impl (JSContextRef ctx, \
+           JSObjectRef function, \
+           JSObjectRef this_object, \
+           const GumScriptArgs * args, \
+           JSValueRef * exception)
 #define GUM_DEFINE_JSC_GETTER(N) \
   static JSValueRef \
   N (JSContextRef ctx, \
      JSObjectRef object, \
      JSStringRef property_name, \
-     JSValueRef * ex)
+     JSValueRef * exception)
 
 #endif
