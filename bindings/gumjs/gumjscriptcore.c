@@ -295,16 +295,13 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 {
-  GumScriptCore * self;
   gchar * message;
   GBytes * data;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   if (!_gum_script_args_parse (args, "s|B", &message, &data))
     return NULL;
 
-  _gum_script_core_emit_message (self, message, data);
+  _gum_script_core_emit_message (args->core, message, data);
 
   g_bytes_unref (data);
   g_free (message);
@@ -314,10 +311,8 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
-  GumScriptCore * self;
+  GumScriptCore * self = args->core;
   JSObjectRef callback;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   if (!_gum_script_args_parse (args, "F?", &callback))
     return NULL;
@@ -336,10 +331,8 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 {
-  GumScriptCore * self;
+  GumScriptCore * self = args->core;
   JSObjectRef callback;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   if (!_gum_script_args_parse (args, "F?", &callback))
     return NULL;
@@ -355,10 +348,8 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
 {
-  GumScriptCore * self;
+  GumScriptCore * self = args->core;
   guint start_count;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   start_count = self->event_count;
   while (self->event_count == start_count)
@@ -369,10 +360,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
 
 GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  GumScriptCore * self;
   guint64 ptr;
-
-  self = GUM_JSC_CTX_GET_CORE (ctx);
 
   if (args->count == 0)
   {
@@ -427,7 +415,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
     }
   }
 
-  return JSObjectMake (ctx, self->native_pointer, GSIZE_TO_POINTER (ptr));
+  return JSObjectMake (ctx, args->core->native_pointer, GSIZE_TO_POINTER (ptr));
 }
 
 static JSValueRef

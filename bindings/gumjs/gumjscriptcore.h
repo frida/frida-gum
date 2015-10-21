@@ -13,12 +13,6 @@
 #include <gum/gumexceptor.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
-#define GUM_SCRIPT_CORE(P) \
-  ((GumScriptCore *) (P))
-
-#define GUM_JSC_CTX_GET_CORE(C) \
-  GUM_SCRIPT_CORE (JSObjectGetPrivate (JSContextGetGlobalObject (C)))
-
 G_BEGIN_DECLS
 
 typedef struct _GumScriptCore GumScriptCore;
