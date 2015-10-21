@@ -24,6 +24,7 @@ G_BEGIN_DECLS
 typedef struct _GumScriptCore GumScriptCore;
 typedef struct _GumScriptScope GumScriptScope;
 
+typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumExceptionSink GumExceptionSink;
 typedef struct _GumMessageSink GumMessageSink;
 
@@ -45,6 +46,9 @@ struct _GumScriptCore
 
   GumExceptionSink * unhandled_exception_sink;
   GumMessageSink * incoming_message_sink;
+
+  GSList * scheduled_callbacks;
+  volatile gint last_callback_id;
 
   JSClassRef native_pointer;
   JSObjectRef array_buffer;
@@ -71,6 +75,10 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
 G_GNUC_INTERNAL void _gum_script_scope_enter (GumScriptScope * self,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_script_scope_leave (GumScriptScope * self);
+
+G_GNUC_INTERNAL gboolean _gumjs_argv_parse (GumScriptCore * self,
+    gsize num_args, const JSValueRef args[], JSValueRef * exception,
+    const gchar * format, ...);
 
 G_GNUC_INTERNAL JSValueRef _gumjs_native_pointer_new (GumScriptCore * core,
     gpointer address);

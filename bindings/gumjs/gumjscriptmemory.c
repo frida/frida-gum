@@ -32,11 +32,11 @@ enum _GumMemoryValueType
 };
 
 static JSValueRef gum_script_memory_read (GumScriptMemory * self,
-    GumMemoryValueType type, size_t argument_count,
-    const JSValueRef arguments[], JSValueRef * exception);
+    GumMemoryValueType type, gsize num_args, const JSValueRef args[],
+    JSValueRef * ex);
 static JSValueRef gum_script_memory_write (GumScriptMemory * self,
-    GumMemoryValueType type, size_t argument_count,
-    const JSValueRef arguments[], JSValueRef * exception);
+    GumMemoryValueType type, gsize num_args, const JSValueRef args[],
+    JSValueRef * ex);
 
 #ifdef G_OS_WIN32
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
@@ -47,13 +47,13 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
   GUM_DEFINE_JSC_FUNCTION (gumjs_memory_read_##T) \
   { \
     return gum_script_memory_read (JSObjectGetPrivate (this_object), \
-        GUM_MEMORY_VALUE_##T, argument_count, arguments, exception); \
+        GUM_MEMORY_VALUE_##T, num_args, args, ex); \
   }
 #define GUM_DEFINE_MEMORY_WRITE(T) \
   GUM_DEFINE_JSC_FUNCTION (gumjs_memory_write_##T) \
   { \
     return gum_script_memory_write (JSObjectGetPrivate (this_object), \
-        GUM_MEMORY_VALUE_##T, argument_count, arguments, exception); \
+        GUM_MEMORY_VALUE_##T, num_args, args, ex); \
   }
 #define GUM_DEFINE_MEMORY_READ_WRITE(T) \
   GUM_DEFINE_MEMORY_READ (T); \
@@ -144,9 +144,9 @@ _gum_script_memory_finalize (GumScriptMemory * self)
 static JSValueRef
 gum_script_memory_read (GumScriptMemory * self,
                         GumMemoryValueType type,
-                        size_t argument_count,
-                        const JSValueRef arguments[],
-                        JSValueRef * exception)
+                        gsize num_args,
+                        const JSValueRef args[],
+                        JSValueRef * ex)
 {
   GumScriptCore * core = self->core;
   GumExceptor * exceptor = core->exceptor;
@@ -155,10 +155,7 @@ gum_script_memory_read (GumScriptMemory * self,
   gpointer address;
   GumExceptorScope scope;
 
-  if (argument_count < 1)
-    goto invalid_argument;
-
-  if (!_gumjs_native_pointer_get (core, arguments[0], &address, exception))
+  if (!_gumjs_argv_parse (core, num_args, args, ex, "P", &address))
     return NULL;
 
   if (gum_exceptor_try (exceptor, &scope))
@@ -203,21 +200,22 @@ gum_script_memory_read (GumScriptMemory * self,
         guint8 * data;
         gint length;
 
-        if (argument_count < 2)
+        data = address;
+
+        if (num_args < 2)
         {
-          _gumjs_throw (ctx, exception, "expected address and length");
+          _gumjs_throw (ctx, ex, "expected address and length");
           break;
         }
 
-        data = address;
+        if (!_gumjs_try_int_from_value (ctx, args[1], &length, ex))
+          break;
+
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
           break;
         }
-
-        if (!_gumjs_try_int_from_value (ctx, arguments[1], &length, exception))
-          break;
 
         if (length > 0)
         {
@@ -246,18 +244,18 @@ gum_script_memory_read (GumScriptMemory * self,
         guint8 dummy_to_trap_bad_pointer_early;
 
         data = address;
+
+        length = -1;
+        if (num_args >= 2)
+        {
+          if (!_gumjs_try_int_from_value (ctx, args[1], &length, ex))
+            break;
+        }
+
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
           break;
-        }
-
-        length = -1;
-        if (argument_count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, arguments[1], &length,
-              exception))
-            break;
         }
 
         if (length != 0)
@@ -285,18 +283,18 @@ gum_script_memory_read (GumScriptMemory * self,
         guint8 dummy_to_trap_bad_pointer_early;
 
         data = address;
+
+        length = -1;
+        if (num_args >= 2)
+        {
+          if (!_gumjs_try_int_from_value (ctx, args[1], &length, ex))
+            break;
+        }
+
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
           break;
-        }
-
-        length = -1;
-        if (argument_count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, arguments[1], &length,
-              exception))
-            break;
         }
 
         if (length != 0)
@@ -328,18 +326,18 @@ gum_script_memory_read (GumScriptMemory * self,
         glong size;
 
         str_utf16 = address;
+
+        length = -1;
+        if (num_args >= 2)
+        {
+          if (!_gumjs_try_int_from_value (ctx, args[1], &length, ex))
+            break;
+        }
+
         if (str_utf16 == NULL)
         {
           result = JSValueMakeNull (ctx);
           break;
-        }
-
-        length = -1;
-        if (argument_count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, arguments[1], &length,
-              exception))
-            break;
         }
 
         if (length != 0)
@@ -358,18 +356,18 @@ gum_script_memory_read (GumScriptMemory * self,
         gint length;
 
         str_ansi = address;
+
+        length = -1;
+        if (num_args >= 2)
+        {
+          if (!_gumjs_try_int_from_value (ctx, args[1], &length, ex))
+            break;
+        }
+
         if (str_ansi == NULL)
         {
           result = JSValueMakeNull (ctx);
           break;
-        }
-
-        length = -1;
-        if (argument_count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, arguments[1], &length,
-              exception))
-            break;
         }
 
         if (length != 0)
@@ -388,7 +386,7 @@ gum_script_memory_read (GumScriptMemory * self,
           result = _gumjs_string_to_value (ctx, "");
         }
 #else
-        _gumjs_throw (ctx, exception, "ANSI API is only applicable on Windows");
+        _gumjs_throw (ctx, ex, "ANSI API is only applicable on Windows");
 #endif
 
         break;
@@ -400,26 +398,20 @@ gum_script_memory_read (GumScriptMemory * self,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    _gumjs_throw_native (core, &scope.exception, exception);
+    _gumjs_throw_native (core, &scope.exception, ex);
   }
 
   return result;
-
-invalid_argument:
-  {
-    _gumjs_throw (ctx, exception, "invalid argument");
-    return NULL;
-  }
 }
 
 static JSValueRef
 gum_script_memory_write (GumScriptMemory * self,
                          GumMemoryValueType type,
-                         size_t argument_count,
-                         const JSValueRef arguments[],
-                         JSValueRef * exception)
+                         gsize num_args,
+                         const JSValueRef args[],
+                         JSValueRef * ex)
 {
-  _gumjs_throw (self->core->ctx, exception, "not yet implemented");
+  _gumjs_throw (self->core->ctx, ex, "not yet implemented");
   return NULL;
 }
 

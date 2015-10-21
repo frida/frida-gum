@@ -11,36 +11,35 @@
 
 #define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
-      size_t argument_count, const JSValueRef arguments[], \
-      JSValueRef * exception)
+      size_t num_args, const JSValueRef args[], JSValueRef * ex)
 #define GUM_DECLARE_JSC_FUNCTION(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef function, \
-      JSObjectRef this_object, size_t argument_count, \
-      const JSValueRef arguments[], JSValueRef * exception)
+      JSObjectRef this_object, size_t num_args, const JSValueRef args[], \
+      JSValueRef * ex)
 #define GUM_DECLARE_JSC_GETTER(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef object, \
-      JSStringRef property_name, JSValueRef * exception)
+      JSStringRef property_name, JSValueRef * ex)
 
 #define GUM_DEFINE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef \
   N (JSContextRef ctx, \
      JSObjectRef constructor, \
-     size_t argument_count, \
-     const JSValueRef arguments[], \
-     JSValueRef * exception)
+     size_t num_args, \
+     const JSValueRef args[], \
+     JSValueRef * ex)
 #define GUM_DEFINE_JSC_FUNCTION(N) \
   static JSValueRef \
   N (JSContextRef ctx, \
      JSObjectRef function, \
      JSObjectRef this_object, \
-     size_t argument_count, \
-     const JSValueRef arguments[], \
-     JSValueRef * exception)
+     size_t num_args, \
+     const JSValueRef args[], \
+     JSValueRef * ex)
 #define GUM_DEFINE_JSC_GETTER(N) \
   static JSValueRef \
   N (JSContextRef ctx, \
      JSObjectRef object, \
      JSStringRef property_name, \
-     JSValueRef * exception)
+     JSValueRef * ex)
 
 #endif

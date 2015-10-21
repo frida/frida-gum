@@ -10,19 +10,6 @@
 
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
-gint
-_gumjs_int_from_value (JSContextRef ctx,
-                       JSValueRef value)
-{
-  gint i;
-  JSValueRef exception;
-
-  if (!_gumjs_try_int_from_value (ctx, value, &i, &exception))
-    _gumjs_panic (ctx, exception);
-
-  return i;
-}
-
 gboolean
 _gumjs_try_int_from_value (JSContextRef ctx,
                            JSValueRef value,
@@ -40,6 +27,36 @@ _gumjs_try_int_from_value (JSContextRef ctx,
     *exception = ex;
 
   return ex == NULL;
+}
+
+gboolean
+_gumjs_try_uint_from_value (JSContextRef ctx,
+                            JSValueRef value,
+                            guint * i,
+                            JSValueRef * exception)
+{
+  JSValueRef ex = NULL;
+  double number;
+
+  number = JSValueToNumber (ctx, value, &ex);
+  if (ex == NULL)
+  {
+    if (number < 0)
+      goto invalid_uint;
+
+    *i = (guint) number;
+  }
+
+  if (exception != NULL)
+    *exception = ex;
+
+  return ex == NULL;
+
+invalid_uint:
+  {
+    _gumjs_throw (ctx, exception, "expected a non-negative integer");
+    return FALSE;
+  }
 }
 
 gchar *
@@ -97,6 +114,31 @@ _gumjs_string_to_value (JSContextRef ctx,
   JSStringRelease (str_js);
 
   return result;
+}
+
+gboolean
+_gumjs_try_function_from_value (JSContextRef ctx,
+                                JSValueRef value,
+                                JSObjectRef * function,
+                                JSValueRef * exception)
+{
+  JSObjectRef obj;
+
+  if (!JSValueIsObject (ctx, value))
+    goto invalid_type;
+
+  obj = (JSObjectRef) value;
+  if (!JSObjectIsFunction (ctx, obj))
+    goto invalid_type;
+
+  *function = obj;
+  return TRUE;
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected a function");
+    return FALSE;
+  }
 }
 
 JSValueRef

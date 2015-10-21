@@ -12,6 +12,15 @@
 #define GUM_SCRIPT_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
+struct _GumScheduledCallback
+{
+  gint id;
+  gboolean repeat;
+  JSObjectRef func;
+  GSource * source;
+  GumScriptCore * core;
+};
+
 struct _GumExceptionSink
 {
   JSObjectRef callback;
@@ -24,6 +33,8 @@ struct _GumMessageSink
   JSContextRef ctx;
 };
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_timeout);
+GUM_DECLARE_JSC_FUNCTION (gumjs_clear_timer);
 GUM_DECLARE_JSC_FUNCTION (gumjs_send);
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback);
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback);
@@ -33,6 +44,18 @@ GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name);
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
 
 GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct);
+
+static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
+    gboolean repeat, gsize num_args, const JSValueRef args[], JSValueRef * ex);
+static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
+    GumScheduledCallback * callback);
+static void gum_script_core_remove_scheduled_callback (GumScriptCore * self,
+    GumScheduledCallback * callback);
+
+static GumScheduledCallback * gum_scheduled_callback_new (gint id,
+    JSObjectRef func, gboolean repeat, GSource * source, GumScriptCore * core);
+static void gum_scheduled_callback_free (GumScheduledCallback * callback);
+static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 
 static GumExceptionSink * gum_exception_sink_new (JSContextRef ctx,
     JSObjectRef callback);
@@ -99,6 +122,8 @@ _gum_script_core_init (GumScriptCore * self,
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, "Script", obj);
 
+  _gumjs_object_set_function (ctx, scope, "setTimeout", gumjs_set_timeout);
+  _gumjs_object_set_function (ctx, scope, "clearTimeout", gumjs_clear_timer);
   _gumjs_object_set_function (ctx, scope, "_send", gumjs_send);
   _gumjs_object_set_function (ctx, scope, "_setUnhandledExceptionCallback",
       gumjs_set_unhandled_exception_callback);
@@ -139,6 +164,14 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
+  while (self->scheduled_callbacks != NULL)
+  {
+    g_source_destroy (((GumScheduledCallback *) (
+        self->scheduled_callbacks->data))->source);
+    self->scheduled_callbacks = g_slist_delete_link (
+        self->scheduled_callbacks, self->scheduled_callbacks);
+  }
+
   gum_exception_sink_free (self->unhandled_exception_sink);
   self->unhandled_exception_sink = NULL;
 
@@ -167,6 +200,7 @@ _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                GBytes * data)
 {
+  g_print ("%s\n", message);
   self->message_emitter (self->script, message, data);
 }
 
@@ -226,44 +260,62 @@ GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_send)
+GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
 {
   GumScriptCore * self;
-  JSValueRef result = NULL;
-  gchar * message = NULL;
-  GBytes * data = NULL;
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count < 1)
-    goto invalid_argument;
+  return gum_script_core_schedule_callback (self, FALSE, num_args, args, ex);
+}
 
-  if (!_gumjs_try_string_from_value (ctx, arguments[0], &message, exception))
-    goto beach;
+GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
+{
+  GumScriptCore * self;
+  gint id;
+  GumScheduledCallback * callback = NULL;
+  GSList * cur;
 
-  if (argument_count >= 2)
+  self = GUM_JSC_CTX_GET_CORE (ctx);
+
+  if (!_gumjs_argv_parse (self, num_args, args, ex, "i", &id))
+    return NULL;
+
+  for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
-    if (!_gumjs_byte_array_try_get_opt (self, arguments[1], &data, exception))
-      goto beach;
+    GumScheduledCallback * cb = cur->data;
+    if (cb->id == id)
+    {
+      callback = cb;
+      self->scheduled_callbacks =
+          g_slist_delete_link (self->scheduled_callbacks, cur);
+      break;
+    }
   }
+
+  if (callback != NULL)
+    g_source_destroy (callback->source);
+
+  return JSValueMakeBoolean (ctx, callback != NULL);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_send)
+{
+  GumScriptCore * self;
+  gchar * message;
+  GBytes * data;
+
+  self = GUM_JSC_CTX_GET_CORE (ctx);
+
+  if (!_gumjs_argv_parse (self, num_args, args, ex, "s|B", &message, &data))
+    return NULL;
 
   _gum_script_core_emit_message (self, message, data);
 
-  result = JSValueMakeUndefined (ctx);
-  goto beach;
+  g_bytes_unref (data);
+  g_free (message);
 
-invalid_argument:
-  {
-    _gumjs_throw (ctx, exception, "invalid argument");
-    goto beach;
-  }
-beach:
-  {
-    g_bytes_unref (data);
-    g_free (message);
-
-    return result;
-  }
+  return JSValueMakeUndefined (ctx);
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
@@ -273,10 +325,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count < 1)
-    goto invalid_argument;
-
-  if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_argv_parse (self, num_args, args, ex, "F?", &callback))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -289,12 +338,6 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   }
 
   return JSValueMakeUndefined (ctx);
-
-invalid_argument:
-  {
-    _gumjs_throw (ctx, exception, "invalid argument");
-    return NULL;
-  }
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
@@ -304,10 +347,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count < 1)
-    goto invalid_argument;
-
-  if (!_gumjs_callback_try_get_opt (ctx, arguments[0], &callback, exception))
+  if (!_gumjs_argv_parse (self, num_args, args, ex, "F?", &callback))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -317,12 +357,6 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
     self->incoming_message_sink = gum_message_sink_new (self->ctx, callback);
 
   return JSValueMakeUndefined (ctx);
-
-invalid_argument:
-  {
-    _gumjs_throw (ctx, exception, "invalid argument");
-    return NULL;
-  }
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
@@ -346,20 +380,20 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
   self = GUM_JSC_CTX_GET_CORE (ctx);
 
-  if (argument_count == 0)
+  if (num_args == 0)
   {
     ptr = 0;
   }
   else
   {
-    JSValueRef value = arguments[0];
+    JSValueRef value = args[0];
 
     if (JSValueIsString (ctx, value))
     {
       gchar * ptr_as_string, * endptr;
       gboolean valid;
 
-      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, exception))
+      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, ex))
         return NULL;
 
       if (g_str_has_prefix (ptr_as_string, "0x"))
@@ -368,8 +402,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
         valid = endptr != ptr_as_string + 2;
         if (!valid)
         {
-          _gumjs_throw (ctx, exception, "argument is not a valid "
-              "hexadecimal string");
+          _gumjs_throw (ctx, ex, "argument is not a valid hexadecimal string");
         }
       }
       else
@@ -378,8 +411,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
         valid = endptr != ptr_as_string;
         if (!valid)
         {
-          _gumjs_throw (ctx, exception, "argument is not a valid decimal "
-              "string");
+          _gumjs_throw (ctx, ex, "argument is not a valid decimal string");
         }
       }
 
@@ -394,12 +426,107 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
     }
     else
     {
-      _gumjs_throw (ctx, exception, "invalid argument");
+      _gumjs_throw (ctx, ex, "invalid argument");
       return NULL;
     }
   }
 
   return JSObjectMake (ctx, self->native_pointer, GSIZE_TO_POINTER (ptr));
+}
+
+static JSValueRef
+gum_script_core_schedule_callback (GumScriptCore * self,
+                                   gboolean repeat,
+                                   gsize num_args,
+                                   const JSValueRef args[],
+                                   JSValueRef * ex)
+{
+  JSObjectRef func;
+  guint delay;
+  gint id;
+  GSource * source;
+  GumScheduledCallback * callback;
+
+  if (!_gumjs_argv_parse (self, num_args, args, ex, "FI", &func, &delay))
+    return NULL;
+
+  id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
+  if (delay == 0)
+    source = g_idle_source_new ();
+  else
+    source = g_timeout_source_new (delay);
+
+  callback = gum_scheduled_callback_new (id, func, repeat, source, self);
+  g_source_set_callback (source, gum_scheduled_callback_invoke, callback,
+      (GDestroyNotify) gum_scheduled_callback_free);
+  gum_script_core_add_scheduled_callback (self, callback);
+
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (self->scheduler));
+
+  return JSValueMakeNumber (self->ctx, id);
+}
+
+static void
+gum_script_core_add_scheduled_callback (GumScriptCore * self,
+                                        GumScheduledCallback * callback)
+{
+  self->scheduled_callbacks =
+      g_slist_prepend (self->scheduled_callbacks, callback);
+}
+
+static void
+gum_script_core_remove_scheduled_callback (GumScriptCore * self,
+                                           GumScheduledCallback * callback)
+{
+  self->scheduled_callbacks =
+      g_slist_remove (self->scheduled_callbacks, callback);
+}
+
+static GumScheduledCallback *
+gum_scheduled_callback_new (gint id,
+                            JSObjectRef func,
+                            gboolean repeat,
+                            GSource * source,
+                            GumScriptCore * core)
+{
+  GumScheduledCallback * callback;
+
+  callback = g_slice_new (GumScheduledCallback);
+  callback->id = id;
+  JSValueProtect (core->ctx, func);
+  callback->func = func;
+  callback->repeat = repeat;
+  callback->source = source;
+  callback->core = core;
+
+  return callback;
+}
+
+static void
+gum_scheduled_callback_free (GumScheduledCallback * callback)
+{
+  JSValueUnprotect (callback->core->ctx, callback->func);
+
+  g_slice_free (GumScheduledCallback, callback);
+}
+
+static gboolean
+gum_scheduled_callback_invoke (gpointer user_data)
+{
+  GumScheduledCallback * self = user_data;
+  GumScriptCore * core = self->core;
+  GumScriptScope scope;
+
+  _gum_script_scope_enter (&scope, self->core);
+  JSObjectCallAsFunction (core->ctx, self->func, NULL, 0, NULL,
+      &scope.exception);
+  _gum_script_scope_leave (&scope);
+
+  if (!self->repeat)
+    gum_script_core_remove_scheduled_callback (core, self);
+
+  return self->repeat;
 }
 
 static GumExceptionSink *
@@ -469,6 +596,76 @@ gum_message_sink_handle_message (GumMessageSink * self,
   message_value = _gumjs_string_to_value (self->ctx, message);
   JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &message_value,
       exception);
+}
+
+gboolean
+_gumjs_argv_parse (GumScriptCore * self,
+                   gsize num_args,
+                   const JSValueRef args[],
+                   JSValueRef * exception,
+                   const gchar * format,
+                   ...)
+{
+  JSContextRef ctx = self->ctx;
+  va_list ap;
+  guint arg_index;
+  const gchar * t;
+
+  va_start (ap, format);
+
+  for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
+  {
+    JSValueRef value = args[arg_index];
+
+    if (arg_index >= num_args)
+      goto missing_argument;
+
+    switch (*t)
+    {
+      case 'i':
+      {
+        gint i;
+        if (!_gumjs_try_int_from_value (ctx, value, &i, exception))
+          goto error;
+        *va_arg (ap, gint *) = i;
+        break;
+      }
+      case 'I':
+      {
+        guint i;
+        if (!_gumjs_try_uint_from_value (ctx, value, &i, exception))
+          goto error;
+        *va_arg (ap, guint *) = i;
+        break;
+      }
+      case 'F':
+      {
+        JSObjectRef func;
+        if (!_gumjs_try_function_from_value (ctx, value, &func, exception))
+          goto error;
+        *va_arg (ap, JSObjectRef *) = func;
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  va_end (ap);
+
+  return TRUE;
+
+missing_argument:
+  {
+    _gumjs_throw (ctx, exception, "missing argument");
+    goto error;
+  }
+error:
+  {
+    va_end (ap);
+
+    return FALSE;
+  }
 }
 
 JSValueRef
