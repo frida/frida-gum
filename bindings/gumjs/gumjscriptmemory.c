@@ -152,10 +152,27 @@ gum_script_memory_read (GumScriptMemory * self,
   GumExceptor * exceptor = core->exceptor;
   JSValueRef result = NULL;
   gpointer address;
+  gint length = -1;
   GumExceptorScope scope;
 
-  if (!_gumjs_args_parse (args, "p", &address))
-    return NULL;
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gumjs_args_parse (args, "pi", &address, &length))
+        return NULL;
+      break;
+    case GUM_MEMORY_VALUE_C_STRING:
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gumjs_args_parse (args, "p|i", &address, &length))
+        return NULL;
+      break;
+    default:
+      if (!_gumjs_args_parse (args, "p", &address))
+        return NULL;
+      break;
+  }
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -197,20 +214,8 @@ gum_script_memory_read (GumScriptMemory * self,
       case GUM_MEMORY_VALUE_BYTE_ARRAY:
       {
         guint8 * data;
-        gint length;
 
         data = address;
-
-        if (args->count < 2)
-        {
-          _gumjs_throw (ctx, exception, "expected address and length");
-          break;
-        }
-
-        if (!_gumjs_try_int_from_value (ctx, args->values[1], &length,
-            exception))
-          break;
-
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
@@ -240,19 +245,9 @@ gum_script_memory_read (GumScriptMemory * self,
       case GUM_MEMORY_VALUE_C_STRING:
       {
         gchar * data;
-        gint length;
         guint8 dummy_to_trap_bad_pointer_early;
 
         data = address;
-
-        length = -1;
-        if (args->count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, args->values[1], &length,
-              exception))
-            break;
-        }
-
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
@@ -280,19 +275,9 @@ gum_script_memory_read (GumScriptMemory * self,
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
         gchar * data;
-        gint length;
         guint8 dummy_to_trap_bad_pointer_early;
 
         data = address;
-
-        length = -1;
-        if (args->count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, args->values[1], &length,
-              exception))
-            break;
-        }
-
         if (data == NULL)
         {
           result = JSValueMakeNull (ctx);
@@ -323,20 +308,10 @@ gum_script_memory_read (GumScriptMemory * self,
       {
         gunichar2 * str_utf16;
         gchar * str_utf8;
-        gint length;
         guint8 dummy_to_trap_bad_pointer_early;
         glong size;
 
         str_utf16 = address;
-
-        length = -1;
-        if (args->count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, args->values[1], &length,
-              exception))
-            break;
-        }
-
         if (str_utf16 == NULL)
         {
           result = JSValueMakeNull (ctx);
@@ -356,18 +331,8 @@ gum_script_memory_read (GumScriptMemory * self,
       {
 #ifdef G_OS_WIN32
         gchar * str_ansi;
-        gint length;
 
         str_ansi = address;
-
-        length = -1;
-        if (args->count >= 2)
-        {
-          if (!_gumjs_try_int_from_value (ctx, args->values[1], &length,
-              exception))
-            break;
-        }
-
         if (str_ansi == NULL)
         {
           result = JSValueMakeNull (ctx);
