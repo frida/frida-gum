@@ -36,6 +36,7 @@ struct _GumMessageSink
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_timeout)
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_interval)
 GUM_DECLARE_JSC_FUNCTION (gumjs_clear_timer)
+GUM_DECLARE_JSC_FUNCTION (gumjs_gc)
 GUM_DECLARE_JSC_FUNCTION (gumjs_send)
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
@@ -152,6 +153,7 @@ _gum_script_core_init (GumScriptCore * self,
   _gumjs_object_set_function (ctx, scope, "clearTimeout", gumjs_clear_timer);
   _gumjs_object_set_function (ctx, scope, "setInterval", gumjs_set_interval);
   _gumjs_object_set_function (ctx, scope, "clearInterval", gumjs_clear_timer);
+  _gumjs_object_set_function (ctx, scope, "gc", gumjs_gc);
   _gumjs_object_set_function (ctx, scope, "_send", gumjs_send);
   _gumjs_object_set_function (ctx, scope, "_setUnhandledExceptionCallback",
       gumjs_set_unhandled_exception_callback);
@@ -330,6 +332,13 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
     g_source_destroy (callback->source);
 
   return JSValueMakeBoolean (ctx, callback != NULL);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_gc)
+{
+  JSGarbageCollect (ctx);
+
+  return JSValueMakeUndefined (ctx);
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_send)
