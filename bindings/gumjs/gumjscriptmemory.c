@@ -379,8 +379,153 @@ gum_script_memory_write (GumScriptMemory * self,
                          const GumScriptArgs * args,
                          JSValueRef * exception)
 {
-  _gumjs_throw (args->ctx, exception, "not yet implemented");
-  return NULL;
+  JSContextRef ctx = args->ctx;
+  GumScriptCore * core = self->core;
+  GumExceptor * exceptor = core->exceptor;
+  JSValueRef result = NULL;
+  gpointer address;
+  gpointer pointer;
+  gdouble number;
+  GBytes * bytes = NULL;
+  gchar * str = NULL;
+  gsize str_length;
+  gunichar2 * str_utf16 = NULL;
+#ifdef G_OS_WIN32
+  gchar * str_ansi = NULL;
+#endif
+  GumExceptorScope scope;
+
+  switch (type)
+  {
+    case GUM_MEMORY_VALUE_POINTER:
+      if (!_gumjs_args_parse (args, "pp", &address, &pointer))
+        return NULL;
+      break;
+    case GUM_MEMORY_VALUE_S8:
+    case GUM_MEMORY_VALUE_U8:
+    case GUM_MEMORY_VALUE_S16:
+    case GUM_MEMORY_VALUE_U16:
+    case GUM_MEMORY_VALUE_S32:
+    case GUM_MEMORY_VALUE_U32:
+    case GUM_MEMORY_VALUE_S64:
+    case GUM_MEMORY_VALUE_U64:
+    case GUM_MEMORY_VALUE_FLOAT:
+    case GUM_MEMORY_VALUE_DOUBLE:
+      if (!_gumjs_args_parse (args, "pn", &address, &number))
+        return NULL;
+      break;
+    case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      if (!_gumjs_args_parse (args, "pB", &address, &bytes))
+        return NULL;
+      break;
+    case GUM_MEMORY_VALUE_UTF8_STRING:
+    case GUM_MEMORY_VALUE_UTF16_STRING:
+    case GUM_MEMORY_VALUE_ANSI_STRING:
+      if (!_gumjs_args_parse (args, "ps", &address, &str))
+        return NULL;
+      str_length = g_utf8_strlen (str, -1);
+      if (type == GUM_MEMORY_VALUE_UTF16_STRING)
+        str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+#ifdef G_OS_WIN32
+      else if (type == GUM_MEMORY_VALUE_ANSI_STRING)
+        str_ansi = gum_ansi_string_from_utf8 (str);
+#endif
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    switch (type)
+    {
+      case GUM_MEMORY_VALUE_POINTER:
+        *((gpointer *) address) = pointer;
+        break;
+      case GUM_MEMORY_VALUE_S8:
+        *((gint8 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_U8:
+        *((guint8 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_S16:
+        *((gint16 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_U16:
+        *((guint16 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_S32:
+        *((gint32 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_U32:
+        *((guint32 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_S64:
+        *((gint64 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_U64:
+        *((guint64 *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_FLOAT:
+        *((gfloat *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_DOUBLE:
+        *((gdouble *) address) = number;
+        break;
+      case GUM_MEMORY_VALUE_BYTE_ARRAY:
+      {
+        gconstpointer data;
+        gsize size;
+
+        data = g_bytes_get_data (bytes, &size);
+
+        memcpy (address, data, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF8_STRING:
+      {
+        gsize size;
+
+        size = g_utf8_offset_to_pointer (str, str_length) - str + 1;
+        memcpy (address, str, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_UTF16_STRING:
+      {
+        gsize size;
+
+        size = (str_length + 1) * sizeof (gunichar);
+        memcpy (address, str_utf16, size);
+        break;
+      }
+      case GUM_MEMORY_VALUE_ANSI_STRING:
+      {
+#ifdef G_OS_WIN32
+        strcpy (address, str_ansi);
+#else
+        _gumjs_throw (ctx, exception, "ANSI API is only applicable on Windows");
+#endif
+
+        break;
+      }
+      default:
+        g_assert_not_reached ();
+    }
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gumjs_throw_native (ctx, exception, &scope.exception, core);
+  }
+
+  g_bytes_unref (bytes);
+  g_free (str);
+  g_free (str_utf16);
+#ifdef G_OS_WIN32
+  g_free (str_ansi);
+#endif
+
+  return result;
 }
 
 #ifdef G_OS_WIN32
