@@ -18,66 +18,213 @@ _gumjs_args_parse (const GumScriptArgs * self,
                    ...)
 {
   JSContextRef ctx = self->ctx;
+  GumScriptCore * core = self->core;
   JSValueRef * exception = self->exception;
   va_list ap;
   guint arg_index;
   const gchar * t;
+  gboolean is_required;
 
   va_start (ap, format);
 
+  is_required = TRUE;
   for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
   {
-    JSValueRef value = self->values[arg_index];
+    JSValueRef value;
 
     if (arg_index >= self->count)
-      goto missing_argument;
+    {
+      if (is_required)
+        goto missing_argument;
+      else
+        value = NULL;
+    }
+    else
+    {
+      value = self->values[arg_index];
+    }
 
     switch (*t)
     {
       case 'i':
       {
-        gint i;
-        if (!_gumjs_try_int_from_value (ctx, value, &i, exception))
+        gint i = 0;
+
+        if (value != NULL &&
+            !_gumjs_try_int_from_value (ctx, value, &i, exception))
+        {
           goto error;
+        }
+
         *va_arg (ap, gint *) = i;
+
         break;
       }
-      case 'I':
+      case 'u':
       {
-        guint i;
-        if (!_gumjs_try_uint_from_value (ctx, value, &i, exception))
+        guint i = 0;
+
+        if (value != NULL &&
+            !_gumjs_try_uint_from_value (ctx, value, &i, exception))
+        {
           goto error;
+        }
+
         *va_arg (ap, guint *) = i;
+
         break;
       }
-      case 'F':
+      case 'p':
+      {
+        gpointer ptr = NULL;
+
+        if (value != NULL &&
+            !_gumjs_native_pointer_try_get (ctx, value, core, &ptr, exception))
+        {
+          goto error;
+        }
+
+        *va_arg (ap, gpointer *) = ptr;
+
+        break;
+      }
+      case 's':
+      {
+        gchar * str = NULL;
+
+        if (value != NULL &&
+            !_gumjs_try_string_from_value (ctx, value, &str, exception))
+        {
+          goto error;
+        }
+
+        *va_arg (ap, gchar **) = str;
+
+        break;
+      }
+      case 'C':
       {
         JSObjectRef func;
+        gboolean is_object, is_nullable;
+
+        is_object = t[1] == '{';
+        if (is_object)
+          t += 2;
+
+        if (is_object)
+        {
+          const gchar * next, * end, * t_end;
+
+          do
+          {
+            gchar name[64];
+            gsize length;
+
+            next = strchr (t, ',');
+            end = strchr (t, '}');
+            t_end = (next != NULL && next < end) ? next : end;
+            length = t_end - t;
+            strncpy (name, t, length);
+
+            is_nullable = name[length - 1] == '?';
+            if (is_nullable)
+              name[length - 1] = '\0';
+            else
+              name[length] = '\0';
+
+            if (value != NULL)
+            {
+              if (is_nullable)
+              {
+                if (!_gumjs_callbacks_try_get_opt (ctx, value, name, &func,
+                    exception))
+                  goto error;
+              }
+              else
+              {
+                if (!_gumjs_callbacks_try_get (ctx, value, name, &func,
+                    exception))
+                  goto error;
+              }
+            }
+            else
+            {
+              func = NULL;
+            }
+
+            *va_arg (ap, JSObjectRef *) = func;
+
+            t = t_end + 1;
+          }
+          while (t_end != end);
+
+          t--;
+        }
+        else
+        {
+          is_nullable = t[1] == '?';
+          if (is_nullable)
+            t++;
+
+          if (value != NULL)
+          {
+            if (is_nullable)
+            {
+              if (!_gumjs_callback_try_get_opt (ctx, value, &func, exception))
+                goto error;
+            }
+            else
+            {
+              if (!_gumjs_callback_try_get (ctx, value, &func, exception))
+                goto error;
+            }
+          }
+          else
+          {
+            func = NULL;
+          }
+
+          *va_arg (ap, JSObjectRef *) = func;
+        }
+
+        break;
+      }
+      case 'B':
+      {
+        GBytes * bytes;
         gboolean is_nullable;
 
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
-        if (is_nullable)
+        if (value != NULL)
         {
-          if (!_gumjs_callback_try_get_opt (ctx, value, &func, exception))
-            goto error;
+          if (is_nullable)
+          {
+            if (!_gumjs_byte_array_try_get_opt (ctx, value, &bytes, exception))
+              goto error;
+          }
+          else
+          {
+            if (!_gumjs_byte_array_try_get (ctx, value, &bytes, exception))
+              goto error;
+          }
         }
         else
         {
-          if (!_gumjs_callback_try_get (ctx, value, &func, exception))
-            goto error;
+          bytes = NULL;
         }
 
-        *va_arg (ap, JSObjectRef *) = func;
+        *va_arg (ap, GBytes **) = bytes;
 
         break;
       }
-      case 'P':
-      {
-      }
+      case '|':
+        is_required = FALSE;
+        break;
       default:
+        g_printerr ("Unhandled: %c\n", *t);
         g_assert_not_reached ();
     }
   }

@@ -296,7 +296,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
   gchar * message;
   GBytes * data;
 
-  if (!_gumjs_args_parse (args, "s|B", &message, &data))
+  if (!_gumjs_args_parse (args, "s|B?", &message, &data))
     return NULL;
 
   _gum_script_core_emit_message (args->core, message, data);
@@ -312,7 +312,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumScriptCore * self = args->core;
   JSObjectRef callback;
 
-  if (!_gumjs_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (args, "C?", &callback))
     return NULL;
 
   gum_exception_sink_free (self->unhandled_exception_sink);
@@ -332,7 +332,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
   GumScriptCore * self = args->core;
   JSObjectRef callback;
 
-  if (!_gumjs_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (args, "C?", &callback))
     return NULL;
 
   gum_message_sink_free (self->incoming_message_sink);
@@ -427,7 +427,7 @@ gum_script_core_schedule_callback (GumScriptCore * self,
   GSource * source;
   GumScheduledCallback * callback;
 
-  if (!_gumjs_args_parse (args, "FI", &func, &delay))
+  if (!_gumjs_args_parse (args, "Cu", &func, &delay))
     return NULL;
 
   id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
