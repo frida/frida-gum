@@ -7,7 +7,6 @@
 #include "gumjscriptmemory.h"
 
 #include "gumjscriptmacros.h"
-#include "gumjscriptvalue.h"
 
 typedef guint GumMemoryValueType;
 

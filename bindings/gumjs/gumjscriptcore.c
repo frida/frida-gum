@@ -7,7 +7,6 @@
 #include "gumjscriptcore.h"
 
 #include "gumjscriptmacros.h"
-#include "gumjscriptvalue.h"
 
 #define GUM_SCRIPT_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
@@ -178,7 +177,6 @@ _gum_script_core_init (GumScriptCore * self,
 
   if (flavor == GUM_SCRIPT_FLAVOR_USER)
   {
-    _gumjs_object_set (ctx, scope, "Process", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Module", JSObjectMake (ctx, NULL, NULL));
     _gumjs_object_set (ctx, scope, "Instruction",
         JSObjectMake (ctx, NULL, NULL));

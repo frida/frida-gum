@@ -96,6 +96,8 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptglue.cpp \
 	gumjscriptmemory.h \
 	gumjscriptmemory.c \
+	gumjscriptprocess.h \
+	gumjscriptprocess.c \
 	gumjscriptinterceptor.h \
 	gumjscriptinterceptor.c \
 	$(NULL)

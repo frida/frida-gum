@@ -103,6 +103,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_page_size_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
+  SCRIPT_TESTENTRY (process_current_thread_id_is_available)
 #ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
@@ -848,6 +849,12 @@ SCRIPT_TESTCASE (process_debugger_status_is_available)
     EXPECT_SEND_MESSAGE_WITH ("true");
   else
     EXPECT_SEND_MESSAGE_WITH ("false");
+}
+
+SCRIPT_TESTCASE (process_current_thread_id_is_available)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(typeof Process.getCurrentThreadId());");
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
 }
 
 #ifndef HAVE_ANDROID

@@ -8,7 +8,6 @@
 
 #include "gumjscript-priv.h"
 #include "gumjscriptmacros.h"
-#include "gumjscriptvalue.h"
 
 #include <gum/gum-init.h>
 
