@@ -22,6 +22,8 @@ typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumExceptionSink GumExceptionSink;
 typedef struct _GumMessageSink GumMessageSink;
 
+typedef struct _GumNativeResource GumNativeResource;
+
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
     const gchar * message, GBytes * data);
 
@@ -44,6 +46,8 @@ struct _GumScriptCore
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
 
+  GHashTable * native_resources;
+
   JSClassRef native_pointer;
   JSObjectRef array_buffer;
 };
@@ -52,6 +56,14 @@ struct _GumScriptScope
 {
   GumScriptCore * core;
   JSValueRef exception;
+};
+
+struct _GumNativeResource
+{
+  JSValueRef instance;
+  gpointer data;
+  GDestroyNotify notify;
+  GumScriptCore * core;
 };
 
 G_GNUC_INTERNAL void _gum_script_core_init (GumScriptCore * self,

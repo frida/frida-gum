@@ -702,6 +702,35 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
   }
 }
 
+GumNativeResource *
+_gumjs_native_resource_new (JSContextRef ctx,
+                            gpointer data,
+                            GDestroyNotify notify,
+                            GumScriptCore * core)
+{
+  GumNativeResource * resource;
+
+  resource = g_slice_new (GumNativeResource);
+  /* TODO: weak reference */
+  resource->instance = _gumjs_native_pointer_new (ctx, data, core);
+  resource->data = data;
+  resource->notify = notify;
+  resource->core = core;
+
+  g_hash_table_insert (core->native_resources, resource, resource);
+
+  return resource;
+}
+
+void
+_gumjs_native_resource_free (GumNativeResource * resource)
+{
+  if (resource->notify != NULL)
+    resource->notify (resource->data);
+
+  g_slice_free (GumNativeResource, resource);
+}
+
 JSObjectRef
 _gumjs_array_buffer_new (JSContextRef ctx,
                          gsize size,

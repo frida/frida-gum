@@ -133,6 +133,9 @@ _gum_script_core_init (GumScriptCore * self,
   _gumjs_object_set_function (ctx, scope, "_waitForEvent",
       gumjs_wait_for_event);
 
+  self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) _gumjs_native_resource_free);
+
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
   self->native_pointer = JSClassCreate (&def);
@@ -165,6 +168,9 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
+  g_hash_table_unref (self->native_resources);
+  self->native_resources = NULL;
+
   while (self->scheduled_callbacks != NULL)
   {
     g_source_destroy (((GumScheduledCallback *) (

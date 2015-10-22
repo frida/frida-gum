@@ -31,6 +31,8 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_ANSI_STRING
 };
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc)
+
 static JSValueRef gum_script_memory_read (GumScriptMemory * self,
     GumMemoryValueType type, const GumScriptArgs * args,
     JSValueRef * exception);
@@ -89,6 +91,8 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_memory_functions[] =
 {
+  { "alloc", gumjs_memory_alloc, gumjs_attrs },
+
   GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8),
   GUM_EXPORT_MEMORY_READ_WRITE ("U8", U8),
@@ -105,6 +109,7 @@ static const JSStaticFunction gumjs_memory_functions[] =
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf8String", UTF8_STRING),
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
+
   { NULL, NULL, 0 }
 };
 
@@ -139,6 +144,39 @@ void
 _gum_script_memory_finalize (GumScriptMemory * self)
 {
   (void) self;
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc)
+{
+  GumScriptCore * core = args->core;
+  guint size, page_size;
+  GumNativeResource * resource;
+
+  if (!_gumjs_args_parse (args, "u", &size))
+    return NULL;
+  if (size == 0 || size > 0x7fffffff)
+    goto invalid_size;
+
+  page_size = gum_query_page_size ();
+
+  if (size < page_size)
+  {
+    resource = _gumjs_native_resource_new (ctx, g_malloc (size), g_free, core);
+  }
+  else
+  {
+    guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
+    resource = _gumjs_native_resource_new (ctx,
+        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core);
+  }
+
+  return resource->instance;
+
+invalid_size:
+  {
+    _gumjs_throw (ctx, exception, "invalid size");
+    return NULL;
+  }
 }
 
 static JSValueRef
