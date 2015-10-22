@@ -2,7 +2,7 @@
  * Based on https://github.com/taylorhakes/promise-polyfill
  */
 
-(function (root) {
+(function () {
     function Promise(fn) {
         if (typeof this !== 'object') throw new TypeError('Promises must be constructed via new');
         if (typeof fn !== 'function') throw new TypeError('not a function');
