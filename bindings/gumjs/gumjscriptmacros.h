@@ -12,14 +12,14 @@
 #define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
       size_t argument_count, const JSValueRef arguments[], \
-      JSValueRef * exception)
+      JSValueRef * exception);
 #define GUM_DECLARE_JSC_FUNCTION(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef function, \
       JSObjectRef this_object, size_t argument_count, \
-      const JSValueRef arguments[], JSValueRef * exception)
+      const JSValueRef arguments[], JSValueRef * exception);
 #define GUM_DECLARE_JSC_GETTER(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef object, \
-      JSStringRef property_name, JSValueRef * exception)
+      JSStringRef property_name, JSValueRef * exception);
 
 #define GUM_DEFINE_JSC_CONSTRUCTOR(N) \
   static JSObjectRef N##_impl (JSContextRef ctx, JSObjectRef constructor, \

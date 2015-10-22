@@ -30,10 +30,10 @@ struct _GumScriptReplaceEntry
   JSContextRef ctx;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_attach);
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_detach_all);
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_replace);
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_revert);
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_attach)
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_detach_all)
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_replace)
+GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_revert)
 
 static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
 

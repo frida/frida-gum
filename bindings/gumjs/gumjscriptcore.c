@@ -33,18 +33,18 @@ struct _GumMessageSink
   JSContextRef ctx;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_timeout);
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_interval);
-GUM_DECLARE_JSC_FUNCTION (gumjs_clear_timer);
-GUM_DECLARE_JSC_FUNCTION (gumjs_send);
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback);
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback);
-GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event);
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_timeout)
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_interval)
+GUM_DECLARE_JSC_FUNCTION (gumjs_clear_timer)
+GUM_DECLARE_JSC_FUNCTION (gumjs_send)
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
+GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
+GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event)
 
-GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name);
-GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data);
+GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name)
+GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data)
 
-GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct);
+GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
     const GumScriptArgs * args, gboolean repeat);
