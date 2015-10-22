@@ -301,7 +301,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
 GUM_DEFINE_JSC_FUNCTION (gumjs_send)
 {
   gchar * message;
-  GBytes * data;
+  GBytes * data = NULL;
 
   if (!_gumjs_args_parse (args, "s|B?", &message, &data))
     return NULL;
