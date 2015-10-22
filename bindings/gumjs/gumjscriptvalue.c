@@ -24,6 +24,7 @@ _gumjs_args_parse (const GumScriptArgs * self,
   guint arg_index;
   const gchar * t;
   gboolean is_required;
+  GSList * strings = NULL, * byte_arrays = NULL;
 
   va_start (ap, format);
 
@@ -99,6 +100,8 @@ _gumjs_args_parse (const GumScriptArgs * self,
         }
 
         *va_arg (ap, gchar **) = str;
+
+        strings = g_slist_prepend (strings, str);
 
         break;
       }
@@ -218,18 +221,22 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         *va_arg (ap, GBytes **) = bytes;
 
+        byte_arrays = g_slist_prepend (byte_arrays, bytes);
+
         break;
       }
       case '|':
         is_required = FALSE;
         break;
       default:
-        g_printerr ("Unhandled: %c\n", *t);
         g_assert_not_reached ();
     }
   }
 
   va_end (ap);
+
+  g_slist_free (strings);
+  g_slist_free (byte_arrays);
 
   return TRUE;
 
@@ -241,6 +248,11 @@ missing_argument:
 error:
   {
     va_end (ap);
+
+    g_slist_foreach (strings, (GFunc) g_free, NULL);
+    g_slist_free (strings);
+    g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
+    g_slist_free (byte_arrays);
 
     return FALSE;
   }
