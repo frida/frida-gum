@@ -15,7 +15,7 @@
 
 using namespace JSC;
 
-class GumValueHandleObserver : public JSC::WeakHandleOwner
+class GumValueHandleObserver : public WeakHandleOwner
 {
 public:
   virtual void finalize (Handle<Unknown>, void * context) override;
