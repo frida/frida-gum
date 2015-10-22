@@ -10,6 +10,8 @@
 
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
+static void gum_native_resource_on_weak_notify (GumNativeResource * resource);
+
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
 gboolean
@@ -768,18 +770,24 @@ GumNativeResource *
 _gumjs_native_resource_new (JSContextRef ctx,
                             gpointer data,
                             GDestroyNotify notify,
-                            GumScriptCore * core)
+                            GumScriptCore * core,
+                            JSObjectRef * handle)
 {
+  JSObjectRef h;
   GumNativeResource * resource;
 
+  h = _gumjs_native_pointer_new (ctx, data, core);
+
   resource = g_slice_new (GumNativeResource);
-  /* TODO: weak reference */
-  resource->instance = _gumjs_native_pointer_new (ctx, data, core);
+  resource->weak_ref = _gumjs_weak_ref_new (ctx, h,
+      (GumScriptWeakNotify) gum_native_resource_on_weak_notify, resource, NULL);
   resource->data = data;
   resource->notify = notify;
   resource->core = core;
 
   g_hash_table_insert (core->native_resources, resource, resource);
+
+  *handle = h;
 
   return resource;
 }
@@ -787,10 +795,24 @@ _gumjs_native_resource_new (JSContextRef ctx,
 void
 _gumjs_native_resource_free (GumNativeResource * resource)
 {
+  if (resource->weak_ref != NULL)
+  {
+    _gumjs_weak_ref_free (resource->weak_ref);
+    resource->weak_ref = NULL;
+  }
+
   if (resource->notify != NULL)
     resource->notify (resource->data);
 
   g_slice_free (GumNativeResource, resource);
+}
+
+static void
+gum_native_resource_on_weak_notify (GumNativeResource * self)
+{
+  self->weak_ref = NULL;
+
+  g_hash_table_remove (self->core->native_resources, self);
 }
 
 JSObjectRef

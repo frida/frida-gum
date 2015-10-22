@@ -29,6 +29,11 @@ struct _GumScriptArgs
 G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumScriptArgs * self,
     const gchar * format, ...);
 
+G_GNUC_INTERNAL GumScriptWeakRef * _gumjs_weak_ref_new (JSContextRef ctx,
+    JSValueRef value, GumScriptWeakNotify notify, gpointer data,
+    GDestroyNotify data_destroy);
+G_GNUC_INTERNAL void _gumjs_weak_ref_free (GumScriptWeakRef * ref);
+
 G_GNUC_INTERNAL gboolean _gumjs_int_try_get (JSContextRef ctx,
     JSValueRef value, gint * i, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_uint_try_get (JSContextRef ctx,
@@ -97,7 +102,7 @@ G_GNUC_INTERNAL gboolean _gumjs_native_pointer_try_get (JSContextRef ctx,
 
 G_GNUC_INTERNAL GumNativeResource * _gumjs_native_resource_new (
     JSContextRef ctx, gpointer data, GDestroyNotify notify,
-    GumScriptCore * core);
+    GumScriptCore * core, JSObjectRef * handle);
 G_GNUC_INTERNAL void _gumjs_native_resource_free (GumNativeResource * resource);
 
 G_GNUC_INTERNAL JSObjectRef _gumjs_array_buffer_new (JSContextRef ctx,

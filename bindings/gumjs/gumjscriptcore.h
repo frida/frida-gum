@@ -17,6 +17,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumScriptCore GumScriptCore;
 typedef struct _GumScriptScope GumScriptScope;
+typedef struct _GumScriptWeakRef GumScriptWeakRef;
 
 typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumExceptionSink GumExceptionSink;
@@ -24,6 +25,7 @@ typedef struct _GumMessageSink GumMessageSink;
 
 typedef struct _GumNativeResource GumNativeResource;
 
+typedef void (* GumScriptWeakNotify) (gpointer data);
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
     const gchar * message, GBytes * data);
 
@@ -60,7 +62,7 @@ struct _GumScriptScope
 
 struct _GumNativeResource
 {
-  JSValueRef instance;
+  GumScriptWeakRef * weak_ref;
   gpointer data;
   GDestroyNotify notify;
   GumScriptCore * core;

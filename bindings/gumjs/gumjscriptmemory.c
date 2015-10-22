@@ -150,7 +150,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc)
 {
   GumScriptCore * core = args->core;
   guint size, page_size;
-  GumNativeResource * resource;
+  JSObjectRef handle;
 
   if (!_gumjs_args_parse (args, "u", &size))
     return NULL;
@@ -161,16 +161,16 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc)
 
   if (size < page_size)
   {
-    resource = _gumjs_native_resource_new (ctx, g_malloc (size), g_free, core);
+    _gumjs_native_resource_new (ctx, g_malloc (size), g_free, core, &handle);
   }
   else
   {
     guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
-    resource = _gumjs_native_resource_new (ctx,
-        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core);
+    _gumjs_native_resource_new (ctx,
+        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core, &handle);
   }
 
-  return resource->instance;
+  return handle;
 
 invalid_size:
   {

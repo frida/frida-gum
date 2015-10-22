@@ -16,6 +16,21 @@
 
 using namespace JSC;
 
+GumScriptWeakRef *
+_gumjs_weak_ref_new (JSContextRef ctx,
+                     JSValueRef value,
+                     GumScriptWeakNotify notify,
+                     gpointer data,
+                     GDestroyNotify data_destroy)
+{
+  return NULL;
+}
+
+void
+_gumjs_weak_ref_free (GumScriptWeakRef * ref)
+{
+}
+
 gpointer
 _gumjs_array_buffer_get_data (JSContextRef ctx,
                               JSValueRef value,
