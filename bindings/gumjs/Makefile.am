@@ -115,6 +115,8 @@ libfrida_gumjsc_la_CPPFLAGS = \
 	-I $(srcdir)/include/WTF \
 	$(AM_CPPFLAGS) \
 	$(GUMJSC_CFLAGS)
+libfrida_gumjsc_la_CXXFLAGS = \
+	-fno-rtti
 libfrida_gumjsc_la_LIBTOOLFLAGS = \
 	--tag=disable-shared
 

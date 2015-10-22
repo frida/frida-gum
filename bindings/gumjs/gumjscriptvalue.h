@@ -32,6 +32,7 @@ G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumScriptArgs * self,
 G_GNUC_INTERNAL GumScriptWeakRef * _gumjs_weak_ref_new (JSContextRef ctx,
     JSValueRef value, GumScriptWeakNotify notify, gpointer data,
     GDestroyNotify data_destroy);
+G_GNUC_INTERNAL JSValueRef _gumjs_weak_ref_get (GumScriptWeakRef * ref);
 G_GNUC_INTERNAL void _gumjs_weak_ref_free (GumScriptWeakRef * ref);
 
 G_GNUC_INTERNAL gboolean _gumjs_int_try_get (JSContextRef ctx,

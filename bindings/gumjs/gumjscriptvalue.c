@@ -795,11 +795,7 @@ _gumjs_native_resource_new (JSContextRef ctx,
 void
 _gumjs_native_resource_free (GumNativeResource * resource)
 {
-  if (resource->weak_ref != NULL)
-  {
-    _gumjs_weak_ref_free (resource->weak_ref);
-    resource->weak_ref = NULL;
-  }
+  _gumjs_weak_ref_free (resource->weak_ref);
 
   if (resource->notify != NULL)
     resource->notify (resource->data);
@@ -810,8 +806,6 @@ _gumjs_native_resource_free (GumNativeResource * resource)
 static void
 gum_native_resource_on_weak_notify (GumNativeResource * self)
 {
-  self->weak_ref = NULL;
-
   g_hash_table_remove (self->core->native_resources, self);
 }
 
