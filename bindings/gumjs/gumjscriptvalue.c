@@ -691,7 +691,7 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
 
   if (JSValueIsObjectOfClass (ctx, value, core->native_pointer))
   {
-    *target = JSObjectGetPrivate ((JSObjectRef) value);
+    *target = GUM_NATIVE_POINTER_VALUE (value);
     return TRUE;
   }
   else

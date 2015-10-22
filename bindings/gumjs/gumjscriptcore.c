@@ -44,6 +44,8 @@ GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event)
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name)
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data)
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_is_null)
+
 GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
@@ -78,6 +80,12 @@ static const JSStaticValue gumjs_script_values[] =
   { "fileName", gumjs_script_get_file_name, NULL, gumjs_attrs },
   { "_sourceMapData", gumjs_script_get_source_map_data, NULL, gumjs_attrs },
   { NULL, NULL, NULL, 0 }
+};
+
+static const JSStaticFunction gumjs_native_pointer_functions[] =
+{
+  { "isNull", gumjs_native_pointer_is_null, gumjs_attrs },
+  { NULL, NULL, 0 }
 };
 
 void
@@ -138,6 +146,7 @@ _gum_script_core_init (GumScriptCore * self,
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
+  def.staticFunctions = gumjs_native_pointer_functions;
   self->native_pointer = JSClassCreate (&def);
   _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
@@ -264,6 +273,12 @@ GUM_DEFINE_JSC_GETTER (gumjs_script_get_file_name)
 GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
 {
   return JSValueMakeNull (ctx);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_is_null)
+{
+  return JSValueMakeBoolean (ctx,
+      GUM_NATIVE_POINTER_VALUE (this_object) == NULL);
 }
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
