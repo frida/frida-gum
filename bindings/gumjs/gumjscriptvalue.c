@@ -578,6 +578,52 @@ _gumjs_object_try_set (JSContextRef ctx,
 }
 
 void
+_gumjs_object_set_int (JSContextRef ctx,
+                       JSObjectRef object,
+                       const gchar * key,
+                       gint value)
+{
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set_int (ctx, object, key, value, &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set_int (JSContextRef ctx,
+                           JSObjectRef object,
+                           const gchar * key,
+                           gint value,
+                           JSValueRef * exception)
+{
+  return _gumjs_object_try_set (ctx, object, key,
+      JSValueMakeNumber (ctx, value), exception);
+}
+
+void
+_gumjs_object_set_uint (JSContextRef ctx,
+                        JSObjectRef object,
+                        const gchar * key,
+                        guint value)
+{
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set_uint (ctx, object, key, value, &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set_uint (JSContextRef ctx,
+                            JSObjectRef object,
+                            const gchar * key,
+                            guint value,
+                            JSValueRef * exception)
+{
+  return _gumjs_object_try_set (ctx, object, key,
+      JSValueMakeNumber (ctx, value), exception);
+}
+
+void
 _gumjs_object_set_string (JSContextRef ctx,
                           JSObjectRef object,
                           const gchar * key,
