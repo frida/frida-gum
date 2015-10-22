@@ -198,7 +198,6 @@ _gum_script_core_emit_message (GumScriptCore * self,
                                const gchar * message,
                                GBytes * data)
 {
-  g_print ("%s\n", message);
   self->message_emitter (self->script, message, data);
 }
 
