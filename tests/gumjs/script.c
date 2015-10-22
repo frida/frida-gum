@@ -135,6 +135,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
+  SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
@@ -420,6 +421,21 @@ SCRIPT_TESTCASE (native_pointer_provides_is_null)
       "send(ptr(\"1337\").isNull());");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("false");
+}
+
+SCRIPT_TESTCASE (native_pointer_provides_arithmetic_operations)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(ptr(3).add(4).toInt32());"
+      "send(ptr(7).sub(4).toInt32());"
+      "send(ptr(6).and(3).toInt32());"
+      "send(ptr(6).or(3).toInt32());"
+      "send(ptr(6).xor(3).toInt32());");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_SEND_MESSAGE_WITH ("5");
 }
 
 SCRIPT_TESTCASE (native_pointer_to_match_pattern)

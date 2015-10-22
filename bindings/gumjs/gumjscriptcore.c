@@ -44,6 +44,7 @@ GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event)
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name)
 GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data)
 
+GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_is_null)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_add)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_sub)
@@ -55,8 +56,6 @@ GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_string)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_json)
 GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_match_pattern)
-
-GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
     const GumScriptArgs * args, gboolean repeat);
@@ -295,142 +294,6 @@ GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_is_null)
-{
-  return JSValueMakeBoolean (ctx,
-      GUM_NATIVE_POINTER_VALUE (this_object) == NULL);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_add)
-{
-  return JSValueMakeUndefined (ctx);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_sub)
-{
-  return JSValueMakeUndefined (ctx);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_and)
-{
-  return JSValueMakeUndefined (ctx);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_or)
-{
-  return JSValueMakeUndefined (ctx);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_xor)
-{
-  return JSValueMakeUndefined (ctx);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_compare)
-{
-  gpointer rhs_ptr;
-  gsize lhs, rhs;
-  gint result;
-
-  if (!_gumjs_args_parse (args, "p", &rhs_ptr))
-    return NULL;
-
-  lhs = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
-  rhs = GPOINTER_TO_SIZE (rhs_ptr);
-
-  result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
-
-  return JSValueMakeNumber (ctx, result);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
-{
-  gint32 result;
-
-  result = (gint32) GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
-
-  return JSValueMakeNumber (ctx, result);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_string)
-{
-  gint radix = -1;
-  gboolean radix_specified;
-  gsize ptr;
-  gchar str[32];
-
-  if (!_gumjs_args_parse (args, "|u", &radix))
-    return NULL;
-  radix_specified = radix != -1;
-  if (!radix_specified)
-    radix = 16;
-  else if (radix != 10 && radix != 16)
-    goto unsupported_radix;
-
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
-
-  if (radix == 10)
-  {
-    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
-  }
-  else
-  {
-    if (radix_specified)
-      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
-    else
-      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
-  }
-
-  return _gumjs_string_to_value (ctx, str);
-
-unsupported_radix:
-  {
-    _gumjs_throw (ctx, exception, "unsupported radix");
-    return NULL;
-  }
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_json)
-{
-  gsize ptr;
-  gchar str[32];
-
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
-
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
-
-  return _gumjs_string_to_value (ctx, str);
-}
-
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_match_pattern)
-{
-  gsize ptr;
-  gchar str[24];
-  gint src, dst;
-  const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
-  const gchar nibble_to_char[] = {
-      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-      'a', 'b', 'c', 'd', 'e', 'f'
-  };
-
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
-
-#if G_BYTE_ORDER == G_LITTLE_ENDIAN
-  for (src = 0, dst = 0; src != num_bits; src += 8)
-#else
-  for (src = num_bits - 8, dst = 0; src >= 0; src -= 8)
-#endif
-  {
-    if (dst != 0)
-      str[dst++] = ' ';
-    str[dst++] = nibble_to_char[(ptr >> (src + 4)) & 0xf];
-    str[dst++] = nibble_to_char[(ptr >> (src + 0)) & 0xf];
-  }
-  str[dst] = '\0';
-
-  return _gumjs_string_to_value (ctx, str);
-}
-
 GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
 {
   return gum_script_core_schedule_callback (args->core, args, FALSE);
@@ -536,62 +399,147 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
 
 GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  guint64 ptr;
+  gsize ptr = 0;
 
-  if (args->count == 0)
+  if (!_gumjs_args_parse (args, "|p~", &ptr))
+    return NULL;
+
+  return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (ptr), args->core);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_is_null)
+{
+  return JSValueMakeBoolean (ctx,
+      GUM_NATIVE_POINTER_VALUE (this_object) == NULL);
+}
+
+#define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
+  GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_##name) \
+  { \
+    gpointer rhs_ptr; \
+    gsize lhs, rhs; \
+    gpointer result; \
+    \
+    if (!_gumjs_args_parse (args, "p~", &rhs_ptr)) \
+      return NULL; \
+    \
+    lhs = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object)); \
+    rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+    \
+    result = GSIZE_TO_POINTER (lhs op rhs); \
+    \
+    return _gumjs_native_pointer_new (ctx, result, args->core); \
+  }
+
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (add, +)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_compare)
+{
+  gpointer rhs_ptr;
+  gsize lhs, rhs;
+  gint result;
+
+  if (!_gumjs_args_parse (args, "p~", &rhs_ptr))
+    return NULL;
+
+  lhs = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  rhs = GPOINTER_TO_SIZE (rhs_ptr);
+
+  result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  return JSValueMakeNumber (ctx, result);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
+{
+  gint32 result;
+
+  result = (gint32) GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+
+  return JSValueMakeNumber (ctx, result);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_string)
+{
+  gint radix = -1;
+  gboolean radix_specified;
+  gsize ptr;
+  gchar str[32];
+
+  if (!_gumjs_args_parse (args, "|u", &radix))
+    return NULL;
+  radix_specified = radix != -1;
+  if (!radix_specified)
+    radix = 16;
+  else if (radix != 10 && radix != 16)
+    goto unsupported_radix;
+
+  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+
+  if (radix == 10)
   {
-    ptr = 0;
+    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
   }
   else
   {
-    JSValueRef value = args->values[0];
-
-    if (JSValueIsString (ctx, value))
-    {
-      gchar * ptr_as_string, * endptr;
-      gboolean valid;
-
-      if (!_gumjs_string_try_get (ctx, value, &ptr_as_string, exception))
-        return NULL;
-
-      if (g_str_has_prefix (ptr_as_string, "0x"))
-      {
-        ptr = g_ascii_strtoull (ptr_as_string + 2, &endptr, 16);
-        valid = endptr != ptr_as_string + 2;
-        if (!valid)
-        {
-          _gumjs_throw (ctx, exception,
-              "argument is not a valid hexadecimal string");
-        }
-      }
-      else
-      {
-        ptr = g_ascii_strtoull (ptr_as_string, &endptr, 10);
-        valid = endptr != ptr_as_string;
-        if (!valid)
-        {
-          _gumjs_throw (ctx, exception,
-              "argument is not a valid decimal string");
-        }
-      }
-
-      g_free (ptr_as_string);
-
-      if (!valid)
-        return NULL;
-    }
-    else if (JSValueIsNumber (ctx, value))
-    {
-      ptr = (guint64) JSValueToNumber (ctx, value, NULL);
-    }
+    if (radix_specified)
+      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
     else
-    {
-      _gumjs_throw (ctx, exception, "invalid argument");
-      return NULL;
-    }
+      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
   }
 
-  return JSObjectMake (ctx, args->core->native_pointer, GSIZE_TO_POINTER (ptr));
+  return _gumjs_string_to_value (ctx, str);
+
+unsupported_radix:
+  {
+    _gumjs_throw (ctx, exception, "unsupported radix");
+    return NULL;
+  }
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_json)
+{
+  gsize ptr;
+  gchar str[32];
+
+  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+
+  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
+
+  return _gumjs_string_to_value (ctx, str);
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_match_pattern)
+{
+  gsize ptr;
+  gchar str[24];
+  gint src, dst;
+  const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
+  const gchar nibble_to_char[] = {
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+      'a', 'b', 'c', 'd', 'e', 'f'
+  };
+
+  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
+  for (src = 0, dst = 0; src != num_bits; src += 8)
+#else
+  for (src = num_bits - 8, dst = 0; src >= 0; src -= 8)
+#endif
+  {
+    if (dst != 0)
+      str[dst++] = ' ';
+    str[dst++] = nibble_to_char[(ptr >> (src + 4)) & 0xf];
+    str[dst++] = nibble_to_char[(ptr >> (src + 0)) & 0xf];
+  }
+  str[dst] = '\0';
+
+  return _gumjs_string_to_value (ctx, str);
 }
 
 static JSValueRef

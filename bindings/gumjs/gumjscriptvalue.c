@@ -89,10 +89,72 @@ _gumjs_args_parse (const GumScriptArgs * self,
       }
       case 'p':
       {
+        gboolean is_fuzzy;
         gpointer ptr;
 
-        if (!_gumjs_native_pointer_try_get (ctx, value, core, &ptr, exception))
-          goto error;
+        is_fuzzy = t[1] == '~';
+        if (is_fuzzy)
+          t++;
+
+        if (is_fuzzy)
+        {
+          if (JSValueIsString (ctx, value))
+          {
+            gchar * ptr_as_string, * endptr;
+            gboolean valid;
+
+            if (!_gumjs_string_try_get (ctx, value, &ptr_as_string, exception))
+              goto error;
+
+            if (g_str_has_prefix (ptr_as_string, "0x"))
+            {
+              ptr = GSIZE_TO_POINTER (
+                  g_ascii_strtoull (ptr_as_string + 2, &endptr, 16));
+              valid = endptr != ptr_as_string + 2;
+              if (!valid)
+              {
+                _gumjs_throw (ctx, exception,
+                    "argument is not a valid hexadecimal string");
+              }
+            }
+            else
+            {
+              ptr = GSIZE_TO_POINTER (
+                  g_ascii_strtoull (ptr_as_string, &endptr, 10));
+              valid = endptr != ptr_as_string;
+              if (!valid)
+              {
+                _gumjs_throw (ctx, exception,
+                    "argument is not a valid decimal string");
+              }
+            }
+
+            g_free (ptr_as_string);
+
+            if (!valid)
+              goto error;
+          }
+          else if (JSValueIsNumber (ctx, value))
+          {
+            guint i;
+
+            if (!_gumjs_uint_try_get (ctx, value, &i, exception))
+              goto error;
+
+            ptr = GSIZE_TO_POINTER (i);
+          }
+          else
+          {
+            _gumjs_throw (ctx, exception, "invalid pointer value");
+            goto error;
+          }
+        }
+        else
+        {
+          if (!_gumjs_native_pointer_try_get (ctx, value, core, &ptr,
+              exception))
+            goto error;
+        }
 
         *va_arg (ap, gpointer *) = ptr;
 
@@ -673,7 +735,7 @@ invalid_argument:
   }
 }
 
-JSValueRef
+JSObjectRef
 _gumjs_native_pointer_new (JSContextRef ctx,
                            gpointer address,
                            GumScriptCore * core)

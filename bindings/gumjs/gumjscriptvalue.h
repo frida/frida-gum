@@ -89,7 +89,7 @@ G_GNUC_INTERNAL gboolean _gumjs_callback_try_get (JSContextRef ctx,
 G_GNUC_INTERNAL gboolean _gumjs_callback_try_get_opt (JSContextRef ctx,
     JSValueRef value, JSObjectRef * callback, JSValueRef * exception);
 
-G_GNUC_INTERNAL JSValueRef _gumjs_native_pointer_new (JSContextRef ctx,
+G_GNUC_INTERNAL JSObjectRef _gumjs_native_pointer_new (JSContextRef ctx,
     gpointer address, GumScriptCore * core);
 G_GNUC_INTERNAL gboolean _gumjs_native_pointer_try_get (JSContextRef ctx,
     JSValueRef value, GumScriptCore * core, gpointer * target,
