@@ -58,7 +58,7 @@ _gumjs_args_parse (const GumScriptArgs * self,
       {
         gint i;
 
-        if (!_gumjs_try_int_from_value (ctx, value, &i, exception))
+        if (!_gumjs_int_try_get (ctx, value, &i, exception))
           goto error;
 
         *va_arg (ap, gint *) = i;
@@ -69,10 +69,21 @@ _gumjs_args_parse (const GumScriptArgs * self,
       {
         guint i;
 
-        if (!_gumjs_try_uint_from_value (ctx, value, &i, exception))
+        if (!_gumjs_uint_try_get (ctx, value, &i, exception))
           goto error;
 
         *va_arg (ap, guint *) = i;
+
+        break;
+      }
+      case 'n':
+      {
+        gdouble number;
+
+        if (!_gumjs_number_try_get (ctx, value, &number, exception))
+          goto error;
+
+        *va_arg (ap, gdouble *) = number;
 
         break;
       }
@@ -91,7 +102,7 @@ _gumjs_args_parse (const GumScriptArgs * self,
       {
         gchar * str;
 
-        if (!_gumjs_try_string_from_value (ctx, value, &str, exception))
+        if (!_gumjs_string_try_get (ctx, value, &str, exception))
           goto error;
 
         *va_arg (ap, gchar **) = str;
@@ -232,56 +243,112 @@ error:
 }
 
 gboolean
-_gumjs_try_int_from_value (JSContextRef ctx,
-                           JSValueRef value,
-                           gint * i,
-                           JSValueRef * exception)
+_gumjs_int_try_get (JSContextRef ctx,
+                    JSValueRef value,
+                    gint * i,
+                    JSValueRef * exception)
 {
-  JSValueRef ex = NULL;
   double number;
 
-  number = JSValueToNumber (ctx, value, &ex);
-  if (ex == NULL)
-    *i = (gint) number;
+  if (!_gumjs_number_try_get (ctx, value, &number, exception))
+    return FALSE;
 
-  if (exception != NULL)
-    *exception = ex;
+  *i = (gint) number;
 
-  return ex == NULL;
+  return TRUE;
 }
 
 gboolean
-_gumjs_try_uint_from_value (JSContextRef ctx,
-                            JSValueRef value,
-                            guint * i,
-                            JSValueRef * exception)
+_gumjs_uint_try_get (JSContextRef ctx,
+                     JSValueRef value,
+                     guint * i,
+                     JSValueRef * exception)
 {
-  JSValueRef ex = NULL;
   double number;
 
-  number = JSValueToNumber (ctx, value, &ex);
-  if (ex == NULL)
-  {
-    if (number < 0)
-      goto invalid_uint;
+  if (!_gumjs_number_try_get (ctx, value, &number, exception))
+    return FALSE;
 
-    *i = (guint) number;
+  if (number < 0)
+    goto invalid_uint;
+
+  *i = (guint) number;
+
+  return TRUE;
+
+invalid_uint:
+  {
+    _gumjs_throw (ctx, exception, "expected a non-negative number");
+    return FALSE;
   }
+}
+
+gboolean
+_gumjs_number_try_get (JSContextRef ctx,
+                       JSValueRef value,
+                       gdouble * number,
+                       JSValueRef * exception)
+{
+  JSValueRef ex = NULL;
+
+  if (!JSValueIsNumber (ctx, value))
+    goto invalid_type;
+
+  *number = JSValueToNumber (ctx, value, &ex);
 
   if (exception != NULL)
     *exception = ex;
 
   return ex == NULL;
 
-invalid_uint:
+invalid_type:
   {
-    _gumjs_throw (ctx, exception, "expected a non-negative integer");
+    _gumjs_throw (ctx, exception, "expected a number");
     return FALSE;
   }
 }
 
 gchar *
-_gumjs_string_get (JSStringRef str)
+_gumjs_string_get (JSContextRef ctx,
+                   JSValueRef value)
+{
+  gchar * str;
+  JSValueRef exception;
+
+  if (!_gumjs_string_try_get (ctx, value, &str, &exception))
+    _gumjs_panic (ctx, exception);
+
+  return str;
+}
+
+gboolean
+_gumjs_string_try_get (JSContextRef ctx,
+                       JSValueRef value,
+                       gchar ** str,
+                       JSValueRef * exception)
+{
+  JSStringRef s;
+
+  if (!JSValueIsString (ctx, value))
+    goto invalid_type;
+
+  s = JSValueToStringCopy (ctx, value, exception);
+  if (s == NULL)
+    return FALSE;
+  *str = _gumjs_string_from_jsc (s);
+  JSStringRelease (s);
+
+  return TRUE;
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected a string");
+    return FALSE;
+  }
+}
+
+gchar *
+_gumjs_string_from_jsc (JSStringRef str)
 {
   gsize size;
   gchar * result;
@@ -298,29 +365,14 @@ _gumjs_string_from_value (JSContextRef ctx,
                           JSValueRef value)
 {
   gchar * str;
-  JSValueRef exception;
-
-  if (!_gumjs_try_string_from_value (ctx, value, &str, &exception))
-    _gumjs_panic (ctx, exception);
-
-  return str;
-}
-
-gboolean
-_gumjs_try_string_from_value (JSContextRef ctx,
-                              JSValueRef value,
-                              gchar ** str,
-                              JSValueRef * exception)
-{
   JSStringRef s;
 
-  s = JSValueToStringCopy (ctx, value, exception);
-  if (s == NULL)
-    return FALSE;
-  *str = _gumjs_string_get (s);
+  s = JSValueToStringCopy (ctx, value, NULL);
+  g_assert (s != NULL);
+  str = _gumjs_string_from_jsc (s);
   JSStringRelease (s);
 
-  return TRUE;
+  return str;
 }
 
 JSValueRef
@@ -391,33 +443,12 @@ _gumjs_object_try_get_uint (JSContextRef ctx,
                             guint * value,
                             JSValueRef * exception)
 {
-  JSValueRef v, ex = NULL;
-  double number;
+  JSValueRef v;
 
   if (!_gumjs_object_try_get (ctx, object, key, &v, exception))
     return FALSE;
 
-  if (!JSValueIsNumber (ctx, v))
-    goto invalid_type;
-
-  number = JSValueToNumber (ctx, v, &ex);
-  if (ex != NULL)
-    goto propagate_exception;
-
-  *value = (guint) number;
-  return TRUE;
-
-invalid_type:
-  {
-    _gumjs_throw (ctx, exception, "expected '%s' to be a number", key);
-    return FALSE;
-  }
-propagate_exception:
-  {
-    if (exception != NULL)
-      *exception = ex;
-    return FALSE;
-  }
+  return _gumjs_uint_try_get (ctx, v, value, exception);
 }
 
 gchar *
@@ -446,16 +477,7 @@ _gumjs_object_try_get_string (JSContextRef ctx,
   if (!_gumjs_object_try_get (ctx, object, key, &v, exception))
     return FALSE;
 
-  if (!JSValueIsString (ctx, v))
-    goto invalid_type;
-
-  return _gumjs_try_string_from_value (ctx, v, value, exception);
-
-invalid_type:
-  {
-    _gumjs_throw (ctx, exception, "expected '%s' to be a string", key);
-    return FALSE;
-  }
+  return _gumjs_string_try_get (ctx, v, value, exception);
 }
 
 void

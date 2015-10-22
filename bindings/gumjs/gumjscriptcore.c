@@ -380,7 +380,7 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
       gchar * ptr_as_string, * endptr;
       gboolean valid;
 
-      if (!_gumjs_try_string_from_value (ctx, value, &ptr_as_string, exception))
+      if (!_gumjs_string_try_get (ctx, value, &ptr_as_string, exception))
         return NULL;
 
       if (g_str_has_prefix (ptr_as_string, "0x"))

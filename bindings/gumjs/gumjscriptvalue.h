@@ -26,15 +26,20 @@ struct _GumScriptArgs
 G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumScriptArgs * self,
     const gchar * format, ...);
 
-G_GNUC_INTERNAL gboolean _gumjs_try_int_from_value (JSContextRef ctx,
+G_GNUC_INTERNAL gboolean _gumjs_int_try_get (JSContextRef ctx,
     JSValueRef value, gint * i, JSValueRef * exception);
-G_GNUC_INTERNAL gboolean _gumjs_try_uint_from_value (JSContextRef ctx,
+G_GNUC_INTERNAL gboolean _gumjs_uint_try_get (JSContextRef ctx,
     JSValueRef value, guint * i, JSValueRef * exception);
-G_GNUC_INTERNAL gchar * _gumjs_string_get (JSStringRef str);
+G_GNUC_INTERNAL gboolean _gumjs_number_try_get (JSContextRef ctx,
+    JSValueRef value, gdouble * number, JSValueRef * exception);
+
+G_GNUC_INTERNAL gchar * _gumjs_string_get (JSContextRef ctx,
+    JSValueRef value);
+G_GNUC_INTERNAL gboolean _gumjs_string_try_get (JSContextRef ctx,
+    JSValueRef value, gchar ** str, JSValueRef * exception);
+G_GNUC_INTERNAL gchar * _gumjs_string_from_jsc (JSStringRef str);
 G_GNUC_INTERNAL gchar * _gumjs_string_from_value (JSContextRef ctx,
     JSValueRef value);
-G_GNUC_INTERNAL gboolean _gumjs_try_string_from_value (JSContextRef ctx,
-    JSValueRef value, gchar ** str, JSValueRef * exception);
 G_GNUC_INTERNAL JSValueRef _gumjs_string_to_value (JSContextRef ctx,
     const gchar * str);
 

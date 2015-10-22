@@ -343,12 +343,10 @@ gum_script_create_context (GumScript * self,
 
   if (!valid)
   {
-    JSStringRef message;
-    gchar * message_str;
+    gchar * message;
     guint line;
 
-    message = JSValueToStringCopy (ctx, exception, NULL);
-    message_str = _gumjs_string_get (message);
+    message = _gumjs_string_from_value (ctx, exception);
     line = _gumjs_object_get_uint (ctx, (JSObjectRef) exception, "line");
 
     g_set_error (error,
@@ -356,10 +354,9 @@ gum_script_create_context (GumScript * self,
         G_IO_ERROR_FAILED,
         "Script(line %u): %s",
         line,
-        message_str);
+        message);
 
-    g_free (message_str);
-    JSStringRelease (message);
+    g_free (message);
 
     JSGlobalContextRelease (ctx);
 
