@@ -28,9 +28,11 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
   va_start (ap, format);
 
+  arg_index = 0;
   is_required = TRUE;
-  for (arg_index = 0, t = format; *t != '\0'; arg_index++, t++)
+  for (t = format; *t != '\0'; t++)
   {
+    gboolean arg_consumed = TRUE;
     JSValueRef value;
 
     if (arg_index >= self->count)
@@ -227,10 +229,14 @@ _gumjs_args_parse (const GumScriptArgs * self,
       }
       case '|':
         is_required = FALSE;
+        arg_consumed = FALSE;
         break;
       default:
         g_assert_not_reached ();
     }
+
+    if (arg_consumed)
+      arg_index++;
   }
 
   va_end (ap);
