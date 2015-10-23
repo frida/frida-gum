@@ -31,12 +31,16 @@ struct _GumScriptReplaceEntry
 
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
 
 static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
 
 static void gum_script_attach_entry_free (GumScriptAttachEntry * entry);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
+
+GUMJS_DECLARE_GETTER (gumjs_invocation_args_get_property)
+GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
+
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
 
 static void gum_script_interceptor_adjust_ignore_level_unlocked (
     GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
@@ -86,6 +90,12 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   interceptor = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, "Interceptor", interceptor);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "InvocationArgs";
+  def.getProperty = gumjs_invocation_args_get_property;
+  def.setProperty = gumjs_invocation_args_set_property;
+  self->invocation_args = JSClassCreate (&def);
 }
 
 void
@@ -94,6 +104,9 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
   gum_script_interceptor_detach_all (self);
 
   g_hash_table_remove_all (self->replacement_by_address);
+
+  JSClassRelease (self->invocation_args);
+  self->invocation_args = NULL;
 }
 
 void
@@ -181,35 +194,31 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   }
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
-{
-  _gumjs_throw (ctx, exception,
-      "This part of the Interceptor API is not yet in the JavaScriptCore "
-      "runtime");
-  return NULL;
-}
-
 void
 _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
-                                  GumInvocationContext * context)
+                                  GumInvocationContext * ic)
 {
   GumScriptAttachEntry * entry;
   gint * depth;
 
-  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (ic)))
     return;
 
-  entry = gum_invocation_context_get_listener_function_data (context);
-  depth = GUM_LINCTX_GET_THREAD_DATA (context, gint);
+  entry = gum_invocation_context_get_listener_function_data (ic);
+  depth = GUM_LINCTX_GET_THREAD_DATA (ic, gint);
 
   if (entry->on_enter != NULL)
   {
     GumScriptCore * core = self->core;
+    JSContextRef ctx = core->ctx;
     GumScriptScope scope;
+    JSValueRef args;
 
     _gum_script_scope_enter (&scope, core);
 
-    JSObjectCallAsFunction (entry->ctx, entry->on_enter, NULL, 0, NULL,
+    args = JSObjectMake (ctx, self->invocation_args, ic);
+
+    JSObjectCallAsFunction (ctx, entry->on_enter, NULL, 1, &args,
         &scope.exception);
 
     _gum_script_scope_leave (&scope);
@@ -220,16 +229,16 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
 
 void
 _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
-                                  GumInvocationContext * context)
+                                  GumInvocationContext * ic)
 {
   GumScriptAttachEntry * entry;
   gint * depth;
 
-  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (context)))
+  if (gum_script_is_ignoring (gum_invocation_context_get_thread_id (ic)))
     return;
 
-  entry = gum_invocation_context_get_listener_function_data (context);
-  depth = GUM_LINCTX_GET_THREAD_DATA (context, gint);
+  entry = gum_invocation_context_get_listener_function_data (ic);
+  depth = GUM_LINCTX_GET_THREAD_DATA (ic, gint);
 
   (*depth)--;
 
@@ -261,6 +270,47 @@ gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   JSValueUnprotect (entry->ctx, entry->replacement);
   g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
+{
+  GumInvocationContext * ic;
+  guint n;
+
+  ic = JSObjectGetPrivate (object);
+
+  if (!_gumjs_uint_try_parse (ctx, property_name, &n, NULL))
+    return NULL;
+
+  return _gumjs_native_pointer_new (ctx,
+      gum_invocation_context_get_nth_argument (ic, n),
+      args->core);
+}
+
+GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
+{
+  GumInvocationContext * ic;
+  guint n;
+  gpointer value;
+
+  ic = JSObjectGetPrivate (object);
+
+  if (!_gumjs_uint_try_parse (ctx, property_name, &n, NULL))
+    return false;
+
+  if (!_gumjs_args_parse (args, "p", &value))
+    return false;
+
+  gum_invocation_context_replace_nth_argument (ic, n, value);
+  return true;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
+{
+  _gumjs_throw (ctx, exception,
+      "This part of the Interceptor API is not yet in the JavaScriptCore "
+      "runtime");
+  return NULL;
 }
 
 static void

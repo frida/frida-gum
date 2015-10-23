@@ -23,6 +23,8 @@ struct _GumScriptInterceptor
 
   GQueue * attach_entries;
   GHashTable * replacement_by_address;
+
+  JSClassRef invocation_args;
 };
 
 G_GNUC_INTERNAL void _gum_script_interceptor_init (GumScriptInterceptor * self,
