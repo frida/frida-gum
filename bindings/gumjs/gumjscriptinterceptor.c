@@ -96,6 +96,11 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   def.getProperty = gumjs_invocation_args_get_property;
   def.setProperty = gumjs_invocation_args_set_property;
   self->invocation_args = JSClassCreate (&def);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "InvocationReturnValue";
+  def.parentClass = core->native_pointer;
+  self->invocation_retval = JSClassCreate (&def);
 }
 
 void
@@ -107,6 +112,9 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
 
   JSClassRelease (self->invocation_args);
   self->invocation_args = NULL;
+
+  JSClassRelease (self->invocation_retval);
+  self->invocation_retval = NULL;
 }
 
 void
@@ -245,11 +253,17 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
   if (entry->on_leave != NULL)
   {
     GumScriptCore * core = self->core;
+    JSContextRef ctx = core->ctx;
     GumScriptScope scope;
+    JSValueRef retval;
 
     _gum_script_scope_enter (&scope, core);
 
-    JSObjectCallAsFunction (entry->ctx, entry->on_leave, NULL, 0, NULL,
+    retval = JSObjectMake (ctx, self->invocation_retval, ic);
+    GUM_NATIVE_POINTER_SET (retval,
+        gum_invocation_context_get_return_value (ic));
+
+    JSObjectCallAsFunction (ctx, entry->on_leave, NULL, 1, &retval,
         &scope.exception);
 
     _gum_script_scope_leave (&scope);
