@@ -8,6 +8,12 @@
 
 #include "gumjscriptmacros.h"
 
+enum _GumBacktracerType
+{
+  GUM_BACKTRACER_ACCURATE = 1,
+  GUM_BACKTRACER_FUZZY = 2
+};
+
 GUMJS_DECLARE_FUNCTION (gumjs_thread_throw_not_yet_available)
 
 static const JSPropertyAttributes gumjs_attrs =
@@ -15,7 +21,8 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_thread_functions[] =
 {
-  { "xxx", gumjs_thread_throw_not_yet_available, gumjs_attrs },
+  { "backtrace", gumjs_thread_throw_not_yet_available, gumjs_attrs },
+  { "sleep", gumjs_thread_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -29,6 +36,7 @@ _gum_script_thread_init (GumScriptThread * self,
   JSClassDefinition def;
   JSClassRef klass;
   JSObjectRef thread;
+  JSObjectRef backtracer;
 
   self->core = core;
 
@@ -39,6 +47,11 @@ _gum_script_thread_init (GumScriptThread * self,
   thread = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, "Thread", thread);
+
+  backtracer = JSObjectMake (ctx, NULL, NULL);
+  _gumjs_object_set_uint (ctx, backtracer, "ACCURATE", GUM_BACKTRACER_ACCURATE);
+  _gumjs_object_set_uint (ctx, backtracer, "FUZZY", GUM_BACKTRACER_FUZZY);
+  _gumjs_object_set (ctx, scope, "Backtracer", backtracer);
 }
 
 void
