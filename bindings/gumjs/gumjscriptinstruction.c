@@ -15,7 +15,7 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_instruction_functions[] =
 {
-  { "xxx", gumjs_instruction_throw_not_yet_available, gumjs_attrs },
+  { "_parse", gumjs_instruction_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
