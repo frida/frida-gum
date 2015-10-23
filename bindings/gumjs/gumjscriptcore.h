@@ -17,6 +17,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumScriptCore GumScriptCore;
 typedef struct _GumScriptScope GumScriptScope;
+typedef struct _GumScriptYield GumScriptYield;
 typedef struct _GumScriptWeakRef GumScriptWeakRef;
 
 typedef struct _GumScheduledCallback GumScheduledCallback;
@@ -60,6 +61,11 @@ struct _GumScriptScope
   JSValueRef exception;
 };
 
+struct _GumScriptYield
+{
+  GumScriptCore * core;
+};
+
 struct _GumNativeResource
 {
   GumScriptWeakRef * weak_ref;
@@ -87,6 +93,10 @@ G_GNUC_INTERNAL void _gum_script_scope_enter (GumScriptScope * self,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_script_scope_flush (GumScriptScope * self);
 G_GNUC_INTERNAL void _gum_script_scope_leave (GumScriptScope * self);
+
+G_GNUC_INTERNAL void _gum_script_yield_begin (GumScriptYield * self,
+    GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_script_yield_end (GumScriptYield * self);
 
 G_GNUC_INTERNAL void _gum_script_panic (JSValueRef exception, JSContextRef ctx);
 

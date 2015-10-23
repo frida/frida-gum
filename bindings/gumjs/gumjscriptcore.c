@@ -300,6 +300,21 @@ _gum_script_scope_leave (GumScriptScope * self)
   GUM_SCRIPT_CORE_UNLOCK (self->core);
 }
 
+void
+_gum_script_yield_begin (GumScriptYield * self,
+                         GumScriptCore * core)
+{
+  self->core = core;
+
+  GUM_SCRIPT_CORE_UNLOCK (self->core);
+}
+
+void
+_gum_script_yield_end (GumScriptYield * self)
+{
+  GUM_SCRIPT_CORE_LOCK (self->core);
+}
+
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
   return JSValueMakeNull (ctx);
