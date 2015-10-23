@@ -17,6 +17,8 @@ struct _GumScriptStalker
 {
   GumScriptCore * core;
   GumStalker * stalker;
+  guint queue_capacity;
+  guint queue_drain_interval;
 };
 
 G_GNUC_INTERNAL void _gum_script_stalker_init (GumScriptStalker * self,
