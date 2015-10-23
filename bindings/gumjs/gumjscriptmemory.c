@@ -9,6 +9,7 @@
 #include "gumjscriptmacros.h"
 
 typedef guint GumMemoryValueType;
+typedef struct _GumMemoryScanContext GumMemoryScanContext;
 
 enum _GumMemoryValueType
 {
@@ -28,6 +29,17 @@ enum _GumMemoryValueType
   GUM_MEMORY_VALUE_UTF8_STRING,
   GUM_MEMORY_VALUE_UTF16_STRING,
   GUM_MEMORY_VALUE_ANSI_STRING
+};
+
+struct _GumMemoryScanContext
+{
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  JSObjectRef on_match;
+  JSObjectRef on_error;
+  JSObjectRef on_complete;
+
+  GumScriptCore * core;
 };
 
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc)
@@ -91,6 +103,13 @@ GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_scan)
+
+static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
+static void gum_memory_scan_context_run (GumMemoryScanContext * self);
+static gboolean gum_memory_scan_context_emit_match (GumAddress address,
+    gsize size, gpointer user_data);
+
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
 
@@ -120,6 +139,8 @@ static const JSStaticFunction gumjs_memory_functions[] =
   { "allocAnsiString", gumjs_memory_alloc_ansi_string, gumjs_attrs },
   { "allocUtf8String", gumjs_memory_alloc_utf8_string, gumjs_attrs },
   { "allocUtf16String", gumjs_memory_alloc_utf16_string, gumjs_attrs },
+
+  { "scan", gumjs_memory_scan, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -727,4 +748,132 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
   _gumjs_native_resource_new (ctx, str_utf16, g_free, args->core, &handle);
 
   return handle;
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_scan)
+{
+  GumScriptCore * core = args->core;
+  GumMemoryScanContext sc;
+  gpointer address;
+  guint size;
+  gchar * match_str;
+
+  if (!_gumjs_args_parse (args, "pusC{onMatch,onError?,onComplete}", &address,
+      &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
+    return NULL;
+  sc.range.base_address = GUM_ADDRESS (address);
+  sc.range.size = size;
+  sc.pattern = gum_match_pattern_new_from_string (match_str);
+  sc.core = core;
+  g_free (match_str);
+
+  if (sc.pattern == NULL)
+    goto invalid_match_pattern;
+
+  JSValueProtect (ctx, sc.on_match);
+  if (sc.on_error != NULL)
+    JSValueProtect (ctx, sc.on_error);
+  JSValueProtect (ctx, sc.on_complete);
+
+  _gum_script_core_push_job (core,
+      (GumScriptJobFunc) gum_memory_scan_context_run,
+      g_slice_dup (GumMemoryScanContext, &sc),
+      (GDestroyNotify) gum_memory_scan_context_free);
+
+  return JSValueMakeUndefined (ctx);
+
+invalid_match_pattern:
+  {
+    _gumjs_throw (ctx, exception, "invalid match pattern");
+    return NULL;
+  }
+}
+
+static void
+gum_memory_scan_context_free (GumMemoryScanContext * ctx)
+{
+  JSContextRef js_ctx = ctx->core->ctx;
+
+  gum_match_pattern_free (ctx->pattern);
+
+  JSValueUnprotect (js_ctx, ctx->on_match);
+  if (ctx->on_error != NULL)
+    JSValueUnprotect (js_ctx, ctx->on_error);
+  JSValueUnprotect (js_ctx, ctx->on_complete);
+
+  g_slice_free (GumMemoryScanContext, ctx);
+}
+
+static void
+gum_memory_scan_context_run (GumMemoryScanContext * self)
+{
+  GumScriptCore * core = self->core;
+  GumExceptor * exceptor = core->exceptor;
+  GumExceptorScope exceptor_scope;
+  GumScriptScope script_scope;
+  JSContextRef ctx = core->ctx;
+
+  if (gum_exceptor_try (exceptor, &exceptor_scope))
+  {
+    gum_memory_scan (&self->range, self->pattern,
+        gum_memory_scan_context_emit_match, self);
+  }
+
+  _gum_script_scope_enter (&script_scope, core);
+
+  if (gum_exceptor_catch (exceptor, &exceptor_scope))
+  {
+    if (self->on_error != NULL)
+    {
+      gchar * message;
+      JSValueRef message_value;
+
+      message = gum_exception_details_to_string (&exceptor_scope.exception);
+      message_value = _gumjs_string_to_value (ctx, message);
+      g_free (message);
+
+      JSObjectCallAsFunction (ctx, self->on_error, NULL, 1, &message_value,
+          &script_scope.exception);
+
+      _gum_script_scope_flush (&script_scope);
+    }
+  }
+
+  JSObjectCallAsFunction (ctx, self->on_complete, NULL, 0, NULL,
+      &script_scope.exception);
+
+  _gum_script_scope_leave (&script_scope);
+}
+
+static gboolean
+gum_memory_scan_context_emit_match (GumAddress address,
+                                    gsize size,
+                                    gpointer user_data)
+{
+  GumMemoryScanContext * self = user_data;
+  GumScriptCore * core = self->core;
+  GumScriptScope scope;
+  JSContextRef ctx = self->core->ctx;
+  JSValueRef args[2], result;
+  gboolean proceed;
+  gchar * str;
+
+  _gum_script_scope_enter (&scope, core);
+
+  args[0] = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
+  args[1] = JSValueMakeNumber (ctx, size);
+
+  result = JSObjectCallAsFunction (ctx, self->on_match, NULL,
+      G_N_ELEMENTS (args), args, &scope.exception);
+
+  proceed = TRUE;
+  if (result != NULL && _gumjs_string_try_get (ctx, result, &str, NULL))
+  {
+    proceed = strcmp (str, "stop") != 0;
+    g_free (str);
+  }
+
+  _gum_script_scope_leave (&scope);
+
+  return proceed;
 }
