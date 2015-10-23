@@ -15,7 +15,9 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_socket_functions[] =
 {
-  { "xxx", gumjs_socket_throw_not_yet_available, gumjs_attrs },
+  { "type", gumjs_socket_throw_not_yet_available, gumjs_attrs },
+  { "localAddress", gumjs_socket_throw_not_yet_available, gumjs_attrs },
+  { "peerAddress", gumjs_socket_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
