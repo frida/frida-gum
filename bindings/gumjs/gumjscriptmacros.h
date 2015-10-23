@@ -13,6 +13,8 @@
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
       size_t argument_count, const JSValueRef arguments[], \
       JSValueRef * exception);
+#define GUMJS_DECLARE_FINALIZER(N) \
+  static void N (JSObjectRef object);
 #define GUMJS_DECLARE_FUNCTION(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef function, \
       JSObjectRef this_object, size_t argument_count, \
@@ -52,6 +54,9 @@
             JSObjectRef constructor, \
             const GumScriptArgs * args, \
             JSValueRef * exception)
+#define GUMJS_DEFINE_FINALIZER(N) \
+  static void \
+  N (JSObjectRef object)
 #define GUMJS_DEFINE_FUNCTION(N) \
   static JSValueRef N##_impl (JSContextRef ctx, JSObjectRef function, \
       JSObjectRef this_object, const GumScriptArgs * args, \

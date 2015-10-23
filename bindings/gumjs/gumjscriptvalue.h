@@ -11,11 +11,6 @@
 
 G_BEGIN_DECLS
 
-#define GUM_NATIVE_POINTER_VALUE(o) \
-  JSObjectGetPrivate ((JSObjectRef) (o))
-#define GUM_NATIVE_POINTER_SET(o, v) \
-  JSObjectSetPrivate ((JSObjectRef) (o), v)
-
 typedef struct _GumScriptArgs GumScriptArgs;
 
 struct _GumScriptArgs
@@ -109,6 +104,7 @@ G_GNUC_INTERNAL gboolean _gumjs_callback_try_get_opt (JSContextRef ctx,
 
 G_GNUC_INTERNAL JSObjectRef _gumjs_native_pointer_new (JSContextRef ctx,
     gpointer address, GumScriptCore * core);
+G_GNUC_INTERNAL gpointer _gumjs_native_pointer_value (JSValueRef value);
 G_GNUC_INTERNAL gboolean _gumjs_native_pointer_try_get (JSContextRef ctx,
     JSValueRef value, GumScriptCore * core, gpointer * target,
     JSValueRef * exception);

@@ -860,7 +860,23 @@ _gumjs_native_pointer_new (JSContextRef ctx,
                            gpointer address,
                            GumScriptCore * core)
 {
-  return JSObjectMake (ctx, core->native_pointer, address);
+  GumNativePointer * ptr;
+
+  ptr = g_slice_new (GumNativePointer);
+  ptr->instance_size = sizeof (GumNativePointer);
+  ptr->value = address;
+
+  return JSObjectMake (ctx, core->native_pointer, ptr);
+}
+
+gpointer
+_gumjs_native_pointer_value (JSValueRef value)
+{
+  GumNativePointer * ptr;
+
+  ptr = JSObjectGetPrivate ((JSObjectRef) value);
+
+  return ptr->value;
 }
 
 gboolean
@@ -873,7 +889,7 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
 
   if (JSValueIsObjectOfClass (ctx, value, core->native_pointer))
   {
-    *target = GUM_NATIVE_POINTER_VALUE (value);
+    *target = _gumjs_native_pointer_value (value);
     return TRUE;
   }
   else

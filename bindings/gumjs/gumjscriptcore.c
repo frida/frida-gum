@@ -45,6 +45,7 @@ GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_pointer_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_native_pointer_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_is_null)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_add)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_sub)
@@ -169,6 +170,7 @@ _gum_script_core_init (GumScriptCore * self,
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
   def.staticFunctions = gumjs_native_pointer_functions;
+  def.finalize = gumjs_native_pointer_finalize;
   self->native_pointer = JSClassCreate (&def);
   _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
@@ -445,10 +447,19 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (ptr), args->core);
 }
 
+GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
+{
+  GumNativePointer * ptr;
+
+  ptr = JSObjectGetPrivate (object);
+
+  g_slice_free1 (ptr->instance_size, ptr);
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
   return JSValueMakeBoolean (ctx,
-      GUM_NATIVE_POINTER_VALUE (this_object) == NULL);
+      _gumjs_native_pointer_value (this_object) == NULL);
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
@@ -461,7 +472,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     if (!_gumjs_args_parse (args, "p~", &rhs_ptr)) \
       return NULL; \
     \
-    lhs = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object)); \
+    lhs = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object)); \
     rhs = GPOINTER_TO_SIZE (rhs_ptr); \
     \
     result = GSIZE_TO_POINTER (lhs op rhs); \
@@ -484,7 +495,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
   if (!_gumjs_args_parse (args, "p~", &rhs_ptr))
     return NULL;
 
-  lhs = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  lhs = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object));
   rhs = GPOINTER_TO_SIZE (rhs_ptr);
 
   result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
@@ -496,7 +507,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
   gint32 result;
 
-  result = (gint32) GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  result = (gint32)
+      GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object));
 
   return JSValueMakeNumber (ctx, result);
 }
@@ -516,7 +528,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   else if (radix != 10 && radix != 16)
     goto unsupported_radix;
 
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object));
 
   if (radix == 10)
   {
@@ -544,7 +556,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
   gsize ptr;
   gchar str[32];
 
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object));
 
   sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
@@ -562,7 +574,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
       'a', 'b', 'c', 'd', 'e', 'f'
   };
 
-  ptr = GPOINTER_TO_SIZE (GUM_NATIVE_POINTER_VALUE (this_object));
+  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (this_object));
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   for (src = 0, dst = 0; src != num_bits; src += 8)

@@ -24,6 +24,7 @@ typedef struct _GumScheduledCallback GumScheduledCallback;
 typedef struct _GumExceptionSink GumExceptionSink;
 typedef struct _GumMessageSink GumMessageSink;
 
+typedef struct _GumNativePointer GumNativePointer;
 typedef struct _GumNativeResource GumNativeResource;
 
 typedef void (* GumScriptWeakNotify) (gpointer data);
@@ -64,6 +65,12 @@ struct _GumScriptScope
 struct _GumScriptYield
 {
   GumScriptCore * core;
+};
+
+struct _GumNativePointer
+{
+  gsize instance_size;
+  gpointer value;
 };
 
 struct _GumNativeResource
