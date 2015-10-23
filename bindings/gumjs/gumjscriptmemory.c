@@ -110,6 +110,9 @@ static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, gpointer user_data);
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_access_monitor_enable)
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_access_monitor_disable)
+
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
 
@@ -145,6 +148,14 @@ static const JSStaticFunction gumjs_memory_functions[] =
   { NULL, NULL, 0 }
 };
 
+static const JSStaticFunction gumjs_memory_access_monitor_functions[] =
+{
+  { "enable", gumjs_memory_access_monitor_enable, gumjs_attrs },
+  { "disable", gumjs_memory_access_monitor_disable, gumjs_attrs },
+
+  { NULL, NULL, 0 }
+};
+
 void
 _gum_script_memory_init (GumScriptMemory * self,
                          GumScriptCore * core,
@@ -153,7 +164,7 @@ _gum_script_memory_init (GumScriptMemory * self,
   JSContextRef ctx = core->ctx;
   JSClassDefinition def;
   JSClassRef klass;
-  JSObjectRef memory;
+  JSObjectRef memory, memory_access_monitor;
 
   self->core = core;
 
@@ -164,6 +175,14 @@ _gum_script_memory_init (GumScriptMemory * self,
   memory = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, "Memory", memory);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "MemoryAccessMonitor";
+  def.staticFunctions = gumjs_memory_access_monitor_functions;
+  klass = JSClassCreate (&def);
+  memory_access_monitor = JSObjectMake (ctx, klass, self);
+  JSClassRelease (klass);
+  _gumjs_object_set (ctx, scope, "MemoryAccessMonitor", memory_access_monitor);
 }
 
 void
@@ -876,4 +895,26 @@ gum_memory_scan_context_emit_match (GumAddress address,
   _gum_script_scope_leave (&scope);
 
   return proceed;
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_access_monitor_enable)
+{
+#ifdef G_OS_WIN32
+# error Please add MemoryAccessMonitor to the JavaScriptCore runtime
+#else
+  _gumjs_throw (ctx, exception,
+      "MemoryAccessMonitor is only available on Windows for now");
+  return NULL;
+#endif
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_access_monitor_disable)
+{
+#ifdef G_OS_WIN32
+# error Please add MemoryAccessMonitor to the JavaScriptCore runtime
+#else
+  _gumjs_throw (ctx, exception,
+      "MemoryAccessMonitor is only available on Windows for now");
+  return NULL;
+#endif
 }
