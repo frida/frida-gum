@@ -31,6 +31,7 @@ enum _GumMemoryValueType
 };
 
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc)
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_copy)
 
 static JSValueRef gum_script_memory_read (GumScriptMemory * self,
     GumMemoryValueType type, const GumScriptArgs * args,
@@ -91,6 +92,7 @@ static const JSPropertyAttributes gumjs_attrs =
 static const JSStaticFunction gumjs_memory_functions[] =
 {
   { "alloc", gumjs_memory_alloc, gumjs_attrs },
+  { "copy", gumjs_memory_copy, gumjs_attrs },
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -170,6 +172,38 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc)
   }
 
   return handle;
+
+invalid_size:
+  {
+    _gumjs_throw (ctx, exception, "invalid size");
+    return NULL;
+  }
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_copy)
+{
+  GumScriptCore * core = args->core;
+  GumExceptor * exceptor = core->exceptor;
+  gpointer destination, source;
+  guint size;
+  GumExceptorScope scope;
+
+  if (!_gumjs_args_parse (args, "ppu", &destination, &source, &size))
+    return NULL;
+  if (size == 0 || size > 0x7fffffff)
+    goto invalid_size;
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    memcpy (destination, source, size);
+  }
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gumjs_throw_native (ctx, exception, &scope.exception, core);
+  }
+
+  return JSValueMakeUndefined (ctx);
 
 invalid_size:
   {
@@ -419,7 +453,6 @@ gum_script_memory_write (GumScriptMemory * self,
   JSContextRef ctx = args->ctx;
   GumScriptCore * core = self->core;
   GumExceptor * exceptor = core->exceptor;
-  JSValueRef result = NULL;
   gpointer address;
   gpointer pointer;
   gdouble number;
@@ -562,7 +595,7 @@ gum_script_memory_write (GumScriptMemory * self,
   g_free (str_ansi);
 #endif
 
-  return result;
+  return JSValueMakeUndefined (ctx);
 }
 
 #ifdef G_OS_WIN32
