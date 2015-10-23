@@ -31,8 +31,7 @@ struct _GumScriptReplaceEntry
 
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
 
 static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
 
@@ -50,8 +49,8 @@ static const JSStaticFunction gumjs_interceptor_functions[] =
 {
   { "_attach", gumjs_interceptor_attach, gumjs_attrs },
   { "detachAll", gumjs_interceptor_detach_all, gumjs_attrs },
-  { "_replace", gumjs_interceptor_replace, gumjs_attrs },
-  { "revert", gumjs_interceptor_revert, gumjs_attrs },
+  { "_replace", gumjs_interceptor_throw_not_yet_available, gumjs_attrs },
+  { "revert", gumjs_interceptor_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -182,14 +181,12 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   }
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
 {
-  return JSValueMakeUndefined (ctx);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
-{
-  return JSValueMakeUndefined (ctx);
+  _gumjs_throw (ctx, exception,
+      "This part of the Interceptor API is not yet in the JavaScriptCore "
+      "runtime");
+  return NULL;
 }
 
 void
