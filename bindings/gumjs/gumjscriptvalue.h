@@ -13,6 +13,8 @@ G_BEGIN_DECLS
 
 #define GUM_NATIVE_POINTER_VALUE(o) \
   JSObjectGetPrivate ((JSObjectRef) (o))
+#define GUM_NATIVE_POINTER_SET(o, v) \
+  JSObjectSetPrivate ((JSObjectRef) (o), v)
 
 typedef struct _GumScriptArgs GumScriptArgs;
 
