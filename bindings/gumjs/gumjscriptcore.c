@@ -190,7 +190,15 @@ _gum_script_core_init (GumScriptCore * self,
 void
 _gum_script_core_flush (GumScriptCore * self)
 {
-  (void) self;
+  GMainContext * context;
+
+  GUM_SCRIPT_CORE_UNLOCK (self);
+  gum_script_scheduler_flush_by_tag (self->scheduler, self);
+  GUM_SCRIPT_CORE_LOCK (self);
+
+  context = gum_script_scheduler_get_js_context (self->scheduler);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
 }
 
 void
@@ -258,6 +266,16 @@ _gum_script_core_post_message (GumScriptCore * self,
     g_cond_broadcast (&self->event_cond);
     GUM_SCRIPT_CORE_UNLOCK (self);
   }
+}
+
+void
+_gum_script_core_push_job (GumScriptCore * self,
+                           GumScriptJobFunc job_func,
+                           gpointer data,
+                           GDestroyNotify data_destroy)
+{
+  gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
+      data, data_destroy, self);
 }
 
 void

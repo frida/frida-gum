@@ -80,6 +80,9 @@ G_GNUC_INTERNAL void _gum_script_core_emit_message (GumScriptCore * self,
 G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
     const gchar * message);
 
+G_GNUC_INTERNAL void _gum_script_core_push_job (GumScriptCore * self,
+    GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
+
 G_GNUC_INTERNAL void _gum_script_scope_enter (GumScriptScope * self,
     GumScriptCore * core);
 G_GNUC_INTERNAL void _gum_script_scope_flush (GumScriptScope * self);
