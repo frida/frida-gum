@@ -32,30 +32,30 @@ struct _GumMessageSink
   JSContextRef ctx;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_timeout)
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_interval)
-GUM_DECLARE_JSC_FUNCTION (gumjs_clear_timer)
-GUM_DECLARE_JSC_FUNCTION (gumjs_gc)
-GUM_DECLARE_JSC_FUNCTION (gumjs_send)
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
-GUM_DECLARE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
-GUM_DECLARE_JSC_FUNCTION (gumjs_wait_for_event)
+GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
+GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
+GUMJS_DECLARE_FUNCTION (gumjs_clear_timer)
+GUMJS_DECLARE_FUNCTION (gumjs_gc)
+GUMJS_DECLARE_FUNCTION (gumjs_send)
+GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
+GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
+GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
-GUM_DECLARE_JSC_GETTER (gumjs_script_get_file_name)
-GUM_DECLARE_JSC_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
+GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 
-GUM_DECLARE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_is_null)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_add)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_sub)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_and)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_or)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_xor)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_compare)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_string)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_json)
-GUM_DECLARE_JSC_FUNCTION (gumjs_native_pointer_to_match_pattern)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_pointer_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_is_null)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_add)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_and)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_or)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
     const GumScriptArgs * args, gboolean repeat);
@@ -309,27 +309,27 @@ _gum_script_scope_leave (GumScriptScope * self)
   GUM_SCRIPT_CORE_UNLOCK (self->core);
 }
 
-GUM_DEFINE_JSC_GETTER (gumjs_script_get_file_name)
+GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
 {
   return JSValueMakeNull (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_set_timeout)
+GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
 {
   return gum_script_core_schedule_callback (args->core, args, FALSE);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_set_interval)
+GUMJS_DEFINE_FUNCTION (gumjs_set_interval)
 {
   return gum_script_core_schedule_callback (args->core, args, TRUE);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
+GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 {
   GumScriptCore * self = args->core;
   gint id;
@@ -357,14 +357,14 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_clear_timer)
   return JSValueMakeBoolean (ctx, callback != NULL);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_gc)
+GUMJS_DEFINE_FUNCTION (gumjs_gc)
 {
   JSGarbageCollect (ctx);
 
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_send)
+GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
   gchar * message;
   GBytes * data = NULL;
@@ -380,7 +380,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_send)
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
+GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
   GumScriptCore * self = args->core;
   JSObjectRef callback;
@@ -400,7 +400,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_unhandled_exception_callback)
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
+GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 {
   GumScriptCore * self = args->core;
   JSObjectRef callback;
@@ -417,7 +417,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_set_incoming_message_callback)
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
+GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumScriptCore * self = args->core;
   guint start_count;
@@ -429,7 +429,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_wait_for_event)
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gsize ptr = 0;
 
@@ -439,14 +439,14 @@ GUM_DEFINE_JSC_CONSTRUCTOR (gumjs_native_pointer_construct)
   return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (ptr), args->core);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_is_null)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
   return JSValueMakeBoolean (ctx,
       GUM_NATIVE_POINTER_VALUE (this_object) == NULL);
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
-  GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_##name) \
+  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
   { \
     gpointer rhs_ptr; \
     gsize lhs, rhs; \
@@ -469,7 +469,7 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_compare)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
   gpointer rhs_ptr;
   gsize lhs, rhs;
@@ -486,7 +486,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_compare)
   return JSValueMakeNumber (ctx, result);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
   gint32 result;
 
@@ -495,7 +495,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_int32)
   return JSValueMakeNumber (ctx, result);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_string)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
   gint radix = -1;
   gboolean radix_specified;
@@ -533,7 +533,7 @@ unsupported_radix:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_json)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
   gsize ptr;
   gchar str[32];
@@ -545,7 +545,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_json)
   return _gumjs_string_to_value (ctx, str);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_native_pointer_to_match_pattern)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
   gsize ptr;
   gchar str[24];

@@ -42,9 +42,9 @@ struct _GumMemoryScanContext
   GumScriptCore * core;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc)
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_copy)
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_protect)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
 
 static JSValueRef gum_script_memory_read (GumScriptMemory * self,
     GumMemoryValueType type, const GumScriptArgs * args,
@@ -59,13 +59,13 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #endif
 
 #define GUM_DEFINE_MEMORY_READ(T) \
-  GUM_DEFINE_JSC_FUNCTION (gumjs_memory_read_##T) \
+  GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
     return gum_script_memory_read (JSObjectGetPrivate (this_object), \
         GUM_MEMORY_VALUE_##T, args, exception); \
   }
 #define GUM_DEFINE_MEMORY_WRITE(T) \
-  GUM_DEFINE_JSC_FUNCTION (gumjs_memory_write_##T) \
+  GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
     return gum_script_memory_write (JSObjectGetPrivate (this_object), \
         GUM_MEMORY_VALUE_##T, args, exception); \
@@ -99,19 +99,19 @@ GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_ansi_string)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_scan)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_scan)
 
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, gpointer user_data);
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_access_monitor_enable)
-GUM_DECLARE_JSC_FUNCTION (gumjs_memory_access_monitor_disable)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
+GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
@@ -197,7 +197,7 @@ _gum_script_memory_finalize (GumScriptMemory * self)
   (void) self;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   GumScriptCore * core = args->core;
   guint size, page_size;
@@ -230,7 +230,7 @@ invalid_size:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_copy)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 {
   GumScriptCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
@@ -265,7 +265,7 @@ invalid_size:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_protect)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 {
   gpointer address;
   guint size;
@@ -720,7 +720,7 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 
 #endif
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
 #ifdef G_OS_WIN32
   gchar * str, * str_ansi;
@@ -740,7 +740,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
 #endif
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
 {
   gchar * str;
   JSObjectRef handle;
@@ -753,7 +753,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
   return handle;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 {
   gchar * str;
   gunichar2 * str_utf16;
@@ -769,7 +769,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
   return handle;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_scan)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 {
   GumScriptCore * core = args->core;
   GumMemoryScanContext sc;
@@ -897,7 +897,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
   return proceed;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_access_monitor_enable)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
 #ifdef G_OS_WIN32
 # error Please add MemoryAccessMonitor to the JavaScriptCore runtime
@@ -908,7 +908,7 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_access_monitor_enable)
 #endif
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_memory_access_monitor_disable)
+GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
 #ifdef G_OS_WIN32
 # error Please add MemoryAccessMonitor to the JavaScriptCore runtime

@@ -30,8 +30,8 @@
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_process_is_debugger_attached)
-GUM_DECLARE_JSC_FUNCTION (gumjs_process_get_current_thread_id)
+GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
+GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
@@ -82,13 +82,13 @@ _gum_script_process_finalize (GumScriptProcess * self)
   (void) self;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_process_is_debugger_attached)
+GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
 {
   return JSValueMakeBoolean (ctx,
       gum_process_is_debugger_attached () ? true : false);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_process_get_current_thread_id)
+GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 {
   return JSValueMakeNumber (ctx, gum_process_get_current_thread_id ());
 }

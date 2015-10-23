@@ -29,10 +29,10 @@ struct _GumScriptReplaceEntry
   JSContextRef ctx;
 };
 
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_attach)
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_detach_all)
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_replace)
-GUM_DECLARE_JSC_FUNCTION (gumjs_interceptor_revert)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 
 static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
 
@@ -106,7 +106,7 @@ _gum_script_interceptor_finalize (GumScriptInterceptor * self)
   self->interceptor = NULL;
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 {
   GumScriptInterceptor * self;
   GumScriptCore * core = args->core;
@@ -158,7 +158,7 @@ unable_to_attach:
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_detach_all)
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumScriptInterceptor * self;
 
@@ -181,12 +181,12 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   }
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_replace)
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 {
   return JSValueMakeUndefined (ctx);
 }
 
-GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_revert)
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   return JSValueMakeUndefined (ctx);
 }

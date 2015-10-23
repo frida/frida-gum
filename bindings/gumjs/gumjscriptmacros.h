@@ -9,19 +9,19 @@
 
 #include "gumjscriptvalue.h"
 
-#define GUM_DECLARE_JSC_CONSTRUCTOR(N) \
+#define GUMJS_DECLARE_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
       size_t argument_count, const JSValueRef arguments[], \
       JSValueRef * exception);
-#define GUM_DECLARE_JSC_FUNCTION(N) \
+#define GUMJS_DECLARE_FUNCTION(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef function, \
       JSObjectRef this_object, size_t argument_count, \
       const JSValueRef arguments[], JSValueRef * exception);
-#define GUM_DECLARE_JSC_GETTER(N) \
+#define GUMJS_DECLARE_GETTER(N) \
   static JSValueRef N (JSContextRef ctx, JSObjectRef object, \
       JSStringRef property_name, JSValueRef * exception);
 
-#define GUM_DEFINE_JSC_CONSTRUCTOR(N) \
+#define GUMJS_DEFINE_CONSTRUCTOR(N) \
   static JSObjectRef N##_impl (JSContextRef ctx, JSObjectRef constructor, \
       const GumScriptArgs * args, JSValueRef * exception); \
   \
@@ -49,7 +49,7 @@
             JSObjectRef constructor, \
             const GumScriptArgs * args, \
             JSValueRef * exception)
-#define GUM_DEFINE_JSC_FUNCTION(N) \
+#define GUMJS_DEFINE_FUNCTION(N) \
   static JSValueRef N##_impl (JSContextRef ctx, JSObjectRef function, \
       JSObjectRef this_object, const GumScriptArgs * args, \
       JSValueRef * exception); \
@@ -80,7 +80,7 @@
            JSObjectRef this_object, \
            const GumScriptArgs * args, \
            JSValueRef * exception)
-#define GUM_DEFINE_JSC_GETTER(N) \
+#define GUMJS_DEFINE_GETTER(N) \
   static JSValueRef \
   N (JSContextRef ctx, \
      JSObjectRef object, \
