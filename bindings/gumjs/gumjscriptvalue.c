@@ -162,6 +162,53 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         break;
       }
+      case 'm':
+      {
+        GumPageProtection prot;
+        gchar * prot_str, * ch;
+        gboolean valid;
+
+        if (!_gumjs_string_try_get (ctx, value, &prot_str, NULL))
+        {
+          _gumjs_throw (ctx, exception,
+              "expected string specifying memory protection");
+          goto error;
+        }
+
+        prot = GUM_PAGE_NO_ACCESS;
+        valid = TRUE;
+        for (ch = prot_str; *ch != '\0' && valid; ch++)
+        {
+          switch (*ch)
+          {
+            case 'r':
+              prot |= GUM_PAGE_READ;
+              break;
+            case 'w':
+              prot |= GUM_PAGE_WRITE;
+              break;
+            case 'x':
+              prot |= GUM_PAGE_EXECUTE;
+              break;
+            case '-':
+              break;
+            default:
+              _gumjs_throw (ctx, exception,
+                  "invalid character in memory protection specifier string");
+              valid = FALSE;
+              break;
+          }
+        }
+
+        g_free (prot_str);
+
+        if (valid)
+          *va_arg (ap, GumPageProtection *) = prot;
+        else
+          goto error;
+
+        break;
+      }
       case 's':
       {
         gchar * str;
