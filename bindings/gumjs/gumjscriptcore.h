@@ -82,6 +82,7 @@ G_GNUC_INTERNAL void _gum_script_core_post_message (GumScriptCore * self,
 
 G_GNUC_INTERNAL void _gum_script_scope_enter (GumScriptScope * self,
     GumScriptCore * core);
+G_GNUC_INTERNAL void _gum_script_scope_flush (GumScriptScope * self);
 G_GNUC_INTERNAL void _gum_script_scope_leave (GumScriptScope * self);
 
 G_GNUC_INTERNAL void _gum_script_panic (JSValueRef exception, JSContextRef ctx);

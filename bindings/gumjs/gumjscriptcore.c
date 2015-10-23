@@ -271,7 +271,7 @@ _gum_script_scope_enter (GumScriptScope * self,
 }
 
 void
-_gum_script_scope_leave (GumScriptScope * self)
+_gum_script_scope_flush (GumScriptScope * self)
 {
   GumScriptCore * core = self->core;
 
@@ -279,7 +279,14 @@ _gum_script_scope_leave (GumScriptScope * self)
   {
     gum_exception_sink_handle_exception (core->unhandled_exception_sink,
         self->exception);
+    self->exception = NULL;
   }
+}
+
+void
+_gum_script_scope_leave (GumScriptScope * self)
+{
+  _gum_script_scope_flush (self);
 
   GUM_SCRIPT_CORE_UNLOCK (self->core);
 }
