@@ -188,6 +188,8 @@ gum_script_thread_on_sleep (const FunctionCallbackInfo<Value> & info)
     return;
   }
   double delay = delay_val->ToNumber ()->Value ();
+  if (delay < 0)
+    return;
 
   isolate->Exit ();
   {

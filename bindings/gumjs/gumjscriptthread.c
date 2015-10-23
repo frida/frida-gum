@@ -75,19 +75,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (!_gumjs_args_parse (args, "n", &delay))
     return NULL;
   if (delay < 0)
-    goto negative_delay;
+    goto beach;
 
   _gum_script_yield_begin (&yield, args->core);
   g_usleep (delay * G_USEC_PER_SEC);
   _gum_script_yield_end (&yield);
 
+beach:
   return JSValueMakeUndefined (ctx);
-
-negative_delay:
-  {
-    _gumjs_throw (ctx, exception, "delay must be non-negative");
-    return NULL;
-  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_throw_not_yet_available)
