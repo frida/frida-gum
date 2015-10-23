@@ -397,6 +397,29 @@ invalid_uint:
 }
 
 gboolean
+_gumjs_uint_try_parse (JSContextRef ctx,
+                       JSStringRef str,
+                       guint * i,
+                       JSValueRef * exception)
+{
+  gchar * str_utf8, * endptr;
+  glong value;
+  gboolean valid;
+
+  str_utf8 = _gumjs_string_from_jsc (str);
+  value = strtol (str_utf8, &endptr, 10);
+  valid = *str_utf8 != '\0' && *endptr == '\0' && value >= 0;
+  g_free (str_utf8);
+
+  if (valid)
+    *i = value;
+  else
+    _gumjs_throw (ctx, exception, "invalid uint");
+
+  return valid;
+}
+
+gboolean
 _gumjs_number_try_get (JSContextRef ctx,
                        JSValueRef value,
                        gdouble * number,
