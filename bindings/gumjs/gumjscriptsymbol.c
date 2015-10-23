@@ -15,7 +15,12 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_symbol_functions[] =
 {
-  { "xxx", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "fromAddress", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "fromName", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "getFunctionByName", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "findFunctionsNamed", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "findFunctionsMatching", gumjs_symbol_throw_not_yet_available,
+    gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
