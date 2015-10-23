@@ -9,10 +9,17 @@
 #include "guminvocationlistener.h"
 #include "gumjscript-runtime.h"
 #include "gumjscriptcore.h"
+#include "gumjscriptfile.h"
+#include "gumjscriptinstruction.h"
 #include "gumjscriptinterceptor.h"
 #include "gumjscriptkernel.h"
 #include "gumjscriptmemory.h"
+#include "gumjscriptmodule.h"
 #include "gumjscriptprocess.h"
+#include "gumjscriptsocket.h"
+#include "gumjscriptstalker.h"
+#include "gumjscriptsymbol.h"
+#include "gumjscriptthread.h"
 #include "gumjscriptvalue.h"
 #include "gumscriptscheduler.h"
 #include "gumscripttask.h"
@@ -45,14 +52,19 @@ struct _GumScriptPrivate
   GumScriptKernel kernel;
   GumScriptMemory memory;
   GumScriptProcess process;
+  GumScriptThread thread;
+  GumScriptModule module;
+  GumScriptFile file;
+  GumScriptSocket socket;
   GumScriptInterceptor interceptor;
+  GumScriptStalker stalker;
+  GumScriptSymbol symbol;
+  GumScriptInstruction instruction;
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
   GDestroyNotify message_handler_data_destroy;
-
-  GumStalker * stalker;
 };
 
 struct _GumScriptFromStringData
@@ -202,8 +214,6 @@ gum_script_init (GumScript * self)
       GUM_TYPE_SCRIPT, GumScriptPrivate);
 
   priv->loaded = FALSE;
-
-  priv->stalker = gum_stalker_new ();
 }
 
 static void
@@ -221,8 +231,6 @@ gum_script_dispose (GObject * object)
   }
   else
   {
-    g_clear_pointer (&priv->stalker, g_object_unref);
-
     g_clear_pointer (&priv->main_context, g_main_context_unref);
   }
 
@@ -377,7 +385,14 @@ gum_script_create_context (GumScript * self,
   {
     _gum_script_memory_init (&priv->memory, &priv->core, global);
     _gum_script_process_init (&priv->process, &priv->core, global);
+    _gum_script_thread_init (&priv->thread, &priv->core, global);
+    _gum_script_module_init (&priv->module, &priv->core, global);
+    _gum_script_file_init (&priv->file, &priv->core, global);
+    _gum_script_socket_init (&priv->socket, &priv->core, global);
     _gum_script_interceptor_init (&priv->interceptor, &priv->core, global);
+    _gum_script_stalker_init (&priv->stalker, &priv->core, global);
+    _gum_script_symbol_init (&priv->symbol, &priv->core, global);
+    _gum_script_instruction_init (&priv->instruction, &priv->core, global);
   }
   else
   {
@@ -396,11 +411,20 @@ gum_script_destroy_context (GumScript * self)
 
   g_assert (priv->ctx != NULL);
 
+  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
+    _gum_script_stalker_flush (&priv->stalker);
   _gum_script_core_flush (&priv->core);
 
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
+    _gum_script_instruction_dispose (&priv->instruction);
+    _gum_script_symbol_dispose (&priv->symbol);
+    _gum_script_stalker_dispose (&priv->stalker);
     _gum_script_interceptor_dispose (&priv->interceptor);
+    _gum_script_socket_dispose (&priv->socket);
+    _gum_script_file_dispose (&priv->file);
+    _gum_script_module_dispose (&priv->module);
+    _gum_script_thread_dispose (&priv->thread);
     _gum_script_process_dispose (&priv->process);
     _gum_script_memory_dispose (&priv->memory);
   }
@@ -415,7 +439,14 @@ gum_script_destroy_context (GumScript * self)
 
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
+    _gum_script_instruction_finalize (&priv->instruction);
+    _gum_script_symbol_finalize (&priv->symbol);
+    _gum_script_stalker_finalize (&priv->stalker);
     _gum_script_interceptor_finalize (&priv->interceptor);
+    _gum_script_socket_finalize (&priv->socket);
+    _gum_script_file_finalize (&priv->file);
+    _gum_script_module_finalize (&priv->module);
+    _gum_script_thread_finalize (&priv->thread);
     _gum_script_process_finalize (&priv->process);
     _gum_script_memory_finalize (&priv->memory);
   }
@@ -536,7 +567,7 @@ gum_script_from_string_data_free (GumScriptFromStringData * d)
 GumStalker *
 gum_script_get_stalker (GumScript * self)
 {
-  return self->priv->stalker;
+  return _gum_script_stalker_get (&self->priv->stalker);
 }
 
 void

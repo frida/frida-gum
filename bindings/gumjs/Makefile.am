@@ -100,8 +100,22 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptmemory.c \
 	gumjscriptprocess.h \
 	gumjscriptprocess.c \
+	gumjscriptthread.h \
+	gumjscriptthread.c \
+	gumjscriptmodule.h \
+	gumjscriptmodule.c \
+	gumjscriptfile.h \
+	gumjscriptfile.c \
+	gumjscriptsocket.h \
+	gumjscriptsocket.c \
 	gumjscriptinterceptor.h \
 	gumjscriptinterceptor.c \
+	gumjscriptstalker.h \
+	gumjscriptstalker.c \
+	gumjscriptsymbol.h \
+	gumjscriptsymbol.c \
+	gumjscriptinstruction.h \
+	gumjscriptinstruction.c \
 	$(NULL)
 libfrida_gumjsc_la_CPPFLAGS = \
 	-I $(srcdir)/include/JavaScriptCore/API \
