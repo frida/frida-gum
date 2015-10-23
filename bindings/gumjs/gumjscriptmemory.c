@@ -87,6 +87,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (UTF8_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
 
@@ -116,6 +117,7 @@ static const JSStaticFunction gumjs_memory_functions[] =
   GUM_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
 
+  { "allocAnsiString", gumjs_memory_alloc_ansi_string, gumjs_attrs },
   { "allocUtf8String", gumjs_memory_alloc_utf8_string, gumjs_attrs },
   { "allocUtf16String", gumjs_memory_alloc_utf16_string, gumjs_attrs },
 
@@ -677,6 +679,26 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 }
 
 #endif
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_ansi_string)
+{
+#ifdef G_OS_WIN32
+  gchar * str, * str_ansi;
+  JSObjectRef handle;
+
+  if (!_gumjs_args_parse (args, "s", &str))
+    return NULL;
+  str_ansi = gum_ansi_string_from_utf8 (str);
+  g_free (str);
+
+  _gumjs_native_resource_new (ctx, str_ansi, g_free, args->core, &handle);
+
+  return handle;
+#else
+  _gumjs_throw (ctx, exception, "ANSI API is only applicable on Windows");
+  return NULL;
+#endif
+}
 
 GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
 {
