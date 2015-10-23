@@ -39,6 +39,17 @@
             }
         }
 
+        const sourceURL = error.sourceURL;
+        if (sourceURL) {
+            message.fileName = sourceURL;
+        }
+
+        const line = error.line;
+        if (line) {
+            message.lineNumber = line;
+            message.columnNumber = error.column;
+        }
+
         engine._send(JSON.stringify(message), null);
     });
 
