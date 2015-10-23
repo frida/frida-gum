@@ -15,7 +15,11 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_module_functions[] =
 {
-  { "xxx", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "enumerateImports", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "enumerateExports", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "enumerateRanges", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "findBaseAddress", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "findExportByName", gumjs_module_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
