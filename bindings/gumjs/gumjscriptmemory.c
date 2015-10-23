@@ -88,6 +88,7 @@ GUM_DEFINE_MEMORY_READ_WRITE (UTF16_STRING)
 GUM_DEFINE_MEMORY_READ_WRITE (ANSI_STRING)
 
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
 
 static const JSPropertyAttributes gumjs_attrs =
     kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
@@ -116,6 +117,7 @@ static const JSStaticFunction gumjs_memory_functions[] =
   GUM_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
 
   { "allocUtf8String", gumjs_memory_alloc_utf8_string, gumjs_attrs },
+  { "allocUtf16String", gumjs_memory_alloc_utf16_string, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -685,6 +687,22 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf8_string)
     return NULL;
 
   _gumjs_native_resource_new (ctx, str, g_free, args->core, &handle);
+
+  return handle;
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_alloc_utf16_string)
+{
+  gchar * str;
+  gunichar2 * str_utf16;
+  JSObjectRef handle;
+
+  if (!_gumjs_args_parse (args, "s", &str))
+    return NULL;
+  str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
+  g_free (str);
+
+  _gumjs_native_resource_new (ctx, str_utf16, g_free, args->core, &handle);
 
   return handle;
 }
