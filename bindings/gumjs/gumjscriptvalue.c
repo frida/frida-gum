@@ -100,7 +100,9 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         if (is_fuzzy)
         {
-          if (JSValueIsString (ctx, value))
+          if (_gumjs_native_pointer_try_get (ctx, value, core, &ptr, NULL))
+            ;
+          else if (JSValueIsString (ctx, value))
           {
             gchar * ptr_as_string, * endptr;
             gboolean valid;
