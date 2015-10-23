@@ -15,7 +15,11 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_stalker_functions[] =
 {
-  { "xxx", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "garbageCollect", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "follow", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "unfollow", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "addCallProbe", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "removeCallProbe", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
