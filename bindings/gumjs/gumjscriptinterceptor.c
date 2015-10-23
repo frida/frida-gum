@@ -122,7 +122,9 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_interceptor_attach)
     return NULL;
 
   entry = g_slice_new (GumScriptAttachEntry);
+  JSValueProtect (ctx, on_enter);
   entry->on_enter = on_enter;
+  JSValueProtect (ctx, on_leave);
   entry->on_leave = on_leave;
   entry->ctx = core->ctx;
 
