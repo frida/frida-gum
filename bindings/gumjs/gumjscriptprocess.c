@@ -40,6 +40,7 @@ static const JSStaticFunction gumjs_process_functions[] =
 {
   { "isDebuggerAttached", gumjs_process_is_debugger_attached, gumjs_attrs },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id, gumjs_attrs },
+
   { NULL, NULL, 0 }
 };
 

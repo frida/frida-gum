@@ -52,6 +52,7 @@ static const JSStaticFunction gumjs_interceptor_functions[] =
   { "detachAll", gumjs_interceptor_detach_all, gumjs_attrs },
   { "_replace", gumjs_interceptor_replace, gumjs_attrs },
   { "revert", gumjs_interceptor_revert, gumjs_attrs },
+
   { NULL, NULL, 0 }
 };
 

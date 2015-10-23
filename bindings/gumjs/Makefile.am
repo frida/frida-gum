@@ -94,6 +94,8 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptcore.h \
 	gumjscriptcore.c \
 	gumjscriptglue.cpp \
+	gumjscriptkernel.h \
+	gumjscriptkernel.c \
 	gumjscriptmemory.h \
 	gumjscriptmemory.c \
 	gumjscriptprocess.h \

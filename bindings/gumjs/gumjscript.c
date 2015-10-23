@@ -10,6 +10,7 @@
 #include "gumjscript-runtime.h"
 #include "gumjscriptcore.h"
 #include "gumjscriptinterceptor.h"
+#include "gumjscriptkernel.h"
 #include "gumjscriptmemory.h"
 #include "gumjscriptprocess.h"
 #include "gumjscriptvalue.h"
@@ -41,6 +42,7 @@ struct _GumScriptPrivate
 
   JSGlobalContextRef ctx;
   GumScriptCore core;
+  GumScriptKernel kernel;
   GumScriptMemory memory;
   GumScriptProcess process;
   GumScriptInterceptor interceptor;
@@ -377,6 +379,10 @@ gum_script_create_context (GumScript * self,
     _gum_script_process_init (&priv->process, &priv->core, global);
     _gum_script_interceptor_init (&priv->interceptor, &priv->core, global);
   }
+  else
+  {
+    _gum_script_kernel_init (&priv->kernel, &priv->core, global);
+  }
 
   gum_script_bundle_load (gum_jscript_runtime_sources, priv->ctx);
 
@@ -398,6 +404,10 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_process_dispose (&priv->process);
     _gum_script_memory_dispose (&priv->memory);
   }
+  else
+  {
+    _gum_script_kernel_dispose (&priv->kernel);
+  }
   _gum_script_core_dispose (&priv->core);
 
   JSGlobalContextRelease (priv->ctx);
@@ -408,6 +418,10 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_interceptor_finalize (&priv->interceptor);
     _gum_script_process_finalize (&priv->process);
     _gum_script_memory_finalize (&priv->memory);
+  }
+  else
+  {
+    _gum_script_kernel_finalize (&priv->kernel);
   }
   _gum_script_core_finalize (&priv->core);
 

@@ -88,6 +88,7 @@ static const JSStaticValue gumjs_script_values[] =
 {
   { "fileName", gumjs_script_get_file_name, NULL, gumjs_attrs },
   { "_sourceMapData", gumjs_script_get_source_map_data, NULL, gumjs_attrs },
+
   { NULL, NULL, NULL, 0 }
 };
 
@@ -104,6 +105,7 @@ static const JSStaticFunction gumjs_native_pointer_functions[] =
   { "toString", gumjs_native_pointer_to_string, gumjs_attrs },
   { "toJSON", gumjs_native_pointer_to_json, gumjs_attrs },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern, gumjs_attrs },
+
   { NULL, NULL, 0 }
 };
 
@@ -174,17 +176,6 @@ _gum_script_core_init (GumScriptCore * self,
   self->array_buffer =
       (JSObjectRef) _gumjs_object_get (ctx, scope, "ArrayBuffer");
   JSValueProtect (ctx, self->array_buffer);
-
-  if (flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    _gumjs_object_set (ctx, scope, "Module", JSObjectMake (ctx, NULL, NULL));
-    _gumjs_object_set (ctx, scope, "Instruction",
-        JSObjectMake (ctx, NULL, NULL));
-  }
-  else
-  {
-    _gumjs_object_set (ctx, scope, "Kernel", JSObjectMake (ctx, NULL, NULL));
-  }
 }
 
 void
