@@ -8,6 +8,7 @@
 
 #include "gumjscriptmacros.h"
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_file_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_file_throw_not_yet_available)
 
 static const JSPropertyAttributes gumjs_attrs =
@@ -15,7 +16,9 @@ static const JSPropertyAttributes gumjs_attrs =
 
 static const JSStaticFunction gumjs_file_functions[] =
 {
-  { "xxx", gumjs_file_throw_not_yet_available, gumjs_attrs },
+  { "write", gumjs_file_throw_not_yet_available, gumjs_attrs },
+  { "flush", gumjs_file_throw_not_yet_available, gumjs_attrs },
+  { "close", gumjs_file_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -27,30 +30,35 @@ _gum_script_file_init (GumScriptFile * self,
 {
   JSContextRef ctx = core->ctx;
   JSClassDefinition def;
-  JSClassRef klass;
-  JSObjectRef file;
 
   self->core = core;
 
   def = kJSClassDefinitionEmpty;
   def.className = "File";
   def.staticFunctions = gumjs_file_functions;
-  klass = JSClassCreate (&def);
-  file = JSObjectMake (ctx, klass, self);
-  JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "File", file);
+  self->file = JSClassCreate (&def);
+  _gumjs_object_set (ctx, scope, "File", JSObjectMakeConstructor (ctx,
+      self->file, gumjs_file_construct));
 }
 
 void
 _gum_script_file_dispose (GumScriptFile * self)
 {
-  (void) self;
+  JSClassRelease (self->file);
+  self->file = NULL;
 }
 
 void
 _gum_script_file_finalize (GumScriptFile * self)
 {
   (void) self;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
+{
+  _gumjs_throw (ctx, exception,
+      "File API not yet available in the JavaScriptCore runtime");
+  return NULL;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_throw_not_yet_available)
