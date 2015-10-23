@@ -32,6 +32,7 @@ enum _GumMemoryValueType
 
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_alloc)
 GUM_DECLARE_JSC_FUNCTION (gumjs_memory_copy)
+GUM_DECLARE_JSC_FUNCTION (gumjs_memory_protect)
 
 static JSValueRef gum_script_memory_read (GumScriptMemory * self,
     GumMemoryValueType type, const GumScriptArgs * args,
@@ -93,6 +94,7 @@ static const JSStaticFunction gumjs_memory_functions[] =
 {
   { "alloc", gumjs_memory_alloc, gumjs_attrs },
   { "copy", gumjs_memory_copy, gumjs_attrs },
+  { "protect", gumjs_memory_protect, gumjs_attrs },
 
   GUM_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUM_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -190,7 +192,9 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_copy)
 
   if (!_gumjs_args_parse (args, "ppu", &destination, &source, &size))
     return NULL;
-  if (size == 0 || size > 0x7fffffff)
+  if (size == 0)
+    goto beach;
+  else if (size > 0x7fffffff)
     goto invalid_size;
 
   if (gum_exceptor_try (exceptor, &scope))
@@ -203,7 +207,34 @@ GUM_DEFINE_JSC_FUNCTION (gumjs_memory_copy)
     _gumjs_throw_native (ctx, exception, &scope.exception, core);
   }
 
+beach:
   return JSValueMakeUndefined (ctx);
+
+invalid_size:
+  {
+    _gumjs_throw (ctx, exception, "invalid size");
+    return NULL;
+  }
+}
+
+GUM_DEFINE_JSC_FUNCTION (gumjs_memory_protect)
+{
+  gpointer address;
+  guint size;
+  GumPageProtection prot;
+  gboolean success = TRUE;
+
+  if (!_gumjs_args_parse (args, "pum", &address, &size, &prot))
+    return NULL;
+  if (size == 0)
+    goto beach;
+  else if (size > 0x7fffffff)
+    goto invalid_size;
+
+  success = gum_try_mprotect (address, size, prot);
+
+beach:
+  return JSValueMakeBoolean (ctx, success ? true : false);
 
 invalid_size:
   {
