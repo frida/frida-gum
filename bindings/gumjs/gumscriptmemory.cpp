@@ -476,6 +476,7 @@ gum_script_memory_on_protect (const FunctionCallbackInfo<Value> & info)
   gsize size = info[1]->Uint32Value ();
   if (size == 0)
   {
+    info.GetReturnValue ().Set (true);
     return;
   }
   else if (size > 0x7fffffff)
