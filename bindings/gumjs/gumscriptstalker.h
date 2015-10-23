@@ -16,9 +16,7 @@ typedef struct _GumScriptStalker GumScriptStalker;
 struct _GumScriptStalker
 {
   GumScriptCore * core;
-  GMainContext * main_context;
   GumStalker * stalker;
-
   GumEventSink * sink;
   guint queue_capacity;
   guint queue_drain_interval;
