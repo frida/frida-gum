@@ -14,6 +14,7 @@ enum _GumBacktracerType
   GUM_BACKTRACER_FUZZY = 2
 };
 
+GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_throw_not_yet_available)
 
 static const JSPropertyAttributes gumjs_attrs =
@@ -22,7 +23,7 @@ static const JSPropertyAttributes gumjs_attrs =
 static const JSStaticFunction gumjs_thread_functions[] =
 {
   { "backtrace", gumjs_thread_throw_not_yet_available, gumjs_attrs },
-  { "sleep", gumjs_thread_throw_not_yet_available, gumjs_attrs },
+  { "sleep", gumjs_thread_sleep, gumjs_attrs },
 
   { NULL, NULL, 0 }
 };
@@ -64,6 +65,29 @@ void
 _gum_script_thread_finalize (GumScriptThread * self)
 {
   (void) self;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
+{
+  gdouble delay;
+  GumScriptYield yield;
+
+  if (!_gumjs_args_parse (args, "n", &delay))
+    return NULL;
+  if (delay < 0)
+    goto negative_delay;
+
+  _gum_script_yield_begin (&yield, args->core);
+  g_usleep (delay * G_USEC_PER_SEC);
+  _gum_script_yield_end (&yield);
+
+  return JSValueMakeUndefined (ctx);
+
+negative_delay:
+  {
+    _gumjs_throw (ctx, exception, "delay must be non-negative");
+    return NULL;
+  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_throw_not_yet_available)
