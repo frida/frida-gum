@@ -63,11 +63,17 @@ static void gumjs_invocation_context_update_handle (JSObjectRef jic,
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
+static JSObjectRef gumjs_invocation_args_new (JSContextRef ctx,
+    GumInvocationContext * ic, GumScriptInterceptor * interceptor);
+static void gumjs_invocation_args_update_context (JSValueRef value,
+    GumInvocationContext * context);
 GUMJS_DECLARE_GETTER (gumjs_invocation_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
 
 static JSObjectRef gumjs_invocation_return_value_new (JSContextRef ctx,
     GumInvocationContext * ic, GumScriptInterceptor * interceptor);
+static void gumjs_invocation_return_value_update_context (JSValueRef value,
+    GumInvocationContext * ic);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
 
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
@@ -291,11 +297,12 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
     _gum_script_scope_enter (&scope, core);
 
     jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
-    args = JSObjectMake (ctx, self->invocation_args, ic);
+    args = gumjs_invocation_args_new (ctx, ic, self);
 
     JSObjectCallAsFunction (ctx, entry->on_enter, jic, 1, &args,
         &scope.exception);
 
+    gumjs_invocation_args_update_context (args, NULL);
     gumjs_invocation_context_update_handle (jic, NULL);
 
     if (entry->on_leave != NULL)
@@ -333,6 +340,8 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
     JSObjectRef jic;
     JSValueRef retval;
 
+    _gum_script_scope_enter (&scope, core);
+
     jic = (entry->on_enter != NULL)
         ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, JSObjectRef)
         : NULL;
@@ -346,13 +355,12 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
       jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
     }
 
-    _gum_script_scope_enter (&scope, core);
-
     retval = gumjs_invocation_return_value_new (ctx, ic, self);
 
     JSObjectCallAsFunction (ctx, entry->on_leave, jic, 1, &retval,
         &scope.exception);
 
+    gumjs_invocation_return_value_update_context (retval, NULL);
     gumjs_invocation_context_update_handle (jic, NULL);
 
     _gum_script_scope_leave (&scope);
@@ -441,14 +449,49 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
   return JSValueMakeNumber (ctx, self->depth);
 }
 
-GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
+static JSObjectRef
+gumjs_invocation_args_new (JSContextRef ctx,
+                           GumInvocationContext * ic,
+                           GumScriptInterceptor * interceptor)
+{
+  return JSObjectMake (ctx, interceptor->invocation_args, ic);
+}
+
+static gboolean
+gumjs_invocation_args_try_get_context (JSContextRef ctx,
+                                       JSValueRef value,
+                                       GumInvocationContext ** result,
+                                       JSValueRef * exception)
 {
   GumInvocationContext * ic;
-  guint n;
 
-  ic = JSObjectGetPrivate (object);
+  ic = JSObjectGetPrivate ((JSObjectRef) value);
+  if (ic == NULL)
+  {
+    _gumjs_throw (ctx, exception, "invalid operation");
+    return FALSE;
+  }
+
+  *result = ic;
+  return TRUE;
+}
+
+static void
+gumjs_invocation_args_update_context (JSValueRef value,
+                                      GumInvocationContext * ic)
+{
+  JSObjectSetPrivate ((JSObjectRef) value, ic);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
+{
+  guint n;
+  GumInvocationContext * ic;
 
   if (!_gumjs_uint_try_parse (ctx, property_name, &n, NULL))
+    return NULL;
+
+  if (!gumjs_invocation_args_try_get_context (ctx, object, &ic, exception))
     return NULL;
 
   return _gumjs_native_pointer_new (ctx,
@@ -462,13 +505,14 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
   guint n;
   gpointer value;
 
-  ic = JSObjectGetPrivate (object);
-
   if (!_gumjs_uint_try_parse (ctx, property_name, &n, NULL))
     return false;
 
   if (!_gumjs_args_parse (args, "p", &value))
     return false;
+
+  if (!gumjs_invocation_args_try_get_context (ctx, object, &ic, exception))
+    return NULL;
 
   gum_invocation_context_replace_nth_argument (ic, n, value);
   return true;
@@ -493,18 +537,54 @@ gumjs_invocation_return_value_new (JSContextRef ctx,
   return JSObjectMake (ctx, interceptor->invocation_retval, retval);
 }
 
+static gboolean
+gumjs_invocation_return_value_try_get_context (
+    JSContextRef ctx,
+    JSValueRef value,
+    GumScriptInvocationReturnValue ** retval,
+    GumInvocationContext ** ic,
+    JSValueRef * exception)
+{
+  GumScriptInvocationReturnValue * self;
+
+  self = JSObjectGetPrivate ((JSObjectRef) value);
+  if (self->ic == NULL)
+  {
+    _gumjs_throw (ctx, exception, "invalid operation");
+    return FALSE;
+  }
+
+  *retval = self;
+  *ic = self->ic;
+  return TRUE;
+}
+
+static void
+gumjs_invocation_return_value_update_context (JSValueRef value,
+                                              GumInvocationContext * ic)
+{
+  GumScriptInvocationReturnValue * self;
+
+  self = JSObjectGetPrivate ((JSObjectRef) value);
+
+  self->ic = NULL;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
 {
   GumScriptInvocationReturnValue * self;
+  GumInvocationContext * ic;
   GumNativePointer * ptr;
 
-  self = JSObjectGetPrivate (this_object);
+  if (!gumjs_invocation_return_value_try_get_context (ctx, this_object, &self,
+      &ic, exception))
+    return NULL;
   ptr = &self->parent;
 
   if (!_gumjs_args_parse (args, "p~", &ptr->value))
     return NULL;
 
-  gum_invocation_context_replace_return_value (self->ic, ptr->value);
+  gum_invocation_context_replace_return_value (ic, ptr->value);
 
   return JSValueMakeUndefined (ctx);
 }
