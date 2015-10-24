@@ -24,6 +24,7 @@ struct _GumScriptInterceptor
   GQueue * attach_entries;
   GHashTable * replacement_by_address;
 
+  JSClassRef invocation_context;
   JSClassRef invocation_args;
   JSClassRef invocation_retval;
 };

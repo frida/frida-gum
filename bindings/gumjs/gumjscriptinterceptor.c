@@ -11,11 +11,21 @@
 
 #include <gum/gum-init.h>
 
-typedef struct _GumInvocationReturnValue GumInvocationReturnValue;
+#define GUM_SCRIPT_INVOCATION_CONTEXT(o) \
+  ((GumScriptInvocationContext *) JSObjectGetPrivate (o))
+
+typedef struct _GumScriptInvocationContext GumScriptInvocationContext;
+typedef struct _GumScriptInvocationReturnValue GumScriptInvocationReturnValue;
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
 typedef struct _GumScriptReplaceEntry GumScriptReplaceEntry;
 
-struct _GumInvocationReturnValue
+struct _GumScriptInvocationContext
+{
+  GumInvocationContext * handle;
+  gint depth;
+};
+
+struct _GumScriptInvocationReturnValue
 {
   GumNativePointer parent;
   GumInvocationContext * ic;
@@ -44,10 +54,19 @@ static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
 static void gum_script_attach_entry_free (GumScriptAttachEntry * entry);
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
 
+static JSObjectRef gumjs_invocation_context_new (JSContextRef ctx,
+    GumInvocationContext * handle, gint depth,
+    GumScriptInterceptor * interceptor);
+GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
+static void gumjs_invocation_context_update_handle (JSObjectRef jic,
+    GumInvocationContext * handle);
+GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
+GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
+
 GUMJS_DECLARE_GETTER (gumjs_invocation_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
 
-static JSValueRef gum_invocation_return_value_new (JSContextRef ctx,
+static JSObjectRef gumjs_invocation_return_value_new (JSContextRef ctx,
     GumInvocationContext * ic, GumScriptInterceptor * interceptor);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
 
@@ -68,6 +87,24 @@ static const JSStaticFunction gumjs_interceptor_functions[] =
   { "revert", gumjs_interceptor_throw_not_yet_available, gumjs_attrs },
 
   { NULL, NULL, 0 }
+};
+
+static const JSStaticValue gumjs_invocation_context_values[] =
+{
+  {
+    "returnAddress",
+    gumjs_invocation_context_get_return_address,
+    NULL,
+    gumjs_attrs
+  },
+  {
+    "depth",
+    gumjs_invocation_context_get_depth,
+    NULL,
+    gumjs_attrs
+  },
+
+  { NULL, NULL, NULL, 0 }
 };
 
 static const JSStaticFunction gumjs_invocation_return_value_functions[] =
@@ -110,6 +147,12 @@ _gum_script_interceptor_init (GumScriptInterceptor * self,
   _gumjs_object_set (ctx, scope, "Interceptor", interceptor);
 
   def = kJSClassDefinitionEmpty;
+  def.className = "InvocationContext";
+  def.staticValues = gumjs_invocation_context_values;
+  def.finalize = gumjs_invocation_context_finalize;
+  self->invocation_context = JSClassCreate (&def);
+
+  def = kJSClassDefinitionEmpty;
   def.className = "InvocationArgs";
   def.getProperty = gumjs_invocation_args_get_property;
   def.setProperty = gumjs_invocation_args_set_property;
@@ -128,6 +171,9 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
   gum_script_interceptor_detach_all (self);
 
   g_hash_table_remove_all (self->replacement_by_address);
+
+  JSClassRelease (self->invocation_context);
+  self->invocation_context = NULL;
 
   JSClassRelease (self->invocation_args);
   self->invocation_args = NULL;
@@ -239,14 +285,24 @@ _gum_script_interceptor_on_enter (GumScriptInterceptor * self,
     GumScriptCore * core = self->core;
     JSContextRef ctx = core->ctx;
     GumScriptScope scope;
+    JSObjectRef jic;
     JSValueRef args;
 
     _gum_script_scope_enter (&scope, core);
 
+    jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
     args = JSObjectMake (ctx, self->invocation_args, ic);
 
-    JSObjectCallAsFunction (ctx, entry->on_enter, NULL, 1, &args,
+    JSObjectCallAsFunction (ctx, entry->on_enter, jic, 1, &args,
         &scope.exception);
+
+    gumjs_invocation_context_update_handle (jic, NULL);
+
+    if (entry->on_leave != NULL)
+    {
+      JSValueProtect (ctx, jic);
+      *GUM_LINCTX_GET_FUNC_INVDATA (ic, JSObjectRef) = jic;
+    }
 
     _gum_script_scope_leave (&scope);
   }
@@ -274,14 +330,30 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
     GumScriptCore * core = self->core;
     JSContextRef ctx = core->ctx;
     GumScriptScope scope;
+    JSObjectRef jic;
     JSValueRef retval;
+
+    jic = (entry->on_enter != NULL)
+        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, JSObjectRef)
+        : NULL;
+    if (jic != NULL)
+    {
+      JSValueUnprotect (ctx, jic);
+      gumjs_invocation_context_update_handle (jic, ic);
+    }
+    else
+    {
+      jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
+    }
 
     _gum_script_scope_enter (&scope, core);
 
-    retval = gum_invocation_return_value_new (ctx, ic, self);
+    retval = gumjs_invocation_return_value_new (ctx, ic, self);
 
-    JSObjectCallAsFunction (ctx, entry->on_leave, NULL, 1, &retval,
+    JSObjectCallAsFunction (ctx, entry->on_leave, jic, 1, &retval,
         &scope.exception);
+
+    gumjs_invocation_context_update_handle (jic, NULL);
 
     _gum_script_scope_leave (&scope);
   }
@@ -301,6 +373,72 @@ gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   JSValueUnprotect (entry->ctx, entry->replacement);
   g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+static JSObjectRef
+gumjs_invocation_context_new (JSContextRef ctx,
+                              GumInvocationContext * handle,
+                              gint depth,
+                              GumScriptInterceptor * interceptor)
+{
+  GumScriptInvocationContext * sic;
+
+  sic = g_slice_new (GumScriptInvocationContext);
+  sic->handle = handle;
+  sic->depth = depth;
+
+  return JSObjectMake (ctx, interceptor->invocation_context, sic);
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  g_slice_free (GumScriptInvocationContext, self);
+}
+
+static void
+gumjs_invocation_context_update_handle (JSObjectRef jic,
+                                        GumInvocationContext * handle)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (jic);
+
+  self->handle = handle;
+}
+
+static gboolean
+gumjs_invocation_context_check_valid (GumScriptInvocationContext * self,
+                                      JSContextRef ctx,
+                                      JSValueRef * exception)
+{
+  if (self->handle == NULL)
+  {
+    _gumjs_throw (ctx, exception, "invalid operation");
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_return_address)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return NULL;
+
+  return _gumjs_native_pointer_new (ctx,
+      gum_invocation_context_get_return_address (self->handle), args->core);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return NULL;
+
+  return JSValueMakeNumber (ctx, self->depth);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
@@ -336,18 +474,18 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
   return true;
 }
 
-static JSValueRef
-gum_invocation_return_value_new (JSContextRef ctx,
-                                 GumInvocationContext * ic,
-                                 GumScriptInterceptor * interceptor)
+static JSObjectRef
+gumjs_invocation_return_value_new (JSContextRef ctx,
+                                   GumInvocationContext * ic,
+                                   GumScriptInterceptor * interceptor)
 {
-  GumInvocationReturnValue * retval;
+  GumScriptInvocationReturnValue * retval;
   GumNativePointer * ptr;
 
-  retval = g_slice_new (GumInvocationReturnValue);
+  retval = g_slice_new (GumScriptInvocationReturnValue);
 
   ptr = &retval->parent;
-  ptr->instance_size = sizeof (GumInvocationReturnValue);
+  ptr->instance_size = sizeof (GumScriptInvocationReturnValue);
   ptr->value = gum_invocation_context_get_return_value (ic);
 
   retval->ic = ic;
@@ -357,7 +495,7 @@ gum_invocation_return_value_new (JSContextRef ctx,
 
 GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
 {
-  GumInvocationReturnValue * self;
+  GumScriptInvocationReturnValue * self;
   GumNativePointer * ptr;
 
   self = JSObjectGetPrivate (this_object);
