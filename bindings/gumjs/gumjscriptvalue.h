@@ -109,10 +109,16 @@ G_GNUC_INTERNAL gboolean _gumjs_native_pointer_try_get (JSContextRef ctx,
     JSValueRef value, GumScriptCore * core, gpointer * target,
     JSValueRef * exception);
 
-G_GNUC_INTERNAL GumNativeResource * _gumjs_native_resource_new (
+G_GNUC_INTERNAL JSObjectRef _gumjs_cpu_context_new (JSContextRef ctx,
+    GumCpuContext * handle, GumScriptCpuContextAccess access,
+    GumScriptCore * core);
+G_GNUC_INTERNAL void _gumjs_cpu_context_detach (JSValueRef value);
+
+G_GNUC_INTERNAL GumScriptNativeResource * _gumjs_native_resource_new (
     JSContextRef ctx, gpointer data, GDestroyNotify notify,
     GumScriptCore * core, JSObjectRef * handle);
-G_GNUC_INTERNAL void _gumjs_native_resource_free (GumNativeResource * resource);
+G_GNUC_INTERNAL void _gumjs_native_resource_free (
+    GumScriptNativeResource * resource);
 
 G_GNUC_INTERNAL JSObjectRef _gumjs_array_buffer_new (JSContextRef ctx,
     gsize size, GumScriptCore * core);

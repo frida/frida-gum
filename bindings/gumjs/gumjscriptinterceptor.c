@@ -22,12 +22,13 @@ typedef struct _GumScriptReplaceEntry GumScriptReplaceEntry;
 struct _GumScriptInvocationContext
 {
   GumInvocationContext * handle;
+  JSObjectRef cpu_context;
   gint depth;
 };
 
 struct _GumScriptInvocationReturnValue
 {
-  GumNativePointer parent;
+  GumScriptNativePointer parent;
   GumInvocationContext * ic;
 };
 
@@ -61,6 +62,7 @@ GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 static void gumjs_invocation_context_update_handle (JSObjectRef jic,
     GumInvocationContext * handle);
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
+GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_cpu_context)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
 static JSObjectRef gumjs_invocation_args_new (JSContextRef ctx,
@@ -100,6 +102,12 @@ static const JSStaticValue gumjs_invocation_context_values[] =
   {
     "returnAddress",
     gumjs_invocation_context_get_return_address,
+    NULL,
+    gumjs_attrs
+  },
+  {
+    "context",
+    gumjs_invocation_context_get_cpu_context,
     NULL,
     gumjs_attrs
   },
@@ -393,6 +401,7 @@ gumjs_invocation_context_new (JSContextRef ctx,
 
   sic = g_slice_new (GumScriptInvocationContext);
   sic->handle = handle;
+  sic->cpu_context = NULL;
   sic->depth = depth;
 
   return JSObjectMake (ctx, interceptor->invocation_context, sic);
@@ -412,6 +421,7 @@ gumjs_invocation_context_update_handle (JSObjectRef jic,
   GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (jic);
 
   self->handle = handle;
+  g_clear_pointer (&self->cpu_context, _gumjs_cpu_context_detach);
 }
 
 static gboolean
@@ -437,6 +447,22 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_return_address)
 
   return _gumjs_native_pointer_new (ctx,
       gum_invocation_context_get_return_address (self->handle), args->core);
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return NULL;
+
+  if (self->cpu_context == NULL)
+  {
+    self->cpu_context = _gumjs_cpu_context_new (ctx, self->handle->cpu_context,
+        GUM_CPU_CONTEXT_READONLY, args->core);
+  }
+
+  return self->cpu_context;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
@@ -524,7 +550,7 @@ gumjs_invocation_return_value_new (JSContextRef ctx,
                                    GumScriptInterceptor * interceptor)
 {
   GumScriptInvocationReturnValue * retval;
-  GumNativePointer * ptr;
+  GumScriptNativePointer * ptr;
 
   retval = g_slice_new (GumScriptInvocationReturnValue);
 
@@ -574,7 +600,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
 {
   GumScriptInvocationReturnValue * self;
   GumInvocationContext * ic;
-  GumNativePointer * ptr;
+  GumScriptNativePointer * ptr;
 
   if (!gumjs_invocation_return_value_try_get_context (ctx, this_object, &self,
       &ic, exception))

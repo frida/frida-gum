@@ -10,7 +10,8 @@
 
 #define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
 
-static void gum_native_resource_on_weak_notify (GumNativeResource * resource);
+static void gum_native_resource_on_weak_notify (
+    GumScriptNativeResource * resource);
 
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
@@ -860,10 +861,10 @@ _gumjs_native_pointer_new (JSContextRef ctx,
                            gpointer address,
                            GumScriptCore * core)
 {
-  GumNativePointer * ptr;
+  GumScriptNativePointer * ptr;
 
-  ptr = g_slice_new (GumNativePointer);
-  ptr->instance_size = sizeof (GumNativePointer);
+  ptr = g_slice_new (GumScriptNativePointer);
+  ptr->instance_size = sizeof (GumScriptNativePointer);
   ptr->value = address;
 
   return JSObjectMake (ctx, core->native_pointer, ptr);
@@ -872,7 +873,7 @@ _gumjs_native_pointer_new (JSContextRef ctx,
 gpointer
 _gumjs_native_pointer_value (JSValueRef value)
 {
-  GumNativePointer * ptr;
+  GumScriptNativePointer * ptr;
 
   ptr = JSObjectGetPrivate ((JSObjectRef) value);
 
@@ -900,7 +901,45 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
   }
 }
 
-GumNativeResource *
+JSObjectRef
+_gumjs_cpu_context_new (JSContextRef ctx,
+                        GumCpuContext * handle,
+                        GumScriptCpuContextAccess access,
+                        GumScriptCore * core)
+{
+  GumScriptCpuContext * scc;
+
+  scc = g_slice_new (GumScriptCpuContext);
+  if (access == GUM_CPU_CONTEXT_READWRITE)
+  {
+    scc->handle = handle;
+  }
+  else
+  {
+    memcpy (&scc->storage, handle, sizeof (GumCpuContext));
+    scc->handle = &scc->storage;
+  }
+  scc->access = access;
+
+  return JSObjectMake (ctx, core->cpu_context, scc);
+}
+
+void
+_gumjs_cpu_context_detach (JSValueRef value)
+{
+  GumScriptCpuContext * self;
+
+  self = JSObjectGetPrivate ((JSObjectRef) value);
+
+  if (self->access == GUM_CPU_CONTEXT_READWRITE)
+  {
+    memcpy (&self->storage, self->handle, sizeof (GumCpuContext));
+    self->handle = &self->storage;
+    self->access = GUM_CPU_CONTEXT_READONLY;
+  }
+}
+
+GumScriptNativeResource *
 _gumjs_native_resource_new (JSContextRef ctx,
                             gpointer data,
                             GDestroyNotify notify,
@@ -908,11 +947,11 @@ _gumjs_native_resource_new (JSContextRef ctx,
                             JSObjectRef * handle)
 {
   JSObjectRef h;
-  GumNativeResource * resource;
+  GumScriptNativeResource * resource;
 
   h = _gumjs_native_pointer_new (ctx, data, core);
 
-  resource = g_slice_new (GumNativeResource);
+  resource = g_slice_new (GumScriptNativeResource);
   resource->weak_ref = _gumjs_weak_ref_new (ctx, h,
       (GumScriptWeakNotify) gum_native_resource_on_weak_notify, resource, NULL);
   resource->data = data;
@@ -927,18 +966,18 @@ _gumjs_native_resource_new (JSContextRef ctx,
 }
 
 void
-_gumjs_native_resource_free (GumNativeResource * resource)
+_gumjs_native_resource_free (GumScriptNativeResource * resource)
 {
   _gumjs_weak_ref_free (resource->weak_ref);
 
   if (resource->notify != NULL)
     resource->notify (resource->data);
 
-  g_slice_free (GumNativeResource, resource);
+  g_slice_free (GumScriptNativeResource, resource);
 }
 
 static void
-gum_native_resource_on_weak_notify (GumNativeResource * self)
+gum_native_resource_on_weak_notify (GumScriptNativeResource * self)
 {
   g_hash_table_remove (self->core->native_resources, self);
 }

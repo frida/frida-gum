@@ -11,7 +11,7 @@
 #define GUM_SCRIPT_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
-struct _GumScheduledCallback
+struct _GumScriptScheduledCallback
 {
   gint id;
   gboolean repeat;
@@ -20,13 +20,13 @@ struct _GumScheduledCallback
   GumScriptCore * core;
 };
 
-struct _GumExceptionSink
+struct _GumScriptExceptionSink
 {
   JSObjectRef callback;
   JSContextRef ctx;
 };
 
-struct _GumMessageSink
+struct _GumScriptMessageSink
 {
   JSObjectRef callback;
   JSContextRef ctx;
@@ -58,28 +58,34 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
+static bool gumjs_cpu_context_set_register (GumScriptCpuContext * self,
+    JSContextRef ctx, const GumScriptArgs * args, gsize * reg,
+    JSValueRef * exception);
+
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
     const GumScriptArgs * args, gboolean repeat);
 static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
-    GumScheduledCallback * callback);
+    GumScriptScheduledCallback * cb);
 static void gum_script_core_remove_scheduled_callback (GumScriptCore * self,
-    GumScheduledCallback * callback);
+    GumScriptScheduledCallback * cb);
 
-static GumScheduledCallback * gum_scheduled_callback_new (gint id,
+static GumScriptScheduledCallback * gum_scheduled_callback_new (gint id,
     JSObjectRef func, gboolean repeat, GSource * source, GumScriptCore * core);
-static void gum_scheduled_callback_free (GumScheduledCallback * callback);
+static void gum_scheduled_callback_free (GumScriptScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 
-static GumExceptionSink * gum_exception_sink_new (JSContextRef ctx,
+static GumScriptExceptionSink * gum_script_exception_sink_new (JSContextRef ctx,
     JSObjectRef callback);
-static void gum_exception_sink_free (GumExceptionSink * sink);
-static void gum_exception_sink_handle_exception (GumExceptionSink * self,
-    JSValueRef exception);
+static void gum_script_exception_sink_free (GumScriptExceptionSink * sink);
+static void gum_script_exception_sink_handle_exception (
+    GumScriptExceptionSink * self, JSValueRef exception);
 
-static GumMessageSink * gum_message_sink_new (JSContextRef ctx,
+static GumScriptMessageSink * gum_script_message_sink_new (JSContextRef ctx,
     JSObjectRef callback);
-static void gum_message_sink_free (GumMessageSink * sink);
-static void gum_message_sink_handle_message (GumMessageSink * self,
+static void gum_script_message_sink_free (GumScriptMessageSink * sink);
+static void gum_script_message_sink_handle_message (GumScriptMessageSink * self,
     const gchar * message, JSValueRef * exception);
 
 static const JSPropertyAttributes gumjs_attrs =
@@ -108,6 +114,208 @@ static const JSStaticFunction gumjs_native_pointer_functions[] =
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern, gumjs_attrs },
 
   { NULL, NULL, 0 }
+};
+
+#define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
+  GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
+  { \
+    GumScriptCpuContext * self = JSObjectGetPrivate (object); \
+    \
+    return _gumjs_native_pointer_new (ctx, \
+        GSIZE_TO_POINTER (self->handle->R), args->core); \
+  } \
+  \
+  GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
+  { \
+    GumScriptCpuContext * self = JSObjectGetPrivate (object); \
+    \
+    return gumjs_cpu_context_set_register (self, ctx, args, \
+        (gsize *) &self->handle->R, exception); \
+  }
+#define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
+  GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+
+#define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
+  { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R, \
+    gumjs_attrs }
+#define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (eax)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (ecx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (edx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (ebx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (esp)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (ebp)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (esi)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (edi)
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (eip)
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rax)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rcx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rdx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rbx)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rsp)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rbp)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rsi)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rdi)
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r8)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r9)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r10)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r11)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r12)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r13)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r14)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (r15)
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (rip)
+#elif defined (HAVE_ARM)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (pc)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (sp)
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r0, r[0])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r1, r[1])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r2, r[2])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r3, r[3])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r4, r[4])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r5, r[5])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r6, r[6])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (r7, r[7])
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (lr)
+#elif defined (HAVE_ARM64)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (pc)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (sp)
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x0, x[0])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x1, x[1])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x2, x[2])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x3, x[3])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x4, x[4])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x5, x[5])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x6, x[6])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x7, x[7])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x8, x[8])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x9, x[9])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x10, x[10])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x11, x[11])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x12, x[12])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x13, x[13])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x14, x[14])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x15, x[15])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x16, x[16])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x17, x[17])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x18, x[18])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x19, x[19])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x20, x[20])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x21, x[21])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x22, x[22])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x23, x[23])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x24, x[24])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x25, x[25])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x26, x[26])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x27, x[27])
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (x28, x[28])
+
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (fp)
+GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR (lr)
+#endif
+
+static const JSStaticValue gumjs_cpu_context_values[] =
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (pc, eip),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (sp, esp),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (eax),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (ecx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (edx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (ebx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (esp),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (ebp),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (esi),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (edi),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (eip),
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (pc, rip),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (sp, rsp),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rax),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rcx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rdx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rbx),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rsp),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rbp),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rsi),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rdi),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r8),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r9),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r10),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r11),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r12),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r13),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r14),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r15),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (rip),
+#elif defined (HAVE_ARM)
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (pc),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (sp),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r0, r0),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r1, r1),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r2, r2),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r3, r3),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r4, r4),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r5, r5),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r6, r6),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (r7, r7),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (lr),
+#elif defined (HAVE_ARM64)
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (pc),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (sp),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x0),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x1),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x2),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x3),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x4),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x5),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x6),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x7),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x8),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x9),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x10),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x11),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x12),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x13),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x14),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x15),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x16),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x17),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x18),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x19),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x20),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x21),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x22),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x23),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x24),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x25),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x26),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x27),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (x28),
+
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (fp),
+  GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (lr),
+#endif
+
+  { NULL, NULL, NULL, 0 }
 };
 
 void
@@ -175,6 +383,14 @@ _gum_script_core_init (GumScriptCore * self,
   _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
 
+  def = kJSClassDefinitionEmpty;
+  def.className = "CpuContext";
+  def.staticValues = gumjs_cpu_context_values;
+  def.finalize = gumjs_cpu_context_finalize;
+  self->cpu_context = JSClassCreate (&def);
+  _gumjs_object_set (ctx, scope, "CpuContext", JSObjectMakeConstructor (ctx,
+      self->cpu_context, gumjs_cpu_context_construct));
+
   self->array_buffer =
       (JSObjectRef) _gumjs_object_get (ctx, scope, "ArrayBuffer");
   JSValueProtect (ctx, self->array_buffer);
@@ -202,20 +418,23 @@ _gum_script_core_dispose (GumScriptCore * self)
 
   while (self->scheduled_callbacks != NULL)
   {
-    g_source_destroy (((GumScheduledCallback *) (
+    g_source_destroy (((GumScriptScheduledCallback *) (
         self->scheduled_callbacks->data))->source);
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
   }
 
-  gum_exception_sink_free (self->unhandled_exception_sink);
+  gum_script_exception_sink_free (self->unhandled_exception_sink);
   self->unhandled_exception_sink = NULL;
 
-  gum_message_sink_free (self->incoming_message_sink);
+  gum_script_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
   JSValueUnprotect (self->ctx, self->array_buffer);
   self->array_buffer = NULL;
+
+  JSClassRelease (self->cpu_context);
+  self->cpu_context = NULL;
 
   JSClassRelease (self->native_pointer);
   self->native_pointer = NULL;
@@ -249,8 +468,8 @@ _gum_script_core_post_message (GumScriptCore * self,
 
     _gum_script_scope_enter (&scope, self);
 
-    gum_message_sink_handle_message (self->incoming_message_sink, message,
-        &scope.exception);
+    gum_script_message_sink_handle_message (self->incoming_message_sink,
+        message, &scope.exception);
 
     _gum_script_scope_leave (&scope);
 
@@ -288,7 +507,7 @@ _gum_script_scope_flush (GumScriptScope * self)
 
   if (self->exception != NULL && core->unhandled_exception_sink != NULL)
   {
-    gum_exception_sink_handle_exception (core->unhandled_exception_sink,
+    gum_script_exception_sink_handle_exception (core->unhandled_exception_sink,
         self->exception);
     self->exception = NULL;
   }
@@ -341,7 +560,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 {
   GumScriptCore * self = args->core;
   gint id;
-  GumScheduledCallback * callback = NULL;
+  GumScriptScheduledCallback * callback = NULL;
   GSList * cur;
 
   if (!_gumjs_args_parse (args, "i", &id))
@@ -349,7 +568,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
-    GumScheduledCallback * cb = cur->data;
+    GumScriptScheduledCallback * cb = cur->data;
     if (cb->id == id)
     {
       callback = cb;
@@ -396,13 +615,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   if (!_gumjs_args_parse (args, "C?", &callback))
     return NULL;
 
-  gum_exception_sink_free (self->unhandled_exception_sink);
+  gum_script_exception_sink_free (self->unhandled_exception_sink);
   self->unhandled_exception_sink = NULL;
 
   if (callback != NULL)
   {
     self->unhandled_exception_sink =
-        gum_exception_sink_new (self->ctx, callback);
+        gum_script_exception_sink_new (self->ctx, callback);
   }
 
   return JSValueMakeUndefined (ctx);
@@ -416,11 +635,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   if (!_gumjs_args_parse (args, "C?", &callback))
     return NULL;
 
-  gum_message_sink_free (self->incoming_message_sink);
+  gum_script_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
   if (callback != NULL)
-    self->incoming_message_sink = gum_message_sink_new (self->ctx, callback);
+  {
+    self->incoming_message_sink = gum_script_message_sink_new (self->ctx,
+        callback);
+  }
 
   return JSValueMakeUndefined (ctx);
 }
@@ -449,11 +671,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
-  GumNativePointer * ptr;
+  GumScriptNativePointer * self = JSObjectGetPrivate (object);
 
-  ptr = JSObjectGetPrivate (object);
-
-  g_slice_free1 (ptr->instance_size, ptr);
+  g_slice_free1 (self->instance_size, self);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
@@ -592,6 +812,44 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   return _gumjs_string_to_value (ctx, str);
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
+{
+  _gumjs_throw (ctx, exception, "invalid argument");
+  return NULL;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
+{
+  GumScriptCpuContext * self = JSObjectGetPrivate (object);
+
+  g_slice_free (GumScriptCpuContext, self);
+}
+
+static bool
+gumjs_cpu_context_set_register (GumScriptCpuContext * self,
+                                JSContextRef ctx,
+                                const GumScriptArgs * args,
+                                gsize * reg,
+                                JSValueRef * exception)
+{
+  gpointer value;
+
+  if (self->access == GUM_CPU_CONTEXT_READONLY)
+    goto invalid_operation;
+
+  if (!_gumjs_args_parse (args, "p~", &value))
+    return false;
+
+  *reg = GPOINTER_TO_SIZE (value);
+  return true;
+
+invalid_operation:
+  {
+    _gumjs_throw (ctx, exception, "invalid operation");
+    return false;
+  }
+}
+
 static JSValueRef
 gum_script_core_schedule_callback (GumScriptCore * self,
                                    const GumScriptArgs * args,
@@ -601,7 +859,7 @@ gum_script_core_schedule_callback (GumScriptCore * self,
   guint delay;
   gint id;
   GSource * source;
-  GumScheduledCallback * callback;
+  GumScriptScheduledCallback * callback;
 
   if (!_gumjs_args_parse (args, "Cu", &func, &delay))
     return NULL;
@@ -625,30 +883,30 @@ gum_script_core_schedule_callback (GumScriptCore * self,
 
 static void
 gum_script_core_add_scheduled_callback (GumScriptCore * self,
-                                        GumScheduledCallback * callback)
+                                        GumScriptScheduledCallback * cb)
 {
   self->scheduled_callbacks =
-      g_slist_prepend (self->scheduled_callbacks, callback);
+      g_slist_prepend (self->scheduled_callbacks, cb);
 }
 
 static void
 gum_script_core_remove_scheduled_callback (GumScriptCore * self,
-                                           GumScheduledCallback * callback)
+                                           GumScriptScheduledCallback * cb)
 {
   self->scheduled_callbacks =
-      g_slist_remove (self->scheduled_callbacks, callback);
+      g_slist_remove (self->scheduled_callbacks, cb);
 }
 
-static GumScheduledCallback *
+static GumScriptScheduledCallback *
 gum_scheduled_callback_new (gint id,
                             JSObjectRef func,
                             gboolean repeat,
                             GSource * source,
                             GumScriptCore * core)
 {
-  GumScheduledCallback * callback;
+  GumScriptScheduledCallback * callback;
 
-  callback = g_slice_new (GumScheduledCallback);
+  callback = g_slice_new (GumScriptScheduledCallback);
   callback->id = id;
   JSValueProtect (core->ctx, func);
   callback->func = func;
@@ -660,17 +918,17 @@ gum_scheduled_callback_new (gint id,
 }
 
 static void
-gum_scheduled_callback_free (GumScheduledCallback * callback)
+gum_scheduled_callback_free (GumScriptScheduledCallback * callback)
 {
   JSValueUnprotect (callback->core->ctx, callback->func);
 
-  g_slice_free (GumScheduledCallback, callback);
+  g_slice_free (GumScriptScheduledCallback, callback);
 }
 
 static gboolean
 gum_scheduled_callback_invoke (gpointer user_data)
 {
-  GumScheduledCallback * self = user_data;
+  GumScriptScheduledCallback * self = user_data;
   GumScriptCore * core = self->core;
   GumScriptScope scope;
 
@@ -685,13 +943,13 @@ gum_scheduled_callback_invoke (gpointer user_data)
   return self->repeat;
 }
 
-static GumExceptionSink *
-gum_exception_sink_new (JSContextRef ctx,
-                        JSObjectRef callback)
+static GumScriptExceptionSink *
+gum_script_exception_sink_new (JSContextRef ctx,
+                               JSObjectRef callback)
 {
-  GumExceptionSink * sink;
+  GumScriptExceptionSink * sink;
 
-  sink = g_slice_new (GumExceptionSink);
+  sink = g_slice_new (GumScriptExceptionSink);
   JSValueProtect (ctx, callback);
   sink->callback = callback;
   sink->ctx = ctx;
@@ -700,30 +958,30 @@ gum_exception_sink_new (JSContextRef ctx,
 }
 
 static void
-gum_exception_sink_free (GumExceptionSink * sink)
+gum_script_exception_sink_free (GumScriptExceptionSink * sink)
 {
   if (sink == NULL)
     return;
 
   JSValueUnprotect (sink->ctx, sink->callback);
 
-  g_slice_free (GumExceptionSink, sink);
+  g_slice_free (GumScriptExceptionSink, sink);
 }
 
 static void
-gum_exception_sink_handle_exception (GumExceptionSink * self,
-                                     JSValueRef exception)
+gum_script_exception_sink_handle_exception (GumScriptExceptionSink * self,
+                                            JSValueRef exception)
 {
   JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &exception, NULL);
 }
 
-static GumMessageSink *
-gum_message_sink_new (JSContextRef ctx,
-                      JSObjectRef callback)
+static GumScriptMessageSink *
+gum_script_message_sink_new (JSContextRef ctx,
+                             JSObjectRef callback)
 {
-  GumMessageSink * sink;
+  GumScriptMessageSink * sink;
 
-  sink = g_slice_new (GumMessageSink);
+  sink = g_slice_new (GumScriptMessageSink);
   JSValueProtect (ctx, callback);
   sink->callback = callback;
   sink->ctx = ctx;
@@ -732,20 +990,20 @@ gum_message_sink_new (JSContextRef ctx,
 }
 
 static void
-gum_message_sink_free (GumMessageSink * sink)
+gum_script_message_sink_free (GumScriptMessageSink * sink)
 {
   if (sink == NULL)
     return;
 
   JSValueUnprotect (sink->ctx, sink->callback);
 
-  g_slice_free (GumMessageSink, sink);
+  g_slice_free (GumScriptMessageSink, sink);
 }
 
 static void
-gum_message_sink_handle_message (GumMessageSink * self,
-                                 const gchar * message,
-                                 JSValueRef * exception)
+gum_script_message_sink_handle_message (GumScriptMessageSink * self,
+                                        const gchar * message,
+                                        JSValueRef * exception)
 {
   JSValueRef message_value;
 

@@ -20,12 +20,14 @@ typedef struct _GumScriptScope GumScriptScope;
 typedef struct _GumScriptYield GumScriptYield;
 typedef struct _GumScriptWeakRef GumScriptWeakRef;
 
-typedef struct _GumScheduledCallback GumScheduledCallback;
-typedef struct _GumExceptionSink GumExceptionSink;
-typedef struct _GumMessageSink GumMessageSink;
+typedef struct _GumScriptScheduledCallback GumScriptScheduledCallback;
+typedef struct _GumScriptExceptionSink GumScriptExceptionSink;
+typedef struct _GumScriptMessageSink GumScriptMessageSink;
 
-typedef struct _GumNativePointer GumNativePointer;
-typedef struct _GumNativeResource GumNativeResource;
+typedef struct _GumScriptNativePointer GumScriptNativePointer;
+typedef struct _GumScriptCpuContext GumScriptCpuContext;
+typedef guint GumScriptCpuContextAccess;
+typedef struct _GumScriptNativeResource GumScriptNativeResource;
 
 typedef void (* GumScriptWeakNotify) (gpointer data);
 typedef void (* GumScriptCoreMessageEmitter) (GumScript * script,
@@ -44,8 +46,8 @@ struct _GumScriptCore
   GCond event_cond;
   volatile guint event_count;
 
-  GumExceptionSink * unhandled_exception_sink;
-  GumMessageSink * incoming_message_sink;
+  GumScriptExceptionSink * unhandled_exception_sink;
+  GumScriptMessageSink * incoming_message_sink;
 
   GSList * scheduled_callbacks;
   volatile gint last_callback_id;
@@ -53,6 +55,7 @@ struct _GumScriptCore
   GHashTable * native_resources;
 
   JSClassRef native_pointer;
+  JSClassRef cpu_context;
   JSObjectRef array_buffer;
 };
 
@@ -67,13 +70,26 @@ struct _GumScriptYield
   GumScriptCore * core;
 };
 
-struct _GumNativePointer
+struct _GumScriptNativePointer
 {
   gsize instance_size;
   gpointer value;
 };
 
-struct _GumNativeResource
+struct _GumScriptCpuContext
+{
+  GumCpuContext * handle;
+  GumScriptCpuContextAccess access;
+  GumCpuContext storage;
+};
+
+enum _GumScriptCpuContextAccess
+{
+  GUM_CPU_CONTEXT_READONLY = 1,
+  GUM_CPU_CONTEXT_READWRITE
+};
+
+struct _GumScriptNativeResource
 {
   GumScriptWeakRef * weak_ref;
   gpointer data;
