@@ -34,7 +34,7 @@ _gum_script_file_init (GumScriptFile * self,
   def.className = "File";
   def.staticFunctions = gumjs_file_functions;
   self->file = JSClassCreate (&def);
-  _gumjs_object_set (ctx, scope, "File", JSObjectMakeConstructor (ctx,
+  _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
       self->file, gumjs_file_construct));
 }
 

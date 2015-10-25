@@ -76,7 +76,7 @@ _gum_script_stalker_init (GumScriptStalker * self,
   klass = JSClassCreate (&def);
   stalker = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Stalker", stalker);
+  _gumjs_object_set (ctx, scope, def.className, stalker);
 }
 
 void

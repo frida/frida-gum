@@ -37,7 +37,7 @@ _gum_script_socket_init (GumScriptSocket * self,
   klass = JSClassCreate (&def);
   socket = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Socket", socket);
+  _gumjs_object_set (ctx, scope, def.className, socket);
 }
 
 void

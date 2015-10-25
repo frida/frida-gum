@@ -44,7 +44,7 @@ _gum_script_thread_init (GumScriptThread * self,
   klass = JSClassCreate (&def);
   thread = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Thread", thread);
+  _gumjs_object_set (ctx, scope, def.className, thread);
 
   backtracer = JSObjectMake (ctx, NULL, NULL);
   _gumjs_object_set_uint (ctx, backtracer, "ACCURATE", GUM_BACKTRACER_ACCURATE);

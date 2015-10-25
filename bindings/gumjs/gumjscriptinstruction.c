@@ -35,7 +35,7 @@ _gum_script_instruction_init (GumScriptInstruction * self,
   klass = JSClassCreate (&def);
   instruction = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Instruction", instruction);
+  _gumjs_object_set (ctx, scope, def.className, instruction);
 }
 
 void

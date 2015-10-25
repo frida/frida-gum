@@ -65,7 +65,7 @@ _gum_script_process_init (GumScriptProcess * self,
   _gumjs_object_set_uint (ctx, process, "pageSize", gum_query_page_size ());
   _gumjs_object_set_uint (ctx, process, "pointerSize", GLIB_SIZEOF_VOID_P);
 
-  _gumjs_object_set (ctx, scope, "Process", process);
+  _gumjs_object_set (ctx, scope, def.className, process);
 }
 
 void

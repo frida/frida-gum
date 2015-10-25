@@ -171,7 +171,7 @@ _gum_script_memory_init (GumScriptMemory * self,
   klass = JSClassCreate (&def);
   memory = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Memory", memory);
+  _gumjs_object_set (ctx, scope, def.className, memory);
 
   def = kJSClassDefinitionEmpty;
   def.className = "MemoryAccessMonitor";
@@ -179,7 +179,7 @@ _gum_script_memory_init (GumScriptMemory * self,
   klass = JSClassCreate (&def);
   memory_access_monitor = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "MemoryAccessMonitor", memory_access_monitor);
+  _gumjs_object_set (ctx, scope, def.className, memory_access_monitor);
 }
 
 void

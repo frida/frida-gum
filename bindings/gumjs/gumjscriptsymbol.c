@@ -35,12 +35,12 @@ _gum_script_symbol_init (GumScriptSymbol * self,
   self->core = core;
 
   def = kJSClassDefinitionEmpty;
-  def.className = "Symbol";
+  def.className = "DebugSymbol";
   def.staticFunctions = gumjs_symbol_functions;
   klass = JSClassCreate (&def);
   symbol = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "DebugSymbol", symbol);
+  _gumjs_object_set (ctx, scope, def.className, symbol);
 }
 
 void

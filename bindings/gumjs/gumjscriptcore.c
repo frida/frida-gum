@@ -354,7 +354,7 @@ _gum_script_core_init (GumScriptCore * self,
   klass = JSClassCreate (&def);
   obj = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Script", obj);
+  _gumjs_object_set (ctx, scope, def.className, obj);
 
   _gumjs_object_set_function (ctx, scope, "setTimeout", gumjs_set_timeout);
   _gumjs_object_set_function (ctx, scope, "clearTimeout", gumjs_clear_timer);
@@ -377,7 +377,7 @@ _gum_script_core_init (GumScriptCore * self,
   def.staticFunctions = gumjs_native_pointer_functions;
   def.finalize = gumjs_native_pointer_finalize;
   self->native_pointer = JSClassCreate (&def);
-  _gumjs_object_set (ctx, scope, "NativePointer", JSObjectMakeConstructor (ctx,
+  _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
 
   def = kJSClassDefinitionEmpty;
@@ -385,7 +385,7 @@ _gum_script_core_init (GumScriptCore * self,
   def.staticValues = gumjs_cpu_context_values;
   def.finalize = gumjs_cpu_context_finalize;
   self->cpu_context = JSClassCreate (&def);
-  _gumjs_object_set (ctx, scope, "CpuContext", JSObjectMakeConstructor (ctx,
+  _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
       self->cpu_context, gumjs_cpu_context_construct));
 
   self->array_buffer =

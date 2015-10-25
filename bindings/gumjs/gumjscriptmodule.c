@@ -39,7 +39,7 @@ _gum_script_module_init (GumScriptModule * self,
   klass = JSClassCreate (&def);
   module = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Module", module);
+  _gumjs_object_set (ctx, scope, def.className, module);
 }
 
 void

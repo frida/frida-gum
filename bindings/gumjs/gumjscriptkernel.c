@@ -44,7 +44,7 @@ _gum_script_kernel_init (GumScriptKernel * self,
   klass = JSClassCreate (&def);
   kernel = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Kernel", kernel);
+  _gumjs_object_set (ctx, scope, def.className, kernel);
 
   def = kJSClassDefinitionEmpty;
   def.className = "Memory";
@@ -52,7 +52,7 @@ _gum_script_kernel_init (GumScriptKernel * self,
   klass = JSClassCreate (&def);
   memory = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Memory", memory);
+  _gumjs_object_set (ctx, scope, def.className, memory);
 }
 
 void
