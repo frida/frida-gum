@@ -410,8 +410,7 @@ _gum_script_core_flush (GumScriptCore * self)
 void
 _gum_script_core_dispose (GumScriptCore * self)
 {
-  g_hash_table_unref (self->native_resources);
-  self->native_resources = NULL;
+  g_clear_pointer (&self->native_resources, g_hash_table_unref);
 
   while (self->scheduled_callbacks != NULL)
   {
@@ -421,23 +420,18 @@ _gum_script_core_dispose (GumScriptCore * self)
         self->scheduled_callbacks, self->scheduled_callbacks);
   }
 
-  gum_script_exception_sink_free (self->unhandled_exception_sink);
-  self->unhandled_exception_sink = NULL;
+  g_clear_pointer (&self->unhandled_exception_sink,
+      gum_script_exception_sink_free);
 
-  gum_script_message_sink_free (self->incoming_message_sink);
-  self->incoming_message_sink = NULL;
+  g_clear_pointer (&self->incoming_message_sink, gum_script_message_sink_free);
 
   JSValueUnprotect (self->ctx, self->array_buffer);
   self->array_buffer = NULL;
 
-  JSClassRelease (self->cpu_context);
-  self->cpu_context = NULL;
+  g_clear_pointer (&self->cpu_context, JSClassRelease);
+  g_clear_pointer (&self->native_pointer, JSClassRelease);
 
-  JSClassRelease (self->native_pointer);
-  self->native_pointer = NULL;
-
-  g_object_unref (self->exceptor);
-  self->exceptor = NULL;
+  g_clear_pointer (&self->exceptor, g_object_unref);
 }
 
 void
@@ -612,8 +606,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
-  gum_script_exception_sink_free (self->unhandled_exception_sink);
-  self->unhandled_exception_sink = NULL;
+  g_clear_pointer (&self->unhandled_exception_sink,
+      gum_script_exception_sink_free);
 
   if (callback != NULL)
   {
@@ -632,8 +626,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
-  gum_script_message_sink_free (self->incoming_message_sink);
-  self->incoming_message_sink = NULL;
+  g_clear_pointer (&self->incoming_message_sink, gum_script_message_sink_free);
 
   if (callback != NULL)
   {
@@ -957,9 +950,6 @@ gum_script_exception_sink_new (JSContextRef ctx,
 static void
 gum_script_exception_sink_free (GumScriptExceptionSink * sink)
 {
-  if (sink == NULL)
-    return;
-
   JSValueUnprotect (sink->ctx, sink->callback);
 
   g_slice_free (GumScriptExceptionSink, sink);
@@ -989,9 +979,6 @@ gum_script_message_sink_new (JSContextRef ctx,
 static void
 gum_script_message_sink_free (GumScriptMessageSink * sink)
 {
-  if (sink == NULL)
-    return;
-
   JSValueUnprotect (sink->ctx, sink->callback);
 
   g_slice_free (GumScriptMessageSink, sink);

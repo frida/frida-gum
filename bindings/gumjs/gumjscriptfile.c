@@ -41,8 +41,7 @@ _gum_script_file_init (GumScriptFile * self,
 void
 _gum_script_file_dispose (GumScriptFile * self)
 {
-  JSClassRelease (self->file);
-  self->file = NULL;
+  g_clear_pointer (&self->file, JSClassRelease);
 }
 
 void

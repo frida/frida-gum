@@ -204,24 +204,18 @@ _gum_script_interceptor_dispose (GumScriptInterceptor * self)
 
   g_hash_table_remove_all (self->replacement_by_address);
 
-  JSClassRelease (self->invocation_context);
-  self->invocation_context = NULL;
-
-  JSClassRelease (self->invocation_args);
-  self->invocation_args = NULL;
-
-  JSClassRelease (self->invocation_retval);
-  self->invocation_retval = NULL;
+  g_clear_pointer (&self->invocation_retval, JSClassRelease);
+  g_clear_pointer (&self->invocation_args, JSClassRelease);
+  g_clear_pointer (&self->invocation_context, JSClassRelease);
 }
 
 void
 _gum_script_interceptor_finalize (GumScriptInterceptor * self)
 {
-  g_queue_free (self->attach_entries);
-  g_hash_table_unref (self->replacement_by_address);
+  g_clear_pointer (&self->attach_entries, g_queue_free);
+  g_clear_pointer (&self->replacement_by_address, g_hash_table_unref);
 
-  g_object_unref (self->interceptor);
-  self->interceptor = NULL;
+  g_clear_pointer (&self->interceptor, g_object_unref);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)

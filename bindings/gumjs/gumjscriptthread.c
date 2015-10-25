@@ -61,17 +61,8 @@ _gum_script_thread_dispose (GumScriptThread * self)
 void
 _gum_script_thread_finalize (GumScriptThread * self)
 {
-  if (self->accurate_backtracer != NULL)
-  {
-    g_object_unref (self->accurate_backtracer);
-    self->accurate_backtracer = NULL;
-  }
-
-  if (self->fuzzy_backtracer != NULL)
-  {
-    g_object_unref (self->fuzzy_backtracer);
-    self->fuzzy_backtracer = NULL;
-  }
+  g_clear_pointer (&self->accurate_backtracer, g_object_unref);
+  g_clear_pointer (&self->fuzzy_backtracer , g_object_unref);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)

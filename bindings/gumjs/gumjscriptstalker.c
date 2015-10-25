@@ -85,8 +85,7 @@ _gum_script_stalker_flush (GumScriptStalker * self)
   if (self->stalker != NULL)
   {
     gum_stalker_stop (self->stalker);
-    g_object_unref (self->stalker);
-    self->stalker = NULL;
+    g_clear_pointer (&self->stalker, g_object_unref);
   }
 }
 
