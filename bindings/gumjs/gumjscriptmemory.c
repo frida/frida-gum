@@ -774,7 +774,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   guint size;
   gchar * match_str;
 
-  if (!_gumjs_args_parse (args, "pusC{onMatch,onError?,onComplete}", &address,
+  if (!_gumjs_args_parse (args, "pusF{onMatch,onError?,onComplete}", &address,
       &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
     return NULL;
   sc.range.base_address = GUM_ADDRESS (address);

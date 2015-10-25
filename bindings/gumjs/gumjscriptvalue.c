@@ -225,7 +225,7 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         break;
       }
-      case 'C':
+      case 'F':
       {
         JSObjectRef func;
         gboolean is_object, is_nullable;
