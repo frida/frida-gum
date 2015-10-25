@@ -324,6 +324,32 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         break;
       }
+      case 'C':
+      {
+        GumCpuContext * cpu_context;
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable)
+        {
+          if (!_gumjs_cpu_context_try_get_opt (ctx, value, core, &cpu_context,
+              exception))
+            goto error;
+        }
+        else
+        {
+          if (!_gumjs_cpu_context_try_get (ctx, value, core, &cpu_context,
+              exception))
+            goto error;
+        }
+
+        *va_arg (ap, GumCpuContext **) = cpu_context;
+
+        break;
+      }
       default:
         g_assert_not_reached ();
     }
@@ -936,6 +962,60 @@ _gumjs_cpu_context_detach (JSValueRef value)
     memcpy (&self->storage, self->handle, sizeof (GumCpuContext));
     self->handle = &self->storage;
     self->access = GUM_CPU_CONTEXT_READONLY;
+  }
+}
+
+gboolean
+_gumjs_cpu_context_try_get (JSContextRef ctx,
+                            JSValueRef value,
+                            GumScriptCore * core,
+                            GumCpuContext ** cpu_context,
+                            JSValueRef * exception)
+{
+  if (!_gumjs_cpu_context_try_get_opt (ctx, value, core, cpu_context,
+      exception))
+    return FALSE;
+
+  if (*cpu_context == NULL)
+    goto cpu_context_required;
+
+  return TRUE;
+
+cpu_context_required:
+  {
+    _gumjs_throw (ctx, exception, "CpuContext required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_cpu_context_try_get_opt (JSContextRef ctx,
+                                JSValueRef value,
+                                GumScriptCore * core,
+                                GumCpuContext ** cpu_context,
+                                JSValueRef * exception)
+{
+  if (JSValueIsObjectOfClass (ctx, value, core->cpu_context))
+  {
+    GumScriptCpuContext * instance;
+
+    instance = JSObjectGetPrivate ((JSObjectRef) value);
+
+    *cpu_context = instance->handle;
+    return TRUE;
+  }
+  else if (JSValueIsUndefined (ctx, value) || JSValueIsNull (ctx, value))
+  {
+    *cpu_context = NULL;
+    return TRUE;
+  }
+
+  goto invalid_value;
+
+invalid_value:
+  {
+    _gumjs_throw (ctx, exception, "invalid CpuContext value");
+    return FALSE;
   }
 }
 
