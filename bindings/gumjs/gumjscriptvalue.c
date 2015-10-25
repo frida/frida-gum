@@ -225,6 +225,40 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         break;
       }
+      case 'V':
+      {
+        *va_arg (ap, JSValueRef *) = value;
+
+        break;
+      }
+      case 'A':
+      {
+        JSObjectRef array;
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (JSValueIsArray (ctx, value))
+        {
+          array = (JSObjectRef) value;
+        }
+        else if (is_nullable &&
+            (JSValueIsUndefined (ctx, value) || JSValueIsNull (ctx, value)))
+        {
+          array = NULL;
+        }
+        else
+        {
+          _gumjs_throw (ctx, exception, "expected an array");
+          goto error;
+        }
+
+        *va_arg (ap, JSObjectRef *) = array;
+
+        break;
+      }
       case 'F':
       {
         JSObjectRef func;
