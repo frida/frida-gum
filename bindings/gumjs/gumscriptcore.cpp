@@ -1627,8 +1627,6 @@ gum_script_core_on_new_native_function (
 
 error:
   gum_ffi_function_free (func);
-
-  return;
 }
 
 static void
@@ -1864,7 +1862,6 @@ gum_script_core_on_new_native_callback (
 
 error:
   gum_ffi_callback_free (callback);
-  return;
 }
 
 static void
