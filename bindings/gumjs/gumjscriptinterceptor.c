@@ -71,6 +71,7 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_cpu_context)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_system_error)
 GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_system_error)
+GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
 static JSObjectRef gumjs_invocation_args_new (JSContextRef ctx,
@@ -121,6 +122,12 @@ static const JSStaticValue gumjs_invocation_context_values[] =
     gumjs_invocation_context_get_system_error,
     gumjs_invocation_context_set_system_error,
     GUMJS_RW
+  },
+  {
+    "threadId",
+    gumjs_invocation_context_get_thread_id,
+    NULL,
+    GUMJS_RO
   },
   {
     "depth",
@@ -501,6 +508,17 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
 
   self->handle->system_error = value;
   return true;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_thread_id)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return NULL;
+
+  return JSValueMakeNumber (ctx,
+      gum_invocation_context_get_thread_id (self->handle));
 }
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)

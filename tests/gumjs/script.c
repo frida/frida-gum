@@ -30,6 +30,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (system_error_can_be_read)
   SCRIPT_TESTENTRY (system_error_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
+  SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
@@ -1592,6 +1593,37 @@ SCRIPT_TESTCASE (invocations_are_bound_on_tls_object)
   target_function_int (11);
   EXPECT_SEND_MESSAGE_WITH ("null");
   EXPECT_SEND_MESSAGE_WITH ("11");
+}
+
+SCRIPT_TESTCASE (invocations_provide_thread_id)
+{
+  guint i;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send(this.threadId);"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send(this.threadId);"
+      "  }"
+      "});",
+      target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  target_function_int (7);
+  for (i = 0; i != 2; i++)
+  {
+    TestScriptMessageItem * item;
+    gint id;
+
+    item = test_script_fixture_pop_message (fixture);
+    id = 0;
+    sscanf (item->message, "{\"type\":\"send\",\"payload\":%d}", &id);
+    g_assert (id != 0);
+    test_script_message_item_free (item);
+    g_assert_cmpint (id, ==, gum_process_get_current_thread_id ());
+  }
 }
 
 SCRIPT_TESTCASE (invocations_provide_call_depth)
