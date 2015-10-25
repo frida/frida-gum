@@ -55,6 +55,7 @@ struct _GumScriptCore
   GHashTable * native_resources;
 
   JSClassRef native_pointer;
+  JSClassRef native_function;
   JSClassRef cpu_context;
   JSObjectRef array_buffer;
 };
@@ -94,6 +95,7 @@ struct _GumScriptNativeResource
   GumScriptWeakRef * weak_ref;
   gpointer data;
   GDestroyNotify notify;
+
   GumScriptCore * core;
 };
 
