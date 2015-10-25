@@ -14,6 +14,12 @@
 #define GUM_SCRIPT_INVOCATION_CONTEXT(o) \
   ((GumScriptInvocationContext *) JSObjectGetPrivate (o))
 
+#ifdef G_OS_WIN32
+# define GUM_SYSTEM_ERROR_FIELD "lastError"
+#else
+# define GUM_SYSTEM_ERROR_FIELD "errno"
+#endif
+
 typedef struct _GumScriptInvocationContext GumScriptInvocationContext;
 typedef struct _GumScriptInvocationReturnValue GumScriptInvocationReturnValue;
 typedef struct _GumScriptAttachEntry GumScriptAttachEntry;
@@ -63,6 +69,8 @@ static void gumjs_invocation_context_update_handle (JSObjectRef jic,
     GumInvocationContext * handle);
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_cpu_context)
+GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_system_error)
+GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_system_error)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
 static JSObjectRef gumjs_invocation_args_new (JSContextRef ctx,
@@ -107,6 +115,12 @@ static const JSStaticValue gumjs_invocation_context_values[] =
     gumjs_invocation_context_get_cpu_context,
     NULL,
     GUMJS_RO
+  },
+  {
+    GUM_SYSTEM_ERROR_FIELD,
+    gumjs_invocation_context_get_system_error,
+    gumjs_invocation_context_set_system_error,
+    GUMJS_RW
   },
   {
     "depth",
@@ -460,6 +474,33 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
   }
 
   return self->cpu_context;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_system_error)
+{
+  GumScriptInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return NULL;
+
+  return JSValueMakeNumber (ctx, self->handle->system_error);
+}
+
+GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
+{
+  gint value;
+  GumScriptInvocationContext * self;
+
+  if (!_gumjs_args_parse (args, "i", &value))
+    return false;
+
+  self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+
+  if (!gumjs_invocation_context_check_valid (self, ctx, exception))
+    return false;
+
+  self->handle->system_error = value;
+  return true;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
