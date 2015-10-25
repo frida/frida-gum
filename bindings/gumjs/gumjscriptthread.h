@@ -9,6 +9,8 @@
 
 #include "gumjscriptcore.h"
 
+#include <gum/gumbacktracer.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumScriptThread GumScriptThread;
@@ -16,6 +18,9 @@ typedef struct _GumScriptThread GumScriptThread;
 struct _GumScriptThread
 {
   GumScriptCore * core;
+
+  GumBacktracer * accurate_backtracer;
+  GumBacktracer * fuzzy_backtracer;
 };
 
 G_GNUC_INTERNAL void _gum_script_thread_init (GumScriptThread * self,
