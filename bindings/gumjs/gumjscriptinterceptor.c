@@ -84,15 +84,12 @@ static void gum_script_interceptor_adjust_ignore_level_unlocked (
     GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
 static gboolean gum_flush_pending_unignores (gpointer user_data);
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_interceptor_functions[] =
 {
-  { "_attach", gumjs_interceptor_attach, gumjs_attrs },
-  { "detachAll", gumjs_interceptor_detach_all, gumjs_attrs },
-  { "_replace", gumjs_interceptor_throw_not_yet_available, gumjs_attrs },
-  { "revert", gumjs_interceptor_throw_not_yet_available, gumjs_attrs },
+  { "_attach", gumjs_interceptor_attach, GUMJS_RO },
+  { "detachAll", gumjs_interceptor_detach_all, GUMJS_RO },
+  { "_replace", gumjs_interceptor_throw_not_yet_available, GUMJS_RO },
+  { "revert", gumjs_interceptor_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -103,19 +100,19 @@ static const JSStaticValue gumjs_invocation_context_values[] =
     "returnAddress",
     gumjs_invocation_context_get_return_address,
     NULL,
-    gumjs_attrs
+    GUMJS_RO
   },
   {
     "context",
     gumjs_invocation_context_get_cpu_context,
     NULL,
-    gumjs_attrs
+    GUMJS_RO
   },
   {
     "depth",
     gumjs_invocation_context_get_depth,
     NULL,
-    gumjs_attrs
+    GUMJS_RO
   },
 
   { NULL, NULL, NULL, 0 }
@@ -123,7 +120,7 @@ static const JSStaticValue gumjs_invocation_context_values[] =
 
 static const JSStaticFunction gumjs_invocation_return_value_functions[] =
 {
-  { "replace", gumjs_invocation_return_value_replace, gumjs_attrs },
+  { "replace", gumjs_invocation_return_value_replace, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

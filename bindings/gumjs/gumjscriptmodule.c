@@ -10,16 +10,13 @@
 
 GUMJS_DECLARE_FUNCTION (gumjs_module_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_module_functions[] =
 {
-  { "enumerateImports", gumjs_module_throw_not_yet_available, gumjs_attrs },
-  { "enumerateExports", gumjs_module_throw_not_yet_available, gumjs_attrs },
-  { "enumerateRanges", gumjs_module_throw_not_yet_available, gumjs_attrs },
-  { "findBaseAddress", gumjs_module_throw_not_yet_available, gumjs_attrs },
-  { "findExportByName", gumjs_module_throw_not_yet_available, gumjs_attrs },
+  { "enumerateImports", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "enumerateExports", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "enumerateRanges", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "findBaseAddress", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "findExportByName", gumjs_module_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

@@ -9,6 +9,9 @@
 
 #include "gumjscriptvalue.h"
 
+#define GUMJS_RO (kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete)
+#define GUMJS_RW (kJSPropertyAttributeDontDelete)
+
 #define GUMJS_DECLARE_CONSTRUCTOR(N) \
   static JSObjectRef N (JSContextRef ctx, JSObjectRef constructor, \
       size_t argument_count, const JSValueRef arguments[], \

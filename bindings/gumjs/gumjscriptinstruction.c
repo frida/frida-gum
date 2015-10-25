@@ -10,12 +10,9 @@
 
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_instruction_functions[] =
 {
-  { "_parse", gumjs_instruction_throw_not_yet_available, gumjs_attrs },
+  { "_parse", gumjs_instruction_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

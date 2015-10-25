@@ -10,21 +10,18 @@
 
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_kernel_functions[] =
 {
-  { "enumerateThreads", gumjs_kernel_throw_not_yet_available, gumjs_attrs },
+  { "enumerateThreads", gumjs_kernel_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
 
 static const JSStaticFunction gumjs_kmemory_functions[] =
 {
-  { "readByteArray", gumjs_kernel_throw_not_yet_available, gumjs_attrs },
-  { "writeByteArray", gumjs_kernel_throw_not_yet_available, gumjs_attrs },
-  { "_enumerateRanges", gumjs_kernel_throw_not_yet_available, gumjs_attrs },
+  { "readByteArray", gumjs_kernel_throw_not_yet_available, GUMJS_RO },
+  { "writeByteArray", gumjs_kernel_throw_not_yet_available, GUMJS_RO },
+  { "_enumerateRanges", gumjs_kernel_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

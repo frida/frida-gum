@@ -88,30 +88,27 @@ static void gum_script_message_sink_free (GumScriptMessageSink * sink);
 static void gum_script_message_sink_handle_message (GumScriptMessageSink * self,
     const gchar * message, JSValueRef * exception);
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticValue gumjs_script_values[] =
 {
-  { "fileName", gumjs_script_get_file_name, NULL, gumjs_attrs },
-  { "_sourceMapData", gumjs_script_get_source_map_data, NULL, gumjs_attrs },
+  { "fileName", gumjs_script_get_file_name, NULL, GUMJS_RO },
+  { "_sourceMapData", gumjs_script_get_source_map_data, NULL, GUMJS_RO },
 
   { NULL, NULL, NULL, 0 }
 };
 
 static const JSStaticFunction gumjs_native_pointer_functions[] =
 {
-  { "isNull", gumjs_native_pointer_is_null, gumjs_attrs },
-  { "add", gumjs_native_pointer_add, gumjs_attrs },
-  { "sub", gumjs_native_pointer_sub, gumjs_attrs },
-  { "and", gumjs_native_pointer_and, gumjs_attrs },
-  { "or", gumjs_native_pointer_or, gumjs_attrs },
-  { "xor", gumjs_native_pointer_xor, gumjs_attrs },
-  { "compare", gumjs_native_pointer_compare, gumjs_attrs },
-  { "toInt32", gumjs_native_pointer_to_int32, gumjs_attrs },
-  { "toString", gumjs_native_pointer_to_string, gumjs_attrs },
-  { "toJSON", gumjs_native_pointer_to_json, gumjs_attrs },
-  { "toMatchPattern", gumjs_native_pointer_to_match_pattern, gumjs_attrs },
+  { "isNull", gumjs_native_pointer_is_null, GUMJS_RO },
+  { "add", gumjs_native_pointer_add, GUMJS_RO },
+  { "sub", gumjs_native_pointer_sub, GUMJS_RO },
+  { "and", gumjs_native_pointer_and, GUMJS_RO },
+  { "or", gumjs_native_pointer_or, GUMJS_RO },
+  { "xor", gumjs_native_pointer_xor, GUMJS_RO },
+  { "compare", gumjs_native_pointer_compare, GUMJS_RO },
+  { "toInt32", gumjs_native_pointer_to_int32, GUMJS_RO },
+  { "toString", gumjs_native_pointer_to_string, GUMJS_RO },
+  { "toJSON", gumjs_native_pointer_to_json, GUMJS_RO },
+  { "toMatchPattern", gumjs_native_pointer_to_match_pattern, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -137,7 +134,7 @@ static const JSStaticFunction gumjs_native_pointer_functions[] =
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
   { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R, \
-    gumjs_attrs }
+    GUMJS_RW }
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 

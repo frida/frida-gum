@@ -19,28 +19,25 @@ GUMJS_DECLARE_SETTER (gumjs_stalker_set_queue_drain_interval)
 
 GUMJS_DECLARE_FUNCTION (gumjs_stalker_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticValue gumjs_stalker_values[] =
 {
   {
     "trustThreshold",
     gumjs_stalker_get_trust_threshold,
     gumjs_stalker_set_trust_threshold,
-    gumjs_attrs
+    GUMJS_RW
   },
   {
     "queueCapacity",
     gumjs_stalker_get_queue_capacity,
     gumjs_stalker_set_queue_capacity,
-    gumjs_attrs
+    GUMJS_RW
   },
   {
     "queueDrainInterval",
     gumjs_stalker_get_queue_drain_interval,
     gumjs_stalker_set_queue_drain_interval,
-    gumjs_attrs
+    GUMJS_RW
   },
 
   { NULL, NULL, NULL, 0 }
@@ -48,11 +45,11 @@ static const JSStaticValue gumjs_stalker_values[] =
 
 static const JSStaticFunction gumjs_stalker_functions[] =
 {
-  { "garbageCollect", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
-  { "follow", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
-  { "unfollow", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
-  { "addCallProbe", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
-  { "removeCallProbe", gumjs_stalker_throw_not_yet_available, gumjs_attrs },
+  { "garbageCollect", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
+  { "follow", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
+  { "unfollow", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
+  { "addCallProbe", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
+  { "removeCallProbe", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

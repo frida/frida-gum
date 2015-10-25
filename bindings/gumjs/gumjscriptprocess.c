@@ -33,13 +33,10 @@
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_process_functions[] =
 {
-  { "isDebuggerAttached", gumjs_process_is_debugger_attached, gumjs_attrs },
-  { "getCurrentThreadId", gumjs_process_get_current_thread_id, gumjs_attrs },
+  { "isDebuggerAttached", gumjs_process_is_debugger_attached, GUMJS_RO },
+  { "getCurrentThreadId", gumjs_process_get_current_thread_id, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

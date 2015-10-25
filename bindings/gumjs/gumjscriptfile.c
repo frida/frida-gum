@@ -11,14 +11,11 @@
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_file_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_file_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_file_functions[] =
 {
-  { "write", gumjs_file_throw_not_yet_available, gumjs_attrs },
-  { "flush", gumjs_file_throw_not_yet_available, gumjs_attrs },
-  { "close", gumjs_file_throw_not_yet_available, gumjs_attrs },
+  { "write", gumjs_file_throw_not_yet_available, GUMJS_RO },
+  { "flush", gumjs_file_throw_not_yet_available, GUMJS_RO },
+  { "close", gumjs_file_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

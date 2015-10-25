@@ -10,14 +10,11 @@
 
 GUMJS_DECLARE_FUNCTION (gumjs_socket_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_socket_functions[] =
 {
-  { "type", gumjs_socket_throw_not_yet_available, gumjs_attrs },
-  { "localAddress", gumjs_socket_throw_not_yet_available, gumjs_attrs },
-  { "peerAddress", gumjs_socket_throw_not_yet_available, gumjs_attrs },
+  { "type", gumjs_socket_throw_not_yet_available, GUMJS_RO },
+  { "localAddress", gumjs_socket_throw_not_yet_available, GUMJS_RO },
+  { "peerAddress", gumjs_socket_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

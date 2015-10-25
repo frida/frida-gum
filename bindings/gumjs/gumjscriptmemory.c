@@ -75,9 +75,9 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
   GUMJS_DEFINE_MEMORY_WRITE (T)
 
 #define GUMJS_EXPORT_MEMORY_READ(N, T) \
-  { "read" N, gumjs_memory_read_##T, gumjs_attrs }
+  { "read" N, gumjs_memory_read_##T, GUMJS_RO }
 #define GUMJS_EXPORT_MEMORY_WRITE(N, T) \
-  { "write" N, gumjs_memory_write_##T, gumjs_attrs }
+  { "write" N, gumjs_memory_write_##T, GUMJS_RO }
 #define GUMJS_EXPORT_MEMORY_READ_WRITE(N, T) \
   GUMJS_EXPORT_MEMORY_READ (N, T), \
   GUMJS_EXPORT_MEMORY_WRITE (N, T)
@@ -113,14 +113,11 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_memory_functions[] =
 {
-  { "alloc", gumjs_memory_alloc, gumjs_attrs },
-  { "copy", gumjs_memory_copy, gumjs_attrs },
-  { "protect", gumjs_memory_protect, gumjs_attrs },
+  { "alloc", gumjs_memory_alloc, GUMJS_RO },
+  { "copy", gumjs_memory_copy, GUMJS_RO },
+  { "protect", gumjs_memory_protect, GUMJS_RO },
 
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Pointer", POINTER),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("S8", S8),
@@ -139,19 +136,19 @@ static const JSStaticFunction gumjs_memory_functions[] =
   GUMJS_EXPORT_MEMORY_READ_WRITE ("Utf16String", UTF16_STRING),
   GUMJS_EXPORT_MEMORY_READ_WRITE ("AnsiString", ANSI_STRING),
 
-  { "allocAnsiString", gumjs_memory_alloc_ansi_string, gumjs_attrs },
-  { "allocUtf8String", gumjs_memory_alloc_utf8_string, gumjs_attrs },
-  { "allocUtf16String", gumjs_memory_alloc_utf16_string, gumjs_attrs },
+  { "allocAnsiString", gumjs_memory_alloc_ansi_string, GUMJS_RO },
+  { "allocUtf8String", gumjs_memory_alloc_utf8_string, GUMJS_RO },
+  { "allocUtf16String", gumjs_memory_alloc_utf16_string, GUMJS_RO },
 
-  { "scan", gumjs_memory_scan, gumjs_attrs },
+  { "scan", gumjs_memory_scan, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
 
 static const JSStaticFunction gumjs_memory_access_monitor_functions[] =
 {
-  { "enable", gumjs_memory_access_monitor_enable, gumjs_attrs },
-  { "disable", gumjs_memory_access_monitor_disable, gumjs_attrs },
+  { "enable", gumjs_memory_access_monitor_enable, GUMJS_RO },
+  { "disable", gumjs_memory_access_monitor_disable, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

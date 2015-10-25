@@ -17,13 +17,10 @@ enum _GumBacktracerType
 GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
 GUMJS_DECLARE_FUNCTION (gumjs_thread_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_thread_functions[] =
 {
-  { "backtrace", gumjs_thread_throw_not_yet_available, gumjs_attrs },
-  { "sleep", gumjs_thread_sleep, gumjs_attrs },
+  { "backtrace", gumjs_thread_throw_not_yet_available, GUMJS_RO },
+  { "sleep", gumjs_thread_sleep, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };

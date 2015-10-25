@@ -10,17 +10,14 @@
 
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_throw_not_yet_available)
 
-static const JSPropertyAttributes gumjs_attrs =
-    kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete;
-
 static const JSStaticFunction gumjs_symbol_functions[] =
 {
-  { "fromAddress", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
-  { "fromName", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
-  { "getFunctionByName", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
-  { "findFunctionsNamed", gumjs_symbol_throw_not_yet_available, gumjs_attrs },
+  { "fromAddress", gumjs_symbol_throw_not_yet_available, GUMJS_RO },
+  { "fromName", gumjs_symbol_throw_not_yet_available, GUMJS_RO },
+  { "getFunctionByName", gumjs_symbol_throw_not_yet_available, GUMJS_RO },
+  { "findFunctionsNamed", gumjs_symbol_throw_not_yet_available, GUMJS_RO },
   { "findFunctionsMatching", gumjs_symbol_throw_not_yet_available,
-    gumjs_attrs },
+    GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
