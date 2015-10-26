@@ -84,6 +84,12 @@ G_GNUC_INTERNAL void _gumjs_object_set_string (JSContextRef ctx,
 G_GNUC_INTERNAL gboolean _gumjs_object_try_set_string (JSContextRef ctx,
     JSObjectRef object, const gchar * key, const gchar * value,
     JSValueRef * exception);
+G_GNUC_INTERNAL void _gumjs_object_set_pointer (JSContextRef ctx,
+    JSObjectRef object, const gchar * key, gpointer value,
+    GumScriptCore * core);
+G_GNUC_INTERNAL gboolean _gumjs_object_try_set_pointer (JSContextRef ctx,
+    JSObjectRef object, const gchar * key, gpointer value, GumScriptCore * core,
+    JSValueRef * exception);
 G_GNUC_INTERNAL void _gumjs_object_set_function (JSContextRef ctx,
     JSObjectRef object, const gchar * key,
     JSObjectCallAsFunctionCallback callback);

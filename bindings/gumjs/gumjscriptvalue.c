@@ -780,6 +780,32 @@ _gumjs_object_try_set_string (JSContextRef ctx,
 }
 
 void
+_gumjs_object_set_pointer (JSContextRef ctx,
+                           JSObjectRef object,
+                           const gchar * key,
+                           gpointer value,
+                           GumScriptCore * core)
+{
+  JSValueRef exception;
+
+  if (!_gumjs_object_try_set_pointer (ctx, object, key, value, core,
+      &exception))
+    _gumjs_panic (ctx, exception);
+}
+
+gboolean
+_gumjs_object_try_set_pointer (JSContextRef ctx,
+                               JSObjectRef object,
+                               const gchar * key,
+                               gpointer value,
+                               GumScriptCore * core,
+                               JSValueRef * exception)
+{
+  return _gumjs_object_try_set (ctx, object, key,
+      _gumjs_native_pointer_new (ctx, value, core), exception);
+}
+
+void
 _gumjs_object_set_function (JSContextRef ctx,
                             JSObjectRef object,
                             const gchar * key,

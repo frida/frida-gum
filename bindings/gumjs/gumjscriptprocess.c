@@ -45,12 +45,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
+static gboolean gum_emit_module (const GumModuleDetails * details,
+    gpointer user_data);
 
 static const JSStaticFunction gumjs_process_functions[] =
 {
   { "isDebuggerAttached", gumjs_process_is_debugger_attached, GUMJS_RO },
   { "getCurrentThreadId", gumjs_process_get_current_thread_id, GUMJS_RO },
   { "enumerateThreads", gumjs_process_enumerate_threads, GUMJS_RO },
+  { "enumerateModules", gumjs_process_enumerate_modules, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -111,17 +115,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
-
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return NULL;
-
   mc.ctx = ctx;
 
   gum_process_enumerate_threads (gum_emit_thread, &mc);
 
   JSObjectCallAsFunction (ctx, mc.on_complete, NULL, 0, NULL, &scope.exception);
-
   _gum_script_scope_flush (&scope);
 
   return JSValueMakeUndefined (ctx);
@@ -152,6 +153,7 @@ gum_emit_thread (const GumThreadDetails * details,
 
   result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
       (JSValueRef *) &thread, &scope.exception);
+  _gum_script_scope_flush (&scope);
 
   proceed = TRUE;
   if (result != NULL && _gumjs_string_try_get (ctx, result, &str, NULL))
@@ -160,7 +162,58 @@ gum_emit_thread (const GumThreadDetails * details,
     g_free (str);
   }
 
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
+{
+  GumScriptMatchContext mc;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+
+  mc.self = JSObjectGetPrivate (this_object);
+  if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete))
+    return NULL;
+  mc.ctx = ctx;
+
+  gum_process_enumerate_modules (gum_emit_module, &mc);
+
+  JSObjectCallAsFunction (ctx, mc.on_complete, NULL, 0, NULL, &scope.exception);
   _gum_script_scope_flush (&scope);
+
+  return JSValueMakeUndefined (ctx);
+}
+
+static gboolean
+gum_emit_module (const GumModuleDetails * details,
+                 gpointer user_data)
+{
+  GumScriptMatchContext * mc = user_data;
+  GumScriptCore * core = mc->self->core;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  JSContextRef ctx = mc->ctx;
+  JSObjectRef module;
+  JSValueRef result;
+  gboolean proceed;
+  gchar * str;
+
+  module = JSObjectMake (ctx, NULL, NULL);
+  _gumjs_object_set_string (ctx, module, "name", details->name);
+  _gumjs_object_set_pointer (ctx, module, "base",
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  _gumjs_object_set_uint (ctx, module, "size", details->range->size);
+  _gumjs_object_set_string (ctx, module, "path", details->path);
+
+  result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
+      (JSValueRef *) &module, &scope.exception);
+  _gum_script_scope_flush (&scope);
+
+  proceed = TRUE;
+  if (result != NULL && _gumjs_string_try_get (ctx, result, &str, NULL))
+  {
+    proceed = strcmp (str, "stop") != 0;
+    g_free (str);
+  }
 
   return proceed;
 }
