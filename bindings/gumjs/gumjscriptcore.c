@@ -1177,7 +1177,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   GumScriptCore * core = args->core;
   GumScriptNativeCallback * callback;
   GumScriptNativePointer * ptr;
-  JSObjectRef func;
   JSValueRef rtype_value;
   ffi_type * rtype;
   JSObjectRef atypes_array;
@@ -1192,12 +1191,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback->core = core;
 
-  if (!_gumjs_args_parse (args, "FVA|s", &func, &rtype_value,
+  if (!_gumjs_args_parse (args, "FVA|s", &callback->func, &rtype_value,
       &atypes_array, &abi_str))
     goto error;
-
-  JSValueProtect (ctx, func);
-  callback->func = func;
 
   if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &callback->data,
       exception))
@@ -1244,6 +1240,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto prepare_failed;
 
   result = JSObjectMake (ctx, core->native_callback, callback);
+  _gumjs_object_set (ctx, result, "$func", callback->func);
+
   goto beach;
 
 alloc_failed:
@@ -1286,8 +1284,6 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 static void
 gum_script_native_callback_finalize (GumScriptNativeCallback * callback)
 {
-  JSValueUnprotect (callback->core->ctx, callback->func);
-
   ffi_closure_free (callback->closure);
 
   while (callback->data != NULL)
