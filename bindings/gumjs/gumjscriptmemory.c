@@ -640,7 +640,7 @@ gum_script_memory_write (GumScriptMemory * self,
       {
         gsize size;
 
-        size = (str_length + 1) * sizeof (gunichar);
+        size = (str_length + 1) * sizeof (gunichar2);
         memcpy (address, str_utf16, size);
         break;
       }
