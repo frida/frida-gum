@@ -1152,7 +1152,7 @@ _gumjs_byte_array_try_get_opt (JSContextRef ctx,
     guint data_length, i;
 
     if (!_gumjs_object_try_get_uint (ctx, array, "length", &data_length,
-          exception))
+        exception))
       return FALSE;
 
     data = g_malloc (data_length);
@@ -1204,6 +1204,9 @@ _gumjs_throw (JSContextRef ctx,
   gchar * message;
   JSValueRef message_value;
 
+  if (exception == NULL)
+    return;
+
   va_start (args, format);
   message = g_strdup_vprintf (format, args);
   va_end (args);
@@ -1212,8 +1215,7 @@ _gumjs_throw (JSContextRef ctx,
 
   g_free (message);
 
-  if (exception != NULL)
-    *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
+  *exception = JSObjectMakeError (ctx, 1, &message_value, NULL);
 }
 
 void
