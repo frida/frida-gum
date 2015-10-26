@@ -144,6 +144,11 @@ G_GNUC_INTERNAL void _gumjs_throw_native (JSContextRef ctx,
     JSValueRef * exception, GumExceptionDetails * details,
     GumScriptCore * core);
 
+G_GNUC_INTERNAL const gchar * _gumjs_thread_state_to_string (
+    GumThreadState state);
+G_GNUC_INTERNAL const gchar * _gumjs_memory_operation_to_string (
+    GumMemoryOperation operation);
+
 G_END_DECLS
 
 #endif

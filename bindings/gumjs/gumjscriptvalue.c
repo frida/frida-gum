@@ -1261,3 +1261,34 @@ gum_exception_type_to_string (GumExceptionType type)
 
   g_assert_not_reached ();
 }
+
+const gchar *
+_gumjs_thread_state_to_string (GumThreadState state)
+{
+  switch (state)
+  {
+    case GUM_THREAD_RUNNING: return "running";
+    case GUM_THREAD_STOPPED: return "stopped";
+    case GUM_THREAD_WAITING: return "waiting";
+    case GUM_THREAD_UNINTERRUPTIBLE: return "uninterruptible";
+    case GUM_THREAD_HALTED: return "halted";
+    default:
+      break;
+  }
+
+  g_assert_not_reached ();
+}
+
+const gchar *
+_gumjs_memory_operation_to_string (GumMemoryOperation operation)
+{
+  switch (operation)
+  {
+    case GUM_MEMOP_INVALID: return "invalid";
+    case GUM_MEMOP_READ: return "read";
+    case GUM_MEMOP_WRITE: return "write";
+    case GUM_MEMOP_EXECUTE: return "execute";
+    default:
+      g_assert_not_reached ();
+  }
+}
