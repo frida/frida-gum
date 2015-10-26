@@ -54,12 +54,12 @@ struct _GumScriptReplaceEntry
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
-
-static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
-
 static void gum_script_attach_entry_free (GumScriptAttachEntry * entry);
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_detach_all)
+static void gum_script_interceptor_detach_all (GumScriptInterceptor * self);
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 static void gum_script_replace_entry_free (GumScriptReplaceEntry * entry);
+GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 
 static JSObjectRef gumjs_invocation_context_new (JSContextRef ctx,
     GumInvocationContext * handle, gint depth,
@@ -87,8 +87,6 @@ static void gumjs_invocation_return_value_update_context (JSValueRef value,
     GumInvocationContext * ic);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
 
-GUMJS_DECLARE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
-
 static void gum_script_interceptor_adjust_ignore_level_unlocked (
     GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
 static gboolean gum_flush_pending_unignores (gpointer user_data);
@@ -97,8 +95,8 @@ static const JSStaticFunction gumjs_interceptor_functions[] =
 {
   { "_attach", gumjs_interceptor_attach, GUMJS_RO },
   { "detachAll", gumjs_interceptor_detach_all, GUMJS_RO },
-  { "_replace", gumjs_interceptor_throw_not_yet_available, GUMJS_RO },
-  { "revert", gumjs_interceptor_throw_not_yet_available, GUMJS_RO },
+  { "_replace", gumjs_interceptor_replace, GUMJS_RO },
+  { "revert", gumjs_interceptor_revert, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -270,6 +268,14 @@ unable_to_attach:
   }
 }
 
+static void
+gum_script_attach_entry_free (GumScriptAttachEntry * entry)
+{
+  JSValueUnprotect (entry->ctx, entry->on_enter);
+  JSValueUnprotect (entry->ctx, entry->on_leave);
+  g_slice_free (GumScriptAttachEntry, entry);
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumScriptInterceptor * self;
@@ -291,6 +297,87 @@ gum_script_interceptor_detach_all (GumScriptInterceptor * self)
   {
     gum_script_attach_entry_free (g_queue_pop_tail (self->attach_entries));
   }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
+{
+  GumScriptInterceptor * self;
+  GumScriptCore * core = args->core;
+  gpointer target, replacement;
+  JSValueRef replacement_value;
+  GumScriptReplaceEntry * entry;
+  GumReplaceReturn replace_ret;
+
+  self = JSObjectGetPrivate (this_object);
+
+  if (!_gumjs_args_parse (args, "pV", &target, &replacement_value))
+    return NULL;
+
+  if (!_gumjs_native_pointer_try_get (ctx, replacement_value, core,
+      &replacement, exception))
+    return NULL;
+
+  entry = g_slice_new (GumScriptReplaceEntry);
+  entry->interceptor = self->interceptor;
+  entry->target = target;
+  entry->replacement = replacement_value;
+  entry->ctx = core->ctx;
+
+  replace_ret = gum_interceptor_replace_function (self->interceptor, target,
+      replacement, NULL);
+  if (replace_ret != GUM_REPLACE_OK)
+    goto unable_to_replace;
+
+  JSValueProtect (ctx, replacement_value);
+
+  g_hash_table_insert (self->replacement_by_address, target, entry);
+
+  return JSValueMakeUndefined (ctx);
+
+unable_to_replace:
+  {
+    g_slice_free (GumScriptReplaceEntry, entry);
+
+    switch (replace_ret)
+    {
+      case GUM_REPLACE_WRONG_SIGNATURE:
+        _gumjs_throw (ctx, exception, "unable to intercept function at %p; "
+            "please file a bug", target);
+        break;
+      case GUM_REPLACE_ALREADY_REPLACED:
+        _gumjs_throw (ctx, exception, "already replaced this function");
+        break;
+      default:
+        g_assert_not_reached ();
+    }
+
+    return NULL;
+  }
+}
+
+static void
+gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
+{
+  gum_interceptor_revert_function (entry->interceptor, entry->target);
+
+  JSValueUnprotect (entry->ctx, entry->replacement);
+
+  g_slice_free (GumScriptReplaceEntry, entry);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
+{
+  GumScriptInterceptor * self;
+  gpointer target;
+
+  self = JSObjectGetPrivate (this_object);
+
+  if (!_gumjs_args_parse (args, "p", &target))
+    return NULL;
+
+  g_hash_table_remove (self->replacement_by_address, target);
+
+  return JSValueMakeUndefined (ctx);
 }
 
 void
@@ -385,22 +472,6 @@ _gum_script_interceptor_on_leave (GumScriptInterceptor * self,
 
     _gum_script_scope_leave (&scope);
   }
-}
-
-static void
-gum_script_attach_entry_free (GumScriptAttachEntry * entry)
-{
-  JSValueUnprotect (entry->ctx, entry->on_enter);
-  JSValueUnprotect (entry->ctx, entry->on_leave);
-  g_slice_free (GumScriptAttachEntry, entry);
-}
-
-static void
-gum_script_replace_entry_free (GumScriptReplaceEntry * entry)
-{
-  gum_interceptor_revert_function (entry->interceptor, entry->target);
-  JSValueUnprotect (entry->ctx, entry->replacement);
-  g_slice_free (GumScriptReplaceEntry, entry);
 }
 
 static JSObjectRef
@@ -663,14 +734,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
   gum_invocation_context_replace_return_value (ic, ptr->value);
 
   return JSValueMakeUndefined (ctx);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_interceptor_throw_not_yet_available)
-{
-  _gumjs_throw (ctx, exception,
-      "This part of the Interceptor API is not yet in the JavaScriptCore "
-      "runtime");
-  return NULL;
 }
 
 static void
