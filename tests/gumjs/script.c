@@ -340,7 +340,7 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "'use strict';"
-      "const targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
+      "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['pointer']);"
       "try {"
       "  targetWithString(NULL);"
