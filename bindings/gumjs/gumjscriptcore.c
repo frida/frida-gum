@@ -14,6 +14,9 @@
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
 typedef struct _GumScriptNativeFunction GumScriptNativeFunction;
+typedef union _GumFFIValue GumFFIValue;
+typedef struct _GumFFITypeMapping GumFFITypeMapping;
+typedef struct _GumFFIABIMapping GumFFIABIMapping;
 
 struct _GumScriptScheduledCallback
 {
@@ -39,6 +42,8 @@ struct _GumScriptMessageSink
 
 struct _GumScriptNativeFunction
 {
+  GumScriptNativePointer parent;
+
   gpointer fn;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -46,6 +51,39 @@ struct _GumScriptNativeFunction
   GSList * data;
 
   GumScriptCore * core;
+};
+
+union _GumFFIValue
+{
+  gpointer v_pointer;
+  gint v_sint;
+  guint v_uint;
+  glong v_slong;
+  gulong v_ulong;
+  gchar v_schar;
+  guchar v_uchar;
+  gfloat v_float;
+  gdouble v_double;
+  gint8 v_sint8;
+  guint8 v_uint8;
+  gint16 v_sint16;
+  guint16 v_uint16;
+  gint32 v_sint32;
+  guint32 v_uint32;
+  gint64 v_sint64;
+  guint64 v_uint64;
+};
+
+struct _GumFFITypeMapping
+{
+  const gchar * name;
+  ffi_type * type;
+};
+
+struct _GumFFIABIMapping
+{
+  const gchar * name;
+  ffi_abi abi;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
@@ -109,6 +147,19 @@ static void gum_script_message_sink_handle_message (GumScriptMessageSink * self,
     const gchar * message, JSValueRef * exception);
 
 static void gum_script_native_function_free (GumScriptNativeFunction * func);
+static void gum_script_native_function_finalize (
+    GumScriptNativeFunction * func);
+
+static gboolean gumjs_ffi_type_try_get (JSContextRef ctx, JSValueRef value,
+    ffi_type ** type, GSList ** data, JSValueRef * exception);
+static gboolean gumjs_ffi_abi_try_get (JSContextRef ctx, const gchar * name,
+    ffi_abi * abi, JSValueRef * exception);
+static gboolean gumjs_value_to_ffi_type (JSContextRef ctx, JSValueRef svalue,
+    const ffi_type * type, GumScriptCore * core, GumFFIValue * value,
+    JSValueRef * exception);
+static gboolean gumjs_value_from_ffi_type (JSContextRef ctx,
+    const GumFFIValue * value, const ffi_type * type, GumScriptCore * core,
+    JSValueRef * svalue, JSValueRef * exception);
 
 static const JSStaticValue gumjs_script_values[] =
 {
@@ -553,7 +604,7 @@ _gum_script_yield_begin (GumScriptYield * self,
 {
   self->core = core;
 
-  GUM_SCRIPT_CORE_UNLOCK (self->core);
+  GUM_SCRIPT_CORE_UNLOCK (core);
 }
 
 void
@@ -840,42 +891,244 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   JSObjectRef result = NULL;
+  GumScriptCore * core;
   GumScriptNativeFunction * func;
+  GumScriptNativePointer * ptr;
   JSValueRef rtype_value;
   ffi_type * rtype;
   JSObjectRef atypes_array;
-  guint nargs_fixed, nargs_total, i;
+  guint nargs_fixed, nargs_total, length, i;
   gboolean is_variadic;
   gchar * abi_str = NULL;
+  ffi_abi abi;
+
+  core = args->core;
 
   func = g_slice_new0 (GumScriptNativeFunction);
+
+  ptr = &func->parent;
+  ptr->instance_size = sizeof (GumScriptNativeFunction);
+
+  func->core = core;
 
   if (!_gumjs_args_parse (args, "pVA|s", &func->fn, &rtype_value, &atypes_array,
       &abi_str))
     goto error;
 
+  ptr->value = func->fn;
+
+  if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &func->data,
+      exception))
+    goto error;
+
+  if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &length,
+      exception))
+    goto error;
+
+  nargs_fixed = nargs_total = length;
+  is_variadic = FALSE;
+  func->atypes = g_new (ffi_type *, nargs_total);
+  for (i = 0; i != nargs_total; i++)
+  {
+    JSValueRef atype_value;
+    gchar * name;
+    gboolean is_marker;
+
+    atype_value = JSObjectGetPropertyAtIndex (ctx, atypes_array, i, exception);
+    if (atype_value == NULL)
+      goto error;
+
+    if (_gumjs_string_try_get (ctx, atype_value, &name, NULL))
+    {
+      is_marker = strcmp (name, "...") == 0;
+      g_free (name);
+    }
+    else
+    {
+      is_marker = FALSE;
+    }
+
+    if (is_marker)
+    {
+      if (is_variadic)
+        goto unexpected_marker;
+
+      nargs_fixed = i;
+      is_variadic = TRUE;
+    }
+    else if (!gumjs_ffi_type_try_get (ctx, atype_value,
+        &func->atypes[is_variadic ? i - 1 : i], &func->data, exception))
+    {
+      goto error;
+    }
+  }
+  if (is_variadic)
+    nargs_total--;
+
+  if (abi_str != NULL)
+  {
+    if (!gumjs_ffi_abi_try_get (ctx, abi_str, &abi, exception))
+      goto error;
+  }
+  else
+  {
+    abi = FFI_DEFAULT_ABI;
+  }
+
+  if (is_variadic)
+  {
+    if (ffi_prep_cif_var (&func->cif, abi, nargs_fixed, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+      goto compilation_failed;
+  }
+  else
+  {
+    if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
+        func->atypes) != FFI_OK)
+      goto compilation_failed;
+  }
+
+  for (i = 0; i != nargs_total; i++)
+  {
+    ffi_type * t = func->atypes[i];
+
+    func->arglist_size = GUM_ALIGN_SIZE (func->arglist_size, t->alignment);
+    func->arglist_size += t->size;
+  }
+
+  result = JSObjectMake (ctx, core->native_function, func);
   goto beach;
 
+unexpected_marker:
+  {
+    _gumjs_throw (ctx, exception, "only one variadic marker may be specified");
+    goto error;
+  }
+compilation_failed:
+  {
+    _gumjs_throw (ctx, exception, "failed to compile function call interface");
+    goto error;
+  }
 error:
   {
     gum_script_native_function_free (func);
     goto beach;
   }
-
 beach:
-  g_free (abi_str);
+  {
+    g_free (abi_str);
 
-  return result;
+    return result;
+  }
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
+  GumScriptNativeFunction * self = JSObjectGetPrivate (object);
+
+  gum_script_native_function_finalize (self);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 {
-  _gumjs_throw (ctx, exception, "not yet implemented");
-  return NULL;
+  GumScriptNativeFunction * self;
+  GumScriptCore * core;
+  gsize nargs;
+  ffi_type * rtype;
+  gsize rsize, ralign;
+  GumFFIValue * rvalue;
+  void ** avalue;
+  guint8 * avalues;
+  GumScriptYield yield;
+  GumExceptorScope scope;
+  JSValueRef result;
+
+  self = JSObjectGetPrivate (function);
+  core = self->core;
+  nargs = self->cif.nargs;
+  rtype = self->cif.rtype;
+
+  if (args->count != nargs)
+    goto bad_argument_count;
+
+  rsize = MAX (rtype->size, sizeof (gsize));
+  ralign = MAX (rtype->alignment, sizeof (gsize));
+  rvalue = g_alloca (rsize + ralign - 1);
+  rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
+
+  if (nargs > 0)
+  {
+    gsize arglist_alignment, offset;
+
+    avalue = g_alloca (nargs * sizeof (void *));
+
+    arglist_alignment = self->cif.arg_types[0]->alignment;
+    avalues = g_alloca (self->arglist_size + arglist_alignment - 1);
+    avalues = GUM_ALIGN_POINTER (guint8 *, avalues, arglist_alignment);
+
+    /* Prefill with zero to clear high bits of values smaller than a pointer. */
+    memset (avalues, 0, self->arglist_size);
+
+    offset = 0;
+    for (gsize i = 0; i != nargs; i++)
+    {
+      ffi_type * t;
+      GumFFIValue * v;
+
+      t = self->cif.arg_types[i];
+      offset = GUM_ALIGN_SIZE (offset, t->alignment);
+      v = (GumFFIValue *) (avalues + offset);
+
+      if (!gumjs_value_to_ffi_type (ctx, args->values[i], t, args->core,
+          v, exception))
+        goto error;
+      avalue[i] = v;
+
+      offset += t->size;
+    }
+  }
+  else
+  {
+    avalue = NULL;
+  }
+
+  _gum_script_yield_begin (&yield, core);
+
+  if (gum_exceptor_try (core->exceptor, &scope))
+  {
+    ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
+  }
+
+  _gum_script_yield_end (&yield);
+
+  if (gum_exceptor_catch (core->exceptor, &scope))
+  {
+    _gumjs_throw_native (ctx, exception, &scope.exception, core);
+    goto error;
+  }
+
+  if (rtype != &ffi_type_void)
+  {
+    if (!gumjs_value_from_ffi_type (ctx, rvalue, rtype, core, &result,
+        exception))
+      goto error;
+  }
+  else
+  {
+    result = JSValueMakeUndefined (ctx);
+  }
+
+  return result;
+
+bad_argument_count:
+  {
+    _gumjs_throw (ctx, exception, "bad argument count");
+    goto error;
+  }
+error:
+  {
+    return NULL;
+  }
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
@@ -1075,6 +1328,14 @@ gum_script_message_sink_handle_message (GumScriptMessageSink * self,
 static void
 gum_script_native_function_free (GumScriptNativeFunction * func)
 {
+  gum_script_native_function_finalize (func);
+
+  g_slice_free (GumScriptNativeFunction, func);
+}
+
+static void
+gum_script_native_function_finalize (GumScriptNativeFunction * func)
+{
   while (func->data != NULL)
   {
     GSList * head = func->data;
@@ -1082,6 +1343,461 @@ gum_script_native_function_free (GumScriptNativeFunction * func)
     func->data = g_slist_delete_link (func->data, head);
   }
   g_free (func->atypes);
+}
 
-  g_slice_free (GumScriptNativeFunction, func);
+static const GumFFITypeMapping gum_ffi_type_mappings[] =
+{
+  { "void", &ffi_type_void },
+  { "pointer", &ffi_type_pointer },
+  { "int", &ffi_type_sint },
+  { "uint", &ffi_type_uint },
+  { "long", &ffi_type_slong },
+  { "ulong", &ffi_type_ulong },
+  { "char", &ffi_type_schar },
+  { "uchar", &ffi_type_uchar },
+  { "float", &ffi_type_float },
+  { "double", &ffi_type_double },
+  { "int8", &ffi_type_sint8 },
+  { "uint8", &ffi_type_uint8 },
+  { "int16", &ffi_type_sint16 },
+  { "uint16", &ffi_type_uint16 },
+  { "int32", &ffi_type_sint32 },
+  { "uint32", &ffi_type_uint32 },
+  { "int64", &ffi_type_sint64 },
+  { "uint64", &ffi_type_uint64 },
+  { "bool", &ffi_type_schar }
+};
+
+static const GumFFIABIMapping gum_ffi_abi_mappings[] =
+{
+  { "default", FFI_DEFAULT_ABI },
+#if defined (X86_WIN64)
+  { "win64", FFI_WIN64 },
+#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 8
+  { "unix64", FFI_UNIX64 },
+#elif defined (X86_ANY) && GLIB_SIZEOF_VOID_P == 4
+  { "sysv", FFI_SYSV },
+  { "stdcall", FFI_STDCALL },
+  { "thiscall", FFI_THISCALL },
+  { "fastcall", FFI_FASTCALL },
+# if defined (X86_WIN32)
+  { "mscdecl", FFI_MS_CDECL },
+# endif
+#elif defined (ARM)
+  { "sysv", FFI_SYSV },
+# if GLIB_SIZEOF_VOID_P == 4
+  { "vfp", FFI_VFP },
+# endif
+#endif
+};
+
+static gboolean
+gumjs_ffi_type_try_get (JSContextRef ctx,
+                        JSValueRef value,
+                        ffi_type ** type,
+                        GSList ** data,
+                        JSValueRef * exception)
+{
+  gboolean success = FALSE;
+  gchar * name = NULL;
+  guint i;
+
+  if (_gumjs_string_try_get (ctx, value, &name, NULL))
+  {
+    for (i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
+    {
+      const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
+      if (strcmp (name, m->name) == 0)
+      {
+        *type = m->type;
+        success = TRUE;
+        goto beach;
+      }
+    }
+  }
+  else if (JSValueIsArray (ctx, value))
+  {
+    JSObjectRef fields_value;
+    guint length;
+    ffi_type ** fields, * struct_type;
+
+    fields_value = (JSObjectRef) value;
+
+    if (!_gumjs_object_try_get_uint (ctx, fields_value, "length", &length,
+        exception))
+      return FALSE;
+
+    fields = g_new (ffi_type *, length + 1);
+    *data = g_slist_prepend (*data, fields);
+
+    for (i = 0; i != length; i++)
+    {
+      JSValueRef field_value;
+
+      field_value = JSObjectGetPropertyAtIndex (ctx, fields_value, i,
+          exception);
+      if (field_value == NULL)
+        goto beach;
+
+      if (!gumjs_ffi_type_try_get (ctx, field_value, &fields[i], data,
+          exception))
+        goto beach;
+    }
+
+    fields[length] = NULL;
+
+    struct_type = g_new0 (ffi_type, 1);
+    struct_type->type = FFI_TYPE_STRUCT;
+    struct_type->elements = fields;
+    *data = g_slist_prepend (*data, struct_type);
+
+    *type = struct_type;
+    success = TRUE;
+    goto beach;
+  }
+
+beach:
+  g_free (name);
+
+  return success;
+}
+
+static gboolean
+gumjs_ffi_abi_try_get (JSContextRef ctx,
+                       const gchar * name,
+                       ffi_abi * abi,
+                       JSValueRef * exception)
+{
+  guint i;
+
+  for (i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
+  {
+    const GumFFIABIMapping * m = &gum_ffi_abi_mappings[i];
+
+    if (strcmp (name, m->name) == 0)
+    {
+      *abi = m->abi;
+      return TRUE;
+    }
+  }
+
+  _gumjs_throw (ctx, exception, "invalid abi specified");
+  return FALSE;
+}
+
+static gboolean
+gumjs_value_to_ffi_type (JSContextRef ctx,
+                         JSValueRef svalue,
+                         const ffi_type * type,
+                         GumScriptCore * core,
+                         GumFFIValue * value,
+                         JSValueRef * exception)
+{
+  gint i;
+  guint u;
+  gdouble n;
+
+  if (type == &ffi_type_void)
+  {
+    value->v_pointer = NULL;
+  }
+  else if (type == &ffi_type_pointer)
+  {
+    if (!_gumjs_native_pointer_try_get (ctx, svalue, core, &value->v_pointer,
+        exception))
+      return FALSE;
+  }
+  else if (type == &ffi_type_sint)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_sint = i;
+  }
+  else if (type == &ffi_type_uint)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uint = u;
+  }
+  else if (type == &ffi_type_slong)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_slong = i;
+  }
+  else if (type == &ffi_type_ulong)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_ulong = u;
+  }
+  else if (type == &ffi_type_schar)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_schar = i;
+  }
+  else if (type == &ffi_type_uchar)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uchar = u;
+  }
+  else if (type == &ffi_type_float)
+  {
+    if (!_gumjs_number_try_get (ctx, svalue, &n, exception))
+      return FALSE;
+    value->v_float = n;
+  }
+  else if (type == &ffi_type_double)
+  {
+    if (!_gumjs_number_try_get (ctx, svalue, &n, exception))
+      return FALSE;
+    value->v_double = n;
+  }
+  else if (type == &ffi_type_sint8)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_sint8 = i;
+  }
+  else if (type == &ffi_type_uint8)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uint8 = u;
+  }
+  else if (type == &ffi_type_sint16)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_sint16 = i;
+  }
+  else if (type == &ffi_type_uint16)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uint16 = u;
+  }
+  else if (type == &ffi_type_sint32)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_sint32 = i;
+  }
+  else if (type == &ffi_type_uint32)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uint32 = u;
+  }
+  else if (type == &ffi_type_sint64)
+  {
+    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+      return FALSE;
+    value->v_sint64 = i;
+  }
+  else if (type == &ffi_type_uint64)
+  {
+    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+      return FALSE;
+    value->v_uint64 = u;
+  }
+  else if (type->type == FFI_TYPE_STRUCT)
+  {
+    ffi_type ** const field_types = type->elements, ** t;
+    JSObjectRef field_svalues;
+    guint provided_length, length, i;
+    guint8 * field_values;
+    gsize offset;
+
+    if (!JSValueIsArray (ctx, svalue))
+    {
+      _gumjs_throw (ctx, exception, "expected array with fields");
+      return FALSE;
+    }
+    field_svalues = (JSObjectRef) svalue;
+
+    if (!_gumjs_object_try_get_uint (ctx, field_svalues, "length",
+        &provided_length, exception))
+      return FALSE;
+    length = 0;
+    for (t = field_types; *t != NULL; t++)
+      length++;
+    if (provided_length != length)
+    {
+      _gumjs_throw (ctx, exception, "provided array length does not match "
+          "number of fields");
+      return FALSE;
+    }
+
+    field_values = (guint8 *) value;
+    offset = 0;
+    for (i = 0; i != length; i++)
+    {
+      const ffi_type * field_type = field_types[i];
+      GumFFIValue * field_value;
+      JSValueRef field_svalue;
+
+      offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
+
+      field_value = (GumFFIValue *) (field_values + offset);
+      field_svalue = JSObjectGetPropertyAtIndex (ctx, field_svalues, i,
+          exception);
+      if (field_svalue == NULL)
+        return FALSE;
+
+      if (!gumjs_value_to_ffi_type (ctx, field_svalue, field_type, core,
+          field_value, exception))
+      {
+        return FALSE;
+      }
+
+      offset += field_type->size;
+    }
+  }
+  else
+  {
+    goto unsupported_type;
+  }
+
+  return TRUE;
+
+unsupported_type:
+  {
+    _gumjs_throw (ctx, exception, "unsupported type");
+    return FALSE;
+  }
+}
+
+static gboolean
+gumjs_value_from_ffi_type (JSContextRef ctx,
+                           const GumFFIValue * value,
+                           const ffi_type * type,
+                           GumScriptCore * core,
+                           JSValueRef * svalue,
+                           JSValueRef * exception)
+{
+  if (type == &ffi_type_void)
+  {
+    *svalue = JSValueMakeUndefined (ctx);
+  }
+  else if (type == &ffi_type_pointer)
+  {
+    *svalue = _gumjs_native_pointer_new (ctx, value->v_pointer, core);
+  }
+  else if (type == &ffi_type_sint)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_sint);
+  }
+  else if (type == &ffi_type_uint)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uint);
+  }
+  else if (type == &ffi_type_slong)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_slong);
+  }
+  else if (type == &ffi_type_ulong)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_ulong);
+  }
+  else if (type == &ffi_type_schar)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_schar);
+  }
+  else if (type == &ffi_type_uchar)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uchar);
+  }
+  else if (type == &ffi_type_float)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_float);
+  }
+  else if (type == &ffi_type_double)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_double);
+  }
+  else if (type == &ffi_type_sint8)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_sint8);
+  }
+  else if (type == &ffi_type_uint8)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uint8);
+  }
+  else if (type == &ffi_type_sint16)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_sint16);
+  }
+  else if (type == &ffi_type_uint16)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uint16);
+  }
+  else if (type == &ffi_type_sint32)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_sint32);
+  }
+  else if (type == &ffi_type_uint32)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uint32);
+  }
+  else if (type == &ffi_type_sint64)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_sint64);
+  }
+  else if (type == &ffi_type_uint64)
+  {
+    *svalue = JSValueMakeNumber (ctx, value->v_uint64);
+  }
+  else if (type->type == FFI_TYPE_STRUCT)
+  {
+    ffi_type ** const field_types = type->elements, ** t;
+    guint length, i;
+    JSValueRef * field_svalues;
+    const guint8 * field_values;
+    gsize offset;
+
+    length = 0;
+    for (t = field_types; *t != NULL; t++)
+      length++;
+
+    field_svalues = g_alloca (length * sizeof (JSValueRef));
+    field_values = (const guint8 *) value;
+    offset = 0;
+    for (i = 0; i != length; i++)
+    {
+      const ffi_type * field_type = field_types[i];
+      const GumFFIValue * field_value;
+
+      offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
+      field_value = (const GumFFIValue *) (field_values + offset);
+
+      if (!gumjs_value_from_ffi_type (ctx, field_value, field_type, core,
+          &field_svalues[i], exception))
+        goto error;
+
+      offset += field_type->size;
+    }
+
+    *svalue = JSObjectMakeArray (ctx, length, field_svalues, exception);
+    if (*svalue == NULL)
+      goto error;
+  }
+  else
+  {
+    goto unsupported_type;
+  }
+
+  return TRUE;
+
+unsupported_type:
+  {
+    _gumjs_throw (ctx, exception, "unsupported type");
+    goto error;
+  }
+error:
+  {
+    return FALSE;
+  }
 }
