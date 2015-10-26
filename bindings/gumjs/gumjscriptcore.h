@@ -56,6 +56,7 @@ struct _GumScriptCore
 
   JSClassRef native_pointer;
   JSClassRef native_function;
+  JSClassRef native_callback;
   JSClassRef cpu_context;
   JSObjectRef array_buffer;
 };

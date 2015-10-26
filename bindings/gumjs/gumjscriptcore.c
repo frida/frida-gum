@@ -14,6 +14,7 @@
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
 typedef struct _GumScriptNativeFunction GumScriptNativeFunction;
+typedef struct _GumScriptNativeCallback GumScriptNativeCallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
@@ -48,6 +49,19 @@ struct _GumScriptNativeFunction
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
+  GSList * data;
+
+  GumScriptCore * core;
+};
+
+struct _GumScriptNativeCallback
+{
+  GumScriptNativePointer parent;
+
+  JSObjectRef func;
+  ffi_closure * closure;
+  ffi_cif cif;
+  ffi_type ** atypes;
   GSList * data;
 
   GumScriptCore * core;
@@ -114,7 +128,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_function_finalize)
+static void gum_script_native_function_finalize (
+    GumScriptNativeFunction * func);
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
+static void gum_script_native_callback_finalize (
+    GumScriptNativeCallback * func);
+static void gum_script_native_callback_invoke (ffi_cif * cif,
+    void * return_value, void ** args, void * user_data);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
@@ -145,10 +168,6 @@ static GumScriptMessageSink * gum_script_message_sink_new (JSContextRef ctx,
 static void gum_script_message_sink_free (GumScriptMessageSink * sink);
 static void gum_script_message_sink_handle_message (GumScriptMessageSink * self,
     const gchar * message, JSValueRef * exception);
-
-static void gum_script_native_function_free (GumScriptNativeFunction * func);
-static void gum_script_native_function_finalize (
-    GumScriptNativeFunction * func);
 
 static gboolean gumjs_ffi_type_try_get (JSContextRef ctx, JSValueRef value,
     ffi_type ** type, GSList ** data, JSValueRef * exception);
@@ -463,6 +482,14 @@ _gum_script_core_init (GumScriptCore * self,
     self->native_function = JSClassCreate (&def);
     _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
         self->native_function, gumjs_native_function_construct));
+
+    def = kJSClassDefinitionEmpty;
+    def.className = "NativeCallback";
+    def.parentClass = self->native_pointer;
+    def.finalize = gumjs_native_callback_finalize;
+    self->native_callback = JSClassCreate (&def);
+    _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
+        self->native_callback, gumjs_native_callback_construct));
   }
 
   def = kJSClassDefinitionEmpty;
@@ -514,6 +541,7 @@ _gum_script_core_dispose (GumScriptCore * self)
   self->array_buffer = NULL;
 
   g_clear_pointer (&self->cpu_context, JSClassRelease);
+  g_clear_pointer (&self->native_callback, JSClassRelease);
   g_clear_pointer (&self->native_function, JSClassRelease);
   g_clear_pointer (&self->native_pointer, JSClassRelease);
 
@@ -891,7 +919,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   JSObjectRef result = NULL;
-  GumScriptCore * core;
+  GumScriptCore * core = args->core;
   GumScriptNativeFunction * func;
   GumScriptNativePointer * ptr;
   JSValueRef rtype_value;
@@ -901,8 +929,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   gboolean is_variadic;
   gchar * abi_str = NULL;
   ffi_abi abi;
-
-  core = args->core;
 
   func = g_slice_new0 (GumScriptNativeFunction);
 
@@ -1011,7 +1037,9 @@ compilation_failed:
   }
 error:
   {
-    gum_script_native_function_free (func);
+    gum_script_native_function_finalize (func);
+    g_slice_free (GumScriptNativeFunction, func);
+
     goto beach;
   }
 beach:
@@ -1027,6 +1055,18 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
   GumScriptNativeFunction * self = JSObjectGetPrivate (object);
 
   gum_script_native_function_finalize (self);
+}
+
+static void
+gum_script_native_function_finalize (GumScriptNativeFunction * func)
+{
+  while (func->data != NULL)
+  {
+    GSList * head = func->data;
+    g_free (head->data);
+    func->data = g_slist_delete_link (func->data, head);
+  }
+  g_free (func->atypes);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
@@ -1129,6 +1169,182 @@ error:
   {
     return NULL;
   }
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
+{
+  JSObjectRef result = NULL;
+  GumScriptCore * core = args->core;
+  GumScriptNativeCallback * callback;
+  GumScriptNativePointer * ptr;
+  JSObjectRef func;
+  JSValueRef rtype_value;
+  ffi_type * rtype;
+  JSObjectRef atypes_array;
+  guint nargs, i;
+  gchar * abi_str = NULL;
+  ffi_abi abi;
+
+  callback = g_slice_new0 (GumScriptNativeCallback);
+
+  ptr = &callback->parent;
+  ptr->instance_size = sizeof (GumScriptNativeCallback);
+
+  callback->core = core;
+
+  if (!_gumjs_args_parse (args, "FVA|s", &func, &rtype_value,
+      &atypes_array, &abi_str))
+    goto error;
+
+  JSValueProtect (ctx, func);
+  callback->func = func;
+
+  if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &callback->data,
+      exception))
+    goto error;
+
+  if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &nargs,
+      exception))
+    goto error;
+
+  callback->atypes = g_new (ffi_type *, nargs);
+  for (i = 0; i != nargs; i++)
+  {
+    JSValueRef atype_value;
+
+    atype_value = JSObjectGetPropertyAtIndex (ctx, atypes_array, i, exception);
+    if (atype_value == NULL)
+      goto error;
+
+    if (!gumjs_ffi_type_try_get (ctx, atype_value, &callback->atypes[i],
+        &callback->data, exception))
+      goto error;
+  }
+
+  if (abi_str != NULL)
+  {
+    if (!gumjs_ffi_abi_try_get (ctx, abi_str, &abi, exception))
+      goto error;
+  }
+  else
+  {
+    abi = FFI_DEFAULT_ABI;
+  }
+
+  callback->closure = ffi_closure_alloc (sizeof (ffi_closure), &ptr->value);
+  if (callback->closure == NULL)
+    goto alloc_failed;
+
+  if (ffi_prep_cif (&callback->cif, abi, nargs, rtype,
+      callback->atypes) != FFI_OK)
+    goto compilation_failed;
+
+  if (ffi_prep_closure_loc (callback->closure, &callback->cif,
+      gum_script_native_callback_invoke, callback, ptr->value) != FFI_OK)
+    goto prepare_failed;
+
+  result = JSObjectMake (ctx, core->native_callback, callback);
+  goto beach;
+
+alloc_failed:
+  {
+    _gumjs_throw (ctx, exception, "failed to allocate closure");
+    goto error;
+  }
+compilation_failed:
+  {
+    _gumjs_throw (ctx, exception, "failed to compile function call interface");
+    goto error;
+  }
+prepare_failed:
+  {
+    _gumjs_throw (ctx, exception, "failed to prepare closure");
+    goto error;
+  }
+error:
+  {
+    gum_script_native_callback_finalize (callback);
+    g_slice_free (GumScriptNativeCallback, callback);
+
+    goto beach;
+  }
+beach:
+  {
+    g_free (abi_str);
+
+    return result;
+  }
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
+{
+  GumScriptNativeCallback * self = JSObjectGetPrivate (object);
+
+  gum_script_native_callback_finalize (self);
+}
+
+static void
+gum_script_native_callback_finalize (GumScriptNativeCallback * callback)
+{
+  JSValueUnprotect (callback->core->ctx, callback->func);
+
+  ffi_closure_free (callback->closure);
+
+  while (callback->data != NULL)
+  {
+    GSList * head = callback->data;
+    g_free (head->data);
+    callback->data = g_slist_delete_link (callback->data, head);
+  }
+  g_free (callback->atypes);
+}
+
+static void
+gum_script_native_callback_invoke (ffi_cif * cif,
+                                   void * return_value,
+                                   void ** args,
+                                   void * user_data)
+{
+  GumScriptNativeCallback * self = user_data;
+  GumScriptCore * core = self->core;
+  GumScriptScope scope;
+  JSContextRef ctx = core->ctx;
+  ffi_type * rtype = cif->rtype;
+  GumFFIValue * retval = return_value;
+  JSValueRef * argv;
+  guint i;
+  JSValueRef result;
+
+  _gum_script_scope_enter (&scope, core);
+
+  if (rtype != &ffi_type_void)
+  {
+    /*
+     * Ensure:
+     * - high bits of values smaller than a pointer are cleared to zero
+     * - we return something predictable in case of a JS exception
+     */
+    retval->v_pointer = NULL;
+  }
+
+  argv = g_alloca (cif->nargs * sizeof (JSValueRef));
+  for (i = 0; i != cif->nargs; i++)
+  {
+    if (!gumjs_value_from_ffi_type (ctx, args[i], cif->arg_types[i], core,
+        &argv[i], &scope.exception))
+      goto beach;
+  }
+
+  result = JSObjectCallAsFunction (ctx, self->func, NULL, cif->nargs, argv,
+      &scope.exception);
+  if (cif->rtype != &ffi_type_void && result != NULL)
+  {
+    gumjs_value_to_ffi_type (ctx, result, cif->rtype, core, retval,
+        &scope.exception);
+  }
+
+beach:
+  _gum_script_scope_leave (&scope);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
@@ -1323,26 +1539,6 @@ gum_script_message_sink_handle_message (GumScriptMessageSink * self,
   message_value = _gumjs_string_to_value (self->ctx, message);
   JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &message_value,
       exception);
-}
-
-static void
-gum_script_native_function_free (GumScriptNativeFunction * func)
-{
-  gum_script_native_function_finalize (func);
-
-  g_slice_free (GumScriptNativeFunction, func);
-}
-
-static void
-gum_script_native_function_finalize (GumScriptNativeFunction * func)
-{
-  while (func->data != NULL)
-  {
-    GSList * head = func->data;
-    g_free (head->data);
-    func->data = g_slist_delete_link (func->data, head);
-  }
-  g_free (func->atypes);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
