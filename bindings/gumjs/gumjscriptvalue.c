@@ -454,7 +454,7 @@ _gumjs_int_try_get (JSContextRef ctx,
 gboolean
 _gumjs_uint_try_get (JSContextRef ctx,
                      JSValueRef value,
-                     guint * i,
+                     guint * u,
                      JSValueRef * exception)
 {
   double number;
@@ -465,7 +465,7 @@ _gumjs_uint_try_get (JSContextRef ctx,
   if (number < 0)
     goto invalid_uint;
 
-  *i = (guint) number;
+  *u = (guint) number;
 
   return TRUE;
 
