@@ -298,6 +298,7 @@ gum_emit_range (const GumRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
+#ifdef HAVE_DARWIN
   GumScriptMatchContext mc;
   GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
 
@@ -313,6 +314,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   _gum_script_scope_flush (&scope);
 
   return JSValueMakeUndefined (ctx);
+#else
+  _gumjs_throw (ctx, exception, "not implemented yet for " GUM_SCRIPT_PLATFORM);
+  return NULL;
+#endif
 }
 
 static gboolean
