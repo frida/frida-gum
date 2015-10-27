@@ -51,6 +51,9 @@ static gboolean gum_emit_module (const GumModuleDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
+static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
+    gpointer user_data);
 
 static const JSStaticFunction gumjs_process_functions[] =
 {
@@ -59,6 +62,7 @@ static const JSStaticFunction gumjs_process_functions[] =
   { "enumerateThreads", gumjs_process_enumerate_threads, GUMJS_RO },
   { "enumerateModules", gumjs_process_enumerate_modules, GUMJS_RO },
   { "_enumerateRanges", gumjs_process_enumerate_ranges, GUMJS_RO },
+  { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -277,6 +281,57 @@ gum_emit_range (const GumRangeDetails * details,
     _gumjs_object_set_uint (ctx, file, "offset", f->offset);
     _gumjs_object_set (ctx, range, "file", file);
   }
+
+  result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
+      (JSValueRef *) &range, &scope.exception);
+  _gum_script_scope_flush (&scope);
+
+  proceed = TRUE;
+  if (result != NULL && _gumjs_string_try_get (ctx, result, &str, NULL))
+  {
+    proceed = strcmp (str, "stop") != 0;
+    g_free (str);
+  }
+
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
+{
+  GumScriptMatchContext mc;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+
+  mc.self = JSObjectGetPrivate (this_object);
+  if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete))
+    return NULL;
+  mc.ctx = ctx;
+
+  gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
+
+  JSObjectCallAsFunction (ctx, mc.on_complete, NULL, 0, NULL, &scope.exception);
+  _gum_script_scope_flush (&scope);
+
+  return JSValueMakeUndefined (ctx);
+}
+
+static gboolean
+gum_emit_malloc_range (const GumMallocRangeDetails * details,
+                       gpointer user_data)
+{
+  GumScriptMatchContext * mc = user_data;
+  GumScriptCore * core = mc->self->core;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  JSContextRef ctx = mc->ctx;
+  JSObjectRef range;
+  JSValueRef result;
+  gboolean proceed;
+  gchar * str;
+
+  range = JSObjectMake (ctx, NULL, NULL);
+  _gumjs_object_set_pointer (ctx, range, "base",
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  _gumjs_object_set_uint (ctx, range, "size", details->range->size);
 
   result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
       (JSValueRef *) &range, &scope.exception);
