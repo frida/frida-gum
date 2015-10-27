@@ -37,7 +37,7 @@ typedef struct _GumCpuContextWrapper GumCpuContextWrapper;
 
 struct _GumWeakRef
 {
-  gint id;
+  guint id;
   GumPersistent<Value>::type * target;
   GumPersistent<Function>::type * callback;
   GumScriptCore * core;
@@ -45,7 +45,7 @@ struct _GumWeakRef
 
 struct _GumScheduledCallback
 {
-  gint id;
+  guint id;
   gboolean repeat;
   GumPersistent<Function>::type * func;
   GumPersistent<Value>::type * receiver;
@@ -135,8 +135,8 @@ static void gum_script_core_on_weak_ref_bind (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_weak_ref_unbind (
     const FunctionCallbackInfo<Value> & info);
-static void gum_script_core_clear_weak_ref_entry (gint id, GumWeakRef * ref);
-static GumWeakRef * gum_weak_ref_new (gint id, Handle<Value> target,
+static void gum_script_core_clear_weak_ref_entry (guint id, GumWeakRef * ref);
+static GumWeakRef * gum_weak_ref_new (guint id, Handle<Value> target,
     Handle<Function> callback, GumScriptCore * core);
 static void gum_weak_ref_clear (GumWeakRef * ref);
 static void gum_weak_ref_free (GumWeakRef * ref);
@@ -148,7 +148,7 @@ static void gum_script_core_on_set_interval (
     const FunctionCallbackInfo<Value> & info);
 static void gum_script_core_on_clear_timeout (
     const FunctionCallbackInfo<Value> & info);
-static GumScheduledCallback * gum_scheduled_callback_new (gint id,
+static GumScheduledCallback * gum_scheduled_callback_new (guint id,
     gboolean repeat, GSource * source, GumScriptCore * core);
 static void gum_scheduled_callback_free (GumScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
@@ -759,10 +759,10 @@ gum_script_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  gint id = g_atomic_int_add (&self->last_weak_ref_id, 1) + 1;
+  guint id = ++self->last_weak_ref_id;
 
   ref = gum_weak_ref_new (id, target, callback_val.As <Function> (), self);
-  g_hash_table_insert (self->weak_refs, GINT_TO_POINTER (id), ref);
+  g_hash_table_insert (self->weak_refs, GUINT_TO_POINTER (id), ref);
 
   info.GetReturnValue ().Set (id);
 }
@@ -791,16 +791,16 @@ gum_script_core_on_weak_ref_unbind (const FunctionCallbackInfo<Value> & info)
         isolate, "argument must be a weak ref id")));
     return;
   }
-  gint id = id_val->ToInt32 ()->Value ();
+  guint id = id_val->ToUint32 ()->Value ();
 
   bool removed =
-      !!g_hash_table_remove (self->weak_refs, GINT_TO_POINTER (id));
+      !!g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
 
   info.GetReturnValue ().Set (removed);
 }
 
 static void
-gum_script_core_clear_weak_ref_entry (gint id,
+gum_script_core_clear_weak_ref_entry (guint id,
                                       GumWeakRef * ref)
 {
   (void) id;
@@ -809,7 +809,7 @@ gum_script_core_clear_weak_ref_entry (gint id,
 }
 
 static GumWeakRef *
-gum_weak_ref_new (gint id,
+gum_weak_ref_new (guint id,
                   Handle<Value> target,
                   Handle<Function> callback,
                   GumScriptCore * core)
@@ -861,7 +861,7 @@ gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
 {
   GumWeakRef * self = data.GetParameter ();
 
-  g_hash_table_remove (self->core->weak_refs, GINT_TO_POINTER (self->id));
+  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
 }
 
 void
@@ -921,7 +921,7 @@ gum_script_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
     return;
   }
 
-  gint id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
+  guint id = ++self->last_callback_id;
   GSource * source;
   if (delay == 0)
     source = g_idle_source_new ();
@@ -1004,7 +1004,7 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
         isolate, "argument must be a timeout id")));
     return;
   }
-  gint id = id_val->ToInt32 ()->Value ();
+  guint id = id_val->ToUint32 ()->Value ();
 
   GumScheduledCallback * callback = NULL;
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
@@ -1027,7 +1027,7 @@ gum_script_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
 }
 
 static GumScheduledCallback *
-gum_scheduled_callback_new (gint id,
+gum_scheduled_callback_new (guint id,
                             gboolean repeat,
                             GSource * source,
                             GumScriptCore * core)
