@@ -48,6 +48,9 @@ static gboolean gum_emit_thread (const GumThreadDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
+static gboolean gum_emit_range (const GumRangeDetails * details,
+    gpointer user_data);
 
 static const JSStaticFunction gumjs_process_functions[] =
 {
@@ -55,6 +58,7 @@ static const JSStaticFunction gumjs_process_functions[] =
   { "getCurrentThreadId", gumjs_process_get_current_thread_id, GUMJS_RO },
   { "enumerateThreads", gumjs_process_enumerate_threads, GUMJS_RO },
   { "enumerateModules", gumjs_process_enumerate_modules, GUMJS_RO },
+  { "_enumerateRanges", gumjs_process_enumerate_ranges, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -206,6 +210,76 @@ gum_emit_module (const GumModuleDetails * details,
 
   result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
       (JSValueRef *) &module, &scope.exception);
+  _gum_script_scope_flush (&scope);
+
+  proceed = TRUE;
+  if (result != NULL && _gumjs_string_try_get (ctx, result, &str, NULL))
+  {
+    proceed = strcmp (str, "stop") != 0;
+    g_free (str);
+  }
+
+  return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
+{
+  GumScriptMatchContext mc;
+  GumPageProtection prot;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+
+  mc.self = JSObjectGetPrivate (this_object);
+  if (!_gumjs_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
+      &mc.on_complete))
+    return NULL;
+  mc.ctx = ctx;
+
+  gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
+
+  JSObjectCallAsFunction (ctx, mc.on_complete, NULL, 0, NULL, &scope.exception);
+  _gum_script_scope_flush (&scope);
+
+  return JSValueMakeUndefined (ctx);
+}
+
+static gboolean
+gum_emit_range (const GumRangeDetails * details,
+                gpointer user_data)
+{
+  GumScriptMatchContext * mc = user_data;
+  GumScriptCore * core = mc->self->core;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  JSContextRef ctx = mc->ctx;
+  char prot_str[4] = "---";
+  JSObjectRef range;
+  const GumFileMapping * f = details->file;
+  JSValueRef result;
+  gboolean proceed;
+  gchar * str;
+
+  if ((details->prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((details->prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  range = JSObjectMake (ctx, NULL, NULL);
+  _gumjs_object_set_pointer (ctx, range, "base",
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  _gumjs_object_set_uint (ctx, range, "size", details->range->size);
+  _gumjs_object_set_string (ctx, range, "protection", prot_str);
+
+  if (f != NULL)
+  {
+    JSObjectRef file = JSObjectMake (ctx, NULL, NULL);
+    _gumjs_object_set_string (ctx, file, "path", f->path);
+    _gumjs_object_set_uint (ctx, file, "offset", f->offset);
+    _gumjs_object_set (ctx, range, "file", file);
+  }
+
+  result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
+      (JSValueRef *) &range, &scope.exception);
   _gum_script_scope_flush (&scope);
 
   proceed = TRUE;
