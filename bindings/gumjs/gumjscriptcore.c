@@ -13,11 +13,21 @@
 #define GUM_SCRIPT_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
 #define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
+typedef struct _GumScriptWeakRef GumScipeWeakRef;
 typedef struct _GumScriptNativeFunction GumScriptNativeFunction;
 typedef struct _GumScriptNativeCallback GumScriptNativeCallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
+
+struct _GumScriptWeakRef
+{
+  guint id;
+  GumScriptWeakRef * target;
+  JSObjectRef callback;
+
+  GumScriptCore * core;
+};
 
 struct _GumScriptScheduledCallback
 {
@@ -112,6 +122,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 
+GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
+GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_pointer_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_pointer_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_is_null)
@@ -145,6 +158,13 @@ static bool gumjs_cpu_context_set_register (GumScriptCpuContext * self,
     JSContextRef ctx, const GumScriptArgs * args, gsize * reg,
     JSValueRef * exception);
 
+static void gum_clear_weak_ref_entry (guint id, GumScriptWeakRef * ref);
+static GumScriptWeakRef * gum_script_weak_ref_new (guint id, JSValueRef target,
+    JSObjectRef callback, GumScriptCore * core);
+static void gum_script_weak_ref_clear (GumScriptWeakRef * ref);
+static void gum_script_weak_ref_free (GumScriptWeakRef * ref);
+static void gum_script_weak_ref_on_weak_notify (GumScriptWeakRef * self);
+
 static JSValueRef gum_script_core_schedule_callback (GumScriptCore * self,
     const GumScriptArgs * args, gboolean repeat);
 static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
@@ -152,7 +172,7 @@ static void gum_script_core_add_scheduled_callback (GumScriptCore * self,
 static void gum_script_core_remove_scheduled_callback (GumScriptCore * self,
     GumScriptScheduledCallback * cb);
 
-static GumScriptScheduledCallback * gum_scheduled_callback_new (gint id,
+static GumScriptScheduledCallback * gum_scheduled_callback_new (guint id,
     JSObjectRef func, gboolean repeat, GSource * source, GumScriptCore * core);
 static void gum_scheduled_callback_free (GumScriptScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
@@ -186,6 +206,14 @@ static const JSStaticValue gumjs_script_values[] =
   { "_sourceMapData", gumjs_script_get_source_map_data, NULL, GUMJS_RO },
 
   { NULL, NULL, NULL, 0 }
+};
+
+static const JSStaticFunction gumjs_weak_ref_functions[] =
+{
+  { "bind", gumjs_weak_ref_bind, GUMJS_RO },
+  { "unbind", gumjs_weak_ref_unbind, GUMJS_RO },
+
+  { NULL, NULL, 0 }
 };
 
 static const JSStaticFunction gumjs_native_pointer_functions[] =
@@ -432,6 +460,12 @@ _gum_script_core_init (GumScriptCore * self,
   g_mutex_init (&self->mutex);
   g_cond_init (&self->event_cond);
 
+  self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_script_weak_ref_free);
+
+  self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) _gumjs_native_resource_free);
+
   JSObjectSetPrivate (scope, self);
 
   _gumjs_object_set (ctx, scope, "global", scope);
@@ -443,6 +477,14 @@ _gum_script_core_init (GumScriptCore * self,
   def = kJSClassDefinitionEmpty;
   def.className = "Script";
   def.staticValues = gumjs_script_values;
+  klass = JSClassCreate (&def);
+  obj = JSObjectMake (ctx, klass, self);
+  JSClassRelease (klass);
+  _gumjs_object_set (ctx, scope, def.className, obj);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "WeakRef";
+  def.staticFunctions = gumjs_weak_ref_functions;
   klass = JSClassCreate (&def);
   obj = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
@@ -460,9 +502,6 @@ _gum_script_core_init (GumScriptCore * self,
       gumjs_set_incoming_message_callback);
   _gumjs_object_set_function (ctx, scope, "_waitForEvent",
       gumjs_wait_for_event);
-
-  self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) _gumjs_native_resource_free);
 
   def = kJSClassDefinitionEmpty;
   def.className = "NativePointer";
@@ -517,6 +556,10 @@ _gum_script_core_flush (GumScriptCore * self)
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
+
+  g_hash_table_foreach (self->weak_refs,
+      (GHFunc) gum_clear_weak_ref_entry, NULL);
+  g_hash_table_remove_all (self->weak_refs);
 }
 
 void
@@ -551,6 +594,8 @@ _gum_script_core_dispose (GumScriptCore * self)
 void
 _gum_script_core_finalize (GumScriptCore * self)
 {
+  g_clear_pointer (&self->weak_refs, g_hash_table_unref);
+
   g_mutex_clear (&self->mutex);
   g_cond_clear (&self->event_cond);
 }
@@ -643,12 +688,69 @@ _gum_script_yield_end (GumScriptYield * self)
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
+  /* TODO */
+
   return JSValueMakeNull (ctx);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
 {
+  /* TODO */
+
   return JSValueMakeNull (ctx);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
+{
+  GumScriptCore * self = args->core;
+  JSValueRef target;
+  JSObjectRef callback;
+  guint id;
+  GumScriptWeakRef * ref;
+
+  if (!_gumjs_args_parse (args, "VF", &target, &callback))
+    return NULL;
+
+  switch (JSValueGetType (ctx, target))
+  {
+    case kJSTypeString:
+    case kJSTypeObject:
+      break;
+    case kJSTypeUndefined:
+    case kJSTypeNull:
+    case kJSTypeBoolean:
+    case kJSTypeNumber:
+      goto invalid_type;
+    default:
+      g_assert_not_reached ();
+  }
+
+  id = ++self->last_weak_ref_id;
+
+  ref = gum_script_weak_ref_new (id, target, callback, self);
+  g_hash_table_insert (self->weak_refs, GUINT_TO_POINTER (id), ref);
+
+  return JSValueMakeNumber (ctx, id);
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected a non-primitive value");
+    return NULL;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
+{
+  GumScriptCore * self = args->core;
+  guint id;
+  gboolean removed;
+
+  if (!_gumjs_args_parse (args, "u", &id))
+    return NULL;
+
+  removed = !!g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
+
+  return JSValueMakeBoolean (ctx, removed);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
@@ -1381,21 +1483,77 @@ invalid_operation:
   }
 }
 
+static void
+gum_clear_weak_ref_entry (guint id,
+                          GumScriptWeakRef * ref)
+{
+  (void) id;
+
+  gum_script_weak_ref_clear (ref);
+}
+
+static GumScriptWeakRef *
+gum_script_weak_ref_new (guint id,
+                         JSValueRef target,
+                         JSObjectRef callback,
+                         GumScriptCore * core)
+{
+  JSContextRef ctx = core->ctx;
+  GumScriptWeakRef * ref;
+
+  ref = g_slice_new (GumScriptWeakRef);
+  ref->id = id;
+  ref->target = _gumjs_weak_ref_new (ctx, target,
+      (GumScriptWeakNotify) gum_script_weak_ref_on_weak_notify, ref, NULL);
+  JSValueProtect (ctx, callback);
+  ref->callback = callback;
+  ref->core = core;
+
+  return ref;
+}
+
+static void
+gum_script_weak_ref_clear (GumScriptWeakRef * ref)
+{
+  g_clear_pointer (&ref->target, _gumjs_weak_ref_free);
+}
+
+static void
+gum_script_weak_ref_free (GumScriptWeakRef * ref)
+{
+  GumScriptCore * core = ref->core;
+  JSContextRef ctx = core->ctx;
+  GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+
+  gum_script_weak_ref_clear (ref);
+
+  JSObjectCallAsFunction (ctx, ref->callback, NULL, 0, NULL, &scope.exception);
+  JSValueUnprotect (ctx, ref->callback);
+  _gum_script_scope_flush (&scope);
+
+  g_slice_free (GumScriptWeakRef, ref);
+}
+
+static void
+gum_script_weak_ref_on_weak_notify (GumScriptWeakRef * self)
+{
+  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+}
+
 static JSValueRef
 gum_script_core_schedule_callback (GumScriptCore * self,
                                    const GumScriptArgs * args,
                                    gboolean repeat)
 {
   JSObjectRef func;
-  guint delay;
-  gint id;
+  guint delay, id;
   GSource * source;
   GumScriptScheduledCallback * callback;
 
   if (!_gumjs_args_parse (args, "Fu", &func, &delay))
     return NULL;
 
-  id = g_atomic_int_add (&self->last_callback_id, 1) + 1;
+  id = ++self->last_callback_id;
   if (delay == 0)
     source = g_idle_source_new ();
   else
@@ -1429,7 +1587,7 @@ gum_script_core_remove_scheduled_callback (GumScriptCore * self,
 }
 
 static GumScriptScheduledCallback *
-gum_scheduled_callback_new (gint id,
+gum_scheduled_callback_new (guint id,
                             JSObjectRef func,
                             gboolean repeat,
                             GSource * source,

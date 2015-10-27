@@ -334,6 +334,7 @@ gum_script_create_context (GumScript * self,
   JSValueRef exception;
   bool valid;
   JSObjectRef global;
+  GumScriptScope scope;
 
   g_assert (priv->ctx == NULL);
 
@@ -399,7 +400,9 @@ gum_script_create_context (GumScript * self,
     _gum_script_kernel_init (&priv->kernel, &priv->core, global);
   }
 
+  _gum_script_scope_enter (&scope, &priv->core);
   gum_script_bundle_load (gum_jscript_runtime_sources, priv->ctx);
+  _gum_script_scope_leave (&scope);
 
   return TRUE;
 }
@@ -408,8 +411,11 @@ static void
 gum_script_destroy_context (GumScript * self)
 {
   GumScriptPrivate * priv = self->priv;
+  GumScriptScope scope;
 
   g_assert (priv->ctx != NULL);
+
+  _gum_script_scope_enter (&scope, &priv->core);
 
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
     _gum_script_stalker_flush (&priv->stalker);
@@ -433,6 +439,8 @@ gum_script_destroy_context (GumScript * self)
     _gum_script_kernel_dispose (&priv->kernel);
   }
   _gum_script_core_dispose (&priv->core);
+
+  _gum_script_scope_leave (&scope);
 
   JSGlobalContextRelease (priv->ctx);
   priv->ctx = NULL;

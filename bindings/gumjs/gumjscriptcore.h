@@ -51,8 +51,11 @@ struct _GumScriptCore
   GumScriptExceptionSink * unhandled_exception_sink;
   GumScriptMessageSink * incoming_message_sink;
 
+  GHashTable * weak_refs;
+  guint last_weak_ref_id;
+
   GSList * scheduled_callbacks;
-  volatile gint last_callback_id;
+  guint last_callback_id;
 
   GHashTable * native_resources;
 
