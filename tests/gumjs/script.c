@@ -2738,7 +2738,7 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
 
   COMPILE_AND_LOAD_SCRIPT (
       "'use strict';"
-      "Process.setExceptionHandler((ex) => {"
+      "Process.setExceptionHandler(function (ex) {"
       "  send('w00t');"
       "});");
 

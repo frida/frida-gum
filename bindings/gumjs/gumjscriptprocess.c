@@ -32,6 +32,12 @@
 
 typedef struct _GumScriptMatchContext GumScriptMatchContext;
 
+struct _GumScriptExceptionHandler
+{
+  JSObjectRef callback;
+  GumScriptCore * core;
+};
+
 struct _GumScriptMatchContext
 {
   GumScriptProcess * self;
@@ -54,6 +60,14 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
+
+static GumScriptExceptionHandler * gum_script_exception_handler_new (
+    JSObjectRef callback, GumScriptCore * core);
+static void gum_script_exception_handler_free (
+    GumScriptExceptionHandler * handler);
+static gboolean gum_script_exception_handler_on_exception (
+    GumExceptionDetails * details, gpointer user_data);
 
 static const JSStaticFunction gumjs_process_functions[] =
 {
@@ -63,6 +77,7 @@ static const JSStaticFunction gumjs_process_functions[] =
   { "enumerateModules", gumjs_process_enumerate_modules, GUMJS_RO },
   { "_enumerateRanges", gumjs_process_enumerate_ranges, GUMJS_RO },
   { "enumerateMallocRanges", gumjs_process_enumerate_malloc_ranges, GUMJS_RO },
+  { "setExceptionHandler", gumjs_process_set_exception_handler, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -97,7 +112,7 @@ _gum_script_process_init (GumScriptProcess * self,
 void
 _gum_script_process_dispose (GumScriptProcess * self)
 {
-  (void) self;
+  g_clear_pointer (&self->exception_handler, gum_script_exception_handler_free);
 }
 
 void
@@ -350,4 +365,83 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   }
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
+{
+  GumScriptProcess * self;
+  JSObjectRef callback;
+
+  self = JSObjectGetPrivate (this_object);
+
+  if (!_gumjs_args_parse (args, "F?", &callback))
+    return NULL;
+
+  g_clear_pointer (&self->exception_handler, gum_script_exception_handler_free);
+
+  if (callback != NULL)
+  {
+    self->exception_handler = gum_script_exception_handler_new (callback,
+        self->core);
+  }
+
+  return JSValueMakeUndefined (ctx);
+}
+
+static GumScriptExceptionHandler *
+gum_script_exception_handler_new (JSObjectRef callback,
+                                  GumScriptCore * core)
+{
+  GumScriptExceptionHandler * handler;
+
+  handler = g_slice_new (GumScriptExceptionHandler);
+  JSValueProtect (core->ctx, callback);
+  handler->callback = callback;
+  handler->core = core;
+
+  gum_exceptor_add (core->exceptor, gum_script_exception_handler_on_exception,
+      handler);
+
+  return handler;
+}
+
+static void
+gum_script_exception_handler_free (GumScriptExceptionHandler * handler)
+{
+  gum_exceptor_remove (handler->core->exceptor,
+      gum_script_exception_handler_on_exception, handler);
+
+  JSValueUnprotect (handler->core->ctx, handler->callback);
+
+  g_slice_free (GumScriptExceptionHandler, handler);
+}
+
+static gboolean
+gum_script_exception_handler_on_exception (GumExceptionDetails * details,
+                                           gpointer user_data)
+{
+  GumScriptExceptionHandler * handler = user_data;
+  GumScriptCore * core = handler->core;
+  GumScriptScope scope;
+  JSContextRef ctx = core->ctx;
+  JSObjectRef exception, cpu_context;
+  JSValueRef result;
+  gboolean handled;
+
+  _gum_script_scope_enter (&scope, core);
+
+  _gumjs_parse_exception_details (ctx, details, core, &exception, &cpu_context);
+
+  result = JSObjectCallAsFunction (ctx, handler->callback, NULL, 1,
+      (JSValueRef *) &exception, &scope.exception);
+
+  _gumjs_cpu_context_detach (cpu_context);
+
+  handled = FALSE;
+  if (result != NULL)
+    _gumjs_boolean_try_get (ctx, result, &handled, NULL);
+
+  _gum_script_scope_leave (&scope);
+
+  return handled;
 }
