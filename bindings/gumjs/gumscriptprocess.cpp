@@ -428,8 +428,8 @@ gum_script_process_handle_range_match (const GumRangeDetails * details,
   if (f != NULL)
   {
     Local<Object> file (Object::New (isolate));
-    _gum_script_set_utf8 (range, "path", f->path, core);
-    _gum_script_set_uint (range, "offset", f->offset, core);
+    _gum_script_set_utf8 (file, "path", f->path, core);
+    _gum_script_set_uint (file, "offset", f->offset, core);
     _gum_script_set (range, "file", file, core);
   }
 
