@@ -417,6 +417,25 @@ error:
 }
 
 gboolean
+_gumjs_boolean_try_get (JSContextRef ctx,
+                        JSValueRef value,
+                        gboolean * b,
+                        JSValueRef * exception)
+{
+  if (!JSValueIsBoolean (ctx, value))
+    goto invalid_type;
+
+  *b = JSValueToBoolean (ctx, value);
+  return TRUE;
+
+invalid_type:
+  {
+    _gumjs_throw (ctx, exception, "expected a boolean");
+    return FALSE;
+  }
+}
+
+gboolean
 _gumjs_int_try_get (JSContextRef ctx,
                     JSValueRef value,
                     gint * i,

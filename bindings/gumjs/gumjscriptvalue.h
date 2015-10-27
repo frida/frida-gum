@@ -32,6 +32,8 @@ G_GNUC_INTERNAL GumScriptWeakRef * _gumjs_weak_ref_new (JSContextRef ctx,
 G_GNUC_INTERNAL JSValueRef _gumjs_weak_ref_get (GumScriptWeakRef * ref);
 G_GNUC_INTERNAL void _gumjs_weak_ref_free (GumScriptWeakRef * ref);
 
+G_GNUC_INTERNAL gboolean _gumjs_boolean_try_get (JSContextRef ctx,
+    JSValueRef value, gboolean * b, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_int_try_get (JSContextRef ctx,
     JSValueRef value, gint * i, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_uint_try_get (JSContextRef ctx,
