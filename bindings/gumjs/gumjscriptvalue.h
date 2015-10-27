@@ -151,6 +151,9 @@ G_GNUC_INTERNAL void _gumjs_throw (JSContextRef ctx, JSValueRef * exception,
 G_GNUC_INTERNAL void _gumjs_throw_native (JSContextRef ctx,
     JSValueRef * exception, GumExceptionDetails * details,
     GumScriptCore * core);
+G_GNUC_INTERNAL void _gumjs_parse_exception_details (JSContextRef ctx,
+    GumExceptionDetails * details, GumScriptCore * core,
+    JSObjectRef * exception, JSObjectRef * cpu_context);
 
 G_GNUC_INTERNAL const gchar * _gumjs_thread_state_to_string (
     GumThreadState state);

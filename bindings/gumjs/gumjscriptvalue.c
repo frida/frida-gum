@@ -1269,9 +1269,28 @@ _gumjs_throw_native (JSContextRef ctx,
                      GumExceptionDetails * details,
                      GumScriptCore * core)
 {
+  JSObjectRef ex, cc;
+
+  if (exception == NULL)
+    return;
+
+  _gumjs_parse_exception_details (ctx, details, core, &ex, &cc);
+  _gumjs_cpu_context_detach (cc);
+
+  *exception = ex;
+}
+
+void
+_gumjs_parse_exception_details (JSContextRef ctx,
+                                GumExceptionDetails * details,
+                                GumScriptCore * core,
+                                JSObjectRef * exception,
+                                JSObjectRef * cpu_context)
+{
+  const GumExceptionMemoryDetails * md = &details->memory;
   gchar * message;
   JSValueRef message_value;
-  JSObjectRef ex;
+  JSObjectRef ex, cc;
 
   message = gum_exception_details_to_string (details);
   message_value = _gumjs_string_to_value (ctx, message);
@@ -1281,9 +1300,25 @@ _gumjs_throw_native (JSContextRef ctx,
 
   _gumjs_object_set_string (ctx, ex, "type",
       gum_exception_type_to_string (details->type));
-  /* TODO: fill out the other details */
+  _gumjs_object_set_pointer (ctx, ex, "address", details->address, core);
+
+  if (md->operation != GUM_MEMOP_INVALID)
+  {
+    JSObjectRef memory = JSObjectMake (ctx, NULL, NULL);
+    _gumjs_object_set_string (ctx, memory, "operation",
+        _gumjs_memory_operation_to_string (md->operation));
+    _gumjs_object_set_pointer (ctx, memory, "address", md->address, core);
+    _gumjs_object_set (ctx, ex, "memory", memory);
+  }
+
+  cc = _gumjs_cpu_context_new (ctx, &details->context,
+      GUM_CPU_CONTEXT_READWRITE, core);
+  _gumjs_object_set (ctx, ex, "context", cc);
+  _gumjs_object_set_pointer (ctx, ex, "nativeContext", details->native_context,
+      core);
 
   *exception = ex;
+  *cpu_context = cc;
 }
 
 static const gchar *
