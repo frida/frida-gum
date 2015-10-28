@@ -445,9 +445,8 @@ _gum_script_core_init (GumScriptCore * self,
 {
   GumScriptFlavor flavor;
   JSClassDefinition def;
-  JSObjectRef frida;
+  JSObjectRef frida, obj;
   JSClassRef klass;
-  JSValueRef obj;
 
   g_object_get (script, "flavor", &flavor, NULL);
 
@@ -479,6 +478,7 @@ _gum_script_core_init (GumScriptCore * self,
   def.staticValues = gumjs_script_values;
   klass = JSClassCreate (&def);
   obj = JSObjectMake (ctx, klass, self);
+  _gumjs_object_set_string (ctx, obj, "runtime", "JSC");
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, def.className, obj);
 

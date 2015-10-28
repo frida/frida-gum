@@ -267,6 +267,8 @@ _gum_script_core_init (GumScriptCore * self,
   scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
 
   Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
+  script_module->Set (String::NewFromUtf8 (isolate, "runtime"),
+      String::NewFromUtf8 (isolate, "V8"), ReadOnly);
   script_module->SetAccessor (String::NewFromUtf8 (isolate, "fileName"),
       gum_script_core_on_script_get_file_name, NULL, data);
   script_module->SetAccessor (String::NewFromUtf8 (isolate, "_sourceMapData"),
