@@ -243,8 +243,8 @@ gum_emit_module (const GumModuleDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
-  GumPageProtection prot;
   GumScriptMatchContext mc;
+  GumPageProtection prot;
   GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
