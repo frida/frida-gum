@@ -9,6 +9,8 @@
 
 #include "gumjscriptcore.h"
 
+#include <capstone/capstone.h>
+
 G_BEGIN_DECLS
 
 typedef struct _GumScriptInstruction GumScriptInstruction;
@@ -16,6 +18,10 @@ typedef struct _GumScriptInstruction GumScriptInstruction;
 struct _GumScriptInstruction
 {
   GumScriptCore * core;
+
+  csh capstone;
+
+  JSClassRef instruction;
 };
 
 G_GNUC_INTERNAL void _gum_script_instruction_init (GumScriptInstruction * self,
