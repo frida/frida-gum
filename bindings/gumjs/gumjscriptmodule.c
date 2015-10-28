@@ -33,6 +33,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
+GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 static JSObjectRef gumjs_module_import_new (JSContextRef ctx,
     const GumImportDetails * details, GumScriptModule * module);
@@ -49,15 +50,13 @@ GUMJS_DECLARE_GETTER (gumjs_module_export_get_type)
 GUMJS_DECLARE_GETTER (gumjs_module_export_get_name)
 GUMJS_DECLARE_GETTER (gumjs_module_export_get_address)
 
-GUMJS_DECLARE_FUNCTION (gumjs_module_throw_not_yet_available)
-
 static const JSStaticFunction gumjs_module_functions[] =
 {
   { "enumerateImports", gumjs_module_enumerate_imports, GUMJS_RO },
   { "enumerateExports", gumjs_module_enumerate_exports, GUMJS_RO },
   { "enumerateRanges", gumjs_module_enumerate_ranges, GUMJS_RO },
   { "findBaseAddress", gumjs_module_find_base_address, GUMJS_RO },
-  { "findExportByName", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "findExportByName", gumjs_module_find_export_by_name, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -314,6 +313,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
     return JSValueMakeNull (ctx);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
+{
+  GumScriptCore * core = args->core;
+  gchar * module_name, * symbol_name;
+  GumAddress address;
+
+  if (!_gumjs_args_parse (args, "s?s", &module_name, &symbol_name))
+    return NULL;
+
+  address = gum_module_find_export_by_name (module_name, symbol_name);
+
+  g_free (symbol_name);
+  g_free (module_name);
+
+  if (address != 0)
+    return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
+  else
+    return JSValueMakeNull (ctx);
+}
+
 static JSObjectRef
 gumjs_module_import_new (JSContextRef ctx,
                          const GumImportDetails * details,
@@ -420,11 +439,4 @@ GUMJS_DEFINE_GETTER (gumjs_module_export_get_address)
 
   return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
       args->core);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_module_throw_not_yet_available)
-{
-  _gumjs_throw (ctx, exception,
-      "Module API not yet available in the JavaScriptCore runtime");
-  return NULL;
 }
