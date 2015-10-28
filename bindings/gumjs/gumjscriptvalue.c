@@ -215,13 +215,27 @@ _gumjs_args_parse (const GumScriptArgs * self,
       case 's':
       {
         gchar * str;
+        gboolean is_nullable;
 
-        if (!_gumjs_string_try_get (ctx, value, &str, exception))
-          goto error;
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable)
+        {
+          if (!_gumjs_string_try_get_opt (ctx, value, &str, exception))
+            goto error;
+        }
+        else
+        {
+          if (!_gumjs_string_try_get (ctx, value, &str, exception))
+            goto error;
+        }
 
         *va_arg (ap, gchar **) = str;
 
-        strings = g_slist_prepend (strings, str);
+        if (str != NULL)
+          strings = g_slist_prepend (strings, str);
 
         break;
       }
@@ -354,7 +368,8 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         *va_arg (ap, GBytes **) = bytes;
 
-        byte_arrays = g_slist_prepend (byte_arrays, bytes);
+        if (bytes != NULL)
+          byte_arrays = g_slist_prepend (byte_arrays, bytes);
 
         break;
       }
@@ -543,16 +558,44 @@ _gumjs_string_try_get (JSContextRef ctx,
                        gchar ** str,
                        JSValueRef * exception)
 {
-  JSStringRef s;
-
-  if (!JSValueIsString (ctx, value))
-    goto invalid_type;
-
-  s = JSValueToStringCopy (ctx, value, exception);
-  if (s == NULL)
+  if (!_gumjs_string_try_get_opt (ctx, value, str, exception))
     return FALSE;
-  *str = _gumjs_string_from_jsc (s);
-  JSStringRelease (s);
+
+  if (*str == NULL)
+    goto string_required;
+
+  return TRUE;
+
+string_required:
+  {
+    _gumjs_throw (ctx, exception, "string required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_string_try_get_opt (JSContextRef ctx,
+                           JSValueRef value,
+                           gchar ** str,
+                           JSValueRef * exception)
+{
+  if (!JSValueIsUndefined (ctx, value) && !JSValueIsNull (ctx, value))
+  {
+    JSStringRef s;
+
+    if (!JSValueIsString (ctx, value))
+      goto invalid_type;
+
+    s = JSValueToStringCopy (ctx, value, exception);
+    if (s == NULL)
+      return FALSE;
+    *str = _gumjs_string_from_jsc (s);
+    JSStringRelease (s);
+  }
+  else
+  {
+    *str = NULL;
+  }
 
   return TRUE;
 

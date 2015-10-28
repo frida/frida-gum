@@ -47,6 +47,8 @@ G_GNUC_INTERNAL gchar * _gumjs_string_get (JSContextRef ctx,
     JSValueRef value);
 G_GNUC_INTERNAL gboolean _gumjs_string_try_get (JSContextRef ctx,
     JSValueRef value, gchar ** str, JSValueRef * exception);
+G_GNUC_INTERNAL gboolean _gumjs_string_try_get_opt (JSContextRef ctx,
+    JSValueRef value, gchar ** str, JSValueRef * exception);
 G_GNUC_INTERNAL gchar * _gumjs_string_from_jsc (JSStringRef str);
 G_GNUC_INTERNAL gchar * _gumjs_string_from_value (JSContextRef ctx,
     JSValueRef value);
