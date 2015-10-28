@@ -43,7 +43,7 @@ static void gum_script_instruction_on_parse (
     const FunctionCallbackInfo<Value> & info);
 
 static GumInstruction * gum_instruction_new (Handle<Object> instance,
-    gpointer target, cs_insn * insn, GumScriptInstruction * module);
+    gpointer target, const cs_insn * insn, GumScriptInstruction * module);
 static void gum_instruction_free (GumInstruction * instruction);
 static void gum_instruction_on_weak_notify (const WeakCallbackData<Object,
     GumInstruction> & data);
@@ -145,7 +145,7 @@ gum_script_instruction_on_parse (const FunctionCallbackInfo<Value> & info)
 #endif
 
   cs_insn * insn;
-  if (cs_disasm (self->capstone, static_cast<uint8_t *> (target), 16,
+  if (cs_disasm (self->capstone, (uint8_t *) GSIZE_TO_POINTER (address), 16,
       address, 1, &insn) == 0)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
@@ -166,7 +166,7 @@ gum_script_instruction_on_parse (const FunctionCallbackInfo<Value> & info)
 static GumInstruction *
 gum_instruction_new (Handle<Object> instance,
                      gpointer target,
-                     cs_insn * insn,
+                     const cs_insn * insn,
                      GumScriptInstruction * module)
 {
   GumInstruction * instruction;
