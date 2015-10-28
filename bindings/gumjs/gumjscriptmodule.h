@@ -17,6 +17,7 @@ struct _GumScriptModule
 {
   GumScriptCore * core;
 
+  JSClassRef module_import;
   JSClassRef module_export;
 };
 
