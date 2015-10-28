@@ -28,6 +28,9 @@
 #define GUMJS_DECLARE_SETTER(N) \
   static bool N (JSContextRef ctx, JSObjectRef object, \
       JSStringRef property_name, JSValueRef value, JSValueRef * exception);
+#define GUMJS_DECLARE_CONVERTER(N) \
+  static JSValueRef N (JSContextRef ctx, JSObjectRef object, JSType type, \
+      JSValueRef * exception);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
   static JSObjectRef N##_impl (JSContextRef ctx, JSObjectRef constructor, \
@@ -148,6 +151,34 @@
   N##_impl (JSContextRef ctx, \
             JSObjectRef object, \
             JSStringRef property_name, \
+            const GumScriptArgs * args, \
+            JSValueRef * exception)
+#define GUMJS_DEFINE_CONVERTER(N) \
+  static JSValueRef N##_impl (JSContextRef ctx, JSObjectRef object, \
+      JSType type, const GumScriptArgs * args, JSValueRef * exception); \
+  \
+  static JSValueRef \
+  N (JSContextRef ctx, \
+     JSObjectRef object, \
+     JSType type, \
+     JSValueRef * exception) \
+  { \
+    GumScriptArgs args; \
+    \
+    args.count = 0; \
+    args.values = NULL; \
+    args.exception = exception; \
+    \
+    args.ctx = ctx; \
+    args.core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx)); \
+    \
+    return N##_impl (ctx, object, type, &args, exception); \
+  } \
+  \
+  static JSValueRef \
+  N##_impl (JSContextRef ctx, \
+            JSObjectRef object, \
+            JSType type, \
             const GumScriptArgs * args, \
             JSValueRef * exception)
 
