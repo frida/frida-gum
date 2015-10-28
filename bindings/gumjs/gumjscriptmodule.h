@@ -16,6 +16,8 @@ typedef struct _GumScriptModule GumScriptModule;
 struct _GumScriptModule
 {
   GumScriptCore * core;
+
+  JSClassRef module_export;
 };
 
 G_GNUC_INTERNAL void _gum_script_module_init (GumScriptModule * self,
