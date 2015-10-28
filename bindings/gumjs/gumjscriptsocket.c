@@ -100,12 +100,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
     else
     {
       struct sockaddr_in invalid_sockaddr;
+
       invalid_sockaddr.sin_family = AF_INET;
       invalid_sockaddr.sin_port = GUINT16_TO_BE (0);
       invalid_sockaddr.sin_addr.s_addr = GUINT32_TO_BE (0xffffffff);
+
       bind (sock,
           (struct sockaddr *) &invalid_sockaddr,
           sizeof (invalid_sockaddr));
+
 #ifdef G_OS_WIN32
       family = (WSAGetLastError () == WSAEADDRNOTAVAIL) ? AF_INET : AF_INET6;
 #else
