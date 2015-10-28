@@ -63,7 +63,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 
 static JSObjectRef gumjs_invocation_context_new (JSContextRef ctx,
     GumInvocationContext * handle, gint depth,
-    GumScriptInterceptor * interceptor);
+    GumScriptInterceptor * parent);
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 static void gumjs_invocation_context_update_handle (JSObjectRef jic,
     GumInvocationContext * handle);
@@ -75,14 +75,14 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 
 static JSObjectRef gumjs_invocation_args_new (JSContextRef ctx,
-    GumInvocationContext * ic, GumScriptInterceptor * interceptor);
+    GumInvocationContext * ic, GumScriptInterceptor * parent);
 static void gumjs_invocation_args_update_context (JSValueRef value,
     GumInvocationContext * context);
 GUMJS_DECLARE_GETTER (gumjs_invocation_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
 
 static JSObjectRef gumjs_invocation_return_value_new (JSContextRef ctx,
-    GumInvocationContext * ic, GumScriptInterceptor * interceptor);
+    GumInvocationContext * ic, GumScriptInterceptor * parent);
 static void gumjs_invocation_return_value_update_context (JSValueRef value,
     GumInvocationContext * ic);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
@@ -478,7 +478,7 @@ static JSObjectRef
 gumjs_invocation_context_new (JSContextRef ctx,
                               GumInvocationContext * handle,
                               gint depth,
-                              GumScriptInterceptor * interceptor)
+                              GumScriptInterceptor * parent)
 {
   GumScriptInvocationContext * sic;
 
@@ -487,7 +487,7 @@ gumjs_invocation_context_new (JSContextRef ctx,
   sic->cpu_context = NULL;
   sic->depth = depth;
 
-  return JSObjectMake (ctx, interceptor->invocation_context, sic);
+  return JSObjectMake (ctx, parent->invocation_context, sic);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
@@ -599,9 +599,9 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
 static JSObjectRef
 gumjs_invocation_args_new (JSContextRef ctx,
                            GumInvocationContext * ic,
-                           GumScriptInterceptor * interceptor)
+                           GumScriptInterceptor * parent)
 {
-  return JSObjectMake (ctx, interceptor->invocation_args, ic);
+  return JSObjectMake (ctx, parent->invocation_args, ic);
 }
 
 static gboolean
@@ -668,7 +668,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
 static JSObjectRef
 gumjs_invocation_return_value_new (JSContextRef ctx,
                                    GumInvocationContext * ic,
-                                   GumScriptInterceptor * interceptor)
+                                   GumScriptInterceptor * parent)
 {
   GumScriptInvocationReturnValue * retval;
   GumScriptNativePointer * ptr;
@@ -681,7 +681,7 @@ gumjs_invocation_return_value_new (JSContextRef ctx,
 
   retval->ic = ic;
 
-  return JSObjectMake (ctx, interceptor->invocation_retval, retval);
+  return JSObjectMake (ctx, parent->invocation_retval, retval);
 }
 
 static gboolean

@@ -36,7 +36,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
 static JSObjectRef gumjs_module_import_new (JSContextRef ctx,
-    const GumImportDetails * details, GumScriptModule * module);
+    const GumImportDetails * details, GumScriptModule * parent);
 GUMJS_DECLARE_FINALIZER (gumjs_module_import_finalize)
 GUMJS_DECLARE_GETTER (gumjs_module_import_get_type)
 GUMJS_DECLARE_GETTER (gumjs_module_import_get_name)
@@ -44,7 +44,7 @@ GUMJS_DECLARE_GETTER (gumjs_module_import_get_module)
 GUMJS_DECLARE_GETTER (gumjs_module_import_get_address)
 
 static JSObjectRef gumjs_module_export_new (JSContextRef ctx,
-    const GumExportDetails * details, GumScriptModule * module);
+    const GumExportDetails * details, GumScriptModule * parent);
 GUMJS_DECLARE_FINALIZER (gumjs_module_export_finalize)
 GUMJS_DECLARE_GETTER (gumjs_module_export_get_type)
 GUMJS_DECLARE_GETTER (gumjs_module_export_get_name)
@@ -153,8 +153,8 @@ gum_emit_import (const GumImportDetails * details,
                  gpointer user_data)
 {
   GumScriptMatchContext * mc = user_data;
-  GumScriptModule * module = mc->self;
-  GumScriptCore * core = module->core;
+  GumScriptModule * self = mc->self;
+  GumScriptCore * core = self->core;
   GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef imp;
@@ -162,7 +162,7 @@ gum_emit_import (const GumImportDetails * details,
   gboolean proceed;
   gchar * str;
 
-  imp = gumjs_module_import_new (ctx, details, module);
+  imp = gumjs_module_import_new (ctx, details, self);
 
   result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
       (JSValueRef *) &imp, &scope.exception);
@@ -205,8 +205,8 @@ gum_emit_export (const GumExportDetails * details,
                  gpointer user_data)
 {
   GumScriptMatchContext * mc = user_data;
-  GumScriptModule * module = mc->self;
-  GumScriptCore * core = module->core;
+  GumScriptModule * self = mc->self;
+  GumScriptCore * core = self->core;
   GumScriptScope scope = GUM_SCRIPT_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef exp;
@@ -214,7 +214,7 @@ gum_emit_export (const GumExportDetails * details,
   gboolean proceed;
   gchar * str;
 
-  exp = gumjs_module_export_new (ctx, details, module);
+  exp = gumjs_module_export_new (ctx, details, self);
 
   result = JSObjectCallAsFunction (ctx, mc->on_match, NULL, 1,
       (JSValueRef *) &exp, &scope.exception);
@@ -336,7 +336,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 static JSObjectRef
 gumjs_module_import_new (JSContextRef ctx,
                          const GumImportDetails * details,
-                         GumScriptModule * module)
+                         GumScriptModule * parent)
 {
   GumImportDetails * d;
 
@@ -344,7 +344,7 @@ gumjs_module_import_new (JSContextRef ctx,
   d->name = g_strdup (details->name);
   d->module = g_strdup (details->module);
 
-  return JSObjectMake (ctx, module->module_import, d);
+  return JSObjectMake (ctx, parent->module_import, d);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_import_finalize)
@@ -399,14 +399,14 @@ GUMJS_DEFINE_GETTER (gumjs_module_import_get_address)
 static JSObjectRef
 gumjs_module_export_new (JSContextRef ctx,
                          const GumExportDetails * details,
-                         GumScriptModule * module)
+                         GumScriptModule * parent)
 {
   GumExportDetails * d;
 
   d = g_slice_dup (GumExportDetails, details);
   d->name = g_strdup (details->name);
 
-  return JSObjectMake (ctx, module->module_export, d);
+  return JSObjectMake (ctx, parent->module_export, d);
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_module_export_finalize)
