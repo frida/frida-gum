@@ -703,9 +703,47 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
 {
-  /* TODO */
+  GumScriptCore * self = args->core;
+  JSValueRef result = NULL;
+  gchar * source;
+  GRegex * regex;
+  GMatchInfo * match_info;
 
-  return JSValueMakeNull (ctx);
+  g_object_get (self->script, "source", &source, NULL);
+
+  regex = g_regex_new ("//[#@][ \t]sourceMappingURL=[ \t]*"
+      "data:application/json;base64,([^\\s\'\"]*)[ \t]*$", 0, 0, NULL);
+  g_regex_match (regex, source, 0, &match_info);
+  if (g_match_info_matches (match_info))
+  {
+    gchar * data_encoded;
+    gsize size;
+    gchar * data;
+
+    data_encoded = g_match_info_fetch (match_info, 1);
+
+    data = (gchar *) g_base64_decode (data_encoded, &size);
+    if (data != NULL && g_utf8_validate (data, size, NULL))
+    {
+      gchar * data_utf8;
+
+      data_utf8 = g_strndup (data, size);
+      result = _gumjs_string_to_value (ctx, data_utf8);
+      g_free (data_utf8);
+    }
+    g_free (data);
+
+    g_free (data_encoded);
+  }
+  g_match_info_free (match_info);
+  g_regex_unref (regex);
+
+  g_free (source);
+
+  if (result != NULL)
+    return result;
+  else
+    return JSValueMakeNull (ctx);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
