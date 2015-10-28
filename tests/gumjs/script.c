@@ -2554,18 +2554,19 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
 SCRIPT_TESTCASE (source_maps_should_be_supported)
 {
   TestScriptMessageItem * item;
+  const gchar * expected_stack_v8, * expected_stack_jsc;
 
   /*
    * index.js
    * --------
    * 01 'use strict';
    * 02
-   * 03 const math = require('./math');
+   * 03 var math = require('./math');
    * 04
    * 05 try {
    * 06   math.add(5, 2);
    * 07 } catch (e) {
-   * 08   send(e.stack);
+   * 08   send(Script.symbolicate(e).stack);
    * 09 }
    * 10
    * 11 setTimeout(function () {
@@ -2577,7 +2578,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
    * 01 'use strict';
    * 02
    * 03 module.exports = {
-   * 04   add(a, b) {
+   * 04   add: function (a, b) {
    * 05     throw new Error('Not yet implemented');
    * 06   }
    * 07 };
@@ -2593,13 +2594,13 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
       "+)s(r[o]);return s})({1:[function(require,module,exports){"          "\n"
       "'use strict';"                                                       "\n"
       ""                                                                    "\n"
-      "const math = require('./math');"                                     "\n"
+      "var math = require('./math');"                                       "\n"
       ""                                                                    "\n"
       "try {"                                                               "\n"
       /* testcase.js:7 => index.js:6 */
       "  math.add(5, 2);"                                                   "\n"
       "} catch (e) {"                                                       "\n"
-      "  send(e.stack);"                                                    "\n"
+      "  send(Script.symbolicate(e).stack);"                                "\n"
       "}"                                                                   "\n"
       ""                                                                    "\n"
       "setTimeout(function () {"                                            "\n"
@@ -2611,7 +2612,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
       "'use strict';"                                                       "\n"
       ""                                                                    "\n"
       "module.exports = {"                                                  "\n"
-      "  add(a, b) {"                                                       "\n"
+      "  add: function (a, b) {"                                            "\n"
       /* testcase.js:21 => math.js:5 */
       "    throw new Error('Not yet implemented');"                         "\n"
       "  }"                                                                 "\n"
@@ -2619,26 +2620,37 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
       ""                                                                    "\n"
       "},{}]},{},[1])"                                                      "\n"
       "//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJzb3"
-      "VyY2VzIjpbIi4uLy4uL25vZGVfbW9kdWxlcy9icm93c2VyaWZ5L25vZGVfbW9kdWxlcy9icm"
-      "93c2VyLXBhY2svX3ByZWx1ZGUuanMiLCJpbmRleC5qcyIsIm1hdGguanMiXSwibmFtZXMiOl"
-      "tdLCJtYXBwaW5ncyI6IkFBQUE7QUNBQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQT"
-      "tBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBOztBQ2JBO0FBQ0E7QUFDQTtBQU"
-      "NBO0FBQ0E7QUFDQTtBQUNBO0FBQ0EiLCJmaWxlIjoiZ2VuZXJhdGVkLmpzIiwic291cmNlUm"
-      "9vdCI6IiJ9"                                                          "\n"
+      "VyY2VzIjpbIm5vZGVfbW9kdWxlcy9mcmlkYS9ub2RlX21vZHVsZXMvYnJvd3NlcmlmeS9ub2"
+      "RlX21vZHVsZXMvYnJvd3Nlci1wYWNrL19wcmVsdWRlLmpzIiwiaW5kZXguanMiLCJtYXRoLm"
+      "pzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBO0FDQUE7QUFDQTtBQUNBO0FBQ0E7QU"
+      "FDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTs7QUNiQT"
+      "tBQUNBO0FBQ0E7QUFDQTtBQUNBO0FBQ0E7QUFDQTtBQUNBIiwiZmlsZSI6ImdlbmVyYXRlZC"
+      "5qcyIsInNvdXJjZVJvb3QiOiIifQ=="                                      "\n"
   );
 
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
-  g_assert (strstr (item->message, "\"payload\":\"Error: Not yet implemented\\n"
-      "    at Object.add (math.js:5:1)\\n"
+  expected_stack_v8 = "\"payload\":\"Error: Not yet implemented\\n"
+      "    at Object.module.exports.add (math.js:5:1)\\n"
       "    at Object.1../math (index.js:6:1)\\n"
-      "    at s (../../node_modules/browserify/node_modules/browser-pack/"
-          "_prelude.js:1:1)\\n"
-      "    at e (../../node_modules/browserify/node_modules/browser-pack/"
-          "_prelude.js:1:1)\\n"
-      "    at ../../node_modules/browserify/node_modules/browser-pack/"
-          "_prelude.js:1:1\"") != NULL);
+      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1:1)\\n"
+      "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1:1)\\n"
+      "    at node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1:1\"";
+  expected_stack_jsc = "\"payload\":\"Error: Not yet implemented\\n"
+      "    at add (math.js:5:1)\\n"
+      "    at index.js:6:1\\n"
+      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1:1)\\n"
+      "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1:1)\\n"
+      "    at global code (node_modules/frida/node_modules/browserify/"
+          "node_modules/browser-pack/_prelude.js:1:1)";
+  g_assert ((strstr (item->message, expected_stack_v8) != NULL) ||
+      (strstr (item->message, expected_stack_jsc) != NULL));
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
