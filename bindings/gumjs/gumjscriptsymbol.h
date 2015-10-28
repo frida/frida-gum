@@ -16,6 +16,8 @@ typedef struct _GumScriptSymbol GumScriptSymbol;
 struct _GumScriptSymbol
 {
   GumScriptCore * core;
+
+  JSClassRef symbol;
 };
 
 G_GNUC_INTERNAL void _gum_script_symbol_init (GumScriptSymbol * self,
