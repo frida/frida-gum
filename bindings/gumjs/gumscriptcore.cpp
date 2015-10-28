@@ -707,13 +707,12 @@ gum_script_core_on_script_get_source_map_data (Local<String> property,
       if (g_str_has_prefix (url, "data:application/json;base64,"))
       {
         gsize size;
-        guchar * data;
-        data = g_base64_decode (url + 29, &size);
-        if (data != NULL)
+        gchar * data;
+
+        data = (gchar *) g_base64_decode (url + 29, &size);
+        if (data != NULL && g_utf8_validate (data, size, NULL))
         {
-          result = String::NewFromUtf8 (isolate,
-              reinterpret_cast<const char *> (data),
-              String::kNormalString,
+          result = String::NewFromUtf8 (isolate, data, String::kNormalString,
               size);
         }
         g_free (data);
