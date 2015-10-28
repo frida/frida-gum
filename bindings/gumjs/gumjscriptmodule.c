@@ -32,6 +32,7 @@ static gboolean gum_emit_export (const GumExportDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 
 static JSObjectRef gumjs_module_import_new (JSContextRef ctx,
     const GumImportDetails * details, GumScriptModule * module);
@@ -55,7 +56,7 @@ static const JSStaticFunction gumjs_module_functions[] =
   { "enumerateImports", gumjs_module_enumerate_imports, GUMJS_RO },
   { "enumerateExports", gumjs_module_enumerate_exports, GUMJS_RO },
   { "enumerateRanges", gumjs_module_enumerate_ranges, GUMJS_RO },
-  { "findBaseAddress", gumjs_module_throw_not_yet_available, GUMJS_RO },
+  { "findBaseAddress", gumjs_module_find_base_address, GUMJS_RO },
   { "findExportByName", gumjs_module_throw_not_yet_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
@@ -292,6 +293,25 @@ gum_emit_range (const GumRangeDetails * details,
   }
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
+{
+  GumScriptCore * core = args->core;
+  gchar * name;
+  GumAddress address;
+
+  if (!_gumjs_args_parse (args, "s", &name))
+    return NULL;
+
+  address = gum_module_find_base_address (name);
+
+  g_free (name);
+
+  if (address != 0)
+    return _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
+  else
+    return JSValueMakeNull (ctx);
 }
 
 static JSObjectRef
