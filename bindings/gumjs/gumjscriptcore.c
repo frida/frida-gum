@@ -688,9 +688,17 @@ _gum_script_yield_end (GumScriptYield * self)
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
-  /* TODO */
+  GumScriptCore * self = args->core;
+  JSValueRef result;
+  gchar * name, * file_name;
 
-  return JSValueMakeNull (ctx);
+  g_object_get (self->script, "name", &name, NULL);
+  file_name = g_strconcat (name, ".js", NULL);
+  result = _gumjs_string_to_value (ctx, file_name);
+  g_free (file_name);
+  g_free (name);
+
+  return result;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
