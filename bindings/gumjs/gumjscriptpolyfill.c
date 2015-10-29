@@ -65,6 +65,7 @@ _gum_script_polyfill_init (GumScriptPolyfill * self,
   _gumjs_object_set (ctx, scope, "Proxy", module);
 
   def = kJSClassDefinitionEmpty;
+  def.attributes = kJSClassAttributeNoAutomaticPrototype;
   def.className = "Proxy";
   def.finalize = gumjs_proxy_finalize;
   def.hasProperty = gumjs_proxy_has_property;
@@ -92,11 +93,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
 {
   GumScriptPolyfill * parent;
   GumScriptProxy p;
+  JSObjectRef proto = NULL;
+  JSObjectRef instance;
 
   parent = JSObjectGetPrivate (this_object);
 
-  if (!_gumjs_args_parse (args, "F{has?,get?,set?,enumerate?}",
-      &p.has, &p.get, &p.set, &p.enumerate))
+  if (!_gumjs_args_parse (args, "F{has?,get?,set?,enumerate?}|O",
+      &p.has, &p.get, &p.set, &p.enumerate, &proto))
     return NULL;
   p.parent = parent;
 
@@ -111,7 +114,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
   p.receiver = (JSObjectRef) args->values[0];
   JSValueProtect (ctx, p.receiver);
 
-  return JSObjectMake (ctx, parent->proxy, g_slice_dup (GumScriptProxy, &p));
+  instance = JSObjectMake (ctx, parent->proxy, g_slice_dup (GumScriptProxy, &p));
+  if (proto != NULL)
+    JSObjectSetPrototype (ctx, instance, proto);
+  else
+    JSObjectSetPrototype (ctx, instance, JSValueMakeNull (ctx));
+
+  return instance;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_proxy_finalize)
