@@ -1348,7 +1348,7 @@
                 returnCaptureLeft = "return ";
                 returnCaptureRight = "";
             }
-            const m = eval("const m = function (" + argVariableNames.join(", ") + ") { " +
+            const m = eval("var m = function (" + argVariableNames.join(", ") + ") { " +
                 returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; m;");
 
@@ -1456,9 +1456,9 @@
                 returnCaptureRight = "";
             }
 
-            const m = eval("const m = function (" + argVariableNames.join(", ") + ") { " +
-                "const binding = getBinding(handle);" +
-                "const self = binding.self;" +
+            const m = eval("var m = function (" + argVariableNames.join(", ") + ") { " +
+                "var binding = getBinding(handle);" +
+                "var self = binding.self;" +
                 returnCaptureLeft + "implementation.call(binding" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; m;");
 
@@ -1490,7 +1490,7 @@
                 returnCaptureLeft = "return ";
                 returnCaptureRight = "";
             }
-            const f = eval("const f = function (" + argVariableNames.join(", ") + ") { " +
+            const f = eval("var f = function (" + argVariableNames.join(", ") + ") { " +
                 returnCaptureLeft + "implementation(this" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; f;");
 
@@ -1527,7 +1527,7 @@
                 returnCaptureRight = "";
             }
 
-            const f = eval("const f = function (" + argVariableNames.join(", ") + ") { " +
+            const f = eval("var f = function (" + argVariableNames.join(", ") + ") { " +
                 "if (!this.handle.equals(handle))" +
                     "this.handle = handle;" +
                 returnCaptureLeft + "implementation.call(block" + (callArgs.length > 0 ? ", " : "") + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
