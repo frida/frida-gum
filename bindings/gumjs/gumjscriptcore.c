@@ -1902,6 +1902,8 @@ gumjs_value_to_ffi_type (JSContextRef ctx,
 {
   gint i;
   guint u;
+  gint64 i64;
+  guint64 u64;
   gdouble n;
 
   if (type == &ffi_type_void)
@@ -1928,15 +1930,15 @@ gumjs_value_to_ffi_type (JSContextRef ctx,
   }
   else if (type == &ffi_type_slong)
   {
-    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+    if (!_gumjs_int64_try_get (ctx, svalue, &i64, exception))
       return FALSE;
-    value->v_slong = i;
+    value->v_slong = i64;
   }
   else if (type == &ffi_type_ulong)
   {
-    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+    if (!_gumjs_uint64_try_get (ctx, svalue, &u64, exception))
       return FALSE;
-    value->v_ulong = u;
+    value->v_ulong = u64;
   }
   else if (type == &ffi_type_schar)
   {
@@ -2000,15 +2002,15 @@ gumjs_value_to_ffi_type (JSContextRef ctx,
   }
   else if (type == &ffi_type_sint64)
   {
-    if (!_gumjs_int_try_get (ctx, svalue, &i, exception))
+    if (!_gumjs_int64_try_get (ctx, svalue, &i64, exception))
       return FALSE;
-    value->v_sint64 = i;
+    value->v_sint64 = i64;
   }
   else if (type == &ffi_type_uint64)
   {
-    if (!_gumjs_uint_try_get (ctx, svalue, &u, exception))
+    if (!_gumjs_uint64_try_get (ctx, svalue, &u64, exception))
       return FALSE;
-    value->v_uint64 = u;
+    value->v_uint64 = u64;
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
