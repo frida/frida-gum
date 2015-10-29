@@ -178,7 +178,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
                                              ...)
 {
   va_list args;
-  gchar * source;
+  gchar * raw_source, * source;
   GError * err = NULL;
 
   if (fixture->script != NULL)
@@ -189,8 +189,10 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   }
 
   va_start (args, source_template);
-  source = g_strdup_vprintf (source_template, args);
+  raw_source = g_strdup_vprintf (source_template, args);
   va_end (args);
+
+  source = g_strconcat ("\"use strict\"; ", raw_source, NULL);
 
   fixture->script = gum_script_from_string_sync ("testcase", source,
       GUM_SCRIPT_FLAVOR_USER, NULL, &err);
@@ -200,6 +202,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   g_assert (err == NULL);
 
   g_free (source);
+  g_free (raw_source);
 
   gum_script_set_message_handler (fixture->script,
       test_script_fixture_store_message, fixture, NULL);

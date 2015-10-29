@@ -223,7 +223,6 @@ SCRIPT_TESTCASE (all_method_names_can_be_retrieved)
   @autoreleasepool
   {
     COMPILE_AND_LOAD_SCRIPT (
-        "\"use strict\";"
         "var NSDate = ObjC.classes.NSDate;"
         "var methodNames = NSDate.$methods;"
         "send(methodNames.length > 0);"
@@ -247,7 +246,6 @@ SCRIPT_TESTCASE (own_method_names_can_be_retrieved)
   @autoreleasepool
   {
     COMPILE_AND_LOAD_SCRIPT (
-        "\"use strict\";"
         "var NSDate = ObjC.classes.NSDate;"
         "var now = NSDate.date();"
         "var ownMethodNames = now.$ownMethods;"

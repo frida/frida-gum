@@ -339,7 +339,6 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
 SCRIPT_TESTCASE (native_function_crash_results_in_exception)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "'use strict';"
       "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['pointer']);"
       "try {"
@@ -1192,7 +1191,6 @@ SCRIPT_TESTCASE (array_buffer_can_be_created)
 SCRIPT_TESTCASE (rpc_can_be_performed)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "'use strict';"
       "rpc.exports.foo = function (a, b) {"
           "var result = a + b;"
           "if (result >= 0)"
@@ -2749,7 +2747,6 @@ SCRIPT_TESTCASE (exceptions_can_be_handled)
   gboolean exception_on_read, exception_on_write;
 
   COMPILE_AND_LOAD_SCRIPT (
-      "'use strict';"
       "Process.setExceptionHandler(function (ex) {"
       "  send('w00t');"
       "});");
