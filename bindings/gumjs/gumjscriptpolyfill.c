@@ -53,7 +53,6 @@ _gum_script_polyfill_init (GumScriptPolyfill * self,
   JSObjectRef module;
 
   self->core = core;
-
   self->disposed = FALSE;
 
   def = kJSClassDefinitionEmpty;

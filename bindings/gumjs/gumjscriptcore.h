@@ -42,6 +42,7 @@ struct _GumScriptCore
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSContextRef ctx;
+  gboolean disposed;
 
   GMutex mutex;
 
