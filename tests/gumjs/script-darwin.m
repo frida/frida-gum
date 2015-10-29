@@ -32,7 +32,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (block_can_be_migrated_to_the_heap_behind_our_back)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
-  SCRIPT_TESTENTRY (attempt_to_access_an_inexistent_method_should_throw)
+  SCRIPT_TESTENTRY (attempt_to_read_inexistent_property_should_yield_undefined)
   SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
   SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
   SCRIPT_TESTENTRY (methods_with_weird_names_can_be_invoked)
@@ -530,13 +530,13 @@ SCRIPT_TESTCASE (struct_consuming_method_implementation_can_be_overridden)
   }
 }
 
-SCRIPT_TESTCASE (attempt_to_access_an_inexistent_method_should_throw)
+SCRIPT_TESTCASE (attempt_to_read_inexistent_property_should_yield_undefined)
 {
   @autoreleasepool
   {
-    COMPILE_AND_LOAD_SCRIPT ("ObjC.classes.NSDate.snakesAndMushrooms();");
-    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-        "Error: Unable to find method 'snakesAndMushrooms'");
+    COMPILE_AND_LOAD_SCRIPT (
+        "send(typeof ObjC.classes.NSDate.snakesAndMushrooms);");
+    EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
   }
 }
 

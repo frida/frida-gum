@@ -190,7 +190,8 @@
                         case "valueOf":
                             return valueOf;
                         default:
-                            return getClass(name);
+                            const klass = findClass(name);
+                            return (klass !== null) ? klass : undefined;
                     }
                 },
                 set(target, name, value) {
@@ -284,7 +285,8 @@
                         case "valueOf":
                             return valueOf;
                         default:
-                            return getProtocol(name);
+                            const proto = findProtocol(name);
+                            return (proto !== null) ? proto : undefined;
                     }
                 },
                 set(target, name, value) {
@@ -323,13 +325,6 @@
                     return protocolNames;
                 }
             });
-
-            function getProtocol(name) {
-                const cls = findProtocol(name);
-                if (cls === null)
-                    throw new Error("Unable to find protocol '" + name + "'");
-                return cls;
-            }
 
             function findProtocol(name) {
                 let handle = cachedProtocols[name];
@@ -534,11 +529,11 @@
                             if (protocol) {
                                 const details = findProtocolMethod(name);
                                 if (details === null || !details.implemented)
-                                    throw new Error("Unable to find method '" + name + "'");
+                                    return undefined;
                             }
                             const wrapper = findMethodWrapper(name);
                             if (wrapper === null)
-                                throw new Error("Unable to find method '" + name + "'");
+                                return undefined;
                             return wrapper;
                     }
                 },
