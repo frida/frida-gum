@@ -380,7 +380,7 @@ SCRIPT_TESTCASE (native_callback_can_be_invoked)
   gchar str[7];
 
   COMPILE_AND_LOAD_SCRIPT (
-      "toupper = new NativeCallback(function (str, limit) {"
+      "var toupper = new NativeCallback(function (str, limit) {"
       "  var count = 0;"
       "  while (count < limit || limit === -1) {"
       "    var p = str.add(count);"
