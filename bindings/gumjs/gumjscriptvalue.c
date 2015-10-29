@@ -1035,10 +1035,18 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
                                gpointer * target,
                                JSValueRef * exception)
 {
+  JSValueRef handle;
 
   if (JSValueIsObjectOfClass (ctx, value, core->native_pointer))
   {
     *target = _gumjs_native_pointer_value (value);
+    return TRUE;
+  }
+  else if (JSValueIsObject (ctx, value) && _gumjs_object_try_get (ctx,
+        (JSObjectRef) value, "handle", &handle, NULL) &&
+      JSValueIsObjectOfClass (ctx, handle, core->native_pointer))
+  {
+    *target = _gumjs_native_pointer_value (handle);
     return TRUE;
   }
   else
