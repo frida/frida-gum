@@ -506,7 +506,7 @@ invalid_uint:
 gboolean
 _gumjs_uint_try_parse (JSContextRef ctx,
                        JSStringRef str,
-                       guint * i,
+                       guint * u,
                        JSValueRef * exception)
 {
   gchar * str_utf8, * endptr;
@@ -519,11 +519,52 @@ _gumjs_uint_try_parse (JSContextRef ctx,
   g_free (str_utf8);
 
   if (valid)
-    *i = value;
+    *u = value;
   else
     _gumjs_throw (ctx, exception, "invalid uint");
 
   return valid;
+}
+
+gboolean
+_gumjs_int64_try_get (JSContextRef ctx,
+                      JSValueRef value,
+                      gint64 * i,
+                      JSValueRef * exception)
+{
+  double number;
+
+  if (!_gumjs_number_try_get (ctx, value, &number, exception))
+    return FALSE;
+
+  *i = (gint64) number;
+
+  return TRUE;
+}
+
+gboolean
+_gumjs_uint64_try_get (JSContextRef ctx,
+                       JSValueRef value,
+                       guint64 * u,
+                       JSValueRef * exception)
+{
+  double number;
+
+  if (!_gumjs_number_try_get (ctx, value, &number, exception))
+    return FALSE;
+
+  if (number < 0)
+    goto invalid_uint64;
+
+  *u = (guint64) number;
+
+  return TRUE;
+
+invalid_uint64:
+  {
+    _gumjs_throw (ctx, exception, "expected a non-negative number");
+    return FALSE;
+  }
 }
 
 gboolean

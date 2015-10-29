@@ -39,7 +39,11 @@ G_GNUC_INTERNAL gboolean _gumjs_int_try_get (JSContextRef ctx,
 G_GNUC_INTERNAL gboolean _gumjs_uint_try_get (JSContextRef ctx,
     JSValueRef value, guint * u, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_uint_try_parse (JSContextRef ctx,
-    JSStringRef str, guint * i, JSValueRef * exception);
+    JSStringRef str, guint * u, JSValueRef * exception);
+G_GNUC_INTERNAL gboolean _gumjs_int64_try_get (JSContextRef ctx,
+    JSValueRef value, gint64 * i, JSValueRef * exception);
+G_GNUC_INTERNAL gboolean _gumjs_uint64_try_get (JSContextRef ctx,
+    JSValueRef value, guint64 * u, JSValueRef * exception);
 G_GNUC_INTERNAL gboolean _gumjs_number_try_get (JSContextRef ctx,
     JSValueRef value, gdouble * number, JSValueRef * exception);
 
