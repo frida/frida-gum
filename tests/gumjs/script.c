@@ -1293,7 +1293,7 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
-      "    op = recv('poke', function (pokeMessage) {"
+      "    var op = recv('poke', function (pokeMessage) {"
       "      send('pokeBack');"
       "    });"
       "    op.wait();"
