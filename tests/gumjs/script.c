@@ -2537,8 +2537,8 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
 SCRIPT_TESTCASE (script_can_be_reloaded)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(typeof badger);"
-      "badger = 42;");
+      "send(typeof global.badger);"
+      "global.badger = 42;");
   EXPECT_SEND_MESSAGE_WITH ("\"undefined\"");
   gum_script_load_sync (fixture->script, NULL);
   EXPECT_NO_MESSAGES ();
