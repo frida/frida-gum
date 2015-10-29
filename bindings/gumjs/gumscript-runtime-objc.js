@@ -413,7 +413,7 @@
                         return true;
                     if (protocol) {
                         const details = findProtocolMethod(name);
-                        return (details !== null && details.implemented);
+                        return !!(details !== null && details.implemented);
                     }
                     return findMethod(name) !== null;
                 },
