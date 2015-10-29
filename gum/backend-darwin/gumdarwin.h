@@ -51,7 +51,7 @@ GUM_API gboolean gum_darwin_is_ios9_or_newer (void);
 GUM_API guint8 * gum_darwin_read (mach_port_t task, GumAddress address,
     gsize len, gsize * n_bytes_read);
 GUM_API gboolean gum_darwin_write (mach_port_t task, GumAddress address,
-    guint8 * bytes, gsize len);
+    const guint8 * bytes, gsize len);
 GUM_API gboolean gum_darwin_cpu_type_from_pid (pid_t pid,
     GumCpuType * cpu_type);
 GUM_API gboolean gum_darwin_query_page_size (mach_port_t task,

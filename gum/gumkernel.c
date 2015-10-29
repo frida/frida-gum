@@ -22,7 +22,7 @@ gum_kernel_read (GumAddress address,
 
 gboolean
 gum_kernel_write (GumAddress address,
-                  guint8 * bytes,
+                  const guint8 * bytes,
                   gsize len)
 {
   (void) address;

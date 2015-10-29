@@ -167,7 +167,7 @@ gum_memory_read (GumAddress address,
 
 gboolean
 gum_memory_write (GumAddress address,
-                  guint8 * bytes,
+                  const guint8 * bytes,
                   gsize len)
 {
   return gum_darwin_write (mach_task_self (), address, bytes, len);
@@ -246,7 +246,7 @@ gum_darwin_read (mach_port_t task,
 gboolean
 gum_darwin_write (mach_port_t task,
                   GumAddress address,
-                  guint8 * bytes,
+                  const guint8 * bytes,
                   gsize len)
 {
   gsize page_size;

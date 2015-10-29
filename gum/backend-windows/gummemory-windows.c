@@ -135,7 +135,7 @@ gum_memory_read (GumAddress address,
 
 gboolean
 gum_memory_write (GumAddress address,
-                  guint8 * bytes,
+                  const guint8 * bytes,
                   gsize len)
 {
   return WriteProcessMemory (GetCurrentProcess (), GSIZE_TO_POINTER (address),
