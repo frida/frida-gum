@@ -61,3 +61,8 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/tests/stubs \
 	$(arch_includes) \
 	$(GUM_CFLAGS)
+
+if OS_IOS
+all-local: mapper-test
+	codesign -s "$$IOS_CERTID" "$<" || true
+endif
