@@ -245,6 +245,18 @@ _gumjs_args_parse (const GumScriptArgs * self,
 
         break;
       }
+      case 'O':
+      {
+        if (!JSValueIsObject (ctx, value))
+        {
+          _gumjs_throw (ctx, exception, "expected an object");
+          goto error;
+        }
+
+        *va_arg (ap, JSObjectRef *) = (JSObjectRef) value;
+
+        break;
+      }
       case 'A':
       {
         JSObjectRef array;
