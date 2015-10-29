@@ -15,6 +15,7 @@
 #include "gumjscriptkernel.h"
 #include "gumjscriptmemory.h"
 #include "gumjscriptmodule.h"
+#include "gumjscriptpolyfill.h"
 #include "gumjscriptprocess.h"
 #include "gumjscriptsocket.h"
 #include "gumjscriptstalker.h"
@@ -49,6 +50,7 @@ struct _GumScriptPrivate
 
   JSGlobalContextRef ctx;
   GumScriptCore core;
+  GumScriptPolyfill polyfill;
   GumScriptKernel kernel;
   GumScriptMemory memory;
   GumScriptProcess process;
@@ -382,6 +384,7 @@ gum_script_create_context (GumScript * self,
 
   _gum_script_core_init (&priv->core, self, gum_script_emit_message,
       _gum_script_get_scheduler (), priv->ctx, global);
+  _gum_script_polyfill_init (&priv->polyfill, &priv->core, global);
   if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
   {
     _gum_script_memory_init (&priv->memory, &priv->core, global);
@@ -438,6 +441,7 @@ gum_script_destroy_context (GumScript * self)
   {
     _gum_script_kernel_dispose (&priv->kernel);
   }
+  _gum_script_polyfill_dispose (&priv->polyfill);
   _gum_script_core_dispose (&priv->core);
 
   _gum_script_scope_leave (&scope);
@@ -462,6 +466,7 @@ gum_script_destroy_context (GumScript * self)
   {
     _gum_script_kernel_finalize (&priv->kernel);
   }
+  _gum_script_polyfill_finalize (&priv->polyfill);
   _gum_script_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
