@@ -174,9 +174,8 @@ _gum_v8_stalker_process_pending (GumV8Stalker * self)
 }
 
 static void
-gum_v8_stalker_on_get_trust_threshold (
-    Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+gum_v8_stalker_on_get_trust_threshold (Local<String> property,
+                                       const PropertyCallbackInfo<Value> & info)
 {
   GumV8Stalker * self = static_cast<GumV8Stalker *> (
       info.Data ().As<External> ()->Value ());
@@ -186,10 +185,9 @@ gum_v8_stalker_on_get_trust_threshold (
 }
 
 static void
-gum_v8_stalker_on_set_trust_threshold (
-    Local<String> property,
-    Local<Value> value,
-    const PropertyCallbackInfo<void> & info)
+gum_v8_stalker_on_set_trust_threshold (Local<String> property,
+                                       Local<Value> value,
+                                       const PropertyCallbackInfo<void> & info)
 {
   GumV8Stalker * self = static_cast<GumV8Stalker *> (
       info.Data ().As<External> ()->Value ());
@@ -199,9 +197,8 @@ gum_v8_stalker_on_set_trust_threshold (
 }
 
 static void
-gum_v8_stalker_on_get_queue_capacity (
-    Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+gum_v8_stalker_on_get_queue_capacity (Local<String> property,
+                                      const PropertyCallbackInfo<Value> & info)
 {
   GumV8Stalker * self = static_cast<GumV8Stalker *> (
       info.Data ().As<External> ()->Value ());
@@ -210,10 +207,9 @@ gum_v8_stalker_on_get_queue_capacity (
 }
 
 static void
-gum_v8_stalker_on_set_queue_capacity (
-    Local<String> property,
-    Local<Value> value,
-    const PropertyCallbackInfo<void> & info)
+gum_v8_stalker_on_set_queue_capacity (Local<String> property,
+                                      Local<Value> value,
+                                      const PropertyCallbackInfo<void> & info)
 {
   GumV8Stalker * self = static_cast<GumV8Stalker *> (
       info.Data ().As<External> ()->Value ());

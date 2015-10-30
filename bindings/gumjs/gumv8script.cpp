@@ -13,7 +13,7 @@
 #include <string.h>
 #include <v8-debug.h>
 
-#define GUM_SCRIPT_V8_FLAGS \
+#define GUM_V8_FLAGS \
     "--es-staging " \
     "--harmony-array-includes " \
     "--harmony-regexps " \
@@ -139,8 +139,8 @@ gum_v8_script_get_scheduler (void)
 static GumV8Platform *
 gum_v8_script_do_init (void)
 {
-  V8::SetFlagsFromString (GUM_SCRIPT_V8_FLAGS,
-                          static_cast<int> (strlen (GUM_SCRIPT_V8_FLAGS)));
+  V8::SetFlagsFromString (GUM_V8_FLAGS,
+      static_cast<int> (strlen (GUM_V8_FLAGS)));
 
   GumV8Platform * platform = new GumV8Platform ();
 
@@ -230,7 +230,7 @@ gum_v8_script_init (GumV8Script * self)
 static void
 gum_v8_script_dispose (GObject * object)
 {
-  GumV8Script * self = GUM_SCRIPT (object);
+  GumV8Script * self = GUM_V8_SCRIPT (object);
   GumV8ScriptPrivate * priv = self->priv;
 
   gum_v8_script_set_message_handler (self, NULL, NULL, NULL);
@@ -257,7 +257,7 @@ gum_v8_script_dispose (GObject * object)
 static void
 gum_v8_script_finalize (GObject * object)
 {
-  GumV8Script * self = GUM_SCRIPT (object);
+  GumV8Script * self = GUM_V8_SCRIPT (object);
   GumV8ScriptPrivate * priv = self->priv;
 
   g_free (priv->name);
@@ -272,7 +272,7 @@ gum_v8_script_get_property (GObject * object,
                             GValue * value,
                             GParamSpec * pspec)
 {
-  GumV8Script * self = GUM_SCRIPT (object);
+  GumV8Script * self = GUM_V8_SCRIPT (object);
   GumV8ScriptPrivate * priv = self->priv;
 
   switch (property_id)
@@ -300,7 +300,7 @@ gum_v8_script_set_property (GObject * object,
                             const GValue * value,
                             GParamSpec * pspec)
 {
-  GumV8Script * self = GUM_SCRIPT (object);
+  GumV8Script * self = GUM_V8_SCRIPT (object);
   GumV8ScriptPrivate * priv = self->priv;
 
   switch (property_id)
@@ -501,7 +501,7 @@ GumV8Script *
 gum_v8_script_from_string_finish (GAsyncResult * result,
                                   GError ** error)
 {
-  return GUM_SCRIPT (gum_script_task_propagate_pointer (
+  return GUM_V8_SCRIPT (gum_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
 
@@ -518,7 +518,7 @@ gum_v8_script_from_string_sync (const gchar * name,
   task = gum_v8_script_from_string_task_new (name, source, flavor, cancellable,
       NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task, gum_v8_script_get_scheduler ());
-  script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
+  script = GUM_V8_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
   return script;
@@ -555,7 +555,7 @@ gum_v8_script_from_string_task_run (GumScriptTask * task,
   Isolate * isolate;
   GError * error = NULL;
 
-  script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
+  script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
       "flavor", d->flavor,
@@ -699,7 +699,7 @@ gum_v8_script_do_load (GumScriptTask * task,
                        gpointer task_data,
                        GCancellable * cancellable)
 {
-  GumV8Script * self = GUM_SCRIPT (source_object);
+  GumV8Script * self = GUM_V8_SCRIPT (source_object);
   GumV8ScriptPrivate * priv = self->priv;
 
   {
@@ -773,7 +773,7 @@ gum_v8_script_do_unload (GumScriptTask * task,
                          gpointer task_data,
                          GCancellable * cancellable)
 {
-  GumV8Script * self = GUM_SCRIPT (source_object);
+  GumV8Script * self = GUM_V8_SCRIPT (source_object);
   GumV8ScriptPrivate * priv = self->priv;
 
   {
@@ -964,7 +964,7 @@ static void
 gum_v8_script_on_enter (GumInvocationListener * listener,
                         GumInvocationContext * context)
 {
-  GumV8Script * self = GUM_SCRIPT_CAST (listener);
+  GumV8Script * self = GUM_V8_SCRIPT_CAST (listener);
 
   _gum_v8_interceptor_on_enter (&self->priv->interceptor, context);
 }
@@ -973,7 +973,7 @@ static void
 gum_v8_script_on_leave (GumInvocationListener * listener,
                         GumInvocationContext * context)
 {
-  GumV8Script * self = GUM_SCRIPT_CAST (listener);
+  GumV8Script * self = GUM_V8_SCRIPT_CAST (listener);
 
   _gum_v8_interceptor_on_leave (&self->priv->interceptor, context);
 }

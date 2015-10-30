@@ -130,7 +130,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   GumJscMatchContext mc;
   gchar * name;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
@@ -155,7 +155,7 @@ gum_emit_import (const GumImportDetails * details,
   GumJscMatchContext * mc = user_data;
   GumJscModule * self = mc->self;
   GumJscCore * core = self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef imp;
   JSValueRef result;
@@ -182,7 +182,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
   GumJscMatchContext mc;
   gchar * name;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
@@ -207,7 +207,7 @@ gum_emit_export (const GumExportDetails * details,
   GumJscMatchContext * mc = user_data;
   GumJscModule * self = mc->self;
   GumJscCore * core = self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef exp;
   JSValueRef result;
@@ -235,7 +235,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumJscMatchContext mc;
   gchar * name;
   GumPageProtection prot;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
@@ -259,7 +259,7 @@ gum_emit_range (const GumRangeDetails * details,
 {
   GumJscMatchContext * mc = user_data;
   GumJscCore * core = mc->self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   char prot_str[4] = "---";
   JSObjectRef range;

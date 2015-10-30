@@ -133,10 +133,9 @@ gum_v8_interceptor_adjust_ignore_level (GumThreadId thread_id,
 }
 
 static void
-gum_v8_interceptor_adjust_ignore_level_unlocked (
-    GumThreadId thread_id,
-    gint adjustment,
-    GumInterceptor * interceptor)
+gum_v8_interceptor_adjust_ignore_level_unlocked (GumThreadId thread_id,
+                                                 gint adjustment,
+                                                 GumInterceptor * interceptor)
 {
   gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
   gint level;
@@ -725,7 +724,8 @@ gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
 }
 
 static void
-gumjs_invocation_context_on_get_return_address (Local<String> property,
+gumjs_invocation_context_on_get_return_address (
+    Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
@@ -739,7 +739,8 @@ gumjs_invocation_context_on_get_return_address (Local<String> property,
 }
 
 static void
-gumjs_invocation_context_on_get_context (Local<String> property,
+gumjs_invocation_context_on_get_context (
+    Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
@@ -765,7 +766,8 @@ gumjs_invocation_context_on_get_context (Local<String> property,
 }
 
 static void
-gumjs_invocation_context_on_get_system_error (Local<String> property,
+gumjs_invocation_context_on_get_system_error (
+    Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
@@ -775,7 +777,8 @@ gumjs_invocation_context_on_get_system_error (Local<String> property,
 }
 
 static void
-gumjs_invocation_context_on_set_system_error (Local<String> property,
+gumjs_invocation_context_on_set_system_error (
+    Local<String> property,
     Local<Value> value,
     const PropertyCallbackInfo<void> & info)
 {
@@ -786,7 +789,8 @@ gumjs_invocation_context_on_set_system_error (Local<String> property,
 }
 
 static void
-gumjs_invocation_context_on_get_thread_id (Local<String> property,
+gumjs_invocation_context_on_get_thread_id (
+    Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
@@ -797,7 +801,7 @@ gumjs_invocation_context_on_get_thread_id (Local<String> property,
 
 static void
 gumjs_invocation_context_on_get_depth (Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+                                       const PropertyCallbackInfo<Value> & info)
 {
   int32_t depth = info.Holder ()->GetInternalField (GUM_IC_DEPTH)
       .As <Integer> ()->Int32Value ();

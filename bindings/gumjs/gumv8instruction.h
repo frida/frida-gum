@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_INSTRUCTION_H__
-#define __GUM_SCRIPT_INSTRUCTION_H__
+#ifndef __GUM_V8_INSTRUCTION_H__
+#define __GUM_V8_INSTRUCTION_H__
 
 #include "gumv8core.h"
 

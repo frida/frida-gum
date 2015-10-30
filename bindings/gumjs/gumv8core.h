@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_CORE_H__
-#define __GUM_SCRIPT_CORE_H__
+#ifndef __GUM_V8_CORE_H__
+#define __GUM_V8_CORE_H__
 
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()

@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_BUNDLE_H__
-#define __GUM_SCRIPT_BUNDLE_H__
+#ifndef __GUM_V8_BUNDLE_H__
+#define __GUM_V8_BUNDLE_H__
 
 #include <glib.h>
 #include <v8.h>

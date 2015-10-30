@@ -5,86 +5,84 @@ noinst_LTLIBRARIES = libfrida-gumjs.la
 
 fridaincludedir = $(includedir)/frida-1.0/gumjs
 fridainclude_HEADERS = \
-	gumscript.h
+	gumscript.h \
+	gumscriptbackend.h \
+	$(NULL)
 
 v8_sources = \
 	gumv8script.cpp \
 	gumv8script-priv.h \
 	gumv8script-runtime.h \
-	gumscriptplatform.h \
-	gumscriptplatform.cpp \
-	gumscriptbundle.h \
-	gumscriptbundle.cpp \
-	gumscripttask.h \
-	gumscripttask.c \
-	gumscriptscope.h \
-	gumscriptscope.cpp \
-	gumscriptcore.h \
-	gumscriptcore.cpp \
-	gumscriptkernel.h \
-	gumscriptkernel.cpp \
-	gumscriptmemory.h \
-	gumscriptmemory.cpp \
-	gumscriptprocess.h \
-	gumscriptprocess.cpp \
-	gumscriptthread.h \
-	gumscriptthread.cpp \
-	gumscriptmodule.h \
-	gumscriptmodule.cpp \
-	gumscriptfile.h \
-	gumscriptfile.cpp \
-	gumscriptsocket.h \
-	gumscriptsocket.cpp \
-	gumscriptinterceptor.h \
-	gumscriptinterceptor.cpp \
-	gumscriptstalker.h \
-	gumscriptstalker.cpp \
-	gumscripteventsink.h \
-	gumscripteventsink.cpp \
-	gumscriptsymbol.h \
-	gumscriptsymbol.cpp \
-	gumscriptinstruction.h \
-	gumscriptinstruction.cpp \
+	gumv8platform.h \
+	gumv8platform.cpp \
+	gumv8bundle.h \
+	gumv8bundle.cpp \
+	gumv8scope.h \
+	gumv8scope.cpp \
+	gumv8core.h \
+	gumv8core.cpp \
+	gumv8kernel.h \
+	gumv8kernel.cpp \
+	gumv8memory.h \
+	gumv8memory.cpp \
+	gumv8process.h \
+	gumv8process.cpp \
+	gumv8thread.h \
+	gumv8thread.cpp \
+	gumv8module.h \
+	gumv8module.cpp \
+	gumv8file.h \
+	gumv8file.cpp \
+	gumv8socket.h \
+	gumv8socket.cpp \
+	gumv8interceptor.h \
+	gumv8interceptor.cpp \
+	gumv8stalker.h \
+	gumv8stalker.cpp \
+	gumv8eventsink.h \
+	gumv8eventsink.cpp \
+	gumv8symbol.h \
+	gumv8symbol.cpp \
+	gumv8instruction.h \
+	gumv8instruction.cpp \
 	$(NULL)
 
 jsc_sources = \
-	gumjscript.c \
-	gumjscript-priv.h \
-	gumjscript-runtime.h \
-	gumjscriptbundle.h \
-	gumjscriptbundle.c \
-	gumscripttask.h \
-	gumscripttask.c \
-	gumjscriptvalue.h \
-	gumjscriptvalue.c \
-	gumjscriptmacros.h \
-	gumjscriptcore.h \
-	gumjscriptcore.c \
-	gumjscriptpolyfill.h \
-	gumjscriptpolyfill.c \
-	gumjscriptglue.cpp \
-	gumjscriptkernel.h \
-	gumjscriptkernel.c \
-	gumjscriptmemory.h \
-	gumjscriptmemory.c \
-	gumjscriptprocess.h \
-	gumjscriptprocess.c \
-	gumjscriptthread.h \
-	gumjscriptthread.c \
-	gumjscriptmodule.h \
-	gumjscriptmodule.c \
-	gumjscriptfile.h \
-	gumjscriptfile.c \
-	gumjscriptsocket.h \
-	gumjscriptsocket.c \
-	gumjscriptinterceptor.h \
-	gumjscriptinterceptor.c \
-	gumjscriptstalker.h \
-	gumjscriptstalker.c \
-	gumjscriptsymbol.h \
-	gumjscriptsymbol.c \
-	gumjscriptinstruction.h \
-	gumjscriptinstruction.c \
+	gumjscscript.c \
+	gumjscscript-priv.h \
+	gumjscscript-runtime.h \
+	gumjscbundle.h \
+	gumjscbundle.c \
+	gumjscvalue.h \
+	gumjscvalue.c \
+	gumjscmacros.h \
+	gumjsccore.h \
+	gumjsccore.c \
+	gumjscpolyfill.h \
+	gumjscpolyfill.c \
+	gumjscglue.cpp \
+	gumjsckernel.h \
+	gumjsckernel.c \
+	gumjscmemory.h \
+	gumjscmemory.c \
+	gumjscprocess.h \
+	gumjscprocess.c \
+	gumjscthread.h \
+	gumjscthread.c \
+	gumjscmodule.h \
+	gumjscmodule.c \
+	gumjscfile.h \
+	gumjscfile.c \
+	gumjscsocket.h \
+	gumjscsocket.c \
+	gumjscinterceptor.h \
+	gumjscinterceptor.c \
+	gumjscstalker.h \
+	gumjscstalker.c \
+	gumjscsymbol.h \
+	gumjscsymbol.c \
+	gumjscinstruction.h \
+	gumjscinstruction.c \
 	$(NULL)
 jsc_includes = \
 	-I $(srcdir)/include/JavaScriptCore/API \
@@ -143,12 +141,12 @@ libfrida_gumjs_1_0_la_LIBTOOLFLAGS = \
 	$(NULL)
 
 libfrida_gumjs_la_SOURCES = \
-	gumscript.h \
 	gumscript.c \
-	gumscriptbackend.h \
 	gumscriptbackend.c \
 	gumscriptscheduler.h \
 	gumscriptscheduler.c \
+	gumscripttask.h \
+	gumscripttask.c \
 	$(v8_sources) \
 	$(platform_sources) \
 	$(NULL)
@@ -160,10 +158,10 @@ libfrida_gumjs_la_LIBTOOLFLAGS = \
 	$(NULL)
 
 script_runtime_sources = \
-	gumscript-runtime-core.js \
-	gumscript-runtime-source-map.js \
-	gumscript-runtime-java.js \
-	gumscript-runtime-objc.js \
+	gumscript-core.js \
+	gumscript-source-map.js \
+	gumscript-java.js \
+	gumscript-objc.js \
 	gumscript-debug.js \
 	$(NULL)
 

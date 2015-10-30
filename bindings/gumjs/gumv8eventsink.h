@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_EVENT_SINK_H__
-#define __GUM_SCRIPT_EVENT_SINK_H__
+#ifndef __GUM_V8_EVENT_SINK_H__
+#define __GUM_V8_EVENT_SINK_H__
 
 #include "gumv8core.h"
 
@@ -14,16 +14,16 @@
 #include <v8.h>
 
 #define GUM_TYPE_SCRIPT_EVENT_SINK (gum_v8_event_sink_get_type ())
-#define GUM_SCRIPT_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
+#define GUM_V8_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
     GUM_TYPE_SCRIPT_EVENT_SINK, GumV8EventSink))
-#define GUM_SCRIPT_EVENT_SINK_CAST(obj) ((GumV8EventSink *) (obj))
-#define GUM_SCRIPT_EVENT_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
+#define GUM_V8_EVENT_SINK_CAST(obj) ((GumV8EventSink *) (obj))
+#define GUM_V8_EVENT_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_TYPE_SCRIPT_EVENT_SINK, GumV8EventSinkClass))
 #define GUM_IS_SCRIPT_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
     GUM_TYPE_SCRIPT_EVENT_SINK))
 #define GUM_IS_SCRIPT_EVENT_SINK_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
     (klass), GUM_TYPE_SCRIPT_EVENT_SINK))
-#define GUM_SCRIPT_EVENT_SINK_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
+#define GUM_V8_EVENT_SINK_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
     (obj), GUM_TYPE_SCRIPT_EVENT_SINK, GumV8EventSinkClass))
 
 typedef struct _GumV8EventSink GumV8EventSink;

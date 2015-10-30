@@ -22,8 +22,8 @@
 
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
-#define GUM_SCRIPT_CORE_LOCK()   (g_mutex_lock (&self->mutex))
-#define GUM_SCRIPT_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
+#define GUM_V8_CORE_LOCK()   (g_mutex_lock (&self->mutex))
+#define GUM_V8_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
 
 using namespace v8;
 
@@ -653,16 +653,16 @@ _gum_v8_core_post_message (GumV8Core * self,
 
   if (delivered)
   {
-    GUM_SCRIPT_CORE_LOCK ();
+    GUM_V8_CORE_LOCK ();
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
-    GUM_SCRIPT_CORE_UNLOCK ();
+    GUM_V8_CORE_UNLOCK ();
   }
 }
 
 static void
 gum_v8_core_on_script_get_file_name (Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+                                     const PropertyCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
@@ -686,7 +686,8 @@ gum_v8_core_on_script_get_file_name (Local<String> property,
 }
 
 static void
-gum_v8_core_on_script_get_source_map_data (Local<String> property,
+gum_v8_core_on_script_get_source_map_data (
+    Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
@@ -1218,18 +1219,17 @@ gum_v8_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
   {
     Unlocker ul (self->isolate);
 
-    GUM_SCRIPT_CORE_LOCK ();
+    GUM_V8_CORE_LOCK ();
     guint start_count = self->event_count;
     while (self->event_count == start_count)
       g_cond_wait (&self->event_cond, &self->mutex);
-    GUM_SCRIPT_CORE_UNLOCK ();
+    GUM_V8_CORE_UNLOCK ();
   }
   self->isolate->Enter ();
 }
 
 static void
-gum_v8_core_on_new_native_pointer (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
 {
   Isolate * isolate = info.GetIsolate ();
   guint64 ptr;
@@ -1505,8 +1505,7 @@ gum_v8_core_on_native_pointer_to_match_pattern (
 }
 
 static void
-gum_v8_core_on_new_native_function (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
@@ -1640,8 +1639,7 @@ gum_ffi_function_on_weak_notify (
 }
 
 static void
-gum_v8_core_on_invoke_native_function (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_core_on_invoke_native_function (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
@@ -1747,8 +1745,7 @@ gum_ffi_function_free (GumFFIFunction * func)
 }
 
 static void
-gum_v8_core_on_new_native_callback (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_core_on_new_native_callback (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
@@ -1944,8 +1941,7 @@ gum_ffi_callback_free (GumFFICallback * callback)
 }
 
 static void
-gum_v8_core_on_new_cpu_context (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_core_on_new_cpu_context (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());

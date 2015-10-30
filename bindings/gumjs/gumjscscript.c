@@ -221,7 +221,7 @@ gum_jsc_script_init (GumJscScript * self)
 static void
 gum_jsc_script_dispose (GObject * object)
 {
-  GumJscScript * self = GUM_SCRIPT (object);
+  GumJscScript * self = GUM_JSC_SCRIPT (object);
   GumJscScriptPrivate * priv = self->priv;
 
   gum_jsc_script_set_message_handler (self, NULL, NULL, NULL);
@@ -242,7 +242,7 @@ gum_jsc_script_dispose (GObject * object)
 static void
 gum_jsc_script_finalize (GObject * object)
 {
-  GumJscScript * self = GUM_SCRIPT (object);
+  GumJscScript * self = GUM_JSC_SCRIPT (object);
   GumJscScriptPrivate * priv = self->priv;
 
   g_free (priv->name);
@@ -257,7 +257,7 @@ gum_jsc_script_get_property (GObject * object,
                              GValue * value,
                              GParamSpec * pspec)
 {
-  GumJscScript * self = GUM_SCRIPT (object);
+  GumJscScript * self = GUM_JSC_SCRIPT (object);
   GumJscScriptPrivate * priv = self->priv;
 
   switch (property_id)
@@ -285,7 +285,7 @@ gum_jsc_script_set_property (GObject * object,
                              const GValue * value,
                              GParamSpec * pspec)
 {
-  GumJscScript * self = GUM_SCRIPT (object);
+  GumJscScript * self = GUM_JSC_SCRIPT (object);
   GumJscScriptPrivate * priv = self->priv;
 
   switch (property_id)
@@ -492,7 +492,7 @@ GumJscScript *
 gum_jsc_script_from_string_finish (GAsyncResult * result,
                                    GError ** error)
 {
-  return GUM_SCRIPT (gum_jsc_script_task_propagate_pointer (
+  return GUM_JSC_SCRIPT (gum_jsc_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
 
@@ -509,7 +509,7 @@ gum_jsc_script_from_string_sync (const gchar * name,
   task = gum_jsc_script_from_string_task_new (name, source, flavor, cancellable,
       NULL, NULL);
   gum_jsc_script_task_run_in_js_thread_sync (task, _gum_jsc_script_get_scheduler ());
-  script = GUM_SCRIPT (gum_jsc_script_task_propagate_pointer (task, error));
+  script = GUM_JSC_SCRIPT (gum_jsc_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
   return script;
@@ -548,7 +548,7 @@ gum_jsc_script_from_string_task_run (GumJscScriptTask * task,
   GumJscScript * script;
   GError * error = NULL;
 
-  script = GUM_SCRIPT (g_object_new (GUM_TYPE_SCRIPT,
+  script = GUM_JSC_SCRIPT (g_object_new (GUM_JSC_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
       "flavor", d->flavor,
@@ -685,7 +685,7 @@ gum_jsc_script_do_load (GumJscScriptTask * task,
                         gpointer task_data,
                         GCancellable * cancellable)
 {
-  GumJscScript * self = GUM_SCRIPT (source_object);
+  GumJscScript * self = GUM_JSC_SCRIPT (source_object);
   GumJscScriptPrivate * priv = self->priv;
 
   if (priv->ctx == NULL)
@@ -762,7 +762,7 @@ gum_jsc_script_do_unload (GumJscScriptTask * task,
                           gpointer task_data,
                           GCancellable * cancellable)
 {
-  GumJscScript * self = GUM_SCRIPT (source_object);
+  GumJscScript * self = GUM_JSC_SCRIPT (source_object);
   GumJscScriptPrivate * priv = self->priv;
 
   if (priv->loaded)
@@ -805,9 +805,10 @@ gum_jsc_post_message_data_free (GumJscPostMessageData * d)
 }
 
 void
-gum_jsc_script_set_debug_message_handler (GumJscScriptDebugMessageHandler handler,
-                                          gpointer data,
-                                          GDestroyNotify data_destroy)
+gum_jsc_script_set_debug_message_handler (
+    GumJscScriptDebugMessageHandler handler,
+    gpointer data,
+    GDestroyNotify data_destroy)
 {
 }
 
@@ -820,7 +821,7 @@ static void
 gum_jsc_script_on_enter (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
-  GumJscScript * self = GUM_SCRIPT_CAST (listener);
+  GumJscScript * self = GUM_JSC_SCRIPT_CAST (listener);
 
   _gum_jsc_interceptor_on_enter (&self->priv->interceptor, context);
 }
@@ -829,7 +830,7 @@ static void
 gum_jsc_script_on_leave (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
-  GumJscScript * self = GUM_SCRIPT_CAST (listener);
+  GumJscScript * self = GUM_JSC_SCRIPT_CAST (listener);
 
   _gum_jsc_interceptor_on_leave (&self->priv->interceptor, context);
 }

@@ -11,7 +11,7 @@
 
 #include <gum/gum-init.h>
 
-#define GUM_SCRIPT_INVOCATION_CONTEXT(o) \
+#define GUM_JSC_INVOCATION_CONTEXT(o) \
   ((GumJscInvocationContext *) JSObjectGetPrivate (o))
 
 #ifdef G_OS_WIN32
@@ -492,7 +492,7 @@ gumjs_invocation_context_new (JSContextRef ctx,
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   g_slice_free (GumJscInvocationContext, self);
 }
@@ -501,7 +501,7 @@ static void
 gumjs_invocation_context_update_handle (JSObjectRef jic,
                                         GumInvocationContext * handle)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (jic);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (jic);
 
   self->handle = handle;
   g_clear_pointer (&self->cpu_context, _gumjs_cpu_context_detach);
@@ -523,7 +523,7 @@ gumjs_invocation_context_check_valid (GumJscInvocationContext * self,
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_return_address)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return NULL;
@@ -534,7 +534,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_return_address)
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return NULL;
@@ -550,7 +550,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_system_error)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return NULL;
@@ -566,7 +566,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
   if (!_gumjs_args_parse (args, "i", &value))
     return false;
 
-  self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return false;
@@ -577,7 +577,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_thread_id)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return NULL;
@@ -588,7 +588,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_thread_id)
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
 {
-  GumJscInvocationContext * self = GUM_SCRIPT_INVOCATION_CONTEXT (object);
+  GumJscInvocationContext * self = GUM_JSC_INVOCATION_CONTEXT (object);
 
   if (!gumjs_invocation_context_check_valid (self, ctx, exception))
     return NULL;
@@ -774,10 +774,9 @@ gum_jsc_interceptor_adjust_ignore_level (GumThreadId thread_id,
 }
 
 static void
-gum_jsc_interceptor_adjust_ignore_level_unlocked (
-    GumThreadId thread_id,
-    gint adjustment,
-    GumInterceptor * interceptor)
+gum_jsc_interceptor_adjust_ignore_level_unlocked (GumThreadId thread_id,
+                                                  gint adjustment,
+                                                  GumInterceptor * interceptor)
 {
   gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
   gint level;

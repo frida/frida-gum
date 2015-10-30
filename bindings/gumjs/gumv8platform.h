@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_PLATFORM_H__
-#define __GUM_SCRIPT_PLATFORM_H__
+#ifndef __GUM_V8_PLATFORM_H__
+#define __GUM_V8_PLATFORM_H__
 
 #include "gumv8bundle.h"
 #include "gumscriptscheduler.h"

@@ -13,7 +13,7 @@
 #include <gum/gumexceptor.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
-#define GUM_SCRIPT_SCOPE_INIT(C) { C, NULL }
+#define GUM_JSC_SCOPE_INIT(C) { C, NULL }
 
 G_BEGIN_DECLS
 

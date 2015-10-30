@@ -135,7 +135,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 {
   GumJscMatchContext mc;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
@@ -157,7 +157,7 @@ gum_emit_thread (const GumThreadDetails * details,
 {
   GumJscMatchContext * mc = user_data;
   GumJscCore * core = mc->self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef thread;
   JSValueRef result;
@@ -191,7 +191,7 @@ gum_emit_thread (const GumThreadDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 {
   GumJscMatchContext mc;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
@@ -213,7 +213,7 @@ gum_emit_module (const GumModuleDetails * details,
 {
   GumJscMatchContext * mc = user_data;
   GumJscCore * core = mc->self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef module;
   JSValueRef result;
@@ -245,7 +245,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
   GumJscMatchContext mc;
   GumPageProtection prot;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
@@ -267,7 +267,7 @@ gum_emit_range (const GumRangeDetails * details,
 {
   GumJscMatchContext * mc = user_data;
   GumJscCore * core = mc->self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   char prot_str[4] = "---";
   JSObjectRef range;
@@ -315,7 +315,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
 #ifdef HAVE_DARWIN
   GumJscMatchContext mc;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (args->core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
   mc.self = JSObjectGetPrivate (this_object);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
@@ -341,7 +341,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 {
   GumJscMatchContext * mc = user_data;
   GumJscCore * core = mc->self->core;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
   JSContextRef ctx = mc->ctx;
   JSObjectRef range;
   JSValueRef result;

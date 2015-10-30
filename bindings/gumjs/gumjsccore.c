@@ -10,8 +10,8 @@
 
 #include <ffi.h>
 
-#define GUM_SCRIPT_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
-#define GUM_SCRIPT_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
+#define GUM_JSC_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
+#define GUM_JSC_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
 
 typedef struct _GumJscNativeFunction GumJscNativeFunction;
 typedef struct _GumJscNativeCallback GumJscNativeCallback;
@@ -549,9 +549,9 @@ _gum_jsc_core_flush (GumJscCore * self)
 {
   GMainContext * context;
 
-  GUM_SCRIPT_CORE_UNLOCK (self);
+  GUM_JSC_CORE_UNLOCK (self);
   gum_jsc_script_scheduler_flush_by_tag (self->scheduler, self);
-  GUM_SCRIPT_CORE_LOCK (self);
+  GUM_JSC_CORE_LOCK (self);
 
   context = gum_jsc_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
@@ -625,10 +625,10 @@ _gum_jsc_core_post_message (GumJscCore * self,
 
     _gum_jsc_scope_leave (&scope);
 
-    GUM_SCRIPT_CORE_LOCK (self);
+    GUM_JSC_CORE_LOCK (self);
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
-    GUM_SCRIPT_CORE_UNLOCK (self);
+    GUM_JSC_CORE_UNLOCK (self);
   }
 }
 
@@ -649,7 +649,7 @@ _gum_jsc_scope_enter (GumJscScope * self,
   self->core = core;
   self->exception = NULL;
 
-  GUM_SCRIPT_CORE_LOCK (core);
+  GUM_JSC_CORE_LOCK (core);
 }
 
 void
@@ -670,7 +670,7 @@ _gum_jsc_scope_leave (GumJscScope * self)
 {
   _gum_jsc_scope_flush (self);
 
-  GUM_SCRIPT_CORE_UNLOCK (self->core);
+  GUM_JSC_CORE_UNLOCK (self->core);
 }
 
 void
@@ -679,13 +679,13 @@ _gum_jsc_yield_begin (GumJscYield * self,
 {
   self->core = core;
 
-  GUM_SCRIPT_CORE_UNLOCK (core);
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 void
 _gum_jsc_yield_end (GumJscYield * self)
 {
-  GUM_SCRIPT_CORE_LOCK (self->core);
+  GUM_JSC_CORE_LOCK (self->core);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -1579,7 +1579,7 @@ gum_jsc_weak_ref_free (GumJscWeakRef * ref)
 {
   GumJscCore * core = ref->core;
   JSContextRef ctx = core->ctx;
-  GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+  GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
 
   gum_jsc_weak_ref_clear (ref);
 

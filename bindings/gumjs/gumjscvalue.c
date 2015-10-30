@@ -8,8 +8,6 @@
 
 #include "gumjsc-priv.h"
 
-#define GUM_SCRIPT_MAX_ARRAY_LENGTH (1024 * 1024)
-
 static void gum_native_resource_on_weak_notify (
     GumJscNativeResource * resource);
 

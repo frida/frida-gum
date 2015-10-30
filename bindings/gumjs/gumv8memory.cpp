@@ -353,8 +353,7 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 #endif
 
 static void
-gum_v8_memory_on_alloc_utf8_string (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_memory_on_alloc_utf8_string (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Memory * self = static_cast<GumV8Memory *> (
       info.Data ().As<External> ()->Value ());

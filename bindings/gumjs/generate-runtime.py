@@ -111,18 +111,18 @@ if __name__ == '__main__':
     output_dir = sys.argv[2]
 
     modules = [
-        "gumscript-runtime-core.js",
-        "gumscript-runtime-source-map.js",
-        "gumscript-runtime-java.js",
-        "gumscript-runtime-objc.js",
+        "gumscript-core.js",
+        "gumscript-source-map.js",
+        "gumscript-java.js",
+        "gumscript-objc.js",
     ]
     jsc_polyfill_modules = [
-        "gumscript-runtime-promise.js",
+        "gumscript-promise.js",
     ]
     generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     if platform.system() == 'Darwin':
-        generate_runtime_jsc(output_dir, "gumjscript-runtime.h", input_dir, modules + jsc_polyfill_modules)
+        generate_runtime_jsc(output_dir, "gumjscscript-runtime.h", input_dir, modules + jsc_polyfill_modules)
 
-    generate_runtime_v8(output_dir, "gumscript-debug.h", input_dir, [
+    generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
         "gumscript-debug.js",
     ])

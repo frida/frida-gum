@@ -85,7 +85,7 @@ gum_v8_event_sink_release_core (GumV8EventSink * self)
 static void
 gum_v8_event_sink_dispose (GObject * obj)
 {
-  gum_v8_event_sink_release_core (GUM_SCRIPT_EVENT_SINK (obj));
+  gum_v8_event_sink_release_core (GUM_V8_EVENT_SINK (obj));
 
   G_OBJECT_CLASS (gum_v8_event_sink_parent_class)->dispose (obj);
 }
@@ -93,7 +93,7 @@ gum_v8_event_sink_dispose (GObject * obj)
 static void
 gum_v8_event_sink_finalize (GObject * obj)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK (obj);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK (obj);
 
   g_assert (self->source == NULL);
 
@@ -109,7 +109,7 @@ gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
   Isolate * isolate = options->core->isolate;
   GumV8EventSink * sink;
 
-  sink = GUM_SCRIPT_EVENT_SINK (
+  sink = GUM_V8_EVENT_SINK (
       g_object_new (GUM_TYPE_SCRIPT_EVENT_SINK, NULL));
   sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
       options->queue_capacity);
@@ -137,13 +137,13 @@ gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
 static GumEventType
 gum_v8_event_sink_query_mask (GumEventSink * sink)
 {
-  return GUM_SCRIPT_EVENT_SINK (sink)->event_mask;
+  return GUM_V8_EVENT_SINK (sink)->event_mask;
 }
 
 static void
 gum_v8_event_sink_start (GumEventSink * sink)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK (sink);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK (sink);
   self->source = g_timeout_source_new (self->queue_drain_interval);
   g_source_set_callback (self->source, gum_v8_event_sink_drain,
       g_object_ref (self), g_object_unref);
@@ -154,7 +154,7 @@ static void
 gum_v8_event_sink_process (GumEventSink * sink,
                            const GumEvent * ev)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK_CAST (sink);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK_CAST (sink);
   gum_spinlock_acquire (&self->lock);
   if (self->queue->len != self->queue_capacity)
     g_array_append_val (self->queue, *ev);
@@ -164,7 +164,7 @@ gum_v8_event_sink_process (GumEventSink * sink,
 static void
 gum_v8_event_sink_stop (GumEventSink * sink)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK (sink);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK (sink);
 
   if (g_main_context_is_owner (self->main_context))
   {
@@ -184,7 +184,7 @@ gum_v8_event_sink_stop (GumEventSink * sink)
 static gboolean
 gum_v8_event_sink_stop_idle (gpointer user_data)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK (user_data);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK (user_data);
 
   gum_v8_event_sink_drain (self);
 
@@ -201,7 +201,7 @@ gum_v8_event_sink_stop_idle (gpointer user_data)
 static gboolean
 gum_v8_event_sink_drain (gpointer user_data)
 {
-  GumV8EventSink * self = GUM_SCRIPT_EVENT_SINK (user_data);
+  GumV8EventSink * self = GUM_V8_EVENT_SINK (user_data);
   gpointer buffer = NULL;
   guint len, size;
 

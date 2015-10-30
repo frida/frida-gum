@@ -160,7 +160,7 @@ gumjs_proxy_has_property (JSContextRef ctx,
   core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx));
 
   {
-    GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+    GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
     JSValueRef * ex = &scope.exception;
     JSValueRef property_name_value, value;
     bool result = false;
@@ -207,7 +207,7 @@ gumjs_proxy_get_property (JSContextRef ctx,
   core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx));
 
   {
-    GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+    GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
     JSValueRef argv[2];
     JSValueRef result;
 
@@ -238,7 +238,7 @@ gumjs_proxy_set_property (JSContextRef ctx,
   core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx));
 
   {
-    GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+    GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
     JSValueRef argv[3];
     JSValueRef result;
 
@@ -268,7 +268,7 @@ gumjs_proxy_get_property_names (JSContextRef ctx,
   core = JSObjectGetPrivate (JSContextGetGlobalObject (ctx));
 
   {
-    GumJscScope scope = GUM_SCRIPT_SCOPE_INIT (core);
+    GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
     JSValueRef * ex = &scope.exception;
     JSValueRef value;
     JSObjectRef names;
