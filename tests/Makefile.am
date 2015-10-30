@@ -26,12 +26,17 @@ extra_libs =
 
 if ENABLE_GUMJS
 extra_testsuites += \
-	$(builddir)/gumjs/libgum-tests-gumjs.la
+	$(builddir)/gumjs/libgum-tests-gumjs.la \
+	$(NULL)
 extra_ldflags += \
-	$(GUMJS_LDFLAGS)
+	$(GUMJS_LDFLAGS) \
+	$(GUMJSC_LDFLAGS) \
+	$(NULL)
 extra_libs += \
 	$(top_builddir)/bindings/gumjs/libfrida-gumjs.la \
-	$(GUMJS_LIBS)
+	$(GUMJS_LIBS) \
+	$(GUMJSC_LIBS) \
+	$(NULL)
 endif
 
 gum_tests_SOURCES = \

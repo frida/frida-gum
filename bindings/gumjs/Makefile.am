@@ -7,26 +7,14 @@ fridaincludedir = $(includedir)/frida-1.0/gumjs
 fridainclude_HEADERS = \
 	gumscript.h
 
-libfrida_gumjs_1_0_la_SOURCES = $(NULL)
-libfrida_gumjs_1_0_la_LDFLAGS = \
-	-export-symbols-regex "^gum_.*" \
-	$(GUMJS_LDFLAGS)
-libfrida_gumjs_1_0_la_LIBADD = \
-	libfrida-gumjs.la \
-	$(GUMJS_LIBS)
-libfrida_gumjs_1_0_la_LIBTOOLFLAGS = \
-	--tag=disable-shared
-
-libfrida_gumjs_la_SOURCES = \
-	gumscript.cpp \
+v8_sources = \
+	gumv8script.cpp \
 	gumscript-priv.h \
 	gumscript-runtime.h \
 	gumscriptplatform.h \
 	gumscriptplatform.cpp \
 	gumscriptbundle.h \
 	gumscriptbundle.cpp \
-	gumscriptscheduler.h \
-	gumscriptscheduler.c \
 	gumscripttask.h \
 	gumscripttask.c \
 	gumscriptscope.h \
@@ -56,36 +44,15 @@ libfrida_gumjs_la_SOURCES = \
 	gumscriptsymbol.h \
 	gumscriptsymbol.cpp \
 	gumscriptinstruction.h \
-	gumscriptinstruction.cpp
-libfrida_gumjs_la_CPPFLAGS = \
-	$(AM_CPPFLAGS) \
-	$(GUMJS_CFLAGS)
-libfrida_gumjs_la_LIBTOOLFLAGS = \
-	--tag=disable-shared
+	gumscriptinstruction.cpp \
+	$(NULL)
 
-if OS_DARWIN
-
-lib_LTLIBRARIES += libfrida-gumjsc-1.0.la
-noinst_LTLIBRARIES += libfrida-gumjsc.la
-
-libfrida_gumjsc_1_0_la_SOURCES = $(NULL)
-libfrida_gumjsc_1_0_la_LDFLAGS = \
-	-export-symbols-regex "^gum_.*" \
-	$(GUMJSC_LDFLAGS)
-libfrida_gumjsc_1_0_la_LIBADD = \
-	libfrida-gumjsc.la \
-	$(GUMJSC_LIBS)
-libfrida_gumjsc_1_0_la_LIBTOOLFLAGS = \
-	--tag=disable-shared
-
-libfrida_gumjsc_la_SOURCES = \
+jsc_sources = \
 	gumjscript.c \
 	gumjscript-priv.h \
 	gumjscript-runtime.h \
 	gumjscriptbundle.h \
 	gumjscriptbundle.c \
-	gumscriptscheduler.h \
-	gumscriptscheduler.c \
 	gumscripttask.h \
 	gumscripttask.c \
 	gumjscriptvalue.h \
@@ -119,7 +86,7 @@ libfrida_gumjsc_la_SOURCES = \
 	gumjscriptinstruction.h \
 	gumjscriptinstruction.c \
 	$(NULL)
-libfrida_gumjsc_la_CPPFLAGS = \
+jsc_includes = \
 	-I $(srcdir)/include/JavaScriptCore/API \
 	-I $(srcdir)/include/JavaScriptCore/assembler \
 	-I $(srcdir)/include/JavaScriptCore/bytecode \
@@ -133,21 +100,72 @@ libfrida_gumjsc_la_CPPFLAGS = \
 	-I $(srcdir)/include/JavaScriptCore/profiler \
 	-I $(srcdir)/include/JavaScriptCore/runtime \
 	-I $(srcdir)/include/WTF \
-	$(AM_CPPFLAGS) \
-	$(GUMJSC_CFLAGS)
-libfrida_gumjsc_la_CXXFLAGS = \
-	-fno-rtti
-libfrida_gumjsc_la_LIBTOOLFLAGS = \
-	--tag=disable-shared
+	$(NULL)
 
+platform_sources = $(NULL)
+platform_cppflags = $(NULL)
+platform_cxxflags = $(NULL)
+platform_ldflags = $(NULL)
+platform_libadd = $(NULL)
+
+if OS_DARWIN
+platform_sources += \
+	$(jsc_sources) \
+	$(NULL)
+platform_cppflags += \
+	$(jsc_includes) \
+	$(GUMJSC_CFLAGS)
+platform_cxxflags += \
+	-fno-rtti \
+	$(NULL)
+platform_ldflags += \
+	$(GUMJSC_LDFLAGS) \
+	$(NULL)
+platform_libadd += \
+	$(GUMJSC_LIBS) \
+	$(NULL)
 endif
+
+libfrida_gumjs_1_0_la_SOURCES = \
+	$(NULL)
+libfrida_gumjs_1_0_la_LDFLAGS = \
+	-export-symbols-regex "^gum_.*" \
+	$(GUMJS_LDFLAGS) \
+	$(platform_ldflags) \
+	$(NULL)
+libfrida_gumjs_1_0_la_LIBADD = \
+	libfrida-gumjs.la \
+	$(GUMJS_LIBS) \
+	$(platform_libadd) \
+	$(NULL)
+libfrida_gumjs_1_0_la_LIBTOOLFLAGS = \
+	--tag=disable-shared \
+	$(NULL)
+
+libfrida_gumjs_la_SOURCES = \
+	gumscript.h \
+	gumscript.c \
+	gumscriptbackend.h \
+	gumscriptbackend.c \
+	gumscriptscheduler.h \
+	gumscriptscheduler.c \
+	$(v8_sources) \
+	$(platform_sources) \
+	$(NULL)
+libfrida_gumjs_la_CXXFLAGS = \
+	$(platform_cxxflags) \
+	$(NULL)
+libfrida_gumjs_la_LIBTOOLFLAGS = \
+	--tag=disable-shared \
+	$(NULL)
 
 script_runtime_sources = \
 	gumscript-runtime-core.js \
 	gumscript-runtime-source-map.js \
 	gumscript-runtime-java.js \
 	gumscript-runtime-objc.js \
-	gumscript-debug.js
+	gumscript-debug.js \
+	$(NULL)
 
 script-runtime-stamp: generate-runtime.py $(script_runtime_sources)
 	@mkdir -p "$(@D)"
@@ -158,4 +176,7 @@ AM_CPPFLAGS = \
 	-DG_LOG_DOMAIN=\"Frida\" \
 	-include config.h \
 	-I $(top_srcdir) \
-	-I $(top_srcdir)/gum
+	-I $(top_srcdir)/gum \
+	$(GUMJS_CFLAGS) \
+	$(platform_cppflags) \
+	$(NULL)
