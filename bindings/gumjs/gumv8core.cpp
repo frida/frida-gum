@@ -868,7 +868,7 @@ gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
 
 void
 _gum_v8_core_push_job (GumV8Core * self,
-                       GumV8ScriptJobFunc job_func,
+                       GumScriptJobFunc job_func,
                        gpointer data,
                        GDestroyNotify data_destroy)
 {

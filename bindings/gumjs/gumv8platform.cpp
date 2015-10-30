@@ -99,7 +99,7 @@ GumV8Platform::CallOnBackgroundThread (Task * task,
   (void) expected_runtime;
 
   gum_script_scheduler_push_job_on_thread_pool (scheduler,
-      (GumV8ScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
+      (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
 }
 
 void
@@ -109,7 +109,7 @@ GumV8Platform::CallOnForegroundThread (Isolate * isolate,
   (void) isolate;
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_HIGH,
-      (GumV8ScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
+      (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask, NULL);
 }
 
 double

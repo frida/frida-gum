@@ -4,29 +4,28 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_SCRIPT_PRIV_H__
-#define __GUM_SCRIPT_PRIV_H__
+#ifndef __GUM_V8_SCRIPT_PRIV_H__
+#define __GUM_V8_SCRIPT_PRIV_H__
 
-#include "gumscript.h"
-#include "gumscriptcore.h"
-#include "gumscriptfile.h"
-#include "gumscriptinstruction.h"
-#include "gumscriptinterceptor.h"
-#include "gumscriptkernel.h"
-#include "gumscriptmemory.h"
-#include "gumscriptmodule.h"
-#include "gumscriptplatform.h"
-#include "gumscriptprocess.h"
-#include "gumscriptscope.h"
-#include "gumscriptsocket.h"
-#include "gumscriptstalker.h"
-#include "gumscriptsymbol.h"
-#include "gumscripttask.h"
-#include "gumscriptthread.h"
+#include "gumv8core.h"
+#include "gumv8file.h"
+#include "gumv8instruction.h"
+#include "gumv8interceptor.h"
+#include "gumv8kernel.h"
+#include "gumv8memory.h"
+#include "gumv8module.h"
+#include "gumv8platform.h"
+#include "gumv8process.h"
+#include "gumv8scope.h"
+#include "gumv8script.h"
+#include "gumv8socket.h"
+#include "gumv8stalker.h"
+#include "gumv8symbol.h"
+#include "gumv8thread.h"
 
 G_BEGIN_DECLS
 
-struct _GumScriptPrivate
+struct _GumV8ScriptPrivate
 {
   gchar * name;
   gchar * source;
@@ -34,18 +33,18 @@ struct _GumScriptPrivate
   GMainContext * main_context;
 
   v8::Isolate * isolate;
-  GumScriptCore core;
-  GumScriptKernel kernel;
-  GumScriptMemory memory;
-  GumScriptProcess process;
-  GumScriptThread thread;
-  GumScriptModule module;
-  GumScriptFile file;
-  GumScriptSocket socket;
-  GumScriptInterceptor interceptor;
-  GumScriptStalker stalker;
-  GumScriptSymbol symbol;
-  GumScriptInstruction instruction;
+  GumV8Core core;
+  GumV8Kernel kernel;
+  GumV8Memory memory;
+  GumV8Process process;
+  GumV8Thread thread;
+  GumV8Module module;
+  GumV8File file;
+  GumV8Socket socket;
+  GumV8Interceptor interceptor;
+  GumV8Stalker stalker;
+  GumV8Symbol symbol;
+  GumV8Instruction instruction;
   GumPersistent<v8::Context>::type * context;
   GumPersistent<v8::Script>::type * code;
   gboolean loaded;
@@ -55,7 +54,7 @@ struct _GumScriptPrivate
   GDestroyNotify message_handler_data_destroy;
 };
 
-G_GNUC_INTERNAL GumScriptPlatform * gum_script_get_platform (void);
+G_GNUC_INTERNAL GumV8Platform * gum_v8_script_get_platform (void);
 
 G_END_DECLS
 

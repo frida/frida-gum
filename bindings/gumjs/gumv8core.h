@@ -13,10 +13,11 @@
     static_cast<GumCpuContext *> ( \
         (o)->GetInternalField (0).As<External> ()->Value ())
 
-#include "gumv8script.h"
+#include "gumscript.h"
 #include "gumscriptscheduler.h"
 
 #include <gum/gumexceptor.h>
+#include <gum/gumprocess.h>
 #include <v8.h>
 
 typedef struct _GumV8Core GumV8Core;
@@ -108,21 +109,21 @@ G_GNUC_INTERNAL void _gum_v8_core_post_message (GumV8Core * self,
     const gchar * message);
 
 G_GNUC_INTERNAL void _gum_v8_core_push_job (GumV8Core * self,
-    GumV8ScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
+    GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
 G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_get (v8::Handle<v8::Value> value,
     GumV8Core * core);
-G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_try_get (v8::Handle<v8::Value> value,
-    GumV8Core * core);
+G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_try_get (
+    v8::Handle<v8::Value> value, GumV8Core * core);
 
-G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (gpointer data,
-    gsize size, GDestroyNotify notify, GumV8Core * core);
+G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
+    gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
 
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (gpointer address,
-    GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_get (v8::Handle<v8::Value> value,
-    gpointer * target, GumV8Core * core);
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (
+    gpointer address, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_get (
+    v8::Handle<v8::Value> value, gpointer * target, GumV8Core * core);
 
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);
@@ -148,12 +149,15 @@ G_GNUC_INTERNAL gboolean _gum_v8_object_set (v8::Handle<v8::Object> object,
     const gchar * key, v8::Handle<v8::Value> value, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_uint (v8::Handle<v8::Object> object,
     const gchar * key, guint value, GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (v8::Handle<v8::Object> object,
-    const gchar * key, gpointer value, GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (v8::Handle<v8::Object> object,
-    const gchar * key, GumAddress value, GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_object_set_ascii (v8::Handle<v8::Object> object,
-    const gchar * key, const gchar * value, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (
+    v8::Handle<v8::Object> object, const gchar * key, gpointer value,
+    GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_pointer (
+    v8::Handle<v8::Object> object, const gchar * key, GumAddress value,
+    GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_object_set_ascii (
+    v8::Handle<v8::Object> object, const gchar * key, const gchar * value,
+    GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_object_set_utf8 (v8::Handle<v8::Object> object,
     const gchar * key, const gchar * value, GumV8Core * core);
 

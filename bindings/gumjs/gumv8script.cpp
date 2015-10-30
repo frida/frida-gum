@@ -802,7 +802,7 @@ gum_v8_script_post_message (GumV8Script * self,
   d->message = g_strdup (message);
 
   gum_script_scheduler_push_job_on_js_thread (gum_v8_script_get_scheduler (),
-      G_PRIORITY_DEFAULT, (GumV8ScriptJobFunc) gum_v8_script_do_post_message, d,
+      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_v8_script_do_post_message, d,
       (GDestroyNotify) gum_v8_post_message_data_free, NULL);
 }
 
@@ -848,8 +848,8 @@ gum_v8_script_set_debug_message_handler (GumV8ScriptDebugMessageHandler handler,
   gum_script_scheduler_push_job_on_js_thread (gum_v8_script_get_scheduler (),
       G_PRIORITY_DEFAULT,
       (handler != NULL)
-          ? (GumV8ScriptJobFunc) gum_v8_script_do_enable_debugger
-          : (GumV8ScriptJobFunc) gum_v8_script_do_disable_debugger,
+          ? (GumScriptJobFunc) gum_v8_script_do_enable_debugger
+          : (GumScriptJobFunc) gum_v8_script_do_disable_debugger,
       NULL, NULL, NULL);
 }
 
@@ -943,7 +943,7 @@ gum_v8_script_post_debug_message (const gchar * message)
 
   gum_script_scheduler_push_job_on_js_thread (gum_v8_script_get_scheduler (),
       G_PRIORITY_DEFAULT,
-      (GumV8ScriptJobFunc) gum_v8_script_do_process_debug_messages, NULL, NULL,
+      (GumScriptJobFunc) gum_v8_script_do_process_debug_messages, NULL, NULL,
       NULL);
 }
 
