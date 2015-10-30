@@ -76,4 +76,6 @@ GUM_API void gum_script_post_message (GumScript * self, const gchar * message);
 
 GUM_API GumStalker * gum_script_get_stalker (GumScript * self);
 
+G_END_DECLS
+
 #endif

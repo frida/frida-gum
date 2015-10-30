@@ -74,4 +74,6 @@ GUM_API void gum_script_backend_unignore_later (GumScriptBackend * self,
 GUM_API gboolean gum_script_backend_is_ignoring (GumScriptBackend * self,
     GumThreadId thread_id);
 
+G_END_DECLS
+
 #endif
