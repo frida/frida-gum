@@ -9,8 +9,8 @@ fridainclude_HEADERS = \
 
 v8_sources = \
 	gumv8script.cpp \
-	gumscript-priv.h \
-	gumscript-runtime.h \
+	gumv8script-priv.h \
+	gumv8script-runtime.h \
 	gumscriptplatform.h \
 	gumscriptplatform.cpp \
 	gumscriptbundle.h \
@@ -177,6 +177,7 @@ AM_CPPFLAGS = \
 	-include config.h \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/gum \
+	-I $(top_srcdir)/bindings \
 	$(GUMJS_CFLAGS) \
 	$(platform_cppflags) \
 	$(NULL)

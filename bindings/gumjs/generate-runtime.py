@@ -119,7 +119,7 @@ if __name__ == '__main__':
     jsc_polyfill_modules = [
         "gumscript-runtime-promise.js",
     ]
-    generate_runtime_v8(output_dir, "gumscript-runtime.h", input_dir, modules)
+    generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     if platform.system() == 'Darwin':
         generate_runtime_jsc(output_dir, "gumjscript-runtime.h", input_dir, modules + jsc_polyfill_modules)
 

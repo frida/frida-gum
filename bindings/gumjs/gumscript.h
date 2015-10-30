@@ -31,6 +31,21 @@ struct _GumScriptIface
 {
   GTypeInterface parent;
 
+  void (* load) (GumScript * self, GCancellable * cancellable,
+      GAsyncReadyCallback callback, gpointer user_data);
+  void (* load_finish) (GumScript * self, GAsyncResult * result);
+  void (* load_sync) (GumScript * self, GCancellable * cancellable);
+  void (* unload) (GumScript * self, GCancellable * cancellable,
+      GAsyncReadyCallback callback, gpointer user_data);
+  void (* unload_finish) (GumScript * self, GAsyncResult * result);
+  void (* unload_sync) (GumScript * self, GCancellable * cancellable);
+
+  void (* set_message_handler) (GumScript * self,
+      GumScriptMessageHandler handler, gpointer data,
+      GDestroyNotify data_destroy);
+  void (* post_message) (GumScript * self, const gchar * message);
+
+  GumStalker * (* get_stalker) (GumScript * self);
 };
 
 enum _GumScriptFlavor
