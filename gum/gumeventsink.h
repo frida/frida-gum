@@ -26,10 +26,10 @@ struct _GumEventSinkIface
 {
   GTypeInterface parent;
 
-  GumEventType (*query_mask) (GumEventSink * self);
-  void (*start) (GumEventSink * self);
-  void (*process) (GumEventSink * self, const GumEvent * ev);
-  void (*stop) (GumEventSink * self);
+  GumEventType (* query_mask) (GumEventSink * self);
+  void (* start) (GumEventSink * self);
+  void (* process) (GumEventSink * self, const GumEvent * ev);
+  void (* stop) (GumEventSink * self);
 };
 
 G_BEGIN_DECLS

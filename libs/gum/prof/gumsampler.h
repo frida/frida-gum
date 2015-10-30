@@ -29,7 +29,7 @@ struct _GumSamplerIface
 {
   GTypeInterface parent;
 
-  GumSample (*sample) (GumSampler * self);
+  GumSample (* sample) (GumSampler * self);
 };
 
 G_BEGIN_DECLS

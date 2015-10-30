@@ -27,9 +27,9 @@ struct _GumInvocationListenerIface
 {
   GTypeInterface parent;
 
-  void (*on_enter) (GumInvocationListener * self,
+  void (* on_enter) (GumInvocationListener * self,
       GumInvocationContext * context);
-  void (*on_leave) (GumInvocationListener * self,
+  void (* on_leave) (GumInvocationListener * self,
       GumInvocationContext * context);
 };
 

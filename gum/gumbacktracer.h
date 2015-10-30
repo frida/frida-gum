@@ -27,7 +27,7 @@ struct _GumBacktracerIface
 {
   GTypeInterface parent;
 
-  void (*generate) (GumBacktracer * self, const GumCpuContext * cpu_context,
+  void (* generate) (GumBacktracer * self, const GumCpuContext * cpu_context,
       GumReturnAddressArray * return_addresses);
 };
 
