@@ -45,7 +45,7 @@ struct _GumJscScriptPrivate
 {
   gchar * name;
   gchar * source;
-  GumJscScriptFlavor flavor;
+  GumScriptFlavor flavor;
   GMainContext * main_context;
 
   JSGlobalContextRef ctx;
@@ -73,7 +73,7 @@ struct _GumJscFromStringData
 {
   gchar * name;
   gchar * source;
-  GumJscScriptFlavor flavor;
+  GumScriptFlavor flavor;
 };
 
 struct _GumJscEmitMessageData
@@ -104,7 +104,7 @@ static void gum_jsc_script_set_property (GObject * object, guint property_id,
 static void gum_jsc_script_destroy_context (GumJscScript * self);
 
 static GumJscScriptTask * gum_jsc_script_from_string_task_new (const gchar * name,
-    const gchar * source, GumJscScriptFlavor flavor, GCancellable * cancellable,
+    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
 static void gum_jsc_script_from_string_task_run (GumJscScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
@@ -475,7 +475,7 @@ gum_jsc_script_destroy_context (GumJscScript * self)
 void
 gum_jsc_script_from_string (const gchar * name,
                             const gchar * source,
-                            GumJscScriptFlavor flavor,
+                            GumScriptFlavor flavor,
                             GCancellable * cancellable,
                             GAsyncReadyCallback callback,
                             gpointer user_data)
@@ -499,7 +499,7 @@ gum_jsc_script_from_string_finish (GAsyncResult * result,
 GumJscScript *
 gum_jsc_script_from_string_sync (const gchar * name,
                                  const gchar * source,
-                                 GumJscScriptFlavor flavor,
+                                 GumScriptFlavor flavor,
                                  GCancellable * cancellable,
                                  GError ** error)
 {
@@ -518,7 +518,7 @@ gum_jsc_script_from_string_sync (const gchar * name,
 static GumJscScriptTask *
 gum_jsc_script_from_string_task_new (const gchar * name,
                                      const gchar * source,
-                                     GumJscScriptFlavor flavor,
+                                     GumScriptFlavor flavor,
                                      GCancellable * cancellable,
                                      GAsyncReadyCallback callback,
                                      gpointer user_data)

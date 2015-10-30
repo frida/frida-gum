@@ -243,7 +243,7 @@ _gum_v8_core_init (GumV8Core * self,
                    v8::Isolate * isolate,
                    Handle<ObjectTemplate> scope)
 {
-  GumV8ScriptFlavor flavor;
+  GumScriptFlavor flavor;
 
   g_object_get (script, "flavor", &flavor, NULL);
 

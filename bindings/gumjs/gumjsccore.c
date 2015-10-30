@@ -442,7 +442,7 @@ _gum_jsc_core_init (GumJscCore * self,
                     JSContextRef ctx,
                     JSObjectRef scope)
 {
-  GumJscScriptFlavor flavor;
+  GumScriptFlavor flavor;
   JSClassDefinition def;
   JSObjectRef frida, obj;
   JSClassRef klass;

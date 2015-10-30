@@ -42,7 +42,7 @@ struct _GumV8FromStringData
 {
   gchar * name;
   gchar * source;
-  GumV8ScriptFlavor flavor;
+  GumScriptFlavor flavor;
 };
 
 struct _GumV8EmitMessageData
@@ -73,7 +73,7 @@ static void gum_v8_script_set_property (GObject * object, guint property_id,
 static void gum_v8_script_destroy_context (GumV8Script * self);
 
 static GumScriptTask * gum_v8_script_from_string_task_new (const gchar * name,
-    const gchar * source, GumV8ScriptFlavor flavor, GCancellable * cancellable,
+    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
     GAsyncReadyCallback callback, gpointer user_data);
 static void gum_v8_script_from_string_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
@@ -484,7 +484,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
 void
 gum_v8_script_from_string (const gchar * name,
                            const gchar * source,
-                           GumV8ScriptFlavor flavor,
+                           GumScriptFlavor flavor,
                            GCancellable * cancellable,
                            GAsyncReadyCallback callback,
                            gpointer user_data)
@@ -508,7 +508,7 @@ gum_v8_script_from_string_finish (GAsyncResult * result,
 GumV8Script *
 gum_v8_script_from_string_sync (const gchar * name,
                                 const gchar * source,
-                                GumV8ScriptFlavor flavor,
+                                GumScriptFlavor flavor,
                                 GCancellable * cancellable,
                                 GError ** error)
 {
@@ -527,7 +527,7 @@ gum_v8_script_from_string_sync (const gchar * name,
 static GumScriptTask *
 gum_v8_script_from_string_task_new (const gchar * name,
                                     const gchar * source,
-                                    GumV8ScriptFlavor flavor,
+                                    GumScriptFlavor flavor,
                                     GCancellable * cancellable,
                                     GAsyncReadyCallback callback,
                                     gpointer user_data)
