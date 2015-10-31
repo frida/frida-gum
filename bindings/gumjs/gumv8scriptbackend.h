@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -44,6 +44,8 @@ G_BEGIN_DECLS
 
 G_GNUC_INTERNAL GType gum_v8_script_backend_get_type (void) G_GNUC_CONST;
 
+G_GNUC_INTERNAL gpointer gum_v8_script_backend_get_platform (
+    GumV8ScriptBackend * self);
 G_GNUC_INTERNAL gpointer gum_v8_script_backend_get_isolate (
     GumV8ScriptBackend * self);
 G_GNUC_INTERNAL GumScriptScheduler * gum_v8_script_backend_get_scheduler (

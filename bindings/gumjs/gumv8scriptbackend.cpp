@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -204,6 +205,12 @@ gum_v8_script_backend_finalize (GObject * object)
 }
 
 gpointer
+gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
+{
+  return self->priv->platform;
+}
+
+gpointer
 gum_v8_script_backend_get_isolate (GumV8ScriptBackend * self)
 {
   return self->priv->platform->GetIsolate ();
@@ -303,6 +310,7 @@ gum_create_script_task_run (GumScriptTask * task,
       "source", d->source,
       "flavor", d->flavor,
       "main-context", gum_script_task_get_context (task),
+      "backend", self,
       NULL));
 
   {

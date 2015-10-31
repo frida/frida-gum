@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,7 +7,7 @@
 #ifndef __GUM_V8_SCRIPT_H__
 #define __GUM_V8_SCRIPT_H__
 
-#include <gio/gio.h>
+#include "gumscript.h"
 
 #define GUM_V8_TYPE_SCRIPT (gum_v8_script_get_type ())
 #define GUM_V8_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -43,7 +43,8 @@ G_BEGIN_DECLS
 
 G_GNUC_INTERNAL GType gum_v8_script_get_type (void) G_GNUC_CONST;
 
-gboolean gum_v8_script_create_context (GumV8Script * self, GError ** error);
+G_GNUC_INTERNAL gboolean gum_v8_script_create_context (GumV8Script * self,
+    GError ** error);
 
 G_END_DECLS
 

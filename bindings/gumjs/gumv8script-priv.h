@@ -18,6 +18,7 @@
 #include "gumv8process.h"
 #include "gumv8scope.h"
 #include "gumv8script.h"
+#include "gumv8scriptbackend.h"
 #include "gumv8socket.h"
 #include "gumv8stalker.h"
 #include "gumv8symbol.h"
@@ -31,6 +32,7 @@ struct _GumV8ScriptPrivate
   gchar * source;
   GumScriptFlavor flavor;
   GMainContext * main_context;
+  GumV8ScriptBackend * backend;
 
   v8::Isolate * isolate;
   GumV8Core core;
@@ -53,8 +55,6 @@ struct _GumV8ScriptPrivate
   gpointer message_handler_data;
   GDestroyNotify message_handler_data_destroy;
 };
-
-G_GNUC_INTERNAL GumV8Platform * gum_v8_script_get_platform (void);
 
 G_END_DECLS
 
