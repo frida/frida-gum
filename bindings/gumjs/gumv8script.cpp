@@ -691,7 +691,7 @@ gum_v8_script_do_emit_message (GumEmitMessageData * d)
 
   if (priv->message_handler != NULL)
   {
-    priv->message_handler (GUM_SCRIPT (self, d->message, d->data,
+    priv->message_handler (GUM_SCRIPT (self), d->message, d->data,
         priv->message_handler_data);
   }
 
