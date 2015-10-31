@@ -43,6 +43,8 @@ G_BEGIN_DECLS
 
 G_GNUC_INTERNAL GType gum_v8_script_get_type (void) G_GNUC_CONST;
 
+gboolean gum_v8_script_create_context (GumV8Script * self, GError ** error);
+
 G_END_DECLS
 
 #endif

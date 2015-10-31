@@ -6,13 +6,18 @@
 
 #include "gumv8scriptbackend.h"
 
+#include "gumscripttask.h"
 #include "gumv8platform.h"
+#include "gumv8script.h"
 
 #include <string.h>
 #include <v8-debug.h>
 
 #define GUM_V8_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
+
+#define GUM_V8_SCRIPT_BACKEND_GET_ISOLATE(backend) \
+    static_cast<Isolate *> (gum_v8_script_backend_get_isolate (backend))
 
 #define GUM_V8_FLAGS \
     "--es-staging " \
@@ -26,7 +31,8 @@
 
 using namespace v8;
 
-typedef struct _GumV8EmitDebugMessageData GumV8EmitDebugMessageData;
+typedef struct _GumCreateScriptData GumCreateScriptData;
+typedef struct _GumEmitDebugMessageData GumEmitDebugMessageData;
 
 template <typename T>
 struct GumPersistent
@@ -47,7 +53,14 @@ struct _GumV8ScriptBackendPrivate
   GumPersistent<Context>::type * debug_context;
 };
 
-struct _GumV8EmitDebugMessageData
+struct _GumCreateScriptData
+{
+  gchar * name;
+  gchar * source;
+  GumScriptFlavor flavor;
+};
+
+struct _GumEmitDebugMessageData
 {
   GumV8ScriptBackend * backend;
   gchar * message;
@@ -67,6 +80,13 @@ static GumScript * gum_v8_script_backend_create_finish (
 static GumScript * gum_v8_script_backend_create_sync (
     GumScriptBackend * backend, const gchar * name, const gchar * source,
     GumScriptFlavor flavor, GCancellable * cancellable, GError ** error);
+static GumScriptTask * gum_create_script_task_new (GumV8ScriptBackend * backend,
+    const gchar * name, const gchar * source, GumScriptFlavor flavor,
+    GCancellable * cancellable, GAsyncReadyCallback callback,
+    gpointer user_data);
+static void gum_create_script_task_run (GumScriptTask * task,
+    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_create_script_data_free (GumCreateScriptData * d);
 
 static void gum_v8_script_backend_set_debug_message_handler (
     GumScriptBackend * backend, GumScriptDebugMessageHandler handler,
@@ -76,8 +96,8 @@ static void gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self);
 static void gum_v8_script_backend_emit_debug_message (
     const Debug::Message & message);
 static gboolean gum_v8_script_backend_do_emit_debug_message (
-    GumV8EmitDebugMessageData * d);
-static void gum_v8_emit_debug_message_data_free (GumV8EmitDebugMessageData * d);
+    GumEmitDebugMessageData * d);
+static void gum_emit_debug_message_data_free (GumEmitDebugMessageData * d);
 static void gum_v8_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
 static void gum_v8_script_backend_do_process_debug_messages (
@@ -147,8 +167,7 @@ gum_v8_script_backend_init (GumV8ScriptBackend * self)
 
   priv->platform = new GumV8Platform ();
 
-  Isolate * isolate = static_cast<Isolate *> (
-      gum_v8_script_backend_get_isolate (self));
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
   isolate->SetData (0, self);
 }
 
@@ -205,6 +224,14 @@ gum_v8_script_backend_create (GumScriptBackend * backend,
                               GAsyncReadyCallback callback,
                               gpointer user_data)
 {
+  GumV8ScriptBackend * self = GUM_V8_SCRIPT_BACKEND (backend);
+  GumScriptTask * task;
+
+  task = gum_create_script_task_new (self, name, source, flavor, cancellable,
+      callback, user_data);
+  gum_script_task_run_in_js_thread (task,
+      gum_v8_script_backend_get_scheduler (self));
+  g_object_unref (task);
 }
 
 static GumScript *
@@ -212,7 +239,8 @@ gum_v8_script_backend_create_finish (GumScriptBackend * backend,
                                      GAsyncResult * result,
                                      GError ** error)
 {
-  return NULL;
+  return GUM_SCRIPT (gum_script_task_propagate_pointer (
+      GUM_SCRIPT_TASK (result), error));
 }
 
 static GumScript *
@@ -223,7 +251,86 @@ gum_v8_script_backend_create_sync (GumScriptBackend * backend,
                                    GCancellable * cancellable,
                                    GError ** error)
 {
-  return NULL;
+  GumV8ScriptBackend * self = GUM_V8_SCRIPT_BACKEND (backend);
+  GumScript * script;
+  GumScriptTask * task;
+
+  task = gum_create_script_task_new (self, name, source, flavor, cancellable,
+      NULL, NULL);
+  gum_script_task_run_in_js_thread_sync (task,
+      gum_v8_script_backend_get_scheduler (self));
+  script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
+  g_object_unref (task);
+
+  return script;
+}
+
+static GumScriptTask *
+gum_create_script_task_new (GumV8ScriptBackend * backend,
+                            const gchar * name,
+                            const gchar * source,
+                            GumScriptFlavor flavor,
+                            GCancellable * cancellable,
+                            GAsyncReadyCallback callback,
+                            gpointer user_data)
+{
+  GumCreateScriptData * d = g_slice_new (GumCreateScriptData);
+  d->name = g_strdup (name);
+  d->source = g_strdup (source);
+  d->flavor = flavor;
+
+  GumScriptTask * task = gum_script_task_new (gum_create_script_task_run,
+      backend, cancellable, callback, user_data);
+  gum_script_task_set_task_data (task, d,
+      (GDestroyNotify) gum_create_script_data_free);
+  return task;
+}
+
+static void
+gum_create_script_task_run (GumScriptTask * task,
+                            gpointer source_object,
+                            gpointer task_data,
+                            GCancellable * cancellable)
+{
+  GumV8ScriptBackend * self = GUM_V8_SCRIPT_BACKEND (source_object);
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
+  GumCreateScriptData * d = (GumCreateScriptData *) task_data;
+  GumV8Script * script;
+  GError * error = NULL;
+
+  script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
+      "name", d->name,
+      "source", d->source,
+      "flavor", d->flavor,
+      "main-context", gum_script_task_get_context (task),
+      NULL));
+
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    gum_v8_script_create_context (script, &error);
+  }
+
+  if (error == NULL)
+  {
+    gum_script_task_return_pointer (task, script, g_object_unref);
+  }
+  else
+  {
+    gum_script_task_return_error (task, error);
+    g_object_unref (script);
+  }
+}
+
+static void
+gum_create_script_data_free (GumCreateScriptData * d)
+{
+  g_free (d->name);
+  g_free (d->source);
+
+  g_slice_free (GumCreateScriptData, d);
 }
 
 static void
@@ -267,8 +374,7 @@ static void
 gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
 {
   GumV8ScriptBackendPrivate * priv = self->priv;
-  Isolate * isolate = static_cast<Isolate *> (
-      gum_v8_script_backend_get_isolate (self));
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
@@ -287,8 +393,7 @@ static void
 gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self)
 {
   GumV8ScriptBackendPrivate * priv = self->priv;
-  Isolate * isolate = static_cast<Isolate *> (
-      gum_v8_script_backend_get_isolate (self));
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
@@ -320,7 +425,7 @@ gum_v8_script_backend_emit_debug_message (const Debug::Message & message)
   if (context == NULL)
     return;
 
-  GumV8EmitDebugMessageData * d = g_slice_new (GumV8EmitDebugMessageData);
+  GumEmitDebugMessageData * d = g_slice_new (GumEmitDebugMessageData);
   d->backend = self;
   g_object_ref (self);
   d->message = g_strdup (*json_str);
@@ -329,7 +434,7 @@ gum_v8_script_backend_emit_debug_message (const Debug::Message & message)
   g_source_set_callback (source,
       (GSourceFunc) gum_v8_script_backend_do_emit_debug_message,
       d,
-      (GDestroyNotify) gum_v8_emit_debug_message_data_free);
+      (GDestroyNotify) gum_emit_debug_message_data_free);
   g_source_attach (source, context);
   g_source_unref (source);
 
@@ -337,7 +442,7 @@ gum_v8_script_backend_emit_debug_message (const Debug::Message & message)
 }
 
 static gboolean
-gum_v8_script_backend_do_emit_debug_message (GumV8EmitDebugMessageData * d)
+gum_v8_script_backend_do_emit_debug_message (GumEmitDebugMessageData * d)
 {
   GumV8ScriptBackend * self = d->backend;
   GumV8ScriptBackendPrivate * priv = self->priv;
@@ -349,12 +454,12 @@ gum_v8_script_backend_do_emit_debug_message (GumV8EmitDebugMessageData * d)
 }
 
 static void
-gum_v8_emit_debug_message_data_free (GumV8EmitDebugMessageData * d)
+gum_emit_debug_message_data_free (GumEmitDebugMessageData * d)
 {
   g_free (d->message);
   g_object_unref (d->backend);
 
-  g_slice_free (GumV8EmitDebugMessageData, d);
+  g_slice_free (GumEmitDebugMessageData, d);
 }
 
 static void
@@ -367,8 +472,7 @@ gum_v8_script_backend_post_debug_message (GumScriptBackend * backend,
   if (priv->debug_handler == NULL)
     return;
 
-  Isolate * isolate = static_cast<Isolate *> (
-      gum_v8_script_backend_get_isolate (self));
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
 
   glong command_length;
   uint16_t * command = g_utf8_to_utf16 (message, (glong) strlen (message), NULL,
@@ -390,8 +494,7 @@ static void
 gum_v8_script_backend_do_process_debug_messages (GumV8ScriptBackend * self)
 {
   GumV8ScriptBackendPrivate * priv = self->priv;
-  Isolate * isolate = static_cast<Isolate *> (
-      gum_v8_script_backend_get_isolate (self));
+  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);

@@ -7,6 +7,7 @@
 
 #include "gumv8script.h"
 
+#include "gumscripttask.h"
 #include "gumv8script-priv.h"
 
 #include <gum/gum-init.h>
@@ -15,7 +16,6 @@
 
 using namespace v8;
 
-typedef struct _GumV8FromStringData GumV8FromStringData;
 typedef struct _GumV8EmitMessageData GumV8EmitMessageData;
 typedef struct _GumV8PostMessageData GumV8PostMessageData;
 
@@ -26,13 +26,6 @@ enum
   PROP_SOURCE,
   PROP_FLAVOR,
   PROP_MAIN_CONTEXT
-};
-
-struct _GumV8FromStringData
-{
-  gchar * name;
-  gchar * source;
-  GumScriptFlavor flavor;
 };
 
 struct _GumV8EmitMessageData
@@ -62,12 +55,6 @@ static void gum_v8_script_set_property (GObject * object, guint property_id,
     const GValue * value, GParamSpec * pspec);
 static void gum_v8_script_destroy_context (GumV8Script * self);
 
-static GumScriptTask * gum_v8_script_from_string_task_new (const gchar * name,
-    const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
-    GAsyncReadyCallback callback, gpointer user_data);
-static void gum_v8_script_from_string_task_run (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
-static void gum_v8_from_string_data_free (GumV8FromStringData * d);
 static void gum_v8_script_emit_message (GumV8Script * self,
     const gchar * message, GBytes * data);
 static gboolean gum_v8_script_do_emit_message (GumV8EmitMessageData * d);
@@ -78,12 +65,6 @@ static void gum_v8_script_do_unload (GumScriptTask * task, gpointer source_objec
     gpointer task_data, GCancellable * cancellable);
 static void gum_v8_script_do_post_message (GumV8PostMessageData * d);
 static void gum_v8_post_message_data_free (GumV8PostMessageData * d);
-
-static void gum_v8_script_do_enable_debugger (void);
-static void gum_v8_script_do_disable_debugger (void);
-static void gum_v8_script_emit_debug_message (const Debug::Message & message);
-static gboolean gum_v8_script_do_emit_debug_message (const gchar * message);
-static void gum_v8_script_do_process_debug_messages (void);
 
 static void gum_v8_script_on_enter (GumInvocationListener * listener,
     GumInvocationContext * context);
@@ -274,7 +255,7 @@ gum_v8_script_set_property (GObject * object,
   }
 }
 
-static gboolean
+gboolean
 gum_v8_script_create_context (GumV8Script * self,
                               GError ** error)
 {
@@ -427,116 +408,6 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
-}
-
-void
-gum_v8_script_from_string (const gchar * name,
-                           const gchar * source,
-                           GumScriptFlavor flavor,
-                           GCancellable * cancellable,
-                           GAsyncReadyCallback callback,
-                           gpointer user_data)
-{
-  GumScriptTask * task;
-
-  task = gum_v8_script_from_string_task_new (name, source, flavor, cancellable,
-      callback, user_data);
-  gum_script_task_run_in_js_thread (task, gum_v8_script_get_scheduler ());
-  g_object_unref (task);
-}
-
-GumV8Script *
-gum_v8_script_from_string_finish (GAsyncResult * result,
-                                  GError ** error)
-{
-  return GUM_V8_SCRIPT (gum_script_task_propagate_pointer (
-      GUM_SCRIPT_TASK (result), error));
-}
-
-GumV8Script *
-gum_v8_script_from_string_sync (const gchar * name,
-                                const gchar * source,
-                                GumScriptFlavor flavor,
-                                GCancellable * cancellable,
-                                GError ** error)
-{
-  GumV8Script * script;
-  GumScriptTask * task;
-
-  task = gum_v8_script_from_string_task_new (name, source, flavor, cancellable,
-      NULL, NULL);
-  gum_script_task_run_in_js_thread_sync (task, gum_v8_script_get_scheduler ());
-  script = GUM_V8_SCRIPT (gum_script_task_propagate_pointer (task, error));
-  g_object_unref (task);
-
-  return script;
-}
-
-static GumScriptTask *
-gum_v8_script_from_string_task_new (const gchar * name,
-                                    const gchar * source,
-                                    GumScriptFlavor flavor,
-                                    GCancellable * cancellable,
-                                    GAsyncReadyCallback callback,
-                                    gpointer user_data)
-{
-  GumV8FromStringData * d = g_slice_new (GumV8FromStringData);
-  d->name = g_strdup (name);
-  d->source = g_strdup (source);
-  d->flavor = flavor;
-
-  GumScriptTask * task = gum_script_task_new (gum_v8_script_from_string_task_run,
-      NULL, cancellable, callback, user_data);
-  gum_script_task_set_task_data (task, d,
-      (GDestroyNotify) gum_v8_from_string_data_free);
-  return task;
-}
-
-static void
-gum_v8_script_from_string_task_run (GumScriptTask * task,
-                                    gpointer source_object,
-                                    gpointer task_data,
-                                    GCancellable * cancellable)
-{
-  GumV8FromStringData * d = (GumV8FromStringData *) task_data;
-  GumV8Script * script;
-  Isolate * isolate;
-  GError * error = NULL;
-
-  script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
-      "name", d->name,
-      "source", d->source,
-      "flavor", d->flavor,
-      "main-context", gum_script_task_get_context (task),
-      NULL));
-  isolate = script->priv->isolate;
-
-  {
-    Locker locker (isolate);
-    Isolate::Scope isolate_scope (isolate);
-    HandleScope handle_scope (isolate);
-
-    gum_v8_script_create_context (script, &error);
-  }
-
-  if (error == NULL)
-  {
-    gum_script_task_return_pointer (task, script, g_object_unref);
-  }
-  else
-  {
-    gum_script_task_return_error (task, error);
-    g_object_unref (script);
-  }
-}
-
-static void
-gum_v8_from_string_data_free (GumV8FromStringData * d)
-{
-  g_free (d->name);
-  g_free (d->source);
-
-  g_slice_free (GumV8FromStringData, d);
 }
 
 GumStalker *
