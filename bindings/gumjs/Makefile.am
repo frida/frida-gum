@@ -10,6 +10,8 @@ fridainclude_HEADERS = \
 	$(NULL)
 
 v8_sources = \
+	gumv8scriptbackend.h \
+	gumv8scriptbackend.cpp \
 	gumv8script.cpp \
 	gumv8script-priv.h \
 	gumv8script-runtime.h \

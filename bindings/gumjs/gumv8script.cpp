@@ -13,16 +13,6 @@
 #include <string.h>
 #include <v8-debug.h>
 
-#define GUM_V8_FLAGS \
-    "--es-staging " \
-    "--harmony-array-includes " \
-    "--harmony-regexps " \
-    "--harmony-proxies " \
-    "--harmony-rest-parameters " \
-    "--harmony-reflect " \
-    "--harmony-destructuring " \
-    "--expose-gc"
-
 using namespace v8;
 
 typedef struct _GumV8FromStringData GumV8FromStringData;
@@ -107,13 +97,6 @@ G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_script_listener_iface_init));
 
-G_LOCK_DEFINE_STATIC (gum_debug);
-static GumV8ScriptDebugMessageHandler gum_debug_handler = NULL;
-static gpointer gum_debug_handler_data = NULL;
-static GDestroyNotify gum_debug_handler_data_destroy = NULL;
-static GMainContext * gum_debug_handler_context = NULL;
-static GumPersistent<Context>::type * gum_debug_context = nullptr;
-
 GumV8Platform *
 gum_v8_script_get_platform (void)
 {
@@ -134,41 +117,6 @@ static GumScriptScheduler *
 gum_v8_script_get_scheduler (void)
 {
   return gum_v8_script_get_platform ()->GetScheduler ();
-}
-
-static GumV8Platform *
-gum_v8_script_do_init (void)
-{
-  V8::SetFlagsFromString (GUM_V8_FLAGS,
-      static_cast<int> (strlen (GUM_V8_FLAGS)));
-
-  GumV8Platform * platform = new GumV8Platform ();
-
-  _gum_register_destructor (gum_v8_script_do_deinit);
-
-  return platform;
-}
-
-static void
-gum_v8_script_do_deinit (void)
-{
-  GumV8Platform * platform = gum_v8_script_get_platform ();
-
-  if (gum_debug_handler_data_destroy != NULL)
-    gum_debug_handler_data_destroy (gum_debug_handler_data);
-  gum_debug_handler = NULL;
-  gum_debug_handler_data = NULL;
-  gum_debug_handler_data_destroy = NULL;
-
-  if (gum_debug_handler_context != NULL)
-  {
-    g_main_context_unref (gum_debug_handler_context);
-    gum_debug_handler_context = NULL;
-  }
-
-  gum_v8_script_do_disable_debugger ();
-
-  delete platform;
 }
 
 static void
@@ -819,145 +767,6 @@ gum_v8_post_message_data_free (GumV8PostMessageData * d)
   g_object_unref (d->script);
 
   g_slice_free (GumV8PostMessageData, d);
-}
-
-void
-gum_v8_script_set_debug_message_handler (GumV8ScriptDebugMessageHandler handler,
-                                         gpointer data,
-                                         GDestroyNotify data_destroy)
-{
-  GMainContext * old_context, * new_context;
-
-  if (gum_debug_handler_data_destroy != NULL)
-    gum_debug_handler_data_destroy (gum_debug_handler_data);
-
-  gum_debug_handler = handler;
-  gum_debug_handler_data = data;
-  gum_debug_handler_data_destroy = data_destroy;
-
-  new_context = (handler != NULL) ? g_main_context_ref_thread_default () : NULL;
-
-  G_LOCK (gum_debug);
-  old_context = gum_debug_handler_context;
-  gum_debug_handler_context = new_context;
-  G_UNLOCK (gum_debug);
-
-  if (old_context != NULL)
-    g_main_context_unref (old_context);
-
-  gum_script_scheduler_push_job_on_js_thread (gum_v8_script_get_scheduler (),
-      G_PRIORITY_DEFAULT,
-      (handler != NULL)
-          ? (GumScriptJobFunc) gum_v8_script_do_enable_debugger
-          : (GumScriptJobFunc) gum_v8_script_do_disable_debugger,
-      NULL, NULL, NULL);
-}
-
-static void
-gum_v8_script_do_enable_debugger (void)
-{
-  Isolate * isolate = gum_v8_script_get_isolate ();
-
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-
-  Debug::SetMessageHandler (gum_v8_script_emit_debug_message);
-
-  Local<Context> context = Debug::GetDebugContext ();
-  gum_debug_context = new GumPersistent<Context>::type (isolate, context);
-  Context::Scope context_scope (context);
-
-  gum_v8_bundle_run (gum_v8_script_get_platform ()->GetDebugRuntime ());
-}
-
-static void
-gum_v8_script_do_disable_debugger (void)
-{
-  Isolate * isolate = gum_v8_script_get_isolate ();
-
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-
-  delete gum_debug_context;
-  gum_debug_context = nullptr;
-
-  Debug::SetMessageHandler (nullptr);
-}
-
-static void
-gum_v8_script_emit_debug_message (const Debug::Message & message)
-{
-  Isolate * isolate = message.GetIsolate ();
-  HandleScope scope (isolate);
-
-  Local<String> json = message.GetJSON ();
-  String::Utf8Value json_str (json);
-
-  G_LOCK (gum_debug);
-  GMainContext * context = (gum_debug_handler_context != NULL)
-      ? g_main_context_ref (gum_debug_handler_context)
-      : NULL;
-  G_UNLOCK (gum_debug);
-
-  if (context == NULL)
-    return;
-
-  GSource * source = g_idle_source_new ();
-  g_source_set_callback (source,
-      (GSourceFunc) gum_v8_script_do_emit_debug_message,
-      g_strdup (*json_str),
-      g_free);
-  g_source_attach (source, context);
-  g_source_unref (source);
-
-  g_main_context_unref (context);
-}
-
-static gboolean
-gum_v8_script_do_emit_debug_message (const gchar * message)
-{
-  if (gum_debug_handler != NULL)
-    gum_debug_handler (message, gum_debug_handler_data);
-
-  return FALSE;
-}
-
-void
-gum_v8_script_post_debug_message (const gchar * message)
-{
-  if (gum_debug_handler == NULL)
-    return;
-
-  Isolate * isolate = gum_v8_script_get_isolate ();
-
-  glong command_length;
-  uint16_t * command = g_utf8_to_utf16 (message, (glong) strlen (message), NULL,
-      &command_length, NULL);
-  g_assert (command != NULL);
-
-  Debug::SendCommand (isolate, command, command_length);
-
-  g_free (command);
-
-  gum_script_scheduler_push_job_on_js_thread (gum_v8_script_get_scheduler (),
-      G_PRIORITY_DEFAULT,
-      (GumScriptJobFunc) gum_v8_script_do_process_debug_messages, NULL, NULL,
-      NULL);
-}
-
-static void
-gum_v8_script_do_process_debug_messages (void)
-{
-  Isolate * isolate = gum_v8_script_get_isolate ();
-  Locker locker (isolate);
-  Isolate::Scope isolate_scope (isolate);
-  HandleScope handle_scope (isolate);
-  Local<Context> context (Local<Context>::New (isolate, *gum_debug_context));
-  Context::Scope context_scope (context);
-
-  Debug::ProcessDebugMessages ();
 }
 
 static void
