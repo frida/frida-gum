@@ -11,16 +11,16 @@
 
 #define GUM_V8_TYPE_SCRIPT (gum_v8_script_get_type ())
 #define GUM_V8_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
-    GUM_TYPE_V8_SCRIPT, GumV8Script))
+    GUM_V8_TYPE_SCRIPT, GumV8Script))
 #define GUM_V8_SCRIPT_CAST(obj) ((GumV8Script *) (obj))
 #define GUM_V8_SCRIPT_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
-    GUM_TYPE_V8_SCRIPT, GumV8ScriptClass))
+    GUM_V8_TYPE_SCRIPT, GumV8ScriptClass))
 #define GUM_IS_V8_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
-    GUM_TYPE_V8_SCRIPT))
+    GUM_V8_TYPE_SCRIPT))
 #define GUM_IS_V8_SCRIPT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
-    (klass), GUM_TYPE_V8_SCRIPT))
+    (klass), GUM_V8_TYPE_SCRIPT))
 #define GUM_V8_SCRIPT_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
-    (obj), GUM_TYPE_V8_SCRIPT, GumV8ScriptClass))
+    (obj), GUM_V8_TYPE_SCRIPT, GumV8ScriptClass))
 
 typedef struct _GumV8Script GumV8Script;
 typedef struct _GumV8ScriptClass GumV8ScriptClass;
