@@ -10,10 +10,10 @@ import sys
 def generate_runtime_v8(output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
-#include "gumscriptbundle.h"
+#include "gumv8bundle.h"
 
 static const {entry_type} {entries_identifier}[] =
-{{""".format(entry_type="GumScriptSource",
+{{""".format(entry_type="GumV8Source",
             entries_identifier=underscorify(output) + "_sources"))
 
         for input_name in inputs:
@@ -31,10 +31,10 @@ static const {entry_type} {entries_identifier}[] =
 def generate_runtime_jsc(output_dir, output, input_dir, inputs):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
-#include "gumjscriptbundle.h"
+#include "gumjscbundle.h"
 
 static const {entry_type} {entries_identifier}[] =
-{{""".format(entry_type="GumScriptSource",
+{{""".format(entry_type="GumJscSource",
             entries_identifier=underscorify(output) + "_sources"))
 
         for input_name_es6 in inputs:
@@ -98,9 +98,12 @@ def write_code(js_code, sink):
     sink.write("\n")
 
 def underscorify(filename):
-    if filename.startswith("gum"):
-        result = "gum_"
-        filename = filename[3:]
+    if filename.startswith("gumv8"):
+        result = "gum_v8_"
+        filename = filename[5:]
+    elif filename.startswith("gumjsc"):
+        result = "gum_jsc_"
+        filename = filename[6:]
     else:
         result = ""
     return result + os.path.splitext(filename)[0].lower().replace("-", "_")

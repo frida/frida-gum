@@ -8,8 +8,8 @@
 
 #include "gumv8core.h"
 
-#include "gumscript-priv.h"
 #include "gumv8scope.h"
+#include "gumv8script-priv.h"
 
 #include <ffi.h>
 #include <string.h>

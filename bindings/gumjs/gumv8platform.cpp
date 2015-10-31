@@ -6,8 +6,8 @@
 
 #include "gumv8platform.h"
 
-#include "gumscript-debug.h"
-#include "gumscript-runtime.h"
+#include "gumv8script-debug.h"
+#include "gumv8script-runtime.h"
 
 using namespace v8;
 

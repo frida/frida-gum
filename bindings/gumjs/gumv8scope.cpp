@@ -6,7 +6,7 @@
 
 #include "gumv8scope.h"
 
-#include "gumscript-priv.h"
+#include "gumv8script-priv.h"
 
 using namespace v8;
 
