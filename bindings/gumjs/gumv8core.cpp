@@ -248,6 +248,7 @@ _gum_v8_core_init (GumV8Core * self,
   g_object_get (script, "flavor", &flavor, NULL);
 
   self->script = script;
+  self->backend = script->priv->backend;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();

@@ -15,6 +15,7 @@
 
 #include "gumscriptscheduler.h"
 #include "gumv8script.h"
+#include "gumv8scriptbackend.h"
 
 #include <gum/gumexceptor.h>
 #include <gum/gumprocess.h>
@@ -41,6 +42,7 @@ typedef void (* GumV8MessageEmitter) (GumV8Script * script,
 struct _GumV8Core
 {
   GumV8Script * script;
+  GumV8ScriptBackend * backend;
   GumV8MessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
