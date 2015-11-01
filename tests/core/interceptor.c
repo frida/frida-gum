@@ -830,8 +830,6 @@ INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
   gum_interceptor_revert_function (fixture->interceptor, target_function);
 }
 
-#endif
-
 static gpointer
 replacement_target_function (GString * str)
 {
@@ -843,6 +841,8 @@ replacement_target_function (GString * str)
 
   return result;
 }
+
+#endif
 
 INTERCEPTOR_TESTCASE (i_can_has_replaceability)
 {
