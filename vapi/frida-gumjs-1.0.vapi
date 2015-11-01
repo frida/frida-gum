@@ -1,6 +1,22 @@
 namespace Gum {
+	[CCode (cheader_filename = "gumjs/gumscriptbackend.h")]
+	public interface ScriptBackend : GLib.Object {
+		public static unowned ScriptBackend obtain ();
+
+		public async Script create (string name, string source, Script.Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public Script create_sync (string name, string source, Script.Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+
+		public void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? handler);
+		public void post_debug_message (string message);
+
+		public void ignore (Gum.ThreadId thread_id);
+		public void unignore (Gum.ThreadId thread_id);
+		public void unignore_later (Gum.ThreadId thread_id);
+		public void is_ignoring (Gum.ThreadId thread_id);
+	}
+
 	[CCode (cheader_filename = "gumjs/gumscript.h")]
-	public class Script : GLib.Object {
+	public interface Script : GLib.Object {
 		[CCode (cprefix = "GUM_SCRIPT_FLAVOR_")]
 		public enum Flavor {
 			KERNEL,
@@ -9,25 +25,14 @@ namespace Gum {
 		public delegate void MessageHandler (Gum.Script script, string message, GLib.Bytes? data);
 		public delegate void DebugMessageHandler (string message);
 
-		public static async Script from_string (string name, string source, Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public static Script from_string_sync (string name, string source, Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-
-		public unowned Stalker get_stalker ();
-
-		public void set_message_handler (owned Gum.Script.MessageHandler handler);
-
 		public async void load (GLib.Cancellable? cancellable = null);
 		public void load_sync (GLib.Cancellable? cancellable = null);
 		public async void unload (GLib.Cancellable? cancellable = null);
 		public void unload_sync (GLib.Cancellable? cancellable = null);
 
+		public void set_message_handler (owned Gum.Script.MessageHandler handler);
 		public void post_message (string message);
 
-		public static void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? handler);
-		public static void post_debug_message (string message);
-
-		public static void ignore (Gum.ThreadId thread_id);
-		public static void unignore (Gum.ThreadId thread_id);
-		public static void is_ignoring (Gum.ThreadId thread_id);
+		public unowned Stalker get_stalker ();
 	}
 }
