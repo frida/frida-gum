@@ -2552,7 +2552,6 @@ SCRIPT_TESTCASE (script_can_be_reloaded)
 SCRIPT_TESTCASE (source_maps_should_be_supported)
 {
   TestScriptMessageItem * item;
-  const gchar * expected_stack_v8, * expected_stack_jsc;
 
   /*
    * index.js
@@ -2629,26 +2628,32 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
-  expected_stack_v8 = "\"payload\":\"Error: Not yet implemented\\n"
-      "    at Object.module.exports.add (math.js:5:1)\\n"
-      "    at Object.1../math (index.js:6:1)\\n"
-      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1\"";
-  expected_stack_jsc = "\"payload\":\"Error: Not yet implemented\\n"
-      "    at add (math.js:5:1)\\n"
-      "    at index.js:6:1\\n"
-      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at global code (node_modules/frida/node_modules/browserify/"
-          "node_modules/browser-pack/_prelude.js:1:1)";
-  g_assert ((strstr (item->message, expected_stack_v8) != NULL) ||
-      (strstr (item->message, expected_stack_jsc) != NULL));
+  if (GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    g_assert (strstr (item->message,
+        "\"payload\":\"Error: Not yet implemented\\n"
+        "    at Object.module.exports.add (math.js:5:1)\\n"
+        "    at Object.1../math (index.js:6:1)\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1\"") != NULL);
+  }
+  else
+  {
+    g_assert (strstr (item->message,
+        "\"payload\":\"Error: Not yet implemented\\n"
+        "    at add (math.js:5:1)\\n"
+        "    at index.js:6:1\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at global code (node_modules/frida/node_modules/browserify/"
+            "node_modules/browser-pack/_prelude.js:1:1)") != NULL);
+  }
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
@@ -2673,17 +2678,35 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativePointer()` to create a new "
-      "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
+  if (GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativePointer()` to create a new "
+        "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
+  }
+  else
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"NativePointer is not a function. "
+        "(In 'NativePointer(\\\"0x1234\\\")', 'NativePointer' is an instance "
+        "of CallbackConstructor)\"");
+  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
-      "  NativeFunction(" GUM_PTR_CONST ", 'void', []);"
+      "  NativeFunction(ptr(\"0x1234\"), 'void', []);"
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeFunction()` to create a new "
-      "instance\"");
+  if (GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeFunction()` to create a new "
+        "instance\"");
+  }
+  else
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"NativeFunction is not a function. "
+        "(In 'NativeFunction(ptr(\\\"0x1234\\\"), 'void', [])', "
+        "'NativeFunction' is an instance of CallbackConstructor)\"");
+  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -2691,8 +2714,17 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeCallback()` to create a new "
-      "instance\"");
+  if (GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeCallback()` to create a new "
+        "instance\"");
+  }
+  else
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"NativeCallback is not a function. "
+        "(In 'NativeCallback(function () {}, 'void', [])', 'NativeCallback' is "
+        "an instance of CallbackConstructor)\"");
+  }
 
   COMPILE_AND_LOAD_SCRIPT (
       "try {"
@@ -2700,12 +2732,27 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new File()` to create a new instance\"");
+  if (GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"Use `new File()` to create a new instance\"");
+  }
+  else
+  {
+    EXPECT_SEND_MESSAGE_WITH ("\"File is not a function. "
+        "(In 'File(\\\"/foo\\\", \\\"r\\\")', 'File' is an instance of "
+        "FileConstructor)\"");
+  }
 #endif
 }
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
 {
+  if (!GUM_V8_IS_SCRIPT (fixture->script))
+  {
+    g_print ("<skipping, not deterministic on JavaScriptCore> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "var val = {};"
       "WeakRef.bind(val, function () {"

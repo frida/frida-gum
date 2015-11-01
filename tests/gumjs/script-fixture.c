@@ -6,6 +6,7 @@
  */
 
 #include "gumscriptbackend.h"
+#include "gumv8script.h"
 
 #include "testutil.h"
 
