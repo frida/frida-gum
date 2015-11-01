@@ -657,7 +657,8 @@ revert_function_at (GumInterceptor * self,
 
   ctx = (GumFunctionContext *) gum_hash_table_lookup (
       priv->replaced_function_by_address, function_address);
-  g_assert (ctx != NULL);
+  if (ctx == NULL)
+    return;
 
   gum_hash_table_remove (priv->replaced_function_by_address, function_address);
 
