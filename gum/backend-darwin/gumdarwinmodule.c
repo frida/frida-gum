@@ -1337,6 +1337,9 @@ gum_exports_trie_find (const guint8 * exports,
   const gchar * s;
   const guint8 * p;
 
+  if (exports == exports_end)
+    return FALSE;
+
   s = symbol;
   p = exports;
   while (p != NULL)
@@ -1407,6 +1410,9 @@ gum_exports_trie_foreach (const guint8 * exports,
 {
   GumExportsTrieForeachContext ctx;
   gboolean carry_on;
+
+  if (exports == exports_end)
+    return TRUE;
 
   ctx.func = func;
   ctx.user_data = user_data;
