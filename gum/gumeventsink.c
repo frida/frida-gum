@@ -19,7 +19,7 @@ gum_event_sink_get_type (void)
         sizeof (GumEventSinkIface), NULL, 0, NULL, 0);
     g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
 
-    g_once_init_leave (&gonce_value, (GType) gtype);
+    g_once_init_leave (&gonce_value, gtype);
   }
 
   return (GType) gonce_value;
