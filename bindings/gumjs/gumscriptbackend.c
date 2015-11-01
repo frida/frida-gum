@@ -6,6 +6,17 @@
 
 #include "gumscriptbackend.h"
 
+#include "gumjscscriptbackend.h"
+#include "gumv8scriptbackend.h"
+
+#include <gum/gum-init.h>
+
+static void
+gum_script_backend_deinit (void)
+{
+  g_object_unref (gum_script_backend_obtain ());
+}
+
 GType
 gum_script_backend_get_type (void)
 {
@@ -23,6 +34,34 @@ gum_script_backend_get_type (void)
   }
 
   return (GType) gonce_value;
+}
+
+GumScriptBackend *
+gum_script_backend_obtain (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumScriptBackend * backend;
+
+    if (gum_query_is_rwx_supported ())
+    {
+      backend = GUM_SCRIPT_BACKEND (
+          g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
+    }
+    else
+    {
+      backend = GUM_SCRIPT_BACKEND (
+          g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
+    }
+
+    _gum_register_destructor (gum_script_backend_deinit);
+
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend));
+  }
+
+  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value));
 }
 
 void

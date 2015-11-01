@@ -49,6 +49,8 @@ G_BEGIN_DECLS
 
 GUM_API GType gum_script_backend_get_type (void);
 
+GUM_API GumScriptBackend * gum_script_backend_obtain (void);
+
 GUM_API void gum_script_backend_create (GumScriptBackend * self,
     const gchar * name, const gchar * source, GumScriptFlavor flavor,
     GCancellable * cancellable, GAsyncReadyCallback callback,
