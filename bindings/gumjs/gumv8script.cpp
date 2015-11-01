@@ -42,6 +42,7 @@ static void gum_v8_script_iface_init (gpointer g_iface, gpointer iface_data);
 static void gum_v8_script_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
 
+static void gum_v8_script_constructed (GObject * object);
 static void gum_v8_script_dispose (GObject * object);
 static void gum_v8_script_finalize (GObject * object);
 static void gum_v8_script_get_property (GObject * object, guint property_id,
@@ -104,6 +105,7 @@ gum_v8_script_class_init (GumV8ScriptClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumV8ScriptPrivate));
 
+  object_class->constructed = gum_v8_script_constructed;
   object_class->dispose = gum_v8_script_dispose;
   object_class->finalize = gum_v8_script_finalize;
   object_class->get_property = gum_v8_script_get_property;
@@ -175,9 +177,19 @@ gum_v8_script_init (GumV8Script * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_V8_TYPE_SCRIPT, GumV8ScriptPrivate);
 
+  priv->loaded = FALSE;
+}
+
+static void
+gum_v8_script_constructed (GObject * object)
+{
+  GumV8Script * self = GUM_V8_SCRIPT (object);
+  GumV8ScriptPrivate * priv = self->priv;
+
+  G_OBJECT_CLASS (gum_v8_script_parent_class)->constructed (object);
+
   priv->isolate = static_cast<Isolate *> (
       gum_v8_script_backend_get_isolate (priv->backend));
-  priv->loaded = FALSE;
 }
 
 static void
