@@ -173,7 +173,7 @@ gum_v8_script_init (GumV8Script * self)
   GumV8ScriptPrivate * priv;
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_SCRIPT, GumV8ScriptPrivate);
+      GUM_V8_TYPE_SCRIPT, GumV8ScriptPrivate);
 
   priv->isolate = static_cast<Isolate *> (
       gum_v8_script_backend_get_isolate (priv->backend));

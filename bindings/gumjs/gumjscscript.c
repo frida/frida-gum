@@ -216,7 +216,7 @@ gum_jsc_script_init (GumJscScript * self)
   GumJscScriptPrivate * priv;
 
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
-      GUM_TYPE_SCRIPT, GumJscScriptPrivate);
+      GUM_JSC_TYPE_SCRIPT, GumJscScriptPrivate);
 
   priv->loaded = FALSE;
 }
