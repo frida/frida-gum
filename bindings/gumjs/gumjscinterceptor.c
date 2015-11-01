@@ -6,10 +6,8 @@
 
 #include "gumjscinterceptor.h"
 
-#include "gumjsc-priv.h"
 #include "gumjscmacros.h"
-
-#include <gum/gum-init.h>
+#include "gumjscscript-priv.h"
 
 #define GUM_JSC_INVOCATION_CONTEXT(o) \
   ((GumJscInvocationContext *) JSObjectGetPrivate (o))
@@ -87,10 +85,6 @@ static void gumjs_invocation_return_value_update_context (JSValueRef value,
     GumInvocationContext * ic);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
 
-static void gum_jsc_interceptor_adjust_ignore_level_unlocked (
-    GumThreadId thread_id, gint adjustment, GumInterceptor * interceptor);
-static gboolean gum_flush_pending_unignores (gpointer user_data);
-
 static const JSStaticFunction gumjs_interceptor_functions[] =
 {
   { "_attach", gumjs_interceptor_attach, GUMJS_RO },
@@ -143,12 +137,6 @@ static const JSStaticFunction gumjs_invocation_return_value_functions[] =
 
   { NULL, NULL, 0 }
 };
-
-static GHashTable * gum_ignored_threads = NULL;
-static GSList * gum_pending_unignores = NULL;
-static GSource * gum_pending_timeout = NULL;
-static GumInterceptor * gum_interceptor_instance = NULL;
-static GRWLock gum_ignored_lock;
 
 void
 _gum_jsc_interceptor_init (GumJscInterceptor * self,
@@ -387,7 +375,8 @@ _gum_jsc_interceptor_on_enter (GumJscInterceptor * self,
   GumJscAttachEntry * entry;
   gint * depth;
 
-  if (gum_jsc_script_is_ignoring (gum_invocation_context_get_thread_id (ic)))
+  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
+      gum_invocation_context_get_thread_id (ic)))
     return;
 
   entry = gum_invocation_context_get_listener_function_data (ic);
@@ -431,7 +420,8 @@ _gum_jsc_interceptor_on_leave (GumJscInterceptor * self,
   GumJscAttachEntry * entry;
   gint * depth;
 
-  if (gum_jsc_script_is_ignoring (gum_invocation_context_get_thread_id (ic)))
+  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
+      gum_invocation_context_get_thread_id (ic)))
     return;
 
   entry = gum_invocation_context_get_listener_function_data (ic);
@@ -734,188 +724,4 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
   gum_invocation_context_replace_return_value (ic, ptr->value);
 
   return JSValueMakeUndefined (ctx);
-}
-
-static void
-gum_ignored_threads_deinit (void)
-{
-  if (gum_pending_timeout != NULL)
-  {
-    g_source_destroy (gum_pending_timeout);
-    g_source_unref (gum_pending_timeout);
-    gum_pending_timeout = NULL;
-  }
-  g_slist_free (gum_pending_unignores);
-  gum_pending_unignores = NULL;
-
-  g_object_unref (gum_interceptor_instance);
-  gum_interceptor_instance = NULL;
-
-  g_hash_table_unref (gum_ignored_threads);
-  gum_ignored_threads = NULL;
-}
-
-static void
-gum_jsc_interceptor_adjust_ignore_level (GumThreadId thread_id,
-                                         gint adjustment)
-{
-  GumInterceptor * interceptor;
-
-  interceptor = gum_interceptor_obtain ();
-  gum_interceptor_ignore_current_thread (interceptor);
-
-  g_rw_lock_writer_lock (&gum_ignored_lock);
-  gum_jsc_interceptor_adjust_ignore_level_unlocked (thread_id, adjustment,
-      interceptor);
-  g_rw_lock_writer_unlock (&gum_ignored_lock);
-
-  gum_interceptor_unignore_current_thread (interceptor);
-  g_object_unref (interceptor);
-}
-
-static void
-gum_jsc_interceptor_adjust_ignore_level_unlocked (GumThreadId thread_id,
-                                                  gint adjustment,
-                                                  GumInterceptor * interceptor)
-{
-  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
-  gint level;
-
-  if (G_UNLIKELY (gum_ignored_threads == NULL))
-  {
-    gum_ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
-
-    gum_interceptor_instance = interceptor;
-    g_object_ref (interceptor);
-
-    _gum_register_destructor (gum_ignored_threads_deinit);
-  }
-
-  level = GPOINTER_TO_INT (
-      g_hash_table_lookup (gum_ignored_threads, thread_id_ptr));
-  level += adjustment;
-
-  if (level > 0)
-  {
-    g_hash_table_insert (gum_ignored_threads, thread_id_ptr,
-        GINT_TO_POINTER (level));
-  }
-  else
-  {
-    g_hash_table_remove (gum_ignored_threads, thread_id_ptr);
-  }
-}
-
-void
-gum_jsc_script_ignore (GumThreadId thread_id)
-{
-  gum_jsc_interceptor_adjust_ignore_level (thread_id, 1);
-}
-
-void
-gum_jsc_script_unignore (GumThreadId thread_id)
-{
-  gum_jsc_interceptor_adjust_ignore_level (thread_id, -1);
-}
-
-void
-gum_jsc_script_unignore_later (GumThreadId thread_id)
-{
-  GMainContext * main_context;
-  GumInterceptor * interceptor;
-  GSource * source;
-
-  main_context = gum_jsc_script_scheduler_get_js_context (
-      _gum_jsc_script_get_scheduler ());
-
-  interceptor = gum_interceptor_obtain ();
-  gum_interceptor_ignore_current_thread (interceptor);
-
-  g_rw_lock_writer_lock (&gum_ignored_lock);
-
-  gum_pending_unignores = g_slist_prepend (gum_pending_unignores,
-      GSIZE_TO_POINTER (thread_id));
-  source = gum_pending_timeout;
-  gum_pending_timeout = NULL;
-
-  g_rw_lock_writer_unlock (&gum_ignored_lock);
-
-  if (source != NULL)
-  {
-    g_source_destroy (source);
-    g_source_unref (source);
-  }
-  source = g_timeout_source_new_seconds (5);
-  g_source_set_callback (source, gum_flush_pending_unignores, source, NULL);
-  g_source_attach (source, main_context);
-
-  g_rw_lock_writer_lock (&gum_ignored_lock);
-
-  if (gum_pending_timeout == NULL)
-  {
-    gum_pending_timeout = source;
-    source = NULL;
-  }
-
-  g_rw_lock_writer_unlock (&gum_ignored_lock);
-
-  if (source != NULL)
-  {
-    g_source_destroy (source);
-    g_source_unref (source);
-  }
-
-  gum_interceptor_unignore_current_thread (interceptor);
-  g_object_unref (interceptor);
-}
-
-static gboolean
-gum_flush_pending_unignores (gpointer user_data)
-{
-  GSource * source = (GSource *) user_data;
-  GumInterceptor * interceptor;
-
-  interceptor = gum_interceptor_obtain ();
-  gum_interceptor_ignore_current_thread (interceptor);
-
-  g_rw_lock_writer_lock (&gum_ignored_lock);
-
-  if (gum_pending_timeout == source)
-  {
-    g_source_unref (gum_pending_timeout);
-    gum_pending_timeout = NULL;
-  }
-
-  while (gum_pending_unignores != NULL)
-  {
-    GumThreadId thread_id;
-
-    thread_id = GPOINTER_TO_SIZE (gum_pending_unignores->data);
-    gum_pending_unignores = g_slist_delete_link (gum_pending_unignores,
-        gum_pending_unignores);
-    gum_jsc_interceptor_adjust_ignore_level_unlocked (thread_id, -1,
-        interceptor);
-  }
-
-  g_rw_lock_writer_unlock (&gum_ignored_lock);
-
-  gum_interceptor_unignore_current_thread (interceptor);
-  g_object_unref (interceptor);
-
-  return FALSE;
-}
-
-gboolean
-gum_jsc_script_is_ignoring (GumThreadId thread_id)
-{
-  gboolean is_ignored;
-
-  g_rw_lock_reader_lock (&gum_ignored_lock);
-
-  is_ignored = gum_ignored_threads != NULL &&
-      g_hash_table_contains (gum_ignored_threads, GSIZE_TO_POINTER (thread_id));
-
-  g_rw_lock_reader_unlock (&gum_ignored_lock);
-
-  return is_ignored;
 }

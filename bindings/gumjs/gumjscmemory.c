@@ -792,7 +792,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   JSValueProtect (ctx, sc.on_complete);
 
   _gum_jsc_core_push_job (core,
-      (GumJscScriptJobFunc) gum_memory_scan_context_run,
+      (GumScriptJobFunc) gum_memory_scan_context_run,
       g_slice_dup (GumMemoryScanContext, &sc),
       (GDestroyNotify) gum_memory_scan_context_free);
 

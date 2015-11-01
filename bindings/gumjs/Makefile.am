@@ -12,6 +12,7 @@ fridainclude_HEADERS = \
 v8_sources = \
 	gumv8scriptbackend.h \
 	gumv8scriptbackend.cpp \
+	gumv8script.h \
 	gumv8script.cpp \
 	gumv8script-priv.h \
 	gumv8script-runtime.h \
@@ -50,6 +51,9 @@ v8_sources = \
 	$(NULL)
 
 jsc_sources = \
+	gumjscscriptbackend.h \
+	gumjscscriptbackend.c \
+	gumjscscript.h \
 	gumjscscript.c \
 	gumjscscript-priv.h \
 	gumjscscript-runtime.h \

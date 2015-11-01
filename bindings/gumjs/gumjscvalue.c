@@ -6,7 +6,7 @@
 
 #include "gumjscvalue.h"
 
-#include "gumjsc-priv.h"
+#include "gumjscscript-priv.h"
 
 static void gum_native_resource_on_weak_notify (
     GumJscNativeResource * resource);

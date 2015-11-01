@@ -6,8 +6,7 @@
 
 #include "gumjscbundle.h"
 
-#include "gumjsc-priv.h"
-#include "gumjsccore.h"
+#include "gumjscscript-priv.h"
 
 void
 gum_jsc_bundle_load (const GumJscSource * sources,

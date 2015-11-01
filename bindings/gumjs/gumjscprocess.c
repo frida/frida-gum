@@ -164,7 +164,8 @@ gum_emit_thread (const GumThreadDetails * details,
   gboolean proceed;
   gchar * str;
 
-  if (gum_jsc_script_is_ignoring (details->id))
+  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
+      details->id))
     return TRUE;
 
   thread = JSObjectMake (ctx, NULL, NULL);

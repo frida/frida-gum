@@ -15,9 +15,9 @@
 #define GUM_V8_SCRIPT_CAST(obj) ((GumV8Script *) (obj))
 #define GUM_V8_SCRIPT_CLASS(klass) (G_TYPE_CHECK_CLASS_CAST ((klass),\
     GUM_V8_TYPE_SCRIPT, GumV8ScriptClass))
-#define GUM_IS_V8_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
+#define GUM_V8_IS_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj),\
     GUM_V8_TYPE_SCRIPT))
-#define GUM_IS_V8_SCRIPT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
+#define GUM_V8_IS_SCRIPT_CLASS(klass) (G_TYPE_CHECK_CLASS_TYPE (\
     (klass), GUM_V8_TYPE_SCRIPT))
 #define GUM_V8_SCRIPT_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
     (obj), GUM_V8_TYPE_SCRIPT, GumV8ScriptClass))

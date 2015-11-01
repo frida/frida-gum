@@ -8,8 +8,6 @@
 
 #include "gumv8scope.h"
 
-#include <gum/gum-init.h>
-#include <gum/gumtls.h>
 #include <errno.h>
 
 #ifdef G_OS_WIN32

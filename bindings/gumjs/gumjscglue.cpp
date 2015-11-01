@@ -6,7 +6,7 @@
 
 #include "gumjscvalue.h"
 
-#include "gumjsc-priv.h"
+#include "gumjscscript-priv.h"
 
 #include "wtf/Platform.h"
 #include "JSExportMacros.h"

@@ -7,11 +7,10 @@
 #ifndef __GUM_JSC_SCRIPT_PRIV_H__
 #define __GUM_JSC_SCRIPT_PRIV_H__
 
-#include "gumscriptscheduler.h"
+#include <glib.h>
+#include <JavaScriptCore/JavaScriptCore.h>
 
 G_BEGIN_DECLS
-
-G_GNUC_INTERNAL GumScriptScheduler * _gum_jsc_script_get_scheduler (void);
 
 G_GNUC_INTERNAL void _gumjs_panic (JSContextRef ctx, JSValueRef exception);
 

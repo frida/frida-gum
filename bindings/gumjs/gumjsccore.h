@@ -7,7 +7,8 @@
 #ifndef __GUM_JSCRIPT_CORE_H__
 #define __GUM_JSCRIPT_CORE_H__
 
-#include "gumscript.h"
+#include "gumjscscript.h"
+#include "gumjscscriptbackend.h"
 #include "gumscriptscheduler.h"
 
 #include <gum/gumexceptor.h>
@@ -38,8 +39,9 @@ typedef void (* GumJscMessageEmitter) (GumJscScript * script,
 struct _GumJscCore
 {
   GumJscScript * script;
+  GumJscScriptBackend * backend;
   GumJscMessageEmitter message_emitter;
-  GumJscScriptScheduler * scheduler;
+  GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSContextRef ctx;
   gboolean disposed;
@@ -108,7 +110,7 @@ struct _GumJscNativeResource
 
 G_GNUC_INTERNAL void _gum_jsc_core_init (GumJscCore * self,
     GumJscScript * script, GumJscMessageEmitter message_emitter,
-    GumJscScriptScheduler * scheduler, JSContextRef ctx, JSObjectRef scope);
+    GumScriptScheduler * scheduler, JSContextRef ctx, JSObjectRef scope);
 G_GNUC_INTERNAL void _gum_jsc_core_flush (GumJscCore * self);
 G_GNUC_INTERNAL void _gum_jsc_core_dispose (GumJscCore * self);
 G_GNUC_INTERNAL void _gum_jsc_core_finalize (GumJscCore * self);
@@ -119,7 +121,7 @@ G_GNUC_INTERNAL void _gum_jsc_core_post_message (GumJscCore * self,
     const gchar * message);
 
 G_GNUC_INTERNAL void _gum_jsc_core_push_job (GumJscCore * self,
-    GumJscScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
+    GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
 G_GNUC_INTERNAL void _gum_jsc_scope_enter (GumJscScope * self,
     GumJscCore * core);

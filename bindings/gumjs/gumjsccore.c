@@ -438,7 +438,7 @@ void
 _gum_jsc_core_init (GumJscCore * self,
                     GumJscScript * script,
                     GumJscMessageEmitter message_emitter,
-                    GumJscScriptScheduler * scheduler,
+                    GumScriptScheduler * scheduler,
                     JSContextRef ctx,
                     JSObjectRef scope)
 {
@@ -447,7 +447,11 @@ _gum_jsc_core_init (GumJscCore * self,
   JSObjectRef frida, obj;
   JSClassRef klass;
 
-  g_object_get (script, "flavor", &flavor, NULL);
+  g_object_get (script,
+      "flavor", &flavor,
+      "backend", &self->backend,
+      NULL);
+  g_object_unref (self->backend);
 
   self->script = script;
   self->message_emitter = message_emitter;
@@ -550,10 +554,10 @@ _gum_jsc_core_flush (GumJscCore * self)
   GMainContext * context;
 
   GUM_JSC_CORE_UNLOCK (self);
-  gum_jsc_script_scheduler_flush_by_tag (self->scheduler, self);
+  gum_script_scheduler_flush_by_tag (self->scheduler, self);
   GUM_JSC_CORE_LOCK (self);
 
-  context = gum_jsc_script_scheduler_get_js_context (self->scheduler);
+  context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
 
@@ -634,11 +638,11 @@ _gum_jsc_core_post_message (GumJscCore * self,
 
 void
 _gum_jsc_core_push_job (GumJscCore * self,
-                        GumJscScriptJobFunc job_func,
+                        GumScriptJobFunc job_func,
                         gpointer data,
                         GDestroyNotify data_destroy)
 {
-  gum_jsc_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
+  gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
       data, data_destroy, self);
 }
 
@@ -1621,7 +1625,7 @@ gum_jsc_core_schedule_callback (GumJscCore * self,
   gum_jsc_core_add_scheduled_callback (self, callback);
 
   g_source_attach (source,
-      gum_jsc_script_scheduler_get_js_context (self->scheduler));
+      gum_script_scheduler_get_js_context (self->scheduler));
 
   return JSValueMakeNumber (args->ctx, id);
 }

@@ -198,11 +198,7 @@ gum_v8_script_dispose (GObject * object)
   {
     priv->isolate = NULL;
 
-    if (priv->main_context != NULL)
-    {
-      g_main_context_unref (priv->main_context);
-      priv->main_context = NULL;
-    }
+    g_clear_pointer (&priv->main_context, g_main_context_unref);
   }
 
   G_OBJECT_CLASS (gum_v8_script_parent_class)->dispose (object);
