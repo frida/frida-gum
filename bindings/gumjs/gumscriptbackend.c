@@ -6,7 +6,9 @@
 
 #include "gumscriptbackend.h"
 
-#include "gumjscscriptbackend.h"
+#ifdef HAVE_DARWIN
+# include "gumjscscriptbackend.h"
+#endif
 #include "gumv8scriptbackend.h"
 
 #include <gum/gum-init.h>
@@ -52,16 +54,21 @@ gum_script_backend_obtain (void)
     }
     else
     {
+#ifdef HAVE_DARWIN
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
+#else
+      backend = NULL;
+#endif
     }
 
-    _gum_register_destructor (gum_script_backend_deinit);
+    if (backend != NULL)
+      _gum_register_destructor (gum_script_backend_deinit);
 
-    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend));
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
 
-  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value));
+  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value - 1));
 }
 
 void
