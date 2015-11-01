@@ -18,6 +18,7 @@ typedef struct _GumDebugSession GumDebugSession;
 
 struct _GumDebugServer
 {
+  GumScriptBackend * backend;
   GSocketService * service;
   GSList * sessions;
 };
@@ -62,13 +63,15 @@ static void gum_debug_session_on_write_all_ready (GObject * source_object,
     GAsyncResult * res, gpointer user_data);
 
 GumDebugServer *
-gum_debug_server_new (guint16 port)
+gum_debug_server_new (GumScriptBackend * backend,
+                      guint16 port)
 {
   GumDebugServer * server;
   GSocketService * service;
   gboolean port_available;
 
   server = g_slice_new (GumDebugServer);
+  server->backend = backend;
 
   service = g_socket_service_new ();
   port_available = g_socket_listener_add_inet_port (G_SOCKET_LISTENER (service),
@@ -82,8 +85,8 @@ gum_debug_server_new (guint16 port)
 
   g_socket_service_start (service);
 
-  gum_script_set_debug_message_handler (gum_debug_server_on_message, server,
-      NULL);
+  gum_script_backend_set_debug_message_handler (backend,
+      gum_debug_server_on_message, server, NULL);
 
   return server;
 }
@@ -91,7 +94,8 @@ gum_debug_server_new (guint16 port)
 void
 gum_debug_server_free (GumDebugServer * server)
 {
-  gum_script_set_debug_message_handler (NULL, NULL, NULL);
+  gum_script_backend_set_debug_message_handler (server->backend, NULL, NULL,
+      NULL);
 
   while (server->sessions != NULL)
   {
@@ -344,7 +348,7 @@ gum_debug_session_on_read_ready (GObject * source_object,
 
       message = g_strndup (self->buffer + self->header_length,
           self->message_length - self->header_length);
-      gum_script_post_debug_message (message);
+      gum_script_backend_post_debug_message (self->server->backend, message);
       g_free (message);
 
       self->length -= self->message_length;

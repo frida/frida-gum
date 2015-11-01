@@ -4,7 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumscript.h"
+#include "gumscriptbackend.h"
 
 #include "testutil.h"
 
@@ -42,6 +42,7 @@
 
 typedef struct _TestScriptFixture
 {
+  GumScriptBackend * backend;
   GumScript * kscript;
   GMainLoop * loop;
   GMainContext * context;
@@ -70,6 +71,7 @@ test_kscript_fixture_setup (TestScriptFixture * fixture,
   (void) test_kscript_fixture_expect_send_message_with_payload_and_data;
   (void) test_kscript_fixture_expect_error_message_with;
 
+  fixture->backend = gum_script_backend_obtain ();
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
@@ -167,8 +169,8 @@ test_kscript_fixture_compile_and_load_kscript (TestScriptFixture * fixture,
   source = g_strdup_vprintf (source_template, args);
   va_end (args);
 
-  fixture->kscript = gum_script_from_string_sync ("testcase", source,
-      GUM_SCRIPT_FLAVOR_KERNEL, NULL, &err);
+  fixture->kscript = gum_script_backend_create_sync (fixture->backend,
+      "testcase", source, GUM_SCRIPT_FLAVOR_KERNEL, NULL, &err);
   g_assert (fixture->kscript != NULL);
   g_assert (err == NULL);
 
