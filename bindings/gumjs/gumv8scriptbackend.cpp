@@ -277,6 +277,8 @@ gum_v8_script_backend_create_finish (GumScriptBackend * backend,
                                      GAsyncResult * result,
                                      GError ** error)
 {
+  (void) backend;
+
   return GUM_SCRIPT (gum_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
@@ -335,6 +337,8 @@ gum_create_script_task_run (GumScriptTask * task,
   GumCreateScriptData * d = (GumCreateScriptData *) task_data;
   GumV8Script * script;
   GError * error = NULL;
+
+  (void) cancellable;
 
   script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
       "name", d->name,
@@ -708,5 +712,7 @@ gum_v8_script_backend_is_ignoring (GumScriptBackend * backend,
 static gboolean
 gum_v8_script_backend_supports_unload (GumScriptBackend * backend)
 {
+  (void) backend;
+
   return TRUE;
 }
