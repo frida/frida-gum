@@ -238,6 +238,7 @@ gum_jsc_script_dispose (GObject * object)
   else
   {
     g_clear_pointer (&priv->main_context, g_main_context_unref);
+    g_clear_pointer (&priv->backend, g_object_unref);
   }
 
   G_OBJECT_CLASS (gum_jsc_script_parent_class)->dispose (object);
