@@ -53,7 +53,6 @@ _gum_jsc_polyfill_init (GumJscPolyfill * self,
   JSObjectRef module;
 
   self->core = core;
-  self->disposed = FALSE;
 
   def = kJSClassDefinitionEmpty;
   def.className = "ProxyModule";
@@ -78,8 +77,6 @@ void
 _gum_jsc_polyfill_dispose (GumJscPolyfill * self)
 {
   g_clear_pointer (&self->proxy, JSClassRelease);
-
-  self->disposed = TRUE;
 }
 
 void
@@ -125,22 +122,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
 GUMJS_DEFINE_FINALIZER (gumjs_proxy_finalize)
 {
   GumJscProxy * self = GUMJS_PROXY (object);
-  GumJscPolyfill * parent = self->parent;
+  GumJscCore * core = self->parent->core;
 
-  if (!parent->disposed)
-  {
-    JSContextRef ctx = parent->core->ctx;
-
-    if (self->has != NULL)
-      JSValueUnprotect (ctx, self->has);
-    if (self->get != NULL)
-      JSValueUnprotect (ctx, self->get);
-    if (self->set != NULL)
-      JSValueUnprotect (ctx, self->set);
-    if (self->enumerate != NULL)
-      JSValueUnprotect (ctx, self->enumerate);
-    JSValueUnprotect (ctx, self->receiver);
-  }
+  _gum_jsc_core_unprotect_later (core, self->has);
+  _gum_jsc_core_unprotect_later (core, self->get);
+  _gum_jsc_core_unprotect_later (core, self->set);
+  _gum_jsc_core_unprotect_later (core, self->enumerate);
+  _gum_jsc_core_unprotect_later (core, self->receiver);
 
   g_slice_free (GumJscProxy, self);
 }

@@ -44,7 +44,6 @@ struct _GumJscCore
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   JSContextRef ctx;
-  gboolean disposed;
 
   GMutex mutex;
 
@@ -53,6 +52,9 @@ struct _GumJscCore
 
   GumJscExceptionSink * unhandled_exception_sink;
   GumJscMessageSink * incoming_message_sink;
+
+  GSList * unprotect_requests;
+  GSource * unprotect_source;
 
   GHashTable * weak_refs;
   guint last_weak_ref_id;
@@ -119,6 +121,9 @@ G_GNUC_INTERNAL void _gum_jsc_core_emit_message (GumJscCore * self,
     const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_jsc_core_post_message (GumJscCore * self,
     const gchar * message);
+
+G_GNUC_INTERNAL void _gum_jsc_core_unprotect_later (GumJscCore * self,
+    JSValueRef value);
 
 G_GNUC_INTERNAL void _gum_jsc_core_push_job (GumJscCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);

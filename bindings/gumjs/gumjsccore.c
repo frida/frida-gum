@@ -157,6 +157,9 @@ static bool gumjs_cpu_context_set_register (GumJscCpuContext * self,
     JSContextRef ctx, const GumJscArgs * args, gsize * reg,
     JSValueRef * exception);
 
+static gboolean gum_handle_unprotect_requests_when_idle (gpointer user_data);
+static void gum_handle_unprotect_requests (GumJscCore * self);
+
 static void gum_clear_weak_ref_entry (guint id, GumJscWeakRef * ref);
 static GumJscWeakRef * gum_jsc_weak_ref_new (guint id, JSValueRef target,
     JSObjectRef callback, GumJscCore * core);
@@ -458,10 +461,12 @@ _gum_jsc_core_init (GumJscCore * self,
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
-  self->disposed = FALSE;
 
   g_mutex_init (&self->mutex);
   g_cond_init (&self->event_cond);
+
+  self->unprotect_requests = NULL;
+  self->unprotect_source = NULL;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_jsc_weak_ref_free);
@@ -557,6 +562,9 @@ _gum_jsc_core_flush (GumJscCore * self)
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
   GUM_JSC_CORE_LOCK (self);
 
+  g_clear_pointer (&self->unprotect_source, g_source_destroy);
+  gum_handle_unprotect_requests (self);
+
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
@@ -593,8 +601,6 @@ _gum_jsc_core_dispose (GumJscCore * self)
   g_clear_pointer (&self->native_pointer, JSClassRelease);
 
   g_clear_pointer (&self->exceptor, g_object_unref);
-
-  self->disposed = TRUE;
 }
 
 void
@@ -633,6 +639,56 @@ _gum_jsc_core_post_message (GumJscCore * self,
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
     GUM_JSC_CORE_UNLOCK (self);
+  }
+}
+
+void
+_gum_jsc_core_unprotect_later (GumJscCore * self,
+                               JSValueRef value)
+{
+  if (value == NULL)
+    return;
+
+  self->unprotect_requests = g_slist_prepend (self->unprotect_requests,
+      (gpointer) value);
+  if (self->unprotect_source == NULL)
+  {
+    GSource * source;
+
+    source = g_idle_source_new ();
+    g_source_set_callback (source, gum_handle_unprotect_requests_when_idle,
+        self, NULL);
+    g_source_attach (source,
+        gum_script_scheduler_get_js_context (self->scheduler));
+    g_source_unref (source);
+    self->unprotect_source = source;
+  }
+}
+
+static gboolean
+gum_handle_unprotect_requests_when_idle (gpointer user_data)
+{
+  GumJscCore * self = user_data;
+
+  GUM_JSC_CORE_LOCK (self);
+  gum_handle_unprotect_requests (self);
+  self->unprotect_source = NULL;
+  GUM_JSC_CORE_UNLOCK (self);
+
+  return FALSE;
+}
+
+static void
+gum_handle_unprotect_requests (GumJscCore * self)
+{
+  JSContextRef ctx = self->ctx;
+
+  while (self->unprotect_requests != NULL)
+  {
+    JSValueRef value = self->unprotect_requests->data;
+    JSValueUnprotect (ctx, value);
+    self->unprotect_requests = g_slist_delete_link (self->unprotect_requests,
+        self->unprotect_requests);
   }
 }
 
@@ -1441,10 +1497,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 static void
 gum_jsc_native_callback_finalize (GumJscNativeCallback * callback)
 {
-  GumJscCore * core = callback->core;
-
-  if (!core->disposed && callback->func != NULL)
-    JSValueUnprotect (core->ctx, callback->func);
+  _gum_jsc_core_unprotect_later (callback->core, callback->func);
 
   ffi_closure_free (callback->closure);
 

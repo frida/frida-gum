@@ -16,7 +16,6 @@ typedef struct _GumJscPolyfill GumJscPolyfill;
 struct _GumJscPolyfill
 {
   GumJscCore * core;
-  gboolean disposed;
 
   JSClassRef proxy;
 };
