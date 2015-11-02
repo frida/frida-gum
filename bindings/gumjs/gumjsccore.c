@@ -601,6 +601,8 @@ _gum_jsc_core_dispose (GumJscCore * self)
   g_clear_pointer (&self->native_pointer, JSClassRelease);
 
   g_clear_pointer (&self->exceptor, g_object_unref);
+
+  self->ctx = NULL;
 }
 
 void
@@ -646,7 +648,7 @@ void
 _gum_jsc_core_unprotect_later (GumJscCore * self,
                                JSValueRef value)
 {
-  if (value == NULL)
+  if (self->ctx == NULL || value == NULL)
     return;
 
   self->unprotect_requests = g_slist_prepend (self->unprotect_requests,
