@@ -1,51 +1,57 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="gumscript.cpp" />
-    <ClCompile Include="gumscriptplatform.cpp" />
-    <ClCompile Include="gumscriptbundle.cpp" />
+    <ClCompile Include="gumscript.c" />
+    <ClCompile Include="gumscriptbackend.c" />
     <ClCompile Include="gumscriptscheduler.c" />
     <ClCompile Include="gumscripttask.c" />
-    <ClCompile Include="gumscriptscope.cpp" />
-    <ClCompile Include="gumscriptcore.cpp" />
-    <ClCompile Include="gumscriptkernel.cpp" />
-    <ClCompile Include="gumscriptmemory.cpp" />
-    <ClCompile Include="gumscriptprocess.cpp" />
-    <ClCompile Include="gumscriptthread.cpp" />
-    <ClCompile Include="gumscriptmodule.cpp" />
-    <ClCompile Include="gumscriptfile.cpp" />
-    <ClCompile Include="gumscriptsocket.cpp" />
-    <ClCompile Include="gumscriptinterceptor.cpp" />
-    <ClCompile Include="gumscriptstalker.cpp" />
-    <ClCompile Include="gumscripteventsink.cpp" />
-    <ClCompile Include="gumscriptsymbol.cpp" />
-    <ClCompile Include="gumscriptinstruction.cpp" />
+    <ClCompile Include="gumv8scriptbackend.cpp" />
+    <ClCompile Include="gumv8script.cpp" />
+    <ClCompile Include="gumv8platform.cpp" />
+    <ClCompile Include="gumv8bundle.cpp" />
+    <ClCompile Include="gumv8scope.cpp" />
+    <ClCompile Include="gumv8core.cpp" />
+    <ClCompile Include="gumv8kernel.cpp" />
+    <ClCompile Include="gumv8memory.cpp" />
+    <ClCompile Include="gumv8process.cpp" />
+    <ClCompile Include="gumv8thread.cpp" />
+    <ClCompile Include="gumv8module.cpp" />
+    <ClCompile Include="gumv8file.cpp" />
+    <ClCompile Include="gumv8socket.cpp" />
+    <ClCompile Include="gumv8interceptor.cpp" />
+    <ClCompile Include="gumv8stalker.cpp" />
+    <ClCompile Include="gumv8eventsink.cpp" />
+    <ClCompile Include="gumv8symbol.cpp" />
+    <ClCompile Include="gumv8instruction.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gumscript.h" />
-    <ClInclude Include="gumscript-priv.h" />
-    <ClInclude Include="gumscriptplatform.h" />
-    <ClInclude Include="gumscriptbundle.h" />
+    <ClInclude Include="gumscriptbackend.h" />
     <ClInclude Include="gumscriptscheduler.h" />
     <ClInclude Include="gumscripttask.h" />
-    <ClInclude Include="gumscriptscope.h" />
-    <ClInclude Include="gumscriptcore.h" />
-    <ClInclude Include="gumscriptkernel.h" />
-    <ClInclude Include="gumscriptmemory.h" />
-    <ClInclude Include="gumscriptprocess.h" />
-    <ClInclude Include="gumscriptthread.h" />
-    <ClInclude Include="gumscriptmodule.h" />
-    <ClInclude Include="gumscriptfile.h" />
-    <ClInclude Include="gumscriptsocket.h" />
-    <ClInclude Include="gumscriptinterceptor.h" />
-    <ClInclude Include="gumscriptstalker.h" />
-    <ClInclude Include="gumscripteventsink.h" />
-    <ClInclude Include="gumscriptsymbol.h" />
-    <ClInclude Include="gumscriptinstruction.h" />
-    <ClInclude Include="$(IntDir)gumjs\gumscript-debug.h">
+    <ClInclude Include="gumv8scriptbackend.h" />
+    <ClInclude Include="gumv8script.h" />
+    <ClInclude Include="gumv8script-priv.h" />
+    <ClInclude Include="gumv8platform.h" />
+    <ClInclude Include="gumv8bundle.h" />
+    <ClInclude Include="gumv8scope.h" />
+    <ClInclude Include="gumv8core.h" />
+    <ClInclude Include="gumv8kernel.h" />
+    <ClInclude Include="gumv8memory.h" />
+    <ClInclude Include="gumv8process.h" />
+    <ClInclude Include="gumv8thread.h" />
+    <ClInclude Include="gumv8module.h" />
+    <ClInclude Include="gumv8file.h" />
+    <ClInclude Include="gumv8socket.h" />
+    <ClInclude Include="gumv8interceptor.h" />
+    <ClInclude Include="gumv8stalker.h" />
+    <ClInclude Include="gumv8eventsink.h" />
+    <ClInclude Include="gumv8symbol.h" />
+    <ClInclude Include="gumv8instruction.h" />
+    <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
-    <ClInclude Include="$(IntDir)gumjs\gumscript-runtime.h">
+    <ClInclude Include="$(IntDir)gumjs\gumv8script-debug.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
   </ItemGroup>
@@ -64,16 +70,16 @@
     <None Include="..\..\vapi\frida-gumjs-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
-    <None Include="gumscript-runtime-core.js">
+    <None Include="gumscript-core.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-runtime-source-map.js">
+    <None Include="gumscript-source-map.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-runtime-java.js">
+    <None Include="gumscript-java.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-runtime-objc.js">
+    <None Include="gumscript-objc.js">
       <Filter>runtime</Filter>
     </None>
   </ItemGroup>

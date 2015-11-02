@@ -15,7 +15,6 @@ v8_sources = \
 	gumv8script.h \
 	gumv8script.cpp \
 	gumv8script-priv.h \
-	gumv8script-runtime.h \
 	gumv8platform.h \
 	gumv8platform.cpp \
 	gumv8bundle.h \
@@ -56,7 +55,6 @@ jsc_sources = \
 	gumjscscript.h \
 	gumjscscript.c \
 	gumjscscript-priv.h \
-	gumjscscript-runtime.h \
 	gumjscbundle.h \
 	gumjscbundle.c \
 	gumjscvalue.h \
