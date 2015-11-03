@@ -29,6 +29,13 @@ static const {entry_type} {entries_identifier}[] =
         output_file.write("\n  { NULL, { NULL } }\n};")
 
 def generate_runtime_jsc(output_dir, output, input_dir, inputs):
+    if not os.path.isdir(os.path.join(input_dir, "node_modules")):
+        try:
+            subprocess.call(["npm", "install"], cwd=input_dir)
+        except:
+            print("Please install Node.js", file=sys.stderr)
+            sys.exit(1)
+
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
 #include "gumjscbundle.h"
@@ -44,11 +51,7 @@ static const {entry_type} {entries_identifier}[] =
             input_name_es5 = base + "-es5" + ext
             input_path_es5 = os.path.join(output_dir, input_name_es5)
 
-            try:
-                subprocess.call(["babel", input_path_es6, "-o", input_path_es5])
-            except:
-                print("Please install babel: npm install -g babel-cli", file=sys.stderr)
-                sys.exit(1)
+            subprocess.call([os.path.join(input_dir, "/node_modules/babel-cli/bin/babel.js"), "--presets", "es2015", input_path_es6, "-o", input_path_es5], cwd=input_dir)
 
             output_file.write("""
   {{
