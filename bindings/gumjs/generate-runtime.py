@@ -47,7 +47,7 @@ static const {entry_type} {entries_identifier}[] =
             try:
                 subprocess.call(["babel", input_path_es6, "-o", input_path_es5])
             except:
-                print("Please install babel: npm install -g babel", file=sys.stderr)
+                print("Please install babel: npm install -g babel-cli", file=sys.stderr)
                 sys.exit(1)
 
             output_file.write("""
