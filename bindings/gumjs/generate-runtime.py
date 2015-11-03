@@ -44,7 +44,7 @@ static const {entry_type} {entries_identifier}[] =
             input_name_es5 = base + "-es5" + ext
             input_path_es5 = os.path.join(output_dir, input_name_es5)
 
-            subprocess.call([os.path.join(input_dir, "node_modules/.bin/babel"), "--presets", "es2015", input_path_es6, "-o", input_path_es5], cwd=input_dir)
+            subprocess.call(["./node_modules/.bin/babel", "--presets", "es2015", os.path.abspath(input_path_es6), "-o", os.path.abspath(input_path_es5)], cwd=input_dir)
 
             output_file.write("""
   {{
@@ -116,7 +116,7 @@ if __name__ == '__main__':
         "gumjs-objc.js",
     ]
     jsc_polyfill_modules = [
-        "gumscript-promise.js",
+        "gumjs-promise.js",
     ]
     generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     if platform.system() == 'Darwin':
