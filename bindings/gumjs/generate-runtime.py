@@ -29,9 +29,9 @@ static const {entry_type} {entries_identifier}[] =
         output_file.write("\n  { NULL, { NULL } }\n};")
 
 def generate_runtime_jsc(output_dir, output, input_dir, inputs):
-    if not os.path.isdir(os.path.join(input_dir, "node_modules")):
+    if not os.path.isdir(os.path.join(output_dir, "node_modules")):
         try:
-            subprocess.call(["npm", "install"], cwd=input_dir)
+            subprocess.call(["npm", "install", "babel-cli", "babel-preset-es2015"], cwd=output_dir)
         except:
             print("Please install Node.js", file=sys.stderr)
             sys.exit(1)
@@ -51,7 +51,7 @@ static const {entry_type} {entries_identifier}[] =
             input_name_es5 = base + "-es5" + ext
             input_path_es5 = os.path.join(output_dir, input_name_es5)
 
-            subprocess.call([os.path.join(input_dir, "/node_modules/babel-cli/bin/babel.js"), "--presets", "es2015", input_path_es6, "-o", input_path_es5], cwd=input_dir)
+            subprocess.call([os.path.join(output_dir, "/node_modules/babel-cli/bin/babel.js"), "--presets", "es2015", input_path_es6, "-o", input_path_es5], cwd=output_dir)
 
             output_file.write("""
   {{
