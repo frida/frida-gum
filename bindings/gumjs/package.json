@@ -1,0 +1,23 @@
+{
+  "name": "frida-gumjs",
+  "version": "1.0.0",
+  "description": "GumJS",
+  "main": "gumjs-core.js",
+  "devDependencies": {
+    "babel-cli": "^6.1.1",
+    "babel-preset-es2015": "^6.0.15"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/frida/frida-gum.git"
+  },
+  "author": "Frida Developers",
+  "license": "LGPL-2.0 WITH WxWindows-exception-3.1",
+  "bugs": {
+    "url": "https://github.com/frida/frida-gum/issues"
+  },
+  "homepage": "https://github.com/frida/frida-gum#readme"
+}
