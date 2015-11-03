@@ -123,7 +123,7 @@ gum_jsc_script_backend_init (GumJscScriptBackend * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_JSC_TYPE_SCRIPT_BACKEND, GumJscScriptBackendPrivate);
 
-  priv->scheduler = gum_script_scheduler_new ();
+  priv->scheduler = NULL;
 
   priv->ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
 
@@ -155,7 +155,12 @@ gum_jsc_script_backend_dispose (GObject * object)
 GumScriptScheduler *
 gum_jsc_script_backend_get_scheduler (GumJscScriptBackend * self)
 {
-  return self->priv->scheduler;
+  GumJscScriptBackendPrivate * priv = self->priv;
+
+  if (priv->scheduler == NULL)
+    priv->scheduler = gum_script_scheduler_new ();
+
+  return priv->scheduler;
 }
 
 static void
@@ -172,7 +177,8 @@ gum_jsc_script_backend_create (GumScriptBackend * backend,
 
   task = gum_create_script_task_new (self, name, source, flavor, cancellable,
       callback, user_data);
-  gum_script_task_run_in_js_thread (task, self->priv->scheduler);
+  gum_script_task_run_in_js_thread (task,
+      gum_jsc_script_backend_get_scheduler (self));
   g_object_unref (task);
 }
 
@@ -199,7 +205,8 @@ gum_jsc_script_backend_create_sync (GumScriptBackend * backend,
 
   task = gum_create_script_task_new (self, name, source, flavor, cancellable,
       NULL, NULL);
-  gum_script_task_run_in_js_thread_sync (task, self->priv->scheduler);
+  gum_script_task_run_in_js_thread_sync (task,
+      gum_jsc_script_backend_get_scheduler (self));
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
   g_object_unref (task);
 
@@ -354,7 +361,8 @@ gum_jsc_script_backend_unignore_later (GumScriptBackend * backend,
   GMainContext * main_context;
   GSource * source;
 
-  main_context = gum_script_scheduler_get_js_context (priv->scheduler);
+  main_context = gum_script_scheduler_get_js_context (
+      gum_jsc_script_backend_get_scheduler (self));
 
   gum_interceptor_ignore_current_thread (priv->interceptor);
 

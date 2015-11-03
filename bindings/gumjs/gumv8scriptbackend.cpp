@@ -18,6 +18,8 @@
 #define GUM_V8_SCRIPT_BACKEND_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
+#define GUM_V8_SCRIPT_BACKEND_GET_PLATFORM(backend) \
+    static_cast<GumV8Platform *> (gum_v8_script_backend_get_platform (backend))
 #define GUM_V8_SCRIPT_BACKEND_GET_ISOLATE(backend) \
     static_cast<Isolate *> (gum_v8_script_backend_get_isolate (backend))
 
@@ -179,13 +181,7 @@ gum_v8_script_backend_init (GumV8ScriptBackend * self)
 
   g_mutex_init (&priv->mutex);
 
-  V8::SetFlagsFromString (GUM_V8_FLAGS,
-      static_cast<int> (strlen (GUM_V8_FLAGS)));
-
-  priv->platform = new GumV8Platform ();
-
-  Isolate * isolate = GUM_V8_SCRIPT_BACKEND_GET_ISOLATE (self);
-  isolate->SetData (0, self);
+  priv->platform = NULL;
 
   priv->ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
 
@@ -238,19 +234,29 @@ gum_v8_script_backend_finalize (GObject * object)
 gpointer
 gum_v8_script_backend_get_platform (GumV8ScriptBackend * self)
 {
-  return self->priv->platform;
+  GumV8ScriptBackendPrivate * priv = self->priv;
+
+  if (priv->platform == NULL)
+  {
+    V8::SetFlagsFromString (GUM_V8_FLAGS,
+        static_cast<int> (strlen (GUM_V8_FLAGS)));
+    priv->platform = new GumV8Platform ();
+    priv->platform->GetIsolate ()->SetData (0, self);
+  }
+
+  return priv->platform;
 }
 
 gpointer
 gum_v8_script_backend_get_isolate (GumV8ScriptBackend * self)
 {
-  return self->priv->platform->GetIsolate ();
+  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetIsolate ();
 }
 
 GumScriptScheduler *
 gum_v8_script_backend_get_scheduler (GumV8ScriptBackend * self)
 {
-  return self->priv->platform->GetScheduler ();
+  return GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetScheduler ();
 }
 
 static void
@@ -429,7 +435,8 @@ gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
   priv->debug_context = new GumPersistent<Context>::type (isolate, context);
   Context::Scope context_scope (context);
 
-  gum_v8_bundle_run (priv->platform->GetDebugRuntime ());
+  gum_v8_bundle_run (
+      GUM_V8_SCRIPT_BACKEND_GET_PLATFORM (self)->GetDebugRuntime ());
 }
 
 static void
