@@ -752,9 +752,16 @@ _gumjs_panic (JSContextRef ctx,
   gchar * message, * stack;
 
   message = _gumjs_string_from_value (ctx, exception);
-  stack = _gumjs_object_get_string (ctx, (JSObjectRef) exception, "stack");
-  g_critical ("%s\n%s", message, stack);
-  g_free (stack);
+  if (_gumjs_object_try_get_string (ctx, (JSObjectRef) exception, "stack",
+      &stack, NULL))
+  {
+    g_critical ("%s\n%s", message, stack);
+    g_free (stack);
+  }
+  else
+  {
+    g_critical ("%s", message);
+  }
   g_free (message);
 
   abort ();
