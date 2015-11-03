@@ -20,6 +20,7 @@
 /bindings/Makefile.in
 /bindings/gumjs/Makefile
 /bindings/gumjs/Makefile.in
+/bindings/gumjs/node_modules
 /bindings/gumpp/Makefile
 /bindings/gumpp/Makefile.in
 /build-aux
