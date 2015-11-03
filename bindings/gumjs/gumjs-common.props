@@ -62,10 +62,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="gumscript-core.js" />
-    <None Include="gumscript-source-map.js" />
-    <None Include="gumscript-java.js" />
-    <None Include="gumscript-objc.js" />
+    <None Include="gumjs-core.js" />
+    <None Include="gumjs-source-map.js" />
+    <None Include="gumjs-java.js" />
+    <None Include="gumjs-objc.js" />
   </ItemGroup>
 
   <ItemGroup>
@@ -78,7 +78,7 @@ generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>gumscript-core.js;gumscript-source-map.js;gumscript-java.js;gumscript-objc.js;gumscript-debug.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>gumjs-core.js;gumjs-source-map.js;gumjs-java.js;gumjs-objc.js;gumjs-debug.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 

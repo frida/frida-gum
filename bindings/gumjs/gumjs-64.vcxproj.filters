@@ -70,16 +70,16 @@
     <None Include="..\..\vapi\frida-gumjs-1.0.vapi">
       <Filter>vapi</Filter>
     </None>
-    <None Include="gumscript-core.js">
+    <None Include="gumjs-core.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-source-map.js">
+    <None Include="gumjs-source-map.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-java.js">
+    <None Include="gumjs-java.js">
       <Filter>runtime</Filter>
     </None>
-    <None Include="gumscript-objc.js">
+    <None Include="gumjs-objc.js">
       <Filter>runtime</Filter>
     </None>
   </ItemGroup>

@@ -114,10 +114,10 @@ if __name__ == '__main__':
     output_dir = sys.argv[2]
 
     modules = [
-        "gumscript-core.js",
-        "gumscript-source-map.js",
-        "gumscript-java.js",
-        "gumscript-objc.js",
+        "gumjs-core.js",
+        "gumjs-source-map.js",
+        "gumjs-java.js",
+        "gumjs-objc.js",
     ]
     jsc_polyfill_modules = [
         "gumscript-promise.js",
@@ -127,5 +127,5 @@ if __name__ == '__main__':
         generate_runtime_jsc(output_dir, "gumjscscript-runtime.h", input_dir, modules + jsc_polyfill_modules)
 
     generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
-        "gumscript-debug.js",
+        "gumjs-debug.js",
     ])
