@@ -207,6 +207,11 @@ gum_arm64_writer_flush (GumArm64Writer * self)
         g_assert (GUM_IS_WITHIN_INT28_RANGE (distance));
         insn |= distance & GUM_INT28_MASK;
       }
+      else if ((insn & 0x7e000000) == 0x36000000)
+      {
+        g_assert (GUM_IS_WITHIN_INT14_RANGE (distance));
+        insn |= (distance & GUM_INT14_MASK) << 5;
+      }
       else
       {
         g_assert (GUM_IS_WITHIN_INT19_RANGE (distance));
@@ -520,6 +525,36 @@ gum_arm64_writer_put_cbnz_reg_label (GumArm64Writer * self,
 
   gum_arm64_writer_add_label_reference_here (self, label_id);
   gum_arm64_writer_put_instruction (self, ri.sf | 0x35000000 | ri.index);
+}
+
+void
+gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
+                                        arm64_reg reg,
+                                        guint bit,
+                                        gconstpointer label_id)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_put_instruction (self, ri.sf | 0x36000000 |
+      ((bit & GUM_INT5_MASK) << 19) | ri.index);
+}
+
+void
+gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
+                                         arm64_reg reg,
+                                         guint bit,
+                                         gconstpointer label_id)
+{
+  GumArm64RegInfo ri;
+
+  gum_arm64_writer_describe_reg (self, reg, &ri);
+
+  gum_arm64_writer_add_label_reference_here (self, label_id);
+  gum_arm64_writer_put_instruction (self, ri.sf | 0x37000000 |
+      ((bit & GUM_INT5_MASK) << 19) | ri.index);
 }
 
 void
@@ -937,6 +972,18 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
   else if (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W30)
   {
     ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_W0);
+    ri->width = 32;
+    ri->sf = 0x00000000;
+  }
+  else if (reg == ARM64_REG_XZR)
+  {
+    ri->meta = GUM_MREG_ZR;
+    ri->width = 64;
+    ri->sf = 0x80000000;
+  }
+  else if (reg == ARM64_REG_WZR)
+  {
+    ri->meta = GUM_MREG_ZR;
     ri->width = 32;
     ri->sf = 0x00000000;
   }
