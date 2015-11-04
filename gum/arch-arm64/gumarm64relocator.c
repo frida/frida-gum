@@ -36,6 +36,8 @@ static gboolean gum_arm64_relocator_rewrite_bl (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
     GumCodeGenCtx * ctx);
+static gboolean gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
+    GumCodeGenCtx * ctx);
 
 void
 gum_arm64_relocator_init (GumArm64Relocator * relocator,
@@ -161,6 +163,8 @@ gum_arm64_relocator_read_one (GumArm64Relocator * self,
       break;
     case ARM64_INS_CBZ:
     case ARM64_INS_CBNZ:
+    case ARM64_INS_TBZ:
+    case ARM64_INS_TBNZ:
       self->eob = TRUE;
       self->eoi = FALSE;
       break;
@@ -247,6 +251,10 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
     case ARM64_INS_CBZ:
     case ARM64_INS_CBNZ:
       rewritten = gum_arm64_relocator_rewrite_cbz (self, &ctx);
+      break;
+    case ARM64_INS_TBZ:
+    case ARM64_INS_TBNZ:
+      rewritten = gum_arm64_relocator_rewrite_tbz (self, &ctx);
       break;
     default:
       rewritten = FALSE;
@@ -591,6 +599,41 @@ gum_arm64_relocator_rewrite_cbz (GumArm64Relocator * self,
     gum_arm64_writer_put_cbz_reg_label (ctx->output, source->reg, is_true);
   else
     gum_arm64_writer_put_cbnz_reg_label (ctx->output, source->reg, is_true);
+  gum_arm64_writer_put_b_label (ctx->output, is_false);
+
+  gum_arm64_writer_put_label (ctx->output, is_true);
+  gum_arm64_writer_put_ldr_reg_address (ctx->output, ARM64_REG_X16,
+      target->imm);
+  gum_arm64_writer_put_br_reg (ctx->output, ARM64_REG_X16);
+
+  gum_arm64_writer_put_label (ctx->output, is_false);
+
+  return TRUE;
+}
+
+static gboolean
+gum_arm64_relocator_rewrite_tbz (GumArm64Relocator * self,
+                                 GumCodeGenCtx * ctx)
+{
+  const cs_arm64_op * source = &ctx->detail->operands[0];
+  const cs_arm64_op * bit = &ctx->detail->operands[1];
+  const cs_arm64_op * target = &ctx->detail->operands[2];
+  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
+
+  (void) self;
+
+  if (ctx->insn->id == ARM64_INS_TBZ)
+  {
+    gum_arm64_writer_put_tbz_reg_imm_label (ctx->output, source->reg, bit->imm,
+        is_true);
+  }
+  else
+  {
+    gum_arm64_writer_put_tbnz_reg_imm_label (ctx->output, source->reg, bit->imm,
+        is_true);
+  }
   gum_arm64_writer_put_b_label (ctx->output, is_false);
 
   gum_arm64_writer_put_label (ctx->output, is_true);
