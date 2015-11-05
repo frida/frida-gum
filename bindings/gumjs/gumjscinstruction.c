@@ -48,6 +48,7 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_next)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
+GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 GUMJS_DECLARE_CONVERTER (gumjs_instruction_convert_to_type)
 
 static const JSStaticFunction gumjs_instruction_module_functions[] =
@@ -66,6 +67,13 @@ static const JSStaticValue gumjs_instruction_values[] =
   { "opStr", gumjs_instruction_get_op_str, NULL, GUMJS_RO },
 
   { NULL, NULL, NULL, 0 }
+};
+
+static const JSStaticFunction gumjs_instruction_functions[] =
+{
+  { "toString", gumjs_instruction_to_string, GUMJS_RO },
+
+  { NULL, NULL, 0 }
 };
 
 void
@@ -95,6 +103,7 @@ _gum_jsc_instruction_init (GumJscInstruction * self,
   def = kJSClassDefinitionEmpty;
   def.className = "Instruction";
   def.staticValues = gumjs_instruction_values;
+  def.staticFunctions = gumjs_instruction_functions;
   def.finalize = gumjs_instruction_finalize;
   def.convertToType = gumjs_instruction_convert_to_type;
   self->instruction = JSClassCreate (&def);
@@ -163,6 +172,21 @@ gumjs_instruction_new (JSContextRef ctx,
   return JSObjectMake (ctx, parent->instruction, instruction);
 }
 
+static JSValueRef
+gum_instruction_to_string (GumInstruction * self,
+                           JSContextRef ctx)
+{
+  cs_insn * insn = &self->insn;
+  gchar * str;
+  JSValueRef result;
+
+  str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
+  result = _gumjs_string_to_value (ctx, str);
+  g_free (str);
+
+  return result;
+}
+
 GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
 {
   GumInstruction * instruction = GUMJS_INSTRUCTION (object);
@@ -210,19 +234,15 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
   return _gumjs_string_to_value (ctx, self->insn.op_str);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
+{
+  return gum_instruction_to_string (GUMJS_INSTRUCTION (this_object), ctx);
+}
+
 GUMJS_DEFINE_CONVERTER (gumjs_instruction_convert_to_type)
 {
-  GumInstruction * self;
-  cs_insn * insn;
-  gchar * str;
-  JSValueRef result;
+  if (type != kJSTypeString)
+    return NULL;
 
-  self = GUMJS_INSTRUCTION (object);
-  insn = &self->insn;
-
-  str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
-  result = _gumjs_string_to_value (ctx, str);
-  g_free (str);
-
-  return result;
+  return gum_instruction_to_string (GUMJS_INSTRUCTION (object), ctx);
 }

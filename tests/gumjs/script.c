@@ -197,6 +197,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "var second = Instruction.parse(first.next);"
       "send(typeof first.toString());"
       "send(typeof second.toString());"
+      "send(second.toString().indexOf(\"[object\") !== 0);"
       "send(first.address.toInt32() !== 0);"
       "send(first.size > 0);"
       "send(typeof first.mnemonic);"
@@ -204,6 +205,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       target_function_int);
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
@@ -226,9 +228,12 @@ SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT (
-      "send(DebugSymbol.fromAddress(" GUM_PTR_CONST ").name);",
+      "var sym = DebugSymbol.fromAddress(" GUM_PTR_CONST ");"
+      "send(sym.name);"
+      "send(sym.toString().indexOf(sym.name) !== -1);",
       target_function_int);
   EXPECT_SEND_MESSAGE_WITH ("\"target_function_int\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 

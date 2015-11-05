@@ -35,6 +35,7 @@ GUMJS_DECLARE_GETTER (gumjs_symbol_get_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
 GUMJS_DECLARE_CONVERTER (gumjs_symbol_convert_to_type)
 
 static JSObjectRef gumjs_pointer_array_to_value (JSContextRef ctx,
@@ -62,6 +63,13 @@ static const JSStaticValue gumjs_symbol_values[] =
   { NULL, NULL, NULL, 0 }
 };
 
+static const JSStaticFunction gumjs_symbol_functions[] =
+{
+  { "toString", gumjs_symbol_to_string, GUMJS_RO },
+
+  { NULL, NULL, 0 }
+};
+
 void
 _gum_jsc_symbol_init (GumJscSymbol * self,
                       GumJscCore * core,
@@ -85,6 +93,7 @@ _gum_jsc_symbol_init (GumJscSymbol * self,
   def = kJSClassDefinitionEmpty;
   def.className = "DebugSymbol";
   def.staticValues = gumjs_symbol_values;
+  def.staticFunctions = gumjs_symbol_functions;
   def.finalize = gumjs_symbol_finalize;
   def.convertToType = gumjs_symbol_convert_to_type;
   self->symbol = JSClassCreate (&def);
@@ -239,6 +248,38 @@ gumjs_symbol_new (JSContextRef ctx,
   return JSObjectMake (ctx, parent->symbol, s);
 }
 
+static JSValueRef
+gum_symbol_to_string (GumSymbol * self,
+                      JSContextRef ctx)
+{
+  GumSymbolDetails * d = &self->details;
+  GString * s;
+  JSValueRef result;
+
+  s = g_string_new ("0");
+
+  if (self->resolved)
+  {
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s",
+        d->address,
+        d->module_name, d->symbol_name);
+    if (d->file_name[0] != '\0')
+    {
+      g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
+    }
+  }
+  else if (d->address != 0)
+  {
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
+  }
+
+  result = _gumjs_string_to_value (ctx, s->str);
+
+  g_string_free (s, TRUE);
+
+  return result;
+}
+
 GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
 {
   GumSymbol * symbol = GUMJS_SYMBOL (object);
@@ -294,41 +335,17 @@ GUMJS_DEFINE_GETTER (gumjs_symbol_get_line_number)
     return JSValueMakeNull (ctx);
 }
 
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
+{
+  return gum_symbol_to_string (GUMJS_SYMBOL (this_object), ctx);
+}
+
 GUMJS_DEFINE_CONVERTER (gumjs_symbol_convert_to_type)
 {
-  GumSymbol * self;
-  GumSymbolDetails * d;
-  GString * s;
-  JSValueRef result;
-
   if (type != kJSTypeString)
     return NULL;
 
-  self = GUMJS_SYMBOL (object);
-  d = &self->details;
-
-  s = g_string_new ("0");
-
-  if (self->resolved)
-  {
-    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s",
-        d->address,
-        d->module_name, d->symbol_name);
-    if (d->file_name[0] != '\0')
-    {
-      g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
-    }
-  }
-  else if (d->address != 0)
-  {
-    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
-  }
-
-  result = _gumjs_string_to_value (ctx, s->str);
-
-  g_string_free (s, TRUE);
-
-  return result;
+  return gum_symbol_to_string (GUMJS_SYMBOL (object), ctx);
 }
 
 static JSObjectRef
