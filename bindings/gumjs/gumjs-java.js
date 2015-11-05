@@ -4,10 +4,6 @@
 (function () {
     "use strict";
 
-    const flavor = typeof Process === 'undefined' ? 'kernel' : 'user';
-    if (flavor !== 'user')
-        return;
-
     const engine = global;
     let _runtime = null;
     let _api = null;

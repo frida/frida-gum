@@ -20,7 +20,6 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
-  PROP_FLAVOR,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
 };
@@ -117,11 +116,6 @@ gum_v8_script_class_init (GumV8ScriptClass * klass)
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (object_class, PROP_FLAVOR,
-      g_param_spec_uint ("flavor", "Flavor", "Flavor", GUM_SCRIPT_FLAVOR_KERNEL,
-      GUM_SCRIPT_FLAVOR_USER, GUM_SCRIPT_FLAVOR_USER,
       (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
@@ -246,9 +240,6 @@ gum_v8_script_get_property (GObject * object,
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
       break;
-    case PROP_FLAVOR:
-      g_value_set_uint (value, priv->flavor);
-      break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, priv->main_context);
       break;
@@ -279,9 +270,6 @@ gum_v8_script_set_property (GObject * object,
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
       break;
-    case PROP_FLAVOR:
-      priv->flavor = g_value_get_uint (value);
-      break;
     case PROP_MAIN_CONTEXT:
       if (priv->main_context != NULL)
         g_main_context_unref (priv->main_context);
@@ -310,47 +298,35 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_core_init (&priv->core, self, gum_v8_script_emit_message,
         gum_v8_script_backend_get_scheduler (priv->backend), priv->isolate,
         global_templ);
-    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-    {
-      _gum_v8_memory_init (&priv->memory, &priv->core, global_templ);
-      _gum_v8_process_init (&priv->process, &priv->core, global_templ);
-      _gum_v8_thread_init (&priv->thread, &priv->core, global_templ);
-      _gum_v8_module_init (&priv->module, &priv->core, global_templ);
-      _gum_v8_file_init (&priv->file, &priv->core, global_templ);
-      _gum_v8_socket_init (&priv->socket, &priv->core, global_templ);
-      _gum_v8_interceptor_init (&priv->interceptor, &priv->core,
-          global_templ);
-      _gum_v8_stalker_init (&priv->stalker, &priv->core, global_templ);
-      _gum_v8_symbol_init (&priv->symbol, &priv->core, global_templ);
-      _gum_v8_instruction_init (&priv->instruction, &priv->core,
-          global_templ);
-    }
-    else
-    {
-      _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
-    }
+    _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
+    _gum_v8_memory_init (&priv->memory, &priv->core, global_templ);
+    _gum_v8_process_init (&priv->process, &priv->core, global_templ);
+    _gum_v8_thread_init (&priv->thread, &priv->core, global_templ);
+    _gum_v8_module_init (&priv->module, &priv->core, global_templ);
+    _gum_v8_file_init (&priv->file, &priv->core, global_templ);
+    _gum_v8_socket_init (&priv->socket, &priv->core, global_templ);
+    _gum_v8_interceptor_init (&priv->interceptor, &priv->core,
+        global_templ);
+    _gum_v8_stalker_init (&priv->stalker, &priv->core, global_templ);
+    _gum_v8_symbol_init (&priv->symbol, &priv->core, global_templ);
+    _gum_v8_instruction_init (&priv->instruction, &priv->core,
+        global_templ);
 
     Local<Context> context (Context::New (priv->isolate, NULL, global_templ));
     priv->context = new GumPersistent<Context>::type (priv->isolate, context);
     Context::Scope context_scope (context);
     _gum_v8_core_realize (&priv->core);
-    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-    {
-      _gum_v8_memory_realize (&priv->memory);
-      _gum_v8_process_realize (&priv->process);
-      _gum_v8_thread_realize (&priv->thread);
-      _gum_v8_module_realize (&priv->module);
-      _gum_v8_file_realize (&priv->file);
-      _gum_v8_socket_realize (&priv->socket);
-      _gum_v8_interceptor_realize (&priv->interceptor);
-      _gum_v8_stalker_realize (&priv->stalker);
-      _gum_v8_symbol_realize (&priv->symbol);
-      _gum_v8_instruction_realize (&priv->instruction);
-    }
-    else
-    {
-      _gum_v8_kernel_realize (&priv->kernel);
-    }
+    _gum_v8_kernel_realize (&priv->kernel);
+    _gum_v8_memory_realize (&priv->memory);
+    _gum_v8_process_realize (&priv->process);
+    _gum_v8_thread_realize (&priv->thread);
+    _gum_v8_module_realize (&priv->module);
+    _gum_v8_file_realize (&priv->file);
+    _gum_v8_socket_realize (&priv->socket);
+    _gum_v8_interceptor_realize (&priv->interceptor);
+    _gum_v8_stalker_realize (&priv->stalker);
+    _gum_v8_symbol_realize (&priv->symbol);
+    _gum_v8_instruction_realize (&priv->instruction);
 
     gchar * resource_name_str = g_strconcat (priv->name, ".js",
         (gpointer) NULL);
@@ -402,27 +378,20 @@ gum_v8_script_destroy_context (GumV8Script * self)
         *priv->context));
     Context::Scope context_scope (context);
 
-    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-      _gum_v8_stalker_flush (&priv->stalker);
+    _gum_v8_stalker_flush (&priv->stalker);
     _gum_v8_core_flush (&priv->core);
 
-    if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-    {
-      _gum_v8_instruction_dispose (&priv->instruction);
-      _gum_v8_symbol_dispose (&priv->symbol);
-      _gum_v8_stalker_dispose (&priv->stalker);
-      _gum_v8_interceptor_dispose (&priv->interceptor);
-      _gum_v8_socket_dispose (&priv->socket);
-      _gum_v8_file_dispose (&priv->file);
-      _gum_v8_module_dispose (&priv->module);
-      _gum_v8_thread_dispose (&priv->thread);
-      _gum_v8_process_dispose (&priv->process);
-      _gum_v8_memory_dispose (&priv->memory);
-    }
-    else
-    {
-      _gum_v8_kernel_dispose (&priv->kernel);
-    }
+    _gum_v8_instruction_dispose (&priv->instruction);
+    _gum_v8_symbol_dispose (&priv->symbol);
+    _gum_v8_stalker_dispose (&priv->stalker);
+    _gum_v8_interceptor_dispose (&priv->interceptor);
+    _gum_v8_socket_dispose (&priv->socket);
+    _gum_v8_file_dispose (&priv->file);
+    _gum_v8_module_dispose (&priv->module);
+    _gum_v8_thread_dispose (&priv->thread);
+    _gum_v8_process_dispose (&priv->process);
+    _gum_v8_memory_dispose (&priv->memory);
+    _gum_v8_kernel_dispose (&priv->kernel);
     _gum_v8_core_dispose (&priv->core);
   }
 
@@ -431,23 +400,17 @@ gum_v8_script_destroy_context (GumV8Script * self)
   delete priv->context;
   priv->context = NULL;
 
-  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    _gum_v8_instruction_finalize (&priv->instruction);
-    _gum_v8_symbol_finalize (&priv->symbol);
-    _gum_v8_stalker_finalize (&priv->stalker);
-    _gum_v8_interceptor_finalize (&priv->interceptor);
-    _gum_v8_socket_finalize (&priv->socket);
-    _gum_v8_file_finalize (&priv->file);
-    _gum_v8_module_finalize (&priv->module);
-    _gum_v8_thread_finalize (&priv->thread);
-    _gum_v8_process_finalize (&priv->process);
-    _gum_v8_memory_finalize (&priv->memory);
-  }
-  else
-  {
-    _gum_v8_kernel_finalize (&priv->kernel);
-  }
+  _gum_v8_instruction_finalize (&priv->instruction);
+  _gum_v8_symbol_finalize (&priv->symbol);
+  _gum_v8_stalker_finalize (&priv->stalker);
+  _gum_v8_interceptor_finalize (&priv->interceptor);
+  _gum_v8_socket_finalize (&priv->socket);
+  _gum_v8_file_finalize (&priv->file);
+  _gum_v8_module_finalize (&priv->module);
+  _gum_v8_thread_finalize (&priv->thread);
+  _gum_v8_process_finalize (&priv->process);
+  _gum_v8_memory_finalize (&priv->memory);
+  _gum_v8_kernel_finalize (&priv->kernel);
   _gum_v8_core_finalize (&priv->core);
 
   priv->loaded = FALSE;

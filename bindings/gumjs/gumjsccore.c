@@ -445,15 +445,11 @@ _gum_jsc_core_init (GumJscCore * self,
                     JSContextRef ctx,
                     JSObjectRef scope)
 {
-  GumScriptFlavor flavor;
   JSClassDefinition def;
   JSObjectRef frida, obj;
   JSClassRef klass;
 
-  g_object_get (script,
-      "flavor", &flavor,
-      "backend", &self->backend,
-      NULL);
+  g_object_get (script, "backend", &self->backend, NULL);
   g_object_unref (self->backend);
 
   self->script = script;
@@ -520,25 +516,22 @@ _gum_jsc_core_init (GumJscCore * self,
   _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
       self->native_pointer, gumjs_native_pointer_construct));
 
-  if (flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    def = kJSClassDefinitionEmpty;
-    def.className = "NativeFunction";
-    def.parentClass = self->native_pointer;
-    def.finalize = gumjs_native_function_finalize;
-    def.callAsFunction = gumjs_native_function_invoke;
-    self->native_function = JSClassCreate (&def);
-    _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
-        self->native_function, gumjs_native_function_construct));
+  def = kJSClassDefinitionEmpty;
+  def.className = "NativeFunction";
+  def.parentClass = self->native_pointer;
+  def.finalize = gumjs_native_function_finalize;
+  def.callAsFunction = gumjs_native_function_invoke;
+  self->native_function = JSClassCreate (&def);
+  _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
+      self->native_function, gumjs_native_function_construct));
 
-    def = kJSClassDefinitionEmpty;
-    def.className = "NativeCallback";
-    def.parentClass = self->native_pointer;
-    def.finalize = gumjs_native_callback_finalize;
-    self->native_callback = JSClassCreate (&def);
-    _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
-        self->native_callback, gumjs_native_callback_construct));
-  }
+  def = kJSClassDefinitionEmpty;
+  def.className = "NativeCallback";
+  def.parentClass = self->native_pointer;
+  def.finalize = gumjs_native_callback_finalize;
+  self->native_callback = JSClassCreate (&def);
+  _gumjs_object_set (ctx, scope, def.className, JSObjectMakeConstructor (ctx,
+      self->native_callback, gumjs_native_callback_construct));
 
   def = kJSClassDefinitionEmpty;
   def.className = "CpuContext";

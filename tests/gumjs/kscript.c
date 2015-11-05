@@ -55,7 +55,7 @@ KSCRIPT_TESTCASE (kernel_threads_can_be_enumerated_synchronously)
 KSCRIPT_TESTCASE (memory_ranges_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.enumerateRanges('r--', {"
+      "Kernel.enumerateRanges('r--', {"
         "onMatch: function (range) {"
         "  send('onMatch');"
         "  return 'stop';"
@@ -71,15 +71,15 @@ KSCRIPT_TESTCASE (memory_ranges_can_be_enumerated)
 KSCRIPT_TESTCASE (memory_ranges_can_be_enumerated_synchronously)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "send(Memory.enumerateRangesSync('r--').length > 1);");
+      "send(Kernel.enumerateRangesSync('r--').length > 1);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 KSCRIPT_TESTCASE (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var a = Memory.enumerateRangesSync('r--');"
-      "var b = Memory.enumerateRangesSync({"
+      "var a = Kernel.enumerateRangesSync('r--');"
+      "var b = Kernel.enumerateRangesSync({"
         "protection: 'r--',"
         "coalesce: true"
       "});"
@@ -90,10 +90,10 @@ KSCRIPT_TESTCASE (memory_ranges_can_be_enumerated_with_neighbors_coalesced)
 KSCRIPT_TESTCASE (byte_array_can_be_read)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "var address = Memory.enumerateRangesSync('r--')[0].base;"
-      "send(Memory.readByteArray(address, 3).byteLength === 3);"
-      "send('snake', Memory.readByteArray(address, 0));"
-      "send('mushroom', Memory.readByteArray(address, -1));");
+      "var address = Kernel.enumerateRangesSync('r--')[0].base;"
+      "send(Kernel.readByteArray(address, 3).byteLength === 3);"
+      "send('snake', Kernel.readByteArray(address, 0));"
+      "send('mushroom', Kernel.readByteArray(address, -1));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("true", NULL);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", "");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", "");
@@ -108,21 +108,21 @@ KSCRIPT_TESTCASE (byte_array_can_be_written)
   }
 
   COMPILE_AND_LOAD_SCRIPT (
-      "var address = Memory.enumerateRangesSync('rw-')[0].base;"
-      "var bytes = Memory.readByteArray(address, 3);"
-      "Memory.writeByteArray(address, bytes);");
+      "var address = Kernel.enumerateRangesSync('rw-')[0].base;"
+      "var bytes = Kernel.readByteArray(address, 3);"
+      "Kernel.writeByteArray(address, bytes);");
   EXPECT_NO_MESSAGES ();
 }
 
 KSCRIPT_TESTCASE (invalid_read_results_in_exception)
 {
-  COMPILE_AND_LOAD_SCRIPT ("Memory.readByteArray(ptr(\"1328\"), 3)");
+  COMPILE_AND_LOAD_SCRIPT ("Kernel.readByteArray(ptr(\"1328\"), 3)");
   EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation reading 0x530");
 }
 
 KSCRIPT_TESTCASE (invalid_write_results_in_exception)
 {
-  COMPILE_AND_LOAD_SCRIPT ("Memory.writeByteArray(ptr(\"1328\"), [1, 2, 3])");
+  COMPILE_AND_LOAD_SCRIPT ("Kernel.writeByteArray(ptr(\"1328\"), [1, 2, 3])");
   EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation writing to 0x530");
 }
 

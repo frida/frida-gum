@@ -3,11 +3,7 @@
     "use strict";
 
     const engine = global;
-    const KERNEL = 0;
-    const USER = 1;
-    const flavor = (typeof Process === 'undefined') ? KERNEL : USER;
-    const enumerateThreadsParent = (flavor === KERNEL) ? Kernel : Process;
-    const enumerateRangesParent = (flavor === KERNEL) ? Memory : Process;
+    const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
     let dispatcher;
 
     function initialize() {
@@ -87,357 +83,206 @@
         value: new Console()
     });
 
-    if (flavor === USER) {
-        const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
-
-        Object.defineProperty(Memory, 'dup', {
-            enumerable: true,
-            value: function (mem, size) {
-                const result = Memory.alloc(size);
-                Memory.copy(result, mem, size);
-                return result;
-            }
-        });
-
-        Object.defineProperty(Memory, 'readShort', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory.readS16(mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeShort', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory.writeS16(mem, value);
-            }
-        });
-
-        Object.defineProperty(Memory, 'readUShort', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory.readU16(mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeUShort', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory.writeU16(mem, value);
-            }
-        });
-
-        Object.defineProperty(Memory, 'readInt', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory.readS32(mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeInt', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory.writeS32(mem, value);
-            }
-        });
-
-        Object.defineProperty(Memory, 'readUInt', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory.readU32(mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeUInt', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory.writeU32(mem, value);
-            }
-        });
-
-        Object.defineProperty(Memory, 'readLong', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory['readS' + longSize](mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeLong', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory['writeS' + longSize](mem, value);
-            }
-        });
-
-        Object.defineProperty(Memory, 'readULong', {
-            enumerable: true,
-            value: function (mem) {
-                return Memory['readU' + longSize](mem);
-            }
-        });
-
-        Object.defineProperty(Memory, 'writeULong', {
-            enumerable: true,
-            value: function (mem, value) {
-                return Memory['writeU' + longSize](mem, value);
-            }
-        });
-
-        Object.defineProperty(Process, 'findModuleByAddress', {
-            enumerable: true,
-            value: function (address) {
-                let module = null;
-                Process.enumerateModules({
-                    onMatch: function (m) {
-                        const base = m.base;
-                        if (base.compare(address) < 0 && base.add(m.size).compare(address) > 0) {
-                            module = m;
-                            return 'stop';
-                        }
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return module;
-            }
-        });
-
-        Object.defineProperty(Process, 'getModuleByAddress', {
-            enumerable: true,
-            value: function (address) {
-                const module = Process.findModuleByAddress(address);
-                if (module === null)
-                    throw new Error("Unable to find module containing " + address);
-                return module;
-            }
-        });
-
-        Object.defineProperty(Process, 'findModuleByName', {
-            enumerable: true,
-            value: function (name) {
-                let module = null;
-                const nameLowercase = name.toLowerCase();
-                Process.enumerateModules({
-                    onMatch: function (m) {
-                        if (m.name.toLowerCase() === nameLowercase) {
-                            module = m;
-                            return 'stop';
-                        }
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return module;
-            }
-        });
-
-        Object.defineProperty(Process, 'getModuleByName', {
-            enumerable: true,
-            value: function (name) {
-                const module = Process.findModuleByName(name);
-                if (module === null)
-                    throw new Error("Unable to find module '" + name + "'");
-                return module;
-            }
-        });
-
-        Object.defineProperty(Process, 'enumerateModulesSync', {
-            enumerable: true,
-            value: function () {
-                const modules = [];
-                Process.enumerateModules({
-                    onMatch: function (m) {
-                        modules.push(m);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return modules;
-            }
-        });
-
-        Object.defineProperty(Process, 'findRangeByAddress', {
-            enumerable: true,
-            value: function (address) {
-                let range = null;
-                Process.enumerateRanges('---', {
-                    onMatch: function (r) {
-                        const base = r.base;
-                        if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
-                            range = r;
-                            return 'stop';
-                        }
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return range;
-            }
-        });
-
-        Object.defineProperty(Process, 'getRangeByAddress', {
-            enumerable: true,
-            value: function (address) {
-                const range = Process.findRangeByAddress(address);
-                if (range === null)
-                    throw new Error("Unable to find range containing " + address);
-                return range;
-            }
-        });
-
-        Object.defineProperty(Process, 'enumerateMallocRangesSync', {
-            enumerable: true,
-            value: function () {
-                const ranges = [];
-                Process.enumerateMallocRanges({
-                    onMatch: function (r) {
-                        ranges.push(r);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return ranges;
-            }
-        });
-
-        Object.defineProperty(Module, 'enumerateImportsSync', {
-            enumerable: true,
-            value: function (name) {
-                const imports = [];
-                Module.enumerateImports(name, {
-                    onMatch: function (e) {
-                        imports.push(e);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return imports;
-            }
-        });
-
-        Object.defineProperty(Module, 'enumerateExportsSync', {
-            enumerable: true,
-            value: function (name) {
-                const exports = [];
-                Module.enumerateExports(name, {
-                    onMatch: function (e) {
-                        exports.push(e);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return exports;
-            }
-        });
-
-        Object.defineProperty(Module, 'enumerateRangesSync', {
-            enumerable: true,
-            value: function (name, prot) {
-                const ranges = [];
-                Module.enumerateRanges(name, prot, {
-                    onMatch: function (r) {
-                        ranges.push(r);
-                    },
-                    onComplete: function () {
-                    }
-                });
-                return ranges;
-            }
-        });
-
-        Object.defineProperty(Interceptor, 'attach', {
-            enumerable: true,
-            value: function (target, callbacks) {
-                Memory.readU8(target);
-                return Interceptor._attach(target, callbacks);
-            }
-        });
-
-        Object.defineProperty(Interceptor, 'replace', {
-            enumerable: true,
-            value: function (target, replacement) {
-                Memory.readU8(target);
-                Interceptor._replace(target, replacement);
-            }
-        });
-
-        Object.defineProperty(Instruction, 'parse', {
-            enumerable: true,
-            value: function (target) {
-                Memory.readU8(target);
-                return Instruction._parse(target);
-            }
-        });
-    }
-
-    Object.defineProperty(enumerateThreadsParent, 'enumerateThreadsSync', {
+    Object.defineProperty(Memory, 'dup', {
         enumerable: true,
-        value: function () {
-            const threads = [];
-            enumerateThreadsParent.enumerateThreads({
-                onMatch: function (t) {
-                    threads.push(t);
+        value: function (mem, size) {
+            const result = Memory.alloc(size);
+            Memory.copy(result, mem, size);
+            return result;
+        }
+    });
+
+    Object.defineProperty(Memory, 'readShort', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readS16(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeShort', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeS16(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readUShort', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readU16(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeUShort', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeU16(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readInt', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readS32(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeInt', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeS32(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readUInt', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory.readU32(mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeUInt', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory.writeU32(mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readLong', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory['readS' + longSize](mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeLong', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory['writeS' + longSize](mem, value);
+        }
+    });
+
+    Object.defineProperty(Memory, 'readULong', {
+        enumerable: true,
+        value: function (mem) {
+            return Memory['readU' + longSize](mem);
+        }
+    });
+
+    Object.defineProperty(Memory, 'writeULong', {
+        enumerable: true,
+        value: function (mem, value) {
+            return Memory['writeU' + longSize](mem, value);
+        }
+    });
+
+    Object.defineProperty(Process, 'findModuleByAddress', {
+        enumerable: true,
+        value: function (address) {
+            let module = null;
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    const base = m.base;
+                    if (base.compare(address) < 0 && base.add(m.size).compare(address) > 0) {
+                        module = m;
+                        return 'stop';
+                    }
                 },
                 onComplete: function () {
                 }
             });
-            return threads;
+            return module;
         }
     });
 
-    Object.defineProperty(enumerateRangesParent, 'enumerateRanges', {
+    Object.defineProperty(Process, 'getModuleByAddress', {
         enumerable: true,
-        value: function (specifier, callbacks) {
-            let protection;
-            let coalesce = false;
-            if (typeof specifier === 'string') {
-                protection = specifier;
-            } else {
-                protection = specifier.protection;
-                coalesce = specifier.coalesce;
-            }
+        value: function (address) {
+            const module = Process.findModuleByAddress(address);
+            if (module === null)
+                throw new Error("Unable to find module containing " + address);
+            return module;
+        }
+    });
 
-            if (coalesce) {
-                let current = null;
-                const onMatch = callbacks.onMatch;
-                enumerateRangesParent._enumerateRanges(protection, {
-                    onMatch: function (r) {
-                        if (current !== null) {
-                            if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
-                                const coalescedRange = {
-                                    base: current.base,
-                                    size: current.size + r.size,
-                                    protection: current.protection
-                                };
-                                if (current.hasOwnProperty('file'))
-                                    coalescedRange.file = current.file;
-                                Object.freeze(coalescedRange);
-                                current = coalescedRange;
-                            } else {
-                                onMatch(current);
-                                current = r;
-                            }
-                        } else {
-                            current = r;
-                        }
-                    },
-                    onComplete: function () {
-                        if (current !== null)
-                            onMatch(current);
-                        callbacks.onComplete();
+    Object.defineProperty(Process, 'findModuleByName', {
+        enumerable: true,
+        value: function (name) {
+            let module = null;
+            const nameLowercase = name.toLowerCase();
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    if (m.name.toLowerCase() === nameLowercase) {
+                        module = m;
+                        return 'stop';
                     }
-                });
-            } else {
-                enumerateRangesParent._enumerateRanges(protection, callbacks);
-            }
+                },
+                onComplete: function () {
+                }
+            });
+            return module;
         }
     });
 
-    Object.defineProperty(enumerateRangesParent, 'enumerateRangesSync', {
+    Object.defineProperty(Process, 'getModuleByName', {
         enumerable: true,
-        value: function (specifier) {
+        value: function (name) {
+            const module = Process.findModuleByName(name);
+            if (module === null)
+                throw new Error("Unable to find module '" + name + "'");
+            return module;
+        }
+    });
+
+    Object.defineProperty(Process, 'enumerateModulesSync', {
+        enumerable: true,
+        value: function () {
+            const modules = [];
+            Process.enumerateModules({
+                onMatch: function (m) {
+                    modules.push(m);
+                },
+                onComplete: function () {
+                }
+            });
+            return modules;
+        }
+    });
+
+    Object.defineProperty(Process, 'findRangeByAddress', {
+        enumerable: true,
+        value: function (address) {
+            let range = null;
+            Process.enumerateRanges('---', {
+                onMatch: function (r) {
+                    const base = r.base;
+                    if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
+                        range = r;
+                        return 'stop';
+                    }
+                },
+                onComplete: function () {
+                }
+            });
+            return range;
+        }
+    });
+
+    Object.defineProperty(Process, 'getRangeByAddress', {
+        enumerable: true,
+        value: function (address) {
+            const range = Process.findRangeByAddress(address);
+            if (range === null)
+                throw new Error("Unable to find range containing " + address);
+            return range;
+        }
+    });
+
+    Object.defineProperty(Process, 'enumerateMallocRangesSync', {
+        enumerable: true,
+        value: function () {
             const ranges = [];
-            enumerateRangesParent.enumerateRanges(specifier, {
+            Process.enumerateMallocRanges({
                 onMatch: function (r) {
                     ranges.push(r);
                 },
@@ -447,6 +292,163 @@
             return ranges;
         }
     });
+
+    Object.defineProperty(Module, 'enumerateImportsSync', {
+        enumerable: true,
+        value: function (name) {
+            const imports = [];
+            Module.enumerateImports(name, {
+                onMatch: function (e) {
+                    imports.push(e);
+                },
+                onComplete: function () {
+                }
+            });
+            return imports;
+        }
+    });
+
+    Object.defineProperty(Module, 'enumerateExportsSync', {
+        enumerable: true,
+        value: function (name) {
+            const exports = [];
+            Module.enumerateExports(name, {
+                onMatch: function (e) {
+                    exports.push(e);
+                },
+                onComplete: function () {
+                }
+            });
+            return exports;
+        }
+    });
+
+    Object.defineProperty(Module, 'enumerateRangesSync', {
+        enumerable: true,
+        value: function (name, prot) {
+            const ranges = [];
+            Module.enumerateRanges(name, prot, {
+                onMatch: function (r) {
+                    ranges.push(r);
+                },
+                onComplete: function () {
+                }
+            });
+            return ranges;
+        }
+    });
+
+    Object.defineProperty(Interceptor, 'attach', {
+        enumerable: true,
+        value: function (target, callbacks) {
+            Memory.readU8(target);
+            return Interceptor._attach(target, callbacks);
+        }
+    });
+
+    Object.defineProperty(Interceptor, 'replace', {
+        enumerable: true,
+        value: function (target, replacement) {
+            Memory.readU8(target);
+            Interceptor._replace(target, replacement);
+        }
+    });
+
+    Object.defineProperty(Instruction, 'parse', {
+        enumerable: true,
+        value: function (target) {
+            Memory.readU8(target);
+            return Instruction._parse(target);
+        }
+    });
+
+    makeEnumerateThreads(Kernel);
+    makeEnumerateRanges(Kernel);
+
+    makeEnumerateThreads(Process);
+    makeEnumerateRanges(Process);
+
+    function makeEnumerateThreads(mod) {
+        Object.defineProperty(mod, 'enumerateThreadsSync', {
+            enumerable: true,
+            value: function () {
+                const threads = [];
+                mod.enumerateThreads({
+                    onMatch: function (t) {
+                        threads.push(t);
+                    },
+                    onComplete: function () {
+                    }
+                });
+                return threads;
+            }
+        });
+    }
+
+    function makeEnumerateRanges(mod) {
+        Object.defineProperty(mod, 'enumerateRanges', {
+            enumerable: true,
+            value: function (specifier, callbacks) {
+                let protection;
+                let coalesce = false;
+                if (typeof specifier === 'string') {
+                    protection = specifier;
+                } else {
+                    protection = specifier.protection;
+                    coalesce = specifier.coalesce;
+                }
+
+                if (coalesce) {
+                    let current = null;
+                    const onMatch = callbacks.onMatch;
+                    mod._enumerateRanges(protection, {
+                        onMatch: function (r) {
+                            if (current !== null) {
+                                if (r.base.equals(current.base.add(current.size)) && r.protection === current.protection) {
+                                    const coalescedRange = {
+                                        base: current.base,
+                                        size: current.size + r.size,
+                                        protection: current.protection
+                                    };
+                                    if (current.hasOwnProperty('file'))
+                                        coalescedRange.file = current.file;
+                                    Object.freeze(coalescedRange);
+                                    current = coalescedRange;
+                                } else {
+                                    onMatch(current);
+                                    current = r;
+                                }
+                            } else {
+                                current = r;
+                            }
+                        },
+                        onComplete: function () {
+                            if (current !== null)
+                                onMatch(current);
+                            callbacks.onComplete();
+                        }
+                    });
+                } else {
+                    mod._enumerateRanges(protection, callbacks);
+                }
+            }
+        });
+
+        Object.defineProperty(mod, 'enumerateRangesSync', {
+            enumerable: true,
+            value: function (specifier) {
+                const ranges = [];
+                mod.enumerateRanges(specifier, {
+                    onMatch: function (r) {
+                        ranges.push(r);
+                    },
+                    onComplete: function () {
+                    }
+                });
+                return ranges;
+            }
+        });
+    }
 
     Object.defineProperty(engine, 'rpc', {
         enumerable: true,

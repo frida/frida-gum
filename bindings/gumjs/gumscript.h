@@ -20,7 +20,6 @@
 
 typedef struct _GumScript GumScript;
 typedef struct _GumScriptIface GumScriptIface;
-typedef guint GumScriptFlavor;
 
 typedef void (* GumScriptMessageHandler) (GumScript * script,
     const gchar * message, GBytes * data, gpointer user_data);
@@ -46,12 +45,6 @@ struct _GumScriptIface
   void (* post_message) (GumScript * self, const gchar * message);
 
   GumStalker * (* get_stalker) (GumScript * self);
-};
-
-enum _GumScriptFlavor
-{
-  GUM_SCRIPT_FLAVOR_KERNEL,
-  GUM_SCRIPT_FLAVOR_USER
 };
 
 G_BEGIN_DECLS

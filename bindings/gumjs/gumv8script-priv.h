@@ -30,7 +30,6 @@ struct _GumV8ScriptPrivate
 {
   gchar * name;
   gchar * source;
-  GumScriptFlavor flavor;
   GMainContext * main_context;
   GumV8ScriptBackend * backend;
 

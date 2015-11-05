@@ -198,7 +198,7 @@ test_script_fixture_compile_and_load_script (TestScriptFixture * fixture,
   source = g_strconcat ("\"use strict\"; ", raw_source, NULL);
 
   fixture->script = gum_script_backend_create_sync (fixture->backend,
-      "testcase", source, GUM_SCRIPT_FLAVOR_USER, NULL, &err);
+      "testcase", source, NULL, &err);
   if (err != NULL)
     g_printerr ("%s\n", err->message);
   g_assert (fixture->script != NULL);

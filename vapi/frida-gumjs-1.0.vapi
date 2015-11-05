@@ -3,8 +3,8 @@ namespace Gum {
 	public interface ScriptBackend : GLib.Object {
 		public static unowned ScriptBackend obtain ();
 
-		public async Script create (string name, string source, Script.Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public Script create_sync (string name, string source, Script.Flavor flavor, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
 
 		public void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
@@ -19,11 +19,6 @@ namespace Gum {
 
 	[CCode (cheader_filename = "gumjs/gumscript.h")]
 	public interface Script : GLib.Object {
-		[CCode (cprefix = "GUM_SCRIPT_FLAVOR_")]
-		public enum Flavor {
-			KERNEL,
-			USER
-		}
 		public delegate void MessageHandler (Gum.Script script, string message, GLib.Bytes? data);
 		public delegate void DebugMessageHandler (string message);
 

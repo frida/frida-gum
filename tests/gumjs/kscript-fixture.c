@@ -170,7 +170,7 @@ test_kscript_fixture_compile_and_load_kscript (TestScriptFixture * fixture,
   va_end (args);
 
   fixture->kscript = gum_script_backend_create_sync (fixture->backend,
-      "testcase", source, GUM_SCRIPT_FLAVOR_KERNEL, NULL, &err);
+      "testcase", source, NULL, &err);
   g_assert (fixture->kscript != NULL);
   g_assert (err == NULL);
 

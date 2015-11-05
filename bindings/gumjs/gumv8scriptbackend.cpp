@@ -67,7 +67,6 @@ struct _GumCreateScriptData
 {
   gchar * name;
   gchar * source;
-  GumScriptFlavor flavor;
 };
 
 struct _GumEmitDebugMessageData
@@ -82,18 +81,16 @@ static void gum_v8_script_backend_dispose (GObject * object);
 static void gum_v8_script_backend_finalize (GObject * object);
 
 static void gum_v8_script_backend_create (GumScriptBackend * backend,
-    const gchar * name, const gchar * source, GumScriptFlavor flavor,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
+    const gchar * name, const gchar * source, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
 static GumScript * gum_v8_script_backend_create_finish (
     GumScriptBackend * backend, GAsyncResult * result, GError ** error);
 static GumScript * gum_v8_script_backend_create_sync (
     GumScriptBackend * backend, const gchar * name, const gchar * source,
-    GumScriptFlavor flavor, GCancellable * cancellable, GError ** error);
+    GCancellable * cancellable, GError ** error);
 static GumScriptTask * gum_create_script_task_new (GumV8ScriptBackend * backend,
-    const gchar * name, const gchar * source, GumScriptFlavor flavor,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
+    const gchar * name, const gchar * source, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
 static void gum_create_script_task_run (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
 static void gum_create_script_data_free (GumCreateScriptData * d);
@@ -263,7 +260,6 @@ static void
 gum_v8_script_backend_create (GumScriptBackend * backend,
                               const gchar * name,
                               const gchar * source,
-                              GumScriptFlavor flavor,
                               GCancellable * cancellable,
                               GAsyncReadyCallback callback,
                               gpointer user_data)
@@ -271,8 +267,8 @@ gum_v8_script_backend_create (GumScriptBackend * backend,
   GumV8ScriptBackend * self = GUM_V8_SCRIPT_BACKEND (backend);
   GumScriptTask * task;
 
-  task = gum_create_script_task_new (self, name, source, flavor, cancellable,
-      callback, user_data);
+  task = gum_create_script_task_new (self, name, source, cancellable, callback,
+      user_data);
   gum_script_task_run_in_js_thread (task,
       gum_v8_script_backend_get_scheduler (self));
   g_object_unref (task);
@@ -293,7 +289,6 @@ static GumScript *
 gum_v8_script_backend_create_sync (GumScriptBackend * backend,
                                    const gchar * name,
                                    const gchar * source,
-                                   GumScriptFlavor flavor,
                                    GCancellable * cancellable,
                                    GError ** error)
 {
@@ -301,8 +296,8 @@ gum_v8_script_backend_create_sync (GumScriptBackend * backend,
   GumScript * script;
   GumScriptTask * task;
 
-  task = gum_create_script_task_new (self, name, source, flavor, cancellable,
-      NULL, NULL);
+  task = gum_create_script_task_new (self, name, source, cancellable, NULL,
+      NULL);
   gum_script_task_run_in_js_thread_sync (task,
       gum_v8_script_backend_get_scheduler (self));
   script = GUM_SCRIPT (gum_script_task_propagate_pointer (task, error));
@@ -315,7 +310,6 @@ static GumScriptTask *
 gum_create_script_task_new (GumV8ScriptBackend * backend,
                             const gchar * name,
                             const gchar * source,
-                            GumScriptFlavor flavor,
                             GCancellable * cancellable,
                             GAsyncReadyCallback callback,
                             gpointer user_data)
@@ -323,7 +317,6 @@ gum_create_script_task_new (GumV8ScriptBackend * backend,
   GumCreateScriptData * d = g_slice_new (GumCreateScriptData);
   d->name = g_strdup (name);
   d->source = g_strdup (source);
-  d->flavor = flavor;
 
   GumScriptTask * task = gum_script_task_new (gum_create_script_task_run,
       backend, cancellable, callback, user_data);
@@ -349,7 +342,6 @@ gum_create_script_task_run (GumScriptTask * task,
   script = GUM_V8_SCRIPT (g_object_new (GUM_V8_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
-      "flavor", d->flavor,
       "main-context", gum_script_task_get_context (task),
       "backend", self,
       NULL));

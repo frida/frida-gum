@@ -26,12 +26,12 @@ struct _GumScriptBackendIface
   GTypeInterface parent;
 
   void (* create) (GumScriptBackend * self, const gchar * name,
-      const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
+      const gchar * source, GCancellable * cancellable,
       GAsyncReadyCallback callback, gpointer user_data);
   GumScript * (* create_finish) (GumScriptBackend * self, GAsyncResult * result,
       GError ** error);
   GumScript * (* create_sync) (GumScriptBackend * self, const gchar * name,
-      const gchar * source, GumScriptFlavor flavor, GCancellable * cancellable,
+      const gchar * source, GCancellable * cancellable,
       GError ** error);
 
   void (* set_debug_message_handler) (GumScriptBackend * self,
@@ -54,14 +54,13 @@ GUM_API GType gum_script_backend_get_type (void);
 GUM_API GumScriptBackend * gum_script_backend_obtain (void);
 
 GUM_API void gum_script_backend_create (GumScriptBackend * self,
-    const gchar * name, const gchar * source, GumScriptFlavor flavor,
-    GCancellable * cancellable, GAsyncReadyCallback callback,
-    gpointer user_data);
+    const gchar * name, const gchar * source, GCancellable * cancellable,
+    GAsyncReadyCallback callback, gpointer user_data);
 GUM_API GumScript * gum_script_backend_create_finish (GumScriptBackend * self,
     GAsyncResult * result, GError ** error);
 GUM_API GumScript * gum_script_backend_create_sync (GumScriptBackend * self,
-    const gchar * name, const gchar * source, GumScriptFlavor flavor,
-    GCancellable * cancellable, GError ** error);
+    const gchar * name, const gchar * source, GCancellable * cancellable,
+    GError ** error);
 
 GUM_API void gum_script_backend_set_debug_message_handler (
     GumScriptBackend * self, GumScriptDebugMessageHandler handler,

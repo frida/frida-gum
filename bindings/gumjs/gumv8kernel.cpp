@@ -26,15 +26,14 @@ static void gum_v8_kernel_on_enumerate_threads (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_v8_script_handle_thread_match (
     const GumThreadDetails * details, gpointer user_data);
-
-static void gum_v8_script_kmemory_on_read_byte_array (
+static void gum_v8_script_kernel_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_script_kmemory_on_write_byte_array (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_script_kmemory_on_enumerate_ranges (
-    const FunctionCallbackInfo<Value> & info);
-static gboolean gum_v8_script_kmemory_handle_range_match (
+static gboolean gum_v8_script_kernel_handle_range_match (
     const GumRangeDetails * details, gpointer user_data);
+static void gum_v8_script_kernel_on_read_byte_array (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_script_kernel_on_write_byte_array (
+    const FunctionCallbackInfo<Value> & info);
 
 void
 _gum_v8_kernel_init (GumV8Kernel * self,
@@ -51,19 +50,16 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
       FunctionTemplate::New (isolate, gum_v8_kernel_on_enumerate_threads,
       data));
+  kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
+      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_enumerate_ranges,
+      data));
+  kernel->Set (String::NewFromUtf8 (isolate, "readByteArray"),
+      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_read_byte_array,
+      data));
+  kernel->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
+      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_write_byte_array,
+      data));
   scope->Set (String::NewFromUtf8 (isolate, "Kernel"), kernel);
-
-  Handle<ObjectTemplate> memory = ObjectTemplate::New (isolate);
-  memory->Set (String::NewFromUtf8 (isolate, "readByteArray"),
-      FunctionTemplate::New (isolate, gum_v8_script_kmemory_on_read_byte_array,
-      data));
-  memory->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
-      FunctionTemplate::New (isolate, gum_v8_script_kmemory_on_write_byte_array,
-      data));
-  memory->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
-      FunctionTemplate::New (isolate, gum_v8_script_kmemory_on_enumerate_ranges,
-      data));
-  scope->Set (String::NewFromUtf8 (isolate, "Memory"), memory);
 }
 
 void
@@ -169,7 +165,7 @@ gum_v8_script_handle_thread_match (const GumThreadDetails * details,
 
 /*
  * Prototype:
- * Memory.readByteArray(address, length)
+ * Kernel._enumerateRanges(prot, callback)
  *
  * Docs:
  * TBW
@@ -178,7 +174,106 @@ gum_v8_script_handle_thread_match (const GumThreadDetails * details,
  * TBW
  */
 static void
-gum_v8_script_kmemory_on_read_byte_array (const FunctionCallbackInfo<Value> & info)
+gum_v8_script_kernel_on_enumerate_ranges (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8MatchContext ctx;
+
+  ctx.self = static_cast<GumV8Kernel *> (
+      info.Data ().As<External> ()->Value ());
+  ctx.isolate = info.GetIsolate ();
+
+  GumPageProtection prot;
+  if (!_gum_v8_page_protection_get (info[0], &prot, ctx.self->core))
+    return;
+
+  Local<Value> callbacks_value = info[1];
+  if (!callbacks_value->IsObject ())
+  {
+    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        ctx.isolate, "Memory.enumerateRanges: second argument must be "
+        "a callback object")));
+    return;
+  }
+
+  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  if (!_gum_v8_callbacks_get (callbacks, "onMatch", &ctx.on_match,
+      ctx.self->core))
+  {
+    return;
+  }
+  if (!_gum_v8_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
+      ctx.self->core))
+  {
+    return;
+  }
+
+  ctx.receiver = info.This ();
+
+  gum_kernel_enumerate_ranges (prot, gum_v8_script_kernel_handle_range_match,
+      &ctx);
+
+  ctx.on_complete->Call (ctx.receiver, 0, 0);
+}
+
+static gboolean
+gum_v8_script_kernel_handle_range_match (const GumRangeDetails * details,
+                                          gpointer user_data)
+{
+  GumV8MatchContext * ctx =
+      static_cast<GumV8MatchContext *> (user_data);
+  GumV8Core * core = ctx->self->core;
+  Isolate * isolate = ctx->isolate;
+
+  char prot_str[4] = "---";
+  if ((details->prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((details->prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  Local<Object> range (Object::New (isolate));
+  _gum_v8_object_set_pointer (range, "base", details->range->base_address, core);
+  _gum_v8_object_set_uint (range, "size", details->range->size, core);
+  _gum_v8_object_set_ascii (range, "protection", prot_str, core);
+
+  const GumFileMapping * f = details->file;
+  if (f != NULL)
+  {
+    Local<Object> file (Object::New (isolate));
+    _gum_v8_object_set_utf8 (range, "path", f->path, core);
+    _gum_v8_object_set_uint (range, "offset", f->offset, core);
+    _gum_v8_object_set (range, "file", file, core);
+  }
+
+  Handle<Value> argv[] = {
+    range
+  };
+  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
+
+  gboolean proceed = TRUE;
+  if (!result.IsEmpty () && result->IsString ())
+  {
+    String::Utf8Value str (result);
+    proceed = (strcmp (*str, "stop") != 0);
+  }
+
+  return proceed;
+}
+
+/*
+ * Prototype:
+ * Kernel.readByteArray(address, length)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_script_kernel_on_read_byte_array (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Kernel * self = static_cast<GumV8Kernel *> (
       info.Data ().As<External> ()->Value ());
@@ -236,7 +331,7 @@ gum_v8_script_kmemory_on_read_byte_array (const FunctionCallbackInfo<Value> & in
 
 /*
  * Prototype:
- * Memory.writeByteArray(address, bytes)
+ * Kernel.writeByteArray(address, bytes)
  *
  * Docs:
  * TBW
@@ -245,7 +340,7 @@ gum_v8_script_kmemory_on_read_byte_array (const FunctionCallbackInfo<Value> & in
  * TBW
  */
 static void
-gum_v8_script_kmemory_on_write_byte_array (
+gum_v8_script_kernel_on_write_byte_array (
     const FunctionCallbackInfo<Value> & info)
 {
   GumV8Kernel * self = static_cast<GumV8Kernel *> (
@@ -280,103 +375,3 @@ gum_v8_script_kmemory_on_write_byte_array (
     g_free (message);
   }
 }
-
-/*
- * Prototype:
- * Memory._enumerateRanges(prot, callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
-static void
-gum_v8_script_kmemory_on_enumerate_ranges (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumV8MatchContext ctx;
-
-  ctx.self = static_cast<GumV8Kernel *> (
-      info.Data ().As<External> ()->Value ());
-  ctx.isolate = info.GetIsolate ();
-
-  GumPageProtection prot;
-  if (!_gum_v8_page_protection_get (info[0], &prot, ctx.self->core))
-    return;
-
-  Local<Value> callbacks_value = info[1];
-  if (!callbacks_value->IsObject ())
-  {
-    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        ctx.isolate, "Memory.enumerateRanges: second argument must be "
-        "a callback object")));
-    return;
-  }
-
-  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!_gum_v8_callbacks_get (callbacks, "onMatch", &ctx.on_match,
-      ctx.self->core))
-  {
-    return;
-  }
-  if (!_gum_v8_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
-      ctx.self->core))
-  {
-    return;
-  }
-
-  ctx.receiver = info.This ();
-
-  gum_kernel_enumerate_ranges (prot, gum_v8_script_kmemory_handle_range_match,
-      &ctx);
-
-  ctx.on_complete->Call (ctx.receiver, 0, 0);
-}
-
-static gboolean
-gum_v8_script_kmemory_handle_range_match (const GumRangeDetails * details,
-                                          gpointer user_data)
-{
-  GumV8MatchContext * ctx =
-      static_cast<GumV8MatchContext *> (user_data);
-  GumV8Core * core = ctx->self->core;
-  Isolate * isolate = ctx->isolate;
-
-  char prot_str[4] = "---";
-  if ((details->prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((details->prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
-  Local<Object> range (Object::New (isolate));
-  _gum_v8_object_set_pointer (range, "base", details->range->base_address, core);
-  _gum_v8_object_set_uint (range, "size", details->range->size, core);
-  _gum_v8_object_set_ascii (range, "protection", prot_str, core);
-
-  const GumFileMapping * f = details->file;
-  if (f != NULL)
-  {
-    Local<Object> file (Object::New (isolate));
-    _gum_v8_object_set_utf8 (range, "path", f->path, core);
-    _gum_v8_object_set_uint (range, "offset", f->offset, core);
-    _gum_v8_object_set (range, "file", file, core);
-  }
-
-  Handle<Value> argv[] = {
-    range
-  };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
-
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
-  }
-
-  return proceed;
-}
-

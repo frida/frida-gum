@@ -75,12 +75,11 @@ void
 gum_script_backend_create (GumScriptBackend * self,
                            const gchar * name,
                            const gchar * source,
-                           GumScriptFlavor flavor,
                            GCancellable * cancellable,
                            GAsyncReadyCallback callback,
                            gpointer user_data)
 {
-  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create (self, name, source, flavor,
+  GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create (self, name, source,
       cancellable, callback, user_data);
 }
 
@@ -97,12 +96,11 @@ GumScript *
 gum_script_backend_create_sync (GumScriptBackend * self,
                                 const gchar * name,
                                 const gchar * source,
-                                GumScriptFlavor flavor,
                                 GCancellable * cancellable,
                                 GError ** error)
 {
   return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->create_sync (self, name,
-      source, flavor, cancellable, error);
+      source, cancellable, error);
 }
 
 void

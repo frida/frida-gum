@@ -34,7 +34,6 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
-  PROP_FLAVOR,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
 };
@@ -43,7 +42,6 @@ struct _GumJscScriptPrivate
 {
   gchar * name;
   gchar * source;
-  GumScriptFlavor flavor;
   GMainContext * main_context;
   GumJscScriptBackend * backend;
 
@@ -160,11 +158,6 @@ gum_jsc_script_class_init (GumJscScriptClass * klass)
       g_param_spec_string ("source", "Source", "Source code", NULL,
       (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
-  g_object_class_install_property (object_class, PROP_FLAVOR,
-      g_param_spec_uint ("flavor", "Flavor", "Flavor", GUM_SCRIPT_FLAVOR_KERNEL,
-      GUM_SCRIPT_FLAVOR_USER, GUM_SCRIPT_FLAVOR_USER,
-      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
-      G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
       g_param_spec_boxed ("main-context", "MainContext",
       "MainContext being used", G_TYPE_MAIN_CONTEXT,
@@ -273,9 +266,6 @@ gum_jsc_script_get_property (GObject * object,
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
       break;
-    case PROP_FLAVOR:
-      g_value_set_uint (value, priv->flavor);
-      break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, priv->main_context);
       break;
@@ -305,9 +295,6 @@ gum_jsc_script_set_property (GObject * object,
     case PROP_SOURCE:
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
-      break;
-    case PROP_FLAVOR:
-      priv->flavor = g_value_get_uint (value);
       break;
     case PROP_MAIN_CONTEXT:
       if (priv->main_context != NULL)
@@ -399,23 +386,17 @@ gum_jsc_script_create_context (GumJscScript * self,
       gum_jsc_script_backend_get_scheduler (priv->backend), priv->ctx,
       global);
   _gum_jsc_polyfill_init (&priv->polyfill, &priv->core, global);
-  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    _gum_jsc_memory_init (&priv->memory, &priv->core, global);
-    _gum_jsc_process_init (&priv->process, &priv->core, global);
-    _gum_jsc_thread_init (&priv->thread, &priv->core, global);
-    _gum_jsc_module_init (&priv->module, &priv->core, global);
-    _gum_jsc_file_init (&priv->file, &priv->core, global);
-    _gum_jsc_socket_init (&priv->socket, &priv->core, global);
-    _gum_jsc_interceptor_init (&priv->interceptor, &priv->core, global);
-    _gum_jsc_stalker_init (&priv->stalker, &priv->core, global);
-    _gum_jsc_symbol_init (&priv->symbol, &priv->core, global);
-    _gum_jsc_instruction_init (&priv->instruction, &priv->core, global);
-  }
-  else
-  {
-    _gum_jsc_kernel_init (&priv->kernel, &priv->core, global);
-  }
+  _gum_jsc_kernel_init (&priv->kernel, &priv->core, global);
+  _gum_jsc_memory_init (&priv->memory, &priv->core, global);
+  _gum_jsc_process_init (&priv->process, &priv->core, global);
+  _gum_jsc_thread_init (&priv->thread, &priv->core, global);
+  _gum_jsc_module_init (&priv->module, &priv->core, global);
+  _gum_jsc_file_init (&priv->file, &priv->core, global);
+  _gum_jsc_socket_init (&priv->socket, &priv->core, global);
+  _gum_jsc_interceptor_init (&priv->interceptor, &priv->core, global);
+  _gum_jsc_stalker_init (&priv->stalker, &priv->core, global);
+  _gum_jsc_symbol_init (&priv->symbol, &priv->core, global);
+  _gum_jsc_instruction_init (&priv->instruction, &priv->core, global);
 
   _gum_jsc_scope_enter (&scope, &priv->core);
   gum_jsc_bundle_load (gum_jsc_script_runtime_sources, priv->ctx);
@@ -434,27 +415,20 @@ gum_jsc_script_destroy_context (GumJscScript * self)
 
   _gum_jsc_scope_enter (&scope, &priv->core);
 
-  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-    _gum_jsc_stalker_flush (&priv->stalker);
+  _gum_jsc_stalker_flush (&priv->stalker);
   _gum_jsc_core_flush (&priv->core);
 
-  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    _gum_jsc_instruction_dispose (&priv->instruction);
-    _gum_jsc_symbol_dispose (&priv->symbol);
-    _gum_jsc_stalker_dispose (&priv->stalker);
-    _gum_jsc_interceptor_dispose (&priv->interceptor);
-    _gum_jsc_socket_dispose (&priv->socket);
-    _gum_jsc_file_dispose (&priv->file);
-    _gum_jsc_module_dispose (&priv->module);
-    _gum_jsc_thread_dispose (&priv->thread);
-    _gum_jsc_process_dispose (&priv->process);
-    _gum_jsc_memory_dispose (&priv->memory);
-  }
-  else
-  {
-    _gum_jsc_kernel_dispose (&priv->kernel);
-  }
+  _gum_jsc_instruction_dispose (&priv->instruction);
+  _gum_jsc_symbol_dispose (&priv->symbol);
+  _gum_jsc_stalker_dispose (&priv->stalker);
+  _gum_jsc_interceptor_dispose (&priv->interceptor);
+  _gum_jsc_socket_dispose (&priv->socket);
+  _gum_jsc_file_dispose (&priv->file);
+  _gum_jsc_module_dispose (&priv->module);
+  _gum_jsc_thread_dispose (&priv->thread);
+  _gum_jsc_process_dispose (&priv->process);
+  _gum_jsc_memory_dispose (&priv->memory);
+  _gum_jsc_kernel_dispose (&priv->kernel);
   _gum_jsc_polyfill_dispose (&priv->polyfill);
   _gum_jsc_core_dispose (&priv->core);
 
@@ -463,23 +437,17 @@ gum_jsc_script_destroy_context (GumJscScript * self)
   JSGlobalContextRelease (priv->ctx);
   priv->ctx = NULL;
 
-  if (priv->flavor == GUM_SCRIPT_FLAVOR_USER)
-  {
-    _gum_jsc_instruction_finalize (&priv->instruction);
-    _gum_jsc_symbol_finalize (&priv->symbol);
-    _gum_jsc_stalker_finalize (&priv->stalker);
-    _gum_jsc_interceptor_finalize (&priv->interceptor);
-    _gum_jsc_socket_finalize (&priv->socket);
-    _gum_jsc_file_finalize (&priv->file);
-    _gum_jsc_module_finalize (&priv->module);
-    _gum_jsc_thread_finalize (&priv->thread);
-    _gum_jsc_process_finalize (&priv->process);
-    _gum_jsc_memory_finalize (&priv->memory);
-  }
-  else
-  {
-    _gum_jsc_kernel_finalize (&priv->kernel);
-  }
+  _gum_jsc_instruction_finalize (&priv->instruction);
+  _gum_jsc_symbol_finalize (&priv->symbol);
+  _gum_jsc_stalker_finalize (&priv->stalker);
+  _gum_jsc_interceptor_finalize (&priv->interceptor);
+  _gum_jsc_socket_finalize (&priv->socket);
+  _gum_jsc_file_finalize (&priv->file);
+  _gum_jsc_module_finalize (&priv->module);
+  _gum_jsc_thread_finalize (&priv->thread);
+  _gum_jsc_process_finalize (&priv->process);
+  _gum_jsc_memory_finalize (&priv->memory);
+  _gum_jsc_kernel_finalize (&priv->kernel);
   _gum_jsc_polyfill_finalize (&priv->polyfill);
   _gum_jsc_core_finalize (&priv->core);
 

@@ -24,25 +24,18 @@ struct _GumJscMatchContext
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     gpointer user_data);
-
-GUMJS_DECLARE_FUNCTION (gumjs_kmemory_read_byte_array)
-GUMJS_DECLARE_FUNCTION (gumjs_kmemory_write_byte_array)
-GUMJS_DECLARE_FUNCTION (gumjs_kmemory_enumerate_ranges)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
 
 static const JSStaticFunction gumjs_kernel_functions[] =
 {
   { "enumerateThreads", gumjs_kernel_enumerate_threads, GUMJS_RO },
-
-  { NULL, NULL, 0 }
-};
-
-static const JSStaticFunction gumjs_kmemory_functions[] =
-{
-  { "readByteArray", gumjs_kmemory_read_byte_array, GUMJS_RO },
-  { "writeByteArray", gumjs_kmemory_write_byte_array, GUMJS_RO },
-  { "_enumerateRanges", gumjs_kmemory_enumerate_ranges, GUMJS_RO },
+  { "_enumerateRanges", gumjs_kernel_enumerate_ranges, GUMJS_RO },
+  { "readByteArray", gumjs_kernel_read_byte_array, GUMJS_RO },
+  { "writeByteArray", gumjs_kernel_write_byte_array, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -55,7 +48,7 @@ _gum_jsc_kernel_init (GumJscKernel * self,
   JSContextRef ctx = core->ctx;
   JSClassDefinition def;
   JSClassRef klass;
-  JSObjectRef kernel, memory;
+  JSObjectRef kernel;
 
   self->core = core;
 
@@ -66,14 +59,6 @@ _gum_jsc_kernel_init (GumJscKernel * self,
   kernel = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
   _gumjs_object_set (ctx, scope, def.className, kernel);
-
-  def = kJSClassDefinitionEmpty;
-  def.className = "Memory";
-  def.staticFunctions = gumjs_kmemory_functions;
-  klass = JSClassCreate (&def);
-  memory = JSObjectMake (ctx, klass, self);
-  JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, def.className, memory);
 }
 
 void
@@ -141,81 +126,7 @@ gum_emit_thread (const GumThreadDetails * details,
   return proceed;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_kmemory_read_byte_array)
-{
-  GumJscCore * core = args->core;
-  gpointer address;
-  guint size;
-  JSObjectRef buffer;
-
-  if (!_gumjs_args_parse (args, "pu", &address, &size))
-    return NULL;
-
-  if (address == NULL)
-    return JSValueMakeNull (ctx);
-
-  if (size > 0)
-  {
-    guint8 * data;
-    gsize n_bytes_read;
-    gpointer buffer_data;
-
-    data = gum_kernel_read (GUM_ADDRESS (address), size, &n_bytes_read);
-    if (data == NULL)
-      goto read_failed;
-
-    buffer = _gumjs_array_buffer_new (ctx, n_bytes_read, core);
-    buffer_data = _gumjs_array_buffer_get_data (ctx, buffer, NULL);
-    memcpy (buffer_data, data, n_bytes_read);
-
-    g_free (data);
-  }
-  else
-  {
-    buffer = _gumjs_array_buffer_new (ctx, 0, core);
-  }
-
-  return buffer;
-
-read_failed:
-  {
-    _gumjs_throw (ctx, exception,
-        "access violation reading 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (address));
-    return NULL;
-  }
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kmemory_write_byte_array)
-{
-  gpointer address;
-  GBytes * bytes;
-  const guint8 * data;
-  gsize size;
-
-  if (!_gumjs_args_parse (args, "pB", &address, &bytes))
-    return NULL;
-  data = g_bytes_get_data (bytes, &size);
-
-  if (!gum_kernel_write (GUM_ADDRESS (address), data, size))
-    goto write_failed;
-
-  g_bytes_unref (bytes);
-
-  return JSValueMakeUndefined (ctx);
-
-write_failed:
-  {
-    g_bytes_unref (bytes);
-
-    _gumjs_throw (ctx, exception,
-        "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
-        GPOINTER_TO_SIZE (address));
-    return NULL;
-  }
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kmemory_enumerate_ranges)
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 {
   GumJscMatchContext mc;
   GumPageProtection prot;
@@ -283,4 +194,78 @@ gum_emit_range (const GumRangeDetails * details,
   }
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
+{
+  GumJscCore * core = args->core;
+  gpointer address;
+  guint size;
+  JSObjectRef buffer;
+
+  if (!_gumjs_args_parse (args, "pu", &address, &size))
+    return NULL;
+
+  if (address == NULL)
+    return JSValueMakeNull (ctx);
+
+  if (size > 0)
+  {
+    guint8 * data;
+    gsize n_bytes_read;
+    gpointer buffer_data;
+
+    data = gum_kernel_read (GUM_ADDRESS (address), size, &n_bytes_read);
+    if (data == NULL)
+      goto read_failed;
+
+    buffer = _gumjs_array_buffer_new (ctx, n_bytes_read, core);
+    buffer_data = _gumjs_array_buffer_get_data (ctx, buffer, NULL);
+    memcpy (buffer_data, data, n_bytes_read);
+
+    g_free (data);
+  }
+  else
+  {
+    buffer = _gumjs_array_buffer_new (ctx, 0, core);
+  }
+
+  return buffer;
+
+read_failed:
+  {
+    _gumjs_throw (ctx, exception,
+        "access violation reading 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (address));
+    return NULL;
+  }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_write_byte_array)
+{
+  gpointer address;
+  GBytes * bytes;
+  const guint8 * data;
+  gsize size;
+
+  if (!_gumjs_args_parse (args, "pB", &address, &bytes))
+    return NULL;
+  data = g_bytes_get_data (bytes, &size);
+
+  if (!gum_kernel_write (GUM_ADDRESS (address), data, size))
+    goto write_failed;
+
+  g_bytes_unref (bytes);
+
+  return JSValueMakeUndefined (ctx);
+
+write_failed:
+  {
+    g_bytes_unref (bytes);
+
+    _gumjs_throw (ctx, exception,
+        "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
+        GPOINTER_TO_SIZE (address));
+    return NULL;
+  }
 }
