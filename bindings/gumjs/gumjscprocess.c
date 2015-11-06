@@ -371,20 +371,27 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 {
   GumJscProcess * self;
+  GumJscCore * core;
   JSObjectRef callback;
+  GumJscExceptionHandler * new_handler, * old_handler;
 
   self = JSObjectGetPrivate (this_object);
+  core = self->core;
 
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
-  g_clear_pointer (&self->exception_handler, gum_jsc_exception_handler_free);
+  new_handler = (callback != NULL)
+      ? gum_jsc_exception_handler_new (callback, core)
+      : NULL;
 
-  if (callback != NULL)
-  {
-    self->exception_handler = gum_jsc_exception_handler_new (callback,
-        self->core);
-  }
+  GUM_JSC_CORE_LOCK (core);
+  old_handler = self->exception_handler;
+  self->exception_handler = new_handler;
+  GUM_JSC_CORE_UNLOCK (core);
+
+  if (old_handler != NULL)
+    gum_jsc_exception_handler_free (old_handler);
 
   return JSValueMakeUndefined (ctx);
 }

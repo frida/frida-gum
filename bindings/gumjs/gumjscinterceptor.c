@@ -186,9 +186,13 @@ _gum_jsc_interceptor_init (GumJscInterceptor * self,
 void
 _gum_jsc_interceptor_flush (GumJscInterceptor * self)
 {
+  GumJscCore * core = self->core;
+
   gum_jsc_interceptor_detach_all (self);
 
+  GUM_JSC_CORE_LOCK (core);
   g_hash_table_remove_all (self->replacement_by_address);
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 void
@@ -202,8 +206,12 @@ _gum_jsc_interceptor_dispose (GumJscInterceptor * self)
 void
 _gum_jsc_interceptor_finalize (GumJscInterceptor * self)
 {
+  GumJscCore * core = self->core;
+
   g_clear_pointer (&self->attach_entries, g_queue_free);
+  GUM_JSC_CORE_LOCK (core);
   g_clear_pointer (&self->replacement_by_address, g_hash_table_unref);
+  GUM_JSC_CORE_UNLOCK (core);
 
   g_clear_pointer (&self->interceptor, g_object_unref);
 }

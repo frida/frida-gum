@@ -409,8 +409,6 @@ gum_jsc_script_destroy_context (GumJscScript * self)
 
   g_assert (priv->ctx != NULL);
 
-  GUM_JSC_CORE_LOCK (&priv->core);
-
   _gum_jsc_stalker_flush (&priv->stalker);
   _gum_jsc_interceptor_flush (&priv->interceptor);
   _gum_jsc_core_flush (&priv->core);
@@ -428,8 +426,6 @@ gum_jsc_script_destroy_context (GumJscScript * self)
   _gum_jsc_kernel_dispose (&priv->kernel);
   _gum_jsc_polyfill_dispose (&priv->polyfill);
   _gum_jsc_core_dispose (&priv->core);
-
-  GUM_JSC_CORE_UNLOCK (&priv->core);
 
   JSGlobalContextRelease (priv->ctx);
   priv->ctx = NULL;

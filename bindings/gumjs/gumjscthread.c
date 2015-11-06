@@ -84,6 +84,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   if (selector != GUM_BACKTRACER_ACCURATE && selector != GUM_BACKTRACER_FUZZY)
     goto invalid_selector;
 
+  GUM_JSC_CORE_LOCK (core);
   if (selector == GUM_BACKTRACER_ACCURATE)
   {
     if (self->accurate_backtracer == NULL)
@@ -96,6 +97,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
       self->fuzzy_backtracer = gum_backtracer_make_fuzzy ();
     backtracer = self->fuzzy_backtracer;
   }
+  GUM_JSC_CORE_UNLOCK (core);
   if (backtracer == NULL)
     goto not_available;
 

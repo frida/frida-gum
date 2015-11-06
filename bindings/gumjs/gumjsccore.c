@@ -634,9 +634,11 @@ _gum_jsc_core_post_message (GumJscCore * self,
 
     gum_jsc_message_sink_handle_message (self->incoming_message_sink,
         message, &scope.exception);
+    GUM_JSC_CORE_UNLOCK (self);
 
     _gum_jsc_scope_leave (&scope);
 
+    GUM_JSC_CORE_LOCK (self);
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
   }
