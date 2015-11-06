@@ -131,7 +131,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (delay < 0)
     goto beach;
 
-  _gum_jsc_yield_begin (&yield, args->core);
+  _gum_jsc_yield_begin (&yield, ctx, args->core);
   g_usleep (delay * G_USEC_PER_SEC);
   _gum_jsc_yield_end (&yield);
 

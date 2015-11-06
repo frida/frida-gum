@@ -79,6 +79,8 @@ struct _GumJscScope
 
 struct _GumJscYield
 {
+  guint8 state[32];
+
   GumJscCore * core;
 };
 
@@ -134,7 +136,7 @@ G_GNUC_INTERNAL void _gum_jsc_scope_flush (GumJscScope * self);
 G_GNUC_INTERNAL void _gum_jsc_scope_leave (GumJscScope * self);
 
 G_GNUC_INTERNAL void _gum_jsc_yield_begin (GumJscYield * self,
-    GumJscCore * core);
+    JSContextRef ctx, GumJscCore * core);
 G_GNUC_INTERNAL void _gum_jsc_yield_end (GumJscYield * self);
 
 G_END_DECLS
