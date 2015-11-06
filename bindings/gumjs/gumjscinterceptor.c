@@ -48,7 +48,7 @@ struct _GumJscReplaceEntry
   GumInterceptor * interceptor;
   gpointer target;
   JSValueRef replacement;
-  JSContextRef ctx;
+  GumJscCore * core;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
@@ -184,12 +184,16 @@ _gum_jsc_interceptor_init (GumJscInterceptor * self,
 }
 
 void
-_gum_jsc_interceptor_dispose (GumJscInterceptor * self)
+_gum_jsc_interceptor_flush (GumJscInterceptor * self)
 {
   gum_jsc_interceptor_detach_all (self);
 
   g_hash_table_remove_all (self->replacement_by_address);
+}
 
+void
+_gum_jsc_interceptor_dispose (GumJscInterceptor * self)
+{
   g_clear_pointer (&self->invocation_retval, JSClassRelease);
   g_clear_pointer (&self->invocation_args, JSClassRelease);
   g_clear_pointer (&self->invocation_context, JSClassRelease);
@@ -231,7 +235,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
   if (attach_ret != GUM_ATTACH_OK)
     goto unable_to_attach;
 
+  GUM_JSC_CORE_LOCK (core);
   g_queue_push_tail (self->attach_entries, entry);
+  GUM_JSC_CORE_UNLOCK (core);
 
   return JSValueMakeUndefined (ctx);
 
@@ -278,13 +284,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 static void
 gum_jsc_interceptor_detach_all (GumJscInterceptor * self)
 {
+  GumJscCore * core = self->core;
+
   gum_interceptor_detach_listener (self->interceptor,
       GUM_INVOCATION_LISTENER (self->core->script));
 
+  GUM_JSC_CORE_LOCK (core);
   while (!g_queue_is_empty (self->attach_entries))
   {
-    gum_jsc_attach_entry_free (g_queue_pop_tail (self->attach_entries));
+    GumJscAttachEntry * entry = g_queue_pop_tail (self->attach_entries);
+
+    GUM_JSC_CORE_UNLOCK (core);
+    gum_jsc_attach_entry_free (entry);
+    GUM_JSC_CORE_LOCK (core);
   }
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
@@ -309,7 +323,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   entry->interceptor = self->interceptor;
   entry->target = target;
   entry->replacement = replacement_value;
-  entry->ctx = core->ctx;
+  entry->core = core;
 
   replace_ret = gum_interceptor_replace_function (self->interceptor, target,
       replacement, NULL);
@@ -318,7 +332,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
   JSValueProtect (ctx, replacement_value);
 
+  GUM_JSC_CORE_LOCK (core);
   g_hash_table_insert (self->replacement_by_address, target, entry);
+  GUM_JSC_CORE_UNLOCK (core);
 
   return JSValueMakeUndefined (ctx);
 
@@ -346,24 +362,34 @@ unable_to_replace:
 static void
 gum_jsc_replace_entry_free (GumJscReplaceEntry * entry)
 {
+  GumJscCore * core = entry->core;
+
+  GUM_JSC_CORE_UNLOCK (core);
+
   gum_interceptor_revert_function (entry->interceptor, entry->target);
 
-  JSValueUnprotect (entry->ctx, entry->replacement);
+  JSValueUnprotect (core->ctx, entry->replacement);
 
   g_slice_free (GumJscReplaceEntry, entry);
+
+  GUM_JSC_CORE_LOCK (core);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   GumJscInterceptor * self;
+  GumJscCore * core;
   gpointer target;
 
   self = JSObjectGetPrivate (this_object);
+  core = self->core;
 
   if (!_gumjs_args_parse (args, "p", &target))
     return NULL;
 
+  GUM_JSC_CORE_LOCK (core);
   g_hash_table_remove (self->replacement_by_address, target);
+  GUM_JSC_CORE_UNLOCK (core);
 
   return JSValueMakeUndefined (ctx);
 }

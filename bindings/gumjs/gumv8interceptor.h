@@ -30,12 +30,10 @@ struct _GumV8Interceptor
 
 G_GNUC_INTERNAL void _gum_v8_interceptor_init (GumV8Interceptor * self,
     GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
-G_GNUC_INTERNAL void _gum_v8_interceptor_realize (
-    GumV8Interceptor * self);
-G_GNUC_INTERNAL void _gum_v8_interceptor_dispose (
-    GumV8Interceptor * self);
-G_GNUC_INTERNAL void _gum_v8_interceptor_finalize (
-    GumV8Interceptor * self);
+G_GNUC_INTERNAL void _gum_v8_interceptor_realize (GumV8Interceptor * self);
+G_GNUC_INTERNAL void _gum_v8_interceptor_flush (GumV8Interceptor * self);
+G_GNUC_INTERNAL void _gum_v8_interceptor_dispose (GumV8Interceptor * self);
+G_GNUC_INTERNAL void _gum_v8_interceptor_finalize (GumV8Interceptor * self);
 
 G_GNUC_INTERNAL void _gum_v8_interceptor_on_enter (
     GumV8Interceptor * self, GumInvocationContext * context);

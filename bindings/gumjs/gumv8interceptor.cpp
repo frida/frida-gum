@@ -164,12 +164,16 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 }
 
 void
-_gum_v8_interceptor_dispose (GumV8Interceptor * self)
+_gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
   gum_v8_interceptor_detach_all (self);
 
   g_hash_table_remove_all (self->replacement_by_address);
+}
 
+void
+_gum_v8_interceptor_dispose (GumV8Interceptor * self)
+{
   delete self->invocation_return_value;
   self->invocation_return_value = NULL;
 

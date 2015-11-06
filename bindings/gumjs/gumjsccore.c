@@ -10,9 +10,6 @@
 
 #include <ffi.h>
 
-#define GUM_JSC_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
-#define GUM_JSC_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
-
 typedef struct _GumJscNativeFunction GumJscNativeFunction;
 typedef struct _GumJscNativeCallback GumJscNativeCallback;
 typedef union _GumFFIValue GumFFIValue;
@@ -41,13 +38,13 @@ struct _GumJscScheduledCallback
 struct _GumJscExceptionSink
 {
   JSObjectRef callback;
-  JSContextRef ctx;
+  GumJscCore * core;
 };
 
 struct _GumJscMessageSink
 {
   JSObjectRef callback;
-  JSContextRef ctx;
+  GumJscCore * core;
 };
 
 struct _GumJscNativeFunction
@@ -160,7 +157,6 @@ static bool gumjs_cpu_context_set_register (GumJscCpuContext * self,
 static gboolean gum_handle_unprotect_requests_when_idle (gpointer user_data);
 static void gum_handle_unprotect_requests (GumJscCore * self);
 
-static void gum_clear_weak_ref_entry (guint id, GumJscWeakRef * ref);
 static GumJscWeakRef * gum_jsc_weak_ref_new (guint id, JSValueRef target,
     JSObjectRef callback, GumJscCore * core);
 static void gum_jsc_weak_ref_clear (GumJscWeakRef * ref);
@@ -179,14 +175,14 @@ static GumJscScheduledCallback * gum_scheduled_callback_new (guint id,
 static void gum_scheduled_callback_free (GumJscScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 
-static GumJscExceptionSink * gum_jsc_exception_sink_new (JSContextRef ctx,
-    JSObjectRef callback);
+static GumJscExceptionSink * gum_jsc_exception_sink_new (JSObjectRef callback,
+    GumJscCore * core);
 static void gum_jsc_exception_sink_free (GumJscExceptionSink * sink);
 static void gum_jsc_exception_sink_handle_exception (
     GumJscExceptionSink * self, JSValueRef exception);
 
-static GumJscMessageSink * gum_jsc_message_sink_new (JSContextRef ctx,
-    JSObjectRef callback);
+static GumJscMessageSink * gum_jsc_message_sink_new (JSObjectRef callback,
+    GumJscCore * core);
 static void gum_jsc_message_sink_free (GumJscMessageSink * sink);
 static void gum_jsc_message_sink_handle_message (GumJscMessageSink * self,
     const gchar * message, JSValueRef * exception);
@@ -551,34 +547,41 @@ _gum_jsc_core_flush (GumJscCore * self)
 {
   GMainContext * context;
 
-  GUM_JSC_CORE_UNLOCK (self);
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
-  GUM_JSC_CORE_LOCK (self);
 
+  GUM_JSC_CORE_LOCK (self);
   g_clear_pointer (&self->unprotect_source, g_source_destroy);
   gum_handle_unprotect_requests (self);
+  GUM_JSC_CORE_UNLOCK (self);
 
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
 
-  g_hash_table_foreach (self->weak_refs,
-      (GHFunc) gum_clear_weak_ref_entry, NULL);
+  GUM_JSC_CORE_LOCK (self);
   g_hash_table_remove_all (self->weak_refs);
+  GUM_JSC_CORE_UNLOCK (self);
 }
 
 void
 _gum_jsc_core_dispose (GumJscCore * self)
 {
+  GUM_JSC_CORE_LOCK (self);
+
   g_clear_pointer (&self->native_resources, g_hash_table_unref);
 
   while (self->scheduled_callbacks != NULL)
   {
-    g_source_destroy (((GumJscScheduledCallback *) (
-        self->scheduled_callbacks->data))->source);
+    GumJscScheduledCallback * cb =
+        (GumJscScheduledCallback *) self->scheduled_callbacks->data;
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
+    GUM_JSC_CORE_UNLOCK (self);
+    g_source_destroy (cb->source);
+    GUM_JSC_CORE_LOCK (self);
   }
+
+  GUM_JSC_CORE_UNLOCK (self);
 
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_jsc_exception_sink_free);
@@ -601,7 +604,9 @@ _gum_jsc_core_dispose (GumJscCore * self)
 void
 _gum_jsc_core_finalize (GumJscCore * self)
 {
+  GUM_JSC_CORE_LOCK (self);
   g_clear_pointer (&self->weak_refs, g_hash_table_unref);
+  GUM_JSC_CORE_UNLOCK (self);
 
   g_mutex_clear (&self->mutex);
   g_cond_clear (&self->event_cond);
@@ -619,6 +624,8 @@ void
 _gum_jsc_core_post_message (GumJscCore * self,
                             const gchar * message)
 {
+  GUM_JSC_CORE_LOCK (self);
+
   if (self->incoming_message_sink != NULL)
   {
     GumJscScope scope;
@@ -630,11 +637,11 @@ _gum_jsc_core_post_message (GumJscCore * self,
 
     _gum_jsc_scope_leave (&scope);
 
-    GUM_JSC_CORE_LOCK (self);
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
-    GUM_JSC_CORE_UNLOCK (self);
   }
+
+  GUM_JSC_CORE_UNLOCK (self);
 }
 
 void
@@ -643,6 +650,8 @@ _gum_jsc_core_unprotect_later (GumJscCore * self,
 {
   if (self->ctx == NULL || value == NULL)
     return;
+
+  GUM_JSC_CORE_LOCK (self);
 
   self->unprotect_requests = g_slist_prepend (self->unprotect_requests,
       (gpointer) value);
@@ -658,6 +667,8 @@ _gum_jsc_core_unprotect_later (GumJscCore * self,
     g_source_unref (source);
     self->unprotect_source = source;
   }
+
+  GUM_JSC_CORE_UNLOCK (self);
 }
 
 static gboolean
@@ -681,9 +692,11 @@ gum_handle_unprotect_requests (GumJscCore * self)
   while (self->unprotect_requests != NULL)
   {
     JSValueRef value = self->unprotect_requests->data;
-    JSValueUnprotect (ctx, value);
     self->unprotect_requests = g_slist_delete_link (self->unprotect_requests,
         self->unprotect_requests);
+    GUM_JSC_CORE_UNLOCK (self);
+    JSValueUnprotect (ctx, value);
+    GUM_JSC_CORE_LOCK (self);
   }
 }
 
@@ -703,8 +716,6 @@ _gum_jsc_scope_enter (GumJscScope * self,
 {
   self->core = core;
   self->exception = NULL;
-
-  GUM_JSC_CORE_LOCK (core);
 }
 
 void
@@ -712,35 +723,22 @@ _gum_jsc_scope_flush (GumJscScope * self)
 {
   GumJscCore * core = self->core;
 
+  GUM_JSC_CORE_LOCK (core);
+
   if (self->exception != NULL && core->unhandled_exception_sink != NULL)
   {
     gum_jsc_exception_sink_handle_exception (core->unhandled_exception_sink,
         self->exception);
     self->exception = NULL;
   }
+
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 void
 _gum_jsc_scope_leave (GumJscScope * self)
 {
   _gum_jsc_scope_flush (self);
-
-  GUM_JSC_CORE_UNLOCK (self->core);
-}
-
-void
-_gum_jsc_yield_begin (GumJscYield * self,
-                      GumJscCore * core)
-{
-  self->core = core;
-
-  GUM_JSC_CORE_UNLOCK (core);
-}
-
-void
-_gum_jsc_yield_end (GumJscYield * self)
-{
-  GUM_JSC_CORE_LOCK (self->core);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -831,7 +829,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   id = ++self->last_weak_ref_id;
 
   ref = gum_jsc_weak_ref_new (id, target, callback, self);
+  GUM_JSC_CORE_LOCK (self);
   g_hash_table_insert (self->weak_refs, GUINT_TO_POINTER (id), ref);
+  GUM_JSC_CORE_UNLOCK (self);
 
   return JSValueMakeNumber (ctx, id);
 
@@ -851,7 +851,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
   if (!_gumjs_args_parse (args, "u", &id))
     return NULL;
 
+  GUM_JSC_CORE_LOCK (self);
   removed = !!g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
+  GUM_JSC_CORE_UNLOCK (self);
 
   return JSValueMakeBoolean (ctx, removed);
 }
@@ -876,6 +878,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   if (!_gumjs_args_parse (args, "i", &id))
     return NULL;
 
+  GUM_JSC_CORE_LOCK (self);
+
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
     GumJscScheduledCallback * cb = cur->data;
@@ -887,6 +891,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
       break;
     }
   }
+
+  GUM_JSC_CORE_UNLOCK (self);
 
   if (callback != NULL)
     g_source_destroy (callback->source);
@@ -921,18 +927,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
   GumJscCore * self = args->core;
   JSObjectRef callback;
+  GumJscExceptionSink * new_sink, * old_sink;
 
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
-  g_clear_pointer (&self->unhandled_exception_sink,
-      gum_jsc_exception_sink_free);
+  new_sink = (callback != NULL)
+      ? gum_jsc_exception_sink_new (callback, self)
+      : NULL;
 
-  if (callback != NULL)
-  {
-    self->unhandled_exception_sink =
-        gum_jsc_exception_sink_new (self->ctx, callback);
-  }
+  GUM_JSC_CORE_LOCK (self);
+  old_sink = self->unhandled_exception_sink;
+  self->unhandled_exception_sink = new_sink;
+  GUM_JSC_CORE_UNLOCK (self);
+
+  if (old_sink != NULL)
+    gum_jsc_exception_sink_free (old_sink);
 
   return JSValueMakeUndefined (ctx);
 }
@@ -941,17 +951,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 {
   GumJscCore * self = args->core;
   JSObjectRef callback;
+  GumJscMessageSink * new_sink, * old_sink;
 
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;
 
-  g_clear_pointer (&self->incoming_message_sink, gum_jsc_message_sink_free);
+  new_sink = (callback != NULL)
+      ? gum_jsc_message_sink_new (callback, self)
+      : NULL;
 
-  if (callback != NULL)
-  {
-    self->incoming_message_sink = gum_jsc_message_sink_new (self->ctx,
-        callback);
-  }
+  GUM_JSC_CORE_LOCK (self);
+  old_sink = self->incoming_message_sink;
+  self->incoming_message_sink = new_sink;
+  GUM_JSC_CORE_UNLOCK (self);
+
+  if (old_sink != NULL)
+    gum_jsc_message_sink_free (old_sink);
 
   return JSValueMakeUndefined (ctx);
 }
@@ -961,9 +976,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   GumJscCore * self = args->core;
   guint start_count;
 
+  GUM_JSC_CORE_LOCK (self);
   start_count = self->event_count;
   while (self->event_count == start_count)
     g_cond_wait (&self->event_cond, &self->mutex);
+  GUM_JSC_CORE_UNLOCK (self);
 
   return JSValueMakeUndefined (ctx);
 }
@@ -1284,7 +1301,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   GumFFIValue * rvalue;
   void ** avalue;
   guint8 * avalues;
-  GumJscYield yield;
   GumExceptorScope scope;
   JSValueRef result;
 
@@ -1337,14 +1353,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     avalue = NULL;
   }
 
-  _gum_jsc_yield_begin (&yield, core);
-
   if (gum_exceptor_try (core->exceptor, &scope))
   {
     ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
   }
-
-  _gum_jsc_yield_end (&yield);
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {
@@ -1591,15 +1603,6 @@ invalid_operation:
   }
 }
 
-static void
-gum_clear_weak_ref_entry (guint id,
-                          GumJscWeakRef * ref)
-{
-  (void) id;
-
-  gum_jsc_weak_ref_clear (ref);
-}
-
 static GumJscWeakRef *
 gum_jsc_weak_ref_new (guint id,
                       JSValueRef target,
@@ -1633,6 +1636,8 @@ gum_jsc_weak_ref_free (GumJscWeakRef * ref)
   JSContextRef ctx = core->ctx;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
 
+  GUM_JSC_CORE_UNLOCK (core);
+
   gum_jsc_weak_ref_clear (ref);
 
   JSObjectCallAsFunction (ctx, ref->callback, NULL, 0, NULL, &scope.exception);
@@ -1640,12 +1645,18 @@ gum_jsc_weak_ref_free (GumJscWeakRef * ref)
   _gum_jsc_scope_flush (&scope);
 
   g_slice_free (GumJscWeakRef, ref);
+
+  GUM_JSC_CORE_LOCK (core);
 }
 
 static void
 gum_jsc_weak_ref_on_weak_notify (GumJscWeakRef * self)
 {
-  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+  GumJscCore * core = self->core;
+
+  GUM_JSC_CORE_LOCK (core);
+  g_hash_table_remove (core->weak_refs, GUINT_TO_POINTER (self->id));
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 static JSValueRef
@@ -1682,16 +1693,18 @@ static void
 gum_jsc_core_add_scheduled_callback (GumJscCore * self,
                                      GumJscScheduledCallback * cb)
 {
-  self->scheduled_callbacks =
-      g_slist_prepend (self->scheduled_callbacks, cb);
+  GUM_JSC_CORE_LOCK (self);
+  self->scheduled_callbacks = g_slist_prepend (self->scheduled_callbacks, cb);
+  GUM_JSC_CORE_UNLOCK (self);
 }
 
 static void
 gum_jsc_core_remove_scheduled_callback (GumJscCore * self,
                                         GumJscScheduledCallback * cb)
 {
-  self->scheduled_callbacks =
-      g_slist_remove (self->scheduled_callbacks, cb);
+  GUM_JSC_CORE_LOCK (self);
+  self->scheduled_callbacks = g_slist_remove (self->scheduled_callbacks, cb);
+  GUM_JSC_CORE_UNLOCK (self);
 }
 
 static GumJscScheduledCallback *
@@ -1741,15 +1754,15 @@ gum_scheduled_callback_invoke (gpointer user_data)
 }
 
 static GumJscExceptionSink *
-gum_jsc_exception_sink_new (JSContextRef ctx,
-                            JSObjectRef callback)
+gum_jsc_exception_sink_new (JSObjectRef callback,
+                            GumJscCore * core)
 {
   GumJscExceptionSink * sink;
 
   sink = g_slice_new (GumJscExceptionSink);
-  JSValueProtect (ctx, callback);
+  JSValueProtect (core->ctx, callback);
   sink->callback = callback;
-  sink->ctx = ctx;
+  sink->core = core;
 
   return sink;
 }
@@ -1757,7 +1770,7 @@ gum_jsc_exception_sink_new (JSContextRef ctx,
 static void
 gum_jsc_exception_sink_free (GumJscExceptionSink * sink)
 {
-  JSValueUnprotect (sink->ctx, sink->callback);
+  JSValueUnprotect (sink->core->ctx, sink->callback);
 
   g_slice_free (GumJscExceptionSink, sink);
 }
@@ -1766,19 +1779,25 @@ static void
 gum_jsc_exception_sink_handle_exception (GumJscExceptionSink * self,
                                          JSValueRef exception)
 {
-  JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &exception, NULL);
+  GumJscCore * core = self->core;
+  JSContextRef ctx = core->ctx;
+  JSObjectRef callback = self->callback;
+
+  GUM_JSC_CORE_UNLOCK (core);
+  JSObjectCallAsFunction (ctx, callback, NULL, 1, &exception, NULL);
+  GUM_JSC_CORE_LOCK (core);
 }
 
 static GumJscMessageSink *
-gum_jsc_message_sink_new (JSContextRef ctx,
-                          JSObjectRef callback)
+gum_jsc_message_sink_new (JSObjectRef callback,
+                          GumJscCore * core)
 {
   GumJscMessageSink * sink;
 
   sink = g_slice_new (GumJscMessageSink);
-  JSValueProtect (ctx, callback);
+  JSValueProtect (core->ctx, callback);
   sink->callback = callback;
-  sink->ctx = ctx;
+  sink->core = core;
 
   return sink;
 }
@@ -1786,7 +1805,7 @@ gum_jsc_message_sink_new (JSContextRef ctx,
 static void
 gum_jsc_message_sink_free (GumJscMessageSink * sink)
 {
-  JSValueUnprotect (sink->ctx, sink->callback);
+  JSValueUnprotect (sink->core->ctx, sink->callback);
 
   g_slice_free (GumJscMessageSink, sink);
 }
@@ -1796,11 +1815,15 @@ gum_jsc_message_sink_handle_message (GumJscMessageSink * self,
                                      const gchar * message,
                                      JSValueRef * exception)
 {
+  GumJscCore * core = self->core;
+  JSContextRef ctx = core->ctx;
+  JSObjectRef callback = self->callback;
   JSValueRef message_value;
 
-  message_value = _gumjs_string_to_value (self->ctx, message);
-  JSObjectCallAsFunction (self->ctx, self->callback, NULL, 1, &message_value,
-      exception);
+  GUM_JSC_CORE_UNLOCK (core);
+  message_value = _gumjs_string_to_value (ctx, message);
+  JSObjectCallAsFunction (ctx, callback, NULL, 1, &message_value, exception);
+  GUM_JSC_CORE_LOCK (core);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =

@@ -31,10 +31,9 @@ struct _GumJscInterceptor
 
 G_GNUC_INTERNAL void _gum_jsc_interceptor_init (GumJscInterceptor * self,
     GumJscCore * core, JSObjectRef scope);
-G_GNUC_INTERNAL void _gum_jsc_interceptor_dispose (
-    GumJscInterceptor * self);
-G_GNUC_INTERNAL void _gum_jsc_interceptor_finalize (
-    GumJscInterceptor * self);
+G_GNUC_INTERNAL void _gum_jsc_interceptor_flush (GumJscInterceptor * self);
+G_GNUC_INTERNAL void _gum_jsc_interceptor_dispose (GumJscInterceptor * self);
+G_GNUC_INTERNAL void _gum_jsc_interceptor_finalize (GumJscInterceptor * self);
 
 G_GNUC_INTERNAL void _gum_jsc_interceptor_on_enter (
     GumJscInterceptor * self, GumInvocationContext * context);

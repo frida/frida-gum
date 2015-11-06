@@ -1219,7 +1219,9 @@ _gumjs_native_resource_new (JSContextRef ctx,
   resource->notify = notify;
   resource->core = core;
 
+  GUM_JSC_CORE_LOCK (core);
   g_hash_table_insert (core->native_resources, resource, resource);
+  GUM_JSC_CORE_UNLOCK (core);
 
   *handle = h;
 
@@ -1229,18 +1231,28 @@ _gumjs_native_resource_new (JSContextRef ctx,
 void
 _gumjs_native_resource_free (GumJscNativeResource * resource)
 {
+  GumJscCore * core = resource->core;
+
+  GUM_JSC_CORE_UNLOCK (core);
+
   _gumjs_weak_ref_free (resource->weak_ref);
 
   if (resource->notify != NULL)
     resource->notify (resource->data);
 
   g_slice_free (GumJscNativeResource, resource);
+
+  GUM_JSC_CORE_LOCK (core);
 }
 
 static void
 gum_native_resource_on_weak_notify (GumJscNativeResource * self)
 {
-  g_hash_table_remove (self->core->native_resources, self);
+  GumJscCore * core = self->core;
+
+  GUM_JSC_CORE_LOCK (core);
+  g_hash_table_remove (core->native_resources, self);
+  GUM_JSC_CORE_UNLOCK (core);
 }
 
 JSObjectRef

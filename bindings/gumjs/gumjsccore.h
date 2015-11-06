@@ -14,13 +14,15 @@
 #include <gum/gumexceptor.h>
 #include <JavaScriptCore/JavaScriptCore.h>
 
+#define GUM_JSC_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
+#define GUM_JSC_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
+
 #define GUM_JSC_SCOPE_INIT(C) { C, NULL }
 
 G_BEGIN_DECLS
 
 typedef struct _GumJscCore GumJscCore;
 typedef struct _GumJscScope GumJscScope;
-typedef struct _GumJscYield GumJscYield;
 typedef struct _GumJscWeakRef GumJscWeakRef;
 
 typedef struct _GumJscScheduledCallback GumJscScheduledCallback;
@@ -77,11 +79,6 @@ struct _GumJscScope
   JSValueRef exception;
 };
 
-struct _GumJscYield
-{
-  GumJscCore * core;
-};
-
 struct _GumJscNativePointer
 {
   gsize instance_size;
@@ -132,10 +129,6 @@ G_GNUC_INTERNAL void _gum_jsc_scope_enter (GumJscScope * self,
     GumJscCore * core);
 G_GNUC_INTERNAL void _gum_jsc_scope_flush (GumJscScope * self);
 G_GNUC_INTERNAL void _gum_jsc_scope_leave (GumJscScope * self);
-
-G_GNUC_INTERNAL void _gum_jsc_yield_begin (GumJscYield * self,
-    GumJscCore * core);
-G_GNUC_INTERNAL void _gum_jsc_yield_end (GumJscYield * self);
 
 G_END_DECLS
 

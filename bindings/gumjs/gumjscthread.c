@@ -124,16 +124,13 @@ not_available:
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
   gdouble delay;
-  GumJscYield yield;
 
   if (!_gumjs_args_parse (args, "n", &delay))
     return NULL;
   if (delay < 0)
     goto beach;
 
-  _gum_jsc_yield_begin (&yield, args->core);
   g_usleep (delay * G_USEC_PER_SEC);
-  _gum_jsc_yield_end (&yield);
 
 beach:
   return JSValueMakeUndefined (ctx);
