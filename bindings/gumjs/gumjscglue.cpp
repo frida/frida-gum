@@ -27,10 +27,10 @@ struct _GumJscWeakRef
 {
 public:
   _GumJscWeakRef (JSContextRef ctx,
-                     JSValueRef value,
-                     GumJscWeakNotify notify,
-                     gpointer data,
-                     GDestroyNotify dataDestroy)
+                  JSValueRef value,
+                  GumJscWeakNotify notify,
+                  gpointer data,
+                  GDestroyNotify dataDestroy)
     : m_notify (notify),
       m_data (data),
       m_dataDestroy (dataDestroy)
