@@ -15,27 +15,6 @@
 
 using namespace JSC;
 
-void
-_gum_jsc_yield_begin (GumJscYield * self,
-                      JSContextRef ctx,
-                      GumJscCore * core)
-{
-  self->core = core;
-
-  ExecState * exec = toJS (ctx);
-  new (reinterpret_cast<JSLock::DropAllLocks *> (self->state))
-      JSLock::DropAllLocks (exec);
-  g_mutex_unlock (&core->mutex);
-}
-
-void
-_gum_jsc_yield_end (GumJscYield * self)
-{
-  g_mutex_lock (&self->core->mutex);
-  reinterpret_cast<JSLock::DropAllLocks *> (self->state)
-      ->JSLock::DropAllLocks::~DropAllLocks ();
-}
-
 class GumValueHandleObserver : public WeakHandleOwner
 {
 public:

@@ -728,6 +728,21 @@ _gum_jsc_scope_leave (GumJscScope * self)
   GUM_JSC_CORE_UNLOCK (self->core);
 }
 
+void
+_gum_jsc_yield_begin (GumJscYield * self,
+                      GumJscCore * core)
+{
+  self->core = core;
+
+  GUM_JSC_CORE_UNLOCK (core);
+}
+
+void
+_gum_jsc_yield_end (GumJscYield * self)
+{
+  GUM_JSC_CORE_LOCK (self->core);
+}
+
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
 {
   GumJscCore * self = args->core;
@@ -1322,7 +1337,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     avalue = NULL;
   }
 
-  _gum_jsc_yield_begin (&yield, ctx, core);
+  _gum_jsc_yield_begin (&yield, core);
 
   if (gum_exceptor_try (core->exceptor, &scope))
   {
