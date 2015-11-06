@@ -1153,6 +1153,7 @@
             const superClass = (properties.super !== undefined) ? properties.super : classRegistry.NSObject;
             const protocols = properties.protocols || [];
             const methods = properties.methods || {};
+            const methodCallbacks = [];
 
             const classHandle = api.objc_allocateClassPair(superClass !== null ? superClass.handle : NULL, Memory.allocUtf8String(name), ptr("0"));
             const metaClassHandle = api.object_getClass(classHandle);
@@ -1200,6 +1201,7 @@
                         makeMethodImplementationWrapper(signature, method.implementation),
                         signature.retType.type,
                         signature.argTypes.map(function (arg) { return arg.type; }));
+                    methodCallbacks.push(implementation);
                     api.class_addMethod(target, selector(name), implementation, Memory.allocUtf8String(types));
                 });
             } catch (e) {
@@ -1207,6 +1209,9 @@
                 throw e;
             }
             api.objc_registerClassPair(classHandle);
+
+            // Keep a reference to the callbacks so they don't get GCed
+            classHandle._methodCallbacks = methodCallbacks;
 
             return new ObjCObject(classHandle);
         }
