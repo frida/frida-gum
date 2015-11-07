@@ -106,7 +106,7 @@ static gboolean gum_darwin_module_take_image (GumDarwinModule * self,
 static void gum_darwin_module_read_and_assign (GumDarwinModule * self,
     GumAddress address, gsize size, const guint8 ** start, const guint8 ** end,
     gpointer * malloc_data);
-static gboolean gum_fill_text_range_if_text_section (
+static gboolean gum_add_text_range_if_text_section (
     const GumDarwinSectionDetails * details, gpointer user_data);
 static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
 
@@ -201,6 +201,7 @@ gum_darwin_module_new (const gchar * name,
   }
 
   module->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
+  module->text_ranges = g_array_new (FALSE, FALSE, sizeof (GumMemoryRange));
   module->dependencies = g_ptr_array_sized_new (5);
   module->reexports = g_ptr_array_sized_new (5);
 
@@ -228,6 +229,7 @@ gum_darwin_module_unref (GumDarwinModule * self)
     g_free (self->exports_malloc_data);
 
     g_array_unref (self->segments);
+    g_array_unref (self->text_ranges);
 
     if (self->image != NULL)
       gum_darwin_module_image_free (self->image);
@@ -426,6 +428,22 @@ gum_darwin_module_enumerate_sections (GumDarwinModule * self,
 
     command += lc->cmdsize;
   }
+}
+
+gboolean
+gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
+                                              GumAddress address)
+{
+  guint i;
+
+  for (i = 0; i != self->text_ranges->len; i++)
+  {
+    GumMemoryRange * r = &g_array_index (self->text_ranges, GumMemoryRange, i);
+    if (GUM_MEMORY_RANGE_INCLUDES (r, address))
+      return TRUE;
+  }
+
+  return FALSE;
 }
 
 void
@@ -1123,7 +1141,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   }
 
   gum_darwin_module_enumerate_sections (self,
-      gum_fill_text_range_if_text_section, &self->text_range);
+      gum_add_text_range_if_text_section, self->text_ranges);
 
   if (image->linkedit != NULL)
   {
@@ -1219,15 +1237,17 @@ gum_darwin_module_read_and_assign (GumDarwinModule * self,
 }
 
 static gboolean
-gum_fill_text_range_if_text_section (const GumDarwinSectionDetails * details,
-                                     gpointer user_data)
+gum_add_text_range_if_text_section (const GumDarwinSectionDetails * details,
+                                    gpointer user_data)
 {
+  GArray * ranges = user_data;
+
   if (gum_section_flags_indicate_text_section (details->flags))
   {
-    GumMemoryRange * range = user_data;
-    range->base_address = details->vm_address;
-    range->size = details->size;
-    return FALSE;
+    GumMemoryRange r;
+    r.base_address = details->vm_address;
+    r.size = details->size;
+    g_array_append_val (ranges, r);
   }
 
   return TRUE;
@@ -1236,9 +1256,6 @@ gum_fill_text_range_if_text_section (const GumDarwinSectionDetails * details,
 static gboolean
 gum_section_flags_indicate_text_section (uint32_t flags)
 {
-  if ((flags & SECTION_TYPE) != S_REGULAR)
-    return FALSE;
-
   return (flags & (S_ATTR_PURE_INSTRUCTIONS | S_ATTR_SOME_INSTRUCTIONS)) != 0;
 }
 

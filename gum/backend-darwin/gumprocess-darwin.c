@@ -1604,7 +1604,16 @@ gum_module_resolver_resolve_export (GumModuleResolver * self,
       if ((symbol->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore interposing */
-        export->address = module->base_address + symbol->stub;
+        if (module->is_local)
+        {
+          GumDarwinModuleResolverFunc resolver = (GumDarwinModuleResolverFunc)
+              (module->base_address + symbol->resolver);
+          export->address = GUM_ADDRESS (resolver ());
+        }
+        else
+        {
+          export->address = module->base_address + symbol->stub;
+        }
       }
       else
       {
@@ -1623,8 +1632,9 @@ gum_module_resolver_resolve_export (GumModuleResolver * self,
   }
 
   export->type =
-      GUM_MEMORY_RANGE_INCLUDES (&module->text_range, export->address)
-      ? GUM_EXPORT_FUNCTION : GUM_EXPORT_VARIABLE;
+      gum_darwin_module_is_address_in_text_section (module, export->address)
+      ? GUM_EXPORT_FUNCTION
+      : GUM_EXPORT_VARIABLE;
 
   return TRUE;
 }

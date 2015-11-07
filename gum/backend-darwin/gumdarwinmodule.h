@@ -38,6 +38,7 @@ typedef gboolean (* GumDarwinFoundInitPointersFunc) (
     const GumDarwinInitPointersDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundTermPointersFunc) (
     const GumDarwinTermPointersDetails * details, gpointer user_data);
+typedef gpointer (* GumDarwinModuleResolverFunc) (void);
 
 struct _GumDarwinModule
 {
@@ -51,7 +52,6 @@ struct _GumDarwinModule
   gsize pointer_size;
   gsize page_size;
   GumAddress base_address;
-  GumMemoryRange text_range;
 
   GumDarwinModuleImage * image;
 
@@ -62,6 +62,7 @@ struct _GumDarwinModule
   GumAddress preferred_address;
 
   GArray * segments;
+  GArray * text_ranges;
 
   const guint8 * rebases;
   const guint8 * rebases_end;
@@ -199,6 +200,8 @@ const GumDarwinSegment * gum_darwin_module_segment (GumDarwinModule * self,
     gsize index);
 void gum_darwin_module_enumerate_sections (GumDarwinModule * self,
     GumDarwinFoundSectionFunc func, gpointer user_data);
+gboolean gum_darwin_module_is_address_in_text_section (GumDarwinModule * self,
+    GumAddress address);
 void gum_darwin_module_enumerate_rebases (GumDarwinModule * self,
     GumDarwinFoundRebaseFunc func, gpointer user_data);
 void gum_darwin_module_enumerate_binds (GumDarwinModule * self,

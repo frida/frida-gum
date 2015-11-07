@@ -477,6 +477,8 @@ export_found_cb (const GumExportDetails * details,
     g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
   else if (g_str_has_prefix (details->name, "OBJC_CLASS_"))
     g_assert_cmpint (details->type, ==, GUM_EXPORT_VARIABLE);
+  else if (strcmp (details->name, "dispatch_async_f") == 0)
+    g_assert_cmpint (details->type, ==, GUM_EXPORT_FUNCTION);
 #endif
 
   return ctx->value_to_return;
