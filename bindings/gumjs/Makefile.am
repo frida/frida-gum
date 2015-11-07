@@ -110,7 +110,7 @@ platform_cxxflags = $(NULL)
 platform_ldflags = $(NULL)
 platform_libadd = $(NULL)
 
-if OS_DARWIN
+if OS_IOS
 platform_sources += \
 	$(jsc_sources) \
 	$(NULL)

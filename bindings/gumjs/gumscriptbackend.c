@@ -6,7 +6,7 @@
 
 #include "gumscriptbackend.h"
 
-#ifdef HAVE_DARWIN
+#ifdef HAVE_IOS
 # include "gumjscscriptbackend.h"
 #endif
 #include "gumv8scriptbackend.h"
@@ -54,7 +54,7 @@ gum_script_backend_obtain (void)
     }
     else
     {
-#ifdef HAVE_DARWIN
+#ifdef HAVE_IOS
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
 #else
