@@ -26,8 +26,8 @@
 #endif
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
-
 #define GUM_MAPS_LINE_SIZE (1024 + PATH_MAX)
+#define GUM_PSR_THUMB 0x20
 
 typedef struct _GumEnumerateImportsContext GumEnumerateImportsContext;
 typedef struct _GumDependencyExport GumDependencyExport;
@@ -1215,7 +1215,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   struct sigcontext * sc = &uc->uc_mcontext;
 
-  sc->arm_pc = ctx->pc;
+  sc->arm_pc = ctx->pc & ~1;
   sc->arm_sp = ctx->sp;
 
   sc->arm_r0 = ctx->r[0];
@@ -1227,6 +1227,8 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   sc->arm_r6 = ctx->r[6];
   sc->arm_r7 = ctx->r[7];
   sc->arm_lr = ctx->lr;
+
+  sc->arm_cpsr = (ctx->pc & 1) ? GUM_PSR_THUMB : 0;
 #elif defined (HAVE_ARM64)
   struct sigcontext * sc = &uc->uc_mcontext;
   gsize i;

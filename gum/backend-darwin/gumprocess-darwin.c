@@ -19,6 +19,7 @@
 #include <malloc/malloc.h>
 #include <sys/sysctl.h>
 
+#define GUM_PSR_THUMB 0x20
 #define MAX_MACH_HEADER_SIZE (64 * 1024)
 #define DYLD_INFO_COUNT 5
 #define DYLD_INFO_LEGACY_COUNT 1
@@ -1842,12 +1843,14 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   guint n;
 
-  ts->__pc = ctx->pc;
+  ts->__pc = ctx->pc & ~1;
   ts->__sp = ctx->sp;
 
   for (n = 0; n != G_N_ELEMENTS (ctx->r); n++)
     ts->__r[n] = ctx->r[n];
   ts->__lr = ctx->lr;
+
+  ts->__cpsr = (ctx->pc & 1) ? GUM_PSR_THUMB : 0;
 #elif defined (HAVE_ARM64)
   guint n;
 
