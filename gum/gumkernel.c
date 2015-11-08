@@ -8,6 +8,12 @@
 
 #ifndef HAVE_DARWIN
 
+gboolean
+gum_kernel_api_is_available (void)
+{
+  return FALSE;
+}
+
 guint8 *
 gum_kernel_read (GumAddress address,
                  gsize len,

@@ -13,6 +13,12 @@
 static mach_port_t gum_kernel_get_task (void);
 static mach_port_t gum_kernel_do_init (void);
 
+gboolean
+gum_kernel_api_is_available (void)
+{
+  return gum_kernel_get_task () != MACH_PORT_NULL;
+}
+
 guint8 *
 gum_kernel_read (GumAddress address,
                  gsize len,
