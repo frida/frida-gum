@@ -34,6 +34,8 @@ static void gum_v8_script_kernel_on_read_byte_array (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_script_kernel_on_write_byte_array (
     const FunctionCallbackInfo<Value> & info);
+static void gum_v8_script_kernel_throw_not_available (
+    const FunctionCallbackInfo<Value> & info);
 
 void
 _gum_v8_kernel_init (GumV8Kernel * self,
@@ -47,18 +49,38 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> kernel = ObjectTemplate::New (isolate);
-  kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
-      FunctionTemplate::New (isolate, gum_v8_kernel_on_enumerate_threads,
-      data));
-  kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
-      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_enumerate_ranges,
-      data));
-  kernel->Set (String::NewFromUtf8 (isolate, "readByteArray"),
-      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_read_byte_array,
-      data));
-  kernel->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
-      FunctionTemplate::New (isolate, gum_v8_script_kernel_on_write_byte_array,
-      data));
+  kernel->Set (String::NewFromUtf8 (isolate, "available"),
+      Boolean::New (isolate, gum_kernel_api_is_available ()), ReadOnly);
+  if (gum_kernel_api_is_available ())
+  {
+    kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
+        FunctionTemplate::New (isolate,
+        gum_v8_kernel_on_enumerate_threads, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_on_enumerate_ranges, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "readByteArray"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_on_read_byte_array, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_on_write_byte_array, data));
+  }
+  else
+  {
+    kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_throw_not_available, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_throw_not_available, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "readByteArray"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_throw_not_available, data));
+    kernel->Set (String::NewFromUtf8 (isolate, "writeByteArray"),
+        FunctionTemplate::New (isolate,
+        gum_v8_script_kernel_throw_not_available, data));
+  }
   scope->Set (String::NewFromUtf8 (isolate, "Kernel"), kernel);
 }
 
@@ -374,4 +396,14 @@ gum_v8_script_kernel_on_write_byte_array (
         message)));
     g_free (message);
   }
+}
+
+static void
+gum_v8_script_kernel_throw_not_available (
+    const FunctionCallbackInfo<Value> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+
+  isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+      "Kernel API is not available on this system")));
 }

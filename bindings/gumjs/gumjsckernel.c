@@ -21,6 +21,7 @@ struct _GumJscMatchContext
   JSContextRef ctx;
 };
 
+GUMJS_DECLARE_GETTER (gumjs_kernel_get_available)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
     gpointer user_data);
@@ -29,13 +30,31 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
+GUMJS_DECLARE_FUNCTION (gumjs_kernel_throw_not_available)
 
-static const JSStaticFunction gumjs_kernel_functions[] =
+static const JSStaticValue gumjs_kernel_values[] =
+{
+  { "available", gumjs_kernel_get_available, NULL, GUMJS_RO },
+
+  { NULL, NULL, NULL, 0 }
+};
+
+static const JSStaticFunction gumjs_kernel_functions_available[] =
 {
   { "enumerateThreads", gumjs_kernel_enumerate_threads, GUMJS_RO },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, GUMJS_RO },
   { "readByteArray", gumjs_kernel_read_byte_array, GUMJS_RO },
   { "writeByteArray", gumjs_kernel_write_byte_array, GUMJS_RO },
+
+  { NULL, NULL, 0 }
+};
+
+static const JSStaticFunction gumjs_kernel_functions_unavailable[] =
+{
+  { "enumerateThreads", gumjs_kernel_throw_not_available, GUMJS_RO },
+  { "_enumerateRanges", gumjs_kernel_throw_not_available, GUMJS_RO },
+  { "readByteArray", gumjs_kernel_throw_not_available, GUMJS_RO },
+  { "writeByteArray", gumjs_kernel_throw_not_available, GUMJS_RO },
 
   { NULL, NULL, 0 }
 };
@@ -54,7 +73,10 @@ _gum_jsc_kernel_init (GumJscKernel * self,
 
   def = kJSClassDefinitionEmpty;
   def.className = "Kernel";
-  def.staticFunctions = gumjs_kernel_functions;
+  def.staticValues = gumjs_kernel_values;
+  def.staticFunctions = gum_kernel_api_is_available ()
+      ? gumjs_kernel_functions_available
+      : gumjs_kernel_functions_unavailable;
   klass = JSClassCreate (&def);
   kernel = JSObjectMake (ctx, klass, self);
   JSClassRelease (klass);
@@ -71,6 +93,11 @@ void
 _gum_jsc_kernel_finalize (GumJscKernel * self)
 {
   (void) self;
+}
+
+GUMJS_DEFINE_GETTER (gumjs_kernel_get_available)
+{
+  return JSValueMakeBoolean (ctx, gum_kernel_api_is_available ());
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_threads)
@@ -268,4 +295,10 @@ write_failed:
         GPOINTER_TO_SIZE (address));
     return NULL;
   }
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_kernel_throw_not_available)
+{
+  _gumjs_throw (ctx, exception, "Kernel API is not available on this system");
+  return NULL;
 }

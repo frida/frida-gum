@@ -4,20 +4,18 @@ os_sources = $(NULL)
 
 if OS_DARWIN
 os_sources += \
-	script-darwin.m
+	script-darwin.m \
+	$(NULL)
 else
 libgum_tests_gumjs_la_LIBTOOLFLAGS = \
 	--tag=CC
 endif
 
-if OS_IOS
-os_sources += \
-	kscript.c
-endif
-
 libgum_tests_gumjs_la_SOURCES = \
 	script.c \
-	$(os_sources)
+	kscript.c \
+	$(os_sources) \
+	$(NULL)
 
 AM_CPPFLAGS = \
 	-include config.h \

@@ -7,6 +7,7 @@
 #include "kscript-fixture.c"
 
 TEST_LIST_BEGIN (kscript)
+  KSCRIPT_TESTENTRY (api_availability_can_be_queried)
   KSCRIPT_TESTENTRY (kernel_threads_can_be_enumerated)
   KSCRIPT_TESTENTRY (kernel_threads_can_be_enumerated_synchronously)
   KSCRIPT_TESTENTRY (memory_ranges_can_be_enumerated)
@@ -17,6 +18,12 @@ TEST_LIST_BEGIN (kscript)
   KSCRIPT_TESTENTRY (invalid_read_results_in_exception)
   KSCRIPT_TESTENTRY (invalid_write_results_in_exception)
 TEST_LIST_END ()
+
+KSCRIPT_TESTCASE (api_availability_can_be_queried)
+{
+  COMPILE_AND_LOAD_SCRIPT ("send(Kernel.available);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+}
 
 KSCRIPT_TESTCASE (kernel_threads_can_be_enumerated)
 {
