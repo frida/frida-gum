@@ -9,6 +9,7 @@
 #include "gumarm64reader.h"
 #include "gumarm64relocator.h"
 #include "gumarm64writer.h"
+#include "gumlibc.h"
 #include "gummemory.h"
 
 #include <string.h>
@@ -49,8 +50,6 @@ static gpointer gum_make_replace_enter_thunk (GumArm64Writer * aw,
 static gpointer gum_make_replace_leave_thunk (GumArm64Writer * aw);
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
-
-static void gum_function_context_clear_cache (GumFunctionContext * ctx);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GumCodeAllocator * allocator)
@@ -440,24 +439,22 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
       g_assert_not_reached ();
   }
   gum_arm64_writer_flush (aw);
-
-  gum_function_context_clear_cache (ctx);
 }
 
 void
 _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
                                                 GumFunctionContext * ctx)
 {
-  memcpy (ctx->function_address, ctx->overwritten_prologue,
+  gum_memcpy (ctx->function_address, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
-  gum_function_context_clear_cache (ctx);
 }
 
-static void
-gum_function_context_clear_cache (GumFunctionContext * ctx)
+void
+_gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
+                                            GumFunctionContext * ctx)
 {
-  gum_clear_cache (ctx->function_address, ctx->overwritten_prologue_len);
   gum_clear_cache (ctx->trampoline_slice->data, ctx->trampoline_slice->size);
+  gum_clear_cache (ctx->function_address, ctx->overwritten_prologue_len);
 }
 
 gpointer

@@ -600,10 +600,7 @@ intercept_function_at (GumInterceptor * self,
   make_function_prologue_at_least_read_write (function_address);
   _gum_interceptor_backend_activate_trampoline (priv->backend, ctx);
   make_function_prologue_read_execute (function_address);
-
-#ifdef G_OS_WIN32
-  FlushInstructionCache (GetCurrentProcess (), NULL, 0);
-#endif
+  _gum_interceptor_backend_commit_trampoline (priv->backend, ctx);
 
   return ctx;
 }
@@ -637,13 +634,10 @@ replace_function_at (GumInterceptor * self,
   make_function_prologue_at_least_read_write (function_address);
   _gum_interceptor_backend_activate_trampoline (priv->backend, ctx);
   make_function_prologue_read_execute (function_address);
+  _gum_interceptor_backend_commit_trampoline (priv->backend, ctx);
 
   gum_hash_table_insert (priv->replaced_function_by_address, function_address,
       ctx);
-
-#ifdef G_OS_WIN32
-  FlushInstructionCache (GetCurrentProcess (), NULL, 0);
-#endif
 
   return TRUE;
 }
@@ -663,10 +657,6 @@ revert_function_at (GumInterceptor * self,
   gum_hash_table_remove (priv->replaced_function_by_address, function_address);
 
   gum_function_context_destroy (ctx);
-
-#ifdef G_OS_WIN32
-  FlushInstructionCache (GetCurrentProcess (), NULL, 0);
-#endif
 }
 
 static void
@@ -718,6 +708,7 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
     make_function_prologue_at_least_read_write (function_ctx->function_address);
     _gum_interceptor_backend_deactivate_trampoline (backend, function_ctx);
     make_function_prologue_read_execute (function_ctx->function_address);
+    _gum_interceptor_backend_commit_trampoline (backend, function_ctx);
 
     gum_function_context_wait_for_idle_trampoline (function_ctx);
     _gum_interceptor_backend_destroy_trampoline (backend, function_ctx);

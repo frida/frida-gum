@@ -368,6 +368,14 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
       ctx->overwritten_prologue_len);
 }
 
+void
+_gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
+                                            GumFunctionContext * ctx)
+{
+  gum_clear_cache (ctx->trampoline_slice->data, ctx->trampoline_slice->size);
+  gum_clear_cache (ctx->function_address, ctx->overwritten_prologue_len);
+}
+
 gpointer
 _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
                                            gpointer address)

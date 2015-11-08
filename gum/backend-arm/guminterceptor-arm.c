@@ -9,6 +9,7 @@
 #include "gumarmreader.h"
 #include "gumarmrelocator.h"
 #include "gumarmwriter.h"
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
@@ -32,8 +33,6 @@ struct _GumInterceptorBackend
   GumThumbWriter thumb_writer;
   GumThumbRelocator thumb_relocator;
 };
-
-static void gum_function_context_clear_cache (GumFunctionContext * ctx);
 
 static void gum_function_context_write_guard_enter_code (
     GumFunctionContext * ctx, gconstpointer skip_label, GumThumbWriter * tw);
@@ -468,8 +467,6 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     g_assert_cmpuint (gum_arm_writer_offset (aw),
         ==, GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
   }
-
-  gum_function_context_clear_cache (ctx);
 }
 
 void
@@ -478,18 +475,18 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
 {
   guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
 
-  memcpy (function_address, ctx->overwritten_prologue,
+  gum_memcpy (function_address, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
-  gum_function_context_clear_cache (ctx);
 }
 
-static void
-gum_function_context_clear_cache (GumFunctionContext * ctx)
+void
+_gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
+                                            GumFunctionContext * ctx)
 {
-  gum_clear_cache (FUNCTION_CONTEXT_ADDRESS (ctx),
-      ctx->overwritten_prologue_len);
   gum_clear_cache (ctx->trampoline_slice->data,
       ctx->trampoline_slice->size);
+  gum_clear_cache (FUNCTION_CONTEXT_ADDRESS (ctx),
+      ctx->overwritten_prologue_len);
 }
 
 gpointer

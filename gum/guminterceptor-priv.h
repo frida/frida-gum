@@ -75,6 +75,8 @@ void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
 void _gum_interceptor_backend_deactivate_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
+void _gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
+    GumFunctionContext * ctx);
 
 gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
