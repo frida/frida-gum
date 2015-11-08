@@ -14,6 +14,7 @@
 #include <gum/gumeventsink.h>
 #include <gum/guminterceptor.h>
 #include <gum/guminvocationlistener.h>
+#include <gum/gumkernel.h>
 #include <gum/gumlist.h>
 #include <gum/gummemory.h>
 #include <gum/gummemoryaccessmonitor.h>
