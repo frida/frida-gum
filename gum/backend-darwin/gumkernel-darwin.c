@@ -6,12 +6,14 @@
 
 #include "gumkernel.h"
 
+#include "gum-init.h"
 #include "gumdarwin.h"
 
 #include <mach/mach.h>
 
 static mach_port_t gum_kernel_get_task (void);
 static mach_port_t gum_kernel_do_init (void);
+static void gum_kernel_do_deinit (void);
 
 gboolean
 gum_kernel_api_is_available (void)
@@ -91,6 +93,14 @@ gum_kernel_do_init (void)
 
   task_for_pid (mach_task_self (), 0, &task);
 
+  if (task != MACH_PORT_NULL)
+    _gum_register_destructor (gum_kernel_do_deinit);
+
   return task;
 }
 
+static void
+gum_kernel_do_deinit (void)
+{
+  mach_port_deallocate (mach_task_self (), gum_kernel_get_task ());
+}
