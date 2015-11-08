@@ -63,6 +63,9 @@
     <ClCompile Include="gum\guminvocationlistener.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumlibc.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gumlist.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -255,6 +258,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumhash.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumlibc.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumlist.h">
