@@ -261,6 +261,66 @@ gum_darwin_write (mach_port_t task,
   return (kr == KERN_SUCCESS);
 }
 
+static kern_return_t
+gum_mach_vm_protect (vm_map_t target_task,
+                     mach_vm_address_t address,
+                     mach_vm_size_t size,
+                     boolean_t set_maximum,
+                     vm_prot_t new_protection)
+{
+#if defined (HAVE_ARM)
+  kern_return_t result;
+  guint32 args[] = {
+    target_task,
+    address & 0xffffffff,
+    (address >> 32) & 0xffffffff,
+    size & 0xffffffff,
+    (size >> 32) & 0xffffffff,
+    set_maximum,
+    new_protection,
+    0
+  };
+
+  asm volatile (
+      "ldmdb %1!, {r4, r5, r6, r7}\n\t"
+      "ldmdb %1!, {r0, r1, r2, r3}\n\t"
+      "mvn r12, 0xd\n\t"
+      "svc 0x80\n\t"
+      "mov %0, r0\n\t"
+      : "=r" (result)
+      : "r" (args + G_N_ELEMENTS (args))
+      : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r12"
+  );
+
+  return result;
+#elif defined (HAVE_ARM64)
+  kern_return_t result;
+
+  asm (
+      "mov x4, %5\n\t"
+      "mov x3, %4\n\t"
+      "mov x2, %3\n\t"
+      "mov x1, %2\n\t"
+      "mov x0, %1\n\t"
+      "movn x16, 0xd\n\t"
+      "svc 0x80\n\t"
+      "mov %w0, w0\n\t"
+      : "=r" (result)
+      : "r" ((gsize) target_task),
+        "r" (address),
+        "r" (size),
+        "r" ((gsize) set_maximum),
+        "r" ((gsize) new_protection)
+      : "x0", "x1", "x2", "x3", "x4", "x16"
+  );
+
+  return result;
+#else
+  return mach_vm_protect (target_task, address, size, set_maximum,
+      new_protection);
+#endif
+}
+
 gboolean
 gum_try_mprotect (gpointer address,
                   gsize size,
@@ -281,8 +341,8 @@ gum_try_mprotect (gpointer address,
       (1 + ((address + size - 1 - aligned_address) / page_size)) * page_size;
   mach_page_prot = gum_page_protection_to_mach (page_prot);
 
-  kr = mach_vm_protect (mach_task_self (), GPOINTER_TO_SIZE (aligned_address),
-      aligned_size, FALSE, mach_page_prot);
+  kr = gum_mach_vm_protect (mach_task_self (),
+      GPOINTER_TO_SIZE (aligned_address), aligned_size, FALSE, mach_page_prot);
 
   return kr == KERN_SUCCESS;
 }
