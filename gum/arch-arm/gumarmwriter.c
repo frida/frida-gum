@@ -7,6 +7,7 @@
 #include "gumarmwriter.h"
 
 #include "gumarmreg.h"
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 
@@ -222,7 +223,7 @@ gum_arm_writer_put_bytes (GumArmWriter * self,
 {
   g_assert (n % 2 == 0);
 
-  memcpy (self->code, data, n);
+  gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
   self->pc += n;
 }

@@ -6,6 +6,7 @@
 
 #include "gumarm64writer.h"
 
+#include "gumlibc.h"
 #include "gummemory.h"
 
 #include <string.h>
@@ -933,7 +934,7 @@ gum_arm64_writer_put_bytes (GumArm64Writer * self,
 {
   g_assert (n % 4 == 0);
 
-  memcpy (self->code, data, n);
+  gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
   self->pc += n;
 }

@@ -6,6 +6,7 @@
 
 #include "gumx86writer.h"
 
+#include "gumlibc.h"
 #include "gummemory.h"
 
 #include <string.h>
@@ -2205,7 +2206,7 @@ gum_x86_writer_put_bytes (GumX86Writer * self,
                           const guint8 * data,
                           guint n)
 {
-  memcpy (self->code, data, n);
+  gum_memcpy (self->code, data, n);
   self->code += n;
 }
 

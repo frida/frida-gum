@@ -6,6 +6,7 @@
 
 #include "gumx86relocator.h"
 
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumx86reader.h"
 
@@ -567,7 +568,7 @@ gum_x86_relocator_rewrite_if_rip_relative (GumX86Relocator * self,
   }
   else
   {
-    memcpy (code, ctx->start, ctx->len);
+    gum_memcpy (code, ctx->start, ctx->len);
     code[x86->modrm_offset] = (mod << 6) | (reg << 3) | rm;
     gum_x86_writer_put_bytes (ctx->code_writer, code, ctx->len);
   }

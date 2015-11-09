@@ -7,6 +7,7 @@
 #include "gumthumbwriter.h"
 
 #include "gumarmreg.h"
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 
@@ -878,7 +879,7 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
 {
   g_assert (n % 2 == 0);
 
-  memcpy (self->code, data, n);
+  gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint16);
   self->pc += n;
 }
