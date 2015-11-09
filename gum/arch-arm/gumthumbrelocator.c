@@ -119,7 +119,9 @@ guint
 gum_thumb_relocator_read_one (GumThumbRelocator * self,
                               const cs_insn ** instruction)
 {
+  const guint8 * input_start = self->input_start;
   cs_insn ** insn_ptr, * insn;
+  gint it_block_size = 0;
 
   if (self->eoi)
     return 0;
@@ -159,6 +161,21 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
         self->eoi = TRUE;
       }
       break;
+    case ARM_INS_IT:
+    {
+      guint mask = GUINT16_FROM_LE (*((guint16 *) self->input_cur));
+
+      if (mask & 0x1)
+        it_block_size = 4;
+      else if ((mask & 0x3) == 0x2)
+        it_block_size = 3;
+      else if ((mask & 0x7) == 0x4)
+        it_block_size = 2;
+      else
+        it_block_size = 1;
+
+      break;
+    }
   }
 
   gum_thumb_relocator_increment_inpos (self);
@@ -169,7 +186,10 @@ gum_thumb_relocator_read_one (GumThumbRelocator * self,
   self->input_cur += insn->size;
   self->input_pc += insn->size;
 
-  return self->input_cur - self->input_start;
+  while (it_block_size--)
+    gum_thumb_relocator_read_one (self, NULL);
+
+  return self->input_cur - input_start;
 }
 
 cs_insn *

@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (thumbrelocator)
   RELOCATOR_TESTENTRY (blx_imm_t2_negative_should_be_rewritten)
   RELOCATOR_TESTENTRY (cbz_should_be_rewritten)
   RELOCATOR_TESTENTRY (cbnz_should_be_rewritten)
+  RELOCATOR_TESTENTRY (it_block_should_be_rewritten_as_a_whole)
   RELOCATOR_TESTENTRY (eob_and_eoi_on_ret)
 TEST_LIST_END ()
 
@@ -513,6 +514,42 @@ RELOCATOR_TESTCASE (cbnz_should_be_rewritten)
   gum_thumb_writer_flush (&fixture->tw);
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
+}
+
+RELOCATOR_TESTCASE (it_block_should_be_rewritten_as_a_whole)
+{
+  const guint16 input[] = {
+    GUINT16_TO_LE (0x2800), /* cmp r0, #0     */
+    GUINT16_TO_LE (0xbf1c), /* itt ne         */
+    GUINT16_TO_LE (0x6800), /* ldrne r0, [r0] */
+    GUINT16_TO_LE (0x2800)  /* cmpne r0, #0   */
+  };
+  const cs_insn * insn;
+
+  SETUP_RELOCATOR_WITH (input);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 2);
+  g_assert_cmpint (insn->id, ==, ARM_INS_CMP);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  insn = NULL;
+  g_assert_cmpuint (gum_thumb_relocator_read_one (&fixture->rl, &insn), ==, 8);
+  g_assert_cmpint (insn->id, ==, ARM_INS_IT);
+  assert_outbuf_still_zeroed_from_offset (0);
+
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_cmpint (memcmp (fixture->output, input, 2), ==, 0);
+  assert_outbuf_still_zeroed_from_offset (2);
+
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert (gum_thumb_relocator_write_one (&fixture->rl));
+  g_assert_cmpint (memcmp (((guint8 *) fixture->output) + 2, input + 1, 6),
+      ==, 0);
+  assert_outbuf_still_zeroed_from_offset (8);
+
+  g_assert (!gum_thumb_relocator_write_one (&fixture->rl));
 }
 
 RELOCATOR_TESTCASE (eob_and_eoi_on_ret)
