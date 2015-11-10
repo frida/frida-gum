@@ -225,6 +225,12 @@
     <ClCompile Include="gumjs\script-fixture.c">
       <Filter>Tests\gumjs</Filter>
     </ClCompile>
+    <ClCompile Include="gumjs\kscript-fixture.c">
+      <Filter>Tests\gumjs</Filter>
+    </ClCompile>
+    <ClCompile Include="gumjs\kscript.c">
+      <Filter>Tests\gumjs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="testutil.h">
