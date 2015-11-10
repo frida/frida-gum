@@ -417,16 +417,23 @@ void
 gum_thumb_writer_put_beq_label (GumThumbWriter * self,
                                 gconstpointer label_id)
 {
-  gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_instruction (self, 0xd000);
+  gum_thumb_writer_put_b_cond_label (self, ARM_CC_EQ, label_id);
 }
 
 void
 gum_thumb_writer_put_bne_label (GumThumbWriter * self,
                                 gconstpointer label_id)
 {
+  gum_thumb_writer_put_b_cond_label (self, ARM_CC_NE, label_id);
+}
+
+void
+gum_thumb_writer_put_b_cond_label (GumThumbWriter * self,
+                                   arm_cc cc,
+                                   gconstpointer label_id)
+{
   gum_thumb_writer_add_label_reference_here (self, label_id);
-  gum_thumb_writer_put_instruction (self, 0xd100);
+  gum_thumb_writer_put_instruction (self, 0xd000 | ((cc - 1) << 8));
 }
 
 void
