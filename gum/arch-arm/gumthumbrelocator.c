@@ -29,6 +29,8 @@ static gboolean gum_thumb_relocator_rewrite_add (GumThumbRelocator * self,
     GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_b (GumThumbRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
+static gboolean gum_thumb_relocator_rewrite_b_cond (GumThumbRelocator * self,
+    GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_bl (GumThumbRelocator * self,
     cs_mode target_mode, GumCodeGenCtx * ctx);
 static gboolean gum_thumb_relocator_rewrite_cbz (GumThumbRelocator * self,
@@ -247,7 +249,10 @@ gum_thumb_relocator_write_one (GumThumbRelocator * self)
       rewritten = gum_thumb_relocator_rewrite_add (self, &ctx);
       break;
     case ARM_INS_B:
-      rewritten = gum_thumb_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
+      if (gum_arm_branch_is_unconditional (ctx.insn))
+        rewritten = gum_thumb_relocator_rewrite_b (self, CS_MODE_THUMB, &ctx);
+      else
+        rewritten = gum_thumb_relocator_rewrite_b_cond (self, &ctx);
       break;
     case ARM_INS_BX:
       rewritten = gum_thumb_relocator_rewrite_b (self, CS_MODE_ARM, &ctx);
@@ -426,6 +431,35 @@ gum_thumb_relocator_rewrite_b (GumThumbRelocator * self,
   gum_thumb_writer_put_str_reg_reg_offset (ctx->output, ARM_REG_R0,
       ARM_REG_SP, 4);
   gum_thumb_writer_put_pop_regs (ctx->output, 2, ARM_REG_R0, ARM_REG_PC);
+
+  return TRUE;
+}
+
+static gboolean
+gum_thumb_relocator_rewrite_b_cond (GumThumbRelocator * self,
+                                    GumCodeGenCtx * ctx)
+{
+  const cs_arm_op * target = &ctx->detail->operands[0];
+  gsize unique_id = ((ctx->insn->address - self->input_pc) << 1);
+  gconstpointer is_true = GSIZE_TO_POINTER (unique_id | 1);
+  gconstpointer is_false = GSIZE_TO_POINTER (unique_id | 0);
+
+  if (target->type != ARM_OP_IMM)
+    return FALSE;
+
+  gum_thumb_writer_put_b_cond_label (ctx->output, ctx->detail->cc, is_true);
+  gum_thumb_writer_put_b_label (ctx->output, is_false);
+
+  gum_thumb_writer_put_label (ctx->output, is_true);
+  gum_thumb_writer_put_push_regs (ctx->output, 1, ARM_REG_R0);
+  gum_thumb_writer_put_push_regs (ctx->output, 1, ARM_REG_R0);
+  gum_thumb_writer_put_ldr_reg_address (ctx->output, ARM_REG_R0,
+      target->imm | 1);
+  gum_thumb_writer_put_str_reg_reg_offset (ctx->output, ARM_REG_R0,
+      ARM_REG_SP, 4);
+  gum_thumb_writer_put_pop_regs (ctx->output, 2, ARM_REG_R0, ARM_REG_PC);
+
+  gum_thumb_writer_put_label (ctx->output, is_false);
 
   return TRUE;
 }
