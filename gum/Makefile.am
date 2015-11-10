@@ -84,10 +84,12 @@ if ARCH_ARM
 archincludedir = $(includedir)/frida-1.0/gum/arch-arm
 archinclude_HEADERS = \
 	arch-arm/gumarmbacktracer.h \
-	arch-arm/gumarmreader.h
+	arch-arm/gumarmreader.h \
+	arch-arm/gumthumbreader.h
 arch_sources += \
 	arch-arm/gumarmbacktracer.c \
-	arch-arm/gumarmreader.c
+	arch-arm/gumarmreader.c \
+	arch-arm/gumthumbreader.c
 arch_includes += \
 	-I $(srcdir)/arch-arm
 backend_sources += \

@@ -11,6 +11,7 @@
 #include "gumarmwriter.h"
 #include "gumlibc.h"
 #include "gummemory.h"
+#include "gumthumbreader.h"
 #include "gumthumbrelocator.h"
 #include "gumthumbwriter.h"
 
@@ -495,13 +496,16 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
 {
   gpointer target;
 
-  /* We don't handle thumb for the moment */
   if ((GPOINTER_TO_SIZE (address) & 1) == 1)
-    return NULL;
-
-  target = gum_arm_reader_try_get_relative_jump_target (address);
-  if (target == NULL)
-    target = gum_arm_reader_try_get_indirect_jump_target (address);
+  {
+    target = gum_thumb_reader_try_get_relative_jump_target (address);
+  }
+  else
+  {
+    target = gum_arm_reader_try_get_relative_jump_target (address);
+    if (target == NULL)
+      target = gum_arm_reader_try_get_indirect_jump_target (address);
+  }
 
   return target;
 }
