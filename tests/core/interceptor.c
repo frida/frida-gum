@@ -28,7 +28,7 @@ TEST_LIST_BEGIN (interceptor)
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
-#if defined (HAVE_IOS) && defined (HAVE_ARM64)
+#ifdef HAVE_DARWIN
   INTERCEPTOR_TESTENTRY (attach_to_darwin_apis)
 #endif
   INTERCEPTOR_TESTENTRY (attach_to_own_api)
@@ -102,7 +102,7 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
   g_assert_cmpstr (fixture->result->str, ==, "><ab");
 }
 
-#if defined (HAVE_IOS) && defined (HAVE_ARM64)
+#ifdef HAVE_DARWIN
 
 #include "backend-darwin/gumdarwin.h"
 
@@ -118,12 +118,6 @@ static gpointer perform_read (gpointer data);
 INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 {
   int ret;
-
-  if (!gum_query_is_rwx_supported ())
-  {
-    g_print ("<skipping, kernel does not support rwx pages> ");
-    return;
-  }
 
   {
     int * (* error_impl) (void);
@@ -151,28 +145,19 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     interceptor_fixture_attach_listener (fixture, 0, strcmp_impl, '>', '<');
 
     g_assert_cmpint (strcmp_impl ("badger", "badger"), ==, 0);
-    gum_interceptor_ignore_current_thread (fixture->interceptor);
-    g_assert_cmpstr (fixture->result->str, ==, "><");
-    gum_interceptor_unignore_current_thread (fixture->interceptor);
 
     interceptor_fixture_detach_listener (fixture, 0);
     g_string_truncate (fixture->result, 0);
   }
 
+#ifndef HAVE_ARM
   {
     char * (* strrchr_impl) (const char * s, int c);
-#ifndef HAVE_ARM
     const char * s = "badger";
-#endif
 
     strrchr_impl = GSIZE_TO_POINTER (
         gum_module_find_export_by_name ("libSystem.B.dylib", "strrchr"));
 
-#ifdef HAVE_ARM
-    /* TODO */
-    g_assert_cmpint (interceptor_fixture_try_attaching_listener (fixture,
-        0, strrchr_impl, '>', '<'), ==, GUM_ATTACH_WRONG_SIGNATURE);
-#else
     interceptor_fixture_attach_listener (fixture, 0, strrchr_impl, '>', '<');
 
     g_assert (strrchr_impl (s, 'd') == s + 2);
@@ -180,8 +165,8 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
 
     interceptor_fixture_detach_listener (fixture, 0);
     g_string_truncate (fixture->result, 0);
-#endif
   }
+#endif
 
   {
     ssize_t (* read_impl) (int fd, void * buf, size_t n);
@@ -308,6 +293,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     g_assert_cmpint (pid, ==, getpid ());
   }
 
+#ifndef HAVE_ARM
   {
     mach_port_t (* mach_host_self_impl) (void);
     mach_port_t host;
@@ -336,7 +322,8 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     gpointer dict;
 
     xpc_dictionary_create_impl = GSIZE_TO_POINTER (
-        gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_dictionary_create"));
+        gum_module_find_export_by_name ("libSystem.B.dylib",
+        "xpc_dictionary_create"));
     xpc_retain_impl = GSIZE_TO_POINTER (
         gum_module_find_export_by_name ("libSystem.B.dylib", "xpc_retain"));
     xpc_release_impl = GSIZE_TO_POINTER (
@@ -358,6 +345,7 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     interceptor_fixture_detach_listener (fixture, 0);
     g_string_truncate (fixture->result, 0);
   }
+#endif
 }
 
 static gpointer
