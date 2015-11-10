@@ -18,6 +18,8 @@ gum_arm64_reader_try_get_relative_jump_target (gconstpointer address)
   cs_arm64_op * op;
 
   insn = disassemble_instruction_at (address);
+  if (insn == NULL)
+    return NULL;
 
   op = &insn->detail->arm64.operands[0];
   if (insn->id == ARM64_INS_B && op->type == ARM64_OP_IMM)
@@ -41,10 +43,8 @@ disassemble_instruction_at (gconstpointer address)
   g_assert_cmpint (err, ==, CS_ERR_OK);
 
   cs_disasm (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
-  g_assert (insn != NULL);
 
   cs_close (&capstone);
 
   return insn;
 }
-

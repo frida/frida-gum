@@ -17,6 +17,8 @@ gum_x86_reader_insn_length (guint8 * code)
   cs_insn * insn;
 
   insn = disassemble_instruction_at (code);
+  if (insn == NULL)
+    return 0;
   result = insn->size;
   cs_free (insn, 1);
 
@@ -93,6 +95,8 @@ gum_x86_reader_try_get_indirect_jump_target (gconstpointer address)
   cs_x86_op * op;
 
   insn = disassemble_instruction_at (address);
+  if (insn == NULL)
+    return NULL;
 
   op = &insn->detail->x86.operands[0];
   if (insn->id == X86_INS_JMP && op->type == X86_OP_MEM)
@@ -122,6 +126,8 @@ try_get_relative_call_or_jump_target (gconstpointer address,
   cs_x86_op * op;
 
   insn = disassemble_instruction_at (address);
+  if (insn == NULL)
+    return NULL;
 
   op = &insn->detail->x86.operands[0];
   if (insn->id == call_or_jump && op->type == X86_OP_IMM)
@@ -145,10 +151,8 @@ disassemble_instruction_at (gconstpointer address)
   g_assert_cmpint (err, ==, CS_ERR_OK);
 
   cs_disasm (capstone, address, 16, GPOINTER_TO_SIZE (address), 1, &insn);
-  g_assert (insn != NULL);
 
   cs_close (&capstone);
 
   return insn;
 }
-

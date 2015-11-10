@@ -16,6 +16,8 @@ gum_arm_reader_try_get_relative_jump_target (gconstpointer address)
   cs_arm_op * op;
 
   insn = disassemble_instruction_at (address);
+  if (insn == NULL)
+    return NULL;
 
   op = &insn->detail->arm.operands[0];
   if (insn->id == ARM_INS_B && op->type == ARM_OP_IMM)
@@ -40,6 +42,8 @@ gum_arm_reader_try_get_indirect_jump_target (gconstpointer address)
    * First instruction: add r12, pc, 0
    */
   insn = disassemble_instruction_at (address);
+  if (insn == NULL)
+    return NULL;
   op0 = &insn->detail->arm.operands[0];
   op1 = &insn->detail->arm.operands[1];
   op2 = &insn->detail->arm.operands[2];
@@ -122,7 +126,6 @@ disassemble_instruction_at (gconstpointer address)
   g_assert_cmpint (err, ==, CS_ERR_OK);
 
   cs_disasm (capstone, address, 4, GPOINTER_TO_SIZE (address), 1, &insn);
-  g_assert (insn != NULL);
 
   cs_close (&capstone);
 
