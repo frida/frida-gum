@@ -238,13 +238,11 @@ gum_arm64_relocator_write_one (GumArm64Relocator * self)
       rewritten = gum_arm64_relocator_rewrite_adr (self, &ctx);
       break;
     case ARM64_INS_B:
-    {
       if (gum_arm64_branch_is_unconditional (ctx.insn))
         rewritten = gum_arm64_relocator_rewrite_b (self, &ctx);
       else
         rewritten = gum_arm64_relocator_rewrite_b_cond (self, &ctx);
       break;
-    }
     case ARM64_INS_BL:
       rewritten = gum_arm64_relocator_rewrite_bl (self, &ctx);
       break;
