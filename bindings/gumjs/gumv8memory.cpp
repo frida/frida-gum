@@ -1120,8 +1120,9 @@ gum_v8_memory_access_monitor_on_enable (
     g_object_unref (self->monitor);
     self->monitor = NULL;
   }
+
   self->monitor = gum_memory_access_monitor_new (ranges, num_ranges,
-      gum_v8_script_handle_memory_access, self, NULL);
+      GUM_PAGE_RWX, TRUE, gum_v8_script_handle_memory_access, self, NULL);
 
   g_free (ranges);
 

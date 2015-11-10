@@ -61,8 +61,10 @@ struct _GumMemoryAccessDetails
 GUM_API GType gum_memory_access_monitor_get_type (void) G_GNUC_CONST;
 
 GUM_API GumMemoryAccessMonitor * gum_memory_access_monitor_new (
-    const GumMemoryRange * ranges, guint num_ranges, GumMemoryAccessNotify func,
-    gpointer data, GDestroyNotify data_destroy);
+    const GumMemoryRange * ranges, guint num_ranges, 
+    GumPageProtection access_mask, gboolean auto_reset, 
+    GumMemoryAccessNotify func, gpointer data, 
+    GDestroyNotify data_destroy);
 
 GUM_API gboolean gum_memory_access_monitor_enable (
     GumMemoryAccessMonitor * self, GError ** error);
