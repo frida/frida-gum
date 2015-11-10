@@ -50,7 +50,8 @@ void gum_thumb_relocator_write_all (GumThumbRelocator * self);
 gboolean gum_thumb_relocator_eob (GumThumbRelocator * self);
 gboolean gum_thumb_relocator_eoi (GumThumbRelocator * self);
 
-gboolean gum_thumb_relocator_can_relocate (gpointer address, guint min_bytes);
+gboolean gum_thumb_relocator_can_relocate (gpointer address, guint min_bytes,
+    GumRelocationScenario scenario, guint * maximum);
 guint gum_thumb_relocator_relocate (gpointer from, guint min_bytes,
     gpointer to);
 

@@ -300,8 +300,11 @@ gum_thumb_relocator_eoi (GumThumbRelocator * self)
 
 gboolean
 gum_thumb_relocator_can_relocate (gpointer address,
-                                  guint min_bytes)
+                                  guint min_bytes,
+                                  GumRelocationScenario scenario,
+                                  guint * maximum)
 {
+  guint n = 0;
   guint8 * buf;
   GumThumbWriter cw;
   GumThumbRelocator rl;
@@ -314,17 +317,101 @@ gum_thumb_relocator_can_relocate (gpointer address,
 
   do
   {
-    reloc_bytes = gum_thumb_relocator_read_one (&rl, NULL);
+    const cs_insn * insn;
+    gboolean safe_to_relocate_further;
+
+    reloc_bytes = gum_thumb_relocator_read_one (&rl, &insn);
     if (reloc_bytes == 0)
-      return FALSE;
+      break;
+
+    n = reloc_bytes;
+
+    if (scenario == GUM_SCENARIO_ONLINE)
+    {
+      switch (insn->id)
+      {
+        case ARM_INS_BL:
+        case ARM_INS_BLX:
+        case ARM_INS_SVC:
+          safe_to_relocate_further = FALSE;
+          break;
+        default:
+          safe_to_relocate_further = TRUE;
+          break;
+      }
+    }
+    else
+    {
+      safe_to_relocate_further = TRUE;
+    }
+
+    if (!safe_to_relocate_further)
+      break;
   }
   while (reloc_bytes < min_bytes);
+
+  if (!rl.eoi)
+  {
+    csh capstone;
+    cs_err err;
+    cs_insn * insn;
+    size_t count, i;
+    gboolean eoi;
+
+    err = cs_open (CS_ARCH_ARM, CS_MODE_THUMB, &capstone);
+    g_assert_cmpint (err, == , CS_ERR_OK);
+    err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
+    g_assert_cmpint (err, ==, CS_ERR_OK);
+
+    count = cs_disasm (capstone, rl.input_cur, 1024, rl.input_pc, 0, &insn);
+    g_assert (insn != NULL);
+
+    eoi = FALSE;
+    for (i = 0; i != count && !eoi; i++)
+    {
+      guint id = insn[i].id;
+      cs_arm * d = &insn[i].detail->arm;
+
+      switch (id)
+      {
+        case ARM_INS_B:
+        case ARM_INS_BX:
+        case ARM_INS_BL:
+        case ARM_INS_BLX:
+        {
+          cs_arm_op * op = &d->operands[0];
+          if (op->type == ARM_OP_IMM)
+          {
+            gssize offset =
+                (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
+            if (offset >= 0 && offset < (gssize) n)
+              n = offset;
+          }
+          if (id == ARM_INS_B || id == ARM_INS_BX)
+            eoi = d->cc == ARM_CC_INVALID || d->cc == ARM_CC_AL;
+          break;
+        }
+        case ARM_INS_POP:
+          eoi = cs_reg_read (capstone, insn, ARM_REG_PC);
+          break;
+        default:
+          break;
+      }
+    }
+
+    cs_free (insn, count);
+
+    cs_close (&capstone);
+  }
 
   gum_thumb_relocator_free (&rl);
 
   gum_thumb_writer_free (&cw);
 
-  return TRUE;
+  if (maximum != NULL)
+    *maximum = n;
+
+  return n >= min_bytes;
 }
 
 guint

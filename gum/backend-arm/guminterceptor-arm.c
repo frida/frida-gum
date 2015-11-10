@@ -514,7 +514,7 @@ _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
   {
     return gum_thumb_relocator_can_relocate (
         GSIZE_TO_POINTER (GPOINTER_TO_SIZE (function_address) & ~1),
-        GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+        GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE, GUM_SCENARIO_ONLINE, NULL);
   }
   else
   {
