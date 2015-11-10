@@ -50,7 +50,8 @@ _gum_v8_kernel_init (GumV8Kernel * self,
 
   Handle<ObjectTemplate> kernel = ObjectTemplate::New (isolate);
   kernel->Set (String::NewFromUtf8 (isolate, "available"),
-      Boolean::New (isolate, gum_kernel_api_is_available ()), ReadOnly);
+      Boolean::New (isolate, gum_kernel_api_is_available () ? true : false),
+      ReadOnly);
   if (gum_kernel_api_is_available ())
   {
     kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
