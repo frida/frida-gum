@@ -89,6 +89,14 @@ STALKER_TESTCASE (heap_api)
 
 STALKER_TESTCASE (follow_syscall)
 {
+#ifdef G_OS_WIN32
+  if (!g_test_slow ())
+  {
+    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
@@ -106,10 +114,10 @@ STALKER_TESTCASE (follow_thread)
   GumThreadId thread_id;
   GThread * thread;
 
-#ifdef HAVE_LINUX
+#if defined (G_OS_WIN32) || defined (HAVE_LINUX)
   if (!g_test_slow ())
   {
-    g_print ("<not yet stable on Linux; skipping, run in slow mode> ");
+    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
     return;
   }
 #endif
@@ -1656,6 +1664,12 @@ invoke_indirect_call_seg (TestStalkerFixture * fixture,
 
 STALKER_TESTCASE (win32_indirect_call_seg)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   invoke_indirect_call_seg (fixture, GUM_EXEC);
 
   g_assert_cmpuint (fixture->sink->events->len,
@@ -1666,6 +1680,12 @@ STALKER_TESTCASE (win32_indirect_call_seg)
 
 STALKER_TESTCASE (win32_messagebeep_api)
 {
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
   fixture->sink->mask = (GumEventType) (GUM_EXEC | GUM_CALL | GUM_RET);
 
   gum_stalker_follow_me (fixture->stalker, GUM_EVENT_SINK (fixture->sink));
@@ -1676,6 +1696,12 @@ STALKER_TESTCASE (win32_messagebeep_api)
 STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
 {
   TestWindow * window;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   window = create_test_window (fixture->stalker);
 
@@ -1689,6 +1715,12 @@ STALKER_TESTCASE (win32_follow_user_to_kernel_to_callback)
 STALKER_TESTCASE (win32_follow_callback_to_kernel_to_user)
 {
   TestWindow * window;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
 
   window = create_test_window (fixture->stalker);
 
