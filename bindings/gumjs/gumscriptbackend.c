@@ -14,9 +14,15 @@
 #include <gum/gum-init.h>
 
 static void
-gum_script_backend_deinit (void)
+gum_script_backend_deinit_v8 (void)
 {
-  g_object_unref (gum_script_backend_obtain ());
+  g_object_unref (gum_script_backend_obtain_v8 ());
+}
+
+static void
+gum_script_backend_deinit_jsc (void)
+{
+  g_object_unref (gum_script_backend_obtain_jsc ());
 }
 
 GType
@@ -41,29 +47,53 @@ gum_script_backend_get_type (void)
 GumScriptBackend *
 gum_script_backend_obtain (void)
 {
+  GumScriptBackend * backend;
+
+  backend = gum_script_backend_obtain_v8 ();
+  if (backend == NULL)
+    backend = gum_script_backend_obtain_jsc ();
+
+  return backend;
+}
+
+GumScriptBackend *
+gum_script_backend_obtain_v8 (void)
+{
   static volatile gsize gonce_value;
 
   if (g_once_init_enter (&gonce_value))
   {
-    GumScriptBackend * backend;
+    GumScriptBackend * backend = NULL;
 
     if (gum_query_is_rwx_supported ())
     {
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
-    }
-    else
-    {
-#ifdef HAVE_IOS
-      backend = GUM_SCRIPT_BACKEND (
-          g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
-#else
-      backend = NULL;
-#endif
+      _gum_register_destructor (gum_script_backend_deinit_v8);
     }
 
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
+  }
+
+  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value - 1));
+}
+
+GumScriptBackend *
+gum_script_backend_obtain_jsc (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumScriptBackend * backend = NULL;
+
+#ifdef HAVE_IOS
+    backend = GUM_SCRIPT_BACKEND (
+        g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
+#endif
+
     if (backend != NULL)
-      _gum_register_destructor (gum_script_backend_deinit);
+      _gum_register_destructor (gum_script_backend_deinit_jsc);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
