@@ -77,16 +77,25 @@ AM_CONDITIONAL(OS_QNX, test "x$HAVE_QNX" = "xyes")
 
 case $host_os in
   darwin*)
-    case $host_cpu in
-      arm|aarch64)
+    AC_MSG_CHECKING([Apple OS type])
+    AC_PREPROC_IFELSE(
+      [AC_LANG_PROGRAM([[#include <TargetConditionals.h>]],
+                       [[
+#if !TARGET_OS_IOS
+# error Not iOS
+#endif
+      ]])],
+      [
         HAVE_MAC=no
         HAVE_IOS=yes
-        ;;
-      *)
+        AC_MSG_RESULT([iOS])
+      ],
+      [
         HAVE_MAC=yes
         HAVE_IOS=no
-        ;;
-    esac
+        AC_MSG_RESULT([Mac])
+      ]
+    )
     ;;
   *-android*)
     HAVE_ANDROID=yes
