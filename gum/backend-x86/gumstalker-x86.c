@@ -1872,7 +1872,7 @@ gum_exec_block_virtualize_sysenter_insn (GumExecBlock * block,
   const gsize store_ret_addr_offset = 0x03 + 1;
   const gsize load_continuation_addr_offset = 0x08 + 2;
   const gsize saved_ret_addr_offset = 0x11;
-#elif defined (HAVE_MAC)
+#elif defined (HAVE_DARWIN)
   guint8 code[] = {
     /* 00 */ 0x89, 0x15, 0xaa, 0xaa, 0xaa, 0xaa, /* mov [0xaaaaaaaa], edx */
     /* 06 */ 0xba, 0xbb, 0xbb, 0xbb, 0xbb,       /* mov edx, 0xbbbbbbbb   */
