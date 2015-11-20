@@ -1143,7 +1143,11 @@ gum_darwin_module_take_image (GumDarwinModule * self,
   gum_darwin_module_enumerate_sections (self,
       gum_add_text_range_if_text_section, self->text_ranges);
 
-  if (image->linkedit != NULL)
+  if (self->info == NULL)
+  {
+    /* This is the case with dyld_sim */
+  }
+  else if (image->linkedit != NULL)
   {
     self->rebases = image->linkedit + self->info->rebase_off;
     self->rebases_end = self->rebases + self->info->rebase_size;
