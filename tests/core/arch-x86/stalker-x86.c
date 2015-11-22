@@ -223,6 +223,14 @@ STALKER_TESTCASE (performance)
   GTimer * timer;
   gdouble duration_direct, duration_stalked;
 
+#ifdef G_OS_WIN32
+  if (!g_test_slow ())
+  {
+    g_print ("<not yet stable on this OS; skipping, run in slow mode> ");
+    return;
+  }
+#endif
+
   timer = g_timer_new ();
   pretend_workload ();
 
