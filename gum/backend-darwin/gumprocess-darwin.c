@@ -1004,8 +1004,7 @@ gum_store_range_of_potential_modules (const GumRangeDetails * details,
 {
   GumEnumerateModulesSlowContext * ctx = user_data;
 
-  if (details->file != NULL)
-    g_array_append_val (ctx->ranges, *(details->range));
+  g_array_append_val (ctx->ranges, *(details->range));
 
   return TRUE;
 }
