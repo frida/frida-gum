@@ -109,8 +109,6 @@ static void the_interceptor_weak_notify (gpointer data,
 
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
     gpointer function_address);
-static void detach_if_matching_listener (gpointer key, gpointer value,
-    gpointer user_data);
 static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address,
     GumCodeAllocator * allocator);
@@ -352,38 +350,30 @@ beach:
   }
 }
 
-typedef struct {
-  GumInterceptor * self;
-  GumInvocationListener * listener;
-  GList * pending_removals;
-} DetachContext;
-
 void
 gum_interceptor_detach_listener (GumInterceptor * self,
                                  GumInvocationListener * listener)
 {
   GumInterceptorPrivate * priv = self->priv;
-  DetachContext ctx;
-  GList * walk;
+  GumHashTableIter iter;
+  GumFunctionContext * function_ctx;
   guint i;
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
 
-  ctx.self = self;
-  ctx.listener = listener;
-  ctx.pending_removals = NULL;
-
-  gum_hash_table_foreach (priv->function_by_address,
-      detach_if_matching_listener, &ctx);
-
-  while ((walk = ctx.pending_removals) != NULL)
+  gum_hash_table_iter_init (&iter, priv->function_by_address);
+  while (gum_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
   {
-    gpointer function_address = walk->data;
+    if (gum_function_context_has_listener (function_ctx, listener))
+    {
+      gum_function_context_remove_listener (function_ctx, listener);
 
-    gum_hash_table_remove (priv->function_by_address, function_address);
-    ctx.pending_removals =
-        g_list_remove_all (ctx.pending_removals, function_address);
+      if (gum_function_context_try_destroy (function_ctx))
+      {
+        gum_hash_table_iter_remove (&iter);
+      }
+    }
   }
 
   /*
@@ -600,27 +590,6 @@ gum_interceptor_instrument (GumInterceptor * self,
   gum_hash_table_insert (priv->function_by_address, function_address, ctx);
 
   return ctx;
-}
-
-static void
-detach_if_matching_listener (gpointer key,
-                             gpointer value,
-                             gpointer user_data)
-{
-  gpointer function_address = key;
-  GumFunctionContext * function_ctx = (GumFunctionContext *) value;
-  DetachContext * detach_ctx = (DetachContext *) user_data;
-
-  if (gum_function_context_has_listener (function_ctx, detach_ctx->listener))
-  {
-    gum_function_context_remove_listener (function_ctx, detach_ctx->listener);
-
-    if (gum_function_context_try_destroy (function_ctx))
-    {
-      detach_ctx->pending_removals =
-          g_list_prepend (detach_ctx->pending_removals, function_address);
-    }
-  }
 }
 
 static GumFunctionContext *
