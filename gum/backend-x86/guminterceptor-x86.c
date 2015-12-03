@@ -402,8 +402,8 @@ gum_interceptor_backend_write_epilog (GumX86Writer * cw,
       GUM_REG_XSP, sizeof (gpointer)); /* discard
                                           GumCpuContext.xip */
   gum_x86_writer_put_popax (cw);
-  gum_x86_writer_put_popfx (cw);
   gum_x86_writer_put_lock_dec_imm32_ptr (cw,
       (gpointer) trampoline_usage_counter);
+  gum_x86_writer_put_popfx (cw);
   gum_x86_writer_put_ret (cw);
 }
