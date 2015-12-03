@@ -800,7 +800,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStack * stack;
   GumInvocationStackEntry * stack_entry;
-  GumInvocationContext * invocation_ctx;
+  GumInvocationContext * invocation_ctx = NULL;
   gint system_error;
   gboolean invoke_listeners = TRUE;
 
@@ -848,6 +848,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invocation_ctx = &stack_entry->invocation_context;
 
     *caller_ret_addr = function_ctx->on_leave_trampoline;
+    g_atomic_int_inc (function_ctx->trampoline_usage_counter);
   }
 
   if (invoke_listeners)
@@ -872,7 +873,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invocation_ctx->system_error = system_error;
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
-    for (i = 0; i != function_ctx->listener_entries->len; i++)
+    for (i = 0; i < function_ctx->listener_entries->len; i++)
     {
       ListenerEntry * listener_entry;
       ListenerInvocationState state;
@@ -978,7 +979,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 # error Unsupported architecture
 #endif
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  for (i = 0; i < function_ctx->listener_entries->len; i++)
   {
     ListenerEntry * entry;
     ListenerInvocationState state;
@@ -1025,6 +1026,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 
   *next_hop = caller_ret_addr;
+  g_atomic_int_dec_and_test (function_ctx->trampoline_usage_counter);
 }
 
 static InterceptorThreadContext *

@@ -31,8 +31,10 @@ struct _GumInterceptorBackend
   GumX86Relocator relocator;
 };
 
-static void gum_interceptor_backend_write_prolog (GumX86Writer * cw);
-static void gum_interceptor_backend_write_epilog (GumX86Writer * cw);
+static void gum_interceptor_backend_write_prolog (GumX86Writer * cw,
+    volatile gint * trampoline_usage_counter);
+static void gum_interceptor_backend_write_epilog (GumX86Writer * cw,
+    volatile gint * trampoline_usage_counter);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GumCodeAllocator * allocator)
@@ -87,6 +89,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 {
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
+  guint32 usage_counter = 0;
   guint reloc_bytes;
   gssize align_correction_leave = 0;
 
@@ -97,10 +100,19 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
 
-  ctx->on_enter_trampoline = ctx->trampoline_slice->data;
-  gum_x86_writer_reset (cw, ctx->on_enter_trampoline);
+  gum_x86_writer_reset (cw, ctx->trampoline_slice->data);
 
-  gum_interceptor_backend_write_prolog (cw);
+  /*
+   * Keep a usage counter at the start of the trampoline, so we can address
+   * it directly on both 32 and 64 bit
+   */
+  ctx->trampoline_usage_counter = (gint *) gum_x86_writer_cur (cw);
+  gum_x86_writer_put_bytes (cw, (const guint8 *) &usage_counter,
+      sizeof (usage_counter));
+
+  ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
+
+  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBX, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -116,7 +128,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       GUM_ARG_REGISTER, GUM_REG_XDX,
       GUM_ARG_REGISTER, GUM_REG_XCX);
 
-  gum_interceptor_backend_write_epilog (cw);
+  gum_interceptor_backend_write_epilog (cw, ctx->trampoline_usage_counter);
 
   ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
   gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
@@ -138,7 +150,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
-  gum_interceptor_backend_write_prolog (cw);
+  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBX, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -163,7 +175,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         GUM_REG_XSP, align_correction_leave);
   }
 
-  gum_interceptor_backend_write_epilog (cw);
+  gum_interceptor_backend_write_epilog (cw, ctx->trampoline_usage_counter);
 
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
@@ -210,7 +222,6 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
 {
   (void) self;
 
-  gum_mprotect (ctx->function_address, 16, GUM_PAGE_RWX);
   memcpy (ctx->function_address, ctx->overwritten_prologue,
       ctx->overwritten_prologue_len);
 }
@@ -337,7 +348,8 @@ _gum_interceptor_invocation_replace_return_value (
 }
 
 static void
-gum_interceptor_backend_write_prolog (GumX86Writer * cw)
+gum_interceptor_backend_write_prolog (GumX86Writer * cw,
+                                      volatile gint * trampoline_usage_counter)
 {
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
@@ -355,6 +367,8 @@ gum_interceptor_backend_write_prolog (GumX86Writer * cw)
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
       GUM_REG_XSP, -((gssize) sizeof (gpointer)));
   gum_x86_writer_put_pushfx (cw);
+  gum_x86_writer_put_lock_inc_imm32_ptr (cw,
+      (gpointer) trampoline_usage_counter);
   gum_x86_writer_put_cld (cw); /* C ABI mandates this */
   gum_x86_writer_put_pushax (cw); /* all of GumCpuContext except for xip */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
@@ -374,7 +388,8 @@ gum_interceptor_backend_write_prolog (GumX86Writer * cw)
 }
 
 static void
-gum_interceptor_backend_write_epilog (GumX86Writer * cw)
+gum_interceptor_backend_write_epilog (GumX86Writer * cw,
+                                      volatile gint * trampoline_usage_counter)
 {
   guint8 fxrstor[] = {
     0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */
@@ -388,5 +403,7 @@ gum_interceptor_backend_write_epilog (GumX86Writer * cw)
                                           GumCpuContext.xip */
   gum_x86_writer_put_popax (cw);
   gum_x86_writer_put_popfx (cw);
+  gum_x86_writer_put_lock_dec_imm32_ptr (cw,
+      (gpointer) trampoline_usage_counter);
   gum_x86_writer_put_ret (cw);
 }
