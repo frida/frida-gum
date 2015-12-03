@@ -804,6 +804,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   gint system_error;
   gboolean invoke_listeners = TRUE;
 
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#endif
+
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
@@ -814,10 +818,6 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     *next_hop = function_ctx->on_invoke_trampoline;
     return;
   }
-
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#endif
 
   if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == interceptor)
   {
@@ -911,12 +911,14 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 #endif
     }
 
-#ifdef G_OS_WIN32
-    SetLastError (invocation_ctx->system_error);
-#else
-    errno = invocation_ctx->system_error;
-#endif
+    system_error = invocation_ctx->system_error;
   }
+
+#ifdef G_OS_WIN32
+  SetLastError (system_error);
+#else
+  errno = system_error;
+#endif
 
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 
