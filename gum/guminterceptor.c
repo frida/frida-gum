@@ -25,12 +25,6 @@
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 548
 #endif
 
-#if defined (HAVE_DARWIN) && !defined (HAVE_ARM64)
-# define GUM_INTERCEPTOR_FAST_TLS 1
-#else
-# define GUM_INTERCEPTOR_FAST_TLS 0
-#endif
-
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
 #define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
@@ -887,22 +881,16 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   system_error = GetLastError ();
 #endif
 
-#if !GUM_INTERCEPTOR_FAST_TLS
-  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
+  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == interceptor)
   {
     *next_hop = function_ctx->on_invoke_trampoline;
     return;
   }
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
-#endif
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, interceptor);
 
 #ifndef G_OS_WIN32
   system_error = errno;
 #endif
-
-  stack_entry = gum_invocation_stack_push (stack, function_ctx,
-      *caller_ret_addr, cpu_context);
-  invocation_ctx = &stack_entry->invocation_context;
 
   if (priv->selected_thread_id != 0)
   {
@@ -913,6 +901,15 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   if (invoke_listeners)
   {
     invoke_listeners = (interceptor_ctx->ignore_level == 0);
+  }
+
+  if (function_ctx->replacement_function != NULL || invoke_listeners)
+  {
+    stack_entry = gum_invocation_stack_push (stack, function_ctx,
+        *caller_ret_addr, cpu_context);
+    invocation_ctx = &stack_entry->invocation_context;
+
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
   }
 
   if (invoke_listeners)
@@ -982,17 +979,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 #endif
   }
 
-#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
-#endif
 
   invocation_ctx->backend = &interceptor_ctx->replacement_backend;
   invocation_ctx->backend->data = function_ctx->replacement_function_data;
-
-  if (function_ctx->replacement_function != NULL || invoke_listeners)
-  {
-    *caller_ret_addr = function_ctx->on_leave_trampoline;
-  }
 
   *next_hop = (function_ctx->replacement_function != NULL)
       ? function_ctx->replacement_function
@@ -1015,9 +1005,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   system_error = GetLastError ();
 #endif
 
-#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
-#endif
 
 #ifndef G_OS_WIN32
   system_error = errno;
@@ -1091,9 +1079,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
-#if !GUM_INTERCEPTOR_FAST_TLS
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
-#endif
 
   *next_hop = caller_ret_addr;
 }
