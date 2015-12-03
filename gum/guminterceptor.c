@@ -981,12 +981,17 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 
-  invocation_ctx->backend = &interceptor_ctx->replacement_backend;
-  invocation_ctx->backend->data = function_ctx->replacement_function_data;
+  if (function_ctx->replacement_function != NULL)
+  {
+    invocation_ctx->backend = &interceptor_ctx->replacement_backend;
+    invocation_ctx->backend->data = function_ctx->replacement_function_data;
 
-  *next_hop = (function_ctx->replacement_function != NULL)
-      ? function_ctx->replacement_function
-      : function_ctx->on_invoke_trampoline;
+    *next_hop = function_ctx->replacement_function;
+  }
+  else
+  {
+    *next_hop = function_ctx->on_invoke_trampoline;
+  }
 }
 
 void
