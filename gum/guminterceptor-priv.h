@@ -32,6 +32,8 @@ struct _GumFunctionContext
   guint8 overwritten_prologue[32];
   guint overwritten_prologue_len;
 
+  gpointer on_invoke_trampoline;
+
   gpointer on_leave_trampoline;
 
   GumArray * listener_entries;
@@ -47,11 +49,12 @@ extern GumTlsKey _gum_interceptor_guard_key;
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
-gboolean _gum_function_context_try_begin_invocation (
-    GumFunctionContext * function_ctx, gpointer caller_ret_addr,
-    GumCpuContext * cpu_context);
-gpointer _gum_function_context_end_invocation (
-    GumFunctionContext * function_ctx, GumCpuContext * cpu_context);
+void _gum_function_context_begin_invocation (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
+    gpointer * caller_ret_addr, gpointer * next_hop);
+void _gum_function_context_end_invocation (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
+    gpointer * next_hop);
 
 #ifdef HAVE_QNX
 gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
