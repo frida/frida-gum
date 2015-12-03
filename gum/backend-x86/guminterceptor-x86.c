@@ -88,6 +88,11 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
   guint reloc_bytes;
+  gssize align_correction_leave = 0;
+
+#if GLIB_SIZEOF_VOID_P == 4
+  align_correction_leave = 4;
+#endif
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
@@ -140,11 +145,23 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XDX,
       GUM_REG_XBX, GUM_FRAME_OFFSET_NEXT_HOP);
 
+  if (align_correction_leave != 0)
+  {
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+        GUM_REG_XSP, -align_correction_leave);
+  }
+
   gum_x86_writer_put_call_with_arguments (cw,
       GUM_FUNCPTR_TO_POINTER (_gum_function_context_end_invocation), 3,
       GUM_ARG_POINTER, ctx,
       GUM_ARG_REGISTER, GUM_REG_XSI,
       GUM_ARG_REGISTER, GUM_REG_XDX);
+
+  if (align_correction_leave != 0)
+  {
+    gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSP,
+        GUM_REG_XSP, align_correction_leave);
+  }
 
   gum_interceptor_backend_write_epilog (cw);
 
