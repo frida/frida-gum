@@ -433,13 +433,14 @@ INTERCEPTOR_TESTCASE (attach_detach_torture)
         'a', 'b');
 
     listener = test_callback_listener_new ();
+
     gum_interceptor_attach_listener (fixture->interceptor, target_function,
         GUM_INVOCATION_LISTENER (listener), NULL);
     gum_interceptor_detach_listener (fixture->interceptor,
         GUM_INVOCATION_LISTENER (listener));
-    g_object_unref (listener);
-
     interceptor_fixture_detach_listener (fixture, 0);
+
+    g_object_unref (listener);
   }
   while (--n_passes != 0);
 
