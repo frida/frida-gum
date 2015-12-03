@@ -857,10 +857,11 @@ _gum_interceptor_thread_get_orig_stack (gpointer current_stack)
 }
 #endif
 
-gboolean
-_gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
-                                            gpointer caller_ret_addr,
-                                            GumCpuContext * cpu_context)
+void
+_gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
+                                        GumCpuContext * cpu_context,
+                                        gpointer * caller_ret_addr,
+                                        gpointer * next_hop)
 {
   GumInterceptor * interceptor = function_ctx->interceptor;
   GumInterceptorPrivate * priv = interceptor->priv;
@@ -878,7 +879,8 @@ _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
   if (stack_entry != NULL && stack_entry->invocation_context.function ==
       function_ctx->function_address)
   {
-    return FALSE;
+    *next_hop = function_ctx->on_invoke_trampoline;
+    return;
   }
 
 #ifdef G_OS_WIN32
@@ -887,7 +889,10 @@ _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
 
 #if !GUM_INTERCEPTOR_FAST_TLS
   if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
-    return FALSE;
+  {
+    *next_hop = function_ctx->on_invoke_trampoline;
+    return;
+  }
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
 #endif
 
@@ -895,8 +900,8 @@ _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
   system_error = errno;
 #endif
 
-  stack_entry = gum_invocation_stack_push (stack, function_ctx, caller_ret_addr,
-      cpu_context);
+  stack_entry = gum_invocation_stack_push (stack, function_ctx,
+      *caller_ret_addr, cpu_context);
   invocation_ctx = &stack_entry->invocation_context;
 
   if (priv->selected_thread_id != 0)
@@ -916,14 +921,14 @@ _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
-    cpu_context->eip = (guint32) caller_ret_addr;
+    cpu_context->eip = (guint32) *caller_ret_addr;
 # else
-    cpu_context->rip = (guint64) caller_ret_addr;
+    cpu_context->rip = (guint64) *caller_ret_addr;
 # endif
 #elif defined (HAVE_ARM)
-    cpu_context->pc = (guint32) caller_ret_addr;
+    cpu_context->pc = (guint32) *caller_ret_addr;
 #elif defined (HAVE_ARM64)
-    cpu_context->pc = (guint64) caller_ret_addr;
+    cpu_context->pc = (guint64) *caller_ret_addr;
 #else
 # error Unsupported architecture
 #endif
@@ -984,12 +989,20 @@ _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
   invocation_ctx->backend = &interceptor_ctx->replacement_backend;
   invocation_ctx->backend->data = function_ctx->replacement_function_data;
 
-  return TRUE;
+  if (function_ctx->replacement_function != NULL || invoke_listeners)
+  {
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
+  }
+
+  *next_hop = (function_ctx->replacement_function != NULL)
+      ? function_ctx->replacement_function
+      : function_ctx->on_invoke_trampoline;
 }
 
-gpointer
+void
 _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
-                                      GumCpuContext * cpu_context)
+                                      GumCpuContext * cpu_context,
+                                      gpointer * next_hop)
 {
   gint system_error;
   InterceptorThreadContext * interceptor_ctx;
@@ -1082,7 +1095,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 #endif
 
-  return caller_ret_addr;
+  *next_hop = caller_ret_addr;
 }
 
 static InterceptorThreadContext *
