@@ -136,7 +136,7 @@ static void interceptor_thread_context_forget_listener_data (
     InterceptorThreadContext * self, GumInvocationListener * listener);
 static GumInvocationStackEntry * gum_invocation_stack_push (
     GumInvocationStack * stack, GumFunctionContext * function_ctx,
-    gpointer caller_ret_addr, const GumCpuContext * cpu_context);
+    gpointer caller_ret_addr);
 static gpointer gum_invocation_stack_pop (GumInvocationStack * stack);
 static GumInvocationStackEntry * gum_invocation_stack_peek_top (
     GumInvocationStack * stack);
@@ -844,7 +844,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   if (function_ctx->replacement_function != NULL || invoke_listeners)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
-        *caller_ret_addr, cpu_context);
+        *caller_ret_addr);
     invocation_ctx = &stack_entry->invocation_context;
 
     *caller_ret_addr = function_ctx->on_leave_trampoline;
@@ -924,6 +924,8 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   if (function_ctx->replacement_function != NULL)
   {
+    stack_entry->cpu_context = *cpu_context;
+    invocation_ctx->cpu_context = &stack_entry->cpu_context;
     invocation_ctx->backend = &interceptor_ctx->replacement_backend;
     invocation_ctx->backend->data = function_ctx->replacement_function_data;
 
@@ -1264,8 +1266,7 @@ interceptor_thread_context_forget_listener_data (
 static GumInvocationStackEntry *
 gum_invocation_stack_push (GumInvocationStack * stack,
                            GumFunctionContext * function_ctx,
-                           gpointer caller_ret_addr,
-                           const GumCpuContext * cpu_context)
+                           gpointer caller_ret_addr)
 {
   GumInvocationStackEntry * entry;
   GumInvocationContext * ctx;
@@ -1281,12 +1282,6 @@ gum_invocation_stack_push (GumInvocationStack * stack,
       GUM_POINTER_TO_FUNCPTR (GCallback, function_ctx->function_address);
 
   ctx->backend = NULL;
-
-  if (cpu_context != NULL)
-  {
-    entry->cpu_context = *cpu_context;
-    ctx->cpu_context = &entry->cpu_context;
-  }
 
   return entry;
 }
