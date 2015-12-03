@@ -312,6 +312,4 @@ static gpointer replacement_malloc (gsize size);
 static gpointer replacement_malloc_calling_malloc_and_replaced_free (
     gsize size);
 static void replacement_free_doing_nothing (gpointer mem);
-#if 0
 static gpointer replacement_target_function (GString * str);
-#endif

@@ -59,9 +59,7 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (already_replaced)
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
-#if 0
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
-#endif
 #endif
 TEST_LIST_END ()
 
@@ -842,8 +840,6 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_free (ret);
 }
 
-#if 0
-
 INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
 {
   guint target_counter = 0;
@@ -868,8 +864,6 @@ replacement_target_function (GString * str)
 
   return result;
 }
-
-#endif
 
 INTERCEPTOR_TESTCASE (i_can_has_replaceability)
 {

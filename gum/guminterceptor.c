@@ -582,10 +582,7 @@ intercept_function_at (GumInterceptor * self,
 
   ctx = gum_function_context_new (self, function_address, &priv->allocator);
 
-  ctx->listener_entries =
-      gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
-
-  if (!_gum_interceptor_backend_make_monitor_trampoline (priv->backend, ctx))
+  if (!_gum_interceptor_backend_create_trampoline (priv->backend, ctx))
   {
     gum_function_context_destroy (ctx);
     return NULL;
@@ -619,7 +616,7 @@ replace_function_at (GumInterceptor * self,
   ctx->replacement_function = replacement_function;
   ctx->replacement_function_data = replacement_function_data;
 
-  if (!_gum_interceptor_backend_make_replace_trampoline (priv->backend, ctx))
+  if (!_gum_interceptor_backend_create_trampoline (priv->backend, ctx))
   {
     gum_function_context_destroy (ctx);
     return FALSE;
@@ -693,6 +690,9 @@ gum_function_context_new (GumInterceptor * interceptor,
   ctx->interceptor = interceptor;
   ctx->function_address = function_address;
 
+  ctx->listener_entries =
+      gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
+
   ctx->allocator = allocator;
 
   return ctx;
@@ -714,8 +714,7 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
     _gum_interceptor_backend_destroy_trampoline (backend, function_ctx);
   }
 
-  if (function_ctx->listener_entries != NULL)
-    gum_array_free (function_ctx->listener_entries, TRUE);
+  gum_array_free (function_ctx->listener_entries, TRUE);
 
   gum_free (function_ctx);
 }
@@ -783,221 +782,6 @@ gum_function_context_find_listener_entry (GumFunctionContext * function_ctx,
   }
 
   return NULL;
-}
-
-gboolean
-_gum_function_context_on_enter (GumFunctionContext * function_ctx,
-                                GumCpuContext * cpu_context,
-                                gpointer * caller_ret_addr)
-{
-  GumInterceptor * self = function_ctx->interceptor;
-  GumInterceptorPrivate * priv = self->priv;
-  gint system_error;
-  gboolean invoke_listeners = TRUE;
-  gboolean will_trap_on_leave = FALSE;
-  InterceptorThreadContext * interceptor_ctx = NULL;
-
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#endif
-
-#if !GUM_INTERCEPTOR_FAST_TLS
-  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
-    return FALSE;
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
-#endif
-
-#ifndef G_OS_WIN32
-  system_error = errno;
-#endif
-
-  if (priv->selected_thread_id != 0)
-  {
-    invoke_listeners =
-        gum_process_get_current_thread_id () == priv->selected_thread_id;
-  }
-
-  if (invoke_listeners)
-  {
-    interceptor_ctx = get_interceptor_thread_context ();
-    invoke_listeners = (interceptor_ctx->ignore_level == 0);
-  }
-
-  if (invoke_listeners)
-  {
-    GumInvocationStackEntry * stack_entry;
-    GumInvocationContext * invocation_ctx;
-    guint i;
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-    cpu_context->eip = (guint32) *caller_ret_addr;
-# else
-    cpu_context->rip = (guint64) *caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-    cpu_context->pc = (guint32) *caller_ret_addr;
-#elif defined (HAVE_ARM64)
-    cpu_context->pc = (guint64) *caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
-
-    stack_entry = gum_invocation_stack_push (interceptor_ctx->stack,
-        function_ctx, *caller_ret_addr, NULL);
-
-    invocation_ctx = &stack_entry->invocation_context;
-    invocation_ctx->cpu_context = cpu_context;
-    invocation_ctx->system_error = system_error;
-    invocation_ctx->backend = &interceptor_ctx->listener_backend;
-
-    for (i = 0; i != function_ctx->listener_entries->len; i++)
-    {
-      ListenerEntry * entry;
-      ListenerInvocationState state;
-
-      entry =
-          gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
-
-      state.point_cut = GUM_POINT_ENTER;
-      state.entry = entry;
-      state.interceptor_ctx = interceptor_ctx;
-      state.invocation_data = stack_entry->listener_invocation_data[i];
-      invocation_ctx->backend->data = &state;
-
-#ifdef HAVE_QNX
-    gpointer stack_address = &stack_address;
-    if (stack_address > interceptor_ctx->thread_side_stack &&
-        stack_address < interceptor_ctx->thread_side_stack +
-            GUM_THREAD_SIDE_STACK_SIZE)
-    {
-      /* we're already on the side stack, no need to switch. */
-      entry->listener_interface->on_enter (entry->listener_instance,
-          invocation_ctx);
-    }
-    else
-    {
-      gum_exec_callback_func_with_side_stack (entry->listener_instance,
-          invocation_ctx, entry->listener_interface->on_enter,
-          interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
-    }
-#else
-      entry->listener_interface->on_enter (entry->listener_instance,
-          invocation_ctx);
-#endif
-    }
-
-#ifdef G_OS_WIN32
-    SetLastError (invocation_ctx->system_error);
-#else
-    errno = invocation_ctx->system_error;
-#endif
-
-    *caller_ret_addr = function_ctx->on_leave_trampoline;
-    will_trap_on_leave = TRUE;
-  }
-
-#if !GUM_INTERCEPTOR_FAST_TLS
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
-#endif
-
-  return will_trap_on_leave;
-}
-
-void
-_gum_function_context_on_leave (GumFunctionContext * function_ctx,
-                                GumCpuContext * cpu_context,
-                                gpointer * caller_ret_addr)
-{
-  gint system_error;
-  InterceptorThreadContext * interceptor_ctx;
-  GumInvocationStackEntry * stack_entry;
-  GumInvocationContext * invocation_ctx;
-  guint i;
-
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#endif
-
-#if !GUM_INTERCEPTOR_FAST_TLS
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
-#endif
-
-#ifndef G_OS_WIN32
-  system_error = errno;
-#endif
-
-  interceptor_ctx = get_interceptor_thread_context ();
-
-  stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
-  *caller_ret_addr = stack_entry->caller_ret_addr;
-
-  invocation_ctx = &stack_entry->invocation_context;
-  invocation_ctx->cpu_context = cpu_context;
-  invocation_ctx->system_error = system_error;
-  invocation_ctx->backend = &interceptor_ctx->listener_backend;
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-  cpu_context->eip = (guint32) *caller_ret_addr;
-# else
-  cpu_context->rip = (guint64) *caller_ret_addr;
-# endif
-#elif defined (HAVE_ARM)
-  cpu_context->pc = (guint32) *caller_ret_addr;
-#elif defined (HAVE_ARM64)
-  cpu_context->pc = (guint64) *caller_ret_addr;
-#else
-# error Unsupported architecture
-#endif
-
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
-  {
-    ListenerEntry * entry;
-    ListenerInvocationState state;
-
-    entry =
-        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
-
-    state.point_cut = GUM_POINT_LEAVE;
-    state.entry = entry;
-    state.interceptor_ctx = interceptor_ctx;
-    state.invocation_data = stack_entry->listener_invocation_data[i];
-    invocation_ctx->backend->data = &state;
-
-#ifdef HAVE_QNX
-    gpointer stack_address = &stack_address;
-    if (stack_address > interceptor_ctx->thread_side_stack &&
-        stack_address < interceptor_ctx->thread_side_stack +
-            GUM_THREAD_SIDE_STACK_SIZE)
-    {
-      /* we're already on the side stack, no need to switch. */
-      entry->listener_interface->on_leave (entry->listener_instance,
-          invocation_ctx);
-    }
-    else
-    {
-      gum_exec_callback_func_with_side_stack (entry->listener_instance,
-          invocation_ctx, entry->listener_interface->on_leave,
-          interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
-    }
-#else
-    entry->listener_interface->on_leave (entry->listener_instance,
-        invocation_ctx);
-#endif
-  }
-
-#ifdef G_OS_WIN32
-  SetLastError (invocation_ctx->system_error);
-#else
-  errno = invocation_ctx->system_error;
-#endif
-
-  gum_invocation_stack_pop (interceptor_ctx->stack);
-
-#if !GUM_INTERCEPTOR_FAST_TLS
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
-#endif
 }
 
 #ifdef HAVE_QNX
@@ -1076,36 +860,229 @@ _gum_interceptor_thread_get_orig_stack (gpointer current_stack)
 gboolean
 _gum_function_context_try_begin_invocation (GumFunctionContext * function_ctx,
                                             gpointer caller_ret_addr,
-                                            const GumCpuContext * cpu_context)
+                                            GumCpuContext * cpu_context)
 {
+  GumInterceptor * interceptor = function_ctx->interceptor;
+  GumInterceptorPrivate * priv = interceptor->priv;
   InterceptorThreadContext * interceptor_ctx;
   GumInvocationStack * stack;
-  GumInvocationStackEntry * entry;
+  GumInvocationStackEntry * stack_entry;
+  GumInvocationContext * invocation_ctx;
+  gint system_error;
+  gboolean invoke_listeners = TRUE;
 
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
-  entry = gum_invocation_stack_peek_top (stack);
-  if (entry != NULL &&
-      entry->invocation_context.function == function_ctx->function_address)
+  stack_entry = gum_invocation_stack_peek_top (stack);
+  if (stack_entry != NULL && stack_entry->invocation_context.function ==
+      function_ctx->function_address)
   {
     return FALSE;
   }
 
-  entry = gum_invocation_stack_push (stack, function_ctx, caller_ret_addr,
-      cpu_context);
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#endif
 
-  entry->invocation_context.backend = &interceptor_ctx->replacement_backend;
-  entry->invocation_context.backend->data =
-      function_ctx->replacement_function_data;
+#if !GUM_INTERCEPTOR_FAST_TLS
+  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == self)
+    return FALSE;
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, self);
+#endif
+
+#ifndef G_OS_WIN32
+  system_error = errno;
+#endif
+
+  stack_entry = gum_invocation_stack_push (stack, function_ctx, caller_ret_addr,
+      cpu_context);
+  invocation_ctx = &stack_entry->invocation_context;
+
+  if (priv->selected_thread_id != 0)
+  {
+    invoke_listeners =
+        gum_process_get_current_thread_id () == priv->selected_thread_id;
+  }
+
+  if (invoke_listeners)
+  {
+    invoke_listeners = (interceptor_ctx->ignore_level == 0);
+  }
+
+  if (invoke_listeners)
+  {
+    guint i;
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+    cpu_context->eip = (guint32) caller_ret_addr;
+# else
+    cpu_context->rip = (guint64) caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+    cpu_context->pc = (guint32) caller_ret_addr;
+#elif defined (HAVE_ARM64)
+    cpu_context->pc = (guint64) caller_ret_addr;
+#else
+# error Unsupported architecture
+#endif
+
+    invocation_ctx->cpu_context = cpu_context;
+    invocation_ctx->system_error = system_error;
+    invocation_ctx->backend = &interceptor_ctx->listener_backend;
+
+    for (i = 0; i != function_ctx->listener_entries->len; i++)
+    {
+      ListenerEntry * listener_entry;
+      ListenerInvocationState state;
+
+      listener_entry =
+          gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+
+      state.point_cut = GUM_POINT_ENTER;
+      state.entry = listener_entry;
+      state.interceptor_ctx = interceptor_ctx;
+      state.invocation_data = stack_entry->listener_invocation_data[i];
+      invocation_ctx->backend->data = &state;
+
+#ifdef HAVE_QNX
+      gpointer stack_address = &stack_address;
+      if (stack_address > interceptor_ctx->thread_side_stack &&
+          stack_address < interceptor_ctx->thread_side_stack +
+              GUM_THREAD_SIDE_STACK_SIZE)
+      {
+        /* we're already on the side stack, no need to switch. */
+        listener_entry->listener_interface->on_enter (
+            listener_entry->listener_instance, invocation_ctx);
+      }
+      else
+      {
+        gum_exec_callback_func_with_side_stack (
+            listener_entry->listener_instance, invocation_ctx,
+            listener_entry->listener_interface->on_enter,
+            interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE - 4);
+      }
+#else
+      listener_entry->listener_interface->on_enter (
+          listener_entry->listener_instance, invocation_ctx);
+#endif
+    }
+
+#ifdef G_OS_WIN32
+    SetLastError (invocation_ctx->system_error);
+#else
+    errno = invocation_ctx->system_error;
+#endif
+  }
+
+#if !GUM_INTERCEPTOR_FAST_TLS
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
+#endif
+
+  invocation_ctx->backend = &interceptor_ctx->replacement_backend;
+  invocation_ctx->backend->data = function_ctx->replacement_function_data;
 
   return TRUE;
 }
 
 gpointer
-_gum_function_context_end_invocation (void)
+_gum_function_context_end_invocation (GumFunctionContext * function_ctx,
+                                      GumCpuContext * cpu_context)
 {
-  return gum_invocation_stack_pop (get_interceptor_thread_context ()->stack);
+  gint system_error;
+  InterceptorThreadContext * interceptor_ctx;
+  GumInvocationStackEntry * stack_entry;
+  gpointer caller_ret_addr;
+  GumInvocationContext * invocation_ctx;
+  guint i;
+
+#ifdef G_OS_WIN32
+  system_error = GetLastError ();
+#endif
+
+#if !GUM_INTERCEPTOR_FAST_TLS
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
+#endif
+
+#ifndef G_OS_WIN32
+  system_error = errno;
+#endif
+
+  interceptor_ctx = get_interceptor_thread_context ();
+
+  stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
+  caller_ret_addr = stack_entry->caller_ret_addr;
+
+  invocation_ctx = &stack_entry->invocation_context;
+  invocation_ctx->cpu_context = cpu_context;
+  invocation_ctx->system_error = system_error;
+  invocation_ctx->backend = &interceptor_ctx->listener_backend;
+
+#if defined (HAVE_I386)
+# if GLIB_SIZEOF_VOID_P == 4
+  cpu_context->eip = (guint32) caller_ret_addr;
+# else
+  cpu_context->rip = (guint64) caller_ret_addr;
+# endif
+#elif defined (HAVE_ARM)
+  cpu_context->pc = (guint32) caller_ret_addr;
+#elif defined (HAVE_ARM64)
+  cpu_context->pc = (guint64) caller_ret_addr;
+#else
+# error Unsupported architecture
+#endif
+
+  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  {
+    ListenerEntry * entry;
+    ListenerInvocationState state;
+
+    entry =
+        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+
+    state.point_cut = GUM_POINT_LEAVE;
+    state.entry = entry;
+    state.interceptor_ctx = interceptor_ctx;
+    state.invocation_data = stack_entry->listener_invocation_data[i];
+    invocation_ctx->backend->data = &state;
+
+#ifdef HAVE_QNX
+    gpointer stack_address = &stack_address;
+    if (stack_address > interceptor_ctx->thread_side_stack &&
+        stack_address < interceptor_ctx->thread_side_stack +
+            GUM_THREAD_SIDE_STACK_SIZE)
+    {
+      /* we're already on the side stack, no need to switch. */
+      entry->listener_interface->on_leave (entry->listener_instance,
+          invocation_ctx);
+    }
+    else
+    {
+      gum_exec_callback_func_with_side_stack (entry->listener_instance,
+          invocation_ctx, entry->listener_interface->on_leave,
+          interceptor_ctx->thread_side_stack + GUM_THREAD_SIDE_STACK_SIZE - 4);
+    }
+#else
+    entry->listener_interface->on_leave (entry->listener_instance,
+        invocation_ctx);
+#endif
+  }
+
+#ifdef G_OS_WIN32
+  SetLastError (invocation_ctx->system_error);
+#else
+  errno = invocation_ctx->system_error;
+#endif
+
+  gum_invocation_stack_pop (interceptor_ctx->stack);
+
+#if !GUM_INTERCEPTOR_FAST_TLS
+  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
+#endif
+
+  return caller_ret_addr;
 }
 
 static InterceptorThreadContext *
