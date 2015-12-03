@@ -32,7 +32,7 @@ struct _GumInterceptorBackend
 };
 
 static void gum_interceptor_backend_write_prolog (GumX86Writer * cw,
-    volatile gint * trampoline_usage_counter);
+    volatile gint * trampoline_usage_counter, gsize stack_displacement);
 static void gum_interceptor_backend_write_epilog (GumX86Writer * cw,
     volatile gint * trampoline_usage_counter);
 
@@ -90,6 +90,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumX86Writer * cw = &self->writer;
   GumX86Relocator * rl = &self->relocator;
   guint32 usage_counter = 0;
+  const gsize return_address_stack_displacement = sizeof (gpointer);
+  const gsize no_stack_displacement = 0;
   guint reloc_bytes;
   gssize align_correction_leave = 0;
 
@@ -112,7 +114,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
-  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter);
+  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter,
+      return_address_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBX, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -150,7 +153,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
-  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter);
+  gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter,
+      no_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBX, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -349,7 +353,8 @@ _gum_interceptor_invocation_replace_return_value (
 
 static void
 gum_interceptor_backend_write_prolog (GumX86Writer * cw,
-                                      volatile gint * trampoline_usage_counter)
+                                      volatile gint * trampoline_usage_counter,
+                                      gsize stack_displacement)
 {
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
@@ -376,7 +381,7 @@ gum_interceptor_backend_write_prolog (GumX86Writer * cw,
 
   /* fixup the GumCpuContext stack pointer */
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XAX,
-      GUM_REG_XSP, GUM_FRAME_OFFSET_TOP);
+      GUM_REG_XSP, GUM_FRAME_OFFSET_TOP + stack_displacement);
   gum_x86_writer_put_mov_reg_offset_ptr_reg (cw,
       GUM_REG_XSP, GUM_CPU_CONTEXT_OFFSET_XSP,
       GUM_REG_XAX);
