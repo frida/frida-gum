@@ -47,15 +47,11 @@ extern GumTlsKey _gum_interceptor_guard_key;
 G_GNUC_INTERNAL void _gum_interceptor_init (void);
 G_GNUC_INTERNAL void _gum_interceptor_deinit (void);
 
-gboolean _gum_function_context_on_enter (GumFunctionContext * function_ctx,
-    GumCpuContext * cpu_context, gpointer * caller_ret_addr);
-void _gum_function_context_on_leave (GumFunctionContext * function_ctx,
-    GumCpuContext * cpu_context, gpointer * caller_ret_addr);
-
 gboolean _gum_function_context_try_begin_invocation (
     GumFunctionContext * function_ctx, gpointer caller_ret_addr,
-    const GumCpuContext * cpu_context);
-gpointer _gum_function_context_end_invocation (void);
+    GumCpuContext * cpu_context);
+gpointer _gum_function_context_end_invocation (
+    GumFunctionContext * function_ctx, GumCpuContext * cpu_context);
 
 #ifdef HAVE_QNX
 gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
@@ -65,9 +61,7 @@ gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
 GumInterceptorBackend * _gum_interceptor_backend_create (
     GumCodeAllocator * allocator);
 void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
-gboolean _gum_interceptor_backend_make_monitor_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx);
-gboolean _gum_interceptor_backend_make_replace_trampoline (
+gboolean _gum_interceptor_backend_create_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx);
 void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
