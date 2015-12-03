@@ -101,6 +101,7 @@ struct _ListenerInvocationState
   guint8 * invocation_data;
 };
 
+static void gum_interceptor_dispose (GObject * object);
 static void gum_interceptor_finalize (GObject * object);
 
 static void the_interceptor_weak_notify (gpointer data,
@@ -177,6 +178,7 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumInterceptorPrivate));
 
+  object_class->dispose = gum_interceptor_dispose;
   object_class->finalize = gum_interceptor_finalize;
 }
 
@@ -227,6 +229,24 @@ gum_interceptor_init (GumInterceptor * self)
 
   gum_code_allocator_init (&priv->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
   priv->backend = _gum_interceptor_backend_create (&priv->allocator);
+}
+
+static void
+gum_interceptor_dispose (GObject * object)
+{
+  GumInterceptor * self = GUM_INTERCEPTOR (object);
+  GumInterceptorPrivate * priv = self->priv;
+  GumHashTableIter iter;
+  GumFunctionContext * function_ctx;
+
+  gum_hash_table_iter_init (&iter, priv->function_by_address);
+  while (gum_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
+  {
+    gum_function_context_destroy (function_ctx);
+    gum_hash_table_iter_remove (&iter);
+  }
+
+  G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
 
 static void
@@ -625,6 +645,8 @@ gum_function_context_new (GumInterceptor * interceptor,
 static void
 gum_function_context_destroy (GumFunctionContext * function_ctx)
 {
+  guint i;
+
   if (function_ctx->trampoline_slice != NULL)
   {
     GumInterceptorBackend * backend = function_ctx->interceptor->priv->backend;
@@ -638,6 +660,12 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
     _gum_interceptor_backend_destroy_trampoline (backend, function_ctx);
   }
 
+  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  {
+    ListenerEntry * cur =
+        gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+    gum_free (cur);
+  }
   gum_array_free (function_ctx->listener_entries, TRUE);
 
   gum_free (function_ctx);
@@ -679,7 +707,7 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
   entry = gum_function_context_find_listener_entry (function_ctx, listener);
   g_assert (entry != NULL);
 
-  for (i = 0; i < function_ctx->listener_entries->len; i++)
+  for (i = 0; i != function_ctx->listener_entries->len; i++)
   {
     ListenerEntry * cur =
         gum_array_index (function_ctx->listener_entries, ListenerEntry *, i);
