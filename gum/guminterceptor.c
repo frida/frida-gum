@@ -646,7 +646,7 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
 static gboolean
 gum_function_context_try_destroy (GumFunctionContext * function_ctx)
 {
-  if (function_ctx->function_address != NULL ||
+  if (function_ctx->replacement_function != NULL ||
       function_ctx->listener_entries->len > 0)
     return FALSE;
 
