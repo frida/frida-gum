@@ -88,11 +88,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
-  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
-
-  gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
-
   ctx->trampoline_usage_counter = (volatile gint *) ctx->backend_data;
+
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
+  gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
   ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
 
@@ -113,6 +112,25 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       GUM_ARG_REGISTER, ARM_REG_R1,
       GUM_ARG_REGISTER, ARM_REG_R2,
       GUM_ARG_REGISTER, ARM_REG_R3);
+
+  gum_interceptor_backend_write_epilog (tw, ctx->trampoline_usage_counter);
+
+  ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
+
+  need_high_part = TRUE;
+  gum_interceptor_backend_write_prolog (tw, ctx->trampoline_usage_counter,
+      need_high_part);
+
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT);
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+
+  gum_thumb_writer_put_call_address_with_arguments (tw,
+      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
+      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
+      GUM_ARG_REGISTER, ARM_REG_R1,
+      GUM_ARG_REGISTER, ARM_REG_R2);
 
   gum_interceptor_backend_write_epilog (tw, ctx->trampoline_usage_counter);
 
@@ -187,29 +205,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->overwritten_prologue_len = reloc_bytes;
   memcpy (ctx->overwritten_prologue, function_address, reloc_bytes);
-
-  ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
-
-  need_high_part = TRUE;
-  gum_interceptor_backend_write_prolog (tw, ctx->trampoline_usage_counter,
-      need_high_part);
-
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT);
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
-      GUM_FRAME_OFFSET_NEXT_HOP);
-
-  gum_thumb_writer_put_call_address_with_arguments (tw,
-      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, ARM_REG_R1,
-      GUM_ARG_REGISTER, ARM_REG_R2);
-
-  gum_interceptor_backend_write_epilog (tw, ctx->trampoline_usage_counter);
-
-  gum_thumb_writer_flush (tw);
-  g_assert_cmpuint (gum_thumb_writer_offset (tw),
-      <=, ctx->trampoline_slice->size);
 
   return TRUE;
 }
