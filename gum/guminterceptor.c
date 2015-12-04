@@ -803,6 +803,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx = NULL;
   gint system_error;
   gboolean invoke_listeners = TRUE;
+  gboolean will_trap_on_leave;
 
 #ifdef G_OS_WIN32
   system_error = GetLastError ();
@@ -841,19 +842,13 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invoke_listeners = (interceptor_ctx->ignore_level == 0);
   }
 
-  if (function_ctx->replacement_function != NULL || invoke_listeners)
+  will_trap_on_leave =
+      function_ctx->replacement_function != NULL || invoke_listeners;
+  if (will_trap_on_leave)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
         *caller_ret_addr);
     invocation_ctx = &stack_entry->invocation_context;
-
-    *caller_ret_addr = function_ctx->on_leave_trampoline;
-    g_atomic_int_inc (function_ctx->trampoline_usage_counter);
-  }
-
-  if (invoke_listeners)
-  {
-    guint i;
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
@@ -868,6 +863,11 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 #else
 # error Unsupported architecture
 #endif
+  }
+
+  if (invoke_listeners)
+  {
+    guint i;
 
     invocation_ctx->cpu_context = cpu_context;
     invocation_ctx->system_error = system_error;
@@ -922,6 +922,12 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
 
+  if (will_trap_on_leave)
+  {
+    *caller_ret_addr = function_ctx->on_leave_trampoline;
+    g_atomic_int_inc (function_ctx->trampoline_usage_counter);
+  }
+
   if (function_ctx->replacement_function != NULL)
   {
     stack_entry->cpu_context = *cpu_context;
@@ -963,6 +969,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   caller_ret_addr = stack_entry->caller_ret_addr;
+  *next_hop = caller_ret_addr;
+  g_atomic_int_dec_and_test (function_ctx->trampoline_usage_counter);
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -1028,9 +1036,6 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
   GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
-
-  *next_hop = caller_ret_addr;
-  g_atomic_int_dec_and_test (function_ctx->trampoline_usage_counter);
 }
 
 static InterceptorThreadContext *
