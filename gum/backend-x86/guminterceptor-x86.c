@@ -149,7 +149,8 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
     gum_x86_writer_put_jmp (cw, (guint8 *) ctx->function_address + reloc_bytes);
   }
 
-  gum_x86_writer_put_breakpoint (cw);
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
 
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
@@ -184,9 +185,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
       <=, ctx->trampoline_slice->size);
-
-  ctx->overwritten_prologue_len = reloc_bytes;
-  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
 
   return TRUE;
 }
