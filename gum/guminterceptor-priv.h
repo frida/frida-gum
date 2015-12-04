@@ -16,7 +16,13 @@
 #include "gumtls.h"
 
 typedef struct _GumInterceptorBackend GumInterceptorBackend;
-typedef struct _GumFunctionContext    GumFunctionContext;
+typedef struct _GumFunctionContext GumFunctionContext;
+typedef struct _GumFunctionContextBackendData GumFunctionContextBackendData;
+
+struct _GumFunctionContextBackendData
+{
+  gpointer data[2];
+};
 
 struct _GumFunctionContext
 {
@@ -41,7 +47,7 @@ struct _GumFunctionContext
   gpointer replacement_function;
   gpointer replacement_function_data;
 
-  gpointer backend_data[1];
+  GumFunctionContextBackendData backend_data;
 };
 
 extern GumTlsKey _gum_interceptor_guard_key;
