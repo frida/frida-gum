@@ -133,25 +133,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   gum_interceptor_backend_write_epilog (cw, ctx->trampoline_usage_counter);
 
-  ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
-  gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
-
-  do
-  {
-    reloc_bytes = gum_x86_relocator_read_one (rl, NULL);
-    g_assert_cmpuint (reloc_bytes, !=, 0);
-  }
-  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
-  gum_x86_relocator_write_all (rl);
-
-  if (!gum_x86_relocator_eoi (rl))
-  {
-    gum_x86_writer_put_jmp (cw, (guint8 *) ctx->function_address + reloc_bytes);
-  }
-
-  ctx->overwritten_prologue_len = reloc_bytes;
-  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
-
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
   gum_interceptor_backend_write_prolog (cw, ctx->trampoline_usage_counter,
@@ -185,6 +166,29 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
       <=, ctx->trampoline_slice->size);
+
+  ctx->on_invoke_trampoline = gum_x86_writer_cur (cw);
+  gum_x86_relocator_reset (rl, (guint8 *) ctx->function_address, cw);
+
+  do
+  {
+    reloc_bytes = gum_x86_relocator_read_one (rl, NULL);
+    g_assert_cmpuint (reloc_bytes, !=, 0);
+  }
+  while (reloc_bytes < GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
+  gum_x86_relocator_write_all (rl);
+
+  if (!gum_x86_relocator_eoi (rl))
+  {
+    gum_x86_writer_put_jmp (cw, (guint8 *) ctx->function_address + reloc_bytes);
+  }
+
+  gum_x86_writer_flush (cw);
+  g_assert_cmpuint (gum_x86_writer_offset (cw),
+      <=, ctx->trampoline_slice->size);
+
+  ctx->overwritten_prologue_len = reloc_bytes;
+  memcpy (ctx->overwritten_prologue, ctx->function_address, reloc_bytes);
 
   return TRUE;
 }
