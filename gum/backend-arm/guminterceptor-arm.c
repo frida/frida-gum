@@ -88,7 +88,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
-  ctx->trampoline_usage_counter = (volatile gint *) ctx->backend_data;
+  ctx->trampoline_usage_counter = (volatile gint *) &ctx->backend_data;
 
   ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
