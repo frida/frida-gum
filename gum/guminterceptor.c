@@ -82,6 +82,7 @@ struct _GumInvocationStackEntry
   GumInvocationContext invocation_context;
   GumCpuContext cpu_context;
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION][GUM_MAX_LISTENER_DATA];
+  gboolean calling_replacement;
 #ifdef HAVE_QNX
   gpointer saved_original_stack;
 #endif
@@ -813,7 +814,8 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   stack = interceptor_ctx->stack;
 
   stack_entry = gum_invocation_stack_peek_top (stack);
-  if (stack_entry != NULL && stack_entry->invocation_context.function ==
+  if (stack_entry != NULL && stack_entry->calling_replacement &&
+      stack_entry->invocation_context.function ==
       function_ctx->function_address)
   {
     *next_hop = function_ctx->on_invoke_trampoline;
@@ -930,6 +932,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   if (function_ctx->replacement_function != NULL)
   {
+    stack_entry->calling_replacement = TRUE;
     stack_entry->cpu_context = *cpu_context;
     invocation_ctx->cpu_context = &stack_entry->cpu_context;
     invocation_ctx->backend = &interceptor_ctx->replacement_backend;

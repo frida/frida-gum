@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (interceptor)
 
   INTERCEPTOR_TESTENTRY (attach_one)
   INTERCEPTOR_TESTENTRY (attach_two)
+  INTERCEPTOR_TESTENTRY (attach_to_recursive_function)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
@@ -76,6 +77,24 @@ INTERCEPTOR_TESTCASE (attach_two)
   interceptor_fixture_attach_listener (fixture, 1, target_function, 'c', 'd');
   target_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, "ac|bd");
+}
+
+void GUM_NOINLINE
+recursive_function (GString * str,
+                    gint count)
+{
+  if (count > 0)
+    recursive_function (str, count - 1);
+
+  g_string_append_printf (str, "%d", count);
+}
+
+INTERCEPTOR_TESTCASE (attach_to_recursive_function)
+{
+  interceptor_fixture_attach_listener (fixture, 0, recursive_function,
+      '>', '<');
+  recursive_function (fixture->result, 4);
+  g_assert_cmpstr (fixture->result->str, ==, ">>>>>0<1<2<3<4<");
 }
 
 INTERCEPTOR_TESTCASE (attach_to_special_function)
