@@ -121,6 +121,7 @@ gum_call_count_sampler_finalize (GObject * object)
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER (object);
   GumCallCountSamplerPrivate * priv = self->priv;
 
+  gum_tls_key_free (priv->tls_key);
   g_mutex_clear (&priv->mutex);
 
   g_slist_foreach (priv->counters, (GFunc) g_free, NULL);

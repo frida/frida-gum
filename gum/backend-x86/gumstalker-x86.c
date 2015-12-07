@@ -460,6 +460,7 @@ gum_stalker_finalize (GObject * object)
   g_array_free (priv->exclusions, TRUE);
 
   g_assert (priv->contexts == NULL);
+  gum_tls_key_free (priv->exec_ctx);
   g_mutex_clear (&priv->mutex);
 
   G_OBJECT_CLASS (gum_stalker_parent_class)->finalize (object);
