@@ -337,8 +337,6 @@ static void gum_write_segment_prefix (uint8_t segment, GumX86Writer * cw);
 static GumCpuReg gum_cpu_meta_reg_from_real_reg (GumCpuReg reg);
 static GumCpuReg gum_cpu_reg_from_capstone (x86_reg reg);
 
-static void gum_tls_key_set (GumTlsKey key, gpointer data);
-
 #ifdef G_OS_WIN32
 static gboolean gum_stalker_on_exception (GumExceptionDetails * details,
     gpointer user_data);
@@ -427,7 +425,7 @@ gum_stalker_init (GumStalker * self)
   priv->page_size = gum_query_page_size ();
   g_mutex_init (&priv->mutex);
   priv->contexts = NULL;
-  GUM_TLS_KEY_INIT (&priv->exec_ctx);
+  priv->exec_ctx = gum_tls_key_new ();
 }
 
 static void
@@ -590,7 +588,7 @@ _gum_stalker_do_follow_me (GumStalker * self,
 
   ctx = gum_stalker_create_exec_ctx (self,
       gum_process_get_current_thread_id (), sink);
-  GUM_TLS_KEY_SET_VALUE (self->priv->exec_ctx, ctx);
+  gum_tls_key_set_value (self->priv->exec_ctx, ctx);
   ctx->current_block = gum_exec_ctx_obtain_block_for (ctx, *ret_addr_ptr,
       &code_address);
   *ret_addr_ptr = code_address;
@@ -617,7 +615,7 @@ gum_stalker_unfollow_me (GumStalker * self)
   {
     g_assert (ctx->unfollow_called_while_still_following);
 
-    GUM_TLS_KEY_SET_VALUE (self->priv->exec_ctx, NULL);
+    gum_tls_key_set_value (self->priv->exec_ctx, NULL);
 
     GUM_STALKER_LOCK (self);
     self->priv->contexts = g_slist_remove (self->priv->contexts, ctx);
@@ -722,7 +720,7 @@ gum_stalker_infect (GumThreadId thread_id,
       ctx->current_block->real_begin, &cw);
   gum_x86_writer_put_sub_reg_imm (&cw, GUM_REG_XSP, align_correction);
   gum_x86_writer_put_call_with_arguments (&cw,
-      GUM_FUNCPTR_TO_POINTER (gum_tls_key_set), 2,
+      GUM_FUNCPTR_TO_POINTER (gum_tls_key_set_value), 2,
       GUM_ARG_POINTER, self->priv->exec_ctx,
       GUM_ARG_POINTER, ctx);
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, align_correction);
@@ -926,7 +924,7 @@ gum_stalker_create_exec_ctx (GumStalker * self,
 static GumExecCtx *
 gum_stalker_get_exec_ctx (GumStalker * self)
 {
-  return (GumExecCtx *) GUM_TLS_KEY_GET_VALUE (self->priv->exec_ctx);
+  return (GumExecCtx *) gum_tls_key_get_value (self->priv->exec_ctx);
 }
 
 static void
@@ -979,7 +977,7 @@ gum_exec_ctx_unfollow (GumExecCtx * ctx,
 {
   ctx->resume_at = resume_at;
 
-  GUM_TLS_KEY_SET_VALUE (ctx->stalker->priv->exec_ctx, NULL);
+  gum_tls_key_set_value (ctx->stalker->priv->exec_ctx, NULL);
   ctx->current_block = NULL;
   ctx->state = GUM_EXEC_CTX_DESTROY_PENDING;
 }
@@ -2634,13 +2632,6 @@ gum_cpu_reg_from_capstone (x86_reg reg)
     default:
       g_assert_not_reached ();
   }
-}
-
-static void
-gum_tls_key_set (GumTlsKey key,
-                 gpointer data)
-{
-  GUM_TLS_KEY_SET_VALUE (key, data);
 }
 
 #if defined (G_OS_WIN32) && GLIB_SIZEOF_VOID_P == 4

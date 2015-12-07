@@ -184,8 +184,8 @@ gum_interceptor_class_init (GumInterceptorClass * klass)
 void
 _gum_interceptor_init (void)
 {
-  GUM_TLS_KEY_INIT (&_gum_interceptor_context_key);
-  GUM_TLS_KEY_INIT (&_gum_interceptor_guard_key);
+  _gum_interceptor_context_key = gum_tls_key_new ();
+  _gum_interceptor_guard_key = gum_tls_key_new ();
 
   gum_spinlock_init (&_gum_interceptor_thread_context_lock);
   _gum_interceptor_thread_contexts = gum_array_new (FALSE, FALSE,
@@ -209,8 +209,8 @@ _gum_interceptor_deinit (void)
   _gum_interceptor_thread_contexts = NULL;
   gum_spinlock_free (&_gum_interceptor_thread_context_lock);
 
-  GUM_TLS_KEY_FREE (_gum_interceptor_context_key);
-  GUM_TLS_KEY_FREE (_gum_interceptor_guard_key);
+  gum_tls_key_free (_gum_interceptor_context_key);
+  gum_tls_key_free (_gum_interceptor_guard_key);
 }
 
 static void
@@ -487,7 +487,7 @@ gum_interceptor_get_current_stack (void)
   InterceptorThreadContext * context;
 
   context = (InterceptorThreadContext *)
-      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_context_key);
+      gum_tls_key_get_value (_gum_interceptor_context_key);
   if (context == NULL)
     return &_gum_interceptor_empty_stack;
 
@@ -822,12 +822,12 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     return;
   }
 
-  if (GUM_TLS_KEY_GET_VALUE (_gum_interceptor_guard_key) == interceptor)
+  if (gum_tls_key_get_value (_gum_interceptor_guard_key) == interceptor)
   {
     *next_hop = function_ctx->on_invoke_trampoline;
     return;
   }
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, interceptor);
+  gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
 
 #ifndef G_OS_WIN32
   system_error = errno;
@@ -922,7 +922,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   errno = system_error;
 #endif
 
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
+  gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
 
   if (will_trap_on_leave)
   {
@@ -962,7 +962,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   system_error = GetLastError ();
 #endif
 
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, function_ctx->interceptor);
+  gum_tls_key_set_value (_gum_interceptor_guard_key, function_ctx->interceptor);
 
 #ifndef G_OS_WIN32
   system_error = errno;
@@ -1038,7 +1038,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
-  GUM_TLS_KEY_SET_VALUE (_gum_interceptor_guard_key, NULL);
+  gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
 }
 
 static InterceptorThreadContext *
@@ -1047,7 +1047,7 @@ get_interceptor_thread_context (void)
   InterceptorThreadContext * context;
 
   context = (InterceptorThreadContext *)
-      GUM_TLS_KEY_GET_VALUE (_gum_interceptor_context_key);
+      gum_tls_key_get_value (_gum_interceptor_context_key);
   if (context == NULL)
   {
     context = interceptor_thread_context_new ();
@@ -1056,7 +1056,7 @@ get_interceptor_thread_context (void)
     gum_array_append_val (_gum_interceptor_thread_contexts, context);
     gum_spinlock_release (&_gum_interceptor_thread_context_lock);
 
-    GUM_TLS_KEY_SET_VALUE (_gum_interceptor_context_key, context);
+    gum_tls_key_set_value (_gum_interceptor_context_key, context);
   }
 
   return context;

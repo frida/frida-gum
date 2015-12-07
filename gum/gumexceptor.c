@@ -130,7 +130,7 @@ gum_exceptor_init (GumExceptor * self)
 
   priv->interceptor = gum_interceptor_obtain ();
 
-  GUM_TLS_KEY_INIT (&priv->scope_tls);
+  priv->scope_tls = gum_tls_key_new ();
 
   gum_exceptor_attach (self);
 
@@ -162,7 +162,7 @@ gum_exceptor_finalize (GObject * object)
 
   gum_exceptor_remove (self, gum_exceptor_handle_scope_exception, self);
 
-  GUM_TLS_KEY_FREE (priv->scope_tls);
+  gum_tls_key_free (priv->scope_tls);
 
   g_mutex_clear (&priv->mutex);
 
@@ -327,7 +327,7 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 
   scope->impl = impl;
 
-  GUM_TLS_KEY_SET_VALUE (self->priv->scope_tls, scope);
+  gum_tls_key_set_value (self->priv->scope_tls, scope);
 
   return impl->env;
 }
@@ -339,7 +339,7 @@ gum_exceptor_catch (GumExceptor * self,
   GumExceptorScopeImpl * impl = scope->impl;
   gboolean exception_occurred;
 
-  GUM_TLS_KEY_SET_VALUE (self->priv->scope_tls, NULL);
+  gum_tls_key_set_value (self->priv->scope_tls, NULL);
 
   exception_occurred = impl->exception_occurred;
   g_slice_free (GumExceptorScopeImpl, impl);
@@ -406,7 +406,7 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   GumExceptorScopeImpl * impl;
   GumCpuContext * context = &details->context;
 
-  scope = (GumExceptorScope *) GUM_TLS_KEY_GET_VALUE (self->priv->scope_tls);
+  scope = (GumExceptorScope *) gum_tls_key_get_value (self->priv->scope_tls);
   if (scope == NULL)
     return FALSE;
 
