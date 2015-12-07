@@ -32,7 +32,7 @@ struct _GumFunctionContext
 
   GumCodeAllocator * allocator;
   GumCodeSlice * trampoline_slice;
-  volatile gint * trampoline_usage_counter;
+  volatile gint trampoline_usage_counter;
 
   gpointer on_enter_trampoline;
   guint8 overwritten_prologue[32];
