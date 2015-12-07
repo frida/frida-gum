@@ -927,7 +927,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   if (will_trap_on_leave)
   {
     *caller_ret_addr = function_ctx->on_leave_trampoline;
-    g_atomic_int_inc (function_ctx->trampoline_usage_counter);
+    g_atomic_int_inc (&function_ctx->trampoline_usage_counter);
   }
 
   if (function_ctx->replacement_function != NULL)
@@ -973,7 +973,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   stack_entry = gum_invocation_stack_peek_top (interceptor_ctx->stack);
   caller_ret_addr = stack_entry->caller_ret_addr;
   *next_hop = caller_ret_addr;
-  g_atomic_int_dec_and_test (function_ctx->trampoline_usage_counter);
+  g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
@@ -1345,10 +1345,7 @@ gum_interceptor_has (GumInterceptor * self,
 static void
 gum_function_context_wait_for_idle_trampoline (GumFunctionContext * ctx)
 {
-  if (ctx->trampoline_usage_counter == NULL)
-    return;
-
-  while (*ctx->trampoline_usage_counter != 0)
+  while (ctx->trampoline_usage_counter != 0)
     g_thread_yield ();
   g_thread_yield ();
 }
