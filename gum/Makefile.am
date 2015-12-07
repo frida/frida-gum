@@ -29,7 +29,8 @@ fridainclude_HEADERS = \
 	gumspinlock.h \
 	gumstalker.h \
 	gumsymbolutil.h \
-	gumsysinternals.h
+	gumsysinternals.h \
+	gumtls.h
 
 x86includedir = $(includedir)/frida-1.0/gum/arch-x86
 x86include_HEADERS = \
@@ -137,8 +138,8 @@ fridainclude_HEADERS += \
 	backend-darwin/gumdarwinmodule.h
 else
 backend_sources += \
-	backend-posix/gummemory-posix.c \
-	backend-posix/gumtls-posix.c
+	backend-posix/gumtls-posix.c \
+	backend-posix/gummemory-posix.c
 endif
 
 if OS_QNX
@@ -190,7 +191,6 @@ libfrida_gum_la_SOURCES = \
 	gumprintf.h \
 	gumprocess.c \
 	gumreturnaddress.c \
-	gumtls.h \
 	arch-x86/gumx86writer.c \
 	arch-x86/gumx86relocator.c \
 	arch-x86/gumx86reader.c \
