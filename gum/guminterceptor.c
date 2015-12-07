@@ -14,7 +14,12 @@
 #include "gummemory.h"
 #include "gumtls.h"
 
-#ifndef G_OS_WIN32
+#ifdef G_OS_WIN32
+# ifndef WIN32_LEAN_AND_MEAN
+#  define WIN32_LEAN_AND_MEAN
+# endif
+# include <windows.h>
+#else
 # include <errno.h>
 #endif
 #include <string.h>
