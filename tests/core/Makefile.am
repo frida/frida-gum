@@ -20,6 +20,7 @@ libgum_tests_core_la_LIBTOOLFLAGS = \
 endif
 
 libgum_tests_core_la_SOURCES = \
+	tls.c \
 	memory.c \
 	process.c \
 	symbolutil.c \

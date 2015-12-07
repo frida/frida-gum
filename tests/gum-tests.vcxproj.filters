@@ -165,6 +165,9 @@
     <ClCompile Include="gumtest.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="core\tls.c">
+      <Filter>Tests\core</Filter>
+    </ClCompile>
     <ClCompile Include="core\memory.c">
       <Filter>Tests\core</Filter>
     </ClCompile>
