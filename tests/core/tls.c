@@ -25,8 +25,6 @@ TEST_LIST_BEGIN (tls)
   TLS_TESTENTRY (set_should_work_like_the_system_implementation)
 TEST_LIST_END ()
 
-#include <unistd.h>
-
 TLS_TESTCASE (get_should_work_like_the_system_implementation)
 {
   GumTlsKey key;
