@@ -39,12 +39,25 @@ struct _GumInterceptorBackend
 
   GumThumbWriter thumb_writer;
   GumThumbRelocator thumb_relocator;
+
+  gpointer thunks;
+
+  gpointer enter_thunk;
+  gpointer leave_thunk;
 };
 
-static void gum_interceptor_backend_write_prolog (GumThumbWriter * tw,
-    volatile gint * trampoline_usage_counter, gboolean need_high_part);
-static void gum_interceptor_backend_write_epilog (GumThumbWriter * tw,
-    volatile gint * trampoline_usage_counter);
+static void gum_interceptor_backend_create_thunks (
+    GumInterceptorBackend * self);
+static void gum_interceptor_backend_destroy_thunks (
+    GumInterceptorBackend * self);
+
+static gpointer gum_make_enter_thunk (GumThumbWriter * tw);
+static gpointer gum_make_leave_thunk (GumThumbWriter * tw);
+
+static void gum_interceptor_backend_write_push_cpu_context_high_part (
+    GumThumbWriter * tw);
+static void gum_interceptor_backend_write_prolog (GumThumbWriter * tw);
+static void gum_interceptor_backend_write_epilog (GumThumbWriter * tw);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GumCodeAllocator * allocator)
@@ -60,12 +73,16 @@ _gum_interceptor_backend_create (GumCodeAllocator * allocator)
   gum_thumb_relocator_init (&backend->thumb_relocator, NULL,
       &backend->thumb_writer);
 
+  gum_interceptor_backend_create_thunks (backend);
+
   return backend;
 }
 
 void
 _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
 {
+  gum_interceptor_backend_destroy_thunks (backend);
+
   gum_thumb_relocator_free (&backend->thumb_relocator);
   gum_thumb_writer_free (&backend->thumb_writer);
 
@@ -82,57 +99,31 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gpointer function_address;
   gboolean is_thumb;
   GumThumbWriter * tw = &self->thumb_writer;
-  gboolean need_high_part;
   guint reloc_bytes;
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
-
-  ctx->trampoline_usage_counter = (volatile gint *) &ctx->backend_data;
 
   ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
   ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
 
-  need_high_part = !is_thumb;
-  gum_interceptor_backend_write_prolog (tw, ctx->trampoline_usage_counter,
-      need_high_part);
+  if (!is_thumb)
+    gum_interceptor_backend_write_push_cpu_context_high_part (tw);
 
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT);
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R3, ARM_REG_SP,
-      GUM_FRAME_OFFSET_NEXT_HOP);
-
-  gum_thumb_writer_put_call_address_with_arguments (tw,
-      GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, ARM_REG_R1,
-      GUM_ARG_REGISTER, ARM_REG_R2,
-      GUM_ARG_REGISTER, ARM_REG_R3);
-
-  gum_interceptor_backend_write_epilog (tw, ctx->trampoline_usage_counter);
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+      GUM_ADDRESS (self->enter_thunk));
+  gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
 
   ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
 
-  need_high_part = TRUE;
-  gum_interceptor_backend_write_prolog (tw, ctx->trampoline_usage_counter,
-      need_high_part);
-
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
-      GUM_FRAME_OFFSET_CPU_CONTEXT);
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
-      GUM_FRAME_OFFSET_NEXT_HOP);
-
-  gum_thumb_writer_put_call_address_with_arguments (tw,
-      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
-      GUM_ARG_ADDRESS, GUM_ADDRESS (ctx),
-      GUM_ARG_REGISTER, ARM_REG_R1,
-      GUM_ARG_REGISTER, ARM_REG_R2);
-
-  gum_interceptor_backend_write_epilog (tw, ctx->trampoline_usage_counter);
+  gum_interceptor_backend_write_push_cpu_context_high_part (tw);
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+      GUM_ADDRESS (self->leave_thunk));
+  gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
 
   gum_thumb_writer_flush (tw);
   g_assert_cmpuint (gum_thumb_writer_offset (tw),
@@ -231,11 +222,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
     gum_thumb_writer_reset (tw, function_address);
 
-    /* build high part of GumCpuContext */
-    gum_thumb_writer_put_push_regs (tw, 8 + 1,
-        ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-        ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-        ARM_REG_LR);
+    gum_interceptor_backend_write_push_cpu_context_high_part (tw);
 
     /* jump to stage2 */
     gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
@@ -368,27 +355,105 @@ _gum_interceptor_invocation_replace_return_value (
 }
 
 static void
-gum_interceptor_backend_write_prolog (GumThumbWriter * tw,
-                                      volatile gint * trampoline_usage_counter,
-                                      gboolean need_high_part)
+gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
+{
+  GumThumbWriter * tw = &self->thumb_writer;
+  gsize page_size, size_in_pages, size_in_bytes;
+
+  page_size = gum_query_page_size ();
+
+  size_in_pages = 1;
+  size_in_bytes = size_in_pages * page_size;
+
+  self->thunks = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+  gum_thumb_writer_reset (tw, self->thunks);
+
+  self->enter_thunk = gum_make_enter_thunk (tw);
+  self->leave_thunk = gum_make_leave_thunk (tw);
+
+  gum_thumb_writer_flush (tw);
+  g_assert_cmpuint (gum_thumb_writer_offset (tw), <=, size_in_bytes);
+
+  gum_mprotect (self->thunks, size_in_bytes, GUM_PAGE_RX);
+}
+
+static void
+gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
+{
+  gum_free_pages (self->thunks);
+}
+
+static gpointer
+gum_make_enter_thunk (GumThumbWriter * tw)
+{
+  gpointer thunk;
+
+  thunk = gum_thumb_writer_cur (tw) + 1;
+
+  gum_interceptor_backend_write_prolog (tw);
+
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT);
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R3, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+
+  gum_thumb_writer_put_call_address_with_arguments (tw,
+      GUM_ADDRESS (_gum_function_context_begin_invocation), 4,
+      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R1,
+      GUM_ARG_REGISTER, ARM_REG_R2,
+      GUM_ARG_REGISTER, ARM_REG_R3);
+
+  gum_interceptor_backend_write_epilog (tw);
+
+  return thunk;
+}
+
+static gpointer
+gum_make_leave_thunk (GumThumbWriter * tw)
+{
+  gpointer thunk;
+
+  thunk = gum_thumb_writer_cur (tw) + 1;
+
+  gum_interceptor_backend_write_prolog (tw);
+
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
+      GUM_FRAME_OFFSET_CPU_CONTEXT);
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R2, ARM_REG_SP,
+      GUM_FRAME_OFFSET_NEXT_HOP);
+
+  gum_thumb_writer_put_call_address_with_arguments (tw,
+      GUM_ADDRESS (_gum_function_context_end_invocation), 3,
+      GUM_ARG_REGISTER, ARM_REG_R7,
+      GUM_ARG_REGISTER, ARM_REG_R1,
+      GUM_ARG_REGISTER, ARM_REG_R2);
+
+  gum_interceptor_backend_write_epilog (tw);
+
+  return thunk;
+}
+
+static void
+gum_interceptor_backend_write_push_cpu_context_high_part (GumThumbWriter * tw)
+{
+  gum_thumb_writer_put_push_regs (tw, 8 + 1,
+      ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
+      ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
+      ARM_REG_LR);
+}
+
+static void
+gum_interceptor_backend_write_prolog (GumThumbWriter * tw)
 {
   /*
    * Set up our stack frame:
    *
-   * [cpu_context]
+   * [cpu_context] <-- high part already pushed
    * [next_hop]
    */
-
-  /* TODO: increment the trampoline usage counter */
-
-  if (need_high_part)
-  {
-    /* build high part of GumCpuContext */
-    gum_thumb_writer_put_push_regs (tw, 8 + 1,
-        ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
-        ARM_REG_R4, ARM_REG_R5, ARM_REG_R6, ARM_REG_R7,
-        ARM_REG_LR);
-  }
 
   /* build low part of GumCpuContext */
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP, 9 * 4);
@@ -399,11 +464,8 @@ gum_interceptor_backend_write_prolog (GumThumbWriter * tw,
 }
 
 static void
-gum_interceptor_backend_write_epilog (GumThumbWriter * tw,
-                                      volatile gint * trampoline_usage_counter)
+gum_interceptor_backend_write_epilog (GumThumbWriter * tw)
 {
-  /* TODO: decrement the trampoline usage counter */
-
   /* restore LR */
   gum_thumb_writer_put_ldr_reg_reg_offset (tw, ARM_REG_R0, ARM_REG_SP,
       GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
