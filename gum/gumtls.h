@@ -7,25 +7,18 @@
 #ifndef __GUM_TLS_H__
 #define __GUM_TLS_H__
 
-#include <glib.h>
+#include <gum/gumdefs.h>
 
-#ifdef G_OS_WIN32
-# ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-# endif
-# include <windows.h>
-typedef DWORD GumTlsKey;
-# define GUM_TLS_KEY_INIT(k)         *(k) = TlsAlloc ()
-# define GUM_TLS_KEY_FREE(k)         TlsFree (k)
-# define GUM_TLS_KEY_GET_VALUE(k)    TlsGetValue (k)
-# define GUM_TLS_KEY_SET_VALUE(k, v) TlsSetValue (k, v)
-#else
-# include <pthread.h>
-typedef pthread_key_t GumTlsKey;
-# define GUM_TLS_KEY_INIT(k)         pthread_key_create ((k), NULL)
-# define GUM_TLS_KEY_FREE(k)         pthread_key_delete (k)
-# define GUM_TLS_KEY_GET_VALUE(k)    pthread_getspecific (k)
-# define GUM_TLS_KEY_SET_VALUE(k, v) pthread_setspecific (k, v)
-#endif
+G_BEGIN_DECLS
+
+typedef gsize GumTlsKey;
+
+GUM_API GumTlsKey gum_tls_key_new (void);
+GUM_API void gum_tls_key_free (GumTlsKey key);
+
+GUM_API gpointer gum_tls_key_get_value (GumTlsKey key);
+GUM_API void gum_tls_key_set_value (GumTlsKey key, gpointer value);
+
+G_END_DECLS
 
 #endif

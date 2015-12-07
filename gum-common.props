@@ -116,6 +116,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClCompile Include="gum\backend-windows\gumtls-windows.c" />
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c" />
     <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c" />

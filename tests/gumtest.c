@@ -96,6 +96,7 @@ main (gint argc, gchar * argv[])
 
   /* Core */
   TEST_RUN_LIST (testutil);
+  TEST_RUN_LIST (tls);
   TEST_RUN_LIST (memory);
   TEST_RUN_LIST (process);
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))

@@ -24,6 +24,7 @@
 #include <gum/gumreturnaddress.h>
 #include <gum/gumstalker.h>
 #include <gum/gumsymbolutil.h>
+#include <gum/gumtls.h>
 
 G_BEGIN_DECLS
 

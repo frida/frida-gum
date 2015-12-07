@@ -69,8 +69,6 @@ void gum_arm64_writer_put_tbz_reg_imm_label (GumArm64Writer * self,
 void gum_arm64_writer_put_tbnz_reg_imm_label (GumArm64Writer * self,
     arm64_reg reg, guint bit, gconstpointer label_id);
 
-void gum_arm64_writer_put_push_cpu_context (GumArm64Writer * self);
-void gum_arm64_writer_put_pop_cpu_context (GumArm64Writer * self);
 void gum_arm64_writer_put_push_reg_reg (GumArm64Writer * self, arm64_reg reg_a,
     arm64_reg reg_b);
 void gum_arm64_writer_put_pop_reg_reg (GumArm64Writer * self, arm64_reg reg_a,

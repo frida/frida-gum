@@ -93,7 +93,7 @@ gum_call_count_sampler_init (GumCallCountSampler * self)
 
   priv->interceptor = gum_interceptor_obtain ();
 
-  GUM_TLS_KEY_INIT (&priv->tls_key);
+  priv->tls_key = gum_tls_key_new ();
   g_mutex_init (&priv->mutex);
 }
 
@@ -121,6 +121,7 @@ gum_call_count_sampler_finalize (GObject * object)
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER (object);
   GumCallCountSamplerPrivate * priv = self->priv;
 
+  gum_tls_key_free (priv->tls_key);
   g_mutex_clear (&priv->mutex);
 
   g_slist_foreach (priv->counters, (GFunc) g_free, NULL);
@@ -232,7 +233,7 @@ gum_call_count_sampler_sample (GumSampler * sampler)
   GumCallCountSampler * self = GUM_CALL_COUNT_SAMPLER_CAST (sampler);
   GumSample * counter;
 
-  counter = (GumSample *) GUM_TLS_KEY_GET_VALUE (self->priv->tls_key);
+  counter = (GumSample *) gum_tls_key_get_value (self->priv->tls_key);
   if (counter != NULL)
     return *counter;
   else
@@ -251,7 +252,7 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
 
   gum_interceptor_ignore_current_thread (priv->interceptor);
 
-  counter = (GumSample *) GUM_TLS_KEY_GET_VALUE (priv->tls_key);
+  counter = (GumSample *) gum_tls_key_get_value (priv->tls_key);
   if (counter == NULL)
   {
     counter = g_new0 (GumSample, 1);
@@ -260,7 +261,7 @@ gum_call_count_sampler_on_enter (GumInvocationListener * listener,
     priv->counters = g_slist_prepend (priv->counters, counter);
     g_mutex_unlock (&priv->mutex);
 
-    GUM_TLS_KEY_SET_VALUE (priv->tls_key, counter);
+    gum_tls_key_set_value (priv->tls_key, counter);
   }
 
   g_atomic_int_inc (&priv->total_count);

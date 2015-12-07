@@ -51,6 +51,9 @@
     <ClCompile Include="gum\arch-x86\gumx86writer.c">
       <Filter>core\arch-x86</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-windows\gumtls-windows.c">
+      <Filter>core\backend-windows</Filter>
+    </ClCompile>
     <ClCompile Include="gum\backend-windows\gummemory-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
