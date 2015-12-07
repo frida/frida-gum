@@ -40,7 +40,6 @@ struct _GumArm64FunctionContextData
 {
   guint redirect_code_size;
   arm64_reg scratch_reg;
-  volatile gint trampoline_usage_counter;
 };
 
 G_STATIC_ASSERT (sizeof (GumArm64FunctionContextData)
@@ -151,8 +150,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
-
-  ctx->trampoline_usage_counter = &data->trampoline_usage_counter;
 
   gum_arm64_writer_reset (aw, ctx->trampoline_slice->data);
 
