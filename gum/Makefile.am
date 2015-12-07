@@ -126,11 +126,11 @@ backend_sources += \
 	backend-darwin/gumdarwinbacktracer.c \
 	backend-darwin/gumsymbolutil-darwin.c \
 	backend-darwin/gumkernel-darwin.c \
+	backend-darwin/gumtls-darwin.c \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c \
 	backend-darwin/gumdarwinmapper.c \
-	backend-darwin/gumdarwinmodule.c \
-	backend-posix/gumtls-posix.c
+	backend-darwin/gumdarwinmodule.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumdarwinbacktracer.h \
