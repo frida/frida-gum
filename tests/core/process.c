@@ -10,7 +10,10 @@
 
 #ifndef G_OS_WIN32
 #include <dlfcn.h>
+#else
+#include <windows.h>
 #endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,6 +34,9 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (module_base)
   PROCESS_TESTENTRY (module_export_can_be_found)
   PROCESS_TESTENTRY (module_export_matches_system_lookup)
+#ifdef G_OS_WIN32
+  PROCESS_TESTENTRY (get_set_errno)
+#endif
 #ifdef HAVE_DARWIN
   PROCESS_TESTENTRY (darwin_enumerate_modules)
   PROCESS_TESTENTRY (darwin_enumerate_ranges)
@@ -311,6 +317,16 @@ PROCESS_TESTCASE (module_export_matches_system_lookup)
   g_assert_cmphex (gum_address, ==, GPOINTER_TO_SIZE (system_address));
 #endif
 }
+
+#ifdef G_OS_WIN32
+PROCESS_TESTCASE (get_set_errno)
+{
+  gum_set_errno (0x12345678);
+  g_assert_cmpint (0x12345678, ==, GetLastError());
+  SetLastError (0x89ABCDEF);
+  g_assert_cmpint ((gint) 0x89ABCDEF, ==, gum_get_errno());
+}
+#endif
 
 #ifdef HAVE_DARWIN
 
