@@ -41,6 +41,7 @@
     <ClInclude Include="gum\gumsymbolutil.h" />
     <ClInclude Include="gum\gumsysinternals.h" />
     <ClInclude Include="gum\gumtls.h" />
+    <ClInclude Include="gum\gumtls-priv.h" />
   </ItemGroup>
 
   <ItemGroup>

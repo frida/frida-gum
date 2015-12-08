@@ -10,6 +10,7 @@
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
 #include "gumprintf.h"
+#include "gumtls-priv.h"
 
 #include <capstone/capstone.h>
 #include <glib-object.h>
@@ -71,6 +72,7 @@ do_init (gpointer data)
 
   cs_option (0, CS_OPT_MEM, GPOINTER_TO_SIZE (&gum_cs_mem_callbacks));
 
+  _gum_tls_init ();
   _gum_interceptor_init ();
 
   return NULL;

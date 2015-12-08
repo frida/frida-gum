@@ -34,11 +34,31 @@ gum_process_is_debugger_attached (void)
   return IsDebuggerPresent ();
 }
 
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+
+GumThreadId
+gum_process_get_current_thread_id (void)
+{
+  return __readfsdword (0x24);
+}
+
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+
+GumThreadId
+gum_process_get_current_thread_id (void)
+{
+  return __readgsdword (0x48);
+}
+
+#else
+
 GumThreadId
 gum_process_get_current_thread_id (void)
 {
   return GetCurrentThreadId ();
 }
+
+#endif
 
 gboolean
 gum_process_modify_thread (GumThreadId thread_id,

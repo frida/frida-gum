@@ -8,6 +8,11 @@
 
 #include <pthread.h>
 
+void
+_gum_tls_init (void)
+{
+}
+
 GumTlsKey
 gum_tls_key_new (void)
 {
