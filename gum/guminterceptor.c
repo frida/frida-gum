@@ -12,16 +12,9 @@
 #include "gumarray.h"
 #include "gumhash.h"
 #include "gummemory.h"
+#include "gumprocess.h"
 #include "gumtls.h"
 
-#ifdef G_OS_WIN32
-# ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-# endif
-# include <windows.h>
-#else
-# include <errno.h>
-#endif
 #include <string.h>
 
 #ifdef HAVE_ARM64
@@ -811,10 +804,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave;
 
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#endif
-
+  system_error = gum_thread_get_system_error ();
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
@@ -833,10 +823,6 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     return;
   }
   gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
-
-#ifndef G_OS_WIN32
-  system_error = errno;
-#endif
 
   if (priv->selected_thread_id != 0)
   {
@@ -921,11 +907,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     system_error = invocation_ctx->system_error;
   }
 
-#ifdef G_OS_WIN32
-  SetLastError (system_error);
-#else
-  errno = system_error;
-#endif
+  gum_thread_set_system_error (system_error);
 
   gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
 
@@ -963,15 +945,10 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx;
   guint i;
 
-#ifdef G_OS_WIN32
-  system_error = GetLastError ();
-#endif
+  system_error = gum_thread_get_system_error ();
 
   gum_tls_key_set_value (_gum_interceptor_guard_key, function_ctx->interceptor);
 
-#ifndef G_OS_WIN32
-  system_error = errno;
-#endif
 
   interceptor_ctx = get_interceptor_thread_context ();
 
@@ -1035,11 +1012,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 #endif
   }
 
-#ifdef G_OS_WIN32
-  SetLastError (invocation_ctx->system_error);
-#else
-  errno = invocation_ctx->system_error;
-#endif
+  gum_thread_set_system_error (invocation_ctx->system_error);
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 

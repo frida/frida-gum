@@ -8,6 +8,7 @@
 
 #include "gumwindows.h"
 
+#include <intrin.h>
 #include <psapi.h>
 #include <tlhelp32.h>
 
@@ -292,6 +293,56 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
   (void) func;
   (void) user_data;
 }
+
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+
+gint
+gum_thread_get_system_error (void)
+{
+  gint32 * teb = (gint32 *) __readfsdword (0x18);
+  return teb[13];
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  gint32 * teb = (gint32 *) __readfsdword (0x18);
+  if (teb[13] != value)
+    teb[13] = value;
+}
+
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+
+gint
+gum_thread_get_system_error (void)
+{
+  gint32 * teb = (gint32 *) __readgsqword (0x30);
+  return teb[26];
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  gint32 * teb = (gint32 *) __readgsqword (0x30);
+  if (teb[26] != value)
+    teb[26] = value;
+}
+
+#else
+
+gint
+gum_thread_get_system_error (void)
+{
+  return (gint) GetLastError ();
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  SetLastError ((DWORD) value);
+}
+
+#endif
 
 void
 gum_module_enumerate_imports (const gchar * module_name,
