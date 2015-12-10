@@ -7,6 +7,7 @@
 #include "gumqnx-priv.h"
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <gio/gio.h>
 #include <stdlib.h>
@@ -312,6 +313,18 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
 {
   /* Not implemented */
   g_assert_not_reached ();
+}
+
+gint
+gum_thread_get_system_error (void)
+{
+  return errno;
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  errno = value;
 }
 
 void

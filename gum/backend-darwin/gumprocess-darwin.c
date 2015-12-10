@@ -12,6 +12,7 @@
 #include "gumleb.h"
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdlib.h>
 #include <mach-o/dyld.h>
 #include <mach-o/dyld_images.h>
@@ -451,6 +452,18 @@ gum_read_malloc_memory (task_t remote_task,
   *local_memory = (void *) remote_address;
 
   return KERN_SUCCESS;
+}
+
+gint
+gum_thread_get_system_error (void)
+{
+  return errno;
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  errno = value;
 }
 
 void

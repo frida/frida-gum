@@ -11,6 +11,7 @@
 
 #include <dlfcn.h>
 #include <elf.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -497,6 +498,18 @@ gum_process_enumerate_malloc_ranges (GumFoundMallocRangeFunc func,
                                      gpointer user_data)
 {
   /* Not implemented */
+}
+
+gint
+gum_thread_get_system_error (void)
+{
+  return errno;
+}
+
+void
+gum_thread_set_system_error (gint value)
+{
+  errno = value;
 }
 
 void
