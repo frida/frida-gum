@@ -394,6 +394,32 @@ gum_thumb_writer_put_blx_reg (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_bl_imm (GumThumbWriter * self,
+                             GumAddress target)
+{
+  union
+  {
+    gint32 i;
+    guint32 u;
+  } distance;
+  guint16 s, j1, j2, imm10, imm11;
+
+  distance.i = ((gint32) (target & ~((GumAddress) 1)) -
+      (gint32) (self->pc + 4)) / 2;
+
+  s = (distance.u >> 31) & 1;
+  j1 = (~((distance.u >> 22) ^ s)) & 1;
+  j2 = (~((distance.u >> 21) ^ s)) & 1;
+
+  imm10 = (distance.u >> 11) & GUM_INT10_MASK;
+  imm11 = distance.u & GUM_INT11_MASK;
+
+  gum_thumb_writer_put_instruction (self, 0xf000 | (s << 10) | imm10);
+  gum_thumb_writer_put_instruction (self, 0xd000 | (j1 << 13) | (j2 << 11) |
+      imm11);
+}
+
+void
 gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self,
                                   arm_reg reg,
                                   guint8 imm_value)
