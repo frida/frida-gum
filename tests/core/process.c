@@ -36,6 +36,7 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (module_export_matches_system_lookup)
 #ifdef G_OS_WIN32
   PROCESS_TESTENTRY (get_set_system_error)
+  PROCESS_TESTENTRY (get_current_thread_id)
 #endif
 #ifdef HAVE_DARWIN
   PROCESS_TESTENTRY (darwin_enumerate_modules)
@@ -319,6 +320,12 @@ PROCESS_TESTCASE (module_export_matches_system_lookup)
 }
 
 #ifdef G_OS_WIN32
+PROCESS_TESTCASE (get_current_thread_id)
+{
+  g_assert_cmphex (gum_process_get_current_thread_id (), ==,
+      GetCurrentThreadId ());
+}
+
 PROCESS_TESTCASE (get_set_system_error)
 {
   gum_thread_set_system_error (0x12345678);

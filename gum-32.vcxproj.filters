@@ -380,6 +380,9 @@
     <ClInclude Include="gum\gumtls.h">
       <Filter>core</Filter>
     </ClInclude>
+    <ClInclude Include="gum\gumtls-priv.h">
+      <Filter>core</Filter>
+    </ClInclude>
     <ClInclude Include="gum\backend-windows\gumwindows.h">
       <Filter>core\backend-windows</Filter>
     </ClInclude>
