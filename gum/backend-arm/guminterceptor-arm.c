@@ -18,8 +18,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#define GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE    (4 + 4)
-#define GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE  (8 + 4)
+#define GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE        (4 + 4)
+#define GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_CODE_SIZE (8 + 4)
+#define GUM_INTERCEPTOR_THUMB_NEAR_REDIRECT_CODE_SIZE (6)
 
 #define FUNCTION_CONTEXT_ADDRESS(ctx) (GSIZE_TO_POINTER ( \
     GPOINTER_TO_SIZE (ctx->function_address) & ~0x1))
@@ -31,6 +32,8 @@
     (GUM_FRAME_OFFSET_NEXT_HOP + sizeof (gpointer))
 #define GUM_FRAME_OFFSET_TOP \
     (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof (GumCpuContext))
+
+typedef struct _GumArmFunctionContextData GumArmFunctionContextData;
 
 struct _GumInterceptorBackend
 {
@@ -45,6 +48,14 @@ struct _GumInterceptorBackend
   gpointer enter_thunk;
   gpointer leave_thunk;
 };
+
+struct _GumArmFunctionContextData
+{
+  guint redirect_code_size;
+};
+
+G_STATIC_ASSERT (sizeof (GumArmFunctionContextData)
+    <= sizeof (GumFunctionContextBackendData));
 
 static void gum_interceptor_backend_create_thunks (
     GumInterceptorBackend * self);
@@ -92,6 +103,52 @@ _gum_interceptor_backend_destroy (GumInterceptorBackend * backend)
   g_slice_free (GumInterceptorBackend, backend);
 }
 
+static gboolean
+gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
+                                            GumFunctionContext * ctx)
+{
+  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
+      &ctx->backend_data;
+  gpointer function_address;
+  gboolean is_thumb;
+  guint redirect_limit;
+
+  function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
+
+  if (is_thumb)
+  {
+    if (gum_thumb_relocator_can_relocate (function_address,
+        GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_CODE_SIZE, GUM_SCENARIO_ONLINE,
+        &redirect_limit))
+    {
+      data->redirect_code_size = GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_CODE_SIZE;
+    }
+    else
+    {
+      if (redirect_limit < GUM_INTERCEPTOR_THUMB_NEAR_REDIRECT_CODE_SIZE)
+        return FALSE;
+
+      data->redirect_code_size = GUM_INTERCEPTOR_THUMB_NEAR_REDIRECT_CODE_SIZE;
+    }
+  }
+  else
+  {
+    if (gum_arm_relocator_can_relocate (function_address,
+        GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE))
+    {
+      data->redirect_code_size = GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE;
+    }
+    else
+    {
+      return FALSE;
+    }
+  }
+
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
+  return TRUE;
+}
+
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
@@ -99,15 +156,39 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   gpointer function_address;
   gboolean is_thumb;
   GumThumbWriter * tw = &self->thumb_writer;
+  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
+      &ctx->backend_data;
   guint reloc_bytes;
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
-  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
+  if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
+    return FALSE;
+
   gum_thumb_writer_reset (tw, ctx->trampoline_slice->data);
 
   ctx->on_enter_trampoline = gum_thumb_writer_cur (tw) + 1;
+
+  if (is_thumb &&
+      data->redirect_code_size == GUM_INTERCEPTOR_THUMB_NEAR_REDIRECT_CODE_SIZE)
+  {
+    GumAddressSpec caller;
+    gpointer return_address;
+
+    caller.near_address = function_address + 2 + 4;
+    caller.max_distance = GUM_THUMB_B_MAX_DISTANCE;
+    return_address = function_address + 6 + 1;
+
+    ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
+        ctx->allocator, &caller, return_address, ctx->on_enter_trampoline);
+    if (ctx->trampoline_deflector == NULL)
+    {
+      gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
+      ctx->trampoline_slice = NULL;
+      return FALSE;
+    }
+  }
 
   if (!is_thumb)
     gum_interceptor_backend_write_push_cpu_context_high_part (tw);
@@ -142,7 +223,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       reloc_bytes = gum_thumb_relocator_read_one (tr, NULL);
       g_assert_cmpuint (reloc_bytes, !=, 0);
     }
-    while (reloc_bytes < GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+    while (reloc_bytes < data->redirect_code_size);
 
     gum_thumb_relocator_write_all (tr);
 
@@ -174,7 +255,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       reloc_bytes = gum_arm_relocator_read_one (ar, NULL);
       g_assert_cmpuint (reloc_bytes, !=, 0);
     }
-    while (reloc_bytes < GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
+    while (reloc_bytes < data->redirect_code_size);
 
     gum_arm_relocator_write_all (ar);
 
@@ -205,6 +286,7 @@ _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
   gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
+  gum_code_allocator_free_deflector (ctx->allocator, ctx->trampoline_deflector);
   ctx->trampoline_slice = NULL;
 }
 
@@ -213,6 +295,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
                                               GumFunctionContext * ctx)
 {
   gpointer function_address;
+  GumArmFunctionContextData * data = (GumArmFunctionContextData *)
+      &ctx->backend_data;
 
   function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
 
@@ -225,13 +309,21 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
     gum_interceptor_backend_write_push_cpu_context_high_part (tw);
 
     /* jump to stage2 */
-    gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
-        GUM_ADDRESS (ctx->on_enter_trampoline));
-    gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
+    if (ctx->trampoline_deflector != NULL)
+    {
+      gum_thumb_writer_put_bl_imm (tw,
+          GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
+    }
+    else
+    {
+      gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+          GUM_ADDRESS (ctx->on_enter_trampoline));
+      gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
+    }
 
     gum_thumb_writer_flush (tw);
     g_assert_cmpuint (gum_thumb_writer_offset (tw),
-        <=, GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE);
+        <=, data->redirect_code_size);
   }
   else
   {
@@ -245,7 +337,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
     gum_arm_writer_flush (aw);
     g_assert_cmpuint (gum_arm_writer_offset (aw),
-        ==, GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
+        ==, data->redirect_code_size);
   }
 }
 
@@ -293,17 +385,7 @@ gboolean
 _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
                                         gpointer function_address)
 {
-  if ((GPOINTER_TO_SIZE (function_address) & 1) != 0)
-  {
-    return gum_thumb_relocator_can_relocate (
-        GSIZE_TO_POINTER (GPOINTER_TO_SIZE (function_address) & ~1),
-        GUM_INTERCEPTOR_THUMB_REDIRECT_CODE_SIZE, GUM_SCENARIO_ONLINE, NULL);
-  }
-  else
-  {
-    return gum_arm_relocator_can_relocate (function_address,
-        GUM_INTERCEPTOR_ARM_REDIRECT_CODE_SIZE);
-  }
+  return TRUE;
 }
 
 gpointer
