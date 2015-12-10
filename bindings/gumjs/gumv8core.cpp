@@ -174,6 +174,10 @@ static void gum_v8_core_on_native_pointer_or (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_native_pointer_xor (
     const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_native_pointer_shr (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_native_pointer_shl (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_native_pointer_compare (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_native_pointer_to_int32 (
@@ -324,6 +328,12 @@ _gum_v8_core_init (GumV8Core * self,
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "xor"),
       FunctionTemplate::New (isolate,
           gum_v8_core_on_native_pointer_xor, data));
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "shr"),
+      FunctionTemplate::New (isolate,
+          gum_v8_core_on_native_pointer_shr, data));
+  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "shl"),
+      FunctionTemplate::New (isolate,
+          gum_v8_core_on_native_pointer_shl, data));
   native_pointer_proto->Set (String::NewFromUtf8 (isolate, "compare"),
       FunctionTemplate::New (isolate,
           gum_v8_core_on_native_pointer_compare, data));
@@ -1324,6 +1334,8 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (and, &)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (or,  |)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (xor, ^)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shr, >>)
+GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
 
 /*
  * Prototype:
