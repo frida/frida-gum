@@ -804,7 +804,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   gboolean invoke_listeners = TRUE;
   gboolean will_trap_on_leave;
 
+#ifdef G_OS_WIN32
   system_error = gum_thread_get_system_error ();
+#endif
+
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
@@ -823,6 +826,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     return;
   }
   gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
+
+#ifndef G_OS_WIN32
+  system_error = gum_thread_get_system_error ();
+#endif
 
   if (priv->selected_thread_id != 0)
   {
@@ -945,10 +952,15 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GumInvocationContext * invocation_ctx;
   guint i;
 
+#ifdef G_OS_WIN32
   system_error = gum_thread_get_system_error ();
+#endif
 
   gum_tls_key_set_value (_gum_interceptor_guard_key, function_ctx->interceptor);
 
+#ifndef G_OS_WIN32
+  system_error = gum_thread_get_system_error ();
+#endif
 
   interceptor_ctx = get_interceptor_thread_context ();
 
