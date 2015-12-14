@@ -17,6 +17,7 @@
 #elif defined (HAVE_SYS_ELF_H)
 # include <sys/elf.h>
 #endif
+#include <string.h>
 
 #define GUM_CODE_PAGE(ptr, allocator) \
     ((GumCodePage *) (GPOINTER_TO_SIZE (GUM_CODE_PAGE_DATA (ptr, allocator)) + \
