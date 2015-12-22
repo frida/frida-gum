@@ -10,8 +10,6 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
-#ifdef __ANDROID__
-
 # define PERF_TYPE_HARDWARE       0
 # define PERF_COUNT_HW_CPU_CYCLES 0
 
@@ -56,8 +54,6 @@ struct perf_event_attr
   guint32 __reserved_2;
   guint64 __reserved_3;
 };
-
-#endif
 
 struct _GumCycleSamplerPrivate
 {
