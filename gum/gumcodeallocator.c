@@ -433,6 +433,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
     gum_thumb_writer_free (&tw);
 
     dispatcher->trampoline = dispatcher->address + 1;
+#else
+    (void) gum_code_deflector_dispatcher_lookup;
 #endif
   }
 
