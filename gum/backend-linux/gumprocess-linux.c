@@ -1243,7 +1243,10 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   sc->arm_lr = ctx->lr;
 
   sc->arm_cpsr = ctx->cpsr;
-  sc->arm_cpsr |= (ctx->pc & 1) ? GUM_PSR_THUMB : 0;
+  if (ctx->pc & 1)
+    sc->arm_cpsr |= GUM_PSR_THUMB;
+  else
+    sc->arm_cpsr &= ~GUM_PSR_THUMB;
 #elif defined (HAVE_ARM64)
   struct sigcontext * sc = &uc->uc_mcontext;
   gsize i;
