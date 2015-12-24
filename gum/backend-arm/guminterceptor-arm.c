@@ -541,7 +541,7 @@ gum_interceptor_backend_write_prolog (GumThumbWriter * tw)
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP, 9 * 4);
   gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
 
-  /* reserve space for next_hop */
+  /* reserve space for next_hop and for cpsr in GumCpuContext */
   gum_thumb_writer_put_sub_reg_imm (tw, ARM_REG_SP, 8);
 }
 
@@ -560,7 +560,7 @@ gum_interceptor_backend_write_epilog (GumThumbWriter * tw)
       GUM_FRAME_OFFSET_CPU_CONTEXT + G_STRUCT_OFFSET (GumCpuContext, lr));
 
   /* clear next_hop and low part of GumCpuContext */
-  gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 8 + 8);
+  gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 4 + 12);
   /* restore r[0-8] and jump straight to LR */
   gum_thumb_writer_put_pop_regs (tw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
