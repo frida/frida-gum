@@ -23,7 +23,7 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
-#ifndef HAVE_ANDROID
+#if !defined(HAVE_ANDROID) && !(defined(HAVE_LINUX) && defined(HAVE_ARM))
   PROCESS_TESTENTRY (process_threads)
 #endif
   PROCESS_TESTENTRY (process_modules)

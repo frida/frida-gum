@@ -133,7 +133,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
-#ifndef HAVE_ANDROID
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined(HAVE_ARM))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
