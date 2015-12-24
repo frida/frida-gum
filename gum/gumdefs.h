@@ -141,6 +141,7 @@ struct _GumCpuContext
   guint64 lr;
   guint8 q[128];
 #else
+  guint32 cpsr;
   guint32 pc;
   guint32 sp;
 
