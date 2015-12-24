@@ -99,14 +99,8 @@ static gboolean gum_exceptor_handle_scope_exception (
 static void gum_exceptor_attach (GumExceptor * self);
 static void gum_exceptor_detach (GumExceptor * self);
 
-#if defined (HAVE_LINUX) && defined (HAVE_ARM)
-static void gum_exceptor_scope_impl_perform_longjmp (
-    int dummy,
-    GumExceptorScopeImpl * impl);
-#else
 static void gum_exceptor_scope_impl_perform_longjmp (
     GumExceptorScopeImpl * impl);
-#endif
 
 G_DEFINE_TYPE (GumExceptor, gum_exceptor, G_TYPE_OBJECT);
 
@@ -465,9 +459,6 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
 # if GLIB_SIZEOF_VOID_P == 4
   context->r[0] = GPOINTER_TO_SIZE (impl);
-#  if defined (HAVE_LINUX) && defined (HAVE_ARM)
-  context->r[1] = GPOINTER_TO_SIZE (impl);
-#  endif
 # else
   context->x[0] = GPOINTER_TO_SIZE (impl);
 # endif
@@ -986,15 +977,9 @@ gum_exceptor_unparse_context (const GumCpuContext * ctx,
 
 #endif
 
-#if defined (HAVE_LINUX) && defined (HAVE_ARM)
-static void
-gum_exceptor_scope_impl_perform_longjmp (int dummy, GumExceptorScopeImpl * impl)
-{
-#else
 static void
 gum_exceptor_scope_impl_perform_longjmp (GumExceptorScopeImpl * impl)
 {
-#endif
 #ifdef HAVE_ANDROID
   sigprocmask (SIG_SETMASK, &impl->mask, NULL);
 #endif
