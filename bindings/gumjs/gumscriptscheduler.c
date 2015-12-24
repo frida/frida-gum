@@ -294,10 +294,10 @@ gum_script_job_new (GumScriptScheduler * scheduler,
 static void
 gum_script_job_free (GumScriptJob * job)
 {
-  gum_script_scheduler_on_job_destroyed (job->scheduler, job);
-
   if (job->data_destroy != NULL)
     job->data_destroy (job->data);
+
+  gum_script_scheduler_on_job_destroyed (job->scheduler, job);
 
   g_slice_free (GumScriptJob, job);
 }
