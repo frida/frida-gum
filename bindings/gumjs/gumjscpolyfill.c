@@ -7,7 +7,10 @@
 #include "gumjscpolyfill.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->polyfill)
 #define GUMJS_PROXY(o) \
   ((GumJscProxy *) JSObjectGetPrivate (o))
 
@@ -87,12 +90,10 @@ _gum_jsc_polyfill_finalize (GumJscPolyfill * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
 {
-  GumJscPolyfill * parent;
+  GumJscPolyfill * parent = GUMJS_MODULE_FROM_ARGS (args);
   GumJscProxy p;
   JSObjectRef proto = NULL;
   JSObjectRef instance;
-
-  parent = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "F{has?,get?,set?,enumerate?}|O",
       &p.has, &p.get, &p.set, &p.enumerate, &proto))

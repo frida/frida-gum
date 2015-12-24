@@ -7,6 +7,7 @@
 #include "gumjscprocess.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
@@ -29,6 +30,9 @@
 #elif defined (HAVE_QNX)
 # define GUM_SCRIPT_PLATFORM "qnx"
 #endif
+
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->process)
 
 typedef struct _GumJscMatchContext GumJscMatchContext;
 
@@ -137,7 +141,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   GumJscMatchContext mc;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -194,7 +198,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   GumJscMatchContext mc;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -248,7 +252,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   GumPageProtection prot;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -318,7 +322,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   GumJscMatchContext mc;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -370,13 +374,10 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 {
-  GumJscProcess * self;
-  GumJscCore * core;
+  GumJscProcess * self = GUMJS_MODULE_FROM_ARGS (args);
+  GumJscCore * core = args->core;
   JSObjectRef callback;
   GumJscExceptionHandler * new_handler, * old_handler;
-
-  self = JSObjectGetPrivate (this_object);
-  core = self->core;
 
   if (!_gumjs_args_parse (args, "F?", &callback))
     return NULL;

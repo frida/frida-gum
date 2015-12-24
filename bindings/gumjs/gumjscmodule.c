@@ -7,7 +7,10 @@
 #include "gumjscmodule.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->module)
 #define GUMJS_MODULE_IMPORT_DETAILS(o) \
   ((GumImportDetails *) JSObjectGetPrivate (o))
 #define GUMJS_MODULE_EXPORT_DETAILS(o) \
@@ -132,7 +135,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   gchar * name;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -184,7 +187,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   gchar * name;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -237,7 +240,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumPageProtection prot;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete))
     return NULL;

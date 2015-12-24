@@ -7,6 +7,10 @@
 #include "gumjscmemory.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
+
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->memory)
 
 typedef guint GumMemoryValueType;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
@@ -61,13 +65,13 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #define GUMJS_DEFINE_MEMORY_READ(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
-    return gum_jsc_memory_read (JSObjectGetPrivate (this_object), \
+    return gum_jsc_memory_read (GUMJS_MODULE_FROM_ARGS (args), \
         GUM_MEMORY_VALUE_##T, args, exception); \
   }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
-    return gum_jsc_memory_write (JSObjectGetPrivate (this_object), \
+    return gum_jsc_memory_write (GUMJS_MODULE_FROM_ARGS (args), \
         GUM_MEMORY_VALUE_##T, args, exception); \
   }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \

@@ -7,6 +7,10 @@
 #include "gumjscthread.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
+
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->thread)
 
 enum _GumBacktracerType
 {
@@ -67,17 +71,14 @@ _gum_jsc_thread_finalize (GumJscThread * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
-  GumJscThread * self;
-  GumJscCore * core;
+  GumJscThread * self = GUMJS_MODULE_FROM_ARGS (args);
+  GumJscCore * core = args->core;
   GumCpuContext * cpu_context = NULL;
   gint selector = GUM_BACKTRACER_ACCURATE;
   GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs;
   JSValueRef ret_addrs_js[G_N_ELEMENTS (ret_addrs.items)];
   guint i;
-
-  self = JSObjectGetPrivate (this_object);
-  core = self->core;
 
   if (!_gumjs_args_parse (args, "|C?i", &cpu_context, &selector))
     return NULL;

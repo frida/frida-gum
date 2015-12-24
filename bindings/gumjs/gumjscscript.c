@@ -7,22 +7,9 @@
 #include "gumjscscript.h"
 
 #include "guminvocationlistener.h"
-#include "gumjsccore.h"
-#include "gumjscfile.h"
-#include "gumjscinstruction.h"
-#include "gumjscinterceptor.h"
-#include "gumjsckernel.h"
-#include "gumjscmemory.h"
-#include "gumjscmodule.h"
-#include "gumjscpolyfill.h"
-#include "gumjscprocess.h"
 #include "gumjscscript-priv.h"
 #include "gumjscscript-runtime.h"
 #include "gumjscscriptbackend.h"
-#include "gumjscsocket.h"
-#include "gumjscstalker.h"
-#include "gumjscsymbol.h"
-#include "gumjscthread.h"
 #include "gumjscvalue.h"
 #include "gumscripttask.h"
 
@@ -38,33 +25,6 @@ enum
   PROP_BACKEND
 };
 
-struct _GumJscScriptPrivate
-{
-  gchar * name;
-  gchar * source;
-  GMainContext * main_context;
-  GumJscScriptBackend * backend;
-
-  JSGlobalContextRef ctx;
-  GumJscCore core;
-  GumJscPolyfill polyfill;
-  GumJscKernel kernel;
-  GumJscMemory memory;
-  GumJscProcess process;
-  GumJscThread thread;
-  GumJscModule module;
-  GumJscFile file;
-  GumJscSocket socket;
-  GumJscInterceptor interceptor;
-  GumJscStalker stalker;
-  GumJscSymbol symbol;
-  GumJscInstruction instruction;
-  gboolean loaded;
-
-  GumScriptMessageHandler message_handler;
-  gpointer message_handler_data;
-  GDestroyNotify message_handler_data_destroy;
-};
 
 struct _GumEmitMessageData
 {

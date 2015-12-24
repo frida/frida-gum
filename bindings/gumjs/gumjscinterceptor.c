@@ -9,6 +9,8 @@
 #include "gumjscmacros.h"
 #include "gumjscscript-priv.h"
 
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->interceptor)
 #define GUM_JSC_INVOCATION_CONTEXT(o) \
   ((GumJscInvocationContext *) JSObjectGetPrivate (o))
 
@@ -218,14 +220,12 @@ _gum_jsc_interceptor_finalize (GumJscInterceptor * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 {
-  GumJscInterceptor * self;
+  GumJscInterceptor * self = GUMJS_MODULE_FROM_ARGS (args);
   GumJscCore * core = args->core;
   gpointer target;
   JSObjectRef on_enter, on_leave;
   GumJscAttachEntry * entry;
   GumAttachReturn attach_ret;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "pF{onEnter?,onLeave?}",
       &target, &on_enter, &on_leave))
@@ -280,11 +280,7 @@ gum_jsc_attach_entry_free (GumJscAttachEntry * entry)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
-  GumJscInterceptor * self;
-
-  self = JSObjectGetPrivate (this_object);
-
-  gum_jsc_interceptor_detach_all (self);
+  gum_jsc_interceptor_detach_all (GUMJS_MODULE_FROM_ARGS (args));
 
   return JSValueMakeUndefined (ctx);
 }
@@ -311,14 +307,12 @@ gum_jsc_interceptor_detach_all (GumJscInterceptor * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 {
-  GumJscInterceptor * self;
+  GumJscInterceptor * self = GUMJS_MODULE_FROM_ARGS (args);
   GumJscCore * core = args->core;
   gpointer target, replacement;
   JSValueRef replacement_value;
   GumJscReplaceEntry * entry;
   GumReplaceReturn replace_ret;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "pV", &target, &replacement_value))
     return NULL;
@@ -385,12 +379,9 @@ gum_jsc_replace_entry_free (GumJscReplaceEntry * entry)
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
-  GumJscInterceptor * self;
-  GumJscCore * core;
+  GumJscInterceptor * self = GUMJS_MODULE_FROM_ARGS (args);
+  GumJscCore * core = args->core;
   gpointer target;
-
-  self = JSObjectGetPrivate (this_object);
-  core = self->core;
 
   if (!_gumjs_args_parse (args, "p", &target))
     return NULL;

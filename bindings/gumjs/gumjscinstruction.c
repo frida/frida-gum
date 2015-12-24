@@ -7,6 +7,7 @@
 #include "gumjscinstruction.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
 #include <string.h>
 
@@ -27,6 +28,8 @@
 # error Unsupported architecture
 #endif
 
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->instruction)
 #define GUMJS_INSTRUCTION(o) \
   ((GumInstruction *) JSObjectGetPrivate (o))
 
@@ -123,13 +126,11 @@ _gum_jsc_instruction_finalize (GumJscInstruction * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 {
-  GumJscInstruction * self;
+  GumJscInstruction * self = GUMJS_MODULE_FROM_ARGS (args);
   gpointer target;
   uint64_t address;
   cs_insn * insn;
   JSObjectRef instance;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "p", &target))
     return NULL;

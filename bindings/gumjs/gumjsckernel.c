@@ -7,9 +7,13 @@
 #include "gumjsckernel.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
 #include <gum/gumkernel.h>
 #include <string.h>
+
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->kernel)
 
 typedef struct _GumJscMatchContext GumJscMatchContext;
 
@@ -105,7 +109,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_threads)
   GumJscMatchContext mc;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete))
     return NULL;
@@ -159,7 +163,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
   GumPageProtection prot;
   GumJscScope scope = GUM_JSC_SCOPE_INIT (args->core);
 
-  mc.self = JSObjectGetPrivate (this_object);
+  mc.self = GUMJS_MODULE_FROM_ARGS (args);
   if (!_gumjs_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return NULL;

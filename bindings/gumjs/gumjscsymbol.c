@@ -7,9 +7,12 @@
 #include "gumjscsymbol.h"
 
 #include "gumjscmacros.h"
+#include "gumjscscript-priv.h"
 
 #include <gum/gumsymbolutil.h>
 
+#define GUMJS_MODULE_FROM_ARGS(args) \
+  (&(args)->core->script->priv->symbol)
 #define GUMJS_SYMBOL(o) \
   ((GumSymbol *) JSObjectGetPrivate (o))
 
@@ -113,12 +116,10 @@ _gum_jsc_symbol_finalize (GumJscSymbol * self)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 {
-  GumJscSymbol * self;
+  GumJscSymbol * self = GUMJS_MODULE_FROM_ARGS (args);
   gpointer address;
   GumSymbol * symbol;
   JSObjectRef instance;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "p", &address))
     return NULL;
@@ -132,13 +133,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 {
-  GumJscSymbol * self;
+  GumJscSymbol * self = GUMJS_MODULE_FROM_ARGS (args);
   gchar * name;
   GumSymbol * symbol;
   JSObjectRef instance;
   gpointer address;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "s", &name))
     return NULL;
@@ -164,12 +163,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 {
-  GumJscSymbol * self;
   gchar * name;
   gpointer address;
   JSValueRef result;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "s", &name))
     return NULL;
@@ -193,12 +189,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
-  GumJscSymbol * self;
   gchar * name;
   GArray * functions;
   JSObjectRef result;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "s", &name))
     return NULL;
@@ -214,12 +207,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
-  GumJscSymbol * self;
   gchar * str;
   GArray * functions;
   JSObjectRef result;
-
-  self = JSObjectGetPrivate (this_object);
 
   if (!_gumjs_args_parse (args, "s", &str))
     return NULL;
