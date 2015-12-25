@@ -76,6 +76,8 @@ GUM_DECLARE_CS_FUNC (SymbolIsThumb, Boolean, (CSSymbolRef symbol));
 
 GUM_DECLARE_CS_FUNC (SymbolOwnerGetName, const char *,
     (CSSymbolOwnerRef owner));
+GUM_DECLARE_CS_FUNC (SymbolOwnerGetBaseAddress, unsigned long long,
+    (CSSymbolOwnerRef owner));
 
 GUM_DECLARE_CS_FUNC (SourceInfoGetFilename, const char *,
     (CSSourceInfoRef info));
@@ -137,6 +139,7 @@ do_init (gpointer data)
   GUM_TRY_ASSIGN_CS_FUNC (SymbolIsThumb);
 
   GUM_TRY_ASSIGN_CS_FUNC (SymbolOwnerGetName);
+  GUM_TRY_ASSIGN_CS_FUNC (SymbolOwnerGetBaseAddress);
 
   GUM_TRY_ASSIGN_CS_FUNC (SourceInfoGetFilename);
   GUM_TRY_ASSIGN_CS_FUNC (SourceInfoGetLineNumber);
@@ -185,12 +188,25 @@ gum_symbol_details_from_address (gpointer address,
       gum_symbolicator, GPOINTER_TO_SIZE (address), kCSNow);
   if (!CSIsNull (symbol))
   {
+    CSSymbolOwnerRef owner;
+    const char * name;
     CSSourceInfoRef info;
 
+    owner = CSSymbolGetSymbolOwner (symbol);
+
     details->address = GUM_ADDRESS (address);
-    strcpy (details->module_name, CSSymbolOwnerGetName (
-        CSSymbolGetSymbolOwner (symbol)));
-    strcpy (details->symbol_name, CSSymbolGetName (symbol));
+    strcpy (details->module_name, CSSymbolOwnerGetName (owner));
+    name = CSSymbolGetName (symbol);
+    if (name != NULL)
+    {
+      strcpy (details->symbol_name, name);
+    }
+    else
+    {
+      sprintf (details->symbol_name, "0x%lx",
+          (long) ((unsigned long long) details->address -
+              CSSymbolOwnerGetBaseAddress (owner)));
+    }
 
     info = CSSymbolicatorGetSourceInfoWithAddressAtTime (gum_symbolicator,
         GPOINTER_TO_SIZE (address), kCSNow);
@@ -224,7 +240,22 @@ gum_symbol_name_from_address (gpointer address)
       gum_symbolicator, GPOINTER_TO_SIZE (address), kCSNow);
   if (!CSIsNull (symbol))
   {
-    result = g_strdup (CSSymbolGetName (symbol));
+    const char * name;
+
+    name = CSSymbolGetName (symbol);
+    if (name != NULL)
+    {
+      result = g_strdup (name);
+    }
+    else
+    {
+      CSSymbolOwnerRef owner;
+
+      owner = CSSymbolGetSymbolOwner (symbol);
+
+      result = g_strdup_printf ("0x%lx", (long) ((unsigned long long) address -
+          CSSymbolOwnerGetBaseAddress (owner)));
+    }
   }
 
   return result;
