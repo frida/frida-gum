@@ -6,6 +6,7 @@
 
 #include "gumv8module.h"
 
+#include <gum/gum-init.h>
 #include <string.h>
 
 using namespace v8;
@@ -71,14 +72,27 @@ static void gum_v8_module_on_find_base_address (
 static void gum_v8_module_on_find_export_by_name (
     const FunctionCallbackInfo<Value> & info);
 
-static v8::Eternal<v8::Object> eternal_imp;
-static v8::Eternal<v8::Object> eternal_exp;
+class GumV8ModuleEternals
+{
+public:
+  v8::Eternal<v8::Object> imp;
+  v8::Eternal<v8::Object> exp;
 
-static v8::Eternal<v8::String> eternal_type;
-static v8::Eternal<v8::String> eternal_name;
-static v8::Eternal<v8::String> eternal_module;
-static v8::Eternal<v8::String> eternal_address;
-static v8::Eternal<v8::String> eternal_variable;
+  v8::Eternal<v8::String> type;
+  v8::Eternal<v8::String> name;
+  v8::Eternal<v8::String> module;
+  v8::Eternal<v8::String> address;
+  v8::Eternal<v8::String> variable;
+};
+
+static GumV8ModuleEternals * eternals;
+
+static void
+gum_v8_module_deinit_eternals (void)
+{
+  delete eternals;
+  eternals = nullptr;
+}
 
 void
 _gum_v8_module_init (GumV8Module * self,
@@ -150,14 +164,17 @@ _gum_v8_module_realize (GumV8Module * self)
         GSIZE_TO_POINTER (NULL), self->core), DontDelete);
     g_assert (result.IsJust ());
 
-    eternal_imp.Set (isolate, imp);
-    eternal_exp.Set (isolate, exp);
+    eternals = new GumV8ModuleEternals ();
+    eternals->imp.Set (isolate, imp);
+    eternals->exp.Set (isolate, exp);
 
-    eternal_type.Set (isolate, type);
-    eternal_name.Set (isolate, name);
-    eternal_module.Set (isolate, module);
-    eternal_address.Set (isolate, address);
-    eternal_variable.Set (isolate, variable);
+    eternals->type.Set (isolate, type);
+    eternals->name.Set (isolate, name);
+    eternals->module.Set (isolate, module);
+    eternals->address.Set (isolate, address);
+    eternals->variable.Set (isolate, variable);
+
+    _gum_register_destructor (gum_v8_module_deinit_eternals);
 
     g_once_init_leave (&gonce_value, 1);
   }
@@ -230,12 +247,12 @@ gum_v8_module_on_enumerate_imports (
 
   ctx.receiver = info.This ();
 
-  ctx.imp = eternal_imp.Get (isolate);
-  ctx.type = eternal_type.Get (isolate);
-  ctx.name = eternal_name.Get (isolate);
-  ctx.module = eternal_module.Get (isolate);
-  ctx.address = eternal_address.Get (isolate);
-  ctx.variable = eternal_variable.Get (isolate);
+  ctx.imp = eternals->imp.Get (isolate);
+  ctx.type = eternals->type.Get (isolate);
+  ctx.name = eternals->name.Get (isolate);
+  ctx.module = eternals->module.Get (isolate);
+  ctx.address = eternals->address.Get (isolate);
+  ctx.variable = eternals->variable.Get (isolate);
 
   gum_module_enumerate_imports (*name_str,
       gum_v8_module_handle_import_match, &ctx);
@@ -389,11 +406,11 @@ gum_v8_module_on_enumerate_exports (
 
   ctx.receiver = info.This ();
 
-  ctx.exp = eternal_exp.Get (isolate);
-  ctx.type = eternal_type.Get (isolate);
-  ctx.name = eternal_name.Get (isolate);
-  ctx.address = eternal_address.Get (isolate);
-  ctx.variable = eternal_variable.Get (isolate);
+  ctx.exp = eternals->exp.Get (isolate);
+  ctx.type = eternals->type.Get (isolate);
+  ctx.name = eternals->name.Get (isolate);
+  ctx.address = eternals->address.Get (isolate);
+  ctx.variable = eternals->variable.Get (isolate);
 
   gum_module_enumerate_exports (*name_str,
       gum_v8_module_handle_export_match, &ctx);
