@@ -7,8 +7,8 @@
 #include "gumdukscript.h"
 
 #include "guminvocationlistener.h"
-/*
 #include "gumdukcore.h"
+/*
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
 #include "gumdukinterceptor.h"
@@ -49,6 +49,7 @@ struct _GumDukScriptPrivate
 
   duk_context * ctx;
   GumDukCore core;
+  /*
   GumDukPolyfill polyfill;
   GumDukKernel kernel;
   GumDukMemory memory;
@@ -61,6 +62,7 @@ struct _GumDukScriptPrivate
   GumDukStalker stalker;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
+  */
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
@@ -313,7 +315,7 @@ gum_duk_script_set_property (GObject * object,
   }
 }
 
-static JSStringRef
+static gchar *
 gum_duk_script_create_url (GumDukScript * self)
 {
   return g_strconcat ("file:///", self->priv->name, ".js", NULL);
@@ -325,25 +327,24 @@ gum_duk_script_create_context (GumDukScript * self,
 {
   GumDukScriptPrivate * priv = self->priv;
   duk_context * ctx;
-  char * source, url;
-  bool valid;
+  gchar * url;
+  gboolean valid;
 
   g_assert (priv->ctx == NULL);
 
   ctx = duk_create_heap_default ();
 
-  source = priv->source;
   url = gum_duk_script_create_url (self);
 
   duk_push_string (ctx, priv->source);
   duk_push_string (ctx, url);
-  valid = duk_pcompile (ctx, 0) != 0;
+  valid = duk_pcompile (ctx, DUK_COMPILE_EVAL) != 0;
 
   g_free (url);
 
   if (!valid)
   {
-    gchar * message;
+    const gchar * message;
 
     message = duk_safe_to_string (ctx, -1);
 
@@ -364,8 +365,8 @@ gum_duk_script_create_context (GumDukScript * self,
   priv->ctx = ctx;
 
   _gum_duk_core_init (&priv->core, self, gum_duk_script_emit_message,
-      gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx,
-      global);
+      gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
+  /*
   _gum_duk_polyfill_init (&priv->polyfill, &priv->core, global);
   _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
   _gum_duk_memory_init (&priv->memory, &priv->core, global);
@@ -378,8 +379,8 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_stalker_init (&priv->stalker, &priv->core, global);
   _gum_duk_symbol_init (&priv->symbol, &priv->core, global);
   _gum_duk_instruction_init (&priv->instruction, &priv->core, global);
-
-  gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
+  */
+  //gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
 
   return TRUE;
 }
@@ -391,10 +392,13 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   g_assert (priv->ctx != NULL);
 
+  /*
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
+  */
   _gum_duk_core_flush (&priv->core);
 
+  /*
   _gum_duk_instruction_dispose (&priv->instruction);
   _gum_duk_symbol_dispose (&priv->symbol);
   _gum_duk_stalker_dispose (&priv->stalker);
@@ -407,11 +411,13 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_memory_dispose (&priv->memory);
   _gum_duk_kernel_dispose (&priv->kernel);
   _gum_duk_polyfill_dispose (&priv->polyfill);
+  */
   _gum_duk_core_dispose (&priv->core);
 
   duk_destroy_heap (priv->ctx);
   priv->ctx = NULL;
 
+  /*
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_stalker_finalize (&priv->stalker);
@@ -424,6 +430,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_memory_finalize (&priv->memory);
   _gum_duk_kernel_finalize (&priv->kernel);
   _gum_duk_polyfill_finalize (&priv->polyfill);
+  */
   _gum_duk_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
@@ -488,20 +495,25 @@ gum_duk_script_do_load (GumScriptTask * task,
 
   if (!priv->loaded)
   {
-    char * source, url;
+    gchar * url;
     GumDukScope scope;
 
     priv->loaded = TRUE;
 
-    source = priv->source;
     url = gum_duk_script_create_url (self);
 
     _gum_duk_scope_enter (&scope, &priv->core);
 
-    if (duk_compile (priv->ctx, 0) != 0)
-      /* TODO: create an exception */
-    else
-      duk_call (ctx, 0);
+    duk_push_string (priv->ctx, priv->source);
+    duk_push_string (priv->ctx, url);
+
+    if (duk_pcompile (priv->ctx, DUK_COMPILE_EVAL) != 0)
+      scope.exception = duk_safe_to_string (priv->ctx, -1);
+
+    if (duk_pcall (priv->ctx, 0) != 0)
+      scope.exception = duk_safe_to_string (priv->ctx, -1);
+
+    duk_pop (priv->ctx);
 
     _gum_duk_scope_leave (&scope);
 
@@ -623,7 +635,10 @@ gum_duk_script_get_stalker (GumScript * script)
 {
   GumDukScript * self = GUM_DUK_SCRIPT (script);
 
+  /* TODO: implement duk_stalker
   return _gum_duk_stalker_get (&self->priv->stalker);
+  */
+  return NULL;
 }
 
 static void
@@ -632,7 +647,9 @@ gum_duk_script_on_enter (GumInvocationListener * listener,
 {
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
+  /* TODO: implement duk_interceptor
   _gum_duk_interceptor_on_enter (&self->priv->interceptor, context);
+  */
 }
 
 static void
@@ -641,7 +658,9 @@ gum_duk_script_on_leave (GumInvocationListener * listener,
 {
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
+  /* TODO: implement duk_interceptor
   _gum_duk_interceptor_on_leave (&self->priv->interceptor, context);
+  */
 }
 
 static void
@@ -690,24 +709,12 @@ gum_duk_emit_message_data_free (GumEmitMessageData * d)
 }
 
 void
-_gumjs_panic (JSContextRef ctx,
-              JSValueRef exception)
+_gumjs_panic (duk_context * ctx,
+              const char * exception)
 {
-  gchar * message, * stack;
 
-  /* TODO: not sure what to do about this function */
-  message = _gumjs_string_from_value (ctx, exception);
-  if (_gumjs_object_try_get_string (ctx, (JSObjectRef) exception, "stack",
-      &stack, NULL))
-  {
-    g_critical ("%s\n%s", message, stack);
-    g_free (stack);
-  }
-  else
-  {
-    g_critical ("%s", message);
-  }
-  g_free (message);
+  /* TODO: need to find a way to retrieve the stack */
+  g_critical ("%s", exception);
 
   abort ();
 }

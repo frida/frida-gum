@@ -110,6 +110,10 @@ duk_sources = \
 	gumdukscript.h \
 	gumdukscript.c \
 	gumdukscript-priv.h \
+	gumdukcore.h \
+	gumdukcore.c \
+	gumdukvalue.h \
+	gumdukvalue.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \

@@ -12,7 +12,7 @@
 
 G_BEGIN_DECLS
 
-G_GNUC_INTERNAL void _gumjs_panic (JSContextRef ctx, JSValueRef exception);
+G_GNUC_INTERNAL void _gumjs_panic (duk_context * ctx, const char * exception);
 
 G_END_DECLS
 
