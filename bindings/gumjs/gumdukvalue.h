@@ -19,7 +19,7 @@ union _GumDukValueData
   guint _uint;
   gint _int;
   gboolean _boolean;
-  gchar * _string;
+  const gchar * _string;
   GumDukHeapPtr _heapptr;
   gdouble _number;
 };
@@ -38,7 +38,7 @@ struct _GumDukArgs
   GumDukCore * core;
 };
 
-G_GNUC_INTERNAL gboolean _gumjs_args_parse (const GumDukArgs * self,
+G_GNUC_INTERNAL gboolean _gumjs_args_parse (duk_context * ctx,
     const gchar * format, ...);
 
 G_GNUC_INTERNAL GumDukWeakRef * _gumjs_weak_ref_new (duk_context * ctx,
@@ -114,6 +114,8 @@ G_GNUC_INTERNAL gboolean _gumjs_value_is_array (duk_context * ctx,
 G_GNUC_INTERNAL gboolean _gumjs_value_native_pointer_try_get (
     duk_context * ctx, GumDukValue * value, GumDukCore * core,
     gpointer * target);
+G_GNUC_INTERNAL gboolean _gumjs_is_instanceof (duk_context * ctx,
+    GumDukHeapPtr object, gchar * classname);
 G_END_DECLS
 
 #endif

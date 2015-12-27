@@ -814,7 +814,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   guint id;
   GumDukWeakRef * ref;
 
-  if (!_gumjs_args_parse (args, "VF", &target, &callback))
+  if (!_gumjs_args_parse (ctx, "VF", &target, &callback))
   {
     duk_push_null (ctx);
     return 1;
@@ -857,7 +857,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
   gboolean removed;
   GumDukCore * self = args->core;
 
-  if (!_gumjs_args_parse (args, "u", &id))
+  if (!_gumjs_args_parse (ctx, "u", &id))
   {
     duk_push_null (ctx);
     return 1;
@@ -890,7 +890,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   GumDukScheduledCallback * callback = NULL;
   GSList * cur;
 
-  if (!_gumjs_args_parse (args, "i", &id))
+  if (!_gumjs_args_parse (ctx, "i", &id))
   {
     duk_push_null (ctx);
     return 1;
@@ -931,7 +931,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   gchar * message;
   GBytes * data = NULL;
 
-  if (!_gumjs_args_parse (args, "s|B?", &message, &data))
+  if (!_gumjs_args_parse (ctx, "s|B?", &message, &data))
   {
     duk_push_null (ctx);
     return 1;
@@ -950,7 +950,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumDukHeapPtr callback;
   GumDukExceptionSink * new_sink, * old_sink;
 
-  if (!_gumjs_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (ctx, "F?", &callback))
   {
     duk_push_null (ctx);
     return 1;
@@ -977,7 +977,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   GumDukHeapPtr callback;
   GumDukMessageSink * new_sink, * old_sink;
 
-  if (!_gumjs_args_parse (args, "F?", &callback))
+  if (!_gumjs_args_parse (ctx, "F?", &callback))
   {
     duk_push_null (ctx);
     return 1;
@@ -1016,7 +1016,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gsize ptr = 0;
 
-  if (!_gumjs_args_parse (args, "|p~", &ptr))
+  if (!_gumjs_args_parse (ctx, "|p~", &ptr))
   {
     duk_push_null (ctx);
     return 1;
@@ -1055,7 +1055,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     gpointer result; \
     GumDukHeapPtr this_object; \
     \
-    if (!_gumjs_args_parse (args, "p~", &rhs_ptr)) \
+    if (!_gumjs_args_parse (ctx, "p~", &rhs_ptr)) \
     { \
       duk_push_null (ctx); \
       return 1; \
@@ -1089,7 +1089,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
   gint result;
   GumDukHeapPtr this_object;
 
-  if (!_gumjs_args_parse (args, "p~", &rhs_ptr))
+  if (!_gumjs_args_parse (ctx, "p~", &rhs_ptr))
   {
     duk_push_null (ctx);
     return 1;
@@ -1136,7 +1136,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   this_object = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
-  if (!_gumjs_args_parse (args, "|u", &radix))
+  if (!_gumjs_args_parse (ctx, "|u", &radix))
   {
     duk_push_null (ctx);
     return 1;
@@ -1245,7 +1245,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   func->core = core;
 
-  if (!_gumjs_args_parse (args, "pVA|s", &func->fn, &rtype_value, &atypes_array,
+  if (!_gumjs_args_parse (ctx, "pVA|s", &func->fn, &rtype_value, &atypes_array,
       &abi_str))
     goto error;
 
@@ -1521,7 +1521,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback->core = core;
 
-  if (!_gumjs_args_parse (args, "FVA|s", &func, &rtype_value, &atypes_array,
+  if (!_gumjs_args_parse (ctx, "FVA|s", &func, &rtype_value, &atypes_array,
       &abi_str))
     goto error;
 
@@ -1737,7 +1737,7 @@ gumjs_cpu_context_set_register (GumDukCpuContext * self,
   if (self->access == GUM_CPU_CONTEXT_READONLY)
     goto invalid_operation;
 
-  if (!_gumjs_args_parse (args, "p~", &value))
+  if (!_gumjs_args_parse (ctx, "p~", &value))
     return FALSE;
 
   *reg = GPOINTER_TO_SIZE (value);
@@ -1815,7 +1815,7 @@ gum_duk_core_schedule_callback (GumDukCore * self,
   GSource * source;
   GumDukScheduledCallback * callback;
 
-  if (!_gumjs_args_parse (args, "Fu", &func, &delay))
+  if (!_gumjs_args_parse (self->ctx, "Fu", &func, &delay))
   {
     duk_push_null (self->ctx);
     return 1;
