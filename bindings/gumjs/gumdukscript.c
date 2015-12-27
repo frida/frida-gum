@@ -633,9 +633,9 @@ gum_duk_post_message_data_free (GumPostMessageData * d)
 static GumStalker *
 gum_duk_script_get_stalker (GumScript * script)
 {
+  /* TODO: implement duk_stalker
   GumDukScript * self = GUM_DUK_SCRIPT (script);
 
-  /* TODO: implement duk_stalker
   return _gum_duk_stalker_get (&self->priv->stalker);
   */
   return NULL;
@@ -645,9 +645,9 @@ static void
 gum_duk_script_on_enter (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
+  /* TODO: implement duk_interceptor
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
-  /* TODO: implement duk_interceptor
   _gum_duk_interceptor_on_enter (&self->priv->interceptor, context);
   */
 }
@@ -656,9 +656,9 @@ static void
 gum_duk_script_on_leave (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
+  /* TODO: implement duk_interceptor
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
-  /* TODO: implement duk_interceptor
   _gum_duk_interceptor_on_leave (&self->priv->interceptor, context);
   */
 }

@@ -10,6 +10,7 @@
 #include "gumdukvalue.h"
 
 typedef struct _GumDukPropertyEntry GumDukPropertyEntry;
+
 struct _GumDukPropertyEntry
 {
   gchar * name;
@@ -48,15 +49,34 @@ struct _GumDukPropertyEntry
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
-    return N##_impl (ctx, args); \
+    return N##_impl (ctx, &args); \
   } \
   \
   static int \
   N##_impl (duk_context * ctx, \
             GumDukArgs * args)
 #define GUMJS_DEFINE_FINALIZER(N) \
-  static void \
-  N (JSObjectRef object)
+  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  \
+  static int \
+  N (duk_context * ctx) \
+  { \
+    GumDukArgs args; \
+    \
+    args.count = duk_get_top (ctx); \
+    \
+    args.ctx = ctx; \
+    \
+    duk_get_global_string (ctx, "\xff" "core"); \
+    args.core = duk_get_pointer (ctx, -1); \
+    duk_pop (ctx); \
+    \
+    return N##_impl (ctx, &args); \
+  } \
+  \
+  static int \
+  N##_impl (duk_context * ctx, \
+            GumDukArgs * args)
 #define GUMJS_DEFINE_FUNCTION(N) \
   static int N##_impl (duk_context * ctx, GumDukArgs * args); \
   \
@@ -73,7 +93,7 @@ struct _GumDukPropertyEntry
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
-    return N##_impl (ctx, args); \
+    return N##_impl (ctx, &args); \
   } \
   \
   static int \
@@ -95,7 +115,7 @@ struct _GumDukPropertyEntry
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
-    return N##_impl (ctx, args); \
+    return N##_impl (ctx, &args); \
   } \
   \
   static int \
@@ -117,18 +137,18 @@ struct _GumDukPropertyEntry
     args.core = duk_get_pointer (ctx, -1); \
     duk_pop (ctx); \
     \
-    return N##_impl (ctx, args); \
+    return N##_impl (ctx, &args); \
   } \
   \
   static int \
   N##_impl (duk_context * ctx, \
             GumDukArgs * args)
 
-#define GUMJS_ADD_GLOBAL_FUNCTION (N, F, NARGS) \
+#define GUMJS_ADD_GLOBAL_FUNCTION(N, F, NARGS) \
   duk_push_c_function (ctx, F, NARGS); \
   duk_put_global_string (ctx, N);
 
-void inline gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
+void inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
     gpointer constructor, gpointer finalize)
 {
     duk_push_global_object (ctx);
@@ -165,10 +185,10 @@ void inline gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar 
 }
 
 
-void inline gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
-    GumDukPropertyEntry * entries)
+void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
+    const GumDukPropertyEntry * entries)
 {
-  GumDukPropertyEntry * entry;
+  const GumDukPropertyEntry * entry;
   duk_push_global_object (ctx);
   // [ global ]
   duk_get_prop_string (ctx, -1, classname);

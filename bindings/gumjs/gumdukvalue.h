@@ -103,6 +103,17 @@ G_GNUC_INTERNAL const gchar * _gumjs_thread_state_to_string (
 G_GNUC_INTERNAL const gchar * _gumjs_memory_operation_to_string (
     GumMemoryOperation operation);
 
+G_GNUC_INTERNAL gpointer _gumjs_get_private_data (duk_context * ctx,
+    GumDukHeapPtr object);
+G_GNUC_INTERNAL void _gumjs_set_private_data (duk_context * ctx,
+    GumDukHeapPtr object, gpointer privatedata);
+G_GNUC_INTERNAL GumDukValue * _gumjs_get_value (duk_context * ctx,
+    gint idx);
+G_GNUC_INTERNAL gboolean _gumjs_value_is_array (duk_context * ctx,
+    GumDukValue * value);
+G_GNUC_INTERNAL gboolean _gumjs_value_native_pointer_try_get (
+    duk_context * ctx, GumDukValue * value, GumDukCore * core,
+    gpointer * target);
 G_END_DECLS
 
 #endif

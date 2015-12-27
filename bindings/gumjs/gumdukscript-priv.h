@@ -4,11 +4,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_JSC_SCRIPT_PRIV_H__
-#define __GUM_JSC_SCRIPT_PRIV_H__
+#ifndef __GUM_DUK_SCRIPT_PRIV_H__
+#define __GUM_DUK_SCRIPT_PRIV_H__
 
 #include <glib.h>
-#include <JavaScriptCore/JavaScriptCore.h>
+#include "duktape.h"
 
 G_BEGIN_DECLS
 

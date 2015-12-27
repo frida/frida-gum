@@ -4,9 +4,9 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumjscvalue.h"
+#include "gumdukvalue.h"
 
-#include "gumjscscript-priv.h"
+#include "gumdukscript-priv.h"
 
 static void gum_native_resource_on_weak_notify (
     GumJscNativeResource * resource);
