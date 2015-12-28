@@ -6,7 +6,11 @@
  */
 
 #include "gumscriptbackend.h"
+#ifdef HAVE_DIET
+#include "gumdukscript.h"
+#else
 #include "gumv8script.h"
+#endif
 
 #include "testutil.h"
 
