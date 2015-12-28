@@ -114,6 +114,9 @@ duk_sources = \
 	gumdukcore.c \
 	gumdukvalue.h \
 	gumdukvalue.c \
+	gumdukglue.c \
+	gumdukbundle.h \
+	gumdukbundle.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \
