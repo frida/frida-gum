@@ -117,6 +117,8 @@ duk_sources = \
 	gumdukglue.c \
 	gumdukbundle.h \
 	gumdukbundle.c \
+	gumdukinterceptor.h \
+	gumdukinterceptor.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \
