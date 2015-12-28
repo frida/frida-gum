@@ -26,7 +26,7 @@ touch README INSTALL
 autoreconf -ifv
 result=$?
 
-if [ $result -eq 0 ] && [ "$(uname -s)" == "Darwin" ]; then
+if [ $result -eq 0 ] && [ "$(uname -s)" == "Darwin" ] || [ "$(uname -s)" == "Linux" ]; then
   pushd bindings/gumjs/ &>/dev/null
   npm install
   result=$?
