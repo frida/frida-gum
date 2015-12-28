@@ -1053,6 +1053,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
+  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
+    return 0;
+
   GumDukNativePointer * self = _gumjs_get_private_data (ctx, duk_require_heapptr(ctx, 0));
 
   g_slice_free1 (self->instance_size, self);
@@ -1397,6 +1400,9 @@ beach:
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
+  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
+    return 0;
+
   GumDukNativeFunction * self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
 
   gum_duk_native_function_finalize (self);
@@ -1652,6 +1658,9 @@ beach:
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 {
+  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
+    return 0;
+
   GumDukNativeCallback * self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
   printf ("in gumjs_native_callback_finalizer, self: %08x\n", self);
   duk_dump_context_stdout (ctx);

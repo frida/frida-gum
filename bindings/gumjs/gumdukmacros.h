@@ -172,11 +172,11 @@ void inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar
 	// [ ... global object create parent parentproto childproto constructor]
 	duk_dup (ctx, -2);
 	// [ ... global object create parent parentproto childproto constructor childproto]
-	duk_put_prop_string (ctx, -2, "prototype");
-	// [ ... global object create parent parentproto childproto constructor]
 	duk_push_c_function (ctx, finalize, 1);
-	// [ ... global object create parent parentproto childproto constructor finalize]
+	// [ ... global object create parent parentproto childproto constructor childproto finalize]
     duk_set_finalizer (ctx, -2);
+	// [ ... global object create parent parentproto childproto constructor childproto]
+	duk_put_prop_string (ctx, -2, "prototype");
 	// [ ... global object create parent parentproto childproto constructor]
 	duk_put_prop_string (ctx, -7, name);
 	// [ ... global object create parent parentproto childproto]
@@ -220,5 +220,18 @@ void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * class
   }
 
   duk_pop_2 (ctx);
+}
+
+gboolean
+_gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
+{
+  gboolean result;
+  duk_get_global_string (ctx, classname);
+  // [ arg0 ... class ]
+  duk_get_prop_string (ctx, -1, "prototype");
+  // [ arg0 ... class proto ]
+  result = duk_equals (ctx, 0, -1);
+  duk_pop_2 (ctx);
+  return result;
 }
 #endif
