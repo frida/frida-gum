@@ -6,10 +6,14 @@
 
 #include "gumscriptbackend.h"
 
-#ifdef HAVE_IOS
-# include "gumjscscriptbackend.h"
+#ifdef HAVE_DIET
+# include "gumdukscriptbackend.h"
+#else
+# ifdef HAVE_IOS
+#  include "gumjscscriptbackend.h"
+# endif
+# include "gumv8scriptbackend.h"
 #endif
-#include "gumv8scriptbackend.h"
 
 #include <gum/gum-init.h>
 
@@ -23,6 +27,12 @@ static void
 gum_script_backend_deinit_jsc (void)
 {
   g_object_unref (gum_script_backend_obtain_jsc ());
+}
+
+static void
+gum_script_backend_deinit_duk (void)
+{
+  g_object_unref (gum_script_backend_obtain_duk ());
 }
 
 GType
@@ -49,10 +59,13 @@ gum_script_backend_obtain (void)
 {
   GumScriptBackend * backend;
 
+#ifndef HAVE_DIET
   backend = gum_script_backend_obtain_v8 ();
   if (backend == NULL)
     backend = gum_script_backend_obtain_jsc ();
-
+#else
+  backend = gum_script_backend_obtain_duk ();
+#endif
   return backend;
 }
 
@@ -67,9 +80,12 @@ gum_script_backend_obtain_v8 (void)
 
     if (gum_query_is_rwx_supported ())
     {
+#ifndef HAVE_DIET
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
-      _gum_register_destructor (gum_script_backend_deinit_v8);
+#endif
+      if (backend != NULL)
+        _gum_register_destructor (gum_script_backend_deinit_v8);
     }
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
@@ -94,6 +110,29 @@ gum_script_backend_obtain_jsc (void)
 
     if (backend != NULL)
       _gum_register_destructor (gum_script_backend_deinit_jsc);
+
+    g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
+  }
+
+  return GUM_SCRIPT_BACKEND (GSIZE_TO_POINTER (gonce_value - 1));
+}
+
+GumScriptBackend *
+gum_script_backend_obtain_duk (void)
+{
+  static volatile gsize gonce_value;
+
+  if (g_once_init_enter (&gonce_value))
+  {
+    GumScriptBackend * backend = NULL;
+
+#ifdef HAVE_DIET
+    backend = GUM_SCRIPT_BACKEND (
+        g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL));
+#endif
+
+    if (backend != NULL)
+      _gum_register_destructor (gum_script_backend_deinit_duk);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
