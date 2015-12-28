@@ -16,7 +16,6 @@ struct _GumDukPropertyEntry
   gchar * name;
   gpointer getter;
   gpointer setter;
-  gint flags;
 };
 
 #define GUMJS_RO (DUK_DEFPROP_HAVE_WRITABLE | 0)
@@ -199,6 +198,7 @@ void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * class
     int idx = 1;
     int flags = DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_ENUMERABLE;
     duk_push_string (ctx, entry->name);
+    idx++;
     // [ global class propname ]
     if (entry->getter != NULL)
     {
@@ -214,8 +214,6 @@ void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * class
       duk_push_c_function (ctx, entry->setter, 1);
       // [ global class propname {getter} setter ]
     }
-
-    flags |= entry->flags;
 
     duk_def_prop (ctx, -idx, flags);
     // [ global class ]

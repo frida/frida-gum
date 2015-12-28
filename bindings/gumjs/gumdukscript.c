@@ -8,10 +8,13 @@
 
 #include "guminvocationlistener.h"
 #include "gumdukcore.h"
+#include "gumdukscript-runtime.h"
 /*
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
-#include "gumdukinterceptor.h"
+*/
+//#include "gumdukinterceptor.h"
+/*
 #include "gumdukkernel.h"
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
@@ -321,6 +324,15 @@ gum_duk_script_create_url (GumDukScript * self)
   return g_strconcat ("file:///", self->priv->name, ".js", NULL);
 }
 
+static void
+gum_duk_script_fatal_error_handler (duk_context *ctx,
+                                    duk_errcode_t code,
+                                    const char *msg)
+{
+  printf ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
+  abort();
+}
+
 gboolean
 gum_duk_script_create_context (GumDukScript * self,
                                GError ** error)
@@ -332,26 +344,32 @@ gum_duk_script_create_context (GumDukScript * self,
 
   g_assert (priv->ctx == NULL);
 
-  ctx = duk_create_heap_default ();
+  ctx = duk_create_heap (NULL, NULL, NULL, NULL, gum_duk_script_fatal_error_handler);
 
   url = gum_duk_script_create_url (self);
 
+  printf ("url: %s, source: %s\n", url, priv->source);
   duk_push_string (ctx, priv->source);
   duk_push_string (ctx, url);
-  valid = duk_pcompile (ctx, DUK_COMPILE_EVAL) != 0;
+  valid = duk_pcompile (ctx, 0) == 0;
 
   g_free (url);
 
   if (!valid)
   {
-    const gchar * message;
+    gchar message[1024];
+    gint line;
 
-    message = duk_safe_to_string (ctx, -1);
+    /* as duktape doesn't currently provide line number information, we
+     * grab it from the error message itself using a sscanf.
+     */
+    sscanf (duk_safe_to_string (ctx, -1), "%[^\n(] (line %d)", message, &line);
 
     g_set_error (error,
         G_IO_ERROR,
         G_IO_ERROR_FAILED,
-        "%s",
+        "Script(line %u): %s",
+        line,
         message);
 
     duk_destroy_heap (ctx);
@@ -375,12 +393,14 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_module_init (&priv->module, &priv->core, global);
   _gum_duk_file_init (&priv->file, &priv->core, global);
   _gum_duk_socket_init (&priv->socket, &priv->core, global);
-  _gum_duk_interceptor_init (&priv->interceptor, &priv->core, global);
+  */
+  //_gum_duk_interceptor_init (&priv->interceptor, &priv->core, global);
+  /*
   _gum_duk_stalker_init (&priv->stalker, &priv->core, global);
   _gum_duk_symbol_init (&priv->symbol, &priv->core, global);
   _gum_duk_instruction_init (&priv->instruction, &priv->core, global);
   */
-  //gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
+  gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
 
   return TRUE;
 }

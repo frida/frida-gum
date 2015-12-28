@@ -75,7 +75,8 @@ _gumjs_args_parse (duk_context * ctx,
 
         if (is_fuzzy)
         {
-          if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index), "NativePointer"))
+          if (duk_is_object (ctx, arg_index) &&
+              _gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index), "NativePointer"))
             ptr = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, arg_index));
           else if (duk_is_object (ctx, arg_index))
           {
@@ -364,23 +365,25 @@ _gumjs_args_parse (duk_context * ctx,
           else
             goto error;
         }
-
-        if (!duk_is_array (ctx, arg_index))
-          goto error;
-
-        duk_get_prop_string (ctx, arg_index, "length");
-        data_length = duk_get_uint (ctx, -1);
-        duk_pop (ctx);
-
-        data = g_malloc (data_length);
-        for(i = 0; i < data_length; i++)
+        else
         {
-          duk_get_prop_index (ctx, arg_index, i);
-          data[i] = (guint8) duk_require_uint (ctx, -1);
-          duk_pop (ctx);
-        }
+          if (!duk_is_array (ctx, arg_index))
+            goto error;
 
-        bytes = g_bytes_new_take (data, data_length);
+          duk_get_prop_string (ctx, arg_index, "length");
+          data_length = duk_get_uint (ctx, -1);
+          duk_pop (ctx);
+
+          data = g_malloc (data_length);
+          for(i = 0; i < data_length; i++)
+          {
+            duk_get_prop_index (ctx, arg_index, i);
+            data[i] = (guint8) duk_require_uint (ctx, -1);
+            duk_pop (ctx);
+          }
+
+          bytes = g_bytes_new_take (data, data_length);
+        }
 
         *va_arg (ap, GBytes **) = bytes;
 
@@ -466,26 +469,37 @@ _gumjs_object_get (duk_context * ctx,
 }
 
 GumDukHeapPtr
-_gumjs_native_pointer_new (duk_context * ctx,
-                           gpointer address,
-                           GumDukCore * core)
+_gumjs_native_pointer_new_priv (duk_context * ctx,
+                                GumDukHeapPtr object,
+                                gpointer address,
+                                GumDukCore * core)
 {
   GumDukNativePointer * ptr;
-  GumDukHeapPtr result;
 
   ptr = g_slice_new (GumDukNativePointer);
   ptr->instance_size = sizeof (GumDukNativePointer);
   ptr->value = address;
 
+  _gumjs_set_private_data (ctx, object, ptr);
+
+  return object;
+}
+
+GumDukHeapPtr
+_gumjs_native_pointer_new (duk_context * ctx,
+                           gpointer address,
+                           GumDukCore * core)
+{
+  GumDukHeapPtr result;
   duk_get_global_string (ctx, "NativePointer");
   // [ NativePointer ]
-  duk_new (ctx, 0);
+  duk_push_int (ctx, GPOINTER_TO_SIZE(address));
+  // [ NativePointer address ]
+  duk_new (ctx, 1);
   // [ nativepointerinst ]
   result = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
-  _gumjs_set_private_data (ctx, result, ptr);
-
   return result;
 }
 
@@ -543,7 +557,10 @@ _gumjs_get_private_data (duk_context * ctx,
   // [ object ]
   duk_get_prop_string (ctx, -1, "\xff" "privatedata");
   // [ object privatedata ]
-  result = duk_require_pointer (ctx, -1);
+  if (duk_is_undefined (ctx, -1))
+    result = NULL;
+  else
+    result = duk_require_pointer (ctx, -1);
   duk_pop_2 (ctx);
   // []
   return result;

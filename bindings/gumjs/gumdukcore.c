@@ -19,7 +19,7 @@ typedef struct _GumFFIABIMapping GumFFIABIMapping;
 struct _GumDukWeakRef
 {
   guint id;
-  GumDukWeakRef * target;
+  GumDukValue * target;
   GumDukHeapPtr callback;
 
   GumDukCore * core;
@@ -200,10 +200,10 @@ static gboolean gumjs_value_from_ffi_type (duk_context * ctx,
 
 static const GumDukPropertyEntry gumjs_script_values[] =
 {
-  { "fileName", gumjs_script_get_file_name, NULL, GUMJS_RO },
-  { "_sourceMapData", gumjs_script_get_source_map_data, NULL, GUMJS_RO },
+  { "fileName", gumjs_script_get_file_name, NULL },
+  { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
 
-  { NULL, NULL, NULL, 0 }
+  { NULL, NULL, NULL}
 };
 
 static const duk_function_list_entry gumjs_weak_ref_functions[] =
@@ -217,16 +217,16 @@ static const duk_function_list_entry gumjs_weak_ref_functions[] =
 static const duk_function_list_entry gumjs_native_pointer_functions[] =
 {
   { "isNull", gumjs_native_pointer_is_null, 0 },
-  { "add", gumjs_native_pointer_add, 0 },
-  { "sub", gumjs_native_pointer_sub, 0 },
-  { "and", gumjs_native_pointer_and, 0 },
-  { "or", gumjs_native_pointer_or, 0 },
-  { "xor", gumjs_native_pointer_xor, 0 },
-  { "shr", gumjs_native_pointer_shr, 0 },
-  { "shl", gumjs_native_pointer_shl, 0 },
-  { "compare", gumjs_native_pointer_compare, 0 },
+  { "add", gumjs_native_pointer_add, 1 },
+  { "sub", gumjs_native_pointer_sub, 1 },
+  { "and", gumjs_native_pointer_and, 1 },
+  { "or", gumjs_native_pointer_or, 1 },
+  { "xor", gumjs_native_pointer_xor, 1 },
+  { "shr", gumjs_native_pointer_shr, 1 },
+  { "shl", gumjs_native_pointer_shl, 1 },
+  { "compare", gumjs_native_pointer_compare, 1 },
   { "toInt32", gumjs_native_pointer_to_int32, 0 },
-  { "toString", gumjs_native_pointer_to_string, 0 },
+  { "toString", gumjs_native_pointer_to_string, 1 },
   { "toJSON", gumjs_native_pointer_to_json, 0 },
   { "toMatchPattern", gumjs_native_pointer_to_match_pattern, 0 },
 
@@ -261,8 +261,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R, \
-    GUMJS_RW }
+  { G_STRINGIFY (A), gumjs_cpu_context_get_##R, gumjs_cpu_context_set_##R }
 #define GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR(R) \
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)
 
@@ -440,7 +439,7 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
   GUMJS_EXPORT_CPU_CONTEXT_ACCESSOR (lr),
 #endif
 
-  { NULL, NULL, NULL, 0 }
+  { NULL, NULL, NULL }
 };
 
 void
@@ -475,6 +474,24 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_pointer (ctx, self);
   duk_put_global_string (ctx, "\xff" "core");
 
+  /* set 'global' to the global object */
+  duk_push_global_object (ctx);
+  duk_put_global_string (ctx, "global");
+
+  /* TODO: temporarily define some of the other objects */
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Process");
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Module");
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Interceptor");
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Instruction");
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Kernel");
+  duk_push_object (ctx);
+  duk_put_global_string (ctx, "Memory");
+
   duk_push_object (ctx);
   // [ newobject ]
   duk_push_string (ctx, FRIDA_VERSION);
@@ -504,17 +521,17 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_global_string (ctx, "WeakRef");
   // [ ]
 
-  GUMJS_ADD_GLOBAL_FUNCTION ("setTimeout", gumjs_set_timeout, 0);
-  GUMJS_ADD_GLOBAL_FUNCTION ("clearTimeout", gumjs_clear_timer, 0);
-  GUMJS_ADD_GLOBAL_FUNCTION ("setInterval", gumjs_set_interval, 0)
-  GUMJS_ADD_GLOBAL_FUNCTION ("clearInterval", gumjs_clear_timer, 0)
+  GUMJS_ADD_GLOBAL_FUNCTION ("setTimeout", gumjs_set_timeout, 2);
+  GUMJS_ADD_GLOBAL_FUNCTION ("clearTimeout", gumjs_clear_timer, 1);
+  GUMJS_ADD_GLOBAL_FUNCTION ("setInterval", gumjs_set_interval, 2)
+  GUMJS_ADD_GLOBAL_FUNCTION ("clearInterval", gumjs_clear_timer, 1)
   GUMJS_ADD_GLOBAL_FUNCTION ("gc", gumjs_gc, 0)
-  GUMJS_ADD_GLOBAL_FUNCTION ("_send", gumjs_send, 0)
-  GUMJS_ADD_GLOBAL_FUNCTION ("_setUnhandledExceptionCallback", gumjs_set_unhandled_exception_callback, 0)
-  GUMJS_ADD_GLOBAL_FUNCTION ("_setIncomingMessageCallback", gumjs_set_incoming_message_callback, 0)
+  GUMJS_ADD_GLOBAL_FUNCTION ("_send", gumjs_send, 2)
+  GUMJS_ADD_GLOBAL_FUNCTION ("_setUnhandledExceptionCallback", gumjs_set_unhandled_exception_callback, 1)
+  GUMJS_ADD_GLOBAL_FUNCTION ("_setIncomingMessageCallback", gumjs_set_incoming_message_callback, 1)
   GUMJS_ADD_GLOBAL_FUNCTION ("_waitForEvent", gumjs_wait_for_event, 0)
 
-  duk_push_c_function (ctx, gumjs_native_pointer_construct, 0);
+  duk_push_c_function (ctx, gumjs_native_pointer_construct, 1);
   // [ construct ]
   duk_push_object (ctx);
   // [ construct newprotoobj ]
@@ -541,8 +558,8 @@ _gum_duk_core_init (GumDukCore * self,
   duk_pop_2 (ctx);
   // [ ]
 
-  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
-      gumjs_native_callback_construct, gumjs_native_callback_finalize);
+  //_gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
+  //    gumjs_native_callback_construct, gumjs_native_callback_finalize);
 
   duk_push_c_function (ctx, gumjs_cpu_context_construct, 0);
   // [ construct ]
@@ -799,6 +816,8 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
 
     g_free (data_encoded);
   }
+  else
+    duk_push_null (ctx);
   g_match_info_free (match_info);
   g_regex_unref (regex);
 
@@ -1015,6 +1034,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gsize ptr = 0;
+  GumDukHeapPtr object;
 
   if (!_gumjs_args_parse (ctx, "|p~", &ptr))
   {
@@ -1022,8 +1042,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
     return 1;
   }
 
+  duk_push_this (ctx);
+  object = duk_get_heapptr (ctx, -1);
+  duk_pop (ctx);
+
   duk_push_heapptr (ctx,
-      _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (ptr), args->core));
+      _gumjs_native_pointer_new_priv (ctx, object, GSIZE_TO_POINTER (ptr), args->core));
   return 1;
 }
 
@@ -1514,6 +1538,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   gchar * abi_str = NULL;
   ffi_abi abi;
 
+  printf ("in gumjs_native_callback_construct\n");
+  duk_dump_context_stdout (ctx);
+
   callback = g_slice_new0 (GumDukNativeCallback);
 
   ptr = &callback->parent;
@@ -1582,14 +1609,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       gum_duk_native_callback_invoke, callback, ptr->value) != FFI_OK)
     goto prepare_failed;
 
-  duk_get_global_string (ctx, "NativeCallback");
-  // [ NativeCallback ]
-  duk_new (ctx, 0);
+  duk_push_this (ctx);
   // [ nativecallbackinst ]
   result = duk_require_heapptr (ctx, -1);
-  _gumjs_set_private_data (ctx, result, callback);
   duk_pop (ctx);
   // []
+  _gumjs_set_private_data (ctx, result, callback);
+  printf ("set_private_data!\n");
 
   goto beach;
 
@@ -1627,6 +1653,8 @@ beach:
 GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 {
   GumDukNativeCallback * self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  printf ("in gumjs_native_callback_finalizer, self: %08x\n", self);
+  duk_dump_context_stdout (ctx);
 
   gum_duk_native_callback_finalize (self);
   return 0;

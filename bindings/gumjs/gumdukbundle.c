@@ -14,11 +14,9 @@ gum_duk_bundle_load (const GumDukSource * sources,
 {
   const GumDukSource * cur;
 
-  duk_push_global_object (ctx);
-
   for (cur = sources; cur->name != NULL; cur++)
   {
-    gchar * source, url;
+    gchar * source, * url;
     int result;
 
     source = g_strjoinv (NULL, (gchar **) cur->chunks);
@@ -26,17 +24,14 @@ gum_duk_bundle_load (const GumDukSource * sources,
     url = g_strconcat ("file:///", cur->name, NULL);
 
     duk_push_string (ctx, source);
-    duk_push_string (ctx, url);
 
-    result = duk_pcompile (ctx, DUK_COMPILE_EVAL);
+    result = duk_peval (ctx);
     if (result != 0)
-      _gumjs_panic (ctx, duk_safe_to_string (ctx, -1));
+    {
+      _gumjs_panic (ctx, duk_safe_to_string (ctx, -2));
+    }
 
-    result = duk_pcall (ctx, 0);
-    if (result != 0)
-      _gumjs_panic (ctx, duk_safe_to_string (ctx, -1));
-
-    duk_pop ();
+    duk_pop (ctx);
 
     g_free (url);
     g_free (source);
