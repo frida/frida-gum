@@ -57,6 +57,8 @@ G_GNUC_INTERNAL gboolean _gumjs_value_uint64_try_get (duk_context * ctx,
     GumDukValue * value, guint64 * u);
 G_GNUC_INTERNAL gboolean _gumjs_value_number_try_get (duk_context * ctx,
     GumDukValue * value, gdouble * number);
+G_GNUC_INTERNAL gboolean _gumjs_uint_try_parse (duk_context * ctx,
+    const gchar * str, guint * u);
 
 G_GNUC_INTERNAL gboolean _gumjs_value_string_try_get (duk_context * ctx,
     GumDukValue * value, gchar ** str);

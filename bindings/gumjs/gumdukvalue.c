@@ -1102,3 +1102,23 @@ _gumjs_object_try_get_uint (duk_context * ctx,
   // []
   return TRUE;
 }
+
+gboolean
+_gumjs_uint_try_parse (duk_context * ctx,
+                       const gchar * str,
+                       guint * u)
+{
+  gchar * endptr;
+  glong value;
+  gboolean valid;
+
+  value = strtol (str, &endptr, 10);
+  valid = *str != '\0' && *endptr == '\0' && value >= 0;
+
+  if (valid)
+    *u = value;
+  else
+    _gumjs_throw (ctx, "invalid uint");
+
+  return valid;
+}

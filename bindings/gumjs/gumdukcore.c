@@ -484,8 +484,6 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_object (ctx);
   duk_put_global_string (ctx, "Module");
   duk_push_object (ctx);
-  duk_put_global_string (ctx, "Interceptor");
-  duk_push_object (ctx);
   duk_put_global_string (ctx, "Instruction");
   duk_push_object (ctx);
   duk_put_global_string (ctx, "Kernel");
@@ -1621,7 +1619,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   duk_pop (ctx);
   // []
   _gumjs_set_private_data (ctx, result, callback);
-  printf ("set_private_data!\n");
 
   goto beach;
 

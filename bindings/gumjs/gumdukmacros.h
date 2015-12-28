@@ -147,7 +147,8 @@ struct _GumDukPropertyEntry
   duk_push_c_function (ctx, F, NARGS); \
   duk_put_global_string (ctx, N);
 
-void inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
+void
+inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
     gpointer constructor, gpointer finalize)
 {
     duk_push_global_object (ctx);
@@ -168,14 +169,20 @@ void inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar
 	duk_call (ctx, 1);
 	// [ ... global object create parent parentproto childproto]
 
-	duk_push_c_function (ctx, constructor, 1);
+    if (constructor)
+      duk_push_c_function (ctx, constructor, 1);
+    else
+      duk_push_object (ctx);
 	// [ ... global object create parent parentproto childproto constructor]
 	duk_dup (ctx, -2);
 	// [ ... global object create parent parentproto childproto constructor childproto]
-	duk_push_c_function (ctx, finalize, 1);
-	// [ ... global object create parent parentproto childproto constructor childproto finalize]
-    duk_set_finalizer (ctx, -2);
-	// [ ... global object create parent parentproto childproto constructor childproto]
+    if (finalize)
+    {
+      duk_push_c_function (ctx, finalize, 1);
+      // [ ... global object create parent parentproto childproto constructor childproto finalize]
+      duk_set_finalizer (ctx, -2);
+      // [ ... global object create parent parentproto childproto constructor childproto]
+    }
 	duk_put_prop_string (ctx, -2, "prototype");
 	// [ ... global object create parent parentproto childproto constructor]
 	duk_put_prop_string (ctx, -7, name);
@@ -184,7 +191,8 @@ void inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar
 }
 
 
-void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
+void
+inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
     const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
@@ -223,7 +231,7 @@ void inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * class
 }
 
 gboolean
-_gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
+inline _gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
 {
   gboolean result;
   duk_get_global_string (ctx, classname);
@@ -232,6 +240,50 @@ _gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
   // [ arg0 ... class proto ]
   result = duk_equals (ctx, 0, -1);
   duk_pop_2 (ctx);
+  return result;
+}
+
+GumDukHeapPtr
+inline _gumjs_duk_get_this (duk_context * ctx)
+{
+  GumDukHeapPtr result;
+  duk_push_this (ctx);
+  result = duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+  return result;
+}
+
+GumDukHeapPtr
+inline _gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
+    gpointer setter)
+{
+  GumDukHeapPtr result;
+  duk_push_object (ctx);
+  // [ targetobj ]
+  duk_push_object (ctx);
+  // [ targetobj handlerobj ]
+  if (getter)
+  {
+    duk_push_c_function (ctx, getter, 3);
+    // [ targetobj handlerobj getter ]
+    duk_put_prop_string (ctx, -2, "get");
+    // [ targetobj handlerobj ]
+  }
+  if (setter)
+  {
+    duk_push_c_function (ctx, setter, 4);
+    // [ targetobj handlerobj setter ]
+    duk_put_prop_string (ctx, -2, "set");
+    // [ targetobj handlerobj ]
+  }
+  duk_get_global_string (ctx, "Proxy");
+  // [ targetobj handlerobj Proxy ]
+  duk_insert (ctx, -3);
+  // [ Proxy targetobj handlerobj ]
+  duk_new (ctx, 2);
+  // [ proxyinst ]
+  result = duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
   return result;
 }
 #endif
