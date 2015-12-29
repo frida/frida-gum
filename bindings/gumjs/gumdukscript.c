@@ -416,8 +416,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   /*
   _gum_duk_stalker_flush (&priv->stalker);
-  _gum_duk_interceptor_flush (&priv->interceptor);
   */
+  _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_core_flush (&priv->core);
 
   /*
@@ -534,10 +534,11 @@ gum_duk_script_do_load (GumScriptTask * task,
     if (duk_pcompile (priv->ctx, DUK_COMPILE_EVAL) != 0)
       scope.exception = duk_safe_to_string (priv->ctx, -1);
 
-    printf ("about to call!!!!\n");
     if (duk_pcall (priv->ctx, 0) != 0)
     {
-      printf ("ERROR while executing script\n");
+      duk_get_prop_string (priv->ctx, -1, "stack");
+      printf ("ERROR while executing script: %s\n%s\n", duk_safe_to_string (priv->ctx, -2), duk_safe_to_string (priv->ctx, -1));
+      duk_pop (priv->ctx);
       scope.exception = duk_safe_to_string (priv->ctx, -1);
     }
 

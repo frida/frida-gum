@@ -196,10 +196,10 @@ inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
     const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
-  duk_push_global_object (ctx);
-  // [ global ]
-  duk_get_prop_string (ctx, -1, classname);
-  // [ global class ]
+  duk_get_global_string (ctx, classname);
+  // [ class ]
+  duk_get_prop_string (ctx, -1, "prototype");
+  // [ class proto ]
 
   for (entry = entries; entry->name != NULL; entry++)
   {
@@ -207,27 +207,28 @@ inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
     int flags = DUK_DEFPROP_HAVE_ENUMERABLE | DUK_DEFPROP_ENUMERABLE;
     duk_push_string (ctx, entry->name);
     idx++;
-    // [ global class propname ]
+    // [ class proto propname ]
     if (entry->getter != NULL)
     {
       idx++;
       flags |= DUK_DEFPROP_HAVE_GETTER;
       duk_push_c_function (ctx, entry->getter, 0);
-      // [ global class propname getter ]
+      // [ class proto propname getter ]
     }
     if (entry->setter != NULL)
     {
       idx++;
       flags |= DUK_DEFPROP_HAVE_SETTER;
       duk_push_c_function (ctx, entry->setter, 1);
-      // [ global class propname {getter} setter ]
+      // [ class proto propname {getter} setter ]
     }
 
     duk_def_prop (ctx, -idx, flags);
-    // [ global class ]
+    // [ class proto ]
   }
 
   duk_pop_2 (ctx);
+  // []
 }
 
 gboolean
@@ -248,40 +249,6 @@ inline _gumjs_duk_get_this (duk_context * ctx)
 {
   GumDukHeapPtr result;
   duk_push_this (ctx);
-  result = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  return result;
-}
-
-GumDukHeapPtr
-inline _gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
-    gpointer setter)
-{
-  GumDukHeapPtr result;
-  duk_push_object (ctx);
-  // [ targetobj ]
-  duk_push_object (ctx);
-  // [ targetobj handlerobj ]
-  if (getter)
-  {
-    duk_push_c_function (ctx, getter, 3);
-    // [ targetobj handlerobj getter ]
-    duk_put_prop_string (ctx, -2, "get");
-    // [ targetobj handlerobj ]
-  }
-  if (setter)
-  {
-    duk_push_c_function (ctx, setter, 4);
-    // [ targetobj handlerobj setter ]
-    duk_put_prop_string (ctx, -2, "set");
-    // [ targetobj handlerobj ]
-  }
-  duk_get_global_string (ctx, "Proxy");
-  // [ targetobj handlerobj Proxy ]
-  duk_insert (ctx, -3);
-  // [ Proxy targetobj handlerobj ]
-  duk_new (ctx, 2);
-  // [ proxyinst ]
   result = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   return result;
@@ -325,4 +292,60 @@ inline _gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
   }
   duk_pop (ctx);
 }
+
+GumDukHeapPtr
+inline _gumjs_duk_get_heapptr (duk_context * ctx, gint idx)
+{
+  GumDukHeapPtr result = duk_get_heapptr (ctx, idx);
+  _gumjs_duk_protect (ctx, result);
+  return result;
+}
+
+GumDukHeapPtr
+inline _gumjs_duk_require_heapptr (duk_context * ctx, gint idx)
+{
+  GumDukHeapPtr result = duk_require_heapptr (ctx, idx);
+  _gumjs_duk_protect (ctx, result);
+  return result;
+}
+
+
+void
+inline _gumjs_duk_release_heapptr (duk_context * ctx, GumDukHeapPtr heapptr)
+{
+  _gumjs_duk_unprotect (ctx, heapptr);
+}
 #endif
+
+GumDukHeapPtr
+inline _gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
+    gpointer setter)
+{
+  void * result;
+  duk_get_global_string (ctx, "Proxy");
+  // [ Proxy ]
+  duk_push_object (ctx);
+  // [ Proxy targetobj ]
+  duk_push_object (ctx);
+  // [ Proxy targetobj handlerobj ]
+  if (getter)
+  {
+    duk_push_c_function (ctx, getter, 3);
+    // [ Proxy targetobj handlerobj getter ]
+    duk_put_prop_string (ctx, -2, "get");
+    // [ Proxy targetobj handlerobj ]
+  }
+  if (setter)
+  {
+    duk_push_c_function (ctx, setter, 4);
+    // [ Proxy targetobj handlerobj setter ]
+    duk_put_prop_string (ctx, -2, "set");
+    // [ Proxy targetobj handlerobj ]
+  }
+  // [ Proxy targetobj handlerobj ]
+  duk_new (ctx, 2);
+  // [ proxyinst ]
+  result = _gumjs_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+  return result;
+}

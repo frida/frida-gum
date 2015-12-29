@@ -6,6 +6,7 @@
 
 #include "gumdukvalue.h"
 
+#include "gumdukmacros.h"
 #include "gumdukscript-priv.h"
 
 static void gum_native_resource_on_weak_notify (
@@ -48,19 +49,19 @@ _gumjs_args_parse (duk_context * ctx,
     {
       case 'i':
       {
-        *va_arg (ap, gint *) = duk_require_int (ctx, arg_index);
+        *va_arg (ap, gint *) = duk_get_int (ctx, arg_index);
 
         break;
       }
       case 'u':
       {
-        *va_arg (ap, guint *) = duk_require_uint (ctx, arg_index);
+        *va_arg (ap, guint *) = duk_get_uint (ctx, arg_index);
 
         break;
       }
       case 'n':
       {
-        *va_arg (ap, gdouble *) = duk_require_number (ctx, arg_index);
+        *va_arg (ap, gdouble *) = duk_get_number (ctx, arg_index);
 
         break;
       }
@@ -501,7 +502,7 @@ _gumjs_native_pointer_new (duk_context * ctx,
     printf ("error during pnew\n");
   }
   // [ nativepointerinst ]
-  result = duk_require_heapptr (ctx, -1);
+  result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
   return result;
@@ -514,6 +515,8 @@ _gumjs_native_pointer_value (duk_context * ctx,
   GumDukNativePointer * ptr;
 
   ptr = _gumjs_get_private_data (ctx, value);
+  if (!ptr)
+    return 1337;
 
   return ptr->value;
 }
@@ -547,7 +550,7 @@ _gumjs_cpu_context_new (duk_context * ctx,
     printf ("error during pnew");
   }
   // [ cpucontextinst ]
-  result = duk_require_heapptr (ctx, -1);
+  result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
 
@@ -608,6 +611,8 @@ _gumjs_cpu_context_detach (duk_context * ctx,
                            GumDukHeapPtr value)
 {
   GumDukCpuContext * self;
+
+  duk_push_heapptr (ctx, value);
 
   self = _gumjs_get_private_data (ctx, value);
 
