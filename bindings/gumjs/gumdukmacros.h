@@ -286,4 +286,43 @@ inline _gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
   duk_pop (ctx);
   return result;
 }
+
+void
+inline _gumjs_duk_protect (duk_context * ctx, GumDukHeapPtr object)
+{
+  gchar name[256];
+  sprintf (name, "\xff" "protected_%p", object);
+
+  duk_push_global_stash (ctx);
+  duk_get_prop_string (ctx, -2, name);
+  if (duk_is_undefined (ctx, -1))
+  {
+    duk_pop (ctx);
+    duk_push_heapptr (ctx, object);
+    duk_put_prop_string (ctx, -2, name);
+  }
+  else
+    duk_pop (ctx);
+  duk_pop (ctx);
+}
+
+void
+inline _gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
+{
+  gchar name[256];
+  sprintf (name, "\xff" "protected_%p", object);
+
+  duk_push_global_stash (ctx);
+  duk_get_prop_string (ctx, -2, name);
+  if (duk_is_undefined (ctx, -1))
+  {
+    duk_pop (ctx);
+  }
+  else
+  {
+    duk_pop (ctx);
+    duk_del_prop_string (ctx, -1, name);
+  }
+  duk_pop (ctx);
+}
 #endif

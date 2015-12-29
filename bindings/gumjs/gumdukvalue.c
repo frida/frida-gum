@@ -495,7 +495,11 @@ _gumjs_native_pointer_new (duk_context * ctx,
   // [ NativePointer ]
   duk_push_int (ctx, GPOINTER_TO_SIZE(address));
   // [ NativePointer address ]
-  duk_new (ctx, 1);
+  int res = duk_pnew (ctx, 1);
+  if (res)
+  {
+    printf ("error during pnew\n");
+  }
   // [ nativepointerinst ]
   result = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
@@ -537,7 +541,11 @@ _gumjs_cpu_context_new (duk_context * ctx,
 
   duk_get_global_string (ctx, "CpuContext");
   // [ CpuContext ]
-  duk_new (ctx, 0);
+  int res = duk_pnew (ctx, 0);
+  if (res)
+  {
+    printf ("error during pnew");
+  }
   // [ cpucontextinst ]
   result = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
@@ -677,7 +685,11 @@ _gumjs_array_buffer_new (duk_context * ctx,
   // [ ArrayBuffer ]
   duk_push_int (ctx, size);
   // [ ArrayBuffer size ]
-  duk_call (ctx, 1);
+  int res = duk_pcall (ctx, 1);
+  if (res)
+  {
+    printf ("errorduring pcall\n");
+  }
   // [ instance ]
   result = duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
@@ -702,7 +714,11 @@ _gumjs_throw (duk_context * ctx,
   // [ Error ]
   duk_push_string (ctx, message);
   // [ Error message ]
-  duk_new (ctx, 1);
+  int res = duk_pnew (ctx, 1);
+  if (res)
+  {
+    printf ("error during pnew\n");
+  }
   // [ errorinst ]
   g_free (message);
 
@@ -741,7 +757,11 @@ _gumjs_parse_exception_details (duk_context * ctx,
   // [ Error message ]
   g_free (message);
 
-  duk_new (ctx, 1);
+  int res = duk_pnew (ctx, 1);
+  if (res)
+  {
+    printf ("erro during pnew\n");
+  }
   // [ errorinst ]
   ex = duk_require_heapptr (ctx, -1);
 

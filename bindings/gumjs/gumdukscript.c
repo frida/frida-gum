@@ -534,8 +534,12 @@ gum_duk_script_do_load (GumScriptTask * task,
     if (duk_pcompile (priv->ctx, DUK_COMPILE_EVAL) != 0)
       scope.exception = duk_safe_to_string (priv->ctx, -1);
 
+    printf ("about to call!!!!\n");
     if (duk_pcall (priv->ctx, 0) != 0)
+    {
+      printf ("ERROR while executing script\n");
       scope.exception = duk_safe_to_string (priv->ctx, -1);
+    }
 
     duk_pop (priv->ctx);
 
@@ -669,22 +673,18 @@ static void
 gum_duk_script_on_enter (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
-  /* TODO: implement duk_interceptor
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
   _gum_duk_interceptor_on_enter (&self->priv->interceptor, context);
-  */
 }
 
 static void
 gum_duk_script_on_leave (GumInvocationListener * listener,
                          GumInvocationContext * context)
 {
-  /* TODO: implement duk_interceptor
   GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
 
   _gum_duk_interceptor_on_leave (&self->priv->interceptor, context);
-  */
 }
 
 static void
