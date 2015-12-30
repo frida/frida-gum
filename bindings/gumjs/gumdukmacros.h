@@ -261,16 +261,23 @@ inline _gumjs_duk_protect (duk_context * ctx, GumDukHeapPtr object)
   sprintf (name, "\xff" "protected_%p", object);
 
   duk_push_global_stash (ctx);
-  duk_get_prop_string (ctx, -2, name);
+  // [ stash ]
+  duk_get_prop_string (ctx, -1, name);
+  // [ stash protprop ]
   if (duk_is_undefined (ctx, -1))
   {
     duk_pop (ctx);
+    // [ stash ]
     duk_push_heapptr (ctx, object);
+    // [ stash object ]
     duk_put_prop_string (ctx, -2, name);
+    // [ stash ]
   }
   else
     duk_pop (ctx);
+    // [ stash ]
   duk_pop (ctx);
+  // []
 }
 
 void
@@ -280,17 +287,22 @@ inline _gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
   sprintf (name, "\xff" "protected_%p", object);
 
   duk_push_global_stash (ctx);
-  duk_get_prop_string (ctx, -2, name);
+  // [ stash ]
+  duk_get_prop_string (ctx, -1, name);
+  // [ stash protprop ]
   if (duk_is_undefined (ctx, -1))
   {
     duk_pop (ctx);
+    // [ stash ]
   }
   else
   {
     duk_pop (ctx);
+    // [ stash ]
     duk_del_prop_string (ctx, -1, name);
   }
   duk_pop (ctx);
+  // [ ]
 }
 
 GumDukHeapPtr
