@@ -149,7 +149,7 @@ struct _GumDukPropertyEntry
 
 void
 inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
-    gpointer constructor, gpointer finalize)
+    gpointer constructor, gint constructor_nargs, gpointer finalize)
 {
     duk_push_global_object (ctx);
 	// [ ... global ]
@@ -170,7 +170,7 @@ inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * na
 	// [ ... global object create parent parentproto childproto]
 
     if (constructor)
-      duk_push_c_function (ctx, constructor, 1);
+      duk_push_c_function (ctx, constructor, constructor_nargs);
     else
       duk_push_object (ctx);
 	// [ ... global object create parent parentproto childproto constructor]

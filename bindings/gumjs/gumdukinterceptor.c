@@ -195,7 +195,7 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   // []
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "InvocationReturnValue",
-      gumjs_invocation_return_value_construct, NULL);
+      gumjs_invocation_return_value_construct, 1, NULL);
   duk_get_global_string (ctx, "InvocationReturnValue");
   // [ InvocationReturnValue ]
   duk_get_prop_string (ctx, -1, "prototype");
@@ -306,13 +306,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumDukInterceptor * self;
 
-  printf ("in detach all\n");
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   gum_duk_interceptor_detach_all (self);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static void
@@ -400,10 +398,10 @@ gum_duk_replace_entry_free (GumDukReplaceEntry * entry)
 
   gum_interceptor_revert_function (entry->interceptor, entry->target);
 
-  g_slice_free (GumDukReplaceEntry, entry);
-
   _gumjs_duk_unprotect (core->ctx, entry->replacement->data._heapptr);
-  g_free (entry->replacement);
+    g_slice_free (GumDukValue, entry->replacement);
+
+  g_slice_free (GumDukReplaceEntry, entry);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
@@ -482,7 +480,6 @@ void
 _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
                                GumInvocationContext * ic)
 {
-  printf ("in on_enter\n");
   GumDukCore * core = self->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope;

@@ -547,7 +547,7 @@ _gum_duk_core_init (GumDukCore * self,
   // [ ]
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
-      gumjs_native_function_construct, gumjs_native_function_finalize);
+      gumjs_native_function_construct, 4, gumjs_native_function_finalize);
   duk_get_global_string (ctx, "NativeFunction");
   // [ NativeFunction ]
   duk_get_prop_string (ctx, -1, "prototype");
@@ -559,8 +559,8 @@ _gum_duk_core_init (GumDukCore * self,
   duk_pop_2 (ctx);
   // [ ]
 
-  //_gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
-  //    gumjs_native_callback_construct, gumjs_native_callback_finalize);
+  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
+      gumjs_native_callback_construct, 4, gumjs_native_callback_finalize);
 
   duk_push_c_function (ctx, gumjs_cpu_context_construct, 0);
   // [ construct ]
@@ -689,14 +689,14 @@ gum_handle_unprotect_requests_when_idle (gpointer user_data)
 static void
 gum_handle_unprotect_requests (GumDukCore * self)
 {
-  //duk_context * ctx = self->ctx;
+  duk_context * ctx = self->ctx;
 
   while (self->unprotect_requests != NULL)
   {
-    //GumDukHeapPtr value = self->unprotect_requests->data;
+    GumDukHeapPtr value = self->unprotect_requests->data;
     self->unprotect_requests = g_slist_delete_link (self->unprotect_requests,
         self->unprotect_requests);
-    //JSValueUnprotect (ctx, value);
+    _gumjs_duk_unprotect (ctx, value);
   }
 }
 
@@ -1228,7 +1228,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   func->core = core;
 
-  if (!_gumjs_args_parse (ctx, "pVA|s", &func->fn, &rtype_value, &atypes_array,
+  if (!_gumjs_args_parse (ctx, "pVAs?", &func->fn, &rtype_value, &atypes_array,
       &abi_str))
     goto error;
 
@@ -1504,8 +1504,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   gchar * abi_str = NULL;
   ffi_abi abi;
 
-  printf ("in gumjs_native_callback_construct\n");
-
   callback = g_slice_new0 (GumDukNativeCallback);
 
   ptr = &callback->parent;
@@ -1513,11 +1511,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback->core = core;
 
-  if (!_gumjs_args_parse (ctx, "FVA|s", &func, &rtype_value, &atypes_array,
+  if (!_gumjs_args_parse (ctx, "FVAs?", &func, &rtype_value, &atypes_array,
       &abi_str))
     goto error;
 
-  //JSValueProtect (ctx, func);
+  _gumjs_duk_protect (ctx, func);
   callback->func = func;
 
   if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &callback->data))
@@ -1532,25 +1530,36 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback->atypes = g_new (ffi_type *, nargs);
   duk_push_heapptr (ctx, atypes_array);
+  // [ atypes_array ]
   for (i = 0; i != nargs; i++)
   {
     GumDukValue * atype_value;
 
     duk_get_prop_index (ctx, -1, i);
+    // [ atypes_array prop_i ]
     atype_value = _gumjs_get_value (ctx, -1);
     duk_pop (ctx);
+    // [ atypes_array ]
 
     if (atype_value == NULL)
+    {
+      duk_pop (ctx);
+      // []
       goto error;
+    }
 
     if (!gumjs_ffi_type_try_get (ctx, atype_value, &callback->atypes[i],
         &callback->data))
     {
       g_free (atype_value);
+      duk_pop (ctx);
+      // []
       goto error;
     }
     g_free (atype_value);
   }
+  duk_pop (ctx);
+  // []
 
   if (abi_str != NULL)
   {
@@ -1574,11 +1583,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       gum_duk_native_callback_invoke, callback, ptr->value) != FFI_OK)
     goto prepare_failed;
 
-  duk_push_this (ctx);
-  // [ nativecallbackinst ]
-  result = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
+  result = _gumjs_duk_get_this (ctx);
   _gumjs_set_private_data (ctx, result, callback);
 
   goto beach;
@@ -1607,8 +1612,6 @@ error:
   }
 beach:
   {
-    g_free (abi_str);
-
     duk_push_heapptr (ctx, result);
     return 1;
   }
@@ -1657,6 +1660,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   guint i;
   GumDukValue * result;
 
+
   _gum_duk_scope_enter (&scope, core);
 
   if (rtype != &ffi_type_void)
@@ -1694,7 +1698,8 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   int res = duk_pcall (ctx, cif->nargs);
   if (res)
   {
-    printf ("error occurred during pcall\n");
+    /* TODO: this pcall needs to be safe and should set an exception on the scope! */
+    printf ("error occurred during pcall of NativeCallback JS code\n");
   }
   result = _gumjs_get_value (ctx, -1);
   duk_pop (ctx);
@@ -2109,7 +2114,6 @@ gumjs_ffi_type_try_get (duk_context * ctx,
   }
 
 beach:
-  g_free (name);
 
   return success;
 }
