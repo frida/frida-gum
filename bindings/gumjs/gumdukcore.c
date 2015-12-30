@@ -486,8 +486,6 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_global_string (ctx, "Instruction");
   duk_push_object (ctx);
   duk_put_global_string (ctx, "Kernel");
-  duk_push_object (ctx);
-  duk_put_global_string (ctx, "Memory");
 
   duk_push_object (ctx);
   // [ newobject ]
