@@ -558,6 +558,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
   {
     self->cpu_context = _gumjs_cpu_context_new (ctx, self->handle->cpu_context,
         GUM_CPU_CONTEXT_READWRITE, args->core);
+    _gumjs_object_set (ctx, object, "_context", self->cpu_context);
   }
 
   return self->cpu_context;
