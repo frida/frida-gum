@@ -25,6 +25,23 @@ _gumjs_weak_ref_free (GumDukWeakRef * ref)
   /* TODO: implement */
 }
 
+gboolean
+_gumjs_array_buffer_try_get_data (duk_context * ctx,
+                                  GumDukHeapPtr value,
+                                  gpointer * data,
+                                  gsize * size)
+{
+  printf ("in _gumjs_array_buffer_try_get_data\n");
+  duk_push_heapptr (ctx, value);
+  duk_dump_context_stdout (ctx);
+
+  printf ("data: %p, size: %d\n", *data, size);
+  *data = duk_get_buffer_data (ctx, -1, size);
+  printf ("data: %p, size: %d\n", *data, size);
+  duk_pop (ctx);
+  return TRUE;
+}
+
 gpointer
 _gumjs_array_buffer_get_data (duk_context * ctx,
                               GumDukHeapPtr value,
@@ -35,33 +52,7 @@ _gumjs_array_buffer_get_data (duk_context * ctx,
   if (!_gumjs_array_buffer_try_get_data (ctx, value, &data, size))
     _gumjs_panic (ctx, "failed to get ArrayBuffer data");
 
+  printf ("data: %p, size: %d\n", data, size);
   return data;
 }
 
-gboolean
-_gumjs_array_buffer_try_get_data (duk_context * ctx,
-                                  GumDukHeapPtr value,
-                                  gpointer * data,
-                                  gsize * size)
-{
-  /* TODO: implement!
-  ExecState * exec = toJS (ctx);
-  JSLockHolder lock (exec);
-
-  JSValue jsValue = toJS (exec, value);
-  ArrayBuffer * buffer = toArrayBuffer (jsValue);
-  if (buffer != NULL)
-  {
-    *data = buffer->data ();
-    if (size != NULL)
-      *size = buffer->byteLength ();
-    return TRUE;
-  }
-  else
-  {
-    _gumjs_throw (ctx, exception, "expected an ArrayBuffer");
-    return FALSE;
-  }
-  */
-  return FALSE;
-}
