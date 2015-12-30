@@ -941,6 +941,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
       ? gum_duk_exception_sink_new (callback, self)
       : NULL;
 
+  _gumjs_duk_protect (ctx, callback);
+
   old_sink = self->unhandled_exception_sink;
   self->unhandled_exception_sink = new_sink;
 
@@ -1931,6 +1933,7 @@ gum_duk_exception_sink_new (GumDukHeapPtr callback,
 static void
 gum_duk_exception_sink_free (GumDukExceptionSink * sink)
 {
+  _gumjs_duk_unprotect (sink->core->ctx, sink->callback);
   g_slice_free (GumDukExceptionSink, sink);
 }
 
