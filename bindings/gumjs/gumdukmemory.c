@@ -413,11 +413,7 @@ gum_duk_memory_read (GumDukMemory * self,
 
           array = _gumjs_array_buffer_new (ctx, length, core);
           array_data = _gumjs_array_buffer_get_data (ctx, array, NULL);
-          printf ("here!!!! length: %d\n", length);
-          printf ("array_data: %p, data: %p, length: %d\n", array_data, data, length);
           memcpy (array_data, data, length);
-          printf ("here!!!!\n");
-          printf ("a[0] = %02x, a[1] = %02x\n", *(gchar *)array_data, *(gchar *)(array_data+1));
           duk_push_heapptr (ctx, array);
           _gumjs_duk_release_heapptr (ctx, array);
         }
@@ -763,10 +759,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
     duk_push_null (ctx);
     return 1;
   }
-  printf ("in alloc_utf8_string str: %p\n", str);
 
   strdup = g_strdup (str);
-  printf ("in alloc_utf8_string str: %p\n", strdup);
   _gumjs_native_resource_new (ctx, strdup, g_free, args->core, &handle);
 
   duk_push_heapptr (ctx, handle);

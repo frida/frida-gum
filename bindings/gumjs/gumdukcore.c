@@ -910,7 +910,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   gchar * message;
   GBytes * data = NULL;
 
-  if (!_gumjs_args_parse (ctx, "s|B?", &message, &data))
+  if (!_gumjs_args_parse (ctx, "sB?", &message, &data))
   {
     duk_push_null (ctx);
     return 1;
@@ -989,7 +989,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  gsize ptr = 0;
+  gpointer ptr = NULL;
   GumDukHeapPtr object;
 
   if (!_gumjs_args_parse (ctx, "|p~", &ptr))
@@ -997,10 +997,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
     duk_push_null (ctx);
     return 1;
   }
-
-  duk_push_this (ctx);
-  object = duk_get_heapptr (ctx, -1);
-  duk_pop (ctx);
+  object = _gumjs_duk_get_this (ctx);
 
   duk_push_heapptr (ctx,
       _gumjs_native_pointer_new_priv (ctx, object, GSIZE_TO_POINTER (ptr), args->core));
@@ -1991,7 +1988,7 @@ gum_duk_message_sink_handle_message (GumDukMessageSink * self,
   int res =duk_pcall (ctx, 1);
   if (res)
   {
-    printf ("error during pcall 2\n");
+    printf ("error during pcall 2: %s\n", duk_safe_to_string (ctx, -1));
   }
   duk_pop (ctx);
 }

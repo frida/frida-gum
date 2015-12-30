@@ -849,27 +849,37 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
 
   if (!_gumjs_uint_try_parse (ctx, property, &n))
   {
-    duk_push_boolean (ctx, FALSE);
+    duk_push_false (ctx);
     return 1;
   }
 
-  if (!_gumjs_args_parse (ctx, "p", &value))
+  if (_gumjs_is_instanceof (ctx, duk_get_heapptr (ctx, 2), "NativePointer"))
+    value = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, 2));
+  else if (duk_is_object (ctx, 2))
   {
-    duk_push_boolean (ctx, FALSE);
+    duk_get_prop_string (ctx, 2, "handle");
+    if (_gumjs_is_instanceof (ctx, duk_get_heapptr (ctx, -1), "NativePointer"))
+      value = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, -2));
+    duk_pop (ctx);
+  }
+  else
+  {
+    duk_push_false (ctx);
     return 1;
   }
 
   if (!gumjs_invocation_args_try_get_context (ctx, target, &ic))
   {
     _gumjs_duk_release_heapptr (ctx, target);
-    duk_push_null (ctx);
+    duk_push_false (ctx);
     return 1;
   }
   _gumjs_duk_release_heapptr (ctx, target);
 
   gum_invocation_context_replace_nth_argument (ic, n, value);
 
-  return 0;
+  duk_push_true (ctx);
+  return 1;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_return_value_construct)

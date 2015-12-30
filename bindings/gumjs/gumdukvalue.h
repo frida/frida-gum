@@ -93,6 +93,10 @@ G_GNUC_INTERNAL void _gumjs_native_resource_free (
 
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_array_buffer_new (duk_context * ctx,
     gsize size, GumDukCore * core);
+G_GNUC_INTERNAL gpointer _gumjs_array_buffer_get_data (duk_context * ctx,
+    GumDukHeapPtr value, gsize * size);
+G_GNUC_INTERNAL gboolean _gumjs_array_buffer_try_get_data (duk_context * ctx,
+    GumDukHeapPtr value, gpointer * data, gsize * size);
 
 G_GNUC_INTERNAL void _gumjs_throw (duk_context * ctx,
     const gchar * format, ...);
