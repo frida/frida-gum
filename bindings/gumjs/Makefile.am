@@ -121,8 +121,10 @@ duk_sources = \
 	gumdukinterceptor.c \
 	gumdukmemory.h \
 	gumdukmemory.c \
-        gumdukutils.h \
-        gumdukutils.c \
+  gumdukutils.h \
+  gumdukutils.c \
+  gumdukthread.h \
+  gumdukthread.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \

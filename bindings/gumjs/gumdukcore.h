@@ -10,6 +10,7 @@
 #include "duktape.h"
 #include "gumdukscript.h"
 #include "gumdukscriptbackend.h"
+#include "gumdukutils.h"
 #include "gumscriptscheduler.h"
 
 #include <gum/gumexceptor.h>
@@ -37,7 +38,6 @@ typedef struct _GumDukNativeResource GumDukNativeResource;
 typedef void (* GumDukWeakNotify) (gpointer data);
 typedef void (* GumDukMessageEmitter) (GumDukScript * script,
     const gchar * message, GBytes * data);
-typedef void * GumDukHeapPtr;
 
 struct _GumDukCore
 {
