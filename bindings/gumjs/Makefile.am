@@ -129,6 +129,8 @@ duk_sources = \
   gumdukprocess.c \
   gumdukmodule.h \
   gumdukmodule.c \
+  gumduksocket.h \
+  gumduksocket.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \

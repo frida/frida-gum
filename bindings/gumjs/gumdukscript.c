@@ -27,7 +27,9 @@
 #include "gumdukscript-priv.h"
 #include "gumdukscript-runtime.h"
 #include "gumdukscriptbackend.h"
+*/
 #include "gumduksocket.h"
+/*
 #include "gumdukstalker.h"
 #include "gumduksymbol.h"
 */
@@ -66,8 +68,8 @@ struct _GumDukScriptPrivate
   GumDukModule module;
   /*
   GumDukFile file;
-  GumDukSocket socket;
   */
+  GumDukSocket socket;
   GumDukInterceptor interceptor;
   /*
   GumDukStalker stalker;
@@ -402,8 +404,8 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_module_init (&priv->module, &priv->core);
   /*
   _gum_duk_file_init (&priv->file, &priv->core, global);
-  _gum_duk_socket_init (&priv->socket, &priv->core, global);
   */
+  _gum_duk_socket_init (&priv->socket, &priv->core);
   _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
   /*
   _gum_duk_stalker_init (&priv->stalker, &priv->core, global);
@@ -434,8 +436,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_stalker_dispose (&priv->stalker);
   */
   _gum_duk_interceptor_dispose (&priv->interceptor);
-  /*
   _gum_duk_socket_dispose (&priv->socket);
+  /*
   _gum_duk_file_dispose (&priv->file);
   */
   _gum_duk_module_dispose (&priv->module);
@@ -456,7 +458,9 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
+  */
   _gum_duk_socket_finalize (&priv->socket);
+  /*
   _gum_duk_file_finalize (&priv->file);
   */
   _gum_duk_module_finalize (&priv->module);
