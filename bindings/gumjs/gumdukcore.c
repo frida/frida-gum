@@ -479,10 +479,6 @@ _gum_duk_core_init (GumDukCore * self,
 
   /* TODO: temporarily define some of the other objects */
   duk_push_object (ctx);
-  duk_put_global_string (ctx, "Process");
-  duk_push_object (ctx);
-  duk_put_global_string (ctx, "Module");
-  duk_push_object (ctx);
   duk_put_global_string (ctx, "Instruction");
   duk_push_object (ctx);
   duk_put_global_string (ctx, "Kernel");

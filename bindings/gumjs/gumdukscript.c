@@ -18,8 +18,8 @@
 #include "gumdukkernel.h"
 */
 #include "gumdukmemory.h"
-/*
 #include "gumdukmodule.h"
+/*
 #include "gumdukpolyfill.h"
 */
 #include "gumdukprocess.h"
@@ -63,8 +63,8 @@ struct _GumDukScriptPrivate
   GumDukMemory memory;
   GumDukProcess process;
   GumDukThread thread;
-  /*
   GumDukModule module;
+  /*
   GumDukFile file;
   GumDukSocket socket;
   */
@@ -399,8 +399,8 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_memory_init (&priv->memory, &priv->core);
   _gum_duk_process_init (&priv->process, &priv->core);
   _gum_duk_thread_init (&priv->thread, &priv->core);
+  _gum_duk_module_init (&priv->module, &priv->core);
   /*
-  _gum_duk_module_init (&priv->module, &priv->core, global);
   _gum_duk_file_init (&priv->file, &priv->core, global);
   _gum_duk_socket_init (&priv->socket, &priv->core, global);
   */
@@ -437,8 +437,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   /*
   _gum_duk_socket_dispose (&priv->socket);
   _gum_duk_file_dispose (&priv->file);
-  _gum_duk_module_dispose (&priv->module);
   */
+  _gum_duk_module_dispose (&priv->module);
   _gum_duk_thread_dispose (&priv->thread);
   _gum_duk_process_dispose (&priv->process);
   _gum_duk_memory_dispose (&priv->memory);
@@ -458,8 +458,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);
   _gum_duk_file_finalize (&priv->file);
-  _gum_duk_module_finalize (&priv->module);
   */
+  _gum_duk_module_finalize (&priv->module);
   _gum_duk_thread_finalize (&priv->thread);
   _gum_duk_process_finalize (&priv->process);
   _gum_duk_memory_finalize (&priv->memory);
