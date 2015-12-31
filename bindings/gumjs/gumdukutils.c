@@ -4,143 +4,10 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_DUK_MACROS_H__
-#define __GUM_DUK_MACROS_H__
-
-#include "gumdukvalue.h"
 #include "gumdukutils.h"
 
-#define GUMJS_RO (DUK_DEFPROP_HAVE_WRITABLE | 0)
-#define GUMJS_RW (DUK_DEFPROP_HAVE_WRITABLE | DUK_DEFPROP_WRITABLE)
-
-#define GUMJS_DECLARE_CONSTRUCTOR(N) \
-  static int N (duk_context * ctx);
-#define GUMJS_DECLARE_FINALIZER(N) \
-  static int N (duk_context * ctx);
-#define GUMJS_DECLARE_FUNCTION(N) \
-  static int N (duk_context * ctx);
-#define GUMJS_DECLARE_GETTER(N) \
-  static int N (duk_context * ctx);
-#define GUMJS_DECLARE_SETTER(N) \
-  static int N (duk_context * ctx);
-
-#define GUMJS_DEFINE_CONSTRUCTOR(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
-    \
-    args.count = duk_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, "\xff" "core"); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
-#define GUMJS_DEFINE_FINALIZER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
-    \
-    args.count = duk_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, "\xff" "core"); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
-#define GUMJS_DEFINE_FUNCTION(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
-    \
-    args.count = duk_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, "\xff" "core"); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
-#define GUMJS_DEFINE_GETTER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
-    \
-    args.count = duk_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, "\xff" "core"); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
-#define GUMJS_DEFINE_SETTER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
-  \
-  static int \
-  N (duk_context * ctx) \
-  { \
-    GumDukArgs args; \
-    \
-    args.count = duk_get_top (ctx); \
-    \
-    args.ctx = ctx; \
-    \
-    duk_get_global_string (ctx, "\xff" "core"); \
-    args.core = duk_get_pointer (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    return N##_impl (ctx, &args); \
-  } \
-  \
-  static int \
-  N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
-
-#define GUMJS_ADD_GLOBAL_FUNCTION(N, F, NARGS) \
-  duk_push_c_function (ctx, F, NARGS); \
-  duk_put_global_string (ctx, N);
-
 void
-inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
+_gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * name,
     gpointer constructor, gint constructor_nargs, gpointer finalize)
 {
     duk_push_global_object (ctx);
@@ -184,7 +51,7 @@ inline _gumjs_duk_create_subclass (duk_context * ctx, gchar * parent, gchar * na
 
 
 void
-inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
+_gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
     const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
@@ -224,7 +91,7 @@ inline _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
 }
 
 gboolean
-inline _gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
+_gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
 {
   gboolean result;
   duk_get_global_string (ctx, classname);
@@ -237,7 +104,7 @@ inline _gumjs_is_arg0_equal_to_prototype (duk_context * ctx, gchar * classname)
 }
 
 GumDukHeapPtr
-inline _gumjs_duk_get_this (duk_context * ctx)
+_gumjs_duk_get_this (duk_context * ctx)
 {
   GumDukHeapPtr result;
   duk_push_this (ctx);
@@ -247,7 +114,7 @@ inline _gumjs_duk_get_this (duk_context * ctx)
 }
 
 void
-inline _gumjs_duk_protect (duk_context * ctx, GumDukHeapPtr object)
+_gumjs_duk_protect (duk_context * ctx, GumDukHeapPtr object)
 {
   gchar name[256];
   sprintf (name, "\xff" "protected_%p", object);
@@ -273,7 +140,7 @@ inline _gumjs_duk_protect (duk_context * ctx, GumDukHeapPtr object)
 }
 
 void
-inline _gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
+_gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
 {
   gchar name[256];
   sprintf (name, "\xff" "protected_%p", object);
@@ -298,7 +165,7 @@ inline _gumjs_duk_unprotect (duk_context * ctx, GumDukHeapPtr object)
 }
 
 GumDukHeapPtr
-inline _gumjs_duk_get_heapptr (duk_context * ctx, gint idx)
+_gumjs_duk_get_heapptr (duk_context * ctx, gint idx)
 {
   GumDukHeapPtr result = duk_get_heapptr (ctx, idx);
   _gumjs_duk_protect (ctx, result);
@@ -306,7 +173,7 @@ inline _gumjs_duk_get_heapptr (duk_context * ctx, gint idx)
 }
 
 GumDukHeapPtr
-inline _gumjs_duk_require_heapptr (duk_context * ctx, gint idx)
+_gumjs_duk_require_heapptr (duk_context * ctx, gint idx)
 {
   GumDukHeapPtr result = duk_require_heapptr (ctx, idx);
   _gumjs_duk_protect (ctx, result);
@@ -315,14 +182,13 @@ inline _gumjs_duk_require_heapptr (duk_context * ctx, gint idx)
 
 
 void
-inline _gumjs_duk_release_heapptr (duk_context * ctx, GumDukHeapPtr heapptr)
+_gumjs_duk_release_heapptr (duk_context * ctx, GumDukHeapPtr heapptr)
 {
   _gumjs_duk_unprotect (ctx, heapptr);
 }
-#endif
 
 GumDukHeapPtr
-inline _gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
+_gumjs_duk_create_proxy_accessors (duk_context * ctx, gpointer getter,
     gpointer setter)
 {
   void * result;
