@@ -49,19 +49,22 @@ _gumjs_args_parse (duk_context * ctx,
     {
       case 'i':
       {
-        *va_arg (ap, gint *) = duk_get_int (ctx, arg_index);
+        if (!duk_is_undefined (ctx, arg_index))
+            *va_arg (ap, gint *) = duk_get_int (ctx, arg_index);
 
         break;
       }
       case 'u':
       {
-        *va_arg (ap, guint *) = duk_get_uint (ctx, arg_index);
+        if (!duk_is_undefined (ctx, arg_index))
+            *va_arg (ap, guint *) = duk_get_uint (ctx, arg_index);
 
         break;
       }
       case 'n':
       {
-        *va_arg (ap, gdouble *) = duk_get_number (ctx, arg_index);
+        if (!duk_is_undefined (ctx, arg_index))
+            *va_arg (ap, gdouble *) = duk_get_number (ctx, arg_index);
 
         break;
       }

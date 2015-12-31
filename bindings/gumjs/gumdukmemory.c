@@ -427,6 +427,33 @@ gum_duk_memory_read (GumDukMemory * self,
         break;
       }
       case GUM_MEMORY_VALUE_C_STRING:
+      {
+        gchar * data;
+        guint8 dummy_to_trap_bad_pointer_early;
+
+        data = address;
+        if (data == NULL)
+        {
+          duk_push_null (ctx);
+          break;
+        }
+
+        if (length != 0)
+          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
+
+        if (length < 0)
+            duk_push_string (ctx, data);
+        else
+        {
+            gchar * slice;
+
+            slice = g_strndup (data, length);
+            duk_push_string (ctx, slice);
+            g_free (slice);
+        }
+
+        break;
+      }
       case GUM_MEMORY_VALUE_UTF8_STRING:
       {
         gchar * data;
@@ -442,7 +469,18 @@ gum_duk_memory_read (GumDukMemory * self,
         if (length != 0)
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
-        duk_push_string (ctx, data);
+        if (length < 0)
+            duk_push_string (ctx, data);
+        else
+        {
+            gsize size;
+            gchar * slice;
+
+            size = g_utf8_offset_to_pointer (data, length) - data;
+            slice = g_strndup (data, size);
+            duk_push_string (ctx, slice);
+            g_free (slice);
+        }
 
         break;
       }
@@ -671,7 +709,6 @@ gum_duk_memory_write (GumDukMemory * self,
   }
 
   g_bytes_unref (bytes);
-  g_free (str);
   g_free (str_utf16);
 #ifdef G_OS_WIN32
   g_free (str_ansi);
@@ -888,7 +925,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   }
 
   duk_push_heapptr (ctx, self->on_complete);
-  int res = duk_pcall (ctx, 1);
+  int res = duk_pcall (ctx, 0);
   if (res)
   {
     /* TODO: this should probably set the exception on the scope */
@@ -920,7 +957,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
   _gumjs_duk_release_heapptr (ctx, match_address);
   duk_push_number (ctx, size);
 
-  int res = duk_pcall (ctx, 1);
+  int res = duk_pcall (ctx, 2);
   if (res)
   {
     /* TODO: this should probably set the exception on the scope */
