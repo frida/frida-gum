@@ -384,7 +384,7 @@ gum_thumb_relocator_can_relocate (gpointer address,
           {
             gssize offset =
                 (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-            if (offset >= 0 && offset < (gssize) n)
+            if (offset > 0 && offset < (gssize) n)
               n = offset;
           }
           if (id == ARM_INS_B || id == ARM_INS_BX)

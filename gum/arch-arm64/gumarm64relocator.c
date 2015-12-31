@@ -370,7 +370,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
           g_assert (op->type == ARM64_OP_IMM);
           gssize offset =
               (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-          if (offset >= 0 && offset < (gssize) n)
+          if (offset > 0 && offset < (gssize) n)
             n = offset;
           eoi = d->cc == ARM64_CC_INVALID || d->cc == ARM64_CC_AL ||
               d->cc == ARM64_CC_NV;
@@ -383,7 +383,7 @@ gum_arm64_relocator_can_relocate (gpointer address,
           g_assert (op->type == ARM64_OP_IMM);
           gssize offset =
               (gssize) op->imm - (gssize) GPOINTER_TO_SIZE (address);
-          if (offset >= 0 && offset < (gssize) n)
+          if (offset > 0 && offset < (gssize) n)
             n = offset;
           break;
         }
