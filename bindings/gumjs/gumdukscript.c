@@ -11,8 +11,8 @@
 #include "gumdukscript-runtime.h"
 /*
 #include "gumdukfile.h"
-#include "gumdukinstruction.h"
 */
+#include "gumdukinstruction.h"
 #include "gumdukinterceptor.h"
 /*
 #include "gumdukkernel.h"
@@ -75,9 +75,7 @@ struct _GumDukScriptPrivate
   GumDukStalker stalker;
   */
   GumDukSymbol symbol;
-  /*
   GumDukInstruction instruction;
-  */
   gboolean loaded;
 
   GumScriptMessageHandler message_handler;
@@ -413,9 +411,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_stalker_init (&priv->stalker, &priv->core, global);
   */
   _gum_duk_symbol_init (&priv->symbol, &priv->core);
-  /*
-  _gum_duk_instruction_init (&priv->instruction, &priv->core, global);
-  */
+  _gum_duk_instruction_init (&priv->instruction, &priv->core);
   gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
 
   return TRUE;
@@ -434,9 +430,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_core_flush (&priv->core);
 
-  /*
   _gum_duk_instruction_dispose (&priv->instruction);
-  */
   _gum_duk_symbol_dispose (&priv->symbol);
   /*
   _gum_duk_stalker_dispose (&priv->stalker);
@@ -459,9 +453,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   duk_destroy_heap (priv->ctx);
   priv->ctx = NULL;
 
-  /*
   _gum_duk_instruction_finalize (&priv->instruction);
-  */
   _gum_duk_symbol_finalize (&priv->symbol);
   /*
   _gum_duk_stalker_finalize (&priv->stalker);
