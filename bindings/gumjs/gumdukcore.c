@@ -1308,18 +1308,20 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     func->arglist_size += t->size;
   }
 
-  duk_get_global_string (ctx, "NativeFunction");
-  // [ NativeFunction ]
-  int res = duk_pnew (ctx, 0);
-  if (res)
-  {
-    printf ("errro during pnew");
-  }
-  // [ nativefuncinst ]
-  result = duk_require_heapptr (ctx, -1);
+  result = _gumjs_duk_get_this (ctx);
   _gumjs_set_private_data (ctx, result, func);
+
+  duk_push_c_function (ctx, gumjs_native_function_invoke, nargs_total);
+  // [ invoke ]
+  duk_push_string (ctx, "bind");
+  // [ invoke bind ]
+  duk_push_heapptr (ctx, result);
+  // [ invoke bind nativefunction ]
+  duk_call_prop (ctx, -3, 1);
+  // [ invoke ]
+  result = _gumjs_duk_require_heapptr (ctx, -1);
+
   duk_pop (ctx);
-  // []
 
   goto beach;
 
@@ -1329,7 +1331,7 @@ unexpected_marker:
     goto error;
   }
 compilation_failed:
-  {
+  {//
     _gumjs_throw (ctx, "failed to compile function call interface");
     goto error;
   }
@@ -1342,9 +1344,8 @@ error:
   }
 beach:
   {
-    g_free (abi_str);
-
     duk_push_heapptr (ctx, result);
+    _gumjs_duk_release_heapptr (ctx, result);
     return 1;
   }
 }
@@ -1465,8 +1466,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     duk_pop (ctx);
   }
 
-  /* TODO: what to return!? */
-  duk_push_pointer (ctx, result);
+  switch (result->type)
+  {
+    case DUK_TYPE_STRING:
+      duk_push_string (ctx, result->data._string);
+      break;
+    case DUK_TYPE_NUMBER:
+      duk_push_number (ctx, result->data._number);
+      break;
+    case DUK_TYPE_BOOLEAN:
+      duk_push_boolean (ctx, result->data._boolean);
+      break;
+    case DUK_TYPE_OBJECT:
+      duk_push_heapptr (ctx, result->data._heapptr);
+      break;
+  }
+  g_free (result);
   return 1;
 
 bad_argument_count:
@@ -1676,16 +1691,29 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   for (i = 0; i != cif->nargs; i++)
   {
     GumDukValue * arg = argv[i];
-    if (arg->type == DUK_TYPE_OBJECT)
-      duk_push_heapptr (ctx, arg->data._heapptr);
-    else if (arg->type == DUK_TYPE_STRING)
-      duk_push_string (ctx, arg->data._string);
-    else if (arg->type == DUK_TYPE_BOOLEAN)
-      duk_push_boolean (ctx, arg->data._boolean);
-    else if (arg->type == DUK_TYPE_NUMBER)
-      duk_push_number (ctx, arg->data._number);
+    switch (arg->type)
+    {
+      case DUK_TYPE_OBJECT:
+        duk_push_heapptr (ctx, arg->data._heapptr);
+        _gumjs_duk_release_heapptr (ctx, arg->data._heapptr);
+        break;
+      case DUK_TYPE_STRING:
+        duk_push_string (ctx, arg->data._string);
+        break;
+      case DUK_TYPE_BOOLEAN:
+        duk_push_boolean (ctx, arg->data._boolean);
+        break;
+      case DUK_TYPE_NUMBER:
+        duk_push_number (ctx, arg->data._number);
+        break;
+      default:
+        printf ("in default, type: %d\n", arg->type);
+
+    }
+
     g_free (argv[i]);
   }
+
   int res = duk_pcall (ctx, cif->nargs);
   if (res)
   {
@@ -1876,7 +1904,6 @@ GUMJS_DEFINE_FUNCTION (gum_scheduled_callback_safe_invoke)
   GumDukScheduledCallback * self = duk_get_pointer (ctx, -1);
 
   duk_push_heapptr (ctx, self->func);
-  printf ("about to call\n");
   duk_call (ctx, 0);
 
   duk_pop (ctx);
@@ -2336,7 +2363,9 @@ gumjs_value_from_ffi_type (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    *svalue = _gumjs_native_pointer_new (ctx, value->v_pointer, core);
+    duk_push_heapptr (ctx, _gumjs_native_pointer_new (ctx, value->v_pointer, core));
+    *svalue = _gumjs_get_value (ctx, -1);
+    duk_pop (ctx);
   }
   else if (type == &ffi_type_sint)
   {
