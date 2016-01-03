@@ -155,6 +155,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
       gum_symbol_details_from_address (address, &symbol->details);
 
   duk_push_heapptr (ctx, instance);
+  _gumjs_duk_release_heapptr (ctx, instance);
   return 1;
 }
 
@@ -189,6 +190,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   }
 
   duk_push_heapptr (ctx, instance);
+  _gumjs_duk_release_heapptr (ctx, instance);
   return 1;
 }
 
@@ -243,6 +245,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   g_array_free (functions, TRUE);
 
   duk_push_heapptr (ctx, result);
+  _gumjs_duk_release_heapptr (ctx, result);
   return 1;
 }
 
@@ -283,11 +286,11 @@ gumjs_symbol_new (duk_context * ctx,
   *symbol = s;
 
   duk_push_heapptr (ctx, parent->symbol);
-  // [ DebugSymbol ]
+  // [ DebugSymbolInstance ]
   duk_new (ctx, 0);
   // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), s);
-  result = duk_require_heapptr (ctx, -1);
+  result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   return result;
 }
@@ -318,8 +321,7 @@ gum_symbol_to_string (GumSymbol * self,
   }
 
   duk_push_string (ctx, s->str);
-  result = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  result = duk_require_string (ctx, -1);
 
   g_string_free (s, TRUE);
 
@@ -331,7 +333,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
     return 0;
 
-  GumSymbol * symbol = GUMJS_SYMBOL (duk_require_heapptr (ctx, 0));
+  GumSymbol * symbol = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
 
   g_slice_free (GumSymbol, symbol);
   return 0;
@@ -339,7 +341,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
 
 GUMJS_DEFINE_GETTER (gumjs_symbol_get_address)
 {
-  GumSymbol * self = GUMJS_SYMBOL (duk_require_heapptr (ctx, 0));
+  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
   GumDukHeapPtr result;
 
   result = _gumjs_native_pointer_new (ctx,
@@ -396,13 +398,13 @@ GUMJS_DEFINE_GETTER (gumjs_symbol_get_line_number)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
 {
-  duk_push_string (ctx, gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx));
+  gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx);
   return 1;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_convert_to_type)
 {
-  duk_push_string (ctx, gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx));
+  gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx);
   return 1;
 }
 
@@ -428,7 +430,7 @@ gumjs_pointer_array_to_value (duk_context * ctx,
     // [ array ]
   }
 
-  array = duk_require_heapptr (ctx, -1);
+  array = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
   return array;
