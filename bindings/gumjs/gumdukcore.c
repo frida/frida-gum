@@ -1319,9 +1319,21 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   // [ invoke bind nativefunction ]
   duk_call_prop (ctx, -3, 1);
   // [ invoke ]
+  duk_get_global_string (ctx, "NativeFunction");
+  // [ invoke NativeFunction ]
+  duk_get_prop_string (ctx, -1, "prototype");
+  // [ invoke NativeFunction nativefuncproto ]
+  duk_set_prototype (ctx, -3);
+  // [ invoke NativeFunction ]
+  duk_pop (ctx);
+  // [ invoke ]
   result = _gumjs_duk_require_heapptr (ctx, -1);
+  /* we need the private data on both the original NativeFunction,
+   * and on the bound callable. */
+  _gumjs_set_private_data (ctx, result, func);
 
   duk_pop (ctx);
+  // []
 
   goto beach;
 
@@ -1355,7 +1367,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
-  GumDukNativeFunction * self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  GumDukNativeFunction * self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   gum_duk_native_function_finalize (self);
   return 0;
@@ -1386,9 +1398,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   GumExceptorScope scope;
   GumDukValue * result;
 
-  duk_push_this (ctx);
-  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, -1));
-  duk_pop (ctx);
+  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   core = self->core;
   nargs = self->cif.nargs;
