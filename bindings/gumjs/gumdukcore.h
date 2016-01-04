@@ -8,9 +8,9 @@
 #define __GUM_DUKRIPT_CORE_H__
 
 #include "duktape.h"
+#include "gumdukobject.h"
 #include "gumdukscript.h"
 #include "gumdukscriptbackend.h"
-#include "gumdukutils.h"
 #include "gumscriptscheduler.h"
 
 #include <gum/gumexceptor.h>

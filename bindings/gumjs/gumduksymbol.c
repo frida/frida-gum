@@ -93,7 +93,6 @@ _gum_duk_symbol_init (GumDukSymbol * self,
   duk_put_global_string (ctx, "DebugSymbol");
   // []
 
-
   duk_push_c_function (ctx, gumjs_symbol_construct, 0);
   // [ construct ]
   duk_push_object (ctx);
@@ -108,7 +107,8 @@ _gum_duk_symbol_init (GumDukSymbol * self,
   self->symbol = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "DebugSymbolItem");
   // []
-  _gumjs_duk_add_properties_to_class (ctx, "DebugSymbolItem", gumjs_symbol_values);
+  _gumjs_duk_add_properties_to_class (ctx, "DebugSymbolItem",
+      gumjs_symbol_values);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
@@ -330,10 +330,12 @@ gum_symbol_to_string (GumSymbol * self,
 
 GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
 {
+  GumSymbol * symbol;
+
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
     return 0;
 
-  GumSymbol * symbol = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
+  symbol = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
 
   g_slice_free (GumSymbol, symbol);
   return 0;
@@ -341,12 +343,13 @@ GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
 
 GUMJS_DEFINE_GETTER (gumjs_symbol_get_address)
 {
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
+  GumSymbol * self;
   GumDukHeapPtr result;
+
+  self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
 
   result = _gumjs_native_pointer_new (ctx,
       GSIZE_TO_POINTER (self->details.address), args->core);
-
   duk_push_heapptr (ctx, result);
   _gumjs_duk_release_heapptr (ctx, result);
   return 1;

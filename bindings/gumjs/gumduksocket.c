@@ -182,7 +182,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
     _gumjs_duk_release_heapptr (ctx, result);
   }
   else
+  {
     duk_push_null (ctx);
+  }
+
   return 1;
 }
 
@@ -207,7 +210,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
     _gumjs_duk_release_heapptr (ctx, result);
   }
   else
+  {
     duk_push_null (ctx);
+  }
+
   return 1;
 }
 

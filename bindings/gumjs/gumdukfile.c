@@ -59,7 +59,6 @@ _gum_duk_file_init (GumDukFile * self,
   self->file = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "File");
   // []
-
 }
 
 void

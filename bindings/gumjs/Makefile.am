@@ -110,33 +110,33 @@ duk_sources = \
 	gumdukscript.h \
 	gumdukscript.c \
 	gumdukscript-priv.h \
-	gumdukcore.h \
-	gumdukcore.c \
-	gumdukvalue.h \
-	gumdukvalue.c \
-	gumdukglue.c \
 	gumdukbundle.h \
 	gumdukbundle.c \
-	gumdukinterceptor.h \
-	gumdukinterceptor.c \
+	gumdukobject.h \
+	gumdukobject.c \
+	gumdukvalue.h \
+	gumdukvalue.c \
+	gumdukmacros.h \
+	gumdukcore.h \
+	gumdukcore.c \
 	gumdukmemory.h \
 	gumdukmemory.c \
-  gumdukutils.h \
-  gumdukutils.c \
-  gumdukthread.h \
-  gumdukthread.c \
-  gumdukprocess.h \
-  gumdukprocess.c \
-  gumdukmodule.h \
-  gumdukmodule.c \
-  gumduksocket.h \
-  gumduksocket.c \
-  gumduksymbol.h \
-  gumduksymbol.c \
-  gumdukinstruction.h \
-  gumdukinstruction.c \
-  gumdukfile.h \
-  gumdukfile.c \
+	gumdukprocess.h \
+	gumdukprocess.c \
+	gumdukthread.h \
+	gumdukthread.c \
+	gumdukmodule.h \
+	gumdukmodule.c \
+	gumdukfile.h \
+	gumdukfile.c \
+	gumduksocket.h \
+	gumduksocket.c \
+	gumdukinterceptor.h \
+	gumdukinterceptor.c \
+	gumduksymbol.h \
+	gumduksymbol.c \
+	gumdukinstruction.h \
+	gumdukinstruction.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \

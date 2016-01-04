@@ -7,8 +7,9 @@
 #ifndef __GUM_DUK_BUNDLE_H__
 #define __GUM_DUK_BUNDLE_H__
 
-#include <glib.h>
 #include "duktape.h"
+
+#include <glib.h>
 
 #define GUM_MAX_SCRIPT_SOURCE_CHUNKS 6
 

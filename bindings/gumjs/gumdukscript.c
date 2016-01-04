@@ -17,15 +17,7 @@
 */
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
-/*
-#include "gumdukpolyfill.h"
-*/
 #include "gumdukprocess.h"
-/*
-#include "gumdukscript-priv.h"
-#include "gumdukscript-runtime.h"
-#include "gumdukscriptbackend.h"
-*/
 #include "gumduksocket.h"
 /*
 #include "gumdukstalker.h"
@@ -57,7 +49,6 @@ struct _GumDukScriptPrivate
   duk_context * ctx;
   GumDukCore core;
   /*
-  GumDukPolyfill polyfill;
   GumDukKernel kernel;
   */
   GumDukMemory memory;
@@ -331,9 +322,9 @@ gum_duk_script_create_url (GumDukScript * self)
 }
 
 static void
-gum_duk_script_fatal_error_handler (duk_context *ctx,
+gum_duk_script_fatal_error_handler (duk_context * ctx,
                                     duk_errcode_t code,
-                                    const char *msg)
+                                    const char * msg)
 {
   printf ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
   abort();
@@ -350,7 +341,8 @@ gum_duk_script_create_context (GumDukScript * self,
 
   g_assert (priv->ctx == NULL);
 
-  ctx = duk_create_heap (NULL, NULL, NULL, NULL, gum_duk_script_fatal_error_handler);
+  ctx = duk_create_heap (NULL, NULL, NULL, NULL,
+      gum_duk_script_fatal_error_handler);
 
   url = gum_duk_script_create_url (self);
 
@@ -391,7 +383,6 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_core_init (&priv->core, self, gum_duk_script_emit_message,
       gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
   /*
-  _gum_duk_polyfill_init (&priv->polyfill, &priv->core, global);
   _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
   */
   _gum_duk_memory_init (&priv->memory, &priv->core);
@@ -406,6 +397,7 @@ gum_duk_script_create_context (GumDukScript * self,
   */
   _gum_duk_symbol_init (&priv->symbol, &priv->core);
   _gum_duk_instruction_init (&priv->instruction, &priv->core);
+
   gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
 
   return TRUE;
@@ -438,7 +430,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_memory_dispose (&priv->memory);
   /*
   _gum_duk_kernel_dispose (&priv->kernel);
-  _gum_duk_polyfill_dispose (&priv->polyfill);
   */
   _gum_duk_core_dispose (&priv->core);
 
@@ -449,8 +440,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_symbol_finalize (&priv->symbol);
   /*
   _gum_duk_stalker_finalize (&priv->stalker);
-  _gum_duk_interceptor_finalize (&priv->interceptor);
   */
+  _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);
   _gum_duk_file_finalize (&priv->file);
   _gum_duk_module_finalize (&priv->module);
@@ -459,7 +450,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_memory_finalize (&priv->memory);
   /*
   _gum_duk_kernel_finalize (&priv->kernel);
-  _gum_duk_polyfill_finalize (&priv->polyfill);
   */
   _gum_duk_core_finalize (&priv->core);
 
@@ -543,7 +533,9 @@ gum_duk_script_do_load (GumScriptTask * task,
     if (duk_pcall (priv->ctx, 0) != 0)
     {
       duk_get_prop_string (priv->ctx, -1, "stack");
-      printf ("ERROR while executing script: %s\n%s\n", duk_safe_to_string (priv->ctx, -2), duk_safe_to_string (priv->ctx, -1));
+      printf ("ERROR while executing script: %s\n%s\n",
+          duk_safe_to_string (priv->ctx, -2),
+          duk_safe_to_string (priv->ctx, -1));
       duk_pop (priv->ctx);
       scope.exception = duk_safe_to_string (priv->ctx, -1);
     }
@@ -638,8 +630,9 @@ gum_duk_script_post_message (GumScript * script,
                              const gchar * message)
 {
   GumDukScript * self = GUM_DUK_SCRIPT (script);
+  GumPostMessageData * d;
 
-  GumPostMessageData * d = g_slice_new (GumPostMessageData);
+  d = g_slice_new (GumPostMessageData);
   d->script = self;
   g_object_ref (self);
   d->message = g_strdup (message);
@@ -668,11 +661,7 @@ gum_duk_post_message_data_free (GumPostMessageData * d)
 static GumStalker *
 gum_duk_script_get_stalker (GumScript * script)
 {
-  /* TODO: implement duk_stalker
-  GumDukScript * self = GUM_DUK_SCRIPT (script);
-
-  return _gum_duk_stalker_get (&self->priv->stalker);
-  */
+  /* TODO: implement duk_stalker */
   return NULL;
 }
 
@@ -699,13 +688,16 @@ gum_duk_script_emit_message (GumDukScript * self,
                              const gchar * message,
                              GBytes * data)
 {
-  GumEmitMessageData * d = g_slice_new (GumEmitMessageData);
+  GumEmitMessageData * d;
+  GSource * source;
+
+  d = g_slice_new (GumEmitMessageData);
   d->script = self;
   g_object_ref (self);
   d->message = g_strdup (message);
   d->data = (data != NULL) ? g_bytes_ref (data) : NULL;
 
-  GSource * source = g_idle_source_new ();
+  source = g_idle_source_new ();
   g_source_set_callback (source,
       (GSourceFunc) gum_duk_script_do_emit_message,
       d,
@@ -743,7 +735,6 @@ void
 _gumjs_panic (duk_context * ctx,
               const char * exception)
 {
-
   /* TODO: need to find a way to retrieve the stack */
   g_critical ("%s", exception);
 

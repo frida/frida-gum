@@ -27,9 +27,7 @@ gum_duk_bundle_load (const GumDukSource * sources,
 
     result = duk_peval (ctx);
     if (result != 0)
-    {
       _gumjs_panic (ctx, duk_safe_to_string (ctx, -2));
-    }
 
     duk_pop (ctx);
 

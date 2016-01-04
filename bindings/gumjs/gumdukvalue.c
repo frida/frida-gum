@@ -80,14 +80,22 @@ _gumjs_args_parse (duk_context * ctx,
         if (is_fuzzy)
         {
           if (duk_is_object (ctx, arg_index) &&
-              _gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index), "NativePointer"))
-            ptr = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, arg_index));
+              _gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index),
+              "NativePointer"))
+          {
+            ptr = _gumjs_native_pointer_value (ctx,
+                duk_require_heapptr (ctx, arg_index));
+          }
           else if (duk_is_object (ctx, arg_index))
           {
             duk_get_prop_string (ctx, arg_index, "handle");
             // [ ... handle ]
-            if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, -1), "NativePointer"))
-              ptr = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, -1));
+            if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, -1),
+                "NativePointer"))
+            {
+              ptr = _gumjs_native_pointer_value (ctx,
+                  duk_require_heapptr (ctx, -1));
+            }
             duk_pop (ctx);
             // [ ... ]
           }
@@ -140,14 +148,22 @@ _gumjs_args_parse (duk_context * ctx,
         }
         else
         {
-          if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index), "NativePointer"))
-            ptr = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, arg_index));
+          if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, arg_index),
+              "NativePointer"))
+          {
+            ptr = _gumjs_native_pointer_value (ctx,
+                duk_require_heapptr (ctx, arg_index));
+          }
           else if (duk_is_object (ctx, arg_index))
           {
             duk_get_prop_string (ctx, arg_index, "handle");
             // [ ... handle ]
-            if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, -1), "NativePointer"))
-              ptr = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, -1));
+            if (_gumjs_is_instanceof (ctx, duk_require_heapptr (ctx, -1),
+                "NativePointer"))
+            {
+              ptr = _gumjs_native_pointer_value (ctx,
+                  duk_require_heapptr (ctx, -1));
+            }
             duk_pop (ctx);
             // [ ... ]
           }
@@ -336,10 +352,15 @@ _gumjs_args_parse (duk_context * ctx,
 
           if (is_nullable)
           {
-            if (duk_is_undefined (ctx, arg_index) || duk_is_null (ctx, arg_index))
+            if (duk_is_undefined (ctx, arg_index) ||
+                duk_is_null (ctx, arg_index))
+            {
               func = NULL;
+            }
             else if (duk_is_function (ctx, arg_index))
+            {
               func = duk_require_heapptr (ctx, arg_index);
+            }
           }
           else
           {
@@ -412,11 +433,13 @@ _gumjs_args_parse (duk_context * ctx,
           else
             goto error;
         }
-        else if (_gumjs_is_instanceof(ctx, duk_get_heapptr (ctx, arg_index), "CpuContext"))
+        else if (_gumjs_is_instanceof(ctx, duk_get_heapptr (ctx, arg_index),
+            "CpuContext"))
         {
           GumDukCpuContext * instance;
 
-          instance = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, arg_index));
+          instance = _gumjs_get_private_data (ctx,
+              duk_require_heapptr (ctx, arg_index));
           cpu_context = instance->handle;
         }
         else
@@ -453,6 +476,23 @@ error:
 
     return FALSE;
   }
+}
+
+GumDukWeakRef *
+_gumjs_weak_ref_new (duk_context * ctx,
+                     GumDukValue * value,
+                     GumDukWeakNotify notify,
+                     gpointer data,
+                     GDestroyNotify data_destroy)
+{
+  /* TODO: implement */
+  return NULL;
+}
+
+void
+_gumjs_weak_ref_free (GumDukWeakRef * ref)
+{
+  /* TODO: implement */
 }
 
 GumDukValue *
@@ -495,6 +535,7 @@ _gumjs_native_pointer_new (duk_context * ctx,
                            GumDukCore * core)
 {
   GumDukHeapPtr result;
+
   duk_get_global_string (ctx, "NativePointer");
   // [ NativePointer ]
   duk_push_number (ctx, GPOINTER_TO_SIZE(address));
@@ -504,6 +545,7 @@ _gumjs_native_pointer_new (duk_context * ctx,
   result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
+
   return result;
 }
 
@@ -528,6 +570,7 @@ _gumjs_cpu_context_new (duk_context * ctx,
 {
   GumDukCpuContext * scc;
   GumDukHeapPtr result;
+  gint res;
 
   scc = g_slice_new (GumDukCpuContext);
   if (access == GUM_CPU_CONTEXT_READWRITE)
@@ -543,11 +586,9 @@ _gumjs_cpu_context_new (duk_context * ctx,
 
   duk_get_global_string (ctx, "CpuContext");
   // [ CpuContext ]
-  int res = duk_pnew (ctx, 0);
+  res = duk_pnew (ctx, 0);
   if (res)
-  {
     printf ("error during pnew");
-  }
   // [ cpucontextinst ]
   result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
@@ -563,6 +604,7 @@ _gumjs_get_private_data (duk_context * ctx,
                          GumDukHeapPtr object)
 {
   gpointer result;
+
   duk_push_heapptr (ctx, object);
   // [ object ]
   duk_get_prop_string (ctx, -1, "\xff" "privatedata");
@@ -573,6 +615,7 @@ _gumjs_get_private_data (duk_context * ctx,
     result = duk_require_pointer (ctx, -1);
   duk_pop_2 (ctx);
   // []
+
   return result;
 }
 
@@ -593,7 +636,9 @@ _gumjs_is_instanceof (duk_context * ctx,
 }
 
 void
-_gumjs_set_private_data (duk_context * ctx, GumDukHeapPtr object, gpointer privatedata)
+_gumjs_set_private_data (duk_context * ctx,
+                         GumDukHeapPtr object,
+                         gpointer privatedata)
 {
   duk_push_heapptr (ctx, object);
   // [ object ]
@@ -726,6 +771,7 @@ _gumjs_throw (duk_context * ctx,
 {
   va_list args;
   gchar * message;
+  gint res;
 
   va_start (args, format);
   message = g_strdup_vprintf (format, args);
@@ -735,11 +781,9 @@ _gumjs_throw (duk_context * ctx,
   // [ Error ]
   duk_push_string (ctx, message);
   // [ Error message ]
-  int res = duk_pnew (ctx, 1);
+  res = duk_pnew (ctx, 1);
   if (res)
-  {
     printf ("error during pnew\n");
-  }
   // [ errorinst ]
   g_free (message);
 
@@ -770,6 +814,7 @@ _gumjs_parse_exception_details (duk_context * ctx,
   const GumExceptionMemoryDetails * md = &details->memory;
   gchar * message;
   GumDukHeapPtr ex, cc;
+  gint res;
 
   duk_get_global_string (ctx, "Error");
   // [ Error ]
@@ -778,7 +823,7 @@ _gumjs_parse_exception_details (duk_context * ctx,
   // [ Error message ]
   g_free (message);
 
-  int res = duk_pnew (ctx, 1);
+  res = duk_pnew (ctx, 1);
   if (res)
   {
     printf ("erro during pnew\n");
@@ -967,7 +1012,8 @@ _gumjs_byte_array_try_get_opt (duk_context * ctx,
   {
     if (_gumjs_is_instanceof (ctx, value->data._heapptr, "ArrayBuffer"))
     {
-       _gumjs_array_buffer_try_get_data (ctx, value->data._heapptr, &buffer_data, &buffer_size);
+       _gumjs_array_buffer_try_get_data (ctx, value->data._heapptr,
+           &buffer_data, &buffer_size);
       *bytes = g_bytes_new (buffer_data, buffer_size);
     }
     else
@@ -989,10 +1035,11 @@ _gumjs_byte_array_try_get_opt (duk_context * ctx,
       duk_pop (ctx);
       // []
       *bytes = g_bytes_new_take (data, buffer_size);
-
     }
+
     return TRUE;
   }
+
   *bytes = NULL;
   return FALSE;
 }

@@ -60,14 +60,14 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #define GUMJS_DEFINE_MEMORY_READ(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
-    return gum_duk_memory_read (_gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)), \
-        GUM_MEMORY_VALUE_##T, args); \
+    return gum_duk_memory_read (_gumjs_get_private_data (ctx, \
+        _gumjs_duk_get_this (ctx)), GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
-    return gum_duk_memory_write (_gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)), \
-        GUM_MEMORY_VALUE_##T, args); \
+    return gum_duk_memory_write (_gumjs_get_private_data (ctx, \
+        _gumjs_duk_get_this (ctx)), GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
   GUMJS_DEFINE_MEMORY_READ (T); \
@@ -360,7 +360,8 @@ gum_duk_memory_read (GumDukMemory * self,
     switch (type)
     {
       case GUM_MEMORY_VALUE_POINTER:
-        duk_push_heapptr (ctx, _gumjs_native_pointer_new (ctx, *((gpointer *) address), core));
+        duk_push_heapptr (ctx,
+            _gumjs_native_pointer_new (ctx, *((gpointer *) address), core));
         break;
       case GUM_MEMORY_VALUE_S8:
         duk_push_number (ctx, *((gint8 *) address));
@@ -946,18 +947,20 @@ gum_memory_scan_context_emit_match (GumAddress address,
   GumDukScope scope;
   duk_context * ctx = self->core->ctx;
   GumDukHeapPtr match_address;
+  gint res;
   gboolean proceed;
 
   _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->on_match);
 
-  match_address = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
+  match_address =
+      _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
   duk_push_heapptr (ctx, match_address);
   _gumjs_duk_release_heapptr (ctx, match_address);
   duk_push_number (ctx, size);
 
-  int res = duk_pcall (ctx, 2);
+  res = duk_pcall (ctx, 2);
   if (res)
   {
     /* TODO: this should probably set the exception on the scope */
@@ -985,7 +988,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
 #ifdef G_OS_WIN32
-# error Please add MemoryAccessMonitor to the JavaScriptCore runtime
+# error Please add MemoryAccessMonitor to the DUK runtime
 #else
   _gumjs_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");
@@ -997,7 +1000,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
 #ifdef G_OS_WIN32
-# error Please add MemoryAccessMonitor to the JavaScriptCore runtime
+# error Please add MemoryAccessMonitor to the DUK runtime
 #else
   _gumjs_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");

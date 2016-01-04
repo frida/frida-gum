@@ -7,8 +7,9 @@
 #ifndef __GUM_DUK_SCRIPT_PRIV_H__
 #define __GUM_DUK_SCRIPT_PRIV_H__
 
-#include <glib.h>
 #include "duktape.h"
+
+#include <glib.h>
 
 G_BEGIN_DECLS
 

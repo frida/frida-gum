@@ -223,7 +223,8 @@ gum_emit_thread (const GumThreadDetails * details,
   if (res)
   {
     duk_get_prop_string (ctx, -1, "stack");
-    printf ("error occurred while performing on_match: %s\n%s\n", duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
+    printf ("error occurred while performing on_match: %s\n%s\n",
+        duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
     duk_pop (ctx);
     /* TODO: add any exceptions to the scope. */
   }
@@ -275,6 +276,7 @@ gum_emit_module (const GumModuleDetails * details,
   duk_context * ctx = mc->ctx;
   GumDukHeapPtr module, pointer;
   const gchar * result;
+  gint res;
   gboolean proceed;
 
   duk_push_object (ctx);
@@ -283,7 +285,8 @@ gum_emit_module (const GumModuleDetails * details,
   // [ newobj name ]
   duk_put_prop_string (ctx, -2, "name");
   // [ newobj ]
-  pointer = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->range->base_address), core);
+  pointer = _gumjs_native_pointer_new (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
   duk_push_heapptr (ctx, pointer);
   _gumjs_duk_release_heapptr (ctx, pointer);
   // [ newobj baseaddr ]
@@ -304,11 +307,9 @@ gum_emit_module (const GumModuleDetails * details,
 
   duk_push_heapptr (ctx, mc->on_match);
   duk_push_heapptr (ctx, module);
-  int res = duk_pcall (ctx, 1);
+  res = duk_pcall (ctx, 1);
   if (res)
-  {
      printf ("error occured when running on_match\n");
-  }
   /* TODO: add any exceptions to the scope. */
   result = duk_safe_to_string (ctx, -1);
 
@@ -372,7 +373,8 @@ gum_emit_range (const GumRangeDetails * details,
 
   duk_push_object (ctx);
   // [ newobj ]
-  pointer = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->range->base_address), core);
+  pointer = _gumjs_native_pointer_new (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
   duk_push_heapptr (ctx, pointer);
   _gumjs_duk_release_heapptr (ctx, pointer);
   // [ newobj baseaddr ]
@@ -472,7 +474,8 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
   duk_push_object (ctx);
   // [ newobj ]
-  pointer = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->range->base_address), core);
+  pointer = _gumjs_native_pointer_new (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
   duk_push_heapptr (ctx, pointer);
   _gumjs_duk_release_heapptr (ctx, pointer);
   // [ newobj base ]

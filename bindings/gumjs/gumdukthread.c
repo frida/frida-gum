@@ -63,7 +63,7 @@ _gum_duk_thread_init (GumDukThread * self,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
 {
-     return 0;
+  return 0;
 }
 
 void
