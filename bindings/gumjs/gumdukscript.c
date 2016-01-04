@@ -342,7 +342,6 @@ gum_duk_script_create_context (GumDukScript * self,
 
   url = gum_duk_script_create_url (self);
 
-  printf ("url: %s, source: %s\n", url, priv->source);
   duk_push_string (ctx, priv->source);
   duk_push_string (ctx, url);
   valid = duk_pcompile (ctx, 0) == 0;
@@ -524,9 +523,6 @@ gum_duk_script_do_load (GumScriptTask * task,
     if (duk_pcall (priv->ctx, 0) != 0)
     {
       duk_get_prop_string (priv->ctx, -1, "stack");
-      printf ("ERROR while executing script: %s\n%s\n",
-          duk_safe_to_string (priv->ctx, -2),
-          duk_safe_to_string (priv->ctx, -1));
       duk_pop (priv->ctx);
       scope.exception = duk_safe_to_string (priv->ctx, -1);
     }

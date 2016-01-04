@@ -1998,14 +1998,10 @@ gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self,
   GumDukCore * core = self->core;
   duk_context * ctx = core->ctx;
   GumDukHeapPtr callback = self->callback;
-  gint res;
 
   duk_push_heapptr (ctx, callback);
   duk_push_string (ctx, exception);
-  printf ("exception: %s\n", exception);
-  res = duk_pcall (ctx, 1);
-  if (res)
-    printf ("error during pcall 1\n");
+  duk_pcall (ctx, 1);
   duk_pop (ctx);
 }
 
