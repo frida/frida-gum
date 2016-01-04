@@ -798,6 +798,7 @@ _gumjs_throw_native (duk_context * ctx,
   _gumjs_cpu_context_detach (ctx, cc);
 
   duk_push_heapptr (ctx, ex);
+  _gumjs_duk_release_heapptr (ctx, ex);
   duk_throw (ctx);
 }
 
@@ -811,22 +812,12 @@ _gumjs_parse_exception_details (duk_context * ctx,
   const GumExceptionMemoryDetails * md = &details->memory;
   gchar * message;
   GumDukHeapPtr ex, cc;
-  gint res;
 
-  duk_get_global_string (ctx, "Error");
-  // [ Error ]
   message = gum_exception_details_to_string (details);
-  duk_push_string (ctx, message);
-  // [ Error message ]
-  g_free (message);
-
-  res = duk_pnew (ctx, 1);
-  if (res)
-  {
-    printf ("erro during pnew\n");
-  }
+  duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", message);
   // [ errorinst ]
-  ex = duk_require_heapptr (ctx, -1);
+  g_free (message);
+  ex = _gumjs_duk_get_heapptr (ctx, -1);
 
   duk_push_string (ctx, gum_exception_type_to_string (details->type));
   // [ errorinst type ]

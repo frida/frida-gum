@@ -588,6 +588,7 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   // [ callback ]
   duk_push_heapptr (ctx, exception);
   // [ callback exception ]
+  _gumjs_duk_release_heapptr (ctx, exception);
   int res = duk_pcall (ctx, 1);
   if (res)
     printf ("pcall failed\n");
