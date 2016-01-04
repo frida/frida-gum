@@ -58,11 +58,13 @@ _gumjs_duk_create_subclass (duk_context * ctx,
 }
 
 void
-_gumjs_duk_add_properties_to_class_by_heapptr (duk_context * ctx,
-                                               GumDukHeapPtr klass,
-                                               const GumDukPropertyEntry * entries)
+_gumjs_duk_add_properties_to_class_by_heapptr (
+    duk_context * ctx,
+    GumDukHeapPtr klass,
+    const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
+
   duk_push_heapptr (ctx, klass);
   // [ proto ]
 
@@ -99,17 +101,17 @@ _gumjs_duk_add_properties_to_class_by_heapptr (duk_context * ctx,
 
 void
 _gumjs_duk_add_properties_to_class (duk_context * ctx,
-                                    gchar * classname,
+                                    const gchar * class_name,
                                     const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
 
-  duk_get_global_string (ctx, classname);
+  duk_get_global_string (ctx, class_name);
   // [ class ]
   duk_get_prop_string (ctx, -1, "prototype");
   // [ class proto ]
   _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
-          duk_require_heapptr (ctx, -1), entries);
+      duk_require_heapptr (ctx, -1), entries);
   duk_pop_2 (ctx);
   // []
 }

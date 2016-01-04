@@ -133,12 +133,12 @@ duk_sources = \
 	gumduksocket.c \
 	gumdukinterceptor.h \
 	gumdukinterceptor.c \
+	gumdukstalker.h \
+	gumdukstalker.c \
 	gumduksymbol.h \
 	gumduksymbol.c \
 	gumdukinstruction.h \
 	gumdukinstruction.c \
-	gumdukstalker.h \
-	gumdukstalker.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \
