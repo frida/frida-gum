@@ -188,6 +188,12 @@ static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
 
+#ifdef HAVE_DIET
+#define GUM_ENGINE_IS_SCRIPT GUM_DUK_IS_SCRIPT
+#else
+#define GUM_ENGINE_IS_SCRIPT GUM_V8_IS_SCRIPT
+#endif
+
 gint gum_script_dummy_global_to_trick_optimizer = 0;
 
 SCRIPT_TESTCASE (instruction_can_be_parsed)
@@ -2637,7 +2643,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
-  if (GUM_V8_IS_SCRIPT (fixture->script))
+  if (GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     g_assert (strstr (item->message,
         "\"payload\":\"Error: Not yet implemented\\n"
@@ -2687,7 +2693,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  if (GUM_V8_IS_SCRIPT (fixture->script))
+  if (GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativePointer()` to create a new "
         "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
@@ -2705,7 +2711,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  if (GUM_V8_IS_SCRIPT (fixture->script))
+  if (GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeFunction()` to create a new "
         "instance\"");
@@ -2723,7 +2729,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  if (GUM_V8_IS_SCRIPT (fixture->script))
+  if (GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeCallback()` to create a new "
         "instance\"");
@@ -2741,7 +2747,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  if (GUM_V8_IS_SCRIPT (fixture->script))
+  if (GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     EXPECT_SEND_MESSAGE_WITH ("\"Use `new File()` to create a new instance\"");
   }
@@ -2756,7 +2762,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
 {
-  if (!GUM_V8_IS_SCRIPT (fixture->script))
+  if (!GUM_ENGINE_IS_SCRIPT (fixture->script))
   {
     g_print ("<skipping, not deterministic on JavaScriptCore> ");
     return;

@@ -186,6 +186,15 @@ AC_SUBST(GUMJSC_LDFLAGS)
 AC_SUBST(GUMJSC_LIBS)
 AC_SUBST(GUMJSC_LIBS_PRIVATE)
 
+AC_ARG_ENABLE(diet,
+  [AS_HELP_STRING([--enable-diet],
+                  [enable diet mode [default=no]])],,
+  [enable_diet=no])
+if [[ "x$enable_diet" = "xyes" ]]; then
+  AC_DEFINE(HAVE_DIET, 1, [Define to 1 if diet mode is enabled.])
+fi
+AM_CONDITIONAL(ENABLE_DIET, [test "x$enable_diet" = "xyes"])
+
 GUM_TEST_LIBS=""
 if [[ "x$HAVE_MAC" = "xyes" ]]; then
   GUM_TEST_LIBS="$GUM_TEST_LIBS -Wl,-framework -Wl,AppKit"

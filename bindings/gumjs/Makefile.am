@@ -104,28 +104,71 @@ jsc_includes = \
 	-I $(srcdir)/include/WTF \
 	$(NULL)
 
-platform_sources = $(NULL)
-platform_cppflags = $(NULL)
-platform_cxxflags = $(NULL)
-platform_ldflags = $(NULL)
-platform_libadd = $(NULL)
+duk_sources = \
+	gumdukscriptbackend.h \
+	gumdukscriptbackend.c \
+	gumdukscript.h \
+	gumdukscript.c \
+	gumdukscript-priv.h \
+	gumdukcore.h \
+	gumdukcore.c \
+	gumdukvalue.h \
+	gumdukvalue.c \
+	gumdukglue.c \
+	gumdukbundle.h \
+	gumdukbundle.c \
+	gumdukinterceptor.h \
+	gumdukinterceptor.c \
+	gumdukmemory.h \
+	gumdukmemory.c \
+  gumdukutils.h \
+  gumdukutils.c \
+  gumdukthread.h \
+  gumdukthread.c \
+  gumdukprocess.h \
+  gumdukprocess.c \
+  gumdukmodule.h \
+  gumdukmodule.c \
+  gumduksocket.h \
+  gumduksocket.c \
+  gumduksymbol.h \
+  gumduksymbol.c \
+  gumdukinstruction.h \
+  gumdukinstruction.c \
+  gumdukfile.h \
+  gumdukfile.c \
+	duk_config.h \
+	duktape.c \
+	duktape.h \
+	$(NULL)
 
+backend_sources = $(NULL)
+backend_cppflags = $(NULL)
+backend_cxxflags = $(NULL)
+backend_ldflags = $(NULL)
+backend_libadd = $(NULL)
+
+if ENABLE_DIET
+backend_sources += $(duk_sources)
+else
+backend_sources += $(v8_sources)
 if OS_IOS
-platform_sources += \
+backend_sources += \
 	$(jsc_sources) \
 	$(NULL)
-platform_cppflags += \
+backend_cppflags += \
 	$(jsc_includes) \
 	$(GUMJSC_CFLAGS)
-platform_cxxflags += \
+backend_cxxflags += \
 	-fno-rtti \
 	$(NULL)
-platform_ldflags += \
+backend_ldflags += \
 	$(GUMJSC_LDFLAGS) \
 	$(NULL)
-platform_libadd += \
+backend_libadd += \
 	$(GUMJSC_LIBS) \
 	$(NULL)
+endif
 endif
 
 libfrida_gumjs_1_0_la_SOURCES = \
@@ -133,12 +176,12 @@ libfrida_gumjs_1_0_la_SOURCES = \
 libfrida_gumjs_1_0_la_LDFLAGS = \
 	-export-symbols-regex "^gum_.*" \
 	$(GUMJS_LDFLAGS) \
-	$(platform_ldflags) \
+	$(backend_ldflags) \
 	$(NULL)
 libfrida_gumjs_1_0_la_LIBADD = \
 	libfrida-gumjs.la \
 	$(GUMJS_LIBS) \
-	$(platform_libadd) \
+	$(backend_libadd) \
 	$(NULL)
 libfrida_gumjs_1_0_la_LIBTOOLFLAGS = \
 	--tag=disable-shared \
@@ -151,11 +194,10 @@ libfrida_gumjs_la_SOURCES = \
 	gumscriptscheduler.c \
 	gumscripttask.h \
 	gumscripttask.c \
-	$(v8_sources) \
-	$(platform_sources) \
+	$(backend_sources) \
 	$(NULL)
 libfrida_gumjs_la_CXXFLAGS = \
-	$(platform_cxxflags) \
+	$(backend_cxxflags) \
 	$(NULL)
 libfrida_gumjs_la_LIBTOOLFLAGS = \
 	--tag=disable-shared \
@@ -181,5 +223,5 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/bindings \
 	$(GUMJS_CFLAGS) \
-	$(platform_cppflags) \
+	$(backend_cppflags) \
 	$(NULL)
