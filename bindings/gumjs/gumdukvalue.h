@@ -97,6 +97,10 @@ G_GNUC_INTERNAL gpointer _gumjs_array_buffer_get_data (duk_context * ctx,
     GumDukHeapPtr value, gsize * size);
 G_GNUC_INTERNAL gboolean _gumjs_array_buffer_try_get_data (duk_context * ctx,
     GumDukHeapPtr value, gpointer * data, gsize * size);
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get (duk_context * ctx,
+    GumDukValue * value, GBytes ** bytes);
+G_GNUC_INTERNAL gboolean _gumjs_byte_array_try_get_opt (duk_context * ctx,
+    GumDukValue * value, GBytes ** bytes);
 
 G_GNUC_INTERNAL void _gumjs_throw (duk_context * ctx,
     const gchar * format, ...);

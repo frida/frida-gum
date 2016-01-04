@@ -930,6 +930,74 @@ invalid_type:
 }
 
 gboolean
+_gumjs_byte_array_try_get (duk_context * ctx,
+                           GumDukValue * value,
+                           GBytes ** bytes)
+{
+  if (!_gumjs_byte_array_try_get_opt (ctx, value, bytes))
+    return FALSE;
+
+  if (*bytes == NULL)
+    goto byte_array_required;
+
+  return TRUE;
+
+byte_array_required:
+  {
+    _gumjs_throw (ctx, "byte array required");
+    return FALSE;
+  }
+}
+
+gboolean
+_gumjs_byte_array_try_get_opt (duk_context * ctx,
+                               GumDukValue * value,
+                               GBytes ** bytes)
+{
+  gpointer buffer_data;
+  gsize buffer_size, i;
+  guint8 * data;
+
+  if (value->type == DUK_TYPE_UNDEFINED || value->type == DUK_TYPE_NULL)
+  {
+    *bytes = NULL;
+    return FALSE;
+  }
+  else if (value->type == DUK_TYPE_OBJECT)
+  {
+    if (_gumjs_is_instanceof (ctx, value->data._heapptr, "ArrayBuffer"))
+    {
+       _gumjs_array_buffer_try_get_data (ctx, value->data._heapptr, &buffer_data, &buffer_size);
+      *bytes = g_bytes_new (buffer_data, buffer_size);
+    }
+    else
+    {
+      duk_push_heapptr (ctx, value->data._heapptr);
+      // [ value ]
+      duk_get_prop_string (ctx, -1, "length");
+      // [ value length ]
+      buffer_size = duk_get_uint (ctx, -1);
+      duk_pop (ctx);
+      // [ value ]
+      data = g_malloc (buffer_size);
+      for (i = 0; i < buffer_size; i++)
+      {
+        duk_get_prop_index (ctx, -1, i);
+        data[i] = (guint8) duk_require_uint (ctx, -1);
+        duk_pop (ctx);
+      }
+      duk_pop (ctx);
+      // []
+      *bytes = g_bytes_new_take (data, buffer_size);
+
+    }
+    return TRUE;
+  }
+  *bytes = NULL;
+  return FALSE;
+}
+
+gboolean
 _gumjs_value_is_object_of_class (duk_context * ctx,
                                  GumDukValue * value,
                                  const gchar * classname)

@@ -135,6 +135,8 @@ duk_sources = \
   gumduksymbol.c \
   gumdukinstruction.h \
   gumdukinstruction.c \
+  gumdukfile.h \
+  gumdukfile.c \
 	duk_config.h \
 	duktape.c \
 	duktape.h \
