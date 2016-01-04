@@ -17,7 +17,6 @@
 */
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
-#include "gumdukpolyfill.h"
 #include "gumdukprocess.h"
 #include "gumduksocket.h"
 #include "gumdukstalker.h"
@@ -47,7 +46,6 @@ struct _GumDukScriptPrivate
 
   duk_context * ctx;
   GumDukCore core;
-  GumDukPolyfill polyfill;
   /*
   GumDukKernel kernel;
   */
@@ -380,7 +378,6 @@ gum_duk_script_create_context (GumDukScript * self,
 
   _gum_duk_core_init (&priv->core, self, gum_duk_script_emit_message,
       gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
-  _gum_duk_polyfill_init (&priv->polyfill, &priv->core);
   /*
   _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
   */
@@ -424,7 +421,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   /*
   _gum_duk_kernel_dispose (&priv->kernel);
   */
-  _gum_duk_polyfill_dispose (&priv->polyfill);
   _gum_duk_core_dispose (&priv->core);
 
   duk_destroy_heap (priv->ctx);
@@ -446,7 +442,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   /*
   _gum_duk_kernel_finalize (&priv->kernel);
   */
-  _gum_duk_polyfill_finalize (&priv->polyfill);
   _gum_duk_core_finalize (&priv->core);
 
   priv->loaded = FALSE;

@@ -137,8 +137,6 @@ duk_sources = \
 	gumduksymbol.c \
 	gumdukinstruction.h \
 	gumdukinstruction.c \
-	gumdukpolyfill.h \
-	gumdukpolyfill.c \
 	gumdukstalker.h \
 	gumdukstalker.c \
 	duk_config.h \
