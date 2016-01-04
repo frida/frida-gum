@@ -37,7 +37,7 @@ G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_get_heapptr (duk_context * ctx,
     gint idx);
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_require_heapptr (duk_context * ctx,
     gint idx);
-G_GNUC_INTERNAL void inline _gumjs_duk_release_heapptr (duk_context * ctx,
+G_GNUC_INTERNAL void _gumjs_duk_release_heapptr (duk_context * ctx,
     GumDukHeapPtr heapptr);
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_create_proxy_accessors (
     duk_context * ctx, gpointer getter, gpointer setter);

@@ -51,7 +51,6 @@ GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
 GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
-GUMJS_DECLARE_FUNCTION (gumjs_instruction_convert_to_type)
 
 static const duk_function_list_entry gumjs_instruction_module_functions[] =
 {
@@ -288,13 +287,6 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
-{
-  GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-  gum_instruction_to_string (self, ctx);
-  return 1;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_instruction_convert_to_type)
 {
   GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
   gum_instruction_to_string (self, ctx);

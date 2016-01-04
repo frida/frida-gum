@@ -556,8 +556,7 @@ _gumjs_native_pointer_value (duk_context * ctx,
   GumDukNativePointer * ptr;
 
   ptr = _gumjs_get_private_data (ctx, value);
-  if (!ptr)
-    return 1337;
+  g_assert (ptr != NULL);
 
   return ptr->value;
 }
@@ -697,8 +696,6 @@ _gumjs_native_resource_new (duk_context * ctx,
 void
 _gumjs_native_resource_free (GumDukNativeResource * resource)
 {
-  GumDukCore * core = resource->core;
-
   _gumjs_weak_ref_free (resource->weak_ref);
 
   if (resource->notify != NULL)
@@ -1085,7 +1082,7 @@ _gumjs_value_native_pointer_try_get (duk_context * ctx,
                                      GumDukCore * core,
                                      gpointer * target)
 {
-  GumDukValue * handle;
+  GumDukValue * handle = NULL;
 
   if (_gumjs_value_is_object_of_class (ctx, value, "NativePointer"))
   {

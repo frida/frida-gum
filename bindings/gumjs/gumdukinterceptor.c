@@ -814,8 +814,6 @@ static void
 gumjs_invocation_args_release (duk_context * ctx,
                                GumDukHeapPtr value)
 {
-  GumDukInvocationContext * sic = _gumjs_get_private_data (ctx, value);
-
   _gumjs_set_private_data (ctx, value, NULL);
   _gumjs_duk_release_heapptr (ctx, value);
 }

@@ -38,7 +38,6 @@ GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
-GUMJS_DECLARE_FUNCTION (gumjs_symbol_convert_to_type)
 
 static GumDukHeapPtr gumjs_pointer_array_to_value (duk_context * ctx,
     GArray * pointers, GumDukCore * core);
@@ -321,7 +320,7 @@ gum_symbol_to_string (GumSymbol * self,
   }
 
   duk_push_string (ctx, s->str);
-  result = duk_require_string (ctx, -1);
+  result = (GumDukHeapPtr) duk_require_string (ctx, -1);
 
   g_string_free (s, TRUE);
 
@@ -400,12 +399,6 @@ GUMJS_DEFINE_GETTER (gumjs_symbol_get_line_number)
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
-{
-  gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx);
-  return 1;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_symbol_convert_to_type)
 {
   gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx);
   return 1;

@@ -322,7 +322,6 @@ gum_duk_memory_read (GumDukMemory * self,
   duk_context * ctx = args->ctx;
   GumDukCore * core = self->core;
   GumExceptor * exceptor = core->exceptor;
-  GumDukHeapPtr result = NULL;
   gpointer address;
   gint length = -1;
   GumExceptorScope scope;

@@ -141,7 +141,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 {
   GumFile * self;
   GumDukValue * value;
-  gchar * str;
   GBytes * bytes;
 
   self = GUMJS_FILE (_gumjs_duk_get_this (ctx));

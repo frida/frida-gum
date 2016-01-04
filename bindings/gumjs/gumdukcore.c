@@ -163,7 +163,6 @@ static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
     GumDukHeapPtr callback, GumDukCore * core);
 static void gum_duk_weak_ref_clear (GumDukWeakRef * ref);
 static void gum_duk_weak_ref_free (GumDukWeakRef * ref);
-static void gum_duk_weak_ref_on_weak_notify (GumDukWeakRef * self);
 
 static int gum_duk_core_schedule_callback (GumDukCore * self,
     const GumDukArgs * args, gboolean repeat);
@@ -1819,13 +1818,11 @@ gum_duk_weak_ref_new (guint id,
                       GumDukHeapPtr callback,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
   GumDukWeakRef * ref;
 
   ref = g_slice_new (GumDukWeakRef);
   ref->id = id;
-  ref->target = _gumjs_weak_ref_new (ctx, target,
-      (GumDukWeakNotify) gum_duk_weak_ref_on_weak_notify, ref, NULL);
+  ref->target = NULL;
   ref->callback = callback;
   ref->core = core;
 
@@ -1844,11 +1841,12 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   GumDukCore * core = ref->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  gint res;
 
   gum_duk_weak_ref_clear (ref);
 
   duk_push_heapptr (ctx, ref->callback);
-  int res = duk_pcall (ctx, 0);
+  res = duk_pcall (ctx, 0);
   if (res)
   {
     printf ("error during pcall\n");
@@ -1856,14 +1854,6 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   _gum_duk_scope_flush (&scope);
 
   g_slice_free (GumDukWeakRef, ref);
-}
-
-static void
-gum_duk_weak_ref_on_weak_notify (GumDukWeakRef * self)
-{
-  GumDukCore * core = self->core;
-
-  g_hash_table_remove (core->weak_refs, GUINT_TO_POINTER (self->id));
 }
 
 static int
