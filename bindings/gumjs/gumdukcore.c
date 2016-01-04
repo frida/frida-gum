@@ -118,6 +118,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 
@@ -208,8 +209,8 @@ static const GumDukPropertyEntry gumjs_script_values[] =
 
 static const duk_function_list_entry gumjs_weak_ref_functions[] =
 {
-  { "bind", gumjs_weak_ref_bind, 0 },
-  { "unbind", gumjs_weak_ref_unbind, 0 },
+  { "bind", gumjs_weak_ref_bind, 2 },
+  { "unbind", gumjs_weak_ref_unbind, 1 },
 
   { NULL, NULL, 0 }
 };
@@ -506,13 +507,16 @@ _gum_duk_core_init (GumDukCore * self,
   // [ ]
   _gumjs_duk_add_properties_to_class (ctx, "Script", gumjs_script_values);
 
-  duk_push_object (ctx);
+  duk_push_c_function (ctx, gumjs_weak_ref_construct, 0);
   // [ newobject ]
   duk_push_object (ctx);
   // [ newobject newproto ]
   duk_put_function_list (ctx, -1, gumjs_weak_ref_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   // [ newobject ]
+  duk_new (ctx, 0);
+  // [ instance ]
+  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "WeakRef");
   // [ ]
 
@@ -788,6 +792,11 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
   g_free (source);
 
   return 1;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
+{
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
