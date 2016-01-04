@@ -104,8 +104,6 @@ _gumjs_duk_add_properties_to_class (duk_context * ctx,
                                     const gchar * class_name,
                                     const GumDukPropertyEntry * entries)
 {
-  const GumDukPropertyEntry * entry;
-
   duk_get_global_string (ctx, class_name);
   // [ class ]
   duk_get_prop_string (ctx, -1, "prototype");
