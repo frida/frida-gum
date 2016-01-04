@@ -151,7 +151,7 @@ if __name__ == '__main__':
     ]
     duk_polyfill_modules = [
         "gumjs-promise.js",
-        "harmony-collections.js",
+        "gumjs-collections.js",
         "gumjs-symbol.js"
     ]
     generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
