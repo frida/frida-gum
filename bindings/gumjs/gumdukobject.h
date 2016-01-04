@@ -21,13 +21,16 @@ struct _GumDukPropertyEntry
   gpointer setter;
 };
 
-G_GNUC_INTERNAL void _gumjs_duk_create_subclass (duk_context * ctx,
-    const gchar * parent, const gchar * name, gpointer constructor,
-    gint constructor_nargs, gpointer finalize);
-G_GNUC_INTERNAL void _gumjs_duk_add_properties_to_class (duk_context * ctx,
-    const gchar * class_name, const GumDukPropertyEntry * entries);
-G_GNUC_INTERNAL gboolean _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
-    const gchar * class_name);
+G_GNUC_INTERNAL void _gumjs_duk_create_subclass (duk_context * ctx, const gchar * parent, const gchar * name,
+    gpointer constructor, gint constructor_nargs, gpointer finalize);
+
+G_GNUC_INTERNAL void _gumjs_duk_add_properties_to_class_by_heapptr (duk_context * ctx, GumDukHeapPtr klass,
+    const GumDukPropertyEntry * entries);
+G_GNUC_INTERNAL void _gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
+    const GumDukPropertyEntry * entries);
+
+G_GNUC_INTERNAL gboolean _gumjs_is_arg0_equal_to_prototype (duk_context * ctx, const gchar * classname);
+
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_get_this (duk_context * ctx);
 G_GNUC_INTERNAL void _gumjs_duk_protect (duk_context * ctx,
     GumDukHeapPtr object);

@@ -58,16 +58,12 @@ _gumjs_duk_create_subclass (duk_context * ctx,
 }
 
 void
-_gumjs_duk_add_properties_to_class (duk_context * ctx,
-                                    const gchar * class_name,
-                                    const GumDukPropertyEntry * entries)
+_gumjs_duk_add_properties_to_class_by_heapptr (duk_context * ctx, GumDukHeapPtr klass,
+    const GumDukPropertyEntry * entries)
 {
   const GumDukPropertyEntry * entry;
-
-  duk_get_global_string (ctx, class_name);
-  // [ class ]
-  duk_get_prop_string (ctx, -1, "prototype");
-  // [ class proto ]
+  duk_push_heapptr (ctx, klass);
+  // [ proto ]
 
   for (entry = entries; entry->name != NULL; entry++)
   {
@@ -76,26 +72,40 @@ _gumjs_duk_add_properties_to_class (duk_context * ctx,
 
     duk_push_string (ctx, entry->name);
     idx++;
-    // [ class proto propname ]
+    // [ proto propname ]
     if (entry->getter != NULL)
     {
       idx++;
       flags |= DUK_DEFPROP_HAVE_GETTER;
       duk_push_c_function (ctx, entry->getter, 0);
-      // [ class proto propname getter ]
+      // [ proto propname getter ]
     }
     if (entry->setter != NULL)
     {
       idx++;
       flags |= DUK_DEFPROP_HAVE_SETTER;
       duk_push_c_function (ctx, entry->setter, 1);
-      // [ class proto propname {getter} setter ]
+      // [ proto propname {getter} setter ]
     }
 
     duk_def_prop (ctx, -idx, flags);
-    // [ class proto ]
+    // [ proto ]
   }
 
+  duk_pop (ctx);
+  // []
+}
+
+void
+_gumjs_duk_add_properties_to_class (duk_context * ctx, gchar * classname,
+    const GumDukPropertyEntry * entries)
+{
+  const GumDukPropertyEntry * entry;
+  duk_get_global_string (ctx, classname);
+  // [ class ]
+  duk_get_prop_string (ctx, -1, "prototype");
+  // [ class proto ]
+  _gumjs_duk_add_properties_to_class_by_heapptr (ctx, duk_require_heapptr (ctx, -1), entries);
   duk_pop_2 (ctx);
   // []
 }

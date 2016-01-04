@@ -20,9 +20,7 @@
 #include "gumdukpolyfill.h"
 #include "gumdukprocess.h"
 #include "gumduksocket.h"
-/*
 #include "gumdukstalker.h"
-*/
 #include "gumduksymbol.h"
 #include "gumdukthread.h"
 #include "gumdukvalue.h"
@@ -60,9 +58,7 @@ struct _GumDukScriptPrivate
   GumDukFile file;
   GumDukSocket socket;
   GumDukInterceptor interceptor;
-  /*
   GumDukStalker stalker;
-  */
   GumDukSymbol symbol;
   GumDukInstruction instruction;
   gboolean loaded;
@@ -395,9 +391,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_file_init (&priv->file, &priv->core);
   _gum_duk_socket_init (&priv->socket, &priv->core);
   _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
-  /*
-  _gum_duk_stalker_init (&priv->stalker, &priv->core, global);
-  */
+  _gum_duk_stalker_init (&priv->stalker, &priv->core);
   _gum_duk_symbol_init (&priv->symbol, &priv->core);
   _gum_duk_instruction_init (&priv->instruction, &priv->core);
 
@@ -413,17 +407,13 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   g_assert (priv->ctx != NULL);
 
-  /*
   _gum_duk_stalker_flush (&priv->stalker);
-  */
   _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_core_flush (&priv->core);
 
   _gum_duk_instruction_dispose (&priv->instruction);
   _gum_duk_symbol_dispose (&priv->symbol);
-  /*
   _gum_duk_stalker_dispose (&priv->stalker);
-  */
   _gum_duk_interceptor_dispose (&priv->interceptor);
   _gum_duk_socket_dispose (&priv->socket);
   _gum_duk_file_dispose (&priv->file);
@@ -442,8 +432,9 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
-  /*
   _gum_duk_stalker_finalize (&priv->stalker);
+  /*
+  _gum_duk_interceptor_finalize (&priv->interceptor);
   */
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);
@@ -666,8 +657,9 @@ gum_duk_post_message_data_free (GumPostMessageData * d)
 static GumStalker *
 gum_duk_script_get_stalker (GumScript * script)
 {
-  /* TODO: implement duk_stalker */
-  return NULL;
+  GumDukScript * self = GUM_DUK_SCRIPT (script);
+
+  return _gum_duk_stalker_get (&self->priv->stalker);
 }
 
 static void
