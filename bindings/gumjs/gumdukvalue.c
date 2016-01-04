@@ -767,22 +767,10 @@ _gumjs_throw (duk_context * ctx,
               ...)
 {
   va_list args;
-  gchar * message;
-  gint res;
 
   va_start (args, format);
-  message = g_strdup_vprintf (format, args);
+  duk_push_error_object_va (ctx, DUK_ERR_ERROR, format, args);
   va_end (args);
-
-  duk_get_global_string (ctx, "Error");
-  // [ Error ]
-  duk_push_string (ctx, message);
-  // [ Error message ]
-  res = duk_pnew (ctx, 1);
-  if (res)
-    printf ("error during pnew\n");
-  // [ errorinst ]
-  g_free (message);
 
   duk_throw (ctx);
 }
