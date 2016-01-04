@@ -1416,7 +1416,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   void ** avalue;
   guint8 * avalues;
   GumExceptorScope scope;
-  GumDukValue * result;
+  GumDukValue * result = NULL;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -1492,26 +1492,27 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   else
   {
     duk_push_undefined (ctx);
-    result = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
 
-  switch (result->type)
+  if (result)
   {
-    case DUK_TYPE_STRING:
-      duk_push_string (ctx, result->data._string);
-      break;
-    case DUK_TYPE_NUMBER:
-      duk_push_number (ctx, result->data._number);
-      break;
-    case DUK_TYPE_BOOLEAN:
-      duk_push_boolean (ctx, result->data._boolean);
-      break;
-    case DUK_TYPE_OBJECT:
-      duk_push_heapptr (ctx, result->data._heapptr);
-      break;
+    switch (result->type)
+    {
+      case DUK_TYPE_STRING:
+        duk_push_string (ctx, result->data._string);
+        break;
+      case DUK_TYPE_NUMBER:
+        duk_push_number (ctx, result->data._number);
+        break;
+      case DUK_TYPE_BOOLEAN:
+        duk_push_boolean (ctx, result->data._boolean);
+        break;
+      case DUK_TYPE_OBJECT:
+        duk_push_heapptr (ctx, result->data._heapptr);
+        break;
+    }
+    g_free (result);
   }
-  g_free (result);
   return 1;
 
 bad_argument_count:
@@ -2388,9 +2389,7 @@ gumjs_value_from_ffi_type (duk_context * ctx,
 {
   if (type == &ffi_type_void)
   {
-    duk_push_undefined (ctx);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    *svalue = NULL;
   }
   else if (type == &ffi_type_pointer)
   {
