@@ -68,7 +68,8 @@ _gum_duk_stalker_init (GumDukStalker * self,
   duk_push_object (ctx);
   // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_stalker_functions);
-  _gumjs_duk_add_properties_to_class_by_heapptr (ctx, duk_require_heapptr (ctx, -1), gumjs_stalker_values);
+  _gumjs_duk_add_properties_to_class_by_heapptr (ctx, duk_require_heapptr (ctx,
+        -1), gumjs_stalker_values);
   duk_put_prop_string (ctx, -2, "prototype");
   // [ construct ]
   duk_new (ctx, 0);
@@ -118,7 +119,8 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
 {
   GumStalker * stalker;
 
-  stalker = _gum_duk_stalker_get (_gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)));
+  stalker = _gum_duk_stalker_get (_gumjs_get_private_data (ctx,
+        _gumjs_duk_get_this (ctx)));
 
   duk_push_number (ctx, gum_stalker_get_trust_threshold (stalker));
   return 1;
@@ -129,7 +131,8 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
   GumStalker * stalker;
   gint threshold;
 
-  stalker = _gum_duk_stalker_get (_gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)));
+  stalker = _gum_duk_stalker_get (_gumjs_get_private_data (ctx,
+        _gumjs_duk_get_this (ctx)));
 
   if (!_gumjs_args_parse (ctx, "i", &threshold))
   {
