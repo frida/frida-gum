@@ -146,15 +146,20 @@ if __name__ == '__main__':
         "gumjs-java.js",
         "gumjs-objc.js",
     ]
-    jsc_duk_polyfill_modules = [
+    jsc_polyfill_modules = [
         "gumjs-promise.js",
+    ]
+    duk_polyfill_modules = [
+        "gumjs-promise.js",
+        "harmony-collections.js",
+        "gumjs-symbol.js"
     ]
     generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules +
-                         jsc_duk_polyfill_modules)
+                         duk_polyfill_modules)
     if platform.system() == 'Darwin':
         generate_runtime_jsc(output_dir, "gumjscscript-runtime.h", input_dir, modules +
-                             jsc_duk_polyfill_modules)
+                             jsc_polyfill_modules)
 
     generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
         "gumjs-debug.js",

@@ -579,6 +579,7 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   GumDukValue * result;
   gboolean handled;
 
+  printf ("in gum_duk_exception_handler_on_exception\n");
   _gum_duk_scope_enter (&scope, core);
 
   _gumjs_parse_exception_details (ctx, details, core, &exception, &cpu_context);
@@ -587,7 +588,9 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   // [ callback ]
   duk_push_heapptr (ctx, exception);
   // [ callback exception ]
-  duk_pcall (ctx, 1);
+  int res = duk_pcall (ctx, 1);
+  if (res)
+    printf ("pcall failed\n");
   // [ result ]
   /* TODO: add exception data to scope */
   result = _gumjs_get_value (ctx, -1);
@@ -599,12 +602,12 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   {
     if (result->type == DUK_TYPE_BOOLEAN)
       handled = result->data._boolean;
+    g_free (result);
   }
 
   duk_pop (ctx);
   // []
   _gum_duk_scope_leave (&scope);
-  g_free (result);
 
   return handled;
 }
