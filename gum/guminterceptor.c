@@ -751,8 +751,8 @@ _gum_interceptor_thread_get_side_stack (gpointer original_stack)
       GUM_THREAD_SIDE_STACK_SIZE - page_size;
 
   aligned_original_stack =
-     GSIZE_TO_POINTER(GPOINTER_TO_SIZE(original_stack) -
-         (GPOINTER_TO_SIZE(original_stack) % page_size));
+     GSIZE_TO_POINTER (GPOINTER_TO_SIZE (original_stack) -
+         (GPOINTER_TO_SIZE (original_stack) % page_size));
 
   memcpy (aligned_side_stack, aligned_original_stack, page_size);
 

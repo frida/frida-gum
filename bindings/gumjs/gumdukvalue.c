@@ -546,7 +546,7 @@ _gumjs_native_pointer_new (duk_context * ctx,
 
   duk_get_global_string (ctx, "NativePointer");
   // [ NativePointer ]
-  duk_push_pointer (ctx, GPOINTER_TO_SIZE(address));
+  duk_push_pointer (ctx, GPOINTER_TO_SIZE (address));
   // [ NativePointer address ]
   duk_new (ctx, 1);
   // [ nativepointerinst ]
