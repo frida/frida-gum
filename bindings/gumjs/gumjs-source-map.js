@@ -127,6 +127,35 @@
 
             engine._send(JSON.stringify(message), null);
         });
+
+        Duktape.errCreate = function (error) {
+            let stack = error.stack;
+            if (stack) {
+                error.stack = stack
+                    .replace(/\t([^0-9]\w*)((.*?file:\/\/\/)([^:]+):(\d+))?(  native)?(.*)/g,
+                        function (match, scope, url, filePrefix, fileName, lineNumber, native) {
+                            if (native === undefined) {
+                                const position = mapSourcePosition({
+                                    source: fileName,
+                                    line: parseInt(lineNumber, 10)
+                                });
+
+                                const location = position.source + ":" + position.line;
+
+                                const funcName = (scope !== 'global' && scope !== 'anon') ? scope : null;
+                                if (funcName !== null)
+                                    return "at " + funcName + " (" + location + ")";
+                                else
+                                    return "at " + location;
+                            } else {
+                                return scope + " (native)";
+                            }
+                        })
+                    .replace(/\n/g, "\n    ");
+            }
+
+            return error;
+        };
     }
 
     function symbolicate(error) {
