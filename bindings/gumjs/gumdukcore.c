@@ -500,9 +500,10 @@ _gum_duk_core_init (GumDukCore * self,
   // [ newobject newproto ]
   duk_put_prop_string (ctx, -2, "prototype");
   // [ newobject ]
+  _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_script_values);
   duk_put_global_string (ctx, "Script");
   // [ ]
-  _gumjs_duk_add_properties_to_class (ctx, "Script", gumjs_script_values);
 
   duk_push_c_function (ctx, gumjs_weak_ref_construct, 0);
   // [ newobject ]
