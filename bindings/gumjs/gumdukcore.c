@@ -1474,10 +1474,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   }
 
   GUM_DUK_CORE_UNLOCK (core);
+
   if (gum_exceptor_try (core->exceptor, &scope))
   {
     ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
   }
+
   GUM_DUK_CORE_LOCK (core);
 
   if (gum_exceptor_catch (core->exceptor, &scope))

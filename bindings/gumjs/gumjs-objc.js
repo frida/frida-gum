@@ -650,6 +650,7 @@
                 }
                 return findMethod(name) !== null;
             }
+
             function dispose() {
                 Object.keys(replacedMethods).forEach(function (key) {
                     const methodHandle = ptr(key);
