@@ -422,7 +422,7 @@
                     const propName = (name !== undefined) ? name : targetOrName;
                     return hasMethod(propName);
                 },
-                get(target, name) {
+                get(target, name, receiver) {
                     switch (name) {
                         case "handle":
                             return handle;
@@ -432,7 +432,7 @@
                             return toJSON;
                         case "toString":
                         case "valueOf":
-                            const description = target.description();
+                            const description = receiver.description();
                             return description.UTF8String.bind(description);
                         case "equals":
                             return equals;
