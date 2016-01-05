@@ -633,7 +633,7 @@
                 ownKeys() {
                     return this.keys();
                 }
-            }, Object.getPrototypeOf(this));
+            });
 
             if (protocol) {
                 respondsToSelector = !isClass() ? findMethodWrapper("- respondsToSelector:") : null;
