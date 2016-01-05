@@ -8,6 +8,14 @@
 
     function initialize() {
         dispatcher = new MessageDispatcher();
+
+        const proxyClass = global.Proxy;
+        if ('create' in proxyClass) {
+            const createProxy = proxyClass.create;
+            global.Proxy = function (target, handler) {
+                return createProxy.call(proxyClass, handler, Object.getPrototypeOf(target));
+            };
+        }
     }
 
     Object.defineProperty(engine, 'recv', {
