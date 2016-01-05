@@ -169,7 +169,7 @@
             const cachedClasses = {};
             let numCachedClasses = 0;
 
-            const registry = Proxy.create({
+            const registry = new Proxy(this, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
@@ -273,7 +273,7 @@
         function ProtocolRegistry() {
             let cachedProtocols = {};
 
-            const registry = Proxy.create({
+            const registry = new Proxy(this, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
@@ -416,7 +416,7 @@
                 }
             }
 
-            const self = Proxy.create({
+            const self = new Proxy(this, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
