@@ -66,6 +66,7 @@ gum_script_backend_obtain (void)
 #else
   backend = gum_script_backend_obtain_duk ();
 #endif
+
   return backend;
 }
 
@@ -84,6 +85,7 @@ gum_script_backend_obtain_v8 (void)
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
 #endif
+
       if (backend != NULL)
         _gum_register_destructor (gum_script_backend_deinit_v8);
     }
@@ -103,7 +105,7 @@ gum_script_backend_obtain_jsc (void)
   {
     GumScriptBackend * backend = NULL;
 
-#ifdef HAVE_IOS
+#if defined (HAVE_IOS) && !defined (HAVE_DIET)
     backend = GUM_SCRIPT_BACKEND (
         g_object_new (GUM_JSC_TYPE_SCRIPT_BACKEND, NULL));
 #endif
