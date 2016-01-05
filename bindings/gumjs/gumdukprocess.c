@@ -134,7 +134,7 @@ _gum_duk_process_finalize (GumDukProcess * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_process_construct)
 {
-   return 0;
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_is_debugger_attached)
