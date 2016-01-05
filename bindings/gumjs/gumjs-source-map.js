@@ -26,61 +26,111 @@
         value: symbolicate
     });
 
-    engine._setUnhandledExceptionCallback(function (error) {
-        error = symbolicate(error);
+    const runtime = Script.runtime;
+    if (runtime === 'V8') {
+        engine._setUnhandledExceptionCallback(function (error) {
+            const message = {
+                type: 'error',
+                description: '' + error
+            };
 
-        const message = {
-            type: 'error',
-            description: error.toString()
+            if (error instanceof Error) {
+                const stack = error.stack;
+                if (stack) {
+                    message.stack = stack;
+
+                    const frames = stack.frames;
+                    if (frames) {
+                        const frame = frames[0];
+                        message.fileName = frame.getFileName();
+                        message.lineNumber = frame.getLineNumber();
+                        message.columnNumber = frame.getColumnNumber();
+                    }
+                }
+            }
+
+            engine._send(JSON.stringify(message), null);
+        });
+
+        Error.prepareStackTrace = function (error, stack) {
+            const translatedStack = stack.map(function (frame) {
+                return wrapCallSite(frame);
+            });
+            if (translatedStack[0].toString() === "Error (native)")
+                translatedStack.splice(0, 1);
+            const result = new String(error.toString() + translatedStack.map(function (frame) {
+                return "\n    at " + frame.toString();
+            }).join(""));
+            result.frames = translatedStack;
+            return result;
         };
+    } else if (runtime === 'JSC') {
+        engine._setUnhandledExceptionCallback(function (error) {
+            error = symbolicate(error);
 
-        const stack = error.stack;
-        if (stack) {
-            message.stack = stack;
+            const message = {
+                type: 'error',
+                description: '' + error
+            };
 
-            const frames = stack.frames;
-            if (frames) {
-                const frame = frames[0];
-                message.fileName = frame.getFileName();
-                message.lineNumber = frame.getLineNumber();
-                message.columnNumber = frame.getColumnNumber();
-            }
-        }
+            if (error instanceof Error) {
+                const stack = error.stack;
+                if (stack) {
+                    message.stack = stack;
+                }
 
-        const sourcePosition = error.sourcePosition;
-        if (sourcePosition) {
-            message.fileName = sourcePosition.source;
-            message.lineNumber = sourcePosition.line;
-            message.columnNumber = sourcePosition.column + 1;
-        } else {
-            const sourceURL = error.sourceURL;
-            if (sourceURL) {
-                message.fileName = fileNameFromSourceURL(sourceURL);
-            }
+                const sourcePosition = error.sourcePosition;
+                if (sourcePosition) {
+                    message.fileName = sourcePosition.source;
+                    message.lineNumber = sourcePosition.line;
+                    message.columnNumber = sourcePosition.column + 1;
+                } else {
+                    const sourceURL = error.sourceURL;
+                    if (sourceURL) {
+                        message.fileName = fileNameFromSourceURL(sourceURL);
+                    }
 
-            const fileName = error.fileName;
-            if (fileName) {
-                message.fileName = fileName;
-            }
-
-            const line = error.line;
-            if (line) {
-                message.lineNumber = line;
-                message.columnNumber = error.column;
+                    const line = error.line;
+                    if (line) {
+                        message.lineNumber = line;
+                        message.columnNumber = error.column;
+                    }
+                }
             }
 
-            const lineNumber = error.lineNumber;
-            if (lineNumber) {
-                message.lineNumber = lineNumber;
-                message.columnNumber = 1;
-            }
-        }
+            engine._send(JSON.stringify(message), null);
+        });
+    } else if (runtime === 'DUK') {
+        engine._setUnhandledExceptionCallback(function (error) {
+            const message = {
+                type: 'error',
+                description: '' + error
+            };
 
-        engine._send(JSON.stringify(message), null);
-    });
+            if (error instanceof Error) {
+                const stack = error.stack;
+                if (stack) {
+                    message.stack = stack;
+                }
+
+                const fileName = error.fileName;
+                if (fileName) {
+                    message.fileName = fileName;
+                }
+
+                const lineNumber = error.lineNumber;
+                if (lineNumber) {
+                    message.lineNumber = lineNumber;
+                    message.columnNumber = 1;
+                }
+            }
+
+            engine._send(JSON.stringify(message), null);
+        });
+    }
 
     function symbolicate(error) {
-        if (!usingJavaScriptCore)
+        if (!usingJavaScriptCore || !(error instanceof Error))
             return error;
 
         let stack = error.stack;
@@ -123,21 +173,6 @@
             return url.substring(8);
         else
             return url;
-    }
-
-    if (Script.runtime === 'V8') {
-        Error.prepareStackTrace = function (error, stack) {
-            const translatedStack = stack.map(function (frame) {
-                return wrapCallSite(frame);
-            });
-            if (translatedStack[0].toString() === "Error (native)")
-                translatedStack.splice(0, 1);
-            const result = new String(error.toString() + translatedStack.map(function (frame) {
-                return "\n    at " + frame.toString();
-            }).join(""));
-            result.frames = translatedStack;
-            return result;
-        };
     }
 
     /*
