@@ -594,8 +594,7 @@ _gumjs_cpu_context_new (duk_context * ctx,
   duk_get_global_string (ctx, "CpuContext");
   // [ CpuContext ]
   res = duk_pnew (ctx, 0);
-  if (res)
-    printf ("error during pnew");
+  g_assert (res == 0);
   // [ cpucontextinst ]
   result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);

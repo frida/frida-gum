@@ -1799,7 +1799,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
         duk_push_number (ctx, arg->data._number);
         break;
       default:
-        printf ("in default, type: %d\n", arg->type);
+        g_assert_not_reached ();
     }
 
     g_free (argv[i]);

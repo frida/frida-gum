@@ -323,7 +323,7 @@ gum_duk_script_fatal_error_handler (duk_context * ctx,
                                     duk_errcode_t code,
                                     const char * msg)
 {
-  printf ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
+  g_printerr ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
   abort();
 }
 
