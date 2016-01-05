@@ -133,8 +133,12 @@
             if (stack) {
                 error.stack = stack
                     .replace(/\t([^0-9]\w*)((.*?file:\/\/\/)([^:]+):(\d+))?(  native)?(.*)/g,
-                        function (match, scope, url, filePrefix, fileName, lineNumber, native) {
-                            if (native === undefined) {
+                        function (match, scope, url, filePrefix, fileName, lineNumber, native, suffix) {
+                            if (native !== undefined) {
+                                return scope + " (native)";
+                            } else if (url === undefined) {
+                                return "at " + scope + suffix;
+                            } else {
                                 const position = mapSourcePosition({
                                     source: fileName,
                                     line: parseInt(lineNumber, 10)
@@ -147,8 +151,6 @@
                                     return "at " + funcName + " (" + location + ")";
                                 else
                                     return "at " + location;
-                            } else {
-                                return scope + " (native)";
                             }
                         })
                     .replace(/\n/g, "\n    ");
