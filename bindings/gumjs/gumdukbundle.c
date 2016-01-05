@@ -24,8 +24,17 @@ gum_duk_bundle_load (const GumDukSource * sources,
     url = g_strconcat ("file:///", cur->name, NULL);
 
     duk_push_string (ctx, source);
+    duk_push_string (ctx, url);
 
-    result = duk_peval (ctx);
+    result = duk_pcompile (ctx, DUK_COMPILE_EVAL);
+    if (result != 0)
+    {
+      duk_get_prop_string (ctx, -1, "stack");
+      _gumjs_panic (ctx, duk_safe_to_string (ctx, -1));
+      duk_pop (ctx);
+    }
+
+    result = duk_pcall (ctx, 0);
     if (result != 0)
     {
       duk_get_prop_string (ctx, -1, "stack");
