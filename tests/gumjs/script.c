@@ -2641,8 +2641,22 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   );
 
   item = test_script_fixture_pop_message (fixture);
+#ifndef HAVE_DIET
   g_assert (strstr (item->message, "testcase.js") == NULL);
+#endif
   g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
+
+#ifdef HAVE_DIET
+  g_assert (strstr (item->message,
+      "\"payload\":\"Error: Not yet implemented\\n"
+      "    at math.js:5\\n"
+      "    at index.js:6\\n"
+      "    call (native)\\n"
+      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+          "browser-pack/_prelude.js:1)\\n"
+      "    at e (node_modules/frida/node_modules/browserify/node_modules/")
+      != NULL);
+#else
   if (GUM_ENGINE_IS_V8_OR_DUK (fixture->script))
   {
     g_assert (strstr (item->message,
@@ -2669,14 +2683,20 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
         "    at global code (node_modules/frida/node_modules/browserify/"
             "node_modules/browser-pack/_prelude.js:1:1)") != NULL);
   }
+#endif
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"error\"") != NULL);
   g_assert (strstr (item->message, "\"description\":\"Error: Oops!\"") != NULL);
+#ifdef HAVE_DIET
+  g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+      "    at index.js:12\"") != NULL);
+#else
   g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
       "    at index.js:12:1\"") != NULL);
+#endif
   g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
   g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
   g_assert (strstr (item->message, "\"columnNumber\":1") != NULL);

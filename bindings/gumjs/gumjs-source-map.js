@@ -143,7 +143,8 @@
                             } else {
                                 const position = mapSourcePosition({
                                     source: fileName,
-                                    line: parseInt(lineNumber, 10)
+                                    line: parseInt(lineNumber, 10),
+                                    column: 0
                                 });
 
                                 if (firstSourcePosition === null)
