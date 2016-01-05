@@ -150,11 +150,7 @@ if __name__ == '__main__':
         "gumjs-promise.js",
     ]
     duk_polyfill_modules = [
-        "gumjs-promise.js",
-        "gumjs-collections.js",
-        "gumjs-proxy.js",
-        "gumjs-array.js",
-        "gumjs-symbol.js"
+        "gumjs-babel-polyfill.js"
     ]
     generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules +
