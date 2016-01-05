@@ -170,15 +170,15 @@
             let numCachedClasses = 0;
 
             const registry = Proxy.create({
-                has(name) {
-                    if (registryBuiltins.has(name))
-                        return true;
-                    return findClass(name) !== null;
+                has(targetOrName, name) {
+                    /* workaround for v8 passing only a single argument */
+                    const propName = (name !== undefined) ? name : targetOrName;
+                    return hasClass(propName);
                 },
                 get(target, name) {
                     switch (name) {
                         case "hasOwnProperty":
-                            return this.has;
+                            return hasClass;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -222,10 +222,19 @@
                     }
                     return Object.keys(cachedClasses);
                 },
+                ownKeys() {
+                     return this.keys();
+                },
                 getOwnPropertyNames() {
                     return this.keys();
                 }
             });
+
+            function hasClass(name) {
+                if (registryBuiltins.has(name))
+                    return true;
+                return findClass(name) !== null;
+            }
 
             function getClass(name) {
                 const cls = findClass(name);
@@ -265,15 +274,15 @@
             let cachedProtocols = {};
 
             const registry = Proxy.create({
-                has(name) {
-                    if (registryBuiltins.has(name))
-                        return true;
-                    return findProtocol(name) !== null;
+                has(targetOrName, name) {
+                    /* workaround for v8 passing only a single argument */
+                    const propName = (name !== undefined) ? name : targetOrName;
+                    return hasProtocol(propName);
                 },
                 get(target, name) {
                     switch (name) {
                         case "hasOwnProperty":
-                            return this.has;
+                            return hasProtocol;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -319,8 +328,17 @@
                         api.free(protocolHandles);
                     }
                     return protocolNames;
+                },
+                ownKeys() {
+                     return this.keys();
                 }
             });
+
+            function hasProtocol(name) {
+                if (registryBuiltins.has(name))
+                    return true;
+                return findProtocol(name) !== null;
+            }
 
             function findProtocol(name) {
                 let handle = cachedProtocols[name];
@@ -399,21 +417,17 @@
             }
 
             const self = Proxy.create({
-                has(name) {
-                    if (objCObjectBuiltins.has(name))
-                        return true;
-                    if (protocol) {
-                        const details = findProtocolMethod(name);
-                        return !!(details !== null && details.implemented);
-                    }
-                    return findMethod(name) !== null;
+                has(targetOrName, name) {
+                    /* workaround for v8 passing only a single argument */
+                    const propName = (name !== undefined) ? name : targetOrName;
+                    return hasMethod(propName);
                 },
                 get(target, name) {
                     switch (name) {
                         case "handle":
                             return handle;
                         case "hasOwnProperty":
-                            return this.has;
+                            return hasMethod;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -615,6 +629,9 @@
                     }
 
                     return Array.from(objCObjectBuiltins).concat(cachedMethodNames);
+                },
+                ownKeys() {
+                    return this.keys();
                 }
             }, Object.getPrototypeOf(this));
 
@@ -623,6 +640,16 @@
             }
 
             return self;
+
+            function hasMethod(name) {
+                if (objCObjectBuiltins.has(name))
+                    return true;
+                if (protocol) {
+                    const details = findProtocolMethod(name);
+                    return !!(details !== null && details.implemented);
+                }
+                return findMethod(name) !== null;
+            }
 
             function dispose() {
                 Object.keys(replacedMethods).forEach(function (key) {
