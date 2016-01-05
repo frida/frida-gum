@@ -1080,7 +1080,6 @@ _gumjs_value_native_pointer_try_get (duk_context * ctx,
   {
     if (handle != NULL)
       g_free (handle);
-    /* TODO: support object with `handle` property */
     _gumjs_throw (ctx, "expected NativePointer object");
     return FALSE;
   }

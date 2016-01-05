@@ -1102,7 +1102,6 @@ _gumjs_native_pointer_try_get (JSContextRef ctx,
   }
   else
   {
-    /* TODO: support object with `handle` property */
     _gumjs_throw (ctx, exception, "expected NativePointer object");
     return FALSE;
   }
