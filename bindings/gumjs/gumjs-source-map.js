@@ -131,6 +131,8 @@
         Duktape.errCreate = function (error) {
             let stack = error.stack;
             if (stack) {
+                let firstSourcePosition = null;
+
                 error.stack = stack
                     .replace(/\t([^0-9]\w*)((.*?file:\/\/\/)([^:]+):(\d+))?(  native)?(.*)/g,
                         function (match, scope, url, filePrefix, fileName, lineNumber, native, suffix) {
@@ -144,6 +146,9 @@
                                     line: parseInt(lineNumber, 10)
                                 });
 
+                                if (firstSourcePosition === null)
+                                    firstSourcePosition = position;
+
                                 const location = position.source + ":" + position.line;
 
                                 const funcName = (scope !== 'global' && scope !== 'anon') ? scope : null;
@@ -154,6 +159,11 @@
                             }
                         })
                     .replace(/\n/g, "\n    ");
+
+                if (firstSourcePosition !== null) {
+                    error.fileName = firstSourcePosition.source;
+                    error.lineNumber = firstSourcePosition.line;
+                }
             }
 
             return error;
