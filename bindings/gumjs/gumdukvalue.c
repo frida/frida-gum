@@ -132,6 +132,14 @@ _gumjs_args_parse (duk_context * ctx,
             if (!valid)
               goto error;
           }
+          else if (duk_is_pointer (ctx, arg_index))
+          {
+            gpointer i;
+
+            i = duk_require_pointer (ctx, arg_index);
+
+            ptr = (gpointer) i ;
+          }
           else if (duk_is_number (ctx, arg_index))
           {
             gulong i;
@@ -538,7 +546,7 @@ _gumjs_native_pointer_new (duk_context * ctx,
 
   duk_get_global_string (ctx, "NativePointer");
   // [ NativePointer ]
-  duk_push_number (ctx, GPOINTER_TO_SIZE(address));
+  duk_push_pointer (ctx, GPOINTER_TO_SIZE(address));
   // [ NativePointer address ]
   duk_new (ctx, 1);
   // [ nativepointerinst ]
