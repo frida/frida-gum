@@ -1418,6 +1418,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   GumExceptorScope scope;
   GumDukValue * result = NULL;
 
+
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   core = self->core;
@@ -1473,10 +1474,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     avalue = NULL;
   }
 
+  GUM_DUK_CORE_UNLOCK (core);
   if (gum_exceptor_try (core->exceptor, &scope))
   {
     ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
   }
+  GUM_DUK_CORE_LOCK (core);
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {
