@@ -58,10 +58,21 @@
                 message.fileName = fileNameFromSourceURL(sourceURL);
             }
 
+            const fileName = error.fileName;
+            if (fileName) {
+                message.fileName = fileName;
+            }
+
             const line = error.line;
             if (line) {
                 message.lineNumber = line;
                 message.columnNumber = error.column;
+            }
+
+            const lineNumber = error.lineNumber;
+            if (lineNumber) {
+                message.lineNumber = lineNumber;
+                message.columnNumber = 1;
             }
         }
 

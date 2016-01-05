@@ -165,17 +165,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   mc.ctx = ctx;
 
   gum_process_enumerate_threads (gum_emit_thread, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  int res = duk_pcall (ctx, 0);
-  if (res)
-  {
-    printf ("Error when performing on_complete\n");
-  }
-  /* TODO: add any exceptions to the scope. */
+  duk_call (ctx, 0);
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -190,7 +184,6 @@ gum_emit_thread (const GumThreadDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   GumDukHeapPtr thread, context;
-  const gchar * result;
   gboolean proceed;
 
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
@@ -219,22 +212,15 @@ gum_emit_thread (const GumThreadDetails * details,
 
   duk_push_heapptr (ctx, mc->on_match);
   duk_push_heapptr (ctx, thread);
-  int res = duk_pcall (ctx, 1);
-  if (res)
+  if (_gum_duk_scope_call_sync (&scope, 1))
   {
-    duk_get_prop_string (ctx, -1, "stack");
-    printf ("error occurred while performing on_match: %s\n%s\n",
-        duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
-    duk_pop (ctx);
-    /* TODO: add any exceptions to the scope. */
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
   }
-  result = duk_safe_to_string (ctx, -1);
-
-  proceed = strcmp (result, "stop") != 0;
-
+  else
+  {
+    proceed = FALSE;
+  }
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   return proceed;
 }
@@ -254,13 +240,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   mc.ctx = ctx;
 
   gum_process_enumerate_modules (gum_emit_module, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  duk_pcall (ctx, 0);
-  /* TODO: add any exceptions to the scope. */
+  duk_call (ctx, 0);
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -275,8 +259,6 @@ gum_emit_module (const GumModuleDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   GumDukHeapPtr module, pointer;
-  const gchar * result;
-  gint res;
   gboolean proceed;
 
   duk_push_object (ctx);
@@ -307,17 +289,15 @@ gum_emit_module (const GumModuleDetails * details,
 
   duk_push_heapptr (ctx, mc->on_match);
   duk_push_heapptr (ctx, module);
-  res = duk_pcall (ctx, 1);
-  if (res)
-     printf ("error occured when running on_match\n");
-  /* TODO: add any exceptions to the scope. */
-  result = duk_safe_to_string (ctx, -1);
-
-  proceed = strcmp (result, "stop") != 0;
-
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   return proceed;
 }
@@ -338,13 +318,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   mc.ctx = ctx;
 
   gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  duk_pcall (ctx, 0);
-  /* TODO: add any exceptions to the scope. */
+  duk_call (ctx, 0);
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -359,9 +337,8 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
-  GumDukHeapPtr range, pointer;
+  GumDukHeapPtr pointer;
   const GumFileMapping * f = details->file;
-  const gchar * result;
   gboolean proceed;
 
   if ((details->prot & GUM_PAGE_READ) != 0)
@@ -389,8 +366,6 @@ gum_emit_range (const GumRangeDetails * details,
   duk_put_prop_string (ctx, -2, "protection");
   // [ newobj ]
 
-  range = _gumjs_duk_require_heapptr (ctx, -1);
-
   if (f != NULL)
   {
     duk_push_object (ctx);
@@ -404,25 +379,20 @@ gum_emit_range (const GumRangeDetails * details,
     duk_put_prop_string (ctx, -2, "offset");
     // [ newobj newfileobj ]
     duk_put_prop_string (ctx, -2, "file");
-    // [ newobj ]
   }
-  duk_pop (ctx);
-  // []
+  // [ newobj ]
 
   duk_push_heapptr (ctx, mc->on_match);
-  // [ on_match ]
-  duk_push_heapptr (ctx, range);
-  // [ on_match range ]
-  duk_pcall (ctx, 1);
-  /* TODO: add exception data to scope */
-
-  result = duk_safe_to_string (ctx, -1);
-  proceed = strcmp (result, "stop") != 0;
-
-  duk_pop (ctx);
-  _gumjs_duk_release_heapptr (ctx, range);
-
-  _gum_duk_scope_flush (&scope);
+  duk_dup (ctx, -2);
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop_2 (ctx);
 
   return proceed;
 }
@@ -443,13 +413,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   mc.ctx = ctx;
 
   gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  duk_pcall (ctx, 0);
-  /* TODO: add exception data to scope */
+  duk_call (ctx, 0);
   duk_pop (ctx);
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -468,43 +436,37 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   GumDukCore * core = mc->self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr range, pointer;
-  const gchar * result;
+  GumDukHeapPtr pointer;
   gboolean proceed;
 
   duk_push_object (ctx);
-  // [ newobj ]
+  // [ range ]
   pointer = _gumjs_native_pointer_new (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_push_heapptr (ctx, pointer);
   _gumjs_duk_release_heapptr (ctx, pointer);
-  // [ newobj base ]
+  // [ range base ]
   duk_put_prop_string (ctx, -2, "base");
-  // [ newobj ]
+  // [ range ]
   duk_push_uint (ctx, details->range->size);
-  // [ newobj size ]
+  // [ range size ]
   duk_put_prop_string (ctx, -2, "size");
-  // [ newobj ]
-  range = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
+  // [ range ]
 
   duk_push_heapptr (ctx, mc->on_match);
-  // [ on_match ]
-  duk_push_heapptr (ctx, range);
-  // [ on_match range ]
-  duk_pcall (ctx, 1);
-  // [ result ]
-  /* TODO: add exception data to scope */
-
-  result = duk_safe_to_string (ctx, -1);
-  proceed = strcmp (result, "stop") != 0;
-  _gumjs_duk_release_heapptr (ctx, range);
-
-  _gum_duk_scope_flush (&scope);
-
-  duk_pop (ctx);
-  // []
+  // [ range on_match ]
+  duk_dup (ctx, -2);
+  // [ range on_match range ]
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  // [ range result ]
+  duk_pop_2 (ctx);
 
   return proceed;
 }
@@ -576,10 +538,9 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   GumDukScope scope;
   duk_context * ctx = core->ctx;
   GumDukHeapPtr exception, cpu_context;
-  GumDukValue * result;
+  GumDukValue * result = NULL;
   gboolean handled;
 
-  printf ("in gum_duk_exception_handler_on_exception\n");
   _gum_duk_scope_enter (&scope, core);
 
   _gumjs_parse_exception_details (ctx, details, core, &exception, &cpu_context);
@@ -589,12 +550,11 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   duk_push_heapptr (ctx, exception);
   // [ callback exception ]
   _gumjs_duk_release_heapptr (ctx, exception);
-  int res = duk_pcall (ctx, 1);
-  if (res)
-    printf ("pcall failed\n");
+  if (_gum_duk_scope_call (&scope, 1))
+  {
+    result = _gumjs_get_value (ctx, -1);
+  }
   // [ result ]
-  /* TODO: add exception data to scope */
-  result = _gumjs_get_value (ctx, -1);
 
   _gumjs_cpu_context_detach (ctx, cpu_context);
 
@@ -608,6 +568,7 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
 
   duk_pop (ctx);
   // []
+
   _gum_duk_scope_leave (&scope);
 
   return handled;

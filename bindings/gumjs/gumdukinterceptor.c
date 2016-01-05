@@ -427,22 +427,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   return 1;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_safe_on_enter)
+void
+_gum_duk_interceptor_on_enter (GumDukInterceptor * self,
+                               GumInvocationContext * ic)
 {
-  GumDukInterceptor * self;
-  GumInvocationContext * ic;
   GumDukAttachEntry * entry;
   gint * depth;
 
-  self = duk_get_pointer (ctx, -2);
-  ic = duk_get_pointer (ctx, -1);
-
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
       gum_invocation_context_get_thread_id (ic)))
-  {
-    duk_push_boolean (ctx, FALSE);
-    return 1;
-  }
+    return;
 
   entry = gum_invocation_context_get_listener_function_data (ic);
   depth = GUM_LINCTX_GET_THREAD_DATA (ic, gint);
@@ -451,8 +445,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_safe_on_enter)
   {
     GumDukCore * core = self->core;
     duk_context * ctx = core->ctx;
+    GumDukScope scope;
     GumDukHeapPtr jic;
     GumDukHeapPtr args;
+
+    _gum_duk_scope_enter (&scope, core);
 
     jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
     args = gumjs_invocation_args_new (ctx, ic, self);
@@ -460,8 +457,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_safe_on_enter)
     duk_push_heapptr (ctx, entry->on_enter);
     duk_push_heapptr (ctx, jic);
     duk_push_heapptr (ctx, args);
-
-    duk_call_method (ctx, 1);
+    _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
     gumjs_invocation_args_release (ctx, args);
@@ -472,56 +468,26 @@ GUMJS_DEFINE_FUNCTION (gumjs_safe_on_enter)
       *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukHeapPtr) = jic;
     }
     else
+    {
       gumjs_invocation_context_release (ctx, jic);
+    }
+
+    _gum_duk_scope_leave (&scope);
   }
 
   (*depth)++;
-
-  duk_push_boolean (ctx, TRUE);
-  return 1;
 }
 
 void
-_gum_duk_interceptor_on_enter (GumDukInterceptor * self,
+_gum_duk_interceptor_on_leave (GumDukInterceptor * self,
                                GumInvocationContext * ic)
 {
-  GumDukCore * core = self->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope;
-
-  _gum_duk_scope_enter (&scope, core);
-
-  duk_push_pointer (ctx, self);
-  duk_push_pointer (ctx, ic);
-
-  if (duk_safe_call (ctx, gumjs_safe_on_enter, 2, 1) != DUK_EXEC_SUCCESS)
-  {
-    duk_get_prop_string (ctx, -1, "stack");
-    printf ("error executing safe_on_enter: %s\n%s",
-        duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
-    abort ();
-  }
-  duk_pop (ctx);
-
-  _gum_duk_scope_leave (&scope);
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_safe_on_leave)
-{
-  GumDukInterceptor * self;
-  GumInvocationContext * ic;
   GumDukAttachEntry * entry;
   gint * depth;
 
-  self = duk_get_pointer (ctx, -2);
-  ic = duk_get_pointer (ctx, -1);
-
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
       gum_invocation_context_get_thread_id (ic)))
-  {
-    duk_push_boolean (ctx, FALSE);
-    return 1;
-  }
+    return;
 
   entry = gum_invocation_context_get_listener_function_data (ic);
   depth = GUM_LINCTX_GET_THREAD_DATA (ic, gint);
@@ -532,8 +498,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_safe_on_leave)
   {
     GumDukCore * core = self->core;
     duk_context * ctx = core->ctx;
+    GumDukScope scope;
     GumDukHeapPtr jic;
     GumDukHeapPtr retval;
+
+    _gum_duk_scope_enter (&scope, core);
 
     jic = (entry->on_enter != NULL)
         ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukHeapPtr)
@@ -546,41 +515,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_safe_on_leave)
     duk_push_heapptr (ctx, entry->on_leave);
     duk_push_heapptr (ctx, jic);
     duk_push_heapptr (ctx, retval);
-
-    duk_call_method (ctx, 1);
+    _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
     gumjs_invocation_return_value_release (ctx, retval);
     gumjs_invocation_context_release (ctx, jic);
+
+    _gum_duk_scope_leave (&scope);
   }
-
-  duk_push_boolean (ctx, TRUE);
-  return 1;
-}
-
-void
-_gum_duk_interceptor_on_leave (GumDukInterceptor * self,
-                               GumInvocationContext * ic)
-{
-  GumDukCore * core = self->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope;
-
-  _gum_duk_scope_enter (&scope, core);
-
-  duk_push_pointer (ctx, self);
-  duk_push_pointer (ctx, ic);
-
-  if (duk_safe_call (ctx, gumjs_safe_on_leave, 2, 1) != DUK_EXEC_SUCCESS)
-  {
-    duk_get_prop_string (ctx, -1, "stack");
-    printf ("error executing safe_on_leave: %s\n%s",
-        duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
-    abort ();
-  }
-  duk_pop (ctx);
-
-  _gum_duk_scope_leave (&scope);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_context_construct)

@@ -180,13 +180,13 @@ static GumDukExceptionSink * gum_duk_exception_sink_new (GumDukHeapPtr callback,
     GumDukCore * core);
 static void gum_duk_exception_sink_free (GumDukExceptionSink * sink);
 static void gum_duk_exception_sink_handle_exception (
-    GumDukExceptionSink * self, const gchar * exception);
+    GumDukExceptionSink * self);
 
 static GumDukMessageSink * gum_duk_message_sink_new (GumDukHeapPtr callback,
     GumDukCore * core);
 static void gum_duk_message_sink_free (GumDukMessageSink * sink);
 static void gum_duk_message_sink_handle_message (GumDukMessageSink * self,
-    const gchar * message);
+    const gchar * message, GumDukScope * scope);
 
 static gboolean gumjs_ffi_type_try_get (duk_context * ctx, GumDukValue * value,
     ffi_type ** type, GSList ** data);
@@ -638,14 +638,18 @@ _gum_duk_core_post_message (GumDukCore * self,
                             const gchar * message)
 {
   GumDukScope scope;
+
   _gum_duk_scope_enter (&scope, self);
+
   if (self->incoming_message_sink != NULL)
   {
-    gum_duk_message_sink_handle_message (self->incoming_message_sink, message);
+    gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
+        &scope);
 
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
   }
+
   _gum_duk_scope_leave (&scope);
 }
 
@@ -712,29 +716,78 @@ _gum_duk_scope_enter (GumDukScope * self,
                       GumDukCore * core)
 {
   self->core = core;
-  self->exception = NULL;
 
   GUM_DUK_CORE_LOCK (core);
+}
+
+gboolean
+_gum_duk_scope_call (GumDukScope * self,
+                     duk_idx_t nargs)
+{
+  GumDukCore * core = self->core;
+  gboolean success;
+
+  success = duk_pcall (core->ctx, nargs) == 0;
+  if (!success)
+  {
+    if (core->unhandled_exception_sink != NULL)
+      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink);
+  }
+
+  return success;
+}
+
+gboolean
+_gum_duk_scope_call_method (GumDukScope * self,
+                            duk_idx_t nargs)
+{
+  GumDukCore * core = self->core;
+  gboolean success;
+
+  success = duk_pcall_method (core->ctx, nargs) == 0;
+  if (!success)
+  {
+    if (core->unhandled_exception_sink != NULL)
+      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink);
+  }
+
+  return success;
+}
+
+gboolean
+_gum_duk_scope_call_sync (GumDukScope * self,
+                          duk_idx_t nargs)
+{
+  GumDukCore * core = self->core;
+  gboolean success;
+
+  success = duk_pcall (core->ctx, nargs) == 0;
+  if (!success)
+  {
+    g_assert (self->exception == NULL);
+    self->exception = _gumjs_duk_get_heapptr (core->ctx, -1);
+  }
+
+  return success;
 }
 
 void
 _gum_duk_scope_flush (GumDukScope * self)
 {
-  GumDukCore * core = self->core;
+  duk_context * ctx = self->core->ctx;
 
-  if (self->exception != NULL && core->unhandled_exception_sink != NULL)
-  {
-    gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink,
-        self->exception);
-    self->exception = NULL;
-  }
+  if (self->exception == NULL)
+    return;
+
+  duk_push_heapptr (ctx, self->exception);
+  _gumjs_duk_release_heapptr (ctx, self->exception);
+  self->exception = NULL;
+  duk_throw (ctx);
 }
 
 void
 _gum_duk_scope_leave (GumDukScope * self)
 {
-  _gum_duk_scope_flush (self);
-
   GUM_DUK_CORE_UNLOCK (self->core);
 }
 
@@ -1702,8 +1755,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   GumFFIValue * retval = return_value;
   GumDukValue ** argv;
   guint i;
-  gint res;
-  GumDukValue * result;
+  GumDukValue * result = NULL;
 
   _gum_duk_scope_enter (&scope, core);
 
@@ -1752,16 +1804,10 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
     g_free (argv[i]);
   }
 
-  res = duk_pcall (ctx, cif->nargs);
-  if (res)
+  if (_gum_duk_scope_call (&scope, cif->nargs))
   {
-    /*
-     * TODO: this pcall needs to be safe and should set an exception
-     * on the scope!
-     */
-    printf ("error occurred during pcall of NativeCallback JS code\n");
+    result = _gumjs_get_value (ctx, -1);
   }
-  result = _gumjs_get_value (ctx, -1);
   duk_pop (ctx);
 
   if (cif->rtype != &ffi_type_void && result != NULL)
@@ -1846,17 +1892,12 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   GumDukCore * core = ref->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  gint res;
 
   gum_duk_weak_ref_clear (ref);
 
   duk_push_heapptr (ctx, ref->callback);
-  res = duk_pcall (ctx, 0);
-  if (res)
-  {
-    printf ("error during pcall\n");
-  }
-  _gum_duk_scope_flush (&scope);
+  _gum_duk_scope_call (&scope, 0);
+  duk_pop (ctx);
 
   g_slice_free (GumDukWeakRef, ref);
 }
@@ -1934,18 +1975,6 @@ gum_scheduled_callback_free (GumDukScheduledCallback * callback)
   g_slice_free (GumDukScheduledCallback, callback);
 }
 
-GUMJS_DEFINE_FUNCTION (gum_scheduled_callback_safe_invoke)
-{
-  GumDukScheduledCallback * self = duk_get_pointer (ctx, -1);
-
-  duk_push_heapptr (ctx, self->func);
-  duk_call (ctx, 0);
-  duk_pop (ctx);
-
-  duk_push_boolean (ctx, TRUE);
-  return 1;
-}
-
 static gboolean
 gum_scheduled_callback_invoke (gpointer user_data)
 {
@@ -1956,16 +1985,8 @@ gum_scheduled_callback_invoke (gpointer user_data)
 
   _gum_duk_scope_enter (&scope, self->core);
 
-  duk_push_pointer (ctx, self);
-
-  if (duk_safe_call (ctx, gum_scheduled_callback_safe_invoke, 1, 1)
-      != DUK_EXEC_SUCCESS)
-  {
-    duk_get_prop_string (ctx, -1, "stack");
-    printf ("Error during safe_call: %s\n%s\n",
-        duk_safe_to_string (ctx, -2), duk_safe_to_string (ctx, -1));
-    duk_pop (ctx);
-  }
+  duk_push_heapptr (ctx, self->func);
+  _gum_duk_scope_call (&scope, 0);
   duk_pop (ctx);
 
   _gum_duk_scope_leave (&scope);
@@ -1997,15 +2018,14 @@ gum_duk_exception_sink_free (GumDukExceptionSink * sink)
 }
 
 static void
-gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self,
-                                         const gchar * exception)
+gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self)
 {
   GumDukCore * core = self->core;
   duk_context * ctx = core->ctx;
   GumDukHeapPtr callback = self->callback;
 
   duk_push_heapptr (ctx, callback);
-  duk_push_string (ctx, exception);
+  duk_dup (ctx, -2);
   duk_pcall (ctx, 1);
   duk_pop (ctx);
 }
@@ -2031,18 +2051,14 @@ gum_duk_message_sink_free (GumDukMessageSink * sink)
 
 static void
 gum_duk_message_sink_handle_message (GumDukMessageSink * self,
-                                     const gchar * message)
+                                     const gchar * message,
+                                     GumDukScope * scope)
 {
-  GumDukCore * core = self->core;
-  duk_context * ctx = core->ctx;
-  GumDukHeapPtr callback = self->callback;
-  gint res;
+  duk_context * ctx = self->core->ctx;
 
-  duk_push_heapptr (ctx, callback);
+  duk_push_heapptr (ctx, self->callback);
   duk_push_string (ctx, message);
-  res = duk_pcall (ctx, 1);
-  if (res != 0)
-    printf ("error during pcall 2: %s\n", duk_safe_to_string (ctx, -1));
+  _gum_duk_scope_call (scope, 1);
   duk_pop (ctx);
 }
 

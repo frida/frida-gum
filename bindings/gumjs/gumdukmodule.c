@@ -153,6 +153,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
   return 0;
 }
+
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   GumDukMatchContext mc;
@@ -169,15 +170,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   mc.ctx = ctx;
 
   gum_module_enumerate_imports (name, gum_emit_import, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  // [ on_complete ]
   duk_call (ctx, 0);
-  // [ result ]
   duk_pop (ctx);
-  // []
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -193,24 +190,24 @@ gum_emit_import (const GumImportDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   GumDukHeapPtr imp;
-  const gchar * result;
   gboolean proceed;
 
   imp = gumjs_module_import_new (ctx, details, self);
 
   duk_push_heapptr (ctx, mc->on_match);
-  // [ on_match ]
   duk_push_heapptr (ctx, imp);
-  _gumjs_duk_release_heapptr (ctx, imp);
-  // [ on_match imp ]
-  duk_call (ctx, 1);
-  // [ result ]
-  result = duk_safe_to_string (ctx, -1);
-  proceed = strcmp (result, "stop") != 0;
-  duk_pop (ctx);
-  // []
 
-  _gum_duk_scope_flush (&scope);
+  _gumjs_duk_release_heapptr (ctx, imp);
+
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop (ctx);
 
   return proceed;
 }
@@ -231,15 +228,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   mc.ctx = ctx;
 
   gum_module_enumerate_exports (name, gum_emit_export, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  // [ on_complete ]
   duk_call (ctx, 0);
-  // [ result ]
   duk_pop (ctx);
-  // []
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -255,24 +248,24 @@ gum_emit_export (const GumExportDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   GumDukHeapPtr exp;
-  const gchar * result;
   gboolean proceed;
 
   exp = gumjs_module_export_new (ctx, details, self);
 
   duk_push_heapptr (ctx, mc->on_match);
-  // [ on_match ]
   duk_push_heapptr (ctx, exp);
-  _gumjs_duk_release_heapptr (ctx, exp);
-  // [ on_match imp ]
-  duk_call (ctx, 1);
-  // [ result ]
-  result = duk_safe_to_string (ctx, -1);
-  proceed = strcmp (result, "stop") != 0;
-  duk_pop (ctx);
-  // []
 
-  _gum_duk_scope_flush (&scope);
+  _gumjs_duk_release_heapptr (ctx, exp);
+
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop (ctx);
 
   return proceed;
 }
@@ -294,15 +287,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   mc.ctx = ctx;
 
   gum_module_enumerate_ranges (name, prot, gum_emit_range, &mc);
+  _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
-  // [ on_complete ]
   duk_call (ctx, 0);
-  // [ result ]
   duk_pop (ctx);
-  // []
-
-  _gum_duk_scope_flush (&scope);
 
   duk_push_undefined (ctx);
   return 1;
@@ -350,18 +339,19 @@ gum_emit_range (const GumRangeDetails * details,
   // []
 
   duk_push_heapptr (ctx, mc->on_match);
-  // [ on_match ]
   duk_push_heapptr (ctx, range);
-  _gumjs_duk_release_heapptr (ctx, range);
-  // [ on_match range ]
-  duk_call (ctx, 1);
-  // [ result ]
-  result = duk_safe_to_string (ctx, -1);
-  proceed = strcmp (result, "stop") != 0;
-  duk_pop (ctx);
-  // []
 
-  _gum_duk_scope_flush (&scope);
+  _gumjs_duk_release_heapptr (ctx, range);
+
+  if (_gum_duk_scope_call_sync (&scope, 1))
+  {
+    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+  }
+  else
+  {
+    proceed = FALSE;
+  }
+  duk_pop (ctx);
 
   return proceed;
 }
@@ -388,7 +378,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
     _gumjs_duk_release_heapptr (ctx, result);
   }
   else
+  {
     duk_push_null (ctx);
+  }
   return 1;
 }
 

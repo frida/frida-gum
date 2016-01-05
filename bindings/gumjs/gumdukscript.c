@@ -45,6 +45,7 @@ struct _GumDukScriptPrivate
   GumDukScriptBackend * backend;
 
   duk_context * ctx;
+  GumDukHeapPtr code;
   GumDukCore core;
   /*
   GumDukKernel kernel;
@@ -371,6 +372,7 @@ gum_duk_script_create_context (GumDukScript * self,
   }
 
   /* pop the function */
+  priv->code = _gumjs_duk_get_heapptr (ctx, -1);
   duk_pop (ctx);
 
   priv->ctx = ctx;
@@ -421,6 +423,9 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_kernel_dispose (&priv->kernel);
   */
   _gum_duk_core_dispose (&priv->core);
+
+  _gumjs_duk_release_heapptr (priv->ctx, priv->code);
+  priv->code = NULL;
 
   duk_destroy_heap (priv->ctx);
   priv->ctx = NULL;
@@ -505,33 +510,17 @@ gum_duk_script_do_load (GumScriptTask * task,
 
   if (!priv->loaded)
   {
-    gchar * url;
     GumDukScope scope;
 
     priv->loaded = TRUE;
 
-    url = gum_duk_script_create_url (self);
-
     _gum_duk_scope_enter (&scope, &priv->core);
 
-    duk_push_string (priv->ctx, priv->source);
-    duk_push_string (priv->ctx, url);
-
-    if (duk_pcompile (priv->ctx, DUK_COMPILE_EVAL) != 0)
-      scope.exception = duk_safe_to_string (priv->ctx, -1);
-
-    if (duk_pcall (priv->ctx, 0) != 0)
-    {
-      duk_get_prop_string (priv->ctx, -1, "stack");
-      duk_pop (priv->ctx);
-      scope.exception = duk_safe_to_string (priv->ctx, -1);
-    }
-
+    duk_push_heapptr (priv->ctx, priv->code);
+    _gum_duk_scope_call (&scope, 0);
     duk_pop (priv->ctx);
 
     _gum_duk_scope_leave (&scope);
-
-    g_free (url);
   }
 
   gum_script_task_return_pointer (task, NULL, NULL);

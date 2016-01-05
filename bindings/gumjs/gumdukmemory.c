@@ -911,26 +911,13 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
       duk_push_string (ctx, message);
       g_free (message);
 
-      int res = duk_pcall (ctx, 1);
-      if (res)
-      {
-        /* TODO: this should probably set the exception on the scope */
-        printf ("Error occured while calling on_error\n");
-      }
-
+      _gum_duk_scope_call (&script_scope, 1);
       duk_pop (ctx);
-
-      _gum_duk_scope_flush (&script_scope);
     }
   }
 
   duk_push_heapptr (ctx, self->on_complete);
-  int res = duk_pcall (ctx, 0);
-  if (res)
-  {
-    /* TODO: this should probably set the exception on the scope */
-    printf ("Error occured while calling on_complete\n");
-  }
+  _gum_duk_scope_call (&script_scope, 0);
   duk_pop (ctx);
 
   _gum_duk_scope_leave (&script_scope);
@@ -946,7 +933,6 @@ gum_memory_scan_context_emit_match (GumAddress address,
   GumDukScope scope;
   duk_context * ctx = self->core->ctx;
   GumDukHeapPtr match_address;
-  gint res;
   gboolean proceed;
 
   _gum_duk_scope_enter (&scope, core);
@@ -959,19 +945,15 @@ gum_memory_scan_context_emit_match (GumAddress address,
   _gumjs_duk_release_heapptr (ctx, match_address);
   duk_push_number (ctx, size);
 
-  res = duk_pcall (ctx, 2);
-  if (res)
-  {
-    /* TODO: this should probably set the exception on the scope */
-    printf ("Error occured while calling on_match\n");
-  }
-
   proceed = TRUE;
-  if (duk_is_string (ctx, -1))
-  {
-    proceed = strcmp (duk_get_string (ctx, -1), "stop") != 0;
-  }
 
+  if (_gum_duk_scope_call (&scope, 2))
+  {
+    if (duk_is_string (ctx, -1))
+    {
+      proceed = strcmp (duk_get_string (ctx, -1), "stop") != 0;
+    }
+  }
   duk_pop (ctx);
 
   _gum_duk_scope_leave (&scope);

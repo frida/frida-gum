@@ -71,7 +71,7 @@ struct _GumDukCore
 struct _GumDukScope
 {
   GumDukCore * core;
-  const gchar * exception;
+  GumDukHeapPtr exception;
 };
 
 struct _GumDukNativePointer
@@ -122,6 +122,12 @@ G_GNUC_INTERNAL void _gum_duk_core_push_job (GumDukCore * self,
 
 G_GNUC_INTERNAL void _gum_duk_scope_enter (GumDukScope * self,
     GumDukCore * core);
+G_GNUC_INTERNAL gboolean _gum_duk_scope_call (GumDukScope * self,
+    duk_idx_t nargs);
+G_GNUC_INTERNAL gboolean _gum_duk_scope_call_method (GumDukScope * self,
+    duk_idx_t nargs);
+G_GNUC_INTERNAL gboolean _gum_duk_scope_call_sync (GumDukScope * self,
+    duk_idx_t nargs);
 G_GNUC_INTERNAL void _gum_duk_scope_flush (GumDukScope * self);
 G_GNUC_INTERNAL void _gum_duk_scope_leave (GumDukScope * self);
 
