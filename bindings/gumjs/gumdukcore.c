@@ -1418,7 +1418,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   GumExceptorScope scope;
   GumDukValue * result = NULL;
 
-
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   core = self->core;

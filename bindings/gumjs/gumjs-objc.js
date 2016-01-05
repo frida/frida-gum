@@ -173,9 +173,7 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    if (registryBuiltins.has(propName))
-                        return true;
-                    return findClass(propName) !== null;
+                    return hasClass(propName);
                 },
                 get(target, name) {
                     switch (name) {
@@ -279,9 +277,7 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    if (registryBuiltins.has(propName))
-                        return true;
-                    return findProtocol(propName) !== null;
+                    return hasProtocol(propName);
                 },
                 get(target, name) {
                     switch (name) {
@@ -424,13 +420,7 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    if (objCObjectBuiltins.has(propName))
-                        return true;
-                    if (protocol) {
-                        const details = findProtocolMethod(propName);
-                        return !!(details !== null && details.implemented);
-                    }
-                    return findMethod(propName) !== null;
+                    return hasMethod(propName);
                 },
                 get(target, name) {
                     switch (name) {
