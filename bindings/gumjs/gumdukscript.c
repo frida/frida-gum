@@ -335,6 +335,7 @@ gum_duk_script_create_context (GumDukScript * self,
   duk_context * ctx;
   gchar * url;
   gboolean valid;
+  GumDukScope scope;
 
   g_assert (priv->ctx == NULL);
 
@@ -393,7 +394,11 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_symbol_init (&priv->symbol, &priv->core);
   _gum_duk_instruction_init (&priv->instruction, &priv->core);
 
+  _gum_duk_scope_enter (&scope, &priv->core);
+
   gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
+
+  _gum_duk_scope_leave (&scope);
 
   return TRUE;
 }
@@ -402,8 +407,11 @@ static void
 gum_duk_script_destroy_context (GumDukScript * self)
 {
   GumDukScriptPrivate * priv = self->priv;
+  GumDukScope scope;
 
   g_assert (priv->ctx != NULL);
+
+  _gum_duk_scope_enter (&scope, &priv->core);
 
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
@@ -424,6 +432,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   */
   _gum_duk_core_dispose (&priv->core);
 
+  _gum_duk_scope_leave (&scope);
+
   _gumjs_duk_release_heapptr (priv->ctx, priv->code);
   priv->code = NULL;
 
@@ -433,9 +443,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
   _gum_duk_stalker_finalize (&priv->stalker);
-  /*
-  _gum_duk_interceptor_finalize (&priv->interceptor);
-  */
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);
   _gum_duk_file_finalize (&priv->file);
