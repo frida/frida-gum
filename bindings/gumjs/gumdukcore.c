@@ -1494,7 +1494,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     duk_push_undefined (ctx);
   }
 
-  if (result)
+  if (result != NULL)
   {
     switch (result->type)
     {
