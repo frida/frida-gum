@@ -307,7 +307,6 @@ gum_emit_range (const GumRangeDetails * details,
   duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
   GumDukHeapPtr range, pointer;
-  const gchar * result;
   gboolean proceed;
 
   if ((details->prot & GUM_PAGE_READ) != 0)
