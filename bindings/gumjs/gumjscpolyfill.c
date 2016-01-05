@@ -22,12 +22,13 @@ struct _GumJscProxy
   JSObjectRef get;
   JSObjectRef set;
   JSObjectRef enumerate;
-  JSObjectRef receiver;
+  JSObjectRef target;
+  JSObjectRef handler;
 
   GumJscPolyfill * parent;
 };
 
-GUMJS_DECLARE_FUNCTION (gumjs_proxy_create)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_proxy_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_proxy_finalize)
 static bool gumjs_proxy_has_property (JSContextRef ctx, JSObjectRef object,
     JSStringRef property_name);
@@ -38,13 +39,6 @@ static bool gumjs_proxy_set_property (JSContextRef ctx, JSObjectRef object,
 static void gumjs_proxy_get_property_names (JSContextRef ctx,
     JSObjectRef object, JSPropertyNameAccumulatorRef property_names);
 
-static const JSStaticFunction gumjs_proxy_module_functions[] =
-{
-  { "create", gumjs_proxy_create, GUMJS_RO },
-
-  { NULL, NULL, 0 }
-};
-
 void
 _gum_jsc_polyfill_init (GumJscPolyfill * self,
                         GumJscCore * core,
@@ -52,18 +46,9 @@ _gum_jsc_polyfill_init (GumJscPolyfill * self,
 {
   JSContextRef ctx = core->ctx;
   JSClassDefinition def;
-  JSClassRef klass;
-  JSObjectRef module;
+  JSClassRef constructor;
 
   self->core = core;
-
-  def = kJSClassDefinitionEmpty;
-  def.className = "ProxyModule";
-  def.staticFunctions = gumjs_proxy_module_functions;
-  klass = JSClassCreate (&def);
-  module = JSObjectMake (ctx, klass, self);
-  JSClassRelease (klass);
-  _gumjs_object_set (ctx, scope, "Proxy", module);
 
   def = kJSClassDefinitionEmpty;
   def.attributes = kJSClassAttributeNoAutomaticPrototype;
@@ -74,6 +59,14 @@ _gum_jsc_polyfill_init (GumJscPolyfill * self,
   def.setProperty = gumjs_proxy_set_property;
   def.getPropertyNames = gumjs_proxy_get_property_names;
   self->proxy = JSClassCreate (&def);
+
+  def = kJSClassDefinitionEmpty;
+  def.className = "ProxyConstructor";
+  def.callAsConstructor = gumjs_proxy_construct;
+  constructor = JSClassCreate (&def);
+  _gumjs_object_set (ctx, scope, "Proxy",
+      JSObjectMake (ctx, constructor, self));
+  JSClassRelease (constructor);
 }
 
 void
@@ -88,15 +81,15 @@ _gum_jsc_polyfill_finalize (GumJscPolyfill * self)
   (void) self;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_proxy_construct)
 {
   GumJscPolyfill * parent = GUMJS_MODULE_FROM_ARGS (args);
   GumJscProxy p;
-  JSObjectRef proto = NULL;
+  JSObjectRef target;
   JSObjectRef instance;
 
-  if (!_gumjs_args_parse (args, "F{has?,get?,set?,enumerate?}|O",
-      &p.has, &p.get, &p.set, &p.enumerate, &proto))
+  if (!_gumjs_args_parse (args, "OF{has?,get?,set?,enumerate?}",
+      &target, &p.has, &p.get, &p.set, &p.enumerate))
     return NULL;
   p.parent = parent;
 
@@ -108,14 +101,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_proxy_create)
     JSValueProtect (ctx, p.set);
   if (p.enumerate != NULL)
     JSValueProtect (ctx, p.enumerate);
-  p.receiver = (JSObjectRef) args->values[0];
-  JSValueProtect (ctx, p.receiver);
+  p.target = target;
+  p.handler = (JSObjectRef) args->values[1];
+  JSValueProtect (ctx, p.target);
+  JSValueProtect (ctx, p.handler);
 
   instance = JSObjectMake (ctx, parent->proxy, g_slice_dup (GumJscProxy, &p));
-  if (proto != NULL)
-    JSObjectSetPrototype (ctx, instance, proto);
-  else
-    JSObjectSetPrototype (ctx, instance, JSValueMakeNull (ctx));
+  JSObjectSetPrototype (ctx, instance, JSObjectGetPrototype (ctx, target));
 
   return instance;
 }
@@ -129,7 +121,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_proxy_finalize)
   _gum_jsc_core_unprotect_later (core, self->get);
   _gum_jsc_core_unprotect_later (core, self->set);
   _gum_jsc_core_unprotect_later (core, self->enumerate);
-  _gum_jsc_core_unprotect_later (core, self->receiver);
+  _gum_jsc_core_unprotect_later (core, self->target);
+  _gum_jsc_core_unprotect_later (core, self->handler);
 
   g_slice_free (GumJscProxy, self);
 }
@@ -151,12 +144,14 @@ gumjs_proxy_has_property (JSContextRef ctx,
   {
     GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
     JSValueRef * ex = &scope.exception;
-    JSValueRef property_name_value, value;
+    JSValueRef argv[2];
+    JSValueRef value;
     bool result = false;
 
-    property_name_value = JSValueMakeString (ctx, property_name);
-    value = JSObjectCallAsFunction (ctx, self->has, self->receiver,
-        1, &property_name_value, ex);
+    argv[0] = self->target;
+    argv[1] = JSValueMakeString (ctx, property_name);
+    value = JSObjectCallAsFunction (ctx, self->has, self->handler,
+        G_N_ELEMENTS (argv), argv, ex);
     if (value == NULL)
       goto beach;
 
@@ -197,12 +192,13 @@ gumjs_proxy_get_property (JSContextRef ctx,
 
   {
     GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
-    JSValueRef argv[2];
+    JSValueRef argv[3];
     JSValueRef result;
 
-    argv[0] = object;
+    argv[0] = self->target;
     argv[1] = JSValueMakeString (ctx, property_name);
-    result = JSObjectCallAsFunction (ctx, self->get, self->receiver,
+    argv[2] = object;
+    result = JSObjectCallAsFunction (ctx, self->get, self->handler,
         G_N_ELEMENTS (argv), argv, &scope.exception);
     _gum_jsc_scope_flush (&scope);
 
@@ -228,13 +224,14 @@ gumjs_proxy_set_property (JSContextRef ctx,
 
   {
     GumJscScope scope = GUM_JSC_SCOPE_INIT (core);
-    JSValueRef argv[3];
+    JSValueRef argv[4];
     JSValueRef result;
 
-    argv[0] = object;
+    argv[0] = self->target;
     argv[1] = JSValueMakeString (ctx, property_name);
     argv[2] = value;
-    result = JSObjectCallAsFunction (ctx, self->set, self->receiver,
+    argv[3] = object;
+    result = JSObjectCallAsFunction (ctx, self->set, self->handler,
         G_N_ELEMENTS (argv), argv, &scope.exception);
     _gum_jsc_scope_flush (&scope);
 
@@ -263,7 +260,7 @@ gumjs_proxy_get_property_names (JSContextRef ctx,
     JSObjectRef names;
     guint length, i;
 
-    value = JSObjectCallAsFunction (ctx, self->enumerate, self->receiver,
+    value = JSObjectCallAsFunction (ctx, self->enumerate, self->handler,
         0, NULL, ex);
     if (value == NULL)
       goto beach;
