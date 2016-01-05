@@ -423,6 +423,9 @@
                     return hasMethod(propName);
                 },
                 get(target, name, receiver) {
+                    /* V8 kludge */
+                    if (receiver === undefined)
+                        receiver = self;
                     switch (name) {
                         case "handle":
                             return handle;
