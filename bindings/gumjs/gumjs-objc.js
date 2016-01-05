@@ -1374,6 +1374,10 @@
                 returnCaptureLeft = "return ";
                 returnCaptureRight = "";
             }
+
+            let oldImp = null;
+            let newImp = null;
+
             const m = eval("var m = function (" + argVariableNames.join(", ") + ") { " +
                 returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; m;");
@@ -1383,7 +1387,6 @@
                 value: sel
             });
 
-            let oldImp = null;
             Object.defineProperty(m, 'implementation', {
                 enumerable: true,
                 get: function () {
@@ -1396,6 +1399,7 @@
 
                     if (oldImp === null)
                         oldImp = api.method_getImplementation(h);
+                    newImp = imp;
 
                     replaceImplementation(h, imp, oldImp);
                 }
