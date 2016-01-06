@@ -121,7 +121,8 @@ G_GNUC_INTERNAL void _gumjs_set_private_data (duk_context * ctx,
     GumDukHeapPtr object, gpointer privatedata);
 G_GNUC_INTERNAL GumDukValue * _gumjs_get_value (duk_context * ctx,
     gint idx);
-G_GNUC_INTERNAL void _gumjs_release_value (duk_context * ctx, GumDukValue * value);
+G_GNUC_INTERNAL void _gumjs_release_value (duk_context * ctx,
+    GumDukValue * value);
 G_GNUC_INTERNAL void _gumjs_push_value (duk_context * ctx, GumDukValue * value);
 G_GNUC_INTERNAL gboolean _gumjs_value_is_array (duk_context * ctx,
     GumDukValue * value);

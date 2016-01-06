@@ -1328,7 +1328,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
       is_marker = FALSE;
     }
 
-
     if (is_marker)
     {
       if (is_variadic)
@@ -1763,7 +1762,9 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
         &argv[i]))
       goto beach;
   }
+
   duk_push_heapptr (ctx, self->func);
+
   for (i = 0; i != cif->nargs; i++)
   {
     GumDukValue * arg = argv[i];
@@ -1777,6 +1778,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   {
     result = _gumjs_get_value (ctx, -1);
   }
+
   duk_pop (ctx);
 
   if (cif->rtype != &ffi_type_void && result != NULL)
@@ -2512,11 +2514,11 @@ gumjs_value_from_ffi_type (duk_context * ctx,
     // [ array ]
     for (i = 0; i != length; i++)
     {
-        _gumjs_push_value (ctx, field_svalues[i]);
-        // [ array fieldvalue ]
-        duk_put_prop_index (ctx, -2, i);
-        // [ array ]
-        _gumjs_release_value (ctx, field_svalues[i]);
+      _gumjs_push_value (ctx, field_svalues[i]);
+      // [ array fieldvalue ]
+      duk_put_prop_index (ctx, -2, i);
+      // [ array ]
+      _gumjs_release_value (ctx, field_svalues[i]);
     }
 
     *svalue = _gumjs_get_value (ctx, -1);

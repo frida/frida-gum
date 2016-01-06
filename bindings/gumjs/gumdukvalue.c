@@ -1238,19 +1238,19 @@ _gumjs_push_value (duk_context * ctx,
 {
   switch (value->type)
   {
-    case (DUK_TYPE_BOOLEAN):
+    case DUK_TYPE_BOOLEAN:
       duk_push_boolean (ctx, value->data._boolean);
       break;
-    case (DUK_TYPE_STRING):
+    case DUK_TYPE_STRING:
       duk_push_string (ctx, value->data._string);
       break;
-    case (DUK_TYPE_NUMBER):
+    case DUK_TYPE_NUMBER:
       duk_push_number (ctx, value->data._number);
       break;
-    case (DUK_TYPE_OBJECT):
+    case DUK_TYPE_OBJECT:
       duk_push_heapptr (ctx, value->data._heapptr);
       break;
-    defualt:
+    default:
       g_assert_not_reached ();
   }
 }
