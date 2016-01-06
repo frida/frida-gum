@@ -38,6 +38,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
   SCRIPT_TESTENTRY (interceptor_performance)
+  SCRIPT_TESTENTRY (interceptor_onleave_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
@@ -908,6 +909,7 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "  send(typeof module.path === 'string');"
         "  send(module.base instanceof NativePointer);"
         "  send(typeof module.size === 'number');"
+        "  print (JSON.stringify(module));"
         "  send(JSON.stringify(module) !== \"{}\");"
         "  return 'stop';"
         "},"
@@ -1098,6 +1100,7 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
         "onMatch: function (exp) {"
+        "  print (JSON.stringify (exp));"
         "  send('onMatch');"
         "  send(typeof exp.type === 'string');"
         "  send(typeof exp.name === 'string');"
@@ -1799,6 +1802,58 @@ SCRIPT_TESTCASE (interceptor_performance)
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
+      "  }"
+      "});", target_function_int);
+
+#if 1
+  timer = g_timer_new ();
+
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
+    target_function_int (7);
+  }
+
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
+    gdouble elapsed;
+
+    g_timer_reset (timer);
+    target_function_int (7);
+    elapsed = g_timer_elapsed (timer, NULL);
+
+    measurement[i] = elapsed * G_USEC_PER_SEC;
+  }
+
+  t_min = G_MAXUINT;
+  t_max = 0;
+  t_total = 0;
+  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
+  {
+    guint m = measurement[i];
+
+    t_min = MIN (m, t_min);
+    t_max = MAX (m, t_max);
+    t_total += m;
+  }
+  t_avg = t_total / G_N_ELEMENTS (measurement);
+
+  g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
+
+  g_timer_destroy (timer);
+#else
+  while (TRUE)
+    target_function_int (7);
+#endif
+}
+
+SCRIPT_TESTCASE (interceptor_onleave_performance)
+{
+  GTimer * timer;
+  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onLeave: function (retval) {"
       "  }"
       "});", target_function_int);
 

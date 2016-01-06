@@ -1079,6 +1079,9 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
   GumDukNativePointer * self;
 
+  if (duk_get_top (ctx) == 0)
+    return 0;
+
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
 
@@ -1472,7 +1475,7 @@ gum_duk_native_function_finalize (GumDukNativeFunction * func)
     g_free (head->data);
     func->data = g_slist_delete_link (func->data, head);
   }
-  g_free (func->atypes);
+  g_clear_pointer (&func->atypes, g_free);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)

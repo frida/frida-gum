@@ -250,6 +250,7 @@ _gumjs_duk_release_heapptr (duk_context * ctx,
 
 GumDukHeapPtr
 _gumjs_duk_create_proxy_accessors (duk_context * ctx,
+                                   GumDukHeapPtr target,
                                    gpointer getter,
                                    gpointer setter)
 {
@@ -257,7 +258,7 @@ _gumjs_duk_create_proxy_accessors (duk_context * ctx,
 
   duk_get_global_string (ctx, "Proxy");
   // [ Proxy ]
-  duk_push_object (ctx);
+  duk_push_heapptr (ctx, target);
   // [ Proxy targetobj ]
   duk_push_object (ctx);
   // [ Proxy targetobj handlerobj ]
