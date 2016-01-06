@@ -218,8 +218,10 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->cached_invocation_context = _gumjs_duk_create_proxy_accessors (ctx,
         new_ic, NULL, gumjs_cached_invocation_context_set_property);
   self->cached_invocation_context_in_use = FALSE;
+
   self->cached_invocation_args = gumjs_invocation_args_new (ctx, NULL, self);
   self->cached_invocation_args_in_use = FALSE;
+
   self->cached_invocation_return_value = gumjs_invocation_return_value_new (ctx,
         NULL, self);
   self->cached_invocation_return_value_in_use = FALSE;
@@ -236,14 +238,14 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
 void
 _gum_duk_interceptor_dispose (GumDukInterceptor * self)
 {
+  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_context);
+  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_args);
   _gumjs_duk_release_heapptr (self->core->ctx,
       self->cached_invocation_return_value);
+
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_context);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_args);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_retval);
-
-  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_context);
-  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_args);
 }
 
 void
@@ -589,6 +591,7 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
       self->cached_invocation_return_value_in_use = FALSE;
     else
       gumjs_invocation_return_value_release (ctx, retval);
+
     if (jic == self->cached_invocation_context)
       self->cached_invocation_context_in_use = FALSE;
     else
