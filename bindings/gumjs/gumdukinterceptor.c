@@ -236,6 +236,8 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
 void
 _gum_duk_interceptor_dispose (GumDukInterceptor * self)
 {
+  _gumjs_duk_release_heapptr (self->core->ctx,
+      self->cached_invocation_return_value);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_context);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_args);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_retval);
