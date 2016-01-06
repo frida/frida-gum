@@ -16,9 +16,6 @@ typedef struct _GumDukModule GumDukModule;
 struct _GumDukModule
 {
   GumDukCore * core;
-
-  GumDukHeapPtr module_import;
-  GumDukHeapPtr module_export;
 };
 
 G_GNUC_INTERNAL void _gum_duk_module_init (GumDukModule * self,

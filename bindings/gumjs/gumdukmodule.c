@@ -36,23 +36,6 @@ static gboolean gum_emit_range (const GumRangeDetails * details,
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_import_construct)
-static GumDukHeapPtr gumjs_module_import_new (duk_context * ctx,
-    const GumImportDetails * details, GumDukModule * parent);
-GUMJS_DECLARE_FINALIZER (gumjs_module_import_finalize)
-GUMJS_DECLARE_GETTER (gumjs_module_import_get_type)
-GUMJS_DECLARE_GETTER (gumjs_module_import_get_name)
-GUMJS_DECLARE_GETTER (gumjs_module_import_get_module)
-GUMJS_DECLARE_GETTER (gumjs_module_import_get_address)
-
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_export_construct)
-static GumDukHeapPtr gumjs_module_export_new (duk_context * ctx,
-    const GumExportDetails * details, GumDukModule * parent);
-GUMJS_DECLARE_FINALIZER (gumjs_module_export_finalize)
-GUMJS_DECLARE_GETTER (gumjs_module_export_get_type)
-GUMJS_DECLARE_GETTER (gumjs_module_export_get_name)
-GUMJS_DECLARE_GETTER (gumjs_module_export_get_address)
-
 static const duk_function_list_entry gumjs_module_functions[] =
 {
   { "enumerateImports", gumjs_module_enumerate_imports, 2 },
@@ -64,25 +47,6 @@ static const duk_function_list_entry gumjs_module_functions[] =
   { NULL, NULL, 0 }
 };
 
-static const GumDukPropertyEntry gumjs_module_import_values[] =
-{
-  { "type", gumjs_module_import_get_type, NULL},
-  { "name", gumjs_module_import_get_name, NULL},
-  { "module", gumjs_module_import_get_module, NULL},
-  { "address", gumjs_module_import_get_address, NULL},
-
-  { NULL, NULL, NULL}
-};
-
-static const GumDukPropertyEntry gumjs_module_export_values[] =
-{
-  { "type", gumjs_module_export_get_type, NULL},
-  { "name", gumjs_module_export_get_name, NULL},
-  { "address", gumjs_module_export_get_address, NULL},
-
-  { NULL, NULL, NULL}
-};
-
 void
 _gum_duk_module_init (GumDukModule * self,
                       GumDukCore * core)
@@ -92,49 +56,12 @@ _gum_duk_module_init (GumDukModule * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_module_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Module");
-  // []
-
-  duk_push_c_function (ctx, gumjs_module_import_construct, 0);
-  // [ construct ]
-  duk_push_object (ctx);
-  // [ construct proto ]
-  duk_push_c_function (ctx, gumjs_module_import_finalize, 0);
-  // [ construct proto finalize ]
-  duk_set_finalizer (ctx, -2);
-  // [ construct proto ]
-  duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
-  self->module_import = duk_require_heapptr (ctx, -1);
-  duk_put_global_string (ctx, "ModuleImport");
-  // []
-  _gumjs_duk_add_properties_to_class (ctx, "ModuleImport",
-      gumjs_module_import_values);
-
-  duk_push_c_function (ctx, gumjs_module_export_construct, 0);
-  // [ construct ]
-  duk_push_object (ctx);
-  // [ construct proto ]
-  duk_push_c_function (ctx, gumjs_module_export_finalize, 0);
-  // [ construct proto finalize ]
-  duk_set_finalizer (ctx, -2);
-  // [ construct proto ]
-  duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
-  self->module_export = duk_require_heapptr (ctx, -1);
-  duk_put_global_string (ctx, "ModuleExport");
-  // []
-  _gumjs_duk_add_properties_to_class (ctx, "ModuleExport",
-      gumjs_module_export_values);
 }
 
 void
@@ -188,15 +115,38 @@ gum_emit_import (const GumImportDetails * details,
   GumDukCore * core = self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr imp;
   gboolean proceed;
 
-  imp = gumjs_module_import_new (ctx, details, self);
-
   duk_push_heapptr (ctx, mc->on_match);
-  duk_push_heapptr (ctx, imp);
 
-  _gumjs_duk_release_heapptr (ctx, imp);
+  duk_push_object (ctx);
+
+  if (details->type != GUM_IMPORT_UNKNOWN)
+  {
+    duk_push_string (ctx,
+        (details->type == GUM_IMPORT_FUNCTION) ? "function" : "variable");
+    duk_put_prop_string (ctx, -2, "type");
+  }
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  if (details->module != NULL)
+  {
+    duk_push_string (ctx, details->module);
+    duk_put_prop_string (ctx, -2, "module");
+  }
+
+  if (details->address != 0)
+  {
+    GumDukHeapPtr address;
+
+    address = _gumjs_native_pointer_new (ctx,
+        GSIZE_TO_POINTER (details->address), core);
+    duk_push_heapptr (ctx, address);
+    _gumjs_duk_release_heapptr (ctx, address);
+    duk_put_prop_string (ctx, -2, "address");
+  }
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
@@ -245,15 +195,25 @@ gum_emit_export (const GumExportDetails * details,
   GumDukCore * core = self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr exp;
+  GumDukHeapPtr address;
   gboolean proceed;
 
-  exp = gumjs_module_export_new (ctx, details, self);
-
   duk_push_heapptr (ctx, mc->on_match);
-  duk_push_heapptr (ctx, exp);
 
-  _gumjs_duk_release_heapptr (ctx, exp);
+  duk_push_object (ctx);
+
+  duk_push_string (ctx,
+      (details->type == GUM_EXPORT_FUNCTION) ? "function" : "variable");
+  duk_put_prop_string (ctx, -2, "type");
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  address = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
+      core);
+  duk_push_heapptr (ctx, address);
+  _gumjs_duk_release_heapptr (ctx, address);
+  duk_put_prop_string (ctx, -2, "address");
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
@@ -314,25 +274,21 @@ gum_emit_range (const GumRangeDetails * details,
     prot_str[2] = 'x';
 
   duk_push_object (ctx);
-  // [ newobj ]
+
   pointer = _gumjs_native_pointer_new (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_push_heapptr (ctx, pointer);
   _gumjs_duk_release_heapptr (ctx, pointer);
-  // [ newobj base ]
   duk_put_prop_string (ctx, -2, "base");
-  // [ newobj ]
+
   duk_push_uint (ctx, details->range->size);
-  // [ newobj size ]
   duk_put_prop_string (ctx, -2, "size");
-  // [ newobj ]
+
   duk_push_string (ctx, prot_str);
-  // [ newobj prot_str ]
   duk_put_prop_string (ctx, -2, "protection");
-  // [ newobj ]
+
   range = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
-  // []
 
   duk_push_heapptr (ctx, mc->on_match);
   duk_push_heapptr (ctx, range);
@@ -406,185 +362,5 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
     duk_push_null (ctx);
   }
 
-  return 1;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_import_construct)
-{
-  return 0;
-}
-
-static GumDukHeapPtr
-gumjs_module_import_new (duk_context * ctx,
-                         const GumImportDetails * details,
-                         GumDukModule * parent)
-{
-  GumImportDetails * d;
-  GumDukHeapPtr result;
-
-  d = g_slice_dup (GumImportDetails, details);
-  d->name = g_strdup (details->name);
-  d->module = g_strdup (details->module);
-
-  duk_push_heapptr (ctx, parent->module_import);
-  // [ module_import ]
-  duk_new (ctx, 0);
-  // [ instance ]
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), d);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
-
-  return result;
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_module_import_finalize)
-{
-  GumImportDetails * details;
-
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "ModuleImport"))
-    return 0;
-
-  details = GUMJS_MODULE_IMPORT_DETAILS (duk_require_heapptr (ctx, 0));
-
-  g_free ((gchar *) details->name);
-  g_free ((gchar *) details->module);
-
-  g_slice_free (GumImportDetails, details);
-
-  return 0;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_import_get_type)
-{
-  GumImportDetails * details;
-
-  details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  if (details->type == GUM_IMPORT_UNKNOWN)
-    return 0;
-
-  duk_push_string (ctx,
-      (details->type == GUM_IMPORT_FUNCTION) ? "function" : "variable");
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_import_get_name)
-{
-  GumImportDetails * details;
-
-  details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  duk_push_string (ctx, details->name);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_import_get_module)
-{
-  GumImportDetails * details;
-
-  details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  if (details->module == NULL)
-    return 0;
-
-  duk_push_string (ctx, details->module);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_import_get_address)
-{
-  GumImportDetails * details;
-  GumDukHeapPtr result;
-
-  details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  if (details->address == 0)
-    return 0;
-
-  result = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
-      args->core);
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
-  return 1;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_export_construct)
-{
-  return 0;
-}
-
-static GumDukHeapPtr
-gumjs_module_export_new (duk_context * ctx,
-                         const GumExportDetails * details,
-                         GumDukModule * parent)
-{
-  GumExportDetails * d;
-  GumDukHeapPtr result;
-
-  d = g_slice_dup (GumExportDetails, details);
-  d->name = g_strdup (details->name);
-
-  duk_push_heapptr (ctx, parent->module_export);
-  // [ module_import ]
-  duk_new (ctx, 0);
-  // [ instance ]
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), d);
-
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
-
-  return result;
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_module_export_finalize)
-{
-  GumExportDetails * details;
-
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "ModuleExport"))
-    return 0;
-
-  details = GUMJS_MODULE_EXPORT_DETAILS (duk_require_heapptr (ctx, 0));
-
-  g_free ((gchar *) details->name);
-
-  g_slice_free (GumExportDetails, details);
-
-  return 0;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_export_get_type)
-{
-  GumExportDetails * details;
-
-  details = GUMJS_MODULE_EXPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  duk_push_string (ctx,
-      (details->type == GUM_EXPORT_FUNCTION) ? "function" : "variable");
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_export_get_name)
-{
-  GumExportDetails * details;
-
-  details = GUMJS_MODULE_EXPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  duk_push_string (ctx, details->name);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_module_export_get_address)
-{
-  GumExportDetails * details;
-  GumDukHeapPtr result;
-
-  details = GUMJS_MODULE_EXPORT_DETAILS (_gumjs_duk_get_this (ctx));
-
-  result = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
-      args->core);
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
   return 1;
 }
