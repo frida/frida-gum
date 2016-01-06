@@ -157,18 +157,19 @@ not_available:
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
+  GumDukCore * core = args->core;
   gdouble delay;
 
-  if (!_gumjs_args_parse (ctx, "n", &delay))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gumjs_args_parse (ctx, "n", &delay);
+
   if (delay < 0)
-    goto beach;
+    return 0;
+
+  GUM_DUK_CORE_UNLOCK (core);
 
   g_usleep (delay * G_USEC_PER_SEC);
 
-beach:
+  GUM_DUK_CORE_LOCK (core);
+
   return 0;
 }
