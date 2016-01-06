@@ -37,8 +37,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
-  SCRIPT_TESTENTRY (interceptor_performance)
-  SCRIPT_TESTENTRY (interceptor_onleave_performance)
+  SCRIPT_TESTENTRY (interceptor_on_enter_performance)
+  SCRIPT_TESTENTRY (interceptor_on_leave_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
@@ -179,6 +179,8 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 #endif
 
 static gpointer invoke_target_function_int_worker (gpointer data);
+
+static void measure_target_function_int_overhead (void);
 
 static void on_message (GumScript * script, const gchar * message,
     GBytes * data, gpointer user_data);
@@ -1792,11 +1794,8 @@ SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
       "Error: access violation accessing 0x1");
 }
 
-SCRIPT_TESTCASE (interceptor_performance)
+SCRIPT_TESTCASE (interceptor_on_enter_performance)
 {
-  GTimer * timer;
-  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
-
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onEnter: function (args) {"
@@ -1804,51 +1803,15 @@ SCRIPT_TESTCASE (interceptor_performance)
       "});", target_function_int);
 
 #if 1
-  timer = g_timer_new ();
-
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
-  {
-    target_function_int (7);
-  }
-
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
-  {
-    gdouble elapsed;
-
-    g_timer_reset (timer);
-    target_function_int (7);
-    elapsed = g_timer_elapsed (timer, NULL);
-
-    measurement[i] = elapsed * G_USEC_PER_SEC;
-  }
-
-  t_min = G_MAXUINT;
-  t_max = 0;
-  t_total = 0;
-  for (i = 0; i != G_N_ELEMENTS (measurement); i++)
-  {
-    guint m = measurement[i];
-
-    t_min = MIN (m, t_min);
-    t_max = MAX (m, t_max);
-    t_total += m;
-  }
-  t_avg = t_total / G_N_ELEMENTS (measurement);
-
-  g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
-
-  g_timer_destroy (timer);
+  measure_target_function_int_overhead ();
 #else
   while (TRUE)
     target_function_int (7);
 #endif
 }
 
-SCRIPT_TESTCASE (interceptor_onleave_performance)
+SCRIPT_TESTCASE (interceptor_on_leave_performance)
 {
-  GTimer * timer;
-  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
-
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onLeave: function (retval) {"
@@ -1856,6 +1819,19 @@ SCRIPT_TESTCASE (interceptor_onleave_performance)
       "});", target_function_int);
 
 #if 1
+  measure_target_function_int_overhead ();
+#else
+  while (TRUE)
+    target_function_int (7);
+#endif
+}
+
+static void
+measure_target_function_int_overhead (void)
+{
+  GTimer * timer;
+  guint measurement[1000], i, t_min, t_max, t_total, t_avg;
+
   timer = g_timer_new ();
 
   for (i = 0; i != G_N_ELEMENTS (measurement); i++)
@@ -1890,10 +1866,6 @@ SCRIPT_TESTCASE (interceptor_onleave_performance)
   g_print ("min=%u max=%u avg=%u ", t_min, t_max, t_avg);
 
   g_timer_destroy (timer);
-#else
-  while (TRUE)
-    target_function_int (7);
-#endif
 }
 
 SCRIPT_TESTCASE (memory_can_be_scanned)
