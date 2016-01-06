@@ -131,6 +131,24 @@ _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
 }
 
 GumDukHeapPtr
+_gumjs_duk_try_get_this (duk_context * ctx)
+{
+  GumDukHeapPtr result;
+
+  duk_push_this (ctx);
+  if (duk_is_undefined (ctx, -1))
+  {
+    duk_pop (ctx);
+    return NULL;
+  }
+
+  result = duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
+  return result;
+}
+
+GumDukHeapPtr
 _gumjs_duk_get_this (duk_context * ctx)
 {
   GumDukHeapPtr result;

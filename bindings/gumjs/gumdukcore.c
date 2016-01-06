@@ -1051,15 +1051,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  gpointer ptr = NULL;
   GumDukHeapPtr object;
+  gpointer ptr = NULL;
+
+  object = _gumjs_duk_try_get_this (ctx);
+  if (object == NULL)
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new NativePointer()` to create a new instance, or use one of the "
+        "two shorthands: `ptr()` and `NULL`");
+    duk_throw (ctx);
+  }
 
   if (!_gumjs_args_parse (ctx, "|p~", &ptr))
   {
     duk_push_null (ctx);
     return 1;
   }
-  object = _gumjs_duk_get_this (ctx);
 
   duk_push_heapptr (ctx,
       _gumjs_native_pointer_new_priv (ctx, object, GSIZE_TO_POINTER (ptr),
@@ -1272,7 +1280,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
-  GumDukHeapPtr result = NULL;
+  GumDukHeapPtr result;
   GumDukCore * core = args->core;
   GumDukNativeFunction * func;
   GumDukNativePointer * ptr;
@@ -1283,6 +1291,14 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   gboolean is_variadic;
   gchar * abi_str = NULL;
   ffi_abi abi;
+
+  result = _gumjs_duk_try_get_this (ctx);
+  if (result == NULL)
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new NativeFunction()` to create a new instance");
+    duk_throw (ctx);
+  }
 
   func = g_slice_new0 (GumDukNativeFunction);
 
@@ -1379,7 +1395,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     func->arglist_size += t->size;
   }
 
-  result = _gumjs_duk_get_this (ctx);
   _gumjs_set_private_data (ctx, result, func);
 
   duk_push_c_function (ctx, gumjs_native_function_invoke, nargs_total);
@@ -1572,7 +1587,7 @@ error:
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
-  GumDukHeapPtr result = NULL;
+  GumDukHeapPtr result;
   GumDukCore * core = args->core;
   GumDukNativeCallback * callback;
   GumDukNativePointer * ptr;
@@ -1583,6 +1598,14 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   guint nargs, i;
   gchar * abi_str = NULL;
   ffi_abi abi;
+
+  result = _gumjs_duk_try_get_this (ctx);
+  if (result == NULL)
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new NativeCallback()` to create a new instance");
+    duk_throw (ctx);
+  }
 
   callback = g_slice_new0 (GumDukNativeCallback);
 
@@ -1663,7 +1686,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
       gum_duk_native_callback_invoke, callback, ptr->value) != FFI_OK)
     goto prepare_failed;
 
-  result = _gumjs_duk_get_this (ctx);
   _gumjs_set_private_data (ctx, result, callback);
 
   goto beach;

@@ -75,10 +75,19 @@ _gum_duk_file_finalize (GumDukFile * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
+  GumDukHeapPtr object;
   gchar * filename = NULL;
   gchar * mode = NULL;
   FILE * handle;
   GumFile * file;
+
+  object = _gumjs_duk_try_get_this (ctx);
+  if (object == NULL)
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new File()` to create a new instance");
+    duk_throw (ctx);
+  }
 
   if (!_gumjs_args_parse (ctx, "ss", &filename, &mode))
     goto beach;
@@ -90,7 +99,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   file = g_slice_new (GumFile);
   file->handle = handle;
 
-  _gumjs_set_private_data (ctx, _gumjs_duk_get_this (ctx), file);
+  _gumjs_set_private_data (ctx, object, file);
 
   goto beach;
 

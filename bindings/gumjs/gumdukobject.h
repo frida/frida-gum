@@ -34,6 +34,7 @@ G_GNUC_INTERNAL void _gumjs_duk_add_properties_to_class (duk_context * ctx,
 G_GNUC_INTERNAL gboolean _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
     const gchar * class_name);
 
+G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_try_get_this (duk_context * ctx);
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_get_this (duk_context * ctx);
 G_GNUC_INTERNAL void _gumjs_duk_protect (duk_context * ctx,
     GumDukHeapPtr object);
