@@ -90,6 +90,8 @@ GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_return_value_construct)
 static GumDukHeapPtr gumjs_invocation_return_value_new (duk_context * ctx,
     GumInvocationContext * ic, GumDukInterceptor * parent);
+static void gumjs_invocation_return_value_set_data (duk_context * ctx,
+    GumDukHeapPtr value, GumInvocationContext * ic, GumDukInterceptor * parent);
 static void gumjs_invocation_return_value_release (duk_context * ctx,
     GumDukHeapPtr value);
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_return_value_replace)
@@ -217,6 +219,8 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->invocation_retval = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
+  self->cached_invocation_return_value = gumjs_invocation_return_value_new (ctx,
+        NULL, self);
 }
 
 void
@@ -560,7 +564,16 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
       }
     }
 
-    retval = gumjs_invocation_return_value_new (ctx, ic, self);
+    if (!self->cached_invocation_return_value_in_use)
+    {
+      retval = self->cached_invocation_return_value;
+      gumjs_invocation_return_value_set_data (ctx, retval, ic, self);
+      self->cached_invocation_return_value_in_use = TRUE;
+    }
+    else
+    {
+      retval = gumjs_invocation_return_value_new (ctx, ic, self);
+    }
 
     duk_push_heapptr (ctx, entry->on_leave);
     duk_push_heapptr (ctx, jic);
@@ -568,7 +581,10 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
     _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
-    gumjs_invocation_return_value_release (ctx, retval);
+    if (retval == self->cached_invocation_return_value)
+      self->cached_invocation_return_value_in_use = FALSE;
+    else
+      gumjs_invocation_return_value_release (ctx, retval);
     if (jic == self->cached_invocation_context)
       self->cached_invocation_context_in_use = FALSE;
     else
@@ -968,7 +984,8 @@ gumjs_invocation_return_value_new (duk_context * ctx,
 
   ptr = &retval->parent;
   ptr->instance_size = sizeof (GumDukInvocationReturnValue);
-  ptr->value = gum_invocation_context_get_return_value (ic);
+  if (ic != NULL)
+      ptr->value = gum_invocation_context_get_return_value (ic);
 
   retval->ic = ic;
   duk_get_global_string (ctx, "InvocationReturnValue");
@@ -979,6 +996,24 @@ gumjs_invocation_return_value_new (duk_context * ctx,
   _gumjs_set_private_data (ctx, result, retval);
 
   return result;
+}
+
+static void
+gumjs_invocation_return_value_set_data (duk_context * ctx,
+                                        GumDukHeapPtr value,
+                                        GumInvocationContext * ic,
+                                        GumDukInterceptor * parent)
+{
+  GumDukInvocationReturnValue * retval;
+  GumDukNativePointer * ptr;
+
+  retval = _gumjs_get_private_data (ctx, value);
+
+  ptr = &retval->parent;
+  ptr->instance_size = sizeof (GumDukInvocationReturnValue);
+  ptr->value = gum_invocation_context_get_return_value (ic);
+
+  retval->ic = ic;
 }
 
 static gboolean

@@ -32,6 +32,8 @@ struct _GumDukInterceptor
   gboolean cached_invocation_context_in_use;
   GumDukHeapPtr cached_invocation_args;
   gboolean cached_invocation_args_in_use;
+  GumDukHeapPtr cached_invocation_return_value;
+  gboolean cached_invocation_return_value_in_use;
 };
 
 G_GNUC_INTERNAL void _gum_duk_interceptor_init (GumDukInterceptor * self,
