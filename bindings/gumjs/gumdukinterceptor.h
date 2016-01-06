@@ -27,6 +27,9 @@ struct _GumDukInterceptor
   GumDukHeapPtr invocation_context;
   GumDukHeapPtr invocation_args;
   GumDukHeapPtr invocation_retval;
+
+  GumDukHeapPtr initial_invocation_args;
+  gboolean initial_invocation_args_in_use;
 };
 
 G_GNUC_INTERNAL void _gum_duk_interceptor_init (GumDukInterceptor * self,

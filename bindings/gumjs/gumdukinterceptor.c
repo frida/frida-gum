@@ -191,7 +191,15 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   duk_put_prop_string (ctx, -2, "prototype");
   // [ InvocationArgsCtor ]
   self->invocation_args = _gumjs_duk_require_heapptr (ctx, -1);
+  duk_dup (ctx, -1);
+  // [ InvocationArgsCtor InvocationArgsCtor ]
   duk_put_global_string (ctx, "InvocationArgs");
+  // [ InvocationArgsCtor ]
+  duk_new (ctx, 0);
+  // [ instance ]
+  self->initial_invocation_args_in_use = FALSE;
+  self->initial_invocation_args = _gumjs_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
   // []
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "InvocationReturnValue",
@@ -221,6 +229,7 @@ _gum_duk_interceptor_dispose (GumDukInterceptor * self)
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_context);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_args);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_retval);
+  _gumjs_duk_release_heapptr (self->core->ctx, self->initial_invocation_args);
 }
 
 void
@@ -445,11 +454,20 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
     GumDukScope scope;
     GumDukHeapPtr jic;
     GumDukHeapPtr args;
+    gboolean using_initial_invocation_args = FALSE;
 
     _gum_duk_scope_enter (&scope, core);
 
     jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
-    args = gumjs_invocation_args_new (ctx, ic, self);
+    if (!self->initial_invocation_args_in_use)
+    {
+      args = self->initial_invocation_args;
+      _gumjs_set_private_data (ctx, args, ic);
+      self->initial_invocation_args_in_use = TRUE;
+      using_initial_invocation_args = TRUE;
+    }
+    else
+      args = gumjs_invocation_args_new (ctx, ic, self);
 
     duk_push_heapptr (ctx, entry->on_enter);
     duk_push_heapptr (ctx, jic);
@@ -457,7 +475,10 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
     _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
-    gumjs_invocation_args_release (ctx, args);
+    if (using_initial_invocation_args)
+      self->initial_invocation_args_in_use = FALSE;
+    else
+      gumjs_invocation_args_release (ctx, args);
 
     if (entry->on_leave != NULL)
     {
