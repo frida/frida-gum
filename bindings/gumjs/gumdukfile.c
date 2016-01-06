@@ -130,17 +130,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
   return 0;
 }
 
-static gboolean
+static void
 gum_file_check_open (GumFile * self,
                      duk_context * ctx)
 {
   if (self->handle == NULL)
-  {
     _gumjs_throw (ctx, "file is closed");
-    return FALSE;
-  }
-
-  return TRUE;
 }
 
 static void
@@ -163,11 +158,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
     return 1;
   }
 
-  if (!gum_file_check_open (self, ctx))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  gum_file_check_open (self, ctx);
 
   if (value->type == DUK_TYPE_STRING)
   {
@@ -204,11 +195,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 {
   GumFile * self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
 
-  if (!gum_file_check_open (self, ctx))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  gum_file_check_open (self, ctx);
 
   fflush (self->handle);
 
@@ -219,11 +206,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_close)
 {
   GumFile * self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
 
-  if (!gum_file_check_open (self, ctx))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  gum_file_check_open (self, ctx);
 
   gum_file_close (self);
 
