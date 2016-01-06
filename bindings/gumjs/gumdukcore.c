@@ -1472,7 +1472,7 @@ gum_duk_native_function_finalize (GumDukNativeFunction * func)
     g_free (head->data);
     func->data = g_slist_delete_link (func->data, head);
   }
-  g_free (func->atypes);
+  g_clear_pointer (&func->atypes, g_free);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
