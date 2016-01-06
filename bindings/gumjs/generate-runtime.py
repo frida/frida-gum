@@ -57,7 +57,7 @@ static const {entry_type} {entries_identifier}[] =
 
         output_file.write("\n  { NULL, { NULL } }\n};")
 
-def generate_runtime_duk(output_dir, output, input_dir, inputs):
+def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
     with codecs.open(os.path.join(output_dir, output), 'wb', 'utf-8') as output_file:
         output_file.write("""\
 #include "gumdukbundle.h"
@@ -79,22 +79,25 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs):
 
         modules = []
 
-        for input_name_es6 in inputs:
-            input_path_es6 = os.path.join(input_dir, input_name_es6)
+        for input_name in inputs + polyfills:
+            input_path = os.path.join(input_dir, input_name)
 
-            base, ext = os.path.splitext(input_name_es6)
-
-            input_name_es5 = base + "-es5" + ext
-            input_path_es5 = os.path.join(output_dir, input_name_es5)
+            base, ext = os.path.splitext(input_name)
 
             input_name_duk = base + ".duk"
             input_path_duk = os.path.join(output_dir, input_name_duk)
 
             input_identifier = "gum_duk_script_runtime_module_" + identifier(base)
 
-            subprocess.call(["./node_modules/.bin/babel", "--presets", "es2015", os.path.abspath(input_path_es6), "-o", os.path.abspath(input_path_es5)], cwd=input_dir)
+            if input_name not in polyfills:
+                input_name_es5 = base + "-es5" + ext
+                input_path_es5 = os.path.join(output_dir, input_name_es5)
 
-            subprocess.call([dukcompile, input_path_es5, input_path_duk])
+                subprocess.call(["./node_modules/.bin/babel", "--presets", "es2015", os.path.abspath(input_path), "-o", os.path.abspath(input_path_es5)], cwd=input_dir)
+
+                subprocess.call([dukcompile, input_path_es5, input_path_duk])
+            else:
+                subprocess.call([dukcompile, input_path, input_path_duk])
 
             with open(input_path_duk, 'rb') as duk:
                 code = duk.read()
@@ -210,8 +213,7 @@ if __name__ == '__main__':
         generate_runtime_jsc(output_dir, "gumjscscript-runtime.h", input_dir, modules +
                              jsc_polyfill_modules)
     if platform.system() != 'Windows':
-        generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules +
-                             duk_polyfill_modules)
+        generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules, duk_polyfill_modules)
 
     generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
         "gumjs-debug.js",
