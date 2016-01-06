@@ -191,10 +191,6 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   // []
   _gumjs_duk_add_properties_to_class (ctx, "InvocationContext",
       gumjs_invocation_context_values);
-  new_ic = gumjs_invocation_context_new (ctx, NULL, 0, self);
-  self->cached_invocation_context = _gumjs_duk_create_proxy_accessors (ctx,
-        new_ic, NULL, gumjs_cached_invocation_context_set_property);
-  self->cached_invocation_context_in_use = FALSE;
 
   duk_push_c_function (ctx, gumjs_invocation_args_construct, 0);
   // [ InvocationArgsCtor ]
@@ -205,8 +201,6 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->invocation_args = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "InvocationArgs");
   // []
-  self->cached_invocation_args = gumjs_invocation_args_new (ctx, NULL, self);
-  self->cached_invocation_args_in_use = FALSE;
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "InvocationReturnValue",
       gumjs_invocation_return_value_construct, 1, NULL);
@@ -219,8 +213,16 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->invocation_retval = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
   // []
+
+  new_ic = gumjs_invocation_context_new (ctx, NULL, 0, self);
+  self->cached_invocation_context = _gumjs_duk_create_proxy_accessors (ctx,
+        new_ic, NULL, gumjs_cached_invocation_context_set_property);
+  self->cached_invocation_context_in_use = FALSE;
+  self->cached_invocation_args = gumjs_invocation_args_new (ctx, NULL, self);
+  self->cached_invocation_args_in_use = FALSE;
   self->cached_invocation_return_value = gumjs_invocation_return_value_new (ctx,
         NULL, self);
+  self->cached_invocation_return_value_in_use = FALSE;
 }
 
 void
