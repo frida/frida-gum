@@ -909,7 +909,6 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "  send(typeof module.path === 'string');"
         "  send(module.base instanceof NativePointer);"
         "  send(typeof module.size === 'number');"
-        "  print (JSON.stringify(module));"
         "  send(JSON.stringify(module) !== \"{}\");"
         "  return 'stop';"
         "},"
@@ -1100,7 +1099,6 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateExports(\"%s\", {"
         "onMatch: function (exp) {"
-        "  print (JSON.stringify (exp));"
         "  send('onMatch');"
         "  send(typeof exp.type === 'string');"
         "  send(typeof exp.name === 'string');"
