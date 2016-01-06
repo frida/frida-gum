@@ -1079,6 +1079,9 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
   GumDukNativePointer * self;
 
+  if (duk_get_top (ctx) == 0)
+    return 0;
+
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
 
