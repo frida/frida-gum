@@ -904,6 +904,10 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
       "Process.enumerateModules({"
         "onMatch: function (module) {"
         "  send('onMatch');"
+        "  send(typeof module.name === 'string');"
+        "  send(typeof module.path === 'string');"
+        "  send(module.base instanceof NativePointer);"
+        "  send(typeof module.size === 'number');"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -911,6 +915,10 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "}"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
@@ -1089,6 +1097,9 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
       "Module.enumerateExports(\"%s\", {"
         "onMatch: function (exp) {"
         "  send('onMatch');"
+        "  send(typeof exp.type === 'string');"
+        "  send(typeof exp.name === 'string');"
+        "  send(exp.address instanceof NativePointer);"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -1096,6 +1107,9 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
         "}"
       "});", SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
