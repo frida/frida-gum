@@ -908,6 +908,7 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "  send(typeof module.path === 'string');"
         "  send(module.base instanceof NativePointer);"
         "  send(typeof module.size === 'number');"
+        "  send(JSON.stringify(module) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -915,6 +916,7 @@ SCRIPT_TESTCASE (process_modules_can_be_enumerated)
         "}"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
@@ -1100,6 +1102,7 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
         "  send(typeof exp.type === 'string');"
         "  send(typeof exp.name === 'string');"
         "  send(exp.address instanceof NativePointer);"
+        "  send(JSON.stringify(exp) !== \"{}\");"
         "  return 'stop';"
         "},"
         "onComplete: function () {"
@@ -1107,6 +1110,7 @@ SCRIPT_TESTCASE (module_exports_can_be_enumerated)
         "}"
       "});", SYSTEM_MODULE_NAME);
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
