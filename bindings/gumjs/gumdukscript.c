@@ -396,7 +396,7 @@ gum_duk_script_create_context (GumDukScript * self,
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
-  gum_duk_bundle_load (gum_duk_script_runtime_sources, priv->ctx);
+  gum_duk_bundle_load (gum_duk_script_runtime_modules, priv->ctx);
 
   _gum_duk_scope_leave (&scope);
 

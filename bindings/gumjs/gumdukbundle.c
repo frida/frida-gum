@@ -9,42 +9,18 @@
 #include "gumdukscript-priv.h"
 
 void
-gum_duk_bundle_load (const GumDukSource * sources,
+gum_duk_bundle_load (const GumDukRuntimeModule * modules,
                      duk_context * ctx)
 {
-  const GumDukSource * cur;
+  const GumDukRuntimeModule * cur;
 
-  for (cur = sources; cur->name != NULL; cur++)
+  for (cur = modules; cur->code != NULL; cur++)
   {
-    gchar * source, * url;
-    int result;
-
-    source = g_strjoinv (NULL, (gchar **) cur->chunks);
-
-    url = g_strconcat ("file:///", cur->name, NULL);
-
-    duk_push_string (ctx, source);
-    duk_push_string (ctx, url);
-
-    result = duk_pcompile (ctx, DUK_COMPILE_EVAL);
-    if (result != 0)
-    {
-      duk_get_prop_string (ctx, -1, "stack");
+    duk_push_external_buffer (ctx);
+    duk_config_buffer (ctx, -1, (void *) cur->code, cur->size);
+    duk_load_function (ctx);
+    if (duk_pcall (ctx, 0) != DUK_EXEC_SUCCESS)
       _gumjs_panic (ctx, duk_safe_to_string (ctx, -1));
-      duk_pop (ctx);
-    }
-
-    result = duk_pcall (ctx, 0);
-    if (result != 0)
-    {
-      duk_get_prop_string (ctx, -1, "stack");
-      _gumjs_panic (ctx, duk_safe_to_string (ctx, -1));
-      duk_pop (ctx);
-    }
-
     duk_pop (ctx);
-
-    g_free (url);
-    g_free (source);
   }
 }

@@ -11,17 +11,15 @@
 
 #include <glib.h>
 
-#define GUM_MAX_SCRIPT_SOURCE_CHUNKS 6
+typedef struct _GumDukRuntimeModule GumDukRuntimeModule;
 
-typedef struct _GumDukSource GumDukSource;
-
-struct _GumDukSource
+struct _GumDukRuntimeModule
 {
-  const gchar * name;
-  const gchar * chunks[GUM_MAX_SCRIPT_SOURCE_CHUNKS];
+  gconstpointer code;
+  gsize size;
 };
 
-G_GNUC_INTERNAL void gum_duk_bundle_load (const GumDukSource * sources,
+G_GNUC_INTERNAL void gum_duk_bundle_load (const GumDukRuntimeModule * modules,
     duk_context * ctx);
 
 #endif
