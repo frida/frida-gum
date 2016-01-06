@@ -1310,7 +1310,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   for (i = 0; i != nargs_total; i++)
   {
     GumDukValue * atype_value;
-    gchar * name;
     gboolean is_marker;
 
     duk_get_prop_index (ctx, -1, i);
@@ -1320,14 +1319,15 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     if (atype_value == NULL)
       goto error;
 
-    if (_gumjs_value_string_try_get (ctx, atype_value, &name))
+    if (atype_value->type == DUK_TYPE_STRING)
     {
-      is_marker = strcmp (name, "...") == 0;
+      is_marker = strcmp (atype_value->data._string, "...") == 0;
     }
     else
     {
       is_marker = FALSE;
     }
+
 
     if (is_marker)
     {
@@ -1340,10 +1340,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     else if (!gumjs_ffi_type_try_get (ctx, atype_value,
         &func->atypes[is_variadic ? i - 1 : i], &func->data))
     {
-      g_free (atype_value);
+      _gumjs_release_value (ctx, atype_value);
       goto error;
     }
-    g_free (atype_value);
+    _gumjs_release_value (ctx, atype_value);
   }
   duk_pop (ctx);
   if (is_variadic)
@@ -1513,10 +1513,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
       arg_value = _gumjs_get_value (ctx, i);
       if (!gumjs_value_to_ffi_type (ctx, arg_value, t, args->core, v))
       {
-        g_free (arg_value);
+        _gumjs_release_value (ctx, arg_value);
         goto error;
       }
-      g_free (arg_value);
+      _gumjs_release_value (ctx, arg_value);
       avalue[i] = v;
 
       offset += t->size;
@@ -1554,22 +1554,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 
   if (result != NULL)
   {
-    switch (result->type)
-    {
-      case DUK_TYPE_STRING:
-        duk_push_string (ctx, result->data._string);
-        break;
-      case DUK_TYPE_NUMBER:
-        duk_push_number (ctx, result->data._number);
-        break;
-      case DUK_TYPE_BOOLEAN:
-        duk_push_boolean (ctx, result->data._boolean);
-        break;
-      case DUK_TYPE_OBJECT:
-        duk_push_heapptr (ctx, result->data._heapptr);
-        break;
-    }
-    g_free (result);
+    _gumjs_push_value (ctx, result);
+    _gumjs_release_value (ctx, result);
   }
   return 1;
 
@@ -1615,10 +1601,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &callback->data))
   {
-    g_free (rtype_value);
+    _gumjs_release_value (ctx, rtype_value);
     goto error;
   }
-  g_free (rtype_value);
+  _gumjs_release_value (ctx, rtype_value);
 
   if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &nargs))
     goto error;
@@ -1646,12 +1632,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     if (!gumjs_ffi_type_try_get (ctx, atype_value, &callback->atypes[i],
         &callback->data))
     {
-      g_free (atype_value);
+      _gumjs_release_value (ctx, atype_value);
       duk_pop (ctx);
       // []
       goto error;
     }
-    g_free (atype_value);
+    _gumjs_release_value (ctx, atype_value);
   }
   duk_pop (ctx);
   // []
@@ -1777,32 +1763,14 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
         &argv[i]))
       goto beach;
   }
-
   duk_push_heapptr (ctx, self->func);
   for (i = 0; i != cif->nargs; i++)
   {
     GumDukValue * arg = argv[i];
 
-    switch (arg->type)
-    {
-      case DUK_TYPE_OBJECT:
-        duk_push_heapptr (ctx, arg->data._heapptr);
-        _gumjs_duk_release_heapptr (ctx, arg->data._heapptr);
-        break;
-      case DUK_TYPE_STRING:
-        duk_push_string (ctx, arg->data._string);
-        break;
-      case DUK_TYPE_BOOLEAN:
-        duk_push_boolean (ctx, arg->data._boolean);
-        break;
-      case DUK_TYPE_NUMBER:
-        duk_push_number (ctx, arg->data._number);
-        break;
-      default:
-        g_assert_not_reached ();
-    }
+    _gumjs_push_value (ctx, arg);
 
-    g_free (argv[i]);
+    _gumjs_release_value (ctx, argv[i]);
   }
 
   if (_gum_duk_scope_call (&scope, cif->nargs))
@@ -1814,7 +1782,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   if (cif->rtype != &ffi_type_void && result != NULL)
   {
     gumjs_value_to_ffi_type (ctx, result, cif->rtype, core, retval);
-    g_free (result);
+    _gumjs_release_value (ctx, result);
   }
 
 beach:
@@ -2116,15 +2084,14 @@ gumjs_ffi_type_try_get (duk_context * ctx,
                         GSList ** data)
 {
   gboolean success = FALSE;
-  gchar * name = NULL;
   guint i;
 
-  if (_gumjs_value_string_try_get (ctx, value, &name))
+  if (value->type == DUK_TYPE_STRING)
   {
     for (i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
       const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
-      if (strcmp (name, m->name) == 0)
+      if (strcmp (value->data._string, m->name) == 0)
       {
         *type = m->type;
         success = TRUE;
@@ -2159,10 +2126,10 @@ gumjs_ffi_type_try_get (duk_context * ctx,
 
       if (!gumjs_ffi_type_try_get (ctx, field_value, &fields[i], data))
       {
-        g_free (field_value);
+        _gumjs_release_value (ctx, field_value);
         goto beach;
       }
-      g_free (field_value);
+      _gumjs_release_value (ctx, field_value);
     }
     duk_pop (ctx);
 
@@ -2374,10 +2341,10 @@ gumjs_value_to_ffi_type (duk_context * ctx,
       if (!gumjs_value_to_ffi_type (ctx, field_svalue, field_type, core,
           field_value))
       {
-        g_free (field_svalue);
+        _gumjs_release_value (ctx, field_svalue);
         return FALSE;
       }
-      g_free (field_svalue);
+      _gumjs_release_value (ctx, field_svalue);
 
       offset += field_type->size;
     }
@@ -2541,11 +2508,21 @@ gumjs_value_from_ffi_type (duk_context * ctx,
       offset += field_type->size;
     }
 
-    /* TODO: make array
-    *svalue = JSObjectMakeArray (ctx, length, field_svalues, exception);
-    */
+    duk_push_array (ctx);
+    // [ array ]
     for (i = 0; i != length; i++)
-      g_free (field_svalues[i]);
+    {
+        _gumjs_push_value (ctx, field_svalues[i]);
+        // [ array fieldvalue ]
+        duk_put_prop_index (ctx, -2, i);
+        // [ array ]
+        _gumjs_release_value (ctx, field_svalues[i]);
+    }
+
+    *svalue = _gumjs_get_value (ctx, -1);
+    duk_pop (ctx);
+    // []
+
     if (*svalue == NULL)
       goto error;
   }

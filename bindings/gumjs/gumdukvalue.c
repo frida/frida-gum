@@ -1218,9 +1218,41 @@ _gumjs_get_value (duk_context * ctx,
   else if (duk_is_boolean (ctx, idx))
     value->data._boolean = duk_get_boolean (ctx, idx);
   else if (duk_is_object (ctx, idx))
-    value->data._heapptr = duk_get_heapptr (ctx, idx);
+    value->data._heapptr = _gumjs_duk_get_heapptr (ctx, idx);
 
   return value;
+}
+
+void
+_gumjs_release_value (duk_context * ctx,
+                      GumDukValue * value)
+{
+  if (value->type == DUK_TYPE_OBJECT)
+    _gumjs_duk_release_heapptr (ctx, value->data._heapptr);
+  g_free (value);
+}
+
+void
+_gumjs_push_value (duk_context * ctx,
+                   GumDukValue * value)
+{
+  switch (value->type)
+  {
+    case (DUK_TYPE_BOOLEAN):
+      duk_push_boolean (ctx, value->data._boolean);
+      break;
+    case (DUK_TYPE_STRING):
+      duk_push_string (ctx, value->data._string);
+      break;
+    case (DUK_TYPE_NUMBER):
+      duk_push_number (ctx, value->data._number);
+      break;
+    case (DUK_TYPE_OBJECT):
+      duk_push_heapptr (ctx, value->data._heapptr);
+      break;
+    defualt:
+      g_assert_not_reached ();
+  }
 }
 
 gboolean
