@@ -28,6 +28,7 @@ struct _GumDukInvocationContext
   GumInvocationContext * handle;
   GumDukHeapPtr cpu_context;
   gint depth;
+
   GumDukInterceptor * interceptor;
 };
 
@@ -65,8 +66,7 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_context_construct)
 static GumDukHeapPtr gumjs_invocation_context_new (duk_context * ctx,
     GumInvocationContext * handle, gint depth,
     GumDukInterceptor * parent);
-static void
-gumjs_invocation_context_set_data (duk_context * ctx,
+static void gumjs_invocation_context_set_data (duk_context * ctx,
     GumDukHeapPtr jic, GumInvocationContext * handle, gint depth);
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 static void gumjs_invocation_context_release (duk_context * ctx,
@@ -189,10 +189,10 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   // []
   _gumjs_duk_add_properties_to_class (ctx, "InvocationContext",
       gumjs_invocation_context_values);
-  self->cached_invocation_context_in_use = FALSE;
   new_ic = gumjs_invocation_context_new (ctx, NULL, 0, self);
   self->cached_invocation_context = _gumjs_duk_create_proxy_accessors (ctx,
         new_ic, NULL, gumjs_cached_invocation_context_set_property);
+  self->cached_invocation_context_in_use = FALSE;
 
   duk_push_c_function (ctx, gumjs_invocation_args_construct, 0);
   // [ InvocationArgsCtor ]
@@ -203,8 +203,8 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->invocation_args = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "InvocationArgs");
   // []
-  self->cached_invocation_args_in_use = FALSE;
   self->cached_invocation_args = gumjs_invocation_args_new (ctx, NULL, self);
+  self->cached_invocation_args_in_use = FALSE;
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "InvocationReturnValue",
       gumjs_invocation_return_value_construct, 1, NULL);
@@ -233,8 +233,9 @@ _gum_duk_interceptor_dispose (GumDukInterceptor * self)
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_context);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_args);
   _gumjs_duk_release_heapptr (self->core->ctx, self->invocation_retval);
-  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_args);
+
   _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_context);
+  _gumjs_duk_release_heapptr (self->core->ctx, self->cached_invocation_args);
 }
 
 void
@@ -482,7 +483,9 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
       using_cached_invocation_args = TRUE;
     }
     else
+    {
       args = gumjs_invocation_args_new (ctx, ic, self);
+    }
 
     duk_push_heapptr (ctx, entry->on_enter);
     duk_push_heapptr (ctx, jic);
@@ -502,7 +505,7 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
     }
     else
     {
-      if (self->cached_invocation_context == jic)
+      if (jic == self->cached_invocation_context)
         self->cached_invocation_context_in_use = FALSE;
       else
         gumjs_invocation_context_release (ctx, jic);
@@ -552,7 +555,9 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
         self->cached_invocation_context_in_use = TRUE;
       }
       else
+      {
         jic = gumjs_invocation_context_new (ctx, ic, *depth, self);
+      }
     }
 
     retval = gumjs_invocation_return_value_new (ctx, ic, self);
@@ -613,6 +618,7 @@ gumjs_invocation_context_set_data (duk_context * ctx,
                                    gint depth)
 {
   GumDukInvocationContext * self = _gumjs_get_private_data (ctx, jic);
+
   self->handle = handle;
   self->depth = depth;
 }
@@ -779,11 +785,14 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
 
 GUMJS_DEFINE_SETTER (gumjs_cached_invocation_context_set_property)
 {
-  GumDukHeapPtr target = _gumjs_duk_require_heapptr (ctx, 0);
-  const gchar * property = duk_safe_to_string (ctx, 1);
-  GumDukHeapPtr receiver = _gumjs_duk_require_heapptr (ctx, 3);
+  GumDukHeapPtr target;
+  const gchar * property;
+  GumDukHeapPtr receiver;
   GumDukInvocationContext * self;
 
+  target = _gumjs_duk_require_heapptr (ctx, 0);
+  property = duk_safe_to_string (ctx, 1);
+  receiver = _gumjs_duk_require_heapptr (ctx, 3);
   self = GUM_DUK_INVOCATION_CONTEXT (target);
 
   duk_dup (ctx, 2);
@@ -791,7 +800,7 @@ GUMJS_DEFINE_SETTER (gumjs_cached_invocation_context_set_property)
   duk_put_prop_string (ctx, 0, property);
   // [ target property value receiver ]
 
-  if (self->interceptor->cached_invocation_context == receiver)
+  if (receiver == self->interceptor->cached_invocation_context)
   {
     GumDukHeapPtr new_ic;
 
