@@ -462,10 +462,7 @@ GUMJS_DEFINE_GETTER (gumjs_module_import_get_type)
   details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
 
   if (details->type == GUM_IMPORT_UNKNOWN)
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+    return 0;
 
   duk_push_string (ctx,
       (details->type == GUM_IMPORT_FUNCTION) ? "function" : "variable");
@@ -489,10 +486,7 @@ GUMJS_DEFINE_GETTER (gumjs_module_import_get_module)
   details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
 
   if (details->module == NULL)
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+    return 0;
 
   duk_push_string (ctx, details->module);
   return 1;
@@ -506,10 +500,7 @@ GUMJS_DEFINE_GETTER (gumjs_module_import_get_address)
   details = GUMJS_MODULE_IMPORT_DETAILS (_gumjs_duk_get_this (ctx));
 
   if (details->address == 0)
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+    return 0;
 
   result = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
       args->core);
