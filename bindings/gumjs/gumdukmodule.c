@@ -454,6 +454,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_import_finalize)
   g_free ((gchar *) details->module);
 
   g_slice_free (GumImportDetails, details);
+
   return 0;
 }
 
@@ -561,6 +562,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_module_export_finalize)
   g_free ((gchar *) details->name);
 
   g_slice_free (GumExportDetails, details);
+
   return 0;
 }
 

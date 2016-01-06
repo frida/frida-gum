@@ -1085,6 +1085,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
 
   g_slice_free1 (self->instance_size, self);
+
   return 0;
 }
 
@@ -1455,9 +1456,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
+  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
 
   gum_duk_native_function_finalize (self);
+
   return 0;
 }
 

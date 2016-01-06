@@ -227,9 +227,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
     return 0;
 
-  instruction = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
+  instruction = GUMJS_INSTRUCTION (duk_require_heapptr (ctx, 0));
 
   g_slice_free (GumInstruction, instruction);
+
   return 0;
 }
 

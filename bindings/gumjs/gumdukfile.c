@@ -116,14 +116,17 @@ beach:
 
 GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
 {
+  GumFile * file;
+
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "File"))
     return 0;
 
-  GumFile * file = GUMJS_FILE (_gumjs_duk_get_this (ctx));
+  file = GUMJS_FILE (duk_require_heapptr (ctx, 0));
 
   gum_file_close (file);
 
   g_slice_free (GumFile, file);
+
   return 0;
 }
 

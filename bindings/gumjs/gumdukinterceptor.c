@@ -564,7 +564,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "InvocationContext"))
     return 0;
 
-  self = GUM_DUK_INVOCATION_CONTEXT (_gumjs_duk_get_this (ctx));
+  self = GUM_DUK_INVOCATION_CONTEXT (duk_require_heapptr (ctx, 0));
 
   g_slice_free (GumDukInvocationContext, self);
   return 0;

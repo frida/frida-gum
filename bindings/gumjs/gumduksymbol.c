@@ -334,9 +334,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
     return 0;
 
-  symbol = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
+  symbol = GUMJS_SYMBOL (duk_require_heapptr (ctx, 0));
 
   g_slice_free (GumSymbol, symbol);
+
   return 0;
 }
 
