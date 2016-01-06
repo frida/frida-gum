@@ -272,8 +272,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   }
 
 beach:
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 
 invalid_size:
   {
@@ -714,8 +713,7 @@ gum_duk_memory_write (GumDukMemory * self,
   g_free (str_ansi);
 #endif
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 #ifdef G_OS_WIN32
@@ -856,8 +854,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
       g_slice_dup (GumMemoryScanContext, &sc),
       (GDestroyNotify) gum_memory_scan_context_free);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 
 invalid_match_pattern:
   {

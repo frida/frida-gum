@@ -170,6 +170,5 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   g_usleep (delay * G_USEC_PER_SEC);
 
 beach:
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }

@@ -176,8 +176,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean
@@ -234,8 +233,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean
@@ -293,8 +291,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean

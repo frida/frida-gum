@@ -189,8 +189,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   }
 
   g_free (value);
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 
 invalid_argument:
   {
@@ -213,8 +212,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 
   fflush (self->handle);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_close)
@@ -229,6 +227,5 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_close)
 
   gum_file_close (self);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }

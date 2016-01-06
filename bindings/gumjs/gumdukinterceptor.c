@@ -270,8 +270,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   g_queue_push_tail (self->attach_entries, entry);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 
 unable_to_attach:
   {
@@ -368,8 +367,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 
 unable_to_replace:
   {
@@ -423,8 +421,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 
   g_hash_table_remove (self->replacement_by_address, target);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 void
@@ -942,6 +939,5 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
 
   gum_invocation_context_replace_return_value (ic, ptr->value);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }

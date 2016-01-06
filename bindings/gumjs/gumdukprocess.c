@@ -171,8 +171,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean
@@ -246,8 +245,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean
@@ -324,8 +322,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static gboolean
@@ -419,8 +416,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   duk_call (ctx, 0);
   duk_pop (ctx);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 #else
   _gumjs_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
   duk_push_null (ctx);
@@ -497,8 +493,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
   if (old_handler != NULL)
     gum_duk_exception_handler_free (old_handler);
 
-  duk_push_undefined (ctx);
-  return 1;
+  return 0;
 }
 
 static GumDukExceptionHandler *
