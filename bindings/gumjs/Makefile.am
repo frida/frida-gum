@@ -112,8 +112,6 @@ duk_sources = \
 	gumdukscript-priv.h \
 	gumdukbundle.h \
 	gumdukbundle.c \
-	gumdukobject.h \
-	gumdukobject.c \
 	gumdukvalue.h \
 	gumdukvalue.c \
 	gumdukmacros.h \

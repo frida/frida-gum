@@ -8,7 +8,6 @@
 #define __GUM_DUKRIPT_CORE_H__
 
 #include "duktape.h"
-#include "gumdukobject.h"
 #include "gumdukscript.h"
 #include "gumdukscriptbackend.h"
 #include "gumscriptscheduler.h"
@@ -24,6 +23,7 @@ G_BEGIN_DECLS
 
 typedef struct _GumDukCore GumDukCore;
 typedef struct _GumDukScope GumDukScope;
+typedef gpointer GumDukHeapPtr;
 typedef struct _GumDukWeakRef GumDukWeakRef;
 
 typedef struct _GumDukScheduledCallback GumDukScheduledCallback;

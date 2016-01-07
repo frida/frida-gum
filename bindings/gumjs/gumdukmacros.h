@@ -7,7 +7,6 @@
 #ifndef __GUM_DUK_MACROS_H__
 #define __GUM_DUK_MACROS_H__
 
-#include "gumdukobject.h"
 #include "gumdukvalue.h"
 
 #define GUMJS_RO (DUK_DEFPROP_HAVE_WRITABLE | 0)
