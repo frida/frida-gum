@@ -16,6 +16,16 @@
 #endif
 
 #include <gum/gum-init.h>
+#include <gum/gumexceptor.h>
+
+static GumExceptor * cached_exceptor;
+
+static void
+gum_script_backend_release_cached_exceptor (void)
+{
+  g_object_unref (cached_exceptor);
+  cached_exceptor = NULL;
+}
 
 static void
 gum_script_backend_deinit_v8 (void)
@@ -47,6 +57,13 @@ gum_script_backend_get_type (void)
     gtype = g_type_register_static_simple (G_TYPE_INTERFACE, "GumScriptBackend",
         sizeof (GumScriptBackendIface), NULL, 0, NULL, 0);
     g_type_interface_add_prerequisite (gtype, G_TYPE_OBJECT);
+
+    /*
+     * Hold onto Exceptor to avoid creating and destroying it over and over,
+     * which isn't ideal with hooks being added and removed.
+     */
+    cached_exceptor = gum_exceptor_obtain ();
+    _gum_register_destructor (gum_script_backend_release_cached_exceptor);
 
     g_once_init_leave (&gonce_value, gtype);
   }
