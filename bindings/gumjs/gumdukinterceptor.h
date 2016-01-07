@@ -15,6 +15,10 @@ G_BEGIN_DECLS
 
 typedef struct _GumDukInterceptor GumDukInterceptor;
 
+typedef struct _GumDukInvocationContext GumDukInvocationContext;
+typedef struct _GumDukInvocationArgs GumDukInvocationArgs;
+typedef struct _GumDukInvocationReturnValue GumDukInvocationReturnValue;
+
 struct _GumDukInterceptor
 {
   GumDukCore * core;
@@ -28,13 +32,13 @@ struct _GumDukInterceptor
   GumDukHeapPtr invocation_args;
   GumDukHeapPtr invocation_retval;
 
-  GumDukHeapPtr cached_invocation_context;
+  GumDukInvocationContext * cached_invocation_context;
   gboolean cached_invocation_context_in_use;
 
-  GumDukHeapPtr cached_invocation_args;
+  GumDukInvocationArgs * cached_invocation_args;
   gboolean cached_invocation_args_in_use;
 
-  GumDukHeapPtr cached_invocation_return_value;
+  GumDukInvocationReturnValue * cached_invocation_return_value;
   gboolean cached_invocation_return_value_in_use;
 };
 

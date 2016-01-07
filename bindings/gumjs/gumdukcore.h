@@ -66,6 +66,8 @@ struct _GumDukCore
   guint last_callback_id;
 
   GHashTable * native_resources;
+
+  GumDukHeapPtr native_pointer;
 };
 
 struct _GumDukScope

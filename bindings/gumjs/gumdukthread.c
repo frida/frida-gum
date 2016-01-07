@@ -87,7 +87,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   gint selector = GUM_BACKTRACER_ACCURATE;
   GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs;
-  GumDukHeapPtr ret_address;
   guint i;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
@@ -123,10 +122,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   // [ newarray ]
   for (i = 0; i != ret_addrs.len; i++)
   {
-    ret_address = _gumjs_native_pointer_new (ctx, ret_addrs.items[i], core);
-    duk_push_heapptr (ctx, ret_address);
+    _gumjs_native_pointer_push (ctx, ret_addrs.items[i], core);
     // [ newarray element ]
-    _gumjs_duk_release_heapptr (ctx, ret_address);
     duk_put_prop_index (ctx, -2, i);
     // [ newarray ]
   }

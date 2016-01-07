@@ -139,12 +139,8 @@ gum_emit_import (const GumImportDetails * details,
 
   if (details->address != 0)
   {
-    GumDukHeapPtr address;
-
-    address = _gumjs_native_pointer_new (ctx,
-        GSIZE_TO_POINTER (details->address), core);
-    duk_push_heapptr (ctx, address);
-    _gumjs_duk_release_heapptr (ctx, address);
+    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (details->address),
+        core);
     duk_put_prop_string (ctx, -2, "address");
   }
 
@@ -195,7 +191,6 @@ gum_emit_export (const GumExportDetails * details,
   GumDukCore * core = self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr address;
   gboolean proceed;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -209,10 +204,7 @@ gum_emit_export (const GumExportDetails * details,
   duk_push_string (ctx, details->name);
   duk_put_prop_string (ctx, -2, "name");
 
-  address = _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (details->address),
-      core);
-  duk_push_heapptr (ctx, address);
-  _gumjs_duk_release_heapptr (ctx, address);
+  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (details->address), core);
   duk_put_prop_string (ctx, -2, "address");
 
   if (_gum_duk_scope_call_sync (&scope, 1))
@@ -263,8 +255,18 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
-  GumDukHeapPtr range, pointer;
   gboolean proceed;
+
+  duk_push_heapptr (ctx, mc->on_match);
+
+  duk_push_object (ctx);
+
+  _gumjs_native_pointer_push (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
 
   if ((details->prot & GUM_PAGE_READ) != 0)
     prot_str[0] = 'r';
@@ -273,27 +275,8 @@ gum_emit_range (const GumRangeDetails * details,
   if ((details->prot & GUM_PAGE_EXECUTE) != 0)
     prot_str[2] = 'x';
 
-  duk_push_object (ctx);
-
-  pointer = _gumjs_native_pointer_new (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_push_heapptr (ctx, pointer);
-  _gumjs_duk_release_heapptr (ctx, pointer);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
   duk_push_string (ctx, prot_str);
   duk_put_prop_string (ctx, -2, "protection");
-
-  range = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-
-  duk_push_heapptr (ctx, mc->on_match);
-  duk_push_heapptr (ctx, range);
-
-  _gumjs_duk_release_heapptr (ctx, range);
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
@@ -313,7 +296,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   GumDukCore * core = args->core;
   gchar * name;
   GumAddress address;
-  GumDukHeapPtr result;
 
   if (!_gumjs_args_parse (ctx, "s", &name))
   {
@@ -324,15 +306,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   address = gum_module_find_base_address (name);
 
   if (address != 0)
-  {
-    result =_gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
-    duk_push_heapptr (ctx, result);
-    _gumjs_duk_release_heapptr (ctx, result);
-  }
+    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
   else
-  {
     duk_push_null (ctx);
-  }
   return 1;
 }
 
@@ -341,7 +317,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   GumDukCore * core = args->core;
   gchar * module_name, * symbol_name;
   GumAddress address;
-  GumDukHeapPtr result;
 
   if (!_gumjs_args_parse (ctx, "s?s", &module_name, &symbol_name))
   {
@@ -352,15 +327,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   address = gum_module_find_export_by_name (module_name, symbol_name);
 
   if (address != 0)
-  {
-    result =_gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
-    duk_push_heapptr (ctx, result);
-    _gumjs_duk_release_heapptr (ctx, result);
-  }
+    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
   else
-  {
     duk_push_null (ctx);
-  }
-
   return 1;
 }

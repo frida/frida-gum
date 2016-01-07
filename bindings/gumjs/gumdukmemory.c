@@ -358,8 +358,7 @@ gum_duk_memory_read (GumDukMemory * self,
     switch (type)
     {
       case GUM_MEMORY_VALUE_POINTER:
-        duk_push_heapptr (ctx,
-            _gumjs_native_pointer_new (ctx, *((gpointer *) address), core));
+        _gumjs_native_pointer_push (ctx, *((gpointer *) address), core);
         break;
       case GUM_MEMORY_VALUE_S8:
         duk_push_number (ctx, *((gint8 *) address));
@@ -929,17 +928,13 @@ gum_memory_scan_context_emit_match (GumAddress address,
   GumDukCore * core = self->core;
   GumDukScope scope;
   duk_context * ctx = self->core->ctx;
-  GumDukHeapPtr match_address;
   gboolean proceed;
 
   _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->on_match);
 
-  match_address =
-      _gumjs_native_pointer_new (ctx, GSIZE_TO_POINTER (address), core);
-  duk_push_heapptr (ctx, match_address);
-  _gumjs_duk_release_heapptr (ctx, match_address);
+  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
   duk_push_number (ctx, size);
 
   proceed = TRUE;

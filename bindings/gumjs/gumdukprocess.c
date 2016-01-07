@@ -256,37 +256,25 @@ gum_emit_module (const GumModuleDetails * details,
   GumDukCore * core = mc->self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr module, pointer;
   gboolean proceed;
 
-  duk_push_object (ctx);
-  // [ newobj ]
-  duk_push_string (ctx, details->name);
-  // [ newobj name ]
-  duk_put_prop_string (ctx, -2, "name");
-  // [ newobj ]
-  pointer = _gumjs_native_pointer_new (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_push_heapptr (ctx, pointer);
-  _gumjs_duk_release_heapptr (ctx, pointer);
-  // [ newobj baseaddr ]
-  duk_put_prop_string (ctx, -2, "base");
-  // [ newobj ]
-  duk_push_uint (ctx, details->range->size);
-  // [ newobj size ]
-  duk_put_prop_string (ctx, -2, "size");
-  // [ newobj ]
-  duk_push_string (ctx, details->path);
-  // [ newobj path ]
-  duk_put_prop_string (ctx, -2, "path");
-  // [ newobj ]
-
-  module = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
-
   duk_push_heapptr (ctx, mc->on_match);
-  duk_push_heapptr (ctx, module);
+
+  duk_push_object (ctx);
+
+  duk_push_string (ctx, details->name);
+  duk_put_prop_string (ctx, -2, "name");
+
+  _gumjs_native_pointer_push (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
+
+  duk_push_string (ctx, details->path);
+  duk_put_prop_string (ctx, -2, "path");
+
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
     proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
@@ -334,9 +322,19 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
-  GumDukHeapPtr pointer;
   const GumFileMapping * f = details->file;
   gboolean proceed;
+
+  duk_push_heapptr (ctx, mc->on_match);
+
+  duk_push_object (ctx);
+
+  _gumjs_native_pointer_push (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
 
   if ((details->prot & GUM_PAGE_READ) != 0)
     prot_str[0] = 'r';
@@ -345,42 +343,22 @@ gum_emit_range (const GumRangeDetails * details,
   if ((details->prot & GUM_PAGE_EXECUTE) != 0)
     prot_str[2] = 'x';
 
-  duk_push_object (ctx);
-  // [ newobj ]
-  pointer = _gumjs_native_pointer_new (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_push_heapptr (ctx, pointer);
-  _gumjs_duk_release_heapptr (ctx, pointer);
-  // [ newobj baseaddr ]
-  duk_put_prop_string (ctx, -2, "base");
-  // [ newobj ]
-  duk_push_uint (ctx, details->range->size);
-  // [ newobj size ]
-  duk_put_prop_string (ctx, -2, "size");
-  // [ newobj ]
   duk_push_string (ctx, prot_str);
-  // [ newobj prot_str ]
   duk_put_prop_string (ctx, -2, "protection");
-  // [ newobj ]
 
   if (f != NULL)
   {
     duk_push_object (ctx);
-    // [ newobj newfileobj ]
+
     duk_push_string (ctx, f->path);
-    // [ newobj newfileobj path ]
     duk_put_prop_string (ctx, -2, "path");
-    // [ newobj newfileobj ]
+
     duk_push_uint (ctx, f->offset);
-    // [ newobj newfileobj offset ]
     duk_put_prop_string (ctx, -2, "offset");
-    // [ newobj newfileobj ]
+
     duk_put_prop_string (ctx, -2, "file");
   }
-  // [ newobj ]
 
-  duk_push_heapptr (ctx, mc->on_match);
-  duk_dup (ctx, -2);
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
     proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
@@ -389,7 +367,7 @@ gum_emit_range (const GumRangeDetails * details,
   {
     proceed = FALSE;
   }
-  duk_pop_2 (ctx);
+  duk_pop (ctx);
 
   return proceed;
 }
@@ -432,27 +410,19 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   GumDukCore * core = mc->self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr pointer;
   gboolean proceed;
 
-  duk_push_object (ctx);
-  // [ range ]
-  pointer = _gumjs_native_pointer_new (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_push_heapptr (ctx, pointer);
-  _gumjs_duk_release_heapptr (ctx, pointer);
-  // [ range base ]
-  duk_put_prop_string (ctx, -2, "base");
-  // [ range ]
-  duk_push_uint (ctx, details->range->size);
-  // [ range size ]
-  duk_put_prop_string (ctx, -2, "size");
-  // [ range ]
-
   duk_push_heapptr (ctx, mc->on_match);
-  // [ range on_match ]
-  duk_dup (ctx, -2);
-  // [ range on_match range ]
+
+  duk_push_object (ctx);
+
+  _gumjs_native_pointer_push (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
+
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
     proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
@@ -461,8 +431,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   {
     proceed = FALSE;
   }
-  // [ range result ]
-  duk_pop_2 (ctx);
+  duk_pop (ctx);
 
   return proceed;
 }

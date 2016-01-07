@@ -65,8 +65,7 @@ G_GNUC_INTERNAL gboolean _gumjs_value_uint64_try_get (duk_context * ctx,
     GumDukValue * value, guint64 * u);
 G_GNUC_INTERNAL gboolean _gumjs_value_number_try_get (duk_context * ctx,
     GumDukValue * value, gdouble * number);
-G_GNUC_INTERNAL gboolean _gumjs_uint_try_parse (duk_context * ctx,
-    const gchar * str, guint * u);
+G_GNUC_INTERNAL guint _gumjs_uint_parse (duk_context * ctx, const gchar * str);
 
 G_GNUC_INTERNAL gboolean _gumjs_value_string_try_get (duk_context * ctx,
     GumDukValue * value, gchar ** str);
@@ -80,9 +79,9 @@ G_GNUC_INTERNAL gboolean _gumjs_object_try_get (duk_context * ctx,
 G_GNUC_INTERNAL gboolean _gumjs_object_try_get_uint (duk_context * ctx,
     GumDukHeapPtr object, const gchar * key, guint * value);
 
-G_GNUC_INTERNAL GumDukHeapPtr _gumjs_native_pointer_new_priv (duk_context * ctx,
-    GumDukHeapPtr object, gpointer address, GumDukCore * core);
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_native_pointer_new (duk_context * ctx,
+    gpointer address, GumDukCore * core);
+G_GNUC_INTERNAL void _gumjs_native_pointer_push (duk_context * ctx,
     gpointer address, GumDukCore * core);
 G_GNUC_INTERNAL gpointer _gumjs_native_pointer_value (duk_context * ctx,
     GumDukHeapPtr value);

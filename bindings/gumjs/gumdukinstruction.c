@@ -208,18 +208,6 @@ gumjs_instruction_new (duk_context * ctx,
   return result;
 }
 
-static void
-gum_instruction_to_string (GumInstruction * self,
-                           duk_context * ctx)
-{
-  cs_insn * insn = &self->insn;
-  gchar * str;
-
-  str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
-  duk_push_string (ctx, str);
-  g_free (str);
-}
-
 GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
 {
   GumInstruction * instruction;
@@ -237,14 +225,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
 GUMJS_DEFINE_GETTER (gumjs_instruction_get_address)
 {
   GumInstruction * self;
-  GumDukHeapPtr result;
 
   self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
 
-  result = _gumjs_native_pointer_new (ctx,
-      GSIZE_TO_POINTER (self->insn.address), args->core);
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
+  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (self->insn.address),
+      args->core);
   return 1;
 }
 
@@ -252,14 +237,11 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_next)
 {
   GumInstruction * self;
   gpointer next;
-  GumDukHeapPtr result;
 
   self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
   next = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (self->target) + self->insn.size);
 
-  result =_gumjs_native_pointer_new (ctx, next, args->core);
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
+  _gumjs_native_pointer_push (ctx, next, args->core);
   return 1;
 }
 
@@ -290,6 +272,11 @@ GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
 {
   GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-  gum_instruction_to_string (self, ctx);
+  cs_insn * insn = &self->insn;
+  gchar * str;
+
+  str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
+  duk_push_string (ctx, str);
+  g_free (str);
   return 1;
 }

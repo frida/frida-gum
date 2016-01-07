@@ -39,8 +39,8 @@ GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
 
-static GumDukHeapPtr gumjs_pointer_array_to_value (duk_context * ctx,
-    GArray * pointers, GumDukCore * core);
+static void gumjs_pointer_array_push (duk_context * ctx, GArray * pointers,
+    GumDukCore * core);
 
 static const duk_function_list_entry gumjs_symbol_module_functions[] =
 {
@@ -198,7 +198,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   GumDukSymbol * self;
   gchar * name;
   gpointer address;
-  GumDukHeapPtr result;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -209,18 +208,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   }
 
   address = gum_find_function (name);
-  if (address != NULL)
+  if (address == NULL)
   {
-    result = _gumjs_native_pointer_new (ctx, address, args->core);
-  }
-  else
-  {
-    result = NULL;
-    _gumjs_throw (ctx, "unable to find function with name '%s'",
-        name);
+    _gumjs_throw (ctx, "unable to find function with name '%s'", name);
   }
 
-  duk_push_heapptr (ctx, result);
+  _gumjs_native_pointer_push (ctx, address, args->core);
   return 1;
 }
 
@@ -229,7 +222,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   GumDukSymbol * self;
   gchar * name;
   GArray * functions;
-  GumDukHeapPtr result;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -240,11 +232,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   }
 
   functions = gum_find_functions_named (name);
-  result = gumjs_pointer_array_to_value (ctx, functions, args->core);
+  gumjs_pointer_array_push (ctx, functions, args->core);
   g_array_free (functions, TRUE);
-
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
   return 1;
 }
 
@@ -253,7 +242,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   GumDukSymbol * self;
   gchar * str;
   GArray * functions;
-  GumDukHeapPtr result;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -264,10 +252,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   }
 
   functions = gum_find_functions_matching (str);
-  result = gumjs_pointer_array_to_value (ctx, functions, args->core);
+  gumjs_pointer_array_push (ctx, functions, args->core);
   g_array_free (functions, TRUE);
-
-  duk_push_heapptr (ctx, result);
   return 1;
 }
 
@@ -343,15 +329,10 @@ GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
 
 GUMJS_DEFINE_GETTER (gumjs_symbol_get_address)
 {
-  GumSymbol * self;
-  GumDukHeapPtr result;
+  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
 
-  self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  result = _gumjs_native_pointer_new (ctx,
+  _gumjs_native_pointer_push (ctx,
       GSIZE_TO_POINTER (self->details.address), args->core);
-  duk_push_heapptr (ctx, result);
-  _gumjs_duk_release_heapptr (ctx, result);
   return 1;
 }
 
@@ -405,30 +386,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
   return 1;
 }
 
-static GumDukHeapPtr
-gumjs_pointer_array_to_value (duk_context * ctx,
-                              GArray * pointers,
-                              GumDukCore * core)
+static void
+gumjs_pointer_array_push (duk_context * ctx,
+                          GArray * pointers,
+                          GumDukCore * core)
 {
   guint i;
-  GumDukHeapPtr item, array;
 
   duk_push_array (ctx);
-  // [ array ]
 
   for (i = 0; i != pointers->len; i++)
   {
     gpointer address = g_array_index (pointers, gpointer, i);
-    item = _gumjs_native_pointer_new (ctx, address, core);
-    duk_push_heapptr (ctx, item);
-    // [ array item ]
-    _gumjs_duk_release_heapptr (ctx, item);
+    _gumjs_native_pointer_push (ctx, address, core);
     duk_put_prop_index (ctx, -2, i);
-    // [ array ]
   }
-
-  array = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
-  return array;
 }

@@ -521,40 +521,29 @@ _gumjs_object_get (duk_context * ctx,
 }
 
 GumDukHeapPtr
-_gumjs_native_pointer_new_priv (duk_context * ctx,
-                                GumDukHeapPtr object,
-                                gpointer address,
-                                GumDukCore * core)
-{
-  GumDukNativePointer * ptr;
-
-  ptr = g_slice_new (GumDukNativePointer);
-  ptr->instance_size = sizeof (GumDukNativePointer);
-  ptr->value = address;
-
-  _gumjs_set_private_data (ctx, object, ptr);
-
-  return object;
-}
-
-GumDukHeapPtr
 _gumjs_native_pointer_new (duk_context * ctx,
                            gpointer address,
                            GumDukCore * core)
 {
   GumDukHeapPtr result;
 
-  duk_get_global_string (ctx, "NativePointer");
-  // [ NativePointer ]
+  duk_push_heapptr (ctx, core->native_pointer);
   duk_push_pointer (ctx, address);
-  // [ NativePointer address ]
   duk_new (ctx, 1);
-  // [ nativepointerinst ]
   result = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
-  // []
 
   return result;
+}
+
+void
+_gumjs_native_pointer_push (duk_context * ctx,
+                            gpointer address,
+                            GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->native_pointer);
+  duk_push_pointer (ctx, address);
+  duk_new (ctx, 1);
 }
 
 gpointer
@@ -1273,24 +1262,21 @@ _gumjs_object_try_get_uint (duk_context * ctx,
   return TRUE;
 }
 
-gboolean
-_gumjs_uint_try_parse (duk_context * ctx,
-                       const gchar * str,
-                       guint * u)
+guint
+_gumjs_uint_parse (duk_context * ctx,
+                   const gchar * str)
 {
   gchar * endptr;
   glong value;
   gboolean valid;
 
   value = strtol (str, &endptr, 10);
-  valid = *str != '\0' && *endptr == '\0' && value >= 0;
 
-  if (valid)
-    *u = value;
-  else
+  valid = *str != '\0' && *endptr == '\0' && value >= 0;
+  if (!valid)
     _gumjs_throw (ctx, "invalid uint");
 
-  return valid;
+  return value;
 }
 
 void

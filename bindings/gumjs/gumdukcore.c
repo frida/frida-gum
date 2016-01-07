@@ -237,20 +237,19 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
   GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
   { \
-    GumDukHeapPtr result; \
     GumDukCpuContext * self; \
+    \
     self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)); \
     \
-    result =_gumjs_native_pointer_new (ctx, \
-        GSIZE_TO_POINTER (self->handle->R), args->core); \
-    duk_push_heapptr (ctx, result); \
-    _gumjs_duk_release_heapptr (ctx, result); \
+    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (self->handle->R), \
+        args->core); \
     return 1; \
   } \
   \
   GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
   { \
     GumDukCpuContext * self; \
+    \
     self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)); \
     \
     gumjs_cpu_context_set_register (self, ctx, args, \
@@ -541,6 +540,7 @@ _gum_duk_core_init (GumDukCore * self,
   // [ construct newprotoobj ]
   duk_put_prop_string (ctx, -2, "prototype");
   // [ construct ]
+  self->native_pointer = duk_get_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
   // [ ]
 
@@ -1053,6 +1053,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   GumDukHeapPtr object;
   gpointer ptr = NULL;
+  GumDukNativePointer * priv;
 
   object = _gumjs_duk_try_get_this (ctx);
   if (object == NULL)
@@ -1069,10 +1070,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
     return 1;
   }
 
-  duk_push_heapptr (ctx,
-      _gumjs_native_pointer_new_priv (ctx, object, GSIZE_TO_POINTER (ptr),
-      args->core));
-  return 1;
+  priv = g_slice_new (GumDukNativePointer);
+  priv->instance_size = sizeof (GumDukNativePointer);
+  priv->value = ptr;
+
+  _gumjs_set_private_data (ctx, object, priv);
+
+  return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
@@ -1128,8 +1132,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     \
     result = GSIZE_TO_POINTER (lhs op rhs); \
     \
-    duk_push_heapptr (ctx, _gumjs_native_pointer_new (ctx, result, \
-        args->core)); \
+    _gumjs_native_pointer_push (ctx, result, args->core); \
     return 1; \
   }
 
