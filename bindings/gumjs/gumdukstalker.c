@@ -57,6 +57,7 @@ _gum_duk_stalker_init (GumDukStalker * self,
                        GumDukCore * core)
 {
   duk_context * ctx = core->ctx;
+  GumDukHeapPtr m;
 
   self->core = core;
   self->stalker = NULL;
@@ -64,19 +65,14 @@ _gum_duk_stalker_init (GumDukStalker * self,
   self->queue_drain_interval = 250;
 
   duk_push_c_function (ctx, gumjs_stalker_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_stalker_functions);
-  _gumjs_duk_add_properties_to_class_by_heapptr (ctx, duk_require_heapptr (ctx,
-        -1), gumjs_stalker_values);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ instance ]
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  m = duk_require_heapptr (ctx, -1);
+  _gumjs_duk_add_properties_to_class_by_heapptr (ctx, m, gumjs_stalker_values);
+  _gumjs_set_private_data (ctx, m, self);
   duk_put_global_string (ctx, "Stalker");
-  // []
 }
 
 void
