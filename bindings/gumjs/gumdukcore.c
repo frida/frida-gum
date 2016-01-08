@@ -481,41 +481,26 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_global_string (ctx, "Kernel");
 
   duk_push_object (ctx);
-  // [ newobject ]
   duk_push_string (ctx, FRIDA_VERSION);
-  // [ newobject FRIDA_VERSION ]
   duk_put_prop_string (ctx, -2, "version");
-  // [ newobject ]
   duk_put_global_string (ctx, "Frida");
-  // [ ]
 
   duk_push_object (ctx);
-  // [ newobject ]
   duk_push_string (ctx, "DUK");
-  // [ newobject DUK ]
   duk_put_prop_string (ctx, -2, "runtime");
-  // [ newobject ]
   duk_push_object (ctx);
-  // [ newobject newproto ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ newobject ]
   _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_script_values);
   duk_put_global_string (ctx, "Script");
-  // [ ]
 
   duk_push_c_function (ctx, gumjs_weak_ref_construct, 0);
-  // [ newobject ]
   duk_push_object (ctx);
-  // [ newobject newproto ]
   duk_put_function_list (ctx, -1, gumjs_weak_ref_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ newobject ]
   duk_new (ctx, 0);
-  // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "WeakRef");
-  // [ ]
 
   GUMJS_ADD_GLOBAL_FUNCTION ("setTimeout", gumjs_set_timeout, 2);
   GUMJS_ADD_GLOBAL_FUNCTION ("clearTimeout", gumjs_clear_timer, 1);
@@ -530,48 +515,31 @@ _gum_duk_core_init (GumDukCore * self,
   GUMJS_ADD_GLOBAL_FUNCTION ("_waitForEvent", gumjs_wait_for_event, 0);
 
   duk_push_c_function (ctx, gumjs_native_pointer_construct, 1);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct newprotoobj ]
   duk_put_function_list (ctx, -1, gumjs_native_pointer_functions);
   duk_push_c_function (ctx, gumjs_native_pointer_finalize, 0);
-  // [ construct newprotoobj finalize ]
   duk_set_finalizer (ctx, -2);
-  // [ construct newprotoobj ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   self->native_pointer = duk_get_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
-  // [ ]
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
       gumjs_native_function_construct, 4, gumjs_native_function_finalize);
   duk_get_global_string (ctx, "NativeFunction");
-  // [ NativeFunction ]
   duk_get_prop_string (ctx, -1, "prototype");
-  // [ NativeFunction prototype ]
   duk_push_c_function (ctx, gumjs_native_function_invoke, 0);
-  // [ NativeFunction prototype invoke ]
   duk_put_prop_string (ctx, -2, "invoke");
-  // [ NativeFunction prototype ]
   duk_pop_2 (ctx);
-  // [ ]
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
       gumjs_native_callback_construct, 4, gumjs_native_callback_finalize);
 
   duk_push_c_function (ctx, gumjs_cpu_context_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct newprotoobj ]
   duk_push_c_function (ctx, gumjs_cpu_context_finalize, 0);
-  // [ construct newprotoobj finalize ]
   duk_set_finalizer (ctx, -2);
-  // [ construct newprotoobj ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_put_global_string (ctx, "CpuContext");
-  // [ ]
   _gumjs_duk_add_properties_to_class (ctx, "CpuContext",
       gumjs_cpu_context_values);
 }
@@ -1405,28 +1373,19 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   _gumjs_set_private_data (ctx, result, func);
 
   duk_push_c_function (ctx, gumjs_native_function_invoke, nargs_total);
-  // [ invoke ]
   duk_push_string (ctx, "bind");
-  // [ invoke bind ]
   duk_push_heapptr (ctx, result);
-  // [ invoke bind nativefunction ]
   duk_call_prop (ctx, -3, 1);
-  // [ invoke ]
   duk_get_global_string (ctx, "NativeFunction");
-  // [ invoke NativeFunction ]
   duk_get_prop_string (ctx, -1, "prototype");
-  // [ invoke NativeFunction nativefuncproto ]
   duk_set_prototype (ctx, -3);
-  // [ invoke NativeFunction ]
   duk_pop (ctx);
-  // [ invoke ]
   result = _gumjs_duk_require_heapptr (ctx, -1);
   /* we need the private data on both the original NativeFunction,
    * and on the bound callable. */
   _gumjs_set_private_data (ctx, result, func);
 
   duk_pop (ctx);
-  // []
 
   goto beach;
 
@@ -1641,21 +1600,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback->atypes = g_new (ffi_type *, nargs);
   duk_push_heapptr (ctx, atypes_array);
-  // [ atypes_array ]
   for (i = 0; i != nargs; i++)
   {
     GumDukValue * atype_value;
 
     duk_get_prop_index (ctx, -1, i);
-    // [ atypes_array prop_i ]
     atype_value = _gumjs_get_value (ctx, -1);
     duk_pop (ctx);
-    // [ atypes_array ]
 
     if (atype_value == NULL)
     {
       duk_pop (ctx);
-      // []
       goto error;
     }
 
@@ -1664,13 +1619,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     {
       _gumjs_release_value (ctx, atype_value);
       duk_pop (ctx);
-      // []
       goto error;
     }
     _gumjs_release_value (ctx, atype_value);
   }
   duk_pop (ctx);
-  // []
 
   if (abi_str != NULL)
   {
@@ -2541,19 +2494,15 @@ gumjs_value_from_ffi_type (duk_context * ctx,
     }
 
     duk_push_array (ctx);
-    // [ array ]
     for (i = 0; i != length; i++)
     {
       _gumjs_push_value (ctx, field_svalues[i]);
-      // [ array fieldvalue ]
       duk_put_prop_index (ctx, -2, i);
-      // [ array ]
       _gumjs_release_value (ctx, field_svalues[i]);
     }
 
     *svalue = _gumjs_get_value (ctx, -1);
     duk_pop (ctx);
-    // []
 
     if (*svalue == NULL)
       goto error;

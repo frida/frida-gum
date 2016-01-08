@@ -46,19 +46,13 @@ _gum_duk_file_init (GumDukFile * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_file_construct, 2);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_file_functions);
   duk_push_c_function (ctx, gumjs_file_finalize, 0);
-  // [ construct proto finalize ]
   duk_set_finalizer (ctx, -2);
-  // [ construct proto ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   self->file = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "File");
-  // []
 }
 
 void

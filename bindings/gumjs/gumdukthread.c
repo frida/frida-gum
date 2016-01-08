@@ -35,28 +35,18 @@ _gum_duk_thread_init (GumDukThread * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_thread_construct, 0);
-  // [ newobj ]
   duk_push_object (ctx);
-  // [ newobj newproto ]
   duk_put_function_list (ctx, -1, gumjs_thread_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ newobj ]
   duk_new (ctx, 0);
-  // [ newinst ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Thread");
-  // []
 
   duk_push_object (ctx);
-  // [ newobj ]
   duk_push_uint (ctx, GUM_BACKTRACER_ACCURATE);
-  // [ newobj GUM_BACKTRACER_ACCURATE ]
   duk_put_prop_string (ctx, -2, "ACCURATE");
-  // [ newobj ]
   duk_push_uint (ctx, GUM_BACKTRACER_FUZZY);
-  // [ newobj GUM_BACKTRACER_FUZZY ]
   duk_put_prop_string (ctx, -2, "FUZZY");
-  // [ newobj ]
   duk_put_global_string (ctx, "Backtracer");
   //
 }
@@ -119,13 +109,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
 
   duk_push_array (ctx);
-  // [ newarray ]
   for (i = 0; i != ret_addrs.len; i++)
   {
     _gumjs_native_pointer_push (ctx, ret_addrs.items[i], core);
-    // [ newarray element ]
     duk_put_prop_index (ctx, -2, i);
-    // [ newarray ]
   }
 
   return 1;

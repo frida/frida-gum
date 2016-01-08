@@ -92,30 +92,18 @@ _gum_duk_process_init (GumDukProcess * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_process_construct, 0);
-  // [ newobj ]
   duk_push_object (ctx);
-  // [ newobj newproto ]
   duk_put_function_list (ctx, -1, gumjs_process_functions);
   duk_push_string (ctx, GUM_SCRIPT_ARCH);
-  // [ newobj newproto arch ]
   duk_put_prop_string (ctx, -2, "arch");
-  // [ newobj newproto ]
   duk_push_string (ctx, GUM_SCRIPT_PLATFORM);
-  // [ newobj newproto platform ]
   duk_put_prop_string (ctx, -2, "platform");
-  // [ newobj newproto ]
   duk_push_uint (ctx, gum_query_page_size ());
-  // [ newobj newproto pagesize ]
   duk_put_prop_string (ctx, -2, "pageSize");
-  // [ newobj newproto ]
   duk_push_uint (ctx, GLIB_SIZEOF_VOID_P);
-  // [ newobj newproto ptrsize ]
   duk_put_prop_string (ctx, -2, "pointerSize");
-  // [ newobj newproto ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ newobj ]
   duk_new (ctx, 0);
-  // [ newinst ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Process");
 }
@@ -190,24 +178,17 @@ gum_emit_thread (const GumThreadDetails * details,
     return TRUE;
 
   duk_push_object (ctx);
-  // [ newobj ]
   duk_push_uint (ctx, details->id);
-  // [ newobj id ]
   duk_put_prop_string (ctx, -2, "id");
-  // [ newobj ]
   duk_push_string (ctx, _gumjs_thread_state_to_string (details->state));
-  // [ newobj state ]
   duk_put_prop_string (ctx, -2, "state");
   context = _gumjs_cpu_context_new (ctx,
       (GumCpuContext *) &details->cpu_context, GUM_CPU_CONTEXT_READONLY, core);
   duk_push_heapptr (ctx, context);
-  // [ newobj context ]
   duk_put_prop_string (ctx, -2, "context");
-  // [ newobj ]
 
   thread = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
-  // []
 
   duk_push_heapptr (ctx, mc->on_match);
   duk_push_heapptr (ctx, thread);
@@ -510,15 +491,12 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   _gumjs_parse_exception_details (ctx, details, core, &exception, &cpu_context);
 
   duk_push_heapptr (ctx, handler->callback);
-  // [ callback ]
   duk_push_heapptr (ctx, exception);
-  // [ callback exception ]
   _gumjs_duk_release_heapptr (ctx, exception);
   if (_gum_duk_scope_call (&scope, 1))
   {
     result = _gumjs_get_value (ctx, -1);
   }
-  // [ result ]
 
   _gumjs_cpu_context_detach (ctx, cpu_context);
 
@@ -531,7 +509,6 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   }
 
   duk_pop (ctx);
-  // []
 
   _gum_duk_scope_leave (&scope);
 

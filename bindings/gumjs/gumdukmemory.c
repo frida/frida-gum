@@ -162,30 +162,20 @@ _gum_duk_memory_init (GumDukMemory * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_memory_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct newproto ]
   duk_put_function_list (ctx, -1, gumjs_memory_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ newinstance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Memory");
-  // []
 
   duk_push_c_function (ctx, gumjs_memory_access_monitor_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct newproto ]
   duk_put_function_list (ctx, -1, gumjs_memory_access_monitor_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ newinstance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "MemoryAccessMonitor");
-  // []
 }
 
 void

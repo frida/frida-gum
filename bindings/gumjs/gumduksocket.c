@@ -53,17 +53,12 @@ _gum_duk_socket_init (GumDukSocket * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_socket_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_socket_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Socket");
-  // []
 }
 
 void
@@ -248,18 +243,12 @@ gumjs_socket_address_to_value (duk_context * ctx,
 #endif
 
       duk_push_object (ctx);
-      // [ newobj ]
       duk_push_string (ctx, ip);
-      // [ newobj ip ]
       duk_put_prop_string (ctx, -2, "ip");
-      // [ newobj ]
       duk_push_uint (ctx, GUINT16_FROM_BE (inet_addr->sin_port));
-      // [ newobj port ]
       duk_put_prop_string (ctx, -2, "port");
-      // [ newobj ]
       result = _gumjs_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
-      // []
       return result;
     }
     case AF_INET6:
@@ -285,32 +274,22 @@ gumjs_socket_address_to_value (duk_context * ctx,
 #endif
 
       duk_push_object (ctx);
-      // [ newobj ]
       duk_push_string (ctx, ip);
-      // [ newobj ip ]
       duk_put_prop_string (ctx, -2, "ip");
-      // [ newobj ]
       duk_push_uint (ctx, GUINT16_FROM_BE (inet_addr->sin6_port));
-      // [ newobj port ]
       duk_put_prop_string (ctx, -2, "port");
-      // [ newobj ]
       result = _gumjs_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
-      // []
       return result;
     }
     case AF_UNIX:
     {
       gchar * path = ""; /* FIXME */
       duk_push_object (ctx);
-      // [ newobj ]
       duk_push_string (ctx, path);
-      // [ newobj ip ]
       duk_put_prop_string (ctx, -2, "path");
-      // [ newobj ]
       result = _gumjs_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
-      // []
       return result;
     }
   }
