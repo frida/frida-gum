@@ -8,8 +8,6 @@
 
 #include "gumdukmacros.h"
 
-#include <string.h>
-
 #if defined (HAVE_I386)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_X86
 # if GLIB_SIZEOF_VOID_P == 8
@@ -27,29 +25,10 @@
 # error Unsupported architecture
 #endif
 
-#define GUMJS_INSTRUCTION(o) \
-  ((GumInstruction *) _gumjs_get_private_data (ctx, o))
-
-typedef struct _GumInstruction GumInstruction;
-
-struct _GumInstruction
-{
-  gpointer target;
-  cs_insn insn;
-};
-
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_instruction_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_parse)
 
-static GumDukHeapPtr gumjs_instruction_new (duk_context * ctx, gpointer target,
-    const cs_insn * insn, GumDukInstruction * parent);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_instruction_construct)
-GUMJS_DECLARE_FINALIZER (gumjs_instruction_finalize)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_address)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_next)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_size)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_mnemonic)
-GUMJS_DECLARE_GETTER (gumjs_instruction_get_op_str)
 GUMJS_DECLARE_FUNCTION (gumjs_instruction_to_string)
 
 static const duk_function_list_entry gumjs_instruction_module_functions[] =
@@ -57,17 +36,6 @@ static const duk_function_list_entry gumjs_instruction_module_functions[] =
   { "_parse", gumjs_instruction_parse, 1 },
 
   { NULL, NULL, 0 }
-};
-
-static const GumDukPropertyEntry gumjs_instruction_values[] =
-{
-  { "address", gumjs_instruction_get_address, NULL},
-  { "next", gumjs_instruction_get_next, NULL},
-  { "size", gumjs_instruction_get_size, NULL},
-  { "mnemonic", gumjs_instruction_get_mnemonic, NULL},
-  { "opStr", gumjs_instruction_get_op_str, NULL},
-
-  { NULL, NULL, NULL}
 };
 
 static const duk_function_list_entry gumjs_instruction_functions[] =
@@ -90,34 +58,19 @@ _gum_duk_instruction_init (GumDukInstruction * self,
   g_assert_cmpint (err, ==, CS_ERR_OK);
 
   duk_push_c_function (ctx, gumjs_instruction_module_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_instruction_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "Instruction");
-  // []
 
-  duk_push_c_function (ctx, gumjs_instruction_construct, 0);
-  // [ construct ]
+  duk_push_c_function (ctx, gumjs_instruction_construct, 2);
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_instruction_functions);
-  duk_push_c_function (ctx, gumjs_instruction_finalize, 0);
-  // [ construct proto finalize ]
-  duk_set_finalizer (ctx, -2);
-  // [ construct proto ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   self->instruction = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_put_global_string (ctx, "InstructionItem");
-  // []
-  _gumjs_duk_add_properties_to_class (ctx, "InstructionItem",
-      gumjs_instruction_values);
+  duk_pop (ctx);
 }
 
 void
@@ -143,7 +96,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   gpointer target;
   uint64_t address;
   cs_insn * insn;
-  GumDukHeapPtr instance;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -163,120 +115,74 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 
   if (cs_disasm (self->capstone, (uint8_t *) GSIZE_TO_POINTER (address), 16,
       address, 1, &insn) == 0)
-    goto invalid_instruction;
-  instance = gumjs_instruction_new (ctx, target, insn, self);
+    _gumjs_throw (ctx, "invalid instruction");
+
+  duk_push_heapptr (ctx, self->instruction);
+  duk_push_pointer (ctx, insn);
+  duk_push_pointer (ctx, target);
+  duk_new (ctx, 2);
+
   cs_free (insn, 1);
 
-  duk_push_heapptr (ctx, instance);
-  _gumjs_duk_release_heapptr (ctx, instance);
   return 1;
-
-invalid_instruction:
-  {
-    _gumjs_throw (ctx, "invalid instruction");
-    duk_push_null (ctx);
-    return 1;
-  }
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_construct)
 {
-  return 0;
-}
+  cs_insn * insn;
+  gpointer target;
 
-static GumDukHeapPtr
-gumjs_instruction_new (duk_context * ctx,
-                       gpointer target,
-                       const cs_insn * insn,
-                       GumDukInstruction * parent)
-{
-  GumInstruction * instruction;
-  GumDukHeapPtr result;
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "Constructor call required");
+    duk_throw (ctx);
+  }
 
-  instruction = g_slice_new (GumInstruction);
-  instruction->target = target;
-  memcpy (&instruction->insn, insn, sizeof (cs_insn));
+  insn = duk_require_pointer (ctx, 0);
+  target = duk_require_pointer (ctx, 1);
 
-  duk_push_heapptr (ctx, parent->instruction);
-  // [ instruction ]
-  duk_new (ctx, 0);
-  // [ instance ]
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), instruction);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  // []
-  return result;
-}
+  duk_push_this (ctx);
 
-GUMJS_DEFINE_FINALIZER (gumjs_instruction_finalize)
-{
-  GumInstruction * instruction;
-
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
-    return 0;
-
-  instruction = GUMJS_INSTRUCTION (duk_require_heapptr (ctx, 0));
-
-  g_slice_free (GumInstruction, instruction);
-
-  return 0;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_address)
-{
-  GumInstruction * self;
-
-  self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-
-  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (self->insn.address),
+  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (insn->address),
       args->core);
-  return 1;
-}
+  duk_put_prop_string (ctx, -2, "address");
 
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_next)
-{
-  GumInstruction * self;
-  gpointer next;
+  _gumjs_native_pointer_push (ctx,
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target) + insn->size), args->core);
+  duk_put_prop_string (ctx, -2, "next");
 
-  self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-  next = GSIZE_TO_POINTER (GPOINTER_TO_SIZE (self->target) + self->insn.size);
+  duk_push_number (ctx, insn->size);
+  duk_put_prop_string (ctx, -2, "size");
 
-  _gumjs_native_pointer_push (ctx, next, args->core);
-  return 1;
-}
+  duk_push_string (ctx, insn->mnemonic);
+  duk_put_prop_string (ctx, -2, "mnemonic");
 
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_size)
-{
-  GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
+  duk_push_string (ctx, insn->op_str);
+  duk_put_prop_string (ctx, -2, "opStr");
 
-  duk_push_number (ctx, self->insn.size);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_mnemonic)
-{
-  GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-
-  duk_push_string (ctx, self->insn.mnemonic);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_instruction_get_op_str)
-{
-  GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-
-  duk_push_string (ctx, self->insn.op_str);
-  return 1;
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
 {
-  GumInstruction * self = GUMJS_INSTRUCTION (_gumjs_duk_get_this (ctx));
-  cs_insn * insn = &self->insn;
-  gchar * str;
+  const gchar * mnemonic, * op_str;
+  gchar * result;
 
-  str = g_strconcat (insn->mnemonic, " ", insn->op_str, NULL);
-  duk_push_string (ctx, str);
-  g_free (str);
+  duk_push_this (ctx);
+
+  duk_get_prop_string (ctx, -1, "mnemonic");
+  mnemonic = duk_get_string (ctx, -1);
+
+  duk_get_prop_string (ctx, -2, "opStr");
+  op_str = duk_get_string (ctx, -1);
+
+  result = g_strconcat (mnemonic, " ", op_str, NULL);
+
+  duk_pop_3 (ctx);
+
+  duk_push_string (ctx, result);
+
+  g_free (result);
+
   return 1;
 }

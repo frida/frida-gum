@@ -210,7 +210,8 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
       "send(first.address.toInt32() !== 0);"
       "send(first.size > 0);"
       "send(typeof first.mnemonic);"
-      "send(typeof first.opStr);",
+      "send(typeof first.opStr);"
+      "send(JSON.stringify(first) !== \"{}\");",
       target_function_int);
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
@@ -219,6 +220,7 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
   EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
