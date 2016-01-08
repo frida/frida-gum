@@ -69,43 +69,30 @@ _gum_duk_file_finalize (GumDukFile * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
-  GumDukHeapPtr object;
-  gchar * filename = NULL;
-  gchar * mode = NULL;
+  const gchar * filename;
+  const gchar * mode;
   FILE * handle;
   GumFile * file;
 
-  object = _gumjs_duk_try_get_this (ctx);
-  if (object == NULL)
+  if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
         "Use `new File()` to create a new instance");
     duk_throw (ctx);
   }
 
-  if (!_gumjs_args_parse (ctx, "ss", &filename, &mode))
-    goto beach;
+  _gum_duk_require_args (ctx, "ss", &filename, &mode);
 
   handle = fopen (filename, mode);
   if (handle == NULL)
-    goto open_failed;
+    _gumjs_throw (ctx, "failed to open file (%s)", strerror (errno));
 
   file = g_slice_new (GumFile);
   file->handle = handle;
 
-  _gumjs_set_private_data (ctx, object, file);
+  _gumjs_set_private_data (ctx, _gumjs_duk_get_this (ctx), file);
 
-  goto beach;
-
-open_failed:
-  {
-    _gumjs_throw (ctx, "failed to open file (%s)", strerror (errno));
-    goto beach;
-  }
-beach:
-  {
-    return 0;
-  }
+  return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
@@ -141,24 +128,25 @@ gum_file_close (GumFile * self)
 GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 {
   GumFile * self;
-  GumDukValue * value;
+  GumDukHeapPtr value;
   GBytes * bytes;
 
   self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "V", &value))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "V", &value);
 
   gum_file_check_open (self, ctx);
 
-  if (value->type == DUK_TYPE_STRING)
+  duk_push_heapptr (ctx, value);
+  if (duk_is_string (ctx, -1))
   {
-    fwrite (value->data._string, strlen (value->data._string), 1, self->handle);
+    const gchar * str;
+
+    str = duk_get_string (ctx, -1);
+
+    fwrite (str, strlen (str), 1, self->handle);
   }
-  else if (_gumjs_byte_array_try_get (ctx, value, &bytes))
+  else if (_gum_duk_parse_bytes (ctx, -1, &bytes))
   {
     gconstpointer data;
     gsize size;
@@ -170,19 +158,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   }
   else
   {
-    goto invalid_argument;
-  }
-
-  g_free (value);
-  return 0;
-
-invalid_argument:
-  {
-    g_free (value);
     _gumjs_throw (ctx, "argument must be a string or byte array");
-    duk_push_null (ctx);
-    return 1;
   }
+  duk_pop (ctx);
+
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_flush)

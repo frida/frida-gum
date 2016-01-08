@@ -64,7 +64,7 @@ struct _GumDukReplaceEntry
 {
   GumInterceptor * interceptor;
   gpointer target;
-  GumDukValue * replacement;
+  GumDukHeapPtr replacement;
   GumDukCore * core;
 };
 
@@ -269,12 +269,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "pF{onEnter?,onLeave?}",
-      &target, &on_enter, &on_leave))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "pF{onEnter?,onLeave?}", &target,
+      &on_enter, &on_leave);
 
   entry = g_slice_new (GumDukAttachEntry);
   _gumjs_duk_protect (ctx, on_enter);
@@ -302,16 +298,13 @@ unable_to_attach:
       case GUM_ATTACH_WRONG_SIGNATURE:
         _gumjs_throw (ctx, "unable to intercept function at %p; "
             "please file a bug", target);
-        break;
       case GUM_ATTACH_ALREADY_ATTACHED:
         _gumjs_throw (ctx, "already attached to this function");
-        break;
       default:
         g_assert_not_reached ();
     }
 
-    duk_push_null (ctx);
-    return 1;
+    return 0;
   }
 }
 
@@ -354,24 +347,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   GumDukInterceptor * self;
   GumDukCore * core = args->core;
   gpointer target, replacement;
-  GumDukValue * replacement_value;
+  GumDukHeapPtr replacement_value;
   GumDukReplaceEntry * entry;
   GumReplaceReturn replace_ret;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "pV", &target, &replacement_value))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "pO", &target, &replacement_value);
 
-  if (!_gumjs_value_native_pointer_try_get (ctx, replacement_value, core,
-      &replacement))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  duk_push_heapptr (ctx, replacement_value);
+  if (!_gum_duk_get_pointer (ctx, -1, &replacement))
+    _gumjs_throw (ctx, "expected a pointer");
+  duk_pop (ctx);
 
   entry = g_slice_new (GumDukReplaceEntry);
   entry->interceptor = self->interceptor;
@@ -384,7 +371,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   if (replace_ret != GUM_REPLACE_OK)
     goto unable_to_replace;
 
-  _gumjs_duk_protect (ctx, replacement_value->data._heapptr);
+  _gumjs_duk_protect (ctx, replacement_value);
 
   g_hash_table_insert (self->replacement_by_address, target, entry);
 
@@ -399,16 +386,13 @@ unable_to_replace:
       case GUM_REPLACE_WRONG_SIGNATURE:
         _gumjs_throw (ctx, "unable to intercept function at %p; "
             "please file a bug", target);
-        break;
       case GUM_REPLACE_ALREADY_REPLACED:
         _gumjs_throw (ctx, "already replaced this function");
-        break;
       default:
         g_assert_not_reached ();
     }
 
-    duk_push_null (ctx);
-    return 1;
+    return 0;
   }
 }
 
@@ -419,8 +403,7 @@ gum_duk_replace_entry_free (GumDukReplaceEntry * entry)
 
   gum_interceptor_revert_function (entry->interceptor, entry->target);
 
-  _gumjs_duk_unprotect (core->ctx, entry->replacement->data._heapptr);
-  g_slice_free (GumDukValue, entry->replacement);
+  _gumjs_duk_unprotect (core->ctx, entry->replacement);
 
   g_slice_free (GumDukReplaceEntry, entry);
 }
@@ -434,11 +417,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   core = self->core;
 
-  if (!_gumjs_args_parse (ctx, "p", &target))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "p", &target);
 
   g_hash_table_remove (self->replacement_by_address, target);
 
@@ -723,11 +702,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
   gint value;
   GumDukInvocationContext * self;
 
-  if (!_gumjs_args_parse (ctx, "i", &value))
-  {
-    duk_push_boolean (ctx, FALSE);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "i", &value);
 
   self = GUM_DUK_INVOCATION_CONTEXT (_gumjs_duk_get_this (ctx));
 
@@ -993,7 +968,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
     _gumjs_throw (ctx, "invalid operation");
 
   ptr = &self->parent;
-  _gumjs_args_parse (ctx, "p~", &ptr->value);
+  _gum_duk_require_args (ctx, "p~", &ptr->value);
 
   gum_invocation_context_replace_return_value (self->ic, ptr->value);
 

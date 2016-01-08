@@ -1783,6 +1783,9 @@ SCRIPT_TESTCASE (function_can_be_reverted)
 
 SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
 {
+  COMPILE_AND_LOAD_SCRIPT ("Interceptor.attach();");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: missing argument");
+
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(ptr(\"0x1\"), {"
       "  onEnter: function (args) {"

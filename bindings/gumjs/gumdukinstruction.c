@@ -99,11 +99,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "p", &target))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "p", &target);
 
 #ifdef HAVE_ARM
   address = GPOINTER_TO_SIZE (target) & ~1;

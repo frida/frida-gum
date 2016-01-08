@@ -131,15 +131,10 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
   stalker = _gum_duk_stalker_get (_gumjs_get_private_data (ctx,
         _gumjs_duk_get_this (ctx)));
 
-  if (!_gumjs_args_parse (ctx, "i", &threshold))
-  {
-    duk_push_false (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "i", &threshold);
 
   gum_stalker_set_trust_threshold (stalker, threshold);
-  duk_push_true (ctx);
-  return 1;
+  return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
@@ -155,19 +150,11 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
   GumDukStalker * self;
-  guint capacity;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "u", &capacity))
-  {
-    duk_push_false (ctx);
-    return 1;
-  }
-
-  self->queue_capacity = capacity;
-  duk_push_true (ctx);
-  return 1;
+  _gum_duk_require_args (ctx, "u", &self->queue_capacity);
+  return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
@@ -183,19 +170,11 @@ GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
   GumDukStalker * self;
-  guint interval;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  if (!_gumjs_args_parse (ctx, "u", &interval))
-  {
-    duk_push_false (ctx);
-    return 1;
-  }
-
-  self->queue_drain_interval = interval;
-  duk_push_true (ctx);
-  return 1;
+  _gum_duk_require_args (ctx, "u", &self->queue_drain_interval);
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_throw_not_yet_available)

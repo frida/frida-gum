@@ -201,13 +201,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   guint size, page_size;
   GumDukHeapPtr handle;
 
-  if (!_gumjs_args_parse (ctx, "u", &size))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "u", &size);
+
   if (size == 0 || size > 0x7fffffff)
-    goto invalid_size;
+    _gumjs_throw (ctx, "invalid size");
 
   page_size = gum_query_page_size ();
 
@@ -224,13 +221,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   duk_push_heapptr (ctx, handle);
   return 1;
-
-invalid_size:
-  {
-    _gumjs_throw (ctx, "invalid size");
-    duk_push_null (ctx);
-    return 1;
-  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
@@ -241,15 +231,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   guint size;
   GumExceptorScope scope;
 
-  if (!_gumjs_args_parse (ctx, "ppu", &destination, &source, &size))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "ppu", &destination, &source, &size);
+
   if (size == 0)
-    goto beach;
+    return 0;
   else if (size > 0x7fffffff)
-    goto invalid_size;
+    _gumjs_throw (ctx, "invalid size");
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -261,15 +248,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
     _gumjs_throw_native (ctx, &scope.exception, core);
   }
 
-beach:
   return 0;
-
-invalid_size:
-  {
-    _gumjs_throw (ctx, "invalid size");
-    duk_push_null (ctx);
-    return 1;
-  }
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
@@ -277,30 +256,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
   gpointer address;
   guint size;
   GumPageProtection prot;
-  gboolean success = TRUE;
+  gboolean success;
 
-  if (!_gumjs_args_parse (ctx, "pum", &address, &size, &prot))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
-  if (size == 0)
-    goto beach;
-  else if (size > 0x7fffffff)
-    goto invalid_size;
+  _gum_duk_require_args (ctx, "pum", &address, &size, &prot);
 
-  success = gum_try_mprotect (address, size, prot);
-
-beach:
-  duk_push_boolean (ctx, success ? TRUE : FALSE);
-  return 1;
-
-invalid_size:
-  {
+  if (size > 0x7fffffff)
     _gumjs_throw (ctx, "invalid size");
-    duk_push_null (ctx);
-    return 1;
-  }
+
+  if (size != 0)
+    success = gum_try_mprotect (address, size, prot);
+  else
+    success = TRUE;
+
+  duk_push_boolean (ctx, success);
+  return 1;
 }
 
 static int
@@ -318,28 +287,16 @@ gum_duk_memory_read (GumDukMemory * self,
   switch (type)
   {
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gumjs_args_parse (ctx, "pi", &address, &length))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "pi", &address, &length);
       break;
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gumjs_args_parse (ctx, "p|i", &address, &length))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "p|i", &address, &length);
       break;
     default:
-      if (!_gumjs_args_parse (ctx, "p", &address))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "p", &address);
       break;
   }
 
@@ -553,7 +510,7 @@ gum_duk_memory_write (GumDukMemory * self,
   gpointer pointer;
   gdouble number;
   GBytes * bytes = NULL;
-  gchar * str = NULL;
+  const gchar * str = NULL;
   gsize str_length;
   gunichar2 * str_utf16 = NULL;
 #ifdef G_OS_WIN32
@@ -564,11 +521,7 @@ gum_duk_memory_write (GumDukMemory * self,
   switch (type)
   {
     case GUM_MEMORY_VALUE_POINTER:
-      if (!_gumjs_args_parse (ctx, "pp", &address, &pointer))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "pp", &address, &pointer);
       break;
     case GUM_MEMORY_VALUE_S8:
     case GUM_MEMORY_VALUE_U8:
@@ -580,27 +533,16 @@ gum_duk_memory_write (GumDukMemory * self,
     case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
-      if (!_gumjs_args_parse (ctx, "pn", &address, &number))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "pn", &address, &number);
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      if (!_gumjs_args_parse (ctx, "pB", &address, &bytes))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "pB", &address, &bytes);
       break;
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      if (!_gumjs_args_parse (ctx, "ps", &address, &str))
-      {
-        duk_push_null (ctx);
-        return 1;
-      }
+      _gum_duk_require_args (ctx, "ps", &address, &str);
+
       str_length = g_utf8_strlen (str, -1);
       if (type == GUM_MEMORY_VALUE_UTF16_STRING)
         str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
@@ -751,16 +693,13 @@ gum_ansi_string_from_utf8 (const gchar * str_utf8)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 {
 #ifdef G_OS_WIN32
-  gchar * str, * str_ansi;
+  const gchar * str;
+  gchar * str_ansi;
   GumDukHeapPtr handle;
 
-  if (!_gumjs_args_parse (ctx, "s", &str))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "s", &str);
+
   str_ansi = gum_ansi_string_from_utf8 (str);
-  g_free (str);
 
   _gumjs_native_resource_new (ctx, str_ansi, g_free, args->core, &handle);
 
@@ -768,24 +707,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   return 1;
 #else
   _gumjs_throw (ctx, "ANSI API is only applicable on Windows");
-  duk_push_null (ctx);
-  return 1;
+  return 0;
 #endif
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
 {
-  gchar * str, * strdup;
+  const gchar * str;
   GumDukHeapPtr handle;
 
-  if (!_gumjs_args_parse (ctx, "s", &str))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "s", &str);
 
-  strdup = g_strdup (str);
-  _gumjs_native_resource_new (ctx, strdup, g_free, args->core, &handle);
+  _gumjs_native_resource_new (ctx, g_strdup (str), g_free, args->core, &handle);
 
   duk_push_heapptr (ctx, handle);
   return 1;
@@ -793,15 +726,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 {
-  gchar * str;
+  const gchar * str;
   gunichar2 * str_utf16;
   GumDukHeapPtr handle;
 
-  if (!_gumjs_args_parse (ctx, "s", &str))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "s", &str);
+
   str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
 
   _gumjs_native_resource_new (ctx, str_utf16, g_free, args->core, &handle);
@@ -816,14 +746,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   GumMemoryScanContext sc;
   gpointer address;
   guint size;
-  gchar * match_str;
+  const gchar * match_str;
 
-  if (!_gumjs_args_parse (ctx, "pusF{onMatch,onError?,onComplete}", &address,
-      &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "pusF{onMatch,onError?,onComplete}",
+      &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete);
 
   sc.range.base_address = GUM_ADDRESS (address);
   sc.range.size = size;
@@ -831,7 +757,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.core = core;
 
   if (sc.pattern == NULL)
-    goto invalid_match_pattern;
+    _gumjs_throw (ctx, "invalid match pattern");
 
   _gumjs_duk_protect (ctx, sc.on_match);
   if (sc.on_error != NULL)
@@ -844,13 +770,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
       (GDestroyNotify) gum_memory_scan_context_free);
 
   return 0;
-
-invalid_match_pattern:
-  {
-    _gumjs_throw (ctx, "invalid match pattern");
-    duk_push_null (ctx);
-    return 1;
-  }
 }
 
 static void

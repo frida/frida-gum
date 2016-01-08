@@ -84,16 +84,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
   GumDukMatchContext mc;
-  gchar * name;
+  const gchar * name;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
-      &mc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_module_enumerate_imports (name, gum_emit_import, &mc);
@@ -160,16 +156,12 @@ gum_emit_import (const GumImportDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
   GumDukMatchContext mc;
-  gchar * name;
+  const gchar * name;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
-      &mc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_module_enumerate_exports (name, gum_emit_export, &mc);
@@ -228,12 +220,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "smF{onMatch,onComplete}", &name, &prot,
-      &mc.on_match, &mc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "smF{onMatch,onComplete}", &name, &prot,
+      &mc.on_match, &mc.on_complete);
   mc.ctx = ctx;
 
   gum_module_enumerate_ranges (name, prot, gum_emit_range, &mc);
@@ -294,14 +282,10 @@ gum_emit_range (const GumRangeDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 {
   GumDukCore * core = args->core;
-  gchar * name;
+  const gchar * name;
   GumAddress address;
 
-  if (!_gumjs_args_parse (ctx, "s", &name))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "s", &name);
 
   address = gum_module_find_base_address (name);
 
@@ -315,14 +299,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
   GumDukCore * core = args->core;
-  gchar * module_name, * symbol_name;
+  const gchar * module_name, * symbol_name;
   GumAddress address;
 
-  if (!_gumjs_args_parse (ctx, "s?s", &module_name, &symbol_name))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "s?s", &module_name, &symbol_name);
 
   address = gum_module_find_export_by_name (module_name, symbol_name);
 

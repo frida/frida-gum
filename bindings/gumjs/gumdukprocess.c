@@ -144,12 +144,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_process_enumerate_threads (gum_emit_thread, &mc);
@@ -211,12 +207,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_process_enumerate_modules (gum_emit_module, &mc);
@@ -276,12 +268,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "mF{onMatch,onComplete}", &prot, &mc.on_match,
-      &mc.on_complete))
-  {
-     duk_push_null (ctx);
-     return 1;
-  }
+  _gum_duk_require_args (ctx, "mF{onMatch,onComplete}", &prot, &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
@@ -360,12 +348,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  if (!_gumjs_args_parse (ctx, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete))
-  {
-     duk_push_null (ctx);
-     return 1;
-  }
+  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+      &mc.on_complete);
   mc.ctx = ctx;
 
   gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
@@ -427,11 +411,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   core = self->core;
 
-  if (!_gumjs_args_parse (ctx, "F?", &callback))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "F?", &callback);
 
   new_handler = (callback != NULL)
       ? gum_duk_exception_handler_new (callback, core)

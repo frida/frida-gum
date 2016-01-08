@@ -48,7 +48,6 @@ _gum_duk_thread_init (GumDukThread * self,
   duk_push_uint (ctx, GUM_BACKTRACER_FUZZY);
   duk_put_prop_string (ctx, -2, "FUZZY");
   duk_put_global_string (ctx, "Backtracer");
-  //
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
@@ -82,11 +81,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   core = self->core;
 
-  if (!_gumjs_args_parse (ctx, "|C?i", &cpu_context, &selector))
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
+  _gum_duk_require_args (ctx, "|C?i", &cpu_context, &selector);
 
   if (selector != GUM_BACKTRACER_ACCURATE && selector != GUM_BACKTRACER_FUZZY)
     goto invalid_selector;
@@ -144,7 +139,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   GumDukCore * core = args->core;
   gdouble delay;
 
-  _gumjs_args_parse (ctx, "n", &delay);
+  _gum_duk_require_args (ctx, "n", &delay);
 
   if (delay < 0)
     return 0;
