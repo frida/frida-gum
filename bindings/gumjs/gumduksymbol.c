@@ -10,17 +10,6 @@
 
 #include <gum/gumsymbolutil.h>
 
-#define GUMJS_SYMBOL(o) \
-  ((GumSymbol *) _gumjs_get_private_data (ctx, o))
-
-typedef struct _GumSymbol GumSymbol;
-
-struct _GumSymbol
-{
-  gboolean resolved;
-  GumSymbolDetails details;
-};
-
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_address)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
