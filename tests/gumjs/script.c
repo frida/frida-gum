@@ -241,9 +241,11 @@ SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
   COMPILE_AND_LOAD_SCRIPT (
       "var sym = DebugSymbol.fromAddress(" GUM_PTR_CONST ");"
       "send(sym.name);"
-      "send(sym.toString().indexOf(sym.name) !== -1);",
+      "send(sym.toString().indexOf(sym.name) !== -1);"
+      "send(JSON.stringify(sym) !== \"{}\");",
       target_function_int);
   EXPECT_SEND_MESSAGE_WITH ("\"target_function_int\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }

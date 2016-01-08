@@ -21,7 +21,6 @@ struct _GumSymbol
   GumSymbolDetails details;
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_construct)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_address)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
@@ -29,14 +28,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_named)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
 
-static GumDukHeapPtr gumjs_symbol_new (duk_context * ctx, GumDukSymbol * parent,
-    GumSymbol ** symbol);
-GUMJS_DECLARE_FINALIZER (gumjs_symbol_finalize)
-GUMJS_DECLARE_GETTER (gumjs_symbol_get_address)
-GUMJS_DECLARE_GETTER (gumjs_symbol_get_name)
-GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
-GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
-GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_symbol_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
 
 static void gumjs_pointer_array_push (duk_context * ctx, GArray * pointers,
@@ -51,17 +43,6 @@ static const duk_function_list_entry gumjs_symbol_module_functions[] =
   { "findFunctionsMatching", gumjs_symbol_find_functions_matching, 1 },
 
   { NULL, NULL, 0 }
-};
-
-static const GumDukPropertyEntry gumjs_symbol_values[] =
-{
-  { "address", gumjs_symbol_get_address, NULL },
-  { "name", gumjs_symbol_get_name, NULL},
-  { "moduleName", gumjs_symbol_get_module_name, NULL},
-  { "fileName", gumjs_symbol_get_file_name, NULL},
-  { "lineNumber", gumjs_symbol_get_line_number, NULL},
-
-  { NULL, NULL, NULL}
 };
 
 static const duk_function_list_entry gumjs_symbol_functions[] =
@@ -80,44 +61,19 @@ _gum_duk_symbol_init (GumDukSymbol * self,
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_symbol_module_construct, 0);
-  // [ construct ]
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_symbol_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   duk_new (ctx, 0);
-  // [ instance ]
   _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
   duk_put_global_string (ctx, "DebugSymbol");
-  // []
 
-  duk_push_c_function (ctx, gumjs_symbol_construct, 0);
-  // [ construct ]
+  duk_push_c_function (ctx, gumjs_symbol_construct, 2);
   duk_push_object (ctx);
-  // [ construct proto ]
   duk_put_function_list (ctx, -1, gumjs_symbol_functions);
-  duk_push_c_function (ctx, gumjs_symbol_finalize, 0);
-  // [ construct proto finalize ]
-  duk_set_finalizer (ctx, -2);
-  // [ construct proto ]
   duk_put_prop_string (ctx, -2, "prototype");
-  // [ construct ]
   self->symbol = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_put_global_string (ctx, "DebugSymbolItem");
-  // []
-  _gumjs_duk_add_properties_to_class (ctx, "DebugSymbolItem",
-      gumjs_symbol_values);
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
-{
-  return 0;
-}
-
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
-{
-  return 0;
+  duk_pop (ctx);
 }
 
 void
@@ -133,12 +89,16 @@ _gum_duk_symbol_finalize (GumDukSymbol * self)
   (void) self;
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
+{
+  return 0;
+}
+
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 {
   GumDukSymbol * self;
   gpointer address;
-  GumSymbol * symbol;
-  GumDukHeapPtr instance;
+  GumSymbolDetails details;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -148,13 +108,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
     return 1;
   }
 
-  instance = gumjs_symbol_new (ctx, self, &symbol);
-  symbol->details.address = GPOINTER_TO_SIZE (address);
-  symbol->resolved =
-      gum_symbol_details_from_address (address, &symbol->details);
-
-  duk_push_heapptr (ctx, instance);
-  _gumjs_duk_release_heapptr (ctx, instance);
+  duk_push_heapptr (ctx, self->symbol);
+  duk_push_pointer (ctx, address);
+  if (gum_symbol_details_from_address (address, &details))
+    duk_push_pointer (ctx, &details);
+  else
+    duk_push_pointer (ctx, NULL);
+  duk_new (ctx, 2);
   return 1;
 }
 
@@ -162,9 +122,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 {
   GumDukSymbol * self;
   gchar * name;
-  GumSymbol * symbol;
-  GumDukHeapPtr instance;
   gpointer address;
+  GumSymbolDetails details;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -174,22 +133,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
     return 1;
   }
 
-  instance = gumjs_symbol_new (ctx, self, &symbol);
-
+  duk_push_heapptr (ctx, self->symbol);
   address = gum_find_function (name);
-  if (address != NULL)
-  {
-    symbol->resolved =
-        gum_symbol_details_from_address (address, &symbol->details);
-  }
+  duk_push_pointer (ctx, address);
+  if (address != NULL && gum_symbol_details_from_address (address, &details))
+    duk_push_pointer (ctx, &details);
   else
-  {
-    symbol->resolved = FALSE;
-    symbol->details.address = 0;
-  }
-
-  duk_push_heapptr (ctx, instance);
-  _gumjs_duk_release_heapptr (ctx, instance);
+    duk_push_pointer (ctx, NULL);
+  duk_new (ctx, 2);
   return 1;
 }
 
@@ -209,9 +160,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
   address = gum_find_function (name);
   if (address == NULL)
-  {
     _gumjs_throw (ctx, "unable to find function with name '%s'", name);
-  }
 
   _gumjs_native_pointer_push (ctx, address, args->core);
   return 1;
@@ -257,40 +206,53 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   return 1;
 }
 
-static GumDukHeapPtr
-gumjs_symbol_new (duk_context * ctx,
-                  GumDukSymbol * parent,
-                  GumSymbol ** symbol)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 {
-  GumSymbol * s;
-  GumDukHeapPtr result;
-
-  s = g_slice_new (GumSymbol);
-  s->resolved = FALSE;
-
-  *symbol = s;
-
-  duk_push_heapptr (ctx, parent->symbol);
-  // [ DebugSymbolInstance ]
-  duk_new (ctx, 0);
-  // [ instance ]
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), s);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-  return result;
-}
-
-static GumDukHeapPtr
-gum_symbol_to_string (GumSymbol * self,
-                      duk_context * ctx)
-{
-  GumSymbolDetails * d = &self->details;
+  gpointer address;
+  GumSymbolDetails * d;
   GString * s;
-  GumDukHeapPtr result;
+
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "Constructor call required");
+    duk_throw (ctx);
+  }
+
+  address = duk_require_pointer (ctx, 0);
+  d = duk_require_pointer (ctx, 1);
+
+  duk_push_this (ctx);
+
+  _gumjs_native_pointer_push (ctx, address, args->core);
+  duk_put_prop_string (ctx, -2, "address");
+
+  if (d != NULL)
+    duk_push_string (ctx, d->symbol_name);
+  else
+    duk_push_null (ctx);
+  duk_put_prop_string (ctx, -2, "name");
+
+  if (d != NULL)
+    duk_push_string (ctx, d->module_name);
+  else
+    duk_push_null (ctx);
+  duk_put_prop_string (ctx, -2, "moduleName");
+
+  if (d != NULL)
+    duk_push_string (ctx, d->file_name);
+  else
+    duk_push_null (ctx);
+  duk_put_prop_string (ctx, -2, "fileName");
+
+  if (d != NULL)
+    duk_push_number (ctx, d->line_number);
+  else
+    duk_push_null (ctx);
+  duk_put_prop_string (ctx, -2, "lineNumber");
 
   s = g_string_new ("0");
 
-  if (self->resolved)
+  if (d != NULL)
   {
     g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s",
         d->address,
@@ -300,89 +262,25 @@ gum_symbol_to_string (GumSymbol * self,
       g_string_append_printf (s, " %s:%u", d->file_name, d->line_number);
     }
   }
-  else if (d->address != 0)
+  else if (address != NULL)
   {
-    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x",
+        GUM_ADDRESS (address));
   }
 
   duk_push_string (ctx, s->str);
-  result = (GumDukHeapPtr) duk_require_string (ctx, -1);
 
   g_string_free (s, TRUE);
 
-  return result;
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_symbol_finalize)
-{
-  GumSymbol * symbol;
-
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "DebugSymbol"))
-    return 0;
-
-  symbol = GUMJS_SYMBOL (duk_require_heapptr (ctx, 0));
-
-  g_slice_free (GumSymbol, symbol);
+  duk_put_prop_string (ctx, -2, "\xff" "description");
 
   return 0;
 }
 
-GUMJS_DEFINE_GETTER (gumjs_symbol_get_address)
-{
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  _gumjs_native_pointer_push (ctx,
-      GSIZE_TO_POINTER (self->details.address), args->core);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_symbol_get_name)
-{
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  if (self->resolved)
-    duk_push_string (ctx, self->details.symbol_name);
-  else
-    duk_push_null (ctx);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_symbol_get_module_name)
-{
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  if (self->resolved)
-    duk_push_string (ctx, self->details.module_name);
-  else
-    duk_push_null(ctx);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_symbol_get_file_name)
-{
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  if (self->resolved)
-    duk_push_string (ctx, self->details.file_name);
-  else
-    duk_push_null (ctx);
-  return 1;
-}
-
-GUMJS_DEFINE_GETTER (gumjs_symbol_get_line_number)
-{
-  GumSymbol * self = GUMJS_SYMBOL (_gumjs_duk_get_this (ctx));
-
-  if (self->resolved)
-    duk_push_number (ctx, self->details.line_number);
-  else
-    duk_push_null (ctx);
-  return 1;
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
 {
-  gum_symbol_to_string (GUMJS_SYMBOL (_gumjs_duk_get_this (ctx)), ctx);
+  duk_push_this (ctx);
+  duk_get_prop_string (ctx, -1, "\xff" "description");
   return 1;
 }
 
