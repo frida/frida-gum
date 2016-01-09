@@ -517,7 +517,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_c_function (ctx, gumjs_native_pointer_construct, 1);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_native_pointer_functions);
-  duk_push_c_function (ctx, gumjs_native_pointer_finalize, 0);
+  duk_push_c_function (ctx, gumjs_native_pointer_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->native_pointer = duk_get_heapptr (ctx, -1);
@@ -536,7 +536,7 @@ _gum_duk_core_init (GumDukCore * self,
 
   duk_push_c_function (ctx, gumjs_cpu_context_construct, 0);
   duk_push_object (ctx);
-  duk_push_c_function (ctx, gumjs_cpu_context_finalize, 0);
+  duk_push_c_function (ctx, gumjs_cpu_context_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_put_global_string (ctx, "CpuContext");
