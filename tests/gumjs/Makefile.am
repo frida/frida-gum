@@ -6,9 +6,6 @@ if OS_DARWIN
 os_sources += \
 	script-darwin.m \
 	$(NULL)
-else
-libgum_tests_gumjs_la_LIBTOOLFLAGS = \
-	--tag=CC
 endif
 
 libgum_tests_gumjs_la_SOURCES = \
@@ -16,6 +13,8 @@ libgum_tests_gumjs_la_SOURCES = \
 	kscript.c \
 	$(os_sources) \
 	$(NULL)
+libgum_tests_gumjs_la_LIBTOOLFLAGS = \
+	--tag=CC
 
 AM_CPPFLAGS = \
 	-include config.h \

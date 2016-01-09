@@ -14,9 +14,6 @@ endif
 if OS_MAC
 arch_sources += \
 	arch-x86/stalker-x86-mac.m
-else
-libgum_tests_core_la_LIBTOOLFLAGS = \
-	--tag=CC
 endif
 
 libgum_tests_core_la_SOURCES = \
@@ -37,6 +34,8 @@ libgum_tests_core_la_SOURCES = \
 	$(arch_sources) \
 	$(os_sources) \
 	$(script_sources)
+libgum_tests_core_la_LIBTOOLFLAGS = \
+	--tag=CC
 
 mapper_test_SOURCES = \
 	mapper.c
