@@ -1211,7 +1211,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "pVAs?", &fn, &rtype_value, &atypes_array,
+  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_value, &atypes_array,
       &abi_str);
 
   func = g_slice_new0 (GumDukNativeFunction);
@@ -1492,9 +1492,8 @@ error:
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
   GumDukHeapPtr result = NULL;
-  GumDukHeapPtr func, rtype_heap_value;
+  GumDukHeapPtr func, rtype_heap_value, atypes_array;
   GumDukValue * rtype_value;
-  GumDukHeapPtr atypes_array;
   gchar * abi_str = NULL;
   GumDukCore * core = args->core;
   GumDukNativeCallback * callback;
@@ -1510,7 +1509,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "FVAs?", &func, &rtype_heap_value, &atypes_array,
+  _gum_duk_require_args (ctx, "FVA|s", &func, &rtype_heap_value, &atypes_array,
       &abi_str);
 
   duk_push_heapptr (ctx, rtype_heap_value);
