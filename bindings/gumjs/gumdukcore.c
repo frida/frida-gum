@@ -1194,8 +1194,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   GumDukHeapPtr result = NULL;
   GumDukCore * core = args->core;
   gpointer fn;
+  GumDukHeapPtr rtype_heap_value, atypes_array;
   GumDukValue * rtype_value;
-  GumDukHeapPtr atypes_array;
   const gchar * abi_str = NULL;
   GumDukNativeFunction * func;
   GumDukNativePointer * ptr;
@@ -1211,8 +1211,12 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_value, &atypes_array,
+  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_heap_value, &atypes_array,
       &abi_str);
+
+  duk_push_heapptr (ctx, rtype_heap_value);
+  rtype_value = _gumjs_get_value (ctx, -1);
+  duk_pop (ctx);
 
   func = g_slice_new0 (GumDukNativeFunction);
   ptr = &func->parent;
