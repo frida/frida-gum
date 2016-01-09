@@ -434,7 +434,7 @@ _gum_duk_get_pointer (duk_context * ctx,
   }
   else if (duk_is_pointer (ctx, index))
   {
-    ptr = duk_get_pointer (ctx, index);
+    *ptr = duk_get_pointer (ctx, index);
   }
   else
   {
