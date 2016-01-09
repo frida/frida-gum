@@ -599,7 +599,6 @@ _gum_duk_core_emit_message (GumDukCore * self,
                             const gchar * message,
                             GBytes * data)
 {
-  g_print ("%s\n", message);
   self->message_emitter (self->script, message, data);
 }
 
