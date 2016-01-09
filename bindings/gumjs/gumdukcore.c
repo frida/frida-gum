@@ -1013,6 +1013,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
     return 0;
 
   self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   g_slice_free1 (self->instance_size, self);
 
@@ -1358,6 +1360,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
     return 0;
 
   self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   gum_duk_native_function_finalize (self);
 
@@ -1628,6 +1632,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
     return 0;
 
   self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   gum_duk_native_callback_finalize (self);
 
@@ -1727,6 +1733,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
     return 0;
 
   self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   g_slice_free (GumDukCpuContext, self);
 

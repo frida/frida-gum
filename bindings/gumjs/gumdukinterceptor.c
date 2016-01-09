@@ -640,6 +640,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
     return 0;
 
   self = GUM_DUK_INVOCATION_CONTEXT (duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   g_slice_free (GumDukInvocationContext, self);
 
@@ -831,6 +833,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
     return 0;
 
   self = GUM_DUK_INVOCATION_ARGS (duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   g_slice_free (GumDukInvocationArgs, self);
 
@@ -952,6 +956,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_return_value_finalize)
     return 0;
 
   self = GUM_DUK_INVOCATION_RETURN_VALUE (duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
   g_slice_free (GumDukInvocationReturnValue, self);
 

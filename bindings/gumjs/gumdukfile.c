@@ -97,16 +97,18 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
 {
-  GumFile * file;
+  GumFile * self;
 
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "File"))
     return 0;
 
-  file = GUMJS_FILE (duk_require_heapptr (ctx, 0));
+  self = GUMJS_FILE (duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
 
-  gum_file_close (file);
+  gum_file_close (self);
 
-  g_slice_free (GumFile, file);
+  g_slice_free (GumFile, self);
 
   return 0;
 }
