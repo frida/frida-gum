@@ -1750,7 +1750,8 @@ SCRIPT_TESTCASE (callbacks_can_be_detached)
 SCRIPT_TESTCASE (function_can_be_replaced)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
       "  send(arg);"
       "  return 1337;"
       "}, 'int', ['int']));",
