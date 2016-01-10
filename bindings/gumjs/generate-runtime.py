@@ -73,7 +73,7 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
             ]
         else:
             CC = ["gcc"]
-        subprocess.call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
+        subprocess.call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer", "-lm"] +
             map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]) +
             ["-o", dukcompile])
 
