@@ -1441,21 +1441,38 @@ _gumjs_duk_protect (duk_context * ctx,
                     GumDukHeapPtr object)
 {
   gchar name[256];
+  duk_uint_t ref_count;
 
   sprintf (name, "\xff" "protected_%p", object);
 
   duk_push_global_stash (ctx);
+
   duk_get_prop_string (ctx, -1, name);
   if (duk_is_undefined (ctx, -1))
   {
     duk_pop (ctx);
+
+    duk_push_object (ctx);
     duk_push_heapptr (ctx, object);
+    duk_put_prop_string (ctx, -2, "o");
+    ref_count = 1;
+    duk_push_uint (ctx, ref_count);
+    duk_put_prop_string (ctx, -2, "n");
+
     duk_put_prop_string (ctx, -2, name);
   }
   else
   {
+    duk_get_prop_string (ctx, -1, "n");
+    ref_count = duk_get_uint (ctx, -1);
+    duk_pop (ctx);
+    ref_count++;
+    duk_push_uint (ctx, ref_count);
+    duk_put_prop_string (ctx, -2, "n");
+
     duk_pop (ctx);
   }
+
   duk_pop (ctx);
 }
 
@@ -1464,20 +1481,33 @@ _gumjs_duk_unprotect (duk_context * ctx,
                       GumDukHeapPtr object)
 {
   gchar name[256];
+  duk_uint_t ref_count;
 
   sprintf (name, "\xff" "protected_%p", object);
 
   duk_push_global_stash (ctx);
+
   duk_get_prop_string (ctx, -1, name);
-  if (duk_is_undefined (ctx, -1))
+  g_assert (!duk_is_undefined (ctx, -1));
+
+  duk_get_prop_string (ctx, -1, "n");
+  ref_count = duk_get_uint (ctx, -1);
+  duk_pop (ctx);
+  ref_count--;
+  if (ref_count == 0)
   {
     duk_pop (ctx);
+
+    duk_del_prop_string (ctx, -1, name);
   }
   else
   {
+    duk_push_uint (ctx, ref_count);
+    duk_put_prop_string (ctx, -2, "n");
+
     duk_pop (ctx);
-    duk_del_prop_string (ctx, -1, name);
   }
+
   duk_pop (ctx);
 }
 
