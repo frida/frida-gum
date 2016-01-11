@@ -411,11 +411,9 @@ gum_duk_replace_entry_free (GumDukReplaceEntry * entry)
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   GumDukInterceptor * self;
-  GumDukCore * core;
   gpointer target;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  core = self->core;
 
   _gum_duk_require_args (ctx, "p", &target);
 

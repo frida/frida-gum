@@ -127,11 +127,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 {
-  GumDukSymbol * self;
   const gchar * name;
   gpointer address;
-
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   _gum_duk_require_args (ctx, "s", &name);
 
@@ -145,11 +142,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
-  GumDukSymbol * self;
   gchar * name;
   GArray * functions;
-
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   _gum_duk_require_args (ctx, "s", &name);
 
@@ -161,11 +155,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
-  GumDukSymbol * self;
   const gchar * str;
   GArray * functions;
-
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
   _gum_duk_require_args (ctx, "s", &str);
 
