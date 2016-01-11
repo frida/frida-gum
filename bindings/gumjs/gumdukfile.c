@@ -102,7 +102,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "File"))
     return 0;
 
-  self = GUMJS_FILE (duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 

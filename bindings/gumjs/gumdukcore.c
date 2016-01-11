@@ -1009,7 +1009,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
 
-  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
@@ -1360,7 +1360,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
-  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
@@ -1631,7 +1631,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
     return 0;
 
-  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
@@ -1732,7 +1732,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "CpuContext"))
     return 0;
 
-  self = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 

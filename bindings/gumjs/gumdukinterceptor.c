@@ -639,7 +639,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "InvocationContext"))
     return 0;
 
-  self = GUM_DUK_INVOCATION_CONTEXT (duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
@@ -832,7 +832,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "InvocationArgs"))
     return 0;
 
-  self = GUM_DUK_INVOCATION_ARGS (duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
@@ -955,7 +955,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_return_value_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "InvocationReturnValue"))
     return 0;
 
-  self = GUM_DUK_INVOCATION_RETURN_VALUE (duk_require_heapptr (ctx, 0));
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
   if (self == NULL)
     return 0;
 
