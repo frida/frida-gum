@@ -185,16 +185,14 @@ static void gum_duk_message_sink_free (GumDukMessageSink * sink);
 static void gum_duk_message_sink_handle_message (GumDukMessageSink * self,
     const gchar * message, GumDukScope * scope);
 
-static gboolean gumjs_ffi_type_try_get (duk_context * ctx, GumDukValue * value,
+static gboolean gum_duk_get_ffi_type (duk_context * ctx, GumDukHeapPtr value,
     ffi_type ** type, GSList ** data);
-static gboolean gumjs_ffi_abi_try_get (duk_context * ctx, const gchar * name,
+static gboolean gum_duk_get_ffi_abi (duk_context * ctx, const gchar * name,
     ffi_abi * abi);
-static gboolean gumjs_value_to_ffi_type (duk_context * ctx,
-    GumDukValue * svalue, const ffi_type * type, GumDukCore * core,
-    GumFFIValue * value);
-static gboolean gumjs_value_from_ffi_type (duk_context * ctx,
-    const GumFFIValue * value, const ffi_type * type, GumDukCore * core,
-    GumDukValue ** svalue);
+static gboolean gum_duk_get_ffi_value (duk_context * ctx, duk_idx_t index,
+    const ffi_type * type, GumDukCore * core, GumFFIValue * value);
+static void gum_duk_push_ffi_value (duk_context * ctx,
+    const GumFFIValue * value, const ffi_type * type, GumDukCore * core);
 
 static const GumDukPropertyEntry gumjs_script_values[] =
 {
@@ -466,11 +464,11 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_pointer (ctx, self);
   duk_put_global_string (ctx, "\xff" "core");
 
-  /* set 'global' to the global object */
+  /* set `global` to the global object */
   duk_push_global_object (ctx);
   duk_put_global_string (ctx, "global");
 
-  /* TODO: temporarily define some of the other objects */
+  /* TODO: remove this once the Kernel module has been implemented */
   duk_push_object (ctx);
   duk_put_global_string (ctx, "Kernel");
 
@@ -750,13 +748,17 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
       g_free (data_utf8);
     }
     else
+    {
       duk_push_null (ctx);
+    }
     g_free (data);
 
     g_free (data_encoded);
   }
   else
+  {
     duk_push_null (ctx);
+  }
   g_match_info_free (match_info);
   g_regex_unref (regex);
 
@@ -1140,8 +1142,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   GumDukCore * core = args->core;
   gpointer fn;
-  GumDukHeapPtr rtype_heap_value, atypes_array;
-  GumDukValue * rtype_value;
+  GumDukHeapPtr rtype_value, atypes_array;
   const gchar * abi_str = NULL;
   GumDukNativeFunction * func;
   GumDukNativePointer * ptr;
@@ -1157,12 +1158,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_heap_value, &atypes_array,
+  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_value, &atypes_array,
       &abi_str);
-
-  duk_push_heapptr (ctx, rtype_heap_value);
-  rtype_value = _gumjs_get_value (ctx, -1);
-  duk_pop (ctx);
 
   func = g_slice_new0 (GumDukNativeFunction);
   ptr = &func->parent;
@@ -1170,36 +1167,32 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   func->fn = fn;
   func->core = core;
 
-  if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &func->data))
-    goto invalid_argument;
+  if (!gum_duk_get_ffi_type (ctx, rtype_value, &rtype, &func->data))
+    goto invalid_return_type;
 
-  if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &length))
-    goto invalid_argument;
+  duk_push_heapptr (ctx, atypes_array);
 
+  length = duk_get_length (ctx, -1);
   nargs_fixed = nargs_total = length;
   is_variadic = FALSE;
+
   func->atypes = g_new (ffi_type *, nargs_total);
-  duk_push_heapptr (ctx, atypes_array);
+
   for (i = 0; i != nargs_total; i++)
   {
-    GumDukValue * atype_value;
+    GumDukHeapPtr atype_value;
+    ffi_type ** atype;
     gboolean is_marker;
 
     duk_get_prop_index (ctx, -1, i);
-    atype_value = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    atype_value = duk_get_heapptr (ctx, -1);
 
-    if (atype_value == NULL)
-      goto invalid_argument;
+    atype = &func->atypes[is_variadic ? i - 1 : i];
 
-    if (atype_value->type == DUK_TYPE_STRING)
-    {
-      is_marker = strcmp (atype_value->data._string, "...") == 0;
-    }
+    if (duk_is_string (ctx, -1))
+      is_marker = strcmp (duk_get_string (ctx, -1), "...") == 0;
     else
-    {
       is_marker = FALSE;
-    }
 
     if (is_marker)
     {
@@ -1209,22 +1202,23 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
       nargs_fixed = i;
       is_variadic = TRUE;
     }
-    else if (!gumjs_ffi_type_try_get (ctx, atype_value,
-        &func->atypes[is_variadic ? i - 1 : i], &func->data))
+    else if (!gum_duk_get_ffi_type (ctx, atype_value, atype, &func->data))
     {
-      _gumjs_release_value (ctx, atype_value);
-      goto invalid_argument;
+      goto invalid_argument_type;
     }
-    _gumjs_release_value (ctx, atype_value);
+
+    duk_pop (ctx);
   }
+
   duk_pop (ctx);
+
   if (is_variadic)
     nargs_total--;
 
   if (abi_str != NULL)
   {
-    if (!gumjs_ffi_abi_try_get (ctx, abi_str, &abi))
-      goto invalid_argument;
+    if (!gum_duk_get_ffi_abi (ctx, abi_str, &abi))
+      goto invalid_abi;
   }
   else
   {
@@ -1252,7 +1246,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     func->arglist_size += t->size;
   }
 
-  duk_push_c_function (ctx, gumjs_native_function_invoke, nargs_total);
+  duk_push_c_function (ctx, gumjs_native_function_invoke, DUK_VARARGS);
 
   _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), func);
 
@@ -1273,10 +1267,20 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   /* we ignore `this` and return `bound_func` instead */
   return 1;
 
-invalid_argument:
+invalid_return_type:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "invalid argument");
+    _gumjs_throw (ctx, "invalid return type");
+  }
+invalid_argument_type:
+  {
+    gum_duk_native_function_finalize (func);
+    _gumjs_throw (ctx, "invalid argument type");
+  }
+invalid_abi:
+  {
+    gum_duk_native_function_finalize (func);
+    _gumjs_throw (ctx, "invalid abi");
   }
 unexpected_marker:
   {
@@ -1334,7 +1338,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   void ** avalue;
   guint8 * avalues;
   GumExceptorScope scope;
-  GumDukValue * result = NULL;
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
@@ -1343,7 +1346,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   rtype = self->cif.rtype;
 
   if (args->count != nargs)
-    goto bad_argument_count;
+    _gumjs_throw (ctx, "bad argument count");
 
   rsize = MAX (rtype->size, sizeof (gsize));
   ralign = MAX (rtype->alignment, sizeof (gsize));
@@ -1352,7 +1355,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 
   if (nargs > 0)
   {
-    gsize arglist_alignment, offset;
+    gsize arglist_alignment, offset, i;
 
     avalue = g_alloca (nargs * sizeof (void *));
 
@@ -1364,23 +1367,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     memset (avalues, 0, self->arglist_size);
 
     offset = 0;
-    for (gsize i = 0; i != nargs; i++)
+    for (i = 0; i != nargs; i++)
     {
       ffi_type * t;
       GumFFIValue * v;
-      GumDukValue * arg_value;
 
       t = self->cif.arg_types[i];
       offset = GUM_ALIGN_SIZE (offset, t->alignment);
       v = (GumFFIValue *) (avalues + offset);
 
-      arg_value = _gumjs_get_value (ctx, i);
-      if (!gumjs_value_to_ffi_type (ctx, arg_value, t, args->core, v))
-      {
-        _gumjs_release_value (ctx, arg_value);
-        goto error;
-      }
-      _gumjs_release_value (ctx, arg_value);
+      if (!gum_duk_get_ffi_value (ctx, i, t, args->core, v))
+        _gumjs_throw (ctx, "invalid argument value");
       avalue[i] = v;
 
       offset += t->size;
@@ -1403,43 +1400,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   if (gum_exceptor_catch (core->exceptor, &scope))
   {
     _gumjs_throw_native (ctx, &scope.exception, core);
-    goto error;
   }
 
-  if (rtype != &ffi_type_void)
-  {
-    if (!gumjs_value_from_ffi_type (ctx, rvalue, rtype, core, &result))
-      goto error;
-  }
-  else
-  {
-    duk_push_undefined (ctx);
-  }
-
-  if (result != NULL)
-  {
-    _gumjs_push_value (ctx, result);
-    _gumjs_release_value (ctx, result);
-  }
+  gum_duk_push_ffi_value (ctx, rvalue, rtype, core);
   return 1;
-
-bad_argument_count:
-  {
-    _gumjs_throw (ctx, "bad argument count");
-    goto error;
-  }
-error:
-  {
-    duk_push_null (ctx);
-    return 1;
-  }
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
-  GumDukHeapPtr result = NULL;
-  GumDukHeapPtr func, rtype_heap_value, atypes_array;
-  GumDukValue * rtype_value;
+  GumDukHeapPtr func, rtype_value, atypes_array;
   gchar * abi_str = NULL;
   GumDukCore * core = args->core;
   GumDukNativeCallback * callback;
@@ -1455,63 +1424,46 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "FVA|s", &func, &rtype_heap_value, &atypes_array,
+  _gum_duk_require_args (ctx, "FVA|s", &func, &rtype_value, &atypes_array,
       &abi_str);
 
-  duk_push_heapptr (ctx, rtype_heap_value);
-  rtype_value = _gumjs_get_value (ctx, -1);
-  duk_pop (ctx);
-
   callback = g_slice_new0 (GumDukNativeCallback);
-
   ptr = &callback->parent;
-
-  callback->core = core;
-
   _gumjs_duk_protect (ctx, func);
   callback->func = func;
+  callback->core = core;
 
-  if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &callback->data))
-  {
-    _gumjs_release_value (ctx, rtype_value);
-    goto error;
-  }
-  _gumjs_release_value (ctx, rtype_value);
+  if (!gum_duk_get_ffi_type (ctx, rtype_value, &rtype, &callback->data))
+    goto invalid_return_type;
 
-  if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &nargs))
-    goto error;
+  duk_push_heapptr (ctx, atypes_array);
+
+  nargs = duk_get_length (ctx, -1);
 
   callback->atypes = g_new (ffi_type *, nargs);
-  duk_push_heapptr (ctx, atypes_array);
+
   for (i = 0; i != nargs; i++)
   {
     GumDukValue * atype_value;
+    ffi_type ** atype;
 
     duk_get_prop_index (ctx, -1, i);
-    atype_value = _gumjs_get_value (ctx, -1);
+    atype_value = duk_get_heapptr (ctx, -1);
+
+    atype = &callback->atypes[i];
+
+    if (!gum_duk_get_ffi_type (ctx, atype_value, atype, &callback->data))
+      goto invalid_argument_type;
+
     duk_pop (ctx);
-
-    if (atype_value == NULL)
-    {
-      duk_pop (ctx);
-      goto error;
-    }
-
-    if (!gumjs_ffi_type_try_get (ctx, atype_value, &callback->atypes[i],
-        &callback->data))
-    {
-      _gumjs_release_value (ctx, atype_value);
-      duk_pop (ctx);
-      goto error;
-    }
-    _gumjs_release_value (ctx, atype_value);
   }
+
   duk_pop (ctx);
 
   if (abi_str != NULL)
   {
-    if (!gumjs_ffi_abi_try_get (ctx, abi_str, &abi))
-      goto error;
+    if (!gum_duk_get_ffi_abi (ctx, abi_str, &abi))
+      goto invalid_abi;
   }
   else
   {
@@ -1522,46 +1474,51 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   if (callback->closure == NULL)
     goto alloc_failed;
 
-  if (ffi_prep_cif (&callback->cif, abi, nargs, rtype,
-      callback->atypes) != FFI_OK)
+  if (ffi_prep_cif (&callback->cif, abi, nargs, rtype, callback->atypes)
+      != FFI_OK)
     goto compilation_failed;
 
   if (ffi_prep_closure_loc (callback->closure, &callback->cif,
       gum_duk_native_callback_invoke, callback, ptr->value) != FFI_OK)
     goto prepare_failed;
 
-  result = _gumjs_duk_get_this (ctx);
-  _gumjs_set_private_data (ctx, result, callback);
+  duk_push_this (ctx);
+  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), callback);
+  return 1;
 
-  goto beach;
-
+invalid_return_type:
+  {
+    gum_duk_native_callback_finalize (callback, FALSE);
+    _gumjs_throw (ctx, "invalid return type");
+  }
+invalid_argument_type:
+  {
+    gum_duk_native_callback_finalize (callback, FALSE);
+    _gumjs_throw (ctx, "invalid argument type");
+  }
+invalid_abi:
+  {
+    gum_duk_native_callback_finalize (callback, FALSE);
+    _gumjs_throw (ctx, "invalid abi");
+  }
 alloc_failed:
   {
+    gum_duk_native_callback_finalize (callback, FALSE);
     _gumjs_throw (ctx, "failed to allocate closure");
-    goto error;
   }
 compilation_failed:
   {
+    gum_duk_native_callback_finalize (callback, FALSE);
     _gumjs_throw (ctx, "failed to compile function call interface");
-    goto error;
   }
 prepare_failed:
   {
-    _gumjs_throw (ctx, "failed to prepare closure");
-    goto error;
-  }
-error:
-  {
     gum_duk_native_callback_finalize (callback, FALSE);
+    _gumjs_throw (ctx, "failed to prepare closure");
+  }
 
-    goto beach;
-  }
-beach:
-  {
-    g_assert (result != NULL);
-    duk_push_heapptr (ctx, result);
-    return 1;
-  }
+  g_assert_not_reached ();
+  return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
@@ -1614,9 +1571,8 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   duk_context * ctx = core->ctx;
   ffi_type * rtype = cif->rtype;
   GumFFIValue * retval = return_value;
-  GumDukValue ** argv;
   guint i;
-  GumDukValue * result = NULL;
+  gboolean success;
 
   _gum_duk_scope_enter (&scope, core);
 
@@ -1630,39 +1586,20 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
     retval->v_pointer = NULL;
   }
 
-  argv = g_alloca (cif->nargs * sizeof (GumDukValue *));
-  for (i = 0; i != cif->nargs; i++)
-  {
-    if (!gumjs_value_from_ffi_type (ctx, args[i], cif->arg_types[i], core,
-        &argv[i]))
-      goto beach;
-  }
-
   duk_push_heapptr (ctx, self->func);
 
   for (i = 0; i != cif->nargs; i++)
+    gum_duk_push_ffi_value (ctx, args[i], cif->arg_types[i], core);
+
+  success = _gum_duk_scope_call (&scope, cif->nargs);
+
+  if (success && cif->rtype != &ffi_type_void)
   {
-    GumDukValue * arg = argv[i];
-
-    _gumjs_push_value (ctx, arg);
-
-    _gumjs_release_value (ctx, argv[i]);
-  }
-
-  if (_gum_duk_scope_call (&scope, cif->nargs))
-  {
-    result = _gumjs_get_value (ctx, -1);
+    gum_duk_get_ffi_value (ctx, -1, cif->rtype, core, retval);
   }
 
   duk_pop (ctx);
 
-  if (cif->rtype != &ffi_type_void && result != NULL)
-  {
-    gumjs_value_to_ffi_type (ctx, result, cif->rtype, core, retval);
-    _gumjs_release_value (ctx, result);
-  }
-
-beach:
   _gum_duk_scope_leave (&scope);
 }
 
@@ -1950,60 +1887,53 @@ static const GumFFIABIMapping gum_ffi_abi_mappings[] =
 };
 
 static gboolean
-gumjs_ffi_type_try_get (duk_context * ctx,
-                        GumDukValue * value,
-                        ffi_type ** type,
-                        GSList ** data)
+gum_duk_get_ffi_type (duk_context * ctx,
+                      GumDukHeapPtr value,
+                      ffi_type ** type,
+                      GSList ** data)
 {
   gboolean success = FALSE;
   guint i;
 
-  if (value->type == DUK_TYPE_STRING)
+  duk_push_heapptr (ctx, value);
+
+  if (duk_is_string (ctx, -1))
   {
+    const gchar * type_name = duk_get_string (ctx, -1);
+
     for (i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
       const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
-      if (strcmp (value->data._string, m->name) == 0)
+
+      if (strcmp (m->name, type_name) == 0)
       {
         *type = m->type;
         success = TRUE;
-        goto beach;
+        break;
       }
     }
   }
-  else if (_gumjs_value_is_array (ctx, value))
+  else if (duk_is_array (ctx, -1))
   {
-    GumDukHeapPtr fields_value;
     guint length;
     ffi_type ** fields, * struct_type;
 
-    fields_value = value->data._heapptr;
-
-    if (!_gumjs_object_try_get_uint (ctx, fields_value, "length", &length))
-      return FALSE;
+    length = duk_get_length (ctx, -1);
 
     fields = g_new (ffi_type *, length + 1);
     *data = g_slist_prepend (*data, fields);
 
-    duk_push_heapptr (ctx, fields_value);
     for (i = 0; i != length; i++)
     {
-      GumDukValue * field_value;
+      GumDukHeapPtr field_value;
 
       duk_get_prop_index (ctx, -1, i);
-      field_value = _gumjs_get_value (ctx, -1);
+      field_value = duk_get_heapptr (ctx, -1);
       duk_pop (ctx);
-      if (field_value == NULL)
-        goto beach;
 
-      if (!gumjs_ffi_type_try_get (ctx, field_value, &fields[i], data))
-      {
-        _gumjs_release_value (ctx, field_value);
+      if (!gum_duk_get_ffi_type (ctx, field_value, &fields[i], data))
         goto beach;
-      }
-      _gumjs_release_value (ctx, field_value);
     }
-    duk_pop (ctx);
 
     fields[length] = NULL;
 
@@ -2014,17 +1944,18 @@ gumjs_ffi_type_try_get (duk_context * ctx,
 
     *type = struct_type;
     success = TRUE;
-    goto beach;
   }
 
 beach:
+  duk_pop (ctx);
+
   return success;
 }
 
 static gboolean
-gumjs_ffi_abi_try_get (duk_context * ctx,
-                       const gchar * name,
-                       ffi_abi * abi)
+gum_duk_get_ffi_abi (duk_context * ctx,
+                     const gchar * name,
+                     ffi_abi * abi)
 {
   guint i;
 
@@ -2044,17 +1975,15 @@ gumjs_ffi_abi_try_get (duk_context * ctx,
 }
 
 static gboolean
-gumjs_value_to_ffi_type (duk_context * ctx,
-                         GumDukValue * svalue,
-                         const ffi_type * type,
-                         GumDukCore * core,
-                         GumFFIValue * value)
+gum_duk_get_ffi_value (duk_context * ctx,
+                       duk_idx_t index,
+                       const ffi_type * type,
+                       GumDukCore * core,
+                       GumFFIValue * value)
 {
-  gint i;
   guint u;
   gint64 i64;
   guint64 u64;
-  gdouble n;
 
   if (type == &ffi_type_void)
   {
@@ -2062,298 +1991,241 @@ gumjs_value_to_ffi_type (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (!_gumjs_value_native_pointer_try_get (ctx, svalue, core,
-        &value->v_pointer))
+    if (!_gum_duk_get_pointer (ctx, index, &value->v_pointer))
       return FALSE;
   }
   else if (type == &ffi_type_sint)
   {
-    if (!_gumjs_value_int_try_get (ctx, svalue, &i))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint = i;
+    value->v_sint = duk_get_int (ctx, index);
   }
   else if (type == &ffi_type_uint)
   {
-    if (!_gumjs_value_uint_try_get (ctx, svalue, &u))
+    if (_gum_duk_get_uint (ctx, index, &u))
+      value->v_uint = u;
+    else
       return FALSE;
-    value->v_uint = u;
   }
   else if (type == &ffi_type_slong)
   {
-    if (!_gumjs_value_int64_try_get (ctx, svalue, &i64))
+    if (!_gum_duk_get_int64 (ctx, index, &i64))
       return FALSE;
     value->v_slong = i64;
   }
   else if (type == &ffi_type_ulong)
   {
-    if (!_gumjs_value_uint64_try_get (ctx, svalue, &u64))
+    if (!_gum_duk_get_uint64 (ctx, index, &u64))
       return FALSE;
     value->v_ulong = u64;
   }
   else if (type == &ffi_type_schar)
   {
-    if (!_gumjs_value_int_try_get (ctx, svalue, &i))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_schar = i;
+    value->v_schar = duk_get_int (ctx, index);
   }
   else if (type == &ffi_type_uchar)
   {
-    if (!_gumjs_value_uint_try_get (ctx, svalue, &u))
+    if (_gum_duk_get_uint (ctx, index, &u))
+      value->v_uchar = u;
+    else
       return FALSE;
-    value->v_uchar = u;
   }
   else if (type == &ffi_type_float)
   {
-    if (!_gumjs_value_number_try_get (ctx, svalue, &n))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_float = n;
+    value->v_float = duk_get_number (ctx, index);
   }
   else if (type == &ffi_type_double)
   {
-    if (!_gumjs_value_number_try_get (ctx, svalue, &n))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_double = n;
+    value->v_double = duk_get_number (ctx, index);
   }
   else if (type == &ffi_type_sint8)
   {
-    if (!_gumjs_value_int_try_get (ctx, svalue, &i))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint8 = i;
+    value->v_sint8 = duk_get_int (ctx, index);
   }
   else if (type == &ffi_type_uint8)
   {
-    if (!_gumjs_value_uint_try_get (ctx, svalue, &u))
+    if (_gum_duk_get_uint (ctx, index, &u))
+      value->v_uint8 = u;
+    else
       return FALSE;
-    value->v_uint8 = u;
   }
   else if (type == &ffi_type_sint16)
   {
-    if (!_gumjs_value_int_try_get (ctx, svalue, &i))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint16 = i;
+    value->v_sint16 = duk_get_int (ctx, index);
   }
   else if (type == &ffi_type_uint16)
   {
-    if (!_gumjs_value_uint_try_get (ctx, svalue, &u))
+    if (_gum_duk_get_uint (ctx, index, &u))
+      value->v_uint16 = u;
+    else
       return FALSE;
-    value->v_uint16 = u;
   }
   else if (type == &ffi_type_sint32)
   {
-    if (!_gumjs_value_int_try_get (ctx, svalue, &i))
+    if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint32 = i;
+    value->v_sint32 = duk_get_int (ctx, index);
   }
   else if (type == &ffi_type_uint32)
   {
-    if (!_gumjs_value_uint_try_get (ctx, svalue, &u))
+    if (_gum_duk_get_uint (ctx, index, &u))
+      value->v_uint32 = u;
+    else
       return FALSE;
-    value->v_uint32 = u;
   }
   else if (type == &ffi_type_sint64)
   {
-    if (!_gumjs_value_int64_try_get (ctx, svalue, &i64))
+    if (!_gum_duk_get_int64 (ctx, index, &i64))
       return FALSE;
     value->v_sint64 = i64;
   }
   else if (type == &ffi_type_uint64)
   {
-    if (!_gumjs_value_uint64_try_get (ctx, svalue, &u64))
+    if (!_gum_duk_get_uint64 (ctx, index, &u64))
       return FALSE;
     value->v_uint64 = u64;
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
-    GumDukHeapPtr field_svalues;
-    guint provided_length, length, i;
+    guint length, expected_length, i;
     guint8 * field_values;
     gsize offset;
 
-    if (!_gumjs_value_is_array (ctx, svalue))
-    {
-      _gumjs_throw (ctx, "expected array with fields");
+    if (!duk_is_array (ctx, index))
       return FALSE;
-    }
-    field_svalues = svalue->data._heapptr;
 
-    if (!_gumjs_object_try_get_uint (ctx, field_svalues, "length",
-        &provided_length))
-      return FALSE;
-    length = 0;
+    length = duk_get_length (ctx, index);
+
+    expected_length = 0;
     for (t = field_types; *t != NULL; t++)
-      length++;
-    if (provided_length != length)
-    {
-      _gumjs_throw (ctx, "provided array length does not match "
-          "number of fields");
+      expected_length++;
+
+    if (length != expected_length)
       return FALSE;
-    }
 
     field_values = (guint8 *) value;
     offset = 0;
-    duk_push_heapptr (ctx, field_svalues);
+
     for (i = 0; i != length; i++)
     {
       const ffi_type * field_type = field_types[i];
       GumFFIValue * field_value;
-      GumDukValue * field_svalue;
+      gboolean valid;
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
       field_value = (GumFFIValue *) (field_values + offset);
-      duk_get_prop_index (ctx, -1, i);
-      field_svalue = _gumjs_get_value (ctx, -1);
+      duk_get_prop_index (ctx, index, i);
+      valid = gum_duk_get_ffi_value (ctx, -1, field_type, core, field_value);
       duk_pop (ctx);
 
-      if (field_svalue == NULL)
+      if (!valid)
         return FALSE;
-
-      if (!gumjs_value_to_ffi_type (ctx, field_svalue, field_type, core,
-          field_value))
-      {
-        _gumjs_release_value (ctx, field_svalue);
-        return FALSE;
-      }
-      _gumjs_release_value (ctx, field_svalue);
 
       offset += field_type->size;
     }
-    duk_pop (ctx);
   }
   else
   {
-    goto unsupported_type;
+    g_assert_not_reached ();
   }
 
   return TRUE;
-
-unsupported_type:
-  {
-    _gumjs_throw (ctx, "unsupported type");
-    return FALSE;
-  }
 }
 
-static gboolean
-gumjs_value_from_ffi_type (duk_context * ctx,
-                           const GumFFIValue * value,
-                           const ffi_type * type,
-                           GumDukCore * core,
-                           GumDukValue ** svalue)
+static void
+gum_duk_push_ffi_value (duk_context * ctx,
+                        const GumFFIValue * value,
+                        const ffi_type * type,
+                        GumDukCore * core)
 {
   if (type == &ffi_type_void)
   {
-    *svalue = NULL;
+    duk_push_undefined (ctx);
   }
   else if (type == &ffi_type_pointer)
   {
-    duk_push_heapptr (ctx,
-        _gumjs_native_pointer_new (ctx, value->v_pointer, core));
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    _gumjs_native_pointer_push (ctx, value->v_pointer, core);
   }
   else if (type == &ffi_type_sint)
   {
-    duk_push_number (ctx, value->v_sint);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_int (ctx, value->v_sint);
   }
   else if (type == &ffi_type_uint)
   {
-    duk_push_number (ctx, value->v_uint);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_uint (ctx, value->v_uint);
   }
   else if (type == &ffi_type_slong)
   {
     duk_push_number (ctx, value->v_slong);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type == &ffi_type_ulong)
   {
     duk_push_number (ctx, value->v_ulong);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type == &ffi_type_schar)
   {
-    duk_push_number (ctx, value->v_schar);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_int (ctx, value->v_schar);
   }
   else if (type == &ffi_type_uchar)
   {
-    duk_push_number (ctx, value->v_uchar);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_uint (ctx, value->v_uchar);
   }
   else if (type == &ffi_type_float)
   {
     duk_push_number (ctx, value->v_float);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type == &ffi_type_double)
   {
     duk_push_number (ctx, value->v_double);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type == &ffi_type_sint8)
   {
-    duk_push_number (ctx, value->v_sint8);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_int (ctx, value->v_sint8);
   }
   else if (type == &ffi_type_uint8)
   {
-    duk_push_number (ctx, value->v_uint8);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_uint (ctx, value->v_uint8);
   }
   else if (type == &ffi_type_sint16)
   {
-    duk_push_number (ctx, value->v_sint16);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_int (ctx, value->v_sint16);
   }
   else if (type == &ffi_type_uint16)
   {
-    duk_push_number (ctx, value->v_uint16);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_uint (ctx, value->v_uint16);
   }
   else if (type == &ffi_type_sint32)
   {
-    duk_push_number (ctx, value->v_sint32);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_int (ctx, value->v_sint32);
   }
   else if (type == &ffi_type_uint32)
   {
-    duk_push_number (ctx, value->v_uint32);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
+    duk_push_uint (ctx, value->v_uint32);
   }
   else if (type == &ffi_type_sint64)
   {
     duk_push_number (ctx, value->v_sint64);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type == &ffi_type_uint64)
   {
     duk_push_number (ctx, value->v_uint64);
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
     guint length, i;
-    GumDukValue ** field_svalues;
     const guint8 * field_values;
     gsize offset;
 
@@ -2361,9 +2233,11 @@ gumjs_value_from_ffi_type (duk_context * ctx,
     for (t = field_types; *t != NULL; t++)
       length++;
 
-    field_svalues = g_alloca (length * sizeof (GumDukValue *));
     field_values = (const guint8 *) value;
     offset = 0;
+
+    duk_push_array (ctx);
+
     for (i = 0; i != length; i++)
     {
       const ffi_type * field_type = field_types[i];
@@ -2372,41 +2246,14 @@ gumjs_value_from_ffi_type (duk_context * ctx,
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
       field_value = (const GumFFIValue *) (field_values + offset);
 
-      if (!gumjs_value_from_ffi_type (ctx, field_value, field_type, core,
-          &field_svalues[i]))
-        goto error;
+      gum_duk_push_ffi_value (ctx, field_value, field_type, core);
+      duk_put_prop_index (ctx, -2, i);
 
       offset += field_type->size;
     }
-
-    duk_push_array (ctx);
-    for (i = 0; i != length; i++)
-    {
-      _gumjs_push_value (ctx, field_svalues[i]);
-      duk_put_prop_index (ctx, -2, i);
-      _gumjs_release_value (ctx, field_svalues[i]);
-    }
-
-    *svalue = _gumjs_get_value (ctx, -1);
-    duk_pop (ctx);
-
-    if (*svalue == NULL)
-      goto error;
   }
   else
   {
-    goto unsupported_type;
-  }
-
-  return TRUE;
-
-unsupported_type:
-  {
-    _gumjs_throw (ctx, "unsupported type");
-    goto error;
-  }
-error:
-  {
-    return FALSE;
+    g_assert_not_reached ();
   }
 }
