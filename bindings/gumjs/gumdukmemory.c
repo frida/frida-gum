@@ -511,7 +511,7 @@ gum_duk_memory_write (GumDukMemory * self,
   gdouble number;
   GBytes * bytes = NULL;
   const gchar * str = NULL;
-  gsize str_length;
+  gsize str_length = 0;
   gunichar2 * str_utf16 = NULL;
 #ifdef G_OS_WIN32
   gchar * str_ansi = NULL;
