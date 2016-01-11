@@ -233,7 +233,7 @@ gum_emit_module (const GumModuleDetails * details,
   duk_push_string (ctx, details->name);
   duk_put_prop_string (ctx, -2, "name");
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_put_prop_string (ctx, -2, "base");
 
@@ -293,7 +293,7 @@ gum_emit_range (const GumRangeDetails * details,
 
   duk_push_object (ctx);
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_put_prop_string (ctx, -2, "base");
 
@@ -376,7 +376,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
   duk_push_object (ctx);
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_put_prop_string (ctx, -2, "base");
 

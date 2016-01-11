@@ -62,9 +62,8 @@ struct _GumDukCore
   GSList * scheduled_callbacks;
   guint last_callback_id;
 
-  GHashTable * native_resources;
-
   GumDukHeapPtr native_pointer;
+  GumDukHeapPtr native_resource;
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;
   GumDukHeapPtr cpu_context;
@@ -97,11 +96,9 @@ enum _GumDukCpuContextAccess
 
 struct _GumDukNativeResource
 {
-  GumDukWeakRef * weak_ref;
-  gpointer data;
-  GDestroyNotify notify;
+  GumDukNativePointer parent;
 
-  GumDukCore * core;
+  GDestroyNotify notify;
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,

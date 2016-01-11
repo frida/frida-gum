@@ -32,6 +32,8 @@ struct _GumDukPropertyEntry
 G_GNUC_INTERNAL void _gum_duk_args_parse (const GumDukArgs * args,
     const gchar * format, ...);
 
+G_GNUC_INTERNAL gpointer _gum_duk_require_data (duk_context * ctx,
+    duk_idx_t index);
 G_GNUC_INTERNAL guint _gum_duk_require_index (duk_context * ctx,
     duk_idx_t index);
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint (duk_context * ctx,
@@ -41,18 +43,21 @@ G_GNUC_INTERNAL gboolean _gum_duk_get_int64 (duk_context * ctx,
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint64 (duk_context * ctx,
     duk_idx_t index, guint64 * u);
 G_GNUC_INTERNAL gboolean _gum_duk_get_pointer (duk_context * ctx,
-    duk_idx_t index, gpointer * ptr);
+    duk_idx_t index, GumDukCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_pointer (duk_context * ctx,
-    duk_idx_t index, gpointer * ptr);
+    duk_idx_t index, GumDukCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_protection (duk_context * ctx,
     duk_idx_t index, GumPageProtection * prot);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_bytes (duk_context * ctx,
     duk_idx_t index, GBytes ** bytes);
 
-G_GNUC_INTERNAL void _gumjs_native_pointer_push (duk_context * ctx,
+G_GNUC_INTERNAL void _gum_duk_push_native_pointer (duk_context * ctx,
     gpointer address, GumDukCore * core);
-G_GNUC_INTERNAL gpointer _gumjs_native_pointer_value (duk_context * ctx,
-    GumDukHeapPtr value);
+G_GNUC_INTERNAL GumDukNativePointer * _gum_duk_require_native_pointer (
+    duk_context * ctx, duk_idx_t index, GumDukCore * core);
+
+G_GNUC_INTERNAL void _gum_duk_push_native_resource (duk_context * ctx,
+    gpointer data, GDestroyNotify notify, GumDukCore * core);
 
 G_GNUC_INTERNAL GumDukCpuContext * _gum_duk_push_cpu_context (duk_context * ctx,
     GumCpuContext * handle, GumDukCpuContextAccess access,
@@ -65,12 +70,6 @@ G_GNUC_INTERNAL void _gum_duk_cpu_context_make_read_only (
 G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
-
-G_GNUC_INTERNAL GumDukNativeResource * _gumjs_native_resource_new (
-    duk_context * ctx, gpointer data, GDestroyNotify notify,
-    GumDukCore * core, GumDukHeapPtr * handle);
-G_GNUC_INTERNAL void _gumjs_native_resource_free (
-    GumDukNativeResource * resource);
 
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_array_buffer_new (duk_context * ctx,
     gsize size, GumDukCore * core);

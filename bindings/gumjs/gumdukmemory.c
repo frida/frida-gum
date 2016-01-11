@@ -199,7 +199,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   GumDukCore * core = args->core;
   guint size, page_size;
-  GumDukHeapPtr handle;
 
   _gum_duk_args_parse (args, "u", &size);
 
@@ -210,16 +209,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 
   if (size < page_size)
   {
-    _gumjs_native_resource_new (ctx, g_malloc (size), g_free, core, &handle);
+    _gum_duk_push_native_resource (ctx, g_malloc (size), g_free, core);
   }
   else
   {
     guint n = ((size + page_size - 1) & ~(page_size - 1)) / page_size;
-    _gumjs_native_resource_new (ctx,
-        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core, &handle);
+    _gum_duk_push_native_resource (ctx,
+        gum_alloc_n_pages (n, GUM_PAGE_RW), gum_free_pages, core);
   }
-
-  duk_push_heapptr (ctx, handle);
   return 1;
 }
 
@@ -305,7 +302,7 @@ gum_duk_memory_read (GumDukMemory * self,
     switch (type)
     {
       case GUM_MEMORY_VALUE_POINTER:
-        _gumjs_native_pointer_push (ctx, *((gpointer *) address), core);
+        _gum_duk_push_native_pointer (ctx, *((gpointer *) address), core);
         break;
       case GUM_MEMORY_VALUE_S8:
         duk_push_number (ctx, *((gint8 *) address));
@@ -695,15 +692,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 #ifdef G_OS_WIN32
   const gchar * str;
   gchar * str_ansi;
-  GumDukHeapPtr handle;
 
   _gum_duk_args_parse (args, "s", &str);
 
   str_ansi = gum_ansi_string_from_utf8 (str);
 
-  _gumjs_native_resource_new (ctx, str_ansi, g_free, args->core, &handle);
-
-  duk_push_heapptr (ctx, handle);
+  _gum_duk_push_native_resource (ctx, str_ansi, g_free, args->core);
   return 1;
 #else
   _gumjs_throw (ctx, "ANSI API is only applicable on Windows");
@@ -714,13 +708,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
 {
   const gchar * str;
-  GumDukHeapPtr handle;
 
   _gum_duk_args_parse (args, "s", &str);
 
-  _gumjs_native_resource_new (ctx, g_strdup (str), g_free, args->core, &handle);
-
-  duk_push_heapptr (ctx, handle);
+  _gum_duk_push_native_resource (ctx, g_strdup (str), g_free, args->core);
   return 1;
 }
 
@@ -728,15 +719,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
 {
   const gchar * str;
   gunichar2 * str_utf16;
-  GumDukHeapPtr handle;
 
   _gum_duk_args_parse (args, "s", &str);
 
   str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
 
-  _gumjs_native_resource_new (ctx, str_utf16, g_free, args->core, &handle);
-
-  duk_push_heapptr (ctx, handle);
+  _gum_duk_push_native_resource (ctx, str_utf16, g_free, args->core);
   return 1;
 }
 
@@ -843,7 +831,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
 
   duk_push_heapptr (ctx, self->on_match);
 
-  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
   duk_push_number (ctx, size);
 
   proceed = TRUE;

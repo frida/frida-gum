@@ -136,7 +136,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   if (address == NULL)
     _gumjs_throw (ctx, "unable to find function with name '%s'", name);
 
-  _gumjs_native_pointer_push (ctx, address, args->core);
+  _gum_duk_push_native_pointer (ctx, address, args->core);
   return 1;
 }
 
@@ -183,7 +183,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 
   duk_push_this (ctx);
 
-  _gumjs_native_pointer_push (ctx, address, args->core);
+  _gum_duk_push_native_pointer (ctx, address, args->core);
   duk_put_prop_string (ctx, -2, "address");
 
   if (d != NULL)
@@ -256,7 +256,7 @@ gumjs_pointer_array_push (duk_context * ctx,
   for (i = 0; i != pointers->len; i++)
   {
     gpointer address = g_array_index (pointers, gpointer, i);
-    _gumjs_native_pointer_push (ctx, address, core);
+    _gum_duk_push_native_pointer (ctx, address, core);
     duk_put_prop_index (ctx, -2, i);
   }
 }

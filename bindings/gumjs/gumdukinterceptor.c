@@ -356,7 +356,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
   _gum_duk_args_parse (args, "pO", &target, &replacement_value);
 
   duk_push_heapptr (ctx, replacement_value);
-  if (!_gum_duk_get_pointer (ctx, -1, &replacement))
+  if (!_gum_duk_get_pointer (ctx, -1, core, &replacement))
     _gumjs_throw (ctx, "expected a pointer");
   duk_pop (ctx);
 
@@ -666,7 +666,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_return_address)
 
   gumjs_invocation_context_check_valid (self, ctx);
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       gum_invocation_context_get_return_address (self->handle), args->core);
   return 1;
 }
@@ -863,7 +863,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
   ic = gumjs_invocation_args_require_context (ctx, 0);
   n = _gum_duk_require_index (ctx, 1);
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       gum_invocation_context_get_nth_argument (ic, n), args->core);
   return 1;
 }
@@ -872,25 +872,11 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
 {
   GumInvocationContext * ic;
   guint n;
-  gpointer value = NULL;
+  gpointer value;
 
   ic = gumjs_invocation_args_require_context (ctx, 0);
   n = _gum_duk_require_index (ctx, 1);
-
-  if (_gumjs_is_instanceof (ctx, duk_get_heapptr (ctx, 2), "NativePointer"))
-  {
-    value = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, 2));
-  }
-  else if (duk_is_object (ctx, 2))
-  {
-    duk_get_prop_string (ctx, 2, "handle");
-    if (_gumjs_is_instanceof (ctx, duk_get_heapptr (ctx, -1), "NativePointer"))
-      value = _gumjs_native_pointer_value (ctx, duk_require_heapptr (ctx, -2));
-    else
-      _gumjs_throw (ctx, "invalid pointer value");
-    duk_pop (ctx);
-  }
-  else
+  if (!_gum_duk_get_pointer (ctx, 2, args->core, &value))
   {
     duk_push_false (ctx);
     return 1;

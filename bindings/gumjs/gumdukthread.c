@@ -106,7 +106,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   duk_push_array (ctx);
   for (i = 0; i != ret_addrs.len; i++)
   {
-    _gumjs_native_pointer_push (ctx, ret_addrs.items[i], core);
+    _gum_duk_push_native_pointer (ctx, ret_addrs.items[i], core);
     duk_put_prop_index (ctx, -2, i);
   }
 

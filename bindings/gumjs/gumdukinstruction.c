@@ -139,11 +139,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_construct)
 
   duk_push_this (ctx);
 
-  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (insn->address),
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (insn->address),
       args->core);
   duk_put_prop_string (ctx, -2, "address");
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       GSIZE_TO_POINTER (GPOINTER_TO_SIZE (target) + insn->size), args->core);
   duk_put_prop_string (ctx, -2, "next");
 

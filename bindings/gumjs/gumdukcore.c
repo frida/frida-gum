@@ -138,6 +138,9 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_resource_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_native_resource_finalize)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_function_finalize)
 static void gum_duk_native_function_finalize (
@@ -236,7 +239,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
     \
     self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)); \
     \
-    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (self->handle->R), \
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (self->handle->R), \
         args->core); \
     return 1; \
   } \
@@ -458,9 +461,6 @@ _gum_duk_core_init (GumDukCore * self,
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
 
-  self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) _gumjs_native_resource_free);
-
   duk_push_pointer (ctx, self);
   duk_put_global_string (ctx, "\xff" "core");
 
@@ -515,6 +515,12 @@ _gum_duk_core_init (GumDukCore * self,
   self->native_pointer = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
 
+  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeResource",
+      gumjs_native_resource_construct, 2, gumjs_native_resource_finalize);
+  duk_get_global_string (ctx, "NativeResource");
+  self->native_resource = _gumjs_duk_require_heapptr (ctx, -1);
+  duk_pop (ctx);
+
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
       gumjs_native_function_construct, 4, gumjs_native_function_finalize);
   duk_get_global_string (ctx, "NativeFunction");
@@ -556,8 +562,6 @@ _gum_duk_core_dispose (GumDukCore * self)
 {
   duk_context * ctx = self->ctx;
 
-  g_clear_pointer (&self->native_resources, g_hash_table_unref);
-
   while (self->scheduled_callbacks != NULL)
   {
     GumDukScheduledCallback * cb =
@@ -575,6 +579,7 @@ _gum_duk_core_dispose (GumDukCore * self)
   g_clear_pointer (&self->exceptor, g_object_unref);
 
   _gumjs_duk_release_heapptr (ctx, self->native_pointer);
+  _gumjs_duk_release_heapptr (ctx, self->native_resource);
   _gumjs_duk_release_heapptr (ctx, self->native_function);
   _gumjs_duk_release_heapptr (ctx, self->cpu_context);
 
@@ -969,39 +974,45 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   return 0;
 }
 
-GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
+static GumDukNativePointer *
+gumjs_native_pointer_from_args (const GumDukArgs * args)
 {
-  GumDukHeapPtr this_object;
+  duk_context * ctx = args->ctx;
+  GumDukNativePointer * self;
 
   duk_push_this (ctx);
-  this_object = duk_require_heapptr (ctx, -1);
+  self = _gum_duk_require_native_pointer (ctx, -1, args->core);
   duk_pop (ctx);
 
-  duk_push_boolean(ctx,
-      _gumjs_native_pointer_value (ctx, this_object) == NULL);
+  return self;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
+{
+  GumDukNativePointer * self = gumjs_native_pointer_from_args (args);
+
+  duk_push_boolean (ctx, self->value == NULL);
   return 1;
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
   GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
   { \
+    GumDukNativePointer * self; \
     gpointer rhs_ptr; \
     gsize lhs, rhs; \
     gpointer result; \
-    GumDukHeapPtr this_object; \
+    \
+    self = gumjs_native_pointer_from_args (args); \
     \
     _gum_duk_args_parse (args, "p~", &rhs_ptr); \
     \
-    duk_push_this (ctx); \
-    this_object = duk_require_heapptr (ctx, -1); \
-    duk_pop (ctx); \
-    \
-    lhs = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object)); \
+    lhs = GPOINTER_TO_SIZE (self->value); \
     rhs = GPOINTER_TO_SIZE (rhs_ptr); \
     \
     result = GSIZE_TO_POINTER (lhs op rhs); \
     \
-    _gumjs_native_pointer_push (ctx, result, args->core); \
+    _gum_duk_push_native_pointer (ctx, result, args->core); \
     return 1; \
   }
 
@@ -1015,18 +1026,16 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
+  GumDukNativePointer * self;
   gpointer rhs_ptr;
   gsize lhs, rhs;
   gint result;
-  GumDukHeapPtr this_object;
+
+  self = gumjs_native_pointer_from_args (args);
 
   _gum_duk_args_parse (args, "p~", &rhs_ptr);
 
-  duk_push_this (ctx);
-  this_object = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-
-  lhs = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object));
+  lhs = GPOINTER_TO_SIZE (self->value);
   rhs = GPOINTER_TO_SIZE (rhs_ptr);
 
   result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
@@ -1037,15 +1046,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
+  GumDukNativePointer * self;
   gint32 result;
-  GumDukHeapPtr this_object;
 
-  duk_push_this (ctx);
-  this_object = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_native_pointer_from_args (args);
 
-  result = (gint32)
-      GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object));
+  result = (gint32) GPOINTER_TO_SIZE (self->value);
 
   duk_push_int (ctx, result);
   return 1;
@@ -1053,13 +1059,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
-  GumDukHeapPtr this_object;
+  GumDukNativePointer * self;
   gint radix = 0;
   gboolean radix_specified;
   gsize ptr;
   gchar str[32];
 
-  this_object = _gumjs_duk_get_this (ctx);
+  self = gumjs_native_pointer_from_args (args);
 
   _gum_duk_args_parse (args, "|u", &radix);
 
@@ -1069,7 +1075,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   else if (radix != 10 && radix != 16)
     _gumjs_throw (ctx, "unsupported radix");
 
-  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object));
+  ptr = GPOINTER_TO_SIZE (self->value);
 
   if (radix == 10)
   {
@@ -1089,17 +1095,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
-  gsize ptr;
+  GumDukNativePointer * self;
   gchar str[32];
-  GumDukHeapPtr this_object;
 
-  duk_push_this (ctx);
-  this_object = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_native_pointer_from_args (args);
 
-  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object));
-
-  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
+  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", GPOINTER_TO_SIZE (self->value));
 
   duk_push_string (ctx, str);
   return 1;
@@ -1107,9 +1108,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
+  GumDukNativePointer * self;
   gsize ptr;
   gchar str[24];
-  GumDukHeapPtr this_object;
   gint src, dst;
   const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
   const gchar nibble_to_char[] = {
@@ -1117,11 +1118,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
       'a', 'b', 'c', 'd', 'e', 'f'
   };
 
-  duk_push_this (ctx);
-  this_object = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
+  self = gumjs_native_pointer_from_args (args);
 
-  ptr = GPOINTER_TO_SIZE (_gumjs_native_pointer_value (ctx, this_object));
+  ptr = GPOINTER_TO_SIZE (self->value);
 
 #if G_BYTE_ORDER == G_LITTLE_ENDIAN
   for (src = 0, dst = 0; src != num_bits; src += 8)
@@ -1138,6 +1137,47 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
   duk_push_string (ctx, str);
   return 1;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
+{
+  gpointer data;
+  GDestroyNotify notify;
+  GumDukNativeResource * resource;
+  GumDukNativePointer * ptr;
+
+  data = duk_require_pointer (ctx, 0);
+  notify = duk_require_pointer (ctx, 1);
+
+  resource = g_slice_new (GumDukNativeResource);
+  ptr = &resource->parent;
+  ptr->value = data;
+  resource->notify = notify;
+
+  duk_push_this (ctx);
+  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), resource);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
+{
+  GumDukNativeResource * self;
+
+  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeResource"))
+    return 0;
+
+  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  if (self == NULL)
+    return 0;
+
+  if (self->notify != NULL)
+    self->notify (self->parent.value);
+
+  g_slice_free (GumDukNativeResource, self);
+
+  return 0;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
@@ -1993,7 +2033,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    if (!_gum_duk_get_pointer (ctx, index, &value->v_pointer))
+    if (!_gum_duk_get_pointer (ctx, index, core, &value->v_pointer))
       return FALSE;
   }
   else if (type == &ffi_type_sint)
@@ -2158,7 +2198,7 @@ gum_duk_push_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_pointer)
   {
-    _gumjs_native_pointer_push (ctx, value->v_pointer, core);
+    _gum_duk_push_native_pointer (ctx, value->v_pointer, core);
   }
   else if (type == &ffi_type_sint)
   {

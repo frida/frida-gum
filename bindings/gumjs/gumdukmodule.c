@@ -135,7 +135,7 @@ gum_emit_import (const GumImportDetails * details,
 
   if (details->address != 0)
   {
-    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (details->address),
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address),
         core);
     duk_put_prop_string (ctx, -2, "address");
   }
@@ -196,7 +196,7 @@ gum_emit_export (const GumExportDetails * details,
   duk_push_string (ctx, details->name);
   duk_put_prop_string (ctx, -2, "name");
 
-  _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (details->address), core);
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address), core);
   duk_put_prop_string (ctx, -2, "address");
 
   if (_gum_duk_scope_call_sync (&scope, 1))
@@ -249,7 +249,7 @@ gum_emit_range (const GumRangeDetails * details,
 
   duk_push_object (ctx);
 
-  _gumjs_native_pointer_push (ctx,
+  _gum_duk_push_native_pointer (ctx,
       GSIZE_TO_POINTER (details->range->base_address), core);
   duk_put_prop_string (ctx, -2, "base");
 
@@ -290,7 +290,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   address = gum_module_find_base_address (name);
 
   if (address != 0)
-    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
   else
     duk_push_null (ctx);
   return 1;
@@ -307,7 +307,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   address = gum_module_find_export_by_name (module_name, symbol_name);
 
   if (address != 0)
-    _gumjs_native_pointer_push (ctx, GSIZE_TO_POINTER (address), core);
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
   else
     duk_push_null (ctx);
   return 1;

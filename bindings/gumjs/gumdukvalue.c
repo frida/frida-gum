@@ -11,9 +11,6 @@
 
 #define GUM_MAX_JS_BYTE_ARRAY_LENGTH (100 * 1024 * 1024)
 
-static void gum_native_resource_on_weak_notify (
-    GumDukNativeResource * resource);
-
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
 void
@@ -92,12 +89,12 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
         if (is_fuzzy)
         {
-          if (!_gum_duk_parse_pointer (ctx, arg_index, &ptr))
+          if (!_gum_duk_parse_pointer (ctx, arg_index, core, &ptr))
             goto expected_pointer;
         }
         else
         {
-          if (!_gum_duk_get_pointer (ctx, arg_index, &ptr))
+          if (!_gum_duk_get_pointer (ctx, arg_index, core, &ptr))
             goto expected_pointer;
         }
 
@@ -390,6 +387,19 @@ error:
   }
 }
 
+gpointer
+_gum_duk_require_data (duk_context * ctx,
+                       duk_idx_t index)
+{
+  gpointer result;
+
+  duk_get_prop_string (ctx, index, "\xff" "priv");
+  result = duk_require_pointer (ctx, -1);
+  duk_pop (ctx);
+
+  return result;
+}
+
 guint
 _gum_duk_require_index (duk_context * ctx,
                         duk_idx_t index)
@@ -478,43 +488,62 @@ _gum_duk_get_uint64 (duk_context * ctx,
 gboolean
 _gum_duk_get_pointer (duk_context * ctx,
                       duk_idx_t index,
+                      GumDukCore * core,
                       gpointer * ptr)
 {
-  GumDukHeapPtr object;
+  gboolean success = TRUE;
 
-  object = duk_get_heapptr (ctx, index);
-  if (_gumjs_is_instanceof (ctx, object, "NativePointer"))
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->native_pointer);
+
+  if (duk_is_pointer (ctx, -2))
   {
-    *ptr = _gumjs_native_pointer_value (ctx, object);
+    *ptr = duk_require_pointer (ctx, -2);
   }
-  else if (duk_is_object (ctx, index))
+  else if (duk_instanceof (ctx, -2, -1))
   {
-    GumDukHeapPtr handle;
+    GumDukNativePointer * p;
 
-    duk_get_prop_string (ctx, index, "handle");
-    handle = duk_get_heapptr (ctx, -1);
-    duk_pop (ctx);
+    p = _gum_duk_require_data (ctx, -2);
 
-    if (_gumjs_is_instanceof (ctx, handle, "NativePointer"))
-      *ptr = _gumjs_native_pointer_value (ctx, handle);
+    *ptr = p->value;
+  }
+  else if (duk_is_object (ctx, -2))
+  {
+    gboolean is_native_pointer;
+
+    duk_get_prop_string (ctx, -2, "handle");
+
+    is_native_pointer = duk_instanceof (ctx, -1, -2);
+    if (is_native_pointer)
+    {
+      GumDukNativePointer * p;
+
+      p = _gum_duk_require_data (ctx, -1);
+
+      *ptr = p->value;
+    }
     else
-      return FALSE;
-  }
-  else if (duk_is_pointer (ctx, index))
-  {
-    *ptr = duk_require_pointer (ctx, index);
+    {
+      success = FALSE;
+    }
+
+    duk_pop (ctx);
   }
   else
   {
-    return FALSE;
+    success = FALSE;
   }
 
-  return TRUE;
+  duk_pop_2 (ctx);
+
+  return success;
 }
 
 gboolean
 _gum_duk_parse_pointer (duk_context * ctx,
                         duk_idx_t index,
+                        GumDukCore * core,
                         gpointer * ptr)
 {
   if (duk_is_string (ctx, index))
@@ -551,7 +580,7 @@ _gum_duk_parse_pointer (duk_context * ctx,
     return TRUE;
   }
 
-  return _gum_duk_get_pointer (ctx, index, ptr);
+  return _gum_duk_get_pointer (ctx, index, core, ptr);
 }
 
 gboolean
@@ -642,25 +671,39 @@ _gum_duk_parse_bytes (duk_context * ctx,
 }
 
 void
-_gumjs_native_pointer_push (duk_context * ctx,
-                            gpointer address,
-                            GumDukCore * core)
+_gum_duk_push_native_pointer (duk_context * ctx,
+                              gpointer address,
+                              GumDukCore * core)
 {
   duk_push_heapptr (ctx, core->native_pointer);
   duk_push_pointer (ctx, address);
   duk_new (ctx, 1);
 }
 
-gpointer
-_gumjs_native_pointer_value (duk_context * ctx,
-                             GumDukHeapPtr value)
+GumDukNativePointer *
+_gum_duk_require_native_pointer (duk_context * ctx,
+                                 duk_idx_t index,
+                                 GumDukCore * core)
 {
-  GumDukNativePointer * ptr;
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->native_pointer);
+  if (!duk_instanceof (ctx, -2, -1))
+    _gumjs_throw (ctx, "expected NativePointer");
+  duk_pop_2 (ctx);
 
-  ptr = _gumjs_get_private_data (ctx, value);
-  g_assert (ptr != NULL);
+  return _gum_duk_require_data (ctx, index);
+}
 
-  return ptr->value;
+void
+_gum_duk_push_native_resource (duk_context * ctx,
+                               gpointer data,
+                               GDestroyNotify notify,
+                               GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->native_resource);
+  duk_push_pointer (ctx, data);
+  duk_push_pointer (ctx, notify);
+  duk_new (ctx, 2);
 }
 
 GumDukCpuContext *
@@ -704,9 +747,10 @@ _gum_duk_get_cpu_context (duk_context * ctx,
   if (!duk_is_object (ctx, index))
     return NULL;
 
+  duk_dup (ctx, index);
   duk_push_heapptr (ctx, core->cpu_context);
-  is_cpu_context = duk_instanceof (ctx, index, -1);
-  duk_pop (ctx);
+  is_cpu_context = duk_instanceof (ctx, -2, -1);
+  duk_pop_2 (ctx);
 
   if (!is_cpu_context)
     return NULL;
@@ -817,53 +861,6 @@ _gumjs_set_private_data (duk_context * ctx,
   duk_push_pointer (ctx, data);
   duk_put_prop_string (ctx, -2, "\xff" "priv");
   duk_pop (ctx);
-}
-
-GumDukNativeResource *
-_gumjs_native_resource_new (duk_context * ctx,
-                            gpointer data,
-                            GDestroyNotify notify,
-                            GumDukCore * core,
-                            GumDukHeapPtr * handle)
-{
-  GumDukHeapPtr h;
-  GumDukNativeResource * resource;
-
-  h = _gumjs_native_pointer_new (ctx, data, core);
-
-  resource = g_slice_new (GumDukNativeResource);
-  resource->weak_ref = _gumjs_weak_ref_new (ctx, h,
-      (GumDukWeakNotify) gum_native_resource_on_weak_notify, resource, NULL);
-  resource->data = data;
-  resource->notify = notify;
-  resource->core = core;
-
-  g_hash_table_insert (core->native_resources, resource, resource);
-
-  *handle = h;
-
-  return resource;
-}
-
-void
-_gumjs_native_resource_free (GumDukNativeResource * resource)
-{
-  _gumjs_weak_ref_free (resource->weak_ref);
-
-  if (resource->notify != NULL)
-    resource->notify (resource->data);
-
-  g_slice_free (GumDukNativeResource, resource);
-}
-
-static void
-gum_native_resource_on_weak_notify (GumDukNativeResource * self)
-{
-  GumDukCore * core = self->core;
-
-  GUM_DUK_CORE_LOCK (core);
-  g_hash_table_remove (core->native_resources, self);
-  GUM_DUK_CORE_UNLOCK (core);
 }
 
 GumDukHeapPtr
