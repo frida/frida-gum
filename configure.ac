@@ -186,6 +186,11 @@ AC_SUBST(GUMJSC_LDFLAGS)
 AC_SUBST(GUMJSC_LIBS)
 AC_SUBST(GUMJSC_LIBS_PRIVATE)
 
+if [[ "x$HAVE_LINUX" = "xyes" ]]; then
+  GUMDUK_LIBS_PRIVATE="-lm"
+fi
+AC_SUBST(GUMDUK_LIBS_PRIVATE)
+
 AC_ARG_ENABLE(diet,
   [AS_HELP_STRING([--enable-diet],
                   [enable diet mode [default=no]])],,
