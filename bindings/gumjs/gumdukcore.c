@@ -520,15 +520,15 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_c_function (ctx, gumjs_native_pointer_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->native_pointer = duk_get_heapptr (ctx, -1);
+  self->native_pointer = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
       gumjs_native_function_construct, 4, gumjs_native_function_finalize);
   duk_get_global_string (ctx, "NativeFunction");
+  self->native_function = _gumjs_duk_require_heapptr (ctx, -1);
   duk_get_prop_string (ctx, -1, "prototype");
-  duk_push_c_function (ctx, gumjs_native_function_invoke, 0);
-  duk_put_prop_string (ctx, -2, "invoke");
+  self->native_function_prototype = duk_require_heapptr (ctx, -1);
   duk_pop_2 (ctx);
 
   _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
@@ -564,6 +564,8 @@ _gum_duk_core_flush (GumDukCore * self)
 void
 _gum_duk_core_dispose (GumDukCore * self)
 {
+  duk_context * ctx = self->ctx;
+
   g_clear_pointer (&self->native_resources, g_hash_table_unref);
 
   while (self->scheduled_callbacks != NULL)
@@ -581,6 +583,9 @@ _gum_duk_core_dispose (GumDukCore * self)
   g_clear_pointer (&self->incoming_message_sink, gum_duk_message_sink_free);
 
   g_clear_pointer (&self->exceptor, g_object_unref);
+
+  _gumjs_duk_release_heapptr (ctx, self->native_pointer);
+  _gumjs_duk_release_heapptr (ctx, self->native_function);
 
   self->ctx = NULL;
 }
@@ -1190,7 +1195,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
-  GumDukHeapPtr result = NULL;
   GumDukCore * core = args->core;
   gpointer fn;
   GumDukHeapPtr rtype_heap_value, atypes_array;
@@ -1224,10 +1228,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   func->core = core;
 
   if (!gumjs_ffi_type_try_get (ctx, rtype_value, &rtype, &func->data))
-    goto error;
+    goto invalid_argument;
 
   if (!_gumjs_object_try_get_uint (ctx, atypes_array, "length", &length))
-    goto error;
+    goto invalid_argument;
 
   nargs_fixed = nargs_total = length;
   is_variadic = FALSE;
@@ -1243,7 +1247,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     duk_pop (ctx);
 
     if (atype_value == NULL)
-      goto error;
+      goto invalid_argument;
 
     if (atype_value->type == DUK_TYPE_STRING)
     {
@@ -1266,7 +1270,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
         &func->atypes[is_variadic ? i - 1 : i], &func->data))
     {
       _gumjs_release_value (ctx, atype_value);
-      goto error;
+      goto invalid_argument;
     }
     _gumjs_release_value (ctx, atype_value);
   }
@@ -1277,7 +1281,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   if (abi_str != NULL)
   {
     if (!gumjs_ffi_abi_try_get (ctx, abi_str, &abi))
-      goto error;
+      goto invalid_argument;
   }
   else
   {
@@ -1305,50 +1309,45 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     func->arglist_size += t->size;
   }
 
-  result = _gumjs_duk_get_this (ctx);
-  _gumjs_set_private_data (ctx, result, func);
-
   duk_push_c_function (ctx, gumjs_native_function_invoke, nargs_total);
+
+  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), func);
+
+  /* bound_func = func.bind(func); */
   duk_push_string (ctx, "bind");
-  duk_push_heapptr (ctx, result);
+  duk_dup (ctx, -2);
   duk_call_prop (ctx, -3, 1);
-  duk_get_global_string (ctx, "NativeFunction");
-  duk_get_prop_string (ctx, -1, "prototype");
-  duk_set_prototype (ctx, -3);
-  duk_pop (ctx);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  /* we need the private data on both the original NativeFunction,
-   * and on the bound callable. */
-  _gumjs_set_private_data (ctx, result, func);
-
+  duk_swap (ctx, -2, -1);
   duk_pop (ctx);
 
-  goto beach;
+  /* `bound_func instanceof NativeFunction` should be true */
+  duk_push_heapptr (ctx, core->native_function_prototype);
+  duk_set_prototype (ctx, -2);
 
+  /* `bound_func` needs the private data to be used as a NativePointer */
+  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), func);
+
+  /* we ignore `this` and return `bound_func` instead */
+  return 1;
+
+invalid_argument:
+  {
+    gum_duk_native_function_finalize (func);
+    _gumjs_throw (ctx, "invalid argument");
+  }
 unexpected_marker:
   {
+    gum_duk_native_function_finalize (func);
     _gumjs_throw (ctx, "only one variadic marker may be specified");
-    goto error;
   }
 compilation_failed:
   {
-    _gumjs_throw (ctx, "failed to compile function call interface");
-    goto error;
-  }
-error:
-  {
     gum_duk_native_function_finalize (func);
-    g_slice_free (GumDukNativeFunction, func);
+    _gumjs_throw (ctx, "failed to compile function call interface");
+  }
 
-    goto beach;
-  }
-beach:
-  {
-    g_assert (result != NULL);
-    duk_push_heapptr (ctx, result);
-    _gumjs_duk_release_heapptr (ctx, result);
-    return 1;
-  }
+  g_assert_not_reached ();
+  return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
@@ -1376,7 +1375,9 @@ gum_duk_native_function_finalize (GumDukNativeFunction * func)
     g_free (head->data);
     func->data = g_slist_delete_link (func->data, head);
   }
-  g_clear_pointer (&func->atypes, g_free);
+  g_free (func->atypes);
+
+  g_slice_free (GumDukNativeFunction, func);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
@@ -1609,7 +1610,6 @@ prepare_failed:
 error:
   {
     gum_duk_native_callback_finalize (callback);
-    g_slice_free (GumDukNativeCallback, callback);
 
     goto beach;
   }
@@ -1651,6 +1651,8 @@ gum_duk_native_callback_finalize (GumDukNativeCallback * callback)
     callback->data = g_slist_delete_link (callback->data, head);
   }
   g_free (callback->atypes);
+
+  g_slice_free (GumDukNativeCallback, callback);
 }
 
 static void
@@ -2069,7 +2071,6 @@ gumjs_ffi_type_try_get (duk_context * ctx,
   }
 
 beach:
-
   return success;
 }
 

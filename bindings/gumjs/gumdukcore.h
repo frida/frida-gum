@@ -68,6 +68,8 @@ struct _GumDukCore
   GHashTable * native_resources;
 
   GumDukHeapPtr native_pointer;
+  GumDukHeapPtr native_function;
+  GumDukHeapPtr native_function_prototype;
 };
 
 struct _GumDukScope
