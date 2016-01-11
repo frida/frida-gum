@@ -567,6 +567,7 @@ SCRIPT_TESTCASE (proxied_method_can_be_overridden)
         autorelease];
 
     COMPILE_AND_LOAD_SCRIPT (
+        "var pool = ObjC.classes.NSAutoreleasePool.alloc().init();"
         "var CalculatorProxy = ObjC.registerProxy({});"
         "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
         "var calculator = new ObjC.Object(calculatorProxy);"
@@ -575,6 +576,7 @@ SCRIPT_TESTCASE (proxied_method_can_be_overridden)
             "ObjC.implement(method, function (handle, selector, value) {"
                 "return 1227 + value;"
             "});"
+        "pool.release();"
         "send('ready');",
         calc);
     EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
