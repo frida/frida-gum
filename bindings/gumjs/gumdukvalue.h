@@ -131,6 +131,8 @@ G_GNUC_INTERNAL const gchar * _gumjs_memory_operation_to_string (
 
 G_GNUC_INTERNAL gpointer _gumjs_get_private_data (duk_context * ctx,
     GumDukHeapPtr object);
+G_GNUC_INTERNAL gpointer _gumjs_steal_private_data (duk_context * ctx,
+    GumDukHeapPtr object);
 G_GNUC_INTERNAL void _gumjs_set_private_data (duk_context * ctx,
     GumDukHeapPtr object, gpointer data);
 G_GNUC_INTERNAL GumDukValue * _gumjs_get_value (duk_context * ctx,

@@ -696,23 +696,35 @@ _gumjs_get_private_data (duk_context * ctx,
   if (duk_is_undefined (ctx, -1))
     result = NULL;
   else
-    result = duk_require_pointer (ctx, -1);
+    result = duk_get_pointer (ctx, -1);
   duk_pop_2 (ctx);
 
   return result;
 }
 
-gboolean
-_gumjs_is_instanceof (duk_context * ctx,
-                      GumDukHeapPtr object,
-                      gchar * class_name)
+gpointer
+_gumjs_steal_private_data (duk_context * ctx,
+                           GumDukHeapPtr object)
 {
-  gboolean result;
+  gpointer result = NULL;
 
   duk_push_heapptr (ctx, object);
-  duk_get_global_string (ctx, class_name);
-  result = duk_instanceof (ctx, -2, -1);
-  duk_pop_2 (ctx);
+
+  duk_get_prop_string (ctx, -1, "\xff" "priv");
+  if (!duk_is_undefined (ctx, -1))
+  {
+    result = duk_get_pointer (ctx, -1);
+    duk_pop (ctx);
+
+    duk_push_pointer (ctx, NULL);
+    duk_put_prop_string (ctx, -2, "\xff" "priv");
+
+    duk_pop (ctx);
+  }
+  else
+  {
+    duk_pop_2 (ctx);
+  }
 
   return result;
 }
@@ -1131,6 +1143,21 @@ _gumjs_value_native_pointer_try_get (duk_context * ctx,
     _gumjs_throw (ctx, "expected NativePointer object");
     return FALSE;
   }
+}
+
+gboolean
+_gumjs_is_instanceof (duk_context * ctx,
+                      GumDukHeapPtr object,
+                      gchar * class_name)
+{
+  gboolean result;
+
+  duk_push_heapptr (ctx, object);
+  duk_get_global_string (ctx, class_name);
+  result = duk_instanceof (ctx, -2, -1);
+  duk_pop_2 (ctx);
+
+  return result;
 }
 
 gboolean
