@@ -99,7 +99,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "p", &target);
+  _gum_duk_args_parse (args, "p", &target);
 
 #ifdef HAVE_ARM
   address = GPOINTER_TO_SIZE (target) & ~1;
@@ -167,10 +167,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
   duk_push_this (ctx);
 
   duk_get_prop_string (ctx, -1, "mnemonic");
-  mnemonic = duk_get_string (ctx, -1);
+  mnemonic = duk_require_string (ctx, -1);
 
   duk_get_prop_string (ctx, -2, "opStr");
-  op_str = duk_get_string (ctx, -1);
+  op_str = duk_require_string (ctx, -1);
 
   result = g_strconcat (mnemonic, " ", op_str, NULL);
 

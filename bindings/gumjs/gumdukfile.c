@@ -69,8 +69,7 @@ _gum_duk_file_finalize (GumDukFile * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
-  const gchar * filename;
-  const gchar * mode;
+  const gchar * filename, * mode;
   FILE * handle;
   GumFile * file;
 
@@ -81,7 +80,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "ss", &filename, &mode);
+  _gum_duk_args_parse (args, "ss", &filename, &mode);
 
   handle = fopen (filename, mode);
   if (handle == NULL)
@@ -135,7 +134,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 
   self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "V", &value);
+  _gum_duk_args_parse (args, "V", &value);
 
   gum_file_check_open (self, ctx);
 
@@ -144,7 +143,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   {
     const gchar * str;
 
-    str = duk_get_string (ctx, -1);
+    str = duk_require_string (ctx, -1);
 
     fwrite (str, strlen (str), 1, self->handle);
   }

@@ -88,7 +88,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
+  _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -160,7 +160,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "sF{onMatch,onComplete}", &name, &mc.on_match,
+  _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -220,7 +220,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "smF{onMatch,onComplete}", &name, &prot,
+  _gum_duk_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete);
   mc.ctx = ctx;
 
@@ -285,7 +285,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   const gchar * name;
   GumAddress address;
 
-  _gum_duk_require_args (ctx, "s", &name);
+  _gum_duk_args_parse (args, "s", &name);
 
   address = gum_module_find_base_address (name);
 
@@ -302,7 +302,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   const gchar * module_name, * symbol_name;
   GumAddress address;
 
-  _gum_duk_require_args (ctx, "s?s", &module_name, &symbol_name);
+  _gum_duk_args_parse (args, "s?s", &module_name, &symbol_name);
 
   address = gum_module_find_export_by_name (module_name, symbol_name);
 

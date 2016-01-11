@@ -84,7 +84,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
   gint sock, type;
   gum_socklen_t len;
 
-  _gum_duk_require_args (ctx, "i", &sock);
+  _gum_duk_args_parse (args, "i", &sock);
 
   len = sizeof (gint);
   if (getsockopt (sock, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
@@ -160,7 +160,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
   gum_socklen_t len = sizeof (large_addr);
   GumDukHeapPtr result;
 
-  _gum_duk_require_args (ctx, "i", &sock);
+  _gum_duk_args_parse (args, "i", &sock);
 
   if (getsockname (sock, addr, &len) == 0)
   {
@@ -184,7 +184,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
   gum_socklen_t len = sizeof (large_addr);
   GumDukHeapPtr result;
 
-  _gum_duk_require_args (ctx, "i", &sock);
+  _gum_duk_args_parse (args, "i", &sock);
 
   if (getpeername (sock, addr, &len) == 0)
   {

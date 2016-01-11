@@ -19,7 +19,7 @@ typedef struct _GumFFIABIMapping GumFFIABIMapping;
 struct _GumDukWeakRef
 {
   guint id;
-  GumDukValue * target;
+  GumDukHeapPtr target;
   GumDukHeapPtr callback;
 
   GumDukCore * core;
@@ -531,6 +531,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_c_function (ctx, gumjs_cpu_context_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
+  self->cpu_context = _gumjs_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "CpuContext");
   _gumjs_duk_add_properties_to_class (ctx, "CpuContext",
       gumjs_cpu_context_values);
@@ -575,6 +576,7 @@ _gum_duk_core_dispose (GumDukCore * self)
 
   _gumjs_duk_release_heapptr (ctx, self->native_pointer);
   _gumjs_duk_release_heapptr (ctx, self->native_function);
+  _gumjs_duk_release_heapptr (ctx, self->cpu_context);
 
   self->ctx = NULL;
 }
@@ -680,7 +682,7 @@ _gum_duk_scope_call_sync (GumDukScope * self,
   if (!success)
   {
     g_assert (self->exception == NULL);
-    self->exception = _gumjs_duk_get_heapptr (core->ctx, -1);
+    self->exception = _gumjs_duk_require_heapptr (core->ctx, -1);
   }
 
   return success;
@@ -780,7 +782,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   guint id;
   GumDukWeakRef * ref;
 
-  _gum_duk_require_args (ctx, "VF", &target, &callback);
+  _gum_duk_args_parse (args, "VF", &target, &callback);
 
   duk_push_heapptr (ctx, target);
   target_is_valid = !duk_is_null (ctx, -1) && duk_is_object (ctx, -1);
@@ -803,7 +805,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
   gboolean removed;
   GumDukCore * self = args->core;
 
-  _gum_duk_require_args (ctx, "u", &id);
+  _gum_duk_args_parse (args, "u", &id);
 
   removed = !g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
 
@@ -832,7 +834,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   GumDukScheduledCallback * callback = NULL;
   GSList * cur;
 
-  _gum_duk_require_args (ctx, "i", &id);
+  _gum_duk_args_parse (args, "i", &id);
 
   for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
@@ -865,7 +867,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   gchar * message;
   GBytes * data;
 
-  _gum_duk_require_args (ctx, "sB?", &message, &data);
+  _gum_duk_args_parse (args, "sB?", &message, &data);
 
   _gum_duk_core_emit_message (args->core, message, data);
 
@@ -880,7 +882,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumDukHeapPtr callback;
   GumDukExceptionSink * new_sink, * old_sink;
 
-  _gum_duk_require_args (ctx, "F?", &callback);
+  _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
       ? gum_duk_exception_sink_new (callback, self)
@@ -901,7 +903,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   GumDukHeapPtr callback;
   GumDukMessageSink * new_sink, * old_sink;
 
-  _gum_duk_require_args (ctx, "F?", &callback);
+  _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
       ? gum_duk_message_sink_new (callback, self)
@@ -941,7 +943,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "|p~", &ptr);
+  _gum_duk_args_parse (args, "|p~", &ptr);
 
   priv = g_slice_new (GumDukNativePointer);
   priv->value = ptr;
@@ -988,7 +990,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
     gpointer result; \
     GumDukHeapPtr this_object; \
     \
-    _gum_duk_require_args (ctx, "p~", &rhs_ptr); \
+    _gum_duk_args_parse (args, "p~", &rhs_ptr); \
     \
     duk_push_this (ctx); \
     this_object = duk_require_heapptr (ctx, -1); \
@@ -1018,7 +1020,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
   gint result;
   GumDukHeapPtr this_object;
 
-  _gum_duk_require_args (ctx, "p~", &rhs_ptr);
+  _gum_duk_args_parse (args, "p~", &rhs_ptr);
 
   duk_push_this (ctx);
   this_object = duk_require_heapptr (ctx, -1);
@@ -1059,7 +1061,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 
   this_object = _gumjs_duk_get_this (ctx);
 
-  _gum_duk_require_args (ctx, "|u", &radix);
+  _gum_duk_args_parse (args, "|u", &radix);
 
   radix_specified = radix != 0;
   if (!radix_specified)
@@ -1158,7 +1160,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "pVA|s", &fn, &rtype_value, &atypes_array,
+  _gum_duk_args_parse (args, "pVA|s", &fn, &rtype_value, &atypes_array,
       &abi_str);
 
   func = g_slice_new0 (GumDukNativeFunction);
@@ -1190,7 +1192,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     atype = &func->atypes[is_variadic ? i - 1 : i];
 
     if (duk_is_string (ctx, -1))
-      is_marker = strcmp (duk_get_string (ctx, -1), "...") == 0;
+      is_marker = strcmp (duk_require_string (ctx, -1), "...") == 0;
     else
       is_marker = FALSE;
 
@@ -1248,7 +1250,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   duk_push_c_function (ctx, gumjs_native_function_invoke, DUK_VARARGS);
 
-  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), func);
+  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), func);
 
   /* bound_func = func.bind(func); */
   duk_push_string (ctx, "bind");
@@ -1262,7 +1264,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   duk_set_prototype (ctx, -2);
 
   /* `bound_func` needs the private data to be used as a NativePointer */
-  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), func);
+  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), func);
 
   /* we ignore `this` and return `bound_func` instead */
   return 1;
@@ -1424,7 +1426,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_require_args (ctx, "FVA|s", &func, &rtype_value, &atypes_array,
+  _gum_duk_args_parse (args, "FVA|s", &func, &rtype_value, &atypes_array,
       &abi_str);
 
   callback = g_slice_new0 (GumDukNativeCallback);
@@ -1444,7 +1446,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   for (i = 0; i != nargs; i++)
   {
-    GumDukValue * atype_value;
+    GumDukHeapPtr atype_value;
     ffi_type ** atype;
 
     duk_get_prop_index (ctx, -1, i);
@@ -1483,7 +1485,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto prepare_failed;
 
   duk_push_this (ctx);
-  _gumjs_set_private_data (ctx, duk_get_heapptr (ctx, -1), callback);
+  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), callback);
   return 1;
 
 invalid_return_type:
@@ -1533,7 +1535,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   if (self == NULL)
     return 0;
 
-  heap_destruct = duk_get_boolean (ctx, 1);
+  heap_destruct = duk_require_boolean (ctx, 1);
   gum_duk_native_callback_finalize (self, heap_destruct);
 
   return 0;
@@ -1632,7 +1634,7 @@ gumjs_cpu_context_set_register (GumDukCpuContext * self,
 {
   gpointer value;
 
-  _gum_duk_require_args (ctx, "p~", &value);
+  _gum_duk_args_parse (args, "p~", &value);
 
   if (self->access == GUM_CPU_CONTEXT_READONLY)
     _gumjs_throw (ctx, "invalid operation");
@@ -1689,7 +1691,7 @@ gum_duk_core_schedule_callback (GumDukCore * self,
   GSource * source;
   GumDukScheduledCallback * callback;
 
-  _gum_duk_require_args (self->ctx, "Fu", &func, &delay);
+  _gum_duk_args_parse (args, "Fu", &func, &delay);
 
   id = ++self->last_callback_id;
   if (delay == 0)
@@ -1899,7 +1901,7 @@ gum_duk_get_ffi_type (duk_context * ctx,
 
   if (duk_is_string (ctx, -1))
   {
-    const gchar * type_name = duk_get_string (ctx, -1);
+    const gchar * type_name = duk_require_string (ctx, -1);
 
     for (i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
@@ -1998,7 +2000,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint = duk_get_int (ctx, index);
+    value->v_sint = duk_require_int (ctx, index);
   }
   else if (type == &ffi_type_uint)
   {
@@ -2023,7 +2025,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_schar = duk_get_int (ctx, index);
+    value->v_schar = duk_require_int (ctx, index);
   }
   else if (type == &ffi_type_uchar)
   {
@@ -2036,19 +2038,19 @@ gum_duk_get_ffi_value (duk_context * ctx,
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_float = duk_get_number (ctx, index);
+    value->v_float = duk_require_number (ctx, index);
   }
   else if (type == &ffi_type_double)
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_double = duk_get_number (ctx, index);
+    value->v_double = duk_require_number (ctx, index);
   }
   else if (type == &ffi_type_sint8)
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint8 = duk_get_int (ctx, index);
+    value->v_sint8 = duk_require_int (ctx, index);
   }
   else if (type == &ffi_type_uint8)
   {
@@ -2061,7 +2063,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint16 = duk_get_int (ctx, index);
+    value->v_sint16 = duk_require_int (ctx, index);
   }
   else if (type == &ffi_type_uint16)
   {
@@ -2074,7 +2076,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   {
     if (!duk_is_number (ctx, index))
       return FALSE;
-    value->v_sint32 = duk_get_int (ctx, index);
+    value->v_sint32 = duk_require_int (ctx, index);
   }
   else if (type == &ffi_type_uint32)
   {

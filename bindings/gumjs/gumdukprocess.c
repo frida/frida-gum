@@ -144,7 +144,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+  _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -166,28 +166,23 @@ gum_emit_thread (const GumThreadDetails * details,
   GumDukCore * core = mc->self->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = mc->ctx;
-  GumDukHeapPtr thread, context;
   gboolean proceed;
 
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
       details->id))
     return TRUE;
 
+  duk_push_heapptr (ctx, mc->on_match);
+
   duk_push_object (ctx);
   duk_push_uint (ctx, details->id);
   duk_put_prop_string (ctx, -2, "id");
   duk_push_string (ctx, _gumjs_thread_state_to_string (details->state));
   duk_put_prop_string (ctx, -2, "state");
-  context = _gumjs_cpu_context_new (ctx,
-      (GumCpuContext *) &details->cpu_context, GUM_CPU_CONTEXT_READONLY, core);
-  duk_push_heapptr (ctx, context);
+  _gum_duk_push_cpu_context (ctx, (GumCpuContext *) &details->cpu_context,
+      GUM_CPU_CONTEXT_READONLY, core);
   duk_put_prop_string (ctx, -2, "context");
 
-  thread = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-
-  duk_push_heapptr (ctx, mc->on_match);
-  duk_push_heapptr (ctx, thread);
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
     proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
@@ -207,7 +202,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+  _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -268,7 +263,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "mF{onMatch,onComplete}", &prot, &mc.on_match,
+  _gum_duk_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -348,7 +343,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
   mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  _gum_duk_require_args (ctx, "F{onMatch,onComplete}", &mc.on_match,
+  _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
   mc.ctx = ctx;
 
@@ -411,7 +406,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   core = self->core;
 
-  _gum_duk_require_args (ctx, "F?", &callback);
+  _gum_duk_args_parse (args, "F?", &callback);
 
   new_handler = (callback != NULL)
       ? gum_duk_exception_handler_new (callback, core)
@@ -462,33 +457,24 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   GumDukCore * core = handler->core;
   GumDukScope scope;
   duk_context * ctx = core->ctx;
-  GumDukHeapPtr exception, cpu_context;
-  GumDukValue * result = NULL;
-  gboolean handled;
+  GumDukCpuContext * cpu_context;
+  gboolean handled = FALSE;
 
   _gum_duk_scope_enter (&scope, core);
 
-  _gumjs_parse_exception_details (ctx, details, core, &exception, &cpu_context);
+  _gum_duk_push_exception_details (ctx, details, core, &cpu_context);
 
   duk_push_heapptr (ctx, handler->callback);
-  duk_push_heapptr (ctx, exception);
-  _gumjs_duk_release_heapptr (ctx, exception);
+  duk_dup (ctx, -2);
   if (_gum_duk_scope_call (&scope, 1))
   {
-    result = _gumjs_get_value (ctx, -1);
+    if (duk_is_boolean (ctx, -1))
+      handled = duk_require_boolean (ctx, -1);
   }
 
-  _gumjs_cpu_context_detach (ctx, cpu_context);
+  _gum_duk_cpu_context_make_read_only (cpu_context);
 
-  handled = FALSE;
-  if (result != NULL)
-  {
-    if (result->type == DUK_TYPE_BOOLEAN)
-      handled = result->data._boolean;
-    g_free (result);
-  }
-
-  duk_pop (ctx);
+  duk_pop_2 (ctx);
 
   _gum_duk_scope_leave (&scope);
 

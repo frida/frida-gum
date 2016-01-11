@@ -35,7 +35,7 @@ main (int argc,
 
   duk_dump_function (ctx);
 
-  code = duk_get_buffer_data (ctx, -1, &size);
+  code = duk_require_buffer_data (ctx, -1, &size);
 
   output = fopen (output_path, "wb");
   if (output == NULL)

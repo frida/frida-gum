@@ -29,7 +29,7 @@ struct _GumDukInvocationContext
 {
   GumDukHeapPtr object;
   GumInvocationContext * handle;
-  GumDukHeapPtr cpu_context;
+  GumDukCpuContext * cpu_context;
   gint depth;
 
   GumDukInterceptor * interceptor;
@@ -269,7 +269,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "pF{onEnter?,onLeave?}", &target,
+  _gum_duk_args_parse (args, "pF{onEnter?,onLeave?}", &target,
       &on_enter, &on_leave);
 
   entry = g_slice_new (GumDukAttachEntry);
@@ -353,7 +353,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_replace)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "pO", &target, &replacement_value);
+  _gum_duk_args_parse (args, "pO", &target, &replacement_value);
 
   duk_push_heapptr (ctx, replacement_value);
   if (!_gum_duk_get_pointer (ctx, -1, &replacement))
@@ -415,7 +415,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "p", &target);
+  _gum_duk_args_parse (args, "p", &target);
 
   g_hash_table_remove (self->replacement_by_address, target);
 
@@ -619,9 +619,13 @@ gumjs_invocation_context_reset (GumDukInvocationContext * self,
   {
     duk_context * ctx = self->interceptor->core->ctx;
 
-    _gumjs_cpu_context_detach (ctx, self->cpu_context);
-    _gumjs_duk_release_heapptr (ctx, self->cpu_context);
+    _gum_duk_cpu_context_make_read_only (self->cpu_context);
     self->cpu_context = NULL;
+
+    duk_push_heapptr (ctx, self->object);
+    duk_push_null (ctx);
+    duk_put_prop_string (ctx, -2, "\xff" "cc");
+    duk_pop (ctx);
   }
 }
 
@@ -677,11 +681,14 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_cpu_context)
 
   if (self->cpu_context == NULL)
   {
-    self->cpu_context = _gumjs_cpu_context_new (ctx, self->handle->cpu_context,
-        GUM_CPU_CONTEXT_READWRITE, args->core);
+    duk_push_this (ctx);
+    self->cpu_context = _gum_duk_push_cpu_context (ctx,
+        self->handle->cpu_context, GUM_CPU_CONTEXT_READWRITE, args->core);
+    duk_put_prop_string (ctx, -2, "\xff" "cc");
+    duk_pop (ctx);
   }
 
-  duk_push_heapptr (ctx, self->cpu_context);
+  duk_push_heapptr (ctx, self->cpu_context->object);
   return 1;
 }
 
@@ -702,7 +709,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
   gint value;
   GumDukInvocationContext * self;
 
-  _gum_duk_require_args (ctx, "i", &value);
+  _gum_duk_args_parse (args, "i", &value);
 
   self = GUM_DUK_INVOCATION_CONTEXT (_gumjs_duk_get_this (ctx));
 
@@ -854,7 +861,7 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
   }
 
   ic = gumjs_invocation_args_require_context (ctx, 0);
-  n = _gumjs_uint_parse (ctx, property);
+  n = _gum_duk_require_index (ctx, 1);
 
   _gumjs_native_pointer_push (ctx,
       gum_invocation_context_get_nth_argument (ic, n), args->core);
@@ -868,7 +875,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
   gpointer value = NULL;
 
   ic = gumjs_invocation_args_require_context (ctx, 0);
-  n = _gumjs_uint_parse (ctx, duk_safe_to_string (ctx, 1));
+  n = _gum_duk_require_index (ctx, 1);
 
   if (_gumjs_is_instanceof (ctx, duk_get_heapptr (ctx, 2), "NativePointer"))
   {
@@ -971,7 +978,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_invocation_return_value_replace)
     _gumjs_throw (ctx, "invalid operation");
 
   ptr = &self->parent;
-  _gum_duk_require_args (ctx, "p~", &ptr->value);
+  _gum_duk_args_parse (args, "p~", &ptr->value);
 
   gum_invocation_context_replace_return_value (self->ic, ptr->value);
 

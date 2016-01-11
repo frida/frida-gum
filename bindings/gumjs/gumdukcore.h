@@ -67,6 +67,7 @@ struct _GumDukCore
   GumDukHeapPtr native_pointer;
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;
+  GumDukHeapPtr cpu_context;
 };
 
 struct _GumDukScope
@@ -82,6 +83,7 @@ struct _GumDukNativePointer
 
 struct _GumDukCpuContext
 {
+  GumDukHeapPtr object;
   GumCpuContext * handle;
   GumDukCpuContextAccess access;
   GumCpuContext storage;

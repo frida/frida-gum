@@ -373,7 +373,7 @@ gum_duk_script_create_context (GumDukScript * self,
   }
 
   /* pop the function */
-  priv->code = _gumjs_duk_get_heapptr (ctx, -1);
+  priv->code = _gumjs_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
   priv->ctx = ctx;

@@ -91,7 +91,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "p", &address);
+  _gum_duk_args_parse (args, "p", &address);
 
   duk_push_heapptr (ctx, self->symbol);
   duk_push_pointer (ctx, address);
@@ -112,7 +112,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 
   self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
 
-  _gum_duk_require_args (ctx, "s", &name);
+  _gum_duk_args_parse (args, "s", &name);
 
   duk_push_heapptr (ctx, self->symbol);
   address = gum_find_function (name);
@@ -130,7 +130,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   const gchar * name;
   gpointer address;
 
-  _gum_duk_require_args (ctx, "s", &name);
+  _gum_duk_args_parse (args, "s", &name);
 
   address = gum_find_function (name);
   if (address == NULL)
@@ -145,7 +145,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   gchar * name;
   GArray * functions;
 
-  _gum_duk_require_args (ctx, "s", &name);
+  _gum_duk_args_parse (args, "s", &name);
 
   functions = gum_find_functions_named (name);
   gumjs_pointer_array_push (ctx, functions, args->core);
@@ -158,7 +158,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   const gchar * str;
   GArray * functions;
 
-  _gum_duk_require_args (ctx, "s", &str);
+  _gum_duk_args_parse (args, "s", &str);
 
   functions = gum_find_functions_matching (str);
   gumjs_pointer_array_push (ctx, functions, args->core);

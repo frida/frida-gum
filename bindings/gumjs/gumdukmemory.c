@@ -201,7 +201,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   guint size, page_size;
   GumDukHeapPtr handle;
 
-  _gum_duk_require_args (ctx, "u", &size);
+  _gum_duk_args_parse (args, "u", &size);
 
   if (size == 0 || size > 0x7fffffff)
     _gumjs_throw (ctx, "invalid size");
@@ -231,7 +231,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   guint size;
   GumExceptorScope scope;
 
-  _gum_duk_require_args (ctx, "ppu", &destination, &source, &size);
+  _gum_duk_args_parse (args, "ppu", &destination, &source, &size);
 
   if (size == 0)
     return 0;
@@ -258,7 +258,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
   GumPageProtection prot;
   gboolean success;
 
-  _gum_duk_require_args (ctx, "pum", &address, &size, &prot);
+  _gum_duk_args_parse (args, "pum", &address, &size, &prot);
 
   if (size > 0x7fffffff)
     _gumjs_throw (ctx, "invalid size");
@@ -287,16 +287,16 @@ gum_duk_memory_read (GumDukMemory * self,
   switch (type)
   {
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      _gum_duk_require_args (ctx, "pi", &address, &length);
+      _gum_duk_args_parse (args, "pi", &address, &length);
       break;
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      _gum_duk_require_args (ctx, "p|i", &address, &length);
+      _gum_duk_args_parse (args, "p|i", &address, &length);
       break;
     default:
-      _gum_duk_require_args (ctx, "p", &address);
+      _gum_duk_args_parse (args, "p", &address);
       break;
   }
 
@@ -521,7 +521,7 @@ gum_duk_memory_write (GumDukMemory * self,
   switch (type)
   {
     case GUM_MEMORY_VALUE_POINTER:
-      _gum_duk_require_args (ctx, "pp", &address, &pointer);
+      _gum_duk_args_parse (args, "pp", &address, &pointer);
       break;
     case GUM_MEMORY_VALUE_S8:
     case GUM_MEMORY_VALUE_U8:
@@ -533,15 +533,15 @@ gum_duk_memory_write (GumDukMemory * self,
     case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
-      _gum_duk_require_args (ctx, "pn", &address, &number);
+      _gum_duk_args_parse (args, "pn", &address, &number);
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      _gum_duk_require_args (ctx, "pB", &address, &bytes);
+      _gum_duk_args_parse (args, "pB", &address, &bytes);
       break;
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      _gum_duk_require_args (ctx, "ps", &address, &str);
+      _gum_duk_args_parse (args, "ps", &address, &str);
 
       str_length = g_utf8_strlen (str, -1);
       if (type == GUM_MEMORY_VALUE_UTF16_STRING)
@@ -697,7 +697,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   gchar * str_ansi;
   GumDukHeapPtr handle;
 
-  _gum_duk_require_args (ctx, "s", &str);
+  _gum_duk_args_parse (args, "s", &str);
 
   str_ansi = gum_ansi_string_from_utf8 (str);
 
@@ -716,7 +716,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
   const gchar * str;
   GumDukHeapPtr handle;
 
-  _gum_duk_require_args (ctx, "s", &str);
+  _gum_duk_args_parse (args, "s", &str);
 
   _gumjs_native_resource_new (ctx, g_strdup (str), g_free, args->core, &handle);
 
@@ -730,7 +730,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf16_string)
   gunichar2 * str_utf16;
   GumDukHeapPtr handle;
 
-  _gum_duk_require_args (ctx, "s", &str);
+  _gum_duk_args_parse (args, "s", &str);
 
   str_utf16 = g_utf8_to_utf16 (str, -1, NULL, NULL, NULL);
 
@@ -748,7 +748,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   guint size;
   const gchar * match_str;
 
-  _gum_duk_require_args (ctx, "pusF{onMatch,onError?,onComplete}",
+  _gum_duk_args_parse (args, "pusF{onMatch,onError?,onComplete}",
       &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete);
 
   sc.range.base_address = GUM_ADDRESS (address);
@@ -851,9 +851,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
   if (_gum_duk_scope_call (&scope, 2))
   {
     if (duk_is_string (ctx, -1))
-    {
-      proceed = strcmp (duk_get_string (ctx, -1), "stop") != 0;
-    }
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
   }
   duk_pop (ctx);
 
