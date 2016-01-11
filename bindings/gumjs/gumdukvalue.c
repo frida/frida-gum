@@ -863,48 +863,6 @@ _gumjs_set_private_data (duk_context * ctx,
   duk_pop (ctx);
 }
 
-GumDukHeapPtr
-_gumjs_array_buffer_new (duk_context * ctx,
-                         gsize size,
-                         GumDukCore * core)
-{
-  GumDukHeapPtr result;
-
-  duk_get_global_string (ctx, "ArrayBuffer");
-  duk_push_int (ctx, size);
-  duk_new (ctx, 1);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-
-  return result;
-}
-
-gboolean
-_gumjs_array_buffer_try_get_data (duk_context * ctx,
-                                  GumDukHeapPtr value,
-                                  gpointer * data,
-                                  gsize * size)
-{
-  duk_push_heapptr (ctx, value);
-  *data = duk_get_buffer_data (ctx, -1, size);
-  duk_pop (ctx);
-
-  return TRUE;
-}
-
-gpointer
-_gumjs_array_buffer_get_data (duk_context * ctx,
-                              GumDukHeapPtr value,
-                              gsize * size)
-{
-  gpointer data;
-
-  if (!_gumjs_array_buffer_try_get_data (ctx, value, &data, size))
-    _gumjs_panic (ctx, "failed to get ArrayBuffer data");
-
-  return data;
-}
-
 void
 _gumjs_throw (duk_context * ctx,
               const gchar * format,

@@ -347,24 +347,21 @@ gum_duk_memory_read (GumDukMemory * self,
 
         if (length > 0)
         {
-          guint8 dummy_to_trap_bad_pointer_early;
-          GumDukHeapPtr array;
-          gpointer array_data;
+          gpointer buffer_data;
 
-          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
-
-          array = _gumjs_array_buffer_new (ctx, length, core);
-          array_data = _gumjs_array_buffer_get_data (ctx, array, NULL);
-          memcpy (array_data, data, length);
-          duk_push_heapptr (ctx, array);
-          _gumjs_duk_release_heapptr (ctx, array);
+          buffer_data = duk_push_fixed_buffer (ctx, length);
+          memcpy (buffer_data, data, length);
         }
         else
         {
-          GumDukHeapPtr array = _gumjs_array_buffer_new (ctx, 0, core);
-          duk_push_heapptr (ctx, array);
-          _gumjs_duk_release_heapptr (ctx, array);
+          duk_push_fixed_buffer (ctx, 0);
         }
+
+        duk_push_buffer_object (ctx, -1, 0, MAX (length, 0),
+            DUK_BUFOBJ_ARRAYBUFFER);
+
+        duk_swap (ctx, -2, -1);
+        duk_pop (ctx);
 
         break;
       }
