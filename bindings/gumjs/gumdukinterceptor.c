@@ -907,7 +907,6 @@ gumjs_invocation_return_value_new (GumDukInterceptor * parent)
   retval = g_slice_new (GumDukInvocationReturnValue);
 
   ptr = &retval->parent;
-  ptr->instance_size = sizeof (GumDukInvocationReturnValue);
   ptr->value = NULL;
 
   duk_push_heapptr (ctx, parent->invocation_retval);

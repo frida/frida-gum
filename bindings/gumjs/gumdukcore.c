@@ -994,7 +994,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   _gum_duk_require_args (ctx, "|p~", &ptr);
 
   priv = g_slice_new (GumDukNativePointer);
-  priv->instance_size = sizeof (GumDukNativePointer);
   priv->value = ptr;
 
   _gumjs_set_private_data (ctx, _gumjs_duk_get_this (ctx), priv);
@@ -1013,7 +1012,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   if (self == NULL)
     return 0;
 
-  g_slice_free1 (self->instance_size, self);
+  g_slice_free (GumDukNativePointer, self);
 
   return 0;
 }
@@ -1220,7 +1219,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   func = g_slice_new0 (GumDukNativeFunction);
   ptr = &func->parent;
-  ptr->instance_size = sizeof (GumDukNativeFunction);
   ptr->value = fn;
   func->fn = fn;
   func->core = core;
@@ -1523,7 +1521,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   callback = g_slice_new0 (GumDukNativeCallback);
 
   ptr = &callback->parent;
-  ptr->instance_size = sizeof (GumDukNativeCallback);
 
   callback->core = core;
 

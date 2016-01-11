@@ -78,7 +78,6 @@ struct _GumDukScope
 
 struct _GumDukNativePointer
 {
-  gsize instance_size;
   gpointer value;
 };
 
