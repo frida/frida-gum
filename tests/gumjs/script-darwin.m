@@ -102,6 +102,7 @@ SCRIPT_TESTCASE (object_enumeration_should_contain_protocol_methods)
         autorelease];
 
     COMPILE_AND_LOAD_SCRIPT (
+        "var pool = ObjC.classes.NSAutoreleasePool.alloc().init();"
         "var CalculatorProxy = ObjC.registerProxy({});"
         "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
         "var calculator = new ObjC.Object(calculatorProxy, "
@@ -124,7 +125,8 @@ SCRIPT_TESTCASE (object_enumeration_should_contain_protocol_methods)
             "send(true);"
         "} catch (e) {"
             "send(false);"
-        "}",
+        "}"
+        "pool.release();",
         calc);
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
@@ -548,11 +550,13 @@ SCRIPT_TESTCASE (proxied_method_can_be_invoked)
         autorelease];
 
     COMPILE_AND_LOAD_SCRIPT (
+        "var pool = ObjC.classes.NSAutoreleasePool.alloc().init();"
         "var CalculatorProxy = ObjC.registerProxy({});"
         "var calculatorProxy = new CalculatorProxy(" GUM_PTR_CONST ", {});"
         "var calculator = new ObjC.Object(calculatorProxy);"
         "send(\"- add:\" in calculator);"
-        "send(calculator.add_(3));",
+        "send(calculator.add_(3));"
+        "pool.release();",
         calc);
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("1340");
