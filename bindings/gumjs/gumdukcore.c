@@ -147,7 +147,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
 static void gum_duk_native_callback_finalize (
-    GumDukNativeCallback * func);
+    GumDukNativeCallback * func, gboolean heap_destruct);
 static void gum_duk_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
@@ -155,9 +155,6 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static void gumjs_cpu_context_set_register (GumDukCpuContext * self,
     duk_context * ctx, const GumDukArgs * args, gsize * reg);
-
-static gboolean gum_handle_unprotect_requests_when_idle (gpointer user_data);
-static void gum_handle_unprotect_requests (GumDukCore * self);
 
 static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
     GumDukHeapPtr callback, GumDukCore * core);
@@ -460,9 +457,6 @@ _gum_duk_core_init (GumDukCore * self,
   g_mutex_init (&self->mutex);
   g_cond_init (&self->event_cond);
 
-  self->unprotect_requests = NULL;
-  self->unprotect_source = NULL;
-
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
 
@@ -551,9 +545,6 @@ _gum_duk_core_flush (GumDukCore * self)
 
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
 
-  g_clear_pointer (&self->unprotect_source, g_source_destroy);
-  gum_handle_unprotect_requests (self);
-
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
@@ -625,54 +616,6 @@ _gum_duk_core_post_message (GumDukCore * self,
   }
 
   _gum_duk_scope_leave (&scope);
-}
-
-void
-_gum_duk_core_unprotect_later (GumDukCore * self,
-                               GumDukHeapPtr value)
-{
-  if (self->ctx == NULL || value == NULL)
-    return;
-
-  self->unprotect_requests = g_slist_prepend (self->unprotect_requests,
-      (gpointer) value);
-  if (self->unprotect_source == NULL)
-  {
-    GSource * source;
-
-    source = g_idle_source_new ();
-    g_source_set_callback (source, gum_handle_unprotect_requests_when_idle,
-        self, NULL);
-    g_source_attach (source,
-        gum_script_scheduler_get_js_context (self->scheduler));
-    g_source_unref (source);
-    self->unprotect_source = source;
-  }
-}
-
-static gboolean
-gum_handle_unprotect_requests_when_idle (gpointer user_data)
-{
-  GumDukCore * self = user_data;
-
-  gum_handle_unprotect_requests (self);
-  self->unprotect_source = NULL;
-
-  return FALSE;
-}
-
-static void
-gum_handle_unprotect_requests (GumDukCore * self)
-{
-  duk_context * ctx = self->ctx;
-
-  while (self->unprotect_requests != NULL)
-  {
-    GumDukHeapPtr value = self->unprotect_requests->data;
-    self->unprotect_requests = g_slist_delete_link (self->unprotect_requests,
-        self->unprotect_requests);
-    _gumjs_duk_unprotect (ctx, value);
-  }
 }
 
 void
@@ -1609,7 +1552,7 @@ prepare_failed:
   }
 error:
   {
-    gum_duk_native_callback_finalize (callback);
+    gum_duk_native_callback_finalize (callback, FALSE);
 
     goto beach;
   }
@@ -1624,6 +1567,7 @@ beach:
 GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
 {
   GumDukNativeCallback * self;
+  gboolean heap_destruct;
 
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
     return 0;
@@ -1632,15 +1576,18 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   if (self == NULL)
     return 0;
 
-  gum_duk_native_callback_finalize (self);
+  heap_destruct = duk_get_boolean (ctx, 1);
+  gum_duk_native_callback_finalize (self, heap_destruct);
 
   return 0;
 }
 
 static void
-gum_duk_native_callback_finalize (GumDukNativeCallback * callback)
+gum_duk_native_callback_finalize (GumDukNativeCallback * callback,
+                                  gboolean heap_destruct)
 {
-  _gum_duk_core_unprotect_later (callback->core, callback->func);
+  if (!heap_destruct)
+    _gumjs_duk_unprotect (callback->core->ctx, callback->func);
 
   ffi_closure_free (callback->closure);
 

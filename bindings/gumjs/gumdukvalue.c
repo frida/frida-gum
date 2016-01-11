@@ -1373,15 +1373,15 @@ _gumjs_duk_create_subclass (duk_context * ctx,
   duk_dup (ctx, -2);
   duk_call (ctx, 1);
 
-  if (constructor)
+  if (constructor != NULL)
     duk_push_c_function (ctx, constructor, constructor_nargs);
   else
     duk_push_object (ctx);
 
   duk_dup (ctx, -2);
-  if (finalize)
+  if (finalize != NULL)
   {
-    duk_push_c_function (ctx, finalize, 1);
+    duk_push_c_function (ctx, finalize, 2);
     duk_set_finalizer (ctx, -2);
   }
   duk_put_prop_string (ctx, -2, "prototype");

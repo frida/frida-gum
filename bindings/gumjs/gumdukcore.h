@@ -56,9 +56,6 @@ struct _GumDukCore
   GumDukExceptionSink * unhandled_exception_sink;
   GumDukMessageSink * incoming_message_sink;
 
-  GSList * unprotect_requests;
-  GSource * unprotect_source;
-
   GHashTable * weak_refs;
   guint last_weak_ref_id;
 
@@ -116,9 +113,6 @@ G_GNUC_INTERNAL void _gum_duk_core_emit_message (GumDukCore * self,
     const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_duk_core_post_message (GumDukCore * self,
     const gchar * message);
-
-G_GNUC_INTERNAL void _gum_duk_core_unprotect_later (GumDukCore * self,
-    GumDukHeapPtr value);
 
 G_GNUC_INTERNAL void _gum_duk_core_push_job (GumDukCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
