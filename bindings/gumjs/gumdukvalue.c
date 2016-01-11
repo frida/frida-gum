@@ -408,6 +408,36 @@ _gum_duk_get_uint (duk_context * ctx,
 }
 
 gboolean
+_gum_duk_get_int64 (duk_context * ctx,
+                    duk_idx_t index,
+                    gint64 * i)
+{
+  if (!duk_is_number (ctx, index))
+    return FALSE;
+
+  *i = (gint64) duk_get_number (ctx, index);
+  return TRUE;
+}
+
+gboolean
+_gum_duk_get_uint64 (duk_context * ctx,
+                     duk_idx_t index,
+                     guint64 * u)
+{
+  duk_double_t number;
+
+  if (!duk_is_number (ctx, index))
+    return FALSE;
+
+  number = duk_get_number (ctx, index);
+  if (number < 0)
+    return FALSE;
+
+  *u = (guint64) number;
+  return TRUE;
+}
+
+gboolean
 _gum_duk_get_pointer (duk_context * ctx,
                       duk_idx_t index,
                       gpointer * ptr)

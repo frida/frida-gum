@@ -51,6 +51,10 @@ G_GNUC_INTERNAL void _gum_duk_require_args (duk_context * ctx,
 
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint (duk_context * ctx,
     duk_idx_t index, guint * u);
+G_GNUC_INTERNAL gboolean _gum_duk_get_int64 (duk_context * ctx,
+    duk_idx_t index, gint64 * i);
+G_GNUC_INTERNAL gboolean _gum_duk_get_uint64 (duk_context * ctx,
+    duk_idx_t index, guint64 * u);
 G_GNUC_INTERNAL gboolean _gum_duk_get_pointer (duk_context * ctx,
     duk_idx_t index, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_pointer (duk_context * ctx,
