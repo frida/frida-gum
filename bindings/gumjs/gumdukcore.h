@@ -69,7 +69,7 @@ struct _GumDukCore
   GumDukHeapPtr native_function_prototype;
   GumDukHeapPtr cpu_context;
 
-  GSList * cached_native_pointers;
+  GumDukNativePointerImpl * cached_native_pointers;
 };
 
 struct _GumDukScope
@@ -87,8 +87,9 @@ struct _GumDukNativePointerImpl
 {
   GumDukNativePointer parent;
 
-  gchar * id;
   GumDukHeapPtr object;
+  gchar * id;
+  GumDukNativePointerImpl * next;
 };
 
 struct _GumDukCpuContext

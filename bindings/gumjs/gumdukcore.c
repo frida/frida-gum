@@ -552,17 +552,16 @@ _gum_duk_core_init (GumDukCore * self,
     duk_new (ctx, 1);
 
     ptr = _gum_duk_require_data (ctx, -1);
-    ptr->id = g_strdup_printf ("np%u", i + 1);
     ptr->object = duk_require_heapptr (ctx, -1);
+    ptr->id = g_strdup_printf ("np%u", i + 1);
+    ptr->next = self->cached_native_pointers;
+    self->cached_native_pointers = ptr;
 
     duk_push_global_stash (ctx);
     duk_dup (ctx, -2);
     duk_put_prop_string (ctx, -2, ptr->id);
 
     duk_pop_2 (ctx);
-
-    self->cached_native_pointers =
-        g_slist_prepend (self->cached_native_pointers, ptr);
   }
 }
 
@@ -1021,8 +1020,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 
     if (self->id != NULL)
     {
-      core->cached_native_pointers =
-          g_slist_prepend (core->cached_native_pointers, self);
+      self->next = core->cached_native_pointers;
+      core->cached_native_pointers = self;
 
       duk_push_global_stash (ctx);
       duk_dup (ctx, 0);
