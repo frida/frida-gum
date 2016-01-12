@@ -39,7 +39,7 @@ _gum_duk_thread_init (GumDukThread * self,
   duk_put_function_list (ctx, -1, gumjs_thread_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Thread");
 
   duk_push_object (ctx);
@@ -71,15 +71,15 @@ _gum_duk_thread_finalize (GumDukThread * self)
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
   GumDukThread * self;
-  GumDukCore * core;
   GumCpuContext * cpu_context = NULL;
   gint selector = GUM_BACKTRACER_ACCURATE;
   GumBacktracer * backtracer;
   GumReturnAddressArray ret_addrs;
   guint i;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  core = self->core;
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
 
   _gum_duk_args_parse (args, "|C?i", &cpu_context, &selector);
 
@@ -106,7 +106,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
   duk_push_array (ctx);
   for (i = 0; i != ret_addrs.len; i++)
   {
-    _gum_duk_push_native_pointer (ctx, ret_addrs.items[i], core);
+    _gum_duk_push_native_pointer (ctx, ret_addrs.items[i], self->core);
     duk_put_prop_index (ctx, -2, i);
   }
 

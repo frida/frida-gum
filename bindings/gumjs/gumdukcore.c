@@ -154,6 +154,7 @@ static void gum_duk_native_callback_finalize (
 static void gum_duk_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
+static GumDukCpuContext * gumjs_cpu_context_from_args (const GumDukArgs * args);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static void gumjs_cpu_context_set_register (GumDukCpuContext * self,
@@ -235,9 +236,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
   GUMJS_DEFINE_GETTER (gumjs_cpu_context_get_##A) \
   { \
-    GumDukCpuContext * self; \
-    \
-    self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)); \
+    GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
     \
     _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (self->handle->R), \
         args->core); \
@@ -246,9 +245,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
   \
   GUMJS_DEFINE_SETTER (gumjs_cpu_context_set_##A) \
   { \
-    GumDukCpuContext * self; \
-    \
-    self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx)); \
+    GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
     \
     gumjs_cpu_context_set_register (self, ctx, args, \
         (gsize *) &self->handle->R); \
@@ -491,7 +488,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_function_list (ctx, -1, gumjs_weak_ref_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "WeakRef");
 
   GUMJS_ADD_GLOBAL_FUNCTION ("setTimeout", gumjs_set_timeout, 2);
@@ -935,6 +932,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   return 0;
 }
 
+static GumDukNativePointer *
+gumjs_native_pointer_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumDukNativePointer * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_native_pointer (ctx, -1, args->core);
+  duk_pop (ctx);
+
+  return self;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gpointer ptr = NULL;
@@ -953,7 +963,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   priv = g_slice_new (GumDukNativePointer);
   priv->value = ptr;
 
-  _gumjs_set_private_data (ctx, _gumjs_duk_get_this (ctx), priv);
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, priv);
+  duk_pop (ctx);
 
   return 0;
 }
@@ -965,26 +977,13 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
   g_slice_free (GumDukNativePointer, self);
 
   return 0;
-}
-
-static GumDukNativePointer *
-gumjs_native_pointer_from_args (const GumDukArgs * args)
-{
-  duk_context * ctx = args->ctx;
-  GumDukNativePointer * self;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_native_pointer (ctx, -1, args->core);
-  duk_pop (ctx);
-
-  return self;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
@@ -1155,7 +1154,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
   resource->notify = notify;
 
   duk_push_this (ctx);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), resource);
+  _gum_duk_put_data (ctx, -1, resource);
   duk_pop (ctx);
 
   return 0;
@@ -1168,7 +1167,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeResource"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
@@ -1290,7 +1289,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   duk_push_c_function (ctx, gumjs_native_function_invoke, DUK_VARARGS);
 
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), func);
+  _gum_duk_put_data (ctx, -1, func);
 
   /* bound_func = func.bind(func); */
   duk_push_string (ctx, "bind");
@@ -1304,7 +1303,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   duk_set_prototype (ctx, -2);
 
   /* `bound_func` needs the private data to be used as a NativePointer */
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), func);
+  _gum_duk_put_data (ctx, -1, func);
 
   /* we ignore `this` and return `bound_func` instead */
   return 1;
@@ -1346,7 +1345,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
@@ -1381,7 +1380,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   guint8 * avalues;
   GumExceptorScope scope;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
 
   core = self->core;
   nargs = self->cif.nargs;
@@ -1525,8 +1526,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     goto prepare_failed;
 
   duk_push_this (ctx);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), callback);
-  return 1;
+  _gum_duk_put_data (ctx, -1, callback);
+  duk_pop (ctx);
+
+  return 0;
 
 invalid_return_type:
   {
@@ -1571,7 +1574,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
@@ -1645,6 +1648,19 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   _gum_duk_scope_leave (&scope);
 }
 
+static GumDukCpuContext *
+gumjs_cpu_context_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumDukCpuContext * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
+
+  return self;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
   return 0;
@@ -1657,7 +1673,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "CpuContext"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 

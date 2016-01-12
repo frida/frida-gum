@@ -54,7 +54,7 @@ _gum_duk_symbol_init (GumDukSymbol * self,
   duk_put_function_list (ctx, -1, gumjs_symbol_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "DebugSymbol");
 
   duk_push_c_function (ctx, gumjs_symbol_construct, 2);
@@ -78,6 +78,19 @@ _gum_duk_symbol_finalize (GumDukSymbol * self)
   (void) self;
 }
 
+static GumDukSymbol *
+gumjs_symbol_module_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumDukSymbol * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
+
+  return self;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
 {
   return 0;
@@ -89,7 +102,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
   gpointer address;
   GumSymbolDetails details;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
+  self = gumjs_symbol_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &address);
 
@@ -110,7 +123,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   gpointer address;
   GumSymbolDetails details;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
+  self = gumjs_symbol_module_from_args (args);
 
   _gum_duk_args_parse (args, "s", &name);
 

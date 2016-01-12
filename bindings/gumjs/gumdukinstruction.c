@@ -62,7 +62,7 @@ _gum_duk_instruction_init (GumDukInstruction * self,
   duk_put_function_list (ctx, -1, gumjs_instruction_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Instruction");
 
   duk_push_c_function (ctx, gumjs_instruction_construct, 2);
@@ -97,7 +97,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
   uint64_t address;
   cs_insn * insn;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
 
   _gum_duk_args_parse (args, "p", &target);
 

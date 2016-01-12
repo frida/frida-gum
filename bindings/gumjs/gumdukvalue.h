@@ -34,6 +34,10 @@ G_GNUC_INTERNAL void _gum_duk_args_parse (const GumDukArgs * args,
 
 G_GNUC_INTERNAL gpointer _gum_duk_require_data (duk_context * ctx,
     duk_idx_t index);
+G_GNUC_INTERNAL void _gum_duk_put_data (duk_context * ctx, duk_idx_t index,
+    gpointer data);
+G_GNUC_INTERNAL gpointer _gum_duk_steal_data (duk_context * ctx,
+    duk_idx_t index);
 G_GNUC_INTERNAL guint _gum_duk_require_index (duk_context * ctx,
     duk_idx_t index);
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint (duk_context * ctx,
@@ -71,19 +75,13 @@ G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL void _gum_duk_push_proxy (duk_context * ctx, duk_idx_t target,
+    duk_c_function getter, duk_c_function setter);
+
 G_GNUC_INTERNAL void _gumjs_throw (duk_context * ctx,
     const gchar * format, ...);
 G_GNUC_INTERNAL void _gumjs_throw_native (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core);
-
-G_GNUC_INTERNAL gpointer _gumjs_get_private_data (duk_context * ctx,
-    GumDukHeapPtr object);
-G_GNUC_INTERNAL gpointer _gumjs_steal_private_data (duk_context * ctx,
-    GumDukHeapPtr object);
-G_GNUC_INTERNAL void _gumjs_set_private_data (duk_context * ctx,
-    GumDukHeapPtr object, gpointer data);
-G_GNUC_INTERNAL gboolean _gumjs_is_instanceof (duk_context * ctx,
-    GumDukHeapPtr object, gchar * class_name);
 
 G_GNUC_INTERNAL void _gumjs_duk_create_subclass (duk_context * ctx,
     const gchar * parent, const gchar * name, gpointer constructor,
@@ -98,19 +96,14 @@ G_GNUC_INTERNAL void _gumjs_duk_add_properties_to_class (duk_context * ctx,
 G_GNUC_INTERNAL gboolean _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
     const gchar * class_name);
 
-G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_get_this (duk_context * ctx);
 G_GNUC_INTERNAL void _gumjs_duk_protect (duk_context * ctx,
     GumDukHeapPtr object);
 G_GNUC_INTERNAL void _gumjs_duk_unprotect (duk_context * ctx,
     GumDukHeapPtr object);
-G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_get_heapptr (duk_context * ctx,
-    gint index);
 G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_require_heapptr (duk_context * ctx,
     gint index);
 G_GNUC_INTERNAL void _gumjs_duk_release_heapptr (duk_context * ctx,
     GumDukHeapPtr heapptr);
-G_GNUC_INTERNAL GumDukHeapPtr _gumjs_duk_create_proxy_accessors (
-    duk_context * ctx, GumDukHeapPtr target, gpointer getter, gpointer setter);
 
 G_GNUC_INTERNAL GumDukWeakRef * _gumjs_weak_ref_new (duk_context * ctx,
     GumDukHeapPtr value, GumDukWeakNotify notify, gpointer data,

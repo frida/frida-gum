@@ -40,10 +40,10 @@ struct _GumDukExceptionHandler
 
 struct _GumDukMatchContext
 {
-  GumDukProcess * self;
   GumDukHeapPtr on_match;
   GumDukHeapPtr on_complete;
-  duk_context * ctx;
+
+  GumDukCore * core;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_process_construct)
@@ -104,7 +104,7 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_put_prop_string (ctx, -2, "pointerSize");
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Process");
 }
 
@@ -143,10 +143,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
   GumDukMatchContext mc;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_process_enumerate_threads (gum_emit_thread, &mc);
   _gum_duk_scope_flush (&scope);
@@ -163,9 +162,9 @@ gum_emit_thread (const GumThreadDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   gboolean proceed;
 
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
@@ -201,10 +200,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
   GumDukMatchContext mc;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_process_enumerate_modules (gum_emit_module, &mc);
   _gum_duk_scope_flush (&scope);
@@ -221,9 +219,9 @@ gum_emit_module (const GumModuleDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   gboolean proceed;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -262,10 +260,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
   GumPageProtection prot;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -282,9 +279,9 @@ gum_emit_range (const GumRangeDetails * details,
                 gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
   const GumFileMapping * f = details->file;
   gboolean proceed;
@@ -342,10 +339,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   GumDukMatchContext mc;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -367,9 +363,9 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
                        gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   gboolean proceed;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -399,17 +395,17 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 {
   GumDukProcess * self;
-  GumDukCore * core;
   GumDukHeapPtr callback;
   GumDukExceptionHandler * new_handler, * old_handler;
 
-  self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
-  core = self->core;
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
 
   _gum_duk_args_parse (args, "F?", &callback);
 
   new_handler = (callback != NULL)
-      ? gum_duk_exception_handler_new (callback, core)
+      ? gum_duk_exception_handler_new (callback, self->core)
       : NULL;
 
   old_handler = self->exception_handler;

@@ -8,19 +8,14 @@
 
 #include "gumdukmacros.h"
 
-#define GUMJS_MODULE_IMPORT_DETAILS(o) \
-  ((GumImportDetails *) _gumjs_get_private_data (ctx, o))
-#define GUMJS_MODULE_EXPORT_DETAILS(o) \
-  ((GumExportDetails *) _gumjs_get_private_data (ctx, o))
-
 typedef struct _GumDukMatchContext GumDukMatchContext;
 
 struct _GumDukMatchContext
 {
-  GumDukModule * self;
   GumDukHeapPtr on_match;
   GumDukHeapPtr on_complete;
-  duk_context * ctx;
+
+  GumDukCore * core;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
@@ -60,14 +55,14 @@ _gum_duk_module_init (GumDukModule * self,
   duk_put_function_list (ctx, -1, gumjs_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Module");
 }
 
 void
 _gum_duk_module_dispose (GumDukModule * self)
 {
-    (void) self;
+  (void) self;
 }
 
 void
@@ -87,10 +82,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   const gchar * name;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_module_enumerate_imports (name, gum_emit_import, &mc);
   _gum_duk_scope_flush (&scope);
@@ -107,10 +101,9 @@ gum_emit_import (const GumImportDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukModule * self = mc->self;
-  GumDukCore * core = self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   gboolean proceed;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -159,10 +152,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   const gchar * name;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_module_enumerate_exports (name, gum_emit_export, &mc);
   _gum_duk_scope_flush (&scope);
@@ -179,10 +171,9 @@ gum_emit_export (const GumExportDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukModule * self = mc->self;
-  GumDukCore * core = self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   gboolean proceed;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -219,10 +210,9 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
   GumPageProtection prot;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
-  mc.self = _gumjs_get_private_data (ctx, _gumjs_duk_get_this (ctx));
   _gum_duk_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete);
-  mc.ctx = ctx;
+  mc.core = args->core;
 
   gum_module_enumerate_ranges (name, prot, gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -239,9 +229,9 @@ gum_emit_range (const GumRangeDetails * details,
                 gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->self->core;
+  GumDukCore * core = mc->core;
+  duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  duk_context * ctx = mc->ctx;
   char prot_str[4] = "---";
   gboolean proceed;
 

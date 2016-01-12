@@ -47,10 +47,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_copy)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_protect)
 
-static int gum_duk_memory_read (GumDukMemory * self,
-    GumMemoryValueType type, const GumDukArgs * args);
-static int gum_duk_memory_write (GumDukMemory * self,
-    GumMemoryValueType type, const GumDukArgs * args);
+static int gum_duk_memory_read (GumMemoryValueType type,
+    const GumDukArgs * args);
+static int gum_duk_memory_write (GumMemoryValueType type,
+    const GumDukArgs * args);
 
 #ifdef G_OS_WIN32
 static gchar * gum_ansi_string_to_utf8 (const gchar * str_ansi, gint length);
@@ -60,14 +60,12 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #define GUMJS_DEFINE_MEMORY_READ(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
-    return gum_duk_memory_read (_gumjs_get_private_data (ctx, \
-        _gumjs_duk_get_this (ctx)), GUM_MEMORY_VALUE_##T, args); \
+    return gum_duk_memory_read (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
-    return gum_duk_memory_write (_gumjs_get_private_data (ctx, \
-        _gumjs_duk_get_this (ctx)), GUM_MEMORY_VALUE_##T, args); \
+    return gum_duk_memory_write (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
   GUMJS_DEFINE_MEMORY_READ (T); \
@@ -166,7 +164,7 @@ _gum_duk_memory_init (GumDukMemory * self,
   duk_put_function_list (ctx, -1, gumjs_memory_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Memory");
 
   duk_push_c_function (ctx, gumjs_memory_access_monitor_construct, 0);
@@ -174,7 +172,7 @@ _gum_duk_memory_init (GumDukMemory * self,
   duk_put_function_list (ctx, -1, gumjs_memory_access_monitor_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "MemoryAccessMonitor");
 }
 
@@ -270,12 +268,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 }
 
 static int
-gum_duk_memory_read (GumDukMemory * self,
-                     GumMemoryValueType type,
+gum_duk_memory_read (GumMemoryValueType type,
                      const GumDukArgs * args)
 {
   duk_context * ctx = args->ctx;
-  GumDukCore * core = self->core;
+  GumDukCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
   gpointer address;
   gint length = -1;
@@ -493,12 +490,11 @@ gum_duk_memory_read (GumDukMemory * self,
 }
 
 static int
-gum_duk_memory_write (GumDukMemory * self,
-                      GumMemoryValueType type,
+gum_duk_memory_write (GumMemoryValueType type,
                       const GumDukArgs * args)
 {
   duk_context * ctx = args->ctx;
-  GumDukCore * core = self->core;
+  GumDukCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
   gpointer address;
   gpointer pointer;

@@ -11,9 +11,6 @@
 #include <errno.h>
 #include <string.h>
 
-#define GUMJS_FILE(o) \
-  ((GumFile *) _gumjs_get_private_data (ctx, o))
-
 typedef struct _GumFile GumFile;
 
 struct _GumFile
@@ -67,6 +64,19 @@ _gum_duk_file_finalize (GumDukFile * self)
   (void) self;
 }
 
+static GumFile *
+gumjs_file_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  GumFile * self;
+
+  duk_push_this (ctx);
+  self = _gum_duk_require_data (ctx, -1);
+  duk_pop (ctx);
+
+  return self;
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
   const gchar * filename, * mode;
@@ -89,7 +99,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   file = g_slice_new (GumFile);
   file->handle = handle;
 
-  _gumjs_set_private_data (ctx, _gumjs_duk_get_this (ctx), file);
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, file);
+  duk_pop (ctx);
 
   return 0;
 }
@@ -101,7 +113,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
   if (_gumjs_is_arg0_equal_to_prototype (ctx, "File"))
     return 0;
 
-  self = _gumjs_steal_private_data (ctx, duk_require_heapptr (ctx, 0));
+  self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
@@ -132,7 +144,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   GumDukHeapPtr value;
   GBytes * bytes;
 
-  self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
+  self = gumjs_file_from_args (args);
 
   _gum_duk_args_parse (args, "V", &value);
 
@@ -168,7 +180,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 {
-  GumFile * self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
+  GumFile * self = gumjs_file_from_args (args);
 
   gum_file_check_open (self, ctx);
 
@@ -179,7 +191,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_flush)
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_close)
 {
-  GumFile * self = GUMJS_FILE (_gumjs_duk_get_this (ctx));
+  GumFile * self = gumjs_file_from_args (args);
 
   gum_file_check_open (self, ctx);
 

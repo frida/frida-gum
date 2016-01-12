@@ -57,7 +57,7 @@ _gum_duk_socket_init (GumDukSocket * self,
   duk_put_function_list (ctx, -1, gumjs_socket_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gumjs_set_private_data (ctx, duk_require_heapptr (ctx, -1), self);
+  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Socket");
 }
 

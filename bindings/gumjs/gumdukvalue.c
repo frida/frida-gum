@@ -400,6 +400,40 @@ _gum_duk_require_data (duk_context * ctx,
   return result;
 }
 
+void
+_gum_duk_put_data (duk_context * ctx,
+                   duk_idx_t index,
+                   gpointer data)
+{
+  duk_dup (ctx, index);
+  duk_push_pointer (ctx, data);
+  duk_put_prop_string (ctx, -2, "\xff" "priv");
+  duk_pop (ctx);
+}
+
+gpointer
+_gum_duk_steal_data (duk_context * ctx,
+                     duk_idx_t index)
+{
+  gpointer result = NULL;
+
+  duk_get_prop_string (ctx, index, "\xff" "priv");
+  if (!duk_is_undefined (ctx, -1))
+  {
+    result = duk_require_pointer (ctx, -1);
+    duk_pop (ctx);
+
+    duk_push_pointer (ctx, NULL);
+    duk_put_prop_string (ctx, index, "\xff" "priv");
+  }
+  else
+  {
+    duk_pop (ctx);
+  }
+
+  return result;
+}
+
 guint
 _gum_duk_require_index (duk_context * ctx,
                         duk_idx_t index)
@@ -718,9 +752,8 @@ _gum_duk_push_cpu_context (duk_context * ctx,
 
   duk_push_heapptr (ctx, core->cpu_context);
   duk_new (ctx, 0);
+  _gum_duk_put_data (ctx, -1, scc);
   scc->object = duk_require_heapptr (ctx, -1);
-
-  _gumjs_set_private_data (ctx, scc->object, scc);
 
   if (access == GUM_CPU_CONTEXT_READWRITE)
   {
@@ -755,7 +788,7 @@ _gum_duk_get_cpu_context (duk_context * ctx,
   if (!is_cpu_context)
     return NULL;
 
-  instance = _gumjs_get_private_data (ctx, duk_require_heapptr (ctx, index));
+  instance = _gum_duk_require_data (ctx, index);
 
   return instance->handle;
 }
@@ -808,58 +841,33 @@ _gum_duk_push_exception_details (duk_context * ctx,
   duk_put_prop_string (ctx, -2, "nativeContext");
 }
 
-gpointer
-_gumjs_get_private_data (duk_context * ctx,
-                         GumDukHeapPtr object)
-{
-  gpointer result;
-
-  duk_push_heapptr (ctx, object);
-  duk_get_prop_string (ctx, -1, "\xff" "priv");
-  if (duk_is_undefined (ctx, -1))
-    result = NULL;
-  else
-    result = duk_require_pointer (ctx, -1);
-  duk_pop_2 (ctx);
-
-  return result;
-}
-
-gpointer
-_gumjs_steal_private_data (duk_context * ctx,
-                           GumDukHeapPtr object)
-{
-  gpointer result = NULL;
-
-  duk_push_heapptr (ctx, object);
-
-  duk_get_prop_string (ctx, -1, "\xff" "priv");
-  if (!duk_is_undefined (ctx, -1))
-  {
-    result = duk_require_pointer (ctx, -1);
-    duk_pop (ctx);
-
-    duk_push_pointer (ctx, NULL);
-    duk_put_prop_string (ctx, -2, "\xff" "priv");
-
-    duk_pop (ctx);
-  }
-  else
-  {
-    duk_pop_2 (ctx);
-  }
-
-  return result;
-}
-
 void
-_gumjs_set_private_data (duk_context * ctx,
-                         GumDukHeapPtr object,
-                         gpointer data)
+_gum_duk_push_proxy (duk_context * ctx,
+                     duk_idx_t target,
+                     duk_c_function getter,
+                     duk_c_function setter)
 {
-  duk_push_heapptr (ctx, object);
-  duk_push_pointer (ctx, data);
-  duk_put_prop_string (ctx, -2, "\xff" "priv");
+  duk_dup (ctx, target);
+
+  duk_get_global_string (ctx, "Proxy");
+  duk_dup (ctx, -2);
+  duk_push_object (ctx);
+
+  if (getter != NULL)
+  {
+    duk_push_c_function (ctx, getter, 3);
+    duk_put_prop_string (ctx, -2, "get");
+  }
+
+  if (setter != NULL)
+  {
+    duk_push_c_function (ctx, setter, 4);
+    duk_put_prop_string (ctx, -2, "set");
+  }
+
+  duk_new (ctx, 2);
+
+  duk_swap_top (ctx, -2);
   duk_pop (ctx);
 }
 
@@ -887,21 +895,6 @@ _gumjs_throw_native (duk_context * ctx,
   _gum_duk_push_exception_details (ctx, details, core, &cc);
   _gum_duk_cpu_context_make_read_only (cc);
   duk_throw (ctx);
-}
-
-gboolean
-_gumjs_is_instanceof (duk_context * ctx,
-                      GumDukHeapPtr object,
-                      gchar * class_name)
-{
-  gboolean result;
-
-  duk_push_heapptr (ctx, object);
-  duk_get_global_string (ctx, class_name);
-  result = duk_instanceof (ctx, -2, -1);
-  duk_pop_2 (ctx);
-
-  return result;
 }
 
 void
@@ -955,12 +948,14 @@ _gumjs_duk_add_properties_to_class_by_heapptr (
 
     duk_push_string (ctx, entry->name);
     idx++;
+
     if (entry->getter != NULL)
     {
       idx++;
       flags |= DUK_DEFPROP_HAVE_GETTER;
       duk_push_c_function (ctx, entry->getter, 0);
     }
+
     if (entry->setter != NULL)
     {
       idx++;
@@ -996,18 +991,6 @@ _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
   duk_get_prop_string (ctx, -1, "prototype");
   result = duk_equals (ctx, 0, -1);
   duk_pop_2 (ctx);
-
-  return result;
-}
-
-GumDukHeapPtr
-_gumjs_duk_get_this (duk_context * ctx)
-{
-  GumDukHeapPtr result;
-
-  duk_push_this (ctx);
-  result = duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
 
   return result;
 }
@@ -1088,18 +1071,6 @@ _gumjs_duk_unprotect (duk_context * ctx,
 }
 
 GumDukHeapPtr
-_gumjs_duk_get_heapptr (duk_context * ctx,
-                        gint idx)
-{
-  GumDukHeapPtr result;
-
-  result = duk_get_heapptr (ctx, idx);
-  _gumjs_duk_protect (ctx, result);
-
-  return result;
-}
-
-GumDukHeapPtr
 _gumjs_duk_require_heapptr (duk_context * ctx,
                             gint idx)
 {
@@ -1116,37 +1087,6 @@ _gumjs_duk_release_heapptr (duk_context * ctx,
                             GumDukHeapPtr heapptr)
 {
   _gumjs_duk_unprotect (ctx, heapptr);
-}
-
-GumDukHeapPtr
-_gumjs_duk_create_proxy_accessors (duk_context * ctx,
-                                   GumDukHeapPtr target,
-                                   gpointer getter,
-                                   gpointer setter)
-{
-  gpointer result;
-
-  duk_get_global_string (ctx, "Proxy");
-  duk_push_heapptr (ctx, target);
-  duk_push_object (ctx);
-
-  if (getter != NULL)
-  {
-    duk_push_c_function (ctx, getter, 3);
-    duk_put_prop_string (ctx, -2, "get");
-  }
-
-  if (setter != NULL)
-  {
-    duk_push_c_function (ctx, setter, 4);
-    duk_put_prop_string (ctx, -2, "set");
-  }
-
-  duk_new (ctx, 2);
-  result = _gumjs_duk_require_heapptr (ctx, -1);
-  duk_pop (ctx);
-
-  return result;
 }
 
 GumDukWeakRef *
