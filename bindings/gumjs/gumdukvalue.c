@@ -873,8 +873,8 @@ _gum_duk_push_proxy (duk_context * ctx,
 
 void
 _gum_duk_throw (duk_context * ctx,
-              const gchar * format,
-              ...)
+                const gchar * format,
+                ...)
 {
   va_list ap;
 
@@ -887,8 +887,8 @@ _gum_duk_throw (duk_context * ctx,
 
 void
 _gum_duk_throw_native (duk_context * ctx,
-                     GumExceptionDetails * details,
-                     GumDukCore * core)
+                       GumExceptionDetails * details,
+                       GumDukCore * core)
 {
   GumDukCpuContext * cc;
 
