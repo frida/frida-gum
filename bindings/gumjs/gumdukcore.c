@@ -479,7 +479,7 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_prop_string (ctx, -2, "runtime");
   duk_push_object (ctx);
   duk_put_prop_string (ctx, -2, "prototype");
-  _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_script_values);
   duk_put_global_string (ctx, "Script");
 
@@ -509,24 +509,24 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_c_function (ctx, gumjs_native_pointer_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->native_pointer = _gumjs_duk_require_heapptr (ctx, -1);
+  self->native_pointer = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "NativePointer");
 
-  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeResource",
+  _gum_duk_create_subclass (ctx, "NativePointer", "NativeResource",
       gumjs_native_resource_construct, 2, gumjs_native_resource_finalize);
   duk_get_global_string (ctx, "NativeResource");
-  self->native_resource = _gumjs_duk_require_heapptr (ctx, -1);
+  self->native_resource = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
-  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
+  _gum_duk_create_subclass (ctx, "NativePointer", "NativeFunction",
       gumjs_native_function_construct, 4, gumjs_native_function_finalize);
   duk_get_global_string (ctx, "NativeFunction");
-  self->native_function = _gumjs_duk_require_heapptr (ctx, -1);
+  self->native_function = _gum_duk_require_heapptr (ctx, -1);
   duk_get_prop_string (ctx, -1, "prototype");
   self->native_function_prototype = duk_require_heapptr (ctx, -1);
   duk_pop_2 (ctx);
 
-  _gumjs_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
+  _gum_duk_create_subclass (ctx, "NativePointer", "NativeCallback",
       gumjs_native_callback_construct, 4, gumjs_native_callback_finalize);
 
   duk_push_c_function (ctx, gumjs_cpu_context_construct, 0);
@@ -534,9 +534,9 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_c_function (ctx, gumjs_cpu_context_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->cpu_context = _gumjs_duk_require_heapptr (ctx, -1);
+  self->cpu_context = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "CpuContext");
-  _gumjs_duk_add_properties_to_class (ctx, "CpuContext",
+  _gum_duk_add_properties_to_class (ctx, "CpuContext",
       gumjs_cpu_context_values);
 }
 
@@ -575,10 +575,10 @@ _gum_duk_core_dispose (GumDukCore * self)
 
   g_clear_pointer (&self->exceptor, g_object_unref);
 
-  _gumjs_duk_release_heapptr (ctx, self->native_pointer);
-  _gumjs_duk_release_heapptr (ctx, self->native_resource);
-  _gumjs_duk_release_heapptr (ctx, self->native_function);
-  _gumjs_duk_release_heapptr (ctx, self->cpu_context);
+  _gum_duk_release_heapptr (ctx, self->native_pointer);
+  _gum_duk_release_heapptr (ctx, self->native_resource);
+  _gum_duk_release_heapptr (ctx, self->native_function);
+  _gum_duk_release_heapptr (ctx, self->cpu_context);
 
   self->ctx = NULL;
 }
@@ -684,7 +684,7 @@ _gum_duk_scope_call_sync (GumDukScope * self,
   if (!success)
   {
     g_assert (self->exception == NULL);
-    self->exception = _gumjs_duk_require_heapptr (core->ctx, -1);
+    self->exception = _gum_duk_require_heapptr (core->ctx, -1);
   }
 
   return success;
@@ -699,7 +699,7 @@ _gum_duk_scope_flush (GumDukScope * self)
     return;
 
   duk_push_heapptr (ctx, self->exception);
-  _gumjs_duk_release_heapptr (ctx, self->exception);
+  _gum_duk_release_heapptr (ctx, self->exception);
   self->exception = NULL;
   duk_throw (ctx);
 }
@@ -789,7 +789,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   duk_push_heapptr (ctx, target);
   target_is_valid = !duk_is_null (ctx, -1) && duk_is_object (ctx, -1);
   if (!target_is_valid)
-    _gumjs_throw (ctx, "expected a non-primitive value");
+    _gum_duk_throw (ctx, "expected a non-primitive value");
   duk_pop (ctx);
 
   id = ++args->core->last_weak_ref_id;
@@ -974,7 +974,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
   GumDukNativePointer * self;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativePointer"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -1072,7 +1072,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
   if (!radix_specified)
     radix = 16;
   else if (radix != 10 && radix != 16)
-    _gumjs_throw (ctx, "unsupported radix");
+    _gum_duk_throw (ctx, "unsupported radix");
 
   ptr = GPOINTER_TO_SIZE (self->value);
 
@@ -1164,7 +1164,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
 {
   GumDukNativeResource * self;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeResource"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeResource"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -1311,27 +1311,27 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 invalid_return_type:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "invalid return type");
+    _gum_duk_throw (ctx, "invalid return type");
   }
 invalid_argument_type:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "invalid argument type");
+    _gum_duk_throw (ctx, "invalid argument type");
   }
 invalid_abi:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "invalid abi");
+    _gum_duk_throw (ctx, "invalid abi");
   }
 unexpected_marker:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "only one variadic marker may be specified");
+    _gum_duk_throw (ctx, "only one variadic marker may be specified");
   }
 compilation_failed:
   {
     gum_duk_native_function_finalize (func);
-    _gumjs_throw (ctx, "failed to compile function call interface");
+    _gum_duk_throw (ctx, "failed to compile function call interface");
   }
 
   g_assert_not_reached ();
@@ -1342,7 +1342,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
   GumDukNativeFunction * self;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -1389,7 +1389,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   rtype = self->cif.rtype;
 
   if (args->count != nargs)
-    _gumjs_throw (ctx, "bad argument count");
+    _gum_duk_throw (ctx, "bad argument count");
 
   rsize = MAX (rtype->size, sizeof (gsize));
   ralign = MAX (rtype->alignment, sizeof (gsize));
@@ -1420,7 +1420,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
       v = (GumFFIValue *) (avalues + offset);
 
       if (!gum_duk_get_ffi_value (ctx, i, t, args->core, v))
-        _gumjs_throw (ctx, "invalid argument value");
+        _gum_duk_throw (ctx, "invalid argument value");
       avalue[i] = v;
 
       offset += t->size;
@@ -1442,7 +1442,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {
-    _gumjs_throw_native (ctx, &scope.exception, core);
+    _gum_duk_throw_native (ctx, &scope.exception, core);
   }
 
   gum_duk_push_ffi_value (ctx, rvalue, rtype, core);
@@ -1472,7 +1472,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
   callback = g_slice_new0 (GumDukNativeCallback);
   ptr = &callback->parent;
-  _gumjs_duk_protect (ctx, func);
+  _gum_duk_protect (ctx, func);
   callback->func = func;
   callback->core = core;
 
@@ -1534,32 +1534,32 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 invalid_return_type:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "invalid return type");
+    _gum_duk_throw (ctx, "invalid return type");
   }
 invalid_argument_type:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "invalid argument type");
+    _gum_duk_throw (ctx, "invalid argument type");
   }
 invalid_abi:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "invalid abi");
+    _gum_duk_throw (ctx, "invalid abi");
   }
 alloc_failed:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "failed to allocate closure");
+    _gum_duk_throw (ctx, "failed to allocate closure");
   }
 compilation_failed:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "failed to compile function call interface");
+    _gum_duk_throw (ctx, "failed to compile function call interface");
   }
 prepare_failed:
   {
     gum_duk_native_callback_finalize (callback, FALSE);
-    _gumjs_throw (ctx, "failed to prepare closure");
+    _gum_duk_throw (ctx, "failed to prepare closure");
   }
 
   g_assert_not_reached ();
@@ -1571,7 +1571,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   GumDukNativeCallback * self;
   gboolean heap_destruct;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -1589,7 +1589,7 @@ gum_duk_native_callback_finalize (GumDukNativeCallback * callback,
                                   gboolean heap_destruct)
 {
   if (!heap_destruct)
-    _gumjs_duk_unprotect (callback->core->ctx, callback->func);
+    _gum_duk_unprotect (callback->core->ctx, callback->func);
 
   ffi_closure_free (callback->closure);
 
@@ -1670,7 +1670,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 {
   GumDukCpuContext * self;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "CpuContext"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "CpuContext"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -1693,7 +1693,7 @@ gumjs_cpu_context_set_register (GumDukCpuContext * self,
   _gum_duk_args_parse (args, "p~", &value);
 
   if (self->access == GUM_CPU_CONTEXT_READONLY)
-    _gumjs_throw (ctx, "invalid operation");
+    _gum_duk_throw (ctx, "invalid operation");
 
   *reg = GPOINTER_TO_SIZE (value);
 }
@@ -1718,7 +1718,7 @@ gum_duk_weak_ref_new (guint id,
 static void
 gum_duk_weak_ref_clear (GumDukWeakRef * ref)
 {
-  g_clear_pointer (&ref->target, _gumjs_weak_ref_free);
+  g_clear_pointer (&ref->target, _gum_duk_weak_ref_free);
 }
 
 static void
@@ -1792,7 +1792,7 @@ gum_scheduled_callback_new (guint id,
 
   callback = g_slice_new (GumDukScheduledCallback);
   callback->id = id;
-  _gumjs_duk_protect (core->ctx, func);
+  _gum_duk_protect (core->ctx, func);
   callback->func = func;
   callback->repeat = repeat;
   callback->source = source;
@@ -1804,7 +1804,7 @@ gum_scheduled_callback_new (guint id,
 static void
 gum_scheduled_callback_free (GumDukScheduledCallback * callback)
 {
-  _gumjs_duk_unprotect (callback->core->ctx, callback->func);
+  _gum_duk_unprotect (callback->core->ctx, callback->func);
   g_slice_free (GumDukScheduledCallback, callback);
 }
 
@@ -1837,7 +1837,7 @@ gum_duk_exception_sink_new (GumDukHeapPtr callback,
   GumDukExceptionSink * sink;
 
   sink = g_slice_new (GumDukExceptionSink);
-  _gumjs_duk_protect (core->ctx, callback);
+  _gum_duk_protect (core->ctx, callback);
   sink->callback = callback;
   sink->core = core;
 
@@ -1847,7 +1847,7 @@ gum_duk_exception_sink_new (GumDukHeapPtr callback,
 static void
 gum_duk_exception_sink_free (GumDukExceptionSink * sink)
 {
-  _gumjs_duk_unprotect (sink->core->ctx, sink->callback);
+  _gum_duk_unprotect (sink->core->ctx, sink->callback);
   g_slice_free (GumDukExceptionSink, sink);
 }
 
@@ -1871,7 +1871,7 @@ gum_duk_message_sink_new (GumDukHeapPtr callback,
   GumDukMessageSink * sink;
 
   sink = g_slice_new (GumDukMessageSink);
-  _gumjs_duk_protect (core->ctx, callback);
+  _gum_duk_protect (core->ctx, callback);
   sink->callback = callback;
   sink->core = core;
 
@@ -1881,7 +1881,7 @@ gum_duk_message_sink_new (GumDukHeapPtr callback,
 static void
 gum_duk_message_sink_free (GumDukMessageSink * sink)
 {
-  _gumjs_duk_unprotect (sink->core->ctx, sink->callback);
+  _gum_duk_unprotect (sink->core->ctx, sink->callback);
   g_slice_free (GumDukMessageSink, sink);
 }
 
@@ -2028,7 +2028,7 @@ gum_duk_get_ffi_abi (duk_context * ctx,
     }
   }
 
-  _gumjs_throw (ctx, "invalid abi specified");
+  _gum_duk_throw (ctx, "invalid abi specified");
   return FALSE;
 }
 

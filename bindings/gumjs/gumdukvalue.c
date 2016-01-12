@@ -383,7 +383,7 @@ error:
     g_slist_free (byte_arrays);
 
     g_assert (error_message != NULL);
-    _gumjs_throw (ctx, error_message);
+    _gum_duk_throw (ctx, error_message);
   }
 }
 
@@ -448,7 +448,7 @@ _gum_duk_require_index (duk_context * ctx,
     }
     else
     {
-      _gumjs_throw (ctx, "invalid index");
+      _gum_duk_throw (ctx, "invalid index");
       return 0; /* unreachable */
     }
   }
@@ -465,7 +465,7 @@ _gum_duk_require_index (duk_context * ctx,
 
     valid = *str != '\0' && *endptr == '\0' && value >= 0;
     if (!valid)
-      _gumjs_throw (ctx, "invalid index");
+      _gum_duk_throw (ctx, "invalid index");
 
     return value;
   }
@@ -722,7 +722,7 @@ _gum_duk_require_native_pointer (duk_context * ctx,
   duk_dup (ctx, index);
   duk_push_heapptr (ctx, core->native_pointer);
   if (!duk_instanceof (ctx, -2, -1))
-    _gumjs_throw (ctx, "expected NativePointer");
+    _gum_duk_throw (ctx, "expected NativePointer");
   duk_pop_2 (ctx);
 
   return _gum_duk_require_data (ctx, index);
@@ -826,7 +826,7 @@ _gum_duk_push_exception_details (duk_context * ctx,
   {
     duk_push_object (ctx);
 
-    duk_push_string (ctx, _gumjs_memory_operation_to_string (md->operation));
+    duk_push_string (ctx, _gum_duk_memory_operation_to_string (md->operation));
     duk_put_prop_string (ctx, -2, "operation");
     duk_push_pointer (ctx, md->address);
     duk_put_prop_string (ctx, -2, "address");
@@ -872,7 +872,7 @@ _gum_duk_push_proxy (duk_context * ctx,
 }
 
 void
-_gumjs_throw (duk_context * ctx,
+_gum_duk_throw (duk_context * ctx,
               const gchar * format,
               ...)
 {
@@ -886,7 +886,7 @@ _gumjs_throw (duk_context * ctx,
 }
 
 void
-_gumjs_throw_native (duk_context * ctx,
+_gum_duk_throw_native (duk_context * ctx,
                      GumExceptionDetails * details,
                      GumDukCore * core)
 {
@@ -898,12 +898,12 @@ _gumjs_throw_native (duk_context * ctx,
 }
 
 void
-_gumjs_duk_create_subclass (duk_context * ctx,
-                            const gchar * parent,
-                            const gchar * name,
-                            gpointer constructor,
-                            gint constructor_nargs,
-                            gpointer finalize)
+_gum_duk_create_subclass (duk_context * ctx,
+                          const gchar * parent,
+                          const gchar * name,
+                          gpointer constructor,
+                          gint constructor_nargs,
+                          gpointer finalize)
 {
   duk_push_global_object (ctx);
   duk_get_prop_string (ctx, -1, "Object");
@@ -932,7 +932,7 @@ _gumjs_duk_create_subclass (duk_context * ctx,
 }
 
 void
-_gumjs_duk_add_properties_to_class_by_heapptr (
+_gum_duk_add_properties_to_class_by_heapptr (
     duk_context * ctx,
     GumDukHeapPtr klass,
     const GumDukPropertyEntry * entries)
@@ -970,20 +970,20 @@ _gumjs_duk_add_properties_to_class_by_heapptr (
 }
 
 void
-_gumjs_duk_add_properties_to_class (duk_context * ctx,
-                                    const gchar * class_name,
-                                    const GumDukPropertyEntry * entries)
+_gum_duk_add_properties_to_class (duk_context * ctx,
+                                  const gchar * class_name,
+                                  const GumDukPropertyEntry * entries)
 {
   duk_get_global_string (ctx, class_name);
   duk_get_prop_string (ctx, -1, "prototype");
-  _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), entries);
   duk_pop_2 (ctx);
 }
 
 gboolean
-_gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
-                                   const gchar * class_name)
+_gum_duk_is_arg0_equal_to_prototype (duk_context * ctx,
+                                     const gchar * class_name)
 {
   gboolean result;
 
@@ -996,8 +996,8 @@ _gumjs_is_arg0_equal_to_prototype (duk_context * ctx,
 }
 
 void
-_gumjs_duk_protect (duk_context * ctx,
-                    GumDukHeapPtr object)
+_gum_duk_protect (duk_context * ctx,
+                  GumDukHeapPtr object)
 {
   gchar name[256];
   duk_uint_t ref_count;
@@ -1036,8 +1036,8 @@ _gumjs_duk_protect (duk_context * ctx,
 }
 
 void
-_gumjs_duk_unprotect (duk_context * ctx,
-                      GumDukHeapPtr object)
+_gum_duk_unprotect (duk_context * ctx,
+                    GumDukHeapPtr object)
 {
   gchar name[256];
   duk_uint_t ref_count;
@@ -1071,37 +1071,37 @@ _gumjs_duk_unprotect (duk_context * ctx,
 }
 
 GumDukHeapPtr
-_gumjs_duk_require_heapptr (duk_context * ctx,
-                            gint idx)
+_gum_duk_require_heapptr (duk_context * ctx,
+                          gint idx)
 {
   GumDukHeapPtr result;
 
   result = duk_require_heapptr (ctx, idx);
-  _gumjs_duk_protect (ctx, result);
+  _gum_duk_protect (ctx, result);
 
   return result;
 }
 
 void
-_gumjs_duk_release_heapptr (duk_context * ctx,
-                            GumDukHeapPtr heapptr)
+_gum_duk_release_heapptr (duk_context * ctx,
+                          GumDukHeapPtr heapptr)
 {
-  _gumjs_duk_unprotect (ctx, heapptr);
+  _gum_duk_unprotect (ctx, heapptr);
 }
 
 GumDukWeakRef *
-_gumjs_weak_ref_new (duk_context * ctx,
-                     GumDukHeapPtr value,
-                     GumDukWeakNotify notify,
-                     gpointer data,
-                     GDestroyNotify data_destroy)
+_gum_duk_weak_ref_new (duk_context * ctx,
+                       GumDukHeapPtr value,
+                       GumDukWeakNotify notify,
+                       gpointer data,
+                       GDestroyNotify data_destroy)
 {
   /* TODO: implement */
   return NULL;
 }
 
 void
-_gumjs_weak_ref_free (GumDukWeakRef * ref)
+_gum_duk_weak_ref_free (GumDukWeakRef * ref)
 {
   /* TODO: implement */
 }
@@ -1128,7 +1128,7 @@ gum_exception_type_to_string (GumExceptionType type)
 }
 
 const gchar *
-_gumjs_thread_state_to_string (GumThreadState state)
+_gum_duk_thread_state_to_string (GumThreadState state)
 {
   switch (state)
   {
@@ -1145,7 +1145,7 @@ _gumjs_thread_state_to_string (GumThreadState state)
 }
 
 const gchar *
-_gumjs_memory_operation_to_string (GumMemoryOperation operation)
+_gum_duk_memory_operation_to_string (GumMemoryOperation operation)
 {
   switch (operation)
   {

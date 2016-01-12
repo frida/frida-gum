@@ -69,7 +69,7 @@ _gum_duk_stalker_init (GumDukStalker * self,
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
   _gum_duk_put_data (ctx, -1, self);
-  _gumjs_duk_add_properties_to_class_by_heapptr (ctx,
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_stalker_values);
   duk_put_global_string (ctx, "Stalker");
 }
@@ -179,7 +179,7 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_throw_not_yet_available)
 {
-  _gumjs_throw (ctx,
+  _gum_duk_throw (ctx,
       "Stalker API not yet available in the Duktape runtime");
   return 0;
 }

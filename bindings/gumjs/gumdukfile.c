@@ -48,14 +48,14 @@ _gum_duk_file_init (GumDukFile * self,
   duk_push_c_function (ctx, gumjs_file_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->file = _gumjs_duk_require_heapptr (ctx, -1);
+  self->file = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "File");
 }
 
 void
 _gum_duk_file_dispose (GumDukFile * self)
 {
-  _gumjs_duk_release_heapptr (self->core->ctx, self->file);
+  _gum_duk_release_heapptr (self->core->ctx, self->file);
 }
 
 void
@@ -94,7 +94,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 
   handle = fopen (filename, mode);
   if (handle == NULL)
-    _gumjs_throw (ctx, "failed to open file (%s)", strerror (errno));
+    _gum_duk_throw (ctx, "failed to open file (%s)", strerror (errno));
 
   file = g_slice_new (GumFile);
   file->handle = handle;
@@ -110,7 +110,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
 {
   GumFile * self;
 
-  if (_gumjs_is_arg0_equal_to_prototype (ctx, "File"))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "File"))
     return 0;
 
   self = _gum_duk_steal_data (ctx, 0);
@@ -129,7 +129,7 @@ gum_file_check_open (GumFile * self,
                      duk_context * ctx)
 {
   if (self->handle == NULL)
-    _gumjs_throw (ctx, "file is closed");
+    _gum_duk_throw (ctx, "file is closed");
 }
 
 static void
@@ -171,7 +171,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_write)
   }
   else
   {
-    _gumjs_throw (ctx, "argument must be a string or byte array");
+    _gum_duk_throw (ctx, "argument must be a string or byte array");
   }
   duk_pop (ctx);
 

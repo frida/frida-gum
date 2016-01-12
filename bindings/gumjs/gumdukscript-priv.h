@@ -13,7 +13,8 @@
 
 G_BEGIN_DECLS
 
-G_GNUC_INTERNAL void _gumjs_panic (duk_context * ctx, const char * exception);
+G_GNUC_INTERNAL void _gum_duk_panic (duk_context * ctx,
+    const char * error_message);
 
 G_END_DECLS
 

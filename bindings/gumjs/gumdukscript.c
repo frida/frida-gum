@@ -373,7 +373,7 @@ gum_duk_script_create_context (GumDukScript * self,
   }
 
   /* pop the function */
-  priv->code = _gumjs_duk_require_heapptr (ctx, -1);
+  priv->code = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
   priv->ctx = ctx;
@@ -434,7 +434,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   _gum_duk_scope_leave (&scope);
 
-  _gumjs_duk_release_heapptr (priv->ctx, priv->code);
+  _gum_duk_release_heapptr (priv->ctx, priv->code);
   priv->code = NULL;
 
   duk_destroy_heap (priv->ctx);
@@ -716,11 +716,11 @@ gum_duk_emit_message_data_free (GumEmitMessageData * d)
 }
 
 void
-_gumjs_panic (duk_context * ctx,
-              const char * exception)
+_gum_duk_panic (duk_context * ctx,
+                const char * error_message)
 {
   /* TODO: need to find a way to retrieve the stack */
-  g_critical ("%s", exception);
+  g_critical ("%s", error_message);
 
   abort ();
 }

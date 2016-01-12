@@ -114,7 +114,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 
 invalid_selector:
   {
-    _gumjs_throw (ctx, "invalid backtracer enum value");
+    _gum_duk_throw (ctx, "invalid backtracer enum value");
     {
       duk_push_null (ctx);
       return 1;
@@ -122,7 +122,7 @@ invalid_selector:
   }
 not_available:
   {
-    _gumjs_throw (ctx, (selector == GUM_BACKTRACER_ACCURATE)
+    _gum_duk_throw (ctx, (selector == GUM_BACKTRACER_ACCURATE)
         ? "backtracer not yet available for this platform; "
         "please try Thread.backtrace(context, Backtracer.FUZZY)"
         : "backtracer not yet available for this platform; "

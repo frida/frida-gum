@@ -69,14 +69,14 @@ _gum_duk_instruction_init (GumDukInstruction * self,
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_instruction_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->instruction = _gumjs_duk_require_heapptr (ctx, -1);
+  self->instruction = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 }
 
 void
 _gum_duk_instruction_dispose (GumDukInstruction * self)
 {
-  _gumjs_duk_release_heapptr (self->core->ctx, self->instruction);
+  _gum_duk_release_heapptr (self->core->ctx, self->instruction);
 }
 
 void
@@ -113,7 +113,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_parse)
 
   if (cs_disasm (self->capstone, (uint8_t *) GSIZE_TO_POINTER (address), 16,
       address, 1, &insn) == 0)
-    _gumjs_throw (ctx, "invalid instruction");
+    _gum_duk_throw (ctx, "invalid instruction");
 
   duk_push_heapptr (ctx, self->instruction);
   duk_push_pointer (ctx, insn);

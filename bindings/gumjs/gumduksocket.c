@@ -166,7 +166,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
   {
     result = gumjs_socket_address_to_value (ctx, addr, args->core);
     duk_push_heapptr (ctx, result);
-    _gumjs_duk_release_heapptr (ctx, result);
+    _gum_duk_release_heapptr (ctx, result);
   }
   else
   {
@@ -190,7 +190,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
   {
     result = gumjs_socket_address_to_value (ctx, addr, args->core);
     duk_push_heapptr (ctx, result);
-    _gumjs_duk_release_heapptr (ctx, result);
+    _gum_duk_release_heapptr (ctx, result);
   }
   else
   {
@@ -235,7 +235,7 @@ gumjs_socket_address_to_value (duk_context * ctx,
       duk_put_prop_string (ctx, -2, "ip");
       duk_push_uint (ctx, GUINT16_FROM_BE (inet_addr->sin_port));
       duk_put_prop_string (ctx, -2, "port");
-      result = _gumjs_duk_require_heapptr (ctx, -1);
+      result = _gum_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
       return result;
     }
@@ -266,7 +266,7 @@ gumjs_socket_address_to_value (duk_context * ctx,
       duk_put_prop_string (ctx, -2, "ip");
       duk_push_uint (ctx, GUINT16_FROM_BE (inet_addr->sin6_port));
       duk_put_prop_string (ctx, -2, "port");
-      result = _gumjs_duk_require_heapptr (ctx, -1);
+      result = _gum_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
       return result;
     }
@@ -276,7 +276,7 @@ gumjs_socket_address_to_value (duk_context * ctx,
       duk_push_object (ctx);
       duk_push_string (ctx, path);
       duk_put_prop_string (ctx, -2, "path");
-      result = _gumjs_duk_require_heapptr (ctx, -1);
+      result = _gum_duk_require_heapptr (ctx, -1);
       duk_pop (ctx);
       return result;
     }

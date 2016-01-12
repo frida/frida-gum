@@ -201,7 +201,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
   _gum_duk_args_parse (args, "u", &size);
 
   if (size == 0 || size > 0x7fffffff)
-    _gumjs_throw (ctx, "invalid size");
+    _gum_duk_throw (ctx, "invalid size");
 
   page_size = gum_query_page_size ();
 
@@ -231,7 +231,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   if (size == 0)
     return 0;
   else if (size > 0x7fffffff)
-    _gumjs_throw (ctx, "invalid size");
+    _gum_duk_throw (ctx, "invalid size");
 
   if (gum_exceptor_try (exceptor, &scope))
   {
@@ -240,7 +240,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    _gumjs_throw_native (ctx, &scope.exception, core);
+    _gum_duk_throw_native (ctx, &scope.exception, core);
   }
 
   return 0;
@@ -256,7 +256,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
   _gum_duk_args_parse (args, "pum", &address, &size, &prot);
 
   if (size > 0x7fffffff)
-    _gumjs_throw (ctx, "invalid size");
+    _gum_duk_throw (ctx, "invalid size");
 
   if (size != 0)
     success = gum_try_mprotect (address, size, prot);
@@ -471,7 +471,7 @@ gum_duk_memory_read (GumMemoryValueType type,
           duk_push_string (ctx, "");
         }
 #else
-        _gumjs_throw (ctx, "ANSI API is only applicable on Windows");
+        _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
 #endif
 
         break;
@@ -483,7 +483,7 @@ gum_duk_memory_read (GumMemoryValueType type,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    _gumjs_throw_native (ctx, &scope.exception, core);
+    _gum_duk_throw_native (ctx, &scope.exception, core);
   }
 
   return 1;
@@ -613,7 +613,7 @@ gum_duk_memory_write (GumMemoryValueType type,
 #ifdef G_OS_WIN32
         strcpy (address, str_ansi);
 #else
-        _gumjs_throw (ctx, "ANSI API is only applicable on Windows");
+        _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
 #endif
 
         break;
@@ -625,7 +625,7 @@ gum_duk_memory_write (GumMemoryValueType type,
 
   if (gum_exceptor_catch (exceptor, &scope))
   {
-    _gumjs_throw_native (ctx, &scope.exception, core);
+    _gum_duk_throw_native (ctx, &scope.exception, core);
   }
 
   g_bytes_unref (bytes);
@@ -693,7 +693,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   _gum_duk_push_native_resource (ctx, str_ansi, g_free, args->core);
   return 1;
 #else
-  _gumjs_throw (ctx, "ANSI API is only applicable on Windows");
+  _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
   return 0;
 #endif
 }
@@ -738,12 +738,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   sc.core = core;
 
   if (sc.pattern == NULL)
-    _gumjs_throw (ctx, "invalid match pattern");
+    _gum_duk_throw (ctx, "invalid match pattern");
 
-  _gumjs_duk_protect (ctx, sc.on_match);
+  _gum_duk_protect (ctx, sc.on_match);
   if (sc.on_error != NULL)
-    _gumjs_duk_protect (ctx, sc.on_error);
-  _gumjs_duk_protect (ctx, sc.on_complete);
+    _gum_duk_protect (ctx, sc.on_error);
+  _gum_duk_protect (ctx, sc.on_complete);
 
   _gum_duk_core_push_job (core,
       (GumScriptJobFunc) gum_memory_scan_context_run,
@@ -760,10 +760,10 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
 
   gum_match_pattern_free (ctx->pattern);
 
-  _gumjs_duk_unprotect (js_ctx, ctx->on_match);
+  _gum_duk_unprotect (js_ctx, ctx->on_match);
   if (ctx->on_error != NULL)
-    _gumjs_duk_unprotect (js_ctx, ctx->on_error);
-  _gumjs_duk_unprotect (js_ctx, ctx->on_complete);
+    _gum_duk_unprotect (js_ctx, ctx->on_error);
+  _gum_duk_unprotect (js_ctx, ctx->on_complete);
 
   g_slice_free (GumMemoryScanContext, ctx);
 }
@@ -851,7 +851,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 #ifdef G_OS_WIN32
 # error Please add MemoryAccessMonitor to the DUK runtime
 #else
-  _gumjs_throw (ctx,
+  _gum_duk_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");
   duk_push_null (ctx);
   return 1;
@@ -863,7 +863,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 #ifdef G_OS_WIN32
 # error Please add MemoryAccessMonitor to the DUK runtime
 #else
-  _gumjs_throw (ctx,
+  _gum_duk_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");
   duk_push_null (ctx);
   return 1;

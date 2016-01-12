@@ -61,14 +61,14 @@ _gum_duk_symbol_init (GumDukSymbol * self,
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_symbol_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  self->symbol = _gumjs_duk_require_heapptr (ctx, -1);
+  self->symbol = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 }
 
 void
 _gum_duk_symbol_dispose (GumDukSymbol * self)
 {
-  _gumjs_duk_release_heapptr (self->core->ctx, self->symbol);
+  _gum_duk_release_heapptr (self->core->ctx, self->symbol);
   self->symbol = NULL;
 }
 
@@ -147,7 +147,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
   address = gum_find_function (name);
   if (address == NULL)
-    _gumjs_throw (ctx, "unable to find function with name '%s'", name);
+    _gum_duk_throw (ctx, "unable to find function with name '%s'", name);
 
   _gum_duk_push_native_pointer (ctx, address, args->core);
   return 1;

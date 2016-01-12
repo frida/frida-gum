@@ -176,7 +176,7 @@ gum_emit_thread (const GumThreadDetails * details,
   duk_push_object (ctx);
   duk_push_uint (ctx, details->id);
   duk_put_prop_string (ctx, -2, "id");
-  duk_push_string (ctx, _gumjs_thread_state_to_string (details->state));
+  duk_push_string (ctx, _gum_duk_thread_state_to_string (details->state));
   duk_put_prop_string (ctx, -2, "state");
   _gum_duk_push_cpu_context (ctx, (GumCpuContext *) &details->cpu_context,
       GUM_CPU_CONTEXT_READONLY, core);
@@ -352,7 +352,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 
   return 0;
 #else
-  _gumjs_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
+  _gum_duk_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
   duk_push_null (ctx);
   return 1;
 #endif
@@ -424,7 +424,7 @@ gum_duk_exception_handler_new (GumDukHeapPtr callback,
   GumDukExceptionHandler * handler;
 
   handler = g_slice_new (GumDukExceptionHandler);
-  _gumjs_duk_protect (core->ctx, callback);
+  _gum_duk_protect (core->ctx, callback);
   handler->callback = callback;
   handler->core = core;
 
@@ -440,7 +440,7 @@ gum_duk_exception_handler_free (GumDukExceptionHandler * handler)
   gum_exceptor_remove (handler->core->exceptor,
       gum_duk_exception_handler_on_exception, handler);
 
-  _gumjs_duk_unprotect (handler->core->ctx, handler->callback);
+  _gum_duk_unprotect (handler->core->ctx, handler->callback);
 
   g_slice_free (GumDukExceptionHandler, handler);
 }
