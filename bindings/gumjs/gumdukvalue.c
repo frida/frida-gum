@@ -1018,7 +1018,7 @@ _gum_duk_protect (duk_context * ctx,
   gchar name[256];
   duk_uint_t ref_count;
 
-  sprintf (name, "\xff" "protected_%p", object);
+  sprintf (name, "protected_%p", object);
 
   duk_push_global_stash (ctx);
 
@@ -1058,7 +1058,7 @@ _gum_duk_unprotect (duk_context * ctx,
   gchar name[256];
   duk_uint_t ref_count;
 
-  sprintf (name, "\xff" "protected_%p", object);
+  sprintf (name, "protected_%p", object);
 
   duk_push_global_stash (ctx);
 
