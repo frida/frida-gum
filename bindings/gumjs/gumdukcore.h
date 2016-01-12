@@ -31,6 +31,7 @@ typedef struct _GumDukExceptionSink GumDukExceptionSink;
 typedef struct _GumDukMessageSink GumDukMessageSink;
 
 typedef struct _GumDukNativePointer GumDukNativePointer;
+typedef struct _GumDukNativePointerImpl GumDukNativePointerImpl;
 typedef struct _GumDukCpuContext GumDukCpuContext;
 typedef guint GumDukCpuContextAccess;
 typedef struct _GumDukNativeResource GumDukNativeResource;
@@ -67,6 +68,8 @@ struct _GumDukCore
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;
   GumDukHeapPtr cpu_context;
+
+  GSList * cached_native_pointers;
 };
 
 struct _GumDukScope
@@ -78,6 +81,14 @@ struct _GumDukScope
 struct _GumDukNativePointer
 {
   gpointer value;
+};
+
+struct _GumDukNativePointerImpl
+{
+  GumDukNativePointer parent;
+
+  gchar * id;
+  GumDukHeapPtr object;
 };
 
 struct _GumDukCpuContext
