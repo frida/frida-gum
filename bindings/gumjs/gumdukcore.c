@@ -571,11 +571,15 @@ _gum_duk_core_flush (GumDukCore * self)
 {
   GMainContext * context;
 
+  GUM_DUK_CORE_UNLOCK (self);
+
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
 
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
+
+  GUM_DUK_CORE_LOCK (self);
 
   g_hash_table_remove_all (self->weak_refs);
 }

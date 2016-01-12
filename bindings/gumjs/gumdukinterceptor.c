@@ -335,8 +335,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 static void
 gum_duk_interceptor_detach_all (GumDukInterceptor * self)
 {
+  GumDukCore * core = self->core;
+
+  GUM_DUK_CORE_UNLOCK (core);
+
   gum_interceptor_detach_listener (self->interceptor,
       GUM_INVOCATION_LISTENER (self->core->script));
+
+  GUM_DUK_CORE_LOCK (core);
 
   while (!g_queue_is_empty (self->attach_entries))
   {
