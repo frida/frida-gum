@@ -388,6 +388,22 @@ error:
 }
 
 gpointer
+_gum_duk_get_data (duk_context * ctx,
+                   duk_idx_t index)
+{
+  gpointer result;
+
+  duk_get_prop_string (ctx, index, "\xff" "priv");
+  if (!duk_is_undefined (ctx, -1))
+    result = duk_require_pointer (ctx, -1);
+  else
+    result = NULL;
+  duk_pop (ctx);
+
+  return result;
+}
+
+gpointer
 _gum_duk_require_data (duk_context * ctx,
                        duk_idx_t index)
 {
