@@ -856,23 +856,23 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
 #ifdef G_OS_WIN32
-# error Please add MemoryAccessMonitor to the DUK runtime
+  _gum_duk_throw (ctx,
+      "MemoryAccessMonitor is not yet available in the Duktape runtime");
 #else
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");
-  duk_push_null (ctx);
-  return 1;
 #endif
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
 #ifdef G_OS_WIN32
-# error Please add MemoryAccessMonitor to the DUK runtime
+  _gum_duk_throw (ctx,
+      "MemoryAccessMonitor is not yet available in the Duktape runtime");
 #else
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is only available on Windows for now");
-  duk_push_null (ctx);
-  return 1;
 #endif
+  return 0;
 }
