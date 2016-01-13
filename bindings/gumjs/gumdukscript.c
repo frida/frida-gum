@@ -6,9 +6,7 @@
 
 #include "gumdukscript.h"
 
-#include "guminvocationlistener.h"
 #include "gumdukcore.h"
-#include "gumdukscript-runtime.h"
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
 #include "gumdukinterceptor.h"
@@ -18,12 +16,15 @@
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
 #include "gumdukprocess.h"
+#include "gumdukscript-runtime.h"
 #include "gumduksocket.h"
 #include "gumdukstalker.h"
 #include "gumduksymbol.h"
 #include "gumdukthread.h"
 #include "gumdukvalue.h"
 #include "gumscripttask.h"
+
+#include <gum/guminvocationlistener.h>
 
 typedef struct _GumEmitMessageData GumEmitMessageData;
 typedef struct _GumPostMessageData GumPostMessageData;
