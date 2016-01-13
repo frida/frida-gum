@@ -24,13 +24,13 @@ typedef struct _MyObject MyObject;
 GUM_NOINLINE static MyObject *
 my_object_new (void)
 {
-  return (MyObject *) g_malloc (1);
+  return (MyObject *) malloc (1);
 }
 
 GUM_NOINLINE static void
 my_object_free (MyObject * obj)
 {
-  g_free (obj);
+  free (obj);
 }
 
 typedef struct _TestCObjectTrackerFixture

@@ -174,12 +174,12 @@ simulation (gpointer user_data)
   if ((fixture->leak_flags & (LEAK_FIRST_BLOCK | LEAK_SECOND_BLOCK |
       LEAK_THIRD_BLOCK)) != 0)
   {
-    fixture->first_block = g_malloc (5);
-    fixture->second_block = g_malloc (10);
-    fixture->third_block = g_malloc (15);
+    fixture->first_block = malloc (5);
+    fixture->second_block = malloc (10);
+    fixture->third_block = malloc (15);
 
     /* just to get a group of size 42 with 0 objects alive: */
-    g_free (g_malloc (42));
+    free (malloc (42));
 
     if ((fixture->leak_flags & LEAK_FIRST_BLOCK) == 0)
       forget_block (&fixture->first_block);
@@ -235,7 +235,7 @@ test_sanity_checker_fixture_do_output (const gchar * text,
 static void
 forget_block (gpointer * block)
 {
-  g_free (*block);
+  free (*block);
   *block = NULL;
 }
 

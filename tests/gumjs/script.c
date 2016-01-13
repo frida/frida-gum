@@ -2620,7 +2620,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
    * 05 try {
    * 06   math.add(5, 2);
    * 07 } catch (e) {
-   * 08   send(Script.symbolicate(e).stack);
+   * 08   send(e.stack);
    * 09 }
    * 10
    * 11 setTimeout(function () {
@@ -2654,7 +2654,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
       /* testcase.js:7 => index.js:6 */
       "  math.add(5, 2);"                                                   "\n"
       "} catch (e) {"                                                       "\n"
-      "  send(Script.symbolicate(e).stack);"                                "\n"
+      "  send(e.stack);"                                                    "\n"
       "}"                                                                   "\n"
       ""                                                                    "\n"
       "setTimeout(function () {"                                            "\n"
