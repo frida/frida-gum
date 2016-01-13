@@ -93,11 +93,11 @@ backend_cxxflags = $(NULL)
 backend_ldflags = $(NULL)
 backend_libadd = $(NULL)
 
-if ENABLE_DIET
-backend_sources += $(duk_sources)
-else
+if !ENABLE_DIET
 backend_sources += $(v8_sources)
 endif
+
+backend_sources += $(duk_sources)
 
 libfrida_gumjs_1_0_la_SOURCES = \
 	$(NULL)
