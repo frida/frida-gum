@@ -2772,6 +2772,14 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
 {
+#ifdef HAVE_DIET
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, not yet implemented in the duktape runtime> ");
+    return;
+  }
+#endif
+
   COMPILE_AND_LOAD_SCRIPT (
       "var val = {};"
       "WeakRef.bind(val, function () {"
