@@ -478,7 +478,6 @@ gum_code_deflector_dispatcher_lookup (GumCodeDeflectorDispatcher * self,
       return caller->target;
   }
 
-  g_assert_not_reached ();
   return NULL;
 }
 
