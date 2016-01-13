@@ -417,9 +417,8 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-  _gum_duk_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
-  duk_push_null (ctx);
-  return 1;
+  _gum_duk_throw (ctx, "Not yet implemented for " GUM_SCRIPT_PLATFORM);
+  return 0;
 }
 
 #endif
