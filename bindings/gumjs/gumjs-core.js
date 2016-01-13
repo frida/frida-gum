@@ -257,24 +257,26 @@
         }
     });
 
-    Object.defineProperty(Process, 'findRangeByAddress', {
-        enumerable: true,
-        value: function (address) {
-            let range = null;
-            Process.enumerateRanges('---', {
-                onMatch: function (r) {
-                    const base = r.base;
-                    if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
-                        range = r;
-                        return 'stop';
+    if (typeof Process.findRangeByAddress === 'undefined') {
+        Object.defineProperty(Process, 'findRangeByAddress', {
+            enumerable: true,
+            value: function (address) {
+                let range = null;
+                Process.enumerateRanges('---', {
+                    onMatch: function (r) {
+                        const base = r.base;
+                        if (base.compare(address) < 0 && base.add(r.size).compare(address) > 0) {
+                            range = r;
+                            return 'stop';
+                        }
+                    },
+                    onComplete: function () {
                     }
-                },
-                onComplete: function () {
-                }
-            });
-            return range;
-        }
-    });
+                });
+                return range;
+            }
+        });
+    }
 
     Object.defineProperty(Process, 'getRangeByAddress', {
         enumerable: true,
