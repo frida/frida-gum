@@ -2709,7 +2709,6 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
           "browser-pack/_prelude.js:1:1)\\n"
       "    at node_modules/frida/node_modules/browserify/node_modules/"
           "browser-pack/_prelude.js:1:1\"") != NULL);
-  }
 #endif
   test_script_message_item_free (item);
 
