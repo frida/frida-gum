@@ -1266,7 +1266,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   GumDukNativeFunction * func;
   GumDukNativePointer * ptr;
   ffi_type * rtype;
-  guint nargs_fixed, nargs_total, length, i;
+  duk_size_t nargs_fixed, nargs_total, length, i;
   gboolean is_variadic;
   ffi_abi abi;
 
@@ -1303,7 +1303,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     ffi_type ** atype;
     gboolean is_marker;
 
-    duk_get_prop_index (ctx, -1, i);
+    duk_get_prop_index (ctx, -1, (duk_uarridx_t) i);
     atype_value = duk_get_heapptr (ctx, -1);
 
     atype = &func->atypes[is_variadic ? i - 1 : i];
@@ -1346,13 +1346,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   if (is_variadic)
   {
-    if (ffi_prep_cif_var (&func->cif, abi, nargs_fixed, nargs_total, rtype,
-        func->atypes) != FFI_OK)
+    if (ffi_prep_cif_var (&func->cif, abi, (guint) nargs_fixed,
+        (guint) nargs_total, rtype, func->atypes) != FFI_OK)
       goto compilation_failed;
   }
   else
   {
-    if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
+    if (ffi_prep_cif (&func->cif, abi, (guint) nargs_total, rtype,
         func->atypes) != FFI_OK)
       goto compilation_failed;
   }
@@ -1537,7 +1537,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   GumDukNativeCallback * callback;
   GumDukNativePointer * ptr;
   ffi_type * rtype;
-  guint nargs, i;
+  duk_size_t nargs, i;
   ffi_abi abi;
 
   if (!duk_is_constructor_call (ctx))
@@ -1570,7 +1570,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
     GumDukHeapPtr atype_value;
     ffi_type ** atype;
 
-    duk_get_prop_index (ctx, -1, i);
+    duk_get_prop_index (ctx, -1, (duk_uarridx_t) i);
     atype_value = duk_get_heapptr (ctx, -1);
 
     atype = &callback->atypes[i];
@@ -1597,8 +1597,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   if (callback->closure == NULL)
     goto alloc_failed;
 
-  if (ffi_prep_cif (&callback->cif, abi, nargs, rtype, callback->atypes)
-      != FFI_OK)
+  if (ffi_prep_cif (&callback->cif, abi, (guint) nargs, rtype,
+      callback->atypes) != FFI_OK)
     goto compilation_failed;
 
   if (ffi_prep_closure_loc (callback->closure, &callback->cif,
@@ -2038,7 +2038,7 @@ gum_duk_get_ffi_type (duk_context * ctx,
                       GSList ** data)
 {
   gboolean success = FALSE;
-  guint i;
+  duk_size_t i;
 
   duk_push_heapptr (ctx, value);
 
@@ -2060,7 +2060,7 @@ gum_duk_get_ffi_type (duk_context * ctx,
   }
   else if (duk_is_array (ctx, -1))
   {
-    guint length;
+    duk_size_t length;
     ffi_type ** fields, * struct_type;
 
     length = duk_get_length (ctx, -1);
@@ -2072,7 +2072,7 @@ gum_duk_get_ffi_type (duk_context * ctx,
     {
       GumDukHeapPtr field_value;
 
-      duk_get_prop_index (ctx, -1, i);
+      duk_get_prop_index (ctx, -1, (duk_uarridx_t) i);
       field_value = duk_get_heapptr (ctx, -1);
       duk_pop (ctx);
 
@@ -2243,7 +2243,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
   else if (type->type == FFI_TYPE_STRUCT)
   {
     ffi_type ** const field_types = type->elements, ** t;
-    guint length, expected_length, i;
+    duk_size_t length, expected_length, i;
     guint8 * field_values;
     gsize offset;
 
@@ -2271,7 +2271,7 @@ gum_duk_get_ffi_value (duk_context * ctx,
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
       field_value = (GumFFIValue *) (field_values + offset);
-      duk_get_prop_index (ctx, index, i);
+      duk_get_prop_index (ctx, index, (duk_uarridx_t) i);
       valid = gum_duk_get_ffi_value (ctx, -1, field_type, core, field_value);
       duk_pop (ctx);
 

@@ -698,7 +698,7 @@ _gum_duk_parse_bytes (duk_context * ctx,
 
     for (i = 0; i != size; i++)
     {
-      duk_get_prop_index (ctx, index, i);
+      duk_get_prop_index (ctx, index, (duk_uarridx_t) i);
       ((guint8 *) data)[i] = duk_get_uint (ctx, -1) & 0xff;
       duk_pop (ctx);
     }
