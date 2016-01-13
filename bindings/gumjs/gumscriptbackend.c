@@ -6,11 +6,8 @@
 
 #include "gumscriptbackend.h"
 
-#ifdef HAVE_DIET
-# include "gumdukscriptbackend.h"
-#else
-# include "gumv8scriptbackend.h"
-#endif
+#include "gumdukscriptbackend.h"
+#include "gumv8scriptbackend.h"
 
 #include <gum/gum-init.h>
 #include <gum/gumexceptor.h>
@@ -65,13 +62,13 @@ gum_script_backend_get_type (void)
 GumScriptBackend *
 gum_script_backend_obtain (void)
 {
-  GumScriptBackend * backend;
+  GumScriptBackend * backend = NULL;
 
 #ifndef HAVE_DIET
   backend = gum_script_backend_obtain_v8 ();
-#else
-  backend = gum_script_backend_obtain_duk ();
 #endif
+  if (backend == NULL)
+    backend = gum_script_backend_obtain_duk ();
 
   return backend;
 }
@@ -109,15 +106,12 @@ gum_script_backend_obtain_duk (void)
 
   if (g_once_init_enter (&gonce_value))
   {
-    GumScriptBackend * backend = NULL;
+    GumScriptBackend * backend;
 
-#ifdef HAVE_DIET
     backend = GUM_SCRIPT_BACKEND (
         g_object_new (GUM_DUK_TYPE_SCRIPT_BACKEND, NULL));
-#endif
 
-    if (backend != NULL)
-      _gum_register_destructor (gum_script_backend_deinit_duk);
+    _gum_register_destructor (gum_script_backend_deinit_duk);
 
     g_once_init_leave (&gonce_value, GPOINTER_TO_SIZE (backend) + 1);
   }
