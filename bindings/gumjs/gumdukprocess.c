@@ -165,7 +165,7 @@ gum_emit_thread (const GumThreadDetails * details,
   GumDukCore * core = mc->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  gboolean proceed;
+  gboolean proceed = TRUE;
 
   if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
       details->id))
@@ -184,7 +184,8 @@ gum_emit_thread (const GumThreadDetails * details,
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
-    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
   }
   else
   {
@@ -222,7 +223,7 @@ gum_emit_module (const GumModuleDetails * details,
   GumDukCore * core = mc->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  gboolean proceed;
+  gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
 
@@ -243,7 +244,8 @@ gum_emit_module (const GumModuleDetails * details,
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
-    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
   }
   else
   {
@@ -284,7 +286,7 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   char prot_str[4] = "---";
   const GumFileMapping * f = details->file;
-  gboolean proceed;
+  gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
 
@@ -322,7 +324,8 @@ gum_emit_range (const GumRangeDetails * details,
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
-    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
   }
   else
   {
@@ -366,7 +369,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   GumDukCore * core = mc->core;
   duk_context * ctx = core->ctx;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
-  gboolean proceed;
+  gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
 
@@ -381,7 +384,8 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
   if (_gum_duk_scope_call_sync (&scope, 1))
   {
-    proceed = strcmp (duk_safe_to_string (ctx, -1), "stop") != 0;
+    if (duk_is_string (ctx, -1))
+      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
   }
   else
   {

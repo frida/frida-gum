@@ -744,17 +744,16 @@ GUMJS_DEFINE_GETTER (gumjs_invocation_context_get_depth)
 GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
 {
   GumDukInvocationContext * self;
-  const gchar * property;
   GumDukHeapPtr receiver;
   GumDukInterceptor * interceptor;
 
   self = _gum_duk_require_data (ctx, 0);
-  property = duk_safe_to_string (ctx, 1);
   receiver = _gum_duk_require_heapptr (ctx, 3);
   interceptor = self->interceptor;
 
+  duk_dup (ctx, 1);
   duk_dup (ctx, 2);
-  duk_put_prop_string (ctx, 0, property);
+  duk_put_prop (ctx, 0);
 
   if (receiver == interceptor->cached_invocation_context->object)
   {
@@ -838,13 +837,11 @@ GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
 
 GUMJS_DEFINE_GETTER (gumjs_invocation_args_get_property)
 {
-  const gchar * property;
   GumInvocationContext * ic;
   guint n;
 
-  property = duk_safe_to_string (ctx, 1);
-
-  if (strcmp ("toJSON", property) == 0)
+  if (duk_is_string (ctx, 1) &&
+      strcmp (duk_require_string (ctx, 1), "toJSON") == 0)
   {
     duk_push_string (ctx, "invocation-args");
     return 1;
