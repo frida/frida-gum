@@ -857,7 +857,7 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
   g_assert_cmpint (malloc_counter, ==, 1);
   g_assert_cmpint (free_counter, ==, 1);
 
-  g_free (ret);
+  free (ret);
 }
 
 INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
