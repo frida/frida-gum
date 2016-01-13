@@ -117,7 +117,7 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   (void) data;
 
   fixture->interceptor = gum_interceptor_obtain ();
-  fixture->result = g_string_new ("");
+  fixture->result = g_string_sized_new (4096);
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
 
   if (target_function == NULL)
