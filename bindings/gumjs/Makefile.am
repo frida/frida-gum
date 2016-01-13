@@ -137,7 +137,6 @@ script_runtime_sources = \
 	gumjs-java.js \
 	gumjs-objc.js \
 	gumjs-debug.js \
-	gumjs-promise.js \
 	gumjs-babel-polyfill.js \
 	$(NULL)
 
