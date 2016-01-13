@@ -70,8 +70,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
-static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    gpointer user_data);
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
 static GumDukExceptionHandler * gum_duk_exception_handler_new (
@@ -356,9 +354,13 @@ gum_emit_range (const GumRangeDetails * details,
   return proceed;
 }
 
+#ifdef HAVE_DARWIN
+
+static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
+    gpointer user_data);
+
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
-#ifdef HAVE_DARWIN
   GumDukMatchContext mc;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
 
@@ -374,11 +376,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
   duk_pop (ctx);
 
   return 0;
-#else
-  _gum_duk_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
-  duk_push_null (ctx);
-  return 1;
-#endif
 }
 
 static gboolean
@@ -415,6 +412,17 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 
   return proceed;
 }
+
+#else
+
+GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
+{
+  _gum_duk_throw (ctx, "not implemented yet for " GUM_SCRIPT_PLATFORM);
+  duk_push_null (ctx);
+  return 1;
+}
+
+#endif
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_set_exception_handler)
 {
