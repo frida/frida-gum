@@ -33,6 +33,16 @@ static guint get_number_of_tests_in_suite (GTestSuite * suite);
 gint
 main (gint argc, gchar * argv[])
 {
+#if !DEBUG_HEAP_LEAKS
+  GMemVTable mem_vtable = {
+    gum_malloc,
+    gum_realloc,
+    gum_free,
+    gum_calloc,
+    gum_malloc,
+    gum_realloc
+  };
+#endif
   gint result;
   GTimer * timer;
   guint num_tests;
@@ -74,9 +84,15 @@ main (gint argc, gchar * argv[])
       RTLD_LAZY | RTLD_GLOBAL);
 #endif
 
+  gum_memory_init ();
+#if !DEBUG_HEAP_LEAKS
+  g_mem_set_vtable (&mem_vtable);
+#endif
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
+#if DEBUG_HEAP_LEAKS
   /* needed for the above and GUM's heap library */
   g_setenv ("G_SLICE", "always-malloc", TRUE);
+#endif
 #if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
   gio_init ();
@@ -203,27 +219,26 @@ main (gint argc, gchar * argv[])
       g_main_context_iteration (context, FALSE);
   }
 
-#if DEBUG_HEAP_LEAKS
-# if GLIB_CHECK_VERSION (2, 46, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
   gio_shutdown ();
   glib_shutdown ();
-# endif
+#endif
 
   _test_util_deinit ();
 
-# ifdef HAVE_I386
+#ifdef HAVE_I386
   lowlevel_helpers_deinit ();
-# endif
+#endif
 
   gum_deinit ();
-# if GLIB_CHECK_VERSION (2, 46, 0)
+#if GLIB_CHECK_VERSION (2, 46, 0)
   gio_deinit ();
   glib_deinit ();
-# endif
+#endif
+  gum_memory_deinit ();
 
-# ifdef G_OS_WIN32
+#ifdef G_OS_WIN32
   WSACleanup ();
-# endif
 #endif
 
 #if defined (G_OS_WIN32) && !DEBUG_HEAP_LEAKS
