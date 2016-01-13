@@ -841,7 +841,7 @@ INTERCEPTOR_TESTCASE (replace_function)
 INTERCEPTOR_TESTCASE (two_replaced_functions)
 {
   guint malloc_counter = 0, free_counter = 0;
-  gpointer ret;
+  volatile gpointer ret;
 
   gum_interceptor_replace_function (fixture->interceptor,
       malloc, replacement_malloc_calling_malloc_and_replaced_free,
