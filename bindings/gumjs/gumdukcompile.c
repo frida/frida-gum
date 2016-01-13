@@ -47,7 +47,9 @@ main (int argc,
   remaining = size;
   while (remaining != 0)
   {
-    duk_size_t n = MIN (remaining, GUM_DUK_BLOCK_SIZE);
+    duk_size_t n = (remaining > GUM_DUK_BLOCK_SIZE)
+        ? GUM_DUK_BLOCK_SIZE
+        : remaining;
 
     if (fwrite (code, n, 1, output) != 1)
     {
