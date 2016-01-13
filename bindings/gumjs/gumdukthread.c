@@ -52,6 +52,9 @@ _gum_duk_thread_init (GumDukThread * self,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -138,6 +141,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
   GumDukCore * core = args->core;
   gdouble delay;
+
+  (void) ctx;
 
   _gum_duk_args_parse (args, "n", &delay);
 

@@ -21,7 +21,7 @@ _gum_duk_args_parse (const GumDukArgs * args,
   duk_context * ctx = args->ctx;
   GumDukCore * core = args->core;
   va_list ap;
-  guint arg_index;
+  duk_idx_t arg_index;
   const gchar * t;
   gboolean is_required;
   GSList * byte_arrays = NULL;
@@ -769,7 +769,7 @@ _gum_duk_push_native_resource (duk_context * ctx,
 {
   duk_push_heapptr (ctx, core->native_resource);
   duk_push_pointer (ctx, data);
-  duk_push_pointer (ctx, notify);
+  duk_push_pointer (ctx, GUM_FUNCPTR_TO_POINTER (notify));
   duk_new (ctx, 2);
 }
 
@@ -934,9 +934,9 @@ void
 _gum_duk_create_subclass (duk_context * ctx,
                           const gchar * parent,
                           const gchar * name,
-                          gpointer constructor,
+                          duk_c_function constructor,
                           gint constructor_nargs,
-                          gpointer finalize)
+                          duk_c_function finalize)
 {
   duk_push_global_object (ctx);
   duk_get_prop_string (ctx, -1, "Object");
@@ -1130,6 +1130,13 @@ _gum_duk_weak_ref_new (duk_context * ctx,
                        GDestroyNotify data_destroy)
 {
   /* TODO: implement */
+
+  (void) ctx;
+  (void) value;
+  (void) notify;
+  (void) data;
+  (void) data_destroy;
+
   return NULL;
 }
 
@@ -1137,6 +1144,8 @@ void
 _gum_duk_weak_ref_free (GumDukWeakRef * ref)
 {
   /* TODO: implement */
+
+  (void) ref;
 }
 
 static const gchar *

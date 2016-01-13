@@ -67,11 +67,15 @@ static gchar * gum_ansi_string_from_utf8 (const gchar * str_utf8);
 #define GUMJS_DEFINE_MEMORY_READ(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_read_##T) \
   { \
+    (void) ctx; \
+    \
     return gum_duk_memory_read (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_WRITE(T) \
   GUMJS_DEFINE_FUNCTION (gumjs_memory_write_##T) \
   { \
+    (void) ctx; \
+    \
     return gum_duk_memory_write (GUM_MEMORY_VALUE_##T, args); \
   }
 #define GUMJS_DEFINE_MEMORY_READ_WRITE(T) \
@@ -197,6 +201,9 @@ _gum_duk_memory_finalize (GumDukMemory * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -503,9 +510,9 @@ gum_duk_memory_write (GumMemoryValueType type,
   duk_context * ctx = args->ctx;
   GumDukCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
-  gpointer address;
-  gpointer pointer;
-  gdouble number;
+  gpointer address = NULL;
+  gpointer pointer = NULL;
+  gdouble number = 0;
   GBytes * bytes = NULL;
   const gchar * str = NULL;
   gsize str_length = 0;
@@ -850,11 +857,16 @@ gum_memory_scan_context_emit_match (GumAddress address,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
+  (void) args;
+
 #ifdef G_OS_WIN32
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is not yet available in the Duktape runtime");
@@ -867,6 +879,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
+  (void) args;
+
 #ifdef G_OS_WIN32
   _gum_duk_throw (ctx,
       "MemoryAccessMonitor is not yet available in the Duktape runtime");

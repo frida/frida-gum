@@ -261,6 +261,9 @@ gumjs_interceptor_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_interceptor_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -326,6 +329,8 @@ gum_duk_attach_entry_free (GumDukAttachEntry * entry)
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumDukInterceptor * self = gumjs_interceptor_from_args (args);
+
+  (void) ctx;
 
   gum_duk_interceptor_detach_all (self);
 
@@ -422,6 +427,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_revert)
 {
   GumDukInterceptor * self;
   gpointer target;
+
+  (void) ctx;
 
   self = gumjs_interceptor_from_args (args);
 
@@ -658,12 +665,17 @@ gumjs_invocation_context_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_context_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_context_finalize)
 {
   GumDukInvocationContext * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationContext"))
     return 0;
@@ -716,6 +728,8 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_system_error)
   GumDukInvocationContext * self;
   gint value;
 
+  (void) ctx;
+
   self = gumjs_invocation_context_from_args (args);
 
   _gum_duk_args_parse (args, "i", &value);
@@ -746,6 +760,8 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
   GumDukInvocationContext * self;
   GumDukHeapPtr receiver;
   GumDukInterceptor * interceptor;
+
+  (void) args;
 
   self = _gum_duk_require_data (ctx, 0);
   receiver = _gum_duk_require_heapptr (ctx, 3);
@@ -813,6 +829,8 @@ gumjs_invocation_args_require_context (duk_context * ctx,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_args_construct)
 {
+  (void) args;
+
   duk_push_this (ctx);
   _gum_duk_push_proxy (ctx, -1, gumjs_invocation_args_get_property,
       gumjs_invocation_args_set_property);
@@ -822,6 +840,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_args_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_args_finalize)
 {
   GumDukInvocationArgs * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationArgs"))
     return 0;
@@ -922,12 +942,17 @@ gumjs_invocation_return_value_reset (GumDukInvocationReturnValue * self,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_invocation_return_value_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_invocation_return_value_finalize)
 {
   GumDukInvocationReturnValue * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InvocationReturnValue"))
     return 0;

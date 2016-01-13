@@ -184,6 +184,8 @@ gum_duk_script_backend_create_finish (GumScriptBackend * backend,
                                       GAsyncResult * result,
                                       GError ** error)
 {
+  (void) backend;
+
   return GUM_SCRIPT (gum_script_task_propagate_pointer (
       GUM_SCRIPT_TASK (result), error));
 }
@@ -239,6 +241,8 @@ gum_create_script_task_run (GumScriptTask * task,
   GumDukScript * script;
   GError * error = NULL;
 
+  (void) cancellable;
+
   script = GUM_DUK_SCRIPT (g_object_new (GUM_DUK_TYPE_SCRIPT,
       "name", d->name,
       "source", d->source,
@@ -276,6 +280,11 @@ gum_duk_script_backend_set_debug_message_handler (
     GDestroyNotify data_destroy)
 {
   /* TODO */
+
+  (void) backend;
+  (void) handler;
+  (void) data;
+  (void) data_destroy;
 }
 
 static void
@@ -283,6 +292,9 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
                                            const gchar * message)
 {
   /* TODO */
+
+  (void) backend;
+  (void) message;
 }
 
 static void
@@ -450,5 +462,7 @@ gum_duk_script_backend_is_ignoring (GumScriptBackend * backend,
 static gboolean
 gum_duk_script_backend_supports_unload (GumScriptBackend * backend)
 {
+  (void) backend;
+
   return TRUE;
 }

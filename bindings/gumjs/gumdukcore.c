@@ -53,7 +53,7 @@ struct _GumDukNativeFunction
 {
   GumDukNativePointer parent;
 
-  gpointer fn;
+  GCallback fn;
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
@@ -205,7 +205,7 @@ static const GumDukPropertyEntry gumjs_script_values[] =
   { "fileName", gumjs_script_get_file_name, NULL },
   { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
 
-  { NULL, NULL, NULL}
+  { NULL, NULL, NULL }
 };
 
 static const duk_function_list_entry gumjs_weak_ref_functions[] =
@@ -804,6 +804,9 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -850,12 +853,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
 {
   GumDukCore * self = args->core;
 
+  (void) ctx;
+
   return gum_duk_core_schedule_callback (self, args, FALSE);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_set_interval)
 {
   GumDukCore * self = args->core;
+
+  (void) ctx;
 
   return gum_duk_core_schedule_callback (self, args, TRUE);
 }
@@ -890,6 +897,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 
 GUMJS_DEFINE_FUNCTION (gumjs_gc)
 {
+  (void) args;
+
   duk_gc (ctx, 0);
 
   return 0;
@@ -899,6 +908,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
   gchar * message;
   GBytes * data;
+
+  (void) ctx;
 
   _gum_duk_args_parse (args, "sB?", &message, &data);
 
@@ -914,6 +925,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumDukCore * self = args->core;
   GumDukHeapPtr callback;
   GumDukExceptionSink * new_sink, * old_sink;
+
+  (void) ctx;
 
   _gum_duk_args_parse (args, "F?", &callback);
 
@@ -936,6 +949,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   GumDukHeapPtr callback;
   GumDukMessageSink * new_sink, * old_sink;
 
+  (void) ctx;
+
   _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
@@ -955,6 +970,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumDukCore * self = args->core;
   guint start_count;
+
+  (void) ctx;
 
   start_count = self->event_count;
   while (self->event_count == start_count)
@@ -1202,8 +1219,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
   GumDukNativeResource * resource;
   GumDukNativePointer * ptr;
 
+  (void) args;
+
   data = duk_require_pointer (ctx, 0);
-  notify = duk_require_pointer (ctx, 1);
+  notify = GUM_POINTER_TO_FUNCPTR (GDestroyNotify, duk_require_pointer (ctx, 1));
 
   resource = g_slice_new (GumDukNativeResource);
   ptr = &resource->parent;
@@ -1220,6 +1239,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
 {
   GumDukNativeResource * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeResource"))
     return 0;
@@ -1239,7 +1260,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_resource_finalize)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
   GumDukCore * core = args->core;
-  gpointer fn;
+  GCallback fn;
   GumDukHeapPtr rtype_value, atypes_array;
   const gchar * abi_str = NULL;
   GumDukNativeFunction * func;
@@ -1261,7 +1282,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   func = g_slice_new0 (GumDukNativeFunction);
   ptr = &func->parent;
-  ptr->value = fn;
+  ptr->value = GUM_FUNCPTR_TO_POINTER (fn);
   func->fn = fn;
   func->core = core;
 
@@ -1399,6 +1420,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_function_finalize)
 {
   GumDukNativeFunction * self;
 
+  (void) args;
+
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeFunction"))
     return 0;
 
@@ -1492,7 +1515,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
 
   if (gum_exceptor_try (core->exceptor, &scope))
   {
-    ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
+    ffi_call (&self->cif, self->fn, rvalue, avalue);
   }
 
   GUM_DUK_CORE_LOCK (core);
@@ -1628,6 +1651,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
   GumDukNativeCallback * self;
   gboolean heap_destruct;
 
+  (void) args;
+
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativeCallback"))
     return 0;
 
@@ -1720,12 +1745,17 @@ gumjs_cpu_context_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
 GUMJS_DEFINE_FINALIZER (gumjs_cpu_context_finalize)
 {
   GumDukCpuContext * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "CpuContext"))
     return 0;
@@ -1765,7 +1795,7 @@ gum_duk_weak_ref_new (guint id,
 
   ref = g_slice_new (GumDukWeakRef);
   ref->id = id;
-  ref->target = NULL;
+  ref->target = target;
   ref->callback = callback;
   ref->core = core;
 

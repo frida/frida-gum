@@ -73,6 +73,9 @@ _gum_duk_module_finalize (GumDukModule * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_module_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 

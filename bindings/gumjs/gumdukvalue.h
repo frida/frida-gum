@@ -25,8 +25,8 @@ struct _GumDukArgs
 struct _GumDukPropertyEntry
 {
   gchar * name;
-  gpointer getter;
-  gpointer setter;
+  duk_c_function getter;
+  duk_c_function setter;
 };
 
 G_GNUC_INTERNAL void _gum_duk_args_parse (const GumDukArgs * args,
@@ -85,8 +85,8 @@ G_GNUC_INTERNAL void _gum_duk_throw_native (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core);
 
 G_GNUC_INTERNAL void _gum_duk_create_subclass (duk_context * ctx,
-    const gchar * parent, const gchar * name, gpointer constructor,
-    gint constructor_nargs, gpointer finalize);
+    const gchar * parent, const gchar * name, duk_c_function constructor,
+    gint constructor_nargs, duk_c_function finalize);
 G_GNUC_INTERNAL void _gum_duk_add_properties_to_class_by_heapptr (
     duk_context * ctx, GumDukHeapPtr klass,
     const GumDukPropertyEntry * entries);

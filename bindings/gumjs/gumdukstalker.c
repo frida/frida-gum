@@ -38,7 +38,7 @@ static const GumDukPropertyEntry gumjs_stalker_values[] =
     gumjs_stalker_set_queue_drain_interval
   },
 
-  { NULL, NULL, NULL}
+  { NULL, NULL, NULL }
 };
 
 static const duk_function_list_entry gumjs_stalker_functions[] =
@@ -121,6 +121,9 @@ gumjs_stalker_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -136,6 +139,8 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 {
   GumStalker * stalker;
   gint threshold;
+
+  (void) ctx;
 
   stalker = _gum_duk_stalker_get (gumjs_stalker_from_args (args));
 
@@ -157,6 +162,8 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
   GumDukStalker * self = gumjs_stalker_from_args (args);
 
+  (void) ctx;
+
   _gum_duk_args_parse (args, "u", &self->queue_capacity);
   return 0;
 }
@@ -173,12 +180,16 @@ GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
   GumDukStalker * self = gumjs_stalker_from_args (args);
 
+  (void) ctx;
+
   _gum_duk_args_parse (args, "u", &self->queue_drain_interval);
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_stalker_throw_not_yet_available)
 {
+  (void) args;
+
   _gum_duk_throw (ctx,
       "Stalker API not yet available in the Duktape runtime");
   return 0;

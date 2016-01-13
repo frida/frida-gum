@@ -75,6 +75,9 @@ _gum_duk_socket_finalize (GumDukSocket * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -206,6 +209,9 @@ gumjs_socket_address_to_value (duk_context * ctx,
                                GumDukCore * core)
 {
   GumDukHeapPtr result;
+
+  (void) core;
+
   switch (addr->sa_family)
   {
     case AF_INET:

@@ -93,6 +93,9 @@ gumjs_symbol_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -252,6 +255,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_construct)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_to_string)
 {
+  (void) args;
+
   duk_push_this (ctx);
   duk_get_prop_string (ctx, -1, "\xff" "description");
   return 1;
