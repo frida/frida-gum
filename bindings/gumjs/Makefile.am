@@ -49,61 +49,6 @@ v8_sources = \
 	gumv8instruction.cpp \
 	$(NULL)
 
-jsc_sources = \
-	gumjscscriptbackend.h \
-	gumjscscriptbackend.c \
-	gumjscscript.h \
-	gumjscscript.c \
-	gumjscscript-priv.h \
-	gumjscbundle.h \
-	gumjscbundle.c \
-	gumjscvalue.h \
-	gumjscvalue.c \
-	gumjscmacros.h \
-	gumjsccore.h \
-	gumjsccore.c \
-	gumjscpolyfill.h \
-	gumjscpolyfill.c \
-	gumjscglue.cpp \
-	gumjsckernel.h \
-	gumjsckernel.c \
-	gumjscmemory.h \
-	gumjscmemory.c \
-	gumjscprocess.h \
-	gumjscprocess.c \
-	gumjscthread.h \
-	gumjscthread.c \
-	gumjscmodule.h \
-	gumjscmodule.c \
-	gumjscfile.h \
-	gumjscfile.c \
-	gumjscsocket.h \
-	gumjscsocket.c \
-	gumjscinterceptor.h \
-	gumjscinterceptor.c \
-	gumjscstalker.h \
-	gumjscstalker.c \
-	gumjscsymbol.h \
-	gumjscsymbol.c \
-	gumjscinstruction.h \
-	gumjscinstruction.c \
-	$(NULL)
-jsc_includes = \
-	-I $(srcdir)/include/JavaScriptCore/API \
-	-I $(srcdir)/include/JavaScriptCore/assembler \
-	-I $(srcdir)/include/JavaScriptCore/bytecode \
-	-I $(srcdir)/include/JavaScriptCore/disassembler \
-	-I $(srcdir)/include/JavaScriptCore/heap \
-	-I $(srcdir)/include/JavaScriptCore/icu \
-	-I $(srcdir)/include/JavaScriptCore/interpreter \
-	-I $(srcdir)/include/JavaScriptCore/jit \
-	-I $(srcdir)/include/JavaScriptCore/llint \
-	-I $(srcdir)/include/JavaScriptCore/parser \
-	-I $(srcdir)/include/JavaScriptCore/profiler \
-	-I $(srcdir)/include/JavaScriptCore/runtime \
-	-I $(srcdir)/include/WTF \
-	$(NULL)
-
 duk_sources = \
 	gumdukscriptbackend.h \
 	gumdukscriptbackend.c \
@@ -152,23 +97,6 @@ if ENABLE_DIET
 backend_sources += $(duk_sources)
 else
 backend_sources += $(v8_sources)
-if OS_IOS
-backend_sources += \
-	$(jsc_sources) \
-	$(NULL)
-backend_cppflags += \
-	$(jsc_includes) \
-	$(GUMJSC_CFLAGS)
-backend_cxxflags += \
-	-fno-rtti \
-	$(NULL)
-backend_ldflags += \
-	$(GUMJSC_LDFLAGS) \
-	$(NULL)
-backend_libadd += \
-	$(GUMJSC_LIBS) \
-	$(NULL)
-endif
 endif
 
 libfrida_gumjs_1_0_la_SOURCES = \

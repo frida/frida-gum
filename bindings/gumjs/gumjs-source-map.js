@@ -3,7 +3,6 @@
     "use strict";
 
     const engine = global;
-    const usingJavaScriptCore = Script.runtime === 'JSC';
     let didLoadSourceMap = false;
     let cachedSourceMap = null;
     Object.defineProperty(Script, 'sourceMap', {
@@ -19,11 +18,6 @@
             }
             return cachedSourceMap;
         }
-    });
-
-    Object.defineProperty(Script, 'symbolicate', {
-        enumerable: true,
-        value: symbolicate
     });
 
     const runtime = Script.runtime;
@@ -64,42 +58,6 @@
             result.frames = translatedStack;
             return result;
         };
-    } else if (runtime === 'JSC') {
-        engine._setUnhandledExceptionCallback(function (error) {
-            error = symbolicate(error);
-
-            const message = {
-                type: 'error',
-                description: '' + error
-            };
-
-            if (error instanceof Error) {
-                const stack = error.stack;
-                if (stack) {
-                    message.stack = stack;
-                }
-
-                const sourcePosition = error.sourcePosition;
-                if (sourcePosition) {
-                    message.fileName = sourcePosition.source;
-                    message.lineNumber = sourcePosition.line;
-                    message.columnNumber = sourcePosition.column + 1;
-                } else {
-                    const sourceURL = error.sourceURL;
-                    if (sourceURL) {
-                        message.fileName = fileNameFromSourceURL(sourceURL);
-                    }
-
-                    const line = error.line;
-                    if (line) {
-                        message.lineNumber = line;
-                        message.columnNumber = error.column;
-                    }
-                }
-            }
-
-            engine._send(JSON.stringify(message), null);
-        });
     } else if (runtime === 'DUK') {
         engine._setUnhandledExceptionCallback(function (error) {
             const message = {
@@ -169,45 +127,6 @@
 
             return error;
         };
-    }
-
-    function symbolicate(error) {
-        if (!usingJavaScriptCore || !(error instanceof Error))
-            return error;
-
-        let stack = error.stack;
-        if (stack) {
-            error.stack = error.toString() + "\n    " + stack
-                .replace(/(.*?file:\/\/\/)([^:]+):(\d+):(\d+)/g,
-                    function (match, prefix, source, line, column) {
-                        const position = mapSourcePosition({
-                            source: source,
-                            line: parseInt(line, 10),
-                            column: parseInt(column, 10) - 1
-                        });
-
-                        const location = position.source + ":" + position.line + ":" + (position.column + 1);
-
-                        const m = /(.+?)@(.+)/.exec(prefix);
-                        const funcName = (m !== null) ? m[1] : null;
-                        if (funcName !== null)
-                            return "at " + funcName + " (" + location + ")";
-                        else
-                            return "at " + location;
-                    })
-                .replace(/\n/g, "\n    ");
-        }
-
-        const sourceURL = error.sourceURL;
-        if (sourceURL && sourceURL.indexOf("file:///") === 0) {
-            error.sourcePosition = mapSourcePosition({
-                source: sourceURL.substring(8),
-                line: error.line,
-                column: error.column - 1
-            });
-        }
-
-        return error;
     }
 
     function fileNameFromSourceURL(url) {
