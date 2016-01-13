@@ -450,5 +450,5 @@ gum_duk_script_backend_is_ignoring (GumScriptBackend * backend,
 static gboolean
 gum_duk_script_backend_supports_unload (GumScriptBackend * backend)
 {
-  return FALSE;
+  return TRUE;
 }
