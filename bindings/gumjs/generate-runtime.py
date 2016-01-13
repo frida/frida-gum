@@ -34,24 +34,45 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
 #include "gumdukbundle.h"
 """)
 
-        dukcompile = os.path.join(output_dir, "gumdukcompile")
+        build_os = platform.system().lower()
 
-        dukcompile_libs = []
-        if platform.system() == 'Darwin':
-            sdk = "macosx"
-            CC = [
-                subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).rstrip("\n"),
-                "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).rstrip("\n")
-            ]
+        if build_os == 'windows':
+            script_suffix = ".cmd"
+            program_suffix = ".exe"
         else:
-            CC = ["gcc"]
-            dukcompile_libs.append("-lm")
-        subprocess.call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
-            map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]) +
-            ["-o", dukcompile] + dukcompile_libs)
+            script_suffix = ""
+            program_suffix = ""
+
+        babel = os.path.join(".", "node_modules", ".bin", "babel" + script_suffix)
+
+        dukcompile = os.path.join(output_dir, "gumdukcompile" + program_suffix)
+        dukcompile_sources = map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"])
+        if build_os == 'windows':
+            subprocess.call(["cl.exe",
+                "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
+                "/D", "WIN32",
+                "/D", "_WINDOWS",
+                "/D", "WINVER=0x0501",
+                "/D", "_WIN32_WINNT=0x0501",
+                "/D", "NDEBUG",
+                "/D", "_CRT_SECURE_NO_WARNINGS",
+                "/D", "_USING_V110_SDK71_"] + dukcompile_sources, cwd=output_dir)
+        else:
+            dukcompile_libs = []
+            if build_os == 'darwin':
+                sdk = "macosx"
+                CC = [
+                    subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).rstrip("\n"),
+                    "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).rstrip("\n")
+                ]
+            else:
+                CC = ["gcc"]
+                dukcompile_libs.append("-lm")
+            subprocess.call(CC + ["-Wall", "-pipe", "-O2", "-fomit-frame-pointer"] +
+                dukcompile_sources +
+                ["-o", dukcompile] + dukcompile_libs)
 
         modules = []
-
         for input_name in inputs + polyfills:
             input_path = os.path.join(input_dir, input_name)
 
@@ -66,7 +87,7 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
                 input_name_es5 = base + "-es5" + ext
                 input_path_es5 = os.path.join(output_dir, input_name_es5)
 
-                subprocess.call(["./node_modules/.bin/babel", "--presets", "es2015", os.path.abspath(input_path), "-o", os.path.abspath(input_path_es5)], cwd=input_dir)
+                subprocess.call([babel, "--presets", "es2015", os.path.abspath(input_path), "-o", os.path.abspath(input_path_es5)], cwd=input_dir)
 
                 subprocess.call([dukcompile, input_path_es5, input_path_duk])
             else:
@@ -172,13 +193,13 @@ if __name__ == '__main__':
         "gumjs-java.js",
         "gumjs-objc.js",
     ]
-    duk_polyfill_modules = [
-        "gumjs-babel-polyfill.js"
-    ]
-    generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
-    if platform.system() != 'Windows':
-        generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules, duk_polyfill_modules)
 
+    generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
     generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
         "gumjs-debug.js",
     ])
+
+    duk_polyfill_modules = [
+        "gumjs-babel-polyfill.js"
+    ]
+    generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules, duk_polyfill_modules)

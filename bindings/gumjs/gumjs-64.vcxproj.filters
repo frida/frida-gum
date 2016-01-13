@@ -1,57 +1,255 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClCompile Include="gumscript.c" />
-    <ClCompile Include="gumscriptbackend.c" />
-    <ClCompile Include="gumscriptscheduler.c" />
-    <ClCompile Include="gumscripttask.c" />
-    <ClCompile Include="gumv8scriptbackend.cpp" />
-    <ClCompile Include="gumv8script.cpp" />
-    <ClCompile Include="gumv8platform.cpp" />
-    <ClCompile Include="gumv8bundle.cpp" />
-    <ClCompile Include="gumv8scope.cpp" />
-    <ClCompile Include="gumv8core.cpp" />
-    <ClCompile Include="gumv8kernel.cpp" />
-    <ClCompile Include="gumv8memory.cpp" />
-    <ClCompile Include="gumv8process.cpp" />
-    <ClCompile Include="gumv8thread.cpp" />
-    <ClCompile Include="gumv8module.cpp" />
-    <ClCompile Include="gumv8file.cpp" />
-    <ClCompile Include="gumv8socket.cpp" />
-    <ClCompile Include="gumv8interceptor.cpp" />
-    <ClCompile Include="gumv8stalker.cpp" />
-    <ClCompile Include="gumv8eventsink.cpp" />
-    <ClCompile Include="gumv8symbol.cpp" />
-    <ClCompile Include="gumv8instruction.cpp" />
+    <ClCompile Include="gumscript.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="gumscriptbackend.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="gumscriptscheduler.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="gumscripttask.c">
+      <Filter>common</Filter>
+    </ClCompile>
+    <ClCompile Include="duktape.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukbundle.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukcore.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukfile.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukinstruction.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukinterceptor.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukmemory.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukmodule.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukprocess.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukscript.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukscriptbackend.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumduksocket.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukstalker.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumduksymbol.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukthread.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumdukvalue.c">
+      <Filter>duk</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8bundle.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8core.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8eventsink.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8file.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8instruction.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8interceptor.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8kernel.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8memory.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8module.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8platform.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8process.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8scope.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8script.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8scriptbackend.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8socket.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8stalker.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8symbol.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8thread.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="gumscript.h" />
-    <ClInclude Include="gumscriptbackend.h" />
-    <ClInclude Include="gumscriptscheduler.h" />
-    <ClInclude Include="gumscripttask.h" />
-    <ClInclude Include="gumv8scriptbackend.h" />
-    <ClInclude Include="gumv8script.h" />
-    <ClInclude Include="gumv8script-priv.h" />
-    <ClInclude Include="gumv8platform.h" />
-    <ClInclude Include="gumv8bundle.h" />
-    <ClInclude Include="gumv8scope.h" />
-    <ClInclude Include="gumv8core.h" />
-    <ClInclude Include="gumv8kernel.h" />
-    <ClInclude Include="gumv8memory.h" />
-    <ClInclude Include="gumv8process.h" />
-    <ClInclude Include="gumv8thread.h" />
-    <ClInclude Include="gumv8module.h" />
-    <ClInclude Include="gumv8file.h" />
-    <ClInclude Include="gumv8socket.h" />
-    <ClInclude Include="gumv8interceptor.h" />
-    <ClInclude Include="gumv8stalker.h" />
-    <ClInclude Include="gumv8eventsink.h" />
-    <ClInclude Include="gumv8symbol.h" />
-    <ClInclude Include="gumv8instruction.h" />
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
     <ClInclude Include="$(IntDir)gumjs\gumv8script-debug.h">
+      <Filter>runtime\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="gumscript.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="gumscriptbackend.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="gumscriptscheduler.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="gumscripttask.h">
+      <Filter>common</Filter>
+    </ClInclude>
+    <ClInclude Include="duk_config.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="duktape.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukbundle.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukcore.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukfile.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukinstruction.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukinterceptor.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukmacros.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukmemory.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukmodule.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukprocess.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukscript.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukscriptbackend.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukscript-priv.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumduksocket.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukstalker.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumduksymbol.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukthread.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukvalue.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8bundle.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8core.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8eventsink.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8file.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8instruction.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8interceptor.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8kernel.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8memory.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8module.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8platform.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8process.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8scope.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8script.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8scriptbackend.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8script-priv.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8socket.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8stalker.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8symbol.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8thread.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h">
       <Filter>runtime\generated</Filter>
     </ClInclude>
   </ItemGroup>
@@ -64,6 +262,15 @@
     </Filter>
     <Filter Include="runtime\generated">
       <UniqueIdentifier>{01d728bb-5e76-435e-bc5a-6b88946c51ea}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="common">
+      <UniqueIdentifier>{1f738122-10e2-4a1d-b97d-383fdd3a2c10}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="duk">
+      <UniqueIdentifier>{b93dd7fc-d337-48a8-a0a8-9d5065283a3e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="v8">
+      <UniqueIdentifier>{f123372e-85cf-470a-9209-46be608567b6}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -80,6 +287,12 @@
       <Filter>runtime</Filter>
     </None>
     <None Include="gumjs-objc.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="gumjs-babel-polyfill.js">
+      <Filter>runtime</Filter>
+    </None>
+    <None Include="gumjs-debug.js">
       <Filter>runtime</Filter>
     </None>
   </ItemGroup>

@@ -13,6 +13,15 @@
     <ClInclude Include="gumscriptbackend.h" />
     <ClInclude Include="gumscriptscheduler.h" />
     <ClInclude Include="gumscripttask.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="gumscript.c" />
+    <ClCompile Include="gumscriptbackend.c" />
+    <ClCompile Include="gumscriptscheduler.c" />
+    <ClCompile Include="gumscripttask.c" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ClInclude Include="gumv8scriptbackend.h" />
     <ClInclude Include="gumv8script.h" />
     <ClInclude Include="gumv8script-priv.h" />
@@ -35,12 +44,7 @@
     <ClInclude Include="gumv8symbol.h" />
     <ClInclude Include="gumv8instruction.h" />
   </ItemGroup>
-
   <ItemGroup>
-    <ClCompile Include="gumscript.c" />
-    <ClCompile Include="gumscriptbackend.c" />
-    <ClCompile Include="gumscriptscheduler.c" />
-    <ClCompile Include="gumscripttask.c" />
     <ClCompile Include="gumv8scriptbackend.cpp" />
     <ClCompile Include="gumv8script.cpp" />
     <ClCompile Include="gumv8platform.cpp" />
@@ -62,10 +66,55 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ClInclude Include="gumdukscriptbackend.h" />
+    <ClInclude Include="gumdukscript.h" />
+    <ClInclude Include="gumdukscript-priv.h" />
+    <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h" />
+    <ClInclude Include="gumdukbundle.h" />
+    <ClInclude Include="gumdukvalue.h" />
+    <ClInclude Include="gumdukcore.h" />
+    <ClInclude Include="gumdukmacros.h" />
+    <ClInclude Include="gumdukmemory.h" />
+    <ClInclude Include="gumdukprocess.h" />
+    <ClInclude Include="gumdukthread.h" />
+    <ClInclude Include="gumdukmodule.h" />
+    <ClInclude Include="gumdukfile.h" />
+    <ClInclude Include="gumduksocket.h" />
+    <ClInclude Include="gumdukinterceptor.h" />
+    <ClInclude Include="gumdukstalker.h" />
+    <ClInclude Include="gumduksymbol.h" />
+    <ClInclude Include="gumdukinstruction.h" />
+    <ClInclude Include="duk_config.h" />
+    <ClInclude Include="duktape.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="gumdukscriptbackend.c" />
+    <ClCompile Include="gumdukscript.c" />
+    <ClCompile Include="gumdukbundle.c" />
+    <ClCompile Include="gumdukvalue.c" />
+    <ClCompile Include="gumdukcore.c" />
+    <ClCompile Include="gumdukmemory.c" />
+    <ClCompile Include="gumdukprocess.c" />
+    <ClCompile Include="gumdukthread.c" />
+    <ClCompile Include="gumdukmodule.c" />
+    <ClCompile Include="gumdukfile.c" />
+    <ClCompile Include="gumduksocket.c" />
+    <ClCompile Include="gumdukinterceptor.c" />
+    <ClCompile Include="gumdukstalker.c" />
+    <ClCompile Include="gumduksymbol.c" />
+    <ClCompile Include="gumdukinstruction.c" />
+    <ClCompile Include="duktape.c">
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+    </ClCompile>
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="gumjs-core.js" />
     <None Include="gumjs-source-map.js" />
     <None Include="gumjs-java.js" />
     <None Include="gumjs-objc.js" />
+    <None Include="gumjs-debug.js" />
+    <None Include="gumjs-babel-polyfill.js" />
   </ItemGroup>
 
   <ItemGroup>
@@ -78,7 +127,7 @@ generate-runtime.py $(ProjectDir) $(IntDir)gumjs || exit 1
 REM. &gt; $(IntDir)gumjs\runtime.stamp
 </Command>
       <LinkObjects>false</LinkObjects>
-      <AdditionalInputs>gumjs-core.js;gumjs-source-map.js;gumjs-java.js;gumjs-objc.js;gumjs-debug.js;%(AdditionalInputs)</AdditionalInputs>
+      <AdditionalInputs>gumjs-core.js;gumjs-source-map.js;gumjs-java.js;gumjs-objc.js;gumjs-debug.js;gumjs-babel-polyfill.js;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
 
