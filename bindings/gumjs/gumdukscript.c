@@ -130,6 +130,10 @@ static void gum_duk_script_emit_message (GumDukScript * self,
 static gboolean gum_duk_script_do_emit_message (GumEmitMessageData * d);
 static void gum_duk_emit_message_data_free (GumEmitMessageData * d);
 
+static void * gum_duk_alloc (void * udata, duk_size_t size);
+static void * gum_duk_realloc (void * udata, void * ptr, duk_size_t size);
+static void gum_duk_free (void * udata, void * ptr);
+
 G_DEFINE_TYPE_EXTENDED (GumDukScript,
                         gum_duk_script,
                         G_TYPE_OBJECT,
@@ -339,7 +343,7 @@ gum_duk_script_create_context (GumDukScript * self,
 
   g_assert (priv->ctx == NULL);
 
-  ctx = duk_create_heap (NULL, NULL, NULL, NULL,
+  ctx = duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, NULL,
       gum_duk_script_fatal_error_handler);
 
   url = gum_duk_script_create_url (self);
@@ -723,4 +727,26 @@ _gum_duk_panic (duk_context * ctx,
   g_critical ("%s", error_message);
 
   abort ();
+}
+
+static void *
+gum_duk_alloc (void * udata,
+               duk_size_t size)
+{
+  return gum_malloc (size);
+}
+
+static void *
+gum_duk_realloc (void * udata,
+                 void * ptr,
+                 duk_size_t size)
+{
+  return gum_realloc (ptr, size);
+}
+
+static void
+gum_duk_free (void * udata,
+              void * ptr)
+{
+  gum_free (ptr);
 }
