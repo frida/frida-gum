@@ -1928,6 +1928,12 @@ SCRIPT_TESTCASE (memory_access_can_be_monitored)
   volatile guint8 * a, * b;
   guint page_size;
 
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_print ("<skipping, not yet implemented in the Duktape runtime> ");
+    return;
+  }
+
   a = gum_alloc_n_pages (2, GUM_PAGE_RW);
   b = gum_alloc_n_pages (1, GUM_PAGE_RW);
   page_size = gum_query_page_size ();
@@ -2683,46 +2689,50 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   );
 
   item = test_script_fixture_pop_message (fixture);
-#ifndef HAVE_DIET
-  g_assert (strstr (item->message, "testcase.js") == NULL);
-#endif
+  if (!GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+    g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"send\"") != NULL);
-
-#ifdef HAVE_DIET
-  g_assert (strstr (item->message,
-      "\"payload\":\"Error: Not yet implemented\\n"
-      "    at math.js:5\\n"
-      "    at index.js:6\\n"
-      "    call (native)\\n"
-      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1)\\n"
-      "    at e (node_modules/frida/node_modules/browserify/node_modules/")
-      != NULL);
-#else
-  g_assert (strstr (item->message,
-      "\"payload\":\"Error: Not yet implemented\\n"
-      "    at Object.module.exports.add (math.js:5:1)\\n"
-      "    at Object.1../math (index.js:6:1)\\n"
-      "    at s (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at e (node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1)\\n"
-      "    at node_modules/frida/node_modules/browserify/node_modules/"
-          "browser-pack/_prelude.js:1:1\"") != NULL);
-#endif
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert (strstr (item->message,
+        "\"payload\":\"Error: Not yet implemented\\n"
+        "    at math.js:5\\n"
+        "    at index.js:6\\n"
+        "    call (native)\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/")
+        != NULL);
+  }
+  else
+  {
+    g_assert (strstr (item->message,
+        "\"payload\":\"Error: Not yet implemented\\n"
+        "    at Object.module.exports.add (math.js:5:1)\\n"
+        "    at Object.1../math (index.js:6:1)\\n"
+        "    at s (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at e (node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1)\\n"
+        "    at node_modules/frida/node_modules/browserify/node_modules/"
+            "browser-pack/_prelude.js:1:1\"") != NULL);
+  }
   test_script_message_item_free (item);
 
   item = test_script_fixture_pop_message (fixture);
   g_assert (strstr (item->message, "testcase.js") == NULL);
   g_assert (strstr (item->message, "\"type\":\"error\"") != NULL);
   g_assert (strstr (item->message, "\"description\":\"Error: Oops!\"") != NULL);
-#ifdef HAVE_DIET
-  g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-      "    at index.js:12\"") != NULL);
-#else
-  g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-      "    at index.js:12:1\"") != NULL);
-#endif
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12\"") != NULL);
+  }
+  else
+  {
+    g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
+        "    at index.js:12:1\"") != NULL);
+  }
   g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
   g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
   g_assert (strstr (item->message, "\"columnNumber\":1") != NULL);
@@ -2772,13 +2782,11 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
 
 SCRIPT_TESTCASE (weak_callback_is_triggered_on_gc)
 {
-#ifdef HAVE_DIET
-  if (!g_test_slow ())
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
-    g_print ("<skipping, not yet implemented in the duktape runtime> ");
+    g_print ("<skipping, not yet implemented in the Duktape runtime> ");
     return;
   }
-#endif
 
   COMPILE_AND_LOAD_SCRIPT (
       "var val = {};"
