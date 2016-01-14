@@ -196,9 +196,3 @@ gum_script_backend_is_ignoring (GumScriptBackend * self,
 {
   return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->is_ignoring (self, thread_id);
 }
-
-gboolean
-gum_script_backend_supports_unload (GumScriptBackend * self)
-{
-  return GUM_SCRIPT_BACKEND_GET_INTERFACE (self)->supports_unload (self);
-}

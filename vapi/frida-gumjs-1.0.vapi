@@ -15,8 +15,6 @@ namespace Gum {
 		public void unignore (Gum.ThreadId thread_id);
 		public void unignore_later (Gum.ThreadId thread_id);
 		public void is_ignoring (Gum.ThreadId thread_id);
-
-		public bool supports_unload ();
 	}
 
 	[CCode (cheader_filename = "gumjs/gumscript.h")]

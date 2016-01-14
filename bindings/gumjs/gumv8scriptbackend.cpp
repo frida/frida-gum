@@ -123,8 +123,6 @@ static void gum_v8_script_backend_unignore_later (GumScriptBackend * backend,
 static gboolean gum_flush_pending_unignores (gpointer user_data);
 static gboolean gum_v8_script_backend_is_ignoring (GumScriptBackend * backend,
     GumThreadId thread_id);
-static gboolean gum_v8_script_backend_supports_unload (
-    GumScriptBackend * backend);
 
 G_DEFINE_TYPE_EXTENDED (GumV8ScriptBackend,
                         gum_v8_script_backend,
@@ -164,8 +162,6 @@ gum_v8_script_backend_iface_init (gpointer g_iface,
   iface->unignore = gum_v8_script_backend_unignore;
   iface->unignore_later = gum_v8_script_backend_unignore_later;
   iface->is_ignoring = gum_v8_script_backend_is_ignoring;
-
-  iface->supports_unload = gum_v8_script_backend_supports_unload;
 }
 
 static void
@@ -706,12 +702,4 @@ gum_v8_script_backend_is_ignoring (GumScriptBackend * backend,
   g_rw_lock_reader_unlock (&priv->ignored_lock);
 
   return is_ignored;
-}
-
-static gboolean
-gum_v8_script_backend_supports_unload (GumScriptBackend * backend)
-{
-  (void) backend;
-
-  return TRUE;
 }

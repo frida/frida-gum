@@ -43,8 +43,6 @@ struct _GumScriptBackendIface
   void (* unignore) (GumScriptBackend * self, GumThreadId thread_id);
   void (* unignore_later) (GumScriptBackend * self, GumThreadId thread_id);
   gboolean (* is_ignoring) (GumScriptBackend * self, GumThreadId thread_id);
-
-  gboolean (* supports_unload) (GumScriptBackend * self);
 };
 
 G_BEGIN_DECLS
@@ -78,8 +76,6 @@ GUM_API void gum_script_backend_unignore_later (GumScriptBackend * self,
     GumThreadId thread_id);
 GUM_API gboolean gum_script_backend_is_ignoring (GumScriptBackend * self,
     GumThreadId thread_id);
-
-GUM_API gboolean gum_script_backend_supports_unload (GumScriptBackend * self);
 
 G_END_DECLS
 
