@@ -242,8 +242,7 @@ gum_v8_script_handle_thread_match (const GumThreadDetails * details,
   GumV8Core * core = ctx->self->core;
   Isolate * isolate = ctx->isolate;
 
-  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
-      details->id))
+  if (gum_script_backend_is_ignoring (details->id))
     return TRUE;
 
   Local<Object> thread (Object::New (isolate));

@@ -187,8 +187,7 @@ gum_emit_thread (const GumThreadDetails * details,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gboolean proceed = TRUE;
 
-  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (core->backend),
-      details->id))
+  if (gum_script_backend_is_ignoring (details->id))
     return TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);

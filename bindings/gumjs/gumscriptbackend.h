@@ -68,14 +68,10 @@ GUM_API void gum_script_backend_set_debug_message_handler (
 GUM_API void gum_script_backend_post_debug_message (GumScriptBackend * self,
     const gchar * message);
 
-GUM_API void gum_script_backend_ignore (GumScriptBackend * self,
-    GumThreadId thread_id);
-GUM_API void gum_script_backend_unignore (GumScriptBackend * self,
-    GumThreadId thread_id);
-GUM_API void gum_script_backend_unignore_later (GumScriptBackend * self,
-    GumThreadId thread_id);
-GUM_API gboolean gum_script_backend_is_ignoring (GumScriptBackend * self,
-    GumThreadId thread_id);
+GUM_API void gum_script_backend_ignore (GumThreadId thread_id);
+GUM_API void gum_script_backend_unignore (GumThreadId thread_id);
+GUM_API void gum_script_backend_unignore_later (GumThreadId thread_id);
+GUM_API gboolean gum_script_backend_is_ignoring (GumThreadId thread_id);
 
 G_END_DECLS
 

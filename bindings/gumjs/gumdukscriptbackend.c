@@ -16,12 +16,6 @@ typedef struct _GumCreateScriptData GumCreateScriptData;
 struct _GumDukScriptBackendPrivate
 {
   GumScriptScheduler * scheduler;
-
-  GHashTable * ignored_threads;
-  GSList * pending_unignores;
-  GSource * pending_timeout;
-  GumInterceptor * interceptor;
-  GRWLock ignored_lock;
 };
 
 struct _GumCreateScriptData
@@ -56,20 +50,6 @@ static void gum_duk_script_backend_set_debug_message_handler (
 static void gum_duk_script_backend_post_debug_message (
     GumScriptBackend * backend, const gchar * message);
 
-static void gum_duk_script_backend_ignore (GumScriptBackend * backend,
-    GumThreadId thread_id);
-static void gum_duk_script_backend_unignore (GumScriptBackend * backend,
-    GumThreadId thread_id);
-static void gum_duk_script_backend_adjust_ignore_level (
-    GumDukScriptBackend * self, GumThreadId thread_id, gint adjustment);
-static void gum_duk_script_backend_adjust_ignore_level_unlocked (
-    GumDukScriptBackend * self, GumThreadId thread_id, gint adjustment);
-static void gum_duk_script_backend_unignore_later (GumScriptBackend * backend,
-    GumThreadId thread_id);
-static gboolean gum_flush_pending_unignores (gpointer user_data);
-static gboolean gum_duk_script_backend_is_ignoring (GumScriptBackend * backend,
-    GumThreadId thread_id);
-
 G_DEFINE_TYPE_EXTENDED (GumDukScriptBackend,
                         gum_duk_script_backend,
                         G_TYPE_OBJECT,
@@ -102,11 +82,6 @@ gum_duk_script_backend_iface_init (gpointer g_iface,
   iface->set_debug_message_handler =
       gum_duk_script_backend_set_debug_message_handler;
   iface->post_debug_message = gum_duk_script_backend_post_debug_message;
-
-  iface->ignore = gum_duk_script_backend_ignore;
-  iface->unignore = gum_duk_script_backend_unignore;
-  iface->unignore_later = gum_duk_script_backend_unignore_later;
-  iface->is_ignoring = gum_duk_script_backend_is_ignoring;
 }
 
 static void
@@ -118,10 +93,6 @@ gum_duk_script_backend_init (GumDukScriptBackend * self)
       GUM_DUK_TYPE_SCRIPT_BACKEND, GumDukScriptBackendPrivate);
 
   priv->scheduler = NULL;
-
-  priv->ignored_threads = g_hash_table_new_full (NULL, NULL, NULL, NULL);
-
-  priv->interceptor = gum_interceptor_obtain ();
 }
 
 static void
@@ -129,17 +100,6 @@ gum_duk_script_backend_dispose (GObject * object)
 {
   GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (object);
   GumDukScriptBackendPrivate * priv = self->priv;
-
-  if (priv->pending_timeout != NULL)
-  {
-    g_source_destroy (priv->pending_timeout);
-    g_clear_pointer (&priv->pending_timeout, g_source_unref);
-  }
-  g_clear_pointer (&priv->pending_unignores, g_slist_free);
-
-  g_clear_pointer (&priv->interceptor, g_object_unref);
-
-  g_clear_pointer (&priv->ignored_threads, g_hash_table_unref);
 
   g_clear_pointer (&priv->scheduler, g_object_unref);
 
@@ -291,166 +251,4 @@ gum_duk_script_backend_post_debug_message (GumScriptBackend * backend,
 
   (void) backend;
   (void) message;
-}
-
-static void
-gum_duk_script_backend_ignore (GumScriptBackend * backend,
-                               GumThreadId thread_id)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-
-  gum_duk_script_backend_adjust_ignore_level (self, thread_id, 1);
-}
-
-static void
-gum_duk_script_backend_unignore (GumScriptBackend * backend,
-                                 GumThreadId thread_id)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-
-  gum_duk_script_backend_adjust_ignore_level (self, thread_id, -1);
-}
-
-static void
-gum_duk_script_backend_adjust_ignore_level (GumDukScriptBackend * self,
-                                            GumThreadId thread_id,
-                                            gint adjustment)
-{
-  GumDukScriptBackendPrivate * priv = self->priv;
-
-  gum_interceptor_ignore_current_thread (priv->interceptor);
-
-  g_rw_lock_writer_lock (&priv->ignored_lock);
-  gum_duk_script_backend_adjust_ignore_level_unlocked (self, thread_id,
-      adjustment);
-  g_rw_lock_writer_unlock (&priv->ignored_lock);
-
-  gum_interceptor_unignore_current_thread (priv->interceptor);
-}
-
-static void
-gum_duk_script_backend_adjust_ignore_level_unlocked (
-    GumDukScriptBackend * self,
-    GumThreadId thread_id,
-    gint adjustment)
-{
-  GumDukScriptBackendPrivate * priv = self->priv;
-  gpointer thread_id_ptr = GSIZE_TO_POINTER (thread_id);
-  gint level;
-
-  level = GPOINTER_TO_INT (g_hash_table_lookup (priv->ignored_threads,
-      thread_id_ptr));
-  level += adjustment;
-
-  if (level > 0)
-  {
-    g_hash_table_insert (priv->ignored_threads, thread_id_ptr,
-        GINT_TO_POINTER (level));
-  }
-  else
-  {
-    g_hash_table_remove (priv->ignored_threads, thread_id_ptr);
-  }
-}
-
-static void
-gum_duk_script_backend_unignore_later (GumScriptBackend * backend,
-                                       GumThreadId thread_id)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-  GumDukScriptBackendPrivate * priv = self->priv;
-  GMainContext * main_context;
-  GSource * source;
-
-  main_context = gum_script_scheduler_get_js_context (
-      gum_duk_script_backend_get_scheduler (self));
-
-  gum_interceptor_ignore_current_thread (priv->interceptor);
-
-  g_rw_lock_writer_lock (&priv->ignored_lock);
-
-  priv->pending_unignores = g_slist_prepend (priv->pending_unignores,
-      GSIZE_TO_POINTER (thread_id));
-  source = priv->pending_timeout;
-  priv->pending_timeout = NULL;
-
-  g_rw_lock_writer_unlock (&priv->ignored_lock);
-
-  if (source != NULL)
-  {
-    g_source_destroy (source);
-    g_source_unref (source);
-  }
-  source = g_timeout_source_new_seconds (5);
-  g_source_set_callback (source, gum_flush_pending_unignores, self, NULL);
-  g_source_attach (source, main_context);
-
-  g_rw_lock_writer_lock (&priv->ignored_lock);
-
-  if (priv->pending_timeout == NULL)
-  {
-    priv->pending_timeout = source;
-    source = NULL;
-  }
-
-  g_rw_lock_writer_unlock (&priv->ignored_lock);
-
-  if (source != NULL)
-  {
-    g_source_destroy (source);
-    g_source_unref (source);
-  }
-
-  gum_interceptor_unignore_current_thread (priv->interceptor);
-}
-
-static gboolean
-gum_flush_pending_unignores (gpointer user_data)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (user_data);
-  GumDukScriptBackendPrivate * priv = self->priv;
-
-  gum_interceptor_ignore_current_thread (priv->interceptor);
-
-  g_rw_lock_writer_lock (&priv->ignored_lock);
-
-  if (priv->pending_timeout == g_main_current_source ())
-  {
-    g_source_unref (priv->pending_timeout);
-    priv->pending_timeout = NULL;
-  }
-
-  while (priv->pending_unignores != NULL)
-  {
-    GumThreadId thread_id;
-
-    thread_id = GPOINTER_TO_SIZE (priv->pending_unignores->data);
-    priv->pending_unignores = g_slist_delete_link (priv->pending_unignores,
-        priv->pending_unignores);
-    gum_duk_script_backend_adjust_ignore_level_unlocked (self, thread_id, -1);
-  }
-
-  g_rw_lock_writer_unlock (&priv->ignored_lock);
-
-  gum_interceptor_unignore_current_thread (priv->interceptor);
-
-  return FALSE;
-}
-
-static gboolean
-gum_duk_script_backend_is_ignoring (GumScriptBackend * backend,
-                                    GumThreadId thread_id)
-{
-  GumDukScriptBackend * self = GUM_DUK_SCRIPT_BACKEND (backend);
-  GumDukScriptBackendPrivate * priv = self->priv;
-  gboolean is_ignored;
-
-  g_rw_lock_reader_lock (&priv->ignored_lock);
-
-  is_ignored = priv->ignored_threads != NULL && g_hash_table_contains (
-      priv->ignored_threads, GSIZE_TO_POINTER (thread_id));
-
-  g_rw_lock_reader_unlock (&priv->ignored_lock);
-
-  return is_ignored;
 }

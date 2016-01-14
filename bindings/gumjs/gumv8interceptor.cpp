@@ -198,7 +198,7 @@ void
 _gum_v8_interceptor_on_enter (GumV8Interceptor * self,
                               GumInvocationContext * context)
 {
-  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
+  if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (context)))
     return;
 
@@ -244,7 +244,7 @@ void
 _gum_v8_interceptor_on_leave (GumV8Interceptor * self,
                               GumInvocationContext * context)
 {
-  if (gum_script_backend_is_ignoring (GUM_SCRIPT_BACKEND (self->core->backend),
+  if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (context)))
     return;
 
