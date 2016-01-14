@@ -79,6 +79,8 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/gum/arch-x86 \
 	-I $(top_srcdir)/libs \
+	-I $(top_srcdir)/bindings \
+	-I $(top_srcdir)/bindings/gumjs \
 	$(GUM_CFLAGS)
 
 if OS_MAC
