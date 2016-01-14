@@ -8,6 +8,7 @@
 
 #include "testutil.h"
 
+#include "gumscriptbackend.h"
 #ifdef HAVE_I386
 # include "lowlevel-helpers.h"
 #endif
@@ -184,9 +185,15 @@ main (gint argc, gchar * argv[])
 
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
   /* GumJS */
-  TEST_RUN_LIST (script);
+# ifndef HAVE_DIET
+  TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_v8 ());
+# endif
+  TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
 # ifdef HAVE_DARWIN
-  TEST_RUN_LIST (script_darwin);
+#  ifndef HAVE_DIET
+  TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_v8 ());
+#  endif
+  TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
 #endif
   if (gum_kernel_api_is_available ())

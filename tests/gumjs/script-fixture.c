@@ -98,7 +98,7 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   (void) test_script_fixture_expect_send_message_with_payload_and_data;
   (void) test_script_fixture_expect_error_message_with;
 
-  fixture->backend = gum_script_backend_obtain ();
+  fixture->backend = (GumScriptBackend *) data;
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
