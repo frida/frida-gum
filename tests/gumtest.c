@@ -185,20 +185,29 @@ main (gint argc, gchar * argv[])
 
 #if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
   /* GumJS */
+  {
 # ifndef HAVE_DIET
-  TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_v8 ());
+    GumScriptBackend * v8_backend;
+
+    v8_backend = gum_script_backend_obtain_v8 ();
+
+    if (v8_backend != NULL)
+      TEST_RUN_LIST_WITH_DATA (script, v8_backend);
 # endif
-  TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
+    TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
+
 # ifdef HAVE_DARWIN
 #  ifndef HAVE_DIET
-  TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_v8 ());
+    if (v8_backend != NULL)
+      TEST_RUN_LIST_WITH_DATA (script_darwin, v8_backend);
 #  endif
-  TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
+
+    TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
+
+    if (gum_kernel_api_is_available ())
+      TEST_RUN_LIST (kscript);
 #endif
-  if (gum_kernel_api_is_available ())
-  {
-    TEST_RUN_LIST (kscript);
   }
 
 #ifdef G_OS_WIN32
