@@ -309,6 +309,8 @@ gum_script_backend_unignore_later (GumThreadId thread_id)
 static gboolean
 gum_script_backend_flush_pending_unignores (gpointer user_data)
 {
+  (void) user_data;
+
   gum_interceptor_ignore_current_thread (interceptor);
 
   g_rw_lock_writer_lock (&ignored_lock);
