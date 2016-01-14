@@ -13,8 +13,11 @@
 #include <gum/gum-heap.h>
 #include <gum/gum-prof.h>
 
-#define TEST_LIST_BEGIN(NAME)       void test_ ##NAME## _add_tests (void) {
-#define TEST_LIST_END()             }
+#define TEST_LIST_BEGIN(NAME) \
+  void test_ ##NAME## _add_tests (gpointer fixture_data) \
+  {
+#define TEST_LIST_END() \
+  }
 
 #define TEST_ENTRY_SIMPLE(NAME, PREFIX, FUNC)                             \
   G_STMT_START                                                            \
@@ -29,18 +32,19 @@
     extern void PREFIX## _ ##FUNC (STRUCT * fixture, gconstpointer data); \
     g_test_add ("/" NAME "/" #FUNC,                                       \
         STRUCT,                                                           \
-        NULL,                                                             \
+        fixture_data,                                                     \
         PREFIX## _fixture_setup,                                          \
         PREFIX## _ ##FUNC,                                                \
         PREFIX## _fixture_teardown);                                      \
   }                                                                       \
   G_STMT_END;
 
-#define TEST_RUN_LIST(NAME)                                               \
+#define TEST_RUN_LIST(NAME) TEST_RUN_LIST_WITH_DATA (NAME, NULL)
+#define TEST_RUN_LIST_WITH_DATA(NAME, FIXTURE_DATA)                       \
   G_STMT_START                                                            \
   {                                                                       \
-    extern void test_ ##NAME## _add_tests (void);                         \
-    test_ ##NAME## _add_tests ();                                         \
+    extern void test_ ##NAME## _add_tests (gpointer fixture_data);        \
+    test_ ##NAME## _add_tests (FIXTURE_DATA);                             \
   }                                                                       \
   G_STMT_END
 
