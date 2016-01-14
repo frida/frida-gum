@@ -102,6 +102,11 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
+
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+    g_print ("DUK ");
+  else
+    g_print ("V8 ");
 }
 
 static void
