@@ -910,6 +910,7 @@ INTERCEPTOR_TESTCASE (already_replaced)
         target_function, malloc, NULL), ==, GUM_REPLACE_OK);
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
         target_function, malloc, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
+  gum_interceptor_revert_function (fixture->interceptor, target_function);
 }
 
 #ifdef G_OS_WIN32
