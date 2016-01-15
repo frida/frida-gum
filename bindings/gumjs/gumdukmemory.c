@@ -707,6 +707,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   _gum_duk_push_native_resource (ctx, str_ansi, g_free, args->core);
   return 1;
 #else
+  (void) args;
+
   _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
   return 0;
 #endif

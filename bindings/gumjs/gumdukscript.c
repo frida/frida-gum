@@ -328,6 +328,8 @@ gum_duk_script_fatal_error_handler (duk_context * ctx,
                                     duk_errcode_t code,
                                     const char * msg)
 {
+  (void) ctx;
+
   g_printerr ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
   abort();
 }
@@ -512,6 +514,9 @@ gum_duk_script_do_load (GumScriptTask * task,
   GumDukScript * self = GUM_DUK_SCRIPT (source_object);
   GumDukScriptPrivate * priv = self->priv;
 
+  (void) task_data;
+  (void) cancellable;
+
   if (priv->ctx == NULL)
   {
     gboolean created;
@@ -586,6 +591,9 @@ gum_duk_script_do_unload (GumScriptTask * task,
 {
   GumDukScript * self = GUM_DUK_SCRIPT (source_object);
   GumDukScriptPrivate * priv = self->priv;
+
+  (void) task_data;
+  (void) cancellable;
 
   if (priv->loaded)
   {
@@ -724,6 +732,8 @@ void
 _gum_duk_panic (duk_context * ctx,
                 const char * error_message)
 {
+  (void) ctx;
+
   /* TODO: need to find a way to retrieve the stack */
   g_critical ("%s", error_message);
 
@@ -734,6 +744,8 @@ static void *
 gum_duk_alloc (void * udata,
                duk_size_t size)
 {
+  (void) udata;
+
   return gum_malloc (size);
 }
 
@@ -742,6 +754,8 @@ gum_duk_realloc (void * udata,
                  void * ptr,
                  duk_size_t size)
 {
+  (void) udata;
+
   return gum_realloc (ptr, size);
 }
 
@@ -749,5 +763,7 @@ static void
 gum_duk_free (void * udata,
               void * ptr)
 {
+  (void) udata;
+
   gum_free (ptr);
 }

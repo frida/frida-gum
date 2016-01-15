@@ -87,6 +87,9 @@ _gum_duk_instruction_finalize (GumDukInstruction * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_module_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -165,6 +168,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
 {
   const gchar * mnemonic, * op_str;
   gchar * result;
+
+  (void) args;
 
   duk_push_this (ctx);
 
