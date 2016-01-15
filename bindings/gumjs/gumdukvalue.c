@@ -835,7 +835,7 @@ _gum_duk_push_exception_details (duk_context * ctx,
 
   duk_push_string (ctx, gum_exception_type_to_string (details->type));
   duk_put_prop_string (ctx, -2, "type");
-  duk_push_pointer (ctx, details->address);
+  _gum_duk_push_native_pointer (ctx, details->address, core);
   duk_put_prop_string (ctx, -2, "address");
 
   if (md->operation != GUM_MEMOP_INVALID)
@@ -844,7 +844,7 @@ _gum_duk_push_exception_details (duk_context * ctx,
 
     duk_push_string (ctx, _gum_duk_memory_operation_to_string (md->operation));
     duk_put_prop_string (ctx, -2, "operation");
-    duk_push_pointer (ctx, md->address);
+    _gum_duk_push_native_pointer (ctx, md->address, core);
     duk_put_prop_string (ctx, -2, "address");
 
     duk_put_prop_string (ctx, -2, "memory");
@@ -853,7 +853,7 @@ _gum_duk_push_exception_details (duk_context * ctx,
   *cpu_context = _gum_duk_push_cpu_context (ctx, &details->context,
       GUM_CPU_CONTEXT_READWRITE, core);
   duk_put_prop_string (ctx, -2, "context");
-  duk_push_pointer (ctx, details->native_context);
+  _gum_duk_push_native_pointer (ctx, details->native_context, core);
   duk_put_prop_string (ctx, -2, "nativeContext");
 }
 
