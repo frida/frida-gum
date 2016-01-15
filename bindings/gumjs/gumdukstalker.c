@@ -54,10 +54,9 @@ static const duk_function_list_entry gumjs_stalker_functions[] =
 
 void
 _gum_duk_stalker_init (GumDukStalker * self,
-                       GumDukCore * core)
+                       GumDukCore * core,
+                       duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
   self->stalker = NULL;
   self->queue_capacity = 16384;
@@ -75,8 +74,11 @@ _gum_duk_stalker_init (GumDukStalker * self,
 }
 
 void
-_gum_duk_stalker_flush (GumDukStalker * self)
+_gum_duk_stalker_flush (GumDukStalker * self,
+                        duk_context * ctx)
 {
+  (void) ctx;
+
   if (self->stalker != NULL)
   {
     gum_stalker_stop (self->stalker);
@@ -86,9 +88,11 @@ _gum_duk_stalker_flush (GumDukStalker * self)
 }
 
 void
-_gum_duk_stalker_dispose (GumDukStalker * self)
+_gum_duk_stalker_dispose (GumDukStalker * self,
+                          duk_context * ctx)
 {
   (void) self;
+  (void) ctx;
 }
 
 void

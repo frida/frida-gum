@@ -328,6 +328,8 @@ gum_duk_script_fatal_error_handler (duk_context * ctx,
                                     duk_errcode_t code,
                                     const char * msg)
 {
+  (void) ctx;
+
   g_printerr ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
   abort();
 }
@@ -384,24 +386,24 @@ gum_duk_script_create_context (GumDukScript * self,
   priv->ctx = ctx;
 
   _gum_duk_core_init (&priv->core, self, gum_duk_script_emit_message,
-      gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
+      gum_duk_script_backend_get_scheduler (priv->backend), ctx);
   /*
-  _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
+  _gum_duk_kernel_init (&priv->kernel, &priv->core, ctx);
   */
-  _gum_duk_memory_init (&priv->memory, &priv->core);
-  _gum_duk_process_init (&priv->process, &priv->core);
-  _gum_duk_thread_init (&priv->thread, &priv->core);
-  _gum_duk_module_init (&priv->module, &priv->core);
-  _gum_duk_file_init (&priv->file, &priv->core);
-  _gum_duk_socket_init (&priv->socket, &priv->core);
-  _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
-  _gum_duk_stalker_init (&priv->stalker, &priv->core);
-  _gum_duk_symbol_init (&priv->symbol, &priv->core);
-  _gum_duk_instruction_init (&priv->instruction, &priv->core);
+  _gum_duk_memory_init (&priv->memory, &priv->core, ctx);
+  _gum_duk_process_init (&priv->process, &priv->core, ctx);
+  _gum_duk_thread_init (&priv->thread, &priv->core, ctx);
+  _gum_duk_module_init (&priv->module, &priv->core, ctx);
+  _gum_duk_file_init (&priv->file, &priv->core, ctx);
+  _gum_duk_socket_init (&priv->socket, &priv->core, ctx);
+  _gum_duk_interceptor_init (&priv->interceptor, &priv->core, ctx);
+  _gum_duk_stalker_init (&priv->stalker, &priv->core, ctx);
+  _gum_duk_symbol_init (&priv->symbol, &priv->core, ctx);
+  _gum_duk_instruction_init (&priv->instruction, &priv->core, ctx);
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
-  gum_duk_bundle_load (gum_duk_script_runtime_modules, priv->ctx);
+  gum_duk_bundle_load (gum_duk_script_runtime_modules, scope.ctx);
 
   _gum_duk_scope_leave (&scope);
 
@@ -413,29 +415,30 @@ gum_duk_script_destroy_context (GumDukScript * self)
 {
   GumDukScriptPrivate * priv = self->priv;
   GumDukScope scope;
+  duk_context * ctx;
 
   g_assert (priv->ctx != NULL);
 
-  _gum_duk_scope_enter (&scope, &priv->core);
+  ctx = _gum_duk_scope_enter (&scope, &priv->core);
 
-  _gum_duk_stalker_flush (&priv->stalker);
-  _gum_duk_interceptor_flush (&priv->interceptor);
-  _gum_duk_core_flush (&priv->core);
+  _gum_duk_stalker_flush (&priv->stalker, ctx);
+  _gum_duk_interceptor_flush (&priv->interceptor, ctx);
+  _gum_duk_core_flush (&priv->core, ctx);
 
-  _gum_duk_instruction_dispose (&priv->instruction);
-  _gum_duk_symbol_dispose (&priv->symbol);
-  _gum_duk_stalker_dispose (&priv->stalker);
-  _gum_duk_interceptor_dispose (&priv->interceptor);
-  _gum_duk_socket_dispose (&priv->socket);
-  _gum_duk_file_dispose (&priv->file);
-  _gum_duk_module_dispose (&priv->module);
-  _gum_duk_thread_dispose (&priv->thread);
-  _gum_duk_process_dispose (&priv->process);
-  _gum_duk_memory_dispose (&priv->memory);
+  _gum_duk_instruction_dispose (&priv->instruction, ctx);
+  _gum_duk_symbol_dispose (&priv->symbol, ctx);
+  _gum_duk_stalker_dispose (&priv->stalker, ctx);
+  _gum_duk_interceptor_dispose (&priv->interceptor, ctx);
+  _gum_duk_socket_dispose (&priv->socket, ctx);
+  _gum_duk_file_dispose (&priv->file, ctx);
+  _gum_duk_module_dispose (&priv->module, ctx);
+  _gum_duk_thread_dispose (&priv->thread, ctx);
+  _gum_duk_process_dispose (&priv->process, ctx);
+  _gum_duk_memory_dispose (&priv->memory, ctx);
   /*
-  _gum_duk_kernel_dispose (&priv->kernel);
+  _gum_duk_kernel_dispose (&priv->kernel, ctx);
   */
-  _gum_duk_core_dispose (&priv->core);
+  _gum_duk_core_dispose (&priv->core, ctx);
 
   _gum_duk_scope_leave (&scope);
 
@@ -512,6 +515,9 @@ gum_duk_script_do_load (GumScriptTask * task,
   GumDukScript * self = GUM_DUK_SCRIPT (source_object);
   GumDukScriptPrivate * priv = self->priv;
 
+  (void) task_data;
+  (void) cancellable;
+
   if (priv->ctx == NULL)
   {
     gboolean created;
@@ -523,12 +529,13 @@ gum_duk_script_do_load (GumScriptTask * task,
   if (!priv->loaded)
   {
     GumDukScope scope;
+    duk_context * ctx;
 
     priv->loaded = TRUE;
 
-    _gum_duk_scope_enter (&scope, &priv->core);
+    ctx = _gum_duk_scope_enter (&scope, &priv->core);
 
-    duk_push_heapptr (priv->ctx, priv->code);
+    duk_push_heapptr (ctx, priv->code);
     _gum_duk_scope_call (&scope, 0);
     duk_pop (priv->ctx);
 
@@ -586,6 +593,9 @@ gum_duk_script_do_unload (GumScriptTask * task,
 {
   GumDukScript * self = GUM_DUK_SCRIPT (source_object);
   GumDukScriptPrivate * priv = self->priv;
+
+  (void) task_data;
+  (void) cancellable;
 
   if (priv->loaded)
   {
@@ -724,6 +734,8 @@ void
 _gum_duk_panic (duk_context * ctx,
                 const char * error_message)
 {
+  (void) ctx;
+
   /* TODO: need to find a way to retrieve the stack */
   g_critical ("%s", error_message);
 
@@ -734,6 +746,8 @@ static void *
 gum_duk_alloc (void * udata,
                duk_size_t size)
 {
+  (void) udata;
+
   return gum_malloc (size);
 }
 
@@ -742,6 +756,8 @@ gum_duk_realloc (void * udata,
                  void * ptr,
                  duk_size_t size)
 {
+  (void) udata;
+
   return gum_realloc (ptr, size);
 }
 
@@ -749,5 +765,7 @@ static void
 gum_duk_free (void * udata,
               void * ptr)
 {
+  (void) udata;
+
   gum_free (ptr);
 }

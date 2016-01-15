@@ -43,9 +43,11 @@ struct _GumDukInterceptor
 };
 
 G_GNUC_INTERNAL void _gum_duk_interceptor_init (GumDukInterceptor * self,
-    GumDukCore * core);
-G_GNUC_INTERNAL void _gum_duk_interceptor_flush (GumDukInterceptor * self);
-G_GNUC_INTERNAL void _gum_duk_interceptor_dispose (GumDukInterceptor * self);
+    GumDukCore * core, duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_interceptor_flush (GumDukInterceptor * self,
+    duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_interceptor_dispose (GumDukInterceptor * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_interceptor_finalize (GumDukInterceptor * self);
 
 G_GNUC_INTERNAL void _gum_duk_interceptor_on_enter (

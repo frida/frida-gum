@@ -19,8 +19,9 @@ struct _GumDukSocket
 };
 
 G_GNUC_INTERNAL void _gum_duk_socket_init (GumDukSocket * self,
-    GumDukCore * core);
-G_GNUC_INTERNAL void _gum_duk_socket_dispose (GumDukSocket * self);
+    GumDukCore * core, duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_socket_dispose (GumDukSocket * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_socket_finalize (GumDukSocket * self);
 
 G_END_DECLS

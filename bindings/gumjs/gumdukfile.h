@@ -21,8 +21,9 @@ struct _GumDukFile
 };
 
 G_GNUC_INTERNAL void _gum_duk_file_init (GumDukFile * self,
-    GumDukCore * core);
-G_GNUC_INTERNAL void _gum_duk_file_dispose (GumDukFile * self);
+    GumDukCore * core, duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_file_dispose (GumDukFile * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_file_finalize (GumDukFile * self);
 
 G_END_DECLS

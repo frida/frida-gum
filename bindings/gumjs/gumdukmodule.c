@@ -15,7 +15,7 @@ struct _GumDukMatchContext
   GumDukHeapPtr on_match;
   GumDukHeapPtr on_complete;
 
-  GumDukCore * core;
+  GumDukScope * scope;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
@@ -44,10 +44,9 @@ static const duk_function_list_entry gumjs_module_functions[] =
 
 void
 _gum_duk_module_init (GumDukModule * self,
-                      GumDukCore * core)
+                      GumDukCore * core,
+                      duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_module_construct, 0);
@@ -60,9 +59,11 @@ _gum_duk_module_init (GumDukModule * self,
 }
 
 void
-_gum_duk_module_dispose (GumDukModule * self)
+_gum_duk_module_dispose (GumDukModule * self,
+                         duk_context * ctx)
 {
   (void) self;
+  (void) ctx;
 }
 
 void
@@ -87,7 +88,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 
   _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_module_enumerate_imports (name, gum_emit_import, &mc);
   _gum_duk_scope_flush (&scope);
@@ -104,9 +105,9 @@ gum_emit_import (const GumImportDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -136,7 +137,7 @@ gum_emit_import (const GumImportDetails * details,
     duk_put_prop_string (ctx, -2, "address");
   }
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
@@ -158,7 +159,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 
   _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &name, &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_module_enumerate_exports (name, gum_emit_export, &mc);
   _gum_duk_scope_flush (&scope);
@@ -175,9 +176,9 @@ gum_emit_export (const GumExportDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -194,7 +195,7 @@ gum_emit_export (const GumExportDetails * details,
   _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address), core);
   duk_put_prop_string (ctx, -2, "address");
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
@@ -217,7 +218,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 
   _gum_duk_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &mc.on_match, &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_module_enumerate_ranges (name, prot, gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -234,9 +235,9 @@ gum_emit_range (const GumRangeDetails * details,
                 gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
+  duk_context * ctx = scope->ctx;
   char prot_str[4] = "---";
   gboolean proceed = TRUE;
 
@@ -261,7 +262,7 @@ gum_emit_range (const GumRangeDetails * details,
   duk_push_string (ctx, prot_str);
   duk_put_prop_string (ctx, -2, "protection");
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;

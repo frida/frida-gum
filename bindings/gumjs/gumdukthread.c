@@ -28,10 +28,9 @@ static const duk_function_list_entry gumjs_thread_functions[] =
 
 void
 _gum_duk_thread_init (GumDukThread * self,
-                      GumDukCore * core)
+                      GumDukCore * core,
+                      duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_thread_construct, 0);
@@ -50,18 +49,12 @@ _gum_duk_thread_init (GumDukThread * self,
   duk_put_global_string (ctx, "Backtracer");
 }
 
-GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
-{
-  (void) ctx;
-  (void) args;
-
-  return 0;
-}
-
 void
-_gum_duk_thread_dispose (GumDukThread * self)
+_gum_duk_thread_dispose (GumDukThread * self,
+                         duk_context * ctx)
 {
   (void) self;
+  (void) ctx;
 }
 
 void
@@ -69,6 +62,14 @@ _gum_duk_thread_finalize (GumDukThread * self)
 {
   g_clear_pointer (&self->accurate_backtracer, g_object_unref);
   g_clear_pointer (&self->fuzzy_backtracer , g_object_unref);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_thread_construct)
+{
+  (void) ctx;
+  (void) args;
+
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
@@ -139,7 +140,7 @@ not_available:
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
-  GumDukCore * core = args->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   gdouble delay;
 
   (void) ctx;
@@ -149,11 +150,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (delay < 0)
     return 0;
 
-  GUM_DUK_CORE_UNLOCK (core);
+  _gum_duk_scope_suspend (&scope);
 
   g_usleep (delay * G_USEC_PER_SEC);
 
-  GUM_DUK_CORE_LOCK (core);
+  _gum_duk_scope_resume (&scope);
 
   return 0;
 }

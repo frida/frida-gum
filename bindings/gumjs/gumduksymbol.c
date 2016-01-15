@@ -43,10 +43,9 @@ static const duk_function_list_entry gumjs_symbol_functions[] =
 
 void
 _gum_duk_symbol_init (GumDukSymbol * self,
-                      GumDukCore * core)
+                      GumDukCore * core,
+                      duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_symbol_module_construct, 0);
@@ -66,9 +65,10 @@ _gum_duk_symbol_init (GumDukSymbol * self,
 }
 
 void
-_gum_duk_symbol_dispose (GumDukSymbol * self)
+_gum_duk_symbol_dispose (GumDukSymbol * self,
+                         duk_context * ctx)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->symbol);
+  _gum_duk_release_heapptr (ctx, self->symbol);
   self->symbol = NULL;
 }
 

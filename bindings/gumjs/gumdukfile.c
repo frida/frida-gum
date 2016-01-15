@@ -36,10 +36,9 @@ static const duk_function_list_entry gumjs_file_functions[] =
 
 void
 _gum_duk_file_init (GumDukFile * self,
-                    GumDukCore * core)
+                    GumDukCore * core,
+                    duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_file_construct, 2);
@@ -53,9 +52,10 @@ _gum_duk_file_init (GumDukFile * self,
 }
 
 void
-_gum_duk_file_dispose (GumDukFile * self)
+_gum_duk_file_dispose (GumDukFile * self,
+                       duk_context * ctx)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->file);
+  _gum_duk_release_heapptr (ctx, self->file);
 }
 
 void

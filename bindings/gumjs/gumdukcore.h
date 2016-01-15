@@ -14,10 +14,7 @@
 
 #include <gum/gumexceptor.h>
 
-#define GUM_DUK_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
-#define GUM_DUK_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
-
-#define GUM_DUK_SCOPE_INIT(C) { C, NULL }
+#define GUM_DUK_SCOPE_INIT(C) { C, (C)->current_ctx, NULL }
 
 G_BEGIN_DECLS
 
@@ -47,12 +44,13 @@ struct _GumDukCore
   GumDukMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
-  duk_context * ctx;
+  duk_context * heap_ctx;
+  duk_context * current_ctx;
 
   GMutex mutex;
-
   GCond event_cond;
   volatile guint event_count;
+  gboolean heap_thread_in_use;
 
   GumDukExceptionSink * unhandled_exception_sink;
   GumDukMessageSink * incoming_message_sink;
@@ -75,6 +73,7 @@ struct _GumDukCore
 struct _GumDukScope
 {
   GumDukCore * core;
+  duk_context * ctx;
   GumDukHeapPtr exception;
 };
 
@@ -116,8 +115,10 @@ struct _GumDukNativeResource
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
     GumDukScript * script, GumDukMessageEmitter message_emitter,
     GumScriptScheduler * scheduler, duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_core_flush (GumDukCore * self);
-G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);
+G_GNUC_INTERNAL void _gum_duk_core_flush (GumDukCore * self,
+    duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_core_finalize (GumDukCore * self);
 
 G_GNUC_INTERNAL void _gum_duk_core_emit_message (GumDukCore * self,
@@ -128,8 +129,10 @@ G_GNUC_INTERNAL void _gum_duk_core_post_message (GumDukCore * self,
 G_GNUC_INTERNAL void _gum_duk_core_push_job (GumDukCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
 
-G_GNUC_INTERNAL void _gum_duk_scope_enter (GumDukScope * self,
+G_GNUC_INTERNAL duk_context * _gum_duk_scope_enter (GumDukScope * self,
     GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_scope_suspend (GumDukScope * self);
+G_GNUC_INTERNAL void _gum_duk_scope_resume (GumDukScope * self);
 G_GNUC_INTERNAL gboolean _gum_duk_scope_call (GumDukScope * self,
     duk_idx_t nargs);
 G_GNUC_INTERNAL gboolean _gum_duk_scope_call_method (GumDukScope * self,

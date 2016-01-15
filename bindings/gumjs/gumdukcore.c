@@ -10,6 +10,11 @@
 
 #include <ffi.h>
 
+#define GUM_DUK_CORE_LOCK(core) \
+    (g_mutex_lock (&(core)->mutex))
+#define GUM_DUK_CORE_UNLOCK(core) \
+    (g_mutex_unlock (&(core)->mutex))
+
 #define GUM_DUK_NATIVE_POINTER_CACHE_SIZE 8
 
 typedef struct _GumDukNativeFunction GumDukNativeFunction;
@@ -152,7 +157,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_callback_finalize)
 static void gum_duk_native_callback_finalize (
-    GumDukNativeCallback * func, gboolean heap_destruct);
+    GumDukNativeCallback * func, duk_context * ctx, gboolean heap_destruct);
 static void gum_duk_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 
@@ -167,7 +172,7 @@ static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
 static void gum_duk_weak_ref_clear (GumDukWeakRef * ref);
 static void gum_duk_weak_ref_free (GumDukWeakRef * ref);
 
-static int gum_duk_core_schedule_callback (GumDukCore * self,
+static gint gum_duk_core_schedule_callback (GumDukCore * self,
     const GumDukArgs * args, gboolean repeat);
 static void gum_duk_core_add_scheduled_callback (GumDukCore * self,
     GumDukScheduledCallback * cb);
@@ -175,19 +180,22 @@ static void gum_duk_core_remove_scheduled_callback (GumDukCore * self,
     GumDukScheduledCallback * cb);
 
 static GumDukScheduledCallback * gum_scheduled_callback_new (guint id,
-    GumDukHeapPtr func, gboolean repeat, GSource * source, GumDukCore * core);
+    GumDukHeapPtr func, gboolean repeat, GSource * source, GumDukCore * core,
+    duk_context * ctx);
 static void gum_scheduled_callback_free (GumDukScheduledCallback * callback);
 static gboolean gum_scheduled_callback_invoke (gpointer user_data);
 
 static GumDukExceptionSink * gum_duk_exception_sink_new (GumDukHeapPtr callback,
-    GumDukCore * core);
-static void gum_duk_exception_sink_free (GumDukExceptionSink * sink);
+    GumDukCore * core, duk_context * ctx);
+static void gum_duk_exception_sink_free (GumDukExceptionSink * sink,
+    duk_context * ctx);
 static void gum_duk_exception_sink_handle_exception (
-    GumDukExceptionSink * self);
+    GumDukExceptionSink * self, duk_context * ctx);
 
 static GumDukMessageSink * gum_duk_message_sink_new (GumDukHeapPtr callback,
-    GumDukCore * core);
-static void gum_duk_message_sink_free (GumDukMessageSink * sink);
+    GumDukCore * core, duk_context * ctx);
+static void gum_duk_message_sink_free (GumDukMessageSink * sink,
+    duk_context * ctx);
 static void gum_duk_message_sink_handle_message (GumDukMessageSink * self,
     const gchar * message, GumDukScope * scope);
 
@@ -454,10 +462,11 @@ _gum_duk_core_init (GumDukCore * self,
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
-  self->ctx = ctx;
+  self->heap_ctx = ctx;
 
   g_mutex_init (&self->mutex);
   g_cond_init (&self->event_cond);
+  self->heap_thread_in_use = FALSE;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
@@ -566,11 +575,15 @@ _gum_duk_core_init (GumDukCore * self,
 }
 
 void
-_gum_duk_core_flush (GumDukCore * self)
+_gum_duk_core_flush (GumDukCore * self,
+                     duk_context * ctx)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GMainContext * context;
 
-  GUM_DUK_CORE_UNLOCK (self);
+  (void) ctx;
+
+  _gum_duk_scope_suspend (&scope);
 
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
 
@@ -578,15 +591,16 @@ _gum_duk_core_flush (GumDukCore * self)
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
 
-  GUM_DUK_CORE_LOCK (self);
+  _gum_duk_scope_resume (&scope);
 
   g_hash_table_remove_all (self->weak_refs);
 }
 
 void
-_gum_duk_core_dispose (GumDukCore * self)
+_gum_duk_core_dispose (GumDukCore * self,
+                       duk_context * ctx)
 {
-  duk_context * ctx = self->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
 
   while (self->scheduled_callbacks != NULL)
   {
@@ -594,13 +608,17 @@ _gum_duk_core_dispose (GumDukCore * self)
         (GumDukScheduledCallback *) self->scheduled_callbacks->data;
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
+
+    _gum_duk_scope_suspend (&scope);
     g_source_destroy (cb->source);
+    _gum_duk_scope_resume (&scope);
   }
 
-  g_clear_pointer (&self->unhandled_exception_sink,
-      gum_duk_exception_sink_free);
+  gum_duk_exception_sink_free (self->unhandled_exception_sink, ctx);
+  self->unhandled_exception_sink = NULL;
 
-  g_clear_pointer (&self->incoming_message_sink, gum_duk_message_sink_free);
+  gum_duk_message_sink_free (self->incoming_message_sink, ctx);
+  self->incoming_message_sink = NULL;
 
   g_clear_pointer (&self->exceptor, g_object_unref);
 
@@ -610,8 +628,6 @@ _gum_duk_core_dispose (GumDukCore * self)
   _gum_duk_release_heapptr (ctx, self->native_resource);
   _gum_duk_release_heapptr (ctx, self->native_function);
   _gum_duk_release_heapptr (ctx, self->cpu_context);
-
-  self->ctx = NULL;
 }
 
 void
@@ -661,13 +677,65 @@ _gum_duk_core_push_job (GumDukCore * self,
       data, data_destroy, self);
 }
 
-void
+duk_context *
 _gum_duk_scope_enter (GumDukScope * self,
                       GumDukCore * core)
 {
+  duk_context * ctx = core->heap_ctx;
+
   self->core = core;
 
   GUM_DUK_CORE_LOCK (core);
+
+  if (!core->heap_thread_in_use)
+  {
+    core->heap_thread_in_use = TRUE;
+
+    self->ctx = ctx;
+  }
+  else
+  {
+    gchar name[32];
+    duk_idx_t thread_index;
+
+    sprintf (name, "thread_%p", self);
+
+    thread_index = duk_push_thread (ctx);
+    self->ctx = duk_get_context (ctx, thread_index);
+
+    duk_push_global_stash (ctx);
+    duk_dup (ctx, -2);
+    duk_put_prop_string (ctx, -2, name);
+
+    duk_pop_2 (ctx);
+  }
+
+  g_assert (core->current_ctx == NULL);
+  core->current_ctx = self->ctx;
+
+  return self->ctx;
+}
+
+void
+_gum_duk_scope_suspend (GumDukScope * self)
+{
+  GumDukCore * core = self->core;
+
+  g_assert (core->current_ctx == self->ctx);
+  core->current_ctx = NULL;
+
+  GUM_DUK_CORE_UNLOCK (core);
+}
+
+void
+_gum_duk_scope_resume (GumDukScope * self)
+{
+  GumDukCore * core = self->core;
+
+  GUM_DUK_CORE_LOCK (core);
+
+  g_assert (core->current_ctx == NULL);
+  core->current_ctx = self->ctx;
 }
 
 gboolean
@@ -677,11 +745,14 @@ _gum_duk_scope_call (GumDukScope * self,
   GumDukCore * core = self->core;
   gboolean success;
 
-  success = duk_pcall (core->ctx, nargs) == 0;
+  success = duk_pcall (self->ctx, nargs) == 0;
   if (!success)
   {
     if (core->unhandled_exception_sink != NULL)
-      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink);
+    {
+      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink,
+          self->ctx);
+    }
   }
 
   return success;
@@ -694,11 +765,14 @@ _gum_duk_scope_call_method (GumDukScope * self,
   GumDukCore * core = self->core;
   gboolean success;
 
-  success = duk_pcall_method (core->ctx, nargs) == 0;
+  success = duk_pcall_method (self->ctx, nargs) == 0;
   if (!success)
   {
     if (core->unhandled_exception_sink != NULL)
-      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink);
+    {
+      gum_duk_exception_sink_handle_exception (core->unhandled_exception_sink,
+          self->ctx);
+    }
   }
 
   return success;
@@ -708,14 +782,13 @@ gboolean
 _gum_duk_scope_call_sync (GumDukScope * self,
                           duk_idx_t nargs)
 {
-  GumDukCore * core = self->core;
   gboolean success;
 
-  success = duk_pcall (core->ctx, nargs) == 0;
+  success = duk_pcall (self->ctx, nargs) == 0;
   if (!success)
   {
     g_assert (self->exception == NULL);
-    self->exception = _gum_duk_require_heapptr (core->ctx, -1);
+    self->exception = _gum_duk_require_heapptr (self->ctx, -1);
   }
 
   return success;
@@ -724,7 +797,7 @@ _gum_duk_scope_call_sync (GumDukScope * self,
 void
 _gum_duk_scope_flush (GumDukScope * self)
 {
-  duk_context * ctx = self->core->ctx;
+  duk_context * ctx = self->ctx;
 
   if (self->exception == NULL)
     return;
@@ -738,6 +811,27 @@ _gum_duk_scope_flush (GumDukScope * self)
 void
 _gum_duk_scope_leave (GumDukScope * self)
 {
+  GumDukCore * core = self->core;
+  duk_context * ctx = core->heap_ctx;
+
+  g_assert (core->current_ctx == self->ctx);
+  core->current_ctx = NULL;
+
+  if (self->ctx == ctx)
+  {
+    core->heap_thread_in_use = FALSE;
+  }
+  else
+  {
+    gchar name[32];
+
+    sprintf (name, "thread_%p", self);
+
+    duk_push_global_stash (ctx);
+    duk_del_prop_string (ctx, -1, name);
+    duk_pop (ctx);
+  }
+
   GUM_DUK_CORE_UNLOCK (self->core);
 }
 
@@ -889,7 +983,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
   }
 
   if (callback != NULL)
+  {
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
+
+    _gum_duk_scope_suspend (&scope);
     g_source_destroy (callback->source);
+    _gum_duk_scope_resume (&scope);
+  }
 
   duk_push_boolean (ctx, callback != NULL);
   return 1;
@@ -926,19 +1026,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
   GumDukHeapPtr callback;
   GumDukExceptionSink * new_sink, * old_sink;
 
-  (void) ctx;
-
   _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
-      ? gum_duk_exception_sink_new (callback, self)
+      ? gum_duk_exception_sink_new (callback, self, ctx)
       : NULL;
 
   old_sink = self->unhandled_exception_sink;
   self->unhandled_exception_sink = new_sink;
 
-  if (old_sink != NULL)
-    gum_duk_exception_sink_free (old_sink);
+  gum_duk_exception_sink_free (old_sink, ctx);
 
   return 0;
 }
@@ -949,19 +1046,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
   GumDukHeapPtr callback;
   GumDukMessageSink * new_sink, * old_sink;
 
-  (void) ctx;
-
   _gum_duk_args_parse (args, "F?", &callback);
 
   new_sink = (callback != NULL)
-      ? gum_duk_message_sink_new (callback, self)
+      ? gum_duk_message_sink_new (callback, self, ctx)
       : NULL;
 
   old_sink = self->incoming_message_sink;
   self->incoming_message_sink = new_sink;
 
-  if (old_sink != NULL)
-    gum_duk_message_sink_free (old_sink);
+  gum_duk_message_sink_free (old_sink, ctx);
 
   return 0;
 }
@@ -969,13 +1063,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumDukCore * self = args->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   guint start_count;
 
   (void) ctx;
 
   start_count = self->event_count;
+
+  _gum_duk_scope_suspend (&scope);
+
+  GUM_DUK_CORE_LOCK (self);
   while (self->event_count == start_count)
     g_cond_wait (&self->event_cond, &self->mutex);
+  GUM_DUK_CORE_UNLOCK (self);
+
+  _gum_duk_scope_resume (&scope);
 
   return 0;
 }
@@ -1458,7 +1560,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
   GumFFIValue * rvalue;
   void ** avalue;
   guint8 * avalues;
-  GumExceptorScope scope;
+  GumExceptorScope exceptor_scope;
 
   duk_push_this (ctx);
   self = _gum_duk_require_data (ctx, -1);
@@ -1511,18 +1613,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     avalue = NULL;
   }
 
-  GUM_DUK_CORE_UNLOCK (core);
-
-  if (gum_exceptor_try (core->exceptor, &scope))
   {
-    ffi_call (&self->cif, self->fn, rvalue, avalue);
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+
+    _gum_duk_scope_suspend (&scope);
+
+    if (gum_exceptor_try (core->exceptor, &exceptor_scope))
+    {
+      ffi_call (&self->cif, self->fn, rvalue, avalue);
+    }
+
+    _gum_duk_scope_resume (&scope);
   }
 
-  GUM_DUK_CORE_LOCK (core);
-
-  if (gum_exceptor_catch (core->exceptor, &scope))
+  if (gum_exceptor_catch (core->exceptor, &exceptor_scope))
   {
-    _gum_duk_throw_native (ctx, &scope.exception, core);
+    _gum_duk_throw_native (ctx, &exceptor_scope.exception, core);
   }
 
   gum_duk_push_ffi_value (ctx, rvalue, rtype, core);
@@ -1613,32 +1719,32 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 
 invalid_return_type:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "invalid return type");
   }
 invalid_argument_type:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "invalid argument type");
   }
 invalid_abi:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "invalid abi");
   }
 alloc_failed:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "failed to allocate closure");
   }
 compilation_failed:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "failed to compile function call interface");
   }
 prepare_failed:
   {
-    gum_duk_native_callback_finalize (callback, FALSE);
+    gum_duk_native_callback_finalize (callback, ctx, FALSE);
     _gum_duk_throw (ctx, "failed to prepare closure");
   }
 
@@ -1661,17 +1767,18 @@ GUMJS_DEFINE_FINALIZER (gumjs_native_callback_finalize)
     return 0;
 
   heap_destruct = duk_require_boolean (ctx, 1);
-  gum_duk_native_callback_finalize (self, heap_destruct);
+  gum_duk_native_callback_finalize (self, ctx, heap_destruct);
 
   return 0;
 }
 
 static void
 gum_duk_native_callback_finalize (GumDukNativeCallback * callback,
+                                  duk_context * ctx,
                                   gboolean heap_destruct)
 {
   if (!heap_destruct)
-    _gum_duk_unprotect (callback->core->ctx, callback->func);
+    _gum_duk_unprotect (ctx, callback->func);
 
   ffi_closure_free (callback->closure);
 
@@ -1695,13 +1802,13 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   GumDukNativeCallback * self = user_data;
   GumDukCore * core = self->core;
   GumDukScope scope;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   ffi_type * rtype = cif->rtype;
   GumFFIValue * retval = return_value;
   guint i;
   gboolean success;
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   if (rtype != &ffi_type_void)
   {
@@ -1811,9 +1918,8 @@ gum_duk_weak_ref_clear (GumDukWeakRef * ref)
 static void
 gum_duk_weak_ref_free (GumDukWeakRef * ref)
 {
-  GumDukCore * core = ref->core;
-  duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (ref->core);
+  duk_context * ctx = scope.ctx;
 
   gum_duk_weak_ref_clear (ref);
 
@@ -1824,7 +1930,7 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   g_slice_free (GumDukWeakRef, ref);
 }
 
-static int
+static gint
 gum_duk_core_schedule_callback (GumDukCore * self,
                                 const GumDukArgs * args,
                                 gboolean repeat)
@@ -1842,7 +1948,8 @@ gum_duk_core_schedule_callback (GumDukCore * self,
   else
     source = g_timeout_source_new (delay);
 
-  callback = gum_scheduled_callback_new (id, func, repeat, source, self);
+  callback = gum_scheduled_callback_new (id, func, repeat, source, self,
+      args->ctx);
   g_source_set_callback (source, gum_scheduled_callback_invoke, callback,
       (GDestroyNotify) gum_scheduled_callback_free);
   gum_duk_core_add_scheduled_callback (self, callback);
@@ -1873,13 +1980,14 @@ gum_scheduled_callback_new (guint id,
                             GumDukHeapPtr func,
                             gboolean repeat,
                             GSource * source,
-                            GumDukCore * core)
+                            GumDukCore * core,
+                            duk_context * ctx)
 {
   GumDukScheduledCallback * callback;
 
   callback = g_slice_new (GumDukScheduledCallback);
   callback->id = id;
-  _gum_duk_protect (core->ctx, func);
+  _gum_duk_protect (ctx, func);
   callback->func = func;
   callback->repeat = repeat;
   callback->source = source;
@@ -1891,7 +1999,16 @@ gum_scheduled_callback_new (guint id,
 static void
 gum_scheduled_callback_free (GumDukScheduledCallback * callback)
 {
-  _gum_duk_unprotect (callback->core->ctx, callback->func);
+  GumDukCore * core = callback->core;
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+
+  _gum_duk_unprotect (ctx, callback->func);
+
+  _gum_duk_scope_leave (&scope);
+
   g_slice_free (GumDukScheduledCallback, callback);
 }
 
@@ -1900,31 +2017,32 @@ gum_scheduled_callback_invoke (gpointer user_data)
 {
   GumDukScheduledCallback * self = user_data;
   GumDukCore * core = self->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   GumDukScope scope;
 
-  _gum_duk_scope_enter (&scope, self->core);
+  ctx = _gum_duk_scope_enter (&scope, self->core);
 
   duk_push_heapptr (ctx, self->func);
   _gum_duk_scope_call (&scope, 0);
   duk_pop (ctx);
 
-  _gum_duk_scope_leave (&scope);
-
   if (!self->repeat)
     gum_duk_core_remove_scheduled_callback (core, self);
+
+  _gum_duk_scope_leave (&scope);
 
   return self->repeat;
 }
 
 static GumDukExceptionSink *
 gum_duk_exception_sink_new (GumDukHeapPtr callback,
-                            GumDukCore * core)
+                            GumDukCore * core,
+                            duk_context * ctx)
 {
   GumDukExceptionSink * sink;
 
   sink = g_slice_new (GumDukExceptionSink);
-  _gum_duk_protect (core->ctx, callback);
+  _gum_duk_protect (ctx, callback);
   sink->callback = callback;
   sink->core = core;
 
@@ -1932,17 +2050,20 @@ gum_duk_exception_sink_new (GumDukHeapPtr callback,
 }
 
 static void
-gum_duk_exception_sink_free (GumDukExceptionSink * sink)
+gum_duk_exception_sink_free (GumDukExceptionSink * sink,
+                            duk_context * ctx)
 {
-  _gum_duk_unprotect (sink->core->ctx, sink->callback);
+  if (sink == NULL)
+    return;
+
+  _gum_duk_unprotect (ctx, sink->callback);
   g_slice_free (GumDukExceptionSink, sink);
 }
 
 static void
-gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self)
+gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self,
+                                         duk_context * ctx)
 {
-  GumDukCore * core = self->core;
-  duk_context * ctx = core->ctx;
   GumDukHeapPtr callback = self->callback;
 
   duk_push_heapptr (ctx, callback);
@@ -1953,12 +2074,13 @@ gum_duk_exception_sink_handle_exception (GumDukExceptionSink * self)
 
 static GumDukMessageSink *
 gum_duk_message_sink_new (GumDukHeapPtr callback,
-                          GumDukCore * core)
+                          GumDukCore * core,
+                          duk_context * ctx)
 {
   GumDukMessageSink * sink;
 
   sink = g_slice_new (GumDukMessageSink);
-  _gum_duk_protect (core->ctx, callback);
+  _gum_duk_protect (ctx, callback);
   sink->callback = callback;
   sink->core = core;
 
@@ -1966,9 +2088,13 @@ gum_duk_message_sink_new (GumDukHeapPtr callback,
 }
 
 static void
-gum_duk_message_sink_free (GumDukMessageSink * sink)
+gum_duk_message_sink_free (GumDukMessageSink * sink,
+                           duk_context * ctx)
 {
-  _gum_duk_unprotect (sink->core->ctx, sink->callback);
+  if (sink == NULL)
+    return;
+
+  _gum_duk_unprotect (ctx, sink->callback);
   g_slice_free (GumDukMessageSink, sink);
 }
 
@@ -1977,7 +2103,7 @@ gum_duk_message_sink_handle_message (GumDukMessageSink * self,
                                      const gchar * message,
                                      GumDukScope * scope)
 {
-  duk_context * ctx = self->core->ctx;
+  duk_context * ctx = scope->ctx;
 
   duk_push_heapptr (ctx, self->callback);
   duk_push_string (ctx, message);

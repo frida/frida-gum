@@ -46,10 +46,9 @@ static const duk_function_list_entry gumjs_socket_functions[] =
 
 void
 _gum_duk_socket_init (GumDukSocket * self,
-                      GumDukCore * core)
+                      GumDukCore * core,
+                      duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_socket_construct, 0);
@@ -62,9 +61,11 @@ _gum_duk_socket_init (GumDukSocket * self,
 }
 
 void
-_gum_duk_socket_dispose (GumDukSocket * self)
+_gum_duk_socket_dispose (GumDukSocket * self,
+                         duk_context * ctx)
 {
   (void) self;
+  (void) ctx;
 }
 
 void

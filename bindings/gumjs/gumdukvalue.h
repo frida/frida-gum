@@ -18,8 +18,8 @@ struct _GumDukArgs
 {
   gsize count;
 
-  duk_context * ctx;
   GumDukCore * core;
+  duk_context * ctx;
 };
 
 struct _GumDukPropertyEntry

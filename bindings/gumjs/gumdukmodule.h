@@ -19,8 +19,9 @@ struct _GumDukModule
 };
 
 G_GNUC_INTERNAL void _gum_duk_module_init (GumDukModule * self,
-    GumDukCore * core);
-G_GNUC_INTERNAL void _gum_duk_module_dispose (GumDukModule * self);
+    GumDukCore * core, duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_module_dispose (GumDukModule * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_module_finalize (GumDukModule * self);
 
 G_END_DECLS

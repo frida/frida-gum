@@ -22,8 +22,9 @@ struct _GumDukProcess
 };
 
 G_GNUC_INTERNAL void _gum_duk_process_init (GumDukProcess * self,
-    GumDukCore * core);
-G_GNUC_INTERNAL void _gum_duk_process_dispose (GumDukProcess * self);
+    GumDukCore * core, duk_context * ctx);
+G_GNUC_INTERNAL void _gum_duk_process_dispose (GumDukProcess * self,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_process_finalize (GumDukProcess * self);
 
 G_END_DECLS

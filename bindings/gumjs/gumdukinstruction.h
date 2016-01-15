@@ -25,9 +25,9 @@ struct _GumDukInstruction
 };
 
 G_GNUC_INTERNAL void _gum_duk_instruction_init (GumDukInstruction * self,
-    GumDukCore * core);
+    GumDukCore * core, duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_instruction_dispose (
-    GumDukInstruction * self);
+    GumDukInstruction * self, duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_instruction_finalize (
     GumDukInstruction * self);
 

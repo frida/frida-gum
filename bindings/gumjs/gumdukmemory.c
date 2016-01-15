@@ -164,10 +164,9 @@ static const duk_function_list_entry gumjs_memory_access_monitor_functions[] =
 
 void
 _gum_duk_memory_init (GumDukMemory * self,
-                      GumDukCore * core)
+                      GumDukCore * core,
+                      duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
-
   self->core = core;
 
   duk_push_c_function (ctx, gumjs_memory_construct, 0);
@@ -188,9 +187,11 @@ _gum_duk_memory_init (GumDukMemory * self,
 }
 
 void
-_gum_duk_memory_dispose (GumDukMemory * self)
+_gum_duk_memory_dispose (GumDukMemory * self,
+                         duk_context * ctx)
 {
   (void) self;
+  (void) ctx;
 }
 
 void
@@ -707,6 +708,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_ansi_string)
   _gum_duk_push_native_resource (ctx, str_ansi, g_free, args->core);
   return 1;
 #else
+  (void) args;
+
   _gum_duk_throw (ctx, "ANSI API is only applicable on Windows");
   return 0;
 #endif
@@ -768,18 +771,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 }
 
 static void
-gum_memory_scan_context_free (GumMemoryScanContext * ctx)
+gum_memory_scan_context_free (GumMemoryScanContext * sc)
 {
-  duk_context * js_ctx = ctx->core->ctx;
+  GumDukScope scope;
+  duk_context * ctx;
 
-  gum_match_pattern_free (ctx->pattern);
+  gum_match_pattern_free (sc->pattern);
 
-  _gum_duk_unprotect (js_ctx, ctx->on_match);
-  if (ctx->on_error != NULL)
-    _gum_duk_unprotect (js_ctx, ctx->on_error);
-  _gum_duk_unprotect (js_ctx, ctx->on_complete);
+  ctx = _gum_duk_scope_enter (&scope, sc->core);
 
-  g_slice_free (GumMemoryScanContext, ctx);
+  _gum_duk_unprotect (ctx, sc->on_match);
+  if (sc->on_error != NULL)
+    _gum_duk_unprotect (ctx, sc->on_error);
+  _gum_duk_unprotect (ctx, sc->on_complete);
+
+  _gum_duk_scope_leave (&scope);
+
+  g_slice_free (GumMemoryScanContext, sc);
 }
 
 static void
@@ -789,7 +797,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   GumExceptor * exceptor = core->exceptor;
   GumExceptorScope exceptor_scope;
   GumDukScope script_scope;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
 
   if (gum_exceptor_try (exceptor, &exceptor_scope))
   {
@@ -797,7 +805,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
         gum_memory_scan_context_emit_match, self);
   }
 
-  _gum_duk_scope_enter (&script_scope, core);
+  ctx = _gum_duk_scope_enter (&script_scope, core);
 
   if (gum_exceptor_catch (exceptor, &exceptor_scope))
   {
@@ -831,10 +839,10 @@ gum_memory_scan_context_emit_match (GumAddress address,
   GumMemoryScanContext * self = user_data;
   GumDukCore * core = self->core;
   GumDukScope scope;
-  duk_context * ctx = self->core->ctx;
+  duk_context * ctx;
   gboolean proceed;
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->on_match);
 

@@ -47,9 +47,9 @@ static const duk_function_list_entry gumjs_instruction_functions[] =
 
 void
 _gum_duk_instruction_init (GumDukInstruction * self,
-                           GumDukCore * core)
+                           GumDukCore * core,
+                           duk_context * ctx)
 {
-  duk_context * ctx = core->ctx;
   cs_err err;
 
   self->core = core;
@@ -74,9 +74,10 @@ _gum_duk_instruction_init (GumDukInstruction * self,
 }
 
 void
-_gum_duk_instruction_dispose (GumDukInstruction * self)
+_gum_duk_instruction_dispose (GumDukInstruction * self,
+                              duk_context * ctx)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->instruction);
+  _gum_duk_release_heapptr (ctx, self->instruction);
 }
 
 void
@@ -87,6 +88,9 @@ _gum_duk_instruction_finalize (GumDukInstruction * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_instruction_module_construct)
 {
+  (void) ctx;
+  (void) args;
+
   return 0;
 }
 
@@ -165,6 +169,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_instruction_to_string)
 {
   const gchar * mnemonic, * op_str;
   gchar * result;
+
+  (void) args;
 
   duk_push_this (ctx);
 
