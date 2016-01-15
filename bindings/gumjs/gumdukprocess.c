@@ -44,7 +44,7 @@ struct _GumDukMatchContext
   GumDukHeapPtr on_match;
   GumDukHeapPtr on_complete;
 
-  GumDukCore * core;
+  GumDukScope * scope;
 };
 
 struct _GumDukFindRangeByAddressContext
@@ -165,7 +165,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_process_enumerate_threads (gum_emit_thread, &mc);
   _gum_duk_scope_flush (&scope);
@@ -182,9 +182,9 @@ gum_emit_thread (const GumThreadDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
   duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gboolean proceed = TRUE;
 
   if (gum_script_backend_is_ignoring (details->id))
@@ -201,7 +201,7 @@ gum_emit_thread (const GumThreadDetails * details,
       GUM_CPU_CONTEXT_READONLY, core);
   duk_put_prop_string (ctx, -2, "context");
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
@@ -222,7 +222,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_process_enumerate_modules (gum_emit_module, &mc);
   _gum_duk_scope_flush (&scope);
@@ -239,9 +239,9 @@ gum_emit_module (const GumModuleDetails * details,
                  gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
   duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -261,7 +261,7 @@ gum_emit_module (const GumModuleDetails * details,
   duk_push_string (ctx, details->path);
   duk_put_prop_string (ctx, -2, "path");
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
@@ -321,7 +321,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 
   _gum_duk_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -338,15 +338,15 @@ gum_emit_range (const GumRangeDetails * details,
                 gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
   duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
   gum_duk_push_range (ctx, details, core);
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
@@ -372,7 +372,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 
   _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
       &mc.on_complete);
-  mc.core = args->core;
+  mc.scope = &scope;
 
   gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
   _gum_duk_scope_flush (&scope);
@@ -389,9 +389,9 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
                        gpointer user_data)
 {
   GumDukMatchContext * mc = user_data;
-  GumDukCore * core = mc->core;
+  GumDukScope * scope = mc->scope;
+  GumDukCore * core = scope->core;
   duk_context * ctx = core->ctx;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -405,7 +405,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   duk_push_uint (ctx, details->range->size);
   duk_put_prop_string (ctx, -2, "size");
 
-  if (_gum_duk_scope_call_sync (&scope, 1))
+  if (_gum_duk_scope_call_sync (scope, 1))
   {
     if (duk_is_string (ctx, -1))
       proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
