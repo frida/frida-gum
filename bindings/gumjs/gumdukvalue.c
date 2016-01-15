@@ -725,23 +725,6 @@ _gum_duk_push_native_pointer (duk_context * ctx,
                               gpointer address,
                               GumDukCore * core)
 {
-  GumDukNativePointerImpl * ptr;
-
-  ptr = core->cached_native_pointers;
-  if (ptr != NULL)
-  {
-    core->cached_native_pointers = ptr->next;
-
-    duk_push_heapptr (ctx, ptr->object);
-    ptr->parent.value = address;
-
-    duk_push_global_stash (ctx);
-    duk_del_prop_string (ctx, -1, ptr->id);
-    duk_pop (ctx);
-
-    return;
-  }
-
   duk_push_heapptr (ctx, core->native_pointer);
   duk_push_pointer (ctx, address);
   duk_new (ctx, 1);
