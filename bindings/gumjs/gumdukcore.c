@@ -453,6 +453,8 @@ _gum_duk_core_init (GumDukCore * self,
                     GumScriptScheduler * scheduler,
                     duk_context * ctx)
 {
+  guint i;
+
   g_object_get (script, "backend", &self->backend, NULL);
   g_object_unref (self->backend);
 
@@ -549,6 +551,27 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_global_string (ctx, "CpuContext");
   _gum_duk_add_properties_to_class (ctx, "CpuContext",
       gumjs_cpu_context_values);
+
+  for (i = 0; i != GUM_DUK_NATIVE_POINTER_CACHE_SIZE; i++)
+  {
+    GumDukNativePointerImpl * ptr;
+
+    duk_push_heapptr (ctx, self->native_pointer);
+    duk_push_pointer (ctx, NULL);
+    duk_new (ctx, 1);
+
+    ptr = _gum_duk_require_data (ctx, -1);
+    ptr->object = duk_require_heapptr (ctx, -1);
+    ptr->id = g_strdup_printf ("np%u", i + 1);
+    ptr->next = self->cached_native_pointers;
+    self->cached_native_pointers = ptr;
+
+    duk_push_global_stash (ctx);
+    duk_dup (ctx, -2);
+    duk_put_prop_string (ctx, -2, ptr->id);
+
+    duk_pop_2 (ctx);
+  }
 }
 
 void
@@ -598,6 +621,8 @@ _gum_duk_core_dispose (GumDukCore * self,
   self->incoming_message_sink = NULL;
 
   g_clear_pointer (&self->exceptor, g_object_unref);
+
+  self->cached_native_pointers = NULL;
 
   _gum_duk_release_heapptr (ctx, self->native_pointer);
   _gum_duk_release_heapptr (ctx, self->native_resource);
@@ -1073,7 +1098,7 @@ gumjs_native_pointer_from_args (const GumDukArgs * args)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gpointer ptr = NULL;
-  GumDukNativePointer * priv;
+  GumDukNativePointerImpl * priv;
 
   if (!duk_is_constructor_call (ctx))
   {
@@ -1085,8 +1110,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
   _gum_duk_args_parse (args, "|p~", &ptr);
 
-  priv = g_slice_new0 (GumDukNativePointer);
-  priv->value = ptr;
+  priv = g_slice_new0 (GumDukNativePointerImpl);
+  priv->parent.value = ptr;
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, priv);
@@ -1097,18 +1122,42 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 
 GUMJS_DEFINE_FINALIZER (gumjs_native_pointer_finalize)
 {
-  GumDukNativePointer * self;
-
-  (void) args;
+  GumDukNativePointerImpl * self;
+  gboolean heap_destruct;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "NativePointer"))
     return 0;
+
+  heap_destruct = duk_require_boolean (ctx, 1);
+  if (!heap_destruct)
+  {
+    GumDukCore * core = args->core;
+
+    self = _gum_duk_get_data (ctx, 0);
+    if (self == NULL)
+      return 0;
+
+    if (self->id != NULL)
+    {
+      self->next = core->cached_native_pointers;
+      core->cached_native_pointers = self;
+
+      duk_push_global_stash (ctx);
+      duk_dup (ctx, 0);
+      duk_put_prop_string (ctx, -2, self->id);
+      duk_pop (ctx);
+
+      return 0;
+    }
+  }
 
   self = _gum_duk_steal_data (ctx, 0);
   if (self == NULL)
     return 0;
 
-  g_slice_free (GumDukNativePointer, self);
+  g_free (self->id);
+
+  g_slice_free (GumDukNativePointerImpl, self);
 
   return 0;
 }
