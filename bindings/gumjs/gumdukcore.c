@@ -167,7 +167,7 @@ static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
 static void gum_duk_weak_ref_clear (GumDukWeakRef * ref);
 static void gum_duk_weak_ref_free (GumDukWeakRef * ref);
 
-static int gum_duk_core_schedule_callback (GumDukCore * self,
+static gint gum_duk_core_schedule_callback (GumDukCore * self,
     const GumDukArgs * args, gboolean repeat);
 static void gum_duk_core_add_scheduled_callback (GumDukCore * self,
     GumDukScheduledCallback * cb);
@@ -1824,7 +1824,7 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   g_slice_free (GumDukWeakRef, ref);
 }
 
-static int
+static gint
 gum_duk_core_schedule_callback (GumDukCore * self,
                                 const GumDukArgs * args,
                                 gboolean repeat)
