@@ -24,9 +24,8 @@ struct _GumDukThread
 };
 
 G_GNUC_INTERNAL void _gum_duk_thread_init (GumDukThread * self,
-    GumDukCore * core, duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_thread_dispose (GumDukThread * self,
-    duk_context * ctx);
+    GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_thread_dispose (GumDukThread * self);
 G_GNUC_INTERNAL void _gum_duk_thread_finalize (GumDukThread * self);
 
 G_END_DECLS

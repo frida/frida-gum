@@ -1032,7 +1032,7 @@ void
 _gum_duk_protect (duk_context * ctx,
                   GumDukHeapPtr object)
 {
-  gchar name[32];
+  gchar name[256];
   duk_uint_t ref_count;
 
   sprintf (name, "protected_%p", object);
@@ -1072,7 +1072,7 @@ void
 _gum_duk_unprotect (duk_context * ctx,
                     GumDukHeapPtr object)
 {
-  gchar name[32];
+  gchar name[256];
   duk_uint_t ref_count;
 
   sprintf (name, "protected_%p", object);

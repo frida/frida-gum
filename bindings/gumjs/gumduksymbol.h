@@ -21,9 +21,8 @@ struct _GumDukSymbol
 };
 
 G_GNUC_INTERNAL void _gum_duk_symbol_init (GumDukSymbol * self,
-    GumDukCore * core, duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_symbol_dispose (GumDukSymbol * self,
-    duk_context * ctx);
+    GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_symbol_dispose (GumDukSymbol * self);
 G_GNUC_INTERNAL void _gum_duk_symbol_finalize (GumDukSymbol * self);
 
 G_END_DECLS

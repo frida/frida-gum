@@ -19,9 +19,8 @@ struct _GumDukMemory
 };
 
 G_GNUC_INTERNAL void _gum_duk_memory_init (GumDukMemory * self,
-    GumDukCore * core, duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_memory_dispose (GumDukMemory * self,
-    duk_context * ctx);
+    GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_memory_dispose (GumDukMemory * self);
 G_GNUC_INTERNAL void _gum_duk_memory_finalize (GumDukMemory * self);
 
 G_END_DECLS

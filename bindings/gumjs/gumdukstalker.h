@@ -22,11 +22,9 @@ struct _GumDukStalker
 };
 
 G_GNUC_INTERNAL void _gum_duk_stalker_init (GumDukStalker * self,
-    GumDukCore * core, duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_stalker_flush (GumDukStalker * self,
-    duk_context * ctx);
-G_GNUC_INTERNAL void _gum_duk_stalker_dispose (GumDukStalker * self,
-    duk_context * ctx);
+    GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_stalker_flush (GumDukStalker * self);
+G_GNUC_INTERNAL void _gum_duk_stalker_dispose (GumDukStalker * self);
 G_GNUC_INTERNAL void _gum_duk_stalker_finalize (GumDukStalker * self);
 
 G_GNUC_INTERNAL GumStalker * _gum_duk_stalker_get (GumDukStalker * self);
