@@ -139,7 +139,6 @@ not_available:
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
-  GumDukCore * core = args->core;
   gdouble delay;
 
   (void) ctx;
@@ -149,11 +148,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (delay < 0)
     return 0;
 
-  GUM_DUK_CORE_UNLOCK (core);
-
   g_usleep (delay * G_USEC_PER_SEC);
-
-  GUM_DUK_CORE_LOCK (core);
 
   return 0;
 }

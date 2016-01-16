@@ -441,6 +441,7 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
+                    GAsyncQueue * incoming_messages,
                     GumDukMessageEmitter message_emitter,
                     GumScriptScheduler * scheduler,
                     duk_context * ctx)
@@ -451,13 +452,13 @@ _gum_duk_core_init (GumDukCore * self,
   g_object_unref (self->backend);
 
   self->script = script;
+  self->incoming_messages = incoming_messages;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
   self->ctx = ctx;
 
-  g_mutex_init (&self->mutex);
-  g_cond_init (&self->event_cond);
+  g_rec_mutex_init (&self->mutex);
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
@@ -570,15 +571,11 @@ _gum_duk_core_flush (GumDukCore * self)
 {
   GMainContext * context;
 
-  GUM_DUK_CORE_UNLOCK (self);
-
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
 
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
-
-  GUM_DUK_CORE_LOCK (self);
 
   g_hash_table_remove_all (self->weak_refs);
 }
@@ -619,8 +616,7 @@ _gum_duk_core_finalize (GumDukCore * self)
 {
   g_clear_pointer (&self->weak_refs, g_hash_table_unref);
 
-  g_mutex_clear (&self->mutex);
-  g_cond_clear (&self->event_cond);
+  g_rec_mutex_clear (&self->mutex);
 }
 
 void
@@ -632,20 +628,22 @@ _gum_duk_core_emit_message (GumDukCore * self,
 }
 
 void
-_gum_duk_core_post_message (GumDukCore * self,
-                            const gchar * message)
+_gum_duk_core_absorb_messages (GumDukCore * self)
 {
   GumDukScope scope;
+  gchar * message;
 
   _gum_duk_scope_enter (&scope, self);
 
-  if (self->incoming_message_sink != NULL)
+  while ((message = g_async_queue_try_pop (self->incoming_messages)) != NULL)
   {
-    gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
-        &scope);
+    if (self->incoming_message_sink != NULL)
+    {
+      gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
+          &scope);
+    }
 
-    self->event_count++;
-    g_cond_broadcast (&self->event_cond);
+    g_free (message);
   }
 
   _gum_duk_scope_leave (&scope);
@@ -667,7 +665,7 @@ _gum_duk_scope_enter (GumDukScope * self,
 {
   self->core = core;
 
-  GUM_DUK_CORE_LOCK (core);
+  g_rec_mutex_lock (&core->mutex);
 }
 
 gboolean
@@ -738,7 +736,7 @@ _gum_duk_scope_flush (GumDukScope * self)
 void
 _gum_duk_scope_leave (GumDukScope * self)
 {
-  GUM_DUK_CORE_UNLOCK (self->core);
+  g_rec_mutex_unlock (&self->core->mutex);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -969,13 +967,20 @@ GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumDukCore * self = args->core;
-  guint start_count;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
+  gchar * message;
 
   (void) ctx;
 
-  start_count = self->event_count;
-  while (self->event_count == start_count)
-    g_cond_wait (&self->event_cond, &self->mutex);
+  message = g_async_queue_pop (self->incoming_messages);
+
+  if (self->incoming_message_sink != NULL)
+  {
+    gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
+        &scope);
+  }
+
+  g_free (message);
 
   return 0;
 }
@@ -1511,14 +1516,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_invoke)
     avalue = NULL;
   }
 
-  GUM_DUK_CORE_UNLOCK (core);
-
   if (gum_exceptor_try (core->exceptor, &scope))
   {
     ffi_call (&self->cif, self->fn, rvalue, avalue);
   }
-
-  GUM_DUK_CORE_LOCK (core);
 
   if (gum_exceptor_catch (core->exceptor, &scope))
   {

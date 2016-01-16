@@ -14,9 +14,6 @@
 
 #include <gum/gumexceptor.h>
 
-#define GUM_DUK_CORE_LOCK(core)   (g_mutex_lock (&(core)->mutex))
-#define GUM_DUK_CORE_UNLOCK(core) (g_mutex_unlock (&(core)->mutex))
-
 #define GUM_DUK_SCOPE_INIT(C) { C, NULL }
 
 G_BEGIN_DECLS
@@ -44,15 +41,13 @@ struct _GumDukCore
 {
   GumDukScript * script;
   GumDukScriptBackend * backend;
+  GAsyncQueue * incoming_messages;
   GumDukMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
   duk_context * ctx;
 
-  GMutex mutex;
-
-  GCond event_cond;
-  volatile guint event_count;
+  GRecMutex mutex;
 
   GumDukExceptionSink * unhandled_exception_sink;
   GumDukMessageSink * incoming_message_sink;
@@ -114,16 +109,16 @@ struct _GumDukNativeResource
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
-    GumDukScript * script, GumDukMessageEmitter message_emitter,
-    GumScriptScheduler * scheduler, duk_context * ctx);
+    GumDukScript * script, GAsyncQueue * incoming_messages,
+    GumDukMessageEmitter message_emitter, GumScriptScheduler * scheduler,
+    duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_core_flush (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_finalize (GumDukCore * self);
 
 G_GNUC_INTERNAL void _gum_duk_core_emit_message (GumDukCore * self,
     const gchar * message, GBytes * data);
-G_GNUC_INTERNAL void _gum_duk_core_post_message (GumDukCore * self,
-    const gchar * message);
+G_GNUC_INTERNAL void _gum_duk_core_absorb_messages (GumDukCore * self);
 
 G_GNUC_INTERNAL void _gum_duk_core_push_job (GumDukCore * self,
     GumScriptJobFunc job_func, gpointer data, GDestroyNotify data_destroy);
