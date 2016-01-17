@@ -46,7 +46,7 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
         babel = os.path.join(".", "node_modules", ".bin", "babel" + script_suffix)
 
         dukcompile = os.path.join(output_dir, "gumdukcompile" + program_suffix)
-        dukcompile_sources = map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"])
+        dukcompile_sources = list(map(lambda name: os.path.join(input_dir, name), ["gumdukcompile.c", "duktape.c"]))
         if build_os == 'windows':
             subprocess.call(["cl.exe",
                 "/nologo", "/MT", "/W3", "/O1", "/GL", "/MP",
