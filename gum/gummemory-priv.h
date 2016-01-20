@@ -31,6 +31,7 @@ struct _GumMatchToken
   guint offset;
 };
 
+G_GNUC_INTERNAL guint _gum_memory_backend_query_page_size (void);
 G_GNUC_INTERNAL gint _gum_page_protection_to_posix (
     GumPageProtection page_prot);
 

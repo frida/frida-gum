@@ -31,7 +31,7 @@ static gboolean gum_try_alloc_in_range_if_near_enough (
     const GumMemoryRange * range, gpointer user_data);
 
 guint
-gum_query_page_size (void)
+_gum_memory_backend_query_page_size (void)
 {
   return getpagesize ();
 }

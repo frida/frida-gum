@@ -53,6 +53,7 @@ static void gum_match_token_free (GumMatchToken * token);
 static void gum_match_token_append (GumMatchToken * self, guint8 byte);
 
 static mspace gum_mspace = NULL;
+static guint gum_cached_page_size;
 
 static mspace
 gum_mspace_get (void)
@@ -66,6 +67,8 @@ void
 gum_memory_init (void)
 {
   gum_mspace_get ();
+
+  gum_cached_page_size = _gum_memory_backend_query_page_size ();
 }
 
 void
@@ -79,6 +82,12 @@ gum_memory_deinit (void)
     DESTROY_MORECORE_LOCK ();
     DESTROY_MAGIC_INIT_LOCK ();
   }
+}
+
+guint
+gum_query_page_size (void)
+{
+  return gum_cached_page_size;
 }
 
 gboolean

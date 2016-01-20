@@ -40,7 +40,7 @@ static gboolean gum_emit_free_range (const GumRangeDetails * details,
     gpointer user_data);
 
 guint
-gum_query_page_size (void)
+_gum_memory_backend_query_page_size (void)
 {
   return sysconf (_SC_PAGE_SIZE);
 }

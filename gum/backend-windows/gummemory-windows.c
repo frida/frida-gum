@@ -11,10 +11,12 @@
 #include "gumwindows.h"
 
 guint
-gum_query_page_size (void)
+_gum_memory_backend_query_page_size (void)
 {
   SYSTEM_INFO si;
+
   GetSystemInfo (&si);
+
   return si.dwPageSize;
 }
 
