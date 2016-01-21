@@ -1166,10 +1166,12 @@ interceptor_thread_context_new (void)
 
   context = gum_new0 (InterceptorThreadContext, 1);
 
-  context->listener_backend =
-      gum_interceptor_listener_invocation_backend;
-  context->replacement_backend =
-      gum_interceptor_replacement_invocation_backend;
+  gum_memcpy (&context->listener_backend,
+      &gum_interceptor_listener_invocation_backend,
+      sizeof (GumInvocationBackend));
+  gum_memcpy (&context->replacement_backend,
+      &gum_interceptor_replacement_invocation_backend,
+      sizeof (GumInvocationBackend));
 
   context->ignore_level = 0;
 
