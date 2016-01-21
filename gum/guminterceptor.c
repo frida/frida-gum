@@ -11,11 +11,10 @@
 
 #include "gumarray.h"
 #include "gumhash.h"
+#include "gumlibc.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 #include "gumtls.h"
-
-#include <string.h>
 
 #ifdef HAVE_ARM64
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
@@ -1233,7 +1232,7 @@ interceptor_thread_context_get_listener_data (InterceptorThreadContext * self,
   }
   else
   {
-    memset (available_slot->data, 0, sizeof (available_slot->data));
+    gum_memset (available_slot->data, 0, sizeof (available_slot->data));
   }
 
   available_slot->owner = listener;

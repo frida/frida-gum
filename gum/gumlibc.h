@@ -11,7 +11,9 @@
 
 G_BEGIN_DECLS
 
+G_GNUC_INTERNAL gpointer gum_memset (gpointer dst, gint c, gsize n);
 G_GNUC_INTERNAL gpointer gum_memcpy (gpointer dst, gconstpointer src, gsize n);
+G_GNUC_INTERNAL gpointer gum_memmove (gpointer dst, gconstpointer src, gsize n);
 
 G_END_DECLS
 

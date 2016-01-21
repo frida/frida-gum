@@ -3799,7 +3799,7 @@ static void* internal_realloc(mstate m, void* oldmem, size_t bytes) {
       void* newmem = internal_malloc(m, bytes);
       if (newmem != 0) {
         size_t oc = oldsize - overhead_for(oldp);
-        memcpy(newmem, oldmem, (oc < bytes)? oc : bytes);
+        gum_memcpy(newmem, oldmem, (oc < bytes)? oc : bytes);
         internal_free(m, oldmem);
       }
       return newmem;
@@ -3972,7 +3972,7 @@ static void** ialloc(mstate m,
   assert(!is_mmapped(p));
 
   if (opts & 0x2) {       /* optionally clear the elements */
-    memset((size_t*)mem, 0, remainder_size - SIZE_T_SIZE - array_size);
+    gum_memset((size_t*)mem, 0, remainder_size - SIZE_T_SIZE - array_size);
   }
 
   /* If not provided, allocate the pointer array as final part of chunk */
@@ -4271,7 +4271,7 @@ void* dlcalloc(size_t n_elements, size_t elem_size) {
   }
   mem = dlmalloc(req);
   if (mem != 0 && calloc_must_clear(mem2chunk(mem)))
-    memset(mem, 0, req);
+    gum_memset(mem, 0, req);
   return mem;
 }
 
@@ -4378,7 +4378,7 @@ static mstate init_user_mstate(char* tbase, size_t tsize) {
   mchunkptr mn;
   mchunkptr msp = align_as_chunk(tbase);
   mstate m = (mstate)(chunk2mem(msp));
-  memset(m, 0, msize);
+  gum_memset(m, 0, msize);
   INITIAL_LOCK(&m->mutex);
   msp->head = (msize|PINUSE_BIT|CINUSE_BIT);
   m->seg.base = m->least_addr = tbase;
@@ -4675,7 +4675,7 @@ void* mspace_calloc(mspace msp, size_t n_elements, size_t elem_size) {
   }
   mem = internal_malloc(ms, req);
   if (mem != 0 && calloc_must_clear(mem2chunk(mem)))
-    memset(mem, 0, req);
+    gum_memset(mem, 0, req);
   return mem;
 }
 

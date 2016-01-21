@@ -101,7 +101,7 @@ gum_cycle_sampler_init (GumCycleSampler * self)
       GumCycleSamplerPrivate);
   priv = self->priv;
 
-  memset (&attr, 0, sizeof (attr));
+  gum_memset (&attr, 0, sizeof (attr));
   attr.type = PERF_TYPE_HARDWARE;
   attr.config = PERF_COUNT_HW_CPU_CYCLES;
   priv->device = syscall (__NR_perf_event_open, &attr, 0, -1, -1, 0);

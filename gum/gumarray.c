@@ -15,10 +15,11 @@
  * MT safe
  */
 
-#include <stdlib.h>
-#include <string.h>
 #include "gumarray.h"
+#include "gumlibc.h"
 #include "gummemory.h"
+
+#include <stdlib.h>
 
 #define MIN_ARRAY_SIZE  16
 
@@ -37,7 +38,7 @@ struct _GumRealArray
 #define gum_array_elt_len(array,i) ((array)->elt_size * (i))
 #define gum_array_elt_pos(array,i) ((array)->data + gum_array_elt_len((array),(i)))
 #define gum_array_elt_zero(array, pos, len)				\
-  (memset (gum_array_elt_pos ((array), pos), 0,  gum_array_elt_len ((array), len)))
+  (gum_memset (gum_array_elt_pos ((array), pos), 0,  gum_array_elt_len ((array), len)))
 #define gum_array_zero_terminate(array) G_STMT_START{			\
   if ((array)->zero_terminated)						\
     gum_array_elt_zero ((array), (array)->len, 1);			\
@@ -106,8 +107,8 @@ gum_array_append_vals (GumArray      * farray,
 
   gum_array_maybe_expand (array, len);
 
-  memcpy (gum_array_elt_pos (array, array->len), data,
-	  gum_array_elt_len (array, len));
+  gum_memcpy (gum_array_elt_pos (array, array->len), data,
+	      gum_array_elt_len (array, len));
 
   array->len += len;
 
@@ -125,10 +126,11 @@ gum_array_prepend_vals (GumArray      * farray,
 
   gum_array_maybe_expand (array, len);
 
-  g_memmove (gum_array_elt_pos (array, len), gum_array_elt_pos (array, 0),
-	     gum_array_elt_len (array, array->len));
+  gum_memmove (gum_array_elt_pos (array, len), gum_array_elt_pos (array, 0),
+	       gum_array_elt_len (array, array->len));
 
-  memcpy (gum_array_elt_pos (array, 0), data, gum_array_elt_len (array, len));
+  gum_memcpy (gum_array_elt_pos (array, 0), data,
+	      gum_array_elt_len (array, len));
 
   array->len += len;
 
@@ -147,12 +149,12 @@ gum_array_insert_vals (GumArray      * farray,
 
   gum_array_maybe_expand (array, len);
 
-  g_memmove (gum_array_elt_pos (array, len + index),
-	     gum_array_elt_pos (array, index),
-	     gum_array_elt_len (array, array->len - index));
+  gum_memmove (gum_array_elt_pos (array, len + index),
+	       gum_array_elt_pos (array, index),
+	       gum_array_elt_len (array, array->len - index));
 
-  memcpy (gum_array_elt_pos (array, index), data,
-      gum_array_elt_len (array, len));
+  gum_memcpy (gum_array_elt_pos (array, index), data,
+	      gum_array_elt_len (array, len));
 
   array->len += len;
 
@@ -190,9 +192,9 @@ gum_array_remove_index (GumArray * farray,
 
   if (index != array->len - 1)
   {
-    g_memmove (gum_array_elt_pos (array, index),
-	       gum_array_elt_pos (array, index + 1),
-	       gum_array_elt_len (array, array->len - index - 1));
+    gum_memmove (gum_array_elt_pos (array, index),
+	         gum_array_elt_pos (array, index + 1),
+	         gum_array_elt_len (array, array->len - index - 1));
   }
 
   array->len -= 1;
@@ -210,9 +212,9 @@ gum_array_remove_index_fast (GumArray * farray,
 
   if (index != array->len - 1)
   {
-    memcpy (gum_array_elt_pos (array, index),
-	    gum_array_elt_pos (array, array->len - 1),
-	    gum_array_elt_len (array, 1));
+    gum_memcpy (gum_array_elt_pos (array, index),
+		gum_array_elt_pos (array, array->len - 1),
+		gum_array_elt_len (array, 1));
   }
 
   array->len -= 1;
@@ -231,9 +233,9 @@ gum_array_remove_range (GumArray * farray,
 
   if (index_ + length != array->len)
   {
-    g_memmove (gum_array_elt_pos (array, index_),
-               gum_array_elt_pos (array, index_ + length),
-               (array->len - (index_ + length)) * array->elt_size);
+    gum_memmove (gum_array_elt_pos (array, index_),
+                 gum_array_elt_pos (array, index_ + length),
+                 (array->len - (index_ + length)) * array->elt_size);
   }
 
   array->len -= length;

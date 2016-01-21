@@ -6,6 +6,7 @@
 
 #include "gummemory.h"
 
+#include "gumlibc.h"
 #include "gummemory-priv.h"
 
 #include <string.h>

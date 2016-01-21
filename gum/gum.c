@@ -9,6 +9,7 @@
 #include "gum-init.h"
 #include "../libs/gum/heap/gumallocatorprobe-priv.h"
 #include "guminterceptor-priv.h"
+#include "gumlibc.h"
 #include "gumprintf.h"
 #include "gumtls-priv.h"
 
@@ -199,7 +200,7 @@ gum_capstone_calloc (gsize count,
 
   total = count * size;
   result = gum_capstone_malloc (total);
-  memset (result, 0, total);
+  gum_memset (result, 0, total);
 
   return result;
 }

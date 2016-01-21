@@ -27,8 +27,9 @@
  */
 
 #include "gumhash.h"
+
+#include "gumlibc.h"
 #include "gummemory.h"
-#include <string.h>  /* memset */
 
 #define HASH_TABLE_MIN_SHIFT 3  /* 1 << 3 == 8 buckets */
 
@@ -372,7 +373,7 @@ gum_hash_table_remove_all_nodes (GumHashTable *hash_table,
 
   /* We need to set node->key_hash = 0 for all nodes - might as well be GC
    * friendly and clear everything */
-  memset (hash_table->nodes, 0, hash_table->size * sizeof (GumHashNode));
+  gum_memset (hash_table->nodes, 0, hash_table->size * sizeof (GumHashNode));
 
   hash_table->nnodes = 0;
   hash_table->noccupied = 0;

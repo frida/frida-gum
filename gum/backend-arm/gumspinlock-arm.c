@@ -6,7 +6,7 @@
 
 #include "gumspinlock.h"
 
-#include <string.h>
+#include "gumlibc.h"
 
 typedef struct _GumSpinlockImpl GumSpinlockImpl;
 
@@ -18,7 +18,7 @@ struct _GumSpinlockImpl
 void
 gum_spinlock_init (GumSpinlock * spinlock)
 {
-  memset (spinlock, 0, sizeof (GumSpinlock));
+  gum_memset (spinlock, 0, sizeof (GumSpinlock));
 }
 
 void

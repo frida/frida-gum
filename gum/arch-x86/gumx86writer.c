@@ -2189,7 +2189,7 @@ void
 gum_x86_writer_put_padding (GumX86Writer * self,
                             guint n)
 {
-  memset (self->code, 0xcc, n);
+  gum_memset (self->code, 0xcc, n);
   self->code += n;
 }
 

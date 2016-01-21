@@ -8,6 +8,7 @@
 
 #include "gumexceptor.h"
 #include "guminterceptor.h"
+#include "gumlibc.h"
 #include "gumpagepool.h"
 
 #include <stdlib.h>
@@ -408,7 +409,7 @@ replacement_calloc (gsize num,
   result = gum_bounds_checker_try_alloc (self, MAX (num * size, 1), ctx);
   GUM_BOUNDS_CHECKER_UNLOCK ();
   if (result != NULL)
-    memset (result, 0, num * size);
+    gum_memset (result, 0, num * size);
   else
     goto fallback;
 
@@ -461,7 +462,7 @@ replacement_realloc (gpointer old_address,
     result = malloc (new_size);
 
   if (result != NULL)
-    memcpy (result, old_address, MIN (old_block.size, new_size));
+    gum_memcpy (result, old_address, MIN (old_block.size, new_size));
 
   GUM_BOUNDS_CHECKER_LOCK ();
   success = gum_bounds_checker_try_free (self, old_address, ctx);

@@ -28,9 +28,8 @@
 
 #include "gummetalhash.h"
 
+#include "gumlibc.h"
 #include "gummemory.h"
-
-#include <string.h>
 
 #define HASH_TABLE_MIN_SHIFT 3
 
@@ -263,9 +262,9 @@ gum_metal_hash_table_remove_all_nodes (GumMetalHashTable *hash_table,
       (hash_table->key_destroy_func == NULL &&
        hash_table->value_destroy_func == NULL))
     {
-      memset (hash_table->hashes, 0, hash_table->size * sizeof (guint));
-      memset (hash_table->keys, 0, hash_table->size * sizeof (gpointer));
-      memset (hash_table->values, 0, hash_table->size * sizeof (gpointer));
+      gum_memset (hash_table->hashes, 0, hash_table->size * sizeof (guint));
+      gum_memset (hash_table->keys, 0, hash_table->size * sizeof (gpointer));
+      gum_memset (hash_table->values, 0, hash_table->size * sizeof (gpointer));
 
       return;
     }
@@ -500,7 +499,7 @@ gum_metal_hash_table_insert_node (GumMetalHashTable *hash_table,
   if (G_UNLIKELY (hash_table->keys == hash_table->values && hash_table->keys[node_index] != new_value))
     {
       hash_table->values = gum_metal_new0 (gpointer, hash_table->size);
-      memcpy (hash_table->values, hash_table->keys, hash_table->size * sizeof (gpointer));
+      gum_memcpy (hash_table->values, hash_table->keys, hash_table->size * sizeof (gpointer));
     }
 
   hash_table->values[node_index] = new_value;
