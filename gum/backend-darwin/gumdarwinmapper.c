@@ -65,7 +65,6 @@ struct _GumDarwinMapper
   gsize runtime_file_size;
   gsize constructor_offset;
   gsize destructor_offset;
-  gsize atexit_stub_offset;
 
   GMappedFile * cache_file;
   GSList * children;
@@ -252,7 +251,7 @@ gum_darwin_mapper_init_dependencies (GumDarwinMapper * self)
     GumDarwinMapping * dependency;
 
     dependency = gum_darwin_mapper_resolve_dependency (self,
-        g_ptr_array_index (dependencies, i), self);
+        g_ptr_array_index (dependencies, i));
     g_ptr_array_add (self->dependencies, dependency);
   }
 }
@@ -371,17 +370,18 @@ gum_darwin_mapper_map (GumDarwinMapper * self,
 
   g_assert (!self->mapped);
 
+  self->runtime_address = base_address;
+  base_address += self->runtime_vm_size;
+
   for (cur = self->children; cur != NULL; cur = cur->next)
   {
     GumDarwinMapper * child = cur->data;
 
     gum_darwin_mapper_map (child, base_address);
-
     base_address += child->vm_size;
   }
 
   gum_darwin_module_set_base_address (module, base_address);
-  self->runtime_address = base_address + self->vm_size - self->runtime_vm_size;
 
   gum_emit_runtime (self);
 
@@ -501,6 +501,13 @@ gum_emit_runtime (GumDarwinMapper * self)
   ctx.mapper = self;
   ctx.cw = &cw;
 
+  if (self->parent == NULL)
+  {
+    /* atexit stub */
+    gum_x86_writer_put_xor_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
+    gum_x86_writer_put_ret (&cw);
+  }
+
   self->constructor_offset = gum_x86_writer_offset (&cw);
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XBP);
   gum_x86_writer_put_push_reg (&cw, GUM_REG_XBX);
@@ -535,10 +542,6 @@ gum_emit_runtime (GumDarwinMapper * self)
   gum_x86_writer_put_add_reg_imm (&cw, GUM_REG_XSP, self->module->pointer_size);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBX);
   gum_x86_writer_put_pop_reg (&cw, GUM_REG_XBP);
-  gum_x86_writer_put_ret (&cw);
-
-  self->atexit_stub_offset = gum_x86_writer_offset (&cw);
-  gum_x86_writer_put_xor_reg_reg (&cw, GUM_REG_XAX, GUM_REG_XAX);
   gum_x86_writer_put_ret (&cw);
 
   gum_x86_writer_flush (&cw);
@@ -711,6 +714,13 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
   ctx.mapper = self;
   ctx.tw = &tw;
 
+  if (self->parent == NULL)
+  {
+    /* atexit stub */
+    gum_thumb_writer_put_ldr_reg_u32 (&tw, ARM_REG_R0, 0);
+    gum_thumb_writer_put_bx_reg (&tw, ARM_REG_LR);
+  }
+
   self->constructor_offset = gum_thumb_writer_offset (&tw) + 1;
   gum_thumb_writer_put_push_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_LR);
@@ -740,10 +750,6 @@ gum_emit_arm_runtime (GumDarwinMapper * self)
 
   gum_thumb_writer_put_pop_regs (&tw, 5, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
-
-  self->atexit_stub_offset = gum_thumb_writer_offset (&tw) + 1;
-  gum_thumb_writer_put_ldr_reg_u32 (&tw, ARM_REG_R0, 0);
-  gum_thumb_writer_put_bx_reg (&tw, ARM_REG_LR);
 
   gum_thumb_writer_flush (&tw);
   g_assert_cmpint (gum_thumb_writer_offset (&tw), <=, self->runtime_file_size);
@@ -863,6 +869,13 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   ctx.mapper = self;
   ctx.aw = &aw;
 
+  if (self->parent == NULL)
+  {
+    /* atexit stub */
+    gum_arm64_writer_put_ldr_reg_u64 (&aw, ARM64_REG_X0, 0);
+    gum_arm64_writer_put_ret (&aw);
+  }
+
   self->constructor_offset = gum_arm64_writer_offset (&aw);
   gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
   gum_arm64_writer_put_mov_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_SP);
@@ -899,10 +912,6 @@ gum_emit_arm64_runtime (GumDarwinMapper * self)
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X21, ARM64_REG_X22);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X19, ARM64_REG_X20);
   gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_FP, ARM64_REG_LR);
-  gum_arm64_writer_put_ret (&aw);
-
-  self->atexit_stub_offset = gum_arm64_writer_offset (&aw);
-  gum_arm64_writer_put_ldr_reg_u64 (&aw, ARM64_REG_X0, 0);
   gum_arm64_writer_put_ret (&aw);
 
   gum_arm64_writer_flush (&aw);
@@ -1160,9 +1169,11 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
      * purposes anyway (GLib installs a handler to print statistics when
      * debugging is enabled).
      */
-    if (self->atexit_stub_offset != 0)
+    if (self->runtime_address != 0)
     {
-      value->address = self->runtime_address + self->atexit_stub_offset;
+      value->address = self->runtime_address;
+      if (self->module->cpu_type == GUM_CPU_ARM)
+        value->address |= 1;
     }
     else
     {
