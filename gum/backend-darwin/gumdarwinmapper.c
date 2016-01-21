@@ -112,7 +112,7 @@ static gpointer gum_darwin_mapper_data_from_offset (GumDarwinMapper * self,
 static GumDarwinMapping * gum_darwin_mapper_dependency (GumDarwinMapper * self,
     gint ordinal);
 static GumDarwinMapping * gum_darwin_mapper_resolve_dependency (
-    GumDarwinMapper * self, const gchar * name, GumDarwinMapper * referrer);
+    GumDarwinMapper * self, const gchar * name);
 static gboolean gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     GumDarwinModule * module, const gchar * symbol,
     GumDarwinSymbolValue * value);
@@ -167,7 +167,11 @@ gum_darwin_mapper_new_with_parent (GumDarwinMapper * parent,
   mapper->image = gum_darwin_module_image_dup (mapper->module->image);
 
   if (parent != NULL)
+  {
+    parent->children = g_slist_prepend (parent->children, mapper);
+
     gum_darwin_mapper_add_pending_mapping (parent, name, mapper);
+  }
 
   gum_darwin_mapper_init_dependencies (mapper);
   gum_darwin_mapper_init_footprint_budget (mapper);
@@ -1090,8 +1094,7 @@ gum_darwin_mapper_dependency (GumDarwinMapper * self,
   switch (ordinal)
   {
     case BIND_SPECIAL_DYLIB_SELF:
-      result = gum_darwin_mapper_resolve_dependency (self, self->module->name,
-          self);
+      result = gum_darwin_mapper_resolve_dependency (self, self->module->name);
       break;
     case BIND_SPECIAL_DYLIB_MAIN_EXECUTABLE:
     case BIND_SPECIAL_DYLIB_FLAT_LOOKUP:
@@ -1108,33 +1111,20 @@ gum_darwin_mapper_dependency (GumDarwinMapper * self,
 
 static GumDarwinMapping *
 gum_darwin_mapper_resolve_dependency (GumDarwinMapper * self,
-                                      const gchar * name,
-                                      GumDarwinMapper * referrer)
+                                      const gchar * name)
 {
   GumDarwinMapping * mapping;
 
   if (self->parent != NULL)
-    return gum_darwin_mapper_resolve_dependency (self->parent, name, referrer);
+    return gum_darwin_mapper_resolve_dependency (self->parent, name);
 
   mapping = g_hash_table_lookup (self->mappings, name);
   if (mapping == NULL)
   {
     GumDarwinMapper * mapper;
-    GSList * referrer_node;
 
     mapper = gum_darwin_mapper_new_with_parent (self, name, self->module->task,
         self->module->cpu_type);
-    referrer_node = g_slist_find (self->children, referrer);
-    if (referrer_node != NULL)
-    {
-      self->children =
-          g_slist_insert_before (self->children, referrer_node, mapper);
-    }
-    else
-    {
-      self->children =
-          g_slist_prepend (self->children, mapper);
-    }
 
     mapping = g_hash_table_lookup (self->mappings, name);
     g_assert (mapping != NULL);
@@ -1193,7 +1183,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
 
     target_name = gum_darwin_module_dependency (module,
         details.reexport_library_ordinal);
-    target = gum_darwin_mapper_resolve_dependency (self, target_name, self);
+    target = gum_darwin_mapper_resolve_dependency (self, target_name);
     return gum_darwin_mapper_resolve_symbol (self, target->module,
         details.reexport_symbol, value);
   }
