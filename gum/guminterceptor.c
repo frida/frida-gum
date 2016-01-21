@@ -807,6 +807,13 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   system_error = gum_thread_get_system_error ();
 #endif
 
+  if (gum_tls_key_get_value (_gum_interceptor_guard_key) == interceptor)
+  {
+    *next_hop = function_ctx->on_invoke_trampoline;
+    return;
+  }
+  gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
+
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
 
@@ -815,16 +822,10 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
       stack_entry->invocation_context.function ==
       function_ctx->function_address)
   {
+    gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
     *next_hop = function_ctx->on_invoke_trampoline;
     return;
   }
-
-  if (gum_tls_key_get_value (_gum_interceptor_guard_key) == interceptor)
-  {
-    *next_hop = function_ctx->on_invoke_trampoline;
-    return;
-  }
-  gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
 
 #ifndef G_OS_WIN32
   system_error = gum_thread_get_system_error ();
