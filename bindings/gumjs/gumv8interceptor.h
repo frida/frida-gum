@@ -40,4 +40,10 @@ G_GNUC_INTERNAL void _gum_v8_interceptor_on_enter (
 G_GNUC_INTERNAL void _gum_v8_interceptor_on_leave (
     GumV8Interceptor * self, GumInvocationContext * context);
 
+G_GNUC_INTERNAL v8::Local<v8::Object>
+    _gum_v8_interceptor_create_invocation_context_object (
+    GumV8Interceptor * self, GumInvocationContext * context, int32_t depth);
+G_GNUC_INTERNAL void _gum_v8_interceptor_detach_cpu_context (
+    GumV8Interceptor * self, v8::Handle<v8::Value> invocation_context);
+
 #endif

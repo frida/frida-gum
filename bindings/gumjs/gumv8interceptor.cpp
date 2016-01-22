@@ -43,11 +43,6 @@ struct _GumV8ReplaceEntry
   GumPersistent<Value>::type * replacement;
 };
 
-static Local<Object> gum_v8_interceptor_create_invocation_context_object (
-    GumV8Interceptor * self, GumInvocationContext * context, int32_t depth);
-static void gum_v8_interceptor_detach_cpu_context (
-    GumV8Interceptor * self, Handle<Object> invocation_context);
-
 static void gum_v8_interceptor_on_attach (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_interceptor_on_detach_all (
@@ -215,7 +210,7 @@ _gum_v8_interceptor_on_enter (GumV8Interceptor * self,
     Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
 
     Local<Object> receiver (
-        gum_v8_interceptor_create_invocation_context_object (self, context,
+        _gum_v8_interceptor_create_invocation_context_object (self, context,
         *depth));
 
     Local<Object> invocation_args_value (Local<Object>::New (isolate,
@@ -226,7 +221,7 @@ _gum_v8_interceptor_on_enter (GumV8Interceptor * self,
 
     on_enter->Call (receiver, 1, argv);
 
-    gum_v8_interceptor_detach_cpu_context (self, receiver);
+    _gum_v8_interceptor_detach_cpu_context (self, receiver);
 
     if (entry->on_leave != nullptr)
     {
@@ -267,7 +262,7 @@ _gum_v8_interceptor_on_leave (GumV8Interceptor * self,
         : nullptr;
     Local<Object> receiver ((persistent_receiver != nullptr)
         ? Local<Object>::New (isolate, *persistent_receiver)
-        : gum_v8_interceptor_create_invocation_context_object (self,
+        : _gum_v8_interceptor_create_invocation_context_object (self,
         context, *depth));
 
     Local<Object> invocation_return_value (Local<Object>::New (isolate,
@@ -280,14 +275,14 @@ _gum_v8_interceptor_on_leave (GumV8Interceptor * self,
     Handle<Value> argv[] = { return_value };
     on_leave->Call (receiver, 1, argv);
 
-    gum_v8_interceptor_detach_cpu_context (self, receiver);
+    _gum_v8_interceptor_detach_cpu_context (self, receiver);
 
     delete persistent_receiver;
   }
 }
 
-static Local<Object>
-gum_v8_interceptor_create_invocation_context_object (
+Local<Object>
+_gum_v8_interceptor_create_invocation_context_object (
     GumV8Interceptor * self,
     GumInvocationContext * context,
     int32_t depth)
@@ -301,17 +296,18 @@ gum_v8_interceptor_create_invocation_context_object (
   return result;
 }
 
-static void
-gum_v8_interceptor_detach_cpu_context (GumV8Interceptor * self,
-                                       Handle<Object> invocation_context)
+void
+_gum_v8_interceptor_detach_cpu_context (GumV8Interceptor * self,
+                                        Handle<Value> invocation_context)
 {
+  Handle<Object> ic (invocation_context.As<Object> ());
   GumPersistent<Object>::type * cpu_context =
       static_cast<GumPersistent<Object>::type *> (
-          invocation_context->GetAlignedPointerFromInternalField (GUM_IC_CPU));
+          ic->GetAlignedPointerFromInternalField (GUM_IC_CPU));
   if (cpu_context != NULL)
   {
     _gum_v8_cpu_context_free_later (cpu_context, self->core);
-    invocation_context->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
+    ic->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
   }
 }
 

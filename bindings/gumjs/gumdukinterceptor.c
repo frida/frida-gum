@@ -18,16 +18,6 @@
 typedef struct _GumDukAttachEntry GumDukAttachEntry;
 typedef struct _GumDukReplaceEntry GumDukReplaceEntry;
 
-struct _GumDukInvocationContext
-{
-  GumDukHeapPtr object;
-  GumInvocationContext * handle;
-  GumDukCpuContext * cpu_context;
-  gint depth;
-
-  GumDukInterceptor * interceptor;
-};
-
 struct _GumDukInvocationArgs
 {
   GumDukHeapPtr object;
@@ -69,12 +59,18 @@ static void gum_duk_interceptor_detach_all (GumDukInterceptor * self);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_replace)
 static void gum_duk_replace_entry_free (GumDukReplaceEntry * entry);
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
+static GumDukInvocationArgs * gum_duk_interceptor_obtain_invocation_args (
+    GumDukInterceptor * self);
+static void gum_duk_interceptor_release_invocation_args (
+    GumDukInterceptor * self, GumDukInvocationArgs * args);
+static GumDukInvocationReturnValue *
+gum_duk_interceptor_obtain_invocation_return_value (GumDukInterceptor * self);
+static void gum_duk_interceptor_release_invocation_return_value (
+    GumDukInterceptor * self, GumDukInvocationReturnValue * retval);
 
-static GumDukInvocationContext * gumjs_invocation_context_new (
+static GumDukInvocationContext * gum_duk_invocation_context_new (
     GumDukInterceptor * parent);
-static void gumjs_invocation_context_release (GumDukInvocationContext * self);
-static void gumjs_invocation_context_reset (GumDukInvocationContext * self,
-    GumInvocationContext * handle, gint depth);
+static void gum_duk_invocation_context_release (GumDukInvocationContext * self);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_context_finalize)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_return_address)
@@ -85,21 +81,21 @@ GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_thread_id)
 GUMJS_DECLARE_GETTER (gumjs_invocation_context_get_depth)
 GUMJS_DECLARE_SETTER (gumjs_invocation_context_set_property)
 
-static GumDukInvocationArgs * gumjs_invocation_args_new (
+static GumDukInvocationArgs * gum_duk_invocation_args_new (
     GumDukInterceptor * parent);
-static void gumjs_invocation_args_release (GumDukInvocationArgs * self);
-static void gumjs_invocation_args_reset (GumDukInvocationArgs * self,
+static void gum_duk_invocation_args_release (GumDukInvocationArgs * self);
+static void gum_duk_invocation_args_reset (GumDukInvocationArgs * self,
     GumInvocationContext * ic);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_args_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_args_finalize)
 GUMJS_DECLARE_GETTER (gumjs_invocation_args_get_property)
 GUMJS_DECLARE_SETTER (gumjs_invocation_args_set_property)
 
-static GumDukInvocationReturnValue * gumjs_invocation_return_value_new (
+static GumDukInvocationReturnValue * gum_duk_invocation_return_value_new (
     GumDukInterceptor * parent);
-static void gumjs_invocation_return_value_release (
+static void gum_duk_invocation_return_value_release (
     GumDukInvocationReturnValue * self);
-static void gumjs_invocation_return_value_reset (
+static void gum_duk_invocation_return_value_reset (
     GumDukInvocationReturnValue * self, GumInvocationContext * ic);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_return_value_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_invocation_return_value_finalize)
@@ -204,13 +200,13 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->invocation_retval = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
-  self->cached_invocation_context = gumjs_invocation_context_new (self);
+  self->cached_invocation_context = gum_duk_invocation_context_new (self);
   self->cached_invocation_context_in_use = FALSE;
 
-  self->cached_invocation_args = gumjs_invocation_args_new (self);
+  self->cached_invocation_args = gum_duk_invocation_args_new (self);
   self->cached_invocation_args_in_use = FALSE;
 
-  self->cached_invocation_return_value = gumjs_invocation_return_value_new (
+  self->cached_invocation_return_value = gum_duk_invocation_return_value_new (
       self);
   self->cached_invocation_return_value_in_use = FALSE;
 }
@@ -228,9 +224,10 @@ _gum_duk_interceptor_dispose (GumDukInterceptor * self)
 {
   duk_context * ctx = self->core->ctx;
 
-  gumjs_invocation_context_release (self->cached_invocation_context);
-  gumjs_invocation_args_release (self->cached_invocation_args);
-  gumjs_invocation_return_value_release (self->cached_invocation_return_value);
+  gum_duk_invocation_context_release (self->cached_invocation_context);
+  gum_duk_invocation_args_release (self->cached_invocation_args);
+  gum_duk_invocation_return_value_release (
+      self->cached_invocation_return_value);
 
   _gum_duk_release_heapptr (ctx, self->invocation_context);
   _gum_duk_release_heapptr (ctx, self->invocation_args);
@@ -457,27 +454,11 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
 
     _gum_duk_scope_enter (&scope, core);
 
-    if (!self->cached_invocation_context_in_use)
-    {
-      jic = self->cached_invocation_context;
-      self->cached_invocation_context_in_use = TRUE;
-    }
-    else
-    {
-      jic = gumjs_invocation_context_new (self);
-    }
-    gumjs_invocation_context_reset (jic, ic, *depth);
+    jic = _gum_duk_interceptor_obtain_invocation_context (self);
+    _gum_duk_invocation_context_reset (jic, ic, *depth);
 
-    if (!self->cached_invocation_args_in_use)
-    {
-      args = self->cached_invocation_args;
-      self->cached_invocation_args_in_use = TRUE;
-    }
-    else
-    {
-      args = gumjs_invocation_args_new (self);
-    }
-    gumjs_invocation_args_reset (args, ic);
+    args = gum_duk_interceptor_obtain_invocation_args (self);
+    gum_duk_invocation_args_reset (args, ic);
 
     duk_push_heapptr (ctx, entry->on_enter);
     duk_push_heapptr (ctx, jic->object);
@@ -485,23 +466,17 @@ _gum_duk_interceptor_on_enter (GumDukInterceptor * self,
     _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
-    gumjs_invocation_args_reset (args, NULL);
-    if (args == self->cached_invocation_args)
-      self->cached_invocation_args_in_use = FALSE;
-    else
-      gumjs_invocation_args_release (args);
+    gum_duk_invocation_args_reset (args, NULL);
+    gum_duk_interceptor_release_invocation_args (self, args);
 
-    gumjs_invocation_context_reset (jic, NULL, 0);
+    _gum_duk_invocation_context_reset (jic, NULL, 0);
     if (entry->on_leave != NULL)
     {
       *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukHeapPtr) = jic;
     }
     else
     {
-      if (jic == self->cached_invocation_context)
-        self->cached_invocation_context_in_use = FALSE;
-      else
-        gumjs_invocation_context_release (jic);
+      _gum_duk_interceptor_release_invocation_context (self, jic);
     }
 
     _gum_duk_scope_leave (&scope);
@@ -541,28 +516,12 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
         : NULL;
     if (jic == NULL)
     {
-      if (!self->cached_invocation_context_in_use)
-      {
-        jic = self->cached_invocation_context;
-        self->cached_invocation_context_in_use = TRUE;
-      }
-      else
-      {
-        jic = gumjs_invocation_context_new (self);
-      }
+      jic = _gum_duk_interceptor_obtain_invocation_context (self);
     }
-    gumjs_invocation_context_reset (jic, ic, *depth);
+    _gum_duk_invocation_context_reset (jic, ic, *depth);
 
-    if (!self->cached_invocation_return_value_in_use)
-    {
-      retval = self->cached_invocation_return_value;
-      self->cached_invocation_return_value_in_use = TRUE;
-    }
-    else
-    {
-      retval = gumjs_invocation_return_value_new (self);
-    }
-    gumjs_invocation_return_value_reset (retval, ic);
+    retval = gum_duk_interceptor_obtain_invocation_return_value (self);
+    gum_duk_invocation_return_value_reset (retval, ic);
 
     duk_push_heapptr (ctx, entry->on_leave);
     duk_push_heapptr (ctx, jic->object);
@@ -570,24 +529,103 @@ _gum_duk_interceptor_on_leave (GumDukInterceptor * self,
     _gum_duk_scope_call_method (&scope, 1);
     duk_pop (ctx);
 
-    gumjs_invocation_return_value_reset (retval, NULL);
-    if (retval == self->cached_invocation_return_value)
-      self->cached_invocation_return_value_in_use = FALSE;
-    else
-      gumjs_invocation_return_value_release (retval);
+    gum_duk_invocation_return_value_reset (retval, NULL);
+    gum_duk_interceptor_release_invocation_return_value (self, retval);
 
-    gumjs_invocation_context_reset (jic, NULL, 0);
-    if (jic == self->cached_invocation_context)
-      self->cached_invocation_context_in_use = FALSE;
-    else
-      gumjs_invocation_context_release (jic);
+    _gum_duk_invocation_context_reset (jic, NULL, 0);
+    _gum_duk_interceptor_release_invocation_context (self, jic);
 
     _gum_duk_scope_leave (&scope);
   }
 }
 
+GumDukInvocationContext *
+_gum_duk_interceptor_obtain_invocation_context (GumDukInterceptor * self)
+{
+  GumDukInvocationContext * jic;
+
+  if (!self->cached_invocation_context_in_use)
+  {
+    jic = self->cached_invocation_context;
+    self->cached_invocation_context_in_use = TRUE;
+  }
+  else
+  {
+    jic = gum_duk_invocation_context_new (self);
+  }
+
+  return jic;
+}
+
+void
+_gum_duk_interceptor_release_invocation_context (GumDukInterceptor * self,
+                                                 GumDukInvocationContext * jic)
+{
+  if (jic == self->cached_invocation_context)
+    self->cached_invocation_context_in_use = FALSE;
+  else
+    gum_duk_invocation_context_release (jic);
+}
+
+static GumDukInvocationArgs *
+gum_duk_interceptor_obtain_invocation_args (GumDukInterceptor * self)
+{
+  GumDukInvocationArgs * args;
+
+  if (!self->cached_invocation_args_in_use)
+  {
+    args = self->cached_invocation_args;
+    self->cached_invocation_args_in_use = TRUE;
+  }
+  else
+  {
+    args = gum_duk_invocation_args_new (self);
+  }
+
+  return args;
+}
+
+static void
+gum_duk_interceptor_release_invocation_args (GumDukInterceptor * self,
+                                             GumDukInvocationArgs * args)
+{
+  if (args == self->cached_invocation_args)
+    self->cached_invocation_args_in_use = FALSE;
+  else
+    gum_duk_invocation_args_release (args);
+}
+
+static GumDukInvocationReturnValue *
+gum_duk_interceptor_obtain_invocation_return_value (GumDukInterceptor * self)
+{
+  GumDukInvocationReturnValue * retval;
+
+  if (!self->cached_invocation_return_value_in_use)
+  {
+    retval = self->cached_invocation_return_value;
+    self->cached_invocation_return_value_in_use = TRUE;
+  }
+  else
+  {
+    retval = gum_duk_invocation_return_value_new (self);
+  }
+
+  return retval;
+}
+
+static void
+gum_duk_interceptor_release_invocation_return_value (
+    GumDukInterceptor * self,
+    GumDukInvocationReturnValue * retval)
+{
+  if (retval == self->cached_invocation_return_value)
+    self->cached_invocation_return_value_in_use = FALSE;
+  else
+    gum_duk_invocation_return_value_release (retval);
+}
+
 static GumDukInvocationContext *
-gumjs_invocation_context_new (GumDukInterceptor * parent)
+gum_duk_invocation_context_new (GumDukInterceptor * parent)
 {
   duk_context * ctx = parent->core->ctx;
   GumDukInvocationContext * jic;
@@ -614,15 +652,15 @@ gumjs_invocation_context_new (GumDukInterceptor * parent)
 }
 
 static void
-gumjs_invocation_context_release (GumDukInvocationContext * self)
+gum_duk_invocation_context_release (GumDukInvocationContext * self)
 {
   _gum_duk_release_heapptr (self->interceptor->core->ctx, self->object);
 }
 
-static void
-gumjs_invocation_context_reset (GumDukInvocationContext * self,
-                                GumInvocationContext * handle,
-                                gint depth)
+void
+_gum_duk_invocation_context_reset (GumDukInvocationContext * self,
+                                   GumInvocationContext * handle,
+                                   gint depth)
 {
   self->handle = handle;
   self->depth = depth;
@@ -768,7 +806,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
   if (receiver == interceptor->cached_invocation_context->object)
   {
     interceptor->cached_invocation_context =
-        gumjs_invocation_context_new (interceptor);
+        gum_duk_invocation_context_new (interceptor);
     interceptor->cached_invocation_context_in_use = FALSE;
   }
 
@@ -777,7 +815,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
 }
 
 static GumDukInvocationArgs *
-gumjs_invocation_args_new (GumDukInterceptor * parent)
+gum_duk_invocation_args_new (GumDukInterceptor * parent)
 {
   duk_context * ctx = parent->core->ctx;
   GumDukInvocationArgs * args;
@@ -797,14 +835,14 @@ gumjs_invocation_args_new (GumDukInterceptor * parent)
 }
 
 static void
-gumjs_invocation_args_release (GumDukInvocationArgs * self)
+gum_duk_invocation_args_release (GumDukInvocationArgs * self)
 {
   _gum_duk_release_heapptr (self->ctx, self->object);
 }
 
 static void
-gumjs_invocation_args_reset (GumDukInvocationArgs * self,
-                             GumInvocationContext * ic)
+gum_duk_invocation_args_reset (GumDukInvocationArgs * self,
+                               GumInvocationContext * ic)
 {
   self->ic = ic;
 }
@@ -890,7 +928,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
 }
 
 static GumDukInvocationReturnValue *
-gumjs_invocation_return_value_new (GumDukInterceptor * parent)
+gum_duk_invocation_return_value_new (GumDukInterceptor * parent)
 {
   duk_context * ctx = parent->core->ctx;
   GumDukInvocationReturnValue * retval;
@@ -914,14 +952,14 @@ gumjs_invocation_return_value_new (GumDukInterceptor * parent)
 }
 
 static void
-gumjs_invocation_return_value_release (GumDukInvocationReturnValue * self)
+gum_duk_invocation_return_value_release (GumDukInvocationReturnValue * self)
 {
   _gum_duk_release_heapptr (self->ctx, self->object);
 }
 
 static void
-gumjs_invocation_return_value_reset (GumDukInvocationReturnValue * self,
-                                     GumInvocationContext * ic)
+gum_duk_invocation_return_value_reset (GumDukInvocationReturnValue * self,
+                                       GumInvocationContext * ic)
 {
   GumDukNativePointer * ptr;
 

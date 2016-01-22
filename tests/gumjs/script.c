@@ -36,6 +36,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
+  SCRIPT_TESTENTRY (replaced_function_should_have_invocation_context)
   SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
   SCRIPT_TESTENTRY (interceptor_on_enter_performance)
   SCRIPT_TESTENTRY (interceptor_on_leave_performance)
@@ -1773,6 +1774,21 @@ SCRIPT_TESTCASE (function_can_be_reverted)
 
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (replaced_function_should_have_invocation_context)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ", new NativeCallback(function (arg) {"
+      "  send(this.returnAddress instanceof NativePointer);"
+      "  return 0;"
+      "}, 'int', ['int']));",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 

@@ -80,7 +80,6 @@ struct _GumFFICallback
 {
   GumV8Core * core;
   GumPersistent<Function>::type * func;
-  GumPersistent<Value>::type * receiver;
   ffi_closure * closure;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -1787,7 +1786,6 @@ gum_v8_core_on_new_native_callback (const FunctionCallbackInfo<Value> & info)
   }
   callback->func = new GumPersistent<Function>::type (isolate,
       func_value.As<Function> ());
-  callback->receiver = new GumPersistent<Value>::type (isolate, info.This ());
 
   rtype_value = info[1];
   if (!rtype_value->IsString ())
@@ -1913,8 +1911,27 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
   }
 
   Local<Function> func (Local<Function>::New (isolate, *self->func));
-  Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
+
+  Local<Value> receiver;
+  GumInvocationContext * ic = gum_interceptor_get_current_invocation ();
+  if (ic != NULL)
+  {
+    receiver = _gum_v8_interceptor_create_invocation_context_object (
+        &self->core->script->priv->interceptor, ic, 0);
+  }
+  else
+  {
+    receiver = Undefined (isolate);
+  }
+
   Local<Value> result = func->Call (receiver, cif->nargs, argv);
+
+  if (ic != NULL)
+  {
+    _gum_v8_interceptor_detach_cpu_context (
+        &self->core->script->priv->interceptor, receiver);
+  }
+
   if (cif->rtype != &ffi_type_void)
   {
     if (!scope.HasPendingException ())
@@ -1931,7 +1948,6 @@ gum_ffi_callback_free (GumFFICallback * callback)
   delete callback->weak_instance;
 
   delete callback->func;
-  delete callback->receiver;
 
   ffi_closure_free (callback->closure);
 

@@ -6,6 +6,7 @@
 
 #include "gumdukcore.h"
 
+#include "gumdukinterceptor.h"
 #include "gumdukmacros.h"
 
 #include <ffi.h>
@@ -441,6 +442,7 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
+                    GumDukInterceptor * interceptor,
                     GAsyncQueue * incoming_messages,
                     GumDukMessageEmitter message_emitter,
                     GumScriptScheduler * scheduler,
@@ -452,6 +454,7 @@ _gum_duk_core_init (GumDukCore * self,
   g_object_unref (self->backend);
 
   self->script = script;
+  self->interceptor = interceptor;
   self->incoming_messages = incoming_messages;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
@@ -1700,6 +1703,8 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   ffi_type * rtype = cif->rtype;
   GumFFIValue * retval = return_value;
   guint i;
+  GumInvocationContext * ic;
+  GumDukInvocationContext * jic = NULL;
   gboolean success;
 
   _gum_duk_scope_enter (&scope, core);
@@ -1716,10 +1721,28 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
 
   duk_push_heapptr (ctx, self->func);
 
+  ic = gum_interceptor_get_current_invocation ();
+  if (ic != NULL)
+  {
+    jic = _gum_duk_interceptor_obtain_invocation_context (core->interceptor);
+    _gum_duk_invocation_context_reset (jic, ic, 0);
+    duk_push_heapptr (ctx, jic->object);
+  }
+  else
+  {
+    duk_push_undefined (ctx);
+  }
+
   for (i = 0; i != cif->nargs; i++)
     gum_duk_push_ffi_value (ctx, args[i], cif->arg_types[i], core);
 
-  success = _gum_duk_scope_call (&scope, cif->nargs);
+  success = _gum_duk_scope_call_method (&scope, cif->nargs);
+
+  if (jic != NULL)
+  {
+    _gum_duk_invocation_context_reset (jic, NULL, 0);
+    _gum_duk_interceptor_release_invocation_context (core->interceptor, jic);
+  }
 
   if (success && cif->rtype != &ffi_type_void)
   {

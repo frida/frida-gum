@@ -19,6 +19,7 @@
 G_BEGIN_DECLS
 
 typedef struct _GumDukCore GumDukCore;
+typedef struct _GumDukInterceptor GumDukInterceptor;
 typedef struct _GumDukScope GumDukScope;
 typedef gpointer GumDukHeapPtr;
 typedef struct _GumDukWeakRef GumDukWeakRef;
@@ -41,6 +42,7 @@ struct _GumDukCore
 {
   GumDukScript * script;
   GumDukScriptBackend * backend;
+  GumDukInterceptor * interceptor;
   GAsyncQueue * incoming_messages;
   GumDukMessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
@@ -109,9 +111,9 @@ struct _GumDukNativeResource
 };
 
 G_GNUC_INTERNAL void _gum_duk_core_init (GumDukCore * self,
-    GumDukScript * script, GAsyncQueue * incoming_messages,
-    GumDukMessageEmitter message_emitter, GumScriptScheduler * scheduler,
-    duk_context * ctx);
+    GumDukScript * script, GumDukInterceptor * interceptor,
+    GAsyncQueue * incoming_messages, GumDukMessageEmitter message_emitter,
+    GumScriptScheduler * scheduler, duk_context * ctx);
 G_GNUC_INTERNAL void _gum_duk_core_flush (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_finalize (GumDukCore * self);

@@ -382,8 +382,8 @@ gum_duk_script_create_context (GumDukScript * self,
 
   priv->ctx = ctx;
 
-  _gum_duk_core_init (&priv->core, self, priv->incoming_messages,
-      gum_duk_script_emit_message,
+  _gum_duk_core_init (&priv->core, self, &priv->interceptor,
+      priv->incoming_messages, gum_duk_script_emit_message,
       gum_duk_script_backend_get_scheduler (priv->backend), priv->ctx);
   /*
   _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
