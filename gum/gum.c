@@ -27,7 +27,6 @@ static gpointer gum_capstone_calloc (gsize count, gsize size);
 static gpointer gum_capstone_realloc (gpointer mem, gsize size);
 static void gum_capstone_free (gpointer mem);
 
-static guint page_size;
 static GSList * gum_destructors = NULL;
 
 void
@@ -61,8 +60,6 @@ do_init (gpointer data)
     gum_capstone_free,
     gum_vsnprintf
   };
-
-  page_size = gum_query_page_size ();
 
   gum_memory_init ();
 
@@ -135,6 +132,10 @@ gum_capstone_deinit (void)
 static gpointer
 gum_capstone_malloc (gsize size)
 {
+  guint page_size;
+
+  page_size = gum_query_page_size ();
+
   do
   {
     GumPool * head, * pool;
