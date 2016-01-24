@@ -193,13 +193,16 @@ if __name__ == '__main__':
         "gumjs-java.js",
         "gumjs-objc.js",
     ]
+    polyfill_modules = [
+        "gumjs-regenerator.js",
+    ]
 
-    generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules)
+    generate_runtime_v8(output_dir, "gumv8script-runtime.h", input_dir, modules + polyfill_modules)
     generate_runtime_v8(output_dir, "gumv8script-debug.h", input_dir, [
         "gumjs-debug.js",
     ])
 
     duk_polyfill_modules = [
         "gumjs-babel-polyfill.js"
-    ]
+    ] + polyfill_modules
     generate_runtime_duk(output_dir, "gumdukscript-runtime.h", input_dir, modules, duk_polyfill_modules)
