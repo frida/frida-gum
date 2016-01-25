@@ -156,18 +156,6 @@ struct _DyldImageInfo64
   guint64 image_file_mod_date;
 };
 
-#if GLIB_SIZEOF_VOID_P == 4
-# define GUM_LC_SEGMENT LC_SEGMENT
-typedef struct mach_header gum_mach_header_t;
-typedef struct segment_command gum_segment_command_t;
-typedef struct nlist gum_nlist_t;
-#else
-# define GUM_LC_SEGMENT LC_SEGMENT_64
-typedef struct mach_header_64 gum_mach_header_t;
-typedef struct segment_command_64 gum_segment_command_t;
-typedef struct nlist_64 gum_nlist_t;
-#endif
-
 #ifndef PROC_SETPC_NONE
 extern int proc_regionfilename (int pid, uint64_t address, void * buffer,
     uint32_t buffersize);

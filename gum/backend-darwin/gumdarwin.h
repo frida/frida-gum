@@ -24,6 +24,20 @@
 # include <mach/mach_vm.h>
 #endif
 
+#if GLIB_SIZEOF_VOID_P == 4
+# define GUM_LC_SEGMENT LC_SEGMENT
+typedef struct mach_header gum_mach_header_t;
+typedef struct segment_command gum_segment_command_t;
+typedef struct section gum_section_t;
+typedef struct nlist gum_nlist_t;
+#else
+# define GUM_LC_SEGMENT LC_SEGMENT_64
+typedef struct mach_header_64 gum_mach_header_t;
+typedef struct segment_command_64 gum_segment_command_t;
+typedef struct section_64 gum_section_t;
+typedef struct nlist_64 gum_nlist_t;
+#endif
+
 #if !defined (__arm__) && !defined (__aarch64__)
 typedef x86_thread_state_t GumDarwinUnifiedThreadState;
 # if GLIB_SIZEOF_VOID_P == 4
