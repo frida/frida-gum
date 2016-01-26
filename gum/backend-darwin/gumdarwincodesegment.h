@@ -14,9 +14,7 @@ G_BEGIN_DECLS
 typedef struct _GumDarwinCodeSegment GumDarwinCodeSegment;
 
 GumDarwinCodeSegment * gum_darwin_code_segment_new (gsize size);
-GumDarwinCodeSegment * gum_darwin_code_segment_ref (
-    GumDarwinCodeSegment * segment);
-void gum_darwin_code_segment_unref (GumDarwinCodeSegment * segment);
+void gum_darwin_code_segment_free (GumDarwinCodeSegment * segment);
 
 gpointer gum_darwin_code_segment_get_address (GumDarwinCodeSegment * self);
 

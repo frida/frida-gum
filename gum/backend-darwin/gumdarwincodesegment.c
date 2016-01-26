@@ -31,8 +31,6 @@ typedef struct _GumCsRequirements GumCsRequirements;
 
 struct _GumDarwinCodeSegment
 {
-  gint ref_count;
-
   gpointer data;
   gsize size;
 
@@ -109,7 +107,6 @@ gum_darwin_code_segment_new (gsize size)
   guint page_size, size_in_pages;
 
   segment = g_slice_new (GumDarwinCodeSegment);
-  segment->ref_count = 1;
 
   segment->data = mmap (NULL, size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -124,26 +121,15 @@ gum_darwin_code_segment_new (gsize size)
   return segment;
 }
 
-GumDarwinCodeSegment *
-gum_darwin_code_segment_ref (GumDarwinCodeSegment * segment)
-{
-  g_atomic_int_inc (&segment->ref_count);
-
-  return segment;
-}
-
 void
-gum_darwin_code_segment_unref (GumDarwinCodeSegment * segment)
+gum_darwin_code_segment_free (GumDarwinCodeSegment * segment)
 {
-  if (g_atomic_int_dec_and_test (&segment->ref_count))
+  if (segment->data != NULL)
   {
-    if (segment->data != NULL)
-    {
-      munmap (segment->data, segment->size);
-    }
-
-    g_slice_free (GumDarwinCodeSegment, segment);
+    munmap (segment->data, segment->size);
   }
+
+  g_slice_free (GumDarwinCodeSegment, segment);
 }
 
 gpointer
