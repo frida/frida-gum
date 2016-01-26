@@ -381,13 +381,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
   return target;
 }
 
-gboolean
-_gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
-                                        gpointer function_address)
-{
-  return TRUE;
-}
-
 gpointer
 _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
                                               guint n)

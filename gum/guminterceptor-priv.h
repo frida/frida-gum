@@ -29,6 +29,7 @@ struct _GumFunctionContext
   GumInterceptor * interceptor;
 
   gpointer function_address;
+  gboolean active;
 
   GumCodeAllocator * allocator;
   GumCodeSlice * trampoline_slice;
@@ -76,9 +77,9 @@ gboolean _gum_interceptor_backend_create_trampoline (
 void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
 void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-    GumFunctionContext * ctx);
+    GumFunctionContext * ctx, gpointer prologue);
 void _gum_interceptor_backend_deactivate_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx);
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer prologue);
 void _gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
 

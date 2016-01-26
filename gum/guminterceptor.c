@@ -31,11 +31,25 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 # define GUM_THREAD_SIDE_STACK_SIZE (2 * 1024 * 1024)
 #endif
 
-typedef struct _ListenerEntry            ListenerEntry;
+typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
+typedef struct _GumPrologueWrite GumPrologueWrite;
+typedef struct _ListenerEntry ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
-typedef struct _GumInvocationStackEntry  GumInvocationStackEntry;
-typedef struct _ListenerDataSlot         ListenerDataSlot;
-typedef struct _ListenerInvocationState  ListenerInvocationState;
+typedef struct _GumInvocationStackEntry GumInvocationStackEntry;
+typedef struct _ListenerDataSlot ListenerDataSlot;
+typedef struct _ListenerInvocationState ListenerInvocationState;
+
+typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
+      GumFunctionContext * ctx, gpointer prologue);
+
+struct _GumInterceptorTransaction
+{
+  gint level;
+  GQueue * pending_destroy_calls;
+  GHashTable * pending_prologue_writes;
+
+  GumInterceptor * interceptor;
+};
 
 struct _GumInterceptorPrivate
 {
@@ -47,6 +61,14 @@ struct _GumInterceptorPrivate
   GumCodeAllocator allocator;
 
   volatile guint selected_thread_id;
+
+  GumInterceptorTransaction current_transaction;
+};
+
+struct _GumPrologueWrite
+{
+  GumFunctionContext * ctx;
+  GumPrologueWriteFunc func;
 };
 
 struct _ListenerEntry
@@ -107,6 +129,24 @@ static void the_interceptor_weak_notify (gpointer data,
 
 static GumFunctionContext * gum_interceptor_instrument (GumInterceptor * self,
     gpointer function_address);
+static void gum_interceptor_activate (GumInterceptor * self,
+    GumFunctionContext * ctx, gpointer prologue);
+static void gum_interceptor_deactivate (GumInterceptor * self,
+    GumFunctionContext * ctx, gpointer prologue);
+
+static void gum_interceptor_transaction_init (
+    GumInterceptorTransaction * transaction, GumInterceptor * interceptor);
+static void gum_interceptor_transaction_destroy (
+    GumInterceptorTransaction * transaction);
+static void gum_interceptor_transaction_begin (
+    GumInterceptorTransaction * self);
+static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
+static void gum_interceptor_transaction_schedule_destroy (
+    GumInterceptorTransaction * self, GumFunctionContext * ctx);
+static void gum_interceptor_transaction_schedule_prologue_write (
+    GumInterceptorTransaction * self, GumFunctionContext * ctx,
+    GumPrologueWriteFunc func);
+
 static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address,
     GumCodeAllocator * allocator);
@@ -146,9 +186,8 @@ static gboolean gum_interceptor_has (GumInterceptor * self,
 static void gum_function_context_wait_for_idle_trampoline (
     GumFunctionContext * ctx);
 
-static void make_function_prologue_at_least_read_write (
-    gpointer prologue_address);
-static void make_function_prologue_read_execute (gpointer prologue_address);
+static gpointer gum_page_address_from_pointer (gpointer ptr);
+static gint gum_page_address_compare (gconstpointer a, gconstpointer b);
 
 #ifdef HAVE_QNX
 static void gum_exec_callback_func_with_side_stack (
@@ -220,11 +259,12 @@ gum_interceptor_init (GumInterceptor * self)
 
   g_mutex_init (&priv->mutex);
 
-  priv->function_by_address = gum_hash_table_new_full (g_direct_hash,
-      g_direct_equal, NULL, NULL);
+  priv->function_by_address = gum_hash_table_new_full (NULL, NULL, NULL, NULL);
 
   gum_code_allocator_init (&priv->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
   priv->backend = _gum_interceptor_backend_create (&priv->allocator);
+
+  gum_interceptor_transaction_init (&priv->current_transaction, self);
 }
 
 static void
@@ -235,12 +275,19 @@ gum_interceptor_dispose (GObject * object)
   GumHashTableIter iter;
   GumFunctionContext * function_ctx;
 
+  GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
+
   gum_hash_table_iter_init (&iter, priv->function_by_address);
   while (gum_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
   {
     gum_function_context_destroy (function_ctx);
+
     gum_hash_table_iter_remove (&iter);
   }
+
+  gum_interceptor_transaction_end (&priv->current_transaction);
+  GUM_INTERCEPTOR_UNLOCK ();
 
   G_OBJECT_CLASS (gum_interceptor_parent_class)->dispose (object);
 }
@@ -250,6 +297,8 @@ gum_interceptor_finalize (GObject * object)
 {
   GumInterceptor * self = GUM_INTERCEPTOR (object);
   GumInterceptorPrivate * priv = self->priv;
+
+  gum_interceptor_transaction_destroy (&priv->current_transaction);
 
   _gum_interceptor_backend_destroy (priv->backend);
 
@@ -314,6 +363,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -341,6 +391,7 @@ already_attached:
   }
 beach:
   {
+    gum_interceptor_transaction_end (&priv->current_transaction);
     GUM_INTERCEPTOR_UNLOCK ();
     gum_interceptor_unignore_current_thread (self);
 
@@ -359,6 +410,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
 
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
 
   gum_hash_table_iter_init (&iter, priv->function_by_address);
   while (gum_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
@@ -388,6 +440,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
         listener);
   }
 
+  gum_interceptor_transaction_end (&priv->current_transaction);
   GUM_INTERCEPTOR_UNLOCK ();
   gum_interceptor_unignore_current_thread (self);
 }
@@ -403,6 +456,7 @@ gum_interceptor_replace_function (GumInterceptor * self,
   GumFunctionContext * function_ctx;
 
   GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -430,6 +484,7 @@ already_replaced:
   }
 beach:
   {
+    gum_interceptor_transaction_end (&priv->current_transaction);
     GUM_INTERCEPTOR_UNLOCK ();
 
     return result;
@@ -444,6 +499,7 @@ gum_interceptor_revert_function (GumInterceptor * self,
   GumFunctionContext * function_ctx;
 
   GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -461,6 +517,27 @@ gum_interceptor_revert_function (GumInterceptor * self,
   }
 
 beach:
+  gum_interceptor_transaction_end (&priv->current_transaction);
+  GUM_INTERCEPTOR_UNLOCK ();
+}
+
+void
+gum_interceptor_begin_transaction (GumInterceptor * self)
+{
+  GumInterceptorPrivate * priv = self->priv;
+
+  GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_begin (&priv->current_transaction);
+  GUM_INTERCEPTOR_UNLOCK ();
+}
+
+void
+gum_interceptor_end_transaction (GumInterceptor * self)
+{
+  GumInterceptorPrivate * priv = self->priv;
+
+  GUM_INTERCEPTOR_LOCK ();
+  gum_interceptor_transaction_end (&priv->current_transaction);
   GUM_INTERCEPTOR_UNLOCK ();
 }
 
@@ -560,10 +637,6 @@ gum_interceptor_instrument (GumInterceptor * self,
   if (ctx != NULL)
     return ctx;
 
-  if (!_gum_interceptor_backend_can_intercept (priv->backend,
-      function_address))
-    return NULL;
-
   ctx = gum_function_context_new (self, function_address, &priv->allocator);
   if (ctx == NULL)
     return NULL;
@@ -574,20 +647,177 @@ gum_interceptor_instrument (GumInterceptor * self,
     return NULL;
   }
 
-  if (!gum_query_is_rwx_supported ())
-  {
-    gum_mprotect (ctx->trampoline_slice->data, ctx->trampoline_slice->size,
-        GUM_PAGE_RX);
-  }
-
-  make_function_prologue_at_least_read_write (function_address);
-  _gum_interceptor_backend_activate_trampoline (priv->backend, ctx);
-  make_function_prologue_read_execute (function_address);
-  _gum_interceptor_backend_commit_trampoline (priv->backend, ctx);
+  gum_interceptor_transaction_schedule_prologue_write (
+      &priv->current_transaction, ctx, gum_interceptor_activate);
 
   gum_hash_table_insert (priv->function_by_address, function_address, ctx);
 
   return ctx;
+}
+
+static void
+gum_interceptor_activate (GumInterceptor * self,
+                          GumFunctionContext * ctx,
+                          gpointer prologue)
+{
+  _gum_interceptor_backend_activate_trampoline (self->priv->backend, ctx,
+      prologue);
+  ctx->active = TRUE;
+}
+
+static void
+gum_interceptor_deactivate (GumInterceptor * self,
+                            GumFunctionContext * ctx,
+                            gpointer prologue)
+{
+  GumInterceptorBackend * backend = self->priv->backend;
+
+  _gum_interceptor_backend_deactivate_trampoline (backend, ctx, prologue);
+  ctx->active = FALSE;
+}
+
+static void
+gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
+                                  GumInterceptor * interceptor)
+{
+  transaction->level = 0;
+  transaction->pending_destroy_calls = g_queue_new ();
+  transaction->pending_prologue_writes = g_hash_table_new_full (
+      NULL, NULL, NULL, (GDestroyNotify) g_array_unref);
+
+  transaction->interceptor = interceptor;
+}
+
+static void
+gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
+{
+  g_hash_table_unref (transaction->pending_prologue_writes);
+  g_queue_free (transaction->pending_destroy_calls);
+}
+
+static void
+gum_interceptor_transaction_begin (GumInterceptorTransaction * self)
+{
+  self->level++;
+}
+
+static void
+gum_interceptor_transaction_end (GumInterceptorTransaction * self)
+{
+  GumInterceptor * interceptor = self->interceptor;
+  GumInterceptorPrivate * priv = self->interceptor->priv;
+  GumInterceptorBackend * backend = priv->backend;
+  GumInterceptorTransaction transaction_copy;
+  GList * addresses, * cur;
+  GumFunctionContext * ctx;
+
+  self->level--;
+  if (self->level > 0)
+    return;
+
+  gum_code_allocator_commit (&priv->allocator);
+
+  if (g_queue_is_empty (self->pending_destroy_calls) &&
+      g_hash_table_size (self->pending_prologue_writes) == 0)
+    return;
+
+  transaction_copy = priv->current_transaction;
+  self = &transaction_copy;
+  gum_interceptor_transaction_init (&priv->current_transaction, interceptor);
+
+  addresses = g_hash_table_get_keys (self->pending_prologue_writes);
+  addresses = g_list_sort (addresses, gum_page_address_compare);
+
+  if (gum_query_is_rwx_supported ())
+  {
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer address = cur->data;
+
+      gum_mprotect (address, gum_query_page_size (), GUM_PAGE_RWX);
+    }
+
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer address = cur->data;
+      GArray * pending;
+      guint i;
+
+      pending = g_hash_table_lookup (self->pending_prologue_writes, address);
+      g_assert (pending != NULL);
+
+      for (i = 0; i != pending->len; i++)
+      {
+        GumPrologueWrite * write;
+
+        write = &g_array_index (pending, GumPrologueWrite, i);
+
+        write->func (interceptor, write->ctx, write->ctx->function_address);
+      }
+    }
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
+
+  g_list_free (addresses);
+
+  while ((ctx = g_queue_pop_head (self->pending_destroy_calls)) != NULL)
+  {
+    GUM_INTERCEPTOR_UNLOCK ();
+    gum_function_context_wait_for_idle_trampoline (ctx);
+    GUM_INTERCEPTOR_LOCK ();
+
+    _gum_interceptor_backend_destroy_trampoline (backend, ctx);
+
+    gum_function_context_destroy (ctx);
+  }
+
+  gum_interceptor_transaction_destroy (self);
+}
+
+static void
+gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,
+                                              GumFunctionContext * ctx)
+{
+  g_queue_push_tail (self->pending_destroy_calls, ctx);
+}
+
+static void
+gum_interceptor_transaction_schedule_prologue_write (
+    GumInterceptorTransaction * self,
+    GumFunctionContext * ctx,
+    GumPrologueWriteFunc func)
+{
+  gpointer start_page, end_page;
+  GArray * pending;
+  GumPrologueWrite write;
+
+  start_page = gum_page_address_from_pointer (ctx->function_address);
+  end_page = gum_page_address_from_pointer (ctx->function_address +
+      ctx->overwritten_prologue_len - 1);
+
+  pending = g_hash_table_lookup (self->pending_prologue_writes, start_page);
+  if (pending == NULL)
+  {
+    pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
+    g_hash_table_insert (self->pending_prologue_writes, start_page, pending);
+  }
+
+  write.ctx = ctx;
+  write.func = func;
+  g_array_append_val (pending, write);
+
+  if (end_page != start_page)
+  {
+    pending = g_hash_table_lookup (self->pending_prologue_writes, end_page);
+    if (pending == NULL)
+    {
+      pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
+      g_hash_table_insert (self->pending_prologue_writes, end_page, pending);
+    }
+  }
 }
 
 static GumFunctionContext *
@@ -600,6 +830,7 @@ gum_function_context_new (GumInterceptor * interceptor,
   ctx = gum_new0 (GumFunctionContext, 1);
   ctx->interceptor = interceptor;
   ctx->function_address = function_address;
+  ctx->active = FALSE;
 
   ctx->listener_entries =
       gum_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
@@ -614,18 +845,19 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
 {
   guint i;
 
-  if (function_ctx->trampoline_slice != NULL)
+  if (function_ctx->active)
   {
-    GumInterceptorBackend * backend = function_ctx->interceptor->priv->backend;
+    GumInterceptorTransaction * transaction =
+        &function_ctx->interceptor->priv->current_transaction;
 
-    make_function_prologue_at_least_read_write (function_ctx->function_address);
-    _gum_interceptor_backend_deactivate_trampoline (backend, function_ctx);
-    make_function_prologue_read_execute (function_ctx->function_address);
-    _gum_interceptor_backend_commit_trampoline (backend, function_ctx);
+    gum_interceptor_transaction_schedule_prologue_write (transaction,
+        function_ctx, gum_interceptor_deactivate);
+    gum_interceptor_transaction_schedule_destroy (transaction, function_ctx);
 
-    gum_function_context_wait_for_idle_trampoline (function_ctx);
-    _gum_interceptor_backend_destroy_trampoline (backend, function_ctx);
+    return;
   }
+
+  g_assert (function_ctx->trampoline_slice == NULL);
 
   for (i = 0; i != function_ctx->listener_entries->len; i++)
   {
@@ -1342,18 +1574,16 @@ gum_function_context_wait_for_idle_trampoline (GumFunctionContext * ctx)
   g_thread_yield ();
 }
 
-static void
-make_function_prologue_at_least_read_write (gpointer prologue_address)
+static gpointer
+gum_page_address_from_pointer (gpointer ptr)
 {
-  GumPageProtection prot;
-
-  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
-
-  gum_mprotect (prologue_address, 16, prot);
+  return GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (ptr) & ~((gsize) gum_query_page_size () - 1));
 }
 
-static void
-make_function_prologue_read_execute (gpointer prologue_address)
+static gint
+gum_page_address_compare (gconstpointer a,
+                          gconstpointer b)
 {
-  gum_mprotect (prologue_address, 16, GUM_PAGE_READ | GUM_PAGE_EXECUTE);
+  return GPOINTER_TO_SIZE (a) - GPOINTER_TO_SIZE (b);
 }

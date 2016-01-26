@@ -263,13 +263,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
   return gum_arm64_reader_try_get_relative_jump_target (address);
 }
 
-gboolean
-_gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
-                                        gpointer function_address)
-{
-  return TRUE;
-}
-
 gpointer
 _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
                                               guint n)

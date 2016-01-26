@@ -51,4 +51,6 @@ GumCodeDeflector * gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
 void gum_code_allocator_free_deflector (GumCodeAllocator * self,
     GumCodeDeflector * deflector);
 
+void gum_code_allocator_commit (GumCodeAllocator * allocator);
+
 #endif

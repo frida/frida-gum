@@ -108,6 +108,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   GumAddress function_ctx_ptr;
   guint reloc_bytes;
 
+  if (!gum_x86_relocator_can_relocate (ctx->function_address,
+      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE))
+    return FALSE;
+
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
     return FALSE;
 
@@ -168,12 +172,14 @@ _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
 
 void
 _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-                                              GumFunctionContext * ctx)
+                                              GumFunctionContext * ctx,
+                                              gpointer prologue)
 {
   GumX86Writer * cw = &self->writer;
   guint padding;
 
-  gum_x86_writer_reset (cw, ctx->function_address);
+  gum_x86_writer_reset (cw, prologue);
+  /* FIXME: code == xip assumption */
   gum_x86_writer_put_jmp (cw, ctx->on_enter_trampoline);
   gum_x86_writer_flush (cw);
   g_assert_cmpint (gum_x86_writer_offset (cw),
@@ -187,7 +193,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
 void
 _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
-                                                GumFunctionContext * ctx)
+                                                GumFunctionContext * ctx,
+                                                gpointer prologue)
 {
   (void) self;
 
@@ -216,16 +223,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
     target = gum_x86_reader_try_get_indirect_jump_target (address);
 
   return target;
-}
-
-gboolean
-_gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,
-                                        gpointer function_address)
-{
-  (void) self;
-
-  return gum_x86_relocator_can_relocate (function_address,
-      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE);
 }
 
 gpointer

@@ -376,6 +376,11 @@ gum_code_allocator_free_deflector (GumCodeAllocator * self,
   g_assert_not_reached ();
 }
 
+void
+gum_code_allocator_commit (GumCodeAllocator * allocator)
+{
+}
+
 static GumCodeDeflectorDispatcher *
 gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
 {
