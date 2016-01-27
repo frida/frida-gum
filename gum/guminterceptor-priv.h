@@ -63,11 +63,6 @@ void _gum_function_context_end_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
     gpointer * next_hop);
 
-#ifdef HAVE_QNX
-gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
-gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
-#endif
-
 GumInterceptorBackend * _gum_interceptor_backend_create (
     GumCodeAllocator * allocator);
 void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
