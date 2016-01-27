@@ -89,7 +89,7 @@ gum_sanity_checker_new_with_heap_apis (const GumHeapApiList * heap_apis,
   GumSanityChecker * checker;
   GumSanityCheckerPrivate * priv;
 
-  checker = (GumSanityChecker *) gum_malloc0 (sizeof (GumSanityChecker) +
+  checker = (GumSanityChecker *) g_malloc0 (sizeof (GumSanityChecker) +
       sizeof (GumSanityCheckerPrivate));
   checker->priv = (GumSanityCheckerPrivate *) (checker + 1);
 
@@ -131,7 +131,7 @@ gum_sanity_checker_destroy (GumSanityChecker * checker)
 
   gum_heap_api_list_free (checker->priv->heap_apis);
 
-  gum_free (checker);
+  g_free (checker);
 }
 
 void

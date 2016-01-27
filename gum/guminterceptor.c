@@ -861,7 +861,7 @@ gum_function_context_new (GumInterceptor * interceptor,
 {
   GumFunctionContext * ctx;
 
-  ctx = gum_new0 (GumFunctionContext, 1);
+  ctx = g_new0 (GumFunctionContext, 1);
   ctx->interceptor = interceptor;
   ctx->function_address = function_address;
   ctx->active = FALSE;
@@ -897,11 +897,11 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
   {
     ListenerEntry * cur =
         g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
-    gum_free (cur);
+    g_free (cur);
   }
   g_array_free (function_ctx->listener_entries, TRUE);
 
-  gum_free (function_ctx);
+  g_free (function_ctx);
 }
 
 static gboolean
@@ -922,7 +922,7 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
 {
   ListenerEntry * entry;
 
-  entry = gum_new (ListenerEntry, 1);
+  entry = g_new (ListenerEntry, 1);
   entry->listener_interface = GUM_INVOCATION_LISTENER_GET_INTERFACE (listener);
   entry->listener_instance = listener;
   entry->function_data = function_data;
@@ -951,7 +951,7 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
     }
   }
 
-  gum_free (entry);
+  g_free (entry);
 }
 
 static gboolean
@@ -1320,7 +1320,7 @@ interceptor_thread_context_new (void)
 {
   InterceptorThreadContext * context;
 
-  context = gum_new0 (InterceptorThreadContext, 1);
+  context = g_new0 (InterceptorThreadContext, 1);
 
   gum_memcpy (&context->listener_backend,
       &gum_interceptor_listener_invocation_backend,
@@ -1347,7 +1347,7 @@ interceptor_thread_context_destroy (InterceptorThreadContext * context)
 
   g_array_free (context->stack, TRUE);
 
-  gum_free (context);
+  g_free (context);
 }
 
 static gpointer

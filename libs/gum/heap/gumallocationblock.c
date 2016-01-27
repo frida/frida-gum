@@ -17,7 +17,7 @@ gum_allocation_block_new (gpointer address,
 {
   GumAllocationBlock * block;
 
-  block = gum_malloc (sizeof (GumAllocationBlock));
+  block = g_slice_new (GumAllocationBlock);
   block->address = address;
   block->size = size;
   block->return_addresses.len = 0;
@@ -28,18 +28,13 @@ gum_allocation_block_new (gpointer address,
 GumAllocationBlock *
 gum_allocation_block_copy (const GumAllocationBlock * block)
 {
-  GumAllocationBlock * copy;
-
-  copy = gum_malloc (sizeof (GumAllocationBlock));
-  memcpy (copy, block, sizeof (GumAllocationBlock));
-
-  return copy;
+  return g_slice_dup (GumAllocationBlock, block);
 }
 
 void
 gum_allocation_block_free (GumAllocationBlock * block)
 {
-  gum_free (block);
+  g_slice_free (GumAllocationBlock, block);
 }
 
 void

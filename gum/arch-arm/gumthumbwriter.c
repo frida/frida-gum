@@ -61,9 +61,9 @@ void
 gum_thumb_writer_init (GumThumbWriter * writer,
                        gpointer code_address)
 {
-  writer->id_to_address = gum_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = gum_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
-  writer->literal_refs = gum_new (GumThumbLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->id_to_address = g_new (GumThumbLabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = g_new (GumThumbLabelRef, GUM_MAX_LREF_COUNT);
+  writer->literal_refs = g_new (GumThumbLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_thumb_writer_reset (writer, code_address);
 }
@@ -88,9 +88,9 @@ gum_thumb_writer_free (GumThumbWriter * writer)
 {
   gum_thumb_writer_flush (writer);
 
-  gum_free (writer->id_to_address);
-  gum_free (writer->label_refs);
-  gum_free (writer->literal_refs);
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
+  g_free (writer->literal_refs);
 }
 
 void

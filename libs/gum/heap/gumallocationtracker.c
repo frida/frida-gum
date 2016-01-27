@@ -106,8 +106,7 @@ gum_allocation_tracker_constructed (GObject * object)
 
   if (priv->backtracer_instance != NULL)
   {
-    priv->known_blocks_ht = g_hash_table_new_full (NULL, NULL, NULL,
-        gum_free);
+    priv->known_blocks_ht = g_hash_table_new_full (NULL, NULL, NULL, g_free);
   }
   else
   {
@@ -384,7 +383,7 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
     }
 
     block = (GumAllocationTrackerBlock *)
-        gum_malloc (sizeof (GumAllocationTrackerBlock) +
+        g_malloc (sizeof (GumAllocationTrackerBlock) +
             (return_addresses.len * sizeof (GumReturnAddress)));
     block->size = size;
     block->return_addresses[return_addresses.len] = NULL;

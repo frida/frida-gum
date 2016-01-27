@@ -16,7 +16,7 @@ gum_cobject_new (gpointer address,
 {
   GumCObject * cobject;
 
-  cobject = gum_malloc (sizeof (GumCObject));
+  cobject = g_slice_new (GumCObject);
   cobject->address = address;
   g_strlcpy (cobject->type_name, type_name, sizeof (cobject->type_name));
   cobject->return_addresses.len = 0;
@@ -28,18 +28,13 @@ gum_cobject_new (gpointer address,
 GumCObject *
 gum_cobject_copy (const GumCObject * cobject)
 {
-  GumCObject * copy;
-
-  copy = gum_malloc (sizeof (GumCObject));
-  memcpy (copy, cobject, sizeof (GumCObject));
-
-  return copy;
+  return g_slice_dup (GumCObject, cobject);
 }
 
 void
 gum_cobject_free (GumCObject * cobject)
 {
-  gum_free (cobject);
+  g_slice_free (GumCObject, cobject);
 }
 
 void

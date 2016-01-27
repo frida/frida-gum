@@ -97,6 +97,8 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
 {
   allocator->slice_size = slice_size;
   allocator->slices_per_page = gum_query_page_size () / slice_size;
+  allocator->pages_metadata_size = sizeof (GumCodePages) +
+      ((allocator->slices_per_page - 1) * sizeof (GumCodeSliceElement));
 
   allocator->uncommitted_pages = NULL;
   allocator->free_slices = NULL;
@@ -217,8 +219,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     data = gum_alloc_n_pages (1, prot);
   }
 
-  pages = gum_malloc (sizeof (GumCodePages) +
-      ((self->slices_per_page - 1) * sizeof (GumCodeSliceElement)));
+  pages = g_slice_alloc (self->pages_metadata_size);
   pages->ref_count = self->slices_per_page;
 
   pages->allocator = self;
@@ -265,7 +266,7 @@ gum_code_pages_unref (GumCodePages * self)
   {
     gum_free_pages (self->data);
 
-    gum_free (self);
+    g_slice_free1 (self->allocator->pages_metadata_size, self);
   }
 }
 
@@ -333,7 +334,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     self->dispatchers = g_slist_prepend (self->dispatchers, dispatcher);
   }
 
-  deflector = gum_new (GumCodeDeflector, 1);
+  deflector = g_slice_new (GumCodeDeflector);
   deflector->return_address = return_address;
   deflector->target = target;
   deflector->trampoline = dispatcher->trampoline;
@@ -398,7 +399,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
   size_in_pages = 1;
   size_in_bytes = size_in_pages * page_size;
 
-  dispatcher = gum_new (GumCodeDeflectorDispatcher, 1);
+  dispatcher = g_slice_new (GumCodeDeflectorDispatcher);
 
   dispatcher->callers = NULL;
 
@@ -461,7 +462,7 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
   g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
   g_slist_free (dispatcher->callers);
 
-  gum_free (dispatcher);
+  g_slice_free (GumCodeDeflectorDispatcher, dispatcher);
 }
 
 static gpointer
@@ -531,5 +532,5 @@ gum_probe_range_for_code_cave (const GumRangeDetails * details,
 static void
 gum_code_deflector_free (GumCodeDeflector * deflector)
 {
-  gum_free (deflector);
+  g_slice_free (GumCodeDeflector, deflector);
 }

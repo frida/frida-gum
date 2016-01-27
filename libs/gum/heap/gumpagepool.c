@@ -141,7 +141,7 @@ gum_page_pool_constructed (GObject * object)
   priv->available = priv->size;
   priv->pool = gum_alloc_n_pages (priv->size, GUM_PAGE_NO_ACCESS);
   priv->pool_end = priv->pool + (priv->size * priv->page_size);
-  priv->block_details = gum_malloc0 (priv->size * sizeof (GumBlockDetails));
+  priv->block_details = g_malloc0 (priv->size * sizeof (GumBlockDetails));
 }
 
 static void
@@ -150,7 +150,7 @@ gum_page_pool_finalize (GObject * object)
   GumPagePool * self = GUM_PAGE_POOL (object);
   GumPagePoolPrivate * priv = GUM_PAGE_POOL_GET_PRIVATE (self);
 
-  gum_free (priv->block_details);
+  g_free (priv->block_details);
   gum_free_pages (priv->pool);
 
   G_OBJECT_CLASS (gum_page_pool_parent_class)->finalize (object);

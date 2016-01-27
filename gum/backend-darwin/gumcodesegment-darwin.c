@@ -113,7 +113,7 @@ gum_code_segment_new (gsize size)
   GumCodeSegment * segment;
   guint page_size, size_in_pages;
 
-  segment = gum_new (GumCodeSegment, 1);
+  segment = g_slice_new (GumCodeSegment);
 
   segment->data = mmap (NULL, size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -138,7 +138,7 @@ gum_code_segment_free (GumCodeSegment * segment)
 
   munmap (segment->data, segment->size);
 
-  gum_free (segment);
+  g_slice_free (GumCodeSegment, segment);
 }
 
 gpointer
@@ -163,10 +163,10 @@ gum_code_segment_realize (GumCodeSegment * self)
 
   gum_code_segment_compute_layout (self, &layout);
 
-  dylib_header = gum_malloc0 (layout.header_file_size);
+  dylib_header = g_malloc0 (layout.header_file_size);
   gum_put_mach_headers (dylib_path, &layout, dylib_header, &dylib_header_size);
 
-  code_signature = gum_malloc0 (layout.code_signature_file_size);
+  code_signature = g_malloc0 (layout.code_signature_file_size);
   gum_put_code_signature (dylib_header, self->data, &layout, code_signature);
 
   self->fd = open (dylib_path, O_RDWR | O_CREAT | O_TRUNC);
@@ -185,9 +185,9 @@ gum_code_segment_realize (GumCodeSegment * self)
   res = fcntl (self->fd, F_ADDFILESIGS, &sigs);
   g_assert (res == 0);
 
-  gum_free (code_signature);
+  g_free (code_signature);
 
-  gum_free (dylib_header);
+  g_free (dylib_header);
 }
 
 void

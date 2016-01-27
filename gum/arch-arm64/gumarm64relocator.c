@@ -50,7 +50,7 @@ gum_arm64_relocator_init (GumArm64Relocator * relocator,
   g_assert_cmpint (err, ==, CS_ERR_OK);
   err = cs_option (relocator->capstone, CS_OPT_DETAIL, CS_OPT_ON);
   g_assert_cmpint (err, ==, CS_ERR_OK);
-  relocator->input_insns = gum_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
+  relocator->input_insns = g_new0 (cs_insn *, GUM_MAX_INPUT_INSN_COUNT);
 
   gum_arm64_relocator_reset (relocator, input_code, output);
 }
@@ -89,7 +89,7 @@ gum_arm64_relocator_free (GumArm64Relocator * relocator)
   gum_arm64_relocator_reset (relocator, relocator->input_start,
       relocator->output);
 
-  gum_free (relocator->input_insns);
+  g_free (relocator->input_insns);
 
   cs_close (&relocator->capstone);
 }

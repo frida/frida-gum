@@ -129,12 +129,9 @@ void
 gum_arm64_writer_init (GumArm64Writer * writer,
                        gpointer code_address)
 {
-  writer->id_to_address =
-      gum_new (GumArm64LabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs =
-      gum_new (GumArm64LabelRef, GUM_MAX_LABEL_REF_COUNT);
-  writer->literal_refs =
-      gum_new (GumArm64LiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->id_to_address = g_new (GumArm64LabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = g_new (GumArm64LabelRef, GUM_MAX_LABEL_REF_COUNT);
+  writer->literal_refs = g_new (GumArm64LiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_arm64_writer_reset (writer, code_address);
 }
@@ -157,9 +154,9 @@ gum_arm64_writer_free (GumArm64Writer * writer)
 {
   gum_arm64_writer_flush (writer);
 
-  gum_free (writer->id_to_address);
-  gum_free (writer->label_refs);
-  gum_free (writer->literal_refs);
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
+  g_free (writer->literal_refs);
 }
 
 gpointer

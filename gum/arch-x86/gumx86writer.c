@@ -94,8 +94,8 @@ void
 gum_x86_writer_init (GumX86Writer * writer,
                      gpointer code_address)
 {
-  writer->id_to_address = gum_new (GumX86LabelMapping, GUM_MAX_LABEL_COUNT);
-  writer->label_refs = gum_new (GumX86LabelRef, GUM_MAX_LREF_COUNT);
+  writer->id_to_address = g_new (GumX86LabelMapping, GUM_MAX_LABEL_COUNT);
+  writer->label_refs = g_new (GumX86LabelRef, GUM_MAX_LREF_COUNT);
 
   gum_x86_writer_reset (writer, code_address);
 }
@@ -124,8 +124,8 @@ gum_x86_writer_free (GumX86Writer * writer)
 {
   gum_x86_writer_flush (writer);
 
-  gum_free (writer->id_to_address);
-  gum_free (writer->label_refs);
+  g_free (writer->id_to_address);
+  g_free (writer->label_refs);
 }
 
 void

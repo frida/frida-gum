@@ -25,8 +25,7 @@ void
 gum_arm_writer_init (GumArmWriter * writer,
                      gpointer code_address)
 {
-  writer->literal_refs =
-      gum_new (GumArmLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
+  writer->literal_refs = g_new (GumArmLiteralRef, GUM_MAX_LITERAL_REF_COUNT);
 
   gum_arm_writer_reset (writer, code_address);
 }
@@ -49,7 +48,7 @@ gum_arm_writer_free (GumArmWriter * writer)
 {
   gum_arm_writer_flush (writer);
 
-  gum_free (writer->literal_refs);
+  g_free (writer->literal_refs);
 }
 
 void
