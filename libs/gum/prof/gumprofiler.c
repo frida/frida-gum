@@ -7,9 +7,7 @@
 
 #include "gumprofiler.h"
 
-#include "gumarray.h"
 #include "guminterceptor.h"
-#include "gumhash.h"
 #include "gumsymbolutil.h"
 
 #include <string.h>
@@ -30,7 +28,7 @@ struct _GumProfilerPrivate
 
   GumInterceptor * interceptor;
   GHashTable * function_by_address;
-  GumList * stacks;
+  GSList * stacks;
 };
 
 struct _GumProfilerInvocation
@@ -44,7 +42,7 @@ struct _GumProfilerInvocation
 
 struct _GumProfilerContext
 {
-  GumArray * stack;
+  GArray * stack;
 };
 
 struct _GumWorstCaseInfo
@@ -183,9 +181,9 @@ gum_profiler_finalize (GObject * object)
 
   while (priv->stacks != NULL)
   {
-    GumArray * stack = (GumArray *) priv->stacks->data;
-    gum_array_free (stack, TRUE);
-    priv->stacks = gum_list_delete_link (priv->stacks, priv->stacks);
+    GArray * stack = (GArray *) priv->stacks->data;
+    g_array_free (stack, TRUE);
+    priv->stacks = g_slist_delete_link (priv->stacks, priv->stacks);
   }
 
   G_OBJECT_CLASS (gum_profiler_parent_class)->finalize (object);
@@ -206,11 +204,11 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   {
     GumProfilerPrivate * priv = GUM_PROFILER_CAST (listener)->priv;
 
-    inv->profiler->stack = gum_array_sized_new (FALSE, FALSE,
+    inv->profiler->stack = g_array_sized_new (FALSE, FALSE,
         sizeof (GumFunctionThreadContext *), GUM_MAX_CALL_DEPTH);
 
     GUM_PROFILER_LOCK ();
-    priv->stacks = gum_list_prepend (priv->stacks, inv->profiler->stack);
+    priv->stacks = g_slist_prepend (priv->stacks, inv->profiler->stack);
     GUM_PROFILER_UNLOCK ();
   }
 
@@ -221,7 +219,7 @@ gum_profiler_on_enter (GumInvocationListener * listener,
   fctx = inv->function;
   tctx = inv->thread;
 
-  gum_array_append_val (inv->profiler->stack, tctx);
+  g_array_append_val (inv->profiler->stack, tctx);
 
   tctx->total_calls++;
 
@@ -248,7 +246,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
   GumProfilerInvocation * inv;
   GumFunctionContext * fctx;
   GumFunctionThreadContext * tctx;
-  GumArray * stack;
+  GArray * stack;
 
   (void) listener;
 
@@ -281,7 +279,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
     {
       GumFunctionThreadContext * cur;
 
-      cur = gum_array_index (stack, GumFunctionThreadContext *, i);
+      cur = g_array_index (stack, GumFunctionThreadContext *, i);
       if (cur != tctx)
         parent = cur;
       else
@@ -296,7 +294,7 @@ gum_profiler_on_leave (GumInvocationListener * listener,
 
   tctx->recurse_count--;
 
-  gum_array_set_size (stack, stack->len - 1);
+  g_array_set_size (stack, stack->len - 1);
 }
 
 GumProfiler *

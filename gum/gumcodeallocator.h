@@ -7,7 +7,6 @@
 #ifndef __GUM_CODE_ALLOCATOR_H__
 #define __GUM_CODE_ALLOCATOR_H__
 
-#include "gumlist.h"
 #include "gummemory.h"
 
 typedef struct _GumCodeAllocator GumCodeAllocator;
@@ -19,10 +18,10 @@ struct _GumCodeAllocator
   gsize slice_size;
   gsize slices_per_page;
 
-  GumList * uncommitted_pages;
+  GSList * uncommitted_pages;
   GList * free_slices;
 
-  GumList * dispatchers;
+  GSList * dispatchers;
 };
 
 struct _GumCodeSlice

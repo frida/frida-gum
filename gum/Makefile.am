@@ -6,7 +6,6 @@ noinst_LTLIBRARIES = libfrida-gum.la
 fridaincludedir = $(includedir)/frida-1.0/gum
 fridainclude_HEADERS = \
 	gum.h \
-	gumarray.h \
 	gumbacktracer.h \
 	gumcodeallocator.h \
 	gumcodesegment.h \
@@ -15,12 +14,10 @@ fridainclude_HEADERS = \
 	gumevent.h \
 	gumeventsink.h \
 	gumfunction.h \
-	gumhash.h \
 	guminterceptor.h \
 	guminvocationcontext.h \
 	guminvocationlistener.h \
 	gumkernel.h \
-	gumlist.h \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
 	gummemorymap.h \
@@ -164,11 +161,6 @@ backend_sources += \
 	backend-bfd/gumsymbolutil-bfd.c
 endif
 
-container_sources = \
-	gumarray.c \
-	gumhash.c \
-	gumlist.c
-
 libfrida_gum_la_SOURCES = \
 	gum.c \
 	gum-init.h \
@@ -205,7 +197,6 @@ libfrida_gum_la_SOURCES = \
 	arch-arm64/gumarm64writer.c \
 	arch-arm64/gumarm64relocator.c \
 	$(arch_sources) \
-	$(container_sources) \
 	$(backend_sources)
 libfrida_gum_la_LIBADD = \
 	$(top_builddir)/libs/gum/heap/libfrida-gum-heap-1.0.la \

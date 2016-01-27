@@ -11,7 +11,6 @@
   <ItemGroup>
     <ClInclude Include="gum\gum.h" />
     <ClInclude Include="gum\gum-init.h" />
-    <ClInclude Include="gum\gumarray.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumdefs.h" />
@@ -19,14 +18,12 @@
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumfunction.h" />
-    <ClInclude Include="gum\gumhash.h" />
     <ClInclude Include="gum\guminterceptor.h" />
     <ClInclude Include="gum\guminterceptor-priv.h" />
     <ClInclude Include="gum\guminvocationcontext.h" />
     <ClInclude Include="gum\guminvocationlistener.h" />
     <ClInclude Include="gum\gumkernel.h" />
     <ClInclude Include="gum\gumlibc.h" />
-    <ClInclude Include="gum\gumlist.h" />
     <ClInclude Include="gum\gummemory.h" />
     <ClInclude Include="gum\gummemory-priv.h" />
     <ClInclude Include="gum\gummemoryaccessmonitor.h" />
@@ -46,18 +43,15 @@
 
   <ItemGroup>
     <ClCompile Include="gum\gum.c" />
-    <ClCompile Include="gum\gumarray.c" />
     <ClCompile Include="gum\gumbacktracer.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumexceptor.c" />
     <ClCompile Include="gum\gumeventsink.c" />
-    <ClCompile Include="gum\gumhash.c" />
     <ClCompile Include="gum\guminterceptor.c" />
     <ClCompile Include="gum\guminvocationcontext.c" />
     <ClCompile Include="gum\guminvocationlistener.c" />
     <ClCompile Include="gum\gumkernel.c" />
     <ClCompile Include="gum\gumlibc.c" />
-    <ClCompile Include="gum\gumlist.c" />
     <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gummemorymap.c" />
     <ClCompile Include="gum\gummetalhash.c" />

@@ -43,15 +43,15 @@ gum_cobject_free (GumCObject * cobject)
 }
 
 void
-gum_cobject_list_free (GumList * cobject_list)
+gum_cobject_list_free (GSList * cobject_list)
 {
-  GumList * walk;
+  GSList * cur;
 
-  for (walk = cobject_list; walk != NULL; walk = walk->next)
+  for (cur = cobject_list; cur != NULL; cur = cur->next)
   {
-    GumCObject * cobject = walk->data;
+    GumCObject * cobject = cur->data;
     gum_cobject_free (cobject);
   }
 
-  gum_list_free (cobject_list);
+  g_slist_free (cobject_list);
 }

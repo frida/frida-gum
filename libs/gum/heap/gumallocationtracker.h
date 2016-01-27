@@ -10,7 +10,6 @@
 #include <glib-object.h>
 #include <gum/gumdefs.h>
 #include <gum/gumbacktracer.h>
-#include <gum/gumlist.h>
 
 #define GUM_TYPE_ALLOCATION_TRACKER (gum_allocation_tracker_get_type ())
 #define GUM_ALLOCATION_TRACKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -64,9 +63,9 @@ GUM_API guint gum_allocation_tracker_peek_block_count (
     GumAllocationTracker * self);
 GUM_API guint gum_allocation_tracker_peek_block_total_size (
     GumAllocationTracker * self);
-GUM_API GumList * gum_allocation_tracker_peek_block_list (
+GUM_API GList * gum_allocation_tracker_peek_block_list (
     GumAllocationTracker * self);
-GUM_API GumList * gum_allocation_tracker_peek_block_groups (
+GUM_API GList * gum_allocation_tracker_peek_block_groups (
     GumAllocationTracker * self);
 
 /*< Internal API */

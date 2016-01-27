@@ -282,11 +282,11 @@ static guint
 get_number_of_tests_in_suite (GTestSuite * suite)
 {
   guint total;
-  GSList * walk;
+  GSList * cur;
 
   total = g_slist_length (suite->cases);
-  for (walk = suite->suites; walk != NULL; walk = walk->next)
-    total += get_number_of_tests_in_suite (walk->data);
+  for (cur = suite->suites; cur != NULL; cur = cur->next)
+    total += get_number_of_tests_in_suite (cur->data);
 
   return total;
 }

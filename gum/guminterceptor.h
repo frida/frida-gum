@@ -9,7 +9,6 @@
 #define __GUM_INTERCEPTOR_H__
 
 #include <glib-object.h>
-#include <gum/gumarray.h>
 #include <gum/gumdefs.h>
 #include <gum/guminvocationlistener.h>
 
@@ -28,7 +27,7 @@
 
 typedef struct _GumInterceptor GumInterceptor;
 typedef struct _GumInterceptorClass GumInterceptorClass;
-typedef GumArray GumInvocationStack;
+typedef GArray GumInvocationStack;
 
 typedef struct _GumInterceptorPrivate GumInterceptorPrivate;
 

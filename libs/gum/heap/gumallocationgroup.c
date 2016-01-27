@@ -31,12 +31,12 @@ gum_allocation_group_free (GumAllocationGroup * group)
 }
 
 void
-gum_allocation_group_list_free (GumList * groups)
+gum_allocation_group_list_free (GList * groups)
 {
-  GumList * cur;
+  GList * cur;
 
   for (cur = groups; cur != NULL; cur = cur->next)
     gum_allocation_group_free (cur->data);
 
-  gum_list_free (groups);
+  g_list_free (groups);
 }

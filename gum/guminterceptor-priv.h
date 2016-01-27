@@ -10,7 +10,6 @@
 
 #include "guminterceptor.h"
 
-#include "gumarray.h"
 #include "gumcodeallocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
@@ -44,7 +43,7 @@ struct _GumFunctionContext
 
   gpointer on_leave_trampoline;
 
-  GumArray * listener_entries;
+  GArray * listener_entries;
 
   gpointer replacement_function;
   gpointer replacement_function_data;

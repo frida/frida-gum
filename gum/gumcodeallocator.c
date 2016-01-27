@@ -46,7 +46,7 @@ struct _GumCodePages
 
 struct _GumCodeDeflectorDispatcher
 {
-  GumList * callers;
+  GSList * callers;
 
   gpointer address;
   gpointer trampoline;
@@ -104,13 +104,13 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
 void
 gum_code_allocator_free (GumCodeAllocator * allocator)
 {
-  gum_list_foreach (allocator->dispatchers,
+  g_slist_foreach (allocator->dispatchers,
       (GFunc) gum_code_deflector_dispatcher_free, NULL);
-  gum_list_free (allocator->dispatchers);
+  g_slist_free (allocator->dispatchers);
   allocator->dispatchers = NULL;
 
   g_list_foreach (allocator->free_slices, (GFunc) gum_code_pages_unref, NULL);
-  gum_list_free (allocator->uncommitted_pages);
+  g_slist_free (allocator->uncommitted_pages);
   allocator->uncommitted_pages = NULL;
   allocator->free_slices = NULL;
 }
@@ -171,7 +171,7 @@ void
 gum_code_allocator_commit (GumCodeAllocator * self)
 {
   gsize page_size;
-  GumList * cur;
+  GSList * cur;
 
   if (gum_query_is_rwx_supported ())
     return;
@@ -187,7 +187,7 @@ gum_code_allocator_commit (GumCodeAllocator * self)
 
     gum_mprotect (pages->data, page_size, GUM_PAGE_RX);
   }
-  gum_list_free (self->uncommitted_pages);
+  g_slist_free (self->uncommitted_pages);
   self->uncommitted_pages = NULL;
 }
 
@@ -249,7 +249,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   }
 
   if (!gum_query_is_rwx_supported ())
-    self->uncommitted_pages = gum_list_prepend (self->uncommitted_pages, pages);
+    self->uncommitted_pages = g_slist_prepend (self->uncommitted_pages, pages);
 
   return result;
 }
@@ -306,7 +306,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
                                     gpointer target)
 {
   GumCodeDeflectorDispatcher * dispatcher = NULL;
-  GumList * cur;
+  GSList * cur;
   GumCodeDeflector * deflector;
 
   for (cur = self->dispatchers; cur != NULL; cur = cur->next)
@@ -327,7 +327,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     dispatcher = gum_code_deflector_dispatcher_new (caller);
     if (dispatcher == NULL)
       return NULL;
-    self->dispatchers = gum_list_prepend (self->dispatchers, dispatcher);
+    self->dispatchers = g_slist_prepend (self->dispatchers, dispatcher);
   }
 
   deflector = gum_new (GumCodeDeflector, 1);
@@ -335,7 +335,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
   deflector->target = target;
   deflector->trampoline = dispatcher->trampoline;
 
-  dispatcher->callers = gum_list_prepend (dispatcher->callers, deflector);
+  dispatcher->callers = g_slist_prepend (dispatcher->callers, deflector);
 
   return deflector;
 }
@@ -344,7 +344,7 @@ void
 gum_code_allocator_free_deflector (GumCodeAllocator * self,
                                    GumCodeDeflector * deflector)
 {
-  GumList * cur;
+  GSList * cur;
 
   if (deflector == NULL)
     return;
@@ -352,16 +352,16 @@ gum_code_allocator_free_deflector (GumCodeAllocator * self,
   for (cur = self->dispatchers; cur != NULL; cur = cur->next)
   {
     GumCodeDeflectorDispatcher * dispatcher = cur->data;
-    GumList * entry;
+    GSList * entry;
 
-    entry = gum_list_find (dispatcher->callers, deflector);
+    entry = g_slist_find (dispatcher->callers, deflector);
     if (entry != NULL)
     {
-      dispatcher->callers = gum_list_delete_link (dispatcher->callers, entry);
+      dispatcher->callers = g_slist_delete_link (dispatcher->callers, entry);
       if (dispatcher->callers == NULL)
       {
         gum_code_deflector_dispatcher_free (dispatcher);
-        self->dispatchers = gum_list_remove (self->dispatchers, dispatcher);
+        self->dispatchers = g_slist_remove (self->dispatchers, dispatcher);
       }
 
       return;
@@ -453,8 +453,8 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
 
   gum_free_pages (dispatcher->thunk);
 
-  gum_list_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
-  gum_list_free (dispatcher->callers);
+  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
+  g_slist_free (dispatcher->callers);
 
   gum_free (dispatcher);
 }
@@ -463,7 +463,7 @@ static gpointer
 gum_code_deflector_dispatcher_lookup (GumCodeDeflectorDispatcher * self,
                                       gpointer return_address)
 {
-  GumList * cur;
+  GSList * cur;
 
   for (cur = self->callers; cur != NULL; cur = cur->next)
   {

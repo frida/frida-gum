@@ -12,7 +12,6 @@
 #include "gumallocationgroup.h"
 #include "gumboundschecker.h"
 #include "guminstancetracker.h"
-#include "gumhash.h"
 #include "gummemory.h"
 
 #include <string.h>
@@ -40,16 +39,16 @@ static gboolean gum_sanity_checker_filter_backtrace_block_size (
     gpointer user_data);
 
 static void gum_sanity_checker_print_instance_leaks_summary (
-    GumSanityChecker * self, GumList * stale);
+    GumSanityChecker * self, GList * stale);
 static void gum_sanity_checker_print_instance_leaks_details (
-    GumSanityChecker * self, GumList * stale);
+    GumSanityChecker * self, GList * stale);
 static void gum_sanity_checker_print_block_leaks_summary (
-    GumSanityChecker * self, GumList * block_groups);
+    GumSanityChecker * self, GList * block_groups);
 static void gum_sanity_checker_print_block_leaks_details (
-    GumSanityChecker * self, GumList * stale);
+    GumSanityChecker * self, GList * stale);
 
-static GumHashTable * gum_sanity_checker_count_leaks_by_type_name (
-    GumSanityChecker * self, GumList * instances);
+static GHashTable * gum_sanity_checker_count_leaks_by_type_name (
+    GumSanityChecker * self, GList * instances);
 
 static void gum_sanity_checker_details_from_instance (GumSanityChecker * self,
     GumInstanceDetails * details, gconstpointer instance);
@@ -263,7 +262,7 @@ gum_sanity_checker_end (GumSanityChecker * self)
 
   if (priv->instance_tracker != NULL)
   {
-    GumList * stale_instances;
+    GList * stale_instances;
 
     gum_instance_tracker_end (priv->instance_tracker);
 
@@ -279,7 +278,7 @@ gum_sanity_checker_end (GumSanityChecker * self)
       gum_sanity_checker_print (self, "\n");
       gum_sanity_checker_print_instance_leaks_details (self, stale_instances);
 
-      gum_list_free (stale_instances);
+      g_list_free (stale_instances);
     }
 
     g_object_unref (priv->instance_tracker);
@@ -288,7 +287,7 @@ gum_sanity_checker_end (GumSanityChecker * self)
 
   if (priv->alloc_probe != NULL)
   {
-    GumList * stale_blocks;
+    GList * stale_blocks;
 
     gum_allocator_probe_detach (priv->alloc_probe);
 
@@ -299,7 +298,7 @@ gum_sanity_checker_end (GumSanityChecker * self)
     {
       if (all_checks_passed)
       {
-        GumList * block_groups;
+        GList * block_groups;
 
         block_groups =
             gum_allocation_tracker_peek_block_groups (priv->alloc_tracker);
@@ -358,53 +357,53 @@ gum_sanity_checker_filter_backtrace_block_size (GumAllocationTracker * tracker,
 
 static void
 gum_sanity_checker_print_instance_leaks_summary (GumSanityChecker * self,
-                                                 GumList * stale)
+                                                 GList * stale)
 {
-  GumHashTable * count_by_type;
-  GumList * walk, * keys;
+  GHashTable * count_by_type;
+  GList * cur, * keys;
 
   count_by_type = gum_sanity_checker_count_leaks_by_type_name (self, stale);
 
-  keys = gum_hash_table_get_keys (count_by_type);
-  keys = gum_list_sort_with_data (keys,
+  keys = g_hash_table_get_keys (count_by_type);
+  keys = g_list_sort_with_data (keys,
       gum_sanity_checker_compare_type_names, count_by_type);
 
   gum_sanity_checker_print (self, "\tCount\tGType\n");
   gum_sanity_checker_print (self, "\t-----\t-----\n");
 
-  for (walk = keys; walk != NULL; walk = walk->next)
+  for (cur = keys; cur != NULL; cur = cur->next)
   {
-    const gchar * type_name = (const gchar *) walk->data;
+    const gchar * type_name = (const gchar *) cur->data;
     guint count;
 
-    count = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type,
+    count = GPOINTER_TO_UINT (g_hash_table_lookup (count_by_type,
         type_name));
     gum_sanity_checker_printf (self, "\t%u\t%s\n", count, type_name);
   }
 
-  gum_list_free (keys);
+  g_list_free (keys);
 
-  gum_hash_table_unref (count_by_type);
+  g_hash_table_unref (count_by_type);
 }
 
 static void
 gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
-                                                 GumList * stale)
+                                                 GList * stale)
 {
-  GumList * instances, * walk;
+  GList * instances, * cur;
 
-  instances = gum_list_copy (stale);
-  instances = gum_list_sort_with_data (instances,
+  instances = g_list_copy (stale);
+  instances = g_list_sort_with_data (instances,
       gum_sanity_checker_compare_instances, self);
 
   gum_sanity_checker_print (self, "\tAddress\t\tRefCount\tGType\n");
   gum_sanity_checker_print (self, "\t--------\t--------\t-----\n");
 
-  for (walk = instances; walk != NULL; walk = walk->next)
+  for (cur = instances; cur != NULL; cur = cur->next)
   {
     GumInstanceDetails details;
 
-    gum_sanity_checker_details_from_instance (self, &details, walk->data);
+    gum_sanity_checker_details_from_instance (self, &details, cur->data);
 
     gum_sanity_checker_printf (self, "\t%p\t%d%s\t%s\n",
         details.address,
@@ -413,25 +412,25 @@ gum_sanity_checker_print_instance_leaks_details (GumSanityChecker * self,
         details.type_name);
   }
 
-  gum_list_free (instances);
+  g_list_free (instances);
 }
 
 static void
 gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
-                                              GumList * block_groups)
+                                              GList * block_groups)
 {
-  GumList * groups, * walk;
+  GList * groups, * cur;
 
-  groups = gum_list_copy (block_groups);
-  groups = gum_list_sort_with_data (groups,
+  groups = g_list_copy (block_groups);
+  groups = g_list_sort_with_data (groups,
       gum_sanity_checker_compare_groups, self);
 
   gum_sanity_checker_print (self, "\tCount\tSize\n");
   gum_sanity_checker_print (self, "\t-----\t----\n");
 
-  for (walk = groups; walk != NULL; walk = walk->next)
+  for (cur = groups; cur != NULL; cur = cur->next)
   {
-    GumAllocationGroup * group = (GumAllocationGroup *) walk->data;
+    GumAllocationGroup * group = (GumAllocationGroup *) cur->data;
 
     if (group->alive_now == 0)
       continue;
@@ -440,25 +439,25 @@ gum_sanity_checker_print_block_leaks_summary (GumSanityChecker * self,
         group->alive_now, group->size);
   }
 
-  gum_list_free (groups);
+  g_list_free (groups);
 }
 
 static void
 gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
-                                              GumList * stale)
+                                              GList * stale)
 {
-  GumList * blocks, * walk;
+  GList * blocks, * cur;
 
-  blocks = gum_list_copy (stale);
-  blocks = gum_list_sort_with_data (blocks,
+  blocks = g_list_copy (stale);
+  blocks = g_list_sort_with_data (blocks,
       gum_sanity_checker_compare_blocks, self);
 
   gum_sanity_checker_print (self, "\tAddress\t\tSize\n");
   gum_sanity_checker_print (self, "\t--------\t----\n");
 
-  for (walk = blocks; walk != NULL; walk = walk->next)
+  for (cur = blocks; cur != NULL; cur = cur->next)
   {
-    GumAllocationBlock * block = (GumAllocationBlock *) walk->data;
+    GumAllocationBlock * block = (GumAllocationBlock *) cur->data;
     guint i;
 
     gum_sanity_checker_printf (self, "\t%p\t%u\n",
@@ -487,33 +486,32 @@ gum_sanity_checker_print_block_leaks_details (GumSanityChecker * self,
     }
   }
 
-  gum_list_free (blocks);
+  g_list_free (blocks);
 }
 
-static GumHashTable *
+static GHashTable *
 gum_sanity_checker_count_leaks_by_type_name (GumSanityChecker * self,
-                                             GumList * instances)
+                                             GList * instances)
 {
-  GumHashTable * count_by_type;
+  GHashTable * count_by_type;
   const GumInstanceVTable * vtable;
-  GumList * walk;
+  GList * cur;
 
-  count_by_type =
-      gum_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
+  count_by_type = g_hash_table_new_full (g_str_hash, g_str_equal, NULL, NULL);
 
   vtable =
       gum_instance_tracker_get_current_vtable (self->priv->instance_tracker);
 
-  for (walk = instances; walk != NULL; walk = walk->next)
+  for (cur = instances; cur != NULL; cur = cur->next)
   {
     const gchar * type_name;
     guint count;
 
-    type_name = vtable->type_id_to_name (G_TYPE_FROM_INSTANCE (walk->data));
-    count = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type,
+    type_name = vtable->type_id_to_name (G_TYPE_FROM_INSTANCE (cur->data));
+    count = GPOINTER_TO_UINT (g_hash_table_lookup (count_by_type,
         type_name));
     count++;
-    gum_hash_table_insert (count_by_type, (gpointer) type_name,
+    g_hash_table_insert (count_by_type, (gpointer) type_name,
         GUINT_TO_POINTER (count));
   }
 
@@ -547,11 +545,11 @@ gum_sanity_checker_compare_type_names (gconstpointer a,
 {
   const gchar * name_a = (const gchar *) a;
   const gchar * name_b = (const gchar *) b;
-  GumHashTable * count_by_type = (GumHashTable *) user_data;
+  GHashTable * count_by_type = (GHashTable *) user_data;
   guint count_a, count_b;
 
-  count_a = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type, name_a));
-  count_b = GPOINTER_TO_UINT (gum_hash_table_lookup (count_by_type, name_b));
+  count_a = GPOINTER_TO_UINT (g_hash_table_lookup (count_by_type, name_a));
+  count_b = GPOINTER_TO_UINT (g_hash_table_lookup (count_by_type, name_b));
   if (count_a > count_b)
     return -1;
   else if (count_a < count_b)

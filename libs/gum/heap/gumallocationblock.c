@@ -43,9 +43,9 @@ gum_allocation_block_free (GumAllocationBlock * block)
 }
 
 void
-gum_allocation_block_list_free (GumList * block_list)
+gum_allocation_block_list_free (GList * block_list)
 {
-  GumList * cur;
+  GList * cur;
 
   for (cur = block_list; cur != NULL; cur = cur->next)
   {
@@ -53,5 +53,5 @@ gum_allocation_block_list_free (GumList * block_list)
     gum_allocation_block_free (block);
   }
 
-  gum_list_free (block_list);
+  g_list_free (block_list);
 }

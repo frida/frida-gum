@@ -8,7 +8,6 @@
 #define __GUM_COBJECT_H__
 
 #include <gum/gumdefs.h>
-#include <gum/gumlist.h>
 #include <gum/gumreturnaddress.h>
 
 typedef struct _GumCObject GumCObject;
@@ -33,7 +32,7 @@ GUM_API GumCObject * gum_cobject_copy (
     const GumCObject * cobject);
 GUM_API void gum_cobject_free (GumCObject * cobject);
 
-GUM_API void gum_cobject_list_free (GumList * cobject_list);
+GUM_API void gum_cobject_list_free (GSList * cobject_list);
 
 G_END_DECLS
 

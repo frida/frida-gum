@@ -7,7 +7,6 @@
 #include "guminstancetracker.h"
 
 #include "guminterceptor.h"
-#include "gumhash.h"
 #include "gumprocess.h"
 
 #include <gmodule.h>
@@ -29,8 +28,8 @@ struct _GumInstanceTrackerPrivate
   gboolean disposed;
 
   GMutex mutex;
-  GumHashTable * counter_ht;
-  GumHashTable * instances_ht;
+  GHashTable * counter_ht;
+  GHashTable * instances_ht;
   GumInterceptor * interceptor;
 
   gboolean is_active;
@@ -49,9 +48,9 @@ enum _FunctionId
 #define GUM_INSTANCE_TRACKER_LOCK()   g_mutex_lock   (&priv->mutex)
 #define GUM_INSTANCE_TRACKER_UNLOCK() g_mutex_unlock (&priv->mutex)
 
-#define COUNTER_TABLE_GET(gtype) GPOINTER_TO_UINT (gum_hash_table_lookup (\
+#define COUNTER_TABLE_GET(gtype) GPOINTER_TO_UINT (g_hash_table_lookup (\
     priv->counter_ht, GUINT_TO_POINTER (gtype)))
-#define COUNTER_TABLE_SET(gtype, count) gum_hash_table_insert (\
+#define COUNTER_TABLE_SET(gtype, count) g_hash_table_insert (\
     priv->counter_ht, GUINT_TO_POINTER (gtype), GUINT_TO_POINTER (count))
 
 static void gum_instance_tracker_dispose (GObject * object);
@@ -97,12 +96,12 @@ gum_instance_tracker_init (GumInstanceTracker * self)
 
   g_mutex_init (&priv->mutex);
 
-  priv->counter_ht = gum_hash_table_new_full (g_direct_hash,
-      g_direct_equal, NULL, NULL);
+  priv->counter_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+      NULL, NULL);
   g_assert (priv->counter_ht != NULL);
 
-  priv->instances_ht = gum_hash_table_new_full (g_direct_hash,
-      g_direct_equal, NULL, NULL);
+  priv->instances_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
+      NULL, NULL);
 
   priv->interceptor = gum_interceptor_obtain ();
 }
@@ -122,10 +121,10 @@ gum_instance_tracker_dispose (GObject * object)
 
     g_object_unref (priv->interceptor);
 
-    gum_hash_table_unref (priv->counter_ht);
+    g_hash_table_unref (priv->counter_ht);
     priv->counter_ht = NULL;
 
-    gum_hash_table_unref (priv->instances_ht);
+    g_hash_table_unref (priv->instances_ht);
     priv->instances_ht = NULL;
   }
 
@@ -280,21 +279,21 @@ gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
   else
   {
     GUM_INSTANCE_TRACKER_LOCK ();
-    result = gum_hash_table_size (priv->instances_ht);
+    result = g_hash_table_size (priv->instances_ht);
     GUM_INSTANCE_TRACKER_UNLOCK ();
   }
 
   return result;
 }
 
-GumList *
+GList *
 gum_instance_tracker_peek_instances (GumInstanceTracker * self)
 {
   GumInstanceTrackerPrivate * priv = self->priv;
-  GumList * result;
+  GList * result;
 
   GUM_INSTANCE_TRACKER_LOCK ();
-  result = gum_hash_table_get_keys (priv->instances_ht);
+  result = g_hash_table_get_keys (priv->instances_ht);
   GUM_INSTANCE_TRACKER_UNLOCK ();
 
   return result;
@@ -306,7 +305,7 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
                                      gpointer user_data)
 {
   GumInstanceTrackerPrivate * priv = self->priv;
-  GumHashTableIter iter;
+  GHashTableIter iter;
   gpointer key, value;
   GType gobject_type;
 
@@ -314,8 +313,8 @@ gum_instance_tracker_walk_instances (GumInstanceTracker * self,
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  gum_hash_table_iter_init (&iter, priv->instances_ht);
-  while (gum_hash_table_iter_next (&iter, &key, &value))
+  g_hash_table_iter_init (&iter, priv->instances_ht);
+  while (g_hash_table_iter_next (&iter, &key, &value))
   {
     const GTypeInstance * instance = (const GTypeInstance *) key;
     GType type;
@@ -358,8 +357,8 @@ gum_instance_tracker_add_instance (GumInstanceTracker * self,
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  g_assert (gum_hash_table_lookup (priv->instances_ht, instance) == NULL);
-  gum_hash_table_insert (priv->instances_ht, instance, instance);
+  g_assert (g_hash_table_lookup (priv->instances_ht, instance) == NULL);
+  g_hash_table_insert (priv->instances_ht, instance, instance);
 
   count = COUNTER_TABLE_GET (instance_type);
   COUNTER_TABLE_SET (instance_type, count + 1);
@@ -377,7 +376,7 @@ gum_instance_tracker_remove_instance (GumInstanceTracker * self,
 
   GUM_INSTANCE_TRACKER_LOCK ();
 
-  if (gum_hash_table_remove (priv->instances_ht, instance))
+  if (g_hash_table_remove (priv->instances_ht, instance))
   {
     count = COUNTER_TABLE_GET (instance_type);
     if (count > 0)
