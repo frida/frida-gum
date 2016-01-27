@@ -9,9 +9,11 @@
 #ifndef HAVE_DARWIN
 
 GumCodeSegment *
-gum_code_segment_new (gsize size)
+gum_code_segment_new (gsize size,
+                      const GumAddressSpec * spec)
 {
   (void) size;
+  (void) spec;
 
   return NULL;
 }
@@ -28,6 +30,22 @@ gum_code_segment_get_address (GumCodeSegment * self)
   (void) self;
 
   return NULL;
+}
+
+gsize
+gum_code_segment_get_size (GumCodeSegment * self)
+{
+  (void) self;
+
+  return 0;
+}
+
+gsize
+gum_code_segment_get_virtual_size (GumCodeSegment * self)
+{
+  (void) self;
+
+  return 0;
 }
 
 void

@@ -13,10 +13,12 @@ G_BEGIN_DECLS
 
 typedef struct _GumCodeSegment GumCodeSegment;
 
-GumCodeSegment * gum_code_segment_new (gsize size);
+GumCodeSegment * gum_code_segment_new (gsize size, const GumAddressSpec * spec);
 void gum_code_segment_free (GumCodeSegment * segment);
 
 gpointer gum_code_segment_get_address (GumCodeSegment * self);
+gsize gum_code_segment_get_size (GumCodeSegment * self);
+gsize gum_code_segment_get_virtual_size (GumCodeSegment * self);
 
 void gum_code_segment_realize (GumCodeSegment * self);
 void gum_code_segment_map (GumCodeSegment * self, gsize source_offset,

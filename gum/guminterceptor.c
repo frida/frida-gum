@@ -752,7 +752,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     gsize source_offset;
 
     num_pages = g_hash_table_size (self->pending_prologue_writes);
-    segment = gum_code_segment_new (num_pages * page_size);
+    segment = gum_code_segment_new (num_pages * page_size, NULL);
 
     source_page = gum_code_segment_get_address (segment);
     for (cur = addresses; cur != NULL; cur = cur->next)

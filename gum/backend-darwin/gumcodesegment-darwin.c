@@ -108,21 +108,34 @@ static void gum_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
 
 GumCodeSegment *
-gum_code_segment_new (gsize size)
+gum_code_segment_new (gsize size,
+                      const GumAddressSpec * spec)
 {
-  GumCodeSegment * segment;
   guint page_size, size_in_pages;
-
-  segment = g_slice_new (GumCodeSegment);
-
-  segment->data = mmap (NULL, size, PROT_READ | PROT_WRITE,
-      MAP_PRIVATE | MAP_ANON, -1, 0);
-  segment->size = size;
+  gpointer data;
+  GumCodeSegment * segment;
 
   page_size = gum_query_page_size ();
   size_in_pages = size / page_size;
   if (size % page_size != 0)
     size_in_pages++;
+
+  if (spec == NULL)
+  {
+    data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+  }
+  else
+  {
+    data = gum_alloc_n_pages_near (size_in_pages, GUM_PAGE_RW, spec);
+    if (data == NULL)
+      return NULL;
+  }
+
+  segment = g_slice_new (GumCodeSegment);
+
+  segment->data = data;
+  segment->size = size;
+
   segment->virtual_size = size_in_pages * page_size;
 
   segment->fd = -1;
@@ -136,7 +149,7 @@ gum_code_segment_free (GumCodeSegment * segment)
   if (segment->fd != -1)
     close (segment->fd);
 
-  munmap (segment->data, segment->size);
+  gum_free_pages (segment->data);
 
   g_slice_free (GumCodeSegment, segment);
 }
@@ -145,6 +158,18 @@ gpointer
 gum_code_segment_get_address (GumCodeSegment * self)
 {
   return self->data;
+}
+
+gsize
+gum_code_segment_get_size (GumCodeSegment * self)
+{
+  return self->size;
+}
+
+gsize
+gum_code_segment_get_virtual_size (GumCodeSegment * self)
+{
+  return self->virtual_size;
 }
 
 void
