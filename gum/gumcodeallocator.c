@@ -6,6 +6,7 @@
 
 #include "gumcodeallocator.h"
 
+#include "gumcodesegment.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 #ifdef HAVE_ARM
@@ -38,9 +39,11 @@ struct _GumCodePages
 {
   gint ref_count;
 
+  GumCodeSegment * segment;
+  gpointer data;
+
   GumCodeAllocator * allocator;
 
-  gpointer data;
   GumCodeSliceElement elements[1];
 };
 
@@ -183,17 +186,21 @@ gum_code_allocator_commit (GumCodeAllocator * self)
 
   page_size = gum_query_page_size ();
 
-  g_list_foreach (self->free_slices, (GFunc) gum_code_pages_unref, NULL);
-  self->free_slices = NULL;
-
   for (cur = self->uncommitted_pages; cur != NULL; cur = cur->next)
   {
     GumCodePages * pages = cur->data;
+    GumCodeSegment * segment = pages->segment;
 
-    gum_mprotect (pages->data, page_size, GUM_PAGE_RX);
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0,
+        gum_code_segment_get_virtual_size (segment),
+        gum_code_segment_get_address (segment));
   }
   g_slist_free (self->uncommitted_pages);
   self->uncommitted_pages = NULL;
+
+  g_list_foreach (self->free_slices, (GFunc) gum_code_pages_unref, NULL);
+  self->free_slices = NULL;
 }
 
 static GumCodeSlice *
@@ -201,30 +208,51 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
                                          const GumAddressSpec * spec)
 {
   GumCodeSlice * result = NULL;
+  gsize size_in_pages, size_in_bytes;
+  gboolean rwx_supported;
   GumPageProtection prot;
+  GumCodeSegment * segment;
   gpointer data;
   GumCodePages * pages;
   guint slice_index;
 
-  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
+  size_in_pages = 1;
+  size_in_bytes = size_in_pages * gum_query_page_size ();
 
-  if (spec != NULL)
+  rwx_supported = gum_query_is_rwx_supported ();
+
+  prot = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
+  if (rwx_supported)
   {
-    data = gum_try_alloc_n_pages_near (1, prot, spec);
-    if (data == NULL)
-      return NULL;
+    segment = NULL;
+    if (spec != NULL)
+    {
+      data = gum_try_alloc_n_pages_near (size_in_pages, prot, spec);
+      if (data == NULL)
+        return NULL;
+    }
+    else
+    {
+      data = gum_alloc_n_pages (size_in_pages, prot);
+    }
   }
   else
   {
-    data = gum_alloc_n_pages (1, prot);
+    segment = gum_code_segment_new (size_in_bytes, spec);
+    if (segment == NULL)
+      return NULL;
+    data = gum_code_segment_get_address (segment);
   }
 
   pages = g_slice_alloc (self->pages_metadata_size);
   pages->ref_count = self->slices_per_page;
 
+  pages->segment = segment;
+  pages->data = data;
+
   pages->allocator = self;
 
-  pages->data = data;
   for (slice_index = self->slices_per_page; slice_index != 0; slice_index--)
   {
     GumCodeSliceElement * element = &pages->elements[slice_index - 1];
@@ -252,7 +280,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     }
   }
 
-  if (!gum_query_is_rwx_supported ())
+  if (!rwx_supported)
     self->uncommitted_pages = g_slist_prepend (self->uncommitted_pages, pages);
 
   return result;
@@ -264,7 +292,10 @@ gum_code_pages_unref (GumCodePages * self)
   self->ref_count--;
   if (self->ref_count == 0)
   {
-    gum_free_pages (self->data);
+    if (self->segment != NULL)
+      gum_code_segment_free (self->segment);
+    else
+      gum_free_pages (self->data);
 
     g_slice_free1 (self->allocator->pages_metadata_size, self);
   }
