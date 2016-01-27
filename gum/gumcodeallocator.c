@@ -83,8 +83,11 @@ static void gum_code_deflector_dispatcher_ensure_rw (
     GumCodeDeflectorDispatcher * self);
 static void gum_code_deflector_dispatcher_ensure_rx (
     GumCodeDeflectorDispatcher * self);
+
+#ifdef HAVE_LINUX
 static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
     gpointer user_data);
+#endif
 
 static void gum_code_deflector_free (GumCodeDeflector * deflector);
 
@@ -383,8 +386,10 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
   ctx.cave.base_address = 0;
   ctx.cave.size = 0;
 
+#ifdef HAVE_LINUX
   gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
       &ctx);
+#endif
 
   if (ctx.cave.base_address == 0)
     return NULL;
@@ -518,18 +523,6 @@ gum_probe_range_for_code_cave (const GumRangeDetails * details,
 
   ctx->cave.base_address = cave_address;
   ctx->cave.size = 8;
-  return FALSE;
-}
-
-#else
-
-static gboolean
-gum_probe_range_for_code_cave (const GumRangeDetails * details,
-                               gpointer user_data)
-{
-  (void) details;
-  (void) user_data;
-
   return FALSE;
 }
 
