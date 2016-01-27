@@ -179,7 +179,7 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   guint padding;
 
   gum_x86_writer_reset (cw, prologue);
-  /* FIXME: code == xip assumption */
+  cw->pc = GPOINTER_TO_SIZE (ctx->function_address);
   gum_x86_writer_put_jmp (cw, ctx->on_enter_trampoline);
   gum_x86_writer_flush (cw);
   g_assert_cmpint (gum_x86_writer_offset (cw),
@@ -198,8 +198,7 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
 {
   (void) self;
 
-  memcpy (ctx->function_address, ctx->overwritten_prologue,
-      ctx->overwritten_prologue_len);
+  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
 }
 
 void
