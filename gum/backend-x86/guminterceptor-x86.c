@@ -166,7 +166,7 @@ _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
 {
   (void) self;
 
-  gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
+  gum_code_slice_free (ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
 

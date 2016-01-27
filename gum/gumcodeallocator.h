@@ -16,18 +16,19 @@ typedef struct _GumCodeDeflector GumCodeDeflector;
 
 struct _GumCodeAllocator
 {
-  GumList * pages;
+  gsize slice_size;
+  gsize slices_per_page;
+
+  GumList * uncommitted_pages;
+  GList * free_slices;
+
   GumList * dispatchers;
-  gsize page_size;
-  guint header_size;
-  guint slice_size;
-  guint slices_per_page;
 };
 
 struct _GumCodeSlice
 {
   gpointer data;
-  guint size;
+  gsize size;
 };
 
 struct _GumCodeDeflector
@@ -37,20 +38,18 @@ struct _GumCodeDeflector
   gpointer trampoline;
 };
 
-void gum_code_allocator_init (GumCodeAllocator * allocator, guint slice_size);
+void gum_code_allocator_init (GumCodeAllocator * allocator, gsize slice_size);
 void gum_code_allocator_free (GumCodeAllocator * allocator);
 
 GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
 GumCodeSlice * gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
     const GumAddressSpec * spec, gsize alignment);
-void gum_code_allocator_free_slice (GumCodeAllocator * self,
-    GumCodeSlice * slice);
+void gum_code_slice_free (GumCodeSlice * slice);
+void gum_code_allocator_commit (GumCodeAllocator * self);
 
 GumCodeDeflector * gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     const GumAddressSpec * caller, gpointer return_address, gpointer target);
 void gum_code_allocator_free_deflector (GumCodeAllocator * self,
     GumCodeDeflector * deflector);
-
-void gum_code_allocator_commit (GumCodeAllocator * allocator);
 
 #endif

@@ -17,6 +17,8 @@
 #include "gumprocess.h"
 #include "gumtls.h"
 
+#include <string.h>
+
 #ifdef HAVE_ARM64
 # define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
 #else
@@ -47,7 +49,7 @@ struct _GumInterceptorTransaction
 {
   gint level;
   GQueue * pending_destroy_calls;
-  GHashTable * pending_prologue_writes;
+  GumHashTable * pending_prologue_writes;
 
   GumInterceptor * interceptor;
 };
@@ -683,7 +685,7 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
 {
   transaction->level = 0;
   transaction->pending_destroy_calls = g_queue_new ();
-  transaction->pending_prologue_writes = g_hash_table_new_full (
+  transaction->pending_prologue_writes = gum_hash_table_new_full (
       NULL, NULL, NULL, (GDestroyNotify) g_array_unref);
 
   transaction->interceptor = interceptor;
@@ -692,7 +694,7 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
 static void
 gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
 {
-  g_hash_table_unref (transaction->pending_prologue_writes);
+  gum_hash_table_unref (transaction->pending_prologue_writes);
   g_queue_free (transaction->pending_destroy_calls);
 }
 
@@ -709,7 +711,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   GumInterceptorPrivate * priv = self->interceptor->priv;
   GumInterceptorBackend * backend = priv->backend;
   GumInterceptorTransaction transaction_copy;
-  GList * addresses, * cur;
+  GumList * addresses, * cur;
   guint page_size;
   GumFunctionContext * ctx;
 
@@ -720,15 +722,15 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   gum_code_allocator_commit (&priv->allocator);
 
   if (g_queue_is_empty (self->pending_destroy_calls) &&
-      g_hash_table_size (self->pending_prologue_writes) == 0)
+      gum_hash_table_size (self->pending_prologue_writes) == 0)
     return;
 
   transaction_copy = priv->current_transaction;
   self = &transaction_copy;
   gum_interceptor_transaction_init (&priv->current_transaction, interceptor);
 
-  addresses = g_hash_table_get_keys (self->pending_prologue_writes);
-  addresses = g_list_sort (addresses, gum_page_address_compare);
+  addresses = gum_hash_table_get_keys (self->pending_prologue_writes);
+  addresses = gum_list_sort (addresses, gum_page_address_compare);
 
   page_size = gum_query_page_size ();
 
@@ -747,7 +749,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       GArray * pending;
       guint i;
 
-      pending = g_hash_table_lookup (self->pending_prologue_writes,
+      pending = gum_hash_table_lookup (self->pending_prologue_writes,
           target_page);
       g_assert (pending != NULL);
 
@@ -768,7 +770,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     gpointer source_page;
     gsize source_offset;
 
-    num_pages = g_hash_table_size (self->pending_prologue_writes);
+    num_pages = gum_hash_table_size (self->pending_prologue_writes);
     segment = gum_code_segment_new (num_pages * page_size);
 
     source_page = gum_code_segment_get_address (segment);
@@ -778,9 +780,11 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       GArray * pending;
       guint i;
 
-      pending = g_hash_table_lookup (self->pending_prologue_writes,
+      pending = gum_hash_table_lookup (self->pending_prologue_writes,
           target_page);
       g_assert (pending != NULL);
+
+      memcpy (source_page, target_page, page_size);
 
       for (i = 0; i != pending->len; i++)
       {
@@ -810,7 +814,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     gum_code_segment_free (segment);
   }
 
-  g_list_free (addresses);
+  gum_list_free (addresses);
 
   while ((ctx = g_queue_pop_head (self->pending_destroy_calls)) != NULL)
   {
@@ -847,11 +851,11 @@ gum_interceptor_transaction_schedule_prologue_write (
   end_page = gum_page_address_from_pointer (ctx->function_address +
       ctx->overwritten_prologue_len - 1);
 
-  pending = g_hash_table_lookup (self->pending_prologue_writes, start_page);
+  pending = gum_hash_table_lookup (self->pending_prologue_writes, start_page);
   if (pending == NULL)
   {
     pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
-    g_hash_table_insert (self->pending_prologue_writes, start_page, pending);
+    gum_hash_table_insert (self->pending_prologue_writes, start_page, pending);
   }
 
   write.ctx = ctx;
@@ -860,11 +864,11 @@ gum_interceptor_transaction_schedule_prologue_write (
 
   if (end_page != start_page)
   {
-    pending = g_hash_table_lookup (self->pending_prologue_writes, end_page);
+    pending = gum_hash_table_lookup (self->pending_prologue_writes, end_page);
     if (pending == NULL)
     {
       pending = g_array_new (FALSE, FALSE, sizeof (GumPrologueWrite));
-      g_hash_table_insert (self->pending_prologue_writes, end_page, pending);
+      gum_hash_table_insert (self->pending_prologue_writes, end_page, pending);
     }
   }
 }
