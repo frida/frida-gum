@@ -170,7 +170,9 @@ gum_code_segment_realize (GumCodeSegment * self)
     fsignatures_t sigs;
 
     self->fd = open (dylib_path, O_RDWR | O_CREAT | O_TRUNC);
+    g_assert (self->fd != -1);
     self->file = file = fdopen (self->fd, "w");
+    g_assert (self->file != NULL);
 
     fwrite (dylib_header, dylib_header_size, 1, file);
 
