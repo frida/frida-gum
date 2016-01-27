@@ -1,10 +1,10 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumdarwincodesegment.h"
+#include "gumcodesegment.h"
 
 #include "gumdarwin.h"
 
@@ -23,21 +23,24 @@
 #define GUM_CS_HASH_SHA1 1
 #define GUM_CS_HASH_SHA1_SIZE 20
 
-typedef struct _GumDarwinCodeLayout GumDarwinCodeLayout;
+typedef struct _GumCodeLayout GumCodeLayout;
 typedef struct _GumCsSuperBlob GumCsSuperBlob;
 typedef struct _GumCsBlobIndex GumCsBlobIndex;
 typedef struct _GumCsDirectory GumCsDirectory;
 typedef struct _GumCsRequirements GumCsRequirements;
 
-struct _GumDarwinCodeSegment
+struct _GumCodeSegment
 {
   gpointer data;
   gsize size;
 
   gsize virtual_size;
+
+  FILE * file;
+  gint fd;
 };
 
-struct _GumDarwinCodeLayout
+struct _GumCodeLayout
 {
   gsize header_file_size;
 
@@ -92,21 +95,21 @@ struct _GumCsRequirements
   guint32 count;
 };
 
-static void gum_darwin_code_segment_compute_layout (GumDarwinCodeSegment * self,
-    GumDarwinCodeLayout * layout);
+static void gum_code_segment_compute_layout (GumCodeSegment * self,
+    GumCodeLayout * layout);
 
 static void gum_put_mach_headers (const gchar * dylib_path,
-    const GumDarwinCodeLayout * layout, gpointer output, gsize * output_size);
+    const GumCodeLayout * layout, gpointer output, gsize * output_size);
 static void gum_put_code_signature (gconstpointer header, gconstpointer text,
-    const GumDarwinCodeLayout * layout, gpointer output);
+    const GumCodeLayout * layout, gpointer output);
 
-GumDarwinCodeSegment *
-gum_darwin_code_segment_new (gsize size)
+GumCodeSegment *
+gum_code_segment_new (gsize size)
 {
-  GumDarwinCodeSegment * segment;
+  GumCodeSegment * segment;
   guint page_size, size_in_pages;
 
-  segment = g_slice_new (GumDarwinCodeSegment);
+  segment = g_slice_new (GumCodeSegment);
 
   segment->data = mmap (NULL, size, PROT_READ | PROT_WRITE,
       MAP_PRIVATE | MAP_ANON, -1, 0);
@@ -118,31 +121,34 @@ gum_darwin_code_segment_new (gsize size)
     size_in_pages++;
   segment->virtual_size = size_in_pages * page_size;
 
+  segment->file = NULL;
+  segment->fd = -1;
+
   return segment;
 }
 
 void
-gum_darwin_code_segment_free (GumDarwinCodeSegment * segment)
+gum_code_segment_free (GumCodeSegment * segment)
 {
-  if (segment->data != NULL)
-  {
-    munmap (segment->data, segment->size);
-  }
+  if (segment->file != NULL)
+    fclose (segment->file);
 
-  g_slice_free (GumDarwinCodeSegment, segment);
+  munmap (segment->data, segment->size);
+
+  g_slice_free (GumCodeSegment, segment);
 }
 
 gpointer
-gum_darwin_code_segment_get_address (GumDarwinCodeSegment * self)
+gum_code_segment_get_address (GumCodeSegment * self)
 {
   return self->data;
 }
 
 void
-gum_darwin_code_segment_realize (GumDarwinCodeSegment * self)
+gum_code_segment_realize (GumCodeSegment * self)
 {
   const gchar * dylib_path;
-  GumDarwinCodeLayout layout;
+  GumCodeLayout layout;
   guint8 * dylib_header;
   gsize dylib_header_size;
   guint8 * code_signature;
@@ -150,7 +156,7 @@ gum_darwin_code_segment_realize (GumDarwinCodeSegment * self)
   /* TODO: generate */
   dylib_path = "/Library/Caches/frida-test.dylib";
 
-  gum_darwin_code_segment_compute_layout (self, &layout);
+  gum_code_segment_compute_layout (self, &layout);
 
   dylib_header = g_malloc0 (layout.header_file_size);
   gum_put_mach_headers (dylib_path, &layout, dylib_header, &dylib_header_size);
@@ -159,12 +165,12 @@ gum_darwin_code_segment_realize (GumDarwinCodeSegment * self)
   gum_put_code_signature (dylib_header, self->data, &layout, code_signature);
 
   {
-    gint fd, res;
+    gint res;
     FILE * file;
     fsignatures_t sigs;
 
-    fd = open (dylib_path, O_RDWR | O_CREAT | O_TRUNC);
-    file = fdopen (fd, "w");
+    self->fd = open (dylib_path, O_RDWR | O_CREAT | O_TRUNC);
+    self->file = file = fdopen (self->fd, "w");
 
     fwrite (dylib_header, dylib_header_size, 1, file);
 
@@ -180,10 +186,8 @@ gum_darwin_code_segment_realize (GumDarwinCodeSegment * self)
     sigs.fs_blob_start = GSIZE_TO_POINTER (layout.code_signature_file_offset);
     sigs.fs_blob_size = layout.code_signature_file_size;
 
-    res = fcntl (fd, F_ADDFILESIGS, &sigs);
+    res = fcntl (self->fd, F_ADDFILESIGS, &sigs);
     g_print ("fcntl(F_ADDFILESIGS) => %d\n", res);
-
-    fclose (file);
   }
 
   g_free (code_signature);
@@ -191,9 +195,23 @@ gum_darwin_code_segment_realize (GumDarwinCodeSegment * self)
   g_free (dylib_header);
 }
 
+void
+gum_code_segment_map (GumCodeSegment * self,
+                      gsize source_offset,
+                      gsize source_size,
+                      gpointer target_address)
+{
+  gpointer result;
+
+  result = mmap (target_address, source_size, PROT_READ | PROT_EXEC,
+      MAP_PRIVATE | MAP_FIXED, self->fd,
+      gum_query_page_size () + source_offset);
+  g_assert (result != MAP_FAILED);
+}
+
 static void
-gum_darwin_code_segment_compute_layout (GumDarwinCodeSegment * self,
-                                        GumDarwinCodeLayout * layout)
+gum_code_segment_compute_layout (GumCodeSegment * self,
+                                 GumCodeLayout * layout)
 {
   gsize page_size, cs_page_size, cs_hash_count, cs_hash_size;
   gsize cs_size, cs_file_size;
@@ -227,7 +245,7 @@ gum_darwin_code_segment_compute_layout (GumDarwinCodeSegment * self,
 
 static void
 gum_put_mach_headers (const gchar * dylib_path,
-                      const GumDarwinCodeLayout * layout,
+                      const GumCodeLayout * layout,
                       gpointer output,
                       gsize * output_size)
 {
@@ -334,7 +352,7 @@ gum_put_mach_headers (const gchar * dylib_path,
 static void
 gum_put_code_signature (gconstpointer header,
                         gconstpointer text,
-                        const GumDarwinCodeLayout * layout,
+                        const GumCodeLayout * layout,
                         gpointer output)
 {
   GumCsSuperBlob * sb;

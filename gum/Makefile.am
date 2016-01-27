@@ -9,6 +9,7 @@ fridainclude_HEADERS = \
 	gumarray.h \
 	gumbacktracer.h \
 	gumcodeallocator.h \
+	gumcodesegment.h \
 	gumdefs.h \
 	gumexceptor.h \
 	gumevent.h \
@@ -129,15 +130,14 @@ backend_sources += \
 	backend-darwin/gumtls-darwin.c \
 	backend-darwin/gummemory-darwin.c \
 	backend-darwin/gumprocess-darwin.c \
+	backend-darwin/gumcodesegment-darwin.c \
 	backend-darwin/gumdarwinmapper.c \
-	backend-darwin/gumdarwinmodule.c \
-	backend-darwin/gumdarwincodesegment.c
+	backend-darwin/gumdarwinmodule.c
 fridainclude_HEADERS += \
 	backend-darwin/gumdarwin.h \
 	backend-darwin/gumdarwinbacktracer.h \
 	backend-darwin/gumdarwinmapper.h \
-	backend-darwin/gumdarwinmodule.h \
-	backend-darwin/gumdarwincodesegment.h
+	backend-darwin/gumdarwinmodule.h
 else
 backend_sources += \
 	backend-posix/gumtls-posix.c \
@@ -174,6 +174,7 @@ libfrida_gum_la_SOURCES = \
 	gum-init.h \
 	gumbacktracer.c \
 	gumcodeallocator.c \
+	gumcodesegment.c \
 	gumexceptor.c \
 	gumeventsink.c \
 	guminterceptor.c \
