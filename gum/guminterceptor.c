@@ -10,6 +10,7 @@
 #include "guminterceptor-priv.h"
 
 #include "gumarray.h"
+#include "gumcodesegment.h"
 #include "gumhash.h"
 #include "gumlibc.h"
 #include "gummemory.h"
@@ -709,6 +710,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   GumInterceptorBackend * backend = priv->backend;
   GumInterceptorTransaction transaction_copy;
   GList * addresses, * cur;
+  guint page_size;
   GumFunctionContext * ctx;
 
   self->level--;
@@ -728,22 +730,25 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   addresses = g_hash_table_get_keys (self->pending_prologue_writes);
   addresses = g_list_sort (addresses, gum_page_address_compare);
 
+  page_size = gum_query_page_size ();
+
   if (gum_query_is_rwx_supported ())
   {
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
-      gpointer address = cur->data;
+      gpointer target_page = cur->data;
 
-      gum_mprotect (address, gum_query_page_size (), GUM_PAGE_RWX);
+      gum_mprotect (target_page, page_size, GUM_PAGE_RWX);
     }
 
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
-      gpointer address = cur->data;
+      gpointer target_page = cur->data;
       GArray * pending;
       guint i;
 
-      pending = g_hash_table_lookup (self->pending_prologue_writes, address);
+      pending = g_hash_table_lookup (self->pending_prologue_writes,
+          target_page);
       g_assert (pending != NULL);
 
       for (i = 0; i != pending->len; i++)
@@ -758,7 +763,51 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   }
   else
   {
-    g_assert_not_reached ();
+    guint num_pages;
+    GumCodeSegment * segment;
+    gpointer source_page;
+    gsize source_offset;
+
+    num_pages = g_hash_table_size (self->pending_prologue_writes);
+    segment = gum_code_segment_new (num_pages * page_size);
+
+    source_page = gum_code_segment_get_address (segment);
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+      GArray * pending;
+      guint i;
+
+      pending = g_hash_table_lookup (self->pending_prologue_writes,
+          target_page);
+      g_assert (pending != NULL);
+
+      for (i = 0; i != pending->len; i++)
+      {
+        GumPrologueWrite * write;
+
+        write = &g_array_index (pending, GumPrologueWrite, i);
+
+        write->func (interceptor, write->ctx, source_page +
+            (write->ctx->function_address - target_page));
+      }
+
+      source_page += page_size;
+    }
+
+    gum_code_segment_realize (segment);
+
+    source_offset = 0;
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
+
+      gum_code_segment_map (segment, source_offset, page_size, target_page);
+
+      source_offset += page_size;
+    }
+
+    gum_code_segment_free (segment);
   }
 
   g_list_free (addresses);
