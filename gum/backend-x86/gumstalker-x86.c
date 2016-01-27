@@ -1390,8 +1390,8 @@ gum_exec_ctx_write_push_branch_target_address (GumExecCtx * ctx,
     g_assert (target->relative_offset == 0);
 
     gum_write_segment_prefix (target->pfx_seg, cw);
-    gum_x86_writer_put_byte (cw, 0xff);
-    gum_x86_writer_put_byte (cw, 0x35);
+    gum_x86_writer_put_u8 (cw, 0xff);
+    gum_x86_writer_put_u8 (cw, 0x35);
     gum_x86_writer_put_bytes (cw, (guint8 *) &target->absolute_address,
         sizeof (target->absolute_address));
   }
@@ -2553,12 +2553,12 @@ gum_write_segment_prefix (uint8_t segment,
   {
     case X86_REG_INVALID: break;
 
-    case X86_REG_CS: gum_x86_writer_put_byte (cw, 0x2e); break;
-    case X86_REG_SS: gum_x86_writer_put_byte (cw, 0x36); break;
-    case X86_REG_DS: gum_x86_writer_put_byte (cw, 0x3e); break;
-    case X86_REG_ES: gum_x86_writer_put_byte (cw, 0x26); break;
-    case X86_REG_FS: gum_x86_writer_put_byte (cw, 0x64); break;
-    case X86_REG_GS: gum_x86_writer_put_byte (cw, 0x65); break;
+    case X86_REG_CS: gum_x86_writer_put_u8 (cw, 0x2e); break;
+    case X86_REG_SS: gum_x86_writer_put_u8 (cw, 0x36); break;
+    case X86_REG_DS: gum_x86_writer_put_u8 (cw, 0x3e); break;
+    case X86_REG_ES: gum_x86_writer_put_u8 (cw, 0x26); break;
+    case X86_REG_FS: gum_x86_writer_put_u8 (cw, 0x64); break;
+    case X86_REG_GS: gum_x86_writer_put_u8 (cw, 0x65); break;
 
     default:
       g_assert_not_reached ();

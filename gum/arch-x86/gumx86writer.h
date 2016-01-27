@@ -25,6 +25,7 @@ struct _GumX86Writer
 
   guint8 * base;
   guint8 * code;
+  GumAddress pc;
 
   GumX86LabelMapping * id_to_address;
   guint id_to_address_len;
@@ -235,7 +236,8 @@ void gum_x86_writer_put_nop (GumX86Writer * self);
 void gum_x86_writer_put_breakpoint (GumX86Writer * self);
 void gum_x86_writer_put_padding (GumX86Writer * self, guint n);
 
-void gum_x86_writer_put_byte (GumX86Writer * self, guint8 b);
+void gum_x86_writer_put_u8 (GumX86Writer * self, guint8 value);
+void gum_x86_writer_put_s8 (GumX86Writer * self, gint8 value);
 void gum_x86_writer_put_bytes (GumX86Writer * self, const guint8 * data, guint n);
 
 G_END_DECLS
