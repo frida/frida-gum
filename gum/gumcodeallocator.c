@@ -361,6 +361,8 @@ gum_code_allocator_free_deflector (GumCodeAllocator * self,
     entry = g_slist_find (dispatcher->callers, deflector);
     if (entry != NULL)
     {
+      gum_code_deflector_free (deflector);
+
       dispatcher->callers = g_slist_delete_link (dispatcher->callers, entry);
       if (dispatcher->callers == NULL)
       {
