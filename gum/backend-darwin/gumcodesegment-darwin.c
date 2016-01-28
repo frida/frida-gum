@@ -9,6 +9,7 @@
 #include "gumdarwin.h"
 
 #include <CommonCrypto/CommonDigest.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <mach-o/loader.h>
 #include <math.h>
@@ -104,7 +105,8 @@ static void gum_put_mach_headers (const gchar * dylib_path,
 static void gum_put_code_signature (gconstpointer header, gconstpointer text,
     const GumCodeLayout * layout, gpointer output);
 
-static void gum_write_all (gint fd, gssize offset, gconstpointer data,
+static gint gum_file_open_tmp (const gchar * tmpl, gchar ** name_used);
+static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
 
 GumCodeSegment *
@@ -175,7 +177,7 @@ gum_code_segment_get_virtual_size (GumCodeSegment * self)
 void
 gum_code_segment_realize (GumCodeSegment * self)
 {
-  const gchar * dylib_path;
+  gchar * dylib_path;
   GumCodeLayout layout;
   guint8 * dylib_header;
   gsize dylib_header_size;
@@ -183,8 +185,9 @@ gum_code_segment_realize (GumCodeSegment * self)
   gint res;
   fsignatures_t sigs;
 
-  /* TODO: generate */
-  dylib_path = "/Users/oleavr/frida-test.dylib";
+  self->fd = gum_file_open_tmp ("frida-XXXXXX.dylib", &dylib_path);
+
+  unlink (dylib_path);
 
   gum_code_segment_compute_layout (self, &layout);
 
@@ -194,14 +197,12 @@ gum_code_segment_realize (GumCodeSegment * self)
   code_signature = g_malloc0 (layout.code_signature_file_size);
   gum_put_code_signature (dylib_header, self->data, &layout, code_signature);
 
-  self->fd = open (dylib_path, O_RDWR | O_CREAT | O_TRUNC);
-  g_assert (self->fd != -1);
-
-  gum_write_all (self->fd, GUM_OFFSET_NONE, dylib_header, dylib_header_size);
-  gum_write_all (self->fd, layout.text_file_offset, self->data,
+  gum_file_write_all (self->fd, GUM_OFFSET_NONE, dylib_header,
+      dylib_header_size);
+  gum_file_write_all (self->fd, layout.text_file_offset, self->data,
       layout.text_size);
-  gum_write_all (self->fd, layout.code_signature_file_offset, code_signature,
-      layout.code_signature_file_size);
+  gum_file_write_all (self->fd, layout.code_signature_file_offset,
+      code_signature, layout.code_signature_file_size);
 
   sigs.fs_file_start = 0;
   sigs.fs_blob_start = GSIZE_TO_POINTER (layout.code_signature_file_offset);
@@ -211,8 +212,8 @@ gum_code_segment_realize (GumCodeSegment * self)
   g_assert (res == 0);
 
   g_free (code_signature);
-
   g_free (dylib_header);
+  g_free (dylib_path);
 }
 
 void
@@ -440,11 +441,36 @@ gum_put_code_signature (gconstpointer header,
   }
 }
 
+static gint
+gum_file_open_tmp (const gchar * tmpl,
+                   gchar ** name_used)
+{
+  gint suffix_length;
+  gchar * path;
+  gint res;
+
+  suffix_length = strlen (tmpl) - (strrchr (tmpl, 'X') + 1 - tmpl);
+
+  path = g_build_filename (g_get_tmp_dir (), tmpl, NULL);
+  res = mkstemps (path, suffix_length);
+  if (res == -1)
+  {
+    g_free (path);
+    path = g_build_filename ("/Library/Caches", tmpl, NULL);
+    res = mkstemps (path, suffix_length);
+    g_assert (res != -1);
+  }
+
+  *name_used = path;
+
+  return res;
+}
+
 static void
-gum_write_all (gint fd,
-               gssize offset,
-               gconstpointer data,
-               gsize size)
+gum_file_write_all (gint fd,
+                    gssize offset,
+                    gconstpointer data,
+                    gsize size)
 {
   gssize written;
 
