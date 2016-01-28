@@ -118,8 +118,6 @@ G_GNUC_INTERNAL void _gum_duk_core_flush (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_dispose (GumDukCore * self);
 G_GNUC_INTERNAL void _gum_duk_core_finalize (GumDukCore * self);
 
-G_GNUC_INTERNAL void _gum_duk_core_emit_message (GumDukCore * self,
-    const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_duk_core_absorb_messages (GumDukCore * self);
 
 G_GNUC_INTERNAL void _gum_duk_core_push_job (GumDukCore * self,

@@ -12,14 +12,14 @@ using namespace v8;
 
 ScriptScope::ScriptScope (GumV8Script * parent)
   : parent (parent),
-    interceptor_scope (parent),
     stalker_scope (parent),
     locker (parent->priv->isolate),
     isolate_scope (parent->priv->isolate),
     handle_scope (parent->priv->isolate),
     context (Local<Context>::New (parent->priv->isolate, *parent->priv->context)),
     context_scope (context),
-    trycatch (parent->priv->isolate)
+    trycatch (parent->priv->isolate),
+    interceptor_scope (parent)
 {
 }
 
@@ -56,4 +56,3 @@ ScriptStalkerScope::~ScriptStalkerScope ()
 {
   _gum_v8_stalker_process_pending (&parent->priv->stalker);
 }
-

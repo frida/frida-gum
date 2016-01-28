@@ -41,7 +41,6 @@ public:
 
 private:
   GumV8Script * parent;
-  ScriptInterceptorScope interceptor_scope;
   ScriptStalkerScope stalker_scope;
   v8::Locker locker;
   v8::Isolate::Scope isolate_scope;
@@ -49,6 +48,7 @@ private:
   v8::Local<v8::Context> context;
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;
+  ScriptInterceptorScope interceptor_scope;
 };
 
 #endif
