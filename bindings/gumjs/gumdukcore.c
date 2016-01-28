@@ -668,6 +668,8 @@ _gum_duk_scope_enter (GumDukScope * self,
 {
   self->core = core;
 
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
+
   g_rec_mutex_lock (&core->mutex);
 }
 
@@ -740,6 +742,8 @@ void
 _gum_duk_scope_leave (GumDukScope * self)
 {
   g_rec_mutex_unlock (&self->core->mutex);
+
+  gum_interceptor_end_transaction (self->core->interceptor->interceptor);
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
