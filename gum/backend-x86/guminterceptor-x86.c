@@ -27,13 +27,13 @@
 
 struct _GumInterceptorBackend
 {
+  GumCodeAllocator * allocator;
+
   GumX86Writer writer;
   GumX86Relocator relocator;
 
-  gpointer thunks;
-
-  gpointer enter_thunk;
-  gpointer leave_thunk;
+  GumCodeSlice * enter_thunk;
+  GumCodeSlice * leave_thunk;
 };
 
 static void gum_interceptor_backend_create_thunks (
@@ -41,21 +41,20 @@ static void gum_interceptor_backend_create_thunks (
 static void gum_interceptor_backend_destroy_thunks (
     GumInterceptorBackend * self);
 
-static gpointer gum_make_enter_thunk (GumX86Writer * cw);
-static gpointer gum_make_leave_thunk (GumX86Writer * cw);
+static void gum_emit_enter_thunk (GumX86Writer * cw);
+static void gum_emit_leave_thunk (GumX86Writer * cw);
 
-static void gum_interceptor_backend_write_prolog (GumX86Writer * cw,
+static void gum_emit_prolog (GumX86Writer * cw,
     gsize stack_displacement);
-static void gum_interceptor_backend_write_epilog (GumX86Writer * cw);
+static void gum_emit_epilog (GumX86Writer * cw);
 
 GumInterceptorBackend *
 _gum_interceptor_backend_create (GumCodeAllocator * allocator)
 {
   GumInterceptorBackend * backend;
 
-  (void) allocator;
-
   backend = g_slice_new (GumInterceptorBackend);
+  backend->allocator = allocator;
 
   gum_x86_writer_init (&backend->writer, NULL);
   gum_x86_relocator_init (&backend->relocator, NULL, &backend->writer);
@@ -80,10 +79,8 @@ static gboolean
 gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
 {
-  (void) self;
-
 #if GLIB_SIZEOF_VOID_P == 4
-  ctx->trampoline_slice = gum_code_allocator_alloc_slice (ctx->allocator);
+  ctx->trampoline_slice = gum_code_allocator_alloc_slice (self->allocator);
 
   return TRUE;
 #else
@@ -93,7 +90,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   spec.near_address = ctx->function_address;
   spec.max_distance = GUM_X86_JMP_MAX_DISTANCE;
   ctx->trampoline_slice = gum_code_allocator_try_alloc_slice_near (
-      ctx->allocator, &spec, default_alignment);
+      self->allocator, &spec, default_alignment);
 
   return ctx->trampoline_slice != NULL;
 #endif
@@ -123,12 +120,12 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   ctx->on_enter_trampoline = gum_x86_writer_cur (cw);
 
   gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp (cw, self->enter_thunk);
+  gum_x86_writer_put_jmp (cw, self->enter_thunk->data);
 
   ctx->on_leave_trampoline = gum_x86_writer_cur (cw);
 
   gum_x86_writer_put_push_near_ptr (cw, function_ctx_ptr);
-  gum_x86_writer_put_jmp (cw, self->leave_thunk);
+  gum_x86_writer_put_jmp (cw, self->leave_thunk->data);
 
   gum_x86_writer_flush (cw);
   g_assert_cmpuint (gum_x86_writer_offset (cw),
@@ -314,40 +311,34 @@ static void
 gum_interceptor_backend_create_thunks (GumInterceptorBackend * self)
 {
   GumX86Writer * cw = &self->writer;
-  gsize page_size, size_in_pages, size_in_bytes;
 
-  page_size = gum_query_page_size ();
-
-  size_in_pages = 1;
-  size_in_bytes = size_in_pages * page_size;
-
-  self->thunks = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
-  gum_x86_writer_reset (cw, self->thunks);
-
-  self->enter_thunk = gum_make_enter_thunk (cw);
-  self->leave_thunk = gum_make_leave_thunk (cw);
-
+  self->enter_thunk = gum_code_allocator_alloc_slice (self->allocator);
+  gum_x86_writer_reset (cw, self->enter_thunk->data);
+  gum_emit_enter_thunk (cw);
   gum_x86_writer_flush (cw);
-  g_assert_cmpuint (gum_x86_writer_offset (cw), <=, size_in_bytes);
+  g_assert_cmpuint (gum_x86_writer_offset (cw), <=, self->enter_thunk->size);
 
-  gum_mprotect (self->thunks, size_in_bytes, GUM_PAGE_RX);
+  self->leave_thunk = gum_code_allocator_alloc_slice (self->allocator);
+  gum_x86_writer_reset (cw, self->leave_thunk->data);
+  gum_emit_leave_thunk (cw);
+  gum_x86_writer_flush (cw);
+  g_assert_cmpuint (gum_x86_writer_offset (cw), <=, self->leave_thunk->size);
 }
 
 static void
 gum_interceptor_backend_destroy_thunks (GumInterceptorBackend * self)
 {
-  gum_free_pages (self->thunks);
+  gum_code_slice_free (self->leave_thunk);
+
+  gum_code_slice_free (self->enter_thunk);
 }
 
-static gpointer
-gum_make_enter_thunk (GumX86Writer * cw)
+static void
+gum_emit_enter_thunk (GumX86Writer * cw)
 {
-  gpointer thunk;
   const gsize return_address_stack_displacement = sizeof (gpointer);
 
-  thunk = gum_x86_writer_cur (cw);
-
-  gum_interceptor_backend_write_prolog (cw, return_address_stack_displacement);
+  gum_emit_prolog (cw, return_address_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBP, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -363,15 +354,12 @@ gum_make_enter_thunk (GumX86Writer * cw)
       GUM_ARG_REGISTER, GUM_REG_XDX,
       GUM_ARG_REGISTER, GUM_REG_XCX);
 
-  gum_interceptor_backend_write_epilog (cw);
-
-  return thunk;
+  gum_emit_epilog (cw);
 }
 
-static gpointer
-gum_make_leave_thunk (GumX86Writer * cw)
+static void
+gum_emit_leave_thunk (GumX86Writer * cw)
 {
-  gpointer thunk;
   const gsize no_stack_displacement = 0;
   gssize align_correction_leave = 0;
 
@@ -379,9 +367,7 @@ gum_make_leave_thunk (GumX86Writer * cw)
   align_correction_leave = 4;
 #endif
 
-  thunk = gum_x86_writer_cur (cw);
-
-  gum_interceptor_backend_write_prolog (cw, no_stack_displacement);
+  gum_emit_prolog (cw, no_stack_displacement);
 
   gum_x86_writer_put_lea_reg_reg_offset (cw, GUM_REG_XSI,
       GUM_REG_XBP, GUM_FRAME_OFFSET_CPU_CONTEXT);
@@ -406,14 +392,12 @@ gum_make_leave_thunk (GumX86Writer * cw)
         GUM_REG_XSP, align_correction_leave);
   }
 
-  gum_interceptor_backend_write_epilog (cw);
-
-  return thunk;
+  gum_emit_epilog (cw);
 }
 
 static void
-gum_interceptor_backend_write_prolog (GumX86Writer * cw,
-                                      gsize stack_displacement)
+gum_emit_prolog (GumX86Writer * cw,
+                 gsize stack_displacement)
 {
   guint8 fxsave[] = {
     0x0f, 0xae, 0x04, 0x24 /* fxsave [esp] */
@@ -450,7 +434,7 @@ gum_interceptor_backend_write_prolog (GumX86Writer * cw,
 }
 
 static void
-gum_interceptor_backend_write_epilog (GumX86Writer * cw)
+gum_emit_epilog (GumX86Writer * cw)
 {
   guint8 fxrstor[] = {
     0x0f, 0xae, 0x0c, 0x24 /* fxrstor [esp] */

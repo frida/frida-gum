@@ -17,11 +17,7 @@
 
 #include <string.h>
 
-#ifdef HAVE_ARM64
-# define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
-#else
-# define GUM_INTERCEPTOR_CODE_SLICE_SIZE 128
-#endif
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
@@ -138,8 +134,7 @@ static void gum_interceptor_transaction_schedule_prologue_write (
     GumPrologueWriteFunc func);
 
 static GumFunctionContext * gum_function_context_new (
-    GumInterceptor * interceptor, gpointer function_address,
-    GumCodeAllocator * allocator);
+    GumInterceptor * interceptor, gpointer function_address);
 static void gum_function_context_finalize (GumFunctionContext * function_ctx);
 static void gum_function_context_destroy (GumFunctionContext * function_ctx);
 static gboolean gum_function_context_is_empty (
@@ -616,7 +611,7 @@ gum_interceptor_instrument (GumInterceptor * self,
   if (ctx != NULL)
     return ctx;
 
-  ctx = gum_function_context_new (self, function_address, &priv->allocator);
+  ctx = gum_function_context_new (self, function_address);
   if (ctx == NULL)
     return NULL;
 
@@ -867,8 +862,7 @@ gum_interceptor_transaction_schedule_prologue_write (
 
 static GumFunctionContext *
 gum_function_context_new (GumInterceptor * interceptor,
-                          gpointer function_address,
-                          GumCodeAllocator * allocator)
+                          gpointer function_address)
 {
   GumFunctionContext * ctx;
 
@@ -877,8 +871,6 @@ gum_function_context_new (GumInterceptor * interceptor,
 
   ctx->listener_entries =
       g_ptr_array_new_full (2, (GDestroyNotify) listener_entry_free);
-
-  ctx->allocator = allocator;
 
   ctx->interceptor = interceptor;
 

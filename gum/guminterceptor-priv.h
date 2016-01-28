@@ -30,7 +30,6 @@ struct _GumFunctionContext
   gboolean destroyed;
   gboolean activated;
 
-  GumCodeAllocator * allocator;
   GumCodeSlice * trampoline_slice;
   GumCodeDeflector * trampoline_deflector;
   volatile gint trampoline_usage_counter;
