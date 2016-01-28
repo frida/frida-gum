@@ -29,12 +29,14 @@ struct _GumThumbLabelRef
 {
   gconstpointer id;
   guint16 * insn;
+  GumAddress pc;
 };
 
 struct _GumThumbLiteralRef
 {
-  guint16 * insn;
   guint32 val;
+  guint16 * insn;
+  GumAddress pc;
 };
 
 struct _GumThumbArgument
@@ -120,17 +122,6 @@ gum_thumb_writer_skip (GumThumbWriter * self,
   self->pc += n_bytes;
 }
 
-static GumAddress
-gum_thumb_writer_pointer_to_pc (GumThumbWriter * self,
-                                gpointer code)
-{
-  GumAddress base_pc;
-
-  base_pc = self->pc - gum_thumb_writer_offset (self);
-
-  return base_pc + ((guint8 *) code - (guint8 *) self->base);
-}
-
 void
 gum_thumb_writer_flush (GumThumbWriter * self)
 {
@@ -149,8 +140,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
           gum_thumb_writer_lookup_address_for_label_id (self, r->id);
       g_assert (target_address != 0);
 
-      distance = ((gint32) target_address -
-          (gint32) gum_thumb_writer_pointer_to_pc (self, r->insn + 2)) / 2;
+      distance = ((gint32) target_address - (gint32) r->pc) / 2;
 
       insn = GUINT16_FROM_LE (*r->insn);
       if ((insn & 0xf000) == 0xd000)
@@ -185,35 +175,33 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     guint32 * first_slot, * last_slot;
     guint ref_idx;
 
-    if ((self->pc & 2) == 0)
-      first_slot = (guint32 *) (self->code + 0);
-    else
-      first_slot = (guint32 *) (self->code + 1);
+    if ((self->pc & 2) != 0)
+      gum_thumb_writer_put_nop (self);
+    first_slot = (guint32 *) self->code;
     last_slot = first_slot;
 
     for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
     {
       GumThumbLiteralRef * r;
-      guint32 * cur_slot;
+      guint32 * slot;
       gsize distance_in_words;
 
       r = &self->literal_refs[ref_idx];
 
-      for (cur_slot = first_slot; cur_slot != last_slot; cur_slot++)
+      for (slot = first_slot; slot != last_slot; slot++)
       {
-        if (*cur_slot == r->val)
+        if (*slot == r->val)
           break;
       }
 
-      if (cur_slot == last_slot)
+      if (slot == last_slot)
       {
-        *cur_slot = r->val;
+        *slot = r->val;
         last_slot++;
       }
 
-      distance_in_words =
-          (guint32 *) gum_thumb_writer_pointer_to_pc (self, cur_slot) -
-          (guint32 *) gum_thumb_writer_pointer_to_pc (self, r->insn + 1);
+      distance_in_words = (((guint32 *) self->pc) + (slot - first_slot)) -
+          ((guint32 *) (r->pc & ~((GumAddress) 3)));
       *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
     }
     self->literal_refs_len = 0;
@@ -270,6 +258,7 @@ gum_thumb_writer_add_label_reference_here (GumThumbWriter * self,
 
   r->id = id;
   r->insn = self->code;
+  r->pc = self->pc + 4;
 }
 
 static void
@@ -280,8 +269,9 @@ gum_thumb_writer_add_literal_reference_here (GumThumbWriter * self,
 
   g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
 
-  r->insn = self->code;
   r->val = val;
+  r->insn = self->code;
+  r->pc = self->pc + 4;
 }
 
 void
