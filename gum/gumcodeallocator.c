@@ -27,6 +27,7 @@
 typedef struct _GumCodePages GumCodePages;
 typedef struct _GumCodeSliceElement GumCodeSliceElement;
 typedef struct _GumCodeDeflectorDispatcher GumCodeDeflectorDispatcher;
+typedef struct _GumCodeDeflectorImpl GumCodeDeflectorImpl;
 typedef struct _GumProbeRangeForCodeCaveContext GumProbeRangeForCodeCaveContext;
 
 struct _GumCodeSliceElement
@@ -57,6 +58,13 @@ struct _GumCodeDeflectorDispatcher
 
   gpointer original_data;
   gsize original_size;
+};
+
+struct _GumCodeDeflectorImpl
+{
+  GumCodeDeflector parent;
+
+  GumCodeAllocator * allocator;
 };
 
 struct _GumProbeRangeForCodeCaveContext
@@ -91,8 +99,6 @@ static void gum_code_deflector_dispatcher_ensure_rx (
 static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
     gpointer user_data);
 #endif
-
-static void gum_code_deflector_free (GumCodeDeflector * deflector);
 
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,
@@ -151,28 +157,6 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
   }
 
   return gum_code_allocator_try_alloc_batch_near (self, spec);
-}
-
-void
-gum_code_slice_free (GumCodeSlice * slice)
-{
-  GumCodeSliceElement * element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
-  GumCodePages * pages = element->parent.data;
-
-  if (gum_query_is_rwx_supported ())
-  {
-    GumCodeAllocator * allocator = pages->allocator;
-    GList * link = &element->parent;
-
-    if (allocator->free_slices != NULL)
-      allocator->free_slices->prev = link;
-    link->next = allocator->free_slices;
-    allocator->free_slices = link;
-  }
-  else
-  {
-    gum_code_pages_unref (pages);
-  }
 }
 
 void
@@ -302,6 +286,28 @@ gum_code_pages_unref (GumCodePages * self)
   }
 }
 
+void
+gum_code_slice_free (GumCodeSlice * slice)
+{
+  GumCodeSliceElement * element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
+  GumCodePages * pages = element->parent.data;
+
+  if (gum_query_is_rwx_supported ())
+  {
+    GumCodeAllocator * allocator = pages->allocator;
+    GList * link = &element->parent;
+
+    if (allocator->free_slices != NULL)
+      allocator->free_slices->prev = link;
+    link->next = allocator->free_slices;
+    allocator->free_slices = link;
+  }
+  else
+  {
+    gum_code_pages_unref (pages);
+  }
+}
+
 static gboolean
 gum_code_slice_is_near (const GumCodeSlice * self,
                         const GumAddressSpec * spec)
@@ -343,6 +349,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
 {
   GumCodeDeflectorDispatcher * dispatcher = NULL;
   GSList * cur;
+  GumCodeDeflectorImpl * impl;
   GumCodeDeflector * deflector;
 
   for (cur = self->dispatchers; cur != NULL; cur = cur->next)
@@ -366,10 +373,14 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     self->dispatchers = g_slist_prepend (self->dispatchers, dispatcher);
   }
 
-  deflector = g_slice_new (GumCodeDeflector);
+  impl = g_slice_new (GumCodeDeflectorImpl);
+
+  deflector = &impl->parent;
   deflector->return_address = return_address;
   deflector->target = target;
   deflector->trampoline = dispatcher->trampoline;
+
+  impl->allocator = self;
 
   dispatcher->callers = g_slist_prepend (dispatcher->callers, deflector);
 
@@ -377,15 +388,16 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
 }
 
 void
-gum_code_allocator_free_deflector (GumCodeAllocator * self,
-                                   GumCodeDeflector * deflector)
+gum_code_deflector_free (GumCodeDeflector * deflector)
 {
+  GumCodeDeflectorImpl * impl = (GumCodeDeflectorImpl *) deflector;
+  GumCodeAllocator * allocator = impl->allocator;
   GSList * cur;
 
   if (deflector == NULL)
     return;
 
-  for (cur = self->dispatchers; cur != NULL; cur = cur->next)
+  for (cur = allocator->dispatchers; cur != NULL; cur = cur->next)
   {
     GumCodeDeflectorDispatcher * dispatcher = cur->data;
     GSList * entry;
@@ -393,13 +405,14 @@ gum_code_allocator_free_deflector (GumCodeAllocator * self,
     entry = g_slist_find (dispatcher->callers, deflector);
     if (entry != NULL)
     {
-      gum_code_deflector_free (deflector);
+      g_slice_free (GumCodeDeflectorImpl, impl);
 
       dispatcher->callers = g_slist_delete_link (dispatcher->callers, entry);
       if (dispatcher->callers == NULL)
       {
         gum_code_deflector_dispatcher_free (dispatcher);
-        self->dispatchers = g_slist_remove (self->dispatchers, dispatcher);
+        allocator->dispatchers = g_slist_remove (allocator->dispatchers,
+            dispatcher);
       }
 
       return;
@@ -562,9 +575,3 @@ gum_probe_range_for_code_cave (const GumRangeDetails * details,
 }
 
 #endif
-
-static void
-gum_code_deflector_free (GumCodeDeflector * deflector)
-{
-  g_slice_free (GumCodeDeflector, deflector);
-}

@@ -44,12 +44,11 @@ void gum_code_allocator_free (GumCodeAllocator * allocator);
 GumCodeSlice * gum_code_allocator_alloc_slice (GumCodeAllocator * self);
 GumCodeSlice * gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
     const GumAddressSpec * spec, gsize alignment);
-void gum_code_slice_free (GumCodeSlice * slice);
 void gum_code_allocator_commit (GumCodeAllocator * self);
+void gum_code_slice_free (GumCodeSlice * slice);
 
 GumCodeDeflector * gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     const GumAddressSpec * caller, gpointer return_address, gpointer target);
-void gum_code_allocator_free_deflector (GumCodeAllocator * self,
-    GumCodeDeflector * deflector);
+void gum_code_deflector_free (GumCodeDeflector * deflector);
 
 #endif
