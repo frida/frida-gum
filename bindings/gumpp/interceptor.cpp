@@ -77,6 +77,16 @@ namespace Gum
       gum_interceptor_revert_function (handle, function_address);
     }
 
+    virtual void begin_transaction ()
+    {
+      gum_interceptor_begin_transaction (handle);
+    }
+
+    virtual void end_transaction ()
+    {
+      gum_interceptor_end_transaction (handle);
+    }
+
     virtual InvocationContext * get_current_invocation ()
     {
       GumInvocationContext * context = gum_interceptor_get_current_invocation ();
