@@ -8,6 +8,10 @@
 #include "interceptor-fixture.c"
 
 TEST_LIST_BEGIN (interceptor)
+#ifdef HAVE_IOS
+  INTERCEPTOR_TESTENTRY (code_signing_status)
+#endif
+
 #ifdef HAVE_I386
   INTERCEPTOR_TESTENTRY (cpu_register_clobber)
   INTERCEPTOR_TESTENTRY (cpu_flag_clobber)
@@ -685,6 +689,40 @@ INTERCEPTOR_TESTCASE (function_data)
   gum_interceptor_detach_listener (fixture->interceptor, listener);
   g_object_unref (fd_listener);
 }
+
+#ifdef HAVE_IOS
+
+#define CS_OPS_STATUS 0
+#define CS_VALID 0x0000001
+
+extern int csops (pid_t pid, unsigned int ops, void * useraddr,
+    size_t usersize);
+
+INTERCEPTOR_TESTCASE (code_signing_status)
+{
+  int (* open_impl) (const char * path, int flags, ...);
+  gint fd, res;
+  uint32_t attributes;
+
+  open_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name ("libSystem.B.dylib", "open"));
+  interceptor_fixture_attach_listener (fixture, 0, open_impl, '>', '<');
+
+  g_assert_cmpstr (fixture->result->str, ==, "");
+  fd = open ("/etc/fstab", O_RDONLY);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  attributes = 0;
+  res = csops (0, CS_OPS_STATUS, &attributes, sizeof (attributes));
+  g_assert (res != -1);
+
+  g_assert ((attributes & CS_VALID) != 0);
+
+  if (fd != -1)
+    close (fd);
+}
+
+#endif
 
 #ifdef HAVE_I386
 
