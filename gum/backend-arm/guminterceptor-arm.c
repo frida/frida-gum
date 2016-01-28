@@ -184,7 +184,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
         ctx->allocator, &caller, return_address, ctx->on_enter_trampoline);
     if (ctx->trampoline_deflector == NULL)
     {
-      gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
+      gum_code_slice_free (ctx->trampoline_slice);
       ctx->trampoline_slice = NULL;
       return FALSE;
     }
@@ -285,26 +285,28 @@ void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
-  gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
-  gum_code_allocator_free_deflector (ctx->allocator, ctx->trampoline_deflector);
+  gum_code_slice_free (ctx->trampoline_slice);
+  gum_code_deflector_free (ctx->trampoline_deflector);
   ctx->trampoline_slice = NULL;
 }
 
 void
 _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-                                              GumFunctionContext * ctx)
+                                              GumFunctionContext * ctx,
+                                              gpointer prologue)
 {
-  gpointer function_address;
+  GumAddress function_address;
   GumArmFunctionContextData * data = (GumArmFunctionContextData *)
       &ctx->backend_data;
 
-  function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  function_address = GUM_ADDRESS (FUNCTION_CONTEXT_ADDRESS (ctx));
 
   if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
   {
     GumThumbWriter * tw = &self->thumb_writer;
 
-    gum_thumb_writer_reset (tw, function_address);
+    gum_thumb_writer_reset (tw, prologue);
+    tw->pc = function_address;
 
     gum_interceptor_backend_write_push_cpu_context_high_part (tw);
 
@@ -329,7 +331,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   {
     GumArmWriter * aw = &self->arm_writer;
 
-    gum_arm_writer_reset (aw, function_address);
+    gum_arm_writer_reset (aw, prologue);
+    aw->pc = function_address;
 
     /* jump straight to on_enter_trampoline */
     gum_arm_writer_put_ldr_reg_address (aw, ARM_REG_PC,
@@ -343,12 +346,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
 void
 _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
-                                                GumFunctionContext * ctx)
+                                                GumFunctionContext * ctx,
+                                                gpointer prologue)
 {
-  guint8 * function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  (void) self;
 
-  gum_memcpy (function_address, ctx->overwritten_prologue,
-      ctx->overwritten_prologue_len);
+  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
 }
 
 gpointer
