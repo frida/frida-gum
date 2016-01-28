@@ -140,8 +140,9 @@ static void gum_interceptor_transaction_schedule_prologue_write (
 static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address,
     GumCodeAllocator * allocator);
+static void gum_function_context_finalize (GumFunctionContext * function_ctx);
 static void gum_function_context_destroy (GumFunctionContext * function_ctx);
-static gboolean gum_function_context_try_destroy (
+static gboolean gum_function_context_is_empty (
     GumFunctionContext * function_ctx);
 static void gum_function_context_add_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener,
@@ -243,7 +244,8 @@ gum_interceptor_init (GumInterceptor * self)
 
   g_mutex_init (&priv->mutex);
 
-  priv->function_by_address = g_hash_table_new_full (NULL, NULL, NULL, NULL);
+  priv->function_by_address = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_function_context_destroy);
 
   gum_code_allocator_init (&priv->allocator, GUM_INTERCEPTOR_CODE_SLICE_SIZE);
   priv->backend = _gum_interceptor_backend_create (&priv->allocator);
@@ -256,19 +258,11 @@ gum_interceptor_dispose (GObject * object)
 {
   GumInterceptor * self = GUM_INTERCEPTOR (object);
   GumInterceptorPrivate * priv = self->priv;
-  GHashTableIter iter;
-  GumFunctionContext * function_ctx;
 
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
 
-  g_hash_table_iter_init (&iter, priv->function_by_address);
-  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
-  {
-    gum_function_context_destroy (function_ctx);
-
-    g_hash_table_iter_remove (&iter);
-  }
+  g_hash_table_remove_all (priv->function_by_address);
 
   gum_interceptor_transaction_end (&priv->current_transaction);
   GUM_INTERCEPTOR_UNLOCK ();
@@ -403,7 +397,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
     {
       gum_function_context_remove_listener (function_ctx, listener);
 
-      if (gum_function_context_try_destroy (function_ctx))
+      if (gum_function_context_is_empty (function_ctx))
       {
         g_hash_table_iter_remove (&iter);
       }
@@ -495,7 +489,7 @@ gum_interceptor_revert_function (GumInterceptor * self,
   function_ctx->replacement_function = NULL;
   function_ctx->replacement_function_data = NULL;
 
-  if (gum_function_context_try_destroy (function_ctx))
+  if (gum_function_context_is_empty (function_ctx))
   {
     g_hash_table_remove (priv->function_by_address, function_address);
   }
@@ -627,14 +621,14 @@ gum_interceptor_instrument (GumInterceptor * self,
 
   if (!_gum_interceptor_backend_create_trampoline (priv->backend, ctx))
   {
-    gum_function_context_destroy (ctx);
+    gum_function_context_finalize (ctx);
     return NULL;
   }
 
+  g_hash_table_insert (priv->function_by_address, function_address, ctx);
+
   gum_interceptor_transaction_schedule_prologue_write (
       &priv->current_transaction, ctx, gum_interceptor_activate);
-
-  g_hash_table_insert (priv->function_by_address, function_address, ctx);
 
   return ctx;
 }
@@ -644,9 +638,14 @@ gum_interceptor_activate (GumInterceptor * self,
                           GumFunctionContext * ctx,
                           gpointer prologue)
 {
+  if (ctx->destroyed)
+    return;
+
+  g_assert (!ctx->activated);
+  ctx->activated = TRUE;
+
   _gum_interceptor_backend_activate_trampoline (self->priv->backend, ctx,
       prologue);
-  ctx->active = TRUE;
 }
 
 static void
@@ -656,8 +655,10 @@ gum_interceptor_deactivate (GumInterceptor * self,
 {
   GumInterceptorBackend * backend = self->priv->backend;
 
+  g_assert (ctx->activated);
+  ctx->activated = FALSE;
+
   _gum_interceptor_backend_deactivate_trampoline (backend, ctx, prologue);
-  ctx->active = FALSE;
 }
 
 static void
@@ -811,7 +812,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
     _gum_interceptor_backend_destroy_trampoline (backend, ctx);
 
-    gum_function_context_destroy (ctx);
+    gum_function_context_finalize (ctx);
   }
 
   gum_interceptor_transaction_destroy (self);
@@ -870,35 +871,23 @@ gum_function_context_new (GumInterceptor * interceptor,
 {
   GumFunctionContext * ctx;
 
-  ctx = g_new0 (GumFunctionContext, 1);
-  ctx->interceptor = interceptor;
+  ctx = g_slice_new0 (GumFunctionContext);
   ctx->function_address = function_address;
-  ctx->active = FALSE;
 
   ctx->listener_entries =
       g_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
 
   ctx->allocator = allocator;
 
+  ctx->interceptor = interceptor;
+
   return ctx;
 }
 
 static void
-gum_function_context_destroy (GumFunctionContext * function_ctx)
+gum_function_context_finalize (GumFunctionContext * function_ctx)
 {
   guint i;
-
-  if (function_ctx->active)
-  {
-    GumInterceptorTransaction * transaction =
-        &function_ctx->interceptor->priv->current_transaction;
-
-    gum_interceptor_transaction_schedule_prologue_write (transaction,
-        function_ctx, gum_interceptor_deactivate);
-    gum_interceptor_transaction_schedule_destroy (transaction, function_ctx);
-
-    return;
-  }
 
   g_assert (function_ctx->trampoline_slice == NULL);
 
@@ -910,18 +899,32 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
   }
   g_array_free (function_ctx->listener_entries, TRUE);
 
-  g_free (function_ctx);
+  g_slice_free (GumFunctionContext, function_ctx);
+}
+
+static void
+gum_function_context_destroy (GumFunctionContext * function_ctx)
+{
+  GumInterceptorTransaction * transaction =
+      &function_ctx->interceptor->priv->current_transaction;
+
+  g_assert (!function_ctx->destroyed);
+  function_ctx->destroyed = TRUE;
+
+  if (function_ctx->activated)
+  {
+    gum_interceptor_transaction_schedule_prologue_write (transaction,
+        function_ctx, gum_interceptor_deactivate);
+  }
+
+  gum_interceptor_transaction_schedule_destroy (transaction, function_ctx);
 }
 
 static gboolean
-gum_function_context_try_destroy (GumFunctionContext * function_ctx)
+gum_function_context_is_empty (GumFunctionContext * function_ctx)
 {
-  if (function_ctx->replacement_function != NULL ||
-      function_ctx->listener_entries->len > 0)
-    return FALSE;
-
-  gum_function_context_destroy (function_ctx);
-  return TRUE;
+  return function_ctx->replacement_function == NULL &&
+      function_ctx->listener_entries->len == 0;
 }
 
 static void

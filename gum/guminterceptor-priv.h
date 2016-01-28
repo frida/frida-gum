@@ -25,10 +25,10 @@ struct _GumFunctionContextBackendData
 
 struct _GumFunctionContext
 {
-  GumInterceptor * interceptor;
-
   gpointer function_address;
-  gboolean active;
+
+  gboolean destroyed;
+  gboolean activated;
 
   GumCodeAllocator * allocator;
   GumCodeSlice * trampoline_slice;
@@ -49,6 +49,8 @@ struct _GumFunctionContext
   gpointer replacement_function_data;
 
   GumFunctionContextBackendData backend_data;
+
+  GumInterceptor * interceptor;
 };
 
 extern GumTlsKey _gum_interceptor_guard_key;
