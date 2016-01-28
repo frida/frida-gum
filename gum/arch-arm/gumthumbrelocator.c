@@ -466,7 +466,7 @@ gum_thumb_relocator_rewrite_ldr (GumThumbRelocator * self,
   if (src->type != ARM_OP_MEM || src->mem.base != ARM_REG_PC)
     return FALSE;
 
-  absolute_pc = ctx->pc & ~(4 - 1);
+  absolute_pc = ctx->pc & ~((GumAddress) (4 - 1));
   absolute_pc += src->mem.disp;
 
   gum_thumb_writer_put_ldr_reg_address (ctx->output, dst->reg, absolute_pc);
