@@ -128,7 +128,7 @@ gum_code_segment_new (gsize size,
   }
   else
   {
-    data = gum_alloc_n_pages_near (size_in_pages, GUM_PAGE_RW, spec);
+    data = gum_try_alloc_n_pages_near (size_in_pages, GUM_PAGE_RW, spec);
     if (data == NULL)
       return NULL;
   }
