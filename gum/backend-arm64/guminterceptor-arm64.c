@@ -207,20 +207,22 @@ void
 _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
-  gum_code_allocator_free_slice (ctx->allocator, ctx->trampoline_slice);
+  gum_code_slice_free (ctx->trampoline_slice);
   ctx->trampoline_slice = NULL;
 }
 
 void
 _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-                                              GumFunctionContext * ctx)
+                                              GumFunctionContext * ctx,
+                                              gpointer prologue)
 {
   GumArm64Writer * aw = &self->writer;
   GumArm64FunctionContextData * data = (GumArm64FunctionContextData *)
       &ctx->backend_data;
   GumAddress on_enter = GUM_ADDRESS (ctx->on_enter_trampoline);
 
-  gum_arm64_writer_reset (aw, ctx->function_address);
+  gum_arm64_writer_reset (aw, prologue);
+  aw->pc = GUM_ADDRESS (ctx->function_address);
   switch (data->redirect_code_size)
   {
     case 4:
@@ -242,11 +244,12 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 
 void
 _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
-                                                GumFunctionContext * ctx)
+                                                GumFunctionContext * ctx,
+                                                gpointer prologue)
 {
-  gum_memcpy (ctx->function_address, ctx->overwritten_prologue,
-      ctx->overwritten_prologue_len);
+  (void) self;
 
+  memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
 }
 
 gpointer
