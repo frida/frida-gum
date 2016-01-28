@@ -43,7 +43,7 @@ struct _GumFunctionContext
 
   gpointer on_leave_trampoline;
 
-  GArray * listener_entries;
+  GPtrArray * listener_entries;
 
   gpointer replacement_function;
   gpointer replacement_function_data;

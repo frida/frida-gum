@@ -149,9 +149,10 @@ static void gum_function_context_add_listener (
     gpointer function_data);
 static void gum_function_context_remove_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
+static void listener_entry_free (ListenerEntry * entry);
 static gboolean gum_function_context_has_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
-static ListenerEntry * gum_function_context_find_listener_entry (
+static gint gum_function_context_find_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
@@ -875,7 +876,7 @@ gum_function_context_new (GumInterceptor * interceptor,
   ctx->function_address = function_address;
 
   ctx->listener_entries =
-      g_array_sized_new (FALSE, FALSE, sizeof (gpointer), 2);
+      g_ptr_array_new_full (2, (GDestroyNotify) listener_entry_free);
 
   ctx->allocator = allocator;
 
@@ -887,17 +888,9 @@ gum_function_context_new (GumInterceptor * interceptor,
 static void
 gum_function_context_finalize (GumFunctionContext * function_ctx)
 {
-  guint i;
-
   g_assert (function_ctx->trampoline_slice == NULL);
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
-  {
-    ListenerEntry * cur =
-        g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
-    g_free (cur);
-  }
-  g_array_free (function_ctx->listener_entries, TRUE);
+  g_ptr_array_unref (function_ctx->listener_entries);
 
   g_slice_free (GumFunctionContext, function_ctx);
 }
@@ -934,62 +927,55 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
 {
   ListenerEntry * entry;
 
-  entry = g_new (ListenerEntry, 1);
+  entry = g_slice_new (ListenerEntry);
   entry->listener_interface = GUM_INVOCATION_LISTENER_GET_INTERFACE (listener);
   entry->listener_instance = listener;
   entry->function_data = function_data;
 
-  g_array_append_val (function_ctx->listener_entries, entry);
+  g_ptr_array_add (function_ctx->listener_entries, entry);
+}
+
+static void
+listener_entry_free (ListenerEntry * entry)
+{
+  g_slice_free (ListenerEntry, entry);
 }
 
 static void
 gum_function_context_remove_listener (GumFunctionContext * function_ctx,
                                       GumInvocationListener * listener)
 {
-  ListenerEntry * entry;
-  guint i;
+  gint listener_index;
 
-  entry = gum_function_context_find_listener_entry (function_ctx, listener);
-  g_assert (entry != NULL);
+  listener_index = gum_function_context_find_listener (function_ctx, listener);
+  g_assert (listener_index != -1);
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
-  {
-    ListenerEntry * cur =
-        g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
-    if (cur == entry)
-    {
-      g_array_remove_index (function_ctx->listener_entries, i);
-      break;
-    }
-  }
-
-  g_free (entry);
+  g_ptr_array_remove_index (function_ctx->listener_entries, listener_index);
 }
 
 static gboolean
 gum_function_context_has_listener (GumFunctionContext * function_ctx,
                                    GumInvocationListener * listener)
 {
-  return gum_function_context_find_listener_entry (function_ctx,
-      listener) != NULL;
+  return gum_function_context_find_listener (function_ctx, listener) != -1;
 }
 
-static ListenerEntry *
-gum_function_context_find_listener_entry (GumFunctionContext * function_ctx,
-                                          GumInvocationListener * listener)
+static gint
+gum_function_context_find_listener (GumFunctionContext * function_ctx,
+                                    GumInvocationListener * listener)
 {
   guint i;
 
   for (i = 0; i < function_ctx->listener_entries->len; i++)
   {
     ListenerEntry * entry =
-        g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+        g_ptr_array_index (function_ctx->listener_entries, i);
 
     if (entry->listener_instance == listener)
-      return entry;
+      return i;
   }
 
-  return NULL;
+  return -1;
 }
 
 void
@@ -1083,8 +1069,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
       ListenerEntry * listener_entry;
       ListenerInvocationState state;
 
-      listener_entry =
-          g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+      listener_entry = g_ptr_array_index (function_ctx->listener_entries, i);
 
       state.point_cut = GUM_POINT_ENTER;
       state.entry = listener_entry;
@@ -1178,8 +1163,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
     ListenerEntry * entry;
     ListenerInvocationState state;
 
-    entry =
-        g_array_index (function_ctx->listener_entries, ListenerEntry *, i);
+    entry = g_ptr_array_index (function_ctx->listener_entries, i);
 
     state.point_cut = GUM_POINT_LEAVE;
     state.entry = entry;
@@ -1332,7 +1316,7 @@ interceptor_thread_context_new (void)
 {
   InterceptorThreadContext * context;
 
-  context = g_new0 (InterceptorThreadContext, 1);
+  context = g_slice_new0 (InterceptorThreadContext);
 
   gum_memcpy (&context->listener_backend,
       &gum_interceptor_listener_invocation_backend,
@@ -1359,7 +1343,7 @@ interceptor_thread_context_destroy (InterceptorThreadContext * context)
 
   g_array_free (context->stack, TRUE);
 
-  g_free (context);
+  g_slice_free (InterceptorThreadContext, context);
 }
 
 static gpointer
