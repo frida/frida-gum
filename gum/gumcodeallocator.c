@@ -214,7 +214,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   GumCodeSegment * segment;
   gpointer data;
   GumCodePages * pages;
-  guint slice_index;
+  guint i;
 
   size_in_pages = 1;
   size_in_bytes = size_in_pages * gum_query_page_size ();
@@ -253,9 +253,10 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   pages->allocator = self;
 
-  for (slice_index = self->slices_per_page; slice_index != 0; slice_index--)
+  for (i = self->slices_per_page; i != 0; i--)
   {
-    GumCodeSliceElement * element = &pages->elements[slice_index - 1];
+    guint slice_index = i - 1;
+    GumCodeSliceElement * element = &pages->elements[slice_index];
     GList * link;
     GumCodeSlice * slice;
 
@@ -266,7 +267,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
     link = &element->parent;
     link->data = pages;
     link->prev = NULL;
-    if (slice_index == 1)
+    if (slice_index == 0)
     {
       link->next = NULL;
       result = slice;
