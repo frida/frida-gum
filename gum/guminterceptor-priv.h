@@ -75,6 +75,8 @@ void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
 void _gum_interceptor_backend_deactivate_trampoline (
     GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer prologue);
 
+gpointer _gum_interceptor_backend_get_function_address (
+    GumFunctionContext * ctx);
 gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
 gboolean _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,

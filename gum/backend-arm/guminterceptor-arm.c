@@ -22,8 +22,6 @@
 #define GUM_INTERCEPTOR_THUMB_FULL_REDIRECT_CODE_SIZE (8 + 4)
 #define GUM_INTERCEPTOR_THUMB_NEAR_REDIRECT_CODE_SIZE (6)
 
-#define FUNCTION_CONTEXT_ADDRESS(ctx) (GSIZE_TO_POINTER ( \
-    GPOINTER_TO_SIZE (ctx->function_address) & ~0x1))
 #define FUNCTION_CONTEXT_ADDRESS_IS_THUMB(ctx) ( \
     (GPOINTER_TO_SIZE (ctx->function_address) & 0x1) == 0x1)
 
@@ -113,7 +111,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   gboolean is_thumb;
   guint redirect_limit;
 
-  function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  function_address = _gum_interceptor_backend_get_function_address (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
   if (is_thumb)
@@ -160,7 +158,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
       &ctx->backend_data;
   guint reloc_bytes;
 
-  function_address = FUNCTION_CONTEXT_ADDRESS (ctx);
+  function_address = _gum_interceptor_backend_get_function_address (ctx);
   is_thumb = FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx);
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
@@ -299,7 +297,8 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   GumArmFunctionContextData * data = (GumArmFunctionContextData *)
       &ctx->backend_data;
 
-  function_address = GUM_ADDRESS (FUNCTION_CONTEXT_ADDRESS (ctx));
+  function_address = GUM_ADDRESS (
+      _gum_interceptor_backend_get_function_address (ctx));
 
   if (FUNCTION_CONTEXT_ADDRESS_IS_THUMB (ctx))
   {
@@ -352,6 +351,13 @@ _gum_interceptor_backend_deactivate_trampoline (GumInterceptorBackend * self,
   (void) self;
 
   memcpy (prologue, ctx->overwritten_prologue, ctx->overwritten_prologue_len);
+}
+
+gpointer
+_gum_interceptor_backend_get_function_address (GumFunctionContext * ctx)
+{
+  return GSIZE_TO_POINTER (
+      GPOINTER_TO_SIZE (ctx->function_address) & ~((gsize) 1));
 }
 
 gpointer

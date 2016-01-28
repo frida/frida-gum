@@ -740,7 +740,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
         write = &g_array_index (pending, GumPrologueWrite, i);
 
-        write->func (interceptor, write->ctx, write->ctx->function_address);
+        write->func (interceptor, write->ctx,
+            _gum_interceptor_backend_get_function_address (write->ctx));
       }
     }
   }
@@ -748,7 +749,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   {
     guint num_pages;
     GumCodeSegment * segment;
-    gpointer source_page;
+    guint8 * source_page;
     gsize source_offset;
 
     num_pages = g_hash_table_size (self->pending_prologue_writes);
@@ -774,7 +775,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         write = &g_array_index (pending, GumPrologueWrite, i);
 
         write->func (interceptor, write->ctx, source_page +
-            (write->ctx->function_address - target_page));
+            (_gum_interceptor_backend_get_function_address (write->ctx) -
+            target_page));
       }
 
       source_page += page_size;
@@ -824,12 +826,15 @@ gum_interceptor_transaction_schedule_prologue_write (
     GumFunctionContext * ctx,
     GumPrologueWriteFunc func)
 {
+  guint8 * function_address;
   gpointer start_page, end_page;
   GArray * pending;
   GumPrologueWrite write;
 
-  start_page = gum_page_address_from_pointer (ctx->function_address);
-  end_page = gum_page_address_from_pointer (ctx->function_address +
+  function_address = _gum_interceptor_backend_get_function_address (ctx);
+
+  start_page = gum_page_address_from_pointer (function_address);
+  end_page = gum_page_address_from_pointer (function_address +
       ctx->overwritten_prologue_len - 1);
 
   pending = g_hash_table_lookup (self->pending_prologue_writes, start_page);
