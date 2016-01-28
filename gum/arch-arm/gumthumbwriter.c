@@ -22,7 +22,7 @@ typedef struct _GumThumbArgument GumThumbArgument;
 struct _GumThumbLabelMapping
 {
   gconstpointer id;
-  gpointer address;
+  GumAddress address;
 };
 
 struct _GumThumbLabelRef
@@ -48,7 +48,7 @@ struct _GumThumbArgument
   } value;
 };
 
-static guint8 * gum_thumb_writer_lookup_address_for_label_id (
+static GumAddress gum_thumb_writer_lookup_address_for_label_id (
     GumThumbWriter * self, gconstpointer id);
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, va_list vl);
@@ -120,6 +120,17 @@ gum_thumb_writer_skip (GumThumbWriter * self,
   self->pc += n_bytes;
 }
 
+static GumAddress
+gum_thumb_writer_pointer_to_pc (GumThumbWriter * self,
+                                gpointer code)
+{
+  GumAddress base_pc;
+
+  base_pc = self->pc - gum_thumb_writer_offset (self);
+
+  return base_pc + ((guint8 *) code - (guint8 *) self->base);
+}
+
 void
 gum_thumb_writer_flush (GumThumbWriter * self)
 {
@@ -130,15 +141,16 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     for (label_idx = 0; label_idx != self->label_refs_len; label_idx++)
     {
       GumThumbLabelRef * r = &self->label_refs[label_idx];
-      gpointer target_address;
+      GumAddress target_address;
       gssize distance;
       guint16 insn;
 
       target_address =
           gum_thumb_writer_lookup_address_for_label_id (self, r->id);
-      g_assert (target_address != NULL);
+      g_assert (target_address != 0);
 
-      distance = ((gssize) target_address - (gssize) (r->insn + 2)) / 2;
+      distance = ((gint32) target_address -
+          (gint32) gum_thumb_writer_pointer_to_pc (self, r->insn + 2)) / 2;
 
       insn = GUINT16_FROM_LE (*r->insn);
       if ((insn & 0xf000) == 0xd000)
@@ -173,7 +185,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     guint32 * first_slot, * last_slot;
     guint ref_idx;
 
-    if ((GPOINTER_TO_SIZE (self->code) & 2) == 0)
+    if ((self->pc & 2) == 0)
       first_slot = (guint32 *) (self->code + 0);
     else
       first_slot = (guint32 *) (self->code + 1);
@@ -199,7 +211,9 @@ gum_thumb_writer_flush (GumThumbWriter * self)
         last_slot++;
       }
 
-      distance_in_words = cur_slot - (guint32 *) (r->insn + 1);
+      distance_in_words =
+          (guint32 *) gum_thumb_writer_pointer_to_pc (self, cur_slot) -
+          (guint32 *) gum_thumb_writer_pointer_to_pc (self, r->insn + 1);
       *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
     }
     self->literal_refs_len = 0;
@@ -209,7 +223,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
   }
 }
 
-static guint8 *
+static GumAddress
 gum_thumb_writer_lookup_address_for_label_id (GumThumbWriter * self,
                                               gconstpointer id)
 {
@@ -222,13 +236,13 @@ gum_thumb_writer_lookup_address_for_label_id (GumThumbWriter * self,
       return map->address;
   }
 
-  return NULL;
+  return 0;
 }
 
 static void
 gum_thumb_writer_add_address_for_label_id (GumThumbWriter * self,
                                            gconstpointer id,
-                                           gpointer address)
+                                           GumAddress address)
 {
   GumThumbLabelMapping * map = &self->id_to_address[self->id_to_address_len++];
 
@@ -242,8 +256,8 @@ void
 gum_thumb_writer_put_label (GumThumbWriter * self,
                             gconstpointer id)
 {
-  g_assert (gum_thumb_writer_lookup_address_for_label_id (self, id) == NULL);
-  gum_thumb_writer_add_address_for_label_id (self, id, self->code);
+  g_assert (gum_thumb_writer_lookup_address_for_label_id (self, id) == 0);
+  gum_thumb_writer_add_address_for_label_id (self, id, self->pc);
 }
 
 static void
@@ -352,7 +366,8 @@ gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     {
       if (arg->type == GUM_ARG_ADDRESS)
       {
-        gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, arg->value.address);
+        gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0,
+            arg->value.address);
         gum_thumb_writer_put_push_regs (self, 1, ARM_REG_R0);
       }
       else
