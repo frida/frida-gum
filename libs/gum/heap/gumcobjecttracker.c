@@ -182,12 +182,16 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
 
   priv->function_contexts = g_ptr_array_new ();
 
+  gum_interceptor_begin_transaction (priv->interceptor);
+
   gum_cobject_tracker_attach_to_function (self,
       GUM_FUNCPTR_TO_POINTER (free),
       &free_cobject_handlers, NULL);
   gum_cobject_tracker_attach_to_function (self,
       GUM_FUNCPTR_TO_POINTER (g_slice_free1),
       &g_slice_free1_cobject_handlers, NULL);
+
+  gum_interceptor_end_transaction (priv->interceptor);
 }
 
 static void

@@ -310,10 +310,13 @@ gum_profiler_instrument_functions_matching (GumProfiler * self,
                                             GumFunctionMatchFilterFunc filter,
                                             gpointer user_data)
 {
+  GumInterceptor * interceptor = self->priv->interceptor;
   GArray * matches;
   guint i;
 
   matches = gum_find_functions_matching (match_str);
+
+  gum_interceptor_begin_transaction (interceptor);
 
   for (i = 0; i < matches->len; i++)
   {
@@ -332,6 +335,8 @@ gum_profiler_instrument_functions_matching (GumProfiler * self,
     if (approved)
       gum_profiler_instrument_function (self, address, sampler);
   }
+
+  gum_interceptor_end_transaction (interceptor);
 
   g_array_free (matches, TRUE);
 }

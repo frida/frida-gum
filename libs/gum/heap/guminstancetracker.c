@@ -213,6 +213,8 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
     }
   }
 
+  gum_interceptor_begin_transaction (priv->interceptor);
+
   attach_ret = gum_interceptor_attach_listener (priv->interceptor,
       GUM_FUNCPTR_TO_POINTER (priv->vtable.create_instance),
       GUM_INVOCATION_LISTENER (self),
@@ -224,6 +226,8 @@ gum_instance_tracker_begin (GumInstanceTracker * self,
       GUM_INVOCATION_LISTENER (self),
       GUINT_TO_POINTER (FUNCTION_ID_FREE_INSTANCE));
   g_assert (attach_ret == GUM_ATTACH_OK);
+
+  gum_interceptor_end_transaction (priv->interceptor);
 
   priv->is_active = TRUE;
 }
