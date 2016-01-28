@@ -36,6 +36,9 @@ namespace Gum {
 		public Gum.ReplaceReturn replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
 		public void revert_function (void * function_address);
 
+		public void begin_transaction ();
+		public void end_transaction ();
+
 		public static Gum.InvocationContext get_current_invocation ();
 
 		public void ignore_current_thread ();
