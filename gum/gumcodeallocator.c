@@ -42,6 +42,7 @@ struct _GumCodePages
 
   GumCodeSegment * segment;
   gpointer data;
+  gsize size;
 
   GumCodeAllocator * allocator;
 
@@ -110,6 +111,7 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
       ((allocator->slices_per_page - 1) * sizeof (GumCodeSliceElement));
 
   allocator->uncommitted_pages = NULL;
+  allocator->dirty_pages = g_hash_table_new (NULL, NULL);
   allocator->free_slices = NULL;
 
   allocator->dispatchers = NULL;
@@ -124,8 +126,10 @@ gum_code_allocator_free (GumCodeAllocator * allocator)
   allocator->dispatchers = NULL;
 
   g_list_foreach (allocator->free_slices, (GFunc) gum_code_pages_unref, NULL);
+  g_hash_table_unref (allocator->dirty_pages);
   g_slist_free (allocator->uncommitted_pages);
   allocator->uncommitted_pages = NULL;
+  allocator->dirty_pages = NULL;
   allocator->free_slices = NULL;
 }
 
@@ -150,7 +154,11 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
     if (gum_code_slice_is_near (slice, spec) &&
         gum_code_slice_is_aligned (slice, alignment))
     {
+      GumCodePages * pages = element->parent.data;
+
       self->free_slices = g_list_remove_link (self->free_slices, cur);
+
+      g_hash_table_insert (self->dirty_pages, pages, pages);
 
       return slice;
     }
@@ -162,18 +170,19 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
 void
 gum_code_allocator_commit (GumCodeAllocator * self)
 {
-  gsize page_size;
+  gboolean rwx_supported;
   GSList * cur;
+  GumCodePages * pages;
+  GHashTableIter iter;
 
-  if (gum_query_is_rwx_supported ())
-    return;
-
-  page_size = gum_query_page_size ();
+  rwx_supported = gum_query_is_rwx_supported ();
 
   for (cur = self->uncommitted_pages; cur != NULL; cur = cur->next)
   {
-    GumCodePages * pages = cur->data;
-    GumCodeSegment * segment = pages->segment;
+    GumCodeSegment * segment;
+
+    pages = cur->data;
+    segment = pages->segment;
 
     gum_code_segment_realize (segment);
     gum_code_segment_map (segment, 0,
@@ -183,8 +192,18 @@ gum_code_allocator_commit (GumCodeAllocator * self)
   g_slist_free (self->uncommitted_pages);
   self->uncommitted_pages = NULL;
 
-  g_list_foreach (self->free_slices, (GFunc) gum_code_pages_unref, NULL);
-  self->free_slices = NULL;
+  g_hash_table_iter_init (&iter, self->dirty_pages);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &pages, NULL))
+  {
+    gum_clear_cache (pages->data, pages->size);
+  }
+  g_hash_table_remove_all (self->dirty_pages);
+
+  if (!rwx_supported)
+  {
+    g_list_foreach (self->free_slices, (GFunc) gum_code_pages_unref, NULL);
+    self->free_slices = NULL;
+  }
 }
 
 static GumCodeSlice *
@@ -192,33 +211,30 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
                                          const GumAddressSpec * spec)
 {
   GumCodeSlice * result = NULL;
-  gsize size_in_pages, size_in_bytes;
   gboolean rwx_supported;
-  GumPageProtection prot;
+  gsize size_in_pages, size_in_bytes;
   GumCodeSegment * segment;
   gpointer data;
   GumCodePages * pages;
   guint i;
 
-  size_in_pages = 1;
-  size_in_bytes = size_in_pages * gum_query_page_size ();
-
   rwx_supported = gum_query_is_rwx_supported ();
 
-  prot = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+  size_in_pages = 1;
+  size_in_bytes = size_in_pages * gum_query_page_size ();
 
   if (rwx_supported)
   {
     segment = NULL;
     if (spec != NULL)
     {
-      data = gum_try_alloc_n_pages_near (size_in_pages, prot, spec);
+      data = gum_try_alloc_n_pages_near (size_in_pages, GUM_PAGE_RWX, spec);
       if (data == NULL)
         return NULL;
     }
     else
     {
-      data = gum_alloc_n_pages (size_in_pages, prot);
+      data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RWX);
     }
   }
   else
@@ -234,6 +250,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   pages->segment = segment;
   pages->data = data;
+  pages->size = size_in_bytes;
 
   pages->allocator = self;
 
@@ -267,6 +284,8 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   if (!rwx_supported)
     self->uncommitted_pages = g_slist_prepend (self->uncommitted_pages, pages);
+
+  g_hash_table_insert (self->dirty_pages, pages, pages);
 
   return result;
 }
@@ -427,7 +446,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
 {
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext ctx;
-  gsize page_size, size_in_pages, size_in_bytes;
+  gsize size_in_pages, size_in_bytes;
 
   ctx.caller = caller;
 
@@ -442,9 +461,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
   if (ctx.cave.base_address == 0)
     return NULL;
 
-  page_size = gum_query_page_size ();
   size_in_pages = 1;
-  size_in_bytes = size_in_pages * page_size;
+  size_in_bytes = size_in_pages * gum_query_page_size ();
 
   dispatcher = g_slice_new (GumCodeDeflectorDispatcher);
 

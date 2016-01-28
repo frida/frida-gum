@@ -20,6 +20,7 @@ struct _GumCodeAllocator
   gsize pages_metadata_size;
 
   GSList * uncommitted_pages;
+  GHashTable * dirty_pages;
   GList * free_slices;
 
   GSList * dispatchers;

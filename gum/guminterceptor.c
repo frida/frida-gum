@@ -743,6 +743,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         write->func (interceptor, write->ctx,
             _gum_interceptor_backend_get_function_address (write->ctx));
       }
+
+      gum_clear_cache (target_page, page_size);
     }
   }
   else
@@ -790,6 +792,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
       gpointer target_page = cur->data;
 
       gum_code_segment_map (segment, source_offset, page_size, target_page);
+
+      gum_clear_cache (target_page, page_size);
 
       source_offset += page_size;
     }
