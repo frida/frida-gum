@@ -308,8 +308,14 @@ gum_code_pages_unref (GumCodePages * self)
 void
 gum_code_slice_free (GumCodeSlice * slice)
 {
-  GumCodeSliceElement * element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
-  GumCodePages * pages = element->parent.data;
+  GumCodeSliceElement * element;
+  GumCodePages * pages;
+
+  if (slice == NULL)
+    return;
+
+  element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
+  pages = element->parent.data;
 
   if (gum_query_is_rwx_supported ())
   {
