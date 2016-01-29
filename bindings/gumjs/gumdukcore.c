@@ -575,6 +575,15 @@ _gum_duk_core_flush (GumDukCore * self)
 
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
 
+  while (self->scheduled_callbacks != NULL)
+  {
+    GumDukScheduledCallback * cb =
+        (GumDukScheduledCallback *) self->scheduled_callbacks->data;
+    self->scheduled_callbacks = g_slist_delete_link (
+        self->scheduled_callbacks, self->scheduled_callbacks);
+    g_source_destroy (cb->source);
+  }
+
   context = gum_script_scheduler_get_js_context (self->scheduler);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
@@ -586,15 +595,6 @@ void
 _gum_duk_core_dispose (GumDukCore * self)
 {
   duk_context * ctx = self->ctx;
-
-  while (self->scheduled_callbacks != NULL)
-  {
-    GumDukScheduledCallback * cb =
-        (GumDukScheduledCallback *) self->scheduled_callbacks->data;
-    self->scheduled_callbacks = g_slist_delete_link (
-        self->scheduled_callbacks, self->scheduled_callbacks);
-    g_source_destroy (cb->source);
-  }
 
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_duk_exception_sink_free);
