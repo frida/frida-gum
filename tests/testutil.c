@@ -207,10 +207,7 @@ _test_util_deinit (void)
 GumSampler *
 heap_access_counter_new (void)
 {
-  return gum_call_count_sampler_new (malloc, calloc, realloc, free,
-      g_slice_alloc, g_slice_alloc0, g_slice_copy, g_slice_free1,
-      g_slice_free_chain_with_offset, g_malloc, g_malloc0, g_free,
-      g_memdup, NULL);
+  return gum_call_count_sampler_new (malloc, calloc, realloc, free, NULL);
 }
 
 void
