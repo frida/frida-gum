@@ -545,14 +545,29 @@ void
 _gum_v8_core_flush (GumV8Core * self)
 {
   self->isolate->Exit ();
-
   {
     Unlocker ul (self->isolate);
 
     gum_script_scheduler_flush_by_tag (self->scheduler, self);
   }
-
   self->isolate->Enter ();
+
+  while (self->scheduled_callbacks != NULL)
+  {
+    GumV8ScheduledCallback * callback = static_cast<GumV8ScheduledCallback *> (
+        self->scheduled_callbacks->data);
+
+    self->scheduled_callbacks = g_slist_delete_link (
+        self->scheduled_callbacks, self->scheduled_callbacks);
+
+    self->isolate->Exit ();
+    {
+      Unlocker ul (self->isolate);
+
+      g_source_destroy (callback->source);
+    }
+    self->isolate->Enter ();
+  }
 
   GMainContext * context =
       gum_script_scheduler_get_js_context (self->scheduler);
@@ -575,14 +590,6 @@ _gum_v8_core_dispose (GumV8Core * self)
 
   g_hash_table_unref (self->native_functions);
   self->native_functions = NULL;
-
-  while (self->scheduled_callbacks != NULL)
-  {
-    g_source_destroy (static_cast<GumV8ScheduledCallback *> (
-        self->scheduled_callbacks->data)->source);
-    self->scheduled_callbacks = g_slist_delete_link (
-        self->scheduled_callbacks, self->scheduled_callbacks);
-  }
 
   gum_v8_exception_sink_free (self->unhandled_exception_sink);
   self->unhandled_exception_sink = NULL;
