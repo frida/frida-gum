@@ -163,12 +163,13 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_replace_entry_free);
 
+  _gum_duk_store_module_data (ctx, "interceptor", self);
+
   duk_push_c_function (ctx, gumjs_interceptor_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_interceptor_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Interceptor");
 
   duk_push_c_function (ctx, gumjs_invocation_context_construct, 0);
@@ -246,14 +247,7 @@ _gum_duk_interceptor_finalize (GumDukInterceptor * self)
 static GumDukInterceptor *
 gumjs_interceptor_from_args (const GumDukArgs * args)
 {
-  duk_context * ctx = args->ctx;
-  GumDukInterceptor * self;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return self;
+  return _gum_duk_load_module_data (args->ctx, "interceptor");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_interceptor_construct)

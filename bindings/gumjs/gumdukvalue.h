@@ -32,6 +32,10 @@ struct _GumDukPropertyEntry
 G_GNUC_INTERNAL void _gum_duk_args_parse (const GumDukArgs * args,
     const gchar * format, ...);
 
+G_GNUC_INTERNAL void _gum_duk_store_module_data (duk_context * ctx,
+    const gchar * module_id, gpointer data);
+G_GNUC_INTERNAL gpointer _gum_duk_load_module_data (duk_context * ctx,
+    const gchar * module_id);
 G_GNUC_INTERNAL gpointer _gum_duk_get_data (duk_context * ctx, duk_idx_t index);
 G_GNUC_INTERNAL gpointer _gum_duk_require_data (duk_context * ctx,
     duk_idx_t index);

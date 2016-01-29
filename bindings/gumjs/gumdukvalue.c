@@ -387,6 +387,37 @@ error:
   }
 }
 
+void
+_gum_duk_store_module_data (duk_context * ctx,
+                            const gchar * module_id,
+                            gpointer data)
+{
+  guint8 key[32];
+
+  key[0] = 0xff;
+  g_strlcpy ((gchar *) (key + 1), module_id, sizeof (key) - 1);
+
+  duk_push_pointer (ctx, data);
+  duk_put_global_string (ctx, key);
+}
+
+gpointer
+_gum_duk_load_module_data (duk_context * ctx,
+                           const gchar * module_id)
+{
+  gpointer result;
+  guint8 key[32];
+
+  key[0] = 0xff;
+  g_strlcpy ((gchar *) (key + 1), module_id, sizeof (key) - 1);
+
+  duk_get_global_string (ctx, key);
+  result = duk_get_pointer (ctx, -1);
+  duk_pop (ctx);
+
+  return result;
+}
+
 gpointer
 _gum_duk_get_data (duk_context * ctx,
                    duk_idx_t index)

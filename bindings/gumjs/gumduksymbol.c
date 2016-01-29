@@ -49,12 +49,13 @@ _gum_duk_symbol_init (GumDukSymbol * self,
 
   self->core = core;
 
+  _gum_duk_store_module_data (ctx, "debug-symbol", self);
+
   duk_push_c_function (ctx, gumjs_symbol_module_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_symbol_module_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "DebugSymbol");
 
   duk_push_c_function (ctx, gumjs_symbol_construct, 2);
@@ -81,14 +82,7 @@ _gum_duk_symbol_finalize (GumDukSymbol * self)
 static GumDukSymbol *
 gumjs_symbol_module_from_args (const GumDukArgs * args)
 {
-  duk_context * ctx = args->ctx;
-  GumDukSymbol * self;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return self;
+  return _gum_duk_load_module_data (args->ctx, "debug-symbol");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)

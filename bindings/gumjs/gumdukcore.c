@@ -466,8 +466,7 @@ _gum_duk_core_init (GumDukCore * self,
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
 
-  duk_push_pointer (ctx, self);
-  duk_put_global_string (ctx, "\xff" "core");
+  _gum_duk_store_module_data (ctx, "core", self);
 
   /* set `global` to the global object */
   duk_push_global_object (ctx);

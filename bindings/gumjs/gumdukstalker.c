@@ -63,12 +63,13 @@ _gum_duk_stalker_init (GumDukStalker * self,
   self->queue_capacity = 16384;
   self->queue_drain_interval = 250;
 
+  _gum_duk_store_module_data (ctx, "stalker", self);
+
   duk_push_c_function (ctx, gumjs_stalker_construct, 0);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_stalker_functions);
   duk_put_prop_string (ctx, -2, "prototype");
   duk_new (ctx, 0);
-  _gum_duk_put_data (ctx, -1, self);
   _gum_duk_add_properties_to_class_by_heapptr (ctx,
       duk_require_heapptr (ctx, -1), gumjs_stalker_values);
   duk_put_global_string (ctx, "Stalker");
@@ -109,14 +110,7 @@ _gum_duk_stalker_get (GumDukStalker * self)
 static GumDukStalker *
 gumjs_stalker_from_args (const GumDukArgs * args)
 {
-  duk_context * ctx = args->ctx;
-  GumDukStalker * self;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return self;
+  return _gum_duk_load_module_data (args->ctx, "stalker");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_stalker_construct)
