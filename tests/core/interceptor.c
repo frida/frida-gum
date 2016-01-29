@@ -63,10 +63,12 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
 #endif
 
-#ifdef HAVE_IOS
-  INTERCEPTOR_TESTENTRY (code_signing_status)
+#ifdef HAVE_DARWIN
   INTERCEPTOR_TESTENTRY (attach_performance)
   INTERCEPTOR_TESTENTRY (replace_performance)
+#endif
+#ifdef HAVE_IOS
+  INTERCEPTOR_TESTENTRY (code_signing_status)
   INTERCEPTOR_TESTENTRY (cydia_substrate_replace_performance)
 #endif
 TEST_LIST_END ()
@@ -920,10 +922,7 @@ INTERCEPTOR_TESTCASE (already_replaced)
   gum_interceptor_revert_function (fixture->interceptor, target_function);
 }
 
-#ifdef HAVE_IOS
-
-#define CS_OPS_STATUS 0
-#define CS_VALID 0x0000001
+#ifdef HAVE_DARWIN
 
 typedef struct _TestPerformanceContext TestPerformanceContext;
 
@@ -937,41 +936,12 @@ struct _TestPerformanceContext
   guint count;
 };
 
-extern int csops (pid_t pid, unsigned int ops, void * useraddr,
-    size_t usersize);
-
 static gboolean attach_if_function_export (const GumExportDetails * details,
     gpointer user_data);
 static gboolean replace_if_function_export (const GumExportDetails * details,
     gpointer user_data);
-static gboolean replace_with_cydia_substrate_if_function_export (
-    const GumExportDetails * details, gpointer user_data);
 
 static void dummy_replacement_never_called (void);
-
-INTERCEPTOR_TESTCASE (code_signing_status)
-{
-  int (* open_impl) (const char * path, int flags, ...);
-  gint fd, res;
-  uint32_t attributes;
-
-  open_impl = GSIZE_TO_POINTER (
-      gum_module_find_export_by_name ("libSystem.B.dylib", "open"));
-  interceptor_fixture_attach_listener (fixture, 0, open_impl, '>', '<');
-
-  g_assert_cmpstr (fixture->result->str, ==, "");
-  fd = open ("/etc/fstab", O_RDONLY);
-  g_assert_cmpstr (fixture->result->str, ==, "><");
-
-  attributes = 0;
-  res = csops (0, CS_OPS_STATUS, &attributes, sizeof (attributes));
-  g_assert (res != -1);
-
-  g_assert ((attributes & CS_VALID) != 0);
-
-  if (fd != -1)
-    close (fd);
-}
 
 INTERCEPTOR_TESTCASE (attach_performance)
 {
@@ -1045,45 +1015,6 @@ INTERCEPTOR_TESTCASE (replace_performance)
   dlclose (sqlite);
 }
 
-INTERCEPTOR_TESTCASE (cydia_substrate_replace_performance)
-{
-  gpointer cydia_substrate, sqlite;
-  TestPerformanceContext ctx;
-  GTimer * timer;
-
-  if (!g_test_slow ())
-  {
-    g_print ("<skipping, run in slow mode> ");
-    return;
-  }
-
-  cydia_substrate = dlopen (
-      "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
-      RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (cydia_substrate != NULL);
-
-  ctx.MSHookFunction = dlsym (cydia_substrate, "MSHookFunction");
-  g_assert (ctx.MSHookFunction != NULL);
-
-  ctx.count = 0;
-
-  sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
-  g_assert (sqlite != NULL);
-
-  timer = g_timer_new ();
-
-  gum_module_enumerate_exports ("libsqlite3.dylib",
-      replace_with_cydia_substrate_if_function_export, &ctx);
-
-  g_print ("<hooked %u functions in %u ms> ", ctx.count,
-      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
-  g_timer_destroy (timer);
-
-  dlclose (sqlite);
-
-  dlclose (cydia_substrate);
-}
-
 static gboolean
 attach_if_function_export (const GumExportDetails * details,
                            gpointer user_data)
@@ -1141,6 +1072,87 @@ replace_if_function_export (const GumExportDetails * details,
   return TRUE;
 }
 
+static void
+dummy_replacement_never_called (void)
+{
+}
+
+#endif
+
+#ifdef HAVE_IOS
+
+#define CS_OPS_STATUS 0
+#define CS_VALID 0x0000001
+
+extern int csops (pid_t pid, unsigned int ops, void * useraddr,
+    size_t usersize);
+
+static gboolean replace_with_cydia_substrate_if_function_export (
+    const GumExportDetails * details, gpointer user_data);
+
+INTERCEPTOR_TESTCASE (code_signing_status)
+{
+  int (* open_impl) (const char * path, int flags, ...);
+  gint fd, res;
+  uint32_t attributes;
+
+  open_impl = GSIZE_TO_POINTER (
+      gum_module_find_export_by_name ("libSystem.B.dylib", "open"));
+  interceptor_fixture_attach_listener (fixture, 0, open_impl, '>', '<');
+
+  g_assert_cmpstr (fixture->result->str, ==, "");
+  fd = open ("/etc/fstab", O_RDONLY);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  attributes = 0;
+  res = csops (0, CS_OPS_STATUS, &attributes, sizeof (attributes));
+  g_assert (res != -1);
+
+  g_assert ((attributes & CS_VALID) != 0);
+
+  if (fd != -1)
+    close (fd);
+}
+
+INTERCEPTOR_TESTCASE (cydia_substrate_replace_performance)
+{
+  gpointer cydia_substrate, sqlite;
+  TestPerformanceContext ctx;
+  GTimer * timer;
+
+  if (!g_test_slow ())
+  {
+    g_print ("<skipping, run in slow mode> ");
+    return;
+  }
+
+  cydia_substrate = dlopen (
+      "/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
+      RTLD_LAZY | RTLD_GLOBAL);
+  g_assert (cydia_substrate != NULL);
+
+  ctx.MSHookFunction = dlsym (cydia_substrate, "MSHookFunction");
+  g_assert (ctx.MSHookFunction != NULL);
+
+  ctx.count = 0;
+
+  sqlite = dlopen ("/usr/lib/libsqlite3.0.dylib", RTLD_LAZY | RTLD_GLOBAL);
+  g_assert (sqlite != NULL);
+
+  timer = g_timer_new ();
+
+  gum_module_enumerate_exports ("libsqlite3.dylib",
+      replace_with_cydia_substrate_if_function_export, &ctx);
+
+  g_print ("<hooked %u functions in %u ms> ", ctx.count,
+      (guint) (g_timer_elapsed (timer, NULL) * 1000.0));
+  g_timer_destroy (timer);
+
+  dlclose (sqlite);
+
+  dlclose (cydia_substrate);
+}
+
 static gboolean
 replace_with_cydia_substrate_if_function_export (
     const GumExportDetails * details,
@@ -1158,11 +1170,6 @@ replace_with_cydia_substrate_if_function_export (
   }
 
   return TRUE;
-}
-
-static void
-dummy_replacement_never_called (void)
-{
 }
 
 #endif
