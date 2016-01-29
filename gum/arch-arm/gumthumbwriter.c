@@ -200,8 +200,9 @@ gum_thumb_writer_flush (GumThumbWriter * self)
         last_slot++;
       }
 
-      distance_in_words = (((guint32 *) self->pc) + (slot - first_slot)) -
-          ((guint32 *) (r->pc & ~((GumAddress) 3)));
+      distance_in_words = (((guint32 *) GSIZE_TO_POINTER (self->pc)) +
+          (slot - first_slot)) -
+          ((guint32 *) GSIZE_TO_POINTER (r->pc & ~((GumAddress) 3)));
       *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
     }
     self->literal_refs_len = 0;
