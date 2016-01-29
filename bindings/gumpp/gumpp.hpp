@@ -54,6 +54,9 @@ namespace Gum
     virtual void replace_function (void * function_address, void * replacement_address, void * replacement_function_data = 0) = 0;
     virtual void revert_function (void * function_address) = 0;
 
+    virtual void begin_transaction () = 0;
+    virtual void end_transaction () = 0;
+
     virtual InvocationContext * get_current_invocation () = 0;
 
     virtual void ignore_current_thread () = 0;

@@ -8,7 +8,6 @@
 #define __GUM_ALLOCATION_GROUP_H__
 
 #include <gum/gumdefs.h>
-#include <gum/gumlist.h>
 
 typedef struct _GumAllocationGroup GumAllocationGroup;
 
@@ -27,7 +26,7 @@ GUM_API GumAllocationGroup * gum_allocation_group_copy (
     const GumAllocationGroup * group);
 GUM_API void gum_allocation_group_free (GumAllocationGroup * group);
 
-GUM_API void gum_allocation_group_list_free (GumList * groups);
+GUM_API void gum_allocation_group_list_free (GList * groups);
 
 G_END_DECLS
 

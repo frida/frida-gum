@@ -5,9 +5,10 @@
  */
 
 #include "gumcobjecttracker.h"
+
 #include "gumcobject.h"
 #include "guminterceptor.h"
-#include "gumhash.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -43,8 +44,8 @@ struct _GumCObjectTrackerPrivate
 {
   gboolean disposed;
   GMutex mutex;
-  GumHashTable * types_ht;
-  GumHashTable * objects_ht;
+  GHashTable * types_ht;
+  GHashTable * objects_ht;
   GumInterceptor * interceptor;
   GPtrArray * function_contexts;
 
@@ -171,15 +172,17 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
 
   g_mutex_init (&priv->mutex);
 
-  priv->types_ht = gum_hash_table_new_full (g_str_hash, g_str_equal,
+  priv->types_ht = g_hash_table_new_full (g_str_hash, g_str_equal,
       g_free, (GDestroyNotify) object_type_free);
 
-  priv->objects_ht = gum_hash_table_new_full (g_direct_hash, g_direct_equal,
+  priv->objects_ht = g_hash_table_new_full (g_direct_hash, g_direct_equal,
       NULL, (GDestroyNotify) gum_cobject_free);
 
   priv->interceptor = gum_interceptor_obtain ();
 
   priv->function_contexts = g_ptr_array_new ();
+
+  gum_interceptor_begin_transaction (priv->interceptor);
 
   gum_cobject_tracker_attach_to_function (self,
       GUM_FUNCPTR_TO_POINTER (free),
@@ -187,6 +190,8 @@ gum_cobject_tracker_init (GumCObjectTracker * self)
   gum_cobject_tracker_attach_to_function (self,
       GUM_FUNCPTR_TO_POINTER (g_slice_free1),
       &g_slice_free1_cobject_handlers, NULL);
+
+  gum_interceptor_end_transaction (priv->interceptor);
 }
 
 static void
@@ -261,10 +266,10 @@ gum_cobject_tracker_dispose (GObject * object)
     }
     priv->backtracer_interface = NULL;
 
-    gum_hash_table_unref (priv->objects_ht);
+    g_hash_table_unref (priv->objects_ht);
     priv->objects_ht = NULL;
 
-    gum_hash_table_unref (priv->types_ht);
+    g_hash_table_unref (priv->types_ht);
     priv->types_ht = NULL;
   }
 
@@ -316,7 +321,7 @@ gum_cobject_tracker_track (GumCObjectTracker * self,
   g_assert (strlen (type_name) <= GUM_MAX_TYPE_NAME);
 
   t = object_type_new (type_name);
-  gum_hash_table_insert (priv->types_ht, g_strdup (type_name), t);
+  g_hash_table_insert (priv->types_ht, g_strdup (type_name), t);
 
   gum_cobject_tracker_attach_to_function (self, type_constructor,
       &object_type_cobject_handlers, t);
@@ -348,14 +353,14 @@ gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
   {
     ObjectType * object_type;
 
-    object_type = gum_hash_table_lookup (priv->types_ht, type_name);
+    object_type = g_hash_table_lookup (priv->types_ht, type_name);
     g_assert (object_type != NULL);
 
     result = object_type->count;
   }
   else
   {
-    result = gum_hash_table_size (priv->objects_ht);
+    result = g_hash_table_size (priv->objects_ht);
   }
 
   gum_interceptor_unignore_current_thread (priv->interceptor);
@@ -364,19 +369,19 @@ gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
   return result;
 }
 
-GumList *
+GList *
 gum_cobject_tracker_peek_object_list (GumCObjectTracker * self)
 {
   GumCObjectTrackerPrivate * priv = GUM_COBJECT_TRACKER_GET_PRIVATE (self);
-  GumList * result = NULL, * walk;
+  GList * result = NULL, * cur;
 
   GUM_COBJECT_TRACKER_LOCK ();
   gum_interceptor_ignore_current_thread (priv->interceptor);
 
-  result = gum_hash_table_get_values (priv->objects_ht);
-  for (walk = result; walk != NULL; walk = walk->next)
+  result = g_hash_table_get_values (priv->objects_ht);
+  for (cur = result; cur != NULL; cur = cur->next)
   {
-    walk->data = gum_cobject_copy ((GumCObject *) walk->data);
+    cur->data = gum_cobject_copy ((GumCObject *) cur->data);
   }
 
   gum_interceptor_unignore_current_thread (priv->interceptor);
@@ -412,7 +417,7 @@ gum_cobject_tracker_add_object (GumCObjectTracker * self,
 
   GUM_COBJECT_TRACKER_LOCK ();
 
-  gum_hash_table_insert (priv->objects_ht, cobject->address, cobject);
+  g_hash_table_insert (priv->objects_ht, cobject->address, cobject);
   object_type->count++;
 
   GUM_COBJECT_TRACKER_UNLOCK ();
@@ -427,12 +432,12 @@ gum_cobject_tracker_maybe_remove_object (GumCObjectTracker * self,
 
   GUM_COBJECT_TRACKER_LOCK ();
 
-  cobject = gum_hash_table_lookup (priv->objects_ht, address);
+  cobject = g_hash_table_lookup (priv->objects_ht, address);
   if (cobject != NULL)
   {
     ObjectType * object_type = cobject->data;
     object_type->count--;
-    gum_hash_table_remove (priv->objects_ht, address);
+    g_hash_table_remove (priv->objects_ht, address);
   }
 
   GUM_COBJECT_TRACKER_UNLOCK ();

@@ -72,7 +72,7 @@ COBJTRACKER_TESTCASE (total_count_decrease)
 
 COBJTRACKER_TESTCASE (object_list)
 {
-  GumList * cobjects, * walk;
+  GList * cobjects, * cur;
 
   test_cobject_tracker_fixture_enable_backtracer (fixture);
 
@@ -80,11 +80,11 @@ COBJTRACKER_TESTCASE (object_list)
   fixture->mo = my_object_new ();
 
   cobjects = gum_cobject_tracker_peek_object_list (fixture->tracker);
-  g_assert_cmpint (gum_list_length (cobjects), ==, 2);
+  g_assert_cmpint (g_list_length (cobjects), ==, 2);
 
-  for (walk = cobjects; walk != NULL; walk = walk->next)
+  for (cur = cobjects; cur != NULL; cur = cur->next)
   {
-    GumCObject * cobject = (GumCObject *) walk->data;
+    GumCObject * cobject = (GumCObject *) cur->data;
 
     g_assert (cobject->address == fixture->ht1 ||
         cobject->address == fixture->mo);

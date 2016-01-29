@@ -40,7 +40,7 @@ TEST_LIST_END ()
 ALLOCTRACKER_TESTCASE (begin)
 {
   GumAllocationTracker * t = fixture->tracker;
-  GumList * blocks, * groups;
+  GList * blocks, * groups;
 
   g_assert_cmpuint (gum_allocation_tracker_peek_block_count (t), ==, 0);
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 0);
@@ -59,11 +59,11 @@ ALLOCTRACKER_TESTCASE (begin)
   g_assert_cmpuint (gum_allocation_tracker_peek_block_total_size (t), ==, 321);
 
   blocks = gum_allocation_tracker_peek_block_list (t);
-  g_assert_cmpuint (gum_list_length (blocks), ==, 1);
+  g_assert_cmpuint (g_list_length (blocks), ==, 1);
   gum_allocation_block_list_free (blocks);
 
   groups = gum_allocation_tracker_peek_block_groups (t);
-  g_assert_cmpuint (gum_list_length (groups), ==, 1);
+  g_assert_cmpuint (g_list_length (groups), ==, 1);
   gum_allocation_group_list_free (groups);
 }
 
@@ -140,10 +140,10 @@ ALLOCTRACKER_TESTCASE (block_list_pointers)
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_B, 24);
 
   {
-    GumList * blocks, * cur;
+    GList * blocks, * cur;
 
     blocks = gum_allocation_tracker_peek_block_list (t);
-    g_assert_cmpuint (gum_list_length (blocks), ==, 2);
+    g_assert_cmpuint (g_list_length (blocks), ==, 2);
 
     for (cur = blocks; cur != NULL; cur = cur->next)
     {
@@ -158,11 +158,11 @@ ALLOCTRACKER_TESTCASE (block_list_pointers)
   gum_allocation_tracker_on_free (t, DUMMY_BLOCK_A);
 
   {
-    GumList * blocks;
+    GList * blocks;
     GumAllocationBlock * block;
 
     blocks = gum_allocation_tracker_peek_block_list (t);
-    g_assert_cmpuint (gum_list_length (blocks), ==, 1);
+    g_assert_cmpuint (g_list_length (blocks), ==, 1);
 
     block = blocks->data;
     g_assert (block->address == DUMMY_BLOCK_B);
@@ -176,7 +176,7 @@ ALLOCTRACKER_TESTCASE (block_list_pointers)
 ALLOCTRACKER_TESTCASE (block_list_sizes)
 {
   GumAllocationTracker * t = fixture->tracker;
-  GumList * blocks, * cur;
+  GList * blocks, * cur;
 
   gum_allocation_tracker_begin (t);
 
@@ -184,7 +184,7 @@ ALLOCTRACKER_TESTCASE (block_list_sizes)
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_B, 24);
 
   blocks = gum_allocation_tracker_peek_block_list (t);
-  g_assert_cmpuint (gum_list_length (blocks), ==, 2);
+  g_assert_cmpuint (g_list_length (blocks), ==, 2);
 
   for (cur = blocks; cur != NULL; cur = cur->next)
   {
@@ -205,7 +205,7 @@ ALLOCTRACKER_TESTCASE (block_list_backtraces)
 {
   GumBacktracer * backtracer;
   GumAllocationTracker * t;
-  GumList * blocks;
+  GList * blocks;
   GumAllocationBlock * block;
 
   backtracer = gum_fake_backtracer_new (dummy_return_addresses_a,
@@ -217,7 +217,7 @@ ALLOCTRACKER_TESTCASE (block_list_backtraces)
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_A, 42);
 
   blocks = gum_allocation_tracker_peek_block_list (t);
-  g_assert_cmpuint (gum_list_length (blocks), ==, 1);
+  g_assert_cmpuint (g_list_length (blocks), ==, 1);
 
   block = (GumAllocationBlock *) blocks->data;
   g_assert (block->address == DUMMY_BLOCK_A);
@@ -235,12 +235,12 @@ ALLOCTRACKER_TESTCASE (block_list_backtraces)
 ALLOCTRACKER_TESTCASE (block_groups)
 {
   GumAllocationTracker * t = fixture->tracker;
-  GumList * groups, * cur;
+  GList * groups, * cur;
 
   gum_allocation_tracker_begin (t);
 
   groups = gum_allocation_tracker_peek_block_groups (t);
-  g_assert_cmpuint (gum_list_length (groups), ==, 0);
+  g_assert_cmpuint (g_list_length (groups), ==, 0);
 
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_A, 42);
   gum_allocation_tracker_on_malloc (t, DUMMY_BLOCK_B, 42);
@@ -255,7 +255,7 @@ ALLOCTRACKER_TESTCASE (block_groups)
   gum_allocation_tracker_on_free (t, DUMMY_BLOCK_E);
 
   groups = gum_allocation_tracker_peek_block_groups (t);
-  g_assert_cmpuint (gum_list_length (groups), ==, 3);
+  g_assert_cmpuint (g_list_length (groups), ==, 3);
 
   for (cur = groups; cur != NULL; cur = cur->next)
   {
@@ -366,7 +366,7 @@ ALLOCTRACKER_TESTCASE (realloc_backtrace)
 {
   GumBacktracer * backtracer;
   GumAllocationTracker * t;
-  GumList * blocks_before, * blocks_after;
+  GList * blocks_before, * blocks_after;
   GumReturnAddressArray * addrs_before, * addrs_after;
 
   backtracer = gum_fake_backtracer_new (dummy_return_addresses_a,
@@ -491,7 +491,7 @@ ALLOCTRACKER_TESTCASE (avoid_heap_public)
 {
   GumAllocationTracker * t = fixture->tracker;
   GumSampler * heap_access_counter;
-  GumList * blocks, * groups;
+  GList * blocks, * groups;
 
   gum_allocation_tracker_begin (t);
 
@@ -530,17 +530,17 @@ ALLOCTRACKER_TESTCASE (hashtable_resize)
 ALLOCTRACKER_TESTCASE (hashtable_life)
 {
   GumSampler * heap_access_counter;
-  GumHashTable * hashtable;
+  GHashTable * hashtable;
   guint i;
 
   heap_access_counter = heap_access_counter_new ();
-  hashtable = gum_hash_table_new (NULL, NULL);
+  hashtable = g_hash_table_new (NULL, NULL);
   for (i = 0; i < 10000; i++)
   {
-    gum_hash_table_insert (hashtable, GUINT_TO_POINTER (i + 1),
+    g_hash_table_insert (hashtable, GUINT_TO_POINTER (i + 1),
         GUINT_TO_POINTER (2 * i));
   }
-  gum_hash_table_unref (hashtable);
+  g_hash_table_unref (hashtable);
   g_assert_cmpint (gum_sampler_sample (heap_access_counter), ==, 0);
 
   g_object_unref (heap_access_counter);

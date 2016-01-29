@@ -24,7 +24,7 @@ typedef struct _WalkInstancesContext WalkInstancesContext;
 
 struct _WalkInstancesContext
 {
-  GSList * expected_instances;
+  GList * expected_instances;
   guint call_count;
 };
 
@@ -145,7 +145,7 @@ INSTRACKER_TESTCASE (peek_instances)
 {
   GumInstanceTracker * t = fixture->tracker;
   MyPony * pony1, * pony2, * pony3;
-  GumList * instances, * cur;
+  GList * instances, * cur;
 
   g_test_message ("Should not be any instances around yet");
   g_assert (gum_instance_tracker_peek_instances (t) == NULL);
@@ -157,26 +157,26 @@ INSTRACKER_TESTCASE (peek_instances)
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have three instances");
   g_assert (instances != NULL);
-  g_assert_cmpuint (gum_list_length (instances), ==, 3);
+  g_assert_cmpuint (g_list_length (instances), ==, 3);
 
   g_test_message ("The instances should be our ponies");
   for (cur = instances; cur != NULL; cur = cur->next)
     g_assert (cur->data == pony1 || cur->data == pony2 || cur->data == pony3);
 
-  gum_list_free (instances); instances = NULL;
+  g_list_free (instances); instances = NULL;
 
   g_object_unref (pony2);
 
   instances = gum_instance_tracker_peek_instances (t);
   g_test_message ("We should now have two instances");
   g_assert (instances != NULL);
-  g_assert_cmpuint (gum_list_length (instances), ==, 2);
+  g_assert_cmpuint (g_list_length (instances), ==, 2);
 
   g_test_message ("Only pony1 and pony3 should be left now");
   for (cur = instances; cur != NULL; cur = cur->next)
     g_assert (cur->data == pony1 || cur->data == pony3);
 
-  gum_list_free (instances); instances = NULL;
+  g_list_free (instances); instances = NULL;
 
   g_object_unref (pony1);
   g_object_unref (pony3);
@@ -195,11 +195,11 @@ INSTRACKER_TESTCASE (walk_instances)
   gum_instance_tracker_walk_instances (t, walk_instance, &ctx);
 
   pony1 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  ctx.expected_instances = g_slist_prepend (ctx.expected_instances, pony1);
+  ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony1);
   pony2 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  ctx.expected_instances = g_slist_prepend (ctx.expected_instances, pony2);
+  ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony2);
   pony3 = MY_PONY (g_object_new (MY_TYPE_PONY, NULL));
-  ctx.expected_instances = g_slist_prepend (ctx.expected_instances, pony3);
+  ctx.expected_instances = g_list_prepend (ctx.expected_instances, pony3);
 
   g_test_message ("We should now have three instances");
   gum_instance_tracker_walk_instances (t, walk_instance, &ctx);
@@ -209,28 +209,28 @@ INSTRACKER_TESTCASE (walk_instances)
 
   g_test_message ("We should now have two instances");
   ctx.call_count = 0;
-  ctx.expected_instances = g_slist_remove (ctx.expected_instances, pony2);
+  ctx.expected_instances = g_list_remove (ctx.expected_instances, pony2);
   gum_instance_tracker_walk_instances (t, walk_instance, &ctx);
   g_assert_cmpuint (ctx.call_count, ==, 2);
 
   g_object_unref (pony1);
   g_object_unref (pony3);
 
-  g_slist_free (ctx.expected_instances);
+  g_list_free (ctx.expected_instances);
 }
 
 INSTRACKER_TESTCASE (avoid_heap)
 {
   GumInstanceTracker * t = fixture->tracker;
   GumSampler * heap_access_counter;
-  GumList * instances;
+  GList * instances;
 
   heap_access_counter = heap_access_counter_new ();
 
   gum_instance_tracker_add_instance (t, GUINT_TO_POINTER (0xbadf00d),
       G_TYPE_OBJECT);
   instances = gum_instance_tracker_peek_instances (t);
-  gum_list_free (instances);
+  g_list_free (instances);
 
   g_assert_cmpint (gum_sampler_sample (heap_access_counter), ==, 0);
 
@@ -251,10 +251,10 @@ static void
 walk_instance (GumInstanceDetails * id, gpointer user_data)
 {
   WalkInstancesContext * ctx = (WalkInstancesContext *) user_data;
-  GSList * entry;
+  GList * entry;
   const GTypeInstance * expected_instance, * cur_instance;
 
-  entry = g_slist_find (ctx->expected_instances, id->address);
+  entry = g_list_find (ctx->expected_instances, id->address);
   g_assert (entry != NULL);
   expected_instance = (const GTypeInstance *) entry->data;
   cur_instance = (const GTypeInstance *) id->address;

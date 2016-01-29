@@ -623,14 +623,6 @@ _gum_duk_core_finalize (GumDukCore * self)
 }
 
 void
-_gum_duk_core_emit_message (GumDukCore * self,
-                            const gchar * message,
-                            GBytes * data)
-{
-  self->message_emitter (self->script, message, data);
-}
-
-void
 _gum_duk_core_absorb_messages (GumDukCore * self)
 {
   GumDukScope scope;
@@ -669,6 +661,8 @@ _gum_duk_scope_enter (GumDukScope * self,
   self->core = core;
 
   g_rec_mutex_lock (&core->mutex);
+
+  gum_interceptor_begin_transaction (core->interceptor->interceptor);
 }
 
 gboolean
@@ -739,6 +733,8 @@ _gum_duk_scope_flush (GumDukScope * self)
 void
 _gum_duk_scope_leave (GumDukScope * self)
 {
+  gum_interceptor_end_transaction (self->core->interceptor->interceptor);
+
   g_rec_mutex_unlock (&self->core->mutex);
 }
 
@@ -907,6 +903,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_gc)
 
 GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
+  GumDukCore * self = args->core;
+  GumInterceptor * interceptor = self->interceptor->interceptor;
   gchar * message;
   GBytes * data;
 
@@ -914,7 +912,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
 
   _gum_duk_args_parse (args, "sB?", &message, &data);
 
-  _gum_duk_core_emit_message (args->core, message, data);
+  /*
+   * Synchronize Interceptor state before sending the message. The application
+   * might be waiting for an acknowledgement that APIs have been instrumented.
+   *
+   * This is very important for the RPC API.
+   */
+  gum_interceptor_end_transaction (interceptor);
+  gum_interceptor_begin_transaction (interceptor);
+
+  self->message_emitter (self->script, message, data);
 
   g_bytes_unref (data);
 

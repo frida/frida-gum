@@ -8,7 +8,6 @@
 #define __GUM_ARM_WRITER_H__
 
 #include <capstone/capstone.h>
-#include <gum/gumarray.h>
 #include <gum/gumdefs.h>
 
 G_BEGIN_DECLS

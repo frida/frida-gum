@@ -12,7 +12,7 @@ gum_allocation_group_new (guint size)
 {
   GumAllocationGroup * group;
 
-  group = gum_malloc0 (sizeof (GumAllocationGroup));
+  group = g_slice_new0 (GumAllocationGroup);
   group->size = size;
 
   return group;
@@ -21,22 +21,22 @@ gum_allocation_group_new (guint size)
 GumAllocationGroup *
 gum_allocation_group_copy (const GumAllocationGroup * group)
 {
-  return gum_memdup (group, sizeof (GumAllocationGroup));
+  return g_slice_dup (GumAllocationGroup, group);
 }
 
 void
 gum_allocation_group_free (GumAllocationGroup * group)
 {
-  gum_free (group);
+  g_slice_free (GumAllocationGroup, group);
 }
 
 void
-gum_allocation_group_list_free (GumList * groups)
+gum_allocation_group_list_free (GList * groups)
 {
-  GumList * cur;
+  GList * cur;
 
   for (cur = groups; cur != NULL; cur = cur->next)
     gum_allocation_group_free (cur->data);
 
-  gum_list_free (groups);
+  g_list_free (groups);
 }

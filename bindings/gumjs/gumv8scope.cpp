@@ -18,7 +18,8 @@ ScriptScope::ScriptScope (GumV8Script * parent)
     handle_scope (parent->priv->isolate),
     context (Local<Context>::New (parent->priv->isolate, *parent->priv->context)),
     context_scope (context),
-    trycatch (parent->priv->isolate)
+    trycatch (parent->priv->isolate),
+    interceptor_scope (parent)
 {
 }
 
@@ -35,6 +36,17 @@ ScriptScope::~ScriptScope ()
   }
 }
 
+ScriptInterceptorScope::ScriptInterceptorScope (GumV8Script * parent)
+  : parent (parent)
+{
+  gum_interceptor_begin_transaction (parent->priv->interceptor.interceptor);
+}
+
+ScriptInterceptorScope::~ScriptInterceptorScope ()
+{
+  gum_interceptor_end_transaction (parent->priv->interceptor.interceptor);
+}
+
 ScriptStalkerScope::ScriptStalkerScope (GumV8Script * parent)
   : parent (parent)
 {
@@ -44,4 +56,3 @@ ScriptStalkerScope::~ScriptStalkerScope ()
 {
   _gum_v8_stalker_process_pending (&parent->priv->stalker);
 }
-

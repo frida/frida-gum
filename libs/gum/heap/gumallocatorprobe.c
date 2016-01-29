@@ -392,6 +392,7 @@ gum_allocator_probe_add_suppression_addresses_if_glib (const GumModuleDetails * 
 static void
 gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 {
+  GumInterceptor * interceptor = self->priv->interceptor;
   GArray * ignored;
   guint i;
 
@@ -428,6 +429,8 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
 
   G_UNLOCK (_gum_allocator_probe_ignored_functions);
 
+  gum_interceptor_begin_transaction (interceptor);
+
   for (i = 0; i != ignored->len; i++)
     gum_allocator_probe_suppress (self, g_array_index (ignored, gpointer, i));
 
@@ -446,6 +449,8 @@ gum_allocator_probe_apply_default_suppressions (GumAllocatorProbe * self)
       GUM_FUNCPTR_TO_POINTER (g_type_add_interface_static));
   gum_allocator_probe_suppress (self,
       GUM_FUNCPTR_TO_POINTER (g_param_spec_pool_insert));
+
+  gum_interceptor_end_transaction (interceptor);
 }
 
 static void
@@ -575,6 +580,7 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
   guint i;
 
   gum_interceptor_ignore_current_thread (priv->interceptor);
+  gum_interceptor_begin_transaction (priv->interceptor);
 
   for (i = 0; i != apis->len; i++)
   {
@@ -596,6 +602,7 @@ gum_allocator_probe_attach_to_apis (GumAllocatorProbe * self,
 
   gum_allocator_probe_apply_default_suppressions (self);
 
+  gum_interceptor_end_transaction (priv->interceptor);
   gum_interceptor_unignore_current_thread (priv->interceptor);
 }
 

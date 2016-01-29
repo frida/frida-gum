@@ -195,7 +195,7 @@ RELOCATOR_TESTCASE (bl_sequence_should_be_rewritten)
     GUINT16_TO_LE (0x4686),                  /* mov lr, r0        */
     GUINT16_TO_LE (0xbc01),                  /* pop {r0}          */
     GUINT16_TO_LE (0x47f0),                  /* blx lr            */
-    GUINT16_TO_LE (0x0000),                  /* <padding>         */
+    GUINT16_TO_LE (0x46c0),                  /* <padding nop>     */
     GUINT16_TO_LE (0xffff),                  /* <calculated PC1   */
     GUINT16_TO_LE (0xffff),                  /*  goes here>       */
     GUINT16_TO_LE (0xffff),                  /* <calculated PC2   */
@@ -254,7 +254,7 @@ RELOCATOR_TESTCASE (b_imm_t2_positive_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -274,7 +274,7 @@ RELOCATOR_TESTCASE (b_imm_t2_negative_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -294,7 +294,7 @@ RELOCATOR_TESTCASE (b_imm_t4_positive_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -314,7 +314,7 @@ RELOCATOR_TESTCASE (b_imm_t4_negative_should_be_rewritten)
       0x4801,                   /* ldr r0, [pc, #4] */
       0x9001,                   /* str r0, [sp, #4] */
       0xbd01,                   /* pop {r0, pc}     */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -334,7 +334,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_positive_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -354,7 +354,7 @@ RELOCATOR_TESTCASE (bl_imm_t1_negative_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -374,7 +374,7 @@ RELOCATOR_TESTCASE (blx_imm_t2_positive_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,
@@ -394,7 +394,7 @@ RELOCATOR_TESTCASE (blx_imm_t2_negative_should_be_rewritten)
       0x4686,                   /* mov lr, r0       */
       0xbc01,                   /* pop {r0}         */
       0x47f0,                   /* blx lr           */
-      0x0000,                   /* <padding>        */
+      0x46c0,                   /* <padding nop>    */
       0xffff,                   /* <calculated PC   */
       0xffff                    /*  goes here>      */
     }, 8,

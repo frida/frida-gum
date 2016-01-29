@@ -10,7 +10,6 @@
 
 #include "guminterceptor.h"
 
-#include "gumarray.h"
 #include "gumcodeallocator.h"
 #include "gumspinlock.h"
 #include "gumtls.h"
@@ -26,11 +25,11 @@ struct _GumFunctionContextBackendData
 
 struct _GumFunctionContext
 {
-  GumInterceptor * interceptor;
-
   gpointer function_address;
 
-  GumCodeAllocator * allocator;
+  gboolean destroyed;
+  gboolean activated;
+
   GumCodeSlice * trampoline_slice;
   GumCodeDeflector * trampoline_deflector;
   volatile gint trampoline_usage_counter;
@@ -43,12 +42,14 @@ struct _GumFunctionContext
 
   gpointer on_leave_trampoline;
 
-  GumArray * listener_entries;
+  GPtrArray * listener_entries;
 
   gpointer replacement_function;
   gpointer replacement_function_data;
 
   GumFunctionContextBackendData backend_data;
+
+  GumInterceptor * interceptor;
 };
 
 extern GumTlsKey _gum_interceptor_guard_key;
@@ -63,11 +64,6 @@ void _gum_function_context_end_invocation (
     GumFunctionContext * function_ctx, GumCpuContext * cpu_context,
     gpointer * next_hop);
 
-#ifdef HAVE_QNX
-gpointer _gum_interceptor_thread_get_side_stack (gpointer original_stack);
-gpointer _gum_interceptor_thread_get_orig_stack (gpointer current_stack);
-#endif
-
 GumInterceptorBackend * _gum_interceptor_backend_create (
     GumCodeAllocator * allocator);
 void _gum_interceptor_backend_destroy (GumInterceptorBackend * backend);
@@ -76,12 +72,12 @@ gboolean _gum_interceptor_backend_create_trampoline (
 void _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
     GumFunctionContext * ctx);
 void _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
-    GumFunctionContext * ctx);
+    GumFunctionContext * ctx, gpointer prologue);
 void _gum_interceptor_backend_deactivate_trampoline (
-    GumInterceptorBackend * self, GumFunctionContext * ctx);
-void _gum_interceptor_backend_commit_trampoline (GumInterceptorBackend * self,
-    GumFunctionContext * ctx);
+    GumInterceptorBackend * self, GumFunctionContext * ctx, gpointer prologue);
 
+gpointer _gum_interceptor_backend_get_function_address (
+    GumFunctionContext * ctx);
 gpointer _gum_interceptor_backend_resolve_redirect (
     GumInterceptorBackend * self, gpointer address);
 gboolean _gum_interceptor_backend_can_intercept (GumInterceptorBackend * self,

@@ -36,6 +36,9 @@ namespace Gum {
 		public Gum.ReplaceReturn replace_function (void * function_address, void * replacement_function, void * replacement_function_data = null);
 		public void revert_function (void * function_address);
 
+		public void begin_transaction ();
+		public void end_transaction ();
+
 		public static Gum.InvocationContext get_current_invocation ();
 
 		public void ignore_current_thread ();
@@ -264,7 +267,7 @@ namespace Gum {
 		public void end ();
 
 		public uint peek_total_count (string type_name);
-		public Gum.List peek_instances ();
+		public GLib.List peek_instances ();
 		public void walk_instances (Gum.WalkInstanceFunc func);
 	}
 
@@ -294,61 +297,6 @@ namespace Gum {
 
 		public void attach ();
 		public void detach ();
-	}
-
-	/* Copied from glib-2.0.vapi */
-	[Compact]
-	[CCode (dup_function = "gum_list_copy", free_function = "gum_list_free")]
-	public class List<G> {
-		public List ();
-
-		[ReturnsModifiedPointer ()]
-		public void append (owned G data);
-		[ReturnsModifiedPointer ()]
-		public void prepend (owned G data);
-		[ReturnsModifiedPointer ()]
-		public void insert (owned G data, int position);
-		[ReturnsModifiedPointer ()]
-		public void insert_before (List<G> sibling, owned G data);
-		[ReturnsModifiedPointer ()]
-		public void insert_sorted (owned G data, GLib.CompareFunc compare_func);
-		[ReturnsModifiedPointer ()]
-		public void remove (G data);
-		[ReturnsModifiedPointer ()]
-		public void remove_link (List<G> llink);
-		[ReturnsModifiedPointer ()]
-		public void delete_link (List<G> link_);
-		[ReturnsModifiedPointer ()]
-		public void remove_all (G data);
-
-		public uint length ();
-		public List<unowned G> copy ();
-		[ReturnsModifiedPointer ()]
-		public void reverse ();
-		[ReturnsModifiedPointer ()]
-		public void sort (GLib.CompareFunc compare_func);
-		[ReturnsModifiedPointer ()]
-		public void insert_sorted_with_data (owned G data, GLib.CompareDataFunc compare_func);
-		[ReturnsModifiedPointer ()]
-		public void sort_with_data (GLib.CompareDataFunc compare_func);
-		[ReturnsModifiedPointer ()]
-		public void concat (owned List<G> list2);
-		public void @foreach (GLib.Func func);
-
-		public unowned List<G> first ();
-		public unowned List<G> last ();
-		public unowned List<G> nth (uint n);
-		public unowned G nth_data (uint n);
-		public unowned List<G> nth_prev (uint n);
-
-		public unowned List<G> find (G data);
-		public unowned List<G> find_custom (G data, GLib.CompareFunc func);
-		public int position (List<G> llink);
-		public int index (G data);
-
-		public G data;
-		public List<G> next;
-		public unowned List<G> prev;
 	}
 
 	[CCode (cprefix = "GUM_ATTACH_")]

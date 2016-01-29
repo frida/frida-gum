@@ -148,10 +148,15 @@ GumSampler *
 gum_call_count_sampler_new_valist (gpointer first_function,
                                    va_list var_args)
 {
+  GumInterceptor * interceptor;
   GumCallCountSampler * sampler;
   gpointer function;
 
   g_assert (first_function != NULL);
+
+  interceptor = gum_interceptor_obtain ();
+  gum_interceptor_ignore_current_thread (interceptor);
+  gum_interceptor_begin_transaction (interceptor);
 
   sampler = GUM_CALL_COUNT_SAMPLER (
       g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
@@ -162,7 +167,11 @@ gum_call_count_sampler_new_valist (gpointer first_function,
     gum_call_count_sampler_add_function (sampler, function);
   }
 
-  return GUM_SAMPLER (sampler);
+  gum_interceptor_end_transaction (interceptor);
+  gum_interceptor_unignore_current_thread (interceptor);
+  g_object_unref (interceptor);
+
+  return GUM_SAMPLER_CAST (sampler);
 }
 
 GumSampler *
@@ -190,6 +199,7 @@ gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
 
   interceptor = gum_interceptor_obtain ();
   gum_interceptor_ignore_current_thread (interceptor);
+  gum_interceptor_begin_transaction (interceptor);
 
   sampler = GUM_CALL_COUNT_SAMPLER (
       g_object_new (GUM_TYPE_CALL_COUNT_SAMPLER, NULL));
@@ -203,6 +213,7 @@ gum_call_count_sampler_new_by_name_valist (const gchar * first_function_name,
     gum_call_count_sampler_add_function (sampler, address);
   }
 
+  gum_interceptor_end_transaction (interceptor);
   gum_interceptor_unignore_current_thread (interceptor);
   g_object_unref (interceptor);
 

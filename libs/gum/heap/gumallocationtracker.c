@@ -13,7 +13,6 @@
 #include "gummemory.h"
 #include "gumreturnaddress.h"
 #include "gumbacktracer.h"
-#include "gumhash.h"
 
 G_DEFINE_TYPE (GumAllocationTracker, gum_allocation_tracker, G_TYPE_OBJECT);
 
@@ -38,8 +37,8 @@ struct _GumAllocationTrackerPrivate
 
   guint block_count;
   guint block_total_size;
-  GumHashTable * known_blocks_ht;
-  GumHashTable * block_groups_ht;
+  GHashTable * known_blocks_ht;
+  GHashTable * block_groups_ht;
 
   GumBacktracerIface * backtracer_interface;
   GumBacktracer * backtracer_instance;
@@ -107,15 +106,14 @@ gum_allocation_tracker_constructed (GObject * object)
 
   if (priv->backtracer_instance != NULL)
   {
-    priv->known_blocks_ht = gum_hash_table_new_full (NULL, NULL, NULL,
-        gum_free);
+    priv->known_blocks_ht = g_hash_table_new_full (NULL, NULL, NULL, g_free);
   }
   else
   {
-    priv->known_blocks_ht = gum_hash_table_new (NULL, NULL);
+    priv->known_blocks_ht = g_hash_table_new (NULL, NULL);
   }
 
-  priv->block_groups_ht = gum_hash_table_new_full (NULL, NULL, NULL,
+  priv->block_groups_ht = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_allocation_group_free);
 }
 
@@ -187,10 +185,10 @@ gum_allocation_tracker_dispose (GObject * object)
     }
     priv->backtracer_interface = NULL;
 
-    gum_hash_table_unref (priv->known_blocks_ht);
+    g_hash_table_unref (priv->known_blocks_ht);
     priv->known_blocks_ht = NULL;
 
-    gum_hash_table_unref (priv->block_groups_ht);
+    g_hash_table_unref (priv->block_groups_ht);
     priv->block_groups_ht = NULL;
   }
 
@@ -242,7 +240,7 @@ gum_allocation_tracker_begin (GumAllocationTracker * self)
   GUM_ALLOCATION_TRACKER_LOCK (self);
   priv->block_count = 0;
   priv->block_total_size = 0;
-  gum_hash_table_remove_all (priv->known_blocks_ht);
+  g_hash_table_remove_all (priv->known_blocks_ht);
   GUM_ALLOCATION_TRACKER_UNLOCK (self);
 
   g_atomic_int_set (&priv->enabled, TRUE);
@@ -258,8 +256,8 @@ gum_allocation_tracker_end (GumAllocationTracker * self)
   GUM_ALLOCATION_TRACKER_LOCK (self);
   priv->block_count = 0;
   priv->block_total_size = 0;
-  gum_hash_table_remove_all (priv->known_blocks_ht);
-  gum_hash_table_remove_all (priv->block_groups_ht);
+  g_hash_table_remove_all (priv->known_blocks_ht);
+  g_hash_table_remove_all (priv->block_groups_ht);
   GUM_ALLOCATION_TRACKER_UNLOCK (self);
 }
 
@@ -275,16 +273,16 @@ gum_allocation_tracker_peek_block_total_size (GumAllocationTracker * self)
   return self->priv->block_total_size;
 }
 
-GumList *
+GList *
 gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
 {
-  GumList * blocks = NULL;
-  GumHashTableIter iter;
+  GList * blocks = NULL;
+  GHashTableIter iter;
   gpointer key, value;
 
   GUM_ALLOCATION_TRACKER_LOCK (self);
-  gum_hash_table_iter_init (&iter, self->priv->known_blocks_ht);
-  while (gum_hash_table_iter_next (&iter, &key, &value))
+  g_hash_table_iter_init (&iter, self->priv->known_blocks_ht);
+  while (g_hash_table_iter_next (&iter, &key, &value))
   {
     if (self->priv->backtracer_instance != NULL)
     {
@@ -298,11 +296,11 @@ gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
         block->return_addresses.items[i] = tb->return_addresses[i];
       block->return_addresses.len = i;
 
-      blocks = gum_list_prepend (blocks, block);
+      blocks = g_list_prepend (blocks, block);
     }
     else
     {
-      blocks = gum_list_prepend (blocks,
+      blocks = g_list_prepend (blocks,
           gum_allocation_block_new (key, GPOINTER_TO_UINT (value)));
     }
   }
@@ -311,13 +309,13 @@ gum_allocation_tracker_peek_block_list (GumAllocationTracker * self)
   return blocks;
 }
 
-GumList *
+GList *
 gum_allocation_tracker_peek_block_groups (GumAllocationTracker * self)
 {
-  GumList * groups, * cur;
+  GList * groups, * cur;
 
   GUM_ALLOCATION_TRACKER_LOCK (self);
-  groups = gum_hash_table_get_values (self->priv->block_groups_ht);
+  groups = g_hash_table_get_values (self->priv->block_groups_ht);
   for (cur = groups; cur != NULL; cur = cur->next)
     cur->data = gum_allocation_group_copy ((GumAllocationGroup *) cur->data);
   GUM_ALLOCATION_TRACKER_UNLOCK (self);
@@ -385,7 +383,7 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
     }
 
     block = (GumAllocationTrackerBlock *)
-        gum_malloc (sizeof (GumAllocationTrackerBlock) +
+        g_malloc (sizeof (GumAllocationTrackerBlock) +
             (return_addresses.len * sizeof (GumReturnAddress)));
     block->size = size;
     block->return_addresses[return_addresses.len] = NULL;
@@ -405,7 +403,7 @@ gum_allocation_tracker_on_malloc_full (GumAllocationTracker * self,
 
   GUM_ALLOCATION_TRACKER_LOCK (self);
 
-  gum_hash_table_insert (priv->known_blocks_ht, address, value);
+  g_hash_table_insert (priv->known_blocks_ht, address, value);
 
   gum_allocation_tracker_size_stats_add_block (self, size);
 
@@ -427,7 +425,7 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
 
   GUM_ALLOCATION_TRACKER_LOCK (self);
 
-  value = gum_hash_table_lookup (priv->known_blocks_ht, address);
+  value = g_hash_table_lookup (priv->known_blocks_ht, address);
   if (value != NULL)
   {
     guint size;
@@ -439,7 +437,7 @@ gum_allocation_tracker_on_free_full (GumAllocationTracker * self,
 
     gum_allocation_tracker_size_stats_remove_block (self, size);
 
-    gum_hash_table_remove (priv->known_blocks_ht, address);
+    g_hash_table_remove (priv->known_blocks_ht, address);
   }
 
   GUM_ALLOCATION_TRACKER_UNLOCK (self);
@@ -465,12 +463,12 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
 
       GUM_ALLOCATION_TRACKER_LOCK (self);
 
-      value = gum_hash_table_lookup (priv->known_blocks_ht, old_address);
+      value = g_hash_table_lookup (priv->known_blocks_ht, old_address);
       if (value != NULL)
       {
         guint old_size;
 
-        gum_hash_table_steal (priv->known_blocks_ht, old_address);
+        g_hash_table_steal (priv->known_blocks_ht, old_address);
 
         if (priv->backtracer_instance != NULL)
         {
@@ -478,14 +476,14 @@ gum_allocation_tracker_on_realloc_full (GumAllocationTracker * self,
 
           block = (GumAllocationTrackerBlock *) value;
 
-          gum_hash_table_insert (priv->known_blocks_ht, new_address, block);
+          g_hash_table_insert (priv->known_blocks_ht, new_address, block);
 
           old_size = block->size;
           block->size = new_size;
         }
         else
         {
-          gum_hash_table_insert (priv->known_blocks_ht, new_address,
+          g_hash_table_insert (priv->known_blocks_ht, new_address,
               GUINT_TO_POINTER (new_size));
 
           old_size = GPOINTER_TO_UINT (value);
@@ -520,12 +518,12 @@ gum_allocation_tracker_size_stats_add_block (GumAllocationTracker * self,
   priv->block_total_size += size;
 
   group = (GumAllocationGroup *)
-      gum_hash_table_lookup (priv->block_groups_ht, GUINT_TO_POINTER (size));
+      g_hash_table_lookup (priv->block_groups_ht, GUINT_TO_POINTER (size));
 
   if (group == NULL)
   {
     group = gum_allocation_group_new (size);
-    gum_hash_table_insert (priv->block_groups_ht, GUINT_TO_POINTER (size),
+    g_hash_table_insert (priv->block_groups_ht, GUINT_TO_POINTER (size),
         group);
   }
 
@@ -545,7 +543,7 @@ gum_allocation_tracker_size_stats_remove_block (GumAllocationTracker * self,
   priv->block_count--;
   priv->block_total_size -= size;
 
-  group = (GumAllocationGroup *) gum_hash_table_lookup (priv->block_groups_ht,
+  group = (GumAllocationGroup *) g_hash_table_lookup (priv->block_groups_ht,
       GUINT_TO_POINTER (size));
   group->alive_now--;
 }

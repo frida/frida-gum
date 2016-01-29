@@ -9,7 +9,6 @@
 
 #include <glib-object.h>
 #include <gum/gumbacktracer.h>
-#include <gum/gumlist.h>
 
 #define GUM_TYPE_COBJECT_TRACKER (gum_cobject_tracker_get_type ())
 #define GUM_COBJECT_TRACKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -57,8 +56,7 @@ GUM_API void gum_cobject_tracker_end (GumCObjectTracker * self);
 
 GUM_API guint gum_cobject_tracker_peek_total_count (GumCObjectTracker * self,
     const gchar * type_name);
-GUM_API GumList * gum_cobject_tracker_peek_object_list (
-    GumCObjectTracker * self);
+GUM_API GList * gum_cobject_tracker_peek_object_list (GumCObjectTracker * self);
 
 G_END_DECLS
 

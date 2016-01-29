@@ -9,7 +9,6 @@
 #define __GUM_INTERCEPTOR_H__
 
 #include <glib-object.h>
-#include <gum/gumarray.h>
 #include <gum/gumdefs.h>
 #include <gum/guminvocationlistener.h>
 
@@ -28,7 +27,7 @@
 
 typedef struct _GumInterceptor GumInterceptor;
 typedef struct _GumInterceptorClass GumInterceptorClass;
-typedef GumArray GumInvocationStack;
+typedef GArray GumInvocationStack;
 
 typedef struct _GumInterceptorPrivate GumInterceptorPrivate;
 
@@ -75,6 +74,9 @@ GUM_API GumReplaceReturn gum_interceptor_replace_function (
     gpointer replacement_function, gpointer replacement_function_data);
 GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
     gpointer function_address);
+
+GUM_API void gum_interceptor_begin_transaction (GumInterceptor * self);
+GUM_API void gum_interceptor_end_transaction (GumInterceptor * self);
 
 GUM_API GumInvocationContext * gum_interceptor_get_current_invocation (void);
 GUM_API GumInvocationStack * gum_interceptor_get_current_stack (void);

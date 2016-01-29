@@ -64,7 +64,7 @@ BACKTRACER_TESTCASE (full_cycle)
   GumInterceptor * interceptor;
   guint expected_line_number, alternate_line_number;
   volatile gpointer a;
-  GumList * blocks;
+  GList * blocks;
   GumAllocationBlock * block;
   GumReturnAddress first_address;
 
@@ -86,7 +86,7 @@ BACKTRACER_TESTCASE (full_cycle)
   gum_allocator_probe_detach (probe);
 
   blocks = gum_allocation_tracker_peek_block_list (tracker);
-  g_assert_cmpuint (gum_list_length (blocks), ==, 1);
+  g_assert_cmpuint (g_list_length (blocks), ==, 1);
 
   block = (GumAllocationBlock *) blocks->data;
 

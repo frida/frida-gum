@@ -105,8 +105,6 @@ G_GNUC_INTERNAL void _gum_v8_core_finalize (GumV8Core * self);
 G_GNUC_INTERNAL void _gum_v8_core_on_unhandled_exception (
     GumV8Core * self, v8::Handle<v8::Value> exception);
 
-G_GNUC_INTERNAL void _gum_v8_core_emit_message (GumV8Core * self,
-    const gchar * message, GBytes * data);
 G_GNUC_INTERNAL void _gum_v8_core_post_message (GumV8Core * self,
     const gchar * message);
 

@@ -6,6 +6,7 @@
 
 #include "gumcodeallocator.h"
 
+#include "gumcodesegment.h"
 #include "gummemory.h"
 #include "gumprocess.h"
 #ifdef HAVE_ARM
@@ -19,24 +20,38 @@
 #endif
 #include <string.h>
 
-#define GUM_CODE_PAGE(ptr, allocator) \
-    ((GumCodePage *) (GPOINTER_TO_SIZE (GUM_CODE_PAGE_DATA (ptr, allocator)) + \
-    allocator->page_size - allocator->header_size))
-#define GUM_CODE_PAGE_DATA(ptr, allocator) \
-    (GSIZE_TO_POINTER (GPOINTER_TO_SIZE (ptr) & ~(allocator->page_size - 1)))
+#define GUM_CODE_SLICE_ELEMENT_FROM_SLICE(s) \
+    ((GumCodeSliceElement *) (((guint8 *) (s)) - \
+        G_STRUCT_OFFSET (GumCodeSliceElement, slice)))
 
-typedef struct _GumCodePage GumCodePage;
+typedef struct _GumCodePages GumCodePages;
+typedef struct _GumCodeSliceElement GumCodeSliceElement;
 typedef struct _GumCodeDeflectorDispatcher GumCodeDeflectorDispatcher;
+typedef struct _GumCodeDeflectorImpl GumCodeDeflectorImpl;
 typedef struct _GumProbeRangeForCodeCaveContext GumProbeRangeForCodeCaveContext;
 
-struct _GumCodePage
+struct _GumCodeSliceElement
 {
-  GumCodeSlice slice[1];
+  GList parent;
+  GumCodeSlice slice;
+};
+
+struct _GumCodePages
+{
+  gint ref_count;
+
+  GumCodeSegment * segment;
+  gpointer data;
+  gsize size;
+
+  GumCodeAllocator * allocator;
+
+  GumCodeSliceElement elements[1];
 };
 
 struct _GumCodeDeflectorDispatcher
 {
-  GumList * callers;
+  GSList * callers;
 
   gpointer address;
   gpointer trampoline;
@@ -46,6 +61,13 @@ struct _GumCodeDeflectorDispatcher
   gsize original_size;
 };
 
+struct _GumCodeDeflectorImpl
+{
+  GumCodeDeflector parent;
+
+  GumCodeAllocator * allocator;
+};
+
 struct _GumProbeRangeForCodeCaveContext
 {
   const GumAddressSpec * caller;
@@ -53,18 +75,15 @@ struct _GumProbeRangeForCodeCaveContext
   GumMemoryRange cave;
 };
 
-static GumCodePage * gum_code_allocator_try_alloc_page_near (
+static GumCodeSlice * gum_code_allocator_try_alloc_batch_near (
     GumCodeAllocator * self, const GumAddressSpec * spec);
-static void gum_code_page_free (GumCodePage * self,
-    const GumCodeAllocator * allocator);
-static gboolean gum_code_allocator_page_is_near (const GumCodeAllocator * self,
-    const GumCodePage * page, const GumAddressSpec * spec);
 
+static void gum_code_pages_unref (GumCodePages * self);
+
+static gboolean gum_code_slice_is_near (const GumCodeSlice * self,
+    const GumAddressSpec * spec);
 static gboolean gum_code_slice_is_aligned (const GumCodeSlice * slice,
     gsize alignment);
-static gboolean gum_code_slice_is_free (const GumCodeSlice * slice);
-static void gum_code_slice_mark_free (GumCodeSlice * slice);
-static void gum_code_slice_mark_taken (GumCodeSlice * slice);
 
 static GumCodeDeflectorDispatcher * gum_code_deflector_dispatcher_new (
     const GumAddressSpec * caller);
@@ -76,56 +95,44 @@ static void gum_code_deflector_dispatcher_ensure_rw (
     GumCodeDeflectorDispatcher * self);
 static void gum_code_deflector_dispatcher_ensure_rx (
     GumCodeDeflectorDispatcher * self);
+
+#ifdef HAVE_LINUX
 static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
     gpointer user_data);
-
-static void gum_code_deflector_free (GumCodeDeflector * deflector);
+#endif
 
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,
-                         guint slice_size)
+                         gsize slice_size)
 {
-  allocator->pages = NULL;
-  allocator->dispatchers = NULL;
-  allocator->page_size = gum_query_page_size ();
-
   allocator->slice_size = slice_size;
+  allocator->pages_per_batch = 7;
+  allocator->slices_per_batch =
+      (allocator->pages_per_batch * gum_query_page_size ()) / slice_size;
+  allocator->pages_metadata_size = sizeof (GumCodePages) +
+      ((allocator->slices_per_batch - 1) * sizeof (GumCodeSliceElement));
 
-  if (gum_query_is_rwx_supported ())
-  {
-    allocator->header_size = 0;
-    do
-    {
-      allocator->header_size += 16;
-      allocator->slices_per_page =
-          (allocator->page_size - allocator->header_size)
-          / allocator->slice_size;
-    }
-    while (allocator->header_size <
-        allocator->slices_per_page * sizeof (GumCodeSlice));
-  }
-  else
-  {
-    /*
-     * We choose to waste some memory instead of risking stepping on existing
-     * slices whenever a new one is to be initialized.
-     */
-    allocator->header_size = 16;
-    allocator->slices_per_page = 1;
-  }
+  allocator->uncommitted_pages = NULL;
+  allocator->dirty_pages = g_hash_table_new (NULL, NULL);
+  allocator->free_slices = NULL;
+
+  allocator->dispatchers = NULL;
 }
 
 void
 gum_code_allocator_free (GumCodeAllocator * allocator)
 {
-  gum_list_foreach (allocator->dispatchers,
+  g_slist_foreach (allocator->dispatchers,
       (GFunc) gum_code_deflector_dispatcher_free, NULL);
-  gum_list_free (allocator->dispatchers);
+  g_slist_free (allocator->dispatchers);
   allocator->dispatchers = NULL;
 
-  gum_list_foreach (allocator->pages, (GFunc) gum_code_page_free, allocator);
-  gum_list_free (allocator->pages);
-  allocator->pages = NULL;
+  g_list_foreach (allocator->free_slices, (GFunc) gum_code_pages_unref, NULL);
+  g_hash_table_unref (allocator->dirty_pages);
+  g_slist_free (allocator->uncommitted_pages);
+  allocator->uncommitted_pages = NULL;
+  allocator->dirty_pages = NULL;
+  allocator->free_slices = NULL;
 }
 
 GumCodeSlice *
@@ -139,138 +146,213 @@ gum_code_allocator_try_alloc_slice_near (GumCodeAllocator * self,
                                          const GumAddressSpec * spec,
                                          gsize alignment)
 {
-  GumList * walk;
-  GumCodePage * cp;
-  GumCodeSlice * slice;
+  GList * cur;
 
-  for (walk = self->pages; walk != NULL; walk = walk->next)
+  for (cur = self->free_slices; cur != NULL; cur = cur->next)
   {
-    GumCodePage * page = (GumCodePage *) walk->data;
+    GumCodeSliceElement * element = (GumCodeSliceElement *) cur;
+    GumCodeSlice * slice = &element->slice;
 
-    if (spec == NULL || gum_code_allocator_page_is_near (self, page, spec))
+    if (gum_code_slice_is_near (slice, spec) &&
+        gum_code_slice_is_aligned (slice, alignment))
     {
-      guint slice_idx;
+      GumCodePages * pages = element->parent.data;
 
-      for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
-      {
-        slice = &page->slice[slice_idx];
+      self->free_slices = g_list_remove_link (self->free_slices, cur);
 
-        if (gum_code_slice_is_free (slice) &&
-            gum_code_slice_is_aligned (slice, alignment))
-        {
-          if (!gum_query_is_rwx_supported ())
-            gum_mprotect (page, self->page_size, GUM_PAGE_RW);
-          gum_code_slice_mark_taken (slice);
-          return slice;
-        }
-      }
+      g_hash_table_insert (self->dirty_pages, pages, pages);
+
+      return slice;
     }
   }
 
-  cp = gum_code_allocator_try_alloc_page_near (self, spec);
-  if (cp == NULL)
-    return NULL;
-  self->pages = gum_list_prepend (self->pages, cp);
-
-  slice = &cp->slice[0];
-  g_assert (gum_code_slice_is_aligned (slice, alignment));
-  gum_code_slice_mark_taken (slice);
-  return slice;
+  return gum_code_allocator_try_alloc_batch_near (self, spec);
 }
 
 void
-gum_code_allocator_free_slice (GumCodeAllocator * self,
-                               GumCodeSlice * slice)
+gum_code_allocator_commit (GumCodeAllocator * self)
 {
-  GumCodePage * cp;
-  gpointer data;
-  guint slice_idx;
-  gboolean is_empty;
+  gboolean rwx_supported;
+  GSList * cur;
+  GumCodePages * pages;
+  GHashTableIter iter;
 
-  cp = GUM_CODE_PAGE (slice, self);
-  data = GUM_CODE_PAGE_DATA (slice, self);
+  rwx_supported = gum_query_is_rwx_supported ();
 
-  if (!gum_query_is_rwx_supported ())
-    gum_mprotect (data, self->page_size, GUM_PAGE_RW);
-
-  gum_code_slice_mark_free (slice);
-
-  is_empty = TRUE;
-  for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
+  for (cur = self->uncommitted_pages; cur != NULL; cur = cur->next)
   {
-    if (!gum_code_slice_is_free (&cp->slice[slice_idx]))
-    {
-      is_empty = FALSE;
-      break;
-    }
+    GumCodeSegment * segment;
+
+    pages = cur->data;
+    segment = pages->segment;
+
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0,
+        gum_code_segment_get_virtual_size (segment),
+        gum_code_segment_get_address (segment));
   }
+  g_slist_free (self->uncommitted_pages);
+  self->uncommitted_pages = NULL;
 
-  if (is_empty)
+  g_hash_table_iter_init (&iter, self->dirty_pages);
+  while (g_hash_table_iter_next (&iter, (gpointer *) &pages, NULL))
   {
-    self->pages = gum_list_remove (self->pages, cp);
-    gum_code_page_free (cp, self);
+    gum_clear_cache (pages->data, pages->size);
   }
-  else if (!gum_query_is_rwx_supported ())
+  g_hash_table_remove_all (self->dirty_pages);
+
+  if (!rwx_supported)
   {
-    gum_mprotect (data, self->page_size, GUM_PAGE_RX);
+    g_list_foreach (self->free_slices, (GFunc) gum_code_pages_unref, NULL);
+    self->free_slices = NULL;
   }
 }
 
-static GumCodePage *
-gum_code_allocator_try_alloc_page_near (GumCodeAllocator * self,
-                                        const GumAddressSpec * spec)
+static GumCodeSlice *
+gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
+                                         const GumAddressSpec * spec)
 {
-  GumPageProtection prot;
+  GumCodeSlice * result = NULL;
+  gboolean rwx_supported;
+  gsize size_in_pages, size_in_bytes;
+  GumCodeSegment * segment;
   gpointer data;
-  GumCodePage * cp;
-  guint slice_idx;
+  GumCodePages * pages;
+  guint i;
 
-  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
+  rwx_supported = gum_query_is_rwx_supported ();
 
-  if (spec != NULL)
+  size_in_pages = self->pages_per_batch;
+  size_in_bytes = size_in_pages * gum_query_page_size ();
+
+  if (rwx_supported)
   {
-    data = gum_try_alloc_n_pages_near (1, prot, spec);
-    if (data == NULL)
-      return NULL;
+    segment = NULL;
+    if (spec != NULL)
+    {
+      data = gum_try_alloc_n_pages_near (size_in_pages, GUM_PAGE_RWX, spec);
+      if (data == NULL)
+        return NULL;
+    }
+    else
+    {
+      data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RWX);
+    }
   }
   else
   {
-    data = gum_alloc_n_pages (1, prot);
+    segment = gum_code_segment_new (size_in_bytes, spec);
+    if (segment == NULL)
+      return NULL;
+    data = gum_code_segment_get_address (segment);
   }
 
-  cp = GUM_CODE_PAGE (data, self);
+  pages = g_slice_alloc (self->pages_metadata_size);
+  pages->ref_count = self->slices_per_batch;
 
-  for (slice_idx = 0; slice_idx != self->slices_per_page; slice_idx++)
+  pages->segment = segment;
+  pages->data = data;
+  pages->size = size_in_bytes;
+
+  pages->allocator = self;
+
+  for (i = self->slices_per_batch; i != 0; i--)
   {
-    GumCodeSlice * slice = &cp->slice[slice_idx];
+    guint slice_index = i - 1;
+    GumCodeSliceElement * element = &pages->elements[slice_index];
+    GList * link;
+    GumCodeSlice * slice;
 
-    slice->data = (guint8 *) data + (slice_idx * self->slice_size);
+    slice = &element->slice;
+    slice->data = (guint8 *) data + (slice_index * self->slice_size);
     slice->size = self->slice_size;
-    gum_code_slice_mark_free (slice);
+
+    link = &element->parent;
+    link->data = pages;
+    link->prev = NULL;
+    if (slice_index == 0)
+    {
+      link->next = NULL;
+      result = slice;
+    }
+    else
+    {
+      if (self->free_slices != NULL)
+        self->free_slices->prev = link;
+      link->next = self->free_slices;
+      self->free_slices = link;
+    }
   }
 
-  return cp;
+  if (!rwx_supported)
+    self->uncommitted_pages = g_slist_prepend (self->uncommitted_pages, pages);
+
+  g_hash_table_insert (self->dirty_pages, pages, pages);
+
+  return result;
 }
 
 static void
-gum_code_page_free (GumCodePage * self,
-                    const GumCodeAllocator * allocator)
+gum_code_pages_unref (GumCodePages * self)
 {
-  gum_free_pages (GUM_CODE_PAGE_DATA (self, allocator));
+  self->ref_count--;
+  if (self->ref_count == 0)
+  {
+    if (self->segment != NULL)
+      gum_code_segment_free (self->segment);
+    else
+      gum_free_pages (self->data);
+
+    g_slice_free1 (self->allocator->pages_metadata_size, self);
+  }
+}
+
+void
+gum_code_slice_free (GumCodeSlice * slice)
+{
+  GumCodeSliceElement * element;
+  GumCodePages * pages;
+
+  if (slice == NULL)
+    return;
+
+  element = GUM_CODE_SLICE_ELEMENT_FROM_SLICE (slice);
+  pages = element->parent.data;
+
+  if (gum_query_is_rwx_supported ())
+  {
+    GumCodeAllocator * allocator = pages->allocator;
+    GList * link = &element->parent;
+
+    if (allocator->free_slices != NULL)
+      allocator->free_slices->prev = link;
+    link->next = allocator->free_slices;
+    allocator->free_slices = link;
+  }
+  else
+  {
+    gum_code_pages_unref (pages);
+  }
 }
 
 static gboolean
-gum_code_allocator_page_is_near (const GumCodeAllocator * self,
-                                 const GumCodePage * page,
-                                 const GumAddressSpec * spec)
+gum_code_slice_is_near (const GumCodeSlice * self,
+                        const GumAddressSpec * spec)
 {
-  gssize page_data;
+  gssize near_address;
+  gssize slice_start, slice_end;
   gsize distance_start, distance_end;
 
-  page_data = GPOINTER_TO_SIZE (GUM_CODE_PAGE_DATA (page, self));
-  distance_start = ABS ((gssize) spec->near_address - page_data);
-  distance_end = ABS ((gssize) spec->near_address -
-      (page_data + (gssize) self->page_size));
+  if (spec == NULL)
+    return TRUE;
+
+  near_address = (gssize) spec->near_address;
+
+  slice_start = (gssize) self->data;
+  slice_end = slice_start + self->size - 1;
+
+  distance_start = ABS (near_address - slice_start);
+  distance_end = ABS (near_address - slice_end);
 
   return distance_start <= spec->max_distance &&
       distance_end <= spec->max_distance;
@@ -286,24 +368,6 @@ gum_code_slice_is_aligned (const GumCodeSlice * slice,
   return GPOINTER_TO_SIZE (slice->data) % alignment == 0;
 }
 
-static gboolean
-gum_code_slice_is_free (const GumCodeSlice * slice)
-{
-  return (slice->size & 1) == 1;
-}
-
-static void
-gum_code_slice_mark_free (GumCodeSlice * slice)
-{
-  slice->size |= 1;
-}
-
-static void
-gum_code_slice_mark_taken (GumCodeSlice * slice)
-{
-  slice->size &= ~1;
-}
-
 GumCodeDeflector *
 gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
                                     const GumAddressSpec * caller,
@@ -311,7 +375,8 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
                                     gpointer target)
 {
   GumCodeDeflectorDispatcher * dispatcher = NULL;
-  GumList * cur;
+  GSList * cur;
+  GumCodeDeflectorImpl * impl;
   GumCodeDeflector * deflector;
 
   for (cur = self->dispatchers; cur != NULL; cur = cur->next)
@@ -332,41 +397,49 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
     dispatcher = gum_code_deflector_dispatcher_new (caller);
     if (dispatcher == NULL)
       return NULL;
-    self->dispatchers = gum_list_prepend (self->dispatchers, dispatcher);
+    self->dispatchers = g_slist_prepend (self->dispatchers, dispatcher);
   }
 
-  deflector = g_slice_new (GumCodeDeflector);
+  impl = g_slice_new (GumCodeDeflectorImpl);
+
+  deflector = &impl->parent;
   deflector->return_address = return_address;
   deflector->target = target;
   deflector->trampoline = dispatcher->trampoline;
 
-  dispatcher->callers = gum_list_prepend (dispatcher->callers, deflector);
+  impl->allocator = self;
+
+  dispatcher->callers = g_slist_prepend (dispatcher->callers, deflector);
 
   return deflector;
 }
 
 void
-gum_code_allocator_free_deflector (GumCodeAllocator * self,
-                                   GumCodeDeflector * deflector)
+gum_code_deflector_free (GumCodeDeflector * deflector)
 {
-  GumList * cur;
+  GumCodeDeflectorImpl * impl = (GumCodeDeflectorImpl *) deflector;
+  GumCodeAllocator * allocator = impl->allocator;
+  GSList * cur;
 
   if (deflector == NULL)
     return;
 
-  for (cur = self->dispatchers; cur != NULL; cur = cur->next)
+  for (cur = allocator->dispatchers; cur != NULL; cur = cur->next)
   {
     GumCodeDeflectorDispatcher * dispatcher = cur->data;
-    GumList * entry;
+    GSList * entry;
 
-    entry = gum_list_find (dispatcher->callers, deflector);
+    entry = g_slist_find (dispatcher->callers, deflector);
     if (entry != NULL)
     {
-      dispatcher->callers = gum_list_delete_link (dispatcher->callers, entry);
+      g_slice_free (GumCodeDeflectorImpl, impl);
+
+      dispatcher->callers = g_slist_delete_link (dispatcher->callers, entry);
       if (dispatcher->callers == NULL)
       {
         gum_code_deflector_dispatcher_free (dispatcher);
-        self->dispatchers = gum_list_remove (self->dispatchers, dispatcher);
+        allocator->dispatchers = g_slist_remove (allocator->dispatchers,
+            dispatcher);
       }
 
       return;
@@ -381,22 +454,23 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
 {
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext ctx;
-  gsize page_size, size_in_pages, size_in_bytes;
+  gsize size_in_pages, size_in_bytes;
 
   ctx.caller = caller;
 
   ctx.cave.base_address = 0;
   ctx.cave.size = 0;
 
+#ifdef HAVE_LINUX
   gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
       &ctx);
+#endif
 
   if (ctx.cave.base_address == 0)
     return NULL;
 
-  page_size = gum_query_page_size ();
   size_in_pages = 1;
-  size_in_bytes = size_in_pages * page_size;
+  size_in_bytes = size_in_pages * gum_query_page_size ();
 
   dispatcher = g_slice_new (GumCodeDeflectorDispatcher);
 
@@ -458,8 +532,8 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
 
   gum_free_pages (dispatcher->thunk);
 
-  gum_list_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
-  gum_list_free (dispatcher->callers);
+  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
+  g_slist_free (dispatcher->callers);
 
   g_slice_free (GumCodeDeflectorDispatcher, dispatcher);
 }
@@ -468,7 +542,7 @@ static gpointer
 gum_code_deflector_dispatcher_lookup (GumCodeDeflectorDispatcher * self,
                                       gpointer return_address)
 {
-  GumList * cur;
+  GSList * cur;
 
   for (cur = self->callers; cur != NULL; cur = cur->next)
   {
@@ -526,22 +600,4 @@ gum_probe_range_for_code_cave (const GumRangeDetails * details,
   return FALSE;
 }
 
-#else
-
-static gboolean
-gum_probe_range_for_code_cave (const GumRangeDetails * details,
-                               gpointer user_data)
-{
-  (void) details;
-  (void) user_data;
-
-  return FALSE;
-}
-
 #endif
-
-static void
-gum_code_deflector_free (GumCodeDeflector * deflector)
-{
-  g_slice_free (GumCodeDeflector, deflector);
-}

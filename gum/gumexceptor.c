@@ -721,10 +721,14 @@ gum_exceptor_attach (GumExceptor * self)
     sigaction (sig, &action, old_handler);
   }
 
+  gum_interceptor_begin_transaction (priv->interceptor);
+
   gum_interceptor_replace_function (priv->interceptor, signal,
       gum_exceptor_replacement_signal, self);
   gum_interceptor_replace_function (priv->interceptor, sigaction,
       gum_exceptor_replacement_sigaction, self);
+
+  gum_interceptor_end_transaction (priv->interceptor);
 }
 
 static void

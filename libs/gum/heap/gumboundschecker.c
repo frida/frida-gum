@@ -308,6 +308,8 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
   g_object_set (priv->page_pool, "front-alignment", priv->front_alignment,
       NULL);
 
+  gum_interceptor_begin_transaction (priv->interceptor);
+
   for (i = 0; i != apis->len; i++)
   {
     const GumHeapApi * api = gum_heap_api_list_get_nth (apis, i);
@@ -324,6 +326,8 @@ gum_bounds_checker_attach_to_apis (GumBoundsChecker * self,
 
 #undef GUM_REPLACE_API_FUNC
   }
+
+  gum_interceptor_end_transaction (priv->interceptor);
 
   priv->attached = TRUE;
 }
@@ -342,6 +346,8 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
 
     g_assert_cmpuint (gum_page_pool_peek_used (priv->page_pool), ==, 0);
 
+    gum_interceptor_begin_transaction (priv->interceptor);
+
     for (i = 0; i != priv->heap_apis->len; i++)
     {
       const GumHeapApi * api = gum_heap_api_list_get_nth (priv->heap_apis, i);
@@ -357,6 +363,8 @@ gum_bounds_checker_detach (GumBoundsChecker * self)
 
   #undef GUM_REVERT_API_FUNC
     }
+
+    gum_interceptor_end_transaction (priv->interceptor);
 
     g_object_unref (priv->page_pool);
     priv->page_pool = NULL;

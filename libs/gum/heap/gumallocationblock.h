@@ -8,7 +8,6 @@
 #define __GUM_ALLOCATION_BLOCK_H__
 
 #include <gum/gumdefs.h>
-#include <gum/gumlist.h>
 #include <gum/gumreturnaddress.h>
 
 typedef struct _GumAllocationBlock GumAllocationBlock;
@@ -30,7 +29,7 @@ GUM_API GumAllocationBlock * gum_allocation_block_copy (
     const GumAllocationBlock * block);
 GUM_API void gum_allocation_block_free (GumAllocationBlock * block);
 
-GUM_API void gum_allocation_block_list_free (GumList * block_list);
+GUM_API void gum_allocation_block_list_free (GList * block_list);
 
 G_END_DECLS
 

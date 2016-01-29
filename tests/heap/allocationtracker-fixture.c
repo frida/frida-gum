@@ -8,7 +8,6 @@
 
 #include "dummyclasses.h"
 #include "fakebacktracer.h"
-#include "gumhash.h"
 #include "testutil.h"
 
 #define ALLOCTRACKER_TESTCASE(NAME) \

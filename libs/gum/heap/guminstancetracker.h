@@ -8,7 +8,7 @@
 #define __GUM_INSTANCE_TRACKER_H__
 
 #include <glib-object.h>
-#include <gum/gumlist.h>
+#include <gum/gumdefs.h>
 
 #define GUM_TYPE_INSTANCE_TRACKER (gum_instance_tracker_get_type ())
 #define GUM_INSTANCE_TRACKER(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -80,8 +80,7 @@ GUM_API void gum_instance_tracker_set_type_filter_function (
 
 GUM_API guint gum_instance_tracker_peek_total_count (GumInstanceTracker * self,
     const gchar * type_name);
-GUM_API GumList * gum_instance_tracker_peek_instances (
-    GumInstanceTracker * self);
+GUM_API GList * gum_instance_tracker_peek_instances (GumInstanceTracker * self);
 GUM_API void gum_instance_tracker_walk_instances (GumInstanceTracker * self,
     GumWalkInstanceFunc func, gpointer user_data);
 

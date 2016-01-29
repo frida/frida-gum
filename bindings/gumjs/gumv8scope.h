@@ -11,6 +11,16 @@
 
 #include <v8.h>
 
+class ScriptInterceptorScope
+{
+public:
+  ScriptInterceptorScope (GumV8Script * parent);
+  ~ScriptInterceptorScope ();
+
+private:
+  GumV8Script * parent;
+};
+
 class ScriptStalkerScope
 {
 public:
@@ -38,6 +48,7 @@ private:
   v8::Local<v8::Context> context;
   v8::Context::Scope context_scope;
   v8::TryCatch trycatch;
+  ScriptInterceptorScope interceptor_scope;
 };
 
 #endif

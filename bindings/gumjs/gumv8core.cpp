@@ -630,14 +630,6 @@ _gum_v8_core_on_unhandled_exception (GumV8Core * self,
 }
 
 void
-_gum_v8_core_emit_message (GumV8Core * self,
-                           const gchar * message,
-                           GBytes * data)
-{
-  self->message_emitter (self->script, message, data);
-}
-
-void
 _gum_v8_core_post_message (GumV8Core * self,
                            const gchar * message)
 {
@@ -1091,6 +1083,7 @@ gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
+  GumInterceptor * interceptor = self->script->priv->interceptor.interceptor;
 
   String::Utf8Value message (info[0]);
 
@@ -1103,7 +1096,16 @@ gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info)
       return;
   }
 
-  _gum_v8_core_emit_message (self, *message, data);
+  /*
+   * Synchronize Interceptor state before sending the message. The application
+   * might be waiting for an acknowledgement that APIs have been instrumented.
+   *
+   * This is very important for the RPC API.
+   */
+  gum_interceptor_end_transaction (interceptor);
+  gum_interceptor_begin_transaction (interceptor);
+
+  self->message_emitter (self->script, *message, data);
 
   g_bytes_unref (data);
 }

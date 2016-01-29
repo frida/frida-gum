@@ -664,7 +664,7 @@ gum_vasprintf (gchar ** ret,
   va_copy (aq, ap);
   len = gum_vsnprintf (NULL, 0, format, aq);
   va_end (aq);
-  if (len < 0 || (*ret = gum_malloc (size = len + 1)) == NULL)
+  if (len < 0 || (*ret = g_malloc (size = len + 1)) == NULL)
     return -1;
 
   return gum_vsnprintf (*ret, size, format, ap);

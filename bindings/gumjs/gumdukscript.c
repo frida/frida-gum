@@ -732,7 +732,7 @@ gum_duk_alloc (void * udata,
 {
   (void) udata;
 
-  return gum_malloc (size);
+  return g_malloc (size);
 }
 
 static void *
@@ -742,7 +742,7 @@ gum_duk_realloc (void * udata,
 {
   (void) udata;
 
-  return gum_realloc (ptr, size);
+  return g_realloc (ptr, size);
 }
 
 static void
@@ -751,5 +751,5 @@ gum_duk_free (void * udata,
 {
   (void) udata;
 
-  gum_free (ptr);
+  g_free (ptr);
 }
