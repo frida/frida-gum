@@ -1921,7 +1921,13 @@ gum_scheduled_callback_new (guint id,
 static void
 gum_scheduled_callback_free (GumDukScheduledCallback * callback)
 {
-  _gum_duk_unprotect (callback->core->ctx, callback->func);
+  GumDukCore * core = callback->core;
+  GumDukScope scope;
+
+  _gum_duk_scope_enter (&scope, core);
+  _gum_duk_unprotect (core->ctx, callback->func);
+  _gum_duk_scope_leave (&scope);
+
   g_slice_free (GumDukScheduledCallback, callback);
 }
 
