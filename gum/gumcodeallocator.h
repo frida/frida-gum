@@ -16,7 +16,8 @@ typedef struct _GumCodeDeflector GumCodeDeflector;
 struct _GumCodeAllocator
 {
   gsize slice_size;
-  gsize slices_per_page;
+  gsize pages_per_batch;
+  gsize slices_per_batch;
   gsize pages_metadata_size;
 
   GSList * uncommitted_pages;

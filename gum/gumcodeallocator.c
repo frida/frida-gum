@@ -106,9 +106,11 @@ gum_code_allocator_init (GumCodeAllocator * allocator,
                          gsize slice_size)
 {
   allocator->slice_size = slice_size;
-  allocator->slices_per_page = gum_query_page_size () / slice_size;
+  allocator->pages_per_batch = 7;
+  allocator->slices_per_batch =
+      (allocator->pages_per_batch * gum_query_page_size ()) / slice_size;
   allocator->pages_metadata_size = sizeof (GumCodePages) +
-      ((allocator->slices_per_page - 1) * sizeof (GumCodeSliceElement));
+      ((allocator->slices_per_batch - 1) * sizeof (GumCodeSliceElement));
 
   allocator->uncommitted_pages = NULL;
   allocator->dirty_pages = g_hash_table_new (NULL, NULL);
@@ -220,7 +222,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   rwx_supported = gum_query_is_rwx_supported ();
 
-  size_in_pages = 1;
+  size_in_pages = self->pages_per_batch;
   size_in_bytes = size_in_pages * gum_query_page_size ();
 
   if (rwx_supported)
@@ -246,7 +248,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   }
 
   pages = g_slice_alloc (self->pages_metadata_size);
-  pages->ref_count = self->slices_per_page;
+  pages->ref_count = self->slices_per_batch;
 
   pages->segment = segment;
   pages->data = data;
@@ -254,7 +256,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
 
   pages->allocator = self;
 
-  for (i = self->slices_per_page; i != 0; i--)
+  for (i = self->slices_per_batch; i != 0; i--)
   {
     guint slice_index = i - 1;
     GumCodeSliceElement * element = &pages->elements[slice_index];
