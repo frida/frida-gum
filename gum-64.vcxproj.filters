@@ -210,6 +210,9 @@
     <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gumcodesegment.c">
+      <Filter>core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gum\arch-x86\gumx86reader.h">
@@ -409,6 +412,9 @@
     </ClInclude>
     <ClInclude Include="gum\arch-x86\gumx86backtracer.h">
       <Filter>core\arch-x86</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumcodesegment.h">
+      <Filter>core</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

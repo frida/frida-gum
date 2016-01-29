@@ -38,9 +38,9 @@ gum_cobject_free (GumCObject * cobject)
 }
 
 void
-gum_cobject_list_free (GSList * cobject_list)
+gum_cobject_list_free (GList * cobject_list)
 {
-  GSList * cur;
+  GList * cur;
 
   for (cur = cobject_list; cur != NULL; cur = cur->next)
   {
@@ -48,5 +48,5 @@ gum_cobject_list_free (GSList * cobject_list)
     gum_cobject_free (cobject);
   }
 
-  g_slist_free (cobject_list);
+  g_list_free (cobject_list);
 }

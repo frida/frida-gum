@@ -32,7 +32,7 @@ GUM_API GumCObject * gum_cobject_copy (
     const GumCObject * cobject);
 GUM_API void gum_cobject_free (GumCObject * cobject);
 
-GUM_API void gum_cobject_list_free (GSList * cobject_list);
+GUM_API void gum_cobject_list_free (GList * cobject_list);
 
 G_END_DECLS
 

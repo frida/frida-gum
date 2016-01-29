@@ -757,7 +757,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     source_page = gum_code_segment_get_address (segment);
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
-      gpointer target_page = cur->data;
+      guint8 * target_page = cur->data;
       GArray * pending;
       guint i;
 
@@ -774,8 +774,8 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         write = &g_array_index (pending, GumPrologueWrite, i);
 
         write->func (interceptor, write->ctx, source_page +
-            (_gum_interceptor_backend_get_function_address (write->ctx) -
-            target_page));
+            ((guint8 *) _gum_interceptor_backend_get_function_address (
+                write->ctx) - target_page));
       }
 
       source_page += page_size;
