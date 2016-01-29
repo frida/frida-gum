@@ -398,7 +398,7 @@ _gum_duk_store_module_data (duk_context * ctx,
   g_strlcpy ((gchar *) (key + 1), module_id, sizeof (key) - 1);
 
   duk_push_pointer (ctx, data);
-  duk_put_global_string (ctx, key);
+  duk_put_global_string (ctx, (const gchar *) key);
 }
 
 gpointer
@@ -411,7 +411,7 @@ _gum_duk_load_module_data (duk_context * ctx,
   key[0] = 0xff;
   g_strlcpy ((gchar *) (key + 1), module_id, sizeof (key) - 1);
 
-  duk_get_global_string (ctx, key);
+  duk_get_global_string (ctx, (const gchar *) key);
   result = duk_get_pointer (ctx, -1);
   duk_pop (ctx);
 
