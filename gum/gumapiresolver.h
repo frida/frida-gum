@@ -31,8 +31,8 @@ struct _GumApiResolverIface
 {
   GTypeInterface parent;
 
-  void (* enumerate_matches) (GumApiResolver * self, const gchar ** globs,
-      GumFoundApiFunc func, gpointer user_data);
+  void (* enumerate_matches) (GumApiResolver * self, const gchar * query,
+      GumFoundApiFunc func, gpointer user_data, GError ** error);
 };
 
 struct _GumApiDetails
@@ -48,7 +48,8 @@ GUM_API GType gum_api_resolver_get_type (void);
 GUM_API GumApiResolver * gum_api_resolver_make (const gchar * type);
 
 GUM_API void gum_api_resolver_enumerate_matches (GumApiResolver * self,
-    const gchar ** globs, GumFoundApiFunc func, gpointer user_data);
+    const gchar * query, GumFoundApiFunc func, gpointer user_data,
+    GError ** error);
 
 G_END_DECLS
 

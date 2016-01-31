@@ -13,7 +13,7 @@ TEST_LIST_END ()
 API_RESOLVER_TESTCASE (objc)
 {
   TestForEachContext ctx;
-  const gchar * globs[] = { "+[NSAr* arr*]", "-[NSAr* objectAt*]", NULL };
+  GError * error = NULL;
 
   fixture->resolver = gum_api_resolver_make ("objc");
   if (fixture->resolver == NULL)
@@ -24,14 +24,16 @@ API_RESOLVER_TESTCASE (objc)
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, globs, match_found_cb,
-      &ctx);
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSAr* arr*]",
+      match_found_cb, &ctx, &error);
+  g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, globs, match_found_cb,
-      &ctx);
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSAr* arr*]",
+      match_found_cb, &ctx, &error);
+  g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 

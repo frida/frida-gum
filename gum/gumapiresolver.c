@@ -45,10 +45,11 @@ gum_api_resolver_make (const gchar * type)
 
 void
 gum_api_resolver_enumerate_matches (GumApiResolver * self,
-                                    const gchar ** globs,
+                                    const gchar * query,
                                     GumFoundApiFunc func,
-                                    gpointer user_data)
+                                    gpointer user_data,
+                                    GError ** error)
 {
-  GUM_API_RESOLVER_GET_INTERFACE (self)->enumerate_matches (self, globs, func,
-      user_data);
+  GUM_API_RESOLVER_GET_INTERFACE (self)->enumerate_matches (self, query, func,
+      user_data, error);
 }

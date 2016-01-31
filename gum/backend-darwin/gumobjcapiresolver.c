@@ -49,10 +49,11 @@ gum_objc_api_resolver_new (void)
 }
 
 static void
-gum_objc_api_resolver_enumerate_matches (GumApiResolver * self,
-                                         const gchar ** globs,
+gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
+                                         const gchar * query,
                                          GumFoundApiFunc func,
-                                         gpointer user_data)
+                                         gpointer user_data,
+                                         GError ** error)
 {
   /* TODO: implement */
 }
