@@ -121,7 +121,7 @@ do_init (gpointer data)
 #define GUM_TRY_ASSIGN_CS_FUNC(N) \
   G_PASTE (CS, N) = dlsym (gum_cs, G_STRINGIFY (G_PASTE (CS, N))); \
   if (G_PASTE (CS, N) == NULL) \
-    goto api_error;
+    goto api_error
 
   GUM_TRY_ASSIGN_CS_FUNC (IsNull);
   GUM_TRY_ASSIGN_CS_FUNC (Release);
