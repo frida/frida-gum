@@ -24,14 +24,14 @@ API_RESOLVER_TESTCASE (objc)
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSAr* arr*]",
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "+[NSAr* arr*]",
+  gum_api_resolver_enumerate_matches (fixture->resolver, "+[*Arr* arr*]",
       match_found_cb, &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);

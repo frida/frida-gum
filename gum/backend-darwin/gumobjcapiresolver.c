@@ -51,7 +51,8 @@ static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
     GError ** error);
 static gboolean gum_objc_api_resolver_enumerate_matches_for_class (
     GumObjcApiResolver * self, GumObjcClassDetails * klass, gchar method_type,
-    GPatternSpec * method_spec, GumFoundApiFunc func, gpointer user_data);
+    GPatternSpec * method_spec, GHashTable * visited_classes,
+    GumFoundApiFunc func, gpointer user_data);
 
 static gchar gum_method_type_from_match_info (GMatchInfo * match_info,
     gint match_num);
@@ -162,6 +163,7 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   GPatternSpec * class_spec, * method_spec;
   GHashTableIter iter;
   gboolean carry_on;
+  GHashTable * visited_classes;
   GumObjcClassDetails * klass;
 
   g_regex_match (self->query_pattern, query, 0, &query_info);
@@ -176,14 +178,16 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
 
   g_hash_table_iter_init (&iter, self->class_by_handle);
   carry_on = TRUE;
+  visited_classes = g_hash_table_new (NULL, NULL);
   while (carry_on && g_hash_table_iter_next (&iter, NULL, (gpointer *) &klass))
   {
     if (g_pattern_match_string (class_spec, klass->name))
     {
       carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self, klass,
-          method_type, method_spec, func, user_data);
+          method_type, method_spec, visited_classes, func, user_data);
     }
   }
+  g_hash_table_unref (visited_classes);
 
   g_pattern_spec_free (method_spec);
   g_pattern_spec_free (class_spec);
@@ -203,6 +207,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
                                                    GumObjcClassDetails * klass,
                                                    gchar method_type,
                                                    GPatternSpec * method_spec,
+                                                   GHashTable * visited_classes,
                                                    GumFoundApiFunc func,
                                                    gpointer user_data)
 {
@@ -211,6 +216,10 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
   const gchar * method_types, * t;
   gboolean carry_on;
   GSList * cur;
+
+  if (g_hash_table_lookup (visited_classes, klass) != NULL)
+    return TRUE;
+  g_hash_table_insert (visited_classes, klass, klass);
 
   method_types = (method_type == '*') ? all_method_types : one_method_type;
 
@@ -257,7 +266,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     g_assert (subclass != NULL);
 
     carry_on = gum_objc_api_resolver_enumerate_matches_for_class (self,
-        subclass, method_type, method_spec, func, user_data);
+        subclass, method_type, method_spec, visited_classes, func, user_data);
     if (!carry_on)
       return FALSE;
   }
