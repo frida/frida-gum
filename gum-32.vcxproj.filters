@@ -165,6 +165,9 @@
     <ClCompile Include="gum\gummetalhash.c">
       <Filter>core</Filter>
     </ClCompile>
+    <ClCompile Include="gum\gummoduleapiresolver.c">
+      <Filter>core</Filter>
+    </ClCompile>
     <ClCompile Include="gum\gummodulemap.c">
       <Filter>core</Filter>
     </ClCompile>
@@ -234,6 +237,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummetalhash.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gummoduleapiresolver.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gummodulemap.h">

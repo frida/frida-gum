@@ -6,6 +6,7 @@
 
 #include "gumapiresolver.h"
 
+#include "gummoduleapiresolver.h"
 #ifdef HAVE_DARWIN
 # include "backend-darwin/gumobjcapiresolver.h"
 #endif
@@ -35,6 +36,9 @@ gum_api_resolver_get_type (void)
 GumApiResolver *
 gum_api_resolver_make (const gchar * type)
 {
+  if (strcmp (type, "module") == 0)
+    return gum_module_api_resolver_new ();
+
 #ifdef HAVE_DARWIN
   if (strcmp (type, "objc") == 0)
     return gum_objc_api_resolver_new ();
