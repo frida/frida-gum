@@ -34,10 +34,13 @@ struct _GumObjcClassDetails
 {
   Class handle;
   const gchar * name;
+
   Method * class_methods;
   guint class_method_count;
+
   Method * instance_methods;
   guint instance_method_count;
+
   GSList * subclasses;
 
   GumObjcApiResolver * resolver;
@@ -355,8 +358,11 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
 static void
 gum_objc_class_details_free (GumObjcClassDetails * klass)
 {
+  g_slist_free (klass->subclasses);
+
   if (klass->class_methods != NULL)
     free (klass->class_methods);
+
   if (klass->instance_methods != NULL)
     free (klass->instance_methods);
 
