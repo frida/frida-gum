@@ -362,11 +362,11 @@ gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
 {
   g_slist_free (klass->subclasses);
 
-  if (klass->class_methods != NULL)
-    free (klass->class_methods);
-
   if (klass->instance_methods != NULL)
     free (klass->instance_methods);
+
+  if (klass->class_methods != NULL)
+    free (klass->class_methods);
 
   g_slice_free (GumObjcClassMetadata, klass);
 }
