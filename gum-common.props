@@ -11,6 +11,7 @@
   <ItemGroup>
     <ClInclude Include="gum\gum.h" />
     <ClInclude Include="gum\gum-init.h" />
+    <ClInclude Include="gum\gumapiresolver.h" />
     <ClInclude Include="gum\gumbacktracer.h" />
     <ClInclude Include="gum\gumcodeallocator.h" />
     <ClInclude Include="gum\gumcodesegment.h" />
@@ -30,6 +31,7 @@
     <ClInclude Include="gum\gummemoryaccessmonitor.h" />
     <ClInclude Include="gum\gummemorymap.h" />
     <ClInclude Include="gum\gummetalhash.h" />
+    <ClInclude Include="gum\gummoduleapiresolver.h" />
     <ClInclude Include="gum\gummodulemap.h" />
     <ClInclude Include="gum\gumprintf.h" />
     <ClInclude Include="gum\gumprocess.h" />
@@ -44,6 +46,7 @@
 
   <ItemGroup>
     <ClCompile Include="gum\gum.c" />
+    <ClCompile Include="gum\gumapiresolver.c" />
     <ClCompile Include="gum\gumbacktracer.c" />
     <ClCompile Include="gum\gumcodeallocator.c" />
     <ClCompile Include="gum\gumcodesegment.c" />
@@ -57,6 +60,7 @@
     <ClCompile Include="gum\gummemory.c" />
     <ClCompile Include="gum\gummemorymap.c" />
     <ClCompile Include="gum\gummetalhash.c" />
+    <ClCompile Include="gum\gummoduleapiresolver.c" />
     <ClCompile Include="gum\gummodulemap.c" />
     <ClCompile Include="gum\gumprintf.c" />
     <ClCompile Include="gum\gumprocess.c" />

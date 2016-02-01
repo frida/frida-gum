@@ -21,6 +21,7 @@ libgum_tests_core_la_SOURCES = \
 	memory.c \
 	process.c \
 	symbolutil.c \
+	apiresolver.c \
 	backtracer.c \
 	interceptor.c \
 	arch-x86/codewriter.c \

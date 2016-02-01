@@ -6,6 +6,7 @@ noinst_LTLIBRARIES = libfrida-gum.la
 fridaincludedir = $(includedir)/frida-1.0/gum
 fridainclude_HEADERS = \
 	gum.h \
+	gumapiresolver.h \
 	gumbacktracer.h \
 	gumcodeallocator.h \
 	gumcodesegment.h \
@@ -21,6 +22,7 @@ fridainclude_HEADERS = \
 	gummemory.h \
 	gummemoryaccessmonitor.h \
 	gummemorymap.h \
+	gummoduleapiresolver.h \
 	gummodulemap.h \
 	gumprocess.h \
 	gumreturnaddress.h \
@@ -121,6 +123,8 @@ endif
 
 if OS_DARWIN
 backend_sources += \
+	backend-darwin/gumobjcapiresolver.c \
+	backend-darwin/gumobjcapiresolver.h \
 	backend-darwin/gumdarwinbacktracer.c \
 	backend-darwin/gumsymbolutil-darwin.c \
 	backend-darwin/gumkernel-darwin.c \
@@ -164,6 +168,7 @@ endif
 libfrida_gum_la_SOURCES = \
 	gum.c \
 	gum-init.h \
+	gumapiresolver.c \
 	gumbacktracer.c \
 	gumcodeallocator.c \
 	gumcodesegment.c \
@@ -181,6 +186,7 @@ libfrida_gum_la_SOURCES = \
 	gummemorymap.c \
 	gummetalhash.c \
 	gummetalhash.h \
+	gummoduleapiresolver.c \
 	gummodulemap.c \
 	gumprintf.c \
 	gumprintf.h \
