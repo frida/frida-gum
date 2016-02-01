@@ -25,6 +25,7 @@ struct _GumObjcApiResolver
   Class (* class_getSuperclass) (Class klass);
   const gchar * (* class_getName) (Class klass);
   Method * (* class_copyMethodList) (Class klass, guint * method_count);
+  Class (* object_getClass) (gpointer object);
   SEL (* method_getName) (Method method);
   IMP (* method_getImplementation) (Method method);
   const gchar * (* sel_getName) (SEL selector);
@@ -114,6 +115,7 @@ gum_objc_api_resolver_init (GumObjcApiResolver * self)
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getSuperclass);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_getName);
   GUM_TRY_ASSIGN_OBJC_FUNC (class_copyMethodList);
+  GUM_TRY_ASSIGN_OBJC_FUNC (object_getClass);
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getName);
   GUM_TRY_ASSIGN_OBJC_FUNC (method_getImplementation);
   GUM_TRY_ASSIGN_OBJC_FUNC (sel_getName);
@@ -390,7 +392,10 @@ gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
 
   if (*cached_methods == NULL)
   {
-    *cached_methods = self->resolver->class_copyMethodList (self->handle,
+    GumObjcApiResolver * resolver = self->resolver;
+
+    *cached_methods = resolver->class_copyMethodList (
+        (type == '+') ? resolver->object_getClass (self->handle) : self->handle,
         cached_method_count);
   }
 
