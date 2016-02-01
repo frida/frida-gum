@@ -86,6 +86,8 @@ gum_module_api_resolver_iface_init (gpointer g_iface,
 {
   GumApiResolverIface * iface = (GumApiResolverIface *) g_iface;
 
+  (void) iface_data;
+
   iface->enumerate_matches = gum_module_api_resolver_enumerate_matches;
 }
 

@@ -92,6 +92,8 @@ gum_objc_api_resolver_iface_init (gpointer g_iface,
 {
   GumApiResolverIface * iface = (GumApiResolverIface *) g_iface;
 
+  (void) iface_data;
+
   iface->enumerate_matches = gum_objc_api_resolver_enumerate_matches;
 }
 
