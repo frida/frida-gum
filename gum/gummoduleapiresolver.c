@@ -164,10 +164,12 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         {
           GumApiDetails details;
 
-          details.name = function->name;
+          details.name = g_strconcat (module->name, "!", function->name, NULL);
           details.address = function->address;
 
           carry_on = func (&details, user_data);
+
+          g_free ((gpointer) details.name);
         }
       }
     }
