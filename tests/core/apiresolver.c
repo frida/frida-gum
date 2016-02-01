@@ -15,21 +15,26 @@ API_RESOLVER_TESTCASE (module)
 {
   TestForEachContext ctx;
   GError * error = NULL;
+#ifdef G_OS_WIN32
+  const gchar * query = "exports:*!_open*";
+#else
+  const gchar * query = "exports:*!open*";
+#endif
 
   fixture->resolver = gum_api_resolver_make ("module");
   g_assert (fixture->resolver != NULL);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "exports:*!open*",
-      match_found_cb, &ctx, &error);
+  gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
+      &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "exports:*!open*",
-      match_found_cb, &ctx, &error);
+  gum_api_resolver_enumerate_matches (fixture->resolver, query, match_found_cb,
+      &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
