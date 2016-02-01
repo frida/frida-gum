@@ -21,14 +21,14 @@ API_RESOLVER_TESTCASE (module)
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "open*",
+  gum_api_resolver_enumerate_matches (fixture->resolver, "exports:*!open*",
       match_found_cb, &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, >, 1);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
-  gum_api_resolver_enumerate_matches (fixture->resolver, "open*",
+  gum_api_resolver_enumerate_matches (fixture->resolver, "exports:*!open*",
       match_found_cb, &ctx, &error);
   g_assert (error == NULL);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
