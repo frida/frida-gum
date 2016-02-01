@@ -4,8 +4,8 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#ifndef __GUM_DUKRIPT_INSTRUCTION_H__
-#define __GUM_DUKRIPT_INSTRUCTION_H__
+#ifndef __GUM_DUK_INSTRUCTION_H__
+#define __GUM_DUK_INSTRUCTION_H__
 
 #include "gumdukcore.h"
 
