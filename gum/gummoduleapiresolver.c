@@ -288,7 +288,7 @@ gum_module_metadata_collect_import (const GumImportDetails * details,
 {
   GHashTable * import_by_name = user_data;
 
-  if (details->type == GUM_IMPORT_FUNCTION)
+  if (details->type == GUM_IMPORT_FUNCTION && details->address != 0)
   {
     GumFunctionMetadata * function;
 
