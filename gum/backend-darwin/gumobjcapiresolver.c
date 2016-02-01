@@ -10,7 +10,7 @@
 #include <gio/gio.h>
 #include <objc/runtime.h>
 
-typedef struct _GumObjcClassDetails GumObjcClassDetails;
+typedef struct _GumObjcClassMetadata GumObjcClassMetadata;
 
 struct _GumObjcApiResolver
 {
@@ -30,7 +30,7 @@ struct _GumObjcApiResolver
   const gchar * (* sel_getName) (SEL selector);
 };
 
-struct _GumObjcClassDetails
+struct _GumObjcClassMetadata
 {
   Class handle;
   const gchar * name;
@@ -53,7 +53,7 @@ static void gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
     const gchar * query, GumFoundApiFunc func, gpointer user_data,
     GError ** error);
 static gboolean gum_objc_api_resolver_enumerate_matches_for_class (
-    GumObjcApiResolver * self, GumObjcClassDetails * klass, gchar method_type,
+    GumObjcApiResolver * self, GumObjcClassMetadata * klass, gchar method_type,
     GPatternSpec * method_spec, GHashTable * visited_classes,
     GumFoundApiFunc func, gpointer user_data);
 
@@ -65,9 +65,9 @@ static GPatternSpec * gum_pattern_spec_from_match_info (GMatchInfo * match_info,
 static GHashTable * gum_objc_api_resolver_create_snapshot (
     GumObjcApiResolver * resolver);
 
-static void gum_objc_class_details_free (GumObjcClassDetails * klass);
-static const Method * gum_objc_class_details_get_methods (
-    GumObjcClassDetails * self, gchar type, guint * count);
+static void gum_objc_class_metadata_free (GumObjcClassMetadata * klass);
+static const Method * gum_objc_class_metadata_get_methods (
+    GumObjcClassMetadata * self, gchar type, guint * count);
 
 G_DEFINE_TYPE_EXTENDED (GumObjcApiResolver,
                         gum_objc_api_resolver,
@@ -167,7 +167,7 @@ gum_objc_api_resolver_enumerate_matches (GumApiResolver * resolver,
   GHashTableIter iter;
   gboolean carry_on;
   GHashTable * visited_classes;
-  GumObjcClassDetails * klass;
+  GumObjcClassMetadata * klass;
 
   g_regex_match (self->query_pattern, query, 0, &query_info);
   if (!g_match_info_matches (query_info))
@@ -207,7 +207,7 @@ invalid_query:
 
 static gboolean
 gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
-                                                   GumObjcClassDetails * klass,
+                                                   GumObjcClassMetadata * klass,
                                                    gchar method_type,
                                                    GPatternSpec * method_spec,
                                                    GHashTable * visited_classes,
@@ -234,7 +234,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
     const gchar suffix[2] = { ']', '\0' };
 
     method_handles =
-        gum_objc_class_details_get_methods (klass, *t, &method_count);
+        gum_objc_class_metadata_get_methods (klass, *t, &method_count);
     for (method_index = 0; method_index != method_count; method_index++)
     {
       Method method_handle = method_handles[method_index];
@@ -263,7 +263,7 @@ gum_objc_api_resolver_enumerate_matches_for_class (GumObjcApiResolver * self,
   for (cur = klass->subclasses; cur != NULL; cur = cur->next)
   {
     Class subclass_handle = cur->data;
-    GumObjcClassDetails * subclass;
+    GumObjcClassMetadata * subclass;
 
     subclass = g_hash_table_lookup (self->class_by_handle, subclass_handle);
     g_assert (subclass != NULL);
@@ -312,7 +312,7 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
   Class * classes;
 
   class_by_handle = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_objc_class_details_free);
+      (GDestroyNotify) gum_objc_class_metadata_free);
 
   class_count = self->objc_getClassList (NULL, 0);
   classes = g_malloc (class_count * sizeof (Class));
@@ -321,9 +321,9 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
   for (class_index = 0; class_index != class_count; class_index++)
   {
     Class handle = classes[class_index];
-    GumObjcClassDetails * klass;
+    GumObjcClassMetadata * klass;
 
-    klass = g_slice_new (GumObjcClassDetails);
+    klass = g_slice_new (GumObjcClassMetadata);
     klass->handle = handle;
     klass->name = self->class_getName (handle);
     klass->class_methods = NULL;
@@ -343,7 +343,7 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
     super_handle = self->class_getSuperclass (handle);
     if (super_handle != NULL)
     {
-      GumObjcClassDetails * klass;
+      GumObjcClassMetadata * klass;
 
       klass = g_hash_table_lookup (class_by_handle, super_handle);
       klass->subclasses = g_slist_prepend (klass->subclasses, handle);
@@ -356,7 +356,7 @@ gum_objc_api_resolver_create_snapshot (GumObjcApiResolver * self)
 }
 
 static void
-gum_objc_class_details_free (GumObjcClassDetails * klass)
+gum_objc_class_metadata_free (GumObjcClassMetadata * klass)
 {
   g_slist_free (klass->subclasses);
 
@@ -366,13 +366,13 @@ gum_objc_class_details_free (GumObjcClassDetails * klass)
   if (klass->instance_methods != NULL)
     free (klass->instance_methods);
 
-  g_slice_free (GumObjcClassDetails, klass);
+  g_slice_free (GumObjcClassMetadata, klass);
 }
 
 static const Method *
-gum_objc_class_details_get_methods (GumObjcClassDetails * self,
-                                    gchar type,
-                                    guint * count)
+gum_objc_class_metadata_get_methods (GumObjcClassMetadata * self,
+                                     gchar type,
+                                     guint * count)
 {
   Method ** cached_methods;
   guint * cached_method_count;
