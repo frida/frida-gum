@@ -6,6 +6,8 @@
 
 #include "gumcyclesampler.h"
 
+#include "gumlibc.h"
+
 #include <string.h>
 #include <unistd.h>
 #include <sys/syscall.h>
