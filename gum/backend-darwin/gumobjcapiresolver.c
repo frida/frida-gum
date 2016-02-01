@@ -9,6 +9,7 @@
 #include <dlfcn.h>
 #include <gio/gio.h>
 #include <objc/runtime.h>
+#include <stdlib.h>
 
 typedef struct _GumObjcClassMetadata GumObjcClassMetadata;
 
