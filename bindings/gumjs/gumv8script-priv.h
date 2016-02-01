@@ -7,6 +7,7 @@
 #ifndef __GUM_V8_SCRIPT_PRIV_H__
 #define __GUM_V8_SCRIPT_PRIV_H__
 
+#include "gumv8apiresolver.h"
 #include "gumv8core.h"
 #include "gumv8file.h"
 #include "gumv8instruction.h"
@@ -44,6 +45,7 @@ struct _GumV8ScriptPrivate
   GumV8Socket socket;
   GumV8Interceptor interceptor;
   GumV8Stalker stalker;
+  GumV8ApiResolver api_resolver;
   GumV8Symbol symbol;
   GumV8Instruction instruction;
   GumPersistent<v8::Context>::type * context;

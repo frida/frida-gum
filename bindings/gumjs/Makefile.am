@@ -43,6 +43,8 @@ v8_sources = \
 	gumv8stalker.cpp \
 	gumv8eventsink.h \
 	gumv8eventsink.cpp \
+	gumv8apiresolver.h \
+	gumv8apiresolver.cpp \
 	gumv8symbol.h \
 	gumv8symbol.cpp \
 	gumv8instruction.h \
@@ -78,6 +80,8 @@ duk_sources = \
 	gumdukinterceptor.c \
 	gumdukstalker.h \
 	gumdukstalker.c \
+	gumdukapiresolver.h \
+	gumdukapiresolver.c \
 	gumduksymbol.h \
 	gumduksymbol.c \
 	gumdukinstruction.h \

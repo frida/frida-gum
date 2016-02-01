@@ -41,6 +41,7 @@
     <ClInclude Include="gumv8interceptor.h" />
     <ClInclude Include="gumv8stalker.h" />
     <ClInclude Include="gumv8eventsink.h" />
+    <ClInclude Include="gumv8apiresolver.h" />
     <ClInclude Include="gumv8symbol.h" />
     <ClInclude Include="gumv8instruction.h" />
   </ItemGroup>
@@ -61,6 +62,7 @@
     <ClCompile Include="gumv8interceptor.cpp" />
     <ClCompile Include="gumv8stalker.cpp" />
     <ClCompile Include="gumv8eventsink.cpp" />
+    <ClCompile Include="gumv8apiresolver.cpp" />
     <ClCompile Include="gumv8symbol.cpp" />
     <ClCompile Include="gumv8instruction.cpp" />
   </ItemGroup>
@@ -82,6 +84,7 @@
     <ClInclude Include="gumduksocket.h" />
     <ClInclude Include="gumdukinterceptor.h" />
     <ClInclude Include="gumdukstalker.h" />
+    <ClInclude Include="gumdukapiresolver.h" />
     <ClInclude Include="gumduksymbol.h" />
     <ClInclude Include="gumdukinstruction.h" />
     <ClInclude Include="duk_config.h" />
@@ -101,6 +104,7 @@
     <ClCompile Include="gumduksocket.c" />
     <ClCompile Include="gumdukinterceptor.c" />
     <ClCompile Include="gumdukstalker.c" />
+    <ClCompile Include="gumdukapiresolver.c" />
     <ClCompile Include="gumduksymbol.c" />
     <ClCompile Include="gumdukinstruction.c" />
     <ClCompile Include="duktape.c">

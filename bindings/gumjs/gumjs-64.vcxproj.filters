@@ -52,6 +52,9 @@
     <ClCompile Include="gumdukstalker.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukapiresolver.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumduksymbol.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -107,6 +110,9 @@
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8stalker.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8apiresolver.cpp">
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8symbol.cpp">
@@ -183,6 +189,9 @@
     <ClInclude Include="gumdukstalker.h">
       <Filter>duk</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukapiresolver.h">
+      <Filter>duk</Filter>
+    </ClInclude>
     <ClInclude Include="gumduksymbol.h">
       <Filter>duk</Filter>
     </ClInclude>
@@ -241,6 +250,9 @@
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8stalker.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8apiresolver.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8symbol.h">

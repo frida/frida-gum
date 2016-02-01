@@ -134,6 +134,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_ranges_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
+  SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
+  SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions_synchronously)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined(HAVE_ARM))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
@@ -1202,6 +1204,32 @@ SCRIPT_TESTCASE (module_export_can_be_found_by_name)
       SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
   EXPECT_SEND_MESSAGE_WITH ("true");
 #endif
+}
+
+SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var resolver = new ApiResolver('module');"
+      "resolver.enumerateMatches('exports:*!open*', {"
+      "  onMatch: function (match) {"
+      "    send('onMatch');"
+      "    return 'stop';"
+      "  },"
+      "  onComplete: function () {"
+      "    send('onComplete');"
+      "  }"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+}
+
+SCRIPT_TESTCASE (api_resolver_can_be_used_to_find_functions_synchronously)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var resolver = new ApiResolver('module');"
+      "var matches = resolver.enumerateMatchesSync('exports:*!open*');"
+      "send(matches.length > 0);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (invalid_script_should_return_null)

@@ -6,6 +6,7 @@
 
 #include "gumdukscript.h"
 
+#include "gumdukapiresolver.h"
 #include "gumdukcore.h"
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
@@ -58,6 +59,7 @@ struct _GumDukScriptPrivate
   GumDukSocket socket;
   GumDukInterceptor interceptor;
   GumDukStalker stalker;
+  GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
   gboolean loaded;
@@ -396,6 +398,7 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_socket_init (&priv->socket, &priv->core);
   _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
   _gum_duk_stalker_init (&priv->stalker, &priv->core);
+  _gum_duk_api_resolver_init (&priv->api_resolver, &priv->core);
   _gum_duk_symbol_init (&priv->symbol, &priv->core);
   _gum_duk_instruction_init (&priv->instruction, &priv->core);
 
@@ -424,6 +427,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   _gum_duk_instruction_dispose (&priv->instruction);
   _gum_duk_symbol_dispose (&priv->symbol);
+  _gum_duk_api_resolver_dispose (&priv->api_resolver);
   _gum_duk_stalker_dispose (&priv->stalker);
   _gum_duk_interceptor_dispose (&priv->interceptor);
   _gum_duk_socket_dispose (&priv->socket);
@@ -447,6 +451,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   _gum_duk_instruction_finalize (&priv->instruction);
   _gum_duk_symbol_finalize (&priv->symbol);
+  _gum_duk_api_resolver_finalize (&priv->api_resolver);
   _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
   _gum_duk_socket_finalize (&priv->socket);

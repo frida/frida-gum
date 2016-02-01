@@ -460,6 +460,21 @@
         });
     }
 
+    Object.defineProperty(ApiResolver.prototype, 'enumerateMatchesSync', {
+        enumerable: true,
+        value: function (query) {
+            const matches = [];
+            this.enumerateMatches(query, {
+                onMatch: function (m) {
+                    matches.push(m);
+                },
+                onComplete: function () {
+                }
+            });
+            return matches;
+        }
+    });
+
     Object.defineProperty(engine, 'rpc', {
         enumerable: true,
         value: {
