@@ -418,11 +418,13 @@ void
 gum_code_deflector_free (GumCodeDeflector * deflector)
 {
   GumCodeDeflectorImpl * impl = (GumCodeDeflectorImpl *) deflector;
-  GumCodeAllocator * allocator = impl->allocator;
+  GumCodeAllocator * allocator;
   GSList * cur;
 
   if (deflector == NULL)
     return;
+
+  allocator = impl->allocator;
 
   for (cur = allocator->dispatchers; cur != NULL; cur = cur->next)
   {
