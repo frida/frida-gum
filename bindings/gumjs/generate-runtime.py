@@ -62,8 +62,8 @@ def generate_runtime_duk(output_dir, output, input_dir, inputs, polyfills):
             if build_os == 'darwin':
                 sdk = "macosx"
                 CC = [
-                    subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).rstrip("\n"),
-                    "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).rstrip("\n")
+                    subprocess.check_output(["xcrun", "--sdk", sdk, "-f", "clang"]).decode('utf-8').rstrip("\n"),
+                    "-isysroot", subprocess.check_output(["xcrun", "--sdk", sdk, "--show-sdk-path"]).decode('utf-8').rstrip("\n")
                 ]
             else:
                 CC = ["gcc"]
