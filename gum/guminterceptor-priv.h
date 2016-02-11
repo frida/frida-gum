@@ -29,6 +29,7 @@ struct _GumFunctionContext
 
   gboolean destroyed;
   gboolean activated;
+  gboolean has_on_leave_listener;
 
   GumCodeSlice * trampoline_slice;
   GumCodeDeflector * trampoline_deflector;

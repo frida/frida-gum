@@ -925,6 +925,11 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
   entry->function_data = function_data;
 
   g_ptr_array_add (function_ctx->listener_entries, entry);
+
+  if (entry->listener_interface->on_leave != NULL)
+  {
+    function_ctx->has_on_leave_listener = TRUE;
+  }
 }
 
 static void
@@ -1025,8 +1030,8 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     invoke_listeners = (interceptor_ctx->ignore_level == 0);
   }
 
-  will_trap_on_leave =
-      function_ctx->replacement_function != NULL || invoke_listeners;
+  will_trap_on_leave = function_ctx->replacement_function != NULL ||
+      (invoke_listeners && function_ctx->has_on_leave_listener);
   if (will_trap_on_leave)
   {
     stack_entry = gum_invocation_stack_push (stack, function_ctx,
@@ -1069,8 +1074,11 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
       state.invocation_data = stack_entry->listener_invocation_data[i];
       invocation_ctx->backend->data = &state;
 
-      listener_entry->listener_interface->on_enter (
-          listener_entry->listener_instance, invocation_ctx);
+      if (listener_entry->listener_interface->on_enter != NULL)
+      {
+        listener_entry->listener_interface->on_enter (
+            listener_entry->listener_instance, invocation_ctx);
+      }
     }
 
     system_error = invocation_ctx->system_error;
@@ -1163,8 +1171,11 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
     state.invocation_data = stack_entry->listener_invocation_data[i];
     invocation_ctx->backend->data = &state;
 
-    entry->listener_interface->on_leave (entry->listener_instance,
-        invocation_ctx);
+    if (entry->listener_interface->on_leave != NULL)
+    {
+      entry->listener_interface->on_leave (entry->listener_instance,
+          invocation_ctx);
+    }
   }
 
   gum_thread_set_system_error (invocation_ctx->system_error);
