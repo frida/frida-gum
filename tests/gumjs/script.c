@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -38,6 +38,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (replaced_function_should_have_invocation_context)
+  SCRIPT_TESTENTRY (instructions_can_be_probed)
   SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
   SCRIPT_TESTENTRY (interceptor_on_enter_performance)
   SCRIPT_TESTENTRY (interceptor_on_leave_performance)
@@ -1857,6 +1858,24 @@ SCRIPT_TESTCASE (replaced_function_should_have_invocation_context)
 
   EXPECT_NO_MESSAGES ();
   target_function_int (7);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (instructions_can_be_probed)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", function () {"
+      "  send(!!this.context);"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  target_function_int (42);
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
