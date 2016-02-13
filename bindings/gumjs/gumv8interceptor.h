@@ -20,9 +20,10 @@ struct _GumV8Interceptor
 
   GumInterceptor * interceptor;
 
-  GQueue * attach_entries;
+  GHashTable * invocation_listeners;
   GHashTable * replacement_by_address;
 
+  GumPersistent<v8::Object>::type * invocation_listener_value;
   GumPersistent<v8::Object>::type * invocation_context_value;
   GumPersistent<v8::Object>::type * invocation_args_value;
   GumPersistent<v8::Object>::type * invocation_return_value;
@@ -35,14 +36,9 @@ G_GNUC_INTERNAL void _gum_v8_interceptor_flush (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_dispose (GumV8Interceptor * self);
 G_GNUC_INTERNAL void _gum_v8_interceptor_finalize (GumV8Interceptor * self);
 
-G_GNUC_INTERNAL void _gum_v8_interceptor_on_enter (
-    GumV8Interceptor * self, GumInvocationContext * context);
-G_GNUC_INTERNAL void _gum_v8_interceptor_on_leave (
-    GumV8Interceptor * self, GumInvocationContext * context);
-
 G_GNUC_INTERNAL v8::Local<v8::Object>
     _gum_v8_interceptor_create_invocation_context_object (
-    GumV8Interceptor * self, GumInvocationContext * context, int32_t depth);
+    GumV8Interceptor * self, GumInvocationContext * context);
 G_GNUC_INTERNAL void _gum_v8_interceptor_detach_cpu_context (
     GumV8Interceptor * self, v8::Handle<v8::Value> invocation_context);
 

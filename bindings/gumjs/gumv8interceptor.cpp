@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,24 +16,58 @@
 # define GUM_SYSTEM_ERROR_FIELD "errno"
 #endif
 
+#define GUM_IL_LISTENER     0
+
 #define GUM_IC_INVOCATION   0
-#define GUM_IC_DEPTH        1
-#define GUM_IC_CPU          2
+#define GUM_IC_CPU          1
 
 #define GUM_ARGS_INVOCATION 0
 
 #define GUM_RV_VALUE        0
 #define GUM_RV_INVOCATION   1
 
+#define GUM_V8_INVOCATION_LISTENER_CAST(obj) \
+    ((GumV8InvocationListener *) (obj))
+#define GUM_V8_TYPE_SOLO_LISTENER (gum_v8_solo_listener_get_type ())
+#define GUM_V8_TYPE_DUO_LISTENER (gum_v8_duo_listener_get_type ())
+
 using namespace v8;
 
-typedef struct _GumV8AttachEntry GumV8AttachEntry;
+typedef struct _GumV8InvocationListener GumV8InvocationListener;
+typedef struct _GumV8SoloListener GumV8SoloListener;
+typedef struct _GumV8SoloListenerClass GumV8SoloListenerClass;
+typedef struct _GumV8DuoListener GumV8DuoListener;
+typedef struct _GumV8DuoListenerClass GumV8DuoListenerClass;
 typedef struct _GumV8ReplaceEntry GumV8ReplaceEntry;
 
-struct _GumV8AttachEntry
+struct _GumV8InvocationListener
 {
+  GObject parent;
+
   GumPersistent<Function>::type * on_enter;
   GumPersistent<Function>::type * on_leave;
+
+  GumV8Interceptor * module;
+};
+
+struct _GumV8SoloListener
+{
+  GumV8InvocationListener listener;
+};
+
+struct _GumV8SoloListenerClass
+{
+  GObjectClass parent_class;
+};
+
+struct _GumV8DuoListener
+{
+  GumV8InvocationListener listener;
+};
+
+struct _GumV8DuoListenerClass
+{
+  GObjectClass parent_class;
 };
 
 struct _GumV8ReplaceEntry
@@ -47,13 +81,36 @@ static void gum_v8_interceptor_on_attach (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_interceptor_on_detach_all (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_interceptor_detach_all (GumV8Interceptor * self);
 static void gum_v8_interceptor_on_replace (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_interceptor_on_revert (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_attach_entry_free (GumV8AttachEntry * entry);
 static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
+
+static void gum_v8_invocation_listener_destroy (
+    GumV8InvocationListener * listener);
+static void gumjs_invocation_listener_on_detach (
+    const FunctionCallbackInfo<Value> & info);
+
+static void gum_v8_solo_listener_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_v8_solo_listener_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumV8SoloListener,
+                        gum_v8_solo_listener,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
+                            gum_v8_solo_listener_iface_init))
+
+static void gum_v8_duo_listener_iface_init (gpointer g_iface,
+    gpointer iface_data);
+static void gum_v8_duo_listener_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumV8DuoListener,
+                        gum_v8_duo_listener,
+                        G_TYPE_OBJECT,
+                        0,
+                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
+                            gum_v8_duo_listener_iface_init))
 
 static void gumjs_invocation_context_on_get_return_address (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
@@ -88,7 +145,8 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
 
   self->interceptor = gum_interceptor_obtain ();
 
-  self->attach_entries = g_queue_new ();
+  self->invocation_listeners = g_hash_table_new_full (NULL, NULL, NULL,
+      reinterpret_cast<GDestroyNotify> (gum_v8_invocation_listener_destroy));
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_v8_replace_entry_free));
 
@@ -117,8 +175,18 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 
   Local<External> data (External::New (isolate, self));
 
+  Handle<ObjectTemplate> listener = ObjectTemplate::New (isolate);
+  listener->SetInternalFieldCount (1);
+  listener->Set (String::NewFromUtf8 (isolate, "detach"),
+      FunctionTemplate::New (isolate, gumjs_invocation_listener_on_detach,
+      data));
+  Local<Object> listener_value = listener->NewInstance ();
+  listener_value->SetAlignedPointerInInternalField (GUM_IL_LISTENER, NULL);
+  self->invocation_listener_value =
+      new GumPersistent<Object>::type (isolate, listener_value);
+
   Handle<ObjectTemplate> context = ObjectTemplate::New (isolate);
-  context->SetInternalFieldCount (3);
+  context->SetInternalFieldCount (2);
   context->SetAccessor (String::NewFromUtf8 (isolate, "returnAddress"),
       gumjs_invocation_context_on_get_return_address, NULL, data);
   context->SetAccessor (String::NewFromUtf8 (isolate, "context"),
@@ -154,15 +222,14 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
       String::NewFromUtf8 (isolate, "replace"), FunctionTemplate::New (isolate,
       gumjs_invocation_return_value_on_replace, data));
   return_value->InstanceTemplate ()->SetInternalFieldCount (2);
-  self->invocation_return_value = new GumPersistent<Object>::type (isolate, 
+  self->invocation_return_value = new GumPersistent<Object>::type (isolate,
       return_value->GetFunction ()->NewInstance ());
 }
 
 void
 _gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
-  gum_v8_interceptor_detach_all (self);
-
+  g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
 }
 
@@ -170,129 +237,38 @@ void
 _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 {
   delete self->invocation_return_value;
-  self->invocation_return_value = NULL;
+  self->invocation_return_value = nullptr;
 
   delete self->invocation_args_value;
-  self->invocation_args_value = NULL;
+  self->invocation_args_value = nullptr;
 
   delete self->invocation_context_value;
-  self->invocation_context_value = NULL;
+  self->invocation_context_value = nullptr;
+
+  delete self->invocation_listener_value;
+  self->invocation_listener_value = nullptr;
 }
 
 void
 _gum_v8_interceptor_finalize (GumV8Interceptor * self)
 {
-  g_queue_free (self->attach_entries);
+  g_hash_table_unref (self->invocation_listeners);
   g_hash_table_unref (self->replacement_by_address);
 
   g_object_unref (self->interceptor);
   self->interceptor = NULL;
 }
 
-void
-_gum_v8_interceptor_on_enter (GumV8Interceptor * self,
-                              GumInvocationContext * context)
-{
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (context)))
-    return;
-
-  GumV8AttachEntry * entry = static_cast<GumV8AttachEntry *> (
-      gum_invocation_context_get_listener_function_data (context));
-  int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
-
-  if (entry->on_enter != nullptr)
-  {
-    GumV8Core * core = self->core;
-    ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
-
-    Local<Function> on_enter (Local<Function>::New (isolate, *entry->on_enter));
-
-    Local<Object> receiver (
-        _gum_v8_interceptor_create_invocation_context_object (self, context,
-        *depth));
-
-    Local<Object> invocation_args_value (Local<Object>::New (isolate,
-        *self->invocation_args_value));
-    Local<Object> args (invocation_args_value->Clone ());
-    args->SetAlignedPointerInInternalField (GUM_ARGS_INVOCATION, context);
-    Handle<Value> argv[] = { args };
-
-    on_enter->Call (receiver, 1, argv);
-
-    _gum_v8_interceptor_detach_cpu_context (self, receiver);
-
-    if (entry->on_leave != nullptr)
-    {
-      GumPersistent<Value>::type * persistent_receiver =
-          new GumPersistent<Value>::type (isolate, receiver);
-      *GUM_LINCTX_GET_FUNC_INVDATA (context,
-          GumPersistent<Value>::type *) = persistent_receiver;
-    }
-  }
-
-  (*depth)++;
-}
-
-void
-_gum_v8_interceptor_on_leave (GumV8Interceptor * self,
-                              GumInvocationContext * context)
-{
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (context)))
-    return;
-
-  GumV8AttachEntry * entry = static_cast<GumV8AttachEntry *> (
-      gum_invocation_context_get_listener_function_data (context));
-  int32_t * depth = GUM_LINCTX_GET_THREAD_DATA (context, int32_t);
-
-  (*depth)--;
-
-  if (entry->on_leave != nullptr)
-  {
-    ScriptScope scope (self->core->script);
-    Isolate * isolate = self->core->isolate;
-
-    Local<Function> on_leave (Local<Function>::New (isolate, *entry->on_leave));
-
-    GumPersistent<Object>::type * persistent_receiver =
-        (entry->on_enter != nullptr)
-        ? *GUM_LINCTX_GET_FUNC_INVDATA (context, GumPersistent<Object>::type *)
-        : nullptr;
-    Local<Object> receiver ((persistent_receiver != nullptr)
-        ? Local<Object>::New (isolate, *persistent_receiver)
-        : _gum_v8_interceptor_create_invocation_context_object (self,
-        context, *depth));
-
-    Local<Object> invocation_return_value (Local<Object>::New (isolate,
-        *self->invocation_return_value));
-    Local<Object> return_value (invocation_return_value->Clone ());
-    return_value->SetInternalField (GUM_RV_VALUE, External::New (isolate,
-        gum_invocation_context_get_return_value (context)));
-    return_value->SetAlignedPointerInInternalField (GUM_RV_INVOCATION, context);
-
-    Handle<Value> argv[] = { return_value };
-    on_leave->Call (receiver, 1, argv);
-
-    _gum_v8_interceptor_detach_cpu_context (self, receiver);
-
-    delete persistent_receiver;
-  }
-}
-
 Local<Object>
 _gum_v8_interceptor_create_invocation_context_object (
     GumV8Interceptor * self,
-    GumInvocationContext * context,
-    int32_t depth)
+    GumInvocationContext * context)
 {
   Isolate * isolate = self->core->isolate;
   Local<Object> invocation_context_value (Local<Object>::New (isolate,
       *self->invocation_context_value));
   Local<Object> result (invocation_context_value->Clone ());
   result->SetAlignedPointerInInternalField (GUM_IC_INVOCATION, context);
-  result->SetInternalField (GUM_IC_DEPTH, Integer::New (isolate, depth));
   return result;
 }
 
@@ -349,24 +325,34 @@ gum_v8_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
   if (!_gum_v8_callbacks_get_opt (callbacks, "onLeave", &on_leave, core))
     return;
 
-  GumV8AttachEntry * entry = g_slice_new0 (GumV8AttachEntry);
+  GumV8InvocationListener * listener = GUM_V8_INVOCATION_LISTENER_CAST (
+      g_object_new ((!on_leave.IsEmpty ()) ? GUM_V8_TYPE_DUO_LISTENER
+      : GUM_V8_TYPE_SOLO_LISTENER, NULL));
   if (!on_enter.IsEmpty ())
-    entry->on_enter = new GumPersistent<Function>::type (isolate, on_enter);
+    listener->on_enter = new GumPersistent<Function>::type (isolate, on_enter);
   if (!on_leave.IsEmpty ())
-    entry->on_leave = new GumPersistent<Function>::type (isolate, on_leave);
+    listener->on_leave = new GumPersistent<Function>::type (isolate, on_leave);
+  listener->module = self;
 
-  /*
-   * TODO: Create a helper object implementing the listener interface,
-   *       and allow each to be detached individually.
-   */
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
-      self->interceptor, target, GUM_INVOCATION_LISTENER (self->core->script),
-      entry);
+      self->interceptor, target, GUM_INVOCATION_LISTENER (listener), NULL);
 
   if (attach_ret == GUM_ATTACH_OK)
-    g_queue_push_tail (self->attach_entries, entry);
+  {
+    Local<Object> listener_template_value (Local<Object>::New (isolate,
+        *self->invocation_listener_value));
+    Local<Object> listener_value (listener_template_value->Clone ());
+    listener_value->SetAlignedPointerInInternalField (GUM_IL_LISTENER,
+        listener);
+
+    g_hash_table_insert (self->invocation_listeners, listener, listener);
+
+    info.GetReturnValue ().Set (listener_value);
+  }
   else
-    gum_v8_attach_entry_free (entry);
+  {
+    g_object_unref (listener);
+  }
 
   switch (attach_ret)
   {
@@ -391,6 +377,13 @@ gum_v8_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+static void
+gum_v8_interceptor_detach (GumV8Interceptor * self,
+                           GumV8InvocationListener * listener)
+{
+  g_hash_table_remove (self->invocation_listeners, listener);
+}
+
 /*
  * Prototype:
  * Interceptor.detachAll()
@@ -407,20 +400,7 @@ gum_v8_interceptor_on_detach_all (const FunctionCallbackInfo<Value> & info)
   GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
       info.Data ().As<External> ()->Value ());
 
-  gum_v8_interceptor_detach_all (self);
-}
-
-static void
-gum_v8_interceptor_detach_all (GumV8Interceptor * self)
-{
-  gum_interceptor_detach_listener (self->interceptor,
-      GUM_INVOCATION_LISTENER (self->core->script));
-
-  while (!g_queue_is_empty (self->attach_entries))
-  {
-    gum_v8_attach_entry_free (static_cast<GumV8AttachEntry *> (
-        g_queue_pop_tail (self->attach_entries)));
-  }
+  g_hash_table_remove_all (self->invocation_listeners);
 }
 
 /*
@@ -513,19 +493,212 @@ gum_v8_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
-gum_v8_attach_entry_free (GumV8AttachEntry * entry)
-{
-  delete entry->on_enter;
-  delete entry->on_leave;
-  g_slice_free (GumV8AttachEntry, entry);
-}
-
-static void
 gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
 {
   gum_interceptor_revert_function (entry->interceptor, entry->target);
   delete entry->replacement;
   g_slice_free (GumV8ReplaceEntry, entry);
+}
+
+static void
+gum_v8_invocation_listener_destroy (GumV8InvocationListener * listener)
+{
+  gum_interceptor_detach_listener (listener->module->interceptor,
+      GUM_INVOCATION_LISTENER (listener));
+  g_object_unref (listener);
+}
+
+static void
+gum_v8_invocation_listener_dispose (GumV8InvocationListener * self)
+{
+  delete self->on_enter;
+  self->on_enter = nullptr;
+
+  delete self->on_leave;
+  self->on_leave = nullptr;
+}
+
+/*
+ * Prototype:
+ * InvocationListener.detach()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gumjs_invocation_listener_on_detach (const FunctionCallbackInfo<Value> & info)
+{
+  Local<Object> object = info.Holder ();
+  GumV8InvocationListener * listener = GUM_V8_INVOCATION_LISTENER_CAST (
+      object->GetAlignedPointerFromInternalField (GUM_IL_LISTENER));
+
+  if (listener != NULL)
+  {
+    object->SetAlignedPointerInInternalField (GUM_IL_LISTENER, NULL);
+
+    gum_v8_interceptor_detach (listener->module, listener);
+  }
+}
+
+static void
+gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
+                                     GumInvocationContext * ic)
+{
+  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
+
+  if (gum_script_backend_is_ignoring (
+      gum_invocation_context_get_thread_id (ic)))
+    return;
+
+  if (self->on_enter != nullptr)
+  {
+    GumV8Interceptor * module = self->module;
+    GumV8Core * core = module->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Function> on_enter (Local<Function>::New (isolate, *self->on_enter));
+
+    Local<Object> receiver (
+        _gum_v8_interceptor_create_invocation_context_object (module, ic));
+
+    Local<Object> invocation_args_value (Local<Object>::New (isolate,
+        *module->invocation_args_value));
+    Local<Object> args (invocation_args_value->Clone ());
+    args->SetAlignedPointerInInternalField (GUM_ARGS_INVOCATION, ic);
+    Handle<Value> argv[] = { args };
+
+    on_enter->Call (receiver, 1, argv);
+
+    _gum_v8_interceptor_detach_cpu_context (module, receiver);
+
+    if (self->on_leave != nullptr)
+    {
+      GumPersistent<Value>::type * persistent_receiver =
+          new GumPersistent<Value>::type (isolate, receiver);
+      *GUM_LINCTX_GET_FUNC_INVDATA (ic,
+          GumPersistent<Value>::type *) = persistent_receiver;
+    }
+  }
+}
+
+static void
+gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
+                                     GumInvocationContext * ic)
+{
+  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
+
+  if (gum_script_backend_is_ignoring (
+      gum_invocation_context_get_thread_id (ic)))
+    return;
+
+  if (self->on_leave != nullptr)
+  {
+    GumV8Interceptor * module = self->module;
+    GumV8Core * core = module->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Function> on_leave (Local<Function>::New (isolate, *self->on_leave));
+
+    GumPersistent<Object>::type * persistent_receiver =
+        (self->on_enter != nullptr)
+        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumPersistent<Object>::type *)
+        : nullptr;
+    Local<Object> receiver ((persistent_receiver != nullptr)
+        ? Local<Object>::New (isolate, *persistent_receiver)
+        : _gum_v8_interceptor_create_invocation_context_object (module,
+        ic));
+
+    Local<Object> invocation_return_value (Local<Object>::New (isolate,
+        *module->invocation_return_value));
+    Local<Object> return_value (invocation_return_value->Clone ());
+    return_value->SetInternalField (GUM_RV_VALUE, External::New (isolate,
+        gum_invocation_context_get_return_value (ic)));
+    return_value->SetAlignedPointerInInternalField (GUM_RV_INVOCATION, ic);
+
+    Handle<Value> argv[] = { return_value };
+    on_leave->Call (receiver, 1, argv);
+
+    _gum_v8_interceptor_detach_cpu_context (module, receiver);
+
+    delete persistent_receiver;
+  }
+}
+
+static void
+gum_v8_solo_listener_class_init (GumV8SoloListenerClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_v8_solo_listener_dispose;
+}
+
+static void
+gum_v8_solo_listener_iface_init (gpointer g_iface,
+                                 gpointer iface_data)
+{
+  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
+
+  iface->on_enter = gum_v8_invocation_listener_on_enter;
+  iface->on_leave = NULL;
+}
+
+static void
+gum_v8_solo_listener_init (GumV8SoloListener * self)
+{
+  (void) self;
+}
+
+static void
+gum_v8_solo_listener_dispose (GObject * object)
+{
+  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+
+  gum_v8_invocation_listener_dispose (self);
+
+  G_OBJECT_CLASS (gum_v8_solo_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_duo_listener_class_init (GumV8DuoListenerClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_v8_duo_listener_dispose;
+}
+
+static void
+gum_v8_duo_listener_iface_init (gpointer g_iface,
+                                gpointer iface_data)
+{
+  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
+
+  iface->on_enter = gum_v8_invocation_listener_on_enter;
+  iface->on_leave = gum_v8_invocation_listener_on_leave;
+}
+
+static void
+gum_v8_duo_listener_init (GumV8DuoListener * self)
+{
+  (void) self;
+}
+
+static void
+gum_v8_duo_listener_dispose (GObject * object)
+{
+  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+
+  gum_v8_invocation_listener_dispose (self);
+
+  G_OBJECT_CLASS (gum_v8_duo_listener_parent_class)->dispose (object);
 }
 
 static void
@@ -608,10 +781,11 @@ static void
 gumjs_invocation_context_on_get_depth (Local<String> property,
                                        const PropertyCallbackInfo<Value> & info)
 {
-  int32_t depth = info.Holder ()->GetInternalField (GUM_IC_DEPTH)
-      .As <Integer> ()->Int32Value ();
+  GumInvocationContext * context = static_cast<GumInvocationContext *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
   (void) property;
-  info.GetReturnValue ().Set (depth);
+  info.GetReturnValue ().Set (
+      static_cast<int32_t> (gum_invocation_context_get_depth (context)));
 }
 
 static void

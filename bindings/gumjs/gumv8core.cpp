@@ -1926,7 +1926,7 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
   if (ic != NULL)
   {
     receiver = _gum_v8_interceptor_create_invocation_context_object (
-        &self->core->script->priv->interceptor, ic, 0);
+        &self->core->script->priv->interceptor, ic);
   }
   else
   {

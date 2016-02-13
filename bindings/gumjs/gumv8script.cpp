@@ -38,8 +38,6 @@ struct _GumPostMessageData
 };
 
 static void gum_v8_script_iface_init (gpointer g_iface, gpointer iface_data);
-static void gum_v8_script_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
 
 static void gum_v8_script_constructed (GObject * object);
 static void gum_v8_script_dispose (GObject * object);
@@ -78,11 +76,6 @@ static void gum_v8_post_message_data_free (GumPostMessageData * d);
 
 static GumStalker * gum_v8_script_get_stalker (GumScript * script);
 
-static void gum_v8_script_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context);
-static void gum_v8_script_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context);
-
 static void gum_v8_script_emit_message (GumV8Script * self,
     const gchar * message, GBytes * data);
 static gboolean gum_v8_script_do_emit_message (GumEmitMessageData * d);
@@ -93,9 +86,7 @@ G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT,
-                            gum_v8_script_iface_init)
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_v8_script_listener_iface_init));
+                            gum_v8_script_iface_init));
 
 static void
 gum_v8_script_class_init (GumV8ScriptClass * klass)
@@ -149,18 +140,6 @@ gum_v8_script_iface_init (gpointer g_iface,
   iface->post_message = gum_v8_script_post_message;
 
   iface->get_stalker = gum_v8_script_get_stalker;
-}
-
-static void
-gum_v8_script_listener_iface_init (gpointer g_iface,
-                                   gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
-
-  iface->on_enter = gum_v8_script_on_enter;
-  iface->on_leave = gum_v8_script_on_leave;
 }
 
 static void
@@ -620,24 +599,6 @@ gum_v8_script_get_stalker (GumScript * script)
   GumV8Script * self = GUM_V8_SCRIPT (script);
 
   return _gum_v8_stalker_get (&self->priv->stalker);
-}
-
-static void
-gum_v8_script_on_enter (GumInvocationListener * listener,
-                        GumInvocationContext * context)
-{
-  GumV8Script * self = GUM_V8_SCRIPT_CAST (listener);
-
-  _gum_v8_interceptor_on_enter (&self->priv->interceptor, context);
-}
-
-static void
-gum_v8_script_on_leave (GumInvocationListener * listener,
-                        GumInvocationContext * context)
-{
-  GumV8Script * self = GUM_V8_SCRIPT_CAST (listener);
-
-  _gum_v8_interceptor_on_leave (&self->priv->interceptor, context);
 }
 
 static void
