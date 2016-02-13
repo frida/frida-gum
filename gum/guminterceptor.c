@@ -33,7 +33,7 @@ typedef struct _ListenerDataSlot ListenerDataSlot;
 typedef struct _ListenerInvocationState ListenerInvocationState;
 
 typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
-      GumFunctionContext * ctx, gpointer prologue);
+    GumFunctionContext * ctx, gpointer prologue);
 
 struct _GumInterceptorTransaction
 {
@@ -966,11 +966,26 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
                                       GumInvocationListener * listener)
 {
   ListenerEntry ** slot;
+  gboolean has_on_leave_listener;
+  guint i;
 
   slot = gum_function_context_find_listener (function_ctx, listener);
   g_assert (slot != NULL);
   listener_entry_free (*slot);
   *slot = NULL;
+
+  has_on_leave_listener = FALSE;
+  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  {
+    ListenerEntry * entry =
+        g_ptr_array_index (function_ctx->listener_entries, i);
+    if (entry != NULL && entry->listener_interface->on_leave != NULL)
+    {
+      has_on_leave_listener = TRUE;
+      break;
+    }
+  }
+  function_ctx->has_on_leave_listener = has_on_leave_listener;
 
   /* TODO: compact the entries array at a later point */
 }
