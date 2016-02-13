@@ -41,6 +41,7 @@ struct _GumInvocationBackend
       gpointer value);
 
   GumThreadId (* get_thread_id) (GumInvocationContext * context);
+  guint (* get_depth) (GumInvocationContext * context);
 
   gpointer (* get_listener_thread_data) (GumInvocationContext * context,
       gsize required_size);
@@ -50,6 +51,7 @@ struct _GumInvocationBackend
 
   gpointer (* get_replacement_function_data) (GumInvocationContext * context);
 
+  gpointer state;
   gpointer data;
 };
 
@@ -87,6 +89,8 @@ GUM_API gpointer gum_invocation_context_get_return_address (
     GumInvocationContext * context);
 
 GUM_API guint gum_invocation_context_get_thread_id (
+    GumInvocationContext * context);
+GUM_API guint gum_invocation_context_get_depth (
     GumInvocationContext * context);
 
 GUM_API gpointer gum_invocation_context_get_listener_thread_data (

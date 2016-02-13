@@ -1322,6 +1322,15 @@ gum_interceptor_invocation_get_thread_id (GumInvocationContext * context)
   return gum_process_get_current_thread_id ();
 }
 
+static guint
+gum_interceptor_invocation_get_depth (GumInvocationContext * context)
+{
+  InterceptorThreadContext * interceptor_ctx =
+      (InterceptorThreadContext *) context->backend->state;
+
+  return interceptor_ctx->stack->len - 1;
+}
+
 static gpointer
 gum_interceptor_invocation_get_listener_thread_data (
     GumInvocationContext * context,
@@ -1375,6 +1384,7 @@ gum_interceptor_listener_invocation_backend =
   _gum_interceptor_invocation_replace_return_value,
 
   gum_interceptor_invocation_get_thread_id,
+  gum_interceptor_invocation_get_depth,
 
   gum_interceptor_invocation_get_listener_thread_data,
   gum_interceptor_invocation_get_listener_function_data,
@@ -1382,6 +1392,7 @@ gum_interceptor_listener_invocation_backend =
 
   NULL,
 
+  NULL,
   NULL
 };
 
@@ -1396,6 +1407,7 @@ gum_interceptor_replacement_invocation_backend =
   _gum_interceptor_invocation_replace_return_value,
 
   gum_interceptor_invocation_get_thread_id,
+  gum_interceptor_invocation_get_depth,
 
   NULL,
   NULL,
@@ -1403,6 +1415,7 @@ gum_interceptor_replacement_invocation_backend =
 
   gum_interceptor_invocation_get_replacement_function_data,
 
+  NULL,
   NULL
 };
 
@@ -1419,6 +1432,8 @@ interceptor_thread_context_new (void)
   gum_memcpy (&context->replacement_backend,
       &gum_interceptor_replacement_invocation_backend,
       sizeof (GumInvocationBackend));
+  context->listener_backend.state = context;
+  context->replacement_backend.state = context;
 
   context->ignore_level = 0;
 

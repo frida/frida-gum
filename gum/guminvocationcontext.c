@@ -66,6 +66,12 @@ gum_invocation_context_get_thread_id (GumInvocationContext * context)
   return context->backend->get_thread_id (context);
 }
 
+guint
+gum_invocation_context_get_depth (GumInvocationContext * context)
+{
+  return context->backend->get_depth (context);
+}
+
 gpointer
 gum_invocation_context_get_listener_thread_data (
     GumInvocationContext * context,
