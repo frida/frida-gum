@@ -33,6 +33,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
+  SCRIPT_TESTENTRY (listener_can_be_detached)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
@@ -1755,6 +1756,42 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
   EXPECT_SEND_MESSAGE_WITH ("true");
   if (g_test_slow ())
     EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (listener_can_be_detached)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var firstListener, secondListener;"
+      ""
+      "firstListener = Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send(1);"
+      "    firstListener.detach();"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send(2);"
+      "  }"
+      "});"
+      ""
+      "secondListener = Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send(3);"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send(4);"
+      "    secondListener.detach();"
+      "  }"
+      "});",
+      target_function_int, target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("3");
+  EXPECT_SEND_MESSAGE_WITH ("4");
+  EXPECT_NO_MESSAGES ();
+  target_function_int (42);
   EXPECT_NO_MESSAGES ();
 }
 
