@@ -78,8 +78,6 @@ struct _GumEmitMessageData
 };
 
 static void gum_duk_script_iface_init (gpointer g_iface, gpointer iface_data);
-static void gum_duk_script_listener_iface_init (gpointer g_iface,
-    gpointer iface_data);
 
 static void gum_duk_script_dispose (GObject * object);
 static void gum_duk_script_finalize (GObject * object);
@@ -116,11 +114,6 @@ static void gum_duk_script_absorb_messages (GumDukScript * self);
 
 static GumStalker * gum_duk_script_get_stalker (GumScript * script);
 
-static void gum_duk_script_on_enter (GumInvocationListener * listener,
-    GumInvocationContext * context);
-static void gum_duk_script_on_leave (GumInvocationListener * listener,
-    GumInvocationContext * context);
-
 static void gum_duk_script_emit_message (GumDukScript * self,
     const gchar * message, GBytes * data);
 static gboolean gum_duk_script_do_emit_message (GumEmitMessageData * d);
@@ -135,9 +128,7 @@ G_DEFINE_TYPE_EXTENDED (GumDukScript,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_SCRIPT,
-                            gum_duk_script_iface_init)
-                        G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_duk_script_listener_iface_init));
+                            gum_duk_script_iface_init));
 
 static void
 gum_duk_script_class_init (GumDukScriptClass * klass)
@@ -190,18 +181,6 @@ gum_duk_script_iface_init (gpointer g_iface,
   iface->post_message = gum_duk_script_post_message;
 
   iface->get_stalker = gum_duk_script_get_stalker;
-}
-
-static void
-gum_duk_script_listener_iface_init (gpointer g_iface,
-                                    gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
-
-  iface->on_enter = gum_duk_script_on_enter;
-  iface->on_leave = gum_duk_script_on_leave;
 }
 
 static void
@@ -651,24 +630,6 @@ gum_duk_script_get_stalker (GumScript * script)
   GumDukScript * self = GUM_DUK_SCRIPT (script);
 
   return _gum_duk_stalker_get (&self->priv->stalker);
-}
-
-static void
-gum_duk_script_on_enter (GumInvocationListener * listener,
-                         GumInvocationContext * context)
-{
-  GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
-
-  _gum_duk_interceptor_on_enter (&self->priv->interceptor, context);
-}
-
-static void
-gum_duk_script_on_leave (GumInvocationListener * listener,
-                         GumInvocationContext * context)
-{
-  GumDukScript * self = GUM_DUK_SCRIPT_CAST (listener);
-
-  _gum_duk_interceptor_on_leave (&self->priv->interceptor, context);
 }
 
 static void

@@ -23,9 +23,10 @@ struct _GumDukInterceptor
 
   GumInterceptor * interceptor;
 
-  GQueue * attach_entries;
+  GHashTable * invocation_listeners;
   GHashTable * replacement_by_address;
 
+  GumDukHeapPtr invocation_listener;
   GumDukHeapPtr invocation_context;
   GumDukHeapPtr invocation_args;
   GumDukHeapPtr invocation_retval;
@@ -45,7 +46,6 @@ struct _GumDukInvocationContext
   GumDukHeapPtr object;
   GumInvocationContext * handle;
   GumDukCpuContext * cpu_context;
-  gint depth;
 
   GumDukInterceptor * interceptor;
 };
@@ -56,17 +56,12 @@ G_GNUC_INTERNAL void _gum_duk_interceptor_flush (GumDukInterceptor * self);
 G_GNUC_INTERNAL void _gum_duk_interceptor_dispose (GumDukInterceptor * self);
 G_GNUC_INTERNAL void _gum_duk_interceptor_finalize (GumDukInterceptor * self);
 
-G_GNUC_INTERNAL void _gum_duk_interceptor_on_enter (
-    GumDukInterceptor * self, GumInvocationContext * context);
-G_GNUC_INTERNAL void _gum_duk_interceptor_on_leave (
-    GumDukInterceptor * self, GumInvocationContext * context);
-
 G_GNUC_INTERNAL GumDukInvocationContext *
 _gum_duk_interceptor_obtain_invocation_context (GumDukInterceptor * self);
 G_GNUC_INTERNAL void _gum_duk_interceptor_release_invocation_context (
     GumDukInterceptor * self, GumDukInvocationContext * jic);
 G_GNUC_INTERNAL void _gum_duk_invocation_context_reset (
-    GumDukInvocationContext * self, GumInvocationContext * handle, gint depth);
+    GumDukInvocationContext * self, GumInvocationContext * handle);
 
 G_END_DECLS
 

@@ -1731,7 +1731,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
   if (ic != NULL)
   {
     jic = _gum_duk_interceptor_obtain_invocation_context (core->interceptor);
-    _gum_duk_invocation_context_reset (jic, ic, 0);
+    _gum_duk_invocation_context_reset (jic, ic);
     duk_push_heapptr (ctx, jic->object);
   }
   else
@@ -1746,7 +1746,7 @@ gum_duk_native_callback_invoke (ffi_cif * cif,
 
   if (jic != NULL)
   {
-    _gum_duk_invocation_context_reset (jic, NULL, 0);
+    _gum_duk_invocation_context_reset (jic, NULL);
     _gum_duk_interceptor_release_invocation_context (core->interceptor, jic);
   }
 
