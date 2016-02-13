@@ -25,6 +25,7 @@ G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 #define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
+typedef struct _GumDestroyTask GumDestroyTask;
 typedef struct _GumPrologueWrite GumPrologueWrite;
 typedef struct _ListenerEntry ListenerEntry;
 typedef struct _InterceptorThreadContext InterceptorThreadContext;
@@ -38,7 +39,7 @@ typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
 struct _GumInterceptorTransaction
 {
   gint level;
-  GQueue * pending_destroy_calls;
+  GQueue * pending_destroy_tasks;
   GHashTable * pending_prologue_writes;
 
   GumInterceptor * interceptor;
@@ -56,6 +57,13 @@ struct _GumInterceptorPrivate
   volatile guint selected_thread_id;
 
   GumInterceptorTransaction current_transaction;
+};
+
+struct _GumDestroyTask
+{
+  GumFunctionContext * ctx;
+  GDestroyNotify notify;
+  gpointer data;
 };
 
 struct _GumPrologueWrite
@@ -129,7 +137,8 @@ static void gum_interceptor_transaction_begin (
     GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_end (GumInterceptorTransaction * self);
 static void gum_interceptor_transaction_schedule_destroy (
-    GumInterceptorTransaction * self, GumFunctionContext * ctx);
+    GumInterceptorTransaction * self, GumFunctionContext * ctx,
+    GDestroyNotify notify, gpointer data);
 static void gum_interceptor_transaction_schedule_prologue_write (
     GumInterceptorTransaction * self, GumFunctionContext * ctx,
     GumPrologueWriteFunc func);
@@ -138,6 +147,8 @@ static GumFunctionContext * gum_function_context_new (
     GumInterceptor * interceptor, gpointer function_address);
 static void gum_function_context_finalize (GumFunctionContext * function_ctx);
 static void gum_function_context_destroy (GumFunctionContext * function_ctx);
+static void gum_function_context_perform_destroy (
+    GumFunctionContext * function_ctx);
 static gboolean gum_function_context_is_empty (
     GumFunctionContext * function_ctx);
 static void gum_function_context_add_listener (
@@ -151,8 +162,6 @@ static gboolean gum_function_context_has_listener (
 static ListenerEntry ** gum_function_context_find_listener (
     GumFunctionContext * function_ctx, GumInvocationListener * listener);
 static ListenerEntry ** gum_function_context_find_taken_listener_slot (
-    GumFunctionContext * function_ctx);
-static ListenerEntry ** gum_function_context_find_free_listener_slot (
     GumFunctionContext * function_ctx);
 
 static InterceptorThreadContext * get_interceptor_thread_context (void);
@@ -665,7 +674,7 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
                                   GumInterceptor * interceptor)
 {
   transaction->level = 0;
-  transaction->pending_destroy_calls = g_queue_new ();
+  transaction->pending_destroy_tasks = g_queue_new ();
   transaction->pending_prologue_writes = g_hash_table_new_full (
       NULL, NULL, NULL, (GDestroyNotify) g_array_unref);
 
@@ -675,18 +684,17 @@ gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
 static void
 gum_interceptor_transaction_destroy (GumInterceptorTransaction * transaction)
 {
-  GumFunctionContext * ctx;
+  GumDestroyTask * task;
 
   g_hash_table_unref (transaction->pending_prologue_writes);
 
-  while ((ctx = g_queue_pop_head (transaction->pending_destroy_calls)) != NULL)
+  while ((task = g_queue_pop_head (transaction->pending_destroy_tasks)) != NULL)
   {
-    _gum_interceptor_backend_destroy_trampoline (
-        transaction->interceptor->priv->backend, ctx);
+    task->notify (task->data);
 
-    gum_function_context_finalize (ctx);
+    g_slice_free (GumDestroyTask, task);
   }
-  g_queue_free (transaction->pending_destroy_calls);
+  g_queue_free (transaction->pending_destroy_tasks);
 }
 
 static void
@@ -700,11 +708,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 {
   GumInterceptor * interceptor = self->interceptor;
   GumInterceptorPrivate * priv = self->interceptor->priv;
-  GumInterceptorBackend * backend = priv->backend;
   GumInterceptorTransaction transaction_copy;
   GList * addresses, * cur;
   guint page_size;
-  GumFunctionContext * ctx;
+  GumDestroyTask * task;
 
   self->level--;
   if (self->level > 0)
@@ -712,7 +719,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   gum_code_allocator_commit (&priv->allocator);
 
-  if (g_queue_is_empty (self->pending_destroy_calls) &&
+  if (g_queue_is_empty (self->pending_destroy_tasks) &&
       g_hash_table_size (self->pending_prologue_writes) == 0)
     return;
 
@@ -813,18 +820,17 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   g_list_free (addresses);
 
-  while ((ctx = g_queue_pop_head (self->pending_destroy_calls)) != NULL)
+  while ((task = g_queue_pop_head (self->pending_destroy_tasks)) != NULL)
   {
-    if (ctx->trampoline_usage_counter == 0)
+    if (task->ctx->trampoline_usage_counter == 0)
     {
-      _gum_interceptor_backend_destroy_trampoline (backend, ctx);
+      task->notify (task->data);
 
-      gum_function_context_finalize (ctx);
+      g_slice_free (GumDestroyTask, task);
     }
     else
     {
-      gum_interceptor_transaction_schedule_destroy (&priv->current_transaction,
-          ctx);
+      g_queue_push_tail (priv->current_transaction.pending_destroy_tasks, task);
     }
   }
 
@@ -833,9 +839,18 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
 static void
 gum_interceptor_transaction_schedule_destroy (GumInterceptorTransaction * self,
-                                              GumFunctionContext * ctx)
+                                              GumFunctionContext * ctx,
+                                              GDestroyNotify notify,
+                                              gpointer data)
 {
-  g_queue_push_tail (self->pending_destroy_calls, ctx);
+  GumDestroyTask * task;
+
+  task = g_slice_new (GumDestroyTask);
+  task->ctx = ctx;
+  task->notify = notify;
+  task->data = data;
+
+  g_queue_push_tail (self->pending_destroy_tasks, task);
 }
 
 static void
@@ -887,7 +902,7 @@ gum_function_context_new (GumInterceptor * interceptor,
   ctx->function_address = function_address;
 
   ctx->listener_entries =
-      g_ptr_array_new_full (2, (GDestroyNotify) listener_entry_free);
+      g_ptr_array_new_full (1, (GDestroyNotify) listener_entry_free);
 
   ctx->interceptor = interceptor;
 
@@ -899,7 +914,7 @@ gum_function_context_finalize (GumFunctionContext * function_ctx)
 {
   g_assert (function_ctx->trampoline_slice == NULL);
 
-  g_ptr_array_unref (function_ctx->listener_entries);
+  g_ptr_array_unref (g_atomic_pointer_get (&function_ctx->listener_entries));
 
   g_slice_free (GumFunctionContext, function_ctx);
 }
@@ -919,7 +934,17 @@ gum_function_context_destroy (GumFunctionContext * function_ctx)
         function_ctx, gum_interceptor_deactivate);
   }
 
-  gum_interceptor_transaction_schedule_destroy (transaction, function_ctx);
+  gum_interceptor_transaction_schedule_destroy (transaction, function_ctx,
+      (GDestroyNotify) gum_function_context_perform_destroy, function_ctx);
+}
+
+static void
+gum_function_context_perform_destroy (GumFunctionContext * function_ctx)
+{
+  _gum_interceptor_backend_destroy_trampoline (
+      function_ctx->interceptor->priv->backend, function_ctx);
+
+  gum_function_context_finalize (function_ctx);
 }
 
 static gboolean
@@ -936,18 +961,30 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
                                    GumInvocationListener * listener,
                                    gpointer function_data)
 {
-  ListenerEntry * entry, ** slot;
+  ListenerEntry * entry;
+  GPtrArray * old_entries, * new_entries;
+  guint i;
 
   entry = g_slice_new (ListenerEntry);
   entry->listener_interface = GUM_INVOCATION_LISTENER_GET_INTERFACE (listener);
   entry->listener_instance = listener;
   entry->function_data = function_data;
 
-  slot = gum_function_context_find_free_listener_slot (function_ctx);
-  if (slot != NULL)
-    *slot = entry;
-  else
-    g_ptr_array_add (function_ctx->listener_entries, entry);
+  old_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  new_entries = g_ptr_array_new_full (old_entries->len + 1,
+      (GDestroyNotify) listener_entry_free);
+  for (i = 0; i != old_entries->len; i++)
+  {
+    ListenerEntry * entry = g_ptr_array_index (old_entries, i);
+    if (entry != NULL)
+      g_ptr_array_add (new_entries, g_slice_dup (ListenerEntry, entry));
+  }
+  g_ptr_array_add (new_entries, entry);
+
+  g_atomic_pointer_set (&function_ctx->listener_entries, new_entries);
+  gum_interceptor_transaction_schedule_destroy (
+      &function_ctx->interceptor->priv->current_transaction, function_ctx,
+      (GDestroyNotify) g_ptr_array_unref, old_entries);
 
   if (entry->listener_interface->on_leave != NULL)
   {
@@ -967,6 +1004,7 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
 {
   ListenerEntry ** slot;
   gboolean has_on_leave_listener;
+  GPtrArray * listener_entries;
   guint i;
 
   slot = gum_function_context_find_listener (function_ctx, listener);
@@ -975,10 +1013,10 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
   *slot = NULL;
 
   has_on_leave_listener = FALSE;
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  for (i = 0; i != listener_entries->len; i++)
   {
-    ListenerEntry * entry =
-        g_ptr_array_index (function_ctx->listener_entries, i);
+    ListenerEntry * entry = g_ptr_array_index (listener_entries, i);
     if (entry != NULL && entry->listener_interface->on_leave != NULL)
     {
       has_on_leave_listener = TRUE;
@@ -986,8 +1024,6 @@ gum_function_context_remove_listener (GumFunctionContext * function_ctx,
     }
   }
   function_ctx->has_on_leave_listener = has_on_leave_listener;
-
-  /* TODO: compact the entries array at a later point */
 }
 
 static gboolean
@@ -1001,12 +1037,14 @@ static ListenerEntry **
 gum_function_context_find_listener (GumFunctionContext * function_ctx,
                                     GumInvocationListener * listener)
 {
+  GPtrArray * listener_entries;
   guint i;
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry ** slot = (ListenerEntry **)
-        &g_ptr_array_index (function_ctx->listener_entries, i);
+        &g_ptr_array_index (listener_entries, i);
     if (*slot != NULL && (*slot)->listener_instance == listener)
       return slot;
   }
@@ -1018,29 +1056,15 @@ static ListenerEntry **
 gum_function_context_find_taken_listener_slot (
     GumFunctionContext * function_ctx)
 {
+  GPtrArray * listener_entries;
   guint i;
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry ** slot = (ListenerEntry **)
-        &g_ptr_array_index (function_ctx->listener_entries, i);
+        &g_ptr_array_index (listener_entries, i);
     if (*slot != NULL)
-      return slot;
-  }
-
-  return NULL;
-}
-
-static ListenerEntry **
-gum_function_context_find_free_listener_slot (GumFunctionContext * function_ctx)
-{
-  guint i;
-
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
-  {
-    ListenerEntry ** slot = (ListenerEntry **)
-        &g_ptr_array_index (function_ctx->listener_entries, i);
-    if (*slot == NULL)
       return slot;
   }
 
@@ -1143,18 +1167,20 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   if (invoke_listeners)
   {
+    GPtrArray * listener_entries;
     guint i;
 
     invocation_ctx->cpu_context = cpu_context;
     invocation_ctx->system_error = system_error;
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
-    for (i = 0; i != function_ctx->listener_entries->len; i++)
+    listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+    for (i = 0; i != listener_entries->len; i++)
     {
       ListenerEntry * listener_entry;
       ListenerInvocationState state;
 
-      listener_entry = g_ptr_array_index (function_ctx->listener_entries, i);
+      listener_entry = g_ptr_array_index (listener_entries, i);
       if (listener_entry == NULL)
         continue;
 
@@ -1224,6 +1250,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   GumInvocationStackEntry * stack_entry;
   gpointer caller_ret_addr;
   GumInvocationContext * invocation_ctx;
+  GPtrArray * listener_entries;
   guint i;
 
 #ifdef G_OS_WIN32
@@ -1261,12 +1288,13 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 # error Unsupported architecture
 #endif
 
-  for (i = 0; i != function_ctx->listener_entries->len; i++)
+  listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
+  for (i = 0; i != listener_entries->len; i++)
   {
     ListenerEntry * listener_entry;
     ListenerInvocationState state;
 
-    listener_entry = g_ptr_array_index (function_ctx->listener_entries, i);
+    listener_entry = g_ptr_array_index (listener_entries, i);
     if (listener_entry == NULL)
       continue;
 
