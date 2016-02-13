@@ -28,16 +28,16 @@
 
 #define GUM_V8_INVOCATION_LISTENER_CAST(obj) \
     ((GumV8InvocationListener *) (obj))
-#define GUM_V8_TYPE_SOLO_LISTENER (gum_v8_solo_listener_get_type ())
-#define GUM_V8_TYPE_DUO_LISTENER (gum_v8_duo_listener_get_type ())
+#define GUM_V8_TYPE_CALL_LISTENER (gum_v8_call_listener_get_type ())
+#define GUM_V8_TYPE_PROBE_LISTENER (gum_v8_probe_listener_get_type ())
 
 using namespace v8;
 
 typedef struct _GumV8InvocationListener GumV8InvocationListener;
-typedef struct _GumV8SoloListener GumV8SoloListener;
-typedef struct _GumV8SoloListenerClass GumV8SoloListenerClass;
-typedef struct _GumV8DuoListener GumV8DuoListener;
-typedef struct _GumV8DuoListenerClass GumV8DuoListenerClass;
+typedef struct _GumV8CallListener GumV8CallListener;
+typedef struct _GumV8CallListenerClass GumV8CallListenerClass;
+typedef struct _GumV8ProbeListener GumV8ProbeListener;
+typedef struct _GumV8ProbeListenerClass GumV8ProbeListenerClass;
 typedef struct _GumV8ReplaceEntry GumV8ReplaceEntry;
 
 struct _GumV8InvocationListener
@@ -50,22 +50,22 @@ struct _GumV8InvocationListener
   GumV8Interceptor * module;
 };
 
-struct _GumV8SoloListener
+struct _GumV8CallListener
 {
   GumV8InvocationListener listener;
 };
 
-struct _GumV8SoloListenerClass
+struct _GumV8CallListenerClass
 {
   GObjectClass parent_class;
 };
 
-struct _GumV8DuoListener
+struct _GumV8ProbeListener
 {
   GumV8InvocationListener listener;
 };
 
-struct _GumV8DuoListenerClass
+struct _GumV8ProbeListenerClass
 {
   GObjectClass parent_class;
 };
@@ -92,25 +92,25 @@ static void gum_v8_invocation_listener_destroy (
 static void gumjs_invocation_listener_on_detach (
     const FunctionCallbackInfo<Value> & info);
 
-static void gum_v8_solo_listener_iface_init (gpointer g_iface,
+static void gum_v8_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_v8_solo_listener_dispose (GObject * object);
-G_DEFINE_TYPE_EXTENDED (GumV8SoloListener,
-                        gum_v8_solo_listener,
+static void gum_v8_call_listener_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumV8CallListener,
+                        gum_v8_call_listener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_v8_solo_listener_iface_init))
+                            gum_v8_call_listener_iface_init))
 
-static void gum_v8_duo_listener_iface_init (gpointer g_iface,
+static void gum_v8_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
-static void gum_v8_duo_listener_dispose (GObject * object);
-G_DEFINE_TYPE_EXTENDED (GumV8DuoListener,
-                        gum_v8_duo_listener,
+static void gum_v8_probe_listener_dispose (GObject * object);
+G_DEFINE_TYPE_EXTENDED (GumV8ProbeListener,
+                        gum_v8_probe_listener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_v8_duo_listener_iface_init))
+                            gum_v8_probe_listener_iface_init))
 
 static void gumjs_invocation_context_on_get_return_address (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
@@ -289,7 +289,7 @@ _gum_v8_interceptor_detach_cpu_context (GumV8Interceptor * self,
 
 /*
  * Prototype:
- * [PRIVATE] Interceptor._attach(target, callback)
+ * [PRIVATE] Interceptor._attach(target, callbacks|probe)
  *
  * Docs:
  * TBW
@@ -309,29 +309,49 @@ gum_v8_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
   if (!_gum_v8_native_pointer_get (info[0], &target, self->core))
     return;
 
-  Local<Value> callbacks_value = info[1];
-  if (!callbacks_value->IsObject ())
+  GumV8InvocationListener * listener;
+  Local<Value> value = info[1];
+  if (value->IsFunction ())
+  {
+    listener = GUM_V8_INVOCATION_LISTENER_CAST (
+        g_object_new (GUM_V8_TYPE_PROBE_LISTENER, NULL));
+
+    listener->on_enter = new GumPersistent<Function>::type (isolate,
+        Local<Function>::Cast (value));
+  }
+  else if (value->IsObject ())
+  {
+    Local<Function> on_enter, on_leave;
+
+    Local<Object> callbacks = Local<Object>::Cast (value);
+    if (!_gum_v8_callbacks_get_opt (callbacks, "onEnter", &on_enter, core))
+      return;
+    if (!_gum_v8_callbacks_get_opt (callbacks, "onLeave", &on_leave, core))
+      return;
+
+    listener = GUM_V8_INVOCATION_LISTENER_CAST (
+        g_object_new (GUM_V8_TYPE_CALL_LISTENER, NULL));
+
+    if (!on_enter.IsEmpty ())
+    {
+      listener->on_enter =
+          new GumPersistent<Function>::type (isolate, on_enter);
+    }
+
+    if (!on_leave.IsEmpty ())
+    {
+      listener->on_leave =
+          new GumPersistent<Function>::type (isolate, on_leave);
+    }
+  }
+  else
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "Interceptor.attach: second argument must be a callback object")));
+        "Interceptor.attach: second argument must be a callbacks object or "
+        "a probe function")));
     return;
   }
 
-  Local<Function> on_enter, on_leave;
-
-  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!_gum_v8_callbacks_get_opt (callbacks, "onEnter", &on_enter, core))
-    return;
-  if (!_gum_v8_callbacks_get_opt (callbacks, "onLeave", &on_leave, core))
-    return;
-
-  GumV8InvocationListener * listener = GUM_V8_INVOCATION_LISTENER_CAST (
-      g_object_new ((!on_leave.IsEmpty ()) ? GUM_V8_TYPE_DUO_LISTENER
-      : GUM_V8_TYPE_SOLO_LISTENER, NULL));
-  if (!on_enter.IsEmpty ())
-    listener->on_enter = new GumPersistent<Function>::type (isolate, on_enter);
-  if (!on_leave.IsEmpty ())
-    listener->on_leave = new GumPersistent<Function>::type (isolate, on_leave);
   listener->module = self;
 
   GumAttachReturn attach_ret = gum_interceptor_attach_listener (
@@ -630,52 +650,16 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
 }
 
 static void
-gum_v8_solo_listener_class_init (GumV8SoloListenerClass * klass)
+gum_v8_call_listener_class_init (GumV8CallListenerClass * klass)
 {
   GObjectClass * object_class = G_OBJECT_CLASS (klass);
 
-  object_class->dispose = gum_v8_solo_listener_dispose;
+  object_class->dispose = gum_v8_call_listener_dispose;
 }
 
 static void
-gum_v8_solo_listener_iface_init (gpointer g_iface,
+gum_v8_call_listener_iface_init (gpointer g_iface,
                                  gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
-
-  iface->on_enter = gum_v8_invocation_listener_on_enter;
-  iface->on_leave = NULL;
-}
-
-static void
-gum_v8_solo_listener_init (GumV8SoloListener * self)
-{
-  (void) self;
-}
-
-static void
-gum_v8_solo_listener_dispose (GObject * object)
-{
-  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (object);
-
-  gum_v8_invocation_listener_dispose (self);
-
-  G_OBJECT_CLASS (gum_v8_solo_listener_parent_class)->dispose (object);
-}
-
-static void
-gum_v8_duo_listener_class_init (GumV8DuoListenerClass * klass)
-{
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
-
-  object_class->dispose = gum_v8_duo_listener_dispose;
-}
-
-static void
-gum_v8_duo_listener_iface_init (gpointer g_iface,
-                                gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
@@ -686,19 +670,55 @@ gum_v8_duo_listener_iface_init (gpointer g_iface,
 }
 
 static void
-gum_v8_duo_listener_init (GumV8DuoListener * self)
+gum_v8_call_listener_init (GumV8CallListener * self)
 {
   (void) self;
 }
 
 static void
-gum_v8_duo_listener_dispose (GObject * object)
+gum_v8_call_listener_dispose (GObject * object)
 {
   GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (object);
 
   gum_v8_invocation_listener_dispose (self);
 
-  G_OBJECT_CLASS (gum_v8_duo_listener_parent_class)->dispose (object);
+  G_OBJECT_CLASS (gum_v8_call_listener_parent_class)->dispose (object);
+}
+
+static void
+gum_v8_probe_listener_class_init (GumV8ProbeListenerClass * klass)
+{
+  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+
+  object_class->dispose = gum_v8_probe_listener_dispose;
+}
+
+static void
+gum_v8_probe_listener_iface_init (gpointer g_iface,
+                                  gpointer iface_data)
+{
+  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
+
+  iface->on_enter = gum_v8_invocation_listener_on_enter;
+  iface->on_leave = NULL;
+}
+
+static void
+gum_v8_probe_listener_init (GumV8ProbeListener * self)
+{
+  (void) self;
+}
+
+static void
+gum_v8_probe_listener_dispose (GObject * object)
+{
+  GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (object);
+
+  gum_v8_invocation_listener_dispose (self);
+
+  G_OBJECT_CLASS (gum_v8_probe_listener_parent_class)->dispose (object);
 }
 
 static void

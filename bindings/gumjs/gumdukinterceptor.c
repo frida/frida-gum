@@ -17,14 +17,14 @@
 
 #define GUM_DUK_INVOCATION_LISTENER_CAST(obj) \
     ((GumDukInvocationListener *) (obj))
-#define GUM_DUK_TYPE_SOLO_LISTENER (gum_duk_solo_listener_get_type ())
-#define GUM_DUK_TYPE_DUO_LISTENER (gum_duk_duo_listener_get_type ())
+#define GUM_DUK_TYPE_CALL_LISTENER (gum_duk_call_listener_get_type ())
+#define GUM_DUK_TYPE_PROBE_LISTENER (gum_duk_probe_listener_get_type ())
 
 typedef struct _GumDukInvocationListener GumDukInvocationListener;
-typedef struct _GumDukSoloListener GumDukSoloListener;
-typedef struct _GumDukSoloListenerClass GumDukSoloListenerClass;
-typedef struct _GumDukDuoListener GumDukDuoListener;
-typedef struct _GumDukDuoListenerClass GumDukDuoListenerClass;
+typedef struct _GumDukCallListener GumDukCallListener;
+typedef struct _GumDukCallListenerClass GumDukCallListenerClass;
+typedef struct _GumDukProbeListener GumDukProbeListener;
+typedef struct _GumDukProbeListenerClass GumDukProbeListenerClass;
 typedef struct _GumDukReplaceEntry GumDukReplaceEntry;
 
 struct _GumDukInvocationListener
@@ -38,22 +38,22 @@ struct _GumDukInvocationListener
   GumDukInterceptor * module;
 };
 
-struct _GumDukSoloListener
+struct _GumDukCallListener
 {
   GumDukInvocationListener listener;
 };
 
-struct _GumDukSoloListenerClass
+struct _GumDukCallListenerClass
 {
   GObjectClass parent_class;
 };
 
-struct _GumDukDuoListener
+struct _GumDukProbeListener
 {
   GumDukInvocationListener listener;
 };
 
-struct _GumDukDuoListenerClass
+struct _GumDukProbeListenerClass
 {
   GObjectClass parent_class;
 };
@@ -98,23 +98,23 @@ GUMJS_DECLARE_FUNCTION (gumjs_interceptor_revert)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_invocation_listener_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_invocation_listener_detach)
 
-static void gum_duk_solo_listener_iface_init (gpointer g_iface,
+static void gum_duk_call_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
-G_DEFINE_TYPE_EXTENDED (GumDukSoloListener,
-                        gum_duk_solo_listener,
+G_DEFINE_TYPE_EXTENDED (GumDukCallListener,
+                        gum_duk_call_listener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_duk_solo_listener_iface_init))
+                            gum_duk_call_listener_iface_init))
 
-static void gum_duk_duo_listener_iface_init (gpointer g_iface,
+static void gum_duk_probe_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
-G_DEFINE_TYPE_EXTENDED (GumDukDuoListener,
-                        gum_duk_duo_listener,
+G_DEFINE_TYPE_EXTENDED (GumDukProbeListener,
+                        gum_duk_probe_listener,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
-                            gum_duk_duo_listener_iface_init))
+                            gum_duk_probe_listener_iface_init))
 
 static GumDukInvocationContext * gum_duk_invocation_context_new (
     GumDukInterceptor * parent);
@@ -342,11 +342,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   self = gumjs_interceptor_from_args (args);
 
-  _gum_duk_args_parse (args, "pF{onEnter?,onLeave?}", &target,
-      &on_enter, &on_leave);
+  if (duk_is_function (ctx, 1))
+  {
+    _gum_duk_args_parse (args, "pF", &target, &on_enter);
+    on_leave = NULL;
 
-  listener = g_object_new ((on_leave != NULL) ? GUM_DUK_TYPE_DUO_LISTENER
-      : GUM_DUK_TYPE_SOLO_LISTENER, NULL);
+    listener = g_object_new (GUM_DUK_TYPE_PROBE_LISTENER, NULL);
+  }
+  else
+  {
+    _gum_duk_args_parse (args, "pF{onEnter?,onLeave?}", &target,
+        &on_enter, &on_leave);
+
+    listener = g_object_new (GUM_DUK_TYPE_CALL_LISTENER, NULL);
+  }
+
   listener->on_enter = on_enter;
   listener->on_leave = on_leave;
   listener->ctx = core->ctx;
@@ -648,38 +658,14 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
 }
 
 static void
-gum_duk_solo_listener_class_init (GumDukSoloListenerClass * klass)
+gum_duk_call_listener_class_init (GumDukCallListenerClass * klass)
 {
   (void) klass;
 }
 
 static void
-gum_duk_solo_listener_iface_init (gpointer g_iface,
+gum_duk_call_listener_iface_init (gpointer g_iface,
                                   gpointer iface_data)
-{
-  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
-
-  (void) iface_data;
-
-  iface->on_enter = gum_duk_invocation_listener_on_enter;
-  iface->on_leave = NULL;
-}
-
-static void
-gum_duk_solo_listener_init (GumDukSoloListener * self)
-{
-  (void) self;
-}
-
-static void
-gum_duk_duo_listener_class_init (GumDukDuoListenerClass * klass)
-{
-  (void) klass;
-}
-
-static void
-gum_duk_duo_listener_iface_init (gpointer g_iface,
-                                 gpointer iface_data)
 {
   GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
 
@@ -690,7 +676,31 @@ gum_duk_duo_listener_iface_init (gpointer g_iface,
 }
 
 static void
-gum_duk_duo_listener_init (GumDukDuoListener * self)
+gum_duk_call_listener_init (GumDukCallListener * self)
+{
+  (void) self;
+}
+
+static void
+gum_duk_probe_listener_class_init (GumDukProbeListenerClass * klass)
+{
+  (void) klass;
+}
+
+static void
+gum_duk_probe_listener_iface_init (gpointer g_iface,
+                                   gpointer iface_data)
+{
+  GumInvocationListenerIface * iface = (GumInvocationListenerIface *) g_iface;
+
+  (void) iface_data;
+
+  iface->on_enter = gum_duk_invocation_listener_on_enter;
+  iface->on_leave = NULL;
+}
+
+static void
+gum_duk_probe_listener_init (GumDukProbeListener * self)
 {
   (void) self;
 }
