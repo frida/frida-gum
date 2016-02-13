@@ -32,7 +32,8 @@ gum_memcpy (gpointer dst,
     gpointer d = ((guint8 *) dst) + offset;
     gconstpointer s = ((guint8 *) src) + offset;
 
-    if (remaining >= sizeof (gpointer))
+    /* The goal here is atomicity, not speed. */
+    if (remaining >= sizeof (gpointer) && (GPOINTER_TO_SIZE (d) & 3) == 0)
     {
       *((gpointer *) d) = *((gpointer *) s);
       offset += sizeof (gpointer);
