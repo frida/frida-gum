@@ -1066,6 +1066,9 @@ _gum_duk_protect (duk_context * ctx,
   gchar name[32];
   duk_uint_t ref_count;
 
+  if (object == NULL)
+    return;
+
   sprintf (name, "protected_%p", object);
 
   duk_push_global_stash (ctx);
@@ -1105,6 +1108,9 @@ _gum_duk_unprotect (duk_context * ctx,
 {
   gchar name[32];
   duk_uint_t ref_count;
+
+  if (object == NULL)
+    return;
 
   sprintf (name, "protected_%p", object);
 
