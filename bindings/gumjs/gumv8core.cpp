@@ -2937,11 +2937,10 @@ _gum_v8_object_set (Handle<Object> object,
                     GumV8Core * core)
 {
   Isolate * isolate = core->isolate;
-  Maybe<bool> success = object->ForceSet (isolate->GetCurrentContext (),
+  Maybe<bool> success = object->Set (isolate->GetCurrentContext (),
       String::NewFromOneByte (isolate,
           reinterpret_cast<const uint8_t *> (key)),
-      value,
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
+      value);
   return success.IsJust ();
 }
 

@@ -97,6 +97,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_read_results_in_exception)
   SCRIPT_TESTENTRY (invalid_write_results_in_exception)
   SCRIPT_TESTENTRY (memory_can_be_scanned)
+  SCRIPT_TESTENTRY (memory_can_be_scanned_synchronously)
   SCRIPT_TESTENTRY (memory_scan_should_be_interruptible)
   SCRIPT_TESTENTRY (memory_scan_handles_unreadable_memory)
 #ifdef G_OS_WIN32
@@ -1989,6 +1990,21 @@ SCRIPT_TESTCASE (memory_can_be_scanned)
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
 }
 
+SCRIPT_TESTCASE (memory_can_be_scanned_synchronously)
+{
+  guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scanSync(" GUM_PTR_CONST ", 7, '13 37').forEach(function (match) {"
+      "  send('match offset=' + match.address.sub(" GUM_PTR_CONST
+           ").toInt32() + ' size=' + match.size);"
+      "});"
+      "send('done');",
+      haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"match offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"match offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+}
+
 SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
@@ -2023,6 +2039,14 @@ SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onError: access violation accessing 0x530\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "try {"
+        "Memory.scanSync(ptr(\"1328\"), 7, '13 37');"
+      "} catch (e) {"
+        "send(e.message);"
+      "}");
+  EXPECT_SEND_MESSAGE_WITH ("\"access violation accessing 0x530\"");
 }
 
 #ifdef G_OS_WIN32

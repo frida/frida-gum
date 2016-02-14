@@ -112,11 +112,13 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf8_string)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_alloc_utf16_string)
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan)
-
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, gpointer user_data);
+GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
+static gboolean gum_append_match (GumAddress address, gsize size,
+    gpointer user_data);
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
@@ -149,6 +151,7 @@ static const duk_function_list_entry gumjs_memory_functions[] =
   { "allocUtf16String", gumjs_memory_alloc_utf16_string, 1 },
 
   { "scan", gumjs_memory_scan, 4 },
+  { "scanSync", gumjs_memory_scan_sync, 3 },
 
   { NULL, NULL, 0 }
 };
@@ -855,6 +858,63 @@ gum_memory_scan_context_emit_match (GumAddress address,
   _gum_duk_scope_leave (&scope);
 
   return proceed;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
+{
+  GumDukCore * core = args->core;
+  gpointer address;
+  guint size;
+  const gchar * match_str;
+  GumMemoryRange range;
+  GumMatchPattern * pattern;
+  GumExceptorScope scope;
+
+  _gum_duk_args_parse (args, "pus", &address, &size, &match_str);
+
+  range.base_address = GUM_ADDRESS (address);
+  range.size = size;
+
+  pattern = gum_match_pattern_new_from_string (match_str);
+  if (pattern == NULL)
+    _gum_duk_throw (ctx, "invalid match pattern");
+
+  duk_push_array (ctx);
+
+  if (gum_exceptor_try (core->exceptor, &scope))
+  {
+    gum_memory_scan (&range, pattern, gum_append_match, core);
+  }
+
+  gum_match_pattern_free (pattern);
+
+  if (gum_exceptor_catch (core->exceptor, &scope))
+  {
+    _gum_duk_throw_native (ctx, &scope.exception, core);
+  }
+
+  return 1;
+}
+
+static gboolean
+gum_append_match (GumAddress address,
+                  gsize size,
+                  gpointer user_data)
+{
+  GumDukCore * core = user_data;
+  duk_context * ctx = core->ctx;
+
+  duk_push_object (ctx);
+
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
+  duk_put_prop_string (ctx, -2, "address");
+
+  duk_push_uint (ctx, size);
+  duk_put_prop_string (ctx, -2, "size");
+
+  duk_put_prop_index (ctx, -2, duk_get_length (ctx, -2));
+
+  return TRUE;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)

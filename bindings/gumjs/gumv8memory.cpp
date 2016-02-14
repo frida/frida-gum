@@ -23,6 +23,7 @@ using namespace v8;
 
 typedef guint GumMemoryValueType;
 typedef struct _GumMemoryScanContext GumMemoryScanContext;
+typedef struct _GumMemoryScanSyncContext GumMemoryScanSyncContext;
 
 enum _GumMemoryValueType
 {
@@ -52,7 +53,13 @@ struct _GumMemoryScanContext
   GumPersistent<Function>::type * on_match;
   GumPersistent<Function>::type * on_error;
   GumPersistent<Function>::type * on_complete;
-  GumPersistent<Value>::type * receiver;
+};
+
+struct _GumMemoryScanSyncContext
+{
+  GumV8Core * core;
+  Isolate * isolate;
+  Local<Array> matches;
 };
 
 static void gum_v8_memory_on_alloc (
@@ -82,6 +89,11 @@ static void gum_v8_memory_on_scan (
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static void gum_v8_script_do_memory_scan (gpointer user_data);
 static gboolean gum_v8_process_scan_match (GumAddress address, gsize size,
+    gpointer user_data);
+
+static void gum_v8_memory_on_scan_sync (
+    const FunctionCallbackInfo<Value> & info);
+static gboolean gum_v8_process_sync_scan_match (GumAddress address, gsize size,
     gpointer user_data);
 
 static void gum_v8_memory_access_monitor_on_enable (
@@ -187,6 +199,9 @@ _gum_v8_memory_init (GumV8Memory * self,
           data));
   memory->Set (String::NewFromUtf8 (isolate, "scan"),
       FunctionTemplate::New (isolate, gum_v8_memory_on_scan,
+          data));
+  memory->Set (String::NewFromUtf8 (isolate, "scanSync"),
+      FunctionTemplate::New (isolate, gum_v8_memory_on_scan_sync,
           data));
   scope->Set (String::NewFromUtf8 (isolate, "Memory"), memory);
 
@@ -966,7 +981,6 @@ gum_v8_memory_on_scan (const FunctionCallbackInfo<Value> & info)
     if (!on_error.IsEmpty ())
       ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
     ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
-    ctx->receiver = new GumPersistent<Value>::type (isolate, info.This ());
 
     _gum_v8_core_push_job (self->core, gum_v8_script_do_memory_scan, ctx,
         reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free));
@@ -991,7 +1005,6 @@ gum_memory_scan_context_free (GumMemoryScanContext * ctx)
     delete ctx->on_match;
     delete ctx->on_error;
     delete ctx->on_complete;
-    delete ctx->receiver;
   }
 
   g_slice_free (GumMemoryScanContext, ctx);
@@ -1020,8 +1033,7 @@ gum_v8_script_do_memory_scan (gpointer user_data)
     ScriptScope script_scope (core->script);
     Isolate * isolate = core->isolate;
 
-    Local<Value> receiver (Local<Value>::New (isolate,
-        *ctx->receiver));
+    Local<Value> receiver (Undefined (isolate));
 
     if (gum_exceptor_catch (exceptor, &scope))
     {
@@ -1042,10 +1054,6 @@ gum_v8_script_do_memory_scan (gpointer user_data)
   }
 }
 
-#ifdef _MSC_VER
-# pragma warning (pop)
-#endif
-
 static gboolean
 gum_v8_process_scan_match (GumAddress address,
                            gsize size,
@@ -1056,7 +1064,7 @@ gum_v8_process_scan_match (GumAddress address,
   Isolate * isolate = ctx->core->isolate;
 
   Local<Function> on_match (Local<Function>::New (isolate, *ctx->on_match));
-  Local<Value> receiver (Local<Value>::New (isolate, *ctx->receiver));
+  Local<Value> receiver (Undefined (isolate));
   Handle<Value> argv[] = {
     _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), ctx->core),
     Integer::NewFromUnsigned (isolate, size)
@@ -1072,6 +1080,90 @@ gum_v8_process_scan_match (GumAddress address,
 
   return proceed;
 }
+
+/*
+ * Prototype:
+ * Memory.scanSync(address, size, match_str)
+ *
+ * Docs:
+ * Scans a memory region for a specific string
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_memory_on_scan_sync (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Memory * self = static_cast<GumV8Memory *> (
+      info.Data ().As<External> ()->Value ());
+  GumV8Core * core = self->core;
+  GumExceptor * exceptor = core->exceptor;
+  GumExceptorScope scope;
+  Isolate * isolate = core->isolate;
+
+  gpointer address;
+  if (!_gum_v8_native_pointer_get (info[0], &address, core))
+    return;
+  GumMemoryRange range;
+  range.base_address = GUM_ADDRESS (address);
+  range.size = info[1]->IntegerValue ();
+
+  String::Utf8Value match_str (info[2]);
+
+  GumMatchPattern * pattern = gum_match_pattern_new_from_string (*match_str);
+  if (pattern == NULL)
+  {
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        "invalid match pattern")));
+    return;
+  }
+
+  GumMemoryScanSyncContext ctx;
+  ctx.core = core;
+  ctx.isolate = isolate;
+  ctx.matches = Array::New (isolate);
+
+  if (gum_exceptor_try (exceptor, &scope))
+  {
+    gum_memory_scan (&range, pattern, gum_v8_process_sync_scan_match, &ctx);
+  }
+
+  gum_match_pattern_free (pattern);
+
+  if (gum_exceptor_catch (exceptor, &scope))
+  {
+    _gum_v8_throw_native (&scope.exception, core);
+  }
+  else
+  {
+    info.GetReturnValue ().Set (ctx.matches);
+  }
+}
+
+static gboolean
+gum_v8_process_sync_scan_match (GumAddress address,
+                                gsize size,
+                                gpointer user_data)
+{
+  GumMemoryScanSyncContext * ctx =
+      static_cast<GumMemoryScanSyncContext *> (user_data);
+  GumV8Core * core = ctx->core;
+  Isolate * isolate = ctx->isolate;
+
+  Local<Object> match (Object::New (isolate));
+  _gum_v8_object_set_pointer (match, "address", address, core);
+  _gum_v8_object_set_uint (match, "size", size, core);
+  Maybe<bool> success =
+      ctx->matches->Set (isolate->GetCurrentContext (), ctx->matches->Length (),
+      match);
+  g_assert (success.IsJust ());
+
+  return TRUE;
+}
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 /*
  * Prototype:
