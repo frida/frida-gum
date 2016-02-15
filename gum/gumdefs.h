@@ -145,6 +145,12 @@ struct _GumCpuContext
   guint32 pc;
   guint32 sp;
 
+  guint32 r8;
+  guint32 r9;
+  guint32 r10;
+  guint32 r11;
+  guint32 r12;
+
   guint32 r[8];
   guint32 lr;
 #endif
