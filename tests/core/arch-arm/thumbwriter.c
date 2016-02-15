@@ -153,6 +153,10 @@ THUMBWRITER_TESTCASE (push_regs)
       ARM_REG_R2, ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_LR);
   assert_output_n_equals (2, 0xb5ff);
+
+  gum_thumb_writer_put_push_regs (&fixture->tw, 2, ARM_REG_R8, ARM_REG_R9);
+  assert_output_n_equals (3, 0xe92d);
+  assert_output_n_equals (4, 0x0300);
 }
 
 THUMBWRITER_TESTCASE (pop_regs)
@@ -164,6 +168,10 @@ THUMBWRITER_TESTCASE (pop_regs)
       ARM_REG_R2, ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
       ARM_REG_R7, ARM_REG_PC);
   assert_output_n_equals (1, 0xbdff);
+
+  gum_thumb_writer_put_pop_regs (&fixture->tw, 2, ARM_REG_R8, ARM_REG_R9);
+  assert_output_n_equals (2, 0xe8bd);
+  assert_output_n_equals (3, 0x0300);
 }
 
 THUMBWRITER_TESTCASE (ldr_u32)

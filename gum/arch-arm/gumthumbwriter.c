@@ -56,6 +56,9 @@ static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, va_list vl);
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
+void gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
+    guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
+    guint n_regs, arm_reg first_reg, va_list vl);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
     arm_reg left_reg, arm_reg right_reg, guint8 right_offset);
 
@@ -500,34 +503,12 @@ gum_thumb_writer_put_push_regs (GumThumbWriter * self,
                                 arm_reg first_reg,
                                 ...)
 {
-  guint16 insn = 0xb400;
   va_list vl;
-  arm_reg cur_reg;
-  guint reg_idx;
-
-  g_assert_cmpuint (n_regs, !=, 0);
 
   va_start (vl, first_reg);
-  cur_reg = first_reg;
-  for (reg_idx = 0; reg_idx != n_regs; reg_idx++)
-  {
-    GumArmRegInfo ri;
-
-    gum_arm_reg_describe (cur_reg, &ri);
-
-    g_assert ((ri.meta >= GUM_ARM_MREG_R0 && ri.meta <= GUM_ARM_MREG_R7) ||
-        ri.meta == GUM_ARM_MREG_LR);
-
-    if (ri.meta == GUM_ARM_MREG_LR)
-      insn |= 0x100;
-    else
-      insn |= (1 << ri.index);
-
-    cur_reg = va_arg (vl, arm_reg);
-  }
+  gum_thumb_writer_put_push_or_pop_regs (self, 0xb400, 0xe92d, GUM_ARM_MREG_LR,
+      n_regs, first_reg, vl);
   va_end (vl);
-
-  gum_thumb_writer_put_instruction (self, insn);
 }
 
 void
@@ -536,34 +517,78 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
                                arm_reg first_reg,
                                ...)
 {
-  guint16 insn = 0xbc00;
   va_list vl;
+
+  va_start (vl, first_reg);
+  gum_thumb_writer_put_push_or_pop_regs (self, 0xbc00, 0xe8bd, GUM_ARM_MREG_PC,
+      n_regs, first_reg, vl);
+  va_end (vl);
+}
+
+void
+gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
+                                       guint16 narrow_opcode,
+                                       guint16 wide_opcode,
+                                       GumArmMetaReg special_reg,
+                                       guint n_regs,
+                                       arm_reg first_reg,
+                                       va_list vl)
+{
+  GumArmRegInfo * regs;
+  gboolean need_wide_instruction;
   arm_reg cur_reg;
-  guint reg_idx;
+  guint reg_index;
 
   g_assert_cmpuint (n_regs, !=, 0);
 
-  va_start (vl, first_reg);
+  regs = g_alloca (n_regs * sizeof (GumArmRegInfo));
+  need_wide_instruction = FALSE;
   cur_reg = first_reg;
-  for (reg_idx = 0; reg_idx != n_regs; reg_idx++)
+  for (reg_index = 0; reg_index != n_regs; reg_index++)
   {
-    GumArmRegInfo ri;
+    GumArmRegInfo * ri = &regs[reg_index];
+    gboolean is_low_reg;
 
-    gum_arm_reg_describe (cur_reg, &ri);
+    gum_arm_reg_describe (cur_reg, ri);
 
-    g_assert ((ri.meta >= GUM_ARM_MREG_R0 && ri.meta <= GUM_ARM_MREG_R7) ||
-        ri.meta == GUM_ARM_MREG_PC);
-
-    if (ri.meta == GUM_ARM_MREG_PC)
-      insn |= 0x100;
-    else
-      insn |= (1 << ri.index);
+    is_low_reg = (ri->meta >= GUM_ARM_MREG_R0 && ri->meta <= GUM_ARM_MREG_R7);
+    if (!is_low_reg && ri->meta != special_reg)
+      need_wide_instruction = TRUE;
 
     cur_reg = va_arg (vl, arm_reg);
   }
-  va_end (vl);
 
-  gum_thumb_writer_put_instruction (self, insn);
+  if (need_wide_instruction)
+  {
+    guint16 mask = 0;
+
+    gum_thumb_writer_put_instruction (self, wide_opcode);
+
+    for (reg_index = 0; reg_index != n_regs; reg_index++)
+    {
+      const GumArmRegInfo * ri = &regs[reg_index];
+
+      mask |= (1 << ri->index);
+    }
+
+    gum_thumb_writer_put_instruction (self, mask);
+  }
+  else
+  {
+    guint16 insn = narrow_opcode;
+
+    for (reg_index = 0; reg_index != n_regs; reg_index++)
+    {
+      const GumArmRegInfo * ri = &regs[reg_index];
+
+      if (ri->meta == special_reg)
+        insn |= 0x0100;
+      else
+        insn |= (1 << ri->index);
+    }
+
+    gum_thumb_writer_put_instruction (self, insn);
+  }
 }
 
 void
