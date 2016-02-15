@@ -515,6 +515,10 @@ gum_emit_prolog (GumThumbWriter * tw)
    * [next_hop]
    */
 
+  /* build middle part of GumCpuContext */
+  gum_thumb_writer_put_push_regs (tw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+
   /* build low part of GumCpuContext */
   gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP, 9 * 4);
   gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
@@ -539,6 +543,11 @@ gum_emit_epilog (GumThumbWriter * tw)
 
   /* clear next_hop and low part of GumCpuContext */
   gum_thumb_writer_put_add_reg_imm (tw, ARM_REG_SP, 4 + 12);
+
+  /* restore middle part */
+  gum_thumb_writer_put_pop_regs (tw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+
   /* restore r[0-8] and jump straight to LR */
   gum_thumb_writer_put_pop_regs (tw, 9,
       ARM_REG_R0, ARM_REG_R1, ARM_REG_R2, ARM_REG_R3,
