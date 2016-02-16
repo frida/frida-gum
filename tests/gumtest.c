@@ -208,8 +208,8 @@ main (gint argc, gchar * argv[])
 
     if (gum_kernel_api_is_available ())
       TEST_RUN_LIST (kscript);
-#endif
   }
+#endif
 
 #ifdef G_OS_WIN32
   /* Gum++ */
