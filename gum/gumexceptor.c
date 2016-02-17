@@ -31,7 +31,6 @@
 #else
 # include <signal.h>
 #endif
-
 #ifdef HAVE_QNX
 # include <sys/debug.h>
 # include <unix.h>
@@ -43,7 +42,7 @@ typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 # define GUM_NATIVE_LONGJMP longjmp
   typedef jmp_buf GumExceptorNativeJmpBuf;
 #else
-# ifdef __sigsetjmp
+# if defined (sigsetjmp) && !defined (HAVE_QNX)
 #   define GUM_NATIVE_SETJMP __sigsetjmp
 # else
 #   define GUM_NATIVE_SETJMP sigsetjmp
