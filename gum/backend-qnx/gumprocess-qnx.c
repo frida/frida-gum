@@ -78,11 +78,6 @@ static gboolean gum_store_address_if_export_name_matches (
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
-static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
-    GumCpuContext * ctx);
-static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
-    debug_greg_t * gregs);
-
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
 
 G_LOCK_DEFINE_STATIC (gum_modify_thread);
@@ -719,7 +714,7 @@ gum_module_path_equals (const gchar * path,
   return strcmp (name_or_path, path) == 0;
 }
 
-static void
+void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
 {
@@ -750,7 +745,7 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 #endif
 }
 
-static void
+void
 gum_cpu_context_to_qnx (const GumCpuContext * ctx,
                         debug_greg_t * gregs)
 {

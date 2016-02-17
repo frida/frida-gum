@@ -18,6 +18,9 @@
 #ifdef HAVE_LINUX
 # include "backend-linux/gumlinux.h"
 #endif
+#ifdef HAVE_QNX
+# include "backend-qnx/gumqnx.h"
+#endif
 
 #include <setjmp.h>
 #include <stdlib.h>
@@ -28,6 +31,10 @@
 #else
 # include <signal.h>
 #endif
+#ifdef HAVE_QNX
+# include <sys/debug.h>
+# include <unix.h>
+#endif
 
 typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 #if defined (G_OS_WIN32) || defined (HAVE_DARWIN)
@@ -35,7 +42,7 @@ typedef struct _GumExceptionHandlerEntry GumExceptionHandlerEntry;
 # define GUM_NATIVE_LONGJMP longjmp
   typedef jmp_buf GumExceptorNativeJmpBuf;
 #else
-# ifdef sigsetjmp
+# if defined (sigsetjmp) && !defined (HAVE_QNX)
 #   define GUM_NATIVE_SETJMP __sigsetjmp
 # else
 #   define GUM_NATIVE_SETJMP sigsetjmp
@@ -975,6 +982,26 @@ gum_exceptor_unparse_context (const GumCpuContext * ctx,
   ucontext_t * uc = context;
 
   gum_linux_unparse_ucontext (ctx, uc);
+}
+
+#elif defined (HAVE_QNX)
+
+static void
+gum_exceptor_parse_context (gconstpointer context,
+                            GumCpuContext * ctx)
+{
+  const debug_greg_t * gregs = context;
+
+  gum_cpu_context_from_qnx (gregs, ctx);
+}
+
+static void
+gum_exceptor_unparse_context (const GumCpuContext * ctx,
+                              gpointer context)
+{
+  debug_greg_t * gregs = context;
+
+  gum_cpu_context_to_qnx (ctx, gregs);
 }
 
 #endif
