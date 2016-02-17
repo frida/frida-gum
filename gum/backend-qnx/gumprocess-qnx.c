@@ -448,34 +448,46 @@ gum_module_enumerate_exports (const gchar * module_name,
         switch (dyn_entry->d_tag)
         {
           case DT_STRTAB:
-            dynsym_strtab = (ehdr->e_type == ET_EXEC ? 0 : base_address) + dyn_entry->d_un.d_ptr;
+            dynsym_strtab = (ehdr->e_type == ET_EXEC ? 0 : base_address)
+                + dyn_entry->d_un.d_ptr;
             break;
           case DT_SYMTAB:
             dynsym_section_offset = dyn_entry->d_un.d_ptr;
             break;
           case DT_GNU_HASH:
           {
-            guint * dyn_gnu_hash = (guint *) ((ehdr->e_type == ET_EXEC ? 0 : base_address) + dyn_entry->d_un.d_ptr);
+            guint * dyn_gnu_hash = (guint *) (
+                (ehdr->e_type == ET_EXEC ? 0 : base_address)
+                + dyn_entry->d_un.d_ptr);
             guint nbuckets = dyn_gnu_hash[0];
             guint symndx = dyn_gnu_hash[1];
             guint bitmaskwords = dyn_gnu_hash[2];
             guint buckets_vma = dyn_entry->d_un.d_ptr + 16 + bitmaskwords * 4;
-            guint * gnu_buckets = (guint *) ((ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma);
-
+            guint * gnu_buckets = (guint *) (
+                (ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma);
             guint maxchain = -1;
             guint i;
+            guint * dynamic_info;
+            guint * gnu_chains;
+            guint hn;
+
             for (i = 0; i < nbuckets; ++i)
+            {
               if (gnu_buckets[i] != 0)
               {
+                g_assert_cmpuint (gnu_buckets[i], >=, symndx);
                 if (gnu_buckets[i] < symndx)
                   g_assert_not_reached ();
 
                 if (maxchain == 0xffffffff || gnu_buckets[i] > maxchain)
                   maxchain = gnu_buckets[i];
               }
+            }
 
             maxchain -= symndx;
-            guint * dynamic_info = (guint *) ((ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma + 4 * (nbuckets + maxchain));
+            dynamic_info = (guint *) (
+                (ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma
+                + 4 * (nbuckets + maxchain));
             i = 0;
             do
             {
@@ -483,11 +495,13 @@ gum_module_enumerate_exports (const gchar * module_name,
             }
             while ((dynamic_info[i++] & 1) == 0);
 
-            guint * gnu_chains = (guint *) ((ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma + (4 * nbuckets));
-            guint hn;
+            gnu_chains = (guint *) (
+                (ehdr->e_type == ET_EXEC ? 0 : base_address) + buckets_vma
+                + (4 * nbuckets));
             num_symbols = symndx;
 
             for (hn = 0; hn < nbuckets; ++hn)
+            {
               if (gnu_buckets[hn] != 0)
               {
                 guint si = gnu_buckets[hn];
@@ -500,11 +514,14 @@ gum_module_enumerate_exports (const gchar * module_name,
                 }
                 while (off < maxchain && (gnu_chains[off++] & 1) == 0);
               }
+            }
             break;
           }
           case DT_HASH:
           {
-            guint * dyn_hash = (guint *) ((ehdr->e_type == ET_EXEC ? 0 : base_address) + dyn_entry->d_un.d_ptr);
+            guint * dyn_hash = (guint *) (
+                (ehdr->e_type == ET_EXEC ? 0 : base_address)
+                + dyn_entry->d_un.d_ptr);
             num_symbols = dyn_hash[1];
             break;
           }
