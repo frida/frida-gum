@@ -37,6 +37,7 @@ struct _GumFunctionMetadata
 {
   gchar * name;
   GumAddress address;
+  gchar * module;
 };
 
 static void gum_module_api_resolver_iface_init (gpointer g_iface,
@@ -62,7 +63,7 @@ static gboolean gum_module_metadata_collect_export (
     const GumExportDetails * details, gpointer user_data);
 
 static GumFunctionMetadata * gum_function_metadata_new (const gchar * name,
-    GumAddress address);
+    GumAddress address, const gchar * module);
 static void gum_function_metadata_free (GumFunctionMetadata * function);
 
 G_DEFINE_TYPE_EXTENDED (GumModuleApiResolver,
@@ -164,7 +165,11 @@ gum_module_api_resolver_enumerate_matches (GumApiResolver * resolver,
         {
           GumApiDetails details;
 
-          details.name = g_strconcat (module->path, "!", function->name, NULL);
+          details.name = g_strconcat (
+              (function->module != NULL) ? function->module : module->path,
+              "!",
+              function->name,
+              NULL);
           details.address = function->address;
 
           carry_on = func (&details, user_data);
@@ -294,7 +299,8 @@ gum_module_metadata_collect_import (const GumImportDetails * details,
   {
     GumFunctionMetadata * function;
 
-    function = gum_function_metadata_new (details->name, details->address);
+    function = gum_function_metadata_new (details->name, details->address,
+        details->module);
     g_hash_table_insert (import_by_name, function->name, function);
   }
 
@@ -311,7 +317,8 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
   {
     GumFunctionMetadata * function;
 
-    function = gum_function_metadata_new (details->name, details->address);
+    function = gum_function_metadata_new (details->name, details->address,
+        NULL);
     g_hash_table_insert (export_by_name, function->name, function);
   }
 
@@ -320,13 +327,15 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
 
 static GumFunctionMetadata *
 gum_function_metadata_new (const gchar * name,
-                           GumAddress address)
+                           GumAddress address,
+                           const gchar * module)
 {
   GumFunctionMetadata * function;
 
   function = g_slice_new (GumFunctionMetadata);
   function->name = g_strdup (name);
   function->address = address;
+  function->module = g_strdup (module);
 
   return function;
 }
@@ -334,6 +343,7 @@ gum_function_metadata_new (const gchar * name,
 static void
 gum_function_metadata_free (GumFunctionMetadata * function)
 {
+  g_free (function->module);
   g_free (function->name);
 
   g_slice_free (GumFunctionMetadata, function);

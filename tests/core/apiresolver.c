@@ -7,11 +7,12 @@
 #include "apiresolver-fixture.c"
 
 TEST_LIST_BEGIN (api_resolver)
-  API_RESOLVER_TESTENTRY (module)
-  API_RESOLVER_TESTENTRY (objc)
+  API_RESOLVER_TESTENTRY (module_exports_can_be_resolved)
+  API_RESOLVER_TESTENTRY (module_imports_can_be_resolved)
+  API_RESOLVER_TESTENTRY (objc_methods_can_be_resolved)
 TEST_LIST_END ()
 
-API_RESOLVER_TESTCASE (module)
+API_RESOLVER_TESTCASE (module_exports_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
@@ -39,7 +40,38 @@ API_RESOLVER_TESTCASE (module)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
 
-API_RESOLVER_TESTCASE (objc)
+API_RESOLVER_TESTCASE (module_imports_can_be_resolved)
+{
+#ifdef HAVE_DARWIN
+  GError * error = NULL;
+  const gchar * query = "imports:gum-tests!*";
+  guint number_of_imports_seen = 0;
+
+  fixture->resolver = gum_api_resolver_make ("module");
+  g_assert (fixture->resolver != NULL);
+
+  gum_api_resolver_enumerate_matches (fixture->resolver, query,
+      check_module_import, &number_of_imports_seen, &error);
+  g_assert (error == NULL);
+#else
+  (void) check_module_import;
+#endif
+}
+
+static gboolean
+check_module_import (const GumApiDetails * details,
+                     gpointer user_data)
+{
+  guint * number_of_imports_seen = user_data;
+
+  g_assert (strstr (details->name, "gum-tests") == NULL);
+
+  (*number_of_imports_seen)++;
+
+  return TRUE;
+}
+
+API_RESOLVER_TESTCASE (objc_methods_can_be_resolved)
 {
   TestForEachContext ctx;
   GError * error = NULL;
