@@ -711,6 +711,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   GumInterceptorTransaction transaction_copy;
   GList * addresses, * cur;
   guint page_size;
+  gboolean rwx_supported, code_segment_supported;
   GumDestroyTask * task;
 
   self->level--;
@@ -732,13 +733,20 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   page_size = gum_query_page_size ();
 
-  if (gum_query_is_rwx_supported ())
+  rwx_supported = gum_query_is_rwx_supported ();
+  code_segment_supported = gum_code_segment_is_supported ();
+
+  if (rwx_supported || !code_segment_supported)
   {
+    GumPageProtection protection;
+
+    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
     for (cur = addresses; cur != NULL; cur = cur->next)
     {
       gpointer target_page = cur->data;
 
-      gum_mprotect (target_page, page_size, GUM_PAGE_RWX);
+      gum_mprotect (target_page, page_size, protection);
     }
 
     for (cur = addresses; cur != NULL; cur = cur->next)
@@ -760,6 +768,21 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
         write->func (interceptor, write->ctx,
             _gum_interceptor_backend_get_function_address (write->ctx));
       }
+    }
+
+    if (!rwx_supported)
+    {
+      for (cur = addresses; cur != NULL; cur = cur->next)
+      {
+        gpointer target_page = cur->data;
+
+        gum_mprotect (target_page, page_size, GUM_PAGE_RX);
+      }
+    }
+
+    for (cur = addresses; cur != NULL; cur = cur->next)
+    {
+      gpointer target_page = cur->data;
 
       gum_clear_cache (target_page, page_size);
     }

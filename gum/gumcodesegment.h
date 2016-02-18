@@ -13,6 +13,8 @@ G_BEGIN_DECLS
 
 typedef struct _GumCodeSegment GumCodeSegment;
 
+gboolean gum_code_segment_is_supported (void);
+
 GumCodeSegment * gum_code_segment_new (gsize size, const GumAddressSpec * spec);
 void gum_code_segment_free (GumCodeSegment * segment);
 

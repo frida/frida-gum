@@ -8,6 +8,12 @@
 
 #ifndef HAVE_DARWIN
 
+gboolean
+gum_code_segment_is_supported (void)
+{
+  return FALSE;
+}
+
 GumCodeSegment *
 gum_code_segment_new (gsize size,
                       const GumAddressSpec * spec)

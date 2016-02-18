@@ -97,6 +97,10 @@ struct _GumCsRequirements
   guint32 count;
 };
 
+static gboolean gum_code_segment_try_realize (GumCodeSegment * self);
+static gboolean gum_code_segment_try_map (GumCodeSegment * self,
+    gsize source_offset, gsize source_size, gpointer target_address);
+
 static void gum_code_segment_compute_layout (GumCodeSegment * self,
     GumCodeLayout * layout);
 
@@ -108,6 +112,30 @@ static void gum_put_code_signature (gconstpointer header, gconstpointer text,
 static gint gum_file_open_tmp (const gchar * tmpl, gchar ** name_used);
 static void gum_file_write_all (gint fd, gssize offset, gconstpointer data,
     gsize size);
+
+gboolean
+gum_code_segment_is_supported (void)
+{
+#ifdef HAVE_IOS
+  static gsize cached_result = 0;
+
+  if (g_once_init_enter (&cached_result))
+  {
+    gboolean supported = FALSE;
+    GumCodeSegment * segment;
+
+    segment = gum_code_segment_new (1, NULL);
+    supported = gum_code_segment_try_realize (segment);
+    gum_code_segment_free (segment);
+
+    g_once_init_leave (&cached_result, supported + 1);
+  }
+
+  return cached_result - 1;
+#else
+  return FALSE;
+#endif
+}
 
 GumCodeSegment *
 gum_code_segment_new (gsize size,
@@ -177,6 +205,28 @@ gum_code_segment_get_virtual_size (GumCodeSegment * self)
 void
 gum_code_segment_realize (GumCodeSegment * self)
 {
+  gboolean realized_successfully;
+
+  realized_successfully = gum_code_segment_try_realize (self);
+  g_assert (realized_successfully);
+}
+
+void
+gum_code_segment_map (GumCodeSegment * self,
+                      gsize source_offset,
+                      gsize source_size,
+                      gpointer target_address)
+{
+  gboolean mapped_successfully;
+
+  mapped_successfully = gum_code_segment_try_map (self, source_offset,
+      source_size, target_address);
+  g_assert (mapped_successfully);
+}
+
+static gboolean
+gum_code_segment_try_realize (GumCodeSegment * self)
+{
   gchar * dylib_path;
   GumCodeLayout layout;
   guint8 * dylib_header;
@@ -209,25 +259,27 @@ gum_code_segment_realize (GumCodeSegment * self)
   sigs.fs_blob_size = layout.code_signature_file_size;
 
   res = fcntl (self->fd, F_ADDFILESIGS, &sigs);
-  g_assert (res == 0);
 
   g_free (code_signature);
   g_free (dylib_header);
   g_free (dylib_path);
+
+  return res == 0;
 }
 
-void
-gum_code_segment_map (GumCodeSegment * self,
-                      gsize source_offset,
-                      gsize source_size,
-                      gpointer target_address)
+static gboolean
+gum_code_segment_try_map (GumCodeSegment * self,
+                          gsize source_offset,
+                          gsize source_size,
+                          gpointer target_address)
 {
   gpointer result;
 
   result = mmap (target_address, source_size, PROT_READ | PROT_EXEC,
       MAP_PRIVATE | MAP_FIXED, self->fd,
       gum_query_page_size () + source_offset);
-  g_assert (result != MAP_FAILED);
+
+  return result != MAP_FAILED;
 }
 
 static void

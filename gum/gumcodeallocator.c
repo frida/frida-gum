@@ -186,10 +186,17 @@ gum_code_allocator_commit (GumCodeAllocator * self)
     pages = cur->data;
     segment = pages->segment;
 
-    gum_code_segment_realize (segment);
-    gum_code_segment_map (segment, 0,
-        gum_code_segment_get_virtual_size (segment),
-        gum_code_segment_get_address (segment));
+    if (segment != NULL)
+    {
+      gum_code_segment_realize (segment);
+      gum_code_segment_map (segment, 0,
+          gum_code_segment_get_virtual_size (segment),
+          gum_code_segment_get_address (segment));
+    }
+    else
+    {
+      gum_mprotect (pages->data, pages->size, GUM_PAGE_RX);
+    }
   }
   g_slist_free (self->uncommitted_pages);
   self->uncommitted_pages = NULL;
@@ -213,7 +220,7 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
                                          const GumAddressSpec * spec)
 {
   GumCodeSlice * result = NULL;
-  gboolean rwx_supported;
+  gboolean rwx_supported, code_segment_supported;
   gsize size_in_pages, size_in_bytes;
   GumCodeSegment * segment;
   gpointer data;
@@ -221,22 +228,27 @@ gum_code_allocator_try_alloc_batch_near (GumCodeAllocator * self,
   guint i;
 
   rwx_supported = gum_query_is_rwx_supported ();
+  code_segment_supported = gum_code_segment_is_supported ();
 
   size_in_pages = self->pages_per_batch;
   size_in_bytes = size_in_pages * gum_query_page_size ();
 
-  if (rwx_supported)
+  if (rwx_supported || !code_segment_supported)
   {
+    GumPageProtection protection;
+
+    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
     segment = NULL;
     if (spec != NULL)
     {
-      data = gum_try_alloc_n_pages_near (size_in_pages, GUM_PAGE_RWX, spec);
+      data = gum_try_alloc_n_pages_near (size_in_pages, protection, spec);
       if (data == NULL)
         return NULL;
     }
     else
     {
-      data = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RWX);
+      data = gum_alloc_n_pages (size_in_pages, protection);
     }
   }
   else
