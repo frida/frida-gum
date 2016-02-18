@@ -373,13 +373,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   if (on_enter != NULL)
   {
-    duk_push_pointer (ctx, on_enter);
+    duk_push_heapptr (ctx, on_enter);
     duk_put_prop_string (ctx, -2, "\xff" "on-enter");
   }
 
   if (on_leave != NULL)
   {
-    duk_push_pointer (ctx, on_leave);
+    duk_push_heapptr (ctx, on_leave);
     duk_put_prop_string (ctx, -2, "\xff" "on-leave");
   }
 
