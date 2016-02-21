@@ -190,7 +190,7 @@ gum_exceptor_obtain (void)
     the_exceptor = GUM_EXCEPTOR_CAST (g_object_new (GUM_TYPE_EXCEPTOR, NULL));
     g_object_weak_ref (G_OBJECT (the_exceptor), the_exceptor_weak_notify, NULL);
 
-    gum_exceptor_attach (self);
+    gum_exceptor_attach (the_exceptor);
 
     exceptor = the_exceptor;
   }
