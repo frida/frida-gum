@@ -139,8 +139,6 @@ gum_exceptor_init (GumExceptor * self)
 
   priv->scope_tls = gum_tls_key_new ();
 
-  gum_exceptor_attach (self);
-
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 }
 
@@ -191,6 +189,8 @@ gum_exceptor_obtain (void)
   {
     the_exceptor = GUM_EXCEPTOR_CAST (g_object_new (GUM_TYPE_EXCEPTOR, NULL));
     g_object_weak_ref (G_OBJECT (the_exceptor), the_exceptor_weak_notify, NULL);
+
+    gum_exceptor_attach (self);
 
     exceptor = the_exceptor;
   }
