@@ -184,7 +184,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (profiler);
 #endif
 
-#if defined (HAVE_GUMJS) && !defined (HAVE_QNX)
+#if defined (HAVE_GUMJS)
   /* GumJS */
   {
 # ifndef HAVE_DIET
