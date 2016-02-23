@@ -2422,7 +2422,7 @@ SCRIPT_TESTCASE (long_can_be_read)
 {
   long val = -123;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readLong(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("-123");
+  EXPECT_SEND_MESSAGE_WITH ("\"-123\"");
 }
 
 SCRIPT_TESTCASE (long_can_be_written)
@@ -2437,7 +2437,7 @@ SCRIPT_TESTCASE (ulong_can_be_read)
 {
   unsigned long val = 4294967295;
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readULong(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("4294967295");
+  EXPECT_SEND_MESSAGE_WITH ("\"4294967295\"");
 }
 
 SCRIPT_TESTCASE (ulong_can_be_written)
