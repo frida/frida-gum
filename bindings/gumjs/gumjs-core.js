@@ -44,6 +44,20 @@
         }
     });
 
+    Object.defineProperty(engine, 'int64', {
+        enumerable: true,
+        value: function (value) {
+            return new Int64(value);
+        }
+    });
+
+    Object.defineProperty(engine, 'uint64', {
+        enumerable: true,
+        value: function (value) {
+            return new UInt64(value);
+        }
+    });
+
     Object.defineProperty(engine, 'ptr', {
         enumerable: true,
         value: function (str) {

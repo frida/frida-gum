@@ -1407,7 +1407,8 @@ gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
   if (!info.IsConstructCall ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new Int64()` to create a new instance")));
+        isolate, "Use `new Int64()` to create a new instance,"
+        " or use the shorthand: `int64()`")));
     return;
   }
 
@@ -1607,7 +1608,8 @@ gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
   if (!info.IsConstructCall ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new UInt64()` to create a new instance")));
+        isolate, "Use `new UInt64()` to create a new instance,"
+        " or use the shorthand: `uint64()`")));
     return;
   }
 
