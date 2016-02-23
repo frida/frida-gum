@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/neutrino.h>
 #include <sys/procfs.h>
 
 static gboolean gum_memory_get_protection (GumAddress address, gsize n,
@@ -151,6 +152,8 @@ gum_try_mprotect (gpointer address,
       total_read_count += read_count;
     }
 
+    ThreadCtl (_NTO_TCTL_THREADS_HOLD, 0);
+
     address_mmaped = mmap (aligned_address, aligned_size,
         PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, NOFD, 0);
     g_assert (address_mmaped == aligned_address);
@@ -158,6 +161,8 @@ gum_try_mprotect (gpointer address,
     memcpy (aligned_address, buffer, aligned_size);
 
     result = mprotect (aligned_address, aligned_size, posix_page_prot);
+
+    ThreadCtl (_NTO_TCTL_THREADS_CONT, 0);
 
     close (fd);
   }
