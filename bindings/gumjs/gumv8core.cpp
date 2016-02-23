@@ -183,6 +183,8 @@ static void gum_v8_core_on_int64_to_string (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_int64_to_json (
     const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_value_of (
+    const FunctionCallbackInfo<Value> & info);
 
 static void gum_v8_core_on_new_uint64 (
     const FunctionCallbackInfo<Value> & info);
@@ -207,6 +209,8 @@ static void gum_v8_core_on_uint64_to_number (
 static void gum_v8_core_on_uint64_to_string (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_uint64_to_json (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_value_of (
     const FunctionCallbackInfo<Value> & info);
 
 static void gum_v8_core_on_new_native_pointer (
@@ -389,6 +393,8 @@ _gum_v8_core_init (GumV8Core * self,
       FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_string, data));
   int64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
       FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_json, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_value_of, data));
   int64->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "Int64"), int64);
   self->int64 = new GumPersistent<FunctionTemplate>::type (isolate, int64);
@@ -419,6 +425,8 @@ _gum_v8_core_init (GumV8Core * self,
       FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_string, data));
   uint64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
       FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_json, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_value_of, data));
   uint64->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "UInt64"), uint64);
   self->uint64 = new GumPersistent<FunctionTemplate>::type (isolate, uint64);
@@ -1599,6 +1607,24 @@ gum_v8_core_on_int64_to_json (
       reinterpret_cast<const uint8_t *> (buf)));
 }
 
+/*
+ * Prototype:
+ * Int64.valueOf()
+ *
+ * Docs:
+ * Represents the value as a JavaScript Number
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_int64_value_of (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (static_cast<double> (
+      gum_v8_int64_get_value (info.Holder ())));
+}
+
 static void
 gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
 {
@@ -1796,6 +1822,24 @@ gum_v8_core_on_uint64_to_json (
 
   info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
       reinterpret_cast<const uint8_t *> (buf)));
+}
+
+/*
+ * Prototype:
+ * UInt64.valueOf()
+ *
+ * Docs:
+ * Represents the value as a JavaScript Number
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_uint64_value_of (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (static_cast<double> (
+      gum_v8_uint64_get_value (info.Holder ())));
 }
 
 static void
