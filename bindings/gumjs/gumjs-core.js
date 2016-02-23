@@ -170,33 +170,63 @@
         }
     });
 
-    Object.defineProperty(Memory, 'readLong', {
-        enumerable: true,
-        value: function (mem) {
-            return Memory['readS' + longSize](mem);
-        }
-    });
+    if (longSize === 64) {
+        Object.defineProperty(Memory, 'readLong', {
+            enumerable: true,
+            value: function (mem) {
+                return Memory.readS64(mem);
+            }
+        });
 
-    Object.defineProperty(Memory, 'writeLong', {
-        enumerable: true,
-        value: function (mem, value) {
-            return Memory['writeS' + longSize](mem, value);
-        }
-    });
+        Object.defineProperty(Memory, 'writeLong', {
+            enumerable: true,
+            value: function (mem, value) {
+                Memory.writeS64(mem, value);
+            }
+        });
 
-    Object.defineProperty(Memory, 'readULong', {
-        enumerable: true,
-        value: function (mem) {
-            return Memory['readU' + longSize](mem);
-        }
-    });
+        Object.defineProperty(Memory, 'readULong', {
+            enumerable: true,
+            value: function (mem) {
+                return Memory.readU64(mem);
+            }
+        });
 
-    Object.defineProperty(Memory, 'writeULong', {
-        enumerable: true,
-        value: function (mem, value) {
-            return Memory['writeU' + longSize](mem, value);
-        }
-    });
+        Object.defineProperty(Memory, 'writeULong', {
+            enumerable: true,
+            value: function (mem, value) {
+                Memory.writeU64(mem, value);
+            }
+        });
+    } else {
+        Object.defineProperty(Memory, 'readLong', {
+            enumerable: true,
+            value: function (mem) {
+                return new Int64(Memory.readS32(mem));
+            }
+        });
+
+        Object.defineProperty(Memory, 'writeLong', {
+            enumerable: true,
+            value: function (mem, value) {
+                Memory.writeS32(mem, value);
+            }
+        });
+
+        Object.defineProperty(Memory, 'readULong', {
+            enumerable: true,
+            value: function (mem) {
+                return new UInt64(Memory.readU32(mem));
+            }
+        });
+
+        Object.defineProperty(Memory, 'writeULong', {
+            enumerable: true,
+            value: function (mem, value) {
+                Memory.writeU32(mem, value);
+            }
+        });
+    }
 
     Object.defineProperty(Process, 'findModuleByAddress', {
         enumerable: true,
