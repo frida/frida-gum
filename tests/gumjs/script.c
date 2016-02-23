@@ -173,6 +173,8 @@ TEST_LIST_BEGIN (script)
 TEST_LIST_END ()
 
 static gint gum_toupper (gchar * str, gint limit);
+static gint64 gum_classify_timestamp (gint64 timestamp);
+static guint64 gum_square (guint64 value);
 static gint gum_sum (gint count, ...);
 
 #ifndef HAVE_ANDROID
@@ -351,6 +353,30 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
   EXPECT_NO_MESSAGES ();
 #endif
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var classify = new NativeFunction(" GUM_PTR_CONST ", "
+          "'int64', ['int64']);"
+      "send(classify(new Int64(\"-42\")));"
+      "send(classify(new Int64(\"0\")));"
+      "send(classify(new Int64(\"42\")));",
+      gum_classify_timestamp);
+  EXPECT_SEND_MESSAGE_WITH ("\"-1\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"0\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"1\"");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var square = new NativeFunction(" GUM_PTR_CONST ", "
+          "'uint64', ['uint64']);"
+      "send(square(new UInt64(\"2\")));"
+      "send(square(new UInt64(\"4\")));"
+      "send(square(new UInt64(\"6\")));",
+      gum_square);
+  EXPECT_SEND_MESSAGE_WITH ("\"4\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"16\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"36\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (native_function_crash_results_in_exception)
@@ -530,6 +556,23 @@ gum_toupper (gchar * str,
   }
 
   return (limit == -1) ? -count : count;
+}
+
+static gint64
+gum_classify_timestamp (gint64 timestamp)
+{
+  if (timestamp < 0)
+    return -1;
+  else if (timestamp > 0)
+    return 1;
+  else
+    return 0;
+}
+
+static guint64
+gum_square (guint64 value)
+{
+  return value * value;
 }
 
 static gint
@@ -2278,30 +2321,40 @@ SCRIPT_TESTCASE (u32_can_be_written)
 SCRIPT_TESTCASE (s64_can_be_read)
 {
   gint64 val = G_GINT64_CONSTANT (-1201239876783);
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readS64(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("-1201239876783");
+  COMPILE_AND_LOAD_SCRIPT (
+      "var value = Memory.readS64(" GUM_PTR_CONST ");"
+      "send(value instanceof Int64);"
+      "send(value);",
+      &val);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"-1201239876783\"");
 }
 
 SCRIPT_TESTCASE (s64_can_be_written)
 {
   gint64 val = 0;
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeS64(" GUM_PTR_CONST
-      ", -1201239876783);", &val);
+      ", new Int64(\"-1201239876783\"));", &val);
   g_assert_cmpint (val, ==, G_GINT64_CONSTANT (-1201239876783));
 }
 
 SCRIPT_TESTCASE (u64_can_be_read)
 {
   guint64 val = G_GUINT64_CONSTANT (1201239876783);
-  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readU64(" GUM_PTR_CONST "));", &val);
-  EXPECT_SEND_MESSAGE_WITH ("1201239876783");
+  COMPILE_AND_LOAD_SCRIPT (
+      "var value = Memory.readU64(" GUM_PTR_CONST ");"
+      "send(value instanceof UInt64);"
+      "send(value);",
+      &val);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"1201239876783\"");
 }
 
 SCRIPT_TESTCASE (u64_can_be_written)
 {
   gint64 val = 0;
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeU64(" GUM_PTR_CONST
-      ", 1201239876783);", &val);
+      ", new UInt64(\"1201239876783\"));", &val);
   g_assert_cmpint (val, ==, G_GUINT64_CONSTANT (1201239876783));
 }
 

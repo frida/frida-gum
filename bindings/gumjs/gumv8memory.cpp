@@ -554,10 +554,12 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
             *static_cast<const guint32 *> (address));
         break;
       case GUM_MEMORY_VALUE_S64:
-        result = Number::New (isolate, *static_cast<const gint64 *> (address));
+        result = _gum_v8_int64_new (
+            *static_cast<const gint64 *> (address), core);
         break;
       case GUM_MEMORY_VALUE_U64:
-        result = Number::New (isolate, *static_cast<const guint64 *> (address));
+        result = _gum_v8_uint64_new (
+            *static_cast<const guint64 *> (address), core);
         break;
       case GUM_MEMORY_VALUE_FLOAT:
         result = Number::New (isolate, *static_cast<const gfloat *> (address));
@@ -803,14 +805,16 @@ gum_v8_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_S64:
       {
-        gint64 value = info[1]->IntegerValue ();
-        *static_cast<gint64 *> (address) = value;
+        gint64 value;
+        if (_gum_v8_int64_get (info[1], &value, core))
+          *static_cast<gint64 *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_U64:
       {
-        guint64 value = info[1]->IntegerValue ();
-        *static_cast<guint64 *> (address) = value;
+        guint64 value;
+        if (_gum_v8_uint64_get (info[1], &value, core))
+          *static_cast<guint64 *> (address) = value;
         break;
       }
       case GUM_MEMORY_VALUE_FLOAT:

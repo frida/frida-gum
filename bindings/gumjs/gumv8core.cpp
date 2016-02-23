@@ -159,6 +159,56 @@ static void gum_v8_core_on_set_incoming_message_callback (
 static void gum_v8_core_on_wait_for_event (
     const FunctionCallbackInfo<Value> & info);
 
+static void gum_v8_core_on_new_int64 (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_add (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_sub (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_and (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_or (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_xor (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_shr (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_shl (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_compare (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_to_number (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_to_string (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_int64_to_json (
+    const FunctionCallbackInfo<Value> & info);
+
+static void gum_v8_core_on_new_uint64 (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_add (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_sub (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_and (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_or (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_xor (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_shr (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_shl (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_compare (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_to_number (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_to_string (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_uint64_to_json (
+    const FunctionCallbackInfo<Value> & info);
+
 static void gum_v8_core_on_new_native_pointer (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_native_pointer_is_null (
@@ -234,7 +284,17 @@ static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
 
 static void gum_v8_native_resource_on_weak_notify (
     const WeakCallbackData<Object, GumV8NativeResource> & data);
+
+static gint64 gum_v8_int64_get_value (Handle<Object> object);
+static void gum_v8_int64_set_value (Handle<Object> object, gint64 value,
+    Isolate * isolate);
+
+static guint64 gum_v8_uint64_get_value (Handle<Object> object);
+static void gum_v8_uint64_set_value (Handle<Object> object, guint64 value,
+    Isolate * isolate);
+
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
+
 static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
     GumCpuContextWrapper> & data);
 
@@ -302,6 +362,66 @@ _gum_v8_core_init (GumV8Core * self,
   scope->Set (String::NewFromUtf8 (isolate, "_waitForEvent"),
       FunctionTemplate::New (isolate,
           gum_v8_core_on_wait_for_event, data));
+
+  Local<FunctionTemplate> int64 = FunctionTemplate::New (isolate,
+      gum_v8_core_on_new_int64, data);
+  int64->SetClassName (String::NewFromUtf8 (isolate, "Int64"));
+  Local<ObjectTemplate> int64_proto = int64->PrototypeTemplate ();
+  int64_proto->Set (String::NewFromUtf8 (isolate, "add"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_add, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "sub"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_sub, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "and"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_and, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "or"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_or, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "xor"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_xor, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "shr"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_shr, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "shl"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_shl, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "compare"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_compare, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "toNumber"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_number, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "toString"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_string, data));
+  int64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_json, data));
+  int64->InstanceTemplate ()->SetInternalFieldCount (1);
+  scope->Set (String::NewFromUtf8 (isolate, "Int64"), int64);
+  self->int64 = new GumPersistent<FunctionTemplate>::type (isolate, int64);
+
+  Local<FunctionTemplate> uint64 = FunctionTemplate::New (isolate,
+      gum_v8_core_on_new_uint64, data);
+  uint64->SetClassName (String::NewFromUtf8 (isolate, "UInt64"));
+  Local<ObjectTemplate> uint64_proto = uint64->PrototypeTemplate ();
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "add"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_add, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "sub"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_sub, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "and"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_and, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "or"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_or, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "xor"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_xor, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "shr"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_shr, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "shl"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_shl, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "compare"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_compare, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "toNumber"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_number, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "toString"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_string, data));
+  uint64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_json, data));
+  uint64->InstanceTemplate ()->SetInternalFieldCount (1);
+  scope->Set (String::NewFromUtf8 (isolate, "UInt64"), uint64);
+  self->uint64 = new GumPersistent<FunctionTemplate>::type (isolate, uint64);
 
   Local<FunctionTemplate> native_pointer = FunctionTemplate::New (isolate,
       gum_v8_core_on_new_native_pointer, data);
@@ -516,12 +636,32 @@ _gum_v8_core_realize (GumV8Core * self)
   self->native_resources = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (_gum_v8_native_resource_free));
 
+  Local<FunctionTemplate> int64 (
+      Local<FunctionTemplate>::New (isolate, *self->int64));
+  MaybeLocal<Object> maybe_int64_value =
+      int64->GetFunction ()->NewInstance (context);
+  Local<Object> int64_value;
+  bool success = maybe_int64_value.ToLocal (&int64_value);
+  g_assert (success);
+  self->int64_value = new GumPersistent<Object>::type (isolate,
+      int64_value);
+
+  Local<FunctionTemplate> uint64 (
+      Local<FunctionTemplate>::New (isolate, *self->uint64));
+  MaybeLocal<Object> maybe_uint64_value =
+      uint64->GetFunction ()->NewInstance (context);
+  Local<Object> uint64_value;
+  success = maybe_uint64_value.ToLocal (&uint64_value);
+  g_assert (success);
+  self->uint64_value = new GumPersistent<Object>::type (isolate,
+      uint64_value);
+
   Local<FunctionTemplate> native_pointer (
       Local<FunctionTemplate>::New (isolate, *self->native_pointer));
   MaybeLocal<Object> maybe_native_pointer_value =
       native_pointer->GetFunction ()->NewInstance (context);
   Local<Object> native_pointer_value;
-  bool success = maybe_native_pointer_value.ToLocal (&native_pointer_value);
+  success = maybe_native_pointer_value.ToLocal (&native_pointer_value);
   g_assert (success);
   self->native_pointer_value = new GumPersistent<Object>::type (isolate,
       native_pointer_value);
@@ -603,6 +743,12 @@ _gum_v8_core_dispose (GumV8Core * self)
   gum_v8_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
+  delete self->int64_value;
+  self->int64_value = NULL;
+
+  delete self->uint64_value;
+  self->uint64_value = NULL;
+
   delete self->handle_key;
   delete self->native_pointer_value;
   self->handle_key = NULL;
@@ -620,6 +766,12 @@ _gum_v8_core_finalize (GumV8Core * self)
 
   delete self->native_pointer;
   self->native_pointer = NULL;
+
+  delete self->int64;
+  self->int64 = NULL;
+
+  delete self->uint64;
+  self->uint64 = NULL;
 
   delete self->cpu_context;
   self->cpu_context = NULL;
@@ -1247,6 +1399,404 @@ gum_v8_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
+gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+  gint64 value;
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new Int64()` to create a new instance")));
+    return;
+  }
+
+  if (info.Length () == 0)
+  {
+    value = 0;
+  }
+  else
+  {
+    String::Utf8Value value_as_utf8 (info[0]);
+    const gchar * value_as_string = *value_as_utf8;
+    gchar * endvalue;
+    if (g_str_has_prefix (value_as_string, "0x"))
+    {
+      value = g_ascii_strtoull (value_as_string + 2, &endvalue, 16);
+      if (endvalue == value_as_string + 2)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "Int64: argument is not a valid hexadecimal string")));
+        return;
+      }
+    }
+    else
+    {
+      value = g_ascii_strtoull (value_as_string, &endvalue, 10);
+      if (endvalue == value_as_string)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "Int64: argument is not a valid decimal string")));
+        return;
+      }
+    }
+  }
+
+  gum_v8_int64_set_value (info.Holder (), value, isolate);
+}
+
+#define GUM_DEFINE_INT64_OP_IMPL(name, op) \
+    static void \
+    gum_v8_core_on_int64_ ## name ( \
+        const FunctionCallbackInfo<Value> & info) \
+    { \
+        GumV8Core * self = static_cast<GumV8Core *> ( \
+            info.Data ().As<External> ()->Value ()); \
+        \
+        gint64 lhs = gum_v8_int64_get_value (info.Holder ()); \
+        \
+        gint64 rhs; \
+        Local<FunctionTemplate> int64 ( \
+            Local<FunctionTemplate>::New (self->isolate, \
+                *self->int64)); \
+        if (int64->HasInstance (info[0])) \
+        { \
+          rhs = gum_v8_int64_get_value (info[0].As<Object> ()); \
+        } \
+        else \
+        { \
+          rhs = info[0]->ToInteger ()->Value (); \
+        } \
+        gint64 result = lhs op rhs; \
+        \
+        info.GetReturnValue ().Set (_gum_v8_int64_new (result, self)); \
+    }
+
+GUM_DEFINE_INT64_OP_IMPL (add, +)
+GUM_DEFINE_INT64_OP_IMPL (sub, -)
+GUM_DEFINE_INT64_OP_IMPL (and, &)
+GUM_DEFINE_INT64_OP_IMPL (or,  |)
+GUM_DEFINE_INT64_OP_IMPL (xor, ^)
+GUM_DEFINE_INT64_OP_IMPL (shr, >>)
+GUM_DEFINE_INT64_OP_IMPL (shl, <<)
+
+/*
+ * Prototype:
+ * Int64.compare(that)
+ *
+ * Docs:
+ * Returns 0 if this and that are equal.
+ * Otherwise returns -1 if this < that and 1 if this > that
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_int64_compare (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  gint64 lhs = gum_v8_int64_get_value (info.Holder ());
+
+  gint64 rhs;
+  Local<FunctionTemplate> int64 (
+      Local<FunctionTemplate>::New (self->isolate, *self->int64));
+  if (int64->HasInstance (info[0]))
+  {
+    rhs = gum_v8_int64_get_value (info[0].As<Object> ());
+  }
+  else
+  {
+    rhs = info[0]->ToInteger ()->Value ();
+  }
+  int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  info.GetReturnValue ().Set (result);
+}
+
+/*
+ * Prototype:
+ * Int64.toNumber()
+ *
+ * Docs:
+ * Represents the value as a JavaScript Number
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_int64_to_number (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (static_cast<double> (
+      gum_v8_int64_get_value (info.Holder ())));
+}
+
+/*
+ * Prototype:
+ * Int64.toString([radix=10])
+ *
+ * Docs:
+ * Represents the value as either a base-10 or base-16 string.
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_int64_to_string (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  gint64 value = gum_v8_int64_get_value (info.Holder ());
+  gint radix = (info.Length () > 0) ? info[0]->Int32Value () : 10;
+  if (radix != 10 && radix != 16)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "unsupported radix")));
+    return;
+  }
+
+  gchar buf[32];
+  if (radix == 10)
+    sprintf (buf, "%" G_GINT64_FORMAT, value);
+  else if (value >= 0)
+    sprintf (buf, "%" G_GINT64_MODIFIER "x", value);
+  else
+    sprintf (buf, "-%" G_GINT64_MODIFIER "x", -value);
+
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
+}
+
+/*
+ * Prototype:
+ * Int64.toJSON()
+ *
+ * Docs:
+ * Represents the value as a JSON-formatted value
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_int64_to_json (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  gchar buf[32];
+  sprintf (buf, "%" G_GINT64_FORMAT, gum_v8_int64_get_value (info.Holder ()));
+
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
+}
+
+static void
+gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+  guint64 value;
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new UInt64()` to create a new instance")));
+    return;
+  }
+
+  if (info.Length () == 0)
+  {
+    value = 0;
+  }
+  else
+  {
+    String::Utf8Value value_as_utf8 (info[0]);
+    const gchar * value_as_string = *value_as_utf8;
+    gchar * endvalue;
+    if (g_str_has_prefix (value_as_string, "0x"))
+    {
+      value = g_ascii_strtoull (value_as_string + 2, &endvalue, 16);
+      if (endvalue == value_as_string + 2)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "UInt64: argument is not a valid hexadecimal string")));
+        return;
+      }
+    }
+    else
+    {
+      value = g_ascii_strtoull (value_as_string, &endvalue, 10);
+      if (endvalue == value_as_string)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "UInt64: argument is not a valid decimal string")));
+        return;
+      }
+    }
+  }
+
+  gum_v8_uint64_set_value (info.Holder (), value, isolate);
+}
+
+#define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
+    static void \
+    gum_v8_core_on_uint64_ ## name ( \
+        const FunctionCallbackInfo<Value> & info) \
+    { \
+        GumV8Core * self = static_cast<GumV8Core *> ( \
+            info.Data ().As<External> ()->Value ()); \
+        \
+        guint64 lhs = gum_v8_uint64_get_value (info.Holder ()); \
+        \
+        guint64 rhs; \
+        Local<FunctionTemplate> uint64 ( \
+            Local<FunctionTemplate>::New (self->isolate, \
+                *self->uint64)); \
+        if (uint64->HasInstance (info[0])) \
+        { \
+          rhs = gum_v8_uint64_get_value (info[0].As<Object> ()); \
+        } \
+        else \
+        { \
+          rhs = info[0]->ToInteger ()->Value (); \
+        } \
+        guint64 result = lhs op rhs; \
+        \
+        info.GetReturnValue ().Set (_gum_v8_uint64_new (result, self)); \
+    }
+
+GUM_DEFINE_UINT64_OP_IMPL (add, +)
+GUM_DEFINE_UINT64_OP_IMPL (sub, -)
+GUM_DEFINE_UINT64_OP_IMPL (and, &)
+GUM_DEFINE_UINT64_OP_IMPL (or,  |)
+GUM_DEFINE_UINT64_OP_IMPL (xor, ^)
+GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
+GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
+
+/*
+ * Prototype:
+ * UInt64.compare(that)
+ *
+ * Docs:
+ * Returns 0 if this and that are equal.
+ * Otherwise returns -1 if this < that and 1 if this > that
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_uint64_compare (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  guint64 lhs = gum_v8_uint64_get_value (info.Holder ());
+
+  guint64 rhs;
+  Local<FunctionTemplate> uint64 (
+      Local<FunctionTemplate>::New (self->isolate, *self->uint64));
+  if (uint64->HasInstance (info[0]))
+  {
+    rhs = gum_v8_uint64_get_value (info[0].As<Object> ());
+  }
+  else
+  {
+    rhs = info[0]->ToInteger ()->Value ();
+  }
+  int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  info.GetReturnValue ().Set (result);
+}
+
+/*
+ * Prototype:
+ * UInt64.toNumber()
+ *
+ * Docs:
+ * Represents the value as a JavaScript Number
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_uint64_to_number (
+    const FunctionCallbackInfo<Value> & info)
+{
+  info.GetReturnValue ().Set (static_cast<double> (
+      gum_v8_uint64_get_value (info.Holder ())));
+}
+
+/*
+ * Prototype:
+ * UInt64.toString([radix=10])
+ *
+ * Docs:
+ * Represents the value as either a base-10 or base-16 string.
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_uint64_to_string (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  guint64 value = gum_v8_uint64_get_value (info.Holder ());
+  gint radix = (info.Length () > 0) ? info[0]->Int32Value () : 10;
+  if (radix != 10 && radix != 16)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "unsupported radix")));
+    return;
+  }
+
+  gchar buf[32];
+  if (radix == 10)
+    sprintf (buf, "%" G_GUINT64_FORMAT, value);
+  else
+    sprintf (buf, "%" G_GINT64_MODIFIER "x", value);
+
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
+}
+
+/*
+ * Prototype:
+ * UInt64.toJSON()
+ *
+ * Docs:
+ * Represents the value as a JSON-formatted value
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_core_on_uint64_to_json (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = self->isolate;
+
+  gchar buf[32];
+  sprintf (buf, "%" G_GUINT64_FORMAT, gum_v8_uint64_get_value (info.Holder ()));
+
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
+}
+
+static void
 gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
 {
   Isolate * isolate = info.GetIsolate ();
@@ -1299,10 +1849,10 @@ gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
 
 /*
  * Prototype:
- * NativePointer.isNull(pointer)
+ * NativePointer.isNull()
  *
  * Docs:
- * Returns true if a pointer is null, otherwise false
+ * Returns true if a pointer is NULL, otherwise false
  *
  * Example:
  * TBW
@@ -1353,11 +1903,11 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
 
 /*
  * Prototype:
- * NativePointer.compare(pointer1, pointer2)
+ * NativePointer.compare(that)
  *
  * Docs:
- * Returns 0 if pointer1 and pointer2 points to the same thing.
- * Otherwise returns -1 if pointer1 < pointer2 and 1 if pointer1 > pointer2
+ * Returns 0 if this and that are equal.
+ * Otherwise returns -1 if this < that and 1 if this > that
  *
  * Example:
  * TBW
@@ -1392,7 +1942,7 @@ gum_v8_core_on_native_pointer_compare (
 
 /*
  * Prototype:
- * NativePointer.toInt32(pointer)
+ * NativePointer.toInt32()
  *
  * Docs:
  * Represents the pointer as a signed 32-bit integer
@@ -1410,10 +1960,10 @@ gum_v8_core_on_native_pointer_to_int32 (
 
 /*
  * Prototype:
- * NativePointer.toString(pointer[, radix=16])
+ * NativePointer.toString([radix=16])
  *
  * Docs:
- * Represents the pointer as a either a base-10 or base-16 output.
+ * Represents the pointer as either a base-10 or base-16 string.
  *
  * Example:
  * TBW
@@ -1451,15 +2001,16 @@ gum_v8_core_on_native_pointer_to_string (
       sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
   }
 
-  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
 }
 
 /*
  * Prototype:
- * NativePointer.toJSON(pointer)
+ * NativePointer.toJSON()
  *
  * Docs:
- * Represents the pointer as a JSON-formatted object
+ * Represents the pointer as a JSON-formatted value
  *
  * Example:
  * TBW
@@ -1477,7 +2028,8 @@ gum_v8_core_on_native_pointer_to_json (
   gchar buf[32];
   sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
-  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, buf));
+  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (buf)));
 }
 
 /*
@@ -2273,54 +2825,6 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
     if (!_gum_v8_native_pointer_get (svalue, &value->v_pointer, core))
       return FALSE;
   }
-  else if (type == &ffi_type_sint)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_sint = svalue->IntegerValue ();
-  }
-  else if (type == &ffi_type_uint)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_uint = static_cast<guint> (svalue->IntegerValue ());
-  }
-  else if (type == &ffi_type_slong)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_slong = svalue->IntegerValue ();
-  }
-  else if (type == &ffi_type_ulong)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_ulong = static_cast<gulong> (svalue->IntegerValue ());
-  }
-  else if (type == &ffi_type_schar)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_schar = static_cast<gchar> (svalue->Int32Value ());
-  }
-  else if (type == &ffi_type_uchar)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_uchar = static_cast<guchar> (svalue->Uint32Value ());
-  }
-  else if (type == &ffi_type_float)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_float = svalue->NumberValue ();
-  }
-  else if (type == &ffi_type_double)
-  {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_double = svalue->NumberValue ();
-  }
   else if (type == &ffi_type_sint8)
   {
     if (!svalue->IsNumber ())
@@ -2359,15 +2863,25 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   }
   else if (type == &ffi_type_sint64)
   {
-    if (!svalue->IsNumber ())
-      goto error_expected_number;
-    value->v_sint64 = static_cast<gint64> (svalue->IntegerValue ());
+    if (!_gum_v8_int64_get (svalue, &value->v_sint64, core))
+      return FALSE;
   }
   else if (type == &ffi_type_uint64)
   {
+    if (!_gum_v8_uint64_get (svalue, &value->v_uint64, core))
+      return FALSE;
+  }
+  else if (type == &ffi_type_float)
+  {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint64 = static_cast<guint64> (svalue->IntegerValue ());
+    value->v_float = svalue->NumberValue ();
+  }
+  else if (type == &ffi_type_double)
+  {
+    if (!svalue->IsNumber ())
+      goto error_expected_number;
+    value->v_double = svalue->NumberValue ();
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
@@ -2459,38 +2973,6 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   {
     *svalue = _gum_v8_native_pointer_new (value->v_pointer, core);
   }
-  else if (type == &ffi_type_sint)
-  {
-    *svalue = Number::New (isolate, value->v_sint);
-  }
-  else if (type == &ffi_type_uint)
-  {
-    *svalue = Number::New (isolate, value->v_uint);
-  }
-  else if (type == &ffi_type_slong)
-  {
-    *svalue = Number::New (isolate, value->v_slong);
-  }
-  else if (type == &ffi_type_ulong)
-  {
-    *svalue = Number::New (isolate, value->v_ulong);
-  }
-  else if (type == &ffi_type_schar)
-  {
-    *svalue = Integer::New (isolate, value->v_schar);
-  }
-  else if (type == &ffi_type_uchar)
-  {
-    *svalue = Integer::NewFromUnsigned (isolate, value->v_uchar);
-  }
-  else if (type == &ffi_type_float)
-  {
-    *svalue = Number::New (isolate, value->v_float);
-  }
-  else if (type == &ffi_type_double)
-  {
-    *svalue = Number::New (isolate, value->v_double);
-  }
   else if (type == &ffi_type_sint8)
   {
     *svalue = Integer::New (isolate, value->v_sint8);
@@ -2517,11 +2999,19 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   }
   else if (type == &ffi_type_sint64)
   {
-    *svalue = Number::New (isolate, value->v_sint64);
+    *svalue = _gum_v8_int64_new (value->v_sint64, core);
   }
   else if (type == &ffi_type_uint64)
   {
-    *svalue = Number::New (isolate, value->v_uint64);
+    *svalue = _gum_v8_uint64_new (value->v_uint64, core);
+  }
+  else if (type == &ffi_type_float)
+  {
+    *svalue = Number::New (isolate, value->v_float);
+  }
+  else if (type == &ffi_type_double)
+  {
+    *svalue = Number::New (isolate, value->v_double);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
@@ -2681,6 +3171,210 @@ gum_v8_native_resource_on_weak_notify (
   HandleScope handle_scope (data.GetIsolate ());
   GumV8NativeResource * self = data.GetParameter ();
   g_hash_table_remove (self->core->native_resources, self);
+}
+
+Local<Object>
+_gum_v8_int64_new (gint64 value,
+                   GumV8Core * core)
+{
+  Local<Object> int64_value (Local<Object>::New (core->isolate,
+      *core->int64_value));
+  Local<Object> int64_object (int64_value->Clone ());
+  gum_v8_int64_set_value (int64_object, value, core->isolate);
+  return int64_object;
+}
+
+gboolean
+_gum_v8_int64_get (Handle<Value> value,
+                   gint64 * target,
+                   GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    *target = value->IntegerValue ();
+    return TRUE;
+  }
+
+  Local<FunctionTemplate> int64 (Local<FunctionTemplate>::New (
+      isolate, *core->int64));
+  if (!int64->HasInstance (value))
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected a signed integer")));
+    return FALSE;
+  }
+
+  *target = gum_v8_int64_get_value (value.As<Object> ());
+  return TRUE;
+}
+
+Local<Object>
+_gum_v8_uint64_new (guint64 value,
+                    GumV8Core * core)
+{
+  Local<Object> uint64_value (Local<Object>::New (core->isolate,
+      *core->uint64_value));
+  Local<Object> uint64_object (uint64_value->Clone ());
+  gum_v8_uint64_set_value (uint64_object, value, core->isolate);
+  return uint64_object;
+}
+
+static gint64
+gum_v8_int64_get_value (Handle<Object> object)
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  union
+  {
+    gpointer p;
+    gint64 i;
+  } v;
+
+  v.p = object->GetInternalField (0).As<External> ()->Value ();
+
+  return v.i;
+#else
+  union
+  {
+    gpointer p;
+    guint32 bits;
+  } upper, lower;
+  union
+  {
+    guint64 bits;
+    gint64 i;
+  } v;
+
+  upper.p = object->GetInternalField (0).As<External> ()->Value ();
+  lower.p = object->GetInternalField (1).As<External> ()->Value ();
+
+  v.bits = static_cast<guint64> (upper.bits) << 32 |
+      static_cast<guint64> (lower.bits);
+
+  return v.i;
+#endif
+}
+
+static void
+gum_v8_int64_set_value (Handle<Object> object,
+                        gint64 value,
+                        Isolate * isolate)
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  union
+  {
+    gint64 i;
+    gpointer p;
+  } v;
+
+  v.i = value;
+
+  object->SetInternalField (0, External::New (isolate, v.p));
+#else
+  union
+  {
+    gint64 i;
+    guint64 bits;
+  } v;
+  union
+  {
+    guint32 bits;
+    gpointer p;
+  } upper, lower;
+
+  v.i = value;
+
+  upper.bits = v.bits >> 32;
+  lower.bits = v.bits & 0xffffffff;
+
+  object->SetInternalField (0, External::New (isolate, upper.p));
+  object->SetInternalField (1, External::New (isolate, lower.p));
+#endif
+}
+
+gboolean
+_gum_v8_uint64_get (Handle<Value> value,
+                    guint64 * target,
+                    GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    *target = value->IntegerValue ();
+    return TRUE;
+  }
+
+  Local<FunctionTemplate> uint64 (Local<FunctionTemplate>::New (
+      isolate, *core->uint64));
+  if (!uint64->HasInstance (value))
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
+        "expected an unsigned integer")));
+    return FALSE;
+  }
+
+  *target = gum_v8_uint64_get_value (value.As<Object> ());
+  return TRUE;
+}
+
+static guint64
+gum_v8_uint64_get_value (Handle<Object> object)
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  union
+  {
+    gpointer p;
+    guint64 u;
+  } v;
+
+  v.p = object->GetInternalField (0).As<External> ()->Value ();
+
+  return v.u;
+#else
+  union
+  {
+    gpointer p;
+    guint32 bits;
+  } upper, lower;
+
+  upper.p = object->GetInternalField (0).As<External> ()->Value ();
+  lower.p = object->GetInternalField (1).As<External> ()->Value ();
+
+  return static_cast<guint64> (upper.bits) << 32 |
+      static_cast<guint64> (lower.bits);
+#endif
+}
+
+static void
+gum_v8_uint64_set_value (Handle<Object> object,
+                         guint64 value,
+                         Isolate * isolate)
+{
+#if GLIB_SIZEOF_VOID_P == 8
+  union
+  {
+    guint64 u;
+    gpointer p;
+  } v;
+
+  v.u = value;
+
+  object->SetInternalField (0, External::New (isolate, v.p));
+#else
+  union
+  {
+    guint32 bits;
+    gpointer p;
+  } upper, lower;
+
+  upper.bits = value >> 32;
+  lower.bits = value & 0xffffffff;
+
+  object->SetInternalField (0, External::New (isolate, upper.p));
+  object->SetInternalField (1, External::New (isolate, lower.p));
+#endif
 }
 
 Local<Object>

@@ -68,6 +68,12 @@ struct _GumV8Core
 
   GHashTable * native_resources;
 
+  GumPersistent<v8::FunctionTemplate>::type * int64;
+  GumPersistent<v8::Object>::type * int64_value;
+
+  GumPersistent<v8::FunctionTemplate>::type * uint64;
+  GumPersistent<v8::Object>::type * uint64_value;
+
   GumPersistent<v8::FunctionTemplate>::type * native_pointer;
   GumPersistent<v8::Object>::type * native_pointer_value;
   GumPersistent<v8::String>::type * handle_key;
@@ -119,6 +125,16 @@ G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_try_get (
 G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
     gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_int64_new (gint64 value,
+    GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_int64_get (v8::Handle<v8::Value> value,
+    gint64 * target, GumV8Core * core);
+
+G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_uint64_new (guint64 value,
+    GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_uint64_get (v8::Handle<v8::Value> value,
+    guint64 * target, GumV8Core * core);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (
     gpointer address, GumV8Core * core);
