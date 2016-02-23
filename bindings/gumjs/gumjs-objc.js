@@ -716,7 +716,7 @@
                             const s = self.methodSignatureForSelector_(sel);
                             if (s === null)
                                 return null;
-                            const numArgs = s.numberOfArguments();
+                            const numArgs = s.numberOfArguments().valueOf();
                             const frameSize = numArgs * pointerSize;
                             let types = s.methodReturnType() + frameSize;
                             for (let i = 0; i !== numArgs; i++) {
