@@ -28,6 +28,8 @@ typedef struct _GumDukScheduledCallback GumDukScheduledCallback;
 typedef struct _GumDukExceptionSink GumDukExceptionSink;
 typedef struct _GumDukMessageSink GumDukMessageSink;
 
+typedef struct _GumDukInt64 GumDukInt64;
+typedef struct _GumDukUInt64 GumDukUInt64;
 typedef struct _GumDukNativePointer GumDukNativePointer;
 typedef struct _GumDukNativePointerImpl GumDukNativePointerImpl;
 typedef struct _GumDukCpuContext GumDukCpuContext;
@@ -60,6 +62,8 @@ struct _GumDukCore
   GSList * scheduled_callbacks;
   guint last_callback_id;
 
+  GumDukHeapPtr int64;
+  GumDukHeapPtr uint64;
   GumDukHeapPtr native_pointer;
   GumDukHeapPtr native_resource;
   GumDukHeapPtr native_function;
@@ -73,6 +77,16 @@ struct _GumDukScope
 {
   GumDukCore * core;
   GumDukHeapPtr exception;
+};
+
+struct _GumDukInt64
+{
+  gint64 value;
+};
+
+struct _GumDukUInt64
+{
+  guint64 value;
 };
 
 struct _GumDukNativePointer

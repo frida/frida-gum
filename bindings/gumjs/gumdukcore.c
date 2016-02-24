@@ -125,6 +125,36 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_int64_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_int64_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_add)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_and)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_or)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_shr)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_number)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_value_of)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_uint64_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_uint64_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_add)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_and)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_or)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_shr)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_number)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_value_of)
+
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_pointer_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_native_pointer_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_is_null)
@@ -213,6 +243,42 @@ static const duk_function_list_entry gumjs_weak_ref_functions[] =
 {
   { "bind", gumjs_weak_ref_bind, 2 },
   { "unbind", gumjs_weak_ref_unbind, 1 },
+
+  { NULL, NULL, 0 }
+};
+
+static const duk_function_list_entry gumjs_int64_functions[] =
+{
+  { "add", gumjs_int64_add, 1 },
+  { "sub", gumjs_int64_sub, 1 },
+  { "and", gumjs_int64_and, 1 },
+  { "or", gumjs_int64_or, 1 },
+  { "xor", gumjs_int64_xor, 1 },
+  { "shr", gumjs_int64_shr, 1 },
+  { "shl", gumjs_int64_shl, 1 },
+  { "compare", gumjs_int64_compare, 1 },
+  { "toNumber", gumjs_int64_to_number, 0 },
+  { "toString", gumjs_int64_to_string, 1 },
+  { "toJSON", gumjs_int64_to_json, 0 },
+  { "valueOf", gumjs_int64_value_of, 0 },
+
+  { NULL, NULL, 0 }
+};
+
+static const duk_function_list_entry gumjs_uint64_functions[] =
+{
+  { "add", gumjs_uint64_add, 1 },
+  { "sub", gumjs_uint64_sub, 1 },
+  { "and", gumjs_uint64_and, 1 },
+  { "or", gumjs_uint64_or, 1 },
+  { "xor", gumjs_uint64_xor, 1 },
+  { "shr", gumjs_uint64_shr, 1 },
+  { "shl", gumjs_uint64_shl, 1 },
+  { "compare", gumjs_uint64_compare, 1 },
+  { "toNumber", gumjs_uint64_to_number, 0 },
+  { "toString", gumjs_uint64_to_string, 1 },
+  { "toJSON", gumjs_uint64_to_json, 0 },
+  { "valueOf", gumjs_uint64_value_of, 0 },
 
   { NULL, NULL, 0 }
 };
@@ -522,6 +588,24 @@ _gum_duk_core_init (GumDukCore * self,
       gumjs_set_incoming_message_callback, 1);
   GUMJS_ADD_GLOBAL_FUNCTION ("_waitForEvent", gumjs_wait_for_event, 0);
 
+  duk_push_c_function (ctx, gumjs_int64_construct, 1);
+  duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_int64_functions);
+  duk_push_c_function (ctx, gumjs_int64_finalize, 2);
+  duk_set_finalizer (ctx, -2);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->int64 = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "Int64");
+
+  duk_push_c_function (ctx, gumjs_uint64_construct, 1);
+  duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_uint64_functions);
+  duk_push_c_function (ctx, gumjs_uint64_finalize, 2);
+  duk_set_finalizer (ctx, -2);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->uint64 = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "UInt64");
+
   duk_push_c_function (ctx, gumjs_native_pointer_construct, 1);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_native_pointer_functions);
@@ -617,6 +701,8 @@ _gum_duk_core_dispose (GumDukCore * self)
 
   self->cached_native_pointers = NULL;
 
+  _gum_duk_release_heapptr (ctx, self->int64);
+  _gum_duk_release_heapptr (ctx, self->uint64);
   _gum_duk_release_heapptr (ctx, self->native_pointer);
   _gum_duk_release_heapptr (ctx, self->native_resource);
   _gum_duk_release_heapptr (ctx, self->native_function);
@@ -1006,6 +1092,280 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
   return 0;
 }
 
+static gint64
+gumjs_int64_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  gint64 value;
+
+  duk_push_this (ctx);
+  value = _gum_duk_require_int64 (ctx, -1, args->core);
+  duk_pop (ctx);
+
+  return value;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
+{
+  gint64 value;
+  GumDukInt64 * self;
+
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new Int64()` to create a new instance, "
+        "or use the shorthand: `int64()`");
+    duk_throw (ctx);
+  }
+
+  _gum_duk_args_parse (args, "q~", &value);
+
+  self = g_slice_new (GumDukInt64);
+  self->value = value;
+
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, self);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
+{
+  GumDukInt64 * self;
+
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "Int64"))
+    return 0;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  g_slice_free (GumDukInt64, self);
+
+  return 0;
+}
+
+#define GUM_DEFINE_INT64_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+  { \
+    gint64 lhs, rhs, result; \
+    \
+    lhs = gumjs_int64_from_args (args); \
+    \
+    _gum_duk_args_parse (args, "q~", &rhs); \
+    \
+    result = lhs op rhs; \
+    \
+    _gum_duk_push_int64 (ctx, result, args->core); \
+    return 1; \
+  }
+
+GUM_DEFINE_INT64_OP_IMPL (add, +)
+GUM_DEFINE_INT64_OP_IMPL (sub, -)
+GUM_DEFINE_INT64_OP_IMPL (and, &)
+GUM_DEFINE_INT64_OP_IMPL (or,  |)
+GUM_DEFINE_INT64_OP_IMPL (xor, ^)
+GUM_DEFINE_INT64_OP_IMPL (shr, >>)
+GUM_DEFINE_INT64_OP_IMPL (shl, <<)
+
+GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
+{
+  gint64 lhs, rhs;
+  gint result;
+
+  lhs = gumjs_int64_from_args (args);
+
+  _gum_duk_args_parse (args, "q~", &rhs);
+
+  result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  duk_push_int (ctx, result);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_number)
+{
+  duk_push_number (ctx, gumjs_int64_from_args (args));
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
+{
+  gint64 value;
+  gint radix;
+  gchar str[32];
+
+  value = gumjs_int64_from_args (args);
+
+  radix = 10;
+  _gum_duk_args_parse (args, "|u", &radix);
+  if (radix != 10 && radix != 16)
+    _gum_duk_throw (ctx, "unsupported radix");
+
+  if (radix == 10)
+    sprintf (str, "%" G_GINT64_FORMAT, value);
+  else if (value >= 0)
+    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+  else
+    sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
+
+  duk_push_string (ctx, str);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
+{
+  gchar str[32];
+
+  sprintf (str, "%" G_GINT64_FORMAT, gumjs_int64_from_args (args));
+
+  duk_push_string (ctx, str);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_int64_value_of)
+{
+  duk_push_number (ctx, gumjs_int64_from_args (args));
+  return 1;
+}
+
+static guint64
+gumjs_uint64_from_args (const GumDukArgs * args)
+{
+  duk_context * ctx = args->ctx;
+  guint64 value;
+
+  duk_push_this (ctx);
+  value = _gum_duk_require_uint64 (ctx, -1, args->core);
+  duk_pop (ctx);
+
+  return value;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
+{
+  guint64 value;
+  GumDukUInt64 * self;
+
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new UInt64()` to create a new instance, "
+        "or use the shorthand: `uint64()`");
+    duk_throw (ctx);
+  }
+
+  _gum_duk_args_parse (args, "Q~", &value);
+
+  self = g_slice_new (GumDukUInt64);
+  self->value = value;
+
+  duk_push_this (ctx);
+  _gum_duk_put_data (ctx, -1, self);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
+{
+  GumDukUInt64 * self;
+
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "UInt64"))
+    return 0;
+
+  self = _gum_duk_steal_data (ctx, 0);
+  if (self == NULL)
+    return 0;
+
+  g_slice_free (GumDukUInt64, self);
+
+  return 0;
+}
+
+#define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
+  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+  { \
+    guint64 lhs, rhs, result; \
+    \
+    lhs = gumjs_uint64_from_args (args); \
+    \
+    _gum_duk_args_parse (args, "Q~", &rhs); \
+    \
+    result = lhs op rhs; \
+    \
+    _gum_duk_push_uint64 (ctx, result, args->core); \
+    return 1; \
+  }
+
+GUM_DEFINE_UINT64_OP_IMPL (add, +)
+GUM_DEFINE_UINT64_OP_IMPL (sub, -)
+GUM_DEFINE_UINT64_OP_IMPL (and, &)
+GUM_DEFINE_UINT64_OP_IMPL (or,  |)
+GUM_DEFINE_UINT64_OP_IMPL (xor, ^)
+GUM_DEFINE_UINT64_OP_IMPL (shr, >>)
+GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
+
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
+{
+  guint64 lhs, rhs;
+  gint result;
+
+  lhs = gumjs_uint64_from_args (args);
+
+  _gum_duk_args_parse (args, "Q~", &rhs);
+
+  result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
+
+  duk_push_int (ctx, result);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_number)
+{
+  duk_push_number (ctx, gumjs_uint64_from_args (args));
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
+{
+  guint64 value;
+  gint radix;
+  gchar str[32];
+
+  value = gumjs_uint64_from_args (args);
+
+  radix = 10;
+  _gum_duk_args_parse (args, "|u", &radix);
+  if (radix != 10 && radix != 16)
+    _gum_duk_throw (ctx, "unsupported radix");
+
+  if (radix == 10)
+    sprintf (str, "%" G_GUINT64_FORMAT, value);
+  else
+    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+
+  duk_push_string (ctx, str);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
+{
+  gchar str[32];
+
+  sprintf (str, "%" G_GUINT64_FORMAT, gumjs_uint64_from_args (args));
+
+  duk_push_string (ctx, str);
+  return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_value_of)
+{
+  duk_push_number (ctx, gumjs_uint64_from_args (args));
+  return 1;
+}
+
 static GumDukNativePointer *
 gumjs_native_pointer_from_args (const GumDukArgs * args)
 {
@@ -1022,7 +1382,7 @@ gumjs_native_pointer_from_args (const GumDukArgs * args)
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   gpointer ptr = NULL;
-  GumDukNativePointerImpl * priv;
+  GumDukNativePointerImpl * self;
 
   if (!duk_is_constructor_call (ctx))
   {
@@ -1032,13 +1392,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
     duk_throw (ctx);
   }
 
-  _gum_duk_args_parse (args, "|p~", &ptr);
+  _gum_duk_args_parse (args, "p~", &ptr);
 
-  priv = g_slice_new0 (GumDukNativePointerImpl);
-  priv->parent.value = ptr;
+  self = g_slice_new0 (GumDukNativePointerImpl);
+  self->parent.value = ptr;
 
   duk_push_this (ctx);
-  _gum_duk_put_data (ctx, -1, priv);
+  _gum_duk_put_data (ctx, -1, self);
   duk_pop (ctx);
 
   return 0;
@@ -2187,56 +2547,6 @@ gum_duk_get_ffi_value (duk_context * ctx,
     if (!_gum_duk_get_pointer (ctx, index, core, &value->v_pointer))
       return FALSE;
   }
-  else if (type == &ffi_type_sint)
-  {
-    if (!duk_is_number (ctx, index))
-      return FALSE;
-    value->v_sint = duk_require_int (ctx, index);
-  }
-  else if (type == &ffi_type_uint)
-  {
-    if (_gum_duk_get_uint (ctx, index, &u))
-      value->v_uint = u;
-    else
-      return FALSE;
-  }
-  else if (type == &ffi_type_slong)
-  {
-    if (!_gum_duk_get_int64 (ctx, index, &i64))
-      return FALSE;
-    value->v_slong = i64;
-  }
-  else if (type == &ffi_type_ulong)
-  {
-    if (!_gum_duk_get_uint64 (ctx, index, &u64))
-      return FALSE;
-    value->v_ulong = u64;
-  }
-  else if (type == &ffi_type_schar)
-  {
-    if (!duk_is_number (ctx, index))
-      return FALSE;
-    value->v_schar = duk_require_int (ctx, index);
-  }
-  else if (type == &ffi_type_uchar)
-  {
-    if (_gum_duk_get_uint (ctx, index, &u))
-      value->v_uchar = u;
-    else
-      return FALSE;
-  }
-  else if (type == &ffi_type_float)
-  {
-    if (!duk_is_number (ctx, index))
-      return FALSE;
-    value->v_float = duk_require_number (ctx, index);
-  }
-  else if (type == &ffi_type_double)
-  {
-    if (!duk_is_number (ctx, index))
-      return FALSE;
-    value->v_double = duk_require_number (ctx, index);
-  }
   else if (type == &ffi_type_sint8)
   {
     if (!duk_is_number (ctx, index))
@@ -2278,15 +2588,27 @@ gum_duk_get_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_sint64)
   {
-    if (!_gum_duk_get_int64 (ctx, index, &i64))
+    if (!_gum_duk_get_int64 (ctx, index, core, &i64))
       return FALSE;
     value->v_sint64 = i64;
   }
   else if (type == &ffi_type_uint64)
   {
-    if (!_gum_duk_get_uint64 (ctx, index, &u64))
+    if (!_gum_duk_get_uint64 (ctx, index, core, &u64))
       return FALSE;
     value->v_uint64 = u64;
+  }
+  else if (type == &ffi_type_float)
+  {
+    if (!duk_is_number (ctx, index))
+      return FALSE;
+    value->v_float = duk_require_number (ctx, index);
+  }
+  else if (type == &ffi_type_double)
+  {
+    if (!duk_is_number (ctx, index))
+      return FALSE;
+    value->v_double = duk_require_number (ctx, index);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
@@ -2351,38 +2673,6 @@ gum_duk_push_ffi_value (duk_context * ctx,
   {
     _gum_duk_push_native_pointer (ctx, value->v_pointer, core);
   }
-  else if (type == &ffi_type_sint)
-  {
-    duk_push_int (ctx, value->v_sint);
-  }
-  else if (type == &ffi_type_uint)
-  {
-    duk_push_uint (ctx, value->v_uint);
-  }
-  else if (type == &ffi_type_slong)
-  {
-    duk_push_number (ctx, value->v_slong);
-  }
-  else if (type == &ffi_type_ulong)
-  {
-    duk_push_number (ctx, value->v_ulong);
-  }
-  else if (type == &ffi_type_schar)
-  {
-    duk_push_int (ctx, value->v_schar);
-  }
-  else if (type == &ffi_type_uchar)
-  {
-    duk_push_uint (ctx, value->v_uchar);
-  }
-  else if (type == &ffi_type_float)
-  {
-    duk_push_number (ctx, value->v_float);
-  }
-  else if (type == &ffi_type_double)
-  {
-    duk_push_number (ctx, value->v_double);
-  }
   else if (type == &ffi_type_sint8)
   {
     duk_push_int (ctx, value->v_sint8);
@@ -2409,11 +2699,19 @@ gum_duk_push_ffi_value (duk_context * ctx,
   }
   else if (type == &ffi_type_sint64)
   {
-    duk_push_number (ctx, value->v_sint64);
+    _gum_duk_push_int64 (ctx, value->v_sint64, core);
   }
   else if (type == &ffi_type_uint64)
   {
-    duk_push_number (ctx, value->v_uint64);
+    _gum_duk_push_uint64 (ctx, value->v_uint64, core);
+  }
+  else if (type == &ffi_type_float)
+  {
+    duk_push_number (ctx, value->v_float);
+  }
+  else if (type == &ffi_type_double)
+  {
+    duk_push_number (ctx, value->v_double);
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {

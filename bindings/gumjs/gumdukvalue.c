@@ -69,6 +69,54 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
         break;
       }
+      case 'q':
+      {
+        gint64 i;
+        gboolean is_fuzzy;
+
+        is_fuzzy = t[1] == '~';
+        if (is_fuzzy)
+          t++;
+
+        if (is_fuzzy)
+        {
+          if (!_gum_duk_parse_int64 (ctx, arg_index, core, &i))
+            goto expected_int;
+        }
+        else
+        {
+          if (!_gum_duk_get_int64 (ctx, arg_index, core, &i))
+            goto expected_int;
+        }
+
+        *va_arg (ap, gint64 *) = i;
+
+        break;
+      }
+      case 'Q':
+      {
+        guint64 u;
+        gboolean is_fuzzy;
+
+        is_fuzzy = t[1] == '~';
+        if (is_fuzzy)
+          t++;
+
+        if (is_fuzzy)
+        {
+          if (!_gum_duk_parse_uint64 (ctx, arg_index, core, &u))
+            goto expected_uint;
+        }
+        else
+        {
+          if (!_gum_duk_get_uint64 (ctx, arg_index, core, &u))
+            goto expected_uint;
+        }
+
+        *va_arg (ap, guint64 *) = u;
+
+        break;
+      }
       case 'n':
       {
         if (!duk_is_number (ctx, arg_index))
@@ -539,31 +587,145 @@ _gum_duk_get_uint (duk_context * ctx,
 gboolean
 _gum_duk_get_int64 (duk_context * ctx,
                     duk_idx_t index,
+                    GumDukCore * core,
                     gint64 * i)
 {
-  if (!duk_is_number (ctx, index))
-    return FALSE;
+  if (duk_is_pointer (ctx, index))
+  {
+    *i = *((const gint64 *) duk_require_pointer (ctx, index));
+    return TRUE;
+  }
+  else if (duk_is_number (ctx, index))
+  {
+    *i = (gint64) duk_require_number (ctx, index);
+    return TRUE;
+  }
+  else
+  {
+    gboolean success = FALSE;
 
-  *i = (gint64) duk_require_number (ctx, index);
-  return TRUE;
+    duk_dup (ctx, index);
+    duk_push_heapptr (ctx, core->int64);
+
+    if (duk_instanceof (ctx, -2, -1))
+    {
+      GumDukInt64 * object;
+
+      object = _gum_duk_require_data (ctx, -2);
+
+      *i = object->value;
+      success = TRUE;
+    }
+
+    duk_pop_2 (ctx);
+
+    return success;
+  }
+}
+
+gboolean
+_gum_duk_parse_int64 (duk_context * ctx,
+                      duk_idx_t index,
+                      GumDukCore * core,
+                      gint64 * i)
+{
+  if (duk_is_string (ctx, index))
+  {
+    const gchar * value_as_string, * end;
+    gboolean valid;
+
+    value_as_string = duk_require_string (ctx, index);
+
+    if (g_str_has_prefix (value_as_string, "0x"))
+    {
+      *i = g_ascii_strtoll (value_as_string + 2, (gchar **) &end, 16);
+      valid = end != value_as_string + 2;
+    }
+    else
+    {
+      *i = g_ascii_strtoll (value_as_string, (gchar **) &end, 10);
+      valid = end != value_as_string;
+    }
+
+    return valid;
+  }
+
+  return _gum_duk_get_int64 (ctx, index, core, i);
 }
 
 gboolean
 _gum_duk_get_uint64 (duk_context * ctx,
                      duk_idx_t index,
+                     GumDukCore * core,
                      guint64 * u)
 {
-  duk_double_t number;
+  if (duk_is_pointer (ctx, index))
+  {
+    *u = *((const guint64 *) duk_require_pointer (ctx, index));
+    return TRUE;
+  }
+  else if (duk_is_number (ctx, index))
+  {
+    duk_double_t number;
 
-  if (!duk_is_number (ctx, index))
-    return FALSE;
+    number = duk_require_number (ctx, index);
+    if (number < 0)
+      return FALSE;
 
-  number = duk_require_number (ctx, index);
-  if (number < 0)
-    return FALSE;
+    *u = (guint64) number;
+    return TRUE;
+  }
+  else
+  {
+    gboolean success = FALSE;
 
-  *u = (guint64) number;
-  return TRUE;
+    duk_dup (ctx, index);
+    duk_push_heapptr (ctx, core->uint64);
+
+    if (duk_instanceof (ctx, -2, -1))
+    {
+      GumDukUInt64 * object;
+
+      object = _gum_duk_require_data (ctx, -2);
+
+      *u = object->value;
+      success = TRUE;
+    }
+
+    duk_pop_2 (ctx);
+
+    return success;
+  }
+}
+
+gboolean
+_gum_duk_parse_uint64 (duk_context * ctx,
+                       duk_idx_t index,
+                       GumDukCore * core,
+                       guint64 * u)
+{
+  if (duk_is_string (ctx, index))
+  {
+    const gchar * value_as_string, * end;
+    gboolean valid;
+
+    value_as_string = duk_require_string (ctx, index);
+
+    if (g_str_has_prefix (value_as_string, "0x"))
+    {
+      *u = g_ascii_strtoull (value_as_string + 2, (gchar **) &end, 16);
+      valid = end != value_as_string + 2;
+    }
+    else
+    {
+      *u = g_ascii_strtoull (value_as_string, (gchar **) &end, 10);
+      valid = end != value_as_string;
+    }
+
+    return valid;
+  }
+
+  return _gum_duk_get_uint64 (ctx, index, core, u);
 }
 
 gboolean
@@ -749,6 +911,62 @@ _gum_duk_parse_bytes (duk_context * ctx,
 
   *bytes = g_bytes_new (NULL, 0);
   return TRUE;
+}
+
+void
+_gum_duk_push_int64 (duk_context * ctx,
+                     gint64 value,
+                     GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->int64);
+  duk_push_pointer (ctx, &value);
+  duk_new (ctx, 1);
+}
+
+gint64
+_gum_duk_require_int64 (duk_context * ctx,
+                        duk_idx_t index,
+                        GumDukCore * core)
+{
+  GumDukInt64 * object;
+
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->int64);
+  if (!duk_instanceof (ctx, -2, -1))
+    _gum_duk_throw (ctx, "expected Int64");
+  duk_pop_2 (ctx);
+
+  object = _gum_duk_require_data (ctx, index);
+
+  return object->value;
+}
+
+void
+_gum_duk_push_uint64 (duk_context * ctx,
+                      guint64 value,
+                      GumDukCore * core)
+{
+  duk_push_heapptr (ctx, core->uint64);
+  duk_push_pointer (ctx, &value);
+  duk_new (ctx, 1);
+}
+
+guint64
+_gum_duk_require_uint64 (duk_context * ctx,
+                         duk_idx_t index,
+                         GumDukCore * core)
+{
+  GumDukUInt64 * object;
+
+  duk_dup (ctx, index);
+  duk_push_heapptr (ctx, core->uint64);
+  if (!duk_instanceof (ctx, -2, -1))
+    _gum_duk_throw (ctx, "expected UInt64");
+  duk_pop_2 (ctx);
+
+  object = _gum_duk_require_data (ctx, index);
+
+  return object->value;
 }
 
 void

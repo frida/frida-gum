@@ -337,10 +337,10 @@ gum_duk_memory_read (GumMemoryValueType type,
         duk_push_number (ctx, *((guint32 *) address));
         break;
       case GUM_MEMORY_VALUE_S64:
-        duk_push_number (ctx, *((gint64 *) address));
+        _gum_duk_push_int64 (ctx, *((gint64 *) address), core);
         break;
       case GUM_MEMORY_VALUE_U64:
-        duk_push_number (ctx, *((guint64 *) address));
+        _gum_duk_push_uint64 (ctx, *((guint64 *) address), core);
         break;
       case GUM_MEMORY_VALUE_FLOAT:
         duk_push_number (ctx, *((gfloat *) address));
@@ -516,6 +516,8 @@ gum_duk_memory_write (GumMemoryValueType type,
   gpointer address = NULL;
   gpointer pointer = NULL;
   gdouble number = 0;
+  gint64 s64 = 0;
+  guint64 u64 = 0;
   GBytes * bytes = NULL;
   const gchar * str = NULL;
   gsize str_length = 0;
@@ -536,11 +538,15 @@ gum_duk_memory_write (GumMemoryValueType type,
     case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_S32:
     case GUM_MEMORY_VALUE_U32:
-    case GUM_MEMORY_VALUE_S64:
-    case GUM_MEMORY_VALUE_U64:
     case GUM_MEMORY_VALUE_FLOAT:
     case GUM_MEMORY_VALUE_DOUBLE:
       _gum_duk_args_parse (args, "pn", &address, &number);
+      break;
+    case GUM_MEMORY_VALUE_S64:
+      _gum_duk_args_parse (args, "pq", &address, &s64);
+      break;
+    case GUM_MEMORY_VALUE_U64:
+      _gum_duk_args_parse (args, "pQ", &address, &u64);
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
       _gum_duk_args_parse (args, "pB", &address, &bytes);
@@ -588,10 +594,10 @@ gum_duk_memory_write (GumMemoryValueType type,
         *((guint32 *) address) = number;
         break;
       case GUM_MEMORY_VALUE_S64:
-        *((gint64 *) address) = number;
+        *((gint64 *) address) = s64;
         break;
       case GUM_MEMORY_VALUE_U64:
-        *((guint64 *) address) = number;
+        *((guint64 *) address) = u64;
         break;
       case GUM_MEMORY_VALUE_FLOAT:
         *((gfloat *) address) = number;
