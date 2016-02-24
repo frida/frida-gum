@@ -918,7 +918,7 @@ gum_append_match (GumAddress address,
   duk_push_uint (ctx, size);
   duk_put_prop_string (ctx, -2, "size");
 
-  duk_put_prop_index (ctx, -2, duk_get_length (ctx, -2));
+  duk_put_prop_index (ctx, -2, (duk_uarridx_t) duk_get_length (ctx, -2));
 
   return TRUE;
 }

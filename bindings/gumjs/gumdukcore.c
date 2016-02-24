@@ -1134,6 +1134,8 @@ GUMJS_DEFINE_FINALIZER (gumjs_int64_finalize)
 {
   GumDukInt64 * self;
 
+  (void) args;
+
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "Int64"))
     return 0;
 
@@ -1271,6 +1273,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 GUMJS_DEFINE_FINALIZER (gumjs_uint64_finalize)
 {
   GumDukUInt64 * self;
+
+  (void) args;
 
   if (_gum_duk_is_arg0_equal_to_prototype (ctx, "UInt64"))
     return 0;
