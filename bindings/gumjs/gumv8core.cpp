@@ -395,7 +395,7 @@ _gum_v8_core_init (GumV8Core * self,
       FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_json, data));
   int64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
       FunctionTemplate::New (isolate, gum_v8_core_on_int64_value_of, data));
-  int64->InstanceTemplate ()->SetInternalFieldCount (1);
+  int64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
   scope->Set (String::NewFromUtf8 (isolate, "Int64"), int64);
   self->int64 = new GumPersistent<FunctionTemplate>::type (isolate, int64);
 
@@ -427,7 +427,7 @@ _gum_v8_core_init (GumV8Core * self,
       FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_json, data));
   uint64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
       FunctionTemplate::New (isolate, gum_v8_core_on_uint64_value_of, data));
-  uint64->InstanceTemplate ()->SetInternalFieldCount (1);
+  uint64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
   scope->Set (String::NewFromUtf8 (isolate, "UInt64"), uint64);
   self->uint64 = new GumPersistent<FunctionTemplate>::type (isolate, uint64);
 
