@@ -1669,8 +1669,7 @@
                             size: 2,
                             byteSize: 8,
                             isCompatible: function (v) {
-                                // JavaScripts safe integer range is to small for it
-                                return Number.isInteger(v); // && v >= -9223372036854775808 && v <= 9223372036854775807;
+                                return typeof v === 'number' || v instanceof Int64;
                             },
                             memoryRead: Memory.readS64,
                             memoryWrite: Memory.writeS64
