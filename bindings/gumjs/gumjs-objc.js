@@ -1673,17 +1673,15 @@
                 } else if (id === '{') {
                     readUntil('=', cursor);
                     const structFields = [];
-                    do {
+                    while (peekChar(cursor) !== '}')
                         structFields.push(readType(cursor));
-                    } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // '}'
                     return structType(structFields);
                 } else if (id === '(') {
                     readUntil('=', cursor);
                     const unionFields = [];
-                    do {
+                    while (peekChar(cursor) !== '}')
                         unionFields.push(readType(cursor));
-                    } while (peekChar(cursor) !== '}');
                     skipChar(cursor); // ')'
                     return unionType(unionFields);
                 } else if (id === 'b') {
