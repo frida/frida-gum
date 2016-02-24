@@ -2568,7 +2568,7 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
       "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", int64(3)));"
       "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", uint64(3)));"
       "send('snake', Memory.readByteArray(" GUM_PTR_CONST ", 0));",
-      buf, buf, buf);
+      buf, buf, buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
