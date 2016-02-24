@@ -14,10 +14,10 @@ G_BEGIN_DECLS
 GUM_API void gum_qnx_enumerate_ranges (pid_t pid, GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 
-GUM_API void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
+GUM_API void gum_qnx_parse_ucontext (const ucontext_t * uc,
     GumCpuContext * ctx);
-GUM_API void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
-    debug_greg_t * gregs);
+GUM_API void gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
+    ucontext_t * uc);
 
 G_END_DECLS
 

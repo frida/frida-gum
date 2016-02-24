@@ -21,6 +21,9 @@
 #include <sys/procfs.h>
 #include <sys/states.h>
 #include <sys/types.h>
+#include <ucontext.h>
+
+#define GUM_PSR_THUMB 0x20
 
 #define GUM_HIJACK_SIGNAL (SIGRTMIN + 7)
 
@@ -78,6 +81,11 @@ static gboolean gum_store_address_if_export_name_matches (
 
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
+
+static void gum_cpu_context_from_qnx (const debug_greg_t * gregs,
+    GumCpuContext * ctx);
+static void gum_cpu_context_to_qnx (const GumCpuContext * ctx,
+    debug_greg_t * gregs);
 
 static GumThreadState gum_thread_state_from_system_thread_state (int state);
 
@@ -783,7 +791,7 @@ gum_module_path_equals (const gchar * path,
   return strcmp (name_or_path, path) == 0;
 }
 
-void
+static void
 gum_cpu_context_from_qnx (const debug_greg_t * gregs,
                           GumCpuContext * ctx)
 {
@@ -801,7 +809,7 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
   ctx->ecx = regs->ecx;
   ctx->eax = regs->eax;
 #elif defined (HAVE_ARM)
-  ARM_CPU_REGISTERS * regs = &gregs->arm;
+  const ARM_CPU_REGISTERS * regs = &gregs->arm;
 
   ctx->pc = regs->gpr[ARM_REG_R15];
   ctx->sp = regs->gpr[ARM_REG_R13];
@@ -814,7 +822,7 @@ gum_cpu_context_from_qnx (const debug_greg_t * gregs,
 #endif
 }
 
-void
+static void
 gum_cpu_context_to_qnx (const GumCpuContext * ctx,
                         debug_greg_t * gregs)
 {
@@ -877,5 +885,86 @@ gum_thread_state_from_system_thread_state (gint state)
       g_assert_not_reached ();
       break;
   }
+}
+
+void
+gum_qnx_parse_ucontext (const ucontext_t * uc,
+                        GumCpuContext * ctx)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  const X86_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+
+  ctx->eip = cpu->eip;
+
+  ctx->edi = cpu->edi;
+  ctx->esi = cpu->esi;
+  ctx->ebp = cpu->ebp;
+  ctx->esp = cpu->esp;
+  ctx->ebx = cpu->ebx;
+  ctx->edx = cpu->edx;
+  ctx->ecx = cpu->ecx;
+  ctx->eax = cpu->eax;
+#elif defined (HAVE_ARM)
+  const ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+
+  ctx->pc = cpu->gpr[ARM_REG_PC];
+  ctx->sp = cpu->gpr[ARM_REG_SP];
+  ctx->cpsr = cpu->spsr;
+  ctx->lr = cpu->gpr[ARM_REG_LR];
+
+  for (int i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+    ctx->r[i] = cpu->gpr[i];
+
+  ctx->r8 = cpu->gpr[ARM_REG_R8];
+  ctx->r9 = cpu->gpr[ARM_REG_R9];
+  ctx->r10 = cpu->gpr[ARM_REG_R10];
+  ctx->r11 = cpu->gpr[ARM_REG_R11];
+  ctx->r12 = cpu->gpr[ARM_REG_R12];
+#else
+# error FIXME
+#endif
+}
+
+void
+gum_qnx_unparse_ucontext (const GumCpuContext * ctx,
+                            ucontext_t * uc)
+{
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  X86_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+
+  cpu->eip = ctx->eip;
+
+  cpu->edi = ctx->edi;
+  cpu->esi = ctx->esi;
+  cpu->ebp = ctx->ebp;
+  cpu->esp = ctx->esp;
+  cpu->ebx = ctx->ebx;
+  cpu->edx = ctx->edx;
+  cpu->ecx = ctx->ecx;
+  cpu->eax = ctx->eax;
+#elif defined (HAVE_ARM)
+  ARM_CPU_REGISTERS * cpu = &uc->uc_mcontext.cpu;
+
+  cpu->gpr[ARM_REG_PC] = ctx->pc & ~1;
+  cpu->gpr[ARM_REG_SP] = ctx->sp;
+  cpu->gpr[ARM_REG_LR] = ctx->lr;
+
+  for (int i = 0; i != G_N_ELEMENTS (ctx->r); i++)
+    cpu->gpr[i] = ctx->r[i];
+
+  cpu->gpr[ARM_REG_R8] = ctx->r8;
+  cpu->gpr[ARM_REG_R9] = ctx->r9;
+  cpu->gpr[ARM_REG_R10] = ctx->r10;
+  cpu->gpr[ARM_REG_R11] = ctx->r11;
+  cpu->gpr[ARM_REG_R12] = ctx->r12;
+
+  cpu->spsr = ctx->cpsr;
+  if (ctx->pc & 1)
+    cpu->spsr |= GUM_PSR_THUMB;
+  else
+    cpu->spsr &= ~GUM_PSR_THUMB;
+#else
+# error FIXME
+#endif
 }
 

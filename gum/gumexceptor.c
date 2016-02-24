@@ -990,18 +990,18 @@ static void
 gum_exceptor_parse_context (gconstpointer context,
                             GumCpuContext * ctx)
 {
-  const debug_greg_t * gregs = context;
+  const ucontext_t * uc = context;
 
-  gum_cpu_context_from_qnx (gregs, ctx);
+  gum_qnx_parse_ucontext (uc, ctx);
 }
 
 static void
 gum_exceptor_unparse_context (const GumCpuContext * ctx,
                               gpointer context)
 {
-  debug_greg_t * gregs = context;
+  ucontext_t * uc = context;
 
-  gum_cpu_context_to_qnx (ctx, gregs);
+  gum_qnx_unparse_ucontext (ctx, uc);
 }
 
 #endif
