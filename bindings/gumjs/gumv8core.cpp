@@ -644,10 +644,12 @@ _gum_v8_core_realize (GumV8Core * self)
   self->native_resources = g_hash_table_new_full (NULL, NULL,
       NULL, reinterpret_cast<GDestroyNotify> (_gum_v8_native_resource_free));
 
+  Local<Value> zero (Number::New (isolate, 0));
+
   Local<FunctionTemplate> int64 (
       Local<FunctionTemplate>::New (isolate, *self->int64));
   MaybeLocal<Object> maybe_int64_value =
-      int64->GetFunction ()->NewInstance (context);
+      int64->GetFunction ()->NewInstance (context, 1, &zero);
   Local<Object> int64_value;
   bool success = maybe_int64_value.ToLocal (&int64_value);
   g_assert (success);
@@ -657,7 +659,7 @@ _gum_v8_core_realize (GumV8Core * self)
   Local<FunctionTemplate> uint64 (
       Local<FunctionTemplate>::New (isolate, *self->uint64));
   MaybeLocal<Object> maybe_uint64_value =
-      uint64->GetFunction ()->NewInstance (context);
+      uint64->GetFunction ()->NewInstance (context, 1, &zero);
   Local<Object> uint64_value;
   success = maybe_uint64_value.ToLocal (&uint64_value);
   g_assert (success);
@@ -667,7 +669,7 @@ _gum_v8_core_realize (GumV8Core * self)
   Local<FunctionTemplate> native_pointer (
       Local<FunctionTemplate>::New (isolate, *self->native_pointer));
   MaybeLocal<Object> maybe_native_pointer_value =
-      native_pointer->GetFunction ()->NewInstance (context);
+      native_pointer->GetFunction ()->NewInstance (context, 1, &zero);
   Local<Object> native_pointer_value;
   success = maybe_native_pointer_value.ToLocal (&native_pointer_value);
   g_assert (success);
@@ -1422,16 +1424,20 @@ gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
 
   if (info.Length () == 0)
   {
-    value = 0;
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Int64: expected a string or number")));
+    return;
   }
-  else
+
+  Local<Value> argument = info[0];
+  if (argument->IsString ())
   {
-    String::Utf8Value value_as_utf8 (info[0]);
+    String::Utf8Value value_as_utf8 (argument);
     const gchar * value_as_string = *value_as_utf8;
     gchar * endvalue;
     if (g_str_has_prefix (value_as_string, "0x"))
     {
-      value = g_ascii_strtoull (value_as_string + 2, &endvalue, 16);
+      value = g_ascii_strtoll (value_as_string + 2, &endvalue, 16);
       if (endvalue == value_as_string + 2)
       {
         isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
@@ -1441,7 +1447,7 @@ gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
     }
     else
     {
-      value = g_ascii_strtoull (value_as_string, &endvalue, 10);
+      value = g_ascii_strtoll (value_as_string, &endvalue, 10);
       if (endvalue == value_as_string)
       {
         isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
@@ -1449,6 +1455,16 @@ gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
         return;
       }
     }
+  }
+  else if (argument->IsNumber ())
+  {
+    value = argument.As<Number> ()->Value ();
+  }
+  else
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Int64: expected a string or number")));
+    return;
   }
 
   gum_v8_int64_set_value (info.Holder (), value, isolate);
@@ -1641,11 +1657,15 @@ gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
 
   if (info.Length () == 0)
   {
-    value = 0;
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "UInt64: expected a string or number")));
+    return;
   }
-  else
+
+  Local<Value> argument = info[0];
+  if (argument->IsString ())
   {
-    String::Utf8Value value_as_utf8 (info[0]);
+    String::Utf8Value value_as_utf8 (argument);
     const gchar * value_as_string = *value_as_utf8;
     gchar * endvalue;
     if (g_str_has_prefix (value_as_string, "0x"))
@@ -1668,6 +1688,16 @@ gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
         return;
       }
     }
+  }
+  else if (argument->IsNumber ())
+  {
+    value = argument.As<Number> ()->Value ();
+  }
+  else
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "UInt64: expected a string or number")));
+    return;
   }
 
   gum_v8_uint64_set_value (info.Holder (), value, isolate);
@@ -1858,11 +1888,15 @@ gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
 
   if (info.Length () == 0)
   {
-    ptr = 0;
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "NativePointer: expected a string or number")));
+    return;
   }
-  else
+
+  Local<Value> argument = info[0];
+  if (argument->IsString ())
   {
-    String::Utf8Value ptr_as_utf8 (info[0]);
+    String::Utf8Value ptr_as_utf8 (argument);
     const gchar * ptr_as_string = *ptr_as_utf8;
     gchar * endptr;
     if (g_str_has_prefix (ptr_as_string, "0x"))
@@ -1887,6 +1921,16 @@ gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
         return;
       }
     }
+  }
+  else if (argument->IsNumber ())
+  {
+    ptr = argument.As<Number> ()->Value ();
+  }
+  else
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "NativePointer: expected a string or number")));
+    return;
   }
 
   info.Holder ()->SetInternalField (0,
