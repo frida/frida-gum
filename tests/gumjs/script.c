@@ -311,6 +311,9 @@ SCRIPT_TESTCASE (functions_can_be_found_by_name)
   EXPECT_NO_MESSAGES ();
 }
 
+extern void gum_dummy_function_0 ();
+extern void gum_dummy_function_1 ();
+
 SCRIPT_TESTCASE (functions_can_be_found_by_matching)
 {
 #ifdef HAVE_ANDROID
@@ -320,6 +323,12 @@ SCRIPT_TESTCASE (functions_can_be_found_by_matching)
     return;
   }
 #endif
+
+  /* we need to use these functions so that they won't be pruned by link-time
+   * optimizations
+   */
+  gum_dummy_function_0 ();
+  gum_dummy_function_1 ();
 
   COMPILE_AND_LOAD_SCRIPT ("send("
       "DebugSymbol.findFunctionsMatching(\"gum_dummy_function_*\").length"

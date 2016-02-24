@@ -36,8 +36,8 @@ TEST_LIST_BEGIN (symbolutil)
   SYMUTIL_TESTENTRY (find_functions_matching)
 TEST_LIST_END ()
 
-static void GUM_CDECL gum_dummy_function_0 (void);
-static void GUM_STDCALL gum_dummy_function_1 (void);
+void GUM_CDECL gum_dummy_function_0 (void);
+void GUM_STDCALL gum_dummy_function_1 (void);
 
 SYMUTIL_TESTCASE (symbol_details_from_address)
 {
@@ -114,13 +114,13 @@ SYMUTIL_TESTCASE (find_functions_matching)
   g_array_free (functions, TRUE);
 }
 
-static void GUM_CDECL
+void GUM_CDECL
 gum_dummy_function_0 (void)
 {
   g_print ("%s\n", G_STRFUNC);
 }
 
-static void GUM_STDCALL
+void GUM_STDCALL
 gum_dummy_function_1 (void)
 {
   g_print ("%s\n", G_STRFUNC);
