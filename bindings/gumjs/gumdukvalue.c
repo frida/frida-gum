@@ -117,6 +117,96 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
         break;
       }
+      case 'z':
+      {
+        gssize value;
+
+        if (duk_is_number (ctx, arg_index))
+        {
+          value = (gssize) duk_require_int (ctx, arg_index);
+        }
+        else
+        {
+          duk_push_heapptr (ctx, core->int64);
+          duk_push_heapptr (ctx, core->uint64);
+
+          if (duk_instanceof (ctx, arg_index, -2))
+          {
+            GumDukInt64 * object;
+
+            object = _gum_duk_require_data (ctx, arg_index);
+
+            value = (gssize) object->value;
+          }
+          else if (duk_instanceof (ctx, arg_index, -1))
+          {
+            GumDukUInt64 * object;
+
+            object = _gum_duk_require_data (ctx, arg_index);
+
+            value = (gssize) object->value;
+          }
+          else
+          {
+            goto expected_int;
+          }
+
+          duk_pop_2 (ctx);
+        }
+
+        *va_arg (ap, gssize *) = value;
+
+        break;
+      }
+      case 'Z':
+      {
+        gsize value;
+
+        if (duk_is_number (ctx, arg_index))
+        {
+          duk_double_t number;
+
+          number = duk_require_number (ctx, arg_index);
+          if (number < 0)
+            goto expected_uint;
+
+          value = (gsize) number;
+        }
+        else
+        {
+          duk_push_heapptr (ctx, core->int64);
+          duk_push_heapptr (ctx, core->uint64);
+
+          if (duk_instanceof (ctx, arg_index, -1))
+          {
+            GumDukUInt64 * object;
+
+            object = _gum_duk_require_data (ctx, arg_index);
+
+            value = (gsize) object->value;
+          }
+          else if (duk_instanceof (ctx, arg_index, -2))
+          {
+            GumDukInt64 * object;
+
+            object = _gum_duk_require_data (ctx, arg_index);
+            if (object->value < 0)
+              goto expected_uint;
+
+            value = (gsize) object->value;
+          }
+          else
+          {
+            goto expected_uint;
+          }
+
+          duk_pop_2 (ctx);
+        }
+
+        *va_arg (ap, gsize *) = value;
+
+        break;
+      }
       case 'n':
       {
         if (!duk_is_number (ctx, arg_index))

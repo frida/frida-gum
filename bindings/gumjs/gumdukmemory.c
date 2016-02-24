@@ -213,9 +213,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_memory_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc)
 {
   GumDukCore * core = args->core;
-  guint size, page_size;
+  gsize size, page_size;
 
-  _gum_duk_args_parse (args, "u", &size);
+  _gum_duk_args_parse (args, "Z", &size);
 
   if (size == 0 || size > 0x7fffffff)
     _gum_duk_throw (ctx, "invalid size");
@@ -240,10 +240,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
   GumDukCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
   gpointer destination, source;
-  guint size;
+  gsize size;
   GumExceptorScope scope;
 
-  _gum_duk_args_parse (args, "ppu", &destination, &source, &size);
+  _gum_duk_args_parse (args, "ppZ", &destination, &source, &size);
 
   if (size == 0)
     return 0;
@@ -266,11 +266,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_copy)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
 {
   gpointer address;
-  guint size;
+  gsize size;
   GumPageProtection prot;
   gboolean success;
 
-  _gum_duk_args_parse (args, "pum", &address, &size, &prot);
+  _gum_duk_args_parse (args, "pZm", &address, &size, &prot);
 
   if (size > 0x7fffffff)
     _gum_duk_throw (ctx, "invalid size");
@@ -292,19 +292,19 @@ gum_duk_memory_read (GumMemoryValueType type,
   GumDukCore * core = args->core;
   GumExceptor * exceptor = core->exceptor;
   gpointer address;
-  gint length = -1;
+  gssize length = -1;
   GumExceptorScope scope;
 
   switch (type)
   {
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
-      _gum_duk_args_parse (args, "pi", &address, &length);
+      _gum_duk_args_parse (args, "pZ", &address, &length);
       break;
     case GUM_MEMORY_VALUE_C_STRING:
     case GUM_MEMORY_VALUE_UTF8_STRING:
     case GUM_MEMORY_VALUE_UTF16_STRING:
     case GUM_MEMORY_VALUE_ANSI_STRING:
-      _gum_duk_args_parse (args, "p|i", &address, &length);
+      _gum_duk_args_parse (args, "p|z", &address, &length);
       break;
     default:
       _gum_duk_args_parse (args, "p", &address);
@@ -395,7 +395,9 @@ gum_duk_memory_read (GumMemoryValueType type,
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
         if (length < 0)
-            duk_push_string (ctx, data);
+        {
+          duk_push_string (ctx, data);
+        }
         else
         {
             gchar * slice;
@@ -423,7 +425,9 @@ gum_duk_memory_read (GumMemoryValueType type,
           memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
 
         if (length < 0)
-            duk_push_string (ctx, data);
+        {
+          duk_push_string (ctx, data);
+        }
         else
         {
             gsize size;
@@ -515,9 +519,11 @@ gum_duk_memory_write (GumMemoryValueType type,
   GumExceptor * exceptor = core->exceptor;
   gpointer address = NULL;
   gpointer pointer = NULL;
-  gdouble number = 0;
+  gssize s = 0;
+  gsize u = 0;
   gint64 s64 = 0;
   guint64 u64 = 0;
+  gdouble number = 0;
   GBytes * bytes = NULL;
   const gchar * str = NULL;
   gsize str_length = 0;
@@ -533,20 +539,24 @@ gum_duk_memory_write (GumMemoryValueType type,
       _gum_duk_args_parse (args, "pp", &address, &pointer);
       break;
     case GUM_MEMORY_VALUE_S8:
-    case GUM_MEMORY_VALUE_U8:
     case GUM_MEMORY_VALUE_S16:
-    case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_S32:
+      _gum_duk_args_parse (args, "pz", &address, &s);
+      break;
+    case GUM_MEMORY_VALUE_U8:
+    case GUM_MEMORY_VALUE_U16:
     case GUM_MEMORY_VALUE_U32:
-    case GUM_MEMORY_VALUE_FLOAT:
-    case GUM_MEMORY_VALUE_DOUBLE:
-      _gum_duk_args_parse (args, "pn", &address, &number);
+      _gum_duk_args_parse (args, "pZ", &address, &u);
       break;
     case GUM_MEMORY_VALUE_S64:
       _gum_duk_args_parse (args, "pq", &address, &s64);
       break;
     case GUM_MEMORY_VALUE_U64:
       _gum_duk_args_parse (args, "pQ", &address, &u64);
+      break;
+    case GUM_MEMORY_VALUE_FLOAT:
+    case GUM_MEMORY_VALUE_DOUBLE:
+      _gum_duk_args_parse (args, "pn", &address, &number);
       break;
     case GUM_MEMORY_VALUE_BYTE_ARRAY:
       _gum_duk_args_parse (args, "pB", &address, &bytes);
@@ -576,22 +586,22 @@ gum_duk_memory_write (GumMemoryValueType type,
         *((gpointer *) address) = pointer;
         break;
       case GUM_MEMORY_VALUE_S8:
-        *((gint8 *) address) = number;
+        *((gint8 *) address) = (gint8) s;
         break;
       case GUM_MEMORY_VALUE_U8:
-        *((guint8 *) address) = number;
+        *((guint8 *) address) = (guint8) u;
         break;
       case GUM_MEMORY_VALUE_S16:
-        *((gint16 *) address) = number;
+        *((gint16 *) address) = (gint16) s;
         break;
       case GUM_MEMORY_VALUE_U16:
-        *((guint16 *) address) = number;
+        *((guint16 *) address) = (guint16) u;
         break;
       case GUM_MEMORY_VALUE_S32:
-        *((gint32 *) address) = number;
+        *((gint32 *) address) = (gint32) s;
         break;
       case GUM_MEMORY_VALUE_U32:
-        *((guint32 *) address) = number;
+        *((guint32 *) address) = (guint32) u;
         break;
       case GUM_MEMORY_VALUE_S64:
         *((gint64 *) address) = s64;
@@ -751,10 +761,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
   GumDukCore * core = args->core;
   GumMemoryScanContext sc;
   gpointer address;
-  guint size;
+  gsize size;
   const gchar * match_str;
 
-  _gum_duk_args_parse (args, "pusF{onMatch,onError?,onComplete}",
+  _gum_duk_args_parse (args, "pZsF{onMatch,onError?,onComplete}",
       &address, &size, &match_str, &sc.on_match, &sc.on_error, &sc.on_complete);
 
   sc.range.base_address = GUM_ADDRESS (address);
@@ -870,13 +880,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 {
   GumDukCore * core = args->core;
   gpointer address;
-  guint size;
+  gsize size;
   const gchar * match_str;
   GumMemoryRange range;
   GumMatchPattern * pattern;
   GumExceptorScope scope;
 
-  _gum_duk_args_parse (args, "pus", &address, &size, &match_str);
+  _gum_duk_args_parse (args, "pZs", &address, &size, &match_str);
 
   range.base_address = GUM_ADDRESS (address);
   range.size = size;

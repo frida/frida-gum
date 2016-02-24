@@ -126,6 +126,11 @@ G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
     gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
 
+G_GNUC_INTERNAL gboolean _gum_v8_size_get (v8::Handle<v8::Value> value,
+    gsize * target, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_ssize_get (v8::Handle<v8::Value> value,
+    gssize * target, GumV8Core * core);
+
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_int64_new (gint64 value,
     GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_int64_get (v8::Handle<v8::Value> value,

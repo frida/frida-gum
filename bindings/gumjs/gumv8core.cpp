@@ -1078,27 +1078,16 @@ gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
     return;
   }
 
-  Local<Value> delay_val = info[1];
-  if (!delay_val->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "second argument must be a number specifying delay")));
+  gsize delay;
+  if (!_gum_v8_size_get (info[1], &delay, self))
     return;
-  }
-  int32_t delay = delay_val->ToInt32 ()->Value ();
-  if (delay < 0)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "second argument must be a positive integer")));
-    return;
-  }
 
   guint id = ++self->last_callback_id;
   GSource * source;
   if (delay == 0)
     source = g_idle_source_new ();
   else
-    source = g_timeout_source_new (delay);
+    source = g_timeout_source_new ((guint) delay);
   GumV8ScheduledCallback * callback =
       gum_v8_scheduled_callback_new (id, repeat, source, self);
   callback->func = new GumPersistent<Function>::type (isolate,
@@ -3263,6 +3252,86 @@ gum_v8_native_resource_on_weak_notify (
   g_hash_table_remove (self->core->native_resources, self);
 }
 
+gboolean
+_gum_v8_size_get (Handle<Value> value,
+                  gsize * target,
+                  GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    int64_t integer_value = value->IntegerValue ();
+    if (integer_value >= 0)
+    {
+      *target = (gsize) integer_value;
+      return TRUE;
+    }
+  }
+  else
+  {
+    Local<FunctionTemplate> uint64 (Local<FunctionTemplate>::New (isolate,
+        *core->uint64));
+    if (uint64->HasInstance (value))
+    {
+      *target = (gsize) gum_v8_uint64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+
+    Local<FunctionTemplate> int64 (Local<FunctionTemplate>::New (
+        isolate, *core->int64));
+    if (int64->HasInstance (value))
+    {
+      gint64 int64_value = gum_v8_int64_get_value (value.As<Object> ());
+      if (int64_value >= 0)
+      {
+        *target = (gsize) int64_value;
+        return TRUE;
+      }
+    }
+  }
+
+  isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate, "expected an unsigned integer")));
+  return FALSE;
+}
+
+gboolean
+_gum_v8_ssize_get (Handle<Value> value,
+                   gssize * target,
+                   GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    *target = (gssize) value->IntegerValue ();
+    return TRUE;
+  }
+  else
+  {
+    Local<FunctionTemplate> int64 (Local<FunctionTemplate>::New (
+        isolate, *core->int64));
+    if (int64->HasInstance (value))
+    {
+      *target = (gssize) gum_v8_int64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+
+    Local<FunctionTemplate> uint64 (Local<FunctionTemplate>::New (isolate,
+        *core->uint64));
+    if (uint64->HasInstance (value))
+    {
+      *target = (gssize) gum_v8_uint64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+  }
+
+  isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+      isolate, "expected an integer")));
+  return FALSE;
+}
+
 Local<Object>
 _gum_v8_int64_new (gint64 value,
                    GumV8Core * core)
@@ -3292,7 +3361,7 @@ _gum_v8_int64_get (Handle<Value> value,
   if (!int64->HasInstance (value))
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "expected a signed integer")));
+        "expected an integer")));
     return FALSE;
   }
 

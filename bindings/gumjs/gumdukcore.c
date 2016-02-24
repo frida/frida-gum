@@ -2236,17 +2236,18 @@ gum_duk_core_schedule_callback (GumDukCore * self,
                                 gboolean repeat)
 {
   GumDukHeapPtr func;
-  guint delay, id;
+  gsize delay;
+  guint id;
   GSource * source;
   GumDukScheduledCallback * callback;
 
-  _gum_duk_args_parse (args, "Fu", &func, &delay);
+  _gum_duk_args_parse (args, "FZ", &func, &delay);
 
   id = ++self->last_callback_id;
   if (delay == 0)
     source = g_idle_source_new ();
   else
-    source = g_timeout_source_new (delay);
+    source = g_timeout_source_new ((guint) delay);
 
   callback = gum_scheduled_callback_new (id, func, repeat, source, self);
   g_source_set_callback (source, gum_scheduled_callback_invoke, callback,

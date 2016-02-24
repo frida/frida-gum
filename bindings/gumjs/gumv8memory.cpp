@@ -268,7 +268,9 @@ gum_v8_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
       info.Data ().As<External> ()->Value ());
   Isolate * isolate = self->core->isolate;
 
-  uint32_t size = info[0]->Uint32Value ();
+  gsize size;
+  if (!_gum_v8_size_get (info[0], &size, self->core))
+    return;
   if (size == 0 || size > 0x7fffffff)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
@@ -443,7 +445,9 @@ gum_v8_memory_on_copy (const FunctionCallbackInfo<Value> & info)
   if (!_gum_v8_native_pointer_get (info[1], &source, core))
     return;
 
-  uint32_t size = info[2]->Uint32Value ();
+  gsize size;
+  if (!_gum_v8_size_get (info[2], &size, core))
+    return;
   if (size == 0)
   {
     return;
@@ -487,7 +491,9 @@ gum_v8_memory_on_protect (const FunctionCallbackInfo<Value> & info)
   if (!_gum_v8_native_pointer_get (info[0], &address, self->core))
     return;
 
-  gsize size = info[1]->Uint32Value ();
+  gsize size;
+  if (!_gum_v8_size_get (info[1], &size, self->core))
+    return;
   if (size == 0)
   {
     info.GetReturnValue ().Set (true);
@@ -584,7 +590,10 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        int64_t size = info[1]->IntegerValue ();
+        gsize size;
+        if (!_gum_v8_size_get (info[1], &size, core))
+          break;
+
         if (size > 0)
         {
           guint8 dummy_to_trap_bad_pointer_early;
@@ -609,9 +618,9 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        int64_t length = -1;
-        if (info.Length () > 1)
-          length = info[1]->IntegerValue();
+        gssize length = -1;
+        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &length, core))
+          break;
         if (length < 0)
           length = strlen (data);
 
@@ -637,9 +646,9 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        int64_t length = -1;
-        if (info.Length () > 1)
-          length = info[1]->IntegerValue();
+        gssize length = -1;
+        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &length, core))
+          break;
         if (length < 0)
           length = g_utf8_strlen (data, -1);
 
@@ -661,7 +670,8 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
         const gunichar2 * str_utf16 = static_cast<const gunichar2 *> (address);
         guint8 dummy_to_trap_bad_pointer_early;
         gchar * str_utf8;
-        glong length, size;
+        gssize length;
+        glong size;
 
         if (str_utf16 == NULL)
         {
@@ -671,7 +681,9 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
 
         memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, 1);
 
-        length = (info.Length () > 1) ? info[1]->IntegerValue () : -1;
+        length = -1;
+        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &length, core))
+          break;
         str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
 
         if (size != 0)
@@ -698,9 +710,9 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        int64_t length = -1;
-        if (info.Length () > 1)
-          length = info[1]->IntegerValue();
+        gssize length = -1;
+        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &length, core))
+          break;
 
         if (length != 0)
         {
@@ -769,38 +781,44 @@ gum_v8_memory_do_write (const FunctionCallbackInfo<Value> & info,
       }
       case GUM_MEMORY_VALUE_S8:
       {
-        gint8 value = info[1]->Int32Value ();
-        *static_cast<gint8 *> (address) = value;
+        gssize value;
+        if (_gum_v8_ssize_get (info[1], &value, core))
+          *static_cast<gint8 *> (address) = (gint8) value;
         break;
       }
       case GUM_MEMORY_VALUE_U8:
       {
-        guint8 value = info[1]->Uint32Value ();
-        *static_cast<guint8 *> (address) = value;
+        gsize value;
+        if (_gum_v8_size_get (info[1], &value, core))
+          *static_cast<guint8 *> (address) = (guint8) value;
         break;
       }
       case GUM_MEMORY_VALUE_S16:
       {
-        gint16 value = info[1]->Int32Value ();
-        *static_cast<gint16 *> (address) = value;
+        gssize value;
+        if (_gum_v8_ssize_get (info[1], &value, core))
+          *static_cast<gint16 *> (address) = (gint16) value;
         break;
       }
       case GUM_MEMORY_VALUE_U16:
       {
-        guint16 value = info[1]->Uint32Value ();
-        *static_cast<guint16 *> (address) = value;
+        gsize value;
+        if (_gum_v8_size_get (info[1], &value, core))
+          *static_cast<guint16 *> (address) = (guint16) value;
         break;
       }
       case GUM_MEMORY_VALUE_S32:
       {
-        gint32 value = info[1]->Int32Value ();
-        *static_cast<gint32 *> (address) = value;
+        gssize value;
+        if (_gum_v8_ssize_get (info[1], &value, core))
+          *static_cast<gint32 *> (address) = (gint32) value;
         break;
       }
       case GUM_MEMORY_VALUE_U32:
       {
-        guint32 value = info[1]->Uint32Value ();
-        *static_cast<guint32 *> (address) = value;
+        gsize value;
+        if (_gum_v8_size_get (info[1], &value, core))
+          *static_cast<guint32 *> (address) = (guint32) value;
         break;
       }
       case GUM_MEMORY_VALUE_S64:
@@ -950,7 +968,8 @@ gum_v8_memory_on_scan (const FunctionCallbackInfo<Value> & info)
     return;
   GumMemoryRange range;
   range.base_address = GUM_ADDRESS (address);
-  range.size = info[1]->IntegerValue ();
+  if (!_gum_v8_size_get (info[1], &range.size, core))
+    return;
 
   String::Utf8Value match_str (info[2]);
 
@@ -1110,7 +1129,8 @@ gum_v8_memory_on_scan_sync (const FunctionCallbackInfo<Value> & info)
     return;
   GumMemoryRange range;
   range.base_address = GUM_ADDRESS (address);
-  range.size = info[1]->IntegerValue ();
+  if (!_gum_v8_size_get (info[1], &range.size, core))
+    return;
 
   String::Utf8Value match_str (info[2]);
 

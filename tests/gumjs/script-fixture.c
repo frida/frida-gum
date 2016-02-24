@@ -46,6 +46,10 @@
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
     test_script_fixture_compile_and_load_script (fixture, SOURCE, \
     ## __VA_ARGS__)
+#define UNLOAD_SCRIPT() \
+    gum_script_unload_sync (fixture->script, NULL); \
+    g_object_unref (fixture->script); \
+    fixture->script = NULL;
 #define POST_MESSAGE(MSG) \
     gum_script_post_message (fixture->script, MSG)
 #define EXPECT_NO_MESSAGES() \

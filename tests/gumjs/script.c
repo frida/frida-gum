@@ -1469,6 +1469,15 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
 
   g_usleep (25000);
   EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "setTimeout(function () {"
+      "  send(1338);"
+      "}, uint64(20));");
+  EXPECT_NO_MESSAGES ();
+
+  g_usleep (25000);
+  EXPECT_SEND_MESSAGE_WITH ("1338");
 }
 
 SCRIPT_TESTCASE (timeout_can_be_cancelled)
@@ -2018,8 +2027,23 @@ measure_target_function_int_overhead (void)
 SCRIPT_TESTCASE (memory_can_be_scanned)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(" GUM_PTR_CONST ", 7, '13 37', {"
+        "onMatch: function (address, size) {"
+        "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
+             ").toInt32() + ' size=' + size);"
+        "},"
+        "onComplete: function () {"
+        "  send('onComplete');"
+        "}"
+      "});", haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onMatch offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scan(" GUM_PTR_CONST ", uint64(7), '13 37', {"
         "onMatch: function (address, size) {"
         "  send('onMatch offset=' + address.sub(" GUM_PTR_CONST
              ").toInt32() + ' size=' + size);"
@@ -2036,8 +2060,22 @@ SCRIPT_TESTCASE (memory_can_be_scanned)
 SCRIPT_TESTCASE (memory_can_be_scanned_synchronously)
 {
   guint8 haystack[] = { 0x01, 0x02, 0x13, 0x37, 0x03, 0x13, 0x37 };
+
   COMPILE_AND_LOAD_SCRIPT (
-      "Memory.scanSync(" GUM_PTR_CONST ", 7, '13 37').forEach(function (match) {"
+      "Memory.scanSync(" GUM_PTR_CONST ", 7, '13 37')"
+      ".forEach(function (match) {"
+      "  send('match offset=' + match.address.sub(" GUM_PTR_CONST
+           ").toInt32() + ' size=' + match.size);"
+      "});"
+      "send('done');",
+      haystack, haystack);
+  EXPECT_SEND_MESSAGE_WITH ("\"match offset=2 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"match offset=5 size=2\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"done\"");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "Memory.scanSync(" GUM_PTR_CONST ", uint64(7), '13 37')"
+      ".forEach(function (match) {"
       "  send('match offset=' + match.address.sub(" GUM_PTR_CONST
            ").toInt32() + ' size=' + match.size);"
       "});"
@@ -2167,6 +2205,12 @@ SCRIPT_TESTCASE (memory_can_be_allocated)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   COMPILE_AND_LOAD_SCRIPT (
+      "var p = Memory.alloc(uint64(8));"
+      "Memory.writePointer(p, ptr(\"1337\"));"
+      "send(Memory.readPointer(p).toInt32() === 1337);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  COMPILE_AND_LOAD_SCRIPT (
       "var p = Memory.alloc(Process.pageSize);"
       "send(p);");
   item = test_script_fixture_pop_message (fixture);
@@ -2192,6 +2236,15 @@ SCRIPT_TESTCASE (memory_can_be_copied)
   g_assert_cmphex (to[4], ==, 0x05);
 
   COMPILE_AND_LOAD_SCRIPT (
+      "Memory.copy(" GUM_PTR_CONST ".add(3), " GUM_PTR_CONST ", uint64(2));",
+      to, from);
+  g_assert_cmphex (to[0], ==, 'H');
+  g_assert_cmphex (to[1], ==, 'e');
+  g_assert_cmphex (to[2], ==, 'i');
+  g_assert_cmphex (to[3], ==, 'H');
+  g_assert_cmphex (to[4], ==, 'e');
+
+  COMPILE_AND_LOAD_SCRIPT (
       "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
   EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x539");
 }
@@ -2208,6 +2261,15 @@ SCRIPT_TESTCASE (memory_can_be_duped)
       buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37 42");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var p = Memory.dup(" GUM_PTR_CONST ", uint64(2));"
+      "Memory.writeU8(p, 0x12);"
+      "send('p', Memory.readByteArray(p, 2));"
+      "send('buf', Memory.readByteArray(" GUM_PTR_CONST ", 2));",
+      buf, buf);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"p\"", "12 37");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"buf\"", "13 37");
 }
 
 SCRIPT_TESTCASE (memory_can_be_protected)
@@ -2223,12 +2285,22 @@ SCRIPT_TESTCASE (memory_can_be_protected)
   EXPECT_SEND_MESSAGE_WITH ("true");
 
   /* avoid overlapping signal handlers */
-  gum_script_unload_sync (fixture->script, NULL);
-  g_object_unref (fixture->script);
-  fixture->script = NULL;
+  UNLOAD_SCRIPT ();
 
   gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
   g_assert (!exception_on_read);
+  g_assert (exception_on_write);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "send(Memory.protect(" GUM_PTR_CONST ", uint64(1), '---'));",
+      buf, gum_query_page_size ());
+  EXPECT_SEND_MESSAGE_WITH ("true");
+
+  /* avoid overlapping signal handlers */
+  UNLOAD_SCRIPT ();
+
+  gum_try_read_and_write_at (buf, 0, &exception_on_read, &exception_on_write);
+  g_assert (exception_on_read);
   g_assert (exception_on_write);
 
   gum_free_pages (buf);
@@ -2371,6 +2443,10 @@ SCRIPT_TESTCASE (short_can_be_written)
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST ", -12123);",
     &val);
   g_assert_cmpint (val, ==, -12123);
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeShort(" GUM_PTR_CONST
+    ", int64(-1234));", &val);
+  g_assert_cmpint (val, ==, -1234);
 }
 
 SCRIPT_TESTCASE (ushort_can_be_read)
@@ -2386,6 +2462,10 @@ SCRIPT_TESTCASE (ushort_can_be_written)
   COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST ", 12123);",
     &val);
   g_assert_cmpint (val, ==, 12123);
+
+  COMPILE_AND_LOAD_SCRIPT ("Memory.writeUShort(" GUM_PTR_CONST
+      ", uint64(1234));", &val);
+  g_assert_cmpint (val, ==, 1234);
 }
 
 SCRIPT_TESTCASE (int_can_be_read)
@@ -2485,12 +2565,14 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT (
       "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", 3));"
-      "send('snake', Memory.readByteArray(" GUM_PTR_CONST ", 0));"
-      "send('mushroom', Memory.readByteArray(" GUM_PTR_CONST ", -1));",
+      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", int64(3)));"
+      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", uint64(3)));"
+      "send('snake', Memory.readByteArray(" GUM_PTR_CONST ", 0));",
       buf, buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", "");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", "");
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_written)
@@ -2535,6 +2617,10 @@ SCRIPT_TESTCASE (c_string_can_be_read)
       str);
   EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
 
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(" GUM_PTR_CONST
+      ", int64(-1)));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Hello\"");
+
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readCString(ptr(\"0\")));", str);
   EXPECT_SEND_MESSAGE_WITH ("null");
 }
@@ -2557,6 +2643,10 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
       ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
+      ", int64(-1)));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(ptr(\"0\")));", str);
@@ -2601,6 +2691,10 @@ SCRIPT_TESTCASE (utf16_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
       ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(" GUM_PTR_CONST
+      ", int64(-1)));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf16String(ptr(\"0\")));", str);
@@ -2656,6 +2750,10 @@ SCRIPT_TESTCASE (ansi_string_can_be_read)
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
       ", -1));", str);
+  EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(" GUM_PTR_CONST
+      ", int64(-1)));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjørheimsbygd\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readAnsiString(ptr(\"0\")));", str);
