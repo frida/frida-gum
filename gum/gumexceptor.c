@@ -325,6 +325,9 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 {
   GumExceptorScopeImpl * impl;
 
+  if (scope->impl != NULL)
+    return scope->impl->env;
+
   impl = g_slice_new (GumExceptorScopeImpl);
   impl->exception_occurred = FALSE;
 #ifdef HAVE_ANDROID
