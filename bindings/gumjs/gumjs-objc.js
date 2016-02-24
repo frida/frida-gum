@@ -488,7 +488,7 @@
                             if (cachedProtocols === null) {
                                 cachedProtocols = {};
                                 const numProtocolsBuf = Memory.alloc(pointerSize);
-                                const protocolHandles = api.class_copyProtocolList(handle, numProtocolsBuf);
+                                const protocolHandles = api.class_copyProtocolList(classHandle(), numProtocolsBuf);
                                 if (!protocolHandles.isNull()) {
                                     try {
                                         const numProtocols = Memory.readUInt(numProtocolsBuf);

@@ -20,6 +20,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (kind_can_be_retrieved)
   SCRIPT_TESTENTRY (super_can_be_retrieved)
   SCRIPT_TESTENTRY (class_name_can_be_retrieved)
+  SCRIPT_TESTENTRY (protocols_can_be_retrieved)
   SCRIPT_TESTENTRY (all_method_names_can_be_retrieved)
   SCRIPT_TESTENTRY (own_method_names_can_be_retrieved)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
@@ -217,6 +218,20 @@ SCRIPT_TESTCASE (class_name_can_be_retrieved)
         "send(typeof now.$className);");
     EXPECT_SEND_MESSAGE_WITH ("\"NSDate\"");
     EXPECT_SEND_MESSAGE_WITH ("\"string\"");
+  }
+}
+
+SCRIPT_TESTCASE (protocols_can_be_retrieved)
+{
+  @autoreleasepool
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "var NSDate = ObjC.classes.NSDate;"
+        "send(Object.keys(NSDate.$protocols).length > 0);"
+        "var now = NSDate.date();"
+        "send(Object.keys(now.$protocols).length >= 0);");
+    EXPECT_SEND_MESSAGE_WITH ("true");
+    EXPECT_SEND_MESSAGE_WITH ("true");
   }
 }
 
