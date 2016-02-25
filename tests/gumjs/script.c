@@ -36,7 +36,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
   SCRIPT_TESTENTRY (listener_can_be_detached)
-  SCRIPT_TESTENTRY (callbacks_can_be_detached)
+  SCRIPT_TESTENTRY (listener_can_be_detached_by_destruction_mid_call)
+  SCRIPT_TESTENTRY (all_listeners_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
   SCRIPT_TESTENTRY (function_can_be_reverted)
   SCRIPT_TESTENTRY (replaced_function_should_have_invocation_context)
@@ -179,6 +180,16 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
 TEST_LIST_END ()
 
+typedef struct _TestTrigger TestTrigger;
+
+struct _TestTrigger
+{
+  volatile gboolean ready;
+  volatile gboolean fired;
+  GMutex mutex;
+  GCond cond;
+};
+
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
@@ -193,6 +204,7 @@ static void on_read_ready (GObject * source_object, GAsyncResult * res,
 #endif
 
 static gpointer invoke_target_function_int_worker (gpointer data);
+static gpointer invoke_target_function_trigger (gpointer data);
 
 static void measure_target_function_int_overhead (void);
 
@@ -203,6 +215,7 @@ static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
 static void target_function_callbacks (const gint value,
     void (* first) (const gint * value), void (* second) (const gint * value));
+static void target_function_trigger (TestTrigger * trigger);
 static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
@@ -1875,7 +1888,66 @@ SCRIPT_TESTCASE (listener_can_be_detached)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (callbacks_can_be_detached)
+SCRIPT_TESTCASE (listener_can_be_detached_by_destruction_mid_call)
+{
+  const guint repeats = 10;
+  guint i;
+  TestTrigger trigger;
+
+  g_mutex_init (&trigger.mutex);
+  g_cond_init (&trigger.cond);
+
+  for (i = 0; i != repeats; i++)
+  {
+    GThread * invoker_thread;
+
+    g_mutex_lock (&trigger.mutex);
+    trigger.ready = FALSE;
+    trigger.fired = FALSE;
+    g_mutex_unlock (&trigger.mutex);
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "Interceptor.attach(" GUM_PTR_CONST ", {"
+        "  onEnter: function (args) {"
+        "  },"
+        "  onLeave: function (retval) {"
+        "  }"
+        "});",
+        target_function_trigger);
+
+    invoker_thread = g_thread_new ("script-invoker-thread",
+        invoke_target_function_trigger, &trigger);
+
+    g_mutex_lock (&trigger.mutex);
+    while (!trigger.ready)
+      g_cond_wait (&trigger.cond, &trigger.mutex);
+    g_mutex_unlock (&trigger.mutex);
+
+    g_mutex_lock (&trigger.mutex);
+    trigger.fired = TRUE;
+    g_cond_signal (&trigger.cond);
+    g_mutex_unlock (&trigger.mutex);
+
+    UNLOAD_SCRIPT ();
+
+    g_thread_join (invoker_thread);
+  }
+
+  g_cond_clear (&trigger.cond);
+  g_mutex_clear (&trigger.mutex);
+}
+
+static gpointer
+invoke_target_function_trigger (gpointer data)
+{
+  TestTrigger * trigger = (TestTrigger *) data;
+
+  target_function_trigger (trigger);
+
+  return NULL;
+}
+
+SCRIPT_TESTCASE (all_listeners_can_be_detached)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -3241,6 +3313,20 @@ target_function_callbacks (const gint value,
   first (&value);
 
   second (&value);
+}
+
+GUM_NOINLINE static void
+target_function_trigger (TestTrigger * trigger)
+{
+  g_mutex_lock (&trigger->mutex);
+  trigger->ready = TRUE;
+  g_cond_signal (&trigger->cond);
+  g_mutex_unlock (&trigger->mutex);
+
+  g_mutex_lock (&trigger->mutex);
+  while (!trigger->fired)
+    g_cond_wait (&trigger->cond, &trigger->mutex);
+  g_mutex_unlock (&trigger->mutex);
 }
 
 GUM_NOINLINE static int
