@@ -32,7 +32,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
-#if !defined (HAVE_QNX)
+#ifndef HAVE_QNX
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
   SCRIPT_TESTENTRY (listener_can_be_detached)
