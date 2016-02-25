@@ -32,7 +32,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
+#ifndef HAVE_QNX
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
+#endif
   SCRIPT_TESTENTRY (listener_can_be_detached)
   SCRIPT_TESTENTRY (callbacks_can_be_detached)
   SCRIPT_TESTENTRY (function_can_be_replaced)
@@ -108,7 +110,9 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_platform_is_available)
   SCRIPT_TESTENTRY (process_page_size_is_available)
   SCRIPT_TESTENTRY (process_pointer_size_is_available)
+#ifndef HAVE_QNX
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
+#endif
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
 #ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
@@ -128,8 +132,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated)
   SCRIPT_TESTENTRY (process_malloc_ranges_can_be_enumerated_synchronously)
 #endif
+#ifndef HAVE_QNX
   SCRIPT_TESTENTRY (module_imports_can_be_enumerated)
   SCRIPT_TESTENTRY (module_imports_can_be_enumerated_synchronously)
+#endif
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated)
   SCRIPT_TESTENTRY (module_exports_can_be_enumerated_synchronously)
   SCRIPT_TESTENTRY (module_exports_enumeration_performance)
@@ -322,9 +328,9 @@ SCRIPT_TESTCASE (functions_can_be_found_by_matching)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT ("send("
-      "DebugSymbol.findFunctionsMatching(\"gum_dummy_function_*\").length"
+      "DebugSymbol.findFunctionsMatching(\"gum_symbol_details_from*\").length"
   ");");
-  EXPECT_SEND_MESSAGE_WITH ("2");
+  EXPECT_SEND_MESSAGE_WITH ("1");
   EXPECT_NO_MESSAGES ();
 }
 
@@ -1118,7 +1124,6 @@ SCRIPT_TESTCASE (process_malloc_ranges_can_be_enumerated_synchronously)
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated)
 {
-#ifndef HAVE_QNX
   COMPILE_AND_LOAD_SCRIPT (
       "Module.enumerateImports(\"" GUM_TESTS_MODULE_NAME "\", {"
         "onMatch: function (imp) {"
@@ -1131,7 +1136,6 @@ SCRIPT_TESTCASE (module_imports_can_be_enumerated)
       "});");
   EXPECT_SEND_MESSAGE_WITH ("\"onMatch\"");
   EXPECT_SEND_MESSAGE_WITH ("\"onComplete\"");
-#endif
 }
 
 SCRIPT_TESTCASE (module_imports_can_be_enumerated_synchronously)
