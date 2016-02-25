@@ -153,6 +153,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
+  SCRIPT_TESTENTRY (nested_native_function_crash_is_handled_gracefully)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_is_a_native_pointer)
   SCRIPT_TESTENTRY (native_callback_can_be_invoked)
@@ -200,6 +201,8 @@ static void on_message (GumScript * script, const gchar * message,
 
 static int target_function_int (int arg);
 static const gchar * target_function_string (const gchar * arg);
+static void target_function_callbacks (const gint value,
+    void (* first) (const gint * value), void (* second) (const gint * value));
 static int target_function_nested_a (int arg);
 static int target_function_nested_b (int arg);
 static int target_function_nested_c (int arg);
@@ -397,6 +400,25 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
       "}",
       target_function_string);
   EXPECT_SEND_MESSAGE_WITH ("\"access-violation\"");
+}
+
+SCRIPT_TESTCASE (nested_native_function_crash_is_handled_gracefully)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
+          "'pointer', ['int', 'pointer', 'pointer']);"
+      "var callback = new NativeCallback(function (value) {"
+      "  send(Memory.readInt(value));"
+      "}, 'void', ['pointer']);"
+      "try {"
+      "  targetWithCallback(42, callback, NULL);"
+      "} catch (e) {"
+      "  send(e.type);"
+      "}",
+      target_function_callbacks);
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("\"access-violation\"");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (variadic_native_function_can_be_invoked)
@@ -3204,6 +3226,21 @@ target_function_string (const gchar * arg)
     gum_script_dummy_global_to_trick_optimizer += i * arg[0];
 
   return arg;
+}
+
+GUM_NOINLINE static void
+target_function_callbacks (const gint value,
+                           void (* first) (const gint * value),
+                           void (* second) (const gint * value))
+{
+  int i;
+
+  for (i = 0; i != 10; i++)
+    gum_script_dummy_global_to_trick_optimizer += i * value;
+
+  first (&value);
+
+  second (&value);
 }
 
 GUM_NOINLINE static int

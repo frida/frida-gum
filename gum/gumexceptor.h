@@ -85,6 +85,7 @@ struct _GumExceptorScope
   GumExceptionDetails exception;
 
   GumExceptorScopeImpl * impl;
+  GumExceptorScope * next;
 };
 
 GUM_API GType gum_exceptor_get_type (void) G_GNUC_CONST;

@@ -336,6 +336,7 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 #endif
 
   scope->impl = impl;
+  scope->next = gum_tls_key_get_value (self->priv->scope_tls);
 
   gum_tls_key_set_value (self->priv->scope_tls, scope);
 
@@ -349,7 +350,7 @@ gum_exceptor_catch (GumExceptor * self,
   GumExceptorScopeImpl * impl = scope->impl;
   gboolean exception_occurred;
 
-  gum_tls_key_set_value (self->priv->scope_tls, NULL);
+  gum_tls_key_set_value (self->priv->scope_tls, scope->next);
 
   exception_occurred = impl->exception_occurred;
   g_slice_free (GumExceptorScopeImpl, impl);
