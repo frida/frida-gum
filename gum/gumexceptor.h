@@ -96,7 +96,7 @@ GUM_API void gum_exceptor_add (GumExceptor * self, GumExceptionHandler func,
 GUM_API void gum_exceptor_remove (GumExceptor * self, GumExceptionHandler func,
     gpointer user_data);
 
-#if defined (__QNX__) && defined (__ARM__) && defined (sigsetjmp)
+#ifdef __QNX__
 /*
  * On qnx-arm, the sigsetjmp _function_ is BROKEN. See
  * http://community.qnx.com/sf/discussion/do/listPosts/projects.core_os/discussion.newcode.topc26577
