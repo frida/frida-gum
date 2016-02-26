@@ -24,6 +24,8 @@ typedef struct _GumFunctionThreadContext GumFunctionThreadContext;
 
 struct _GumProfilerPrivate
 {
+  gboolean disposed;
+
   GMutex mutex;
 
   GumInterceptor * interceptor;
@@ -91,6 +93,7 @@ struct _GumFunctionContext
 
 static void gum_profiler_invocation_listener_iface_init (gpointer g_iface,
     gpointer iface_data);
+static void gum_profiler_dispose (GObject * object);
 static void gum_profiler_finalize (GObject * object);
 
 static void gum_profiler_on_enter (GumInvocationListener * listener,
@@ -132,6 +135,7 @@ gum_profiler_class_init (GumProfilerClass * klass)
 
   g_type_class_add_private (klass, sizeof (GumProfilerPrivate));
 
+  object_class->dispose = gum_profiler_dispose;
   object_class->finalize = gum_profiler_finalize;
 }
 
@@ -164,20 +168,34 @@ gum_profiler_init (GumProfiler * self)
 }
 
 static void
-gum_profiler_finalize (GObject * object)
+gum_profiler_dispose (GObject * object)
 {
   GumProfiler * self = GUM_PROFILER (object);
   GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
 
-  g_hash_table_foreach (priv->function_by_address,
-      unstrument_and_free_function, self);
+  if (!priv->disposed)
+  {
+    priv->disposed = TRUE;
 
-  g_mutex_clear (&priv->mutex);
+    gum_interceptor_detach_listener (priv->interceptor,
+        GUM_INVOCATION_LISTENER (self));
 
-  gum_interceptor_detach_listener (priv->interceptor,
-      GUM_INVOCATION_LISTENER (self));
-  g_object_unref (priv->interceptor);
-  g_hash_table_unref (priv->function_by_address);
+    g_hash_table_foreach (priv->function_by_address,
+        unstrument_and_free_function, self);
+    g_hash_table_remove_all (priv->function_by_address);
+
+    g_object_unref (priv->interceptor);
+    priv->interceptor = NULL;
+  }
+
+  G_OBJECT_CLASS (gum_profiler_parent_class)->dispose (object);
+}
+
+static void
+gum_profiler_finalize (GObject * object)
+{
+  GumProfiler * self = GUM_PROFILER (object);
+  GumProfilerPrivate * priv = GUM_PROFILER_GET_PRIVATE (self);
 
   while (priv->stacks != NULL)
   {
@@ -185,6 +203,10 @@ gum_profiler_finalize (GObject * object)
     g_array_free (stack, TRUE);
     priv->stacks = g_slist_delete_link (priv->stacks, priv->stacks);
   }
+
+  g_hash_table_unref (priv->function_by_address);
+
+  g_mutex_clear (&priv->mutex);
 
   G_OBJECT_CLASS (gum_profiler_parent_class)->finalize (object);
 }
