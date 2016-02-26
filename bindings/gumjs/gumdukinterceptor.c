@@ -437,6 +437,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_detach_all)
 {
   GumDukInterceptor * self = gumjs_interceptor_from_args (args);
 
+  (void) ctx;
+
   g_hash_table_remove_all (self->invocation_listeners);
 
   return 0;
