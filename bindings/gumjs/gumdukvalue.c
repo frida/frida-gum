@@ -602,18 +602,22 @@ _gum_duk_steal_data (duk_context * ctx,
 {
   gpointer result = NULL;
 
-  duk_get_prop_string (ctx, index, "\xff" "priv");
+  duk_dup (ctx, index);
+
+  duk_get_prop_string (ctx, -1, "\xff" "priv");
   if (!duk_is_undefined (ctx, -1))
   {
     result = duk_require_pointer (ctx, -1);
     duk_pop (ctx);
 
     duk_push_pointer (ctx, NULL);
-    duk_put_prop_string (ctx, index, "\xff" "priv");
+    duk_put_prop_string (ctx, -2, "\xff" "priv");
+
+    duk_pop (ctx);
   }
   else
   {
-    duk_pop (ctx);
+    duk_pop_2 (ctx);
   }
 
   return result;
