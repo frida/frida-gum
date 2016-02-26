@@ -79,16 +79,16 @@ struct _GumV8ReplaceEntry
 
 static void gum_v8_interceptor_on_attach (
     const FunctionCallbackInfo<Value> & info);
+static void gum_v8_invocation_listener_destroy (
+    GumV8InvocationListener * listener);
 static void gum_v8_interceptor_on_detach_all (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_interceptor_on_replace (
     const FunctionCallbackInfo<Value> & info);
+static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
 static void gum_v8_interceptor_on_revert (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_replace_entry_free (GumV8ReplaceEntry * entry);
 
-static void gum_v8_invocation_listener_destroy (
-    GumV8InvocationListener * listener);
 static void gumjs_invocation_listener_on_detach (
     const FunctionCallbackInfo<Value> & info);
 
@@ -229,8 +229,20 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 void
 _gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
+  Isolate * isolate = self->core->isolate;
+
+  gum_interceptor_begin_transaction (self->interceptor);
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
+  gum_interceptor_end_transaction (self->interceptor);
+
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+
+    gum_interceptor_flush (self->interceptor);
+  }
+  isolate->Enter ();
 }
 
 void
@@ -398,6 +410,14 @@ gum_v8_interceptor_on_attach (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
+gum_v8_invocation_listener_destroy (GumV8InvocationListener * listener)
+{
+  gum_interceptor_detach_listener (listener->module->interceptor,
+      GUM_INVOCATION_LISTENER (listener));
+  g_object_unref (listener);
+}
+
+static void
 gum_v8_interceptor_detach (GumV8Interceptor * self,
                            GumV8InvocationListener * listener)
 {
@@ -489,6 +509,14 @@ gum_v8_interceptor_on_replace (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+static void
+gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
+{
+  gum_interceptor_revert_function (entry->interceptor, entry->target);
+  delete entry->replacement;
+  g_slice_free (GumV8ReplaceEntry, entry);
+}
+
 /*
  * Prototype:
  * Interceptor.revert(target)
@@ -510,32 +538,6 @@ gum_v8_interceptor_on_revert (const FunctionCallbackInfo<Value> & info)
     return;
 
   g_hash_table_remove (self->replacement_by_address, target);
-}
-
-static void
-gum_v8_replace_entry_free (GumV8ReplaceEntry * entry)
-{
-  gum_interceptor_revert_function (entry->interceptor, entry->target);
-  delete entry->replacement;
-  g_slice_free (GumV8ReplaceEntry, entry);
-}
-
-static void
-gum_v8_invocation_listener_destroy (GumV8InvocationListener * listener)
-{
-  gum_interceptor_detach_listener (listener->module->interceptor,
-      GUM_INVOCATION_LISTENER (listener));
-  g_object_unref (listener);
-}
-
-static void
-gum_v8_invocation_listener_dispose (GumV8InvocationListener * self)
-{
-  delete self->on_enter;
-  self->on_enter = nullptr;
-
-  delete self->on_leave;
-  self->on_leave = nullptr;
 }
 
 /*
@@ -561,6 +563,18 @@ gumjs_invocation_listener_on_detach (const FunctionCallbackInfo<Value> & info)
 
     gum_v8_interceptor_detach (listener->module, listener);
   }
+}
+
+static void
+gum_v8_invocation_listener_dispose (GumV8InvocationListener * self)
+{
+  ScriptScope scope (self->module->core->script);
+
+  delete self->on_enter;
+  self->on_enter = nullptr;
+
+  delete self->on_leave;
+  self->on_leave = nullptr;
 }
 
 static void

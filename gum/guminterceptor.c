@@ -405,6 +405,9 @@ gum_interceptor_detach_listener (GumInterceptor * self,
     {
       gum_function_context_remove_listener (function_ctx, listener);
 
+      gum_interceptor_transaction_schedule_destroy (&priv->current_transaction,
+          function_ctx, g_object_unref, g_object_ref (listener));
+
       if (gum_function_context_is_empty (function_ctx))
       {
         g_hash_table_iter_remove (&iter);
@@ -524,6 +527,33 @@ gum_interceptor_end_transaction (GumInterceptor * self)
 
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_end (&priv->current_transaction);
+  GUM_INTERCEPTOR_UNLOCK ();
+}
+
+void
+gum_interceptor_flush (GumInterceptor * self)
+{
+  GumInterceptorPrivate * priv = self->priv;
+  gboolean flushed;
+
+  GUM_INTERCEPTOR_LOCK ();
+
+  do
+  {
+    gum_interceptor_transaction_begin (&priv->current_transaction);
+    gum_interceptor_transaction_end (&priv->current_transaction);
+
+    flushed =
+        g_queue_is_empty (priv->current_transaction.pending_destroy_tasks);
+    if (!flushed)
+    {
+      GUM_INTERCEPTOR_UNLOCK ();
+      g_thread_yield ();
+      GUM_INTERCEPTOR_LOCK ();
+    }
+  }
+  while (!flushed);
+
   GUM_INTERCEPTOR_UNLOCK ();
 }
 
@@ -847,7 +877,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   {
     if (task->ctx->trampoline_usage_counter == 0)
     {
+      GUM_INTERCEPTOR_UNLOCK ();
       task->notify (task->data);
+      GUM_INTERCEPTOR_LOCK ();
 
       g_slice_free (GumDestroyTask, task);
     }

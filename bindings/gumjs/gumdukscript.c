@@ -398,11 +398,15 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   g_assert (priv->ctx != NULL);
 
-  _gum_duk_scope_enter (&scope, &priv->core);
+  g_rec_mutex_lock (&priv->core.mutex);
 
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_core_flush (&priv->core);
+
+  g_rec_mutex_unlock (&priv->core.mutex);
+
+  _gum_duk_scope_enter (&scope, &priv->core);
 
   _gum_duk_instruction_dispose (&priv->instruction);
   _gum_duk_symbol_dispose (&priv->symbol);

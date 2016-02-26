@@ -669,15 +669,21 @@ _gum_duk_core_flush (GumDukCore * self)
 {
   GMainContext * context;
 
+  g_rec_mutex_unlock (&self->mutex);
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
+  g_rec_mutex_lock (&self->mutex);
 
   while (self->scheduled_callbacks != NULL)
   {
     GumDukScheduledCallback * cb =
         (GumDukScheduledCallback *) self->scheduled_callbacks->data;
+
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
+
+    g_rec_mutex_unlock (&self->mutex);
     g_source_destroy (cb->source);
+    g_rec_mutex_lock (&self->mutex);
   }
 
   context = gum_script_scheduler_get_js_context (self->scheduler);
