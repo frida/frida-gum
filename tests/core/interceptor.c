@@ -375,6 +375,39 @@ INTERCEPTOR_TESTCASE (attach_to_darwin_apis)
     g_string_truncate (fixture->result, 0);
   }
 #endif
+
+#ifdef HAVE_ARM
+  {
+    gint (* close_impl) (gpointer connection);
+
+    close_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        "libsqlite3.dylib", "sqlite3_close"));
+
+    interceptor_fixture_attach_listener (fixture, 0, close_impl, '>', '<');
+
+    close_impl (NULL);
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
+
+  {
+    void (* thread_cleanup_impl) (void);
+
+    thread_cleanup_impl = GSIZE_TO_POINTER (gum_module_find_export_by_name (
+        "libsqlite3.dylib", "sqlite3_thread_cleanup"));
+
+    interceptor_fixture_attach_listener (fixture, 0, thread_cleanup_impl,
+        '>', '<');
+
+    thread_cleanup_impl ();
+    g_assert_cmpstr (fixture->result->str, ==, "><");
+
+    interceptor_fixture_detach_listener (fixture, 0);
+    g_string_truncate (fixture->result, 0);
+  }
+#endif
 }
 
 static gpointer
