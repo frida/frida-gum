@@ -633,8 +633,19 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  gum_thumb_writer_add_literal_reference_here (self, val);
-  gum_thumb_writer_put_instruction (self, 0x4800 | (ri.index << 8));
+  if (ri.index <= 7)
+  {
+    gum_thumb_writer_add_literal_reference_here (self, val);
+    gum_thumb_writer_put_instruction (self, 0x4800 | (ri.index << 8));
+  }
+  else
+  {
+    gboolean add = TRUE;
+
+    gum_thumb_writer_put_instruction (self, 0xf85f | (add << 7));
+    gum_thumb_writer_add_literal_reference_here (self, val);
+    gum_thumb_writer_put_instruction (self, (ri.index << 12));
+  }
 }
 
 void
