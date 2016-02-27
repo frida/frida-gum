@@ -86,7 +86,7 @@ static gboolean gum_code_slice_is_aligned (const GumCodeSlice * slice,
     gsize alignment);
 
 static GumCodeDeflectorDispatcher * gum_code_deflector_dispatcher_new (
-    const GumAddressSpec * caller);
+    const GumAddressSpec * caller, gpointer dedicated_target);
 static void gum_code_deflector_dispatcher_free (
     GumCodeDeflectorDispatcher * dispatcher);
 static gpointer gum_code_deflector_dispatcher_lookup (
@@ -96,10 +96,8 @@ static void gum_code_deflector_dispatcher_ensure_rw (
 static void gum_code_deflector_dispatcher_ensure_rx (
     GumCodeDeflectorDispatcher * self);
 
-#ifdef HAVE_LINUX
 static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
     gpointer user_data);
-#endif
 
 void
 gum_code_allocator_init (GumCodeAllocator * allocator,
@@ -384,29 +382,34 @@ GumCodeDeflector *
 gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
                                     const GumAddressSpec * caller,
                                     gpointer return_address,
-                                    gpointer target)
+                                    gpointer target,
+                                    gboolean dedicated)
 {
   GumCodeDeflectorDispatcher * dispatcher = NULL;
   GSList * cur;
   GumCodeDeflectorImpl * impl;
   GumCodeDeflector * deflector;
 
-  for (cur = self->dispatchers; cur != NULL; cur = cur->next)
+  if (return_address != NULL)
   {
-    GumCodeDeflectorDispatcher * d = cur->data;
-    gsize distance;
-
-    distance = ABS ((gssize) d->address - (gssize) caller->near_address);
-    if (distance <= caller->max_distance)
+    for (cur = self->dispatchers; cur != NULL; cur = cur->next)
     {
-      dispatcher = d;
-      break;
+      GumCodeDeflectorDispatcher * d = cur->data;
+      gsize distance;
+
+      distance = ABS ((gssize) d->address - (gssize) caller->near_address);
+      if (distance <= caller->max_distance)
+      {
+        dispatcher = d;
+        break;
+      }
     }
   }
 
   if (dispatcher == NULL)
   {
-    dispatcher = gum_code_deflector_dispatcher_new (caller);
+    dispatcher = gum_code_deflector_dispatcher_new (caller,
+        dedicated ? target : NULL);
     if (dispatcher == NULL)
       return NULL;
     self->dispatchers = g_slist_prepend (self->dispatchers, dispatcher);
@@ -464,7 +467,8 @@ gum_code_deflector_free (GumCodeDeflector * deflector)
 }
 
 static GumCodeDeflectorDispatcher *
-gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
+gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
+                                   gpointer dedicated_target)
 {
   GumCodeDeflectorDispatcher * dispatcher;
   GumProbeRangeForCodeCaveContext ctx;
@@ -475,10 +479,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
   ctx.cave.base_address = 0;
   ctx.cave.size = 0;
 
-#ifdef HAVE_LINUX
   gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
       &ctx);
-#endif
 
   if (ctx.cave.base_address == 0)
     return NULL;
@@ -492,7 +494,9 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
 
   dispatcher->address = GSIZE_TO_POINTER (ctx.cave.base_address);
   dispatcher->trampoline = dispatcher->address;
-  dispatcher->thunk = gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW);
+  dispatcher->thunk = (dedicated_target == NULL)
+      ? gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW)
+      : NULL;
 
   dispatcher->original_data = g_memdup (dispatcher->address, ctx.cave.size);
   dispatcher->original_size = ctx.cave.size;
@@ -501,20 +505,31 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
 #ifdef HAVE_ARM
     GumThumbWriter tw;
 
-    gum_thumb_writer_init (&tw, dispatcher->thunk);
-    gum_thumb_writer_put_call_address_with_arguments (&tw,
-        GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
-        GUM_ARG_ADDRESS, GUM_ADDRESS (dispatcher),
-        GUM_ARG_REGISTER, ARM_REG_LR);
-    gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
-    gum_thumb_writer_flush (&tw);
+    if (dedicated_target != NULL)
+    {
+      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
 
-    gum_code_deflector_dispatcher_ensure_rw (dispatcher);
+      gum_thumb_writer_init (&tw, dispatcher->address);
+      gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
+          GUM_ADDRESS (dedicated_target));
+    }
+    else
+    {
+      gum_thumb_writer_init (&tw, dispatcher->thunk);
+      gum_thumb_writer_put_call_address_with_arguments (&tw,
+          GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
+          GUM_ARG_ADDRESS, GUM_ADDRESS (dispatcher),
+          GUM_ARG_REGISTER, ARM_REG_LR);
+      gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
+      gum_thumb_writer_flush (&tw);
 
-    gum_thumb_writer_reset (&tw, dispatcher->address);
-    gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_R0,
-        GUM_ADDRESS (dispatcher->thunk) + 1);
-    gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
+      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
+
+      gum_thumb_writer_reset (&tw, dispatcher->address);
+      gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
+          GUM_ADDRESS (dispatcher->thunk) + 1);
+    }
+
     gum_thumb_writer_flush (&tw);
     g_assert_cmpuint (gum_thumb_writer_offset (&tw),
         <=, dispatcher->original_size);
@@ -529,8 +544,11 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller)
   gum_code_deflector_dispatcher_ensure_rx (dispatcher);
   gum_clear_cache (dispatcher->address, dispatcher->original_size);
 
-  gum_mprotect (dispatcher->thunk, size_in_bytes, GUM_PAGE_RX);
-  gum_clear_cache (dispatcher->thunk, size_in_bytes);
+  if (dispatcher->thunk != NULL)
+  {
+    gum_mprotect (dispatcher->thunk, size_in_bytes, GUM_PAGE_RX);
+    gum_clear_cache (dispatcher->thunk, size_in_bytes);
+  }
 
   return dispatcher;
 }
@@ -544,7 +562,8 @@ gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
   gum_code_deflector_dispatcher_ensure_rx (dispatcher);
   g_free (dispatcher->original_data);
 
-  gum_free_pages (dispatcher->thunk);
+  if (dispatcher->thunk != NULL)
+    gum_free_pages (dispatcher->thunk);
 
   g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
   g_slist_free (dispatcher->callers);
@@ -585,33 +604,106 @@ gum_code_deflector_dispatcher_ensure_rx (GumCodeDeflectorDispatcher * self)
   gum_mprotect (self->address, self->original_size, GUM_PAGE_RX);
 }
 
-#ifdef HAVE_LINUX
 
 static gboolean
 gum_probe_range_for_code_cave (const GumRangeDetails * details,
                                gpointer user_data)
 {
+#if defined (HAVE_DARWIN) || defined (HAVE_LINUX)
+  const GumMemoryRange * range = details->range;
   GumProbeRangeForCodeCaveContext * ctx = user_data;
   const GumAddressSpec * caller = ctx->caller;
-  GumAddress cave_address = details->range->base_address + 8;
-  gsize distance;
-  const guint8 empty_cave[8] = { 0, };
+  gsize distance_from_start, distance_from_end;
+  GumAddress header_address;
 
-  distance = ABS ((gssize) cave_address - (gssize) caller->near_address);
-  if (distance > caller->max_distance)
+  distance_from_start = ABS ((gssize) range->base_address -
+      (gssize) caller->near_address);
+  distance_from_end = ABS ((gssize) (range->base_address + range->size) -
+      (gssize) caller->near_address);
+  if (distance_from_start > caller->max_distance &&
+      distance_from_end > caller->max_distance)
     return TRUE;
 
-  if (memcmp (GSIZE_TO_POINTER (details->range->base_address), ELFMAG, SELFMAG)
-      != 0)
-    return TRUE;
+  for (header_address = range->base_address;
+      header_address < range->base_address + range->size;
+      header_address += 4096)
+  {
+    GumAddress cave_address;
+    gsize distance;
+    const gchar * magic;
+    gsize magic_size;
+    const guint8 empty_cave[8] = { 0, };
 
-  if (memcmp (GSIZE_TO_POINTER (cave_address), empty_cave, sizeof (empty_cave))
-      != 0)
-    return TRUE;
+# if defined (HAVE_DARWIN)
+    cave_address = header_address + 4096 - sizeof (empty_cave);
+#  if GLIB_SIZEOF_VOID_P == 8
+    magic = "\xcf\xfa\xed\xfe";
+#  else
+    magic = "\xce\xfa\xed\xfe";
+#  endif
+    magic_size = 4;
+# elif defined (HAVE_LINUX)
+    cave_address = header_address + 8;
+    magic = ELF;
+    magic_size = SELFMAG;
+# endif
 
-  ctx->cave.base_address = cave_address;
-  ctx->cave.size = 8;
-  return FALSE;
-}
+    distance = ABS ((gssize) cave_address - (gssize) caller->near_address);
+    if (distance > caller->max_distance)
+      continue;
 
+    if (memcmp (GSIZE_TO_POINTER (header_address), magic, magic_size) != 0)
+      continue;
+
+    if (memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
+        sizeof (empty_cave)) != 0)
+    {
+# if defined (HAVE_DARWIN)
+      gboolean found_empty_cave, nothing_in_front_of_cave;
+
+      found_empty_cave = FALSE;
+      nothing_in_front_of_cave = TRUE;
+
+      do
+      {
+        cave_address -= sizeof (empty_cave);
+
+        found_empty_cave = memcmp (GSIZE_TO_POINTER (cave_address), empty_cave,
+            sizeof (empty_cave)) == 0;
+      }
+      while (!found_empty_cave && cave_address > header_address + 0x500);
+
+      if (found_empty_cave)
+      {
+        gsize offset;
+
+        for (offset = sizeof (empty_cave);
+            offset <= 2 * sizeof (empty_cave);
+            offset += sizeof (empty_cave))
+        {
+          nothing_in_front_of_cave = memcmp (
+              GSIZE_TO_POINTER (cave_address - offset), empty_cave,
+              sizeof (empty_cave)) == 0;
+        }
+      }
+
+      if (!(found_empty_cave && nothing_in_front_of_cave))
+        continue;
+# elif defined (HAVE_LINUX)
+      continue;
 #endif
+    }
+
+    ctx->cave.base_address = cave_address;
+    ctx->cave.size = sizeof (empty_cave);
+    return FALSE;
+  }
+
+  return TRUE;
+#else
+  (void) details;
+  (void) user_data;
+
+  return FALSE;
+#endif
+}

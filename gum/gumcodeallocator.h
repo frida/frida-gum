@@ -50,7 +50,8 @@ void gum_code_allocator_commit (GumCodeAllocator * self);
 void gum_code_slice_free (GumCodeSlice * slice);
 
 GumCodeDeflector * gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
-    const GumAddressSpec * caller, gpointer return_address, gpointer target);
+    const GumAddressSpec * caller, gpointer return_address, gpointer target,
+    gboolean dedicated);
 void gum_code_deflector_free (GumCodeDeflector * deflector);
 
 #endif
