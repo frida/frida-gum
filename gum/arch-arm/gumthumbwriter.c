@@ -57,6 +57,8 @@ static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
 void gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
+static void gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
+    GumAddress target, gboolean link, gboolean thumb);
     guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
     guint n_regs, arm_reg first_reg, va_list vl);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
@@ -381,6 +383,13 @@ gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
 }
 
 void
+gum_thumb_writer_put_b_imm (GumThumbWriter * self,
+                            GumAddress target)
+{
+  gum_thumb_writer_put_branch_imm (self, target, FALSE, TRUE);
+}
+
+void
 gum_thumb_writer_put_bx_reg (GumThumbWriter * self,
                              arm_reg reg)
 {
@@ -406,6 +415,22 @@ void
 gum_thumb_writer_put_bl_imm (GumThumbWriter * self,
                              GumAddress target)
 {
+  gum_thumb_writer_put_branch_imm (self, target, TRUE, TRUE);
+}
+
+void
+gum_thumb_writer_put_blx_imm (GumThumbWriter * self,
+                              GumAddress target)
+{
+  gum_thumb_writer_put_branch_imm (self, target, TRUE, FALSE);
+}
+
+static void
+gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
+                                 GumAddress target,
+                                 gboolean link,
+                                 gboolean thumb)
+{
   union
   {
     gint32 i;
@@ -424,8 +449,8 @@ gum_thumb_writer_put_bl_imm (GumThumbWriter * self,
   imm11 = distance.u & GUM_INT11_MASK;
 
   gum_thumb_writer_put_instruction (self, 0xf000 | (s << 10) | imm10);
-  gum_thumb_writer_put_instruction (self, 0xd000 | (j1 << 13) | (j2 << 11) |
-      imm11);
+  gum_thumb_writer_put_instruction (self, 0x8000 | (link << 14) | (j1 << 13) |
+      (thumb << 12) | (j2 << 11) | imm11);
 }
 
 void

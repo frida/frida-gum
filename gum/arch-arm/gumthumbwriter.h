@@ -56,9 +56,11 @@ void gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
 void gum_thumb_writer_put_call_reg_with_arguments (GumThumbWriter * self,
     arm_reg reg, guint n_args, ...);
 
+void gum_thumb_writer_put_b_imm (GumThumbWriter * self, GumAddress target);
 void gum_thumb_writer_put_bx_reg (GumThumbWriter * self, arm_reg reg);
 void gum_thumb_writer_put_blx_reg (GumThumbWriter * self, arm_reg reg);
 void gum_thumb_writer_put_bl_imm (GumThumbWriter * self, GumAddress target);
+void gum_thumb_writer_put_blx_imm (GumThumbWriter * self, GumAddress target);
 void gum_thumb_writer_put_cmp_reg_imm (GumThumbWriter * self, arm_reg reg,
     guint8 imm_value);
 void gum_thumb_writer_put_b_label (GumThumbWriter * self,
