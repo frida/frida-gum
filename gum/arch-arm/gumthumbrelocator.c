@@ -350,7 +350,18 @@ gum_thumb_relocator_can_relocate (gpointer address,
   }
   while (reloc_bytes < min_bytes);
 
-  if (!rl.eoi)
+  if (rl.eoi)
+  {
+    if (n < min_bytes)
+    {
+      gboolean followed_by_nop;
+
+      followed_by_nop = rl.input_cur[0] == 0x00 && rl.input_cur[1] == 0xbf;
+      if (followed_by_nop)
+        n += 2;
+    }
+  }
+  else
   {
     csh capstone;
     cs_err err;
