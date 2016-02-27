@@ -56,9 +56,9 @@ static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
     guint n_args, va_list vl);
 static void gum_thumb_writer_put_argument_list_teardown (GumThumbWriter * self,
     guint n_args);
-void gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
 static void gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
     GumAddress target, gboolean link, gboolean thumb);
+static void gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
     guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
     guint n_regs, arm_reg first_reg, va_list vl);
 static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
@@ -550,7 +550,7 @@ gum_thumb_writer_put_pop_regs (GumThumbWriter * self,
   va_end (vl);
 }
 
-void
+static void
 gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
                                        guint16 narrow_opcode,
                                        guint16 wide_opcode,
