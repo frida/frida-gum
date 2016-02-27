@@ -16,6 +16,11 @@ arch_sources += \
 	arch-x86/stalker-x86-mac.m
 endif
 
+if OS_DARWIN
+os_sources += \
+	interceptor-darwin.c
+endif
+
 libgum_tests_core_la_SOURCES = \
 	tls.c \
 	memory.c \

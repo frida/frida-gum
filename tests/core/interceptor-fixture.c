@@ -19,12 +19,15 @@
 # include <dlfcn.h>
 #endif
 
+#ifndef INTERCEPTOR_SUITE
+# define INTERCEPTOR_SUITE ""
+#endif
 #define INTERCEPTOR_TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
 #define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", test_interceptor, NAME, \
-        TestInterceptorFixture)
+    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor" INTERCEPTOR_SUITE, \
+        test_interceptor, NAME, TestInterceptorFixture)
 
 /* TODO: fix this in GLib */
 #ifdef HAVE_DARWIN
@@ -304,12 +307,3 @@ listener_context_init (ListenerContext * self)
 {
   (void) self;
 }
-
-#ifdef G_OS_WIN32
-static gpointer hit_target_function_repeatedly (gpointer data);
-#endif
-static gpointer replacement_malloc (gsize size);
-static gpointer replacement_malloc_calling_malloc_and_replaced_free (
-    gsize size);
-static void replacement_free_doing_nothing (gpointer mem);
-static gpointer replacement_target_function (GString * str);
