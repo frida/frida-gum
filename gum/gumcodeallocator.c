@@ -399,7 +399,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
   GumCodeDeflectorImpl * impl;
   GumCodeDeflector * deflector;
 
-  if (return_address != NULL)
+  if (!dedicated)
   {
     for (cur = self->dispatchers; cur != NULL; cur = cur->next)
     {
