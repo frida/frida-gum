@@ -344,9 +344,10 @@ SCRIPT_TESTCASE (functions_can_be_found_by_matching)
 #endif
 
   COMPILE_AND_LOAD_SCRIPT ("send("
-      "DebugSymbol.findFunctionsMatching(\"gum_symbol_details_from*\").length"
+      "DebugSymbol.findFunctionsMatching(\"gum_symbol_details_from*\")"
+          ".length >= 1"
   ");");
-  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 
