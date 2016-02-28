@@ -490,6 +490,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
   (void) caller;
   (void) dedicated_target;
+
   (void) gum_insert_deflector;
   (void) gum_probe_range_for_code_cave;
 
@@ -562,120 +563,122 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
                       gsize size,
                       GumAddress pc,
                       gpointer user_data)
-{
-  gpointer dedicated_target = user_data;
-
-  {
 # if defined (HAVE_ARM)
-    GumThumbWriter tw;
+  gpointer dedicated_target = user_data;
+  GumThumbWriter tw;
 
-    if (dedicated_target != NULL)
-    {
-      gum_thumb_writer_init (&tw, cave);
-      tw.pc = pc;
-      gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
-          GUM_ADDRESS (dedicated_target));
-    }
-    else
-    {
-      gum_thumb_writer_init (&tw, self->thunk);
-
-      gum_thumb_writer_put_push_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
-
-      gum_thumb_writer_put_call_address_with_arguments (&tw,
-          GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (self),
-          GUM_ARG_REGISTER, ARM_REG_LR);
-
-      gum_thumb_writer_put_pop_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
-
-      gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
-      gum_thumb_writer_flush (&tw);
-
-      gum_thumb_writer_reset (&tw, cave);
-      tw.pc = pc;
-      gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
-          GUM_ADDRESS (self->thunk) + 1);
-    }
-
-    gum_thumb_writer_flush (&tw);
-    g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, size);
-    gum_thumb_writer_free (&tw);
-
-    self->trampoline = self->address + 1;
-# elif defined (HAVE_ARM64)
-    GumArm64Writer aw;
-
-    if (dedicated_target != NULL)
-    {
-      gum_arm64_writer_init (&aw, cave);
-      aw.pc = pc;
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_LR);
-      gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
-          GUM_ADDRESS (dedicated_target));
-      gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
-    }
-    else
-    {
-      gum_arm64_writer_init (&aw, self->thunk);
-
-      /* push {q0-q7} */
-      gum_arm64_writer_put_instruction (&aw, 0xadbf1fe6);
-      gum_arm64_writer_put_instruction (&aw, 0xadbf17e4);
-      gum_arm64_writer_put_instruction (&aw, 0xadbf0fe2);
-      gum_arm64_writer_put_instruction (&aw, 0xadbf07e0);
-
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X17, ARM64_REG_X18);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X15, ARM64_REG_X16);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X13, ARM64_REG_X14);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X11, ARM64_REG_X12);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X9, ARM64_REG_X10);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X7, ARM64_REG_X8);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X5, ARM64_REG_X6);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_X4);
-      gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X1, ARM64_REG_X2);
-
-      gum_arm64_writer_put_call_address_with_arguments (&aw,
-          GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (self),
-          GUM_ARG_REGISTER, ARM64_REG_LR);
-
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X1, ARM64_REG_X2);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_X4);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X5, ARM64_REG_X6);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X7, ARM64_REG_X8);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X9, ARM64_REG_X10);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X11, ARM64_REG_X12);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X13, ARM64_REG_X14);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X15, ARM64_REG_X16);
-      gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X17, ARM64_REG_X18);
-
-      /* pop {q0-q7} */
-      gum_arm64_writer_put_instruction (&aw, 0xacc107e0);
-      gum_arm64_writer_put_instruction (&aw, 0xacc10fe2);
-      gum_arm64_writer_put_instruction (&aw, 0xacc117e4);
-      gum_arm64_writer_put_instruction (&aw, 0xacc11fe6);
-
-      gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
-      gum_arm64_writer_flush (&aw);
-
-      gum_arm64_writer_reset (&aw, cave);
-      aw.pc = pc;
-      gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
-          GUM_ADDRESS (self->thunk));
-      gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
-    }
-
-    gum_arm64_writer_flush (&aw);
-    g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, size);
-    gum_arm64_writer_free (&aw);
-
-    self->trampoline = self->address;
-# else
-    (void) dedicated_target;
-    (void) gum_code_deflector_dispatcher_lookup;
-# endif
+  if (dedicated_target != NULL)
+  {
+    gum_thumb_writer_init (&tw, cave);
+    tw.pc = pc;
+    gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
+        GUM_ADDRESS (dedicated_target));
   }
+  else
+  {
+    gum_thumb_writer_init (&tw, self->thunk);
+
+    gum_thumb_writer_put_push_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
+
+    gum_thumb_writer_put_call_address_with_arguments (&tw,
+        GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (self),
+        GUM_ARG_REGISTER, ARM_REG_LR);
+
+    gum_thumb_writer_put_pop_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
+
+    gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
+    gum_thumb_writer_flush (&tw);
+
+    gum_thumb_writer_reset (&tw, cave);
+    tw.pc = pc;
+    gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
+        GUM_ADDRESS (self->thunk) + 1);
+  }
+
+  gum_thumb_writer_flush (&tw);
+  g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, size);
+  gum_thumb_writer_free (&tw);
+
+  self->trampoline = self->address + 1;
+# elif defined (HAVE_ARM64)
+  gpointer dedicated_target = user_data;
+  GumArm64Writer aw;
+
+  if (dedicated_target != NULL)
+  {
+    gum_arm64_writer_init (&aw, cave);
+    aw.pc = pc;
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_LR);
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
+        GUM_ADDRESS (dedicated_target));
+    gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+  }
+  else
+  {
+    gum_arm64_writer_init (&aw, self->thunk);
+
+    /* push {q0-q7} */
+    gum_arm64_writer_put_instruction (&aw, 0xadbf1fe6);
+    gum_arm64_writer_put_instruction (&aw, 0xadbf17e4);
+    gum_arm64_writer_put_instruction (&aw, 0xadbf0fe2);
+    gum_arm64_writer_put_instruction (&aw, 0xadbf07e0);
+
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X17, ARM64_REG_X18);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X15, ARM64_REG_X16);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X13, ARM64_REG_X14);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X11, ARM64_REG_X12);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X9, ARM64_REG_X10);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X7, ARM64_REG_X8);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X5, ARM64_REG_X6);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_X4);
+    gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X1, ARM64_REG_X2);
+
+    gum_arm64_writer_put_call_address_with_arguments (&aw,
+        GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
+        GUM_ARG_ADDRESS, GUM_ADDRESS (self),
+        GUM_ARG_REGISTER, ARM64_REG_LR);
+
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X1, ARM64_REG_X2);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X3, ARM64_REG_X4);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X5, ARM64_REG_X6);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X7, ARM64_REG_X8);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X9, ARM64_REG_X10);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X11, ARM64_REG_X12);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X13, ARM64_REG_X14);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X15, ARM64_REG_X16);
+    gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X17, ARM64_REG_X18);
+
+    /* pop {q0-q7} */
+    gum_arm64_writer_put_instruction (&aw, 0xacc107e0);
+    gum_arm64_writer_put_instruction (&aw, 0xacc10fe2);
+    gum_arm64_writer_put_instruction (&aw, 0xacc117e4);
+    gum_arm64_writer_put_instruction (&aw, 0xacc11fe6);
+
+    gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+    gum_arm64_writer_flush (&aw);
+
+    gum_arm64_writer_reset (&aw, cave);
+    aw.pc = pc;
+    gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
+        GUM_ADDRESS (self->thunk));
+    gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
+  }
+
+  gum_arm64_writer_flush (&aw);
+  g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, size);
+  gum_arm64_writer_free (&aw);
+
+  self->trampoline = self->address;
+# else
+  (void) self;
+  (void) cave;
+  (void) size;
+  (void) pc;
+  (void) user_data;
+
+  (void) gum_code_deflector_dispatcher_lookup;
+# endif
 }
 
 static void
