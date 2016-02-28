@@ -18,6 +18,7 @@
 #define GUM_MAX_LITERAL_REF_COUNT 100
 
 typedef struct _GumThumbArgument GumThumbArgument;
+typedef guint GumThumbMemoryOperation;
 
 struct _GumThumbLabelMapping
 {
@@ -50,6 +51,12 @@ struct _GumThumbArgument
   } value;
 };
 
+enum _GumThumbMemoryOperation
+{
+  GUM_THUMB_MEMORY_LOAD,
+  GUM_THUMB_MEMORY_STORE
+};
+
 static GumAddress gum_thumb_writer_lookup_address_for_label_id (
     GumThumbWriter * self, gconstpointer id);
 static void gum_thumb_writer_put_argument_list_setup (GumThumbWriter * self,
@@ -61,8 +68,9 @@ static void gum_thumb_writer_put_branch_imm (GumThumbWriter * self,
 static void gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
     guint16 narrow_opcode, guint16 wide_opcode, GumArmMetaReg special_reg,
     guint n_regs, arm_reg first_reg, va_list vl);
-static guint16 gum_thumb_writer_make_ldr_or_str_reg_reg_offset (
-    arm_reg left_reg, arm_reg right_reg, guint8 right_offset);
+static void gum_thumb_writer_put_transfer_reg_reg_offset (GumThumbWriter * self,
+    GumThumbMemoryOperation operation, arm_reg left_reg, arm_reg right_reg,
+    gsize right_offset);
 
 void
 gum_thumb_writer_init (GumThumbWriter * writer,
@@ -670,15 +678,10 @@ void
 gum_thumb_writer_put_ldr_reg_reg_offset (GumThumbWriter * self,
                                          arm_reg dst_reg,
                                          arm_reg src_reg,
-                                         guint8 src_offset)
+                                         gsize src_offset)
 {
-  guint16 insn;
-
-  insn = gum_thumb_writer_make_ldr_or_str_reg_reg_offset (dst_reg,
-      src_reg, src_offset);
-  insn |= 0x0800;
-
-  gum_thumb_writer_put_instruction (self, insn);
+  gum_thumb_writer_put_transfer_reg_reg_offset (self, GUM_THUMB_MEMORY_LOAD,
+      dst_reg, src_reg, src_offset);
 }
 
 void
@@ -693,43 +696,51 @@ void
 gum_thumb_writer_put_str_reg_reg_offset (GumThumbWriter * self,
                                          arm_reg src_reg,
                                          arm_reg dst_reg,
-                                         guint8 dst_offset)
+                                         gsize dst_offset)
 {
-  guint16 insn;
-
-  insn = gum_thumb_writer_make_ldr_or_str_reg_reg_offset (src_reg,
-      dst_reg, dst_offset);
-
-  gum_thumb_writer_put_instruction (self, insn);
+  gum_thumb_writer_put_transfer_reg_reg_offset (self, GUM_THUMB_MEMORY_STORE,
+      src_reg, dst_reg, dst_offset);
 }
 
-static guint16
-gum_thumb_writer_make_ldr_or_str_reg_reg_offset (arm_reg left_reg,
-                                                 arm_reg right_reg,
-                                                 guint8 right_offset)
+static void
+gum_thumb_writer_put_transfer_reg_reg_offset (GumThumbWriter * self,
+                                              GumThumbMemoryOperation operation,
+                                              arm_reg left_reg,
+                                              arm_reg right_reg,
+                                              gsize right_offset)
 {
   GumArmRegInfo lr, rr;
-  guint16 insn;
 
   gum_arm_reg_describe (left_reg, &lr);
   gum_arm_reg_describe (right_reg, &rr);
 
-  g_assert (right_offset % 4 == 0);
-
-  if (rr.meta == GUM_ARM_MREG_SP)
+  if (lr.meta <= GUM_ARM_MREG_R7 &&
+      (rr.meta <= GUM_ARM_MREG_R7 || rr.meta == GUM_ARM_MREG_SP) &&
+      ((rr.meta == GUM_ARM_MREG_SP && right_offset <= 1020) ||
+       (rr.meta != GUM_ARM_MREG_SP && right_offset <= 124)) &&
+      (right_offset % 4) == 0)
   {
-    g_assert_cmpuint (right_offset, <=, 1020);
+    guint16 insn;
 
-    insn = 0x9000 | (lr.index << 8) | (right_offset / 4);
+    if (rr.meta == GUM_ARM_MREG_SP)
+      insn = 0x9000 | (lr.index << 8) | (right_offset / 4);
+    else
+      insn = 0x6000 | (right_offset / 4) << 6 | (rr.index << 3) | lr.index;
+
+    if (operation == GUM_THUMB_MEMORY_LOAD)
+      insn |= 0x0800;
+
+    gum_thumb_writer_put_instruction (self, insn);
   }
   else
   {
-    g_assert_cmpuint (right_offset, <=, 124);
+    g_assert_cmpuint (right_offset, <=, 4095);
 
-    insn = 0x6000 | (right_offset / 4) << 6 | (rr.index << 3) | lr.index;
+    gum_thumb_writer_put_instruction (self, 0xf8c0 |
+        ((operation == GUM_THUMB_MEMORY_LOAD) ? 0x0010 : 0x0000) |
+        rr.index);
+    gum_thumb_writer_put_instruction (self, (lr.index << 12) | right_offset);
   }
-
-  return insn;
 }
 
 void
