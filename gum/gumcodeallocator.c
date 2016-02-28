@@ -582,7 +582,7 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
 
       gum_thumb_writer_put_call_address_with_arguments (&tw,
           GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (dispatcher),
+          GUM_ARG_ADDRESS, GUM_ADDRESS (self),
           GUM_ARG_REGISTER, ARM_REG_LR);
 
       gum_thumb_writer_put_pop_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
