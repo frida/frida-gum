@@ -352,7 +352,13 @@ THUMBWRITER_TESTCASE (add_reg_reg_reg)
 THUMBWRITER_TESTCASE (add_reg_reg)
 {
   gum_thumb_writer_put_add_reg_reg (&fixture->tw, ARM_REG_R0, ARM_REG_R1);
-  assert_output_equals (0x4408);
+  assert_output_n_equals (0, 0x4408);
+
+  gum_thumb_writer_put_add_reg_reg (&fixture->tw, ARM_REG_R12, ARM_REG_R1);
+  assert_output_n_equals (1, 0x448c);
+
+  gum_thumb_writer_put_add_reg_reg (&fixture->tw, ARM_REG_R3, ARM_REG_R12);
+  assert_output_n_equals (2, 0x4463);
 }
 
 THUMBWRITER_TESTCASE (add_reg_reg_imm)

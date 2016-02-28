@@ -837,14 +837,12 @@ gum_thumb_writer_put_add_reg_reg_reg (GumThumbWriter * self,
   if (left.meta == dst.meta)
   {
     insn = 0x4400;
+
     if (dst.meta <= GUM_ARM_MREG_R7)
       insn |= dst.index;
     else
       insn |= 0x0080 | (dst.index - GUM_ARM_MREG_R8);
-    if (right.meta <= GUM_ARM_MREG_R7)
-      insn |= (right.index << 3);
-    else
-      insn |= 0x0040 | ((right.index - GUM_ARM_MREG_R8) << 3);
+    insn |= (right.index << 3);
   }
   else
   {
