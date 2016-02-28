@@ -206,17 +206,15 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   }
 
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
       GUM_ADDRESS (self->enter_thunk));
-  gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
 
   ctx->on_leave_trampoline = gum_thumb_writer_cur (tw) + 1;
 
   gum_emit_push_cpu_context_high_part (tw);
   gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R7, GUM_ADDRESS (ctx));
-  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_R0,
+  gum_thumb_writer_put_ldr_reg_address (tw, ARM_REG_PC,
       GUM_ADDRESS (self->leave_thunk));
-  gum_thumb_writer_put_bx_reg (tw, ARM_REG_R0);
 
   gum_thumb_writer_flush (tw);
   g_assert_cmpuint (gum_thumb_writer_offset (tw),
