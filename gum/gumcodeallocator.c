@@ -563,6 +563,7 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
                       gsize size,
                       GumAddress pc,
                       gpointer user_data)
+{
 # if defined (HAVE_ARM)
   gpointer dedicated_target = user_data;
   GumThumbWriter tw;
