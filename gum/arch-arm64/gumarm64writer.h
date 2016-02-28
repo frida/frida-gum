@@ -10,6 +10,9 @@
 #include <capstone/capstone.h>
 #include <gum/gumdefs.h>
 
+#define GUM_ARM64_ADRP_MAX_DISTANCE 0xfffff000
+#define GUM_ARM64_B_MAX_DISTANCE 0x07fffffc
+
 G_BEGIN_DECLS
 
 typedef struct _GumArm64Writer GumArm64Writer;
