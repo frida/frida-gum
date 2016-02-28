@@ -310,10 +310,7 @@ gum_thumb_writer_put_call_address_with_arguments (GumThumbWriter * self,
   gum_thumb_writer_put_argument_list_setup (self, n_args, vl);
   va_end (vl);
 
-  gum_thumb_writer_put_push_regs (self, 1, ARM_REG_R0);
-  gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_R0, func);
-  gum_thumb_writer_put_mov_reg_reg (self, ARM_REG_LR, ARM_REG_R0);
-  gum_thumb_writer_put_pop_regs (self, 1, ARM_REG_R0);
+  gum_thumb_writer_put_ldr_reg_address (self, ARM_REG_LR, func);
   gum_thumb_writer_put_blx_reg (self, ARM_REG_LR);
 
   gum_thumb_writer_put_argument_list_teardown (self, n_args);
