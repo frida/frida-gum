@@ -540,7 +540,8 @@ gum_emit_prolog (GumThumbWriter * tw)
       ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
 
   /* build low part of GumCpuContext */
-  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP, 9 * 4);
+  gum_thumb_writer_put_add_reg_reg_imm (tw, ARM_REG_R1, ARM_REG_SP,
+      (5 + 9) * 4);
   gum_thumb_writer_put_push_regs (tw, 2, ARM_REG_R0, ARM_REG_R1);
 
   /* reserve space for next_hop and for cpsr in GumCpuContext */
