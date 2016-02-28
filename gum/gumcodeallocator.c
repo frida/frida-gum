@@ -488,6 +488,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 #if defined (HAVE_LINUX) && defined (HAVE_ARM64)
   /* FIXME: need to find a larger cave */
 
+  (void) caller;
+  (void) dedicated_target;
   (void) gum_insert_deflector;
   (void) gum_probe_range_for_code_cave;
 
@@ -670,6 +672,7 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
 
     self->trampoline = self->address;
 # else
+    (void) dedicated_target;
     (void) gum_code_deflector_dispatcher_lookup;
 # endif
   }
