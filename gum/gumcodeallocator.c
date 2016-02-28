@@ -516,10 +516,16 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
     else
     {
       gum_thumb_writer_init (&tw, dispatcher->thunk);
+
+      gum_thumb_writer_put_push_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
+
       gum_thumb_writer_put_call_address_with_arguments (&tw,
           GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
           GUM_ARG_ADDRESS, GUM_ADDRESS (dispatcher),
           GUM_ARG_REGISTER, ARM_REG_LR);
+
+      gum_thumb_writer_put_pop_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
+
       gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
       gum_thumb_writer_flush (&tw);
 
