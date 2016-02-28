@@ -800,7 +800,7 @@ gum_probe_range_for_code_cave (const GumRangeDetails * details,
     magic_size = 4;
 # elif defined (HAVE_LINUX)
     cave_address = header_address + 8;
-    magic = ELF;
+    magic = ELFMAG;
     magic_size = SELFMAG;
 # endif
 
