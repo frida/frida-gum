@@ -39,6 +39,9 @@ typedef struct _GumCodeDeflectorDispatcher GumCodeDeflectorDispatcher;
 typedef struct _GumCodeDeflectorImpl GumCodeDeflectorImpl;
 typedef struct _GumProbeRangeForCodeCaveContext GumProbeRangeForCodeCaveContext;
 
+typedef void (* GumModifyCaveFunc) (GumCodeDeflectorDispatcher * self,
+    gpointer cave, gsize size, GumAddress pc, gpointer user_data);
+
 struct _GumCodeSliceElement
 {
   GList parent;
@@ -98,12 +101,15 @@ static GumCodeDeflectorDispatcher * gum_code_deflector_dispatcher_new (
     const GumAddressSpec * caller, gpointer dedicated_target);
 static void gum_code_deflector_dispatcher_free (
     GumCodeDeflectorDispatcher * dispatcher);
+static void gum_insert_deflector (GumCodeDeflectorDispatcher * self,
+    gpointer cave, gsize size, GumAddress pc, gpointer user_data);
+static void gum_remove_deflector (GumCodeDeflectorDispatcher * self,
+    gpointer cave, gsize size, GumAddress pc, gpointer user_data);
 static gpointer gum_code_deflector_dispatcher_lookup (
     GumCodeDeflectorDispatcher * self, gpointer return_address);
-static void gum_code_deflector_dispatcher_ensure_rw (
-    GumCodeDeflectorDispatcher * self);
-static void gum_code_deflector_dispatcher_ensure_rx (
-    GumCodeDeflectorDispatcher * self);
+static void gum_code_deflector_dispatcher_modify_cave (
+    GumCodeDeflectorDispatcher * self, GumModifyCaveFunc func,
+    gpointer user_data);
 
 static gboolean gum_probe_range_for_code_cave (const GumRangeDetails * details,
     gpointer user_data);
@@ -482,8 +488,8 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 #if defined (HAVE_LINUX) && defined (HAVE_ARM64)
   /* FIXME: need to find a larger cave */
 
+  (void) gum_insert_deflector;
   (void) gum_probe_range_for_code_cave;
-  (void) gum_code_deflector_dispatcher_lookup;
 
   return NULL;
 #else
@@ -518,21 +524,59 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   dispatcher->original_data = g_memdup (dispatcher->address, ctx.cave.size);
   dispatcher->original_size = ctx.cave.size;
 
+  gum_code_deflector_dispatcher_modify_cave (dispatcher, gum_insert_deflector,
+      dedicated_target);
+
+  if (dispatcher->thunk != NULL)
+  {
+    gum_mprotect (dispatcher->thunk, size_in_bytes, GUM_PAGE_RX);
+    gum_clear_cache (dispatcher->thunk, size_in_bytes);
+  }
+
+  return dispatcher;
+#endif
+}
+
+static void
+gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
+{
+  gum_code_deflector_dispatcher_modify_cave (dispatcher, gum_remove_deflector,
+      NULL);
+
+  g_free (dispatcher->original_data);
+
+  if (dispatcher->thunk != NULL)
+    gum_free_pages (dispatcher->thunk);
+
+  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
+  g_slist_free (dispatcher->callers);
+
+  g_slice_free (GumCodeDeflectorDispatcher, dispatcher);
+}
+
+static void
+gum_insert_deflector (GumCodeDeflectorDispatcher * self,
+                      gpointer cave,
+                      gsize size,
+                      GumAddress pc,
+                      gpointer user_data)
+{
+  gpointer dedicated_target = user_data;
+
   {
 # if defined (HAVE_ARM)
     GumThumbWriter tw;
 
     if (dedicated_target != NULL)
     {
-      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
-
-      gum_thumb_writer_init (&tw, dispatcher->address);
+      gum_thumb_writer_init (&tw, cave);
+      tw.pc = pc;
       gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
           GUM_ADDRESS (dedicated_target));
     }
     else
     {
-      gum_thumb_writer_init (&tw, dispatcher->thunk);
+      gum_thumb_writer_init (&tw, self->thunk);
 
       gum_thumb_writer_put_push_regs (&tw, 2, ARM_REG_R9, ARM_REG_R12);
 
@@ -546,27 +590,24 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
       gum_thumb_writer_put_bx_reg (&tw, ARM_REG_R0);
       gum_thumb_writer_flush (&tw);
 
-      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
-
-      gum_thumb_writer_reset (&tw, dispatcher->address);
+      gum_thumb_writer_reset (&tw, cave);
+      tw.pc = pc;
       gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
-          GUM_ADDRESS (dispatcher->thunk) + 1);
+          GUM_ADDRESS (self->thunk) + 1);
     }
 
     gum_thumb_writer_flush (&tw);
-    g_assert_cmpuint (gum_thumb_writer_offset (&tw),
-        <=, dispatcher->original_size);
+    g_assert_cmpuint (gum_thumb_writer_offset (&tw), <=, size);
     gum_thumb_writer_free (&tw);
 
-    dispatcher->trampoline = dispatcher->address + 1;
+    self->trampoline = self->address + 1;
 # elif defined (HAVE_ARM64)
     GumArm64Writer aw;
 
     if (dedicated_target != NULL)
     {
-      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
-
-      gum_arm64_writer_init (&aw, dispatcher->address);
+      gum_arm64_writer_init (&aw, cave);
+      aw.pc = pc;
       gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_LR);
       gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
           GUM_ADDRESS (dedicated_target));
@@ -574,7 +615,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
     }
     else
     {
-      gum_arm64_writer_init (&aw, dispatcher->thunk);
+      gum_arm64_writer_init (&aw, self->thunk);
 
       /* push {q0-q7} */
       gum_arm64_writer_put_instruction (&aw, 0xadbf1fe6);
@@ -594,7 +635,7 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
       gum_arm64_writer_put_call_address_with_arguments (&aw,
           GUM_ADDRESS (gum_code_deflector_dispatcher_lookup), 2,
-          GUM_ARG_ADDRESS, GUM_ADDRESS (dispatcher),
+          GUM_ARG_ADDRESS, GUM_ADDRESS (self),
           GUM_ARG_REGISTER, ARM64_REG_LR);
 
       gum_arm64_writer_put_pop_reg_reg (&aw, ARM64_REG_X1, ARM64_REG_X2);
@@ -616,54 +657,36 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
       gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
       gum_arm64_writer_flush (&aw);
 
-      gum_code_deflector_dispatcher_ensure_rw (dispatcher);
-
-      gum_arm64_writer_reset (&aw, dispatcher->address);
+      gum_arm64_writer_reset (&aw, cave);
+      aw.pc = pc;
       gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
-          GUM_ADDRESS (dispatcher->thunk));
+          GUM_ADDRESS (self->thunk));
       gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
     }
 
     gum_arm64_writer_flush (&aw);
-    g_assert_cmpuint (gum_arm64_writer_offset (&aw),
-        <=, dispatcher->original_size);
+    g_assert_cmpuint (gum_arm64_writer_offset (&aw), <=, size);
     gum_arm64_writer_free (&aw);
 
-    dispatcher->trampoline = dispatcher->address;
+    self->trampoline = self->address;
 # else
     (void) gum_code_deflector_dispatcher_lookup;
 # endif
   }
-
-  gum_code_deflector_dispatcher_ensure_rx (dispatcher);
-  gum_clear_cache (dispatcher->address, dispatcher->original_size);
-
-  if (dispatcher->thunk != NULL)
-  {
-    gum_mprotect (dispatcher->thunk, size_in_bytes, GUM_PAGE_RX);
-    gum_clear_cache (dispatcher->thunk, size_in_bytes);
-  }
-
-  return dispatcher;
-#endif
 }
 
 static void
-gum_code_deflector_dispatcher_free (GumCodeDeflectorDispatcher * dispatcher)
+gum_remove_deflector (GumCodeDeflectorDispatcher * self,
+                      gpointer cave,
+                      gsize size,
+                      GumAddress pc,
+                      gpointer user_data)
 {
-  gum_code_deflector_dispatcher_ensure_rw (dispatcher);
-  memcpy (dispatcher->address, dispatcher->original_data,
-      dispatcher->original_size);
-  gum_code_deflector_dispatcher_ensure_rx (dispatcher);
-  g_free (dispatcher->original_data);
+  (void) size;
+  (void) pc;
+  (void) user_data;
 
-  if (dispatcher->thunk != NULL)
-    gum_free_pages (dispatcher->thunk);
-
-  g_slist_foreach (dispatcher->callers, (GFunc) gum_code_deflector_free, NULL);
-  g_slist_free (dispatcher->callers);
-
-  g_slice_free (GumCodeDeflectorDispatcher, dispatcher);
+  memcpy (cave, self->original_data, self->original_size);
 }
 
 static gpointer
@@ -684,21 +707,56 @@ gum_code_deflector_dispatcher_lookup (GumCodeDeflectorDispatcher * self,
 }
 
 static void
-gum_code_deflector_dispatcher_ensure_rw (GumCodeDeflectorDispatcher * self)
+gum_code_deflector_dispatcher_modify_cave (GumCodeDeflectorDispatcher * self,
+                                           GumModifyCaveFunc func,
+                                           gpointer user_data)
 {
-  GumPageProtection prot;
+  gsize page_size;
+  gpointer page_start;
+  gsize page_offset;
+  gboolean rwx_supported, code_segment_supported;
 
-  prot = gum_query_is_rwx_supported () ? GUM_PAGE_RWX : GUM_PAGE_RW;
+  page_size = gum_query_page_size ();
+  page_start =
+      GSIZE_TO_POINTER (GPOINTER_TO_SIZE (self->address) & ~(page_size - 1));
+  page_offset = GPOINTER_TO_SIZE (self->address) & (page_size - 1);
 
-  gum_mprotect (self->address, self->original_size, prot);
+  rwx_supported = gum_query_is_rwx_supported ();
+  code_segment_supported = gum_code_segment_is_supported ();
+
+  if (rwx_supported || !code_segment_supported)
+  {
+    GumPageProtection protection;
+
+    protection = rwx_supported ? GUM_PAGE_RWX : GUM_PAGE_RW;
+
+    gum_mprotect (page_start, page_size, protection);
+
+    func (self, self->address, self->original_size, GUM_ADDRESS (self->address),
+        user_data);
+
+    gum_mprotect (page_start, page_size, GUM_PAGE_RX);
+  }
+  else
+  {
+    GumCodeSegment * segment;
+    guint8 * scratch_page;
+
+    segment = gum_code_segment_new (page_size, NULL);
+
+    scratch_page = gum_code_segment_get_address (segment);
+    memcpy (scratch_page, page_start, page_size);
+
+    func (self, scratch_page + page_offset, self->original_size,
+        GUM_ADDRESS (self->address), user_data);
+
+    gum_code_segment_realize (segment);
+    gum_code_segment_map (segment, 0, page_size, page_start);
+    gum_code_segment_free (segment);
+  }
+
+  gum_clear_cache (self->address, self->original_size);
 }
-
-static void
-gum_code_deflector_dispatcher_ensure_rx (GumCodeDeflectorDispatcher * self)
-{
-  gum_mprotect (self->address, self->original_size, GUM_PAGE_RX);
-}
-
 
 static gboolean
 gum_probe_range_for_code_cave (const GumRangeDetails * details,
