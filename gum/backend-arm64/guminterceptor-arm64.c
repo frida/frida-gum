@@ -241,7 +241,9 @@ _gum_interceptor_backend_destroy_trampoline (GumInterceptorBackend * self,
                                              GumFunctionContext * ctx)
 {
   gum_code_slice_free (ctx->trampoline_slice);
+  gum_code_deflector_free (ctx->trampoline_deflector);
   ctx->trampoline_slice = NULL;
+  ctx->trampoline_deflector = NULL;
 }
 
 void
