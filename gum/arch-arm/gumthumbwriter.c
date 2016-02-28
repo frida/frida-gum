@@ -190,6 +190,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       GumThumbLiteralRef * r;
       guint32 * slot;
       gsize distance_in_words;
+      guint16 insn;
 
       r = &self->literal_refs[ref_idx];
 
@@ -208,7 +209,16 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       distance_in_words = (((guint32 *) GSIZE_TO_POINTER (self->pc)) +
           (slot - first_slot)) -
           ((guint32 *) GSIZE_TO_POINTER (r->pc & ~((GumAddress) 3)));
-      *r->insn = GUINT16_TO_LE (GUINT16_FROM_LE (*r->insn) | distance_in_words);
+      insn = GUINT16_FROM_LE (r->insn[0]);
+      if ((insn & 0xf800) == 0x4800)
+      {
+        r->insn[0] = GUINT16_TO_LE (insn | distance_in_words);
+      }
+      else
+      {
+        r->insn[1] = GUINT16_TO_LE (GUINT16_FROM_LE (r->insn[1]) |
+            distance_in_words * 4);
+      }
     }
     self->literal_refs_len = 0;
 
@@ -633,9 +643,10 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
 
   gum_arm_reg_describe (reg, &ri);
 
-  if (ri.index <= 7)
+  gum_thumb_writer_add_literal_reference_here (self, val);
+
+  if (ri.meta <= GUM_ARM_MREG_R7)
   {
-    gum_thumb_writer_add_literal_reference_here (self, val);
     gum_thumb_writer_put_instruction (self, 0x4800 | (ri.index << 8));
   }
   else
@@ -643,7 +654,6 @@ gum_thumb_writer_put_ldr_reg_u32 (GumThumbWriter * self,
     gboolean add = TRUE;
 
     gum_thumb_writer_put_instruction (self, 0xf85f | (add << 7));
-    gum_thumb_writer_add_literal_reference_here (self, val);
     gum_thumb_writer_put_instruction (self, (ri.index << 12));
   }
 }
