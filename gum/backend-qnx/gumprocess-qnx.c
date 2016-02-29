@@ -540,7 +540,8 @@ gum_module_enumerate_exports (const gchar * module_name,
         }
       }
 
-      g_assert (dynsym_strtab != 0 && dynsym_section_offset != 0);
+      if (dynsym_strtab == 0 || dynsym_section_offset == 0)
+        goto beach;
 
       dynsym_section_size = dyn_symentsize * num_symbols;
       dynsym_entry_size = dyn_symentsize;
