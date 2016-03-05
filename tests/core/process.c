@@ -23,9 +23,7 @@
     TEST_ENTRY_SIMPLE ("Core/Process", test_process, NAME)
 
 TEST_LIST_BEGIN (process)
-#if !defined(HAVE_ANDROID) && !(defined(HAVE_LINUX) && defined(HAVE_ARM))
   PROCESS_TESTENTRY (process_threads)
-#endif
   PROCESS_TESTENTRY (process_modules)
   PROCESS_TESTENTRY (process_ranges)
   PROCESS_TESTENTRY (module_imports)
@@ -62,11 +60,9 @@ static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
 #endif
 
-#ifndef HAVE_ANDROID
 static gpointer sleeping_dummy (gpointer data);
 static gboolean thread_found_cb (const GumThreadDetails * details,
     gpointer user_data);
-#endif
 static gboolean module_found_cb (const GumModuleDetails * details,
     gpointer user_data);
 static gboolean import_found_cb (const GumImportDetails * details,
@@ -84,20 +80,21 @@ static gboolean malloc_range_check_cb (
     const GumMallocRangeDetails * details, gpointer user_data);
 #endif
 
-#ifndef HAVE_ANDROID
-
 PROCESS_TESTCASE (process_threads)
 {
-  TestForEachContext ctx;
-  GThread * thread;
   gboolean done = FALSE;
+  GThread * thread_a, * thread_b;
+  TestForEachContext ctx;
 
-  thread = g_thread_new ("process-test-sleeping-dummy", sleeping_dummy, &done);
+  thread_a = g_thread_new ("process-test-sleeping-dummy-a", sleeping_dummy,
+      &done);
+  thread_b = g_thread_new ("process-test-sleeping-dummy-b", sleeping_dummy,
+      &done);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = TRUE;
   gum_process_enumerate_threads (thread_found_cb, &ctx);
-  g_assert_cmpuint (ctx.number_of_calls, >, 1);
+  g_assert_cmpuint (ctx.number_of_calls, >=, 2);
 
   ctx.number_of_calls = 0;
   ctx.value_to_return = FALSE;
@@ -105,10 +102,9 @@ PROCESS_TESTCASE (process_threads)
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 
   done = TRUE;
-  g_thread_join (thread);
+  g_thread_join (thread_b);
+  g_thread_join (thread_a);
 }
-
-#endif
 
 PROCESS_TESTCASE (process_modules)
 {
@@ -436,8 +432,6 @@ store_export_address_if_mach_msg (const GumExportDetails * details,
 
 #endif
 
-#ifndef HAVE_ANDROID
-
 static gpointer
 sleeping_dummy (gpointer data)
 {
@@ -459,8 +453,6 @@ thread_found_cb (const GumThreadDetails * details,
 
   return ctx->value_to_return;
 }
-
-#endif
 
 static gboolean
 module_found_cb (const GumModuleDetails * details,

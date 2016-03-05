@@ -115,10 +115,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #endif
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
-#ifndef HAVE_ANDROID
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
-#endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
 #ifndef HAVE_LINUX
@@ -146,7 +144,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined(HAVE_ARM))
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
@@ -202,6 +200,8 @@ static gboolean on_incoming_connection (GSocketService * service,
 static void on_read_ready (GObject * source_object, GAsyncResult * res,
     gpointer user_data);
 #endif
+
+static gpointer sleeping_dummy (gpointer data);
 
 static gpointer invoke_target_function_int_worker (gpointer data);
 static gpointer invoke_target_function_trigger (gpointer data);
@@ -963,8 +963,6 @@ SCRIPT_TESTCASE (process_current_thread_id_is_available)
   EXPECT_SEND_MESSAGE_WITH ("\"number\"");
 }
 
-#ifndef HAVE_ANDROID
-
 SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
   COMPILE_AND_LOAD_SCRIPT (
@@ -983,11 +981,32 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 
 SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
 {
-  COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateThreadsSync().length > 1);");
+  gboolean done = FALSE;
+  GThread * thread_a, * thread_b;
+
+  thread_a = g_thread_new ("script-test-sleeping-dummy-a", sleeping_dummy,
+      &done);
+  thread_b = g_thread_new ("script-test-sleeping-dummy-b", sleeping_dummy,
+      &done);
+
+  COMPILE_AND_LOAD_SCRIPT ("send(Process.enumerateThreadsSync().length >= 2);");
   EXPECT_SEND_MESSAGE_WITH ("true");
+
+  done = TRUE;
+  g_thread_join (thread_b);
+  g_thread_join (thread_a);
 }
 
-#endif
+static gpointer
+sleeping_dummy (gpointer data)
+{
+  volatile gboolean * done = (gboolean *) data;
+
+  while (!(*done))
+    g_thread_yield ();
+
+  return NULL;
+}
 
 SCRIPT_TESTCASE (process_modules_can_be_enumerated)
 {
