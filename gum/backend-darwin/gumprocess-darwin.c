@@ -1771,8 +1771,15 @@ gum_darwin_parse_native_thread_state (const GumDarwinNativeThreadState * ts,
 #elif defined (HAVE_ARM)
   guint n;
 
+  ctx->cpsr = ts->__cpsr;
   ctx->pc = ts->__pc;
   ctx->sp = ts->__sp;
+
+  ctx->r8 = ts->__r[8];
+  ctx->r9 = ts->__r[9];
+  ctx->r10 = ts->__r[10];
+  ctx->r11 = ts->__r[11];
+  ctx->r12 = ts->__r[12];
 
   for (n = 0; n != G_N_ELEMENTS (ctx->r); n++)
     ctx->r[n] = ts->__r[n];
@@ -1843,14 +1850,23 @@ gum_darwin_unparse_native_thread_state (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   guint n;
 
+  ts->__cpsr = ctx->cpsr;
+  if (ctx->pc & 1)
+    ts->__cpsr |= GUM_PSR_THUMB;
+  else
+    ts->__cpsr &= ~GUM_PSR_THUMB;
   ts->__pc = ctx->pc & ~1;
   ts->__sp = ctx->sp;
+
+  ts->__r[8] = ctx->r8;
+  ts->__r[9] = ctx->r9;
+  ts->__r[10] = ctx->r10;
+  ts->__r[11] = ctx->r11;
+  ts->__r[12] = ctx->r12;
 
   for (n = 0; n != G_N_ELEMENTS (ctx->r); n++)
     ts->__r[n] = ctx->r[n];
   ts->__lr = ctx->lr;
-
-  ts->__cpsr = (ctx->pc & 1) ? GUM_PSR_THUMB : 0;
 #elif defined (HAVE_ARM64)
   guint n;
 

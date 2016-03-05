@@ -1157,9 +1157,15 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 #elif defined (HAVE_ARM)
   const struct sigcontext * sc = &uc->uc_mcontext;
 
+  ctx->cpsr = sc->arm_cpsr;
   ctx->pc = sc->arm_pc;
   ctx->sp = sc->arm_sp;
-  ctx->cpsr = sc->arm_cpsr;
+
+  ctx->r8 = sc->arm_r8;
+  ctx->r9 = sc->arm_r9;
+  ctx->r10 = sc->arm_r10;
+  ctx->r11 = sc->arm_fp;
+  ctx->r12 = sc->arm_ip;
 
   ctx->r[0] = sc->arm_r0;
   ctx->r[1] = sc->arm_r1;
@@ -1229,8 +1235,19 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 #elif defined (HAVE_ARM)
   struct sigcontext * sc = &uc->uc_mcontext;
 
+  sc->arm_cpsr = ctx->cpsr;
+  if (ctx->pc & 1)
+    sc->arm_cpsr |= GUM_PSR_THUMB;
+  else
+    sc->arm_cpsr &= ~GUM_PSR_THUMB;
   sc->arm_pc = ctx->pc & ~1;
   sc->arm_sp = ctx->sp;
+
+  sc->arm_r8 = ctx->r8;
+  sc->arm_r9 = ctx->r9;
+  sc->arm_r10 = ctx->r10;
+  sc->arm_fp = ctx->r11;
+  sc->arm_ip = ctx->r12;
 
   sc->arm_r0 = ctx->r[0];
   sc->arm_r1 = ctx->r[1];
@@ -1241,12 +1258,6 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   sc->arm_r6 = ctx->r[6];
   sc->arm_r7 = ctx->r[7];
   sc->arm_lr = ctx->lr;
-
-  sc->arm_cpsr = ctx->cpsr;
-  if (ctx->pc & 1)
-    sc->arm_cpsr |= GUM_PSR_THUMB;
-  else
-    sc->arm_cpsr &= ~GUM_PSR_THUMB;
 #elif defined (HAVE_ARM64)
   struct sigcontext * sc = &uc->uc_mcontext;
   gsize i;
