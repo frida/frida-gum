@@ -296,7 +296,7 @@ gum_mach_vm_protect (vm_map_t target_task,
 #elif defined (HAVE_ARM64)
   kern_return_t result;
 
-  asm (
+  asm volatile (
       "mov x4, %5\n\t"
       "mov x3, %4\n\t"
       "mov x2, %3\n\t"
