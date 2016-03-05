@@ -1792,7 +1792,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [tls]"g" (tls),
         [child_tidptr]"g" (child_tidptr),
         [exit_syscall]"i" (__NR_exit)
-      : "eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "cc", "memory"
+      : "eax", "ecx", "edx", "esi", "edi", "esp", "cc", "memory"
   );
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
@@ -1987,7 +1987,7 @@ gum_libc_syscall_4 (gsize n,
         [b]"g" (b),
         [c]"g" (c),
         [d]"g" (d)
-      : "eax", "ebx", "ecx", "edx", "esi", "esp", "memory"
+      : "eax", "ecx", "edx", "esi", "esp", "memory"
   );
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   asm volatile (
