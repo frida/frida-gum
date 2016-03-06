@@ -26,6 +26,9 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (attach_two)
   INTERCEPTOR_TESTENTRY (attach_to_recursive_function)
   INTERCEPTOR_TESTENTRY (attach_to_special_function)
+#if !defined (HAVE_IOS) && defined (HAVE_ARM)
+  INTERCEPTOR_TESTENTRY (attach_to_unaligned_function)
+#endif
 #if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (attach_to_heap_api)
 #endif
@@ -109,6 +112,56 @@ INTERCEPTOR_TESTCASE (attach_to_special_function)
   special_function (fixture->result);
   g_assert_cmpstr (fixture->result->str, ==, ">|<");
 }
+
+#if !defined (HAVE_IOS) && defined (HAVE_ARM)
+
+/*
+ * XXX: Although this problem also applies to iOS we don't want to run this
+ *      test there until we have an easy JIT API for hiding the annoying
+ *      details necessary to deal with code-signing.
+ */
+
+#include "gumthumbwriter.h"
+
+INTERCEPTOR_TESTCASE (attach_to_unaligned_function)
+{
+  gpointer page, code;
+  GumThumbWriter tw;
+  gint (* f) (void);
+
+  page = gum_alloc_n_pages (1, GUM_PAGE_RWX);
+  code = page + 2;
+
+  /* Aligned on a 2 byte boundary and minimum 8 bytes long */
+  gum_thumb_writer_init (&tw, code);
+  gum_thumb_writer_put_push_regs (&tw, 8,
+      ARM_REG_R1, ARM_REG_R2, ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
+      ARM_REG_R7, ARM_REG_LR);
+  gum_thumb_writer_put_push_regs (&tw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+  gum_thumb_writer_put_pop_regs (&tw, 5,
+      ARM_REG_R8, ARM_REG_R9, ARM_REG_R10, ARM_REG_R11, ARM_REG_R12);
+  gum_thumb_writer_put_ldr_reg_u32 (&tw, ARM_REG_R0, 1337);
+  gum_thumb_writer_put_pop_regs (&tw, 8,
+      ARM_REG_R1, ARM_REG_R2, ARM_REG_R3, ARM_REG_R4, ARM_REG_R5, ARM_REG_R6,
+      ARM_REG_R7, ARM_REG_PC);
+  gum_thumb_writer_free (&tw);
+
+  f = code + 1;
+
+  interceptor_fixture_attach_listener (fixture, 0, f, '>', '<');
+  g_assert_cmpint (f (), ==, 1337);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+
+  g_string_truncate (fixture->result, 0);
+  interceptor_fixture_detach_listener (fixture, 0);
+  g_assert_cmpint (f (), ==, 1337);
+  g_assert_cmpstr (fixture->result->str, ==, "");
+
+  gum_free_pages (page);
+}
+
+#endif
 
 INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {

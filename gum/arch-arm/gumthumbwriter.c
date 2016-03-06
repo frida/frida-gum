@@ -188,19 +188,29 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     guint32 * first_slot, * last_slot;
     guint ref_idx;
 
-    if ((self->pc & 2) != 0)
-      gum_thumb_writer_put_nop (self);
     first_slot = (guint32 *) self->code;
     last_slot = first_slot;
 
     for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
     {
       GumThumbLiteralRef * r;
-      guint32 * slot;
-      gsize distance_in_words;
       guint16 insn;
+      gboolean is_t1_load;
+      guint32 * slot;
+      GumAddress slot_pc;
+      gsize distance_in_bytes;
 
       r = &self->literal_refs[ref_idx];
+      insn = GUINT16_FROM_LE (r->insn[0]);
+      is_t1_load = (insn & 0xf800) == 0x4800;
+
+      if (last_slot == first_slot && is_t1_load && (self->pc & 3) != 0)
+      {
+        gum_thumb_writer_put_nop (self);
+
+        first_slot = (guint32 *) self->code;
+        last_slot = first_slot;
+      }
 
       for (slot = first_slot; slot != last_slot; slot++)
       {
@@ -211,27 +221,27 @@ gum_thumb_writer_flush (GumThumbWriter * self)
       if (slot == last_slot)
       {
         *slot = r->val;
+        self->code += 2;
+        self->pc += 4;
         last_slot++;
       }
 
-      distance_in_words = (((guint32 *) GSIZE_TO_POINTER (self->pc)) +
-          (slot - first_slot)) -
-          ((guint32 *) GSIZE_TO_POINTER (r->pc & ~((GumAddress) 3)));
-      insn = GUINT16_FROM_LE (r->insn[0]);
-      if ((insn & 0xf800) == 0x4800)
+      slot_pc = self->pc - ((guint8 *) last_slot - (guint8 *) first_slot) +
+          ((guint8 *) slot - (guint8 *) first_slot);
+
+      distance_in_bytes = slot_pc - (r->pc & ~((GumAddress) 3));
+
+      if (is_t1_load)
       {
-        r->insn[0] = GUINT16_TO_LE (insn | distance_in_words);
+        r->insn[0] = GUINT16_TO_LE (insn | (distance_in_bytes / 4));
       }
       else
       {
         r->insn[1] = GUINT16_TO_LE (GUINT16_FROM_LE (r->insn[1]) |
-            distance_in_words * 4);
+            distance_in_bytes);
       }
     }
     self->literal_refs_len = 0;
-
-    self->code = (guint16 *) last_slot;
-    self->pc += (guint8 *) last_slot - (guint8 *) first_slot;
   }
 }
 
