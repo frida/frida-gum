@@ -416,6 +416,16 @@
         }
     });
 
+    if (Script.runtime === 'DUK') {
+        const cpuContextFields = Object.getOwnPropertyNames(CpuContext.prototype);
+        CpuContext.prototype.toJSON = function () {
+            return cpuContextFields.reduce((result, name) => {
+                result[name] = this[name];
+                return result;
+            }, {});
+        };
+    }
+
     makeEnumerateThreads(Kernel);
     makeEnumerateRanges(Kernel);
 

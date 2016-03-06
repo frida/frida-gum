@@ -35,6 +35,7 @@ TEST_LIST_BEGIN (script)
 #ifndef HAVE_QNX
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
+  SCRIPT_TESTENTRY (invocations_provide_context_serializable_to_json)
   SCRIPT_TESTENTRY (listener_can_be_detached)
   SCRIPT_TESTENTRY (listener_can_be_detached_by_destruction_mid_call)
   SCRIPT_TESTENTRY (all_listeners_can_be_detached)
@@ -1869,6 +1870,26 @@ SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
   EXPECT_SEND_MESSAGE_WITH ("true");
   if (g_test_slow ())
     EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (invocations_provide_context_serializable_to_json)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "    send(JSON.stringify(this.context) !== \"{}\");"
+      "  },"
+      "  onLeave: function (retval) {"
+      "    send(JSON.stringify(this.context) !== \"{}\");"
+      "  }"
+      "});",
+      target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 }
 
