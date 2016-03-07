@@ -1878,7 +1878,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [result]"=r" (result)
       : [clone_syscall]"i" (__NR_clone),
         [exit_syscall]"i" (__NR_exit)
-      : "r0", "r1", "r2", "r3", "r4", "r7", "sp", "memory"
+      : "r0", "r1", "r2", "r3", "r4", "r7", "sp", "cc", "memory"
   );
 #elif defined (HAVE_ARM64)
   *(--child_sp) = child_func;
