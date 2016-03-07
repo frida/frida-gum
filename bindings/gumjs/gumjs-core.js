@@ -79,19 +79,20 @@
 
     class Console {
         log() {
-            sendLogMessage('info', Array.prototype.join.call(arguments, " "));
+            sendLogMessage('info', Array.from(arguments));
         }
 
         warn() {
-            sendLogMessage('warning', Array.prototype.join.call(arguments, " "));
+            sendLogMessage('warning', Array.from(arguments));
         }
 
         error() {
-            sendLogMessage('error', Array.prototype.join.call(arguments, " "));
+            sendLogMessage('error', Array.from(arguments));
         }
     }
 
-    function sendLogMessage(level, text) {
+    function sendLogMessage(level, values) {
+        const text = values.map(parseLogArgument).join(" ");
         const message = {
             type: 'log',
             level: level,
@@ -100,9 +101,123 @@
         engine._send(JSON.stringify(message), null);
     }
 
+    function parseLogArgument(value) {
+        if (value instanceof ArrayBuffer)
+            return hexdump(value);
+        else
+            return value;
+    }
+
+    function hexdump(buffer, options) {
+        const bytes = new Uint8Array(buffer);
+
+        options = options || {};
+
+        const startOffset = options.offset || 0;
+        const length = options.length || bytes.length;
+        const showHeader = options.hasOwnProperty('header') ? options.header : true;
+        const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
+
+        const columnPadding = "  ";
+        const leftColumnWidth = 8;
+        const hexLegend = " 0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F";
+        const asciiLegend = "0123456789ABCDEF";
+
+        let resetColor, offsetColor, dataColor, newlineColor;
+        if (useAnsi) {
+            resetColor = "\x1b[0m";
+            offsetColor = "\x1b[0;32m";
+            dataColor = "\x1b[0;33m";
+            newlineColor = resetColor;
+        } else {
+            resetColor = "";
+            offsetColor = "";
+            dataColor = "";
+            newlineColor = "";
+        }
+
+        const result = [];
+
+        if (showHeader) {
+            result.push(
+                "- offset -",
+                columnPadding,
+                hexLegend,
+                columnPadding,
+                asciiLegend,
+                "\n"
+            );
+        }
+
+        let offset = startOffset;
+        for (let bufferOffset = 0; bufferOffset < length; bufferOffset += 16) {
+            if (bufferOffset !== 0)
+                result.push("\n");
+
+            result.push(
+                offsetColor, "0x", pad(offset.toString(16), leftColumnWidth, "0"), resetColor,
+                columnPadding
+            );
+
+            const asciiChars = [];
+            const lineSize = Math.min(length - offset, 16);
+
+            for (let lineOffset = 0; lineOffset !== lineSize; lineOffset++) {
+                const value = bytes[offset++];
+
+                const isNewline = value === 10;
+
+                const hexPair = pad(value.toString(16), 2, "0");
+                if (lineOffset !== 0)
+                    result.push(" ");
+                result.push(
+                    isNewline ? newlineColor : dataColor,
+                    hexPair,
+                    resetColor
+                );
+
+                asciiChars.push(
+                    isNewline ? newlineColor : dataColor,
+                    (value >= 32 && value <= 126) ? String.fromCharCode(value) : ".",
+                    resetColor
+                );
+            }
+
+            for (let lineOffset = lineSize; lineOffset !== 16; lineOffset++) {
+                result.push("   ");
+                asciiChars.push(" ");
+            }
+
+            result.push(columnPadding);
+
+            Array.prototype.push.apply(result, asciiChars);
+        }
+
+        let trailingSpaceCount = 0;
+        for (let tailOffset = result.length - 1; tailOffset >= 0 && result[tailOffset] === " "; tailOffset--) {
+            trailingSpaceCount++;
+        }
+
+        return result.slice(0, result.length - trailingSpaceCount).join("");
+    }
+
+    function pad(str, width, fill) {
+        const result = [];
+        const paddingSize = Math.max(width - str.length, 0);
+        for (let index = 0; index !== paddingSize; index++) {
+            result.push(fill);
+        }
+        return result.join("") + str;
+    }
+
     Object.defineProperty(engine, 'console', {
         enumerable: true,
         value: new Console()
+    });
+
+    Object.defineProperty(engine, 'hexdump', {
+        enumerable: true,
+        value: hexdump
     });
 
     Object.defineProperty(Memory, 'dup', {
