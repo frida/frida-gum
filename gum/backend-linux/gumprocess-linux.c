@@ -1861,7 +1861,8 @@ gum_libc_clone (GumCloneFunc child_func,
       "mov r7, %[clone_syscall]\n\t"
       "ldmdb %[next_args]!, {r0, r1, r2, r3, r4}\n\t"
       "swi 0x0\n\t"
-      "cbnz r0, 1f\n\t"
+      "cmp r0, #0\n\t"
+      "bne 1f\n\t"
 
       /* child: */
       "pop {r0, r1}\n\t"
