@@ -376,11 +376,7 @@ gum_process_modify_thread (GumThreadId thread_id,
     segment.useable = 1;
 
     desc = &segment;
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-    desc = tls;
-#elif defined (HAVE_ARM)
-    desc = tls;
-#elif defined (HAVE_ARM64)
+#else
     desc = tls;
 #endif
 
