@@ -108,15 +108,28 @@
             return value;
     }
 
-    function hexdump(buffer, options) {
-        const bytes = new Uint8Array(buffer);
-
+    function hexdump(target, options) {
         options = options || {};
 
         const startOffset = options.offset || 0;
-        const length = options.length || bytes.length;
+        let length = options.length;
         const showHeader = options.hasOwnProperty('header') ? options.header : true;
         const useAnsi = options.hasOwnProperty('ansi') ? options.ansi : false;
+
+        let buffer;
+        if (target instanceof ArrayBuffer) {
+            if (length === undefined)
+                length = target.byteLength;
+            buffer = target;
+        } else if (target instanceof NativePointer) {
+            if (length === undefined)
+                length = 256;
+            buffer = Memory.readByteArray(target, length);
+        } else {
+            throw new Error("Expected ArrayBuffer or NativePointer");
+        }
+
+        const bytes = new Uint8Array(buffer);
 
         const columnPadding = "  ";
         const leftColumnWidth = 8;
