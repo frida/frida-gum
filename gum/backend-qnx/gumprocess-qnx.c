@@ -115,13 +115,17 @@ gum_process_modify_thread (GumThreadId thread_id,
   gboolean success = FALSE;
   struct sigaction action, old_action;
 
-  if (thread_id == gum_process_get_current_thread_id ())
+  ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *)thread_id);
+  if (vfork () == 0)
   {
-    procfs_greg gregs;
+    gchar as_path[PATH_MAX];
     int fd, res;
-    volatile gboolean modified = FALSE;
+    procfs_greg gregs;
+    GumCpuContext cpu_context;
 
-    fd = open ("/proc/self/as", O_RDONLY);
+    sprintf (as_path, "/proc/%d/as", getppid ());
+
+    fd = open (as_path, O_RDWR);
     g_assert (fd != -1);
 
     res = devctl (fd, DCMD_PROC_CURTHREAD, &thread_id, sizeof (thread_id), NULL);
@@ -130,74 +134,22 @@ gum_process_modify_thread (GumThreadId thread_id,
     res = devctl (fd, DCMD_PROC_GETGREG, &gregs, sizeof (gregs), NULL);
     g_assert (res == 0);
 
-    if (!modified)
-    {
-      GumCpuContext cpu_context;
+    gum_cpu_context_from_qnx (&gregs, &cpu_context);
+    func (thread_id, &cpu_context, user_data);
+    gum_cpu_context_to_qnx (&cpu_context, &gregs);
 
-      gum_cpu_context_from_qnx (&gregs, &cpu_context);
-      func (thread_id, &cpu_context, user_data);
-      gum_cpu_context_to_qnx (&cpu_context, &gregs);
-
-      modified = TRUE;
-
-      res = devctl (fd, DCMD_PROC_SETGREG, &gregs, sizeof (gregs), NULL);
-      /* TODO: this doesn't appear to work. not sure why. disabling the
-       * assert for the moment: */
-      /* g_assert (res == 0); */
-    }
+    res = devctl (fd, DCMD_PROC_SETGREG, &gregs, sizeof (gregs), NULL);
+    g_assert (res == 0);
 
     close (fd);
-    success = TRUE;
+    _exit (0);
   }
-  else
-  {
-    G_LOCK (gum_modify_thread);
+  ThreadCtl (_NTO_TCTL_ONE_THREAD_CONT, (void *) thread_id);
 
-    gum_modify_thread_did_load_cpu_context = FALSE;
-    gum_modify_thread_did_modify_cpu_context = FALSE;
-    gum_modify_thread_did_store_cpu_context = FALSE;
-
-    action.sa_sigaction = gum_do_modify_thread;
-    sigemptyset (&action.sa_mask);
-    action.sa_flags = SA_SIGINFO;
-    sigaction (GUM_HIJACK_SIGNAL, &action, &old_action);
-
-    if (SignalKill (0, getpid (), thread_id, GUM_HIJACK_SIGNAL, 0, 0) != -1)
-    {
-      /* FIXME: timeout? */
-      while (!gum_modify_thread_did_load_cpu_context)
-        g_thread_yield ();
-      func (thread_id, &gum_modify_thread_cpu_context, user_data);
-      gum_modify_thread_did_modify_cpu_context = TRUE;
-      while (!gum_modify_thread_did_store_cpu_context)
-        g_thread_yield ();
-
-      success = TRUE;
-    }
-
-    sigaction (GUM_HIJACK_SIGNAL, &old_action, NULL);
-
-    G_UNLOCK (gum_modify_thread);
-  }
+  success = TRUE;
 
   return success;
 }
-
-static void
-gum_do_modify_thread (int sig,
-                      siginfo_t * siginfo,
-                      void * context)
-{
-  debug_greg_t * gregs = (debug_greg_t *) context;
-
-  gum_cpu_context_from_qnx (gregs, &gum_modify_thread_cpu_context);
-  gum_modify_thread_did_load_cpu_context = TRUE;
-  while (!gum_modify_thread_did_modify_cpu_context)
-    ;
-  gum_cpu_context_to_qnx (&gum_modify_thread_cpu_context, gregs);
-  gum_modify_thread_did_store_cpu_context = TRUE;
-}
-
 
 void
 gum_process_enumerate_threads (GumFoundThreadFunc func,
@@ -223,7 +175,8 @@ gum_process_enumerate_threads (GumFoundThreadFunc func,
     details.id = thread.tid;
     details.state = gum_thread_state_from_system_thread_state (thread.state);
 
-    if (gum_process_modify_thread (details.id, gum_store_cpu_context,
+    if (thread.state != STATE_DEAD &&
+        gum_process_modify_thread (details.id, gum_store_cpu_context,
           &details.cpu_context))
     {
       carry_on = func (&details, user_data);
@@ -882,6 +835,8 @@ gum_thread_state_from_system_thread_state (gint state)
       return GUM_THREAD_WAITING;
     case STATE_STOPPED:
       return GUM_THREAD_STOPPED;
+    case STATE_DEAD:
+      return GUM_THREAD_HALTED;
     default:
       g_assert_not_reached ();
       break;
