@@ -115,7 +115,7 @@ gum_process_modify_thread (GumThreadId thread_id,
   gboolean success = FALSE;
   struct sigaction action, old_action;
 
-  ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *)thread_id);
+  ThreadCtl (_NTO_TCTL_ONE_THREAD_HOLD, (void *) thread_id);
   if (vfork () == 0)
   {
     gchar as_path[PATH_MAX];
