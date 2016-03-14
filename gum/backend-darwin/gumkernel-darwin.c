@@ -104,6 +104,8 @@ gum_kernel_do_init (void)
 
   return task;
 #else
+  (void) gum_kernel_do_deinit;
+
   return MACH_PORT_NULL;
 #endif
 }
