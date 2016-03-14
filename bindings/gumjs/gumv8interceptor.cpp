@@ -860,15 +860,18 @@ gumjs_invocation_return_value_on_replace (
   Local<Object> holder (info.Holder ());
   GumInvocationContext * context = static_cast<GumInvocationContext *> (
       holder->GetAlignedPointerFromInternalField (GUM_RV_INVOCATION));
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () == 0)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected an argument")));
+    return;
+  }
 
   gpointer value;
-  Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (info.GetIsolate (),
-      *self->core->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-    value = GUMJS_NATIVE_POINTER_VALUE (info[0].As<Object> ());
-  else
-    value = GSIZE_TO_POINTER (info[0].As<Integer> ()->Value ());
+  if (!_gum_v8_native_pointer_parse (info[0], &value, self->core))
+    return;
   gum_invocation_context_replace_return_value (context, value);
   holder->SetInternalField (GUM_RV_VALUE,
       External::New (info.GetIsolate (), value));

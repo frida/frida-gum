@@ -145,6 +145,8 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (
     gpointer address, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_get (
     v8::Handle<v8::Value> value, gpointer * target, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_parse (
+    v8::Handle<v8::Value> value, gpointer * target, GumV8Core * core);
 
 G_GNUC_INTERNAL void _gum_v8_throw_native (GumExceptionDetails * details,
     GumV8Core * core);

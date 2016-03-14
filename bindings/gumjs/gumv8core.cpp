@@ -1864,8 +1864,9 @@ gum_v8_core_on_uint64_value_of (
 static void
 gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
 {
+  GumV8Core * core = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
   Isolate * isolate = info.GetIsolate ();
-  guint64 ptr;
 
   if (!info.IsConstructCall ())
   {
@@ -1878,52 +1879,16 @@ gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
   if (info.Length () == 0)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "NativePointer: expected a string or number")));
+        isolate, "NativePointer: expected an argument")));
     return;
   }
 
-  Local<Value> argument = info[0];
-  if (argument->IsString ())
-  {
-    String::Utf8Value ptr_as_utf8 (argument);
-    const gchar * ptr_as_string = *ptr_as_utf8;
-    gchar * endptr;
-    if (g_str_has_prefix (ptr_as_string, "0x"))
-    {
-      ptr = g_ascii_strtoull (ptr_as_string + 2, &endptr, 16);
-      if (endptr == ptr_as_string + 2)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "NativePointer: argument is not a valid "
-            "hexadecimal string")));
-        return;
-      }
-    }
-    else
-    {
-      ptr = g_ascii_strtoull (ptr_as_string, &endptr, 10);
-      if (endptr == ptr_as_string)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "NativePointer: argument is not a valid "
-            "decimal string")));
-        return;
-      }
-    }
-  }
-  else if (argument->IsNumber ())
-  {
-    ptr = argument.As<Number> ()->Value ();
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "NativePointer: expected a string or number")));
+  gpointer value;
+  if (!_gum_v8_native_pointer_parse (info[0], &value, core))
     return;
-  }
 
   info.Holder ()->SetInternalField (0,
-      External::New (info.GetIsolate (), GSIZE_TO_POINTER (ptr)));
+      External::New (info.GetIsolate (), value));
 }
 
 /*
@@ -3599,6 +3564,52 @@ _gum_v8_native_pointer_get (Handle<Value> value,
   }
 
   return TRUE;
+}
+
+gboolean
+_gum_v8_native_pointer_parse (Handle<Value> value,
+                              gpointer * target,
+                              GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsString ())
+  {
+    String::Utf8Value ptr_as_utf8 (value);
+    const gchar * ptr_as_string = *ptr_as_utf8;
+    gchar * endptr;
+    if (g_str_has_prefix (ptr_as_string, "0x"))
+    {
+      *target = GSIZE_TO_POINTER (
+          g_ascii_strtoull (ptr_as_string + 2, &endptr, 16));
+      if (endptr == ptr_as_string + 2)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "invalid hexadecimal string")));
+        return FALSE;
+      }
+    }
+    else
+    {
+      *target = GSIZE_TO_POINTER (
+          g_ascii_strtoull (ptr_as_string, &endptr, 10));
+      if (endptr == ptr_as_string)
+      {
+        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+            isolate, "invalid decimal string")));
+        return FALSE;
+      }
+    }
+
+    return TRUE;
+  }
+  else if (value->IsNumber ())
+  {
+    *target = GSIZE_TO_POINTER (value.As<Number> ()->Value ());
+    return TRUE;
+  }
+
+  return _gum_v8_native_pointer_get (value, target, core);
 }
 
 void
