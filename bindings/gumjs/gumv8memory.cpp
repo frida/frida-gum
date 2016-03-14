@@ -646,15 +646,14 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
           break;
         }
 
-        gssize length = -1;
-        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &length, core))
+        gssize size = -1;
+        if (info.Length () > 1 && !_gum_v8_ssize_get (info[1], &size, core))
           break;
-        if (length < 0)
-          length = g_utf8_strlen (data, -1);
+        if (size < 0)
+          size = strlen (data);
 
-        if (length != 0)
+        if (size != 0)
         {
-          int size = g_utf8_offset_to_pointer (data, length) - data;
           result = String::NewFromUtf8 (isolate, data, String::kNormalString,
               size);
         }

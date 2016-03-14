@@ -2800,7 +2800,7 @@ SCRIPT_TESTCASE (utf8_string_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("\"Bjøærheimsbygd\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
-      ", 3));", str);
+      ", 4));", str);
   EXPECT_SEND_MESSAGE_WITH ("\"Bjø\"");
 
   COMPILE_AND_LOAD_SCRIPT ("send(Memory.readUtf8String(" GUM_PTR_CONST
