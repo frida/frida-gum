@@ -89,14 +89,23 @@ gum_kernel_get_task (void)
 static mach_port_t
 gum_kernel_do_init (void)
 {
+#ifdef HAVE_IOS
   mach_port_t task = MACH_PORT_NULL;
 
   task_for_pid (mach_task_self (), 0, &task);
+  if (task == MACH_PORT_NULL)
+  {
+    /* Untested, but should work on iOS 9.1 with Pangu jailbreak */
+    host_get_special_port (mach_host_self (), HOST_LOCAL_NODE, 4, &task);
+  }
 
   if (task != MACH_PORT_NULL)
     _gum_register_destructor (gum_kernel_do_deinit);
 
   return task;
+#else
+  return MACH_PORT_NULL;
+#endif
 }
 
 static void
