@@ -400,11 +400,11 @@ gum_duk_memory_read (GumMemoryValueType type,
         }
         else
         {
-            gchar * slice;
+          gchar * slice;
 
-            slice = g_strndup (data, length);
-            duk_push_string (ctx, slice);
-            g_free (slice);
+          slice = g_strndup (data, length);
+          duk_push_string (ctx, slice);
+          g_free (slice);
         }
 
         break;
@@ -430,13 +430,13 @@ gum_duk_memory_read (GumMemoryValueType type,
         }
         else
         {
-            gsize size;
-            gchar * slice;
+          gsize size;
+          gchar * slice;
 
-            size = g_utf8_offset_to_pointer (data, length) - data;
-            slice = g_strndup (data, size);
-            duk_push_string (ctx, slice);
-            g_free (slice);
+          size = g_utf8_offset_to_pointer (data, length) - data;
+          slice = g_strndup (data, size);
+          duk_push_string (ctx, slice);
+          g_free (slice);
         }
 
         break;
