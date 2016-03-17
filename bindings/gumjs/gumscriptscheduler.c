@@ -9,8 +9,6 @@
 #define GUM_SCRIPT_SCHEDULER_LOCK()   (g_mutex_lock (&priv->mutex))
 #define GUM_SCRIPT_SCHEDULER_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
-typedef struct _GumScriptJob GumScriptJob;
-
 struct _GumScriptSchedulerPrivate
 {
   gboolean disposed;
@@ -46,11 +44,6 @@ static void gum_script_scheduler_perform_pool_job (GumScriptJob * job,
     GumScriptScheduler * self);
 
 static gpointer gum_script_scheduler_run_js_loop (GumScriptScheduler * self);
-
-static GumScriptJob * gum_script_job_new (
-    GumScriptScheduler * self, GumScriptJobFunc func, gpointer data,
-    GDestroyNotify data_destroy, gpointer tag);
-static void gum_script_job_free (GumScriptJob * job);
 
 G_DEFINE_TYPE (GumScriptScheduler, gum_script_scheduler, G_TYPE_OBJECT);
 
@@ -269,7 +262,7 @@ gum_script_scheduler_run_js_loop (GumScriptScheduler * self)
   return NULL;
 }
 
-static GumScriptJob *
+GumScriptJob *
 gum_script_job_new (GumScriptScheduler * scheduler,
                     GumScriptJobFunc func,
                     gpointer data,
@@ -291,7 +284,7 @@ gum_script_job_new (GumScriptScheduler * scheduler,
   return job;
 }
 
-static void
+void
 gum_script_job_free (GumScriptJob * job)
 {
   if (job->data_destroy != NULL)
@@ -300,4 +293,28 @@ gum_script_job_free (GumScriptJob * job)
   gum_script_scheduler_on_job_destroyed (job->scheduler, job);
 
   g_slice_free (GumScriptJob, job);
+}
+
+void
+gum_script_job_start_on_js_thread (GumScriptJob * job)
+{
+  GMainContext * js_context = job->scheduler->priv->js_context;
+
+  if (g_main_context_is_owner (js_context))
+  {
+    job->func (job->data);
+  }
+  else
+  {
+    GSource * source;
+
+    source = g_idle_source_new ();
+    g_source_set_priority (source, G_PRIORITY_DEFAULT);
+    g_source_set_callback (source,
+        (GSourceFunc) gum_script_scheduler_perform_js_job,
+        job,
+        NULL);
+    g_source_attach (source, js_context);
+    g_source_unref (source);
+  }
 }

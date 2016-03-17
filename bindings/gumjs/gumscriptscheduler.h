@@ -27,6 +27,7 @@ typedef struct _GumScriptSchedulerClass GumScriptSchedulerClass;
 
 typedef struct _GumScriptSchedulerPrivate GumScriptSchedulerPrivate;
 
+typedef struct _GumScriptJob GumScriptJob;
 typedef void (* GumScriptJobFunc) (gpointer data);
 
 struct _GumScriptScheduler
@@ -58,6 +59,12 @@ G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_thread_pool (
     GDestroyNotify data_destroy, gpointer tag);
 G_GNUC_INTERNAL void gum_script_scheduler_flush_by_tag (
     GumScriptScheduler * self, gpointer tag);
+
+G_GNUC_INTERNAL GumScriptJob * gum_script_job_new (
+    GumScriptScheduler * scheduler, GumScriptJobFunc func, gpointer data,
+    GDestroyNotify data_destroy, gpointer tag);
+G_GNUC_INTERNAL void gum_script_job_free (GumScriptJob * job);
+G_GNUC_INTERNAL void gum_script_job_start_on_js_thread (GumScriptJob * job);
 
 G_END_DECLS
 
