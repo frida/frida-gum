@@ -130,7 +130,7 @@ static void gum_v8_write_operation_finish (GOutputStream * stream,
 
 static gboolean gum_v8_stream_constructor_args_parse (
     const FunctionCallbackInfo<Value> & info, GumStreamHandle * handle,
-    gboolean * auto_close);
+    gboolean * auto_close, GumV8Core * core);
 
 static void gum_v8_stream_on_weak_notify (
     const WeakCallbackData<Object, GumV8Stream> & data);
@@ -213,6 +213,7 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Stream * module = static_cast<GumV8Stream *> (
       info.Data ().As<External> ()->Value ());
+  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
 
   if (!info.IsConstructCall ())
@@ -225,7 +226,7 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
 
   GumStreamHandle handle;
   gboolean auto_close;
-  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close))
+  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close, core))
     return;
 
   GInputStream * stream;
@@ -239,7 +240,7 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
   instance->SetAlignedPointerInInternalField (0, stream);
 
   GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (module->core->isolate, instance);
+      new GumPersistent<Object>::type (core->isolate, instance);
   instance_handle->MarkIndependent ();
   instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify);
 
@@ -507,6 +508,7 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Stream * module = static_cast<GumV8Stream *> (
       info.Data ().As<External> ()->Value ());
+  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
 
   if (!info.IsConstructCall ())
@@ -519,7 +521,7 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
 
   GumStreamHandle handle;
   gboolean auto_close;
-  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close))
+  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close, core))
     return;
 
   GOutputStream * stream;
@@ -533,7 +535,7 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
   instance->SetAlignedPointerInInternalField (0, stream);
 
   GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (module->core->isolate, instance);
+      new GumPersistent<Object>::type (core->isolate, instance);
   instance_handle->MarkIndependent ();
   instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify);
 
@@ -792,7 +794,8 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 static gboolean
 gum_v8_stream_constructor_args_parse (const FunctionCallbackInfo<Value> & info,
                                       GumStreamHandle * handle,
-                                      gboolean * auto_close)
+                                      gboolean * auto_close,
+                                      GumV8Core * core)
 {
   Isolate * isolate = info.GetIsolate ();
 
@@ -806,9 +809,11 @@ gum_v8_stream_constructor_args_parse (const FunctionCallbackInfo<Value> & info,
 
   Local<Value> handle_value = info[0];
 #ifdef G_OS_WIN32
-  if (!_gum_v8_native_pointer_get (handle_value, handle, self->core))
+  if (!_gum_v8_native_pointer_get (handle_value, handle, core))
     return FALSE;
 #else
+  (void) core;
+
   if (!handle_value->IsNumber ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
