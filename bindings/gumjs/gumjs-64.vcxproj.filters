@@ -49,6 +49,9 @@
     <ClCompile Include="gumduksocket.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukstream.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumdukstalker.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -107,6 +110,9 @@
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8socket.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
+    <ClCompile Include="gumv8stream.cpp">
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8stalker.cpp">
@@ -186,6 +192,9 @@
     <ClInclude Include="gumduksocket.h">
       <Filter>duk</Filter>
     </ClInclude>
+    <ClInclude Include="gumdukstream.h">
+      <Filter>duk</Filter>
+    </ClInclude>
     <ClInclude Include="gumdukstalker.h">
       <Filter>duk</Filter>
     </ClInclude>
@@ -247,6 +256,9 @@
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8socket.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8stream.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8stalker.h">

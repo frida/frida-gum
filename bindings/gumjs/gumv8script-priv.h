@@ -22,6 +22,7 @@
 #include "gumv8scriptbackend.h"
 #include "gumv8socket.h"
 #include "gumv8stalker.h"
+#include "gumv8stream.h"
 #include "gumv8symbol.h"
 #include "gumv8thread.h"
 
@@ -43,6 +44,7 @@ struct _GumV8ScriptPrivate
   GumV8Module module;
   GumV8File file;
   GumV8Socket socket;
+  GumV8Stream stream;
   GumV8Interceptor interceptor;
   GumV8Stalker stalker;
   GumV8ApiResolver api_resolver;
