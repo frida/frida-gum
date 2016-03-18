@@ -123,7 +123,8 @@ AC_CHECK_MEMBER([struct mallinfo.arena],
 GLIB_VERSION=2.46.0
 CAPSTONE_VERSION=4.0
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
-    gio-2.0 >= $GLIB_VERSION, capstone >= $CAPSTONE_VERSION"
+    gio-2.0 >= $GLIB_VERSION, gio-unix-2.0 >= $GLIB_VERSION,
+    capstone >= $CAPSTONE_VERSION"
 PKG_CHECK_MODULES(GUM, [$pkg_modules])
 
 PKG_CHECK_MODULES(LIBUNWIND, [libunwind], [HAVE_LIBUNWIND=yes], [HAVE_LIBUNWIND=no])

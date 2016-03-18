@@ -37,6 +37,8 @@ v8_sources = \
 	gumv8file.cpp \
 	gumv8socket.h \
 	gumv8socket.cpp \
+	gumv8stream.h \
+	gumv8stream.cpp \
 	gumv8interceptor.h \
 	gumv8interceptor.cpp \
 	gumv8stalker.h \
@@ -76,6 +78,8 @@ duk_sources = \
 	gumdukfile.c \
 	gumduksocket.h \
 	gumduksocket.c \
+	gumdukstream.h \
+	gumdukstream.c \
 	gumdukinterceptor.h \
 	gumdukinterceptor.c \
 	gumdukstalker.h \

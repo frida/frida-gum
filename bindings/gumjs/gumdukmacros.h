@@ -24,7 +24,7 @@
   static int N (duk_context * ctx);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
   \
   static int \
   N (duk_context * ctx) \
@@ -44,9 +44,9 @@
   \
   static int \
   N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
+            const GumDukArgs * args)
 #define GUMJS_DEFINE_FINALIZER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
   \
   static int \
   N (duk_context * ctx) \
@@ -66,9 +66,9 @@
   \
   static int \
   N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
+            const GumDukArgs * args)
 #define GUMJS_DEFINE_FUNCTION(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
   \
   static int \
   N (duk_context * ctx) \
@@ -88,9 +88,9 @@
   \
   static int \
   N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
+            const GumDukArgs * args)
 #define GUMJS_DEFINE_GETTER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
   \
   static int \
   N (duk_context * ctx) \
@@ -110,9 +110,9 @@
   \
   static int \
   N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
+            const GumDukArgs * args)
 #define GUMJS_DEFINE_SETTER(N) \
-  static int N##_impl (duk_context * ctx, GumDukArgs * args); \
+  static int N##_impl (duk_context * ctx, const GumDukArgs * args); \
   \
   static int \
   N (duk_context * ctx) \
@@ -132,7 +132,7 @@
   \
   static int \
   N##_impl (duk_context * ctx, \
-            GumDukArgs * args)
+            const GumDukArgs * args)
 
 #define GUMJS_ADD_GLOBAL_FUNCTION(N, F, NARGS) \
   duk_push_c_function (ctx, F, NARGS); \

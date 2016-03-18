@@ -38,6 +38,7 @@
     <ClInclude Include="gumv8module.h" />
     <ClInclude Include="gumv8file.h" />
     <ClInclude Include="gumv8socket.h" />
+    <ClInclude Include="gumv8stream.h" />
     <ClInclude Include="gumv8interceptor.h" />
     <ClInclude Include="gumv8stalker.h" />
     <ClInclude Include="gumv8eventsink.h" />
@@ -59,6 +60,7 @@
     <ClCompile Include="gumv8module.cpp" />
     <ClCompile Include="gumv8file.cpp" />
     <ClCompile Include="gumv8socket.cpp" />
+    <ClCompile Include="gumv8stream.cpp" />
     <ClCompile Include="gumv8interceptor.cpp" />
     <ClCompile Include="gumv8stalker.cpp" />
     <ClCompile Include="gumv8eventsink.cpp" />
@@ -82,6 +84,7 @@
     <ClInclude Include="gumdukmodule.h" />
     <ClInclude Include="gumdukfile.h" />
     <ClInclude Include="gumduksocket.h" />
+    <ClInclude Include="gumdukstream.h" />
     <ClInclude Include="gumdukinterceptor.h" />
     <ClInclude Include="gumdukstalker.h" />
     <ClInclude Include="gumdukapiresolver.h" />
@@ -102,6 +105,7 @@
     <ClCompile Include="gumdukmodule.c" />
     <ClCompile Include="gumdukfile.c" />
     <ClCompile Include="gumduksocket.c" />
+    <ClCompile Include="gumdukstream.c" />
     <ClCompile Include="gumdukinterceptor.c" />
     <ClCompile Include="gumdukstalker.c" />
     <ClCompile Include="gumdukapiresolver.c" />

@@ -148,6 +148,10 @@ TEST_LIST_BEGIN (script)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
+#ifdef G_OS_UNIX
+  SCRIPT_TESTENTRY (unix_fd_can_be_read_from)
+  SCRIPT_TESTENTRY (unix_fd_can_be_written_to)
+#endif
   SCRIPT_TESTENTRY (basic_hexdump_functionality_is_available)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
@@ -501,6 +505,146 @@ SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
       "send(cb instanceof NativePointer);");
   EXPECT_SEND_MESSAGE_WITH ("true");
 }
+
+#ifdef G_OS_UNIX
+
+SCRIPT_TESTCASE (unix_fd_can_be_read_from)
+{
+  gint fds[2];
+  const guint8 message[7] = { 0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff };
+
+  g_assert_cmpint (socketpair (AF_UNIX, SOCK_STREAM, 0, fds), ==, 0);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixInputStream(%d, { autoClose: false });"
+      "stream.read(1337)"
+      ".then(function (buf) {"
+          "send(buf.byteLength, buf);"
+      "});",
+      fds[0]);
+  EXPECT_NO_MESSAGES ();
+  write (fds[1], message, 1);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("1", "13");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixInputStream(%d, { autoClose: false });"
+      "stream.readAll(7)"
+      ".then(function (buf) {"
+          "send(buf.byteLength, buf);"
+      "});",
+      fds[0]);
+  EXPECT_NO_MESSAGES ();
+  write (fds[1], message, 4);
+  g_usleep (G_USEC_PER_SEC / 20);
+  EXPECT_NO_MESSAGES ();
+  write (fds[1], message + 4, 3);
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("7", "13 37 ca fe ba be ff");
+  EXPECT_NO_MESSAGES ();
+
+  write (fds[1], message, 2);
+  close (fds[1]);
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixInputStream(%d, { autoClose: false });"
+      "stream.readAll(7)"
+      ".catch(function (error) {"
+          "send(error.toString(), error.partialData);"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("\"Error: Short read\"", "13 37");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixInputStream(%d, { autoClose: false });"
+      "stream.close()"
+      ".then(function (success) {"
+          "send(success);"
+          "stream.read(1337)"
+          ".catch(function (error) {"
+              "send(error.toString());"
+          "});"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"Error: Stream is already closed\"");
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixInputStream(%d, { autoClose: false });"
+      "stream.close()"
+      ".then(function (success) {"
+          "send(success);"
+          "stream.close()"
+          ".then(function (success) {"
+              "send(success);"
+          "});"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
+
+  close (fds[0]);
+}
+
+SCRIPT_TESTCASE (unix_fd_can_be_written_to)
+{
+  gint fds[2];
+  guint8 buffer[8];
+  sig_t original_sigpipe_handler;
+
+  original_sigpipe_handler = signal (SIGPIPE, SIG_IGN);
+
+  g_assert_cmpint (socketpair (AF_UNIX, SOCK_STREAM, 0, fds), ==, 0);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixOutputStream(%d, { autoClose: false });"
+      "stream.write([0x13])"
+      ".then(function (size) {"
+          "send(size);"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("1");
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (read (fds[1], buffer, sizeof (buffer)), ==, 1);
+  g_assert_cmphex (buffer[0], ==, 0x13);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixOutputStream(%d, { autoClose: false });"
+      "stream.writeAll([0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff])"
+      ".then(function (size) {"
+          "send(size);"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("7");
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (read (fds[1], buffer, sizeof (buffer)), ==, 7);
+  g_assert_cmphex (buffer[0], ==, 0x13);
+  g_assert_cmphex (buffer[1], ==, 0x37);
+  g_assert_cmphex (buffer[2], ==, 0xca);
+  g_assert_cmphex (buffer[3], ==, 0xfe);
+  g_assert_cmphex (buffer[4], ==, 0xba);
+  g_assert_cmphex (buffer[5], ==, 0xbe);
+  g_assert_cmphex (buffer[6], ==, 0xff);
+
+  close (fds[1]);
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var stream = new UnixOutputStream(%d, { autoClose: false });"
+      "stream.writeAll([0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff])"
+      ".catch(function (error) {"
+          "send(error.partialSize);"
+      "});",
+      fds[0]);
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_NO_MESSAGES ();
+
+  close (fds[0]);
+
+  signal (SIGPIPE, original_sigpipe_handler);
+}
+
+#endif
 
 SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
 {

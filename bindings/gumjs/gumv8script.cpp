@@ -284,6 +284,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_module_init (&priv->module, &priv->core, global_templ);
     _gum_v8_file_init (&priv->file, &priv->core, global_templ);
     _gum_v8_socket_init (&priv->socket, &priv->core, global_templ);
+    _gum_v8_stream_init (&priv->stream, &priv->core, global_templ);
     _gum_v8_interceptor_init (&priv->interceptor, &priv->core,
         global_templ);
     _gum_v8_stalker_init (&priv->stalker, &priv->core, global_templ);
@@ -303,6 +304,7 @@ gum_v8_script_create_context (GumV8Script * self,
     _gum_v8_module_realize (&priv->module);
     _gum_v8_file_realize (&priv->file);
     _gum_v8_socket_realize (&priv->socket);
+    _gum_v8_stream_realize (&priv->stream);
     _gum_v8_interceptor_realize (&priv->interceptor);
     _gum_v8_stalker_realize (&priv->stalker);
     _gum_v8_api_resolver_realize (&priv->api_resolver);
@@ -361,6 +363,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
 
     _gum_v8_stalker_flush (&priv->stalker);
     _gum_v8_interceptor_flush (&priv->interceptor);
+    _gum_v8_stream_flush (&priv->stream);
     _gum_v8_core_flush (&priv->core);
 
     _gum_v8_instruction_dispose (&priv->instruction);
@@ -368,6 +371,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
     _gum_v8_api_resolver_dispose (&priv->api_resolver);
     _gum_v8_stalker_dispose (&priv->stalker);
     _gum_v8_interceptor_dispose (&priv->interceptor);
+    _gum_v8_stream_dispose (&priv->stream);
     _gum_v8_socket_dispose (&priv->socket);
     _gum_v8_file_dispose (&priv->file);
     _gum_v8_module_dispose (&priv->module);
@@ -388,6 +392,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_api_resolver_finalize (&priv->api_resolver);
   _gum_v8_stalker_finalize (&priv->stalker);
   _gum_v8_interceptor_finalize (&priv->interceptor);
+  _gum_v8_stream_finalize (&priv->stream);
   _gum_v8_socket_finalize (&priv->socket);
   _gum_v8_file_finalize (&priv->file);
   _gum_v8_module_finalize (&priv->module);

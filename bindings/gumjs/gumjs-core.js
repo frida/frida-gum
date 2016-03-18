@@ -657,6 +657,91 @@
         }
     });
 
+    const InputStream = engine.UnixInputStream || engine.Win32InputStream;
+    const OutputStream = engine.UnixOutputStream || engine.Win32OutputStream;
+
+    const _closeInput = InputStream.prototype._close;
+    InputStream.prototype.close = function () {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _closeInput.call(stream, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    const _read = InputStream.prototype._read;
+    InputStream.prototype.read = function (size) {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _read.call(stream, size, function (error, data) {
+                if (error === null)
+                    resolve(data);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    const _readAll = InputStream.prototype._readAll;
+    InputStream.prototype.readAll = function (size) {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _readAll.call(stream, size, function (error, data) {
+                if (error === null) {
+                    resolve(data);
+                } else {
+                    error.partialData = data;
+                    reject(error);
+                }
+            });
+        });
+    };
+
+    const _closeOutput = OutputStream.prototype._close;
+    OutputStream.prototype.close = function () {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _closeOutput.call(stream, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    const _write = OutputStream.prototype._write;
+    OutputStream.prototype.write = function (data) {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _write.call(stream, data, function (error, size) {
+                if (error === null)
+                    resolve(size);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    const _writeAll = OutputStream.prototype._writeAll;
+    OutputStream.prototype.writeAll = function (data) {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _writeAll.call(stream, data, function (error, size) {
+                if (error === null) {
+                    resolve(size);
+                } else {
+                    error.partialSize = size;
+                    reject(error);
+                }
+            });
+        });
+    };
+
     Object.defineProperty(engine, 'rpc', {
         enumerable: true,
         value: {
