@@ -700,9 +700,15 @@ _gum_v8_core_realize (GumV8Core * self)
 void
 _gum_v8_core_flush (GumV8Core * self)
 {
+  GMainContext * context =
+      gum_script_scheduler_get_js_context (self->scheduler);
+
   self->isolate->Exit ();
   {
     Unlocker ul (self->isolate);
+
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
 
     gum_script_scheduler_flush_by_tag (self->scheduler, self);
   }
@@ -725,10 +731,14 @@ _gum_v8_core_flush (GumV8Core * self)
     self->isolate->Enter ();
   }
 
-  GMainContext * context =
-      gum_script_scheduler_get_js_context (self->scheduler);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
+  self->isolate->Exit ();
+  {
+    Unlocker ul (self->isolate);
+
+    while (g_main_context_pending (context))
+      g_main_context_iteration (context, FALSE);
+  }
+  self->isolate->Enter ();
 
   g_hash_table_foreach (self->weak_refs,
       (GHFunc) gum_v8_core_clear_weak_ref_entry, NULL);

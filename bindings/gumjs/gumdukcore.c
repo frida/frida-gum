@@ -669,7 +669,11 @@ _gum_duk_core_flush (GumDukCore * self)
 {
   GMainContext * context;
 
+  context = gum_script_scheduler_get_js_context (self->scheduler);
+
   g_rec_mutex_unlock (&self->mutex);
+  while (g_main_context_pending (context))
+    g_main_context_iteration (context, FALSE);
   gum_script_scheduler_flush_by_tag (self->scheduler, self);
   g_rec_mutex_lock (&self->mutex);
 
@@ -686,9 +690,10 @@ _gum_duk_core_flush (GumDukCore * self)
     g_rec_mutex_lock (&self->mutex);
   }
 
-  context = gum_script_scheduler_get_js_context (self->scheduler);
+  g_rec_mutex_unlock (&self->mutex);
   while (g_main_context_pending (context))
     g_main_context_iteration (context, FALSE);
+  g_rec_mutex_lock (&self->mutex);
 
   g_hash_table_remove_all (self->weak_refs);
 }
