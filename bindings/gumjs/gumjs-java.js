@@ -1041,12 +1041,6 @@
                 function f() {
                     /* jshint validthis: true */
                     const isInstance = this.$handle !== null;
-                    if (methods[0].type === INSTANCE_METHOD && !isInstance) {
-                        if (name === 'toString') {
-                            return "<" + this.$classWrapper.__name__ + ">";
-                        }
-                        throw new Error(name + ": cannot call instance method without an instance");
-                    }
                     const group = candidates[arguments.length];
                     if (!group) {
                         throw new Error(name + ": argument count does not match any overload");
@@ -1054,6 +1048,12 @@
                     for (let i = 0; i !== group.length; i++) {
                         const method = group[i];
                         if (method.canInvokeWith(arguments)) {
+                            if (method.type === INSTANCE_METHOD && !isInstance) {
+                                if (name === 'toString') {
+                                    return "<" + this.$classWrapper.__name__ + ">";
+                                }
+                                throw new Error(name + ": cannot call instance method without an instance");
+                            }
                             return method.apply(this, arguments);
                         }
                     }
