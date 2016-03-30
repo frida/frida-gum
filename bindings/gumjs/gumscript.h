@@ -8,7 +8,8 @@
 #define __GUM_SCRIPT_H__
 
 #include <gio/gio.h>
-#include <gum/gumstalker.h>
+#include <gum/gum.h>
+#include <json-glib/json-glib.h>
 
 #define GUM_TYPE_SCRIPT (gum_script_get_type ())
 #define GUM_SCRIPT(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj), GUM_TYPE_SCRIPT,\

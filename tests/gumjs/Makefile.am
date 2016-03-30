@@ -23,4 +23,4 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir) \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/tests \
-	$(GUM_CFLAGS)
+	$(GUMJS_CFLAGS)

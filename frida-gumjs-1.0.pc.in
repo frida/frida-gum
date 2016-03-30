@@ -6,7 +6,7 @@ libdir=${exec_prefix}/lib
 Name: GumJS
 Description: Gum JavaScript bindings
 Version: @VERSION@
-Requires: frida-gum-1.0
+Requires: frida-gum-1.0 json-glib-1.0
 Requires.private: v8 @LIBFFI_REQUIRES@
 Cflags: -I${includedir}/frida-1.0
 Libs: -L${libdir} -lfrida-gumjs-1.0

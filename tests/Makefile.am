@@ -81,7 +81,7 @@ AM_CPPFLAGS = \
 	-I $(top_srcdir)/libs \
 	-I $(top_srcdir)/bindings \
 	-I $(top_srcdir)/bindings/gumjs \
-	$(GUM_CFLAGS)
+	$(GUMJS_CFLAGS)
 
 if OS_MAC
 all-local: gum-tests
