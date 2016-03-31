@@ -7,6 +7,10 @@
 
 #include "script-fixture.c"
 
+#ifdef HAVE_QNX
+#include <unix.h>
+#endif
+
 TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (array_buffer_can_be_created)
