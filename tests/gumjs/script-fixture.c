@@ -30,6 +30,9 @@
 # include <sys/un.h>
 # include <unistd.h>
 #endif
+#ifdef HAVE_QNX
+# include <unix.h>
+#endif
 
 #define ANY_LINE_NUMBER -1
 #define SCRIPT_MESSAGE_TIMEOUT_MSEC 500
