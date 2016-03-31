@@ -9,12 +9,15 @@
 #include "gumtls.h"
 
 #include <pthread.h>
+#include <string.h>
 #include <sys/syspage.h>
 
 #define MAX_TMP_TLS_KEYS 200
+
 typedef struct _GumTmpTlsKey GumTmpTlsKey;
 
-struct _GumTmpTlsKey{
+struct _GumTmpTlsKey
+{
   GumThreadId tid;
   GumTlsKey key;
   gpointer value;
@@ -32,6 +35,42 @@ _gum_tls_init (void)
 {
   gum_spinlock_init (&_gum_tls_tmp_keys_lock);
   memset (_gum_tls_tmp_keys, 0, sizeof (_gum_tls_tmp_keys));
+}
+
+GumTlsKey
+gum_tls_key_new (void)
+{
+  pthread_key_t key;
+  gint res;
+
+  res = pthread_key_create (&key, NULL);
+  g_assert_cmpint (res, ==, 0);
+
+  return key;
+}
+
+void
+gum_tls_key_free (GumTlsKey key)
+{
+  pthread_key_delete (key);
+}
+
+gpointer
+gum_tls_key_get_value (GumTlsKey key)
+{
+  if (key >= _cpupage_ptr->tls->__numkeys)
+    return _gum_tls_key_get_tmp_value (key);
+  else
+    return _cpupage_ptr->tls->__keydata[key];
+}
+
+void
+gum_tls_key_set_value (GumTlsKey key,
+                       gpointer value)
+{
+  _gum_tls_key_set_tmp_value (key, value);
+  pthread_setspecific (key, value);
+  _gum_tls_key_delete_tmp_value (key);
 }
 
 static gpointer
@@ -101,38 +140,3 @@ _gum_tls_key_delete_tmp_value (GumTlsKey key)
   gum_spinlock_release (&_gum_tls_tmp_keys_lock);
 }
 
-GumTlsKey
-gum_tls_key_new (void)
-{
-  pthread_key_t key;
-  gint res;
-
-  res = pthread_key_create (&key, NULL);
-  g_assert_cmpint (res, ==, 0);
-
-  return key;
-}
-
-void
-gum_tls_key_free (GumTlsKey key)
-{
-  pthread_key_delete (key);
-}
-
-gpointer
-gum_tls_key_get_value (GumTlsKey key)
-{
-  if (key >= _cpupage_ptr->tls->__numkeys)
-    return _gum_tls_key_get_tmp_value (key);
-  else
-    return _cpupage_ptr->tls->__keydata[key];
-}
-
-void
-gum_tls_key_set_value (GumTlsKey key,
-                       gpointer value)
-{
-  _gum_tls_key_set_tmp_value (key, value);
-  pthread_setspecific (key, value);
-  _gum_tls_key_delete_tmp_value (key);
-}
