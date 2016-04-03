@@ -9,7 +9,7 @@
 
 #include "gumv8core.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <v8.h>
 
 typedef struct _GumV8Instruction GumV8Instruction;

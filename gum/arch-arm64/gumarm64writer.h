@@ -7,7 +7,7 @@
 #ifndef __GUM_ARM64_WRITER_H__
 #define __GUM_ARM64_WRITER_H__
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <gum/gumdefs.h>
 
 #define GUM_ARM64_ADRP_MAX_DISTANCE 0xfffff000

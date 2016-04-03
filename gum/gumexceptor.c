@@ -26,7 +26,7 @@
 #include <stdlib.h>
 #include <string.h>
 #ifdef G_OS_WIN32
-# include <capstone/capstone.h>
+# include <capstone.h>
 # include <tchar.h>
 #else
 # include <signal.h>

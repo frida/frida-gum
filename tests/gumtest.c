@@ -13,7 +13,7 @@
 # include "lowlevel-helpers.h"
 #endif
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <glib.h>
 #include <gio/gio.h>
 #include <gum/gum.h>

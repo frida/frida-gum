@@ -121,7 +121,7 @@ AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
 
 GLIB_VERSION=2.46.0
-CAPSTONE_VERSION=4.0
+CAPSTONE_VERSION=3.0.4
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,
     gio-2.0 >= $GLIB_VERSION, gio-unix-2.0 >= $GLIB_VERSION,
     capstone >= $CAPSTONE_VERSION"

@@ -7,7 +7,7 @@
 #ifndef __GUM_THUMB_WRITER_H__
 #define __GUM_THUMB_WRITER_H__
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <gum/gumdefs.h>
 
 #define GUM_THUMB_B_MAX_DISTANCE 0x00fffffe

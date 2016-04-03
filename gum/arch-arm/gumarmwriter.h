@@ -7,7 +7,7 @@
 #ifndef __GUM_ARM_WRITER_H__
 #define __GUM_ARM_WRITER_H__
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <gum/gumdefs.h>
 
 G_BEGIN_DECLS

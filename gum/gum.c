@@ -13,7 +13,7 @@
 #include "gumprintf.h"
 #include "gumtls-priv.h"
 
-#include <capstone/capstone.h>
+#include <capstone.h>
 #include <glib-object.h>
 #include <gio/gio.h>
 #include <string.h>
