@@ -10,8 +10,10 @@ TEST_LIST_BEGIN (relocator)
   RELOCATOR_TESTENTRY (one_to_one)
   RELOCATOR_TESTENTRY (call_near_relative)
   RELOCATOR_TESTENTRY (call_near_relative_to_next_instruction)
+#if GLIB_SIZEOF_VOID_P == 4
   RELOCATOR_TESTENTRY (call_near_gnu_get_pc_thunk)
   RELOCATOR_TESTENTRY (call_near_android_get_pc_thunk)
+#endif
   RELOCATOR_TESTENTRY (call_near_indirect)
   RELOCATOR_TESTENTRY (jmp_short_outside_block)
   RELOCATOR_TESTENTRY (jmp_near_outside_block)
@@ -134,6 +136,8 @@ RELOCATOR_TESTCASE (call_near_relative_to_next_instruction)
       sizeof (expected_output)), ==, 0);
 }
 
+#if GLIB_SIZEOF_VOID_P == 4
+
 RELOCATOR_TESTCASE (call_near_gnu_get_pc_thunk)
 {
   const guint8 input[] = {
@@ -187,6 +191,8 @@ RELOCATOR_TESTCASE (call_near_android_get_pc_thunk)
   g_assert_cmpint (memcmp (fixture->output, expected_output,
       sizeof (expected_output)), ==, 0);
 }
+
+#endif
 
 RELOCATOR_TESTCASE (call_near_indirect)
 {
