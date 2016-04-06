@@ -16,6 +16,9 @@
 #include "gumtls.h"
 
 #include <string.h>
+#include <stdio.h>
+//#define DBG_PRINT(fmt, ...) fprintf(stderr, "-----> %s() line %d: " fmt, __func__, __LINE__, ##__VA_ARGS__)
+#define DBG_PRINT(fmt, ...)
 
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
 
@@ -198,6 +201,18 @@ static GumSpinlock _gum_interceptor_thread_context_lock;
 static GArray * _gum_interceptor_thread_contexts;
 
 static GumInvocationStack _gum_interceptor_empty_stack = { NULL, 0 };
+
+
+static const char* fname_lookup(void* addr)
+{
+    if(addr == (void*)0x1026288) return "pthread_getspecific";
+    if(addr == (void*)0x1027708) return "pthread_setspecific";
+
+    static char buf[32];
+    snprintf(buf, 32, "0x%08x", (int)addr);
+    return buf;
+}
+
 
 static void
 gum_interceptor_class_init (GumInterceptorClass * klass)
@@ -1152,21 +1167,26 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   system_error = gum_thread_get_system_error ();
 #endif
 
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
   if (gum_tls_key_get_value (_gum_interceptor_guard_key) == interceptor)
   {
+    DBG_PRINT("INTERCEPTOR_GUARD_KEY BYPASS\n");
     *next_hop = function_ctx->on_invoke_trampoline;
     goto bypass;
   }
   gum_tls_key_set_value (_gum_interceptor_guard_key, interceptor);
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
 
   interceptor_ctx = get_interceptor_thread_context ();
   stack = interceptor_ctx->stack;
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
 
   stack_entry = gum_invocation_stack_peek_top (stack);
   if (stack_entry != NULL && stack_entry->calling_replacement &&
       stack_entry->invocation_context.function ==
       function_ctx->function_address)
   {
+    DBG_PRINT("invocation_cotnext.function == function_ctx->function_address!\n");
     gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
     *next_hop = function_ctx->on_invoke_trampoline;
     goto bypass;
@@ -1262,6 +1282,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
 
   gum_thread_set_system_error (system_error);
 
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
   gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
 
   if (will_trap_on_leave)
@@ -1312,6 +1333,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   system_error = gum_thread_get_system_error ();
 #endif
 
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
   gum_tls_key_set_value (_gum_interceptor_guard_key, function_ctx->interceptor);
 
 #ifndef G_OS_WIN32
@@ -1370,6 +1392,7 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   gum_invocation_stack_pop (interceptor_ctx->stack);
 
+  DBG_PRINT("func_addr = %s\n", fname_lookup(function_ctx->function_address));
   gum_tls_key_set_value (_gum_interceptor_guard_key, NULL);
 
   g_atomic_int_dec_and_test (&function_ctx->trampoline_usage_counter);
@@ -1379,12 +1402,15 @@ static InterceptorThreadContext *
 get_interceptor_thread_context (void)
 {
   InterceptorThreadContext * context;
+  DBG_PRINT("\n");
 
   context = (InterceptorThreadContext *)
       gum_tls_key_get_value (_gum_interceptor_context_key);
   if (context == NULL)
   {
+    DBG_PRINT("\n");
     context = interceptor_thread_context_new ();
+    DBG_PRINT("CONTEXT = %p\n", context);
 
     gum_spinlock_acquire (&_gum_interceptor_thread_context_lock);
     g_array_append_val (_gum_interceptor_thread_contexts, context);
