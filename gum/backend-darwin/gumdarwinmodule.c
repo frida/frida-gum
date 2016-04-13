@@ -194,20 +194,28 @@ gum_darwin_module_new (const gchar * name,
   {
     case GUM_CPU_IA32:
       module->pointer_size = 4;
-      module->page_size = 4096;
       break;
     case GUM_CPU_AMD64:
       module->pointer_size = 8;
-      module->page_size = 4096;
       break;
     case GUM_CPU_ARM:
       module->pointer_size = 4;
-      module->page_size = 4096;
       break;
     case GUM_CPU_ARM64:
       module->pointer_size = 8;
-      module->page_size = 16384;
       break;
+  }
+  if (module->is_local)
+  {
+    module->page_size = gum_query_page_size ();
+  }
+  else
+  {
+    guint page_size = 4096;
+
+    gum_darwin_query_page_size (task, &page_size);
+
+    module->page_size = page_size;
   }
 
   module->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
