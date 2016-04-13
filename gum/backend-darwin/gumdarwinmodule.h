@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,6 +8,7 @@
 #define __GUM_DARWIN_MODULE_H__
 
 #include <gum/gum.h>
+#include <mach-o/nlist.h>
 #include <mach/mach.h>
 
 #define GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE 2
@@ -24,8 +25,11 @@ typedef struct _GumDarwinBindDetails GumDarwinBindDetails;
 typedef struct _GumDarwinInitPointersDetails GumDarwinInitPointersDetails;
 typedef struct _GumDarwinTermPointersDetails GumDarwinTermPointersDetails;
 typedef struct _GumDarwinSegment GumDarwinSegment;
+typedef struct _GumDarwinExportDetails GumDarwinExportDetails;
 typedef struct _GumDarwinSymbolDetails GumDarwinSymbolDetails;
 
+typedef gboolean (* GumDarwinFoundExportFunc) (
+    const GumDarwinExportDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundSymbolFunc) (
     const GumDarwinSymbolDetails * details, gpointer user_data);
 typedef gboolean (* GumDarwinFoundSectionFunc) (
@@ -158,9 +162,9 @@ struct _GumDarwinSegment
   vm_prot_t protection;
 };
 
-struct _GumDarwinSymbolDetails
+struct _GumDarwinExportDetails
 {
-  const gchar * symbol;
+  const gchar * name;
   guint64 flags;
 
   union
@@ -179,6 +183,17 @@ struct _GumDarwinSymbolDetails
   };
 };
 
+struct _GumDarwinSymbolDetails
+{
+  const gchar * name;
+  GumAddress address;
+
+  /* These map 1:1 to their struct nlist / nlist_64 equivalents. */
+  guint8 type;
+  guint8 section;
+  guint16 description;
+};
+
 GumDarwinModule * gum_darwin_module_new_from_file (const gchar * name,
     mach_port_t task, GumCpuType cpu_type, GMappedFile * cache_file);
 GumDarwinModule * gum_darwin_module_new_from_memory (const gchar * name,
@@ -189,11 +204,15 @@ void gum_darwin_module_unref (GumDarwinModule * self);
 void gum_darwin_module_set_base_address (GumDarwinModule * self,
     GumAddress base_address);
 
-gboolean gum_darwin_module_resolve (GumDarwinModule * self,
-    const gchar * symbol, GumDarwinSymbolDetails * details);
+gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
+    const gchar * symbol, GumDarwinExportDetails * details);
+GumAddress gum_darwin_module_resolve_symbol_address (GumDarwinModule * self,
+    const gchar * symbol);
 void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, gpointer user_data);
 void gum_darwin_module_enumerate_exports (GumDarwinModule * self,
+    GumDarwinFoundExportFunc func, gpointer user_data);
+void gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
     GumDarwinFoundSymbolFunc func, gpointer user_data);
 GumAddress gum_darwin_module_slide (GumDarwinModule * self);
 const GumDarwinSegment * gum_darwin_module_segment (GumDarwinModule * self,

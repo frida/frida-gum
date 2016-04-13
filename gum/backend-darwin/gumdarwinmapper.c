@@ -1145,22 +1145,21 @@ gum_darwin_mapper_resolve_dependency (GumDarwinMapper * self,
 static gboolean
 gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
                                   GumDarwinModule * module,
-                                  const gchar * symbol,
+                                  const gchar * name,
                                   GumDarwinSymbolValue * value)
 {
-  GumDarwinSymbolDetails details;
+  GumDarwinExportDetails details;
 
   if (self->parent != NULL)
   {
-    return gum_darwin_mapper_resolve_symbol (self->parent, module, symbol,
-        value);
+    return gum_darwin_mapper_resolve_symbol (self->parent, module, name, value);
   }
 
-  if (strcmp (symbol, "_atexit") == 0 ||
-      strcmp (symbol, "_atexit_b") == 0 ||
-      strcmp (symbol, "___cxa_atexit") == 0 ||
-      strcmp (symbol, "___cxa_thread_atexit") == 0 ||
-      strcmp (symbol, "__tlv_atexit") == 0)
+  if (strcmp (name, "_atexit") == 0 ||
+      strcmp (name, "_atexit_b") == 0 ||
+      strcmp (name, "___cxa_atexit") == 0 ||
+      strcmp (name, "___cxa_thread_atexit") == 0 ||
+      strcmp (name, "__tlv_atexit") == 0)
   {
     /*
      * We pretend we install the handler by resolving to a dummy function that
@@ -1184,7 +1183,7 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
     return TRUE;
   }
 
-  if (!gum_darwin_module_resolve (module, symbol, &details))
+  if (!gum_darwin_module_resolve_export (module, name, &details))
     return 0;
 
   if ((details.flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
