@@ -178,7 +178,7 @@ static gboolean gum_emit_modules_in_range (const GumMemoryRange * range,
     GumEnumerateModulesSlowContext * ctx);
 static gboolean gum_emit_import (const GumImportDetails * details,
     gpointer user_data);
-static gboolean gum_emit_export (const GumDarwinSymbolDetails * details,
+static gboolean gum_emit_export (const GumDarwinExportDetails * details,
     gpointer user_data);
 
 static gboolean find_image_address_and_slide (const gchar * image_name,
@@ -193,8 +193,8 @@ static GumDarwinModule * gum_module_resolver_find_module (
 static gboolean gum_module_resolver_find_export (GumModuleResolver * self,
     GumDarwinModule * module, const gchar * symbol, GumExportDetails * details);
 static gboolean gum_module_resolver_resolve_export (GumModuleResolver * self,
-    GumDarwinModule * module, const GumDarwinSymbolDetails * symbol,
-    GumExportDetails * export);
+    GumDarwinModule * module, const GumDarwinExportDetails * export,
+    GumExportDetails * result);
 static gboolean gum_store_module (const GumModuleDetails * details,
     gpointer user_data);
 
@@ -1324,7 +1324,7 @@ gum_darwin_enumerate_exports (mach_port_t task,
 }
 
 static gboolean
-gum_emit_export (const GumDarwinSymbolDetails * details,
+gum_emit_export (const GumDarwinExportDetails * details,
                  gpointer user_data)
 {
   GumEnumerateExportsContext * ctx = user_data;
@@ -1538,10 +1538,10 @@ gum_module_resolver_find_export (GumModuleResolver * self,
                                  GumExportDetails * details)
 {
   GumDarwinModule * m;
-  GumDarwinSymbolDetails d;
+  GumDarwinExportDetails d;
   gboolean found;
 
-  found = gum_darwin_module_resolve (module, symbol, &d);
+  found = gum_darwin_module_resolve_export (module, symbol, &d);
   if (found)
   {
     m = module;
@@ -1559,7 +1559,7 @@ gum_module_resolver_find_export (GumModuleResolver * self,
           g_ptr_array_index (reexports, i));
       if (reexport != NULL)
       {
-        found = gum_darwin_module_resolve (reexport, symbol, &d);
+        found = gum_darwin_module_resolve_export (reexport, symbol, &d);
         if (found)
           m = reexport;
       }
@@ -1579,61 +1579,61 @@ gum_module_resolver_find_export (GumModuleResolver * self,
 static gboolean
 gum_module_resolver_resolve_export (GumModuleResolver * self,
                                     GumDarwinModule * module,
-                                    const GumDarwinSymbolDetails * symbol,
-                                    GumExportDetails * export)
+                                    const GumDarwinExportDetails * export,
+                                    GumExportDetails * result)
 {
-  if ((symbol->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
+  if ((export->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
     const gchar * target_module_name;
     GumDarwinModule * target_module;
 
     target_module_name = gum_darwin_module_dependency (module,
-        symbol->reexport_library_ordinal);
+        export->reexport_library_ordinal);
     target_module = gum_module_resolver_find_module (self, target_module_name);
     if (target_module == NULL)
       return FALSE;
 
     return gum_module_resolver_find_export (self, target_module,
-        symbol->reexport_symbol, export);
+        export->reexport_symbol, result);
   }
 
-  export->name = gum_symbol_name_from_darwin (symbol->symbol);
+  result->name = gum_symbol_name_from_darwin (export->name);
 
-  switch (symbol->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
+  switch (export->flags & EXPORT_SYMBOL_FLAGS_KIND_MASK)
   {
     case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
-      if ((symbol->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
+      if ((export->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
         /* XXX: we ignore interposing */
         if (module->is_local)
         {
           GumDarwinModuleResolverFunc resolver = (GumDarwinModuleResolverFunc)
-              (module->base_address + symbol->resolver);
-          export->address = GUM_ADDRESS (resolver ());
+              (module->base_address + export->resolver);
+          result->address = GUM_ADDRESS (resolver ());
         }
         else
         {
-          export->address = module->base_address + symbol->stub;
+          result->address = module->base_address + export->stub;
         }
       }
       else
       {
-        export->address = module->base_address + symbol->offset;
+        result->address = module->base_address + export->offset;
       }
       break;
     case EXPORT_SYMBOL_FLAGS_KIND_THREAD_LOCAL:
-      export->address = module->base_address + symbol->offset;
+      result->address = module->base_address + export->offset;
       break;
     case GUM_DARWIN_EXPORT_SYMBOL_FLAGS_KIND_ABSOLUTE:
-      export->address = symbol->offset;
+      result->address = export->offset;
       break;
     default:
       g_assert_not_reached ();
       break;
   }
 
-  export->type =
-      gum_darwin_module_is_address_in_text_section (module, export->address)
+  result->type =
+      gum_darwin_module_is_address_in_text_section (module, result->address)
       ? GUM_EXPORT_FUNCTION
       : GUM_EXPORT_VARIABLE;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -14,6 +14,8 @@
 
 #define MAX_METADATA_SIZE (64 * 1024)
 
+typedef struct _GumResolveSymbolContext GumResolveSymbolContext;
+
 typedef struct _GumEmitImportContext GumEmitImportContext;
 typedef struct _GumEmitInitPointersContext GumEmitInitPointersContext;
 typedef struct _GumEmitTermPointersContext GumEmitTermPointersContext;
@@ -23,6 +25,12 @@ typedef struct _GumExportsTrieForeachContext GumExportsTrieForeachContext;
 typedef struct _GumDyldCacheHeader GumDyldCacheHeader;
 typedef struct _GumDyldCacheMappingInfo GumDyldCacheMappingInfo;
 typedef struct _GumDyldCacheImageInfo GumDyldCacheImageInfo;
+
+struct _GumResolveSymbolContext
+{
+  const gchar * name;
+  GumAddress result;
+};
 
 struct _GumEmitImportContext
 {
@@ -50,7 +58,7 @@ struct _GumEmitTermPointersContext
 
 struct _GumExportsTrieForeachContext
 {
-  GumDarwinFoundSymbolFunc func;
+  GumDarwinFoundExportFunc func;
   gpointer user_data;
 
   GString * prefix;
@@ -87,6 +95,8 @@ struct _GumDyldCacheImageInfo
 
 static GumDarwinModule * gum_darwin_module_new (const gchar * name,
     mach_port_t task, GumCpuType cpu_type);
+static gboolean gum_store_address_if_name_matches (
+    const GumDarwinSymbolDetails * details, gpointer user_data);
 static gboolean gum_emit_import (const GumDarwinBindDetails * details,
     gpointer user_data);
 static gboolean gum_emit_section_init_pointers (
@@ -111,16 +121,16 @@ static gboolean gum_add_text_range_if_text_section (
 static gboolean gum_section_flags_indicate_text_section (uint32_t flags);
 
 static gboolean gum_exports_trie_find (const guint8 * exports,
-    const guint8 * exports_end, const gchar * symbol,
-    GumDarwinSymbolDetails * details);
+    const guint8 * exports_end, const gchar * name,
+    GumDarwinExportDetails * details);
 static gboolean gum_exports_trie_foreach (const guint8 * exports,
-    const guint8 * exports_end, GumDarwinFoundSymbolFunc func,
+    const guint8 * exports_end, GumDarwinFoundExportFunc func,
     gpointer user_data);
 static gboolean gum_exports_trie_traverse (const guint8 * p,
     GumExportsTrieForeachContext * ctx);
 
-static void gum_darwin_symbol_details_init_from_node (
-    GumDarwinSymbolDetails * details, const gchar * symbol, const guint8 * node,
+static void gum_darwin_export_details_init_from_node (
+    GumDarwinExportDetails * details, const gchar * name, const guint8 * node,
     const guint8 * exports_end);
 
 static const GumDyldCacheImageInfo * gum_dyld_cache_find_image_by_name (
@@ -184,20 +194,28 @@ gum_darwin_module_new (const gchar * name,
   {
     case GUM_CPU_IA32:
       module->pointer_size = 4;
-      module->page_size = 4096;
       break;
     case GUM_CPU_AMD64:
       module->pointer_size = 8;
-      module->page_size = 4096;
       break;
     case GUM_CPU_ARM:
       module->pointer_size = 4;
-      module->page_size = 4096;
       break;
     case GUM_CPU_ARM64:
       module->pointer_size = 8;
-      module->page_size = 16384;
       break;
+  }
+  if (module->is_local)
+  {
+    module->page_size = gum_query_page_size ();
+  }
+  else
+  {
+    guint page_size = 4096;
+
+    gum_darwin_query_page_size (task, &page_size);
+
+    module->page_size = page_size;
   }
 
   module->segments = g_array_new (FALSE, FALSE, sizeof (GumDarwinSegment));
@@ -248,15 +266,46 @@ gum_darwin_module_set_base_address (GumDarwinModule * self,
 }
 
 gboolean
-gum_darwin_module_resolve (GumDarwinModule * self,
-                           const gchar * symbol,
-                           GumDarwinSymbolDetails * details)
+gum_darwin_module_resolve_export (GumDarwinModule * self,
+                                  const gchar * name,
+                                  GumDarwinExportDetails * details)
 {
   if (!gum_darwin_module_ensure_image_loaded (self))
     return FALSE;
 
-  return gum_exports_trie_find (self->exports, self->exports_end, symbol,
+  return gum_exports_trie_find (self->exports, self->exports_end, name,
       details);
+}
+
+GumAddress
+gum_darwin_module_resolve_symbol_address (GumDarwinModule * self,
+                                          const gchar * name)
+{
+  GumResolveSymbolContext ctx;
+
+  ctx.name = name;
+  ctx.result = 0;
+
+  gum_darwin_module_enumerate_symbols (self, gum_store_address_if_name_matches,
+      &ctx);
+
+  return ctx.result;
+}
+
+static gboolean
+gum_store_address_if_name_matches (const GumDarwinSymbolDetails * details,
+                                   gpointer user_data)
+{
+  GumResolveSymbolContext * ctx = user_data;
+  gboolean carry_on = TRUE;
+
+  if (strcmp (details->name, ctx->name) == 0)
+  {
+    ctx->result = details->address;
+    carry_on = FALSE;
+  }
+
+  return carry_on;
 }
 
 void
@@ -328,13 +377,90 @@ gum_emit_import (const GumDarwinBindDetails * details,
 
 void
 gum_darwin_module_enumerate_exports (GumDarwinModule * self,
-                                     GumDarwinFoundSymbolFunc func,
+                                     GumDarwinFoundExportFunc func,
                                      gpointer user_data)
 {
   if (!gum_darwin_module_ensure_image_loaded (self))
     return;
 
   gum_exports_trie_foreach (self->exports, self->exports_end, func, user_data);
+}
+
+void
+gum_darwin_module_enumerate_symbols (GumDarwinModule * self,
+                                     GumDarwinFoundSymbolFunc func,
+                                     gpointer user_data)
+{
+  GumDarwinModuleImage * image;
+  const struct symtab_command * symtab;
+  GumAddress slide, linkedit;
+  gsize symbol_size;
+  gpointer symbols = NULL, strings = NULL;
+  gsize symbol_index;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    goto beach;
+  image = self->image;
+
+  symtab = self->symtab;
+  if (symtab == NULL)
+    goto beach;
+
+  slide = gum_darwin_module_slide (self);
+
+  if (!gum_darwin_find_linkedit (image->data, image->size, &linkedit))
+    goto beach;
+  linkedit += slide;
+
+  symbol_size = (self->pointer_size == 8)
+      ? sizeof (struct nlist_64)
+      : sizeof (struct nlist);
+
+  symbols = gum_darwin_read (self->task, linkedit + symtab->symoff,
+      symtab->nsyms * symbol_size, NULL);
+  strings = gum_darwin_read (self->task, linkedit + symtab->stroff,
+      symtab->strsize, NULL);
+
+  for (symbol_index = 0; symbol_index != symtab->nsyms; symbol_index++)
+  {
+    GumDarwinSymbolDetails details;
+    gboolean carry_on;
+
+    if (self->pointer_size == 8)
+    {
+      struct nlist_64 * symbol;
+
+      symbol = symbols + (symbol_index * sizeof (struct nlist_64));
+
+      details.name = strings + symbol->n_un.n_strx;
+      details.address = symbol->n_value + slide;
+
+      details.type = symbol->n_type;
+      details.section = symbol->n_sect;
+      details.description = symbol->n_desc;
+    }
+    else
+    {
+      struct nlist * symbol;
+
+      symbol = symbols + (symbol_index * sizeof (struct nlist));
+
+      details.name = strings + symbol->n_un.n_strx;
+      details.address = symbol->n_value + slide;
+
+      details.type = symbol->n_type;
+      details.section = symbol->n_sect;
+      details.description = symbol->n_desc;
+    }
+
+    carry_on = func (&details, user_data);
+    if (!carry_on)
+      goto beach;
+  }
+
+beach:
+  g_free (strings);
+  g_free (symbols);
 }
 
 GumAddress
@@ -1145,7 +1271,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
 
   if (self->info == NULL)
   {
-    /* This is the case with dyld_sim */
+    /* This is the case with dyld */
   }
   else if (image->linkedit != NULL)
   {
@@ -1202,7 +1328,7 @@ gum_darwin_module_take_image (GumDarwinModule * self,
         &self->exports_malloc_data);
   }
 
-  success = self->exports != NULL;
+  success = TRUE;
 
 beach:
   if (!success)
@@ -1352,8 +1478,8 @@ gum_darwin_module_image_free (GumDarwinModuleImage * image)
 static gboolean
 gum_exports_trie_find (const guint8 * exports,
                        const guint8 * exports_end,
-                       const gchar * symbol,
-                       GumDarwinSymbolDetails * details)
+                       const gchar * name,
+                       GumDarwinExportDetails * details)
 {
   const gchar * s;
   const guint8 * p;
@@ -1361,7 +1487,7 @@ gum_exports_trie_find (const guint8 * exports,
   if (exports == exports_end)
     return FALSE;
 
-  s = symbol;
+  s = name;
   p = exports;
   while (p != NULL)
   {
@@ -1374,8 +1500,7 @@ gum_exports_trie_find (const guint8 * exports,
 
     if (*s == '\0' && terminal_size != 0)
     {
-      gum_darwin_symbol_details_init_from_node (details, symbol, p,
-          exports_end);
+      gum_darwin_export_details_init_from_node (details, name, p, exports_end);
       return TRUE;
     }
 
@@ -1426,7 +1551,7 @@ gum_exports_trie_find (const guint8 * exports,
 static gboolean
 gum_exports_trie_foreach (const guint8 * exports,
                           const guint8 * exports_end,
-                          GumDarwinFoundSymbolFunc func,
+                          GumDarwinFoundExportFunc func,
                           gpointer user_data)
 {
   GumExportsTrieForeachContext ctx;
@@ -1463,9 +1588,9 @@ gum_exports_trie_traverse (const guint8 * p,
   terminal_size = gum_read_uleb128 (&p, exports_end);
   if (terminal_size != 0)
   {
-    GumDarwinSymbolDetails details;
+    GumDarwinExportDetails details;
 
-    gum_darwin_symbol_details_init_from_node (&details, prefix->str, p,
+    gum_darwin_export_details_init_from_node (&details, prefix->str, p,
         exports_end);
 
     carry_on = ctx->func (&details, ctx->user_data);
@@ -1499,19 +1624,19 @@ gum_exports_trie_traverse (const guint8 * p,
 }
 
 static void
-gum_darwin_symbol_details_init_from_node (GumDarwinSymbolDetails * details,
-                                          const gchar * symbol,
+gum_darwin_export_details_init_from_node (GumDarwinExportDetails * details,
+                                          const gchar * name,
                                           const guint8 * node,
                                           const guint8 * exports_end)
 {
   const guint8 * p = node;
 
-  details->symbol = symbol;
+  details->name = name;
   details->flags = gum_read_uleb128 (&p, exports_end);
   if ((details->flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
     details->reexport_library_ordinal = gum_read_uleb128 (&p, exports_end);
-    details->reexport_symbol = (*p != '\0') ? (gchar *) p : symbol;
+    details->reexport_symbol = (*p != '\0') ? (gchar *) p : name;
   }
   else if ((details->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
   {
