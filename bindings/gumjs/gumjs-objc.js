@@ -1175,18 +1175,16 @@
 
         function registerClass(properties) {
             let name = properties.name;
-            if (name) {
-                if (name in classRegistry)
-                    throw new Error("Unable to register already registered class '" + name + "'");
-            } else {
+            if (name === undefined)
                 name = makeClassName();
-            }
             const superClass = (properties.super !== undefined) ? properties.super : classRegistry.NSObject;
             const protocols = properties.protocols || [];
             const methods = properties.methods || {};
             const methodCallbacks = [];
 
             const classHandle = api.objc_allocateClassPair(superClass !== null ? superClass.handle : NULL, Memory.allocUtf8String(name), ptr("0"));
+            if (classHandle.isNull())
+                throw new Error("Unable to register already registered class '" + name + "'");
             const metaClassHandle = api.object_getClass(classHandle);
             try {
                 protocols.forEach(function (protocol) {
