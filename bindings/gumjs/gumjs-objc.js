@@ -1146,6 +1146,7 @@
             }
 
             const ProxyClass = registerClass({
+                name: properties.name,
                 super: classRegistry.NSProxy,
                 protocols: protocols,
                 methods: proxyMethods
