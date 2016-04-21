@@ -85,6 +85,11 @@
             value: registerClass
         });
 
+        Object.defineProperty(this, 'registerProtocol', {
+            enumerable: true,
+            value: registerProtocol
+        });
+
         Object.defineProperty(this, 'bind', {
             enumerable: true,
             value: bind
@@ -1245,6 +1250,59 @@
             return new ObjCObject(classHandle);
         }
 
+        function registerProtocol(properties) {
+            let name = properties.name;
+            if (name === undefined)
+                name = makeProtocolName();
+            const protocols = properties.protocols || [];
+            const methods = properties.methods || {};
+
+            protocols.forEach(function (protocol) {
+                if (!(protocol instanceof ObjCProtocol))
+                    throw new Error("Expected protocol");
+            });
+
+            const methodSpecs = Object.keys(methods).map(function (rawMethodName) {
+                const method = methods[rawMethodName];
+
+                const match = /([+-])\s(\S+)/.exec(rawMethodName);
+                if (match === null)
+                    throw new Error("Invalid method name");
+                const kind = match[1];
+                const name = match[2];
+
+                let types = method.types;
+                if (types === undefined) {
+                    types = unparseSignature(method.retType, [(kind === '+') ? 'class' : 'object', 'selector'].concat(method.argTypes));
+                }
+
+                return {
+                    kind: kind,
+                    name: name,
+                    types: types,
+                    optional: method.optional
+                };
+            });
+
+            const handle = api.objc_allocateProtocol(Memory.allocUtf8String(name));
+            if (handle.isNull())
+                throw new Error("Unable to register already registered protocol '" + name + "'");
+
+            protocols.forEach(function (protocol) {
+                api.protocol_addProtocol(handle, protocol.handle);
+            });
+
+            methodSpecs.forEach(function (spec) {
+                const isRequiredMethod = spec.optional ? 0 : 1;
+                const isInstanceMethod = (spec.kind === '-') ? 1 : 0;
+                api.protocol_addMethodDescription(handle, selector(spec.name), Memory.allocUtf8String(spec.types), isRequiredMethod, isInstanceMethod);
+            });
+
+            api.objc_registerProtocol(handle);
+
+            return new ObjCProtocol(handle);
+        }
+
         function getHandle(obj) {
             if (obj instanceof NativePointer)
                 return obj;
@@ -1573,6 +1631,15 @@
             for (let i = 1; true; i++) {
                 const name = "FridaAnonymousClass" + i;
                 if (!(name in classRegistry)) {
+                    return name;
+                }
+            }
+        }
+
+        function makeProtocolName() {
+            for (let i = 1; true; i++) {
+                const name = "FridaAnonymousProtocol" + i;
+                if (!(name in protocolRegistry)) {
                     return name;
                 }
             }
@@ -2068,10 +2135,14 @@
                     "class_addMethod": ['bool', ['pointer', 'pointer', 'pointer', 'pointer']],
                     "objc_getProtocol": ['pointer', ['pointer']],
                     "objc_copyProtocolList": ['pointer', ['pointer']],
+                    "objc_allocateProtocol": ['pointer', ['pointer']],
+                    "objc_registerProtocol": ['void', ['pointer']],
                     "protocol_getName": ['pointer', ['pointer']],
                     "protocol_copyMethodDescriptionList": ['pointer', ['pointer', 'bool', 'bool', 'pointer']],
                     "protocol_copyPropertyList": ['pointer', ['pointer', 'pointer']],
                     "protocol_copyProtocolList": ['pointer', ['pointer', 'pointer']],
+                    "protocol_addProtocol": ['void', ['pointer', 'pointer']],
+                    "protocol_addMethodDescription": ['void', ['pointer', 'pointer', 'pointer', 'bool', 'bool']],
                     "object_isClass": ['bool', ['pointer']],
                     "object_getClass": ['pointer', ['pointer']],
                     "object_getClassName": ['pointer', ['pointer']],
