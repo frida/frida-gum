@@ -9,9 +9,18 @@
 
 #include "gumdefs.h"
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4091)
+#endif
+
 #define _WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dbghelp.h>
+
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 
 typedef struct _GumDbgHelpImpl        GumDbgHelpImpl;
 typedef struct _GumDbgHelpImplPrivate GumDbgHelpImplPrivate;
