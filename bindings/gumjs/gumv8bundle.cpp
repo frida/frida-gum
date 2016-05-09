@@ -35,11 +35,11 @@ gum_v8_bundle_new (Isolate * isolate,
     gchar * str = g_strjoinv (NULL, (gchar **) source->chunks);
     Local<String> source_string (String::NewFromUtf8 (isolate, str));
     g_free (str);
-    ScriptCompiler::Source source (source_string, origin);
+    ScriptCompiler::Source source_value (source_string, origin);
 
     Persistent<UnboundScript> * script = new Persistent<UnboundScript> (
         isolate, ScriptCompiler::CompileUnboundScript (isolate,
-        &source).ToLocalChecked ());
+        &source_value).ToLocalChecked ());
     g_ptr_array_add (bundle->scripts, script);
   }
 

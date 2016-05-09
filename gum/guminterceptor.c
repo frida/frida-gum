@@ -1030,9 +1030,9 @@ gum_function_context_add_listener (GumFunctionContext * function_ctx,
       (GDestroyNotify) listener_entry_free);
   for (i = 0; i != old_entries->len; i++)
   {
-    ListenerEntry * entry = g_ptr_array_index (old_entries, i);
-    if (entry != NULL)
-      g_ptr_array_add (new_entries, g_slice_dup (ListenerEntry, entry));
+    ListenerEntry * old_entry = g_ptr_array_index (old_entries, i);
+    if (old_entry != NULL)
+      g_ptr_array_add (new_entries, g_slice_dup (ListenerEntry, old_entry));
   }
   g_ptr_array_add (new_entries, entry);
 

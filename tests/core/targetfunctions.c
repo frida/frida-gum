@@ -13,14 +13,14 @@ gum_test_target_function (GString * str)
   return NULL;
 }
 
-static guint counter = 0;
+static guint gum_test_target_functions_counter = 0;
 
 gpointer GUM_NOINLINE
 gum_test_target_nop_function_a (gpointer data)
 {
   (void) data;
 
-  counter++;
+  gum_test_target_functions_counter++;
 
   return GSIZE_TO_POINTER (0x1337);
 }
@@ -30,7 +30,7 @@ gum_test_target_nop_function_b (gpointer data)
 {
   (void) data;
 
-  counter += 2;
+  gum_test_target_functions_counter += 2;
 
   return GSIZE_TO_POINTER (2);
 }
@@ -38,7 +38,7 @@ gum_test_target_nop_function_b (gpointer data)
 gpointer GUM_NOINLINE
 gum_test_target_nop_function_c (gpointer data)
 {
-  counter += 3;
+  gum_test_target_functions_counter += 3;
 
   gum_test_target_nop_function_a (data);
 

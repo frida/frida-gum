@@ -872,8 +872,8 @@ gum_v8_memory_do_write (const FunctionCallbackInfo<Value> & info,
           {
             for (uint32_t i = 0; i != length; i++)
             {
-              uint32_t value = array->Get (i)->ToUint32 ()->Uint32Value ();
-              static_cast<char *> (address)[i] = value;
+              uint32_t element = array->Get (i)->ToUint32 ()->Uint32Value ();
+              static_cast<char *> (address)[i] = element;
             }
           }
           else

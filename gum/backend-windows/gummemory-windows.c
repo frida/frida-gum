@@ -108,7 +108,7 @@ gum_memory_read (GumAddress address,
   {
     GumAddress chunk_address, page_address;
     gsize chunk_size, page_offset;
-    SIZE_T n_bytes_read;
+    SIZE_T n;
     BOOL success;
 
     chunk_address = address + offset;
@@ -117,10 +117,10 @@ gum_memory_read (GumAddress address,
     chunk_size = MIN (len - offset, page_size - page_offset);
 
     success = ReadProcessMemory (self, GSIZE_TO_POINTER (chunk_address),
-        result + offset, chunk_size, &n_bytes_read);
+        result + offset, chunk_size, &n);
     if (!success)
       break;
-    offset += n_bytes_read;
+    offset += n;
   }
 
   if (offset == 0)
