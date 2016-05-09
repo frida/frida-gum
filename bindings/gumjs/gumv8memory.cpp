@@ -279,7 +279,7 @@ gum_v8_memory_on_alloc (const FunctionCallbackInfo<Value> & info)
   }
 
   GumV8NativeResource * res;
-  guint page_size = gum_query_page_size ();
+  gsize page_size = gum_query_page_size ();
 
   if (size < page_size)
   {
