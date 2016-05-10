@@ -66,8 +66,8 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
 TEST_LIST_END ()
 
-static gpointer thread_call_pthread_setspecific (gpointer data);
 static gpointer thread_do_nothing (gpointer data);
+static gpointer thread_call_pthread_setspecific (gpointer data);
 #ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
@@ -746,7 +746,7 @@ thread_do_nothing (gpointer data)
 static gpointer
 thread_call_pthread_setspecific (gpointer data)
 {
-  volatile pthread_key_t key = (guint) data;
+  volatile pthread_key_t key = (pthread_key_t) data;
 
   g_assert_cmpint (pthread_setspecific (key, 0xaaaaaaaa), ==, 0);
 

@@ -28,11 +28,12 @@ struct _GumTmpTlsKey
 static GumTmpTlsKey _gum_tls_tmp_keys[MAX_TMP_TLS_KEYS];
 static GumSpinlock _gum_tls_tmp_keys_lock;
 
-static gboolean _gum_tls_key_get_tmp_value (GumTlsKey key, gpointer* value);
+static gboolean _gum_tls_key_get_tmp_value (GumTlsKey key, gpointer * value);
 static void _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
 static void _gum_tls_key_delete_tmp_value (GumTlsKey key);
 static void * _gum_tls_replacement_pthread_getspecific (pthread_key_t key);
-static int _gum_tls_replacement_pthread_setspecific (pthread_key_t key, const void * value);
+static int _gum_tls_replacement_pthread_setspecific (pthread_key_t key,
+    const void * value);
 
 void
 _gum_tls_init (void)
@@ -44,7 +45,7 @@ _gum_tls_init (void)
 void
 _gum_tls_realize (void)
 {
-  GumInterceptor* interceptor = gum_interceptor_obtain ();
+  GumInterceptor * interceptor = gum_interceptor_obtain ();
 
   gum_interceptor_begin_transaction (interceptor);
 
@@ -59,7 +60,7 @@ _gum_tls_realize (void)
 void
 _gum_tls_deinit (void)
 {
-  GumInterceptor* interceptor = gum_interceptor_obtain ();
+  GumInterceptor * interceptor = gum_interceptor_obtain ();
 
   gum_interceptor_begin_transaction (interceptor);
 
@@ -123,7 +124,8 @@ gum_tls_key_set_value (GumTlsKey key,
 }
 
 static gboolean
-_gum_tls_key_get_tmp_value (GumTlsKey key, gpointer* value)
+_gum_tls_key_get_tmp_value (GumTlsKey key,
+                            gpointer * value)
 {
   guint i;
   gboolean found = FALSE;
@@ -147,7 +149,8 @@ _gum_tls_key_get_tmp_value (GumTlsKey key, gpointer* value)
 }
 
 static void
-_gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value)
+_gum_tls_key_set_tmp_value (GumTlsKey key,
+                            gpointer value)
 {
   guint i;
   GumThreadId tid = gum_process_get_current_thread_id ();
@@ -202,16 +205,17 @@ _gum_tls_key_delete_tmp_value (GumTlsKey key)
   gum_spinlock_release (&_gum_tls_tmp_keys_lock);
 }
 
-static void*
+static void *
 _gum_tls_replacement_pthread_getspecific (pthread_key_t key)
 {
-  return gum_tls_key_get_value(key);
+  return gum_tls_key_get_value (key);
 }
 
 static int
-_gum_tls_replacement_pthread_setspecific (pthread_key_t key, const void* value)
+_gum_tls_replacement_pthread_setspecific (pthread_key_t key,
+                                          const void * value)
 {
-  gum_tls_key_set_value(key, (gpointer) value);
+  gum_tls_key_set_value (key, (gpointer) value);
 
   return 0;
 }
