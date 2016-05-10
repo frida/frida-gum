@@ -14,7 +14,7 @@ _gum_tls_init (void)
 }
 
 void
-_gum_tls_late_init (void)
+_gum_tls_realize (void)
 {
 }
 

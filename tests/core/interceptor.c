@@ -730,8 +730,8 @@ INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
    */
   pthread_create (&thread2, NULL, thread_call_pthread_setspecific, key);
 
-  pthread_join(thread2, NULL);
-  pthread_join(thread1, NULL);
+  pthread_join (thread2, NULL);
+  pthread_join (thread1, NULL);
 
   g_assert_cmpstr (fixture->result->str, ==, "ab");
 }

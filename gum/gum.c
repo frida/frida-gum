@@ -74,7 +74,7 @@ do_init (gpointer data)
 
   _gum_tls_init ();
   _gum_interceptor_init ();
-  _gum_tls_late_init ();
+  _gum_tls_realize ();
 
   return NULL;
 }

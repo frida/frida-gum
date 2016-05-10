@@ -155,7 +155,6 @@ backend_sources += \
 endif
 endif
 
-
 if HAVE_LIBUNWIND
 backend_sources += \
 	backend-libunwind/gumunwbacktracer.c

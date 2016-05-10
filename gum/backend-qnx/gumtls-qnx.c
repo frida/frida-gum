@@ -4,10 +4,11 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
+#include "gumtls.h"
+
 #include "guminterceptor.h"
 #include "gumprocess.h"
 #include "gumspinlock.h"
-#include "gumtls.h"
 
 #include <pthread.h>
 #include <string.h>
@@ -41,14 +42,16 @@ _gum_tls_init (void)
 }
 
 void
-_gum_tls_late_init (void)
+_gum_tls_realize (void)
 {
   GumInterceptor* interceptor = gum_interceptor_obtain ();
 
   gum_interceptor_begin_transaction (interceptor);
 
-  gum_interceptor_replace_function (interceptor, pthread_setspecific, _gum_tls_replacement_pthread_setspecific, NULL);
-  gum_interceptor_replace_function (interceptor, pthread_getspecific, _gum_tls_replacement_pthread_getspecific, NULL);
+  gum_interceptor_replace_function (interceptor, pthread_setspecific,
+      _gum_tls_replacement_pthread_setspecific, NULL);
+  gum_interceptor_replace_function (interceptor, pthread_getspecific,
+      _gum_tls_replacement_pthread_getspecific, NULL);
 
   gum_interceptor_end_transaction (interceptor);
 }
@@ -89,7 +92,8 @@ gpointer
 gum_tls_key_get_value (GumTlsKey key)
 {
   gpointer value = NULL;
-  if(_gum_tls_key_get_tmp_value (key, &value) == FALSE)
+
+  if (_gum_tls_key_get_tmp_value (key, &value) == FALSE)
   {
     if (key < _cpupage_ptr->tls->__numkeys)
       value = _cpupage_ptr->tls->__keydata[key];
@@ -106,13 +110,13 @@ gum_tls_key_set_value (GumTlsKey key,
 
   if (key < _cpupage_ptr->tls->__numkeys)
   {
-       _cpupage_ptr->tls->__keydata[key] = value;
+    _cpupage_ptr->tls->__keydata[key] = value;
   }
   else
   {
-      int res = pthread_setspecific(key, value);
-      if(res)
-        return;
+    int res = pthread_setspecific (key, value);
+    if (res)
+      return;
   }
 
   _gum_tls_key_delete_tmp_value (key);
@@ -150,7 +154,7 @@ _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value)
 
   gum_spinlock_acquire (&_gum_tls_tmp_keys_lock);
 
-  // Same TID & KEY
+  /* Same TID & KEY */
   for (i = 0; i != MAX_TMP_TLS_KEYS; i++)
   {
     if (_gum_tls_tmp_keys[i].tid == tid && _gum_tls_tmp_keys[i].key == key)
@@ -160,7 +164,7 @@ _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value)
     }
   }
 
-  // Empty slot
+  /* Empty slot */
   for (i = 0; i != MAX_TMP_TLS_KEYS; i++)
   {
     if (_gum_tls_tmp_keys[i].tid == 0)
@@ -207,7 +211,7 @@ _gum_tls_replacement_pthread_getspecific (pthread_key_t key)
 static int
 _gum_tls_replacement_pthread_setspecific (pthread_key_t key, const void* value)
 {
-  gum_tls_key_set_value(key, (gpointer)value);
+  gum_tls_key_set_value(key, (gpointer) value);
 
   return 0;
 }
