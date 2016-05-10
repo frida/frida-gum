@@ -12,6 +12,8 @@
 G_BEGIN_DECLS
 
 G_GNUC_INTERNAL void _gum_tls_init (void);
+G_GNUC_INTERNAL void _gum_tls_realize (void);
+G_GNUC_INTERNAL void _gum_tls_deinit (void);
 
 G_END_DECLS
 

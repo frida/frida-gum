@@ -13,6 +13,16 @@ _gum_tls_init (void)
 {
 }
 
+void
+_gum_tls_realize (void)
+{
+}
+
+void
+_gum_tls_deinit (void)
+{
+}
+
 GumTlsKey
 gum_tls_key_new (void)
 {

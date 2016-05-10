@@ -139,18 +139,20 @@ fridainclude_HEADERS += \
 	backend-darwin/gumdarwinbacktracer.h \
 	backend-darwin/gumdarwinmapper.h \
 	backend-darwin/gumdarwinmodule.h
+else 
+if OS_QNX
+backend_sources += \
+	backend-qnx/gumprocess-qnx.c \
+	backend-qnx/gummemory-qnx.c \
+	backend-posix/gummemory-posix.c \
+	backend-qnx/gumtls-qnx.c
+fridainclude_HEADERS += \
+	backend-qnx/gumqnx.h
 else
 backend_sources += \
 	backend-posix/gumtls-posix.c \
 	backend-posix/gummemory-posix.c
 endif
-
-if OS_QNX
-backend_sources += \
-	backend-qnx/gumprocess-qnx.c \
-	backend-qnx/gummemory-qnx.c
-fridainclude_HEADERS += \
-	backend-qnx/gumqnx.h
 endif
 
 if HAVE_LIBUNWIND

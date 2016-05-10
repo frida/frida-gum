@@ -63,6 +63,16 @@ _gum_tls_init (void)
 #endif
 }
 
+void
+_gum_tls_realize (void)
+{
+}
+
+void
+_gum_tls_deinit (void)
+{
+}
+
 #if defined (HAVE_I386)
 
 static gpointer

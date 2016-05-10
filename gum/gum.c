@@ -39,6 +39,8 @@ gum_init (void)
 void
 gum_deinit (void)
 {
+  _gum_tls_deinit ();
+
   g_slist_foreach (gum_destructors, (GFunc) gum_destructor_invoke, NULL);
   g_slist_free (gum_destructors);
   gum_destructors = NULL;
@@ -72,6 +74,7 @@ do_init (gpointer data)
 
   _gum_tls_init ();
   _gum_interceptor_init ();
+  _gum_tls_realize ();
 
   return NULL;
 }

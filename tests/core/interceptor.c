@@ -62,8 +62,12 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
 #endif
+
+  INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
 TEST_LIST_END ()
 
+static gpointer thread_do_nothing (gpointer data);
+static gpointer thread_call_pthread_setspecific (gpointer data);
 #ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
@@ -708,6 +712,45 @@ INTERCEPTOR_TESTCASE (already_replaced)
   g_assert_cmpint (gum_interceptor_replace_function (fixture->interceptor,
         target_function, malloc, NULL), ==, GUM_REPLACE_ALREADY_REPLACED);
   gum_interceptor_revert_function (fixture->interceptor, target_function);
+}
+
+INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
+{
+  pthread_key_t key;
+  pthread_t thread1, thread2;
+
+  interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
+
+  g_assert (pthread_key_create (&key, NULL) == 0);
+
+  pthread_create (&thread1, NULL, thread_do_nothing, NULL);
+  /* The target thread MUST be the highest number thread to date in the
+   * process, in order to avoid using the cached keydata in
+   * pthread_setspecific.
+   */
+  pthread_create (&thread2, NULL, thread_call_pthread_setspecific, key);
+
+  pthread_join (thread2, NULL);
+  pthread_join (thread1, NULL);
+
+  g_assert_cmpstr (fixture->result->str, ==, "ab");
+}
+
+static gpointer
+thread_do_nothing (gpointer data)
+{
+  sleep (1);
+  return NULL;
+}
+
+static gpointer
+thread_call_pthread_setspecific (gpointer data)
+{
+  volatile pthread_key_t key = (pthread_key_t) data;
+
+  g_assert_cmpint (pthread_setspecific (key, 0xaaaaaaaa), ==, 0);
+
+  return NULL;
 }
 
 #ifdef G_OS_WIN32
