@@ -116,7 +116,7 @@ gum_tls_key_set_value (GumTlsKey key,
   else
   {
     int res = pthread_setspecific (key, value);
-    if (res)
+    if (res != 0)
       return;
   }
 
