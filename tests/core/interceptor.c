@@ -716,10 +716,10 @@ INTERCEPTOR_TESTCASE (already_replaced)
 
 INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
 {
-  interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
-
   pthread_key_t key;
   pthread_t thread1, thread2;
+
+  interceptor_fixture_attach_listener (fixture, 0, malloc, 'a', 'b');
 
   g_assert (pthread_key_create (&key, NULL) == 0);
 

@@ -31,8 +31,8 @@ static GumSpinlock _gum_tls_tmp_keys_lock;
 static gboolean _gum_tls_key_get_tmp_value (GumTlsKey key, gpointer* value);
 static void _gum_tls_key_set_tmp_value (GumTlsKey key, gpointer value);
 static void _gum_tls_key_delete_tmp_value (GumTlsKey key);
-static void* _gum_tls_replacement_pthread_getspecific (pthread_key_t key);
-static int _gum_tls_replacement_pthread_setspecific (pthread_key_t key, const void* value);
+static void * _gum_tls_replacement_pthread_getspecific (pthread_key_t key);
+static int _gum_tls_replacement_pthread_setspecific (pthread_key_t key, const void * value);
 
 void
 _gum_tls_init (void)
