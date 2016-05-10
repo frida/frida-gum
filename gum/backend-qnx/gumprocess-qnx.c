@@ -38,6 +38,7 @@ typedef Elf32_Dyn GumElfDynEntry;
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
 typedef struct _GumFindExportContext GumFindExportContext;
+typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 typedef struct _GumDlPhdrInternal GumDlPhdrInternal;
 
 struct _GumFindModuleContext
@@ -60,6 +61,13 @@ struct _GumFindExportContext
   const gchar * symbol_name;
 };
 
+struct _GumResolveModuleNameContext
+{
+  gchar * name;
+  gchar * path;
+  GumAddress base;
+};
+
 struct _GumDlPhdrInternal
 {
     GumDlPhdrInternal * p_next;
@@ -79,6 +87,9 @@ static gboolean gum_store_base_and_path_if_name_matches (
 static gboolean gum_store_address_if_export_name_matches (
     const GumExportDetails * details, gpointer user_data);
 
+static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
+static gboolean gum_store_module_path_and_base_if_name_matches (
+    const GumModuleDetails * details, gpointer user_data);
 static gboolean gum_module_path_equals (const gchar * path,
     const gchar * name_or_path);
 
@@ -568,18 +579,33 @@ GumAddress
 gum_module_find_export_by_name (const gchar * module_name,
                                 const gchar * symbol_name)
 {
-  GumFindExportContext ctx;
+  GumAddress result;
+  void * module;
 
-  if (module_name == NULL)
-    return 0;
+  if (module_name != NULL)
+  {
+    gchar * name;
 
-  ctx.result = 0;
-  ctx.symbol_name = symbol_name;
+    name = gum_resolve_module_name (module_name, NULL);
+    if (name == NULL)
+      return 0;
+    module = dlopen (name, RTLD_LAZY | RTLD_GLOBAL);
+    g_free (name);
 
-  gum_module_enumerate_exports (module_name,
-      gum_store_address_if_export_name_matches, &ctx);
+    if (module == NULL)
+      return 0;
+  }
+  else
+  {
+    module = RTLD_DEFAULT;
+  }
 
-  return ctx.result;
+  result = GUM_ADDRESS (dlsym (module, symbol_name));
+
+  if (module != RTLD_DEFAULT)
+    dlclose (module);
+
+  return result;
 }
 
 static gboolean
@@ -728,6 +754,54 @@ beach:
   g_free (auxv_path);
 
   return result;
+}
+
+static gchar *
+gum_resolve_module_name (const gchar * name,
+                         GumAddress * base)
+{
+  GumResolveModuleNameContext ctx;
+
+  struct link_map * map;
+
+  map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
+  if (map != NULL)
+  {
+    ctx.name = g_file_read_link (map->l_name, NULL);
+    if (ctx.name == NULL)
+      ctx.name = g_strdup (map->l_name);
+    dlclose (map);
+  }
+  else
+    ctx.name = g_strdup (name);
+  ctx.path = NULL;
+  ctx.base = 0;
+
+  gum_process_enumerate_modules (gum_store_module_path_and_base_if_name_matches,
+      &ctx);
+
+  g_free (ctx.name);
+
+  if (base != NULL)
+    *base = ctx.base;
+
+  return ctx.path;
+}
+
+static gboolean
+gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details,
+                                                gpointer user_data)
+{
+  GumResolveModuleNameContext * ctx = user_data;
+
+  if (gum_module_path_equals (details->path, ctx->name))
+  {
+    ctx->path = g_strdup (details->path);
+    ctx->base = details->range->base_address;
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static gboolean
