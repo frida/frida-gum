@@ -2252,7 +2252,15 @@ gum_duk_core_schedule_callback (GumDukCore * self,
   GSource * source;
   GumDukScheduledCallback * callback;
 
-  _gum_duk_args_parse (args, "FZ", &func, &delay);
+  if (repeat)
+  {
+    _gum_duk_args_parse (args, "FZ", &func, &delay);
+  }
+  else
+  {
+    delay = 0;
+    _gum_duk_args_parse (args, "F|Z", &func, &delay);
+  }
 
   id = ++self->last_callback_id;
   if (delay == 0)

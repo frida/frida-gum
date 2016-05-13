@@ -1088,8 +1088,8 @@ gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
     return;
   }
 
-  gsize delay;
-  if (!_gum_v8_size_get (info[1], &delay, self))
+  gsize delay = 0;
+  if (info.Length () > 1 && !_gum_v8_size_get (info[1], &delay, self))
     return;
 
   guint id = ++self->last_callback_id;

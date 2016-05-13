@@ -1698,6 +1698,13 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
 
   g_usleep (25000);
   EXPECT_SEND_MESSAGE_WITH ("1338");
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "setTimeout(function () {"
+      "  send(1227);"
+      "});");
+  g_usleep (10000);
+  EXPECT_SEND_MESSAGE_WITH ("1227");
 }
 
 SCRIPT_TESTCASE (timeout_can_be_cancelled)
