@@ -63,11 +63,15 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
 #endif
 
+#ifdef HAVE_QNX
   INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
+#endif
 TEST_LIST_END ()
 
+#ifdef HAVE_QNX
 static gpointer thread_doing_nothing (gpointer data);
 static gpointer thread_calling_pthread_setspecific (gpointer data);
+#endif
 #ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
@@ -714,6 +718,8 @@ INTERCEPTOR_TESTCASE (already_replaced)
   gum_interceptor_revert_function (fixture->interceptor, target_function);
 }
 
+#ifdef HAVE_QNX
+
 INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
 {
   pthread_key_t key;
@@ -754,6 +760,8 @@ thread_calling_pthread_setspecific (gpointer data)
 
   return NULL;
 }
+
+#endif
 
 #ifdef G_OS_WIN32
 
