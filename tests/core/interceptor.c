@@ -66,8 +66,8 @@ TEST_LIST_BEGIN (interceptor)
   INTERCEPTOR_TESTENTRY (intercept_malloc_and_create_thread)
 TEST_LIST_END ()
 
-static gpointer thread_do_nothing (gpointer data);
-static gpointer thread_call_pthread_setspecific (gpointer data);
+static gpointer thread_doing_nothing (gpointer data);
+static gpointer thread_calling_pthread_setspecific (gpointer data);
 #ifdef G_OS_WIN32
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
@@ -723,12 +723,13 @@ INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
 
   g_assert (pthread_key_create (&key, NULL) == 0);
 
-  pthread_create (&thread1, NULL, thread_do_nothing, NULL);
+  pthread_create (&thread1, NULL, thread_doing_nothing, NULL);
   /* The target thread MUST be the highest number thread to date in the
    * process, in order to avoid using the cached keydata in
    * pthread_setspecific.
    */
-  pthread_create (&thread2, NULL, thread_call_pthread_setspecific, key);
+  pthread_create (&thread2, NULL, thread_calling_pthread_setspecific,
+      (void *) key);
 
   pthread_join (thread2, NULL);
   pthread_join (thread1, NULL);
@@ -737,18 +738,19 @@ INTERCEPTOR_TESTCASE (intercept_malloc_and_create_thread)
 }
 
 static gpointer
-thread_do_nothing (gpointer data)
+thread_doing_nothing (gpointer data)
 {
   sleep (1);
   return NULL;
 }
 
 static gpointer
-thread_call_pthread_setspecific (gpointer data)
+thread_calling_pthread_setspecific (gpointer data)
 {
   volatile pthread_key_t key = (pthread_key_t) data;
 
-  g_assert_cmpint (pthread_setspecific (key, 0xaaaaaaaa), ==, 0);
+  g_assert_cmpint (pthread_setspecific (key, GSIZE_TO_POINTER (0xaaaaaaaa)),
+      ==, 0);
 
   return NULL;
 }

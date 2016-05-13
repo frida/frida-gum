@@ -17,6 +17,7 @@
 # include "targetfunctions.c"
 #else
 # include <dlfcn.h>
+# include <unistd.h>
 #endif
 
 #ifndef INTERCEPTOR_SUITE
