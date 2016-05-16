@@ -37,7 +37,6 @@ typedef Elf32_Dyn GumElfDynEntry;
 
 typedef struct _GumFindModuleContext GumFindModuleContext;
 typedef struct _GumEnumerateModuleRangesContext GumEnumerateModuleRangesContext;
-typedef struct _GumFindExportContext GumFindExportContext;
 typedef struct _GumResolveModuleNameContext GumResolveModuleNameContext;
 typedef struct _GumDlPhdrInternal GumDlPhdrInternal;
 
@@ -53,12 +52,6 @@ struct _GumEnumerateModuleRangesContext
   const gchar * module_name;
   GumFoundRangeFunc func;
   gpointer user_data;
-};
-
-struct _GumFindExportContext
-{
-  GumAddress result;
-  const gchar * symbol_name;
 };
 
 struct _GumResolveModuleNameContext
@@ -84,8 +77,6 @@ static gboolean gum_emit_range_if_module_name_matches (
     const GumRangeDetails * details, gpointer user_data);
 static gboolean gum_store_base_and_path_if_name_matches (
     const GumModuleDetails * details, gpointer user_data);
-static gboolean gum_store_address_if_export_name_matches (
-    const GumExportDetails * details, gpointer user_data);
 
 static gchar * gum_resolve_module_name (const gchar * name, GumAddress * base);
 static gboolean gum_store_module_path_and_base_if_name_matches (
@@ -636,21 +627,6 @@ gum_store_base_and_path_if_name_matches (const GumModuleDetails * details,
   return FALSE;
 }
 
-static gboolean
-gum_store_address_if_export_name_matches (const GumExportDetails * details,
-                                          gpointer user_data)
-{
-  GumFindExportContext * ctx = (GumFindExportContext *) user_data;
-
-  if (strcmp (details->name, ctx->symbol_name) == 0)
-  {
-    ctx->result = details->address;
-    return FALSE;
-  }
-
-  return TRUE;
-}
-
 GumCpuType
 gum_linux_cpu_type_from_file (const gchar * path,
                               GError ** error)
@@ -761,7 +737,6 @@ gum_resolve_module_name (const gchar * name,
                          GumAddress * base)
 {
   GumResolveModuleNameContext ctx;
-
   struct link_map * map;
 
   map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
@@ -773,7 +748,9 @@ gum_resolve_module_name (const gchar * name,
     dlclose (map);
   }
   else
+  {
     ctx.name = g_strdup (name);
+  }
   ctx.path = NULL;
   ctx.base = 0;
 
@@ -789,8 +766,9 @@ gum_resolve_module_name (const gchar * name,
 }
 
 static gboolean
-gum_store_module_path_and_base_if_name_matches (const GumModuleDetails * details,
-                                                gpointer user_data)
+gum_store_module_path_and_base_if_name_matches (
+    const GumModuleDetails * details,
+    gpointer user_data)
 {
   GumResolveModuleNameContext * ctx = user_data;
 
