@@ -256,7 +256,7 @@ gum_file_new (Handle<Object> instance,
   file->handle = handle;
   file->module = module;
 
-  g_hash_table_insert (module->files, handle, file);
+  g_hash_table_insert (module->files, file, file);
 
   return file;
 }
@@ -290,5 +290,5 @@ gum_file_on_weak_notify (const WeakCallbackData<Object, GumFile> & data)
 {
   HandleScope handle_scope (data.GetIsolate ());
   GumFile * self = data.GetParameter ();
-  g_hash_table_remove (self->module->files, self->handle);
+  g_hash_table_remove (self->module->files, self);
 }
