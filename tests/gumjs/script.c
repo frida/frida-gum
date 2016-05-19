@@ -508,10 +508,21 @@ SCRIPT_TESTCASE (native_callback_is_a_native_pointer)
 
 #ifdef G_OS_UNIX
 
+#define GUM_TEMP_FAILURE_RETRY(expression) \
+  ({ \
+    gssize __result; \
+    \
+    do __result = (gssize) (expression); \
+    while (__result == -EINTR); \
+    \
+    __result; \
+  })
+
 SCRIPT_TESTCASE (unix_fd_can_be_read_from)
 {
   gint fds[2];
   const guint8 message[7] = { 0x13, 0x37, 0xca, 0xfe, 0xba, 0xbe, 0xff };
+  gssize res;
 
   g_assert_cmpint (socketpair (AF_UNIX, SOCK_STREAM, 0, fds), ==, 0);
 
@@ -523,7 +534,8 @@ SCRIPT_TESTCASE (unix_fd_can_be_read_from)
       "});",
       fds[0]);
   EXPECT_NO_MESSAGES ();
-  write (fds[1], message, 1);
+  res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message, 1));
+  g_assert_cmpint (res, ==, 1);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("1", "13");
   EXPECT_NO_MESSAGES ();
 
@@ -535,14 +547,17 @@ SCRIPT_TESTCASE (unix_fd_can_be_read_from)
       "});",
       fds[0]);
   EXPECT_NO_MESSAGES ();
-  write (fds[1], message, 4);
+  res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message, 4));
+  g_assert_cmpint (res, ==, 4);
   g_usleep (G_USEC_PER_SEC / 20);
   EXPECT_NO_MESSAGES ();
-  write (fds[1], message + 4, 3);
+  res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message + 4, 3));
+  g_assert_cmpint (res, ==, 3);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("7", "13 37 ca fe ba be ff");
   EXPECT_NO_MESSAGES ();
 
-  write (fds[1], message, 2);
+  res = GUM_TEMP_FAILURE_RETRY (write (fds[1], message, 2));
+  g_assert_cmpint (res, ==, 2);
   close (fds[1]);
   COMPILE_AND_LOAD_SCRIPT (
       "var stream = new UnixInputStream(%d, { autoClose: false });"
