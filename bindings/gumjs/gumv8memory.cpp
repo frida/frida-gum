@@ -604,7 +604,7 @@ gum_v8_memory_do_read (const FunctionCallbackInfo<Value> & info,
         }
         else
         {
-          result = Array::New (isolate, 0);
+          result = ArrayBuffer::New (isolate, 0);
         }
 
         break;

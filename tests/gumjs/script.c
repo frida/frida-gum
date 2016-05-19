@@ -2896,15 +2896,21 @@ SCRIPT_TESTCASE (byte_array_can_be_read)
 {
   guint8 buf[3] = { 0x13, 0x37, 0x42 };
   COMPILE_AND_LOAD_SCRIPT (
-      "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", 3));"
+      "var buffer = Memory.readByteArray(" GUM_PTR_CONST ", 3);"
+      "send('badger', buffer);"
       "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", int64(3)));"
       "send('badger', Memory.readByteArray(" GUM_PTR_CONST ", uint64(3)));"
-      "send('snake', Memory.readByteArray(" GUM_PTR_CONST ", 0));",
+      "var emptyBuffer = Memory.readByteArray(" GUM_PTR_CONST ", 0);"
+      "send('snake', emptyBuffer);"
+      "send(buffer instanceof ArrayBuffer);"
+      "send(emptyBuffer instanceof ArrayBuffer);",
       buf, buf, buf, buf);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"badger\"", "13 37 42");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", "");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("true");
 }
 
 SCRIPT_TESTCASE (byte_array_can_be_written)
