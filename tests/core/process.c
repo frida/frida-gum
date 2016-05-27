@@ -418,7 +418,7 @@ PROCESS_TESTCASE (darwin_module_exports)
 
 static gboolean
 store_export_address_if_mach_msg (const GumExportDetails * details,
-                                gpointer user_data)
+                                  gpointer user_data)
 {
   if (details->type == GUM_EXPORT_FUNCTION
       && strcmp (details->name, "mach_msg") == 0)
