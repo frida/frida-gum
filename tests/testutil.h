@@ -64,6 +64,13 @@
 #else
 # define SYSTEM_MODULE_EXPORT "sendto"
 #endif
+#ifdef HAVE_ANDROID
+# define TRICKY_MODULE_NAME "libart.so"
+# define TRICKY_MODULE_EXPORT "JNI_GetCreatedJavaVMs"
+#else
+# define TRICKY_MODULE_NAME SYSTEM_MODULE_NAME
+# define TRICKY_MODULE_EXPORT SYSTEM_MODULE_EXPORT
+#endif
 
 G_BEGIN_DECLS
 

@@ -55,6 +55,11 @@ typedef struct _TestRangeContext {
   gboolean found_exact;
 } TestRangeContext;
 
+#ifndef G_OS_WIN32
+static gboolean store_export_address_if_tricky_module_export (
+    const GumExportDetails * details, gpointer user_data);
+#endif
+
 #ifdef HAVE_DARWIN
 static gboolean store_export_address_if_mach_msg (
     const GumExportDetails * details, gpointer user_data);
@@ -300,20 +305,43 @@ PROCESS_TESTCASE (module_export_can_be_found)
 PROCESS_TESTCASE (module_export_matches_system_lookup)
 {
 #ifndef G_OS_WIN32
-  GumAddress gum_address;
   void * lib, * system_address;
+  GumAddress enumerate_address, find_by_name_address;
 
-  gum_address =
-      gum_module_find_export_by_name (SYSTEM_MODULE_NAME, SYSTEM_MODULE_EXPORT);
-
-  lib = dlopen (SYSTEM_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
+  lib = dlopen (TRICKY_MODULE_NAME, RTLD_NOW | RTLD_GLOBAL);
   g_assert (lib != NULL);
-  system_address = dlsym (lib, SYSTEM_MODULE_EXPORT);
-  dlclose (lib);
+  system_address = dlsym (lib, TRICKY_MODULE_EXPORT);
 
-  g_assert_cmphex (gum_address, ==, GPOINTER_TO_SIZE (system_address));
+  enumerate_address = 0;
+  gum_module_enumerate_exports (TRICKY_MODULE_NAME,
+      store_export_address_if_tricky_module_export, &enumerate_address);
+  g_assert (enumerate_address != 0);
+
+  find_by_name_address =
+      gum_module_find_export_by_name (TRICKY_MODULE_NAME, TRICKY_MODULE_EXPORT);
+
+  g_assert_cmphex (enumerate_address, ==, GPOINTER_TO_SIZE (system_address));
+  g_assert_cmphex (find_by_name_address, ==, GPOINTER_TO_SIZE (system_address));
+
+  dlclose (lib);
 #endif
 }
+
+#ifndef G_OS_WIN32
+static gboolean
+store_export_address_if_tricky_module_export (const GumExportDetails * details,
+                                              gpointer user_data)
+{
+  if (details->type == GUM_EXPORT_FUNCTION
+      && strcmp (details->name, TRICKY_MODULE_EXPORT) == 0)
+  {
+    *((GumAddress *) user_data) = details->address;
+    return FALSE;
+  }
+
+  return TRUE;
+}
+#endif
 
 #ifdef G_OS_WIN32
 PROCESS_TESTCASE (get_current_thread_id)
