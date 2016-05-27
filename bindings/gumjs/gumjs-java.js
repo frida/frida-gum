@@ -31,17 +31,6 @@
     const STATIC_FIELD = 1;
     const INSTANCE_FIELD = 2;
 
-    // ART
-    const ART_METHOD_SIZE = 72;
-    const ART_METHOD_OFFSET_INTERPRETER_CODE = 24;
-    const ART_METHOD_OFFSET_JNI_CODE = 32;
-    const ART_METHOD_OFFSET_QUICK_CODE = 40;
-    const ART_METHOD_OFFSET_GC_MAP = 48;
-    const ART_METHOD_OFFSET_ACCESS_FLAGS = 56;
-    const ART_METHOD_OFFSET_DEX_ITEM_INDEX = 60;
-    const ART_METHOD_OFFSET_DEX_METHOD_INDEX = 64;
-    const ART_METHOD_OFFSET_INDEX = 68;
-
     // Dalvik
     const DVM_JNI_ENV_OFFSET_SELF = 12;
 
@@ -1265,7 +1254,7 @@
 
                     const thread = api["art::Thread::CurrentFromGdb"]();
                     const target = api["art::mirror::Object::Clone"](methodId, thread);
-                    Memory.copy(target, originalMethodId, ART_METHOD_SIZE);
+                    Memory.copy(target, originalMethodId, getArtMethodSpec().size);
                     return target;
                 }
                 function replaceArtImplementation(fn) {
@@ -1273,22 +1262,25 @@
                         return;
                     }
 
+                    const artMethodSpec = getArtMethodSpec();
+                    const artMethodOffset = artMethodSpec.offset;
+
                     if (originalMethodId === null)
-                        originalMethodId = Memory.dup(methodId, ART_METHOD_SIZE);
+                        originalMethodId = Memory.dup(methodId, artMethodSpec.size);
 
                     if (fn !== null) {
                         implementation = implement(f, fn);
 
-                        Memory.writePointer(methodId.add(ART_METHOD_OFFSET_JNI_CODE), implementation);
-                        const flagsPtr = methodId.add(ART_METHOD_OFFSET_ACCESS_FLAGS);
+                        Memory.writePointer(methodId.add(artMethodOffset.jniCode), implementation);
+                        const flagsPtr = methodId.add(artMethodOffset.accessFlags);
                         Memory.writeU32(flagsPtr, Memory.readU32(flagsPtr) | kAccNative);
-                        Memory.writePointer(methodId.add(ART_METHOD_OFFSET_QUICK_CODE), api.art_quick_generic_jni_trampoline);
+                        Memory.writePointer(methodId.add(artMethodOffset.quickCode), api.art_quick_generic_jni_trampoline);
 
                         patchedMethods.add(f);
                     } else {
                         patchedMethods.delete(f);
 
-                        Memory.copy(methodId, originalMethodId, ART_METHOD_SIZE);
+                        Memory.copy(methodId, originalMethodId, artMethodSpec.size);
                         implementation = null;
                     }
                 }
@@ -2994,6 +2986,118 @@
             }
         };
     })();
+
+    const artMethodSpecByVersionAndPointerSize = {
+        '5.0.': {
+            4: {
+                size: 72,
+                offset: {
+                    jniCode: 32,
+                    quickCode: 40,
+                    accessFlags: 56,
+                    dexItemIndex: 60,
+                    dexMethodIndex: 64,
+                    index: 68
+                }
+            },
+            8: {
+                size: 72,
+                offset: {
+                    jniCode: 32,
+                    quickCode: 40,
+                    accessFlags: 56,
+                    dexItemIndex: 60,
+                    dexMethodIndex: 64,
+                    index: 68
+                }
+            }
+        },
+        '5.1.': {
+            4: {
+                size: 48,
+                offset: {
+                    jniCode: 40,
+                    quickCode: 44,
+                    accessFlags: 20,
+                    dexItemIndex: 24,
+                    dexMethodIndex: 28,
+                    index: 32
+                }
+            },
+            8: {
+                size: 60,
+                offset: {
+                    jniCode: 44,
+                    quickCode: 52,
+                    accessFlags: 20,
+                    dexItemIndex: 24,
+                    dexMethodIndex: 28,
+                    index: 32
+                }
+            }
+        },
+        '6.0.': {
+            4: {
+                size: 40,
+                offset: {
+                    jniCode: 32,
+                    quickCode: 36,
+                    accessFlags: 12,
+                    dexItemIndex: 16,
+                    dexMethodIndex: 20,
+                    index: 24
+                }
+            },
+            8: {
+                size: 52,
+                offset: {
+                    jniCode: 36,
+                    quickCode: 44,
+                    accessFlags: 12,
+                    dexItemIndex: 16,
+                    dexMethodIndex: 20,
+                    index: 24
+                }
+            },
+        },
+        git: {
+            4: {
+                size: 36,
+                offset: {
+                    jniCode: 28,
+                    quickCode: 32,
+                    accessFlags: 4,
+                    dexItemIndex: 8,
+                    dexMethodIndex: 12,
+                    index: 16
+                }
+            },
+            8: {
+                size: 52,
+                offset: {
+                    jniCode: 36,
+                    quickCode: 44,
+                    accessFlags: 4,
+                    dexItemIndex: 8,
+                    dexMethodIndex: 12,
+                    index: 16
+                }
+            },
+        }
+    };
+
+    let _artMethodSpec = null;
+    function getArtMethodSpec() {
+        if (_artMethodSpec !== null)
+            return _artMethodSpec;
+
+        const specByPointerSize = artMethodSpecByVersionAndPointerSize[_runtime.androidVersion.substr(0, 4)];
+        if (specByPointerSize === undefined)
+            specByPointerSize = artMethodSpecByVersionAndPointerSize.git;
+
+        _artMethodSpec = specByPointerSize[Process.pointerSize];
+        return _artMethodSpec;
+    }
 
     function getApi() {
         if (_api !== null) {
