@@ -3012,10 +3012,15 @@
                     "art_quick_generic_jni_trampoline": function (address) {
                         this.art_quick_generic_jni_trampoline = address;
                     },
+                    "artQuickGenericJniTrampoline": function (address) {
+                        this.art_quick_generic_jni_trampoline = address;
+                    },
                     "_ZN3art6Thread14CurrentFromGdbEv": ["art::Thread::CurrentFromGdb", 'pointer', []],
                     "_ZN3art6mirror6Object5CloneEPNS_6ThreadE": ["art::mirror::Object::Clone", 'pointer', ['pointer', 'pointer']],
                 },
-                variables: {
+                optionals: {
+                    "art_quick_generic_jni_trampoline": "< 6.0",
+                    "artQuickGenericJniTrampoline": ">= 6.0",
                 }
             }] : [{
                 module: "libdvm.so",
@@ -3053,41 +3058,52 @@
                 }
             }
         ];
+
         let remaining = 0;
+
         pending.forEach(function (api) {
-            const pendingFunctions = api.functions;
-            const pendingVariables = api.variables;
-            remaining += Object.keys(pendingFunctions).length + Object.keys(pendingVariables).length;
-            Module.enumerateExports(api.module, {
-                onMatch: function (exp) {
-                    const name = exp.name;
-                    if (exp.type === 'function') {
-                        const signature = pendingFunctions[name];
-                        if (signature) {
-                            if (typeof signature === 'function') {
-                                signature.call(temporaryApi, exp.address);
-                            } else {
-                                temporaryApi[signature[0]] = new NativeFunction(exp.address, signature[1], signature[2]);
-                            }
-                            delete pendingFunctions[name];
-                            remaining--;
-                        }
-                    } else if (exp.type === 'variable') {
-                        const handler = pendingVariables[name];
-                        if (handler) {
-                            handler.call(temporaryApi, exp.address);
-                            delete pendingVariables[name];
-                            remaining--;
-                        }
+            const functions = api.functions || {};
+            const variables = api.variables || {};
+            const optionals = api.optionals || {};
+
+            remaining += Object.keys(functions).length + Object.keys(variables).length;
+
+            const exportByName = Module
+            .enumerateExportsSync(api.module)
+            .reduce(function (result, exp) {
+                result[exp.name] = exp;
+                return result;
+            }, {});
+
+            Object.keys(functions)
+            .forEach(function (name) {
+                const exp = exportByName[name];
+                if (exp !== undefined && exp.type === 'function') {
+                    const signature = functions[name];
+                    if (typeof signature === 'function') {
+                        signature.call(temporaryApi, exp.address);
+                    } else {
+                        temporaryApi[signature[0]] = new NativeFunction(exp.address, signature[1], signature[2]);
                     }
-                    if (remaining === 0) {
-                        return 'stop';
-                    }
-                },
-                onComplete: function () {
+                    remaining--;
+                } else {
+                    const optional = optionals[name];
+                    if (optional)
+                        remaining--;
+                }
+            });
+
+            Object.keys(variables)
+            .forEach(function (name) {
+                const exp = exportByName[name];
+                if (exp !== undefined && exp.type === 'variable') {
+                    const handler = variables[name];
+                    handler.call(temporaryApi, exp.address);
+                    remaining--;
                 }
             });
         });
+
         if (remaining === 0) {
             const vms = Memory.alloc(pointerSize);
             const vmCount = Memory.alloc(jsizeSize);
