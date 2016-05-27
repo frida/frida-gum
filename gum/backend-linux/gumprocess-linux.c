@@ -104,6 +104,7 @@ typedef guint GumElfSymbolType;
 typedef guint GumElfSymbolBind;
 #if GLIB_SIZEOF_VOID_P == 4
 typedef Elf32_Ehdr GumElfEHeader;
+typedef Elf32_Phdr GumElfPHeader;
 typedef Elf32_Shdr GumElfSHeader;
 typedef Elf32_Dyn GumElfDynamic;
 typedef Elf32_Sym GumElfSymbol;
@@ -111,6 +112,7 @@ typedef Elf32_Sym GumElfSymbol;
 # define GUM_ELF_ST_TYPE(val) ELF32_ST_TYPE(val)
 #else
 typedef Elf64_Ehdr GumElfEHeader;
+typedef Elf64_Phdr GumElfPHeader;
 typedef Elf64_Shdr GumElfSHeader;
 typedef Elf64_Dyn GumElfDynamic;
 typedef Elf64_Sym GumElfSymbol;
@@ -176,6 +178,7 @@ struct _GumElfModule
   gpointer data;
   GumElfEHeader * ehdr;
   gpointer address;
+  GumAddress preferred_address;
 };
 
 struct _GumElfDependencyDetails
@@ -257,6 +260,8 @@ static gboolean gum_emit_elf_export (const GumElfSymbolDetails * details,
     gpointer user_data);
 static void gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     GumElfFoundSymbolFunc func, gpointer user_data);
+static GumAddress gum_elf_module_compute_preferred_address (
+    GumElfModule * self);
 static GumElfSHeader * gum_elf_module_find_section_header (GumElfModule * self,
     GumElfSHeaderType type);
 
@@ -1156,6 +1161,7 @@ gum_elf_module_open (GumElfModule * module,
   type = module->ehdr->e_type;
   if (type != ET_EXEC && type != ET_DYN)
     goto beach;
+  module->preferred_address = gum_elf_module_compute_preferred_address (module);
   success = TRUE;
 
 beach:
@@ -1314,13 +1320,32 @@ gum_elf_module_enumerate_dynamic_symbols (GumElfModule * self,
     sym = data + dynsym->sh_offset + (i * dynsym->sh_entsize);
 
     details.name = strtab + sym->st_name;
-    details.address = GUM_ADDRESS (self->address + sym->st_value);
+    details.address =
+        GUM_ADDRESS (sym->st_value - self->preferred_address + self->address);
     details.type = GUM_ELF_ST_TYPE (sym->st_info);
     details.bind = GUM_ELF_ST_BIND (sym->st_info);
     details.section_header_index = sym->st_shndx;
 
     carry_on = func (&details, user_data);
   }
+}
+
+static GumAddress
+gum_elf_module_compute_preferred_address (GumElfModule * self)
+{
+  GumElfEHeader * ehdr = self->ehdr;
+  guint i;
+
+  for (i = 0; i != ehdr->e_phnum; i++)
+  {
+    GumElfPHeader * phdr;
+
+    phdr = self->data + ehdr->e_phoff + (i * ehdr->e_phentsize);
+    if (phdr->p_offset == 0)
+      return phdr->p_vaddr;
+  }
+
+  return 0;
 }
 
 static GumElfSHeader *
