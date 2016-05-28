@@ -3091,7 +3091,7 @@
         if (_artMethodSpec !== null)
             return _artMethodSpec;
 
-        const specByPointerSize = artMethodSpecByVersionAndPointerSize[_runtime.androidVersion.substr(0, 4)];
+        let specByPointerSize = artMethodSpecByVersionAndPointerSize[_runtime.androidVersion.substr(0, 4)];
         if (specByPointerSize === undefined)
             specByPointerSize = artMethodSpecByVersionAndPointerSize.git;
 
