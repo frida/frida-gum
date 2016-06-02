@@ -7,11 +7,11 @@ namespace Gum {
 
 		public async Script create (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
 		public Script create_sync (string name, string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public async Script create_from_bytes (string name, Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public Script create_from_bytes_sync (string name, Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public async Script create_from_bytes (string name, GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public Script create_from_bytes_sync (string name, GLib.Bytes bytes, GLib.Cancellable? cancellable = null) throws GLib.IOError;
 
-		public async Bytes compile (string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
-		public Bytes compile_sync (string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public async GLib.Bytes compile (string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
+		public GLib.Bytes compile_sync (string source, GLib.Cancellable? cancellable = null) throws GLib.IOError;
 
 		public void set_debug_message_handler (owned Gum.Script.DebugMessageHandler? handler);
 		public void post_debug_message (string message);
