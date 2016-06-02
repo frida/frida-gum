@@ -794,13 +794,13 @@
                             reply(id, 'ok', value);
                         })
                         .catch(error => {
-                            reply(id, 'error', error.message, [error.stack]);
+                            reply(id, 'error', error.message, [error.name, error.stack]);
                         });
                     } else {
                         reply(id, 'ok', result);
                     }
                 } catch (e) {
-                    reply(id, 'error', e.message, [e.stack]);
+                    reply(id, 'error', e.message, [e.name, e.stack]);
                 }
             } else if (operation === 'list') {
                 reply(id, 'ok', Object.keys(exports));
