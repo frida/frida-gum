@@ -794,24 +794,26 @@
                             reply(id, 'ok', value);
                         })
                         .catch(error => {
-                            reply(id, 'error', error.message);
+                            reply(id, 'error', error.message, [error.stack]);
                         });
                     } else {
                         reply(id, 'ok', result);
                     }
                 } catch (e) {
-                    reply(id, 'error', e.message);
+                    reply(id, 'error', e.message, [e.stack]);
                 }
             } else if (operation === 'list') {
                 reply(id, 'ok', Object.keys(exports));
             }
         }
 
-        function reply(id, type, result) {
+        function reply(id, type, result, params) {
+            params = params || [];
+
             if (result instanceof ArrayBuffer)
-                send(['frida:rpc', id, type, {}], result);
+                send(['frida:rpc', id, type, {}].concat(params), result);
             else
-                send(['frida:rpc', id, type, result]);
+                send(['frida:rpc', id, type, result].concat(params));
         }
 
         function dispatchMessages() {

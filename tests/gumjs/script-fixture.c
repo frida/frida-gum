@@ -60,6 +60,9 @@
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \
     test_script_fixture_expect_send_message_with (fixture, PAYLOAD, \
     ## __VA_ARGS__)
+#define EXPECT_SEND_MESSAGE_WITH_PREFIX(PREFIX, ...) \
+    test_script_fixture_expect_send_message_with_prefix (fixture, PREFIX, \
+    ## __VA_ARGS__)
 #define EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA(PAYLOAD, DATA) \
     test_script_fixture_expect_send_message_with_payload_and_data (fixture, \
         PAYLOAD, DATA)
@@ -93,6 +96,8 @@ static void test_script_message_item_free (TestScriptMessageItem * item);
 static TestScriptMessageItem * test_script_fixture_try_pop_message (
     TestScriptFixture * fixture, guint timeout);
 static gboolean test_script_fixture_stop_loop (TestScriptFixture * fixture);
+static void test_script_fixture_expect_send_message_with_prefix (
+    TestScriptFixture * fixture, const gchar * prefix_template, ...);
 static void test_script_fixture_expect_send_message_with_payload_and_data (
     TestScriptFixture * fixture, const gchar * payload, const gchar * data);
 static void test_script_fixture_expect_error_message_with (
@@ -102,6 +107,7 @@ static void
 test_script_fixture_setup (TestScriptFixture * fixture,
                            gconstpointer data)
 {
+  (void) test_script_fixture_expect_send_message_with_prefix;
   (void) test_script_fixture_expect_send_message_with_payload_and_data;
   (void) test_script_fixture_expect_error_message_with;
 
@@ -290,6 +296,31 @@ test_script_fixture_expect_send_message_with (TestScriptFixture * fixture,
   g_free (expected_message);
 
   g_free (payload);
+}
+
+static void
+test_script_fixture_expect_send_message_with_prefix (
+    TestScriptFixture * fixture,
+    const gchar * prefix_template,
+    ...)
+{
+  va_list args;
+  gchar * prefix;
+  TestScriptMessageItem * item;
+  gchar * expected_message_prefix;
+
+  va_start (args, prefix_template);
+  prefix = g_strdup_vprintf (prefix_template, args);
+  va_end (args);
+
+  item = test_script_fixture_pop_message (fixture);
+  expected_message_prefix =
+      g_strconcat ("{\"type\":\"send\",\"payload\":", prefix, NULL);
+  g_assert (g_str_has_prefix (item->message, expected_message_prefix));
+  test_script_message_item_free (item);
+  g_free (expected_message_prefix);
+
+  g_free (prefix);
 }
 
 static void

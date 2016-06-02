@@ -1569,13 +1569,13 @@ SCRIPT_TESTCASE (rpc_can_be_performed)
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",2,\"ok\",3]");
 
   POST_MESSAGE ("[\"frida:rpc\",3,\"call\",\"foo\",[1,-2]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",3,\"error\",\"No\"]");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",3,\"error\",\"No\",");
 
   POST_MESSAGE ("[\"frida:rpc\",4,\"call\",\"bar\",[3,4]]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",4,\"ok\",7]");
 
   POST_MESSAGE ("[\"frida:rpc\",5,\"call\",\"bar\",[3,-4]]");
-  EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",5,\"error\",\"Nope\"]");
+  EXPECT_SEND_MESSAGE_WITH_PREFIX ("[\"frida:rpc\",5,\"error\",\"Nope\",");
 
   POST_MESSAGE ("[\"frida:rpc\",6,\"call\",\"baz\",[]]");
   EXPECT_SEND_MESSAGE_WITH ("[\"frida:rpc\",6,\"error\","
