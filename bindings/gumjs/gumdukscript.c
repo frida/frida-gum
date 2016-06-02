@@ -35,6 +35,7 @@ enum
   PROP_0,
   PROP_NAME,
   PROP_SOURCE,
+  PROP_BYTECODE,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
 };
@@ -43,6 +44,7 @@ struct _GumDukScriptPrivate
 {
   gchar * name;
   gchar * source;
+  GBytes * bytecode;
   GMainContext * main_context;
   GumDukScriptBackend * backend;
 
@@ -121,10 +123,6 @@ static void gum_duk_script_emit_message (GumDukScript * self,
 static gboolean gum_duk_script_do_emit_message (GumEmitMessageData * d);
 static void gum_duk_emit_message_data_free (GumEmitMessageData * d);
 
-static void * gum_duk_alloc (void * udata, duk_size_t size);
-static void * gum_duk_realloc (void * udata, void * ptr, duk_size_t size);
-static void gum_duk_free (void * udata, void * ptr);
-
 G_DEFINE_TYPE_EXTENDED (GumDukScript,
                         gum_duk_script,
                         G_TYPE_OBJECT,
@@ -150,6 +148,10 @@ gum_duk_script_class_init (GumDukScriptClass * klass)
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_SOURCE,
       g_param_spec_string ("source", "Source", "Source code", NULL,
+      (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
+      G_PARAM_STATIC_STRINGS)));
+  g_object_class_install_property (object_class, PROP_BYTECODE,
+      g_param_spec_boxed ("bytecode", "Bytecode", "Bytecode", G_TYPE_BYTES,
       (GParamFlags) (G_PARAM_READWRITE | G_PARAM_CONSTRUCT_ONLY |
       G_PARAM_STATIC_STRINGS)));
   g_object_class_install_property (object_class, PROP_MAIN_CONTEXT,
@@ -229,6 +231,7 @@ gum_duk_script_finalize (GObject * object)
 
   g_free (priv->name);
   g_free (priv->source);
+  g_bytes_unref (priv->bytecode);
 
   g_async_queue_unref (priv->incoming_messages);
 
@@ -251,6 +254,9 @@ gum_duk_script_get_property (GObject * object,
       break;
     case PROP_SOURCE:
       g_value_set_string (value, priv->source);
+      break;
+    case PROP_BYTECODE:
+      g_value_set_boxed (value, priv->bytecode);
       break;
     case PROP_MAIN_CONTEXT:
       g_value_set_boxed (value, priv->main_context);
@@ -282,10 +288,14 @@ gum_duk_script_set_property (GObject * object,
       g_free (priv->source);
       priv->source = g_value_dup_string (value);
       break;
+    case PROP_BYTECODE:
+      g_bytes_unref (priv->bytecode);
+      priv->bytecode = g_value_dup_boxed (value);
+      break;
     case PROP_MAIN_CONTEXT:
       if (priv->main_context != NULL)
         g_main_context_unref (priv->main_context);
-      priv->main_context = (GMainContext *) g_value_dup_boxed (value);
+      priv->main_context = g_value_dup_boxed (value);
       break;
     case PROP_BACKEND:
       if (priv->backend != NULL)
@@ -297,66 +307,45 @@ gum_duk_script_set_property (GObject * object,
   }
 }
 
-static gchar *
-gum_duk_script_create_url (GumDukScript * self)
-{
-  return g_strconcat ("file:///", self->priv->name, ".js", NULL);
-}
-
-static void
-gum_duk_script_fatal_error_handler (duk_context * ctx,
-                                    duk_errcode_t code,
-                                    const char * msg)
-{
-  (void) ctx;
-
-  g_printerr ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
-  abort();
-}
-
 gboolean
 gum_duk_script_create_context (GumDukScript * self,
                                GError ** error)
 {
   GumDukScriptPrivate * priv = self->priv;
   duk_context * ctx;
-  gchar * url;
-  gboolean valid;
   GumDukScope scope;
 
   g_assert (priv->ctx == NULL);
 
-  ctx = duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, NULL,
-      gum_duk_script_fatal_error_handler);
+  ctx = gum_duk_script_backend_create_heap (priv->backend);
 
-  url = gum_duk_script_create_url (self);
-
-  duk_push_string (ctx, priv->source);
-  duk_push_string (ctx, url);
-  valid = duk_pcompile (ctx, 0) == 0;
-
-  g_free (url);
-
-  if (!valid)
+  if (priv->bytecode != NULL)
   {
-    gchar message[1024];
-    gint line;
+    gconstpointer code;
+    gsize size;
+    gchar * url;
 
-    /* as duktape doesn't currently provide line number information, we
-     * grab it from the error message itself using a sscanf.
-     */
-    sscanf (duk_safe_to_string (ctx, -1), "%[^\n(] (line %d)", message, &line);
+    duk_push_external_buffer (ctx);
 
-    g_set_error (error,
-        G_IO_ERROR,
-        G_IO_ERROR_FAILED,
-        "Script(line %u): %s",
-        line,
-        message);
+    code = g_bytes_get_data (priv->bytecode, &size);
+    duk_config_buffer (ctx, -1, (void *) code, size);
 
-    duk_destroy_heap (ctx);
+    duk_load_function (ctx);
 
-    return FALSE;
+    url = g_strconcat ("file:///", priv->name, ".js", NULL);
+    duk_push_string (ctx, url);
+    duk_put_prop_string (ctx, -2, "fileName");
+    g_free (url);
+  }
+  else
+  {
+    if (!gum_duk_script_backend_push_program (priv->backend, ctx, priv->name,
+        priv->source, error))
+    {
+      duk_destroy_heap (ctx);
+
+      return FALSE;
+    }
   }
 
   /* pop the function */
@@ -700,32 +689,4 @@ _gum_duk_panic (duk_context * ctx,
   g_critical ("%s", error_message);
 
   abort ();
-}
-
-static void *
-gum_duk_alloc (void * udata,
-               duk_size_t size)
-{
-  (void) udata;
-
-  return g_malloc (size);
-}
-
-static void *
-gum_duk_realloc (void * udata,
-                 void * ptr,
-                 duk_size_t size)
-{
-  (void) udata;
-
-  return g_realloc (ptr, size);
-}
-
-static void
-gum_duk_free (void * udata,
-              void * ptr)
-{
-  (void) udata;
-
-  g_free (ptr);
 }

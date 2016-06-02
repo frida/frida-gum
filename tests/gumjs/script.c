@@ -174,6 +174,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (execution_can_be_traced)
   SCRIPT_TESTENTRY (call_can_be_probed)
 #endif
+  SCRIPT_TESTENTRY (script_can_be_compiled_to_bytecode)
   SCRIPT_TESTENTRY (script_can_be_reloaded)
   SCRIPT_TESTENTRY (source_maps_should_be_supported)
   SCRIPT_TESTENTRY (types_handle_invalid_construction)
@@ -3212,6 +3213,77 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
     EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x530");
     g_free (source);
   }
+}
+
+SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
+{
+  GError * error;
+  GBytes * code;
+  GumScript * script;
+
+  error = NULL;
+  code = gum_script_backend_compile_sync (fixture->backend, "send(1337);\noops;", NULL,
+      &error);
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    g_assert (code != NULL);
+    g_assert (error == NULL);
+
+    g_assert (gum_script_backend_compile_sync (fixture->backend, "'", NULL,
+        NULL) == NULL);
+
+    g_assert (gum_script_backend_compile_sync (fixture->backend, "'", NULL,
+        &error) == NULL);
+    g_assert (error != NULL);
+    g_assert (g_str_has_prefix (error->message,
+        "Script(line 1): SyntaxError: "));
+    g_clear_error (&error);
+  }
+  else
+  {
+    g_assert (code == NULL);
+    g_assert (error != NULL);
+    g_assert_cmpstr (error->message, ==, "Not yet supported by the V8 runtime");
+    g_clear_error (&error);
+
+    code = g_bytes_new (NULL, 0);
+  }
+
+  script = gum_script_backend_create_from_bytes_sync (fixture->backend,
+      "testcase", code, NULL, &error);
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    TestScriptMessageItem * item;
+
+    g_assert (script != NULL);
+    g_assert (error == NULL);
+
+    gum_script_set_message_handler (script, test_script_fixture_store_message,
+        fixture, NULL);
+
+    gum_script_load_sync (script, NULL);
+
+    EXPECT_SEND_MESSAGE_WITH ("1337");
+
+    item = test_script_fixture_pop_message (fixture);
+    g_assert (strstr (item->message, "ReferenceError") != NULL);
+    g_assert (strstr (item->message, "agent.js") == NULL);
+    g_assert (strstr (item->message, "testcase.js") != NULL);
+    test_script_message_item_free (item);
+
+    EXPECT_NO_MESSAGES ();
+
+    g_object_unref (script);
+  }
+  else
+  {
+    g_assert (script == NULL);
+    g_assert (error != NULL);
+    g_assert_cmpstr (error->message, ==, "Not yet supported by the V8 runtime");
+    g_clear_error (&error);
+  }
+
+  g_bytes_unref (code);
 }
 
 SCRIPT_TESTCASE (script_can_be_reloaded)

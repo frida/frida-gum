@@ -129,13 +129,6 @@
         };
     }
 
-    function fileNameFromSourceURL(url) {
-        if (url.indexOf("file:///") === 0)
-            return url.substring(8);
-        else
-            return url;
-    }
-
     /*
      * Based on https://github.com/evanw/node-source-map-support
      */
