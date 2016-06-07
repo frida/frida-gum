@@ -33,6 +33,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (block_can_be_migrated_to_the_heap_behind_our_back)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
+  SCRIPT_TESTENTRY (struct_returning_method_can_be_called)
   SCRIPT_TESTENTRY (attempt_to_read_inexistent_property_should_yield_undefined)
   SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
   SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
@@ -525,10 +526,21 @@ struct _FridaRect
 @end
 
 @implementation FridaWidget
+
+- (FridaRect)bounds {
+  FridaRect r;
+  r.origin.x = 10.0;
+  r.origin.y = 15.0;
+  r.size.width = 30.0;
+  r.size.height = 35.0;
+  return r;
+}
+
 - (int)drawRect:(FridaRect)dirtyRect {
   return (int) dirtyRect.origin.x + (int) dirtyRect.origin.y +
       (int) dirtyRect.size.width + (int) dirtyRect.size.height;
 }
+
 @end
 
 SCRIPT_TESTCASE (struct_consuming_method_implementation_can_be_overridden)
@@ -558,6 +570,21 @@ SCRIPT_TESTCASE (struct_consuming_method_implementation_can_be_overridden)
     EXPECT_SEND_MESSAGE_WITH ("[[10,15],[30,35]]");
     EXPECT_NO_MESSAGES ();
     g_assert_cmpint (result, ==, 90);
+  }
+}
+
+SCRIPT_TESTCASE (struct_returning_method_can_be_called)
+{
+  @autoreleasepool
+  {
+    FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var widget = new ObjC.Object(" GUM_PTR_CONST ");"
+        "send(widget.bounds());",
+        widget);
+    EXPECT_SEND_MESSAGE_WITH ("[[10,15],[30,35]]");
+    EXPECT_NO_MESSAGES ();
   }
 }
 
