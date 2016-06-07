@@ -34,6 +34,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (basic_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_consuming_method_implementation_can_be_overridden)
   SCRIPT_TESTENTRY (struct_returning_method_can_be_called)
+  SCRIPT_TESTENTRY (floating_point_returning_method_can_be_called)
   SCRIPT_TESTENTRY (attempt_to_read_inexistent_property_should_yield_undefined)
   SCRIPT_TESTENTRY (proxied_method_can_be_invoked)
   SCRIPT_TESTENTRY (proxied_method_can_be_overridden)
@@ -536,6 +537,14 @@ struct _FridaRect
   return r;
 }
 
+- (float)width {
+  return 30.0f;
+}
+
+- (double)height {
+  return 35.0f;
+}
+
 - (int)drawRect:(FridaRect)dirtyRect {
   return (int) dirtyRect.origin.x + (int) dirtyRect.origin.y +
       (int) dirtyRect.size.width + (int) dirtyRect.size.height;
@@ -584,6 +593,21 @@ SCRIPT_TESTCASE (struct_returning_method_can_be_called)
         "send(widget.bounds());",
         widget);
     EXPECT_SEND_MESSAGE_WITH ("[[10,15],[30,35]]");
+    EXPECT_NO_MESSAGES ();
+  }
+}
+
+SCRIPT_TESTCASE (floating_point_returning_method_can_be_called)
+{
+  @autoreleasepool
+  {
+    FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var widget = new ObjC.Object(" GUM_PTR_CONST ");"
+        "send([widget.width(), widget.height()]);",
+        widget);
+    EXPECT_SEND_MESSAGE_WITH ("[30,35]");
     EXPECT_NO_MESSAGES ();
   }
 }

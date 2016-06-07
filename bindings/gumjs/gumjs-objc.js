@@ -1668,26 +1668,34 @@
         }
 
         function getMsgSendImpl(signature) {
-            let impl = msgSendBySignatureId[signature.id];
-            if (!impl) {
-                const retType = signature.retType.type;
-                const argTypes = signature.argTypes.map(function (t) { return t.type; });
-                const returnsStruct = retType instanceof Array;
-                impl = new NativeFunction(returnsStruct ? api.objc_msgSend_stret : api.objc_msgSend, retType, argTypes);
-                msgSendBySignatureId[signature.id] = impl;
-            }
-
-            return impl;
+            return getMsgSendImplFromCache(msgSendBySignatureId, signature, false);
         }
 
         function getMsgSendSuperImpl(signature) {
-            let impl = msgSendSuperBySignatureId[signature.id];
+            return getMsgSendImplFromCache(msgSendSuperBySignatureId, signature, true);
+        }
+
+        function getMsgSendImplFromCache(cache, signature, isSuper) {
+            let impl = cache[signature.id];
             if (!impl) {
                 const retType = signature.retType.type;
                 const argTypes = signature.argTypes.map(function (t) { return t.type; });
+
+                const components = ['objc_msgSend'];
+
+                if (isSuper)
+                    components.push('Super');
+
                 const returnsStruct = retType instanceof Array;
-                impl = new NativeFunction(returnsStruct ? api.objc_msgSendSuper_stret : api.objc_msgSendSuper, retType, argTypes);
-                msgSendSuperBySignatureId[signature.id] = impl;
+                if (returnsStruct)
+                    components.push('_stret');
+                else if (retType === 'float' || retType === 'double')
+                    components.push('_fpret');
+
+                const name = components.join('');
+
+                impl = new NativeFunction(api[name], retType, argTypes);
+                cache[signature.id] = impl;
             }
 
             return impl;
@@ -2134,11 +2142,17 @@
                     "objc_msgSend_stret": function (address) {
                         this.objc_msgSend_stret = address;
                     },
+                    "objc_msgSend_fpret": function (address) {
+                        this.objc_msgSend_fpret = address;
+                    },
                     "objc_msgSendSuper": function (address) {
                         this.objc_msgSendSuper = address;
                     },
                     "objc_msgSendSuper_stret": function (address) {
                         this.objc_msgSendSuper_stret = address;
+                    },
+                    "objc_msgSendSuper_fpret": function (address) {
+                        this.objc_msgSendSuper_fpret = address;
                     },
                     "objc_getClassList": ['int', ['pointer', 'int']],
                     "objc_lookUpClass": ['pointer', ['pointer']],
@@ -2179,7 +2193,9 @@
                 },
                 optionals: {
                     "objc_msgSend_stret": 'ABI',
+                    "objc_msgSend_fpret": 'ABI',
                     "objc_msgSendSuper_stret": 'ABI',
+                    "objc_msgSendSuper_fpret": 'ABI',
                     "object_isClass": 'iOS8'
                 }
             }, {
@@ -2245,8 +2261,12 @@
         if (remaining === 0) {
             if (!temporaryApi.objc_msgSend_stret)
                 temporaryApi.objc_msgSend_stret = temporaryApi.objc_msgSend;
+            if (!temporaryApi.objc_msgSend_fpret)
+                temporaryApi.objc_msgSend_fpret = temporaryApi.objc_msgSend;
             if (!temporaryApi.objc_msgSendSuper_stret)
                 temporaryApi.objc_msgSendSuper_stret = temporaryApi.objc_msgSendSuper;
+            if (!temporaryApi.objc_msgSendSuper_fpret)
+                temporaryApi.objc_msgSendSuper_fpret = temporaryApi.objc_msgSendSuper;
 
             _api = temporaryApi;
         }
