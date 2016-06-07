@@ -717,8 +717,19 @@
                             wrapper: null
                         };
                     } else {
-                        if (!isClass() && kind === '-' && name !== "methodSignatureForSelector:" && "- methodSignatureForSelector:" in self) {
-                            const s = self.methodSignatureForSelector_(sel);
+                        if (isClass() || kind !== '-')
+                            return null;
+
+                        let target = self;
+                        if (name !== "forwardingTargetForSelector:" && "- forwardingTargetForSelector:" in self) {
+                            const forwardingTarget = self.forwardingTargetForSelector_(sel);
+                            if (forwardingTarget !== null && forwardingTarget.$kind === 'instance') {
+                                target = forwardingTarget;
+                            }
+                        }
+
+                        if (name !== "methodSignatureForSelector:" && "- methodSignatureForSelector:" in target) {
+                            const s = target.methodSignatureForSelector_(sel);
                             if (s === null)
                                 return null;
                             const numArgs = s.numberOfArguments().valueOf();
