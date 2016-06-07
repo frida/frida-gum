@@ -1670,8 +1670,10 @@
         function getMsgSendImpl(signature) {
             let impl = msgSendBySignatureId[signature.id];
             if (!impl) {
+                const retType = signature.retType.type;
                 const argTypes = signature.argTypes.map(function (t) { return t.type; });
-                impl = new NativeFunction(api.objc_msgSend, signature.retType.type, argTypes);
+                const returnsStruct = retType instanceof Array;
+                impl = new NativeFunction(returnsStruct ? api.objc_msgSend_stret : api.objc_msgSend, retType, argTypes);
                 msgSendBySignatureId[signature.id] = impl;
             }
 
@@ -1681,8 +1683,10 @@
         function getMsgSendSuperImpl(signature) {
             let impl = msgSendSuperBySignatureId[signature.id];
             if (!impl) {
+                const retType = signature.retType.type;
                 const argTypes = signature.argTypes.map(function (t) { return t.type; });
-                impl = new NativeFunction(api.objc_msgSendSuper, signature.retType.type, argTypes);
+                const returnsStruct = retType instanceof Array;
+                impl = new NativeFunction(returnsStruct ? api.objc_msgSendSuper_stret : api.objc_msgSendSuper, retType, argTypes);
                 msgSendSuperBySignatureId[signature.id] = impl;
             }
 
@@ -2127,8 +2131,14 @@
                     "objc_msgSend": function (address) {
                         this.objc_msgSend = address;
                     },
+                    "objc_msgSend_stret": function (address) {
+                        this.objc_msgSend_stret = address;
+                    },
                     "objc_msgSendSuper": function (address) {
                         this.objc_msgSendSuper = address;
+                    },
+                    "objc_msgSendSuper_stret": function (address) {
+                        this.objc_msgSendSuper_stret = address;
                     },
                     "objc_getClassList": ['int', ['pointer', 'int']],
                     "objc_lookUpClass": ['pointer', ['pointer']],
@@ -2168,6 +2178,8 @@
                     "class_getInstanceSize": ['pointer', ['pointer']]
                 },
                 optionals: {
+                    "objc_msgSend_stret": 'ABI',
+                    "objc_msgSendSuper_stret": 'ABI',
                     "object_isClass": 'iOS8'
                 }
             }, {
@@ -2231,6 +2243,11 @@
             });
         });
         if (remaining === 0) {
+            if (!temporaryApi.objc_msgSend_stret)
+                temporaryApi.objc_msgSend_stret = temporaryApi.objc_msgSend;
+            if (!temporaryApi.objc_msgSendSuper_stret)
+                temporaryApi.objc_msgSendSuper_stret = temporaryApi.objc_msgSendSuper;
+
             _api = temporaryApi;
         }
 
