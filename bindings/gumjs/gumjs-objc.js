@@ -1450,6 +1450,11 @@
                 returnCaptureLeft + "objc_msgSend(" + callArgs.join(", ") + ")" + returnCaptureRight + ";" +
             " }; m;");
 
+            Object.defineProperty(m, 'handle', {
+                enumerable: true,
+                get: getMethodHandle
+            });
+
             Object.defineProperty(m, 'selector', {
                 enumerable: true,
                 value: sel
