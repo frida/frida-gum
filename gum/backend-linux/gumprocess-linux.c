@@ -1441,7 +1441,7 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->lr = sc->regs[30];
   memset (ctx->q, 0, sizeof (ctx->q));
 #elif defined (HAVE_MIPS)
-  const gregset_t * gr = uc->uc_mcontext.gregs;
+  const greg_t * gr = uc->uc_mcontext.gregs;
 
   ctx->at = gr[1];
 
@@ -1568,7 +1568,7 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
   sc->regs[29] = ctx->fp;
   sc->regs[30] = ctx->lr;
 #elif defined (HAVE_MIPS)
-  const gregset_t * gr = uc->uc_mcontext.gregs;
+  greg_t * gr = uc->uc_mcontext.gregs;
 
   gr[1] = ctx->at;
 
