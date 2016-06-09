@@ -99,7 +99,7 @@ enum _GumBranchHint
 
 struct _GumCpuContext
 {
-#if !defined (__arm__) && !defined (__aarch64__)
+#if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
@@ -132,7 +132,7 @@ struct _GumCpuContext
   guint32 ecx;
   guint32 eax;
 # endif
-#elif defined (__aarch64__)
+#elif defined (HAVE_ARM64)
   guint64 pc;
   guint64 sp;
 
@@ -140,7 +140,7 @@ struct _GumCpuContext
   guint64 fp;
   guint64 lr;
   guint8 q[128];
-#else
+#elif defined (HAVE_ARM)
   guint32 cpsr;
   guint32 pc;
   guint32 sp;
@@ -153,6 +153,49 @@ struct _GumCpuContext
 
   guint32 r[8];
   guint32 lr;
+#elif defined (HAVE_MIPS)
+  guint32 at;
+
+  guint32 v0;
+  guint32 v1;
+
+  guint32 a0;
+  guint32 a1;
+  guint32 a2;
+  guint32 a3;
+
+  guint32 t0;
+  guint32 t1;
+  guint32 t2;
+  guint32 t3;
+  guint32 t4;
+  guint32 t5;
+  guint32 t6;
+  guint32 t7;
+  guint32 t8;
+  guint32 t9;
+
+  guint32 s0;
+  guint32 s1;
+  guint32 s2;
+  guint32 s3;
+  guint32 s4;
+  guint32 s5;
+  guint32 s6;
+  guint32 s7;
+
+  guint32 k0;
+  guint32 k1;
+
+  guint32 gp;
+  guint32 sp;
+  guint32 fp;
+  guint32 ra;
+
+  guint32 hi;
+  guint32 lo;
+
+  guint32 pc;
 #endif
 };
 
