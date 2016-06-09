@@ -1680,7 +1680,7 @@ gum_parse_regs (const GumRegs * regs,
   ctx->fp = regs->regs[29];
   ctx->lr = regs->regs[30];
 #else
-# error Unsupport architecture
+# error Unsupported architecture
 #endif
 }
 
