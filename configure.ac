@@ -40,6 +40,9 @@ case $host_cpu in
   aarch64)
     HAVE_ARM64=yes
   ;;
+  mips|mipsel)
+    HAVE_MIPS=yes
+  ;;
 esac
 if [[ "$HAVE_I386" = "yes" ]]; then
   AC_DEFINE(HAVE_I386, 1, [Define to 1 if target is x86 based.])
@@ -50,9 +53,13 @@ fi
 if [[ "$HAVE_ARM64" = "yes" ]]; then
   AC_DEFINE(HAVE_ARM64, 1, [Define to 1 if target is AArch64 based.])
 fi
+if [[ "$HAVE_MIPS" = "yes" ]]; then
+  AC_DEFINE(HAVE_MIPS, 1, [Define to 1 if target is MIPS based.])
+fi
 AM_CONDITIONAL(ARCH_I386, test "$HAVE_I386" = "yes")
 AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 AM_CONDITIONAL(ARCH_ARM64, test "$HAVE_ARM64" = "yes")
+AM_CONDITIONAL(ARCH_MIPS, test "$HAVE_MIPS" = "yes")
 
 case $host_os in
   linux*)   HAVE_LINUX=yes  ;;
