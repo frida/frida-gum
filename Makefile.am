@@ -8,8 +8,12 @@ SUBDIRS = \
 	vapi
 
 pcfiles = \
-	frida-gum-1.0.pc \
+	frida-gum-1.0.pc
+
+if ENABLE_GUMPP
+pcfiles += \
 	frida-gumpp-1.0.pc
+endif
 
 if ENABLE_GUMJS
 pcfiles += \

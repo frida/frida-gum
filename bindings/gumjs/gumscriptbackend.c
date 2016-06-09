@@ -109,7 +109,7 @@ gum_script_backend_obtain (void)
 {
   GumScriptBackend * backend = NULL;
 
-#ifndef HAVE_DIET
+#ifdef HAVE_V8
   backend = gum_script_backend_obtain_v8 ();
 #endif
   if (backend == NULL)
@@ -129,7 +129,7 @@ gum_script_backend_obtain_v8 (void)
 
     if (gum_query_is_rwx_supported ())
     {
-#ifndef HAVE_DIET
+#ifdef HAVE_V8
       backend = GUM_SCRIPT_BACKEND (
           g_object_new (GUM_V8_TYPE_SCRIPT_BACKEND, NULL));
 #endif

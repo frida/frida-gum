@@ -1,8 +1,12 @@
 SUBDIRS = \
 	core \
 	heap \
-	prof \
+	prof
+
+if ENABLE_GUMPP
+SUBDIRS += \
 	gumpp
+endif
 
 if ENABLE_GUMJS
 SUBDIRS += \
@@ -24,6 +28,15 @@ extra_testsuites =
 extra_ldflags =
 extra_libs =
 
+if ENABLE_GUMPP
+extra_testsuites += \
+	$(builddir)/gumpp/libgum-tests-gumpp.la \
+	$(NULL)
+extra_libs += \
+	$(top_builddir)/bindings/gumpp/libfrida-gumpp-static-1.0.la \
+	$(NULL)
+endif
+
 if ENABLE_GUMJS
 extra_testsuites += \
 	$(builddir)/gumjs/libgum-tests-gumjs.la \
@@ -44,7 +57,6 @@ gum_tests_LDFLAGS = \
 	$(extra_ldflags)
 gum_tests_LDADD = \
 	$(builddir)/libgum-tests.la \
-	$(top_builddir)/bindings/gumpp/libfrida-gumpp-static-1.0.la \
 	$(extra_libs) \
 	$(top_builddir)/gum/libfrida-gum-1.0.la \
 	$(GUM_TEST_LIBS) \
@@ -70,7 +82,6 @@ libgum_tests_la_LIBADD = \
 	$(builddir)/core/libgum-tests-core.la \
 	$(builddir)/heap/libgum-tests-heap.la \
 	$(builddir)/prof/libgum-tests-prof.la \
-	$(builddir)/gumpp/libgum-tests-gumpp.la \
 	$(extra_testsuites)
 
 AM_CPPFLAGS = \

@@ -161,17 +161,46 @@ AC_SUBST(GUM_CFLAGS)
 AC_SUBST(GUM_LDFLAGS)
 AC_SUBST(GUM_LIBS)
 
+AC_ARG_ENABLE(diet,
+  [AS_HELP_STRING([--enable-diet],
+                  [enable diet mode [default=no]])],,
+  [enable_diet=no])
+
+AC_ARG_ENABLE(gumpp,
+  [AS_HELP_STRING([--enable-gumpp],
+                  [enable C++ bindings [default=yes]])],,
+  [enable_gumpp=yes])
+if [[ "x$enable_gumpp" = "xyes" ]]; then
+  AC_DEFINE(HAVE_GUMPP, 1, [Define to 1 if Gum++ is available.])
+fi
+AM_CONDITIONAL(ENABLE_GUMPP, [test "x$enable_gumpp" = "xyes"])
+
+AC_ARG_ENABLE(gumjs,
+  [AS_HELP_STRING([--enable-gumjs],
+                  [enable JavaScript bindings [default=yes]])],,
+  [enable_gumjs=yes])
 LIBFFI_REQUIRES="libffi >= 3.1.1"
-PKG_CHECK_MODULES(V8, [v8], [HAVE_GUMJS=yes], [HAVE_GUMJS=no])
-if [[ "x$HAVE_GUMJS" = "xyes" ]]; then
+if [[ "x$enable_gumjs" = "xyes" ]]; then
   AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if GumJS is available.])
+
   PKG_CHECK_MODULES(JSON_GLIB, [json-glib-1.0])
   PKG_CHECK_MODULES(LIBFFI, [$LIBFFI_REQUIRES])
+
+  if [[ "x$enable_diet" = "xno" ]]; then
+    PKG_CHECK_MODULES(V8, [v8], [HAVE_V8=yes], [HAVE_V8=no])
+  else
+    HAVE_V8=no
+  fi
+  if [[ "x$HAVE_V8" = "xyes" ]]; then
+    AC_DEFINE(HAVE_V8, 1, [Define to 1 if V8 is available.])
+  fi
+  AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
+
   GUMJS_CFLAGS="$GUM_CFLAGS $JSON_GLIB_CFLAGS $LIBFFI_CFLAGS $V8_CFLAGS"
   GUMJS_LDFLAGS="$GUM_LDFLAGS $JSON_GLIB_LDFLAGS $LIBFFI_LDFLAGS $V8_LDFLAGS"
   GUMJS_LIBS="$GUM_LIBS $JSON_GLIB_LIBS $LIBFFI_LIBS $V8_LIBS"
 fi
-AM_CONDITIONAL(ENABLE_GUMJS, [test "x$HAVE_GUMJS" = "xyes"])
+AM_CONDITIONAL(ENABLE_GUMJS, [test "x$enable_gumjs" = "xyes"])
 AC_SUBST(GUMJS_CFLAGS)
 AC_SUBST(GUMJS_LDFLAGS)
 AC_SUBST(GUMJS_LIBS)
@@ -181,15 +210,6 @@ if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   GUMDUK_LIBS_PRIVATE="-lm"
 fi
 AC_SUBST(GUMDUK_LIBS_PRIVATE)
-
-AC_ARG_ENABLE(diet,
-  [AS_HELP_STRING([--enable-diet],
-                  [enable diet mode [default=no]])],,
-  [enable_diet=no])
-if [[ "x$enable_diet" = "xyes" ]]; then
-  AC_DEFINE(HAVE_DIET, 1, [Define to 1 if diet mode is enabled.])
-fi
-AM_CONDITIONAL(ENABLE_DIET, [test "x$enable_diet" = "xyes"])
 
 GUM_TEST_LIBS=""
 if [[ "x$HAVE_MAC" = "xyes" ]]; then

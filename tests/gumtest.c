@@ -190,7 +190,7 @@ main (gint argc, gchar * argv[])
 #if defined (HAVE_GUMJS)
   /* GumJS */
   {
-# ifndef HAVE_DIET
+# ifdef HAVE_V8
     GumScriptBackend * v8_backend;
 
     v8_backend = gum_script_backend_obtain_v8 ();
@@ -201,7 +201,7 @@ main (gint argc, gchar * argv[])
     TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
 
 # ifdef HAVE_DARWIN
-#  ifndef HAVE_DIET
+#  ifdef HAVE_V8
     if (v8_backend != NULL)
       TEST_RUN_LIST_WITH_DATA (script_darwin, v8_backend);
 #  endif
@@ -214,7 +214,7 @@ main (gint argc, gchar * argv[])
   }
 #endif
 
-#ifdef G_OS_WIN32
+#if defined (HAVE_GUMPP) && defined (G_OS_WIN32)
   /* Gum++ */
   TEST_RUN_LIST (gumpp_backtracer);
 #endif

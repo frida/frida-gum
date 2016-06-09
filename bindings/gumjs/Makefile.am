@@ -101,7 +101,7 @@ backend_cxxflags = $(NULL)
 backend_ldflags = $(NULL)
 backend_libadd = $(NULL)
 
-if !ENABLE_DIET
+if HAVE_V8
 backend_sources += $(v8_sources)
 endif
 
