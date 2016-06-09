@@ -476,6 +476,21 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
 
   /* Dummy return address (we won't return) */
   context->lr = 1337;
+#elif defined (HAVE_MIPS)
+  context->pc = GPOINTER_TO_SIZE (
+      GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
+
+  /* Align to 16 byte boundary */
+  context->sp &= ~(gsize) (16 - 1);
+  /* Avoid the red zone (when applicable) */
+  context->sp -= GUM_RED_ZONE_SIZE;
+
+  context->a0 = GPOINTER_TO_SIZE (impl);
+
+  /* Dummy return address (we won't return) */
+  context->ra = 1337;
+#else
+# error Unsupported architecture
 #endif
 
   return TRUE;
@@ -889,6 +904,8 @@ gum_exceptor_on_signal (int sig,
 #if defined (HAVE_I386)
   ed.address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
 #elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+  ed.address = GSIZE_TO_POINTER (cpu_context->pc);
+#elif defined (HAVE_MIPS)
   ed.address = GSIZE_TO_POINTER (cpu_context->pc);
 #else
 # error Unsupported architecture
