@@ -209,6 +209,12 @@ main (gint argc, gchar * argv[])
     TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
 
+# ifdef HAVE_ANDROID
+#  ifdef HAVE_V8
+    TEST_RUN_LIST_WITH_DATA (script_android, v8_backend);
+#  endif
+# endif
+
     if (gum_kernel_api_is_available ())
       TEST_RUN_LIST (kscript);
   }
@@ -294,3 +300,48 @@ get_number_of_tests_in_suite (GTestSuite * suite)
 
   return total;
 }
+
+#ifdef HAVE_ANDROID
+
+void
+ClaimSignalChain (int signal,
+                  struct sigaction * oldaction)
+{
+  /* g_print ("ClaimSignalChain(signal=%d)\n", signal); */
+}
+
+void
+UnclaimSignalChain (int signal)
+{
+  /* g_print ("UnclaimSignalChain(signal=%d)\n", signal); */
+}
+
+void
+InvokeUserSignalHandler (int signal,
+                         siginfo_t * info,
+                         void * context)
+{
+  /* g_print ("InvokeUserSignalHandler(signal=%d)\n", signal); */
+}
+
+void
+InitializeSignalChain (void)
+{
+  /* g_print ("InitializeSignalChain()\n"); */
+}
+
+void
+EnsureFrontOfChain (int signal,
+                    struct sigaction * expected_action)
+{
+  /* g_print ("EnsureFrontOfChain(signal=%d)\n", signal); */
+}
+
+void
+SetSpecialSignalHandlerFn (int signal,
+                           gpointer fn)
+{
+  /* g_print ("SetSpecialSignalHandlerFn(signal=%d)\n", signal); */
+}
+
+#endif

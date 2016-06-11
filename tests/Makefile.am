@@ -65,6 +65,10 @@ if OS_MAC
 gum_tests_LDFLAGS += \
 	-sectcreate __TEXT __info_plist "$(srcdir)/gum-tests.plist"
 endif
+if OS_ANDROID
+gum_tests_LDFLAGS += \
+	-Wl,--export-dynamic
+endif
 
 libgum_tests_la_SOURCES = \
 	gumtest.c \
