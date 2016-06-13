@@ -748,11 +748,13 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   if (self->level > 0)
     return;
 
+  gum_interceptor_ignore_current_thread (interceptor);
+
   gum_code_allocator_commit (&priv->allocator);
 
   if (g_queue_is_empty (self->pending_destroy_tasks) &&
       g_hash_table_size (self->pending_prologue_writes) == 0)
-    return;
+    goto no_changes;
 
   transaction_copy = priv->current_transaction;
   self = &transaction_copy;
@@ -890,6 +892,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
   }
 
   gum_interceptor_transaction_destroy (self);
+
+no_changes:
+  gum_interceptor_unignore_current_thread (interceptor);
 }
 
 static void
