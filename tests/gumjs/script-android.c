@@ -14,7 +14,7 @@ SCRIPT_TESTCASE (android_version_can_be_determined)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Java.perform(function () {"
-          "send(Java.androidVersion);"
+          "send(typeof Java.androidVersion);"
       "});");
-  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"string\"");
 }
