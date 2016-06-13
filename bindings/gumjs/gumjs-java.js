@@ -82,7 +82,8 @@
         let vm = null;
         let classFactory = null;
         let pending = [];
-        let threadsInPerformNow = 0;
+        let threadsInPerform = 0;
+        let cachedIsAppProcess = null;
 
         function initialize() {
             api = getApi();
@@ -128,9 +129,8 @@
         }
 
         function assertCalledInJavaPerformCallback() {
-            if (classFactory.loader === null && threadsInPerformNow === 0) {
+            if (threadsInPerform === 0)
                 throw new Error("Not allowed outside Java.perform() callback");
-            }
         }
 
         this.synchronized = function (obj, fn) {
@@ -245,8 +245,14 @@
         this.perform = function (fn) {
             assertJavaApiIsAvailable();
 
-            if (classFactory.loader !== null) {
-                vm.perform(fn);
+            if (!isAppProcess() || classFactory.loader !== null) {
+                threadsInPerform++;
+                try {
+                    vm.perform(fn);
+                } catch (e) {
+                    setTimeout(() => { throw e; }, 0);
+                }
+                threadsInPerform--;
             } else {
                 pending.push(fn);
                 if (pending.length === 1) {
@@ -255,16 +261,14 @@
                         const app = ActivityThread.currentApplication();
                         if (app !== null) {
                             classFactory.loader = app.getClassLoader();
-                            pending.forEach(vm.perform, vm);
-                            pending = null;
+                            performPending();
                         } else {
                             const m = ActivityThread.getPackageInfoNoCheck;
                             m.implementation = function () {
                                 m.implementation = null;
                                 const apk = m.apply(this, arguments);
                                 classFactory.loader = apk.getClassLoader();
-                                pending.forEach(vm.perform, vm);
-                                pending = null;
+                                performPending();
                                 return apk;
                             };
                         }
@@ -273,10 +277,23 @@
             }
         };
 
+        function performPending() {
+            threadsInPerform++;
+            pending.forEach(fn => {
+                try {
+                    vm.perform(fn);
+                } catch (e) {
+                    setTimeout(() => { throw e; }, 0);
+                }
+            });
+            pending = null;
+            threadsInPerform--;
+        }
+
         this.performNow = function (fn) {
             assertJavaApiIsAvailable();
 
-            if (classFactory.loader === null) {
+            if (isAppProcess() && classFactory.loader === null) {
                 vm.perform(() => {
                     const ActivityThread = classFactory.use("android.app.ActivityThread");
                     const app = ActivityThread.currentApplication();
@@ -285,9 +302,12 @@
                 });
             }
 
-            threadsInPerformNow++;
-            vm.perform(fn);
-            threadsInPerformNow--;
+            threadsInPerform++;
+            try {
+                vm.perform(fn);
+            } finally {
+                threadsInPerform--;
+            }
         };
 
         this.use = function (className) {
@@ -319,6 +339,24 @@
             }
             return mainLooper.$isSameObject(myLooper);
         };
+
+        function isAppProcess() {
+            if (cachedIsAppProcess === null) {
+                const readlink = new NativeFunction(Module.findExportByName(null, 'readlink'), 'pointer', ['pointer', 'pointer', 'pointer']);
+                const pathname = Memory.allocUtf8String('/proc/self/exe');
+                const bufferSize = 1024;
+                const buffer = Memory.alloc(bufferSize);
+                const size = readlink(pathname, buffer, ptr(bufferSize)).toInt32();
+                if (size !== -1) {
+                    const exe = Memory.readUtf8String(buffer, size);
+                    cachedIsAppProcess = [/^\/system\/bin\/app_process/.test(exe)];
+                } else {
+                    cachedIsAppProcess = [false];
+                }
+            }
+
+            return cachedIsAppProcess[0];
+        }
 
         initialize.call(this);
     }
@@ -402,9 +440,6 @@
 
         DexFile.prototype = {
             load() {
-                if (loader === null) {
-                    throw new Error("Not allowed outside Java.perform() callback");
-                }
                 const File = factory.use("java.io.File");
                 const f = File.$new(this[FILE_PATH]);
                 if (!f.exists()) {
@@ -427,9 +462,6 @@
                 loader = classLoader;
             },
             getClassNames() {
-                if (loader === null) {
-                    throw new Error("Not allowed outside Java.perform() callback");
-                }
                 const classNames = [];
                 const File = factory.use("java.io.File");
                 const DexFile = factory.use("dalvik.system.DexFile");
@@ -2071,23 +2103,14 @@
         this.perform = function (fn) {
             let env = this.tryGetEnv();
             const alreadyAttached = env !== null;
-            if (!alreadyAttached) {
+            if (!alreadyAttached)
                 env = this.attachCurrentThread();
-            }
 
-            let pendingException = null;
             try {
                 fn();
-            } catch (e) {
-                pendingException = e;
-            }
-
-            if (!alreadyAttached) {
-                this.detachCurrentThread();
-            }
-
-            if (pendingException !== null) {
-                throw pendingException;
+            } finally {
+                if (!alreadyAttached)
+                    this.detachCurrentThread();
             }
         };
 
