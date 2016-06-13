@@ -21,8 +21,8 @@
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
-#define GUM_INTERCEPTOR_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_INTERCEPTOR_UNLOCK() (g_mutex_unlock (&priv->mutex))
+#define GUM_INTERCEPTOR_LOCK()   (g_rec_mutex_lock (&priv->mutex))
+#define GUM_INTERCEPTOR_UNLOCK() (g_rec_mutex_unlock (&priv->mutex))
 
 typedef struct _GumInterceptorTransaction GumInterceptorTransaction;
 typedef struct _GumDestroyTask GumDestroyTask;
@@ -47,7 +47,7 @@ struct _GumInterceptorTransaction
 
 struct _GumInterceptorPrivate
 {
-  GMutex mutex;
+  GRecMutex mutex;
 
   GHashTable * function_by_address;
 
@@ -250,7 +250,7 @@ gum_interceptor_init (GumInterceptor * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_INTERCEPTOR,
       GumInterceptorPrivate);
 
-  g_mutex_init (&priv->mutex);
+  g_rec_mutex_init (&priv->mutex);
 
   priv->function_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_function_context_destroy);
@@ -288,7 +288,7 @@ gum_interceptor_finalize (GObject * object)
 
   _gum_interceptor_backend_destroy (priv->backend);
 
-  g_mutex_clear (&priv->mutex);
+  g_rec_mutex_clear (&priv->mutex);
 
   g_hash_table_unref (priv->function_by_address);
 
