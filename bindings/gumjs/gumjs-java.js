@@ -116,8 +116,8 @@
             get: function () {
                 if (androidVersion === null) {
                     assertCalledInJavaPerformCallback();
-                    const Build = classFactory.use("android.os.Build$VERSION");
-                    androidVersion = Build.RELEASE.value;
+                    const SystemProperties = classFactory.use("android.os.SystemProperties");
+                    androidVersion = SystemProperties.get("ro.build.version.release", "unknown");
                 }
                 return androidVersion;
             }
