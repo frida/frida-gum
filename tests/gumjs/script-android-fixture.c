@@ -96,17 +96,25 @@ test_script_fixture_setup (TestScriptFixture * fixture,
 
   if (gum_java_vm == NULL)
   {
-    void * runtime;
+    void * vm_module, * runtime_module;
     jint (* create_java_vm) (JavaVM ** vm, JNIEnv ** env, void * vm_args);
+    jint (* register_natives) (JNIEnv * env, jclass clazz);
     JavaVMOption options[4];
     JavaVMInitArgs args;
     jint result;
 
-    runtime = dlopen ("libart.so", RTLD_LAZY | RTLD_GLOBAL);
-    g_assert (runtime != NULL);
+    vm_module = dlopen ("libart.so", RTLD_LAZY | RTLD_GLOBAL);
+    g_assert (vm_module != NULL);
 
-    create_java_vm = dlsym (runtime, "JNI_CreateJavaVM");
+    runtime_module = dlopen ("libandroid_runtime.so", RTLD_LAZY | RTLD_GLOBAL);
+    g_assert (runtime_module != NULL);
+
+    create_java_vm = dlsym (vm_module, "JNI_CreateJavaVM");
     g_assert (create_java_vm != NULL);
+
+    register_natives = dlsym (runtime_module,
+        "Java_com_android_internal_util_WithFramework_registerNatives");
+    g_assert (register_natives != NULL);
 
     options[0].optionString = "-verbose:jni";
     options[1].optionString = "-verbose:gc";
@@ -119,6 +127,9 @@ test_script_fixture_setup (TestScriptFixture * fixture,
     args.ignoreUnrecognized = JNI_TRUE;
 
     result = create_java_vm (&gum_java_vm, &gum_java_env, &args);
+    g_assert_cmpint (result, ==, JNI_OK);
+
+    result = register_natives (gum_java_env, NULL);
     g_assert_cmpint (result, ==, JNI_OK);
   }
 }
