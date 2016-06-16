@@ -18,6 +18,8 @@
 # define GUM_SCRIPT_ARCH "arm"
 #elif defined (HAVE_ARM64)
 # define GUM_SCRIPT_ARCH "arm64"
+#elif defined (HAVE_MIPS)
+# define GUM_SCRIPT_ARCH "mips"
 #endif
 
 #if defined (HAVE_LINUX)
