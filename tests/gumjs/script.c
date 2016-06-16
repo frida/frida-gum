@@ -1873,6 +1873,8 @@ SCRIPT_TESTCASE (register_can_be_read)
   register_name = "r0";
 #elif defined (HAVE_ARM64)
   register_name = "x0";
+#elif defined (HAVE_MIPS)
+  register_name = "v0";
 #else
 # error Unsupported architecture
 #endif
