@@ -291,6 +291,11 @@ static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
 static gboolean gum_is_regset_supported = TRUE;
 
+#if defined (HAVE_MIPS)
+static int getcontext (ucontext_t *ucp);
+static int setcontext (const ucontext_t *ucp);
+#endif
+
 gboolean
 gum_process_is_debugger_attached (void)
 {
@@ -2272,3 +2277,17 @@ gum_libc_syscall_4 (gsize n,
 
   return result;
 }
+
+#if defined (HAVE_MIPS)
+static int
+getcontext (ucontext_t* ucp)
+{
+   g_assert_not_reached ();
+}
+
+static int
+setcontext (const ucontext_t *ucp)
+{
+  g_assert_not_reached ();
+}
+#endif
