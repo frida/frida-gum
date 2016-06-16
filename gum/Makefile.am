@@ -113,6 +113,20 @@ backend_sources += \
 	backend-arm64/gumstalker-arm64.c
 endif
 
+if ARCH_MIPS
+archincludedir = $(includedir)/frida-1.0/gum/arch-mips
+archinclude_HEADERS = \
+    arch-mips/gummipsbacktracer.h \
+    arch-mips/gummipsreader.h
+arch_sources += \
+    arch-mips/gummipsbacktracer.c \
+    arch-mips/gummipsreader.c
+backend_sources += \
+    backend-mips/guminterceptor-mips.c \
+    backend-mips/gumspinlock-mips.c \
+    backend-mips/gumstalker-mips.c
+endif
+
 if OS_LINUX
 backend_sources += \
 	backend-linux/gummemory-linux.c \
@@ -204,6 +218,8 @@ libfrida_gum_la_SOURCES = \
 	arch-arm/gumarmreg.c \
 	arch-arm64/gumarm64writer.c \
 	arch-arm64/gumarm64relocator.c \
+	arch-mips/gummipswriter.c \
+	arch-mips/gummipsrelocator.c \
 	$(arch_sources) \
 	$(backend_sources)
 libfrida_gum_la_LIBADD = \
