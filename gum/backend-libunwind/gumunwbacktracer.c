@@ -167,6 +167,52 @@ gum_cpu_context_to_unw (const GumCpuContext * ctx,
   memcpy (mc->regs, ctx->x, sizeof (ctx->x));
   mc->regs[29] = ctx->fp;
   mc->regs[30] = ctx->lr;
+#elif defined (UNW_TARGET_MIPS)
+  greg_t * gr = uc->uc_mcontext.gregs;
+
+  gr[1] = ctx->at;
+
+  gr[2] = ctx->v0;
+  gr[3] = ctx->v1;
+
+  gr[4] = ctx->a0;
+  gr[5] = ctx->a1;
+  gr[6] = ctx->a2;
+  gr[7] = ctx->a3;
+
+  gr[8] = ctx->t0;
+  gr[9] = ctx->t1;
+  gr[10] = ctx->t2;
+  gr[11] = ctx->t3;
+  gr[12] = ctx->t4;
+  gr[13] = ctx->t5;
+  gr[14] = ctx->t6;
+  gr[15] = ctx->t7;
+
+  gr[16] = ctx->s0;
+  gr[17] = ctx->s1;
+  gr[18] = ctx->s2;
+  gr[19] = ctx->s3;
+  gr[20] = ctx->s4;
+  gr[21] = ctx->s5;
+  gr[22] = ctx->s6;
+  gr[23] = ctx->s7;
+
+  gr[24] = ctx->t8;
+  gr[25] = ctx->t9;
+
+  gr[26] = ctx->k0;
+  gr[27] = ctx->k1;
+
+  gr[28] = ctx->gp;
+  gr[29] = ctx->sp;
+  gr[30] = ctx->fp;
+  gr[31] = ctx->ra;
+
+  uc->uc_mcontext.mdhi = ctx->hi;
+  uc->uc_mcontext.mdlo = ctx->lo;
+
+  uc->uc_mcontext.pc = ctx->pc;
 #else
 # error FIXME
 #endif
