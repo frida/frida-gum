@@ -315,7 +315,7 @@ enum _GumRelocationScenario
 #define GUM_INT14_MASK 0x00003fff
 #define GUM_INT16_MASK 0x0000ffff
 #define GUM_INT19_MASK 0x0007ffff
-#define GUM_INT28_MASK 0x03ffffff
+#define GUM_INT28_MASK 0x0fffffff
 
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \
