@@ -21,7 +21,7 @@
 #include <gio/gio.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
-#ifdef HAVE_ARM
+#if defined(HAVE_ARM) || defined (HAVE_MIPS)
 # include <asm/ptrace.h>
 #endif
 #include <sys/socket.h>
@@ -46,6 +46,8 @@
 # define GumRegs struct pt_regs
 #elif defined (HAVE_ARM64)
 # define GumRegs struct user_pt_regs
+#elif defined (HAVE_MIPS)
+# define GumRegs struct pt_regs
 #else
 # error Unsupported architecture
 #endif
@@ -1679,6 +1681,51 @@ gum_parse_regs (const GumRegs * regs,
     ctx->x[i] = regs->regs[i];
   ctx->fp = regs->regs[29];
   ctx->lr = regs->regs[30];
+#elif defined (HAVE_MIPS)
+  ctx->at = regs->regs[1];
+
+  ctx->v0 = regs->regs[2];
+  ctx->v1 = regs->regs[3];
+
+  ctx->a0 = regs->regs[4];
+  ctx->a1 = regs->regs[5];
+  ctx->a2 = regs->regs[6];
+  ctx->a3 = regs->regs[7];
+
+  ctx->t0 = regs->regs[8];
+  ctx->t1 = regs->regs[9];
+  ctx->t2 = regs->regs[10];
+  ctx->t3 = regs->regs[11];
+  ctx->t4 = regs->regs[12];
+  ctx->t5 = regs->regs[13];
+  ctx->t6 = regs->regs[14];
+  ctx->t7 = regs->regs[15];
+
+  ctx->s0 = regs->regs[16];
+  ctx->s1 = regs->regs[17];
+  ctx->s2 = regs->regs[18];
+  ctx->s3 = regs->regs[19];
+  ctx->s4 = regs->regs[20];
+  ctx->s5 = regs->regs[21];
+  ctx->s6 = regs->regs[22];
+  ctx->s7 = regs->regs[23];
+
+  ctx->t8 = regs->regs[24];
+  ctx->t9 = regs->regs[25];
+
+  ctx->k0 = regs->regs[26];
+  ctx->k1 = regs->regs[27];
+
+  ctx->gp = regs->regs[28];
+  ctx->sp = regs->regs[29];
+  ctx->fp = regs->regs[30];
+
+  ctx->ra = regs->regs[31];
+
+  ctx->hi = regs->hi;
+  ctx->lo = regs->lo;
+
+  ctx->pc = regs->cp0_epc;
 #else
 # error Unsupported architecture
 #endif
@@ -1745,6 +1792,51 @@ gum_unparse_regs (const GumCpuContext * ctx,
     regs->regs[i] = ctx->x[i];
   regs->regs[29] = ctx->fp;
   regs->regs[30] = ctx->lr;
+#elif defined (HAVE_MIPS)
+  regs->regs[1] = ctx->at;
+
+  regs->regs[2] = ctx->v0;
+  regs->regs[3] = ctx->v1;
+
+  regs->regs[4] = ctx->a0;
+  regs->regs[5] = ctx->a1;
+  regs->regs[6] = ctx->a2;
+  regs->regs[7] = ctx->a3;
+
+  regs->regs[8] = ctx->t0;
+  regs->regs[9] = ctx->t1;
+  regs->regs[10] = ctx->t2;
+  regs->regs[11] = ctx->t3;
+  regs->regs[12] = ctx->t4;
+  regs->regs[13] = ctx->t5;
+  regs->regs[14] = ctx->t6;
+  regs->regs[15] = ctx->t7;
+
+  regs->regs[16] = ctx->s0;
+  regs->regs[17] = ctx->s1;
+  regs->regs[18] = ctx->s2;
+  regs->regs[19] = ctx->s3;
+  regs->regs[20] = ctx->s4;
+  regs->regs[21] = ctx->s5;
+  regs->regs[22] = ctx->s6;
+  regs->regs[23] = ctx->s7;
+
+  regs->regs[24] = ctx->t8;
+  regs->regs[25] = ctx->t9;
+
+  regs->regs[26] = ctx->k0;
+  regs->regs[27] = ctx->k1;
+
+  regs->regs[28] = ctx->gp;
+  regs->regs[29] = ctx->sp;
+  regs->regs[30] = ctx->fp;
+
+  regs->regs[31] = ctx->ra;
+
+  regs->hi = ctx->hi;
+  regs->lo = ctx->lo;
+
+  regs->cp0_epc = ctx->pc;
 #else
 # error Unsupported architecture
 #endif
