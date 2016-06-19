@@ -1450,49 +1450,49 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
 #elif defined (HAVE_MIPS)
   const greg_t * gr = uc->uc_mcontext.gregs;
 
-  ctx->at = gr[1];
+  ctx->at = (guint32) gr[1];
 
-  ctx->v0 = gr[2];
-  ctx->v1 = gr[3];
+  ctx->v0 = (guint32) gr[2];
+  ctx->v1 = (guint32) gr[3];
 
-  ctx->a0 = gr[4];
-  ctx->a1 = gr[5];
-  ctx->a2 = gr[6];
-  ctx->a3 = gr[7];
+  ctx->a0 = (guint32) gr[4];
+  ctx->a1 = (guint32) gr[5];
+  ctx->a2 = (guint32) gr[6];
+  ctx->a3 = (guint32) gr[7];
 
-  ctx->t0 = gr[8];
-  ctx->t1 = gr[9];
-  ctx->t2 = gr[10];
-  ctx->t3 = gr[11];
-  ctx->t4 = gr[12];
-  ctx->t5 = gr[13];
-  ctx->t6 = gr[14];
-  ctx->t7 = gr[15];
+  ctx->t0 = (guint32) gr[8];
+  ctx->t1 = (guint32) gr[9];
+  ctx->t2 = (guint32) gr[10];
+  ctx->t3 = (guint32) gr[11];
+  ctx->t4 = (guint32) gr[12];
+  ctx->t5 = (guint32) gr[13];
+  ctx->t6 = (guint32) gr[14];
+  ctx->t7 = (guint32) gr[15];
 
-  ctx->s0 = gr[16];
-  ctx->s1 = gr[17];
-  ctx->s2 = gr[18];
-  ctx->s3 = gr[19];
-  ctx->s4 = gr[20];
-  ctx->s5 = gr[21];
-  ctx->s6 = gr[22];
-  ctx->s7 = gr[23];
+  ctx->s0 = (guint32) gr[16];
+  ctx->s1 = (guint32) gr[17];
+  ctx->s2 = (guint32) gr[18];
+  ctx->s3 = (guint32) gr[19];
+  ctx->s4 = (guint32) gr[20];
+  ctx->s5 = (guint32) gr[21];
+  ctx->s6 = (guint32) gr[22];
+  ctx->s7 = (guint32) gr[23];
 
-  ctx->t8 = gr[24];
-  ctx->t9 = gr[25];
+  ctx->t8 = (guint32) gr[24];
+  ctx->t9 = (guint32) gr[25];
 
-  ctx->k0 = gr[26];
-  ctx->k1 = gr[27];
+  ctx->k0 = (guint32) gr[26];
+  ctx->k1 = (guint32) gr[27];
 
-  ctx->gp = gr[28];
-  ctx->sp = gr[29];
-  ctx->fp = gr[30];
-  ctx->ra = gr[31];
+  ctx->gp = (guint32) gr[28];
+  ctx->sp = (guint32) gr[29];
+  ctx->fp = (guint32) gr[30];
+  ctx->ra = (guint32) gr[31];
 
-  ctx->hi = uc->uc_mcontext.mdhi;
-  ctx->lo = uc->uc_mcontext.mdlo;
+  ctx->hi = (guint32) uc->uc_mcontext.mdhi;
+  ctx->lo = (guint32) uc->uc_mcontext.mdlo;
 
-  ctx->pc = uc->uc_mcontext.pc;
+  ctx->pc = (guint32) uc->uc_mcontext.pc;
 #else
 # error FIXME
 #endif
@@ -1577,49 +1577,49 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
 #elif defined (HAVE_MIPS)
   greg_t * gr = uc->uc_mcontext.gregs;
 
-  gr[1] = ctx->at;
+  gr[1] = (guint64) ctx->at;
 
-  gr[2] = ctx->v0;
-  gr[3] = ctx->v1;
+  gr[2] = (guint64) ctx->v0;
+  gr[3] = (guint64) ctx->v1;
 
-  gr[4] = ctx->a0;
-  gr[5] = ctx->a1;
-  gr[6] = ctx->a2;
-  gr[7] = ctx->a3;
+  gr[4] = (guint64) ctx->a0;
+  gr[5] = (guint64) ctx->a1;
+  gr[6] = (guint64) ctx->a2;
+  gr[7] = (guint64) ctx->a3;
 
-  gr[8] = ctx->t0;
-  gr[9] = ctx->t1;
-  gr[10] = ctx->t2;
-  gr[11] = ctx->t3;
-  gr[12] = ctx->t4;
-  gr[13] = ctx->t5;
-  gr[14] = ctx->t6;
-  gr[15] = ctx->t7;
+  gr[8] = (guint64) ctx->t0;
+  gr[9] = (guint64) ctx->t1;
+  gr[10] = (guint64) ctx->t2;
+  gr[11] = (guint64) ctx->t3;
+  gr[12] = (guint64) ctx->t4;
+  gr[13] = (guint64) ctx->t5;
+  gr[14] = (guint64) ctx->t6;
+  gr[15] = (guint64) ctx->t7;
 
-  gr[16] = ctx->s0;
-  gr[17] = ctx->s1;
-  gr[18] = ctx->s2;
-  gr[19] = ctx->s3;
-  gr[20] = ctx->s4;
-  gr[21] = ctx->s5;
-  gr[22] = ctx->s6;
-  gr[23] = ctx->s7;
+  gr[16] = (guint64) ctx->s0;
+  gr[17] = (guint64) ctx->s1;
+  gr[18] = (guint64) ctx->s2;
+  gr[19] = (guint64) ctx->s3;
+  gr[20] = (guint64) ctx->s4;
+  gr[21] = (guint64) ctx->s5;
+  gr[22] = (guint64) ctx->s6;
+  gr[23] = (guint64) ctx->s7;
 
-  gr[24] = ctx->t8;
-  gr[25] = ctx->t9;
+  gr[24] = (guint64) ctx->t8;
+  gr[25] = (guint64) ctx->t9;
 
-  gr[26] = ctx->k0;
-  gr[27] = ctx->k1;
+  gr[26] = (guint64) ctx->k0;
+  gr[27] = (guint64) ctx->k1;
 
-  gr[28] = ctx->gp;
-  gr[29] = ctx->sp;
-  gr[30] = ctx->fp;
-  gr[31] = ctx->ra;
+  gr[28] = (guint64) ctx->gp;
+  gr[29] = (guint64) ctx->sp;
+  gr[30] = (guint64) ctx->fp;
+  gr[31] = (guint64) ctx->ra;
 
-  uc->uc_mcontext.mdhi = ctx->hi;
-  uc->uc_mcontext.mdlo = ctx->lo;
+  uc->uc_mcontext.mdhi = (guint64) ctx->hi;
+  uc->uc_mcontext.mdlo = (guint64) ctx->lo;
 
-  uc->uc_mcontext.pc = ctx->pc;
+  uc->uc_mcontext.pc = (guint64) ctx->pc;
 #else
 # error FIXME
 #endif

@@ -154,48 +154,48 @@ struct _GumCpuContext
   guint32 r[8];
   guint32 lr;
 #elif defined (HAVE_MIPS)
-  guint64 at;
+  guint32 at;
 
-  guint64 v0;
-  guint64 v1;
+  guint32 v0;
+  guint32 v1;
 
-  guint64 a0;
-  guint64 a1;
-  guint64 a2;
-  guint64 a3;
+  guint32 a0;
+  guint32 a1;
+  guint32 a2;
+  guint32 a3;
 
-  guint64 t0;
-  guint64 t1;
-  guint64 t2;
-  guint64 t3;
-  guint64 t4;
-  guint64 t5;
-  guint64 t6;
-  guint64 t7;
-  guint64 t8;
-  guint64 t9;
+  guint32 t0;
+  guint32 t1;
+  guint32 t2;
+  guint32 t3;
+  guint32 t4;
+  guint32 t5;
+  guint32 t6;
+  guint32 t7;
+  guint32 t8;
+  guint32 t9;
 
-  guint64 s0;
-  guint64 s1;
-  guint64 s2;
-  guint64 s3;
-  guint64 s4;
-  guint64 s5;
-  guint64 s6;
-  guint64 s7;
+  guint32 s0;
+  guint32 s1;
+  guint32 s2;
+  guint32 s3;
+  guint32 s4;
+  guint32 s5;
+  guint32 s6;
+  guint32 s7;
 
-  guint64 k0;
-  guint64 k1;
+  guint32 k0;
+  guint32 k1;
 
-  guint64 gp;
-  guint64 sp;
-  guint64 fp;
-  guint64 ra;
+  guint32 gp;
+  guint32 sp;
+  guint32 fp;
+  guint32 ra;
 
-  guint64 hi;
-  guint64 lo;
+  guint32 hi;
+  guint32 lo;
 
-  guint64 pc;
+  guint32 pc;
 #endif
 };
 
