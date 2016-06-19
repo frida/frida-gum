@@ -154,6 +154,16 @@ struct _GumCpuContext
   guint32 r[8];
   guint32 lr;
 #elif defined (HAVE_MIPS)
+  guint32 pc;
+
+  guint32 gp;
+  guint32 sp;
+  guint32 fp;
+  guint32 ra;
+
+  guint32 hi;
+  guint32 lo;
+
   guint32 at;
 
   guint32 v0;
@@ -186,16 +196,6 @@ struct _GumCpuContext
 
   guint32 k0;
   guint32 k1;
-
-  guint32 gp;
-  guint32 sp;
-  guint32 fp;
-  guint32 ra;
-
-  guint32 hi;
-  guint32 lo;
-
-  guint32 pc;
 #endif
 };
 
