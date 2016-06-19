@@ -1080,7 +1080,7 @@ gum_resolve_module_name (const gchar * name,
   struct link_map * map;
 
   map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-  if (map != NULL)
+  if (map != NULL && map->l_name != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);
     if (ctx.name == NULL)
