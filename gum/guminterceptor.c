@@ -17,7 +17,11 @@
 
 #include <string.h>
 
+#ifdef HAVE_MIPS
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 1024
+#else
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
+#endif
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
