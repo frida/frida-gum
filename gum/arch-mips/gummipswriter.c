@@ -49,12 +49,95 @@ struct _GumMipsArgument
   } value;
 };
 
+enum _GumMipsMetaReg
+{
+  GUM_MREG_R0,
+  GUM_MREG_R1,
+  GUM_MREG_R2,
+  GUM_MREG_R3,
+  GUM_MREG_R4,
+  GUM_MREG_R5,
+  GUM_MREG_R6,
+  GUM_MREG_R7,
+  GUM_MREG_R8,
+  GUM_MREG_R9,
+  GUM_MREG_R10,
+  GUM_MREG_R11,
+  GUM_MREG_R12,
+  GUM_MREG_R13,
+  GUM_MREG_R14,
+  GUM_MREG_R15,
+  GUM_MREG_R16,
+  GUM_MREG_R17,
+  GUM_MREG_R18,
+  GUM_MREG_R19,
+  GUM_MREG_R20,
+  GUM_MREG_R21,
+  GUM_MREG_R22,
+  GUM_MREG_R23,
+  GUM_MREG_R24,
+  GUM_MREG_R25,
+  GUM_MREG_R26,
+  GUM_MREG_R27,
+  GUM_MREG_R28,
+  GUM_MREG_R29,
+  GUM_MREG_R30,
+  GUM_MREG_R31,
+
+  GUM_MREG_HI,
+  GUM_MREG_LO,
+
+  GUM_MREG_ZERO = GUM_MREG_R0,
+  GUM_MREG_AT = GUM_MREG_R1,
+  GUM_MREG_V0 = GUM_MREG_R2,
+  GUM_MREG_V1 = GUM_MREG_R3,
+  GUM_MREG_A0 = GUM_MREG_R4,
+  GUM_MREG_A1 = GUM_MREG_R5,
+  GUM_MREG_A2 = GUM_MREG_R6,
+  GUM_MREG_A3 = GUM_MREG_R7,
+  GUM_MREG_T0 = GUM_MREG_R8,
+  GUM_MREG_T1 = GUM_MREG_R9,
+  GUM_MREG_T2 = GUM_MREG_R10,
+  GUM_MREG_T3 = GUM_MREG_R11,
+  GUM_MREG_T4 = GUM_MREG_R12,
+  GUM_MREG_T5 = GUM_MREG_R13,
+  GUM_MREG_T6 = GUM_MREG_R14,
+  GUM_MREG_T7 = GUM_MREG_R15,
+  GUM_MREG_S0 = GUM_MREG_R16,
+  GUM_MREG_S1 = GUM_MREG_R17,
+  GUM_MREG_S2 = GUM_MREG_R18,
+  GUM_MREG_S3 = GUM_MREG_R19,
+  GUM_MREG_S4 = GUM_MREG_R20,
+  GUM_MREG_S5 = GUM_MREG_R21,
+  GUM_MREG_S6 = GUM_MREG_R22,
+  GUM_MREG_S7 = GUM_MREG_R23,
+  GUM_MREG_T8 = GUM_MREG_R24,
+  GUM_MREG_T9 = GUM_MREG_R25,
+  GUM_MREG_K0 = GUM_MREG_R26,
+  GUM_MREG_K1 = GUM_MREG_R27,
+  GUM_MREG_GP = GUM_MREG_R28,
+  GUM_MREG_SP = GUM_MREG_R29,
+  GUM_MREG_FP = GUM_MREG_R30,
+  GUM_MREG_S8 = GUM_MREG_R30,
+  GUM_MREG_RA = GUM_MREG_R31,
+};
+
+struct _GumMipsRegInfo
+{
+  GumMipsMetaReg meta;
+  guint width;
+  guint index;
+};
+
 static guint8 * gum_mips_writer_lookup_address_for_label_id (
     GumMipsWriter * self, gconstpointer id);
 static void gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
     guint n_args, va_list vl);
 static void gum_mips_writer_put_argument_list_teardown (GumMipsWriter * self,
     guint n_args);
+
+static void gum_mips_writer_describe_reg (GumMipsWriter * self, mips_reg reg,
+    GumMipsRegInfo * ri);
 
 void
 gum_mips_writer_init (GumMipsWriter * writer,
@@ -274,7 +357,7 @@ gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
   }
   else
   {
-    mips_reg target = MIPS_REG_AT;
+    mips_reg target = MIPS_REG_T9;
     gum_mips_writer_put_la_reg_address (self, target, func);
     gum_mips_writer_put_jalr_reg (self, target);
   }
@@ -403,7 +486,11 @@ void
 gum_mips_writer_put_jr_reg (GumMipsWriter * self,
                             mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000008 | (reg << 21));
+  GumMipsRegInfo ri;
+
+  gum_mips_writer_describe_reg (self, reg, &ri);
+
+  gum_mips_writer_put_instruction (self, 0x00000008 | (ri.index << 21));
   gum_mips_writer_put_nop (self);
 }
 
@@ -419,7 +506,12 @@ void
 gum_mips_writer_put_jalr_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000009 | (reg << 21));
+  GumMipsRegInfo ri;
+
+  gum_mips_writer_describe_reg (self, reg, &ri);
+
+  gum_mips_writer_put_instruction (self, 0x00000009 | (ri.index << 21) |
+      (GUM_MREG_RA << 11));
   gum_mips_writer_put_nop (self);
 }
 
@@ -444,18 +536,27 @@ gum_mips_writer_put_lui_reg_imm (GumMipsWriter * self,
                                  mips_reg reg,
                                  guint imm)
 {
-  gum_mips_writer_put_instruction (self, 0x3c000000 | (reg << 16) |
+  GumMipsRegInfo ri;
+
+  gum_mips_writer_describe_reg (self, reg, &ri);
+
+  gum_mips_writer_put_instruction (self, 0x3c000000 | (ri.index << 16) |
       (imm & 0xffff));
 }
 
 void
 gum_mips_writer_put_ori_reg_reg_imm (GumMipsWriter * self,
-                                     mips_reg rt,
-                                     mips_reg rs,
+                                     mips_reg dest_reg,
+                                     mips_reg src_reg,
                                      guint imm)
 {
-  gum_mips_writer_put_instruction (self, 0x34000000 | (rt << 16) |
-      (rs << 21) | (imm & 0xffff));
+  GumMipsRegInfo rt, rs;
+
+  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, src_reg, &rs);
+
+  gum_mips_writer_put_instruction (self, 0x34000000 | (rt.index << 16) |
+      (rs.index << 21) | (imm & 0xffff));
 }
 
 void
@@ -464,8 +565,13 @@ gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
                                        mips_reg base_reg,
                                        gsize src_offset)
 {
-  gum_mips_writer_put_instruction (self, 0x8c000000 | (base_reg << 21) |
-      (dest_reg << 16) | (src_offset & 0xffff));
+  GumMipsRegInfo rt, rb;
+
+  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, base_reg, &rb);
+
+  gum_mips_writer_put_instruction (self, 0x8c000000 | (rb.index << 21) |
+      (rt.index << 16) | (src_offset & 0xffff));
 }
 
 void
@@ -474,8 +580,13 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
                                        mips_reg base_reg,
                                        gsize dest_offset)
 {
-  gum_mips_writer_put_instruction (self, 0xac000000 | (base_reg << 21) |
-      (src_reg << 16) | (dest_offset & 0xffff));
+  GumMipsRegInfo rt, rb;
+
+  gum_mips_writer_describe_reg (self, src_reg, &rt);
+  gum_mips_writer_describe_reg (self, base_reg, &rb);
+
+  gum_mips_writer_put_instruction (self, 0xac000000 | (rb.index << 21) |
+      (rt.index << 16) | (dest_offset & 0xffff));
 }
 
 void
@@ -492,8 +603,14 @@ gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
                                       mips_reg left_reg,
                                       mips_reg right_reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000021 | (left_reg << 21) |
-      (right_reg << 16) | (dest_reg << 11));
+  GumMipsRegInfo rs, rt, rd;
+
+  gum_mips_writer_describe_reg (self, dest_reg, &rd);
+  gum_mips_writer_describe_reg (self, left_reg, &rs);
+  gum_mips_writer_describe_reg (self, right_reg, &rt);
+
+  gum_mips_writer_put_instruction (self, 0x00000021 | (rs.index << 21) |
+      (rt.index << 16) | (rd.index << 11));
 }
 
 void
@@ -502,8 +619,13 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
                                       mips_reg left_reg,
                                       gint32 imm)
 {
-  gum_mips_writer_put_instruction (self, 0x20000000 | (left_reg << 21) |
-      (dest_reg << 16) | (imm & 0xffff));
+  GumMipsRegInfo rt, rs;
+
+  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, left_reg, &rs);
+
+  gum_mips_writer_put_instruction (self, 0x20000000 | (rs.index << 21) |
+      (rt.index << 16) | (imm & 0xffff));
 }
 
 void
@@ -528,8 +650,8 @@ void
 gum_mips_writer_put_push_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_sw_reg_reg_offset (self, reg, MIPS_REG_SP, 0);
   gum_mips_writer_put_addi_reg_imm (self, MIPS_REG_SP, -sizeof(guint32));
+  gum_mips_writer_put_sw_reg_reg_offset (self, reg, MIPS_REG_SP, 0);
 }
 
 void
@@ -544,28 +666,44 @@ void
 gum_mips_writer_put_mfhi_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000010 | (reg << 11));
+  GumMipsRegInfo rd;
+
+  gum_mips_writer_describe_reg (self, reg, &rd);
+
+  gum_mips_writer_put_instruction (self, 0x00000010 | (rd.index << 11));
 }
 
 void
 gum_mips_writer_put_mflo_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000012 | (reg << 11));
+  GumMipsRegInfo rd;
+
+  gum_mips_writer_describe_reg (self, reg, &rd);
+
+  gum_mips_writer_put_instruction (self, 0x00000012 | (rd.index << 11));
 }
 
 void
 gum_mips_writer_put_mthi_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000011 | (reg << 21));
+  GumMipsRegInfo rs;
+
+  gum_mips_writer_describe_reg (self, reg, &rs);
+
+  gum_mips_writer_put_instruction (self, 0x00000011 | (rs.index << 21));
 }
 
 void
 gum_mips_writer_put_mtlo_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_instruction (self, 0x00000013 | (reg << 21));
+  GumMipsRegInfo rs;
+
+  gum_mips_writer_describe_reg (self, reg, &rs);
+
+  gum_mips_writer_put_instruction (self, 0x00000013 | (rs.index << 21));
 }
 
 
@@ -575,6 +713,13 @@ gum_mips_writer_put_nop (GumMipsWriter * self)
 {
   gum_mips_writer_put_instruction (self, 0x00000000);
 }
+
+void
+gum_mips_writer_put_break (GumMipsWriter * self)
+{
+  gum_mips_writer_put_instruction (self, 0x0000000d);
+}
+
 
 void
 gum_mips_writer_put_instruction (GumMipsWriter * self,
@@ -594,4 +739,35 @@ gum_mips_writer_put_bytes (GumMipsWriter * self,
   gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint32);
   self->pc += n;
+}
+
+static void
+gum_mips_writer_describe_reg (GumMipsWriter * self,
+                              mips_reg reg,
+                              GumMipsRegInfo * ri)
+{
+  (void) self;
+
+  if (reg >= MIPS_REG_0 && reg <= MIPS_REG_31)
+  {
+    ri->meta = GUM_MREG_R0 + (reg - MIPS_REG_0);
+    ri->width = 32;
+    ri->index = ri->meta - GUM_MREG_R0;
+  }
+  else if (reg == MIPS_REG_HI)
+  {
+    ri->meta = GUM_MREG_HI;
+    ri->width = 32;
+    ri->index = -1;
+  }
+  else if (reg == MIPS_REG_LO)
+  {
+    ri->meta = GUM_MREG_LO;
+    ri->width = 32;
+    ri->index = -1;
+  }
+  else
+  {
+    g_assert_not_reached ();
+  }
 }

@@ -19,7 +19,7 @@
 
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
 #define GUM_FRAME_OFFSET_NEXT_HOP \
-    (GUM_FRAME_OFFSET_CPU_CONTEXT + (34 * 8))
+    (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof(GumCpuContext))
 
 typedef struct _GumMipsFunctionContextData GumMipsFunctionContextData;
 
@@ -133,6 +133,16 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   return TRUE;
 }
 
+static void dump (guint8 *buffer, gssize length)
+{
+  printf ("\n");
+  for (int i = 0; i != length; i++)
+  {
+    printf ("%02x ", buffer[i]);
+  }
+  printf ("\n");
+}
+
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
@@ -147,6 +157,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
     return FALSE;
+
 
   gum_mips_writer_reset (cw, ctx->trampoline_slice->data);
 
@@ -193,7 +204,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   /* TODO: save $t0 on the stack? */
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T0, GUM_ADDRESS (ctx));
   gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT,
-      GUM_ADDRESS (self->enter_thunk->data));
+      GUM_ADDRESS (self->leave_thunk->data));
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);
 
   gum_mips_writer_flush (cw);
@@ -315,7 +326,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
                                            gpointer address)
 {
   /* TODO: implement resolve redirect */
-  g_assert_not_reached ();
   /*
   return gum_arm64_reader_try_get_relative_jump_target (address);
   */
@@ -474,7 +484,10 @@ gum_emit_prolog (GumMipsWriter * cw)
    */
 
   /* reserve space for next_hop */
-  gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
+  //gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
+  gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT, 0x12345678);
+  gum_mips_writer_put_push_reg (cw, MIPS_REG_AT);
+  //gum_mips_writer_put_break (cw);
 
   gum_mips_writer_put_push_reg (cw, MIPS_REG_K1);
   gum_mips_writer_put_push_reg (cw, MIPS_REG_K0);
@@ -519,20 +532,24 @@ gum_emit_prolog (GumMipsWriter * cw)
 
   /* SP */
   gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_V0, MIPS_REG_SP,
-      4 + (31 * 4));
+      4 + (30 * 4));
   gum_mips_writer_put_push_reg (cw, MIPS_REG_V0);
 
   gum_mips_writer_put_push_reg (cw, MIPS_REG_GP);
 
   /* dummy PC */
-  gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
+  //gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
+  gum_mips_writer_put_push_reg (cw, MIPS_REG_ZERO);
+  //gum_mips_writer_put_break (cw);
 }
 
 static void
 gum_emit_epilog (GumMipsWriter * cw)
 {
+  //gum_mips_writer_put_break (cw);
   /* dummy PC */
-  gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
+  gum_mips_writer_put_pop_reg (cw, MIPS_REG_V0);
+  //gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
 
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_GP);
 
@@ -579,6 +596,8 @@ gum_emit_epilog (GumMipsWriter * cw)
 
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_K0);
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_K1);
+
+  //gum_mips_writer_put_break (cw);
 
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_AT);
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);

@@ -92,7 +92,7 @@ void gum_mips_writer_put_mthi_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_mtlo_reg (GumMipsWriter * self, mips_reg reg);
 
 void gum_mips_writer_put_nop (GumMipsWriter * self);
-void gum_mips_writer_put_brk_imm (GumMipsWriter * self, guint16 imm);
+void gum_mips_writer_put_break (GumMipsWriter * self);
 
 void gum_mips_writer_put_instruction (GumMipsWriter * self, guint32 insn);
 void gum_mips_writer_put_bytes (GumMipsWriter * self, const guint8 * data,
