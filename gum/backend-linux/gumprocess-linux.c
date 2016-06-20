@@ -880,6 +880,7 @@ gum_module_enumerate_exports (const gchar * module_name,
 
   if (!gum_elf_module_open (&module, module_name))
     return;
+
   gum_elf_module_enumerate_exports (&module, func, user_data);
   gum_elf_module_close (&module);
 }
@@ -1076,11 +1077,11 @@ gum_resolve_module_name (const gchar * name,
 {
   GumResolveModuleNameContext ctx;
 
-#ifndef HAVE_ANDROID
+#if !defined (HAVE_ANDROID) && !defined (HAVE_UCLIBC)
   struct link_map * map;
 
   map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
-  if (map != NULL && map->l_name != NULL)
+  if (map != NULL)
   {
     ctx.name = g_file_read_link (map->l_name, NULL);
     if (ctx.name == NULL)
