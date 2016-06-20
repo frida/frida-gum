@@ -107,6 +107,44 @@ case $host_os in
   *-android*)
     HAVE_ANDROID=yes
     ;;
+  linux-*)
+    AC_MSG_CHECKING([Libc is glibc])
+    AC_PREPROC_IFELSE(
+      [AC_LANG_PROGRAM([[#include <features.h>]],
+                       [[
+#if defined (__GLIBC__) && !defined (__UCLIBC__)
+#else
+# error Not glibc
+#endif
+      ]])],
+      [
+        HAVE_GLIBC=yes
+        AC_MSG_RESULT([yes])
+      ],
+      [
+        HAVE_GLIBC=no
+        AC_MSG_RESULT([no])
+      ]
+    )
+    AC_MSG_CHECKING([Libc is uClibc])
+    AC_PREPROC_IFELSE(
+      [AC_LANG_PROGRAM([[#include <features.h>]],
+                       [[
+#if defined (__UCLIBC__)
+#else
+# error Not uClibc
+#endif
+      ]])],
+      [
+        HAVE_UCLIBC=yes
+        AC_MSG_RESULT([yes])
+      ],
+      [
+        HAVE_UCLIBC=no
+        AC_MSG_RESULT([no])
+      ]
+    )
+    ;;
   *)
     ;;
 esac
@@ -123,6 +161,13 @@ if [[ "x$HAVE_IOS" = "xyes" ]]; then
   AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
+
+if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
+fi
+if [[ "x$HAVE_UCLIBC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_UCLIBC, 1, [Define to 1 if libc is uclibc.])
+fi
 
 AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
