@@ -327,10 +327,10 @@ gum_mips_relocator_eoi (GumMipsRelocator * self)
 
 gboolean
 gum_mips_relocator_can_relocate (gpointer address,
-                                  guint min_bytes,
-                                  GumRelocationScenario scenario,
-                                  guint * maximum,
-                                  mips_reg * available_scratch_reg)
+                                 guint min_bytes,
+                                 GumRelocationScenario scenario,
+                                 guint * maximum,
+                                 mips_reg * available_scratch_reg)
 {
   guint n = 0;
   guint8 * buf;
@@ -387,9 +387,11 @@ gum_mips_relocator_can_relocate (gpointer address,
     gboolean eoi;
 
 #ifdef G_LITTLE_ENDIAN
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_LITTLE_ENDIAN, &capstone);
+    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
+        &capstone);
 #else
-    err = cs_open (CS_ARCH_MIPS, CS_MODE_BIG_ENDIAN, &capstone);
+    err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN,
+        &capstone);
 #endif
     g_assert_cmpint (err, == , CS_ERR_OK);
     err = cs_option (capstone, CS_OPT_DETAIL, CS_OPT_ON);
