@@ -232,6 +232,7 @@ AC_ARG_ENABLE(gumjs,
                   [enable JavaScript bindings [default=yes]])],,
   [enable_gumjs=yes])
 LIBFFI_REQUIRES="libffi >= 3.1.1"
+V8_REQUIRES=""
 if [[ "x$enable_gumjs" = "xyes" ]]; then
   AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if GumJS is available.])
 
@@ -245,6 +246,7 @@ if [[ "x$enable_gumjs" = "xyes" ]]; then
   fi
   if [[ "x$HAVE_V8" = "xyes" ]]; then
     AC_DEFINE(HAVE_V8, 1, [Define to 1 if V8 is available.])
+    V8_REQUIRES="v8"
   fi
   AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 
@@ -257,6 +259,7 @@ AC_SUBST(GUMJS_CFLAGS)
 AC_SUBST(GUMJS_LDFLAGS)
 AC_SUBST(GUMJS_LIBS)
 AC_SUBST(LIBFFI_REQUIRES)
+AC_SUBST(V8_REQUIRES)
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   GUMDUK_LIBS_PRIVATE="-lm"
