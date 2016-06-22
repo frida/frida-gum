@@ -213,6 +213,10 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   ctx->on_invoke_trampoline = gum_mips_writer_cur (cw);
 
+  /* Fix t9 to point to the original function address */
+  gum_mips_writer_put_la_reg_address (cw, MIPS_REG_T9,
+      GUM_ADDRESS (function_address));
+
   gum_mips_relocator_reset (rl, function_address, cw);
 
   do
@@ -599,6 +603,6 @@ gum_emit_epilog (GumMipsWriter * cw)
 
   //gum_mips_writer_put_break (cw);
 
-  gum_mips_writer_put_pop_reg (cw, MIPS_REG_AT);
-  gum_mips_writer_put_jr_reg (cw, MIPS_REG_AT);
+  gum_mips_writer_put_pop_reg (cw, MIPS_REG_T9);
+  gum_mips_writer_put_jr_reg (cw, MIPS_REG_T9);
 }
