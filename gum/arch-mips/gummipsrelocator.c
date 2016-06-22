@@ -242,7 +242,8 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
 
   if (gum_mips_has_delay_slot (insn))
   {
-    if ((delay_slot_insn = gum_mips_relocator_peek_next_write_insn (self)) == NULL)
+    delay_slot_insn = gum_mips_relocator_peek_next_write_insn (self);
+    if (delay_slot_insn == NULL)
       return FALSE;
     gum_mips_relocator_increment_outpos (self);
     ctx.delay_slot_insn = delay_slot_insn;
@@ -433,7 +434,8 @@ gum_mips_relocator_can_relocate (gpointer address,
         case MIPS_INS_BNE:
         case MIPS_INS_BNEL:
         {
-          cs_mips_op * op = d->op_count == 3 ? &d->operands[2] : &d->operands[1];
+          cs_mips_op * op =
+            d->op_count == 3 ? &d->operands[2] : &d->operands[1];
           g_assert (op->type == MIPS_OP_IMM);
           gssize target = (gssize) insn->address +
             (op->imm & 0x8000 ? (0xffff0000 + op->imm) << 2 : op->imm << 2);

@@ -498,7 +498,8 @@ void
 gum_mips_writer_put_jal_address (GumMipsWriter * self,
                                  guint32 address)
 {
-  gum_mips_writer_put_instruction (self, 0x0c000000 | ((address & GUM_INT28_MASK) >> 2));
+  gum_mips_writer_put_instruction (self, 0x0c000000 |
+      ((address & GUM_INT28_MASK) >> 2));
   gum_mips_writer_put_nop (self);
 }
 
