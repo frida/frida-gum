@@ -480,6 +480,11 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   context->pc = GPOINTER_TO_SIZE (
       GUM_FUNCPTR_TO_POINTER (gum_exceptor_scope_impl_perform_longjmp));
 
+  /* set t9 to gum_exceptor_scope_impl_perform_longjmp, as it is PIC and needs
+   * t9 for the gp calculation.
+   */
+  context->t9 = context->pc;
+
   /* Align to 16 byte boundary */
   context->sp &= ~(gsize) (16 - 1);
   /* Avoid the red zone (when applicable) */
