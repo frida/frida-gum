@@ -106,7 +106,7 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
   }
   else
   {
-    asm ("\tlw %0, ($sp)" : "=r" (start_address));
+    asm ("\tmove %0, $sp" : "=r" (start_address));
     skips_pending = 1;
   }
 
