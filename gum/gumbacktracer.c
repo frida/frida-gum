@@ -21,6 +21,8 @@
 # include "arch-arm/gumarmbacktracer.h"
 #elif defined (HAVE_ARM64)
 # include "arch-arm64/gumarm64backtracer.h"
+#elif defined (HAVE_MIPS)
+# include "arch-mips/gummipsbacktracer.h"
 #endif
 
 GType
@@ -70,6 +72,8 @@ gum_backtracer_make_fuzzy (void)
   return gum_arm_backtracer_new ();
 #elif defined (HAVE_ARM64)
   return gum_arm64_backtracer_new ();
+#elif defined (HAVE_MIPS)
+  return gum_mips_backtracer_new ();
 #else
   return NULL;
 #endif
