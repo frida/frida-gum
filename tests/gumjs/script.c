@@ -147,7 +147,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM))
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
+  !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
 #ifdef G_OS_UNIX
