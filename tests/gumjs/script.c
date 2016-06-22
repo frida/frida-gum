@@ -116,8 +116,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #endif
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
+#ifndef HAVE_MIPS
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
+#endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
 #ifndef HAVE_LINUX
