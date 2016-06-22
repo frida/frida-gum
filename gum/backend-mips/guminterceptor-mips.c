@@ -133,16 +133,6 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   return TRUE;
 }
 
-static void dump (guint8 *buffer, gssize length)
-{
-  printf ("\n");
-  for (int i = 0; i != length; i++)
-  {
-    printf ("%02x ", buffer[i]);
-  }
-  printf ("\n");
-}
-
 gboolean
 _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
                                             GumFunctionContext * ctx)
