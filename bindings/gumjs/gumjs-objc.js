@@ -1692,7 +1692,7 @@
                     components.push('Super');
 
                 const returnsStruct = retType instanceof Array;
-                if (returnsStruct)
+                if (returnsStruct && !typeFitsInRegisters(retType))
                     components.push('_stret');
                 else if (retType === 'float' || retType === 'double')
                     components.push('_fpret');
@@ -1704,6 +1704,40 @@
             }
 
             return impl;
+        }
+
+        function typeFitsInRegisters(type) {
+            if (Process.arch !== 'x64')
+                return false;
+
+            const size = sizeOfTypeOnX64(type);
+
+            // It's actually way more complex than this, plus, we ignore alignment.
+            // But at least we can assume that no SSE types are involved, as we don't yet support them...
+            return size <= 16;
+        }
+
+        function sizeOfTypeOnX64(type) {
+            if (type instanceof Array)
+                return type.reduce((total, field) => total + sizeOfTypeOnX64(field), 0);
+
+            switch (type) {
+                case 'bool':
+                case 'char':
+                case 'uchar':
+                    return 1;
+                case 'int16':
+                case 'uint16':
+                    return 2;
+                case 'int':
+                case 'int32':
+                case 'uint':
+                case 'uint32':
+                case 'float':
+                    return 4;
+                default:
+                    return 8;
+            }
         }
 
         function unparseSignature(retType, argTypes) {

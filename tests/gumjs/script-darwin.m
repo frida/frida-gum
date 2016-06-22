@@ -528,6 +528,13 @@ struct _FridaRect
 
 @implementation FridaWidget
 
+- (FridaPoint)position {
+  FridaPoint p;
+  p.x = 10.0;
+  p.y = 15.0;
+  return p;
+}
+
 - (FridaRect)bounds {
   FridaRect r;
   r.origin.x = 10.0;
@@ -587,6 +594,13 @@ SCRIPT_TESTCASE (struct_returning_method_can_be_called)
   @autoreleasepool
   {
     FridaWidget * widget = [[[FridaWidget alloc] init] autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var widget = new ObjC.Object(" GUM_PTR_CONST ");"
+        "send(widget.position());",
+        widget);
+    EXPECT_SEND_MESSAGE_WITH ("[10,15]");
+    EXPECT_NO_MESSAGES ();
 
     COMPILE_AND_LOAD_SCRIPT (
         "var widget = new ObjC.Object(" GUM_PTR_CONST ");"
