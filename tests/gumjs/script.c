@@ -885,7 +885,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("\"unix:dgram\"");
   close (fd);
 
-  fd = open ("/etc/hosts", O_RDONLY);
+  fd = open ("/etc/passwd", O_RDONLY);
   g_assert (fd >= 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
