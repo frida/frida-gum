@@ -167,30 +167,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   {
     /* TODO: implement deflector behavior */
     g_assert_not_reached ();
-    /*
-    GumAddressSpec caller;
-    gpointer return_address;
-    gboolean dedicated;
-
-    caller.near_address = function_address + data->redirect_code_size - 4;
-    caller.max_distance = GUM_MIPS_J_MAX_DISTANCE;
-
-    return_address = function_address + data->redirect_code_size;
-
-    dedicated = data->redirect_code_size == 4;
-
-    ctx->trampoline_deflector = gum_code_allocator_alloc_deflector (
-        self->allocator, &caller, return_address, ctx->on_enter_trampoline,
-        dedicated);
-    if (ctx->trampoline_deflector == NULL)
-    {
-      gum_code_slice_free (ctx->trampoline_slice);
-      ctx->trampoline_slice = NULL;
-      return FALSE;
-    }
-
-    gum_arm64_writer_put_pop_reg_reg (aw, ARM64_REG_X0, ARM64_REG_LR);
-    */
   }
 
   /* TODO: save $t0 on the stack? */
@@ -274,20 +250,6 @@ _gum_interceptor_backend_activate_trampoline (GumInterceptorBackend * self,
   {
     /* TODO: implement branch to deflector */
     g_assert_not_reached ();
-    /*
-    if (data->redirect_code_size == 8)
-    {
-      gum_arm64_writer_put_push_reg_reg (aw, ARM64_REG_X0, ARM64_REG_LR);
-      gum_arm64_writer_put_bl_imm (aw,
-          GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
-    }
-    else
-    {
-      g_assert_cmpuint (data->redirect_code_size, ==, 4);
-      gum_arm64_writer_put_b_imm (aw,
-          GUM_ADDRESS (ctx->trampoline_deflector->trampoline));
-    }
-    */
   }
   else
   {
@@ -330,9 +292,6 @@ _gum_interceptor_backend_resolve_redirect (GumInterceptorBackend * self,
                                            gpointer address)
 {
   /* TODO: implement resolve redirect */
-  /*
-  return gum_arm64_reader_try_get_relative_jump_target (address);
-  */
   return NULL;
 }
 
@@ -488,10 +447,7 @@ gum_emit_prolog (GumMipsWriter * cw)
    */
 
   /* reserve space for next_hop */
-  //gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
-  gum_mips_writer_put_la_reg_address (cw, MIPS_REG_AT, 0x12345678);
-  gum_mips_writer_put_push_reg (cw, MIPS_REG_AT);
-  //gum_mips_writer_put_break (cw);
+  gum_mips_writer_put_push_reg (cw, MIPS_REG_ZERO);
 
   gum_mips_writer_put_push_reg (cw, MIPS_REG_K1);
   gum_mips_writer_put_push_reg (cw, MIPS_REG_K0);
@@ -542,18 +498,14 @@ gum_emit_prolog (GumMipsWriter * cw)
   gum_mips_writer_put_push_reg (cw, MIPS_REG_GP);
 
   /* dummy PC */
-  //gum_mips_writer_put_sub_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
   gum_mips_writer_put_push_reg (cw, MIPS_REG_ZERO);
-  //gum_mips_writer_put_break (cw);
 }
 
 static void
 gum_emit_epilog (GumMipsWriter * cw)
 {
-  //gum_mips_writer_put_break (cw);
   /* dummy PC */
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_V0);
-  //gum_mips_writer_put_addi_reg_reg_imm (cw, MIPS_REG_SP, MIPS_REG_SP, 4);
 
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_GP);
 
@@ -601,8 +553,8 @@ gum_emit_epilog (GumMipsWriter * cw)
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_K0);
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_K1);
 
-  //gum_mips_writer_put_break (cw);
-
+  /* pop and jump to the next_hop. This needs to be via t9 so that PIC
+   * code works */
   gum_mips_writer_put_pop_reg (cw, MIPS_REG_T9);
   gum_mips_writer_put_jr_reg (cw, MIPS_REG_T9);
 }
