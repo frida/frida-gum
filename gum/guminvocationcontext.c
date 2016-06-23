@@ -55,6 +55,8 @@ gum_invocation_context_get_return_address (GumInvocationContext * context)
   return GSIZE_TO_POINTER (c->pc);
 #elif defined (HAVE_ARM64)
   return GSIZE_TO_POINTER (c->pc);
+#elif defined (HAVE_MIPS)
+  return GSIZE_TO_POINTER (c->pc);
 #else
 # error Unsupported architecture
 #endif

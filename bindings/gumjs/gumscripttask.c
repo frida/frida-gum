@@ -6,8 +6,6 @@
 
 #include "gumscripttask.h"
 
-typedef struct _GumScriptJob GumScriptJob;
-
 struct _GumScriptTaskPrivate
 {
   gboolean disposed;

@@ -40,6 +40,9 @@ case $host_cpu in
   aarch64)
     HAVE_ARM64=yes
   ;;
+  mips|mipsel)
+    HAVE_MIPS=yes
+  ;;
 esac
 if [[ "$HAVE_I386" = "yes" ]]; then
   AC_DEFINE(HAVE_I386, 1, [Define to 1 if target is x86 based.])
@@ -50,9 +53,13 @@ fi
 if [[ "$HAVE_ARM64" = "yes" ]]; then
   AC_DEFINE(HAVE_ARM64, 1, [Define to 1 if target is AArch64 based.])
 fi
+if [[ "$HAVE_MIPS" = "yes" ]]; then
+  AC_DEFINE(HAVE_MIPS, 1, [Define to 1 if target is MIPS based.])
+fi
 AM_CONDITIONAL(ARCH_I386, test "$HAVE_I386" = "yes")
 AM_CONDITIONAL(ARCH_ARM, test "$HAVE_ARM" = "yes")
 AM_CONDITIONAL(ARCH_ARM64, test "$HAVE_ARM64" = "yes")
+AM_CONDITIONAL(ARCH_MIPS, test "$HAVE_MIPS" = "yes")
 
 case $host_os in
   linux*)   HAVE_LINUX=yes  ;;
@@ -100,6 +107,44 @@ case $host_os in
   *-android*)
     HAVE_ANDROID=yes
     ;;
+  linux-*)
+    AC_MSG_CHECKING([Libc is glibc])
+    AC_PREPROC_IFELSE(
+      [AC_LANG_PROGRAM([[#include <features.h>]],
+                       [[
+#if defined (__GLIBC__) && !defined (__UCLIBC__)
+#else
+# error Not glibc
+#endif
+      ]])],
+      [
+        HAVE_GLIBC=yes
+        AC_MSG_RESULT([yes])
+      ],
+      [
+        HAVE_GLIBC=no
+        AC_MSG_RESULT([no])
+      ]
+    )
+    AC_MSG_CHECKING([Libc is uClibc])
+    AC_PREPROC_IFELSE(
+      [AC_LANG_PROGRAM([[#include <features.h>]],
+                       [[
+#if defined (__UCLIBC__)
+#else
+# error Not uClibc
+#endif
+      ]])],
+      [
+        HAVE_UCLIBC=yes
+        AC_MSG_RESULT([yes])
+      ],
+      [
+        HAVE_UCLIBC=no
+        AC_MSG_RESULT([no])
+      ]
+    )
+    ;;
   *)
     ;;
 esac
@@ -116,6 +161,13 @@ if [[ "x$HAVE_IOS" = "xyes" ]]; then
   AC_DEFINE(HAVE_IOS, 1, [Define to 1 if OS is iOS.])
 fi
 AM_CONDITIONAL(OS_IOS, test "x$HAVE_IOS" = "xyes")
+
+if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
+fi
+if [[ "x$HAVE_UCLIBC" = "xyes" ]]; then
+  AC_DEFINE(HAVE_UCLIBC, 1, [Define to 1 if libc is uClibc.])
+fi
 
 AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
@@ -180,6 +232,7 @@ AC_ARG_ENABLE(gumjs,
                   [enable JavaScript bindings [default=yes]])],,
   [enable_gumjs=yes])
 LIBFFI_REQUIRES="libffi >= 3.1.1"
+V8_REQUIRES=""
 if [[ "x$enable_gumjs" = "xyes" ]]; then
   AC_DEFINE(HAVE_GUMJS, 1, [Define to 1 if GumJS is available.])
 
@@ -193,6 +246,7 @@ if [[ "x$enable_gumjs" = "xyes" ]]; then
   fi
   if [[ "x$HAVE_V8" = "xyes" ]]; then
     AC_DEFINE(HAVE_V8, 1, [Define to 1 if V8 is available.])
+    V8_REQUIRES="v8"
   fi
   AM_CONDITIONAL(HAVE_V8, [test "x$HAVE_V8" = "xyes"])
 
@@ -205,6 +259,7 @@ AC_SUBST(GUMJS_CFLAGS)
 AC_SUBST(GUMJS_LDFLAGS)
 AC_SUBST(GUMJS_LIBS)
 AC_SUBST(LIBFFI_REQUIRES)
+AC_SUBST(V8_REQUIRES)
 
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   GUMDUK_LIBS_PRIVATE="-lm"

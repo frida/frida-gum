@@ -145,7 +145,7 @@ main (gint argc, gchar * argv[])
   TEST_RUN_LIST (stalker_mac);
 #endif
   TEST_RUN_LIST (api_resolver);
-#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
+#if !defined (HAVE_QNX) && !(defined (HAVE_ANDROID) && defined (HAVE_ARM64)) && !(defined (HAVE_MIPS))
   TEST_RUN_LIST (backtracer);
 #endif
 

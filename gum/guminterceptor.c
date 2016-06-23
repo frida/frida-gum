@@ -17,7 +17,11 @@
 
 #include <string.h>
 
+#ifdef HAVE_MIPS
+#define GUM_INTERCEPTOR_CODE_SLICE_SIZE 1024
+#else
 #define GUM_INTERCEPTOR_CODE_SLICE_SIZE 256
+#endif
 
 G_DEFINE_TYPE (GumInterceptor, gum_interceptor, G_TYPE_OBJECT);
 
@@ -1221,6 +1225,8 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   cpu_context->pc = pc;
 #elif defined (HAVE_ARM64)
   cpu_context->pc = pc;
+#elif defined (HAVE_MIPS)
+  cpu_context->pc = pc;
 #else
 # error Unsupported architecture
 #endif
@@ -1344,6 +1350,8 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
   cpu_context->pc = (guint32) caller_ret_addr;
 #elif defined (HAVE_ARM64)
   cpu_context->pc = (guint64) caller_ret_addr;
+#elif defined (HAVE_MIPS)
+  cpu_context->pc = (guint32) caller_ret_addr;
 #else
 # error Unsupported architecture
 #endif

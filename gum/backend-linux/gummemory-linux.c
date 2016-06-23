@@ -110,7 +110,7 @@ void
 gum_clear_cache (gpointer address,
                  gsize size)
 {
-#if defined (HAVE_ARM) || defined (HAVE_ARM64)
+#if defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
   __builtin___clear_cache (address, address + size);
 #endif
 }

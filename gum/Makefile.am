@@ -51,6 +51,11 @@ arm64include_HEADERS = \
 	arch-arm64/gumarm64writer.h \
 	arch-arm64/gumarm64relocator.h
 
+mipsincludedir = $(includedir)/frida-1.0/gum/arch-mips
+mipsinclude_HEADERS = \
+	arch-mips/gummipswriter.h \
+	arch-mips/gummipsrelocator.h
+
 libfrida_gum_1_0_la_SOURCES = $(NULL)
 libfrida_gum_1_0_la_LDFLAGS = \
 	-export-symbols-regex "^gum_.*" \
@@ -111,6 +116,22 @@ backend_sources += \
 	backend-arm64/guminterceptor-arm64.c \
 	backend-arm64/gumspinlock-arm64.c \
 	backend-arm64/gumstalker-arm64.c
+endif
+
+if ARCH_MIPS
+archincludedir = $(includedir)/frida-1.0/gum/arch-mips
+archinclude_HEADERS = \
+	arch-mips/gummipsbacktracer.h \
+	arch-mips/gummipsreader.h
+arch_sources += \
+	arch-mips/gummipsbacktracer.c \
+	arch-mips/gummipsreader.c
+arch_includes += \
+	-I $(srcdir)/arch-mips
+backend_sources += \
+	backend-mips/guminterceptor-mips.c \
+	backend-mips/gumspinlock-mips.c \
+	backend-mips/gumstalker-mips.c
 endif
 
 if OS_LINUX
@@ -204,6 +225,8 @@ libfrida_gum_la_SOURCES = \
 	arch-arm/gumarmreg.c \
 	arch-arm64/gumarm64writer.c \
 	arch-arm64/gumarm64relocator.c \
+	arch-mips/gummipswriter.c \
+	arch-mips/gummipsrelocator.c \
 	$(arch_sources) \
 	$(backend_sources)
 libfrida_gum_la_LIBADD = \

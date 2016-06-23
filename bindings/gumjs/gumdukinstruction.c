@@ -21,6 +21,13 @@
 #elif defined (HAVE_ARM64)
 # define GUM_DEFAULT_CS_ARCH CS_ARCH_ARM64
 # define GUM_DEFAULT_CS_MODE CS_MODE_ARM
+#elif defined (HAVE_MIPS)
+# define GUM_DEFAULT_CS_ARCH CS_ARCH_MIPS
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
+#  define GUM_DEFAULT_CS_MODE CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN
+# else
+#  define GUM_DEFAULT_CS_MODE CS_MODE_MIPS32 | CS_MODE_BIG_ENDIAN
+# endif
 #else
 # error Unsupported architecture
 #endif

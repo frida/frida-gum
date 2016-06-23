@@ -21,7 +21,7 @@
 #include <gio/gio.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
-#ifdef HAVE_ARM
+#if defined(HAVE_ARM) || defined (HAVE_MIPS)
 # include <asm/ptrace.h>
 #endif
 #include <sys/socket.h>
@@ -46,6 +46,8 @@
 # define GumRegs struct pt_regs
 #elif defined (HAVE_ARM64)
 # define GumRegs struct user_pt_regs
+#elif defined (HAVE_MIPS)
+# define GumRegs struct pt_regs
 #else
 # error Unsupported architecture
 #endif
@@ -286,6 +288,11 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 
 #define gum_libc_syscall_3(n, a, b, c) gum_libc_syscall_4 (n, a, b, c, 0)
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
+
+#if defined (HAVE_MIPS)
+static int getcontext (ucontext_t * ucp);
+static int setcontext (const ucontext_t * ucp);
+#endif
 
 static gboolean gum_is_regset_supported = TRUE;
 
@@ -1005,6 +1012,9 @@ gum_linux_cpu_type_from_file (const gchar * path,
     case 0x00b7:
       result = GUM_CPU_ARM64;
       break;
+    case 0x0008:
+      result = GUM_CPU_MIPS;
+      break;
     default:
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
           "Unsupported executable");
@@ -1037,10 +1047,14 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   if (!g_file_get_contents (auxv_path, (gchar **) &auxv, &auxv_size, error))
     goto beach;
 
-#ifdef HAVE_I386
+#if defined (HAVE_I386)
   result = GUM_CPU_AMD64;
-#else
+#elif defined (HAVE_ARM64)
   result = GUM_CPU_ARM64;
+#elif defined (HAVE_MIPS)
+  result = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
 #endif
 
   for (i = 0; i < auxv_size; i += 16)
@@ -1048,10 +1062,14 @@ gum_linux_cpu_type_from_pid (pid_t pid,
     if (auxv[4] != 0 || auxv[5] != 0 ||
         auxv[6] != 0 || auxv[7] != 0)
     {
-#ifdef HAVE_I386
+#if defined (HAVE_I386)
       result = GUM_CPU_IA32;
-#else
+#elif defined (HAVE_ARM)
       result = GUM_CPU_ARM;
+#elif defined (HAVE_MIPS)
+      result = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
 #endif
       break;
     }
@@ -1069,7 +1087,7 @@ gum_resolve_module_name (const gchar * name,
 {
   GumResolveModuleNameContext ctx;
 
-#ifndef HAVE_ANDROID
+#if defined (HAVE_GLIBC)
   struct link_map * map;
 
   map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
@@ -1440,6 +1458,52 @@ gum_linux_parse_ucontext (const ucontext_t * uc,
   ctx->fp = sc->regs[29];
   ctx->lr = sc->regs[30];
   memset (ctx->q, 0, sizeof (ctx->q));
+#elif defined (HAVE_MIPS)
+  const greg_t * gr = uc->uc_mcontext.gregs;
+
+  ctx->at = (guint32) gr[1];
+
+  ctx->v0 = (guint32) gr[2];
+  ctx->v1 = (guint32) gr[3];
+
+  ctx->a0 = (guint32) gr[4];
+  ctx->a1 = (guint32) gr[5];
+  ctx->a2 = (guint32) gr[6];
+  ctx->a3 = (guint32) gr[7];
+
+  ctx->t0 = (guint32) gr[8];
+  ctx->t1 = (guint32) gr[9];
+  ctx->t2 = (guint32) gr[10];
+  ctx->t3 = (guint32) gr[11];
+  ctx->t4 = (guint32) gr[12];
+  ctx->t5 = (guint32) gr[13];
+  ctx->t6 = (guint32) gr[14];
+  ctx->t7 = (guint32) gr[15];
+
+  ctx->s0 = (guint32) gr[16];
+  ctx->s1 = (guint32) gr[17];
+  ctx->s2 = (guint32) gr[18];
+  ctx->s3 = (guint32) gr[19];
+  ctx->s4 = (guint32) gr[20];
+  ctx->s5 = (guint32) gr[21];
+  ctx->s6 = (guint32) gr[22];
+  ctx->s7 = (guint32) gr[23];
+
+  ctx->t8 = (guint32) gr[24];
+  ctx->t9 = (guint32) gr[25];
+
+  ctx->k0 = (guint32) gr[26];
+  ctx->k1 = (guint32) gr[27];
+
+  ctx->gp = (guint32) gr[28];
+  ctx->sp = (guint32) gr[29];
+  ctx->fp = (guint32) gr[30];
+  ctx->ra = (guint32) gr[31];
+
+  ctx->hi = (guint32) uc->uc_mcontext.mdhi;
+  ctx->lo = (guint32) uc->uc_mcontext.mdlo;
+
+  ctx->pc = (guint32) uc->uc_mcontext.pc;
 #else
 # error FIXME
 #endif
@@ -1521,6 +1585,52 @@ gum_linux_unparse_ucontext (const GumCpuContext * ctx,
     sc->regs[i] = ctx->x[i];
   sc->regs[29] = ctx->fp;
   sc->regs[30] = ctx->lr;
+#elif defined (HAVE_MIPS)
+  greg_t * gr = uc->uc_mcontext.gregs;
+
+  gr[1] = (guint64) ctx->at;
+
+  gr[2] = (guint64) ctx->v0;
+  gr[3] = (guint64) ctx->v1;
+
+  gr[4] = (guint64) ctx->a0;
+  gr[5] = (guint64) ctx->a1;
+  gr[6] = (guint64) ctx->a2;
+  gr[7] = (guint64) ctx->a3;
+
+  gr[8] = (guint64) ctx->t0;
+  gr[9] = (guint64) ctx->t1;
+  gr[10] = (guint64) ctx->t2;
+  gr[11] = (guint64) ctx->t3;
+  gr[12] = (guint64) ctx->t4;
+  gr[13] = (guint64) ctx->t5;
+  gr[14] = (guint64) ctx->t6;
+  gr[15] = (guint64) ctx->t7;
+
+  gr[16] = (guint64) ctx->s0;
+  gr[17] = (guint64) ctx->s1;
+  gr[18] = (guint64) ctx->s2;
+  gr[19] = (guint64) ctx->s3;
+  gr[20] = (guint64) ctx->s4;
+  gr[21] = (guint64) ctx->s5;
+  gr[22] = (guint64) ctx->s6;
+  gr[23] = (guint64) ctx->s7;
+
+  gr[24] = (guint64) ctx->t8;
+  gr[25] = (guint64) ctx->t9;
+
+  gr[26] = (guint64) ctx->k0;
+  gr[27] = (guint64) ctx->k1;
+
+  gr[28] = (guint64) ctx->gp;
+  gr[29] = (guint64) ctx->sp;
+  gr[30] = (guint64) ctx->fp;
+  gr[31] = (guint64) ctx->ra;
+
+  uc->uc_mcontext.mdhi = (guint64) ctx->hi;
+  uc->uc_mcontext.mdlo = (guint64) ctx->lo;
+
+  uc->uc_mcontext.pc = (guint64) ctx->pc;
 #else
 # error FIXME
 #endif
@@ -1587,6 +1697,53 @@ gum_parse_regs (const GumRegs * regs,
     ctx->x[i] = regs->regs[i];
   ctx->fp = regs->regs[29];
   ctx->lr = regs->regs[30];
+#elif defined (HAVE_MIPS)
+  ctx->at = regs->regs[1];
+
+  ctx->v0 = regs->regs[2];
+  ctx->v1 = regs->regs[3];
+
+  ctx->a0 = regs->regs[4];
+  ctx->a1 = regs->regs[5];
+  ctx->a2 = regs->regs[6];
+  ctx->a3 = regs->regs[7];
+
+  ctx->t0 = regs->regs[8];
+  ctx->t1 = regs->regs[9];
+  ctx->t2 = regs->regs[10];
+  ctx->t3 = regs->regs[11];
+  ctx->t4 = regs->regs[12];
+  ctx->t5 = regs->regs[13];
+  ctx->t6 = regs->regs[14];
+  ctx->t7 = regs->regs[15];
+
+  ctx->s0 = regs->regs[16];
+  ctx->s1 = regs->regs[17];
+  ctx->s2 = regs->regs[18];
+  ctx->s3 = regs->regs[19];
+  ctx->s4 = regs->regs[20];
+  ctx->s5 = regs->regs[21];
+  ctx->s6 = regs->regs[22];
+  ctx->s7 = regs->regs[23];
+
+  ctx->t8 = regs->regs[24];
+  ctx->t9 = regs->regs[25];
+
+  ctx->k0 = regs->regs[26];
+  ctx->k1 = regs->regs[27];
+
+  ctx->gp = regs->regs[28];
+  ctx->sp = regs->regs[29];
+  ctx->fp = regs->regs[30];
+
+  ctx->ra = regs->regs[31];
+
+  ctx->hi = regs->hi;
+  ctx->lo = regs->lo;
+
+  ctx->pc = regs->cp0_epc;
+#else
+# error Unsupported architecture
 #endif
 }
 
@@ -1651,6 +1808,53 @@ gum_unparse_regs (const GumCpuContext * ctx,
     regs->regs[i] = ctx->x[i];
   regs->regs[29] = ctx->fp;
   regs->regs[30] = ctx->lr;
+#elif defined (HAVE_MIPS)
+  regs->regs[1] = ctx->at;
+
+  regs->regs[2] = ctx->v0;
+  regs->regs[3] = ctx->v1;
+
+  regs->regs[4] = ctx->a0;
+  regs->regs[5] = ctx->a1;
+  regs->regs[6] = ctx->a2;
+  regs->regs[7] = ctx->a3;
+
+  regs->regs[8] = ctx->t0;
+  regs->regs[9] = ctx->t1;
+  regs->regs[10] = ctx->t2;
+  regs->regs[11] = ctx->t3;
+  regs->regs[12] = ctx->t4;
+  regs->regs[13] = ctx->t5;
+  regs->regs[14] = ctx->t6;
+  regs->regs[15] = ctx->t7;
+
+  regs->regs[16] = ctx->s0;
+  regs->regs[17] = ctx->s1;
+  regs->regs[18] = ctx->s2;
+  regs->regs[19] = ctx->s3;
+  regs->regs[20] = ctx->s4;
+  regs->regs[21] = ctx->s5;
+  regs->regs[22] = ctx->s6;
+  regs->regs[23] = ctx->s7;
+
+  regs->regs[24] = ctx->t8;
+  regs->regs[25] = ctx->t9;
+
+  regs->regs[26] = ctx->k0;
+  regs->regs[27] = ctx->k1;
+
+  regs->regs[28] = ctx->gp;
+  regs->regs[29] = ctx->sp;
+  regs->regs[30] = ctx->fp;
+
+  regs->regs[31] = ctx->ra;
+
+  regs->hi = ctx->hi;
+  regs->lo = ctx->lo;
+
+  regs->cp0_epc = ctx->pc;
+#else
+# error Unsupported architecture
 #endif
 }
 
@@ -2084,3 +2288,17 @@ gum_libc_syscall_4 (gsize n,
 
   return result;
 }
+
+#if defined (HAVE_MIPS)
+static int
+getcontext (ucontext_t * ucp)
+{
+   g_assert_not_reached ();
+}
+
+static int
+setcontext (const ucontext_t * ucp)
+{
+  g_assert_not_reached ();
+}
+#endif

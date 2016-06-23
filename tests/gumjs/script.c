@@ -32,7 +32,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
-#ifndef HAVE_QNX
+#if !defined (HAVE_QNX) && !defined (HAVE_MIPS)
   SCRIPT_TESTENTRY (invocations_provide_context_for_backtrace)
 #endif
   SCRIPT_TESTENTRY (invocations_provide_context_serializable_to_json)
@@ -116,8 +116,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (process_debugger_status_is_available)
 #endif
   SCRIPT_TESTENTRY (process_current_thread_id_is_available)
+#ifndef HAVE_MIPS
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated)
   SCRIPT_TESTENTRY (process_threads_can_be_enumerated_synchronously)
+#endif
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated)
   SCRIPT_TESTENTRY (process_modules_can_be_enumerated_synchronously)
 #ifndef HAVE_LINUX
@@ -145,7 +147,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
-#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM))
+#if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
+  !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
 #ifdef G_OS_UNIX
@@ -882,7 +885,7 @@ SCRIPT_TESTCASE (socket_type_can_be_inspected)
   EXPECT_SEND_MESSAGE_WITH ("\"unix:dgram\"");
   close (fd);
 
-  fd = open ("/etc/hosts", O_RDONLY);
+  fd = open ("/etc/passwd", O_RDONLY);
   g_assert (fd >= 0);
   COMPILE_AND_LOAD_SCRIPT ("send(Socket.type(%d));", fd);
   EXPECT_SEND_MESSAGE_WITH ("null");
@@ -1873,6 +1876,8 @@ SCRIPT_TESTCASE (register_can_be_read)
   register_name = "r0";
 #elif defined (HAVE_ARM64)
   register_name = "x0";
+#elif defined (HAVE_MIPS)
+  register_name = "v0";
 #else
 # error Unsupported architecture
 #endif

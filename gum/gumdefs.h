@@ -25,12 +25,14 @@
 # else
 #  define GUM_NATIVE_CPU GUM_CPU_AMD64
 # endif
-#else
+#elif defined (__arm__) || defined (__aarch64__)
 # if GLIB_SIZEOF_VOID_P == 4
 #  define GUM_NATIVE_CPU GUM_CPU_ARM
 # else
 #  define GUM_NATIVE_CPU GUM_CPU_ARM64
 # endif
+#elif defined (__mips__)
+# define GUM_NATIVE_CPU GUM_CPU_MIPS
 #endif
 #ifdef G_OS_WIN32
 # define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
@@ -80,7 +82,8 @@ enum _GumCpuType
   GUM_CPU_IA32,
   GUM_CPU_AMD64,
   GUM_CPU_ARM,
-  GUM_CPU_ARM64
+  GUM_CPU_ARM64,
+  GUM_CPU_MIPS
 };
 
 enum _GumArgType
@@ -99,7 +102,7 @@ enum _GumBranchHint
 
 struct _GumCpuContext
 {
-#if !defined (__arm__) && !defined (__aarch64__)
+#if !defined (__arm__) && !defined (__aarch64__) && !defined (__mips__)
 # if GLIB_SIZEOF_VOID_P == 8
   guint64 rip;
 
@@ -140,7 +143,7 @@ struct _GumCpuContext
   guint64 fp;
   guint64 lr;
   guint8 q[128];
-#else
+#elif defined (__arm__) && !defined (__aarch64__)
   guint32 cpsr;
   guint32 pc;
   guint32 sp;
@@ -153,6 +156,49 @@ struct _GumCpuContext
 
   guint32 r[8];
   guint32 lr;
+#elif defined (__mips__)
+  guint32 pc;
+
+  guint32 gp;
+  guint32 sp;
+  guint32 fp;
+  guint32 ra;
+
+  guint32 hi;
+  guint32 lo;
+
+  guint32 at;
+
+  guint32 v0;
+  guint32 v1;
+
+  guint32 a0;
+  guint32 a1;
+  guint32 a2;
+  guint32 a3;
+
+  guint32 t0;
+  guint32 t1;
+  guint32 t2;
+  guint32 t3;
+  guint32 t4;
+  guint32 t5;
+  guint32 t6;
+  guint32 t7;
+  guint32 t8;
+  guint32 t9;
+
+  guint32 s0;
+  guint32 s1;
+  guint32 s2;
+  guint32 s3;
+  guint32 s4;
+  guint32 s5;
+  guint32 s6;
+  guint32 s7;
+
+  guint32 k0;
+  guint32 k1;
 #endif
 };
 
@@ -270,8 +316,9 @@ enum _GumRelocationScenario
 #define GUM_INT11_MASK 0x000007ff
 #define GUM_INT12_MASK 0x00000fff
 #define GUM_INT14_MASK 0x00003fff
+#define GUM_INT16_MASK 0x0000ffff
 #define GUM_INT19_MASK 0x0007ffff
-#define GUM_INT28_MASK 0x03ffffff
+#define GUM_INT28_MASK 0x0fffffff
 
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (0) && \
@@ -285,6 +332,9 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT14_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-8192) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (8191))
+#define GUM_IS_WITHIN_INT16_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-32768) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (32767))
 #define GUM_IS_WITHIN_INT19_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-262144) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (262143))
