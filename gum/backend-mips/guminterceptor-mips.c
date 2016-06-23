@@ -15,8 +15,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define GUM_ARM64_LOGICAL_PAGE_SIZE 4096
-
 #define GUM_FRAME_OFFSET_CPU_CONTEXT 0
 #define GUM_FRAME_OFFSET_NEXT_HOP \
     (GUM_FRAME_OFFSET_CPU_CONTEXT + sizeof(GumCpuContext))
@@ -147,7 +145,6 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx, &need_deflector))
     return FALSE;
-
 
   gum_mips_writer_reset (cw, ctx->trampoline_slice->data);
 

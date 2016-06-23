@@ -289,12 +289,12 @@ static gssize gum_libc_ptrace (gsize request, pid_t pid, gpointer address,
 #define gum_libc_syscall_3(n, a, b, c) gum_libc_syscall_4 (n, a, b, c, 0)
 static gssize gum_libc_syscall_4 (gsize n, gsize a, gsize b, gsize c, gsize d);
 
-static gboolean gum_is_regset_supported = TRUE;
-
 #if defined (HAVE_MIPS)
-static int getcontext (ucontext_t *ucp);
-static int setcontext (const ucontext_t *ucp);
+static int getcontext (ucontext_t * ucp);
+static int setcontext (const ucontext_t * ucp);
 #endif
+
+static gboolean gum_is_regset_supported = TRUE;
 
 gboolean
 gum_process_is_debugger_attached (void)
@@ -880,7 +880,6 @@ gum_module_enumerate_exports (const gchar * module_name,
 
   if (!gum_elf_module_open (&module, module_name))
     return;
-
   gum_elf_module_enumerate_exports (&module, func, user_data);
   gum_elf_module_close (&module);
 }
@@ -1077,7 +1076,7 @@ gum_resolve_module_name (const gchar * name,
 {
   GumResolveModuleNameContext ctx;
 
-#if !defined (HAVE_ANDROID) && !defined (HAVE_UCLIBC)
+#if defined (HAVE_GLIBC)
   struct link_map * map;
 
   map = dlopen (name, RTLD_LAZY | RTLD_GLOBAL | RTLD_NOLOAD);
@@ -2281,13 +2280,13 @@ gum_libc_syscall_4 (gsize n,
 
 #if defined (HAVE_MIPS)
 static int
-getcontext (ucontext_t* ucp)
+getcontext (ucontext_t * ucp)
 {
    g_assert_not_reached ();
 }
 
 static int
-setcontext (const ucontext_t *ucp)
+setcontext (const ucontext_t * ucp)
 {
   g_assert_not_reached ();
 }

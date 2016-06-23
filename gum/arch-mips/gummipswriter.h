@@ -52,7 +52,8 @@ void gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
 void gum_mips_writer_put_call_reg_with_arguments (GumMipsWriter * self,
     mips_reg reg, guint n_args, ...);
 
-gboolean gum_mips_writer_can_branch_address (GumAddress from, GumAddress to);
+gboolean gum_mips_writer_can_branch_directly_between (GumAddress from,
+    GumAddress to);
 void gum_mips_writer_put_j_address (GumMipsWriter * self, GumAddress address);
 void gum_mips_writer_put_j_label (GumMipsWriter * self,
     gconstpointer label_id);
@@ -84,7 +85,6 @@ void gum_mips_writer_put_sub_reg_reg_imm (GumMipsWriter * self,
 
 void gum_mips_writer_put_push_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_pop_reg (GumMipsWriter * self, mips_reg reg);
-
 
 void gum_mips_writer_put_mfhi_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_mflo_reg (GumMipsWriter * self, mips_reg reg);

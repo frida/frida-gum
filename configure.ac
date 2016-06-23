@@ -166,7 +166,7 @@ if [[ "x$HAVE_GLIBC" = "xyes" ]]; then
   AC_DEFINE(HAVE_GLIBC, 1, [Define to 1 if libc is glibc.])
 fi
 if [[ "x$HAVE_UCLIBC" = "xyes" ]]; then
-  AC_DEFINE(HAVE_UCLIBC, 1, [Define to 1 if libc is uclibc.])
+  AC_DEFINE(HAVE_UCLIBC, 1, [Define to 1 if libc is uClibc.])
 fi
 
 AC_CHECK_MEMBER([struct mallinfo.arena],

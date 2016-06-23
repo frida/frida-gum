@@ -28,9 +28,9 @@ struct _GumMipsRelocator
   guint inpos;
   guint outpos;
 
-  gboolean delay_slot_pending;
   gboolean eob;
   gboolean eoi;
+  gboolean delay_slot_pending;
 };
 
 void gum_mips_relocator_init (GumMipsRelocator * relocator,

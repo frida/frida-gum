@@ -4,8 +4,6 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-/* Useful reference: C4.1 A64 instruction index by encoding */
-
 #include "gummipsrelocator.h"
 
 #include "gummemory.h"
@@ -29,11 +27,12 @@ static gboolean gum_mips_has_delay_slot (const cs_insn * insn);
 
 void
 gum_mips_relocator_init (GumMipsRelocator * relocator,
-                          gconstpointer input_code,
-                          GumMipsWriter * output)
+                         gconstpointer input_code,
+                         GumMipsWriter * output)
 {
   cs_err err;
-#ifdef G_LITTLE_ENDIAN
+
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
   err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
       &relocator->capstone);
 #else
@@ -50,8 +49,8 @@ gum_mips_relocator_init (GumMipsRelocator * relocator,
 
 void
 gum_mips_relocator_reset (GumMipsRelocator * relocator,
-                           gconstpointer input_code,
-                           GumMipsWriter * output)
+                          gconstpointer input_code,
+                          GumMipsWriter * output)
 {
   guint i;
 
@@ -72,9 +71,9 @@ gum_mips_relocator_reset (GumMipsRelocator * relocator,
   relocator->inpos = 0;
   relocator->outpos = 0;
 
-  relocator->delay_slot_pending = FALSE;
   relocator->eob = FALSE;
   relocator->eoi = FALSE;
+  relocator->delay_slot_pending = FALSE;
 }
 
 void
@@ -116,7 +115,7 @@ gum_mips_relocator_increment_outpos (GumMipsRelocator * self)
 
 guint
 gum_mips_relocator_read_one (GumMipsRelocator * self,
-                              const cs_insn ** instruction)
+                             const cs_insn ** instruction)
 {
   cs_insn ** insn_ptr, * insn;
 
@@ -143,13 +142,13 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
   {
     case MIPS_INS_J:
       self->eob = TRUE;
-      self->delay_slot_pending = TRUE;
       self->eoi = TRUE;
+      self->delay_slot_pending = TRUE;
       break;
     case MIPS_INS_JR:
       self->eob = TRUE;
-      self->delay_slot_pending = TRUE;
       self->eoi = TRUE;
+      self->delay_slot_pending = TRUE;
       break;
     case MIPS_INS_BGEZAL:
     case MIPS_INS_BGEZALL:
@@ -158,8 +157,8 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
     case MIPS_INS_JAL:
     case MIPS_INS_JALR:
       self->eob = TRUE;
-      self->delay_slot_pending = TRUE;
       self->eoi = FALSE;
+      self->delay_slot_pending = TRUE;
       break;
     case MIPS_INS_BEQ:
     case MIPS_INS_BEQL:
@@ -174,12 +173,12 @@ gum_mips_relocator_read_one (GumMipsRelocator * self,
     case MIPS_INS_BNE:
     case MIPS_INS_BNEL:
       self->eob = TRUE;
-      self->delay_slot_pending = TRUE;
       self->eoi = FALSE;
+      self->delay_slot_pending = TRUE;
       break;
     default:
       if (self->delay_slot_pending)
-         self->delay_slot_pending = FALSE;
+        self->delay_slot_pending = FALSE;
       break;
   }
 
@@ -265,6 +264,7 @@ gum_mips_relocator_write_one (GumMipsRelocator * self)
   if (!rewritten)
   {
     gum_mips_writer_put_bytes (ctx.output, insn->bytes, insn->size);
+
     if (delay_slot_insn != NULL)
     {
       gum_mips_writer_put_bytes (ctx.output, delay_slot_insn->bytes,
@@ -359,7 +359,7 @@ gum_mips_relocator_can_relocate (gpointer address,
     size_t count, i;
     gboolean eoi;
 
-#ifdef G_LITTLE_ENDIAN
+#if G_BYTE_ORDER == G_LITTLE_ENDIAN
     err = cs_open (CS_ARCH_MIPS, CS_MODE_MIPS32 | CS_MODE_LITTLE_ENDIAN,
         &capstone);
 #else
@@ -382,12 +382,16 @@ gum_mips_relocator_can_relocate (gpointer address,
       {
         case MIPS_INS_J:
         {
-          cs_mips_op * op = &d->operands[0];
-          g_assert (op->type == MIPS_OP_IMM);
-          gssize target =
-            (gssize) (GPOINTER_TO_SIZE (insn[i].address & 0xf0000000)) |
-            (op->imm << 2);
-          gssize offset = target - (gssize) GPOINTER_TO_SIZE (address);
+          cs_mips_op * op;
+          gssize target, offset;
+
+          op = &d->operands[0];
+
+          g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+          target =
+              (gssize) (GPOINTER_TO_SIZE (insn[i].address & 0xf0000000)) |
+              (op->imm << 2);
+          offset = target - (gssize) GPOINTER_TO_SIZE (address);
           if (offset > 0 && offset < (gssize) n)
             n = offset;
           eoi = TRUE;
@@ -406,12 +410,15 @@ gum_mips_relocator_can_relocate (gpointer address,
         case MIPS_INS_BNE:
         case MIPS_INS_BNEL:
         {
-          cs_mips_op * op =
-            d->op_count == 3 ? &d->operands[2] : &d->operands[1];
-          g_assert (op->type == MIPS_OP_IMM);
-          gssize target = (gssize) insn->address +
-            (op->imm & 0x8000 ? (0xffff0000 + op->imm) << 2 : op->imm << 2);
-          gssize offset =
+          cs_mips_op * op;
+          gssize target, offset;
+
+          op = d->op_count == 3 ? &d->operands[2] : &d->operands[1];
+
+          g_assert_cmpint (op->type, ==, MIPS_OP_IMM);
+          target = (gssize) insn->address +
+              (op->imm & 0x8000 ? (0xffff0000 + op->imm) << 2 : op->imm << 2);
+          offset =
               target - (gssize) GPOINTER_TO_SIZE (address);
           if (offset > 0 && offset < (gssize) n)
             n = offset;
@@ -472,8 +479,8 @@ gum_mips_relocator_can_relocate (gpointer address,
 
 guint
 gum_mips_relocator_relocate (gpointer from,
-                              guint min_bytes,
-                              gpointer to)
+                             guint min_bytes,
+                             gpointer to)
 {
   GumMipsWriter cw;
   GumMipsRelocator rl;
@@ -526,5 +533,4 @@ gum_mips_has_delay_slot (const cs_insn * insn)
     default:
       return FALSE;
   }
-
 }

@@ -351,7 +351,7 @@ gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
   gum_mips_writer_put_argument_list_setup (self, n_args, vl);
   va_end (vl);
 
-  if (gum_mips_writer_can_branch_address (self->pc, func))
+  if (gum_mips_writer_can_branch_directly_between (self->pc, func))
   {
     gum_mips_writer_put_jal_address (self, func);
   }
@@ -429,7 +429,6 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
         gum_mips_writer_put_la_reg_address (self, MIPS_REG_A0,
             arg->value.address);
         gum_mips_writer_put_push_reg (self, MIPS_REG_A0);
-
       }
       else
       {
@@ -451,8 +450,8 @@ gum_mips_writer_put_argument_list_teardown (GumMipsWriter * self,
 }
 
 gboolean
-gum_mips_writer_can_branch_address (GumAddress from,
-                                    GumAddress to)
+gum_mips_writer_can_branch_directly_between (GumAddress from,
+                                             GumAddress to)
 {
   gint64 lower_limit = (from & 0xf0000000);
   gint64 upper_limit = (from & 0xf0000000) + GUM_INT28_MASK;
@@ -464,9 +463,8 @@ void
 gum_mips_writer_put_j_address (GumMipsWriter * self,
                                GumAddress address)
 {
-
-  g_assert_cmpint (address & 0xf0000000, ==, self->pc & 0xf0000000);
-  g_assert_cmpint (address % 4, ==, 0);
+  g_assert_cmpuint (address & 0xf0000000, ==, self->pc & 0xf0000000);
+  g_assert_cmpuint (address % 4, ==, 0);
 
   gum_mips_writer_put_instruction (self,
       0x08000000 | ((address & GUM_INT28_MASK) / 4));
@@ -547,13 +545,13 @@ gum_mips_writer_put_lui_reg_imm (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_ori_reg_reg_imm (GumMipsWriter * self,
-                                     mips_reg dest_reg,
+                                     mips_reg dst_reg,
                                      mips_reg src_reg,
                                      guint imm)
 {
   GumMipsRegInfo rt, rs;
 
-  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, dst_reg, &rt);
   gum_mips_writer_describe_reg (self, src_reg, &rs);
 
   gum_mips_writer_put_instruction (self, 0x34000000 | (rt.index << 16) |
@@ -562,13 +560,13 @@ gum_mips_writer_put_ori_reg_reg_imm (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
-                                       mips_reg dest_reg,
+                                       mips_reg dst_reg,
                                        mips_reg base_reg,
                                        gsize src_offset)
 {
   GumMipsRegInfo rt, rb;
 
-  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, dst_reg, &rt);
   gum_mips_writer_describe_reg (self, base_reg, &rb);
 
   gum_mips_writer_put_instruction (self, 0x8c000000 | (rb.index << 21) |
@@ -600,13 +598,13 @@ gum_mips_writer_put_mov_reg_reg (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
-                                      mips_reg dest_reg,
+                                      mips_reg dst_reg,
                                       mips_reg left_reg,
                                       mips_reg right_reg)
 {
   GumMipsRegInfo rs, rt, rd;
 
-  gum_mips_writer_describe_reg (self, dest_reg, &rd);
+  gum_mips_writer_describe_reg (self, dst_reg, &rd);
   gum_mips_writer_describe_reg (self, left_reg, &rs);
   gum_mips_writer_describe_reg (self, right_reg, &rt);
 
@@ -616,13 +614,13 @@ gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
-                                      mips_reg dest_reg,
+                                      mips_reg dst_reg,
                                       mips_reg left_reg,
                                       gint32 imm)
 {
   GumMipsRegInfo rt, rs;
 
-  gum_mips_writer_describe_reg (self, dest_reg, &rt);
+  gum_mips_writer_describe_reg (self, dst_reg, &rt);
   gum_mips_writer_describe_reg (self, left_reg, &rs);
 
   gum_mips_writer_put_instruction (self, 0x20000000 | (rs.index << 21) |
@@ -631,21 +629,20 @@ gum_mips_writer_put_addi_reg_reg_imm (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_addi_reg_imm (GumMipsWriter * self,
-                                  mips_reg dest_reg,
+                                  mips_reg dst_reg,
                                   gint32 imm)
 {
-  gum_mips_writer_put_addi_reg_reg_imm (self, dest_reg, dest_reg, imm);
+  gum_mips_writer_put_addi_reg_reg_imm (self, dst_reg, dst_reg, imm);
 }
 
 void
 gum_mips_writer_put_sub_reg_reg_imm (GumMipsWriter * self,
-                                     mips_reg dest_reg,
+                                     mips_reg dst_reg,
                                      mips_reg left_reg,
                                      gint32 imm)
 {
-  gum_mips_writer_put_addi_reg_reg_imm (self, dest_reg, left_reg, -imm);
+  gum_mips_writer_put_addi_reg_reg_imm (self, dst_reg, left_reg, -imm);
 }
-
 
 void
 gum_mips_writer_put_push_reg (GumMipsWriter * self,
@@ -707,8 +704,6 @@ gum_mips_writer_put_mtlo_reg (GumMipsWriter * self,
   gum_mips_writer_put_instruction (self, 0x00000013 | (rs.index << 21));
 }
 
-
-
 void
 gum_mips_writer_put_nop (GumMipsWriter * self)
 {
@@ -720,7 +715,6 @@ gum_mips_writer_put_break (GumMipsWriter * self)
 {
   gum_mips_writer_put_instruction (self, 0x0000000d);
 }
-
 
 void
 gum_mips_writer_put_instruction (GumMipsWriter * self,

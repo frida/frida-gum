@@ -63,7 +63,7 @@
 #elif defined (HAVE_ARM64)
 # define GUM_TEST_SHLIB_ARCH "arm64"
 #elif defined (HAVE_MIPS)
-# if defined (G_LITTLE_ENDIAN)
+# if G_BYTE_ORDER == G_LITTLE_ENDIAN
 #  define GUM_TEST_SHLIB_ARCH "mipsel"
 # else
 #  define GUM_TEST_SHLIB_ARCH "mips"

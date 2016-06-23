@@ -41,7 +41,7 @@ gum_mips_backtracer_class_init (GumMipsBacktracerClass * klass)
 
 static void
 gum_mips_backtracer_iface_init (gpointer g_iface,
-                                 gpointer iface_data)
+                                gpointer iface_data)
 {
   GumBacktracerIface * iface = (GumBacktracerIface *) g_iface;
 
@@ -64,17 +64,8 @@ gum_mips_backtracer_dispose (GObject * object)
   GumMipsBacktracer * self = GUM_MIPS_BACKTRACER (object);
   GumMipsBacktracerPrivate * priv = self->priv;
 
-  if (priv->code != NULL)
-  {
-    g_object_unref (priv->code);
-    priv->code = NULL;
-  }
-
-  if (priv->writable != NULL)
-  {
-    g_object_unref (priv->writable);
-    priv->writable = NULL;
-  }
+  g_clear_object (&priv->code);
+  g_clear_object (&priv->writable);
 
   G_OBJECT_CLASS (gum_mips_backtracer_parent_class)->dispose (object);
 }
@@ -87,8 +78,8 @@ gum_mips_backtracer_new (void)
 
 static void
 gum_mips_backtracer_generate (GumBacktracer * backtracer,
-                               const GumCpuContext * cpu_context,
-                               GumReturnAddressArray * return_addresses)
+                              const GumCpuContext * cpu_context,
+                              GumReturnAddressArray * return_addresses)
 {
   GumMipsBacktracer * self = GUM_MIPS_BACKTRACER_CAST (backtracer);
   GumMipsBacktracerPrivate * priv = self->priv;

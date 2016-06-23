@@ -121,17 +121,17 @@ endif
 if ARCH_MIPS
 archincludedir = $(includedir)/frida-1.0/gum/arch-mips
 archinclude_HEADERS = \
-    arch-mips/gummipsbacktracer.h \
-    arch-mips/gummipsreader.h
+	arch-mips/gummipsbacktracer.h \
+	arch-mips/gummipsreader.h
 arch_sources += \
-    arch-mips/gummipsbacktracer.c \
-    arch-mips/gummipsreader.c
+	arch-mips/gummipsbacktracer.c \
+	arch-mips/gummipsreader.c
 arch_includes += \
 	-I $(srcdir)/arch-mips
 backend_sources += \
-    backend-mips/guminterceptor-mips.c \
-    backend-mips/gumspinlock-mips.c \
-    backend-mips/gumstalker-mips.c
+	backend-mips/guminterceptor-mips.c \
+	backend-mips/gumspinlock-mips.c \
+	backend-mips/gumstalker-mips.c
 endif
 
 if OS_LINUX

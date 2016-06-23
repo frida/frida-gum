@@ -11,7 +11,7 @@
 
 G_BEGIN_DECLS
 
-gpointer gum_arm64_reader_try_get_relative_jump_target (gconstpointer address);
+gpointer gum_mips_reader_try_get_relative_jump_target (gconstpointer address);
 
 G_END_DECLS
 
