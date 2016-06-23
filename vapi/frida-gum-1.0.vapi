@@ -14,7 +14,8 @@ namespace Gum {
 		IA32,
 		AMD64,
 		ARM,
-		ARM64
+		ARM64,
+		MIPS,
 	}
 
 	[Compact]

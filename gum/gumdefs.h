@@ -25,12 +25,14 @@
 # else
 #  define GUM_NATIVE_CPU GUM_CPU_AMD64
 # endif
-#else
+#elif defined (__arm__) || defined (__aarch64__)
 # if GLIB_SIZEOF_VOID_P == 4
 #  define GUM_NATIVE_CPU GUM_CPU_ARM
 # else
 #  define GUM_NATIVE_CPU GUM_CPU_ARM64
 # endif
+#elif defined (__mips__)
+# define GUM_NATIVE_CPU GUM_CPU_MIPS
 #endif
 #ifdef G_OS_WIN32
 # define GUM_NATIVE_ABI            GUM_ABI_WINDOWS
@@ -80,7 +82,8 @@ enum _GumCpuType
   GUM_CPU_IA32,
   GUM_CPU_AMD64,
   GUM_CPU_ARM,
-  GUM_CPU_ARM64
+  GUM_CPU_ARM64,
+  GUM_CPU_MIPS
 };
 
 enum _GumArgType

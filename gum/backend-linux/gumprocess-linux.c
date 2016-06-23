@@ -1012,6 +1012,9 @@ gum_linux_cpu_type_from_file (const gchar * path,
     case 0x00b7:
       result = GUM_CPU_ARM64;
       break;
+    case 0x0008:
+      result = GUM_CPU_MIPS;
+      break;
     default:
       g_set_error (error, G_IO_ERROR, G_IO_ERROR_NOT_SUPPORTED,
           "Unsupported executable");
@@ -1044,10 +1047,14 @@ gum_linux_cpu_type_from_pid (pid_t pid,
   if (!g_file_get_contents (auxv_path, (gchar **) &auxv, &auxv_size, error))
     goto beach;
 
-#ifdef HAVE_I386
+#if defined (HAVE_I386)
   result = GUM_CPU_AMD64;
-#else
+#elif defined (HAVE_ARM64)
   result = GUM_CPU_ARM64;
+#elif defined (HAVE_MIPS)
+  result = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
 #endif
 
   for (i = 0; i < auxv_size; i += 16)
@@ -1055,10 +1062,14 @@ gum_linux_cpu_type_from_pid (pid_t pid,
     if (auxv[4] != 0 || auxv[5] != 0 ||
         auxv[6] != 0 || auxv[7] != 0)
     {
-#ifdef HAVE_I386
+#if defined (HAVE_I386)
       result = GUM_CPU_IA32;
-#else
+#elif defined (HAVE_ARM)
       result = GUM_CPU_ARM;
+#elif defined (HAVE_MIPS)
+      result = GUM_CPU_MIPS;
+#else
+# error Unsupported architecture
 #endif
       break;
     }
