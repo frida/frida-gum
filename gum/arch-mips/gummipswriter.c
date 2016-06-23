@@ -327,18 +327,6 @@ gum_mips_writer_add_label_reference_here (GumMipsWriter * self,
   r->insn = self->code;
 }
 
-static void
-gum_mips_writer_add_literal_reference_here (GumMipsWriter * self,
-                                            guint64 val)
-{
-  GumMipsLiteralRef * r = &self->literal_refs[self->literal_refs_len++];
-
-  g_assert_cmpuint (self->literal_refs_len, <=, GUM_MAX_LITERAL_REF_COUNT);
-
-  r->insn = self->code;
-  r->val = val;
-}
-
 void
 gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
                                                  GumAddress func,
@@ -648,7 +636,8 @@ void
 gum_mips_writer_put_push_reg (GumMipsWriter * self,
                               mips_reg reg)
 {
-  gum_mips_writer_put_addi_reg_imm (self, MIPS_REG_SP, -sizeof(guint32));
+  gum_mips_writer_put_addi_reg_imm (self, MIPS_REG_SP,
+      -((gint32) sizeof (guint32)));
   gum_mips_writer_put_sw_reg_reg_offset (self, reg, MIPS_REG_SP, 0);
 }
 
@@ -657,7 +646,7 @@ gum_mips_writer_put_pop_reg (GumMipsWriter * self,
                              mips_reg reg)
 {
   gum_mips_writer_put_lw_reg_reg_offset (self, reg, MIPS_REG_SP, 0);
-  gum_mips_writer_put_addi_reg_imm (self, MIPS_REG_SP, sizeof(guint32));
+  gum_mips_writer_put_addi_reg_imm (self, MIPS_REG_SP, sizeof (guint32));
 }
 
 void
