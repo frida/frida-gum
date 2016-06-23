@@ -202,8 +202,8 @@ gum_arm64_writer_flush (GumArm64Writer * self)
       insn = GUINT32_FROM_LE (*r->insn);
       if (insn == 0x14000000)
       {
-        g_assert (GUM_IS_WITHIN_INT28_RANGE (distance));
-        insn |= distance & GUM_INT28_MASK;
+        g_assert (GUM_IS_WITHIN_INT26_RANGE (distance));
+        insn |= distance & GUM_INT26_MASK;
       }
       else if ((insn & 0x7e000000) == 0x36000000)
       {
@@ -434,7 +434,7 @@ gum_arm64_writer_put_b_imm (GumArm64Writer * self,
   g_assert_cmpint (distance % 4, ==, 0);
 
   gum_arm64_writer_put_instruction (self,
-      0x14000000 | ((distance / 4) & GUM_INT28_MASK));
+      0x14000000 | ((distance / 4) & GUM_INT26_MASK));
 }
 
 void
@@ -464,7 +464,7 @@ gum_arm64_writer_put_bl_imm (GumArm64Writer * self,
   g_assert_cmpint (distance % 4, ==, 0);
 
   gum_arm64_writer_put_instruction (self,
-      0x94000000 | ((distance / 4) & GUM_INT28_MASK));
+      0x94000000 | ((distance / 4) & GUM_INT26_MASK));
 }
 
 void

@@ -318,6 +318,7 @@ enum _GumRelocationScenario
 #define GUM_INT14_MASK 0x00003fff
 #define GUM_INT16_MASK 0x0000ffff
 #define GUM_INT19_MASK 0x0007ffff
+#define GUM_INT26_MASK 0x03ffffff
 #define GUM_INT28_MASK 0x0fffffff
 
 #define GUM_IS_WITHIN_UINT7_RANGE(i) \
@@ -341,6 +342,9 @@ enum _GumRelocationScenario
 #define GUM_IS_WITHIN_INT21_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-1048576) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (1048575))
+#define GUM_IS_WITHIN_INT26_RANGE(i) \
+    (((gint64) (i)) >= G_GINT64_CONSTANT (-33554432) && \
+     ((gint64) (i)) <= G_GINT64_CONSTANT (33554431))
 #define GUM_IS_WITHIN_INT28_RANGE(i) \
     (((gint64) (i)) >= G_GINT64_CONSTANT (-134217728) && \
      ((gint64) (i)) <= G_GINT64_CONSTANT (134217727))
