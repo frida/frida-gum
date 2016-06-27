@@ -60,6 +60,9 @@ void gum_mips_writer_put_j_label (GumMipsWriter * self,
 void gum_mips_writer_put_jr_reg (GumMipsWriter * self, mips_reg reg);
 void gum_mips_writer_put_jal_address (GumMipsWriter * self, guint32 address);
 void gum_mips_writer_put_jalr_reg (GumMipsWriter * self, mips_reg reg);
+void gum_mips_writer_put_b_offset (GumMipsWriter * self, gint32 offset);
+void gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
+    mips_reg right_reg, mips_reg left_reg, gconstpointer label_id)
 void gum_mips_writer_put_ret (GumMipsWriter * self);
 
 void gum_mips_writer_put_la_reg_address (GumMipsWriter * self, mips_reg reg,

@@ -214,9 +214,16 @@ gum_mips_writer_flush (GumMipsWriter * self)
       distance = ((gssize) target_address - (gssize) r->insn) / 4;
 
       insn = *r->insn;
+      /* j <int16> */
       if (insn == 0x08000000)
       {
-        g_assert (GUM_IS_WITHIN_INT16_RANGE (distance));
+        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
+        insn |= distance & GUM_INT16_MASK;
+      }
+      /* beq <int16> */
+      else if ((insn & 0xfc000000) == 0x10000000)
+      {
+        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
         insn |= distance & GUM_INT16_MASK;
       }
       /* TODO: conditional branches */
@@ -492,6 +499,31 @@ gum_mips_writer_put_jalr_reg (GumMipsWriter * self,
 
   gum_mips_writer_put_instruction (self, 0x00000009 | (ri.index << 21) |
       (GUM_MREG_RA << 11));
+  gum_mips_writer_put_nop (self);
+}
+
+void
+gum_mips_writer_put_b_offset (GumMipsWriter * self,
+                              gint32 offset)
+{
+  gum_mips_writer_put_instruction (self, 0x10000000 | ((offset >> 2) & 0xffff));
+  gum_mips_writer_put_nop (self);
+}
+
+void
+gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
+                                       mips_reg right_reg,
+                                       mips_reg left_reg,
+                                       gconstpointer label_id)
+{
+  GumMipsRegInfo rs, rt;
+
+  gum_mips_writer_describe_reg (self, right_reg, &rs);
+  gum_mips_writer_describe_reg (self, left_reg, &rt);
+
+  gum_mips_writer_add_label_reference_here (self, label_id);
+  gum_mips_writer_put_instruction (self, 0x01000000 | (rs.index << 21) |
+      (rt.index << 16));
   gum_mips_writer_put_nop (self);
 }
 
