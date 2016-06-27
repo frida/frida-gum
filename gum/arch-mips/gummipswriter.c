@@ -603,8 +603,8 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
 
 void
 gum_mips_writer_put_move_reg_reg (GumMipsWriter * self,
-                                 mips_reg dst_reg,
-                                 mips_reg src_reg)
+                                  mips_reg dst_reg,
+                                  mips_reg src_reg)
 {
   gum_mips_writer_put_addu_reg_reg_reg (self, dst_reg, src_reg, MIPS_REG_ZERO);
 }
