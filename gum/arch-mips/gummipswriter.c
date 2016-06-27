@@ -214,9 +214,16 @@ gum_mips_writer_flush (GumMipsWriter * self)
       distance = ((gssize) target_address - (gssize) r->insn) / 4;
 
       insn = *r->insn;
+      /* j <int16> */
       if (insn == 0x08000000)
       {
-        g_assert (GUM_IS_WITHIN_INT16_RANGE (distance));
+        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
+        insn |= distance & GUM_INT16_MASK;
+      }
+      /* beq <int16> */
+      else if ((insn & 0xfc000000) == 0x10000000)
+      {
+        g_assert (GUM_IS_WITHIN_INT18_RANGE (distance << 2));
         insn |= distance & GUM_INT16_MASK;
       }
       /* TODO: conditional branches */
@@ -339,16 +346,9 @@ gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
   gum_mips_writer_put_argument_list_setup (self, n_args, vl);
   va_end (vl);
 
-  if (gum_mips_writer_can_branch_directly_between (self->pc, func))
-  {
-    gum_mips_writer_put_jal_address (self, func);
-  }
-  else
-  {
-    mips_reg target = MIPS_REG_T9;
-    gum_mips_writer_put_la_reg_address (self, target, func);
-    gum_mips_writer_put_jalr_reg (self, target);
-  }
+  mips_reg target = MIPS_REG_T9;
+  gum_mips_writer_put_la_reg_address (self, target, func);
+  gum_mips_writer_put_jalr_reg (self, target);
 
   gum_mips_writer_put_argument_list_teardown (self, n_args);
 }
@@ -407,7 +407,7 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
       else
       {
         if (arg->value.reg != r)
-          gum_mips_writer_put_mov_reg_reg (self, r, arg->value.reg);
+          gum_mips_writer_put_move_reg_reg (self, r, arg->value.reg);
       }
     }
     else
@@ -503,6 +503,31 @@ gum_mips_writer_put_jalr_reg (GumMipsWriter * self,
 }
 
 void
+gum_mips_writer_put_b_offset (GumMipsWriter * self,
+                              gint32 offset)
+{
+  gum_mips_writer_put_instruction (self, 0x10000000 | ((offset >> 2) & 0xffff));
+  gum_mips_writer_put_nop (self);
+}
+
+void
+gum_mips_writer_put_beq_reg_reg_label (GumMipsWriter * self,
+                                       mips_reg right_reg,
+                                       mips_reg left_reg,
+                                       gconstpointer label_id)
+{
+  GumMipsRegInfo rs, rt;
+
+  gum_mips_writer_describe_reg (self, right_reg, &rs);
+  gum_mips_writer_describe_reg (self, left_reg, &rt);
+
+  gum_mips_writer_add_label_reference_here (self, label_id);
+  gum_mips_writer_put_instruction (self, 0x01000000 | (rs.index << 21) |
+      (rt.index << 16));
+  gum_mips_writer_put_nop (self);
+}
+
+void
 gum_mips_writer_put_ret (GumMipsWriter * self)
 {
   gum_mips_writer_put_jr_reg (self, MIPS_REG_RA);
@@ -577,9 +602,9 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
 }
 
 void
-gum_mips_writer_put_mov_reg_reg (GumMipsWriter * self,
-                                 mips_reg dst_reg,
-                                 mips_reg src_reg)
+gum_mips_writer_put_move_reg_reg (GumMipsWriter * self,
+                                  mips_reg dst_reg,
+                                  mips_reg src_reg)
 {
   gum_mips_writer_put_addu_reg_reg_reg (self, dst_reg, src_reg, MIPS_REG_ZERO);
 }
