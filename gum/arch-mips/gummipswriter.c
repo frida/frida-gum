@@ -339,16 +339,9 @@ gum_mips_writer_put_call_address_with_arguments (GumMipsWriter * self,
   gum_mips_writer_put_argument_list_setup (self, n_args, vl);
   va_end (vl);
 
-  if (gum_mips_writer_can_branch_directly_between (self->pc, func))
-  {
-    gum_mips_writer_put_jal_address (self, func);
-  }
-  else
-  {
-    mips_reg target = MIPS_REG_T9;
-    gum_mips_writer_put_la_reg_address (self, target, func);
-    gum_mips_writer_put_jalr_reg (self, target);
-  }
+  mips_reg target = MIPS_REG_T9;
+  gum_mips_writer_put_la_reg_address (self, target, func);
+  gum_mips_writer_put_jalr_reg (self, target);
 
   gum_mips_writer_put_argument_list_teardown (self, n_args);
 }
