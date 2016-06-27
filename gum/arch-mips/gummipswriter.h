@@ -72,7 +72,7 @@ void gum_mips_writer_put_lw_reg_reg_offset (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg src_reg, gsize src_offset);
 void gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
     mips_reg src_reg, mips_reg dst_reg, gsize dst_offset);
-void gum_mips_writer_put_mov_reg_reg (GumMipsWriter * self, mips_reg dst_reg,
+void gum_mips_writer_put_move_reg_reg (GumMipsWriter * self, mips_reg dst_reg,
     mips_reg src_reg);
 void gum_mips_writer_put_addu_reg_reg_reg (GumMipsWriter * self,
     mips_reg dst_reg, mips_reg left_reg, mips_reg right_reg);

@@ -407,7 +407,7 @@ gum_mips_writer_put_argument_list_setup (GumMipsWriter * self,
       else
       {
         if (arg->value.reg != r)
-          gum_mips_writer_put_mov_reg_reg (self, r, arg->value.reg);
+          gum_mips_writer_put_move_reg_reg (self, r, arg->value.reg);
       }
     }
     else
@@ -577,7 +577,7 @@ gum_mips_writer_put_sw_reg_reg_offset (GumMipsWriter * self,
 }
 
 void
-gum_mips_writer_put_mov_reg_reg (GumMipsWriter * self,
+gum_mips_writer_put_move_reg_reg (GumMipsWriter * self,
                                  mips_reg dst_reg,
                                  mips_reg src_reg)
 {
