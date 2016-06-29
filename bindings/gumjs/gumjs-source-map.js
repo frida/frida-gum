@@ -292,7 +292,12 @@
         const isConstructor = this.isConstructor();
         const isMethodCall = !(this.isToplevel() || isConstructor);
         if (isMethodCall) {
-            const typeName = this.getTypeName();
+            let typeName;
+            try {
+                const typeName = this.getTypeName();
+            } catch (e) {
+                typeName = 'Proxy';
+            }
             const methodName = this.getMethodName();
             if (functionName) {
                 if (typeName && functionName.indexOf(typeName) != 0) {
