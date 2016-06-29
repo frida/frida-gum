@@ -294,7 +294,7 @@
         if (isMethodCall) {
             let typeName;
             try {
-                const typeName = this.getTypeName();
+                typeName = this.getTypeName();
             } catch (e) {
                 typeName = 'Proxy';
             }
