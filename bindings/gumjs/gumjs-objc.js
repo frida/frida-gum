@@ -654,7 +654,7 @@
                         }
                     }
 
-                    return Array.from(objCObjectBuiltins).concat(cachedMethodNames);
+                    return ['handle'].concat(cachedMethodNames);
                 },
                 ownKeys() {
                     return this.keys();
