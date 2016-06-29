@@ -400,7 +400,8 @@
             "$className",
             "$protocols",
             "$methods",
-            "$ownMethods"
+            "$ownMethods",
+            "$ivars"
         ]);
 
         function ObjCObject(handle, protocol, cachedIsClass, superSpecifier) {
@@ -418,6 +419,7 @@
             const replacedMethods = {};
             let cachedNativeMethodNames = null;
             let cachedOwnMethodNames = null;
+            let cachedIvars = null;
             let weakRef = null;
 
             handle = getHandle(handle);
@@ -561,6 +563,14 @@
                                 cachedOwnMethodNames = classMethods.concat(instanceMethods);
                             }
                             return cachedOwnMethodNames;
+                        case "$ivars":
+                            if (cachedIvars === null) {
+                                if (isClass())
+                                    cachedIvars = {};
+                                else
+                                    cachedIvars = new ObjCIvars(self, classHandle());
+                            }
+                            return cachedIvars;
                         default:
                             if (protocol) {
                                 const details = findProtocolMethod(name);
@@ -1011,6 +1021,153 @@
                 } finally {
                     api.free(methodDescValues);
                 }
+            }
+        }
+
+        const objCIvarsBuiltins = new Set([
+            "prototype",
+            "constructor",
+            "hasOwnProperty",
+            "toJSON",
+            "toString",
+            "valueOf"
+        ]);
+
+        function ObjCIvars(instance, classHandle) {
+            const ivars = {};
+
+            let classHandles = [];
+
+            let currentClassHandle = classHandle;
+            do {
+                classHandles.unshift(currentClassHandle);
+                currentClassHandle = api.class_getSuperclass(currentClassHandle);
+            } while (!currentClassHandle.isNull());
+
+            const numIvarsBuf = Memory.alloc(pointerSize);
+            classHandles.forEach(c => {
+                const ivarHandles = api.class_copyIvarList(c, numIvarsBuf);
+                try {
+                    const numIvars = Memory.readUInt(numIvarsBuf);
+                    for (let i = 0; i !== numIvars; i++) {
+                        const handle = Memory.readPointer(ivarHandles.add(i * pointerSize));
+                        const name = Memory.readUtf8String(api.ivar_getName(handle));
+                        ivars[name] = [handle, null];
+                    }
+                } finally {
+                    api.free(ivarHandles);
+                }
+            });
+
+            const original = this;
+            const self = new Proxy(original, {
+                has(targetOrName, name) {
+                    /* workaround for v8 passing only a single argument */
+                    const propName = (name !== undefined) ? name : targetOrName;
+                    return hasProperty(propName);
+                },
+                get(target, name, receiver) {
+                    /* V8 kludge */
+                    if (receiver === undefined)
+                        receiver = self;
+                    switch (name) {
+                        case "prototype":
+                            return original.prototype;
+                        case "constructor":
+                            return original.constructor;
+                        case "hasOwnProperty":
+                            return hasProperty;
+                        case "toJSON":
+                            return toJSON;
+                        case "toString":
+                            return toString;
+                        case "valueOf":
+                            return valueOf;
+                        default:
+                            const ivar = findIvar(name);
+                            if (ivar === null)
+                                return undefined;
+                            return ivar.get();
+                    }
+                },
+                set(target, name, value) {
+                    const ivar = findIvar(name);
+                    if (ivar === null)
+                        throw new Error("Unknown ivar");
+                    ivar.set(value);
+                    return true;
+                },
+                enumerate() {
+                    return this.keys();
+                },
+                iterate() {
+                    const props = this.keys();
+                    let i = 0;
+                    return {
+                        next() {
+                            if (i === props.length)
+                                throw StopIteration;
+                            return props[i++];
+                        }
+                    };
+                },
+                keys() {
+                    return Object.keys(ivars);
+                },
+                ownKeys() {
+                    return this.keys();
+                }
+            });
+
+            return self;
+
+            function findIvar(name) {
+                const entry = ivars[name];
+                if (entry === undefined)
+                    return null;
+                let impl = entry[1];
+                if (impl === null) {
+                    const ivar = entry[0];
+
+                    const offset = api.ivar_getOffset(ivar).toInt32();
+                    const address = instance.handle.add(offset);
+
+                    const type = parseType(Memory.readUtf8String(api.ivar_getTypeEncoding(ivar)));
+                    const fromNative = type.fromNative || identityTransform;
+                    const toNative = type.toNative || identityTransform;
+
+                    impl = {
+                        get() {
+                            return fromNative.call(instance, type.read(address));
+                        },
+                        set(value) {
+                            type.write(address, toNative.call(instance, value));
+                        }
+                    };
+                    entry[1] = impl;
+                }
+                return impl;
+            }
+
+            function hasProperty(name) {
+                if (objCIvarsBuiltins.has(name))
+                    return true;
+                return ivars.hasOwnProperty(name);
+            }
+
+            function toJSON() {
+                return Object.keys(self).reduce(function (result, name) {
+                    result[name] = self[name];
+                    return result;
+                }, {});
+            }
+
+            function toString() {
+                return "ObjCIvars";
+            }
+
+            function valueOf() {
+                return "ObjCIvars";
             }
         }
 
@@ -1793,6 +1950,12 @@
             };
         }
 
+        function parseType(type) {
+            const cursor = [type, 0];
+
+            return readType(cursor);
+        }
+
         function readType(cursor) {
             while (true) {
                 let id = readChar(cursor);
@@ -1975,7 +2138,23 @@
 
         function arrayType(length, elementType) {
             return {
-                type: 'pointer'
+                type: 'pointer',
+                read: function (address) {
+                    const result = [];
+
+                    const elementSize = elementType.size;
+                    for (let index = 0; index !== length; index++) {
+                        result.push(elementType.read(address.add(index * elementSize)));
+                    }
+
+                    return result;
+                },
+                write: function (address, values) {
+                    const elementSize = elementType.size;
+                    values.forEach((value, index) => {
+                        elementType.write(address.add(index * elementSize), value);
+                    });
+                }
             };
         }
 
@@ -2021,6 +2200,22 @@
                 size: fieldTypes.reduce(function (totalSize, t) {
                     return totalSize + t.size;
                 }, 0),
+                read: function (address) {
+                    let source = address;
+                    return fieldTypes.map((type, index) => {
+                        const result = type.read(source);
+                        source = source.add(type.size);
+                        return result;
+                    });
+                },
+                write: function (address, values) {
+                    let target = address;
+                    values.forEach((value, index) => {
+                        const type = fieldTypes[index];
+                        type.write(target, value);
+                        target = target.add(type.size);
+                    });
+                },
                 fromNative: fromNative,
                 toNative: toNative
             };
@@ -2061,6 +2256,8 @@
             return {
                 type: [largestType.type],
                 size: largestType.size,
+                read: largestType.read,
+                write: largestType.write,
                 fromNative: fromNative,
                 toNative: toNative
             };
@@ -2070,6 +2267,8 @@
             'c': {
                 type: 'char',
                 size: 1,
+                read: Memory.readS8,
+                write: Memory.writeS8,
                 toNative: function (v) {
                     if (typeof v === 'boolean') {
                         return v ? 1 : 0;
@@ -2079,51 +2278,75 @@
             },
             'i': {
                 type: 'int',
-                size: 4
+                size: 4,
+                read: Memory.readInt,
+                write: Memory.writeInt
             },
             's': {
                 type: 'int16',
-                size: 2
+                size: 2,
+                read: Memory.readS16,
+                write: Memory.writeS16
             },
             'l': {
                 type: 'int32',
-                size: 4
+                size: 4,
+                read: Memory.readS32,
+                write: Memory.writeS32
             },
             'q': {
                 type: 'int64',
-                size: 8
+                size: 8,
+                read: Memory.readS64,
+                write: Memory.writeS64
             },
             'C': {
                 type: 'uchar',
-                size: 1
+                size: 1,
+                read: Memory.readU8,
+                write: Memory.writeU8,
             },
             'I': {
                 type: 'uint',
-                size: 4
+                size: 4,
+                read: Memory.readUInt,
+                write: Memory.writeUInt
             },
             'S': {
                 type: 'uint16',
-                size: 2
+                size: 2,
+                read: Memory.readU16,
+                write: Memory.writeU16
             },
             'L': {
                 type: 'uint32',
-                size: 4
+                size: 4,
+                read: Memory.readU32,
+                write: Memory.writeU32
             },
             'Q': {
                 type: 'uint64',
-                size: 8
+                size: 8,
+                read: Memory.readU64,
+                write: Memory.writeU64
             },
             'f': {
                 type: 'float',
-                size: 4
+                size: 4,
+                read: Memory.readFloat,
+                write: Memory.writeFloat
             },
             'd': {
                 type: 'double',
-                size: 8
+                size: 8,
+                read: Memory.readDouble,
+                write: Memory.writeDouble
             },
             'B': {
                 type: 'bool',
                 size: 1,
+                read: Memory.readU8,
+                write: Memory.writeU8,
                 fromNative: function (v) {
                     return v ? true : false;
                 },
@@ -2138,6 +2361,8 @@
             '*': {
                 type: 'pointer',
                 size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer,
                 fromNative: function (h) {
                     if (h.isNull()) {
                         return null;
@@ -2148,28 +2373,38 @@
             '@': {
                 type: 'pointer',
                 size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer,
                 fromNative: fromNativeId,
                 toNative: toNativeId
             },
             '@?': {
                 type: 'pointer',
                 size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer,
                 fromNative: fromNativeBlock,
                 toNative: toNativeBlock
             },
             '#': {
                 type: 'pointer',
                 size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer,
                 fromNative: fromNativeId,
                 toNative: toNativeId
             },
             ':': {
                 type: 'pointer',
-                size: pointerSize
+                size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer
             },
             '?': {
                 type: 'pointer',
-                size: pointerSize
+                size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer
             }
         };
 
@@ -2225,6 +2460,7 @@
                     "class_getSuperclass": ['pointer', ['pointer']],
                     "class_addProtocol": ['bool', ['pointer', 'pointer']],
                     "class_addMethod": ['bool', ['pointer', 'pointer', 'pointer', 'pointer']],
+                    "class_copyIvarList": ['pointer', ['pointer', 'pointer']],
                     "objc_getProtocol": ['pointer', ['pointer']],
                     "objc_copyProtocolList": ['pointer', ['pointer']],
                     "objc_allocateProtocol": ['pointer', ['pointer']],
@@ -2235,6 +2471,9 @@
                     "protocol_copyProtocolList": ['pointer', ['pointer', 'pointer']],
                     "protocol_addProtocol": ['void', ['pointer', 'pointer']],
                     "protocol_addMethodDescription": ['void', ['pointer', 'pointer', 'pointer', 'bool', 'bool']],
+                    "ivar_getName": ['pointer', ['pointer']],
+                    "ivar_getTypeEncoding": ['pointer', ['pointer']],
+                    "ivar_getOffset": ['pointer', ['pointer']],
                     "object_isClass": ['bool', ['pointer']],
                     "object_getClass": ['pointer', ['pointer']],
                     "object_getClassName": ['pointer', ['pointer']],

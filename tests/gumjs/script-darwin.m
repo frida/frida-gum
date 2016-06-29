@@ -23,6 +23,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (protocols_can_be_retrieved)
   SCRIPT_TESTENTRY (all_method_names_can_be_retrieved)
   SCRIPT_TESTENTRY (own_method_names_can_be_retrieved)
+  SCRIPT_TESTENTRY (ivars_can_be_accessed)
   SCRIPT_TESTENTRY (class_method_can_be_invoked)
   SCRIPT_TESTENTRY (object_can_be_constructed_from_pointer)
   SCRIPT_TESTENTRY (string_can_be_constructed)
@@ -53,10 +54,19 @@ TEST_LIST_END ()
 - (int)magic;
 @end
 
-@interface FridaDefaultCalculator : NSObject<FridaCalculator>
+@interface FridaDefaultCalculator : NSObject<FridaCalculator> {
+  NSString * name;
+}
 @end
 
 @implementation FridaDefaultCalculator
+- (id)init {
+  self = [super init];
+  if (self) {
+    self->name = @"calc.exe";
+  }
+  return self;
+}
 - (int)add:(int)value { return 1337 + value; }
 - (void)add:(int)value completion:(void (^)(int, NSError *))block {
   dispatch_async (dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
@@ -289,6 +299,27 @@ SCRIPT_TESTCASE (own_method_names_can_be_retrieved)
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
     EXPECT_SEND_MESSAGE_WITH ("true");
+  }
+}
+
+SCRIPT_TESTCASE (ivars_can_be_accessed)
+{
+  @autoreleasepool
+  {
+    FridaDefaultCalculator * calc = [[[FridaDefaultCalculator alloc] init]
+        autorelease];
+
+    COMPILE_AND_LOAD_SCRIPT (
+        "var calc = new ObjC.Object(" GUM_PTR_CONST ");"
+        "send(calc.$ivars.name.toString());"
+        "calc.$ivars.name = 'Calculator';"
+        "send(calc.$ivars.name.toString());"
+        "send(Object.keys(calc.$ivars));",
+        calc);
+    EXPECT_SEND_MESSAGE_WITH ("\"calc.exe\"");
+    EXPECT_SEND_MESSAGE_WITH ("\"Calculator\"");
+    EXPECT_SEND_MESSAGE_WITH ("[\"isa\",\"name\"]");
+    EXPECT_NO_MESSAGES ();
   }
 }
 
