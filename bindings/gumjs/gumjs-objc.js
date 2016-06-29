@@ -164,6 +164,8 @@
         }
 
         const registryBuiltins = new Set([
+            "prototype",
+            "constructor",
             "hasOwnProperty",
             "toJSON",
             "toString",
@@ -174,7 +176,8 @@
             const cachedClasses = {};
             let numCachedClasses = 0;
 
-            const registry = new Proxy(this, {
+            const original = this;
+            const registry = new Proxy(original, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
@@ -182,6 +185,10 @@
                 },
                 get(target, name) {
                     switch (name) {
+                        case "prototype":
+                            return original.prototype;
+                        case "constructor":
+                            return original.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -278,7 +285,8 @@
         function ProtocolRegistry() {
             let cachedProtocols = {};
 
-            const registry = new Proxy(this, {
+            const original = this;
+            const registry = new Proxy(original, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
@@ -286,6 +294,10 @@
                 },
                 get(target, name) {
                     switch (name) {
+                        case "prototype":
+                            return original.prototype;
+                        case "constructor":
+                            return original.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -374,6 +386,7 @@
 
         const objCObjectBuiltins = new Set([
             "prototype",
+            "constructor",
             "handle",
             "hasOwnProperty",
             "toJSON",
@@ -421,7 +434,8 @@
                 }
             }
 
-            const self = new Proxy(this, {
+            const original = this;
+            const self = new Proxy(original, {
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
@@ -434,6 +448,10 @@
                     switch (name) {
                         case "handle":
                             return handle;
+                        case "prototype":
+                            return original.prototype;
+                        case "constructor":
+                            return original.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
