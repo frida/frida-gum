@@ -178,12 +178,12 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    return hasClass(propName);
+                    return hasProperty(propName);
                 },
                 get(target, name) {
                     switch (name) {
                         case "hasOwnProperty":
-                            return hasClass;
+                            return hasProperty;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -235,7 +235,7 @@
                 }
             });
 
-            function hasClass(name) {
+            function hasProperty(name) {
                 if (registryBuiltins.has(name))
                     return true;
                 return findClass(name) !== null;
@@ -282,12 +282,12 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    return hasProtocol(propName);
+                    return hasProperty(propName);
                 },
                 get(target, name) {
                     switch (name) {
                         case "hasOwnProperty":
-                            return hasProtocol;
+                            return hasProperty;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -339,7 +339,7 @@
                 }
             });
 
-            function hasProtocol(name) {
+            function hasProperty(name) {
                 if (registryBuiltins.has(name))
                     return true;
                 return findProtocol(name) !== null;
@@ -425,7 +425,7 @@
                 has(targetOrName, name) {
                     /* workaround for v8 passing only a single argument */
                     const propName = (name !== undefined) ? name : targetOrName;
-                    return hasMethod(propName);
+                    return hasProperty(propName);
                 },
                 get(target, name, receiver) {
                     /* V8 kludge */
@@ -435,7 +435,7 @@
                         case "handle":
                             return handle;
                         case "hasOwnProperty":
-                            return hasMethod;
+                            return hasProperty;
                         case "toJSON":
                             return toJSON;
                         case "toString":
@@ -649,7 +649,7 @@
 
             return self;
 
-            function hasMethod(name) {
+            function hasProperty(name) {
                 if (objCObjectBuiltins.has(name))
                     return true;
                 if (protocol) {
