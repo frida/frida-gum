@@ -146,6 +146,26 @@ gum_mips_backtracer_generate (GumBacktracer * backtracer,
           /* JALR $ra, <reg> */
           valid = TRUE;
         }
+        else if ((insn & 0xfc1f0000) == 0x04110000)
+        {
+          /* BGEZAL $rs, <imm16> */
+          valid = TRUE;
+        }
+        else if ((insn & 0xfc1f0000) == 0x04130000)
+        {
+          /* BGEZALL $rs, <imm16> */
+          valid = TRUE;
+        }
+        else if ((insn & 0xfc1f0000) == 0x04100000)
+        {
+          /* BLTZAL $rs, <imm16> */
+          valid = TRUE;
+        }
+        else if ((insn & 0xfc1f0000) == 0x04120000)
+        {
+          /* BLTZALL $rs, <imm16> */
+          valid = TRUE;
+        }
       }
     }
 
