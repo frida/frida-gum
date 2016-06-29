@@ -332,7 +332,7 @@
                     const protocolNames = [];
                     cachedProtocols = {};
                     const numProtocolsBuf = Memory.alloc(pointerSize);
-                    let protocolHandles = api.objc_copyProtocolList(numProtocolsBuf);
+                    const protocolHandles = api.objc_copyProtocolList(numProtocolsBuf);
                     try {
                         const numProtocols = Memory.readUInt(numProtocolsBuf);
                         for (let i = 0; i !== numProtocols; i++) {
