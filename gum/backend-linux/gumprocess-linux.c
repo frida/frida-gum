@@ -1049,7 +1049,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
 
 #if defined (HAVE_I386)
   result = GUM_CPU_AMD64;
-#elif defined (HAVE_ARM64)
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
   result = GUM_CPU_ARM64;
 #elif defined (HAVE_MIPS)
   result = GUM_CPU_MIPS;
@@ -1064,7 +1064,7 @@ gum_linux_cpu_type_from_pid (pid_t pid,
     {
 #if defined (HAVE_I386)
       result = GUM_CPU_IA32;
-#elif defined (HAVE_ARM)
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
       result = GUM_CPU_ARM;
 #elif defined (HAVE_MIPS)
       result = GUM_CPU_MIPS;
