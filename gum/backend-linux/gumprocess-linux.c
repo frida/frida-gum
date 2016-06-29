@@ -21,7 +21,7 @@
 #include <gio/gio.h>
 #include <sys/mman.h>
 #include <sys/ptrace.h>
-#if defined(HAVE_ARM) || defined (HAVE_MIPS)
+#if defined (HAVE_ARM) || defined (HAVE_MIPS)
 # include <asm/ptrace.h>
 #endif
 #include <sys/socket.h>
