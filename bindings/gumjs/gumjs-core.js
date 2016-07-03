@@ -168,7 +168,7 @@
                 result.push("\n");
 
             result.push(
-                offsetColor, "0x", pad(offset.toString(16), leftColumnWidth, "0"), resetColor,
+                offsetColor, pad(offset.toString(16), leftColumnWidth, "0"), resetColor,
                 columnPadding
             );
 
