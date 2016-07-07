@@ -672,11 +672,11 @@ SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
       "var buf = Memory.readByteArray(str, 22);"
       "send(hexdump(buf));");
   EXPECT_SEND_MESSAGE_WITH ("\""
-      "- offset -   0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
           "0123456789ABCDEF\\n"
-      "0x00000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+      "00000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
           "Hello hex world!\\n"
-      "0x00000010  20 77 30 30 74 00                                "
+      "00000010  20 77 30 30 74 00                                "
           " w00t.\"");
 }
 
