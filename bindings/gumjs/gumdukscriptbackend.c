@@ -170,6 +170,8 @@ gum_duk_script_backend_dispose (GObject * object)
 gpointer
 gum_duk_script_backend_create_heap (GumDukScriptBackend * self)
 {
+  (void) self;
+
   return duk_create_heap (gum_duk_alloc, gum_duk_realloc, gum_duk_free, NULL,
       gum_duk_script_backend_on_fatal_error);
 }
@@ -183,6 +185,8 @@ gum_duk_script_backend_push_program (GumDukScriptBackend * self,
 {
   gchar * url;
   gboolean valid;
+
+  (void) self;
 
   url = g_strconcat ("file:///", name, ".js", NULL);
 
