@@ -153,7 +153,7 @@
 
         if (showHeader) {
             result.push(
-                "- offset -",
+                "        ",
                 columnPadding,
                 hexLegend,
                 columnPadding,
