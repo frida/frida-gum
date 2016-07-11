@@ -302,7 +302,7 @@ _gum_interceptor_invocation_get_nth_argument (GumInvocationContext * context,
   }
   else
   {
-    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
+    gpointer * stack_argument = (gpointer *) (context->cpu_context->sp + 0x14);
 
     return stack_argument[n - 4];
   }
@@ -336,7 +336,7 @@ _gum_interceptor_invocation_replace_nth_argument (
   }
   else
   {
-    gpointer * stack_argument = (gpointer *) context->cpu_context->sp;
+    gpointer * stack_argument = (gpointer *) (context->cpu_context->sp + 0x14);
 
     stack_argument[n - 4] = value;
   }
