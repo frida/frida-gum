@@ -1967,7 +1967,6 @@
                     } else if (next === '"') {
                         skipChar(cursor);
                         readUntil('"', cursor);
-                        skipChar(cursor); // '"'
                     }
                 }
 
