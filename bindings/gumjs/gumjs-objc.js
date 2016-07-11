@@ -2093,6 +2093,9 @@
         };
 
         function typeIdFromAlias(alias) {
+            if (typeof alias === 'object' && alias !== null)
+                return `@"${alias.type}"`;
+
             const id = idByAlias[alias];
             if (id === undefined)
                 throw new Error("No known encoding for type " + alias);
