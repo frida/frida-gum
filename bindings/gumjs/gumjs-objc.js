@@ -2088,7 +2088,8 @@
             'object': '@',
             'block': '@?',
             'class': '#',
-            'selector': ':'
+            'selector': ':',
+            'pointer': '^v'
         };
 
         function typeIdFromAlias(alias) {
