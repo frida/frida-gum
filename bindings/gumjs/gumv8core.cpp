@@ -521,7 +521,7 @@ _gum_v8_core_init (GumV8Core * self,
       Integer::NewFromUnsigned (isolate, \
           G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
       DEFAULT, \
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete), \
+      DontDelete, \
       cpu_context_signature)
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED (R, R)

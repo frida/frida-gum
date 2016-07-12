@@ -77,6 +77,20 @@
 # define GUM_CLOSE_SOCKET(s) close (s)
 #endif
 
+#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+# define GUM_RETURN_VALUE_REGISTER_NAME "eax"
+#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+# define GUM_RETURN_VALUE_REGISTER_NAME "rax"
+#elif defined (HAVE_ARM)
+# define GUM_RETURN_VALUE_REGISTER_NAME "r0"
+#elif defined (HAVE_ARM64)
+# define GUM_RETURN_VALUE_REGISTER_NAME "x0"
+#elif defined (HAVE_MIPS)
+# define GUM_RETURN_VALUE_REGISTER_NAME "v0"
+#else
+# error Unsupported architecture
+#endif
+
 typedef struct _TestScriptFixture
 {
   GumScriptBackend * backend;

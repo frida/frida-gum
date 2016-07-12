@@ -27,6 +27,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_value_can_be_replaced)
   SCRIPT_TESTENTRY (return_address_can_be_read)
   SCRIPT_TESTENTRY (register_can_be_read)
+  SCRIPT_TESTENTRY (register_can_be_written)
   SCRIPT_TESTENTRY (system_error_can_be_read)
   SCRIPT_TESTENTRY (system_error_can_be_replaced)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
@@ -1866,32 +1867,30 @@ SCRIPT_TESTCASE (return_address_can_be_read)
 
 SCRIPT_TESTCASE (register_can_be_read)
 {
-  const gchar * register_name;
-
-#if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
-  register_name = "eax";
-#elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
-  register_name = "rax";
-#elif defined (HAVE_ARM)
-  register_name = "r0";
-#elif defined (HAVE_ARM64)
-  register_name = "x0";
-#elif defined (HAVE_MIPS)
-  register_name = "v0";
-#else
-# error Unsupported architecture
-#endif
-
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
       "  onLeave: function () {"
-      "    send(this.context.%s.toInt32());"
+      "    send(this.context." GUM_RETURN_VALUE_REGISTER_NAME ".toInt32());"
       "  }"
-      "});", target_function_int, register_name);
+      "});", target_function_int);
 
   EXPECT_NO_MESSAGES ();
   target_function_int (42);
   EXPECT_SEND_MESSAGE_WITH ("1890");
+}
+
+SCRIPT_TESTCASE (register_can_be_written)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onLeave: function () {"
+      "    this.context." GUM_RETURN_VALUE_REGISTER_NAME " = ptr(1337);"
+      "  }"
+      "});", target_function_int);
+
+  EXPECT_NO_MESSAGES ();
+  g_assert_cmpint (target_function_int (42), ==, 1337);
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (system_error_can_be_read)
