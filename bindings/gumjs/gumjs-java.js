@@ -351,7 +351,7 @@
                     const exe = Memory.readUtf8String(buffer, size);
                     cachedIsAppProcess = [/^\/system\/bin\/app_process/.test(exe)];
                 } else {
-                    cachedIsAppProcess = [false];
+                    cachedIsAppProcess = [true];
                 }
             }
 
