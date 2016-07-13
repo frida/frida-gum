@@ -208,6 +208,7 @@ gboolean gum_darwin_module_resolve_export (GumDarwinModule * self,
     const gchar * symbol, GumDarwinExportDetails * details);
 GumAddress gum_darwin_module_resolve_symbol_address (GumDarwinModule * self,
     const gchar * symbol);
+gboolean gum_darwin_module_lacks_exports_for_reexports (GumDarwinModule * self);
 void gum_darwin_module_enumerate_imports (GumDarwinModule * self,
     GumFoundImportFunc func, gpointer user_data);
 void gum_darwin_module_enumerate_exports (GumDarwinModule * self,

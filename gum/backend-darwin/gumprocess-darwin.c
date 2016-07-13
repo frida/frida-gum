@@ -1300,7 +1300,7 @@ gum_darwin_enumerate_exports (mach_port_t task,
   {
     gum_darwin_module_enumerate_exports (ctx.module, gum_emit_export, &ctx);
 
-    if (gum_darwin_is_ios9_or_newer ())
+    if (gum_darwin_module_lacks_exports_for_reexports (ctx.module))
     {
       GPtrArray * reexports = ctx.module->reexports;
       guint i;
@@ -1546,7 +1546,7 @@ gum_module_resolver_find_export (GumModuleResolver * self,
   {
     m = module;
   }
-  else if (gum_darwin_is_ios9_or_newer ())
+  else if (gum_darwin_module_lacks_exports_for_reexports (module))
   {
     GPtrArray * reexports = module->reexports;
     guint i;

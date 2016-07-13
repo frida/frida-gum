@@ -308,6 +308,24 @@ gum_store_address_if_name_matches (const GumDarwinSymbolDetails * details,
   return carry_on;
 }
 
+gboolean
+gum_darwin_module_lacks_exports_for_reexports (GumDarwinModule * self)
+{
+  uint32_t flags;
+
+  if (!gum_darwin_module_ensure_image_loaded (self))
+    return FALSE;
+
+  /*
+   * FIXME: There must be a better way to detect this behavioral change
+   *        introduced in macOS 10.11 and iOS 9.0, but this will have to
+   *        do for now.
+   */
+  flags = ((struct mach_header *) self->image->data)->flags;
+
+  return (flags & MH_PREBOUND) == 0;
+}
+
 void
 gum_darwin_module_enumerate_imports (GumDarwinModule * self,
                                      GumFoundImportFunc func,
