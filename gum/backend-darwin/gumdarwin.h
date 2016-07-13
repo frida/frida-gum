@@ -24,6 +24,8 @@
 # include <mach/mach_vm.h>
 #endif
 
+typedef struct _GumDarwinModuleResolver GumDarwinModuleResolver;
+
 #if GLIB_SIZEOF_VOID_P == 4
 # define GUM_LC_SEGMENT LC_SEGMENT
 typedef struct mach_header gum_mach_header_t;
@@ -58,6 +60,13 @@ typedef arm_thread_state64_t GumDarwinNativeThreadState;
 # define GUM_DARWIN_THREAD_STATE_FLAVOR ARM_UNIFIED_THREAD_STATE
 #endif
 
+struct _GumDarwinModuleResolver
+{
+  mach_port_t task;
+  GumCpuType cpu_type;
+  GHashTable * modules;
+};
+
 G_BEGIN_DECLS
 
 GUM_API gboolean gum_darwin_is_ios9_or_newer (void);
@@ -81,6 +90,19 @@ GUM_API void gum_darwin_enumerate_imports (mach_port_t task,
     const gchar * module_name, GumFoundImportFunc func, gpointer user_data);
 GUM_API void gum_darwin_enumerate_exports (mach_port_t task,
     const gchar * module_name, GumFoundExportFunc func, gpointer user_data);
+
+GUM_API void gum_darwin_module_resolver_open (
+    GumDarwinModuleResolver * resolver, mach_port_t task);
+GUM_API void gum_darwin_module_resolver_close (
+    GumDarwinModuleResolver * resolver);
+GUM_API GumDarwinModule * gum_darwin_module_resolver_find_module (
+    GumDarwinModuleResolver * self, const gchar * module_name);
+GUM_API gboolean gum_darwin_module_resolver_find_export (
+    GumDarwinModuleResolver * self, GumDarwinModule * module,
+    const gchar * symbol, GumExportDetails * details);
+GUM_API GumAddress gum_darwin_module_resolver_find_export_address (
+    GumDarwinModuleResolver * self, GumDarwinModule * module,
+    const gchar * symbol);
 
 GUM_API gboolean gum_darwin_find_slide (GumAddress module_address,
     const guint8 * module, gsize module_size, gint64 * slide);
