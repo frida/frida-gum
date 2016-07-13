@@ -1184,7 +1184,28 @@ gum_darwin_mapper_resolve_symbol (GumDarwinMapper * self,
   }
 
   if (!gum_darwin_module_resolve_export (module, name, &details))
-    return 0;
+  {
+    if (gum_darwin_module_lacks_exports_for_reexports (module))
+    {
+      GPtrArray * reexports = module->reexports;
+      guint i;
+
+      for (i = 0; i != reexports->len; i++)
+      {
+        GumDarwinMapping * target;
+
+        target = gum_darwin_mapper_resolve_dependency (self,
+            g_ptr_array_index (reexports, i));
+        if (gum_darwin_mapper_resolve_symbol (self, target->module, name,
+            value))
+        {
+          return TRUE;
+        }
+      }
+    }
+
+    return FALSE;
+  }
 
   if ((details.flags & EXPORT_SYMBOL_FLAGS_REEXPORT) != 0)
   {
