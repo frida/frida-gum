@@ -92,6 +92,9 @@ struct _GumEnumerateMallocRangesContext
 struct _GumCollectModulesContext
 {
   GumDarwinModuleResolver * self;
+  guint index;
+  gchar * sysroot;
+  guint sysroot_length;
 };
 
 struct _GumCanonicalizeNameContext
@@ -1512,8 +1515,13 @@ gum_darwin_module_resolver_open (GumDarwinModuleResolver * resolver,
     GumCollectModulesContext ctx;
 
     ctx.self = resolver;
+    ctx.index = 0;
+    ctx.sysroot = NULL;
+    ctx.sysroot_length = 0;
 
     gum_darwin_enumerate_modules (task, gum_store_module, &ctx);
+
+    g_free (ctx.sysroot);
   }
 }
 
@@ -1679,12 +1687,26 @@ gum_store_module (const GumModuleDetails * details,
   GumDarwinModuleResolver * self = ctx->self;
   GumDarwinModule * module;
 
+  if (ctx->index == 0 && g_str_has_suffix (details->path, "/usr/lib/dyld_sim"))
+  {
+    ctx->sysroot_length = strlen (details->path) - 17;
+    ctx->sysroot = g_strndup (details->path, ctx->sysroot_length);
+  }
+
   module = gum_darwin_module_new_from_memory (details->path, self->task,
       self->cpu_type, details->range->base_address);
   g_hash_table_insert (self->modules, g_strdup (details->name),
       module);
   g_hash_table_insert (self->modules, g_strdup (details->path),
       gum_darwin_module_ref (module));
+  if (ctx->sysroot != NULL && g_str_has_prefix (details->path, ctx->sysroot))
+  {
+    g_hash_table_insert (self->modules,
+        g_strdup (details->path + ctx->sysroot_length),
+        gum_darwin_module_ref (module));
+  }
+
+  ctx->index++;
 
   return TRUE;
 }
