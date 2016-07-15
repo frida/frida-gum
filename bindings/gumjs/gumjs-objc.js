@@ -1433,7 +1433,15 @@
             // Keep a reference to the callbacks so they don't get GCed
             classHandle._methodCallbacks = methodCallbacks;
 
+            WeakRef.bind(classHandle, makeClassDestructor(ptr(classHandle)));
+
             return new ObjCObject(classHandle);
+        }
+
+        function makeClassDestructor(classHandle) {
+            return function () {
+                api.objc_disposeClassPair(classHandle);
+            };
         }
 
         function registerProtocol(properties) {

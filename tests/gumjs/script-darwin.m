@@ -377,20 +377,11 @@ SCRIPT_TESTCASE (class_can_be_implemented)
 {
   @autoreleasepool
   {
-    gchar * class_name;
-    guint n;
-
-    class_name = g_strdup ("FridaJSCalculator");
-    n = 2;
-    while (objc_getClass (class_name) != nil)
-    {
-      g_free (class_name);
-      class_name = g_strdup_printf ("FridaJSCalculator%u", n++);
-    }
+    const gchar * class_name = "FridaJSCalculator";
 
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaJSCalculator = ObjC.registerClass({"
-            "name: \"%s\","
+            "name: \"FridaJSCalculator\","
             "super: ObjC.classes.NSObject,"
             "protocols: [ObjC.protocols.FridaCalculator],"
             "methods: {"
@@ -421,12 +412,14 @@ SCRIPT_TESTCASE (class_can_be_implemented)
 
     id klass = objc_getClass (class_name);
     g_assert (klass != nil);
-    id calculator = [[[klass alloc] init] autorelease];
+    id calculator = [[klass alloc] init];
     g_assert (calculator != nil);
     g_assert_cmpint ([calculator add:6], ==, 1234 + 6);
     g_assert_cmpint ([calculator sub:4], ==, 1234 - 4);
+    [calculator release];
 
-    g_free (class_name);
+    UNLOAD_SCRIPT ();
+    g_assert (objc_getClass (class_name) == nil);
   }
 }
 
