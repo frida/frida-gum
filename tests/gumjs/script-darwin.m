@@ -381,7 +381,7 @@ SCRIPT_TESTCASE (class_can_be_implemented)
 
     COMPILE_AND_LOAD_SCRIPT (
         "var FridaJSCalculator = ObjC.registerClass({"
-            "name: \"FridaJSCalculator\","
+            "name: \"%s\","
             "super: ObjC.classes.NSObject,"
             "protocols: [ObjC.protocols.FridaCalculator],"
             "methods: {"
