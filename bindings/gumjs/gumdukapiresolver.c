@@ -38,7 +38,8 @@ void
 _gum_duk_api_resolver_init (GumDukApiResolver * self,
                             GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -55,7 +56,9 @@ _gum_duk_api_resolver_init (GumDukApiResolver * self,
 void
 _gum_duk_api_resolver_dispose (GumDukApiResolver * self)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->api_resolver);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->api_resolver);
 }
 
 void
@@ -162,7 +165,7 @@ gum_emit_match (const GumApiDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);

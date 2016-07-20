@@ -30,7 +30,8 @@ void
 _gum_duk_thread_init (GumDukThread * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -139,6 +140,8 @@ not_available:
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
+  GumDukCore * core = args->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   gdouble delay;
 
   (void) ctx;
@@ -148,7 +151,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
   if (delay < 0)
     return 0;
 
+  _gum_duk_scope_suspend (&scope);
+
   g_usleep (delay * G_USEC_PER_SEC);
+
+  _gum_duk_scope_resume (&scope);
 
   return 0;
 }

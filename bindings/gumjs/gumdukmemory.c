@@ -169,7 +169,8 @@ void
 _gum_duk_memory_init (GumDukMemory * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -789,14 +790,19 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 static void
 gum_memory_scan_context_free (GumMemoryScanContext * ctx)
 {
-  duk_context * js_ctx = ctx->core->ctx;
+  GumDukScope scope;
+  duk_context * js_ctx;
 
   gum_match_pattern_free (ctx->pattern);
+
+  js_ctx = _gum_duk_scope_enter (&scope, ctx->core);
 
   _gum_duk_unprotect (js_ctx, ctx->on_match);
   if (ctx->on_error != NULL)
     _gum_duk_unprotect (js_ctx, ctx->on_error);
   _gum_duk_unprotect (js_ctx, ctx->on_complete);
+
+  _gum_duk_scope_leave (&scope);
 
   g_slice_free (GumMemoryScanContext, ctx);
 }
@@ -808,7 +814,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   GumExceptor * exceptor = core->exceptor;
   GumExceptorScope exceptor_scope;
   GumDukScope script_scope;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
 
   if (gum_exceptor_try (exceptor, &exceptor_scope))
   {
@@ -816,7 +822,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
         gum_memory_scan_context_emit_match, self);
   }
 
-  _gum_duk_scope_enter (&script_scope, core);
+  ctx = _gum_duk_scope_enter (&script_scope, core);
 
   if (gum_exceptor_catch (exceptor, &exceptor_scope))
   {
@@ -850,10 +856,10 @@ gum_memory_scan_context_emit_match (GumAddress address,
   GumMemoryScanContext * self = user_data;
   GumDukCore * core = self->core;
   GumDukScope scope;
-  duk_context * ctx = self->core->ctx;
+  duk_context * ctx;
   gboolean proceed;
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->on_match);
 
@@ -916,7 +922,8 @@ gum_append_match (GumAddress address,
                   gpointer user_data)
 {
   GumDukCore * core = user_data;
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   duk_push_object (ctx);
 

@@ -102,7 +102,8 @@ void
 _gum_duk_process_init (GumDukProcess * self,
                        GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -186,7 +187,7 @@ gum_emit_thread (const GumThreadDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   if (gum_script_backend_is_ignoring (details->id))
@@ -243,7 +244,7 @@ gum_emit_module (const GumModuleDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -304,7 +305,8 @@ gum_push_range_if_containing_address (const GumRangeDetails * details,
 
   if (GUM_MEMORY_RANGE_INCLUDES (details->range, fc->address))
   {
-    duk_context * ctx = fc->core->ctx;
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (fc->core);
+    duk_context * ctx = scope.ctx;
 
     duk_pop (ctx);
     gum_duk_push_range (ctx, details, fc->core);
@@ -342,7 +344,7 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -393,7 +395,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -462,10 +464,11 @@ static GumDukExceptionHandler *
 gum_duk_exception_handler_new (GumDukHeapPtr callback,
                                GumDukCore * core)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   GumDukExceptionHandler * handler;
 
   handler = g_slice_new (GumDukExceptionHandler);
-  _gum_duk_protect (core->ctx, callback);
+  _gum_duk_protect (scope.ctx, callback);
   handler->callback = callback;
   handler->core = core;
 
@@ -478,10 +481,13 @@ gum_duk_exception_handler_new (GumDukHeapPtr callback,
 static void
 gum_duk_exception_handler_free (GumDukExceptionHandler * handler)
 {
-  gum_exceptor_remove (handler->core->exceptor,
+  GumDukCore * core = handler->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+
+  gum_exceptor_remove (core->exceptor,
       gum_duk_exception_handler_on_exception, handler);
 
-  _gum_duk_unprotect (handler->core->ctx, handler->callback);
+  _gum_duk_unprotect (scope.ctx, handler->callback);
 
   g_slice_free (GumDukExceptionHandler, handler);
 }
@@ -493,11 +499,11 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   GumDukExceptionHandler * handler = user_data;
   GumDukCore * core = handler->core;
   GumDukScope scope;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   GumDukCpuContext * cpu_context;
   gboolean handled = FALSE;
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   _gum_duk_push_exception_details (ctx, details, core, &cpu_context);
 

@@ -159,6 +159,7 @@ extern "C" {
  *  in Duktape web documentation.
  */
 
+struct duk_thread_state;
 struct duk_memory_functions;
 struct duk_function_list_entry;
 struct duk_number_list_entry;
@@ -166,6 +167,7 @@ struct duk_number_list_entry;
 /* duk_context is now defined in duk_config.h because it may also be
  * referenced there by prototypes.
  */
+typedef struct duk_thread_state duk_thread_state;
 typedef struct duk_memory_functions duk_memory_functions;
 typedef struct duk_function_list_entry duk_function_list_entry;
 typedef struct duk_number_list_entry duk_number_list_entry;
@@ -184,6 +186,10 @@ typedef duk_size_t (*duk_debug_peek_function) (void *udata);
 typedef void (*duk_debug_read_flush_function) (void *udata);
 typedef void (*duk_debug_write_flush_function) (void *udata);
 typedef void (*duk_debug_detached_function) (void *udata);
+
+struct duk_thread_state {
+	char data[128];
+};
 
 struct duk_memory_functions {
 	duk_alloc_function alloc_func;
@@ -386,6 +392,9 @@ duk_context *duk_create_heap(duk_alloc_function alloc_func,
                              void *heap_udata,
                              duk_fatal_function fatal_handler);
 DUK_EXTERNAL_DECL void duk_destroy_heap(duk_context *ctx);
+
+DUK_EXTERNAL_DECL void duk_suspend(duk_context *ctx, duk_thread_state *state);
+DUK_EXTERNAL_DECL void duk_resume(duk_context *ctx, const duk_thread_state *state);
 
 #define duk_create_heap_default() \
 	duk_create_heap(NULL, NULL, NULL, NULL, NULL)

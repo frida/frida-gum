@@ -147,7 +147,8 @@ void
 _gum_duk_stream_init (GumDukStream * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -290,7 +291,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_input_stream_close)
 static void
 gum_duk_close_input_operation_free (GumDukCloseInputOperation * op)
 {
-  _gum_duk_release_heapptr (op->module->core->ctx, op->callback);
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, op->module->core);
+  _gum_duk_release_heapptr (ctx, op->callback);
+  _gum_duk_scope_leave (&scope);
+
   g_object_unref (op->stream);
 
   g_slice_free (GumDukCloseInputOperation, op);
@@ -310,14 +317,14 @@ gum_duk_close_input_operation_finish (GInputStream * stream,
                                       GumDukCloseInputOperation * self)
 {
   GumDukCore * core = self->module->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   GError * error = NULL;
   gboolean success;
   GumDukScope scope;
 
   success = g_input_stream_close_finish (stream, result, &error);
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->callback);
   if (error == NULL)
@@ -333,9 +340,9 @@ gum_duk_close_input_operation_finish (GInputStream * stream,
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
 
-  gum_script_job_free (self->job);
-
   _gum_duk_scope_leave (&scope);
+
+  gum_script_job_free (self->job);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_input_stream_read)
@@ -390,7 +397,13 @@ gumjs_input_stream_read_with_strategy (duk_context * ctx,
 static void
 gum_duk_read_operation_free (GumDukReadOperation * op)
 {
-  _gum_duk_release_heapptr (op->module->core->ctx, op->callback);
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, op->module->core);
+  _gum_duk_release_heapptr (ctx, op->callback);
+  _gum_duk_scope_leave (&scope);
+
   g_free (op->buffer);
   g_object_unref (op->stream);
 
@@ -422,7 +435,7 @@ gum_duk_read_operation_finish (GInputStream * stream,
                                GumDukReadOperation * self)
 {
   GumDukCore * core = self->module->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   gsize bytes_read = 0;
   GError * error = NULL;
   GumDukScope scope;
@@ -443,7 +456,7 @@ gum_duk_read_operation_finish (GInputStream * stream,
     g_input_stream_read_all_finish (stream, result, &bytes_read, &error);
   }
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->callback);
 
@@ -492,9 +505,9 @@ gum_duk_read_operation_finish (GInputStream * stream,
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
 
-  gum_script_job_free (self->job);
-
   _gum_duk_scope_leave (&scope);
+
+  gum_script_job_free (self->job);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
@@ -578,7 +591,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
 static void
 gum_duk_close_output_operation_free (GumDukCloseOutputOperation * op)
 {
-  _gum_duk_release_heapptr (op->module->core->ctx, op->callback);
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, op->module->core);
+  _gum_duk_release_heapptr (ctx, op->callback);
+  _gum_duk_scope_leave (&scope);
+
   g_object_unref (op->stream);
 
   g_slice_free (GumDukCloseOutputOperation, op);
@@ -598,14 +617,14 @@ gum_duk_close_output_operation_finish (GOutputStream * stream,
                                        GumDukCloseOutputOperation * self)
 {
   GumDukCore * core = self->module->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   GError * error = NULL;
   gboolean success;
   GumDukScope scope;
 
   success = g_output_stream_close_finish (stream, result, &error);
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->callback);
   if (error == NULL)
@@ -621,9 +640,9 @@ gum_duk_close_output_operation_finish (GOutputStream * stream,
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
 
-  gum_script_job_free (self->job);
-
   _gum_duk_scope_leave (&scope);
+
+  gum_script_job_free (self->job);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_output_stream_write)
@@ -679,7 +698,13 @@ gumjs_output_stream_write_with_strategy (duk_context * ctx,
 static void
 gum_duk_write_operation_free (GumDukWriteOperation * op)
 {
-  _gum_duk_release_heapptr (op->module->core->ctx, op->callback);
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, op->module->core);
+  _gum_duk_release_heapptr (ctx, op->callback);
+  _gum_duk_scope_leave (&scope);
+
   g_bytes_unref (op->bytes);
   g_object_unref (op->stream);
 
@@ -716,7 +741,7 @@ gum_duk_write_operation_finish (GOutputStream * stream,
                                 GumDukWriteOperation * self)
 {
   GumDukCore * core = self->module->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx;
   gsize bytes_written = 0;
   GError * error = NULL;
   GumDukScope scope;
@@ -736,7 +761,7 @@ gum_duk_write_operation_finish (GOutputStream * stream,
     g_output_stream_write_all_finish (stream, result, &bytes_written, &error);
   }
 
-  _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
   duk_push_heapptr (ctx, self->callback);
 
@@ -762,9 +787,9 @@ gum_duk_write_operation_finish (GOutputStream * stream,
   _gum_duk_scope_call (&scope, 2);
   duk_pop (ctx);
 
-  gum_script_job_free (self->job);
-
   _gum_duk_scope_leave (&scope);
+
+  gum_script_job_free (self->job);
 }
 
 static void

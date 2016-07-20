@@ -38,7 +38,8 @@ void
 _gum_duk_file_init (GumDukFile * self,
                     GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -55,7 +56,9 @@ _gum_duk_file_init (GumDukFile * self,
 void
 _gum_duk_file_dispose (GumDukFile * self)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->file);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->file);
 }
 
 void
