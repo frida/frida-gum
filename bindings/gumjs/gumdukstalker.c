@@ -56,7 +56,8 @@ void
 _gum_duk_stalker_init (GumDukStalker * self,
                        GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
   self->stalker = NULL;

@@ -56,7 +56,8 @@ void
 _gum_duk_instruction_init (GumDukInstruction * self,
                            GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
   cs_err err;
 
   self->core = core;
@@ -83,7 +84,9 @@ _gum_duk_instruction_init (GumDukInstruction * self,
 void
 _gum_duk_instruction_dispose (GumDukInstruction * self)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->instruction);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->instruction);
 }
 
 void

@@ -34,7 +34,6 @@ struct _GumDukInvocationListener
   GumDukHeapPtr object;
   GumDukHeapPtr on_enter;
   GumDukHeapPtr on_leave;
-  duk_context * ctx;
 
   GumDukInterceptor * module;
 };
@@ -64,7 +63,7 @@ struct _GumDukInvocationArgs
   GumDukHeapPtr object;
   GumInvocationContext * ic;
 
-  duk_context * ctx;
+  GumDukCore * core;
 };
 
 struct _GumDukInvocationReturnValue
@@ -74,7 +73,7 @@ struct _GumDukInvocationReturnValue
   GumDukHeapPtr object;
   GumInvocationContext * ic;
 
-  duk_context * ctx;
+  GumDukCore * core;
 };
 
 struct _GumDukReplaceEntry
@@ -220,7 +219,8 @@ void
 _gum_duk_interceptor_init (GumDukInterceptor * self,
                            GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -290,20 +290,25 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
 void
 _gum_duk_interceptor_flush (GumDukInterceptor * self)
 {
-  gum_interceptor_begin_transaction (self->interceptor);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
-  gum_interceptor_end_transaction (self->interceptor);
 
-  g_rec_mutex_unlock (&self->core->mutex);
+  _gum_duk_scope_suspend (&scope);
+
+  gum_interceptor_end_transaction (self->interceptor);
   gum_interceptor_flush (self->interceptor);
-  g_rec_mutex_lock (&self->core->mutex);
+  gum_interceptor_begin_transaction (self->interceptor);
+
+  _gum_duk_scope_resume (&scope);
 }
 
 void
 _gum_duk_interceptor_dispose (GumDukInterceptor * self)
 {
-  duk_context * ctx = self->core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+  duk_context * ctx = scope.ctx;
 
   gum_duk_invocation_context_release (self->cached_invocation_context);
   gum_duk_invocation_args_release (self->cached_invocation_args);
@@ -342,7 +347,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_interceptor_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 {
   GumDukInterceptor * self;
-  GumDukCore * core = args->core;
   gpointer target;
   GumDukHeapPtr on_enter, on_leave;
   GumDukInvocationListener * listener;
@@ -367,7 +371,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_interceptor_attach)
 
   listener->on_enter = on_enter;
   listener->on_leave = on_leave;
-  listener->ctx = core->ctx;
   listener->module = self;
 
   attach_ret = gum_interceptor_attach_listener (self->interceptor, target,
@@ -501,11 +504,11 @@ unable_to_replace:
 static void
 gum_duk_replace_entry_free (GumDukReplaceEntry * entry)
 {
-  GumDukCore * core = entry->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (entry->core);
 
   gum_interceptor_revert_function (entry->interceptor, entry->target);
 
-  _gum_duk_unprotect (core->ctx, entry->replacement);
+  _gum_duk_unprotect (scope.ctx, entry->replacement);
 
   g_slice_free (GumDukReplaceEntry, entry);
 }
@@ -555,9 +558,10 @@ gum_duk_invocation_listener_dispose (GumDukInvocationListener * self)
 {
   GumDukCore * core = self->module->core;
   GumDukScope scope;
+  duk_context * ctx;
 
-  _gum_duk_scope_enter (&scope, core);
-  _gum_duk_release_heapptr (self->ctx, self->object);
+  ctx = _gum_duk_scope_enter (&scope, core);
+  _gum_duk_release_heapptr (ctx, self->object);
   _gum_duk_scope_leave (&scope);
 }
 
@@ -575,12 +579,12 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;
-    duk_context * ctx = core->ctx;
+    duk_context * ctx;
     GumDukScope scope;
     GumDukInvocationContext * jic;
     GumDukInvocationArgs * args;
 
-    _gum_duk_scope_enter (&scope, core);
+    ctx = _gum_duk_scope_enter (&scope, core);
 
     jic = _gum_duk_interceptor_obtain_invocation_context (module);
     _gum_duk_invocation_context_reset (jic, ic);
@@ -625,12 +629,12 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;
-    duk_context * ctx = core->ctx;
+    duk_context * ctx;
     GumDukScope scope;
     GumDukInvocationContext * jic;
     GumDukInvocationReturnValue * retval;
 
-    _gum_duk_scope_enter (&scope, core);
+    ctx = _gum_duk_scope_enter (&scope, core);
 
     jic = (self->on_enter != NULL)
         ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationContext *)
@@ -735,7 +739,8 @@ gum_duk_probe_listener_dispose (GObject * object)
 static GumDukInvocationContext *
 gum_duk_invocation_context_new (GumDukInterceptor * parent)
 {
-  duk_context * ctx = parent->core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (parent->core);
+  duk_context * ctx = scope.ctx;
   GumDukInvocationContext * jic;
 
   jic = g_slice_new (GumDukInvocationContext);
@@ -761,7 +766,9 @@ gum_duk_invocation_context_new (GumDukInterceptor * parent)
 static void
 gum_duk_invocation_context_release (GumDukInvocationContext * self)
 {
-  _gum_duk_release_heapptr (self->interceptor->core->ctx, self->object);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->interceptor->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->object);
 }
 
 void
@@ -772,7 +779,8 @@ _gum_duk_invocation_context_reset (GumDukInvocationContext * self,
 
   if (self->cpu_context != NULL)
   {
-    duk_context * ctx = self->interceptor->core->ctx;
+    GumDukScope scope = GUM_DUK_SCOPE_INIT (self->interceptor->core);
+    duk_context * ctx = scope.ctx;
 
     _gum_duk_cpu_context_make_read_only (self->cpu_context);
     self->cpu_context = NULL;
@@ -922,7 +930,9 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
 static GumDukInvocationArgs *
 gum_duk_invocation_args_new (GumDukInterceptor * parent)
 {
-  duk_context * ctx = parent->core->ctx;
+  GumDukCore * core = parent->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
   GumDukInvocationArgs * args;
 
   args = g_slice_new (GumDukInvocationArgs);
@@ -934,7 +944,7 @@ gum_duk_invocation_args_new (GumDukInterceptor * parent)
   duk_pop (ctx);
 
   args->ic = NULL;
-  args->ctx = ctx;
+  args->core = core;
 
   return args;
 }
@@ -942,7 +952,9 @@ gum_duk_invocation_args_new (GumDukInterceptor * parent)
 static void
 gum_duk_invocation_args_release (GumDukInvocationArgs * self)
 {
-  _gum_duk_release_heapptr (self->ctx, self->object);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->object);
 }
 
 static void
@@ -959,7 +971,7 @@ gumjs_invocation_args_require_context (duk_context * ctx,
   GumDukInvocationArgs * self = _gum_duk_require_data (ctx, index);
 
   if (self->ic == NULL)
-    _gum_duk_throw (self->ctx, "invalid operation");
+    _gum_duk_throw (ctx, "invalid operation");
 
   return self->ic;
 }
@@ -1035,7 +1047,9 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_args_set_property)
 static GumDukInvocationReturnValue *
 gum_duk_invocation_return_value_new (GumDukInterceptor * parent)
 {
-  duk_context * ctx = parent->core->ctx;
+  GumDukCore * core = parent->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
   GumDukInvocationReturnValue * retval;
   GumDukNativePointer * ptr;
 
@@ -1051,7 +1065,7 @@ gum_duk_invocation_return_value_new (GumDukInterceptor * parent)
   duk_pop (ctx);
 
   retval->ic = NULL;
-  retval->ctx = ctx;
+  retval->core = core;
 
   return retval;
 }
@@ -1059,7 +1073,9 @@ gum_duk_invocation_return_value_new (GumDukInterceptor * parent)
 static void
 gum_duk_invocation_return_value_release (GumDukInvocationReturnValue * self)
 {
-  _gum_duk_release_heapptr (self->ctx, self->object);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->object);
 }
 
 static void

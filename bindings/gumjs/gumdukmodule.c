@@ -46,7 +46,8 @@ void
 _gum_duk_module_init (GumDukModule * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -105,8 +106,7 @@ gum_emit_import (const GumImportDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -177,7 +177,7 @@ gum_emit_export (const GumExportDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
@@ -236,7 +236,7 @@ gum_emit_range (const GumRangeDetails * details,
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
-  duk_context * ctx = core->ctx;
+  duk_context * ctx = scope->ctx;
   char prot_str[4] = "---";
   gboolean proceed = TRUE;
 

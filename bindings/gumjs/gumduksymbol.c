@@ -45,7 +45,8 @@ void
 _gum_duk_symbol_init (GumDukSymbol * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->ctx;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  duk_context * ctx = scope.ctx;
 
   self->core = core;
 
@@ -69,7 +70,9 @@ _gum_duk_symbol_init (GumDukSymbol * self,
 void
 _gum_duk_symbol_dispose (GumDukSymbol * self)
 {
-  _gum_duk_release_heapptr (self->core->ctx, self->symbol);
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_release_heapptr (scope.ctx, self->symbol);
   self->symbol = NULL;
 }
 
