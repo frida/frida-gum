@@ -291,7 +291,12 @@ gum_v8_input_stream_on_close (
 static void
 gum_v8_close_input_operation_free (GumV8CloseInputOperation * op)
 {
-  delete op->callback;
+  {
+    ScriptScope scope (op->module->core->script);
+
+    delete op->callback;
+  }
+
   g_object_unref (op->stream);
 
   g_slice_free (GumV8CloseInputOperation, op);
@@ -414,7 +419,12 @@ gum_v8_input_stream_on_read_with_strategy (
 static void
 gum_v8_read_operation_free (GumV8ReadOperation * op)
 {
-  delete op->callback;
+  {
+    ScriptScope scope (op->module->core->script);
+
+    delete op->callback;
+  }
+
   g_free (op->buffer);
   g_object_unref (op->stream);
 
@@ -586,7 +596,12 @@ gum_v8_output_stream_on_close (
 static void
 gum_v8_close_output_operation_free (GumV8CloseOutputOperation * op)
 {
-  delete op->callback;
+  {
+    ScriptScope scope (op->module->core->script);
+
+    delete op->callback;
+  }
+
   g_object_unref (op->stream);
 
   g_slice_free (GumV8CloseOutputOperation, op);
@@ -704,7 +719,12 @@ gum_v8_output_stream_on_write_with_strategy (
 static void
 gum_v8_write_operation_free (GumV8WriteOperation * op)
 {
-  delete op->callback;
+  {
+    ScriptScope scope (op->module->core->script);
+
+    delete op->callback;
+  }
+
   g_bytes_unref (op->bytes);
   g_object_unref (op->stream);
 
