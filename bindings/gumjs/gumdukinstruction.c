@@ -47,7 +47,7 @@ static const duk_function_list_entry gumjs_instruction_module_functions[] =
 
 static const duk_function_list_entry gumjs_instruction_functions[] =
 {
-  { "toString", gumjs_instruction_to_string, GUMJS_RO },
+  { "toString", gumjs_instruction_to_string, 0 },
 
   { NULL, NULL, 0 }
 };

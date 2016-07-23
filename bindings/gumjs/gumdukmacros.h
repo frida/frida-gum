@@ -9,9 +9,6 @@
 
 #include "gumdukvalue.h"
 
-#define GUMJS_RO (DUK_DEFPROP_HAVE_WRITABLE | 0)
-#define GUMJS_RW (DUK_DEFPROP_HAVE_WRITABLE | DUK_DEFPROP_WRITABLE)
-
 #define GUMJS_DECLARE_CONSTRUCTOR(N) \
   static int N (duk_context * ctx);
 #define GUMJS_DECLARE_FINALIZER(N) \

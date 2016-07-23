@@ -81,13 +81,10 @@ static void gum_duk_exception_handler_free (
 static gboolean gum_duk_exception_handler_on_exception (
     GumExceptionDetails * details, gpointer user_data);
 
-static void gum_duk_push_range (duk_context * ctx,
-    const GumRangeDetails * details, GumDukCore * core);
-
 static const duk_function_list_entry gumjs_process_functions[] =
 {
-  { "isDebuggerAttached", gumjs_process_is_debugger_attached, 0},
-  { "getCurrentThreadId", gumjs_process_get_current_thread_id, 0},
+  { "isDebuggerAttached", gumjs_process_is_debugger_attached, 0 },
+  { "getCurrentThreadId", gumjs_process_get_current_thread_id, 0 },
   { "enumerateThreads", gumjs_process_enumerate_threads, 1 },
   { "enumerateModules", gumjs_process_enumerate_modules, 1 },
   { "findRangeByAddress", gumjs_process_find_range_by_address, 1 },
@@ -186,7 +183,6 @@ gum_emit_thread (const GumThreadDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
@@ -201,7 +197,7 @@ gum_emit_thread (const GumThreadDetails * details,
   duk_push_string (ctx, _gum_duk_thread_state_to_string (details->state));
   duk_put_prop_string (ctx, -2, "state");
   _gum_duk_push_cpu_context (ctx, (GumCpuContext *) &details->cpu_context,
-      GUM_CPU_CONTEXT_READONLY, core);
+      GUM_CPU_CONTEXT_READONLY, scope->core);
   duk_put_prop_string (ctx, -2, "context");
 
   if (_gum_duk_scope_call_sync (scope, 1))
@@ -243,7 +239,6 @@ gum_emit_module (const GumModuleDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
@@ -255,7 +250,7 @@ gum_emit_module (const GumModuleDetails * details,
   duk_put_prop_string (ctx, -2, "name");
 
   _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
+      GSIZE_TO_POINTER (details->range->base_address), scope->core);
   duk_put_prop_string (ctx, -2, "base");
 
   duk_push_uint (ctx, details->range->size);
@@ -309,7 +304,7 @@ gum_push_range_if_containing_address (const GumRangeDetails * details,
     duk_context * ctx = scope.ctx;
 
     duk_pop (ctx);
-    gum_duk_push_range (ctx, details, fc->core);
+    _gum_duk_push_range (ctx, details, fc->core);
 
     proceed = FALSE;
   }
@@ -343,12 +338,11 @@ gum_emit_range (const GumRangeDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-  gum_duk_push_range (ctx, details, core);
+  _gum_duk_push_range (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -394,7 +388,6 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
@@ -403,7 +396,7 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   duk_push_object (ctx);
 
   _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
+      GSIZE_TO_POINTER (details->range->base_address), scope->core);
   duk_put_prop_string (ctx, -2, "base");
 
   duk_push_uint (ctx, details->range->size);
@@ -522,45 +515,4 @@ gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_duk_scope_leave (&scope);
 
   return handled;
-}
-
-static void
-gum_duk_push_range (duk_context * ctx,
-                    const GumRangeDetails * details,
-                    GumDukCore * core)
-{
-  char prot_str[4] = "---";
-  const GumFileMapping * f = details->file;
-
-  duk_push_object (ctx);
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
-  if ((details->prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((details->prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
-  duk_push_string (ctx, prot_str);
-  duk_put_prop_string (ctx, -2, "protection");
-
-  if (f != NULL)
-  {
-    duk_push_object (ctx);
-
-    duk_push_string (ctx, f->path);
-    duk_put_prop_string (ctx, -2, "path");
-
-    duk_push_uint (ctx, f->offset);
-    duk_put_prop_string (ctx, -2, "offset");
-
-    duk_put_prop_string (ctx, -2, "file");
-  }
 }

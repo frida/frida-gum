@@ -1218,6 +1218,47 @@ _gum_duk_push_exception_details (duk_context * ctx,
 }
 
 void
+_gum_duk_push_range (duk_context * ctx,
+                     const GumRangeDetails * details,
+                     GumDukCore * core)
+{
+  char prot_str[4] = "---";
+  const GumFileMapping * f = details->file;
+
+  duk_push_object (ctx);
+
+  _gum_duk_push_native_pointer (ctx,
+      GSIZE_TO_POINTER (details->range->base_address), core);
+  duk_put_prop_string (ctx, -2, "base");
+
+  duk_push_uint (ctx, details->range->size);
+  duk_put_prop_string (ctx, -2, "size");
+
+  if ((details->prot & GUM_PAGE_READ) != 0)
+    prot_str[0] = 'r';
+  if ((details->prot & GUM_PAGE_WRITE) != 0)
+    prot_str[1] = 'w';
+  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
+    prot_str[2] = 'x';
+
+  duk_push_string (ctx, prot_str);
+  duk_put_prop_string (ctx, -2, "protection");
+
+  if (f != NULL)
+  {
+    duk_push_object (ctx);
+
+    duk_push_string (ctx, f->path);
+    duk_put_prop_string (ctx, -2, "path");
+
+    duk_push_uint (ctx, f->offset);
+    duk_put_prop_string (ctx, -2, "offset");
+
+    duk_put_prop_string (ctx, -2, "file");
+  }
+}
+
+void
 _gum_duk_push_proxy (duk_context * ctx,
                      duk_idx_t target,
                      duk_c_function getter,

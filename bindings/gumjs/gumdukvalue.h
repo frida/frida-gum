@@ -94,6 +94,9 @@ G_GNUC_INTERNAL void _gum_duk_push_exception_details (duk_context * ctx,
     GumExceptionDetails * details, GumDukCore * core,
     GumDukCpuContext ** cpu_context);
 
+G_GNUC_INTERNAL void _gum_duk_push_range (duk_context * ctx,
+    const GumRangeDetails * details, GumDukCore * core);
+
 G_GNUC_INTERNAL void _gum_duk_push_proxy (duk_context * ctx, duk_idx_t target,
     duk_c_function getter, duk_c_function setter);
 

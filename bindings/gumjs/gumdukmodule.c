@@ -176,7 +176,6 @@ gum_emit_export (const GumExportDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
 
@@ -191,7 +190,8 @@ gum_emit_export (const GumExportDetails * details,
   duk_push_string (ctx, details->name);
   duk_put_prop_string (ctx, -2, "name");
 
-  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address), core);
+  _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (details->address),
+      scope->core);
   duk_put_prop_string (ctx, -2, "address");
 
   if (_gum_duk_scope_call_sync (scope, 1))
@@ -235,31 +235,11 @@ gum_emit_range (const GumRangeDetails * details,
 {
   GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
-  GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;
-  char prot_str[4] = "---";
   gboolean proceed = TRUE;
 
   duk_push_heapptr (ctx, mc->on_match);
-
-  duk_push_object (ctx);
-
-  _gum_duk_push_native_pointer (ctx,
-      GSIZE_TO_POINTER (details->range->base_address), core);
-  duk_put_prop_string (ctx, -2, "base");
-
-  duk_push_uint (ctx, details->range->size);
-  duk_put_prop_string (ctx, -2, "size");
-
-  if ((details->prot & GUM_PAGE_READ) != 0)
-    prot_str[0] = 'r';
-  if ((details->prot & GUM_PAGE_WRITE) != 0)
-    prot_str[1] = 'w';
-  if ((details->prot & GUM_PAGE_EXECUTE) != 0)
-    prot_str[2] = 'x';
-
-  duk_push_string (ctx, prot_str);
-  duk_put_prop_string (ctx, -2, "protection");
+  _gum_duk_push_range (ctx, details, scope->core);
 
   if (_gum_duk_scope_call_sync (scope, 1))
   {
@@ -277,7 +257,6 @@ gum_emit_range (const GumRangeDetails * details,
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 {
-  GumDukCore * core = args->core;
   const gchar * name;
   GumAddress address;
 
@@ -286,7 +265,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
   address = gum_module_find_base_address (name);
 
   if (address != 0)
-    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), args->core);
   else
     duk_push_null (ctx);
   return 1;
@@ -294,7 +273,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_base_address)
 
 GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
 {
-  GumDukCore * core = args->core;
   const gchar * module_name, * symbol_name;
   GumAddress address;
 
@@ -303,7 +281,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_find_export_by_name)
   address = gum_module_find_export_by_name (module_name, symbol_name);
 
   if (address != 0)
-    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), core);
+    _gum_duk_push_native_pointer (ctx, GSIZE_TO_POINTER (address), args->core);
   else
     duk_push_null (ctx);
   return 1;

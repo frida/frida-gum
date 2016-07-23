@@ -43,11 +43,11 @@ static const GumDukPropertyEntry gumjs_stalker_values[] =
 
 static const duk_function_list_entry gumjs_stalker_functions[] =
 {
-  { "garbageCollect", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
-  { "follow", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
-  { "unfollow", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
-  { "addCallProbe", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
-  { "removeCallProbe", gumjs_stalker_throw_not_yet_available, GUMJS_RO },
+  { "garbageCollect", gumjs_stalker_throw_not_yet_available, 0 },
+  { "follow", gumjs_stalker_throw_not_yet_available, 2 },
+  { "unfollow", gumjs_stalker_throw_not_yet_available, 1 },
+  { "addCallProbe", gumjs_stalker_throw_not_yet_available, 2 },
+  { "removeCallProbe", gumjs_stalker_throw_not_yet_available, 1 },
 
   { NULL, NULL, 0 }
 };
