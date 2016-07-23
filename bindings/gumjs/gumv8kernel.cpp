@@ -320,13 +320,13 @@ gum_v8_script_kernel_on_read_byte_array (const FunctionCallbackInfo<Value> & inf
     return;
   }
 
-  int64_t size = info[1]->IntegerValue ();
+  int64_t length = info[1]->IntegerValue ();
 
   Local<Value> result;
-  if (size > 0)
+  if (length > 0)
   {
     gsize n_bytes_read;
-    guint8 * data = gum_kernel_read (GUM_ADDRESS (address), size,
+    guint8 * data = gum_kernel_read (GUM_ADDRESS (address), length,
         &n_bytes_read);
     if (data != NULL)
     {
@@ -346,7 +346,7 @@ gum_v8_script_kernel_on_read_byte_array (const FunctionCallbackInfo<Value> & inf
   }
   else
   {
-    result = Array::New (isolate, 0);
+    result = ArrayBuffer::New (isolate, 0);
   }
 
   info.GetReturnValue ().Set (result);
@@ -385,10 +385,10 @@ gum_v8_script_kernel_on_write_byte_array (
   if (bytes == NULL)
     return;
 
-  gsize size;
-  guint8 * data = (guint8 *) g_bytes_get_data (bytes, &size);
+  gsize length;
+  const guint8 * data = (const guint8 *) g_bytes_get_data (bytes, &length);
 
-  if (!gum_kernel_write (GUM_ADDRESS (address), data, size))
+  if (!gum_kernel_write (GUM_ADDRESS (address), data, length))
   {
     gchar * message = g_strdup_printf (
         "access violation writing to 0x%" G_GSIZE_MODIFIER "x",
