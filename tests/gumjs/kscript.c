@@ -99,11 +99,10 @@ KSCRIPT_TESTCASE (byte_array_can_be_read)
   COMPILE_AND_LOAD_SCRIPT (
       "var address = Kernel.enumerateRangesSync('r--')[0].base;"
       "send(Kernel.readByteArray(address, 3).byteLength === 3);"
-      "send('snake', Kernel.readByteArray(address, 0));"
-      "send('mushroom', Kernel.readByteArray(address, -1));");
+      "send('snake', Kernel.readByteArray(address, 0));");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("true", NULL);
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"snake\"", "");
-  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"mushroom\"", "");
+  EXPECT_NO_MESSAGES ();
 }
 
 KSCRIPT_TESTCASE (byte_array_can_be_written)
