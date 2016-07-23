@@ -50,19 +50,6 @@ gum_kernel_write (GumAddress address,
 }
 
 void
-gum_kernel_enumerate_threads (GumFoundThreadFunc func,
-                              gpointer user_data)
-{
-  mach_port_t task;
-
-  task = gum_kernel_get_task ();
-  if (task == MACH_PORT_NULL)
-    return;
-
-  gum_darwin_enumerate_threads (task, func, user_data);
-}
-
-void
 gum_kernel_enumerate_ranges (GumPageProtection prot,
                              GumFoundRangeFunc func,
                              gpointer user_data)

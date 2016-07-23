@@ -16,8 +16,6 @@ GUM_API guint8 * gum_kernel_read (GumAddress address, gsize len,
     gsize * n_bytes_read);
 GUM_API gboolean gum_kernel_write (GumAddress address, const guint8 * bytes,
     gsize len);
-GUM_API void gum_kernel_enumerate_threads (GumFoundThreadFunc func,
-    gpointer user_data);
 GUM_API void gum_kernel_enumerate_ranges (GumPageProtection prot,
     GumFoundRangeFunc func, gpointer user_data);
 

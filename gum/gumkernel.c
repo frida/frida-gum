@@ -39,14 +39,6 @@ gum_kernel_write (GumAddress address,
 }
 
 void
-gum_kernel_enumerate_threads (GumFoundThreadFunc func,
-                              gpointer user_data)
-{
-  (void) func;
-  (void) user_data;
-}
-
-void
 gum_kernel_enumerate_ranges (GumPageProtection prot,
                              GumFoundRangeFunc func,
                              gpointer user_data)

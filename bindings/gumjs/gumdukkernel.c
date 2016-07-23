@@ -19,9 +19,6 @@ struct _GumDukMatchContext
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_construct)
-GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_threads)
-static gboolean gum_emit_thread (const GumThreadDetails * details,
-    gpointer user_data);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
     gpointer user_data);
@@ -32,7 +29,6 @@ GUMJS_DECLARE_FUNCTION (gumjs_kernel_throw_not_available)
 
 static const duk_function_list_entry gumjs_kernel_functions[] =
 {
-  { "enumerateThreads", gumjs_kernel_enumerate_threads, 1 },
   { "_enumerateRanges", gumjs_kernel_enumerate_ranges, 2 },
   { "readByteArray", gumjs_kernel_read_byte_array, 2 },
   { "writeByteArray", gumjs_kernel_write_byte_array, 2 },
@@ -98,59 +94,6 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_kernel_construct)
   (void) args;
 
   return 0;
-}
-
-GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_threads)
-{
-  GumDukMatchContext mc;
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
-
-  _gum_duk_args_parse (args, "F{onMatch,onComplete}", &mc.on_match,
-      &mc.on_complete);
-  mc.scope = &scope;
-
-  gum_kernel_enumerate_threads (gum_emit_thread, &mc);
-  _gum_duk_scope_flush (&scope);
-
-  duk_push_heapptr (ctx, mc.on_complete);
-  duk_call (ctx, 0);
-  duk_pop (ctx);
-
-  return 0;
-}
-
-static gboolean
-gum_emit_thread (const GumThreadDetails * details,
-                 gpointer user_data)
-{
-  GumDukMatchContext * mc = user_data;
-  GumDukScope * scope = mc->scope;
-  duk_context * ctx = scope->ctx;
-  gboolean proceed = TRUE;
-
-  duk_push_heapptr (ctx, mc->on_match);
-
-  duk_push_object (ctx);
-  duk_push_uint (ctx, details->id);
-  duk_put_prop_string (ctx, -2, "id");
-  duk_push_string (ctx, _gum_duk_thread_state_to_string (details->state));
-  duk_put_prop_string (ctx, -2, "state");
-  _gum_duk_push_cpu_context (ctx, (GumCpuContext *) &details->cpu_context,
-      GUM_CPU_CONTEXT_READONLY, scope->core);
-  duk_put_prop_string (ctx, -2, "context");
-
-  if (_gum_duk_scope_call_sync (scope, 1))
-  {
-    if (duk_is_string (ctx, -1))
-      proceed = strcmp (duk_require_string (ctx, -1), "stop") != 0;
-  }
-  else
-  {
-    proceed = FALSE;
-  }
-  duk_pop (ctx);
-
-  return proceed;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)

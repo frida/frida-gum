@@ -22,10 +22,6 @@ struct _GumV8MatchContext
   Local<Object> receiver;
 };
 
-static void gum_v8_kernel_on_enumerate_threads (
-    const FunctionCallbackInfo<Value> & info);
-static gboolean gum_v8_script_handle_thread_match (
-    const GumThreadDetails * details, gpointer user_data);
 static void gum_v8_script_kernel_on_enumerate_ranges (
     const FunctionCallbackInfo<Value> & info);
 static gboolean gum_v8_script_kernel_handle_range_match (
@@ -54,9 +50,6 @@ _gum_v8_kernel_init (GumV8Kernel * self,
       ReadOnly);
   if (gum_kernel_api_is_available ())
   {
-    kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
-        FunctionTemplate::New (isolate,
-        gum_v8_kernel_on_enumerate_threads, data));
     kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
         FunctionTemplate::New (isolate,
         gum_v8_script_kernel_on_enumerate_ranges, data));
@@ -69,9 +62,6 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   }
   else
   {
-    kernel->Set (String::NewFromUtf8 (isolate, "enumerateThreads"),
-        FunctionTemplate::New (isolate,
-        gum_v8_script_kernel_throw_not_available, data));
     kernel->Set (String::NewFromUtf8 (isolate, "_enumerateRanges"),
         FunctionTemplate::New (isolate,
         gum_v8_script_kernel_throw_not_available, data));
@@ -101,89 +91,6 @@ void
 _gum_v8_kernel_finalize (GumV8Kernel * self)
 {
   (void) self;
-}
-
-/*
- * Prototype:
- * Kernel.enumerateThreads(callback)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
-static void
-gum_v8_kernel_on_enumerate_threads (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumV8MatchContext ctx;
-
-  ctx.self = static_cast<GumV8Kernel *> (
-      info.Data ().As<External> ()->Value ());
-  ctx.isolate = info.GetIsolate ();
-
-  Local<Value> callbacks_value = info[0];
-  if (!callbacks_value->IsObject ())
-  {
-    ctx.isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        ctx.isolate, "Kernel.enumerateThreads: argument must be "
-        "a callback object")));
-    return;
-  }
-
-  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
-  if (!_gum_v8_callbacks_get (callbacks, "onMatch", &ctx.on_match,
-      ctx.self->core))
-  {
-    return;
-  }
-  if (!_gum_v8_callbacks_get (callbacks, "onComplete", &ctx.on_complete,
-      ctx.self->core))
-  {
-    return;
-  }
-
-  ctx.receiver = info.This ();
-
-  gum_kernel_enumerate_threads (gum_v8_script_handle_thread_match, &ctx);
-
-  ctx.on_complete->Call (ctx.receiver, 0, 0);
-}
-
-static gboolean
-gum_v8_script_handle_thread_match (const GumThreadDetails * details,
-                                   gpointer user_data)
-{
-  GumV8MatchContext * ctx =
-      static_cast<GumV8MatchContext *> (user_data);
-  GumV8Core * core = ctx->self->core;
-  Isolate * isolate = ctx->isolate;
-
-  Local<Object> thread (Object::New (isolate));
-  _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
-  _gum_v8_object_set (thread, "state", String::NewFromOneByte (isolate,
-      (const uint8_t *) _gum_v8_thread_state_to_string (details->state)),
-      core);
-  Local<Object> cpu_context =
-      _gum_v8_cpu_context_new (&details->cpu_context, ctx->self->core);
-  _gum_v8_object_set (thread, "context", cpu_context, core);
-
-  Handle<Value> argv[] = { thread };
-  Local<Value> result = ctx->on_match->Call (ctx->receiver, 1, argv);
-
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
-  {
-    String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
-  }
-
-  _gum_v8_cpu_context_free_later (
-      new GumPersistent<Object>::type (isolate, cpu_context),
-      core);
-
-  return proceed;
 }
 
 /*
