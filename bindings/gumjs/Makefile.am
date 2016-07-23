@@ -66,6 +66,8 @@ duk_sources = \
 	gumdukmacros.h \
 	gumdukcore.h \
 	gumdukcore.c \
+	gumdukkernel.h \
+	gumdukkernel.c \
 	gumdukmemory.h \
 	gumdukmemory.c \
 	gumdukprocess.h \

@@ -11,9 +11,7 @@
 #include "gumdukfile.h"
 #include "gumdukinstruction.h"
 #include "gumdukinterceptor.h"
-/*
 #include "gumdukkernel.h"
-*/
 #include "gumdukmemory.h"
 #include "gumdukmodule.h"
 #include "gumdukprocess.h"
@@ -52,9 +50,7 @@ struct _GumDukScriptPrivate
   duk_context * ctx;
   GumDukHeapPtr code;
   GumDukCore core;
-  /*
   GumDukKernel kernel;
-  */
   GumDukMemory memory;
   GumDukProcess process;
   GumDukThread thread;
@@ -363,9 +359,7 @@ gum_duk_script_create_context (GumDukScript * self,
 
   priv->core.current_ctx = priv->core.heap_ctx;
 
-  /*
-  _gum_duk_kernel_init (&priv->kernel, &priv->core, global);
-  */
+  _gum_duk_kernel_init (&priv->kernel, &priv->core);
   _gum_duk_memory_init (&priv->memory, &priv->core);
   _gum_duk_process_init (&priv->process, &priv->core);
   _gum_duk_thread_init (&priv->thread, &priv->core);
@@ -417,9 +411,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_thread_dispose (&priv->thread);
   _gum_duk_process_dispose (&priv->process);
   _gum_duk_memory_dispose (&priv->memory);
-  /*
   _gum_duk_kernel_dispose (&priv->kernel);
-  */
   _gum_duk_core_dispose (&priv->core);
 
   _gum_duk_scope_leave (&scope);
@@ -442,9 +434,7 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_thread_finalize (&priv->thread);
   _gum_duk_process_finalize (&priv->process);
   _gum_duk_memory_finalize (&priv->memory);
-  /*
   _gum_duk_kernel_finalize (&priv->kernel);
-  */
   _gum_duk_core_finalize (&priv->core);
 
   priv->loaded = FALSE;
