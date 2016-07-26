@@ -22,6 +22,9 @@
     <ClCompile Include="gumdukcore.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukkernel.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumdukfile.c">
       <Filter>duk</Filter>
     </ClCompile>
@@ -157,6 +160,9 @@
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukcore.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukkernel.h">
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukfile.h">
