@@ -72,6 +72,8 @@ static void gum_thumb_writer_put_transfer_reg_reg_offset (GumThumbWriter * self,
     GumThumbMemoryOperation operation, arm_reg left_reg, arm_reg right_reg,
     gsize right_offset);
 
+static gboolean gum_instruction_is_t1_load (guint16 instruction);
+
 void
 gum_thumb_writer_init (GumThumbWriter * writer,
                        gpointer code_address)
@@ -185,8 +187,20 @@ gum_thumb_writer_flush (GumThumbWriter * self)
 
   if (self->literal_refs_len > 0)
   {
+    gboolean need_aligned_slots;
     guint32 * first_slot, * last_slot;
     guint ref_idx;
+
+    need_aligned_slots = FALSE;
+    for (ref_idx = 0; ref_idx != self->literal_refs_len; ref_idx++)
+    {
+      guint16 insn = GUINT16_FROM_LE (self->literal_refs[ref_idx].insn[0]);
+      if (gum_instruction_is_t1_load (insn))
+        need_aligned_slots = TRUE;
+    }
+
+    if (need_aligned_slots && (self->pc & 3) != 0)
+      gum_thumb_writer_put_nop (self);
 
     first_slot = (guint32 *) self->code;
     last_slot = first_slot;
@@ -195,22 +209,12 @@ gum_thumb_writer_flush (GumThumbWriter * self)
     {
       GumThumbLiteralRef * r;
       guint16 insn;
-      gboolean is_t1_load;
       guint32 * slot;
       GumAddress slot_pc;
       gsize distance_in_bytes;
 
       r = &self->literal_refs[ref_idx];
       insn = GUINT16_FROM_LE (r->insn[0]);
-      is_t1_load = (insn & 0xf800) == 0x4800;
-
-      if (last_slot == first_slot && is_t1_load && (self->pc & 3) != 0)
-      {
-        gum_thumb_writer_put_nop (self);
-
-        first_slot = (guint32 *) self->code;
-        last_slot = first_slot;
-      }
 
       for (slot = first_slot; slot != last_slot; slot++)
       {
@@ -231,7 +235,7 @@ gum_thumb_writer_flush (GumThumbWriter * self)
 
       distance_in_bytes = slot_pc - (r->pc & ~((GumAddress) 3));
 
-      if (is_t1_load)
+      if (gum_instruction_is_t1_load (insn))
       {
         r->insn[0] = GUINT16_TO_LE (insn | (distance_in_bytes / 4));
       }
@@ -1008,4 +1012,10 @@ gum_thumb_writer_put_bytes (GumThumbWriter * self,
   gum_memcpy (self->code, data, n);
   self->code += n / sizeof (guint16);
   self->pc += n;
+}
+
+static gboolean
+gum_instruction_is_t1_load (guint16 instruction)
+{
+  return (instruction & 0xf800) == 0x4800;
 }
