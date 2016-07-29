@@ -17599,22 +17599,27 @@ DUK_EXTERNAL void duk_suspend(duk_context *ctx, duk_thread_state *state) {
 	duk_hthread *thr = (duk_hthread *) ctx;
 	duk_internal_thread_state *snapshot = (duk_internal_thread_state *) state;
 	duk_heap *heap;
+	duk_ljstate *lj;
 
 	DUK_ASSERT_CTX_VALID(ctx);
 	DUK_ASSERT(thr != NULL);
 	DUK_ASSERT(thr->heap != NULL);
 
 	heap = thr->heap;
+	lj = &heap->lj;
 
-	memcpy(&snapshot->lj, &heap->lj, sizeof(duk_ljstate));
+	duk_push_heapptr(ctx, DUK_TVAL_IS_HEAP_ALLOCATED(&lj->value1) ? &lj->value1 : NULL);
+	duk_push_heapptr(ctx, DUK_TVAL_IS_HEAP_ALLOCATED(&lj->value2) ? &lj->value2 : NULL);
+
+	memcpy(&snapshot->lj, lj, sizeof(duk_ljstate));
 	snapshot->handling_error = heap->handling_error;
 	snapshot->curr_thread = heap->curr_thread;
 	snapshot->call_recursion_depth = heap->call_recursion_depth;
 
-	heap->lj.jmpbuf_ptr = NULL;
-	heap->lj.type = DUK_LJ_TYPE_UNKNOWN;
-	DUK_TVAL_SET_UNDEFINED(&heap->lj.value1);
-	DUK_TVAL_SET_UNDEFINED(&heap->lj.value2);
+	lj->jmpbuf_ptr = NULL;
+	lj->type = DUK_LJ_TYPE_UNKNOWN;
+	DUK_TVAL_SET_UNDEFINED(&lj->value1);
+	DUK_TVAL_SET_UNDEFINED(&lj->value2);
 	heap->handling_error = 0;
 	heap->curr_thread = NULL;
 	heap->call_recursion_depth = 0;
@@ -17635,6 +17640,8 @@ DUK_EXTERNAL void duk_resume(duk_context *ctx, const duk_thread_state *state) {
 	heap->handling_error = snapshot->handling_error;
 	heap->curr_thread = snapshot->curr_thread;
 	heap->call_recursion_depth = snapshot->call_recursion_depth;
+
+	duk_pop_2(ctx);
 }
 
 /* XXX: better place for this */
