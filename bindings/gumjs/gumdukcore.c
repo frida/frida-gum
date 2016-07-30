@@ -637,10 +637,6 @@ _gum_duk_core_init (GumDukCore * self,
   duk_push_global_object (ctx);
   duk_put_global_string (ctx, "global");
 
-  /* TODO: remove this once the Kernel module has been implemented */
-  duk_push_object (ctx);
-  duk_put_global_string (ctx, "Kernel");
-
   duk_push_object (ctx);
   duk_push_string (ctx, FRIDA_VERSION);
   duk_put_prop_string (ctx, -2, "version");
