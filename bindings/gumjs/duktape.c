@@ -17608,8 +17608,8 @@ DUK_EXTERNAL void duk_suspend(duk_context *ctx, duk_thread_state *state) {
 	heap = thr->heap;
 	lj = &heap->lj;
 
-	duk_push_heapptr(ctx, DUK_TVAL_IS_HEAP_ALLOCATED(&lj->value1) ? &lj->value1 : NULL);
-	duk_push_heapptr(ctx, DUK_TVAL_IS_HEAP_ALLOCATED(&lj->value2) ? &lj->value2 : NULL);
+	duk_push_tval(ctx, &lj->value1);
+	duk_push_tval(ctx, &lj->value2);
 
 	memcpy(&snapshot->lj, lj, sizeof(duk_ljstate));
 	snapshot->handling_error = heap->handling_error;
