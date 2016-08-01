@@ -127,6 +127,7 @@
 
         this.schedule = function (queue, work) {
             const NSAutoreleasePool = this.classes.NSAutoreleasePool;
+
             const workCallback = new NativeCallback(function () {
                 const pool = NSAutoreleasePool.alloc().init();
                 let pendingException = null;
@@ -136,14 +137,19 @@
                     pendingException = e;
                 }
                 pool.release();
+
                 setTimeout(function () {
+                    Script.unpin();
                     scheduledCallbacks.splice(scheduledCallbacks.indexOf(workCallback), 1);
+
+                    if (pendingException !== null) {
+                        throw pendingException;
+                    }
                 }, 0);
-                if (pendingException !== null) {
-                    throw pendingException;
-                }
             }, 'void', ['pointer']);
+
             scheduledCallbacks.push(workCallback);
+            Script.pin();
             api.dispatch_async_f(queue, NULL, workCallback);
         };
 
