@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -26,6 +26,9 @@
 
 #include <gum/guminvocationlistener.h>
 
+typedef guint GumScriptState;
+typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
+typedef void (* GumUnloadNotifyFunc) (GumDukScript * self, gpointer user_data);
 typedef struct _GumEmitMessageData GumEmitMessageData;
 typedef struct _GumPostMessageData GumPostMessageData;
 
@@ -47,6 +50,8 @@ struct _GumDukScriptPrivate
   GMainContext * main_context;
   GumDukScriptBackend * backend;
 
+  GumScriptState state;
+  GSList * on_unload;
   duk_context * ctx;
   GumDukHeapPtr code;
   GumDukCore core;
@@ -63,11 +68,24 @@ struct _GumDukScriptPrivate
   GumDukApiResolver api_resolver;
   GumDukSymbol symbol;
   GumDukInstruction instruction;
-  gboolean loaded;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;
   GDestroyNotify message_handler_data_destroy;
+};
+
+enum _GumScriptState
+{
+  GUM_SCRIPT_STATE_UNLOADED = 1,
+  GUM_SCRIPT_STATE_LOADED,
+  GUM_SCRIPT_STATE_UNLOADING
+};
+
+struct _GumUnloadNotifyCallback
+{
+  GumUnloadNotifyFunc func;
+  gpointer data;
+  GDestroyNotify data_destroy;
 };
 
 struct _GumEmitMessageData
@@ -101,6 +119,8 @@ static void gum_duk_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_duk_script_do_load (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_duk_script_perform_load_task (GumDukScript * self,
+    GumScriptTask * task);
 static void gum_duk_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -110,6 +130,11 @@ static void gum_duk_script_unload_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_duk_script_do_unload (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_duk_script_complete_unload_task (GumDukScript * self,
+    GumScriptTask * task);
+static void gum_duk_script_try_unload (GumDukScript * self);
+static void gum_duk_script_once_unloaded (GumDukScript * self,
+    GumUnloadNotifyFunc func, gpointer data, GDestroyNotify data_destroy);
 
 static void gum_duk_script_set_message_handler (GumScript * script,
     GumScriptMessageHandler handler, gpointer data,
@@ -198,7 +223,8 @@ gum_duk_script_init (GumDukScript * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_DUK_TYPE_SCRIPT, GumDukScriptPrivate);
 
-  priv->loaded = FALSE;
+  priv->state = GUM_SCRIPT_STATE_UNLOADED;
+  priv->on_unload = NULL;
 }
 
 static void
@@ -210,7 +236,7 @@ gum_duk_script_dispose (GObject * object)
 
   gum_duk_script_set_message_handler (script, NULL, NULL, NULL);
 
-  if (priv->loaded)
+  if (priv->state == GUM_SCRIPT_STATE_LOADED)
   {
     /* dispose() will be triggered again at the end of unload() */
     gum_duk_script_unload (script, NULL, NULL, NULL);
@@ -394,11 +420,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
 
   _gum_duk_scope_enter (&scope, &priv->core);
 
-  _gum_duk_stalker_flush (&priv->stalker);
-  _gum_duk_interceptor_flush (&priv->interceptor);
-  _gum_duk_stream_flush (&priv->stream);
-  _gum_duk_core_flush (&priv->core);
-
   _gum_duk_instruction_dispose (&priv->instruction);
   _gum_duk_symbol_dispose (&priv->symbol);
   _gum_duk_api_resolver_dispose (&priv->api_resolver);
@@ -436,8 +457,6 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_memory_finalize (&priv->memory);
   _gum_duk_kernel_finalize (&priv->kernel);
   _gum_duk_core_finalize (&priv->core);
-
-  priv->loaded = FALSE;
 }
 
 static void
@@ -492,19 +511,39 @@ gum_duk_script_do_load (GumScriptTask * task,
   (void) task_data;
   (void) cancellable;
 
-  if (priv->ctx == NULL)
+  switch (priv->state)
   {
-    gboolean created;
-
-    created = gum_duk_script_create_context (self, NULL);
-    g_assert (created);
+    case GUM_SCRIPT_STATE_UNLOADED:
+    case GUM_SCRIPT_STATE_LOADED:
+      gum_duk_script_perform_load_task (self, task);
+      break;
+    case GUM_SCRIPT_STATE_UNLOADING:
+      gum_duk_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_duk_script_perform_load_task,
+          g_object_ref (task), g_object_unref);
+      break;
+    default:
+      g_assert_not_reached ();
   }
+}
 
-  if (!priv->loaded)
+static void
+gum_duk_script_perform_load_task (GumDukScript * self,
+                                  GumScriptTask * task)
+{
+  GumDukScriptPrivate * priv = self->priv;
+
+  if (priv->state == GUM_SCRIPT_STATE_UNLOADED)
   {
     GumDukScope scope;
 
-    priv->loaded = TRUE;
+    if (priv->ctx == NULL)
+    {
+      gboolean created;
+
+      created = gum_duk_script_create_context (self, NULL);
+      g_assert (created);
+    }
 
     _gum_duk_scope_enter (&scope, &priv->core);
 
@@ -513,6 +552,8 @@ gum_duk_script_do_load (GumScriptTask * task,
     duk_pop (priv->ctx);
 
     _gum_duk_scope_leave (&scope);
+
+    priv->state = GUM_SCRIPT_STATE_LOADED;
   }
 
   gum_script_task_return_pointer (task, NULL, NULL);
@@ -570,14 +611,91 @@ gum_duk_script_do_unload (GumScriptTask * task,
   (void) task_data;
   (void) cancellable;
 
-  if (priv->loaded)
+  switch (priv->state)
   {
-    priv->loaded = FALSE;
-
-    gum_duk_script_destroy_context (self);
+    case GUM_SCRIPT_STATE_UNLOADED:
+      gum_duk_script_complete_unload_task (self, task);
+      break;
+    case GUM_SCRIPT_STATE_LOADED:
+      priv->state = GUM_SCRIPT_STATE_UNLOADING;
+      gum_duk_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_duk_script_complete_unload_task,
+          g_object_ref (task), g_object_unref);
+      gum_duk_script_try_unload (self);
+      break;
+    case GUM_SCRIPT_STATE_UNLOADING:
+      gum_duk_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_duk_script_complete_unload_task,
+          g_object_ref (task), g_object_unref);
+      break;
+    default:
+      g_assert_not_reached ();
   }
+}
+
+static void
+gum_duk_script_complete_unload_task (GumDukScript * self,
+                                     GumScriptTask * task)
+{
+  (void) self;
 
   gum_script_task_return_pointer (task, NULL, NULL);
+}
+
+static void
+gum_duk_script_try_unload (GumDukScript * self)
+{
+  GumDukScriptPrivate * priv = self->priv;
+  GumDukScope scope;
+  gboolean success;
+
+  g_assert_cmpuint (priv->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+
+  _gum_duk_scope_enter (&scope, &priv->core);
+
+  _gum_duk_stalker_flush (&priv->stalker);
+  _gum_duk_interceptor_flush (&priv->interceptor);
+  _gum_duk_stream_flush (&priv->stream);
+  success = _gum_duk_core_flush (&priv->core, gum_duk_script_try_unload);
+
+  _gum_duk_scope_leave (&scope);
+
+  if (success)
+  {
+    gum_duk_script_destroy_context (self);
+
+    priv->state = GUM_SCRIPT_STATE_UNLOADED;
+
+    while (priv->on_unload != NULL)
+    {
+      GSList * link = priv->on_unload;
+      GumUnloadNotifyCallback * callback = link->data;
+
+      callback->func (self, callback->data);
+      if (callback->data_destroy != NULL)
+        callback->data_destroy (callback->data);
+      g_slice_free (GumUnloadNotifyCallback, callback);
+
+      priv->on_unload = g_slist_delete_link (priv->on_unload, link);
+    }
+  }
+}
+
+static void
+gum_duk_script_once_unloaded (GumDukScript * self,
+                              GumUnloadNotifyFunc func,
+                              gpointer data,
+                              GDestroyNotify data_destroy)
+{
+  GumDukScriptPrivate * priv = self->priv;
+  GumUnloadNotifyCallback * callback;
+
+  callback = g_slice_new (GumUnloadNotifyCallback);
+  callback->func = func;
+  callback->data = data;
+  callback->data_destroy = data_destroy;
+
+  priv->on_unload = g_slist_append (priv->on_unload, callback);
 }
 
 static void

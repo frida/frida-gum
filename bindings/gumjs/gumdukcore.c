@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -109,6 +109,8 @@ struct _GumFFIABIMapping
   ffi_abi abi;
 };
 
+static gboolean gum_duk_core_notify_flushed_when_idle (gpointer user_data);
+
 GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
 GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
 GUMJS_DECLARE_FUNCTION (gumjs_clear_timer)
@@ -118,8 +120,11 @@ GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
 GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
+GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
@@ -237,6 +242,14 @@ static const GumDukPropertyEntry gumjs_script_values[] =
   { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
 
   { NULL, NULL, NULL }
+};
+
+static const duk_function_list_entry gumjs_script_functions[] =
+{
+  { "pin", gumjs_script_pin, 0 },
+  { "unpin", gumjs_script_unpin, 0 },
+
+  { NULL, NULL, 0 }
 };
 
 static const duk_function_list_entry gumjs_weak_ref_functions[] =
@@ -624,9 +637,15 @@ _gum_duk_core_init (GumDukCore * self,
   self->heap_ctx = ctx;
   self->current_ctx = NULL;
 
-  g_mutex_init (&self->mutex);
-  g_cond_init (&self->event_cond);
+  g_rec_mutex_init (&self->mutex);
+  self->usage_count = 0;
+  self->mutex_depth = 0;
   self->heap_thread_in_use = FALSE;
+  self->flush_notify = NULL;
+
+  g_mutex_init (&self->event_mutex);
+  g_cond_init (&self->event_cond);
+  self->event_count = 0;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
@@ -642,13 +661,11 @@ _gum_duk_core_init (GumDukCore * self,
   duk_put_prop_string (ctx, -2, "version");
   duk_put_global_string (ctx, "Frida");
 
+  duk_push_c_function (ctx, gumjs_script_construct, 0);
   duk_push_object (ctx);
-  duk_push_string (ctx, "DUK");
-  duk_put_prop_string (ctx, -2, "runtime");
-  duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_script_functions);
   duk_put_prop_string (ctx, -2, "prototype");
-  _gum_duk_add_properties_to_class_by_heapptr (ctx,
-      duk_require_heapptr (ctx, -1), gumjs_script_values);
+  duk_new (ctx, 0);
   duk_put_global_string (ctx, "Script");
 
   duk_push_c_function (ctx, gumjs_weak_ref_construct, 0);
@@ -747,19 +764,14 @@ _gum_duk_core_init (GumDukCore * self,
   }
 }
 
-void
-_gum_duk_core_flush (GumDukCore * self)
+gboolean
+_gum_duk_core_flush (GumDukCore * self,
+                     GumDukFlushNotify flush_notify)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
-  GMainContext * context;
+  gboolean done;
 
-  context = gum_script_scheduler_get_js_context (self->scheduler);
-
-  _gum_duk_scope_suspend (&scope);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
-  gum_script_scheduler_flush_by_tag (self->scheduler, self);
-  _gum_duk_scope_resume (&scope);
+  self->flush_notify = flush_notify;
 
   while (self->scheduled_callbacks != NULL)
   {
@@ -774,12 +786,39 @@ _gum_duk_core_flush (GumDukCore * self)
     _gum_duk_scope_resume (&scope);
   }
 
-  _gum_duk_scope_suspend (&scope);
-  while (g_main_context_pending (context))
-    g_main_context_iteration (context, FALSE);
-  _gum_duk_scope_resume (&scope);
+  if (self->usage_count > 1)
+    return FALSE;
 
   g_hash_table_remove_all (self->weak_refs);
+
+  done = self->usage_count == 1;
+  if (done)
+    self->flush_notify = NULL;
+
+  return done;
+}
+
+static void
+gum_duk_core_notify_flushed (GumDukCore * self)
+{
+  GSource * source;
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, gum_duk_core_notify_flushed_when_idle, self,
+      NULL);
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (self->scheduler));
+  g_source_unref (source);
+}
+
+static gboolean
+gum_duk_core_notify_flushed_when_idle (gpointer user_data)
+{
+  GumDukCore * self = user_data;
+
+  self->flush_notify (self->script);
+
+  return FALSE;
 }
 
 void
@@ -809,17 +848,32 @@ _gum_duk_core_finalize (GumDukCore * self)
 {
   g_clear_pointer (&self->weak_refs, g_hash_table_unref);
 
-  g_mutex_clear (&self->mutex);
+  g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
+
+  g_rec_mutex_clear (&self->mutex);
 
   g_assert (self->current_ctx == NULL);
   self->heap_ctx = NULL;
 }
 
 void
+_gum_duk_core_pin (GumDukCore * self)
+{
+  self->usage_count++;
+}
+
+void
+_gum_duk_core_unpin (GumDukCore * self)
+{
+  self->usage_count--;
+}
+
+void
 _gum_duk_core_post_message (GumDukCore * self,
                             const gchar * message)
 {
+  gboolean delivered = FALSE;
   GumDukScope scope;
 
   _gum_duk_scope_enter (&scope, self);
@@ -828,12 +882,18 @@ _gum_duk_core_post_message (GumDukCore * self,
   {
     gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
         &scope);
-
-    self->event_count++;
-    g_cond_broadcast (&self->event_cond);
+    delivered = TRUE;
   }
 
   _gum_duk_scope_leave (&scope);
+
+  if (delivered)
+  {
+    g_mutex_lock (&self->event_mutex);
+    self->event_count++;
+    g_cond_broadcast (&self->event_cond);
+    g_mutex_unlock (&self->event_mutex);
+  }
 }
 
 void
@@ -856,33 +916,45 @@ _gum_duk_scope_enter (GumDukScope * self,
 
   gum_interceptor_begin_transaction (core->interceptor->interceptor);
 
-  g_mutex_lock (&core->mutex);
+  g_rec_mutex_lock (&core->mutex);
 
-  if (!core->heap_thread_in_use)
+  core->usage_count++;
+  core->mutex_depth++;
+
+  if (core->mutex_depth == 1)
   {
-    core->heap_thread_in_use = TRUE;
+    if (!core->heap_thread_in_use)
+    {
+      core->heap_thread_in_use = TRUE;
 
-    self->ctx = ctx;
+      self->ctx = ctx;
+    }
+    else
+    {
+      gchar name[32];
+      duk_idx_t thread_index;
+
+      sprintf (name, "thread_%p", self);
+
+      thread_index = duk_push_thread (ctx);
+      self->ctx = duk_get_context (ctx, thread_index);
+
+      duk_push_global_stash (ctx);
+      duk_dup (ctx, -2);
+      duk_put_prop_string (ctx, -2, name);
+
+      duk_pop_2 (ctx);
+    }
+
+    g_assert (core->current_ctx == NULL);
+    core->current_ctx = self->ctx;
   }
   else
   {
-    gchar name[32];
-    duk_idx_t thread_index;
-
-    sprintf (name, "thread_%p", self);
-
-    thread_index = duk_push_thread (ctx);
-    self->ctx = duk_get_context (ctx, thread_index);
-
-    duk_push_global_stash (ctx);
-    duk_dup (ctx, -2);
-    duk_put_prop_string (ctx, -2, name);
-
-    duk_pop_2 (ctx);
+    self->ctx = core->current_ctx;
   }
 
-  g_assert (core->current_ctx == NULL);
-  core->current_ctx = self->ctx;
+  self->exception = NULL;
 
   return self->ctx;
 }
@@ -891,21 +963,31 @@ void
 _gum_duk_scope_suspend (GumDukScope * self)
 {
   GumDukCore * core = self->core;
+  guint i;
 
   duk_suspend (core->current_ctx, &self->thread_state);
 
   g_assert (core->current_ctx == self->ctx);
   core->current_ctx = NULL;
 
-  g_mutex_unlock (&core->mutex);
+  self->previous_mutex_depth = core->mutex_depth;
+  core->mutex_depth = 0;
+
+  for (i = 0; i != self->previous_mutex_depth; i++)
+    g_rec_mutex_unlock (&core->mutex);
 }
 
 void
 _gum_duk_scope_resume (GumDukScope * self)
 {
   GumDukCore * core = self->core;
+  guint i;
 
-  g_mutex_lock (&core->mutex);
+  for (i = 0; i != self->previous_mutex_depth; i++)
+    g_rec_mutex_lock (&core->mutex);
+
+  core->mutex_depth = self->previous_mutex_depth;
+  self->previous_mutex_depth = 0;
 
   g_assert (core->current_ctx == NULL);
   core->current_ctx = self->ctx;
@@ -982,28 +1064,58 @@ _gum_duk_scope_leave (GumDukScope * self)
 {
   GumDukCore * core = self->core;
   duk_context * ctx = core->heap_ctx;
+  gboolean notify_flushed;
 
   g_assert (core->current_ctx == self->ctx);
-  core->current_ctx = NULL;
 
-  if (self->ctx == ctx)
+  if (core->mutex_depth == 1)
   {
-    core->heap_thread_in_use = FALSE;
+    core->current_ctx = NULL;
+
+    if (self->ctx == ctx)
+    {
+      core->heap_thread_in_use = FALSE;
+    }
+    else
+    {
+      gchar name[32];
+
+      sprintf (name, "thread_%p", self);
+
+      duk_push_global_stash (ctx);
+      duk_del_prop_string (ctx, -1, name);
+      duk_pop (ctx);
+    }
   }
-  else
-  {
-    gchar name[32];
 
-    sprintf (name, "thread_%p", self);
+  core->mutex_depth--;
+  core->usage_count--;
 
-    duk_push_global_stash (ctx);
-    duk_del_prop_string (ctx, -1, name);
-    duk_pop (ctx);
-  }
+  notify_flushed = (core->flush_notify != NULL && core->usage_count == 0);
 
-  g_mutex_unlock (&core->mutex);
+  g_rec_mutex_unlock (&core->mutex);
 
   gum_interceptor_end_transaction (self->core->interceptor->interceptor);
+
+  if (notify_flushed)
+    gum_duk_core_notify_flushed (core);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)
+{
+  (void) args;
+
+  duk_push_this (ctx);
+
+  duk_push_string (ctx, "DUK");
+  duk_put_prop_string (ctx, -2, "runtime");
+
+  _gum_duk_add_properties_to_class_by_heapptr (ctx,
+      duk_require_heapptr (ctx, -1), gumjs_script_values);
+
+  duk_pop (ctx);
+
+  return 0;
 }
 
 GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
@@ -1071,6 +1183,24 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
   g_free (source);
 
   return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
+{
+  (void) ctx;
+
+  _gum_duk_core_pin (args->core);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
+{
+  (void) ctx;
+
+  _gum_duk_core_unpin (args->core);
+
+  return 0;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)
@@ -1266,14 +1396,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 
   (void) ctx;
 
-  start_count = self->event_count;
-
   _gum_duk_scope_suspend (&scope);
 
-  g_mutex_lock (&self->mutex);
+  g_mutex_lock (&self->event_mutex);
+  start_count = self->event_count;
   while (self->event_count == start_count)
-    g_cond_wait (&self->event_cond, &self->mutex);
-  g_mutex_unlock (&self->mutex);
+    g_cond_wait (&self->event_cond, &self->event_mutex);
+  g_mutex_unlock (&self->event_mutex);
 
   _gum_duk_scope_resume (&scope);
 
@@ -2459,6 +2588,7 @@ gum_duk_core_schedule_callback (GumDukCore * self,
       (GDestroyNotify) gum_scheduled_callback_free);
   gum_duk_core_add_scheduled_callback (self, callback);
 
+  _gum_duk_core_pin (self);
   _gum_duk_scope_suspend (&scope);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
@@ -2510,6 +2640,7 @@ gum_scheduled_callback_free (GumDukScheduledCallback * callback)
   duk_context * ctx;
 
   ctx = _gum_duk_scope_enter (&scope, core);
+  _gum_duk_core_unpin (core);
   _gum_duk_unprotect (ctx, callback->func);
   _gum_duk_scope_leave (&scope);
 

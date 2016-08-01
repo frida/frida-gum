@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -779,6 +779,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
     _gum_duk_protect (ctx, sc.on_error);
   _gum_duk_protect (ctx, sc.on_complete);
 
+  _gum_duk_core_pin (core);
   _gum_duk_core_push_job (core,
       (GumScriptJobFunc) gum_memory_scan_context_run,
       g_slice_dup (GumMemoryScanContext, &sc),
@@ -845,6 +846,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   _gum_duk_scope_call (&script_scope, 0);
   duk_pop (ctx);
 
+  _gum_duk_core_unpin (core);
   _gum_duk_scope_leave (&script_scope);
 }
 
