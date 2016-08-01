@@ -2513,6 +2513,8 @@ gum_scheduled_callback_free (GumDukScheduledCallback * callback)
   _gum_duk_unprotect (ctx, callback->func);
   _gum_duk_scope_leave (&scope);
 
+  g_source_unref (callback->source);
+
   g_slice_free (GumDukScheduledCallback, callback);
 }
 

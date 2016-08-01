@@ -1220,6 +1220,7 @@ gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback)
   ScriptScope (callback->core->script);
   delete callback->func;
   delete callback->receiver;
+  g_source_unref (callback->source);
 
   g_slice_free (GumV8ScheduledCallback, callback);
 }
