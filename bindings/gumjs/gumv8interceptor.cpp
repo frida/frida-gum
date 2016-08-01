@@ -231,16 +231,16 @@ _gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
   Isolate * isolate = self->core->isolate;
 
-  gum_interceptor_begin_transaction (self->interceptor);
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
-  gum_interceptor_end_transaction (self->interceptor);
 
   isolate->Exit ();
   {
     Unlocker ul (isolate);
 
+    gum_interceptor_end_transaction (self->interceptor);
     gum_interceptor_flush (self->interceptor);
+    gum_interceptor_begin_transaction (self->interceptor);
   }
   isolate->Enter ();
 }

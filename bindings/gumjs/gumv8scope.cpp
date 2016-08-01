@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,11 +21,13 @@ ScriptScope::ScriptScope (GumV8Script * parent)
     trycatch (parent->priv->isolate),
     interceptor_scope (parent)
 {
+  _gum_v8_core_pin (&parent->priv->core);
 }
 
 ScriptScope::~ScriptScope ()
 {
   GumV8ScriptPrivate * priv = parent->priv;
+  GumV8Core * core = &priv->core;
 
   if (trycatch.HasCaught ())
   {
@@ -33,6 +35,13 @@ ScriptScope::~ScriptScope ()
     trycatch.Reset ();
     _gum_v8_core_on_unhandled_exception (&priv->core, exception);
     trycatch.Reset ();
+  }
+
+  _gum_v8_core_unpin (core);
+
+  if (core->flush_notify != NULL && core->usage_count == 0)
+  {
+    _gum_v8_core_notify_flushed (core);
   }
 }
 

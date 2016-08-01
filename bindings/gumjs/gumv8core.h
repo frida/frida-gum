@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -36,6 +36,7 @@ struct GumPersistent
   typedef v8::Persistent<T, v8::CopyablePersistentTraits<T> > type;
 };
 
+typedef void (* GumV8FlushNotify) (GumV8Script * script);
 typedef void (* GumV8MessageEmitter) (GumV8Script * script,
     const gchar * message, GBytes * data);
 
@@ -48,8 +49,10 @@ struct _GumV8Core
   GumExceptor * exceptor;
   v8::Isolate * isolate;
 
-  GMutex mutex;
+  volatile guint usage_count;
+  volatile GumV8FlushNotify flush_notify;
 
+  GMutex event_mutex;
   GCond event_cond;
   volatile guint event_count;
 
@@ -104,9 +107,14 @@ G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
     GumScriptScheduler * scheduler, v8::Isolate * isolate,
     v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_core_realize (GumV8Core * self);
-G_GNUC_INTERNAL void _gum_v8_core_flush (GumV8Core * self);
+G_GNUC_INTERNAL gboolean _gum_v8_core_flush (GumV8Core * self,
+    GumV8FlushNotify flush_notify);
+G_GNUC_INTERNAL void _gum_v8_core_notify_flushed (GumV8Core * self);
 G_GNUC_INTERNAL void _gum_v8_core_dispose (GumV8Core * self);
 G_GNUC_INTERNAL void _gum_v8_core_finalize (GumV8Core * self);
+
+G_GNUC_INTERNAL void _gum_v8_core_pin (GumV8Core * self);
+G_GNUC_INTERNAL void _gum_v8_core_unpin (GumV8Core * self);
 
 G_GNUC_INTERNAL void _gum_v8_core_on_unhandled_exception (
     GumV8Core * self, v8::Handle<v8::Value> exception);

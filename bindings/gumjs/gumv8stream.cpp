@@ -285,16 +285,21 @@ gum_v8_input_stream_on_close (
 
   op->module = module;
 
+  _gum_v8_core_pin (core);
   gum_script_job_start_on_js_thread (op->job);
 }
 
 static void
 gum_v8_close_input_operation_free (GumV8CloseInputOperation * op)
 {
+  GumV8Core * core = op->module->core;
+
   {
-    ScriptScope scope (op->module->core->script);
+    ScriptScope scope (core->script);
 
     delete op->callback;
+
+    _gum_v8_core_unpin (core);
   }
 
   g_object_unref (op->stream);
@@ -413,16 +418,21 @@ gum_v8_input_stream_on_read_with_strategy (
 
   op->module = module;
 
+  _gum_v8_core_pin (core);
   gum_script_job_start_on_js_thread (op->job);
 }
 
 static void
 gum_v8_read_operation_free (GumV8ReadOperation * op)
 {
+  GumV8Core * core = op->module->core;
+
   {
-    ScriptScope scope (op->module->core->script);
+    ScriptScope scope (core->script);
 
     delete op->callback;
+
+    _gum_v8_core_unpin (core);
   }
 
   g_free (op->buffer);
@@ -590,16 +600,21 @@ gum_v8_output_stream_on_close (
 
   op->module = module;
 
+  _gum_v8_core_pin (core);
   gum_script_job_start_on_js_thread (op->job);
 }
 
 static void
 gum_v8_close_output_operation_free (GumV8CloseOutputOperation * op)
 {
+  GumV8Core * core = op->module->core;
+
   {
-    ScriptScope scope (op->module->core->script);
+    ScriptScope scope (core->script);
 
     delete op->callback;
+
+    _gum_v8_core_unpin (core);
   }
 
   g_object_unref (op->stream);
@@ -713,16 +728,21 @@ gum_v8_output_stream_on_write_with_strategy (
 
   op->module = module;
 
+  _gum_v8_core_pin (core);
   gum_script_job_start_on_js_thread (op->job);
 }
 
 static void
 gum_v8_write_operation_free (GumV8WriteOperation * op)
 {
+  GumV8Core * core = op->module->core;
+
   {
-    ScriptScope scope (op->module->core->script);
+    ScriptScope scope (core->script);
 
     delete op->callback;
+
+    _gum_v8_core_unpin (core);
   }
 
   g_bytes_unref (op->bytes);

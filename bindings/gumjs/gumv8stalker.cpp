@@ -115,6 +115,8 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 void
 _gum_v8_stalker_flush (GumV8Stalker * self)
 {
+  Isolate * isolate = self->core->isolate;
+
   if (self->sink != NULL)
   {
     GumEventSink * sink = self->sink;
@@ -122,11 +124,19 @@ _gum_v8_stalker_flush (GumV8Stalker * self)
     g_object_unref (sink);
   }
 
-  if (self->stalker != NULL)
+  GumStalker * stalker = self->stalker;
+  if (stalker != NULL)
   {
-    gum_stalker_stop (self->stalker);
-    g_object_unref (self->stalker);
     self->stalker = NULL;
+
+    isolate->Exit ();
+    {
+      Unlocker ul (isolate);
+
+      gum_stalker_stop (stalker);
+      g_object_unref (stalker);
+    }
+    isolate->Enter ();
   }
 }
 

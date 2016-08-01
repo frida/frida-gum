@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2015 Asger Hautop Drewsen <asgerdrewsen@gmail.com>
  * Copyright (C) 2015 Marc Hartmayer <hello@hartmayer.com>
  *
@@ -21,9 +21,6 @@
 #endif
 
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
-
-#define GUM_V8_CORE_LOCK()   (g_mutex_lock (&self->mutex))
-#define GUM_V8_CORE_UNLOCK() (g_mutex_unlock (&self->mutex))
 
 using namespace v8;
 
@@ -126,6 +123,12 @@ struct _GumCpuContextWrapper
   GumCpuContext * cpu_context;
 };
 
+static gboolean gum_v8_core_notify_flushed_when_idle (gpointer user_data);
+
+static void gum_v8_core_on_script_pin (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_script_unpin (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_script_get_file_name (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gum_v8_core_on_script_get_source_map_data (
@@ -317,8 +320,12 @@ _gum_v8_core_init (GumV8Core * self,
   self->exceptor = gum_exceptor_obtain ();
   self->isolate = isolate;
 
-  g_mutex_init (&self->mutex);
+  self->usage_count = 0;
+  self->flush_notify = NULL;
+
+  g_mutex_init (&self->event_mutex);
   g_cond_init (&self->event_cond);
+  self->event_count = 0;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_weak_ref_free));
@@ -331,6 +338,10 @@ _gum_v8_core_init (GumV8Core * self,
   scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
 
   Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
+  script_module->Set (String::NewFromUtf8 (isolate, "pin"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_script_pin, data));
+  script_module->Set (String::NewFromUtf8 (isolate, "unpin"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_script_unpin, data));
   script_module->Set (String::NewFromUtf8 (isolate, "runtime"),
       String::NewFromUtf8 (isolate, "V8"), ReadOnly);
   script_module->SetAccessor (String::NewFromUtf8 (isolate, "fileName"),
@@ -697,22 +708,13 @@ _gum_v8_core_realize (GumV8Core * self)
       cpu_context_value);
 }
 
-void
-_gum_v8_core_flush (GumV8Core * self)
+gboolean
+_gum_v8_core_flush (GumV8Core * self,
+                    GumV8FlushNotify flush_notify)
 {
-  GMainContext * context =
-      gum_script_scheduler_get_js_context (self->scheduler);
+  gboolean done;
 
-  self->isolate->Exit ();
-  {
-    Unlocker ul (self->isolate);
-
-    while (g_main_context_pending (context))
-      g_main_context_iteration (context, FALSE);
-
-    gum_script_scheduler_flush_by_tag (self->scheduler, self);
-  }
-  self->isolate->Enter ();
+  self->flush_notify = flush_notify;
 
   while (self->scheduled_callbacks != NULL)
   {
@@ -731,18 +733,41 @@ _gum_v8_core_flush (GumV8Core * self)
     self->isolate->Enter ();
   }
 
-  self->isolate->Exit ();
-  {
-    Unlocker ul (self->isolate);
-
-    while (g_main_context_pending (context))
-      g_main_context_iteration (context, FALSE);
-  }
-  self->isolate->Enter ();
+  if (self->usage_count > 1)
+    return FALSE;
 
   g_hash_table_foreach (self->weak_refs,
       (GHFunc) gum_v8_core_clear_weak_ref_entry, NULL);
   g_hash_table_remove_all (self->weak_refs);
+
+  done = self->usage_count == 1;
+  if (done)
+    self->flush_notify = NULL;
+
+  return done;
+}
+
+void
+_gum_v8_core_notify_flushed (GumV8Core * self)
+{
+  GSource * source;
+
+  source = g_idle_source_new ();
+  g_source_set_callback (source, gum_v8_core_notify_flushed_when_idle, self,
+      NULL);
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (self->scheduler));
+  g_source_unref (source);
+}
+
+static gboolean
+gum_v8_core_notify_flushed_when_idle (gpointer user_data)
+{
+  GumV8Core * self = (GumV8Core *) user_data;
+
+  self->flush_notify (self->script);
+
+  return FALSE;
 }
 
 void
@@ -799,8 +824,20 @@ _gum_v8_core_finalize (GumV8Core * self)
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
 
-  g_mutex_clear (&self->mutex);
+  g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
+}
+
+void
+_gum_v8_core_pin (GumV8Core * self)
+{
+  self->usage_count++;
+}
+
+void
+_gum_v8_core_unpin (GumV8Core * self)
+{
+  self->usage_count--;
 }
 
 void
@@ -833,11 +870,29 @@ _gum_v8_core_post_message (GumV8Core * self,
 
   if (delivered)
   {
-    GUM_V8_CORE_LOCK ();
+    g_mutex_lock (&self->event_mutex);
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
-    GUM_V8_CORE_UNLOCK ();
+    g_mutex_unlock (&self->event_mutex);
   }
+}
+
+static void
+gum_v8_core_on_script_pin (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  _gum_v8_core_pin (self);
+}
+
+static void
+gum_v8_core_on_script_unpin (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  _gum_v8_core_unpin (self);
 }
 
 static void
@@ -1107,6 +1162,7 @@ gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
       reinterpret_cast<GDestroyNotify> (gum_v8_scheduled_callback_free));
   gum_v8_core_add_scheduled_callback (self, callback);
 
+  _gum_v8_core_pin (self);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
 
@@ -1217,9 +1273,17 @@ gum_v8_scheduled_callback_new (guint id,
 static void
 gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback)
 {
-  ScriptScope (callback->core->script);
-  delete callback->func;
-  delete callback->receiver;
+  GumV8Core * core = callback->core;
+
+  {
+    ScriptScope scope (core->script);
+
+    delete callback->func;
+    delete callback->receiver;
+
+    _gum_v8_core_unpin (core);
+  }
+
   g_source_unref (callback->source);
 
   g_slice_free (GumV8ScheduledCallback, callback);
@@ -1399,11 +1463,11 @@ gum_v8_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
   {
     Unlocker ul (self->isolate);
 
-    GUM_V8_CORE_LOCK ();
+    g_mutex_lock (&self->event_mutex);
     guint start_count = self->event_count;
     while (self->event_count == start_count)
-      g_cond_wait (&self->event_cond, &self->mutex);
-    GUM_V8_CORE_UNLOCK ();
+      g_cond_wait (&self->event_cond, &self->event_mutex);
+    g_mutex_unlock (&self->event_mutex);
   }
   self->isolate->Enter ();
 }

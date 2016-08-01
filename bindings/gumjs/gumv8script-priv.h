@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -28,6 +28,8 @@
 
 G_BEGIN_DECLS
 
+typedef guint GumScriptState;
+
 struct _GumV8ScriptPrivate
 {
   gchar * name;
@@ -35,6 +37,8 @@ struct _GumV8ScriptPrivate
   GMainContext * main_context;
   GumV8ScriptBackend * backend;
 
+  GumScriptState state;
+  GSList * on_unload;
   v8::Isolate * isolate;
   GumV8Core core;
   GumV8Kernel kernel;
@@ -52,7 +56,6 @@ struct _GumV8ScriptPrivate
   GumV8Instruction instruction;
   GumPersistent<v8::Context>::type * context;
   GumPersistent<v8::Script>::type * code;
-  gboolean loaded;
 
   GumScriptMessageHandler message_handler;
   gpointer message_handler_data;

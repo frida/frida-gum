@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  * Copyright (C) 2013 Karl Trygve Kalleberg <karltk@boblycat.org>
  *
  * Licence: wxWindows Library Licence, Version 3.1
@@ -12,6 +12,8 @@
 
 using namespace v8;
 
+typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
+typedef void (* GumUnloadNotifyFunc) (GumV8Script * self, gpointer user_data);
 typedef struct _GumEmitMessageData GumEmitMessageData;
 typedef struct _GumPostMessageData GumPostMessageData;
 
@@ -22,6 +24,20 @@ enum
   PROP_SOURCE,
   PROP_MAIN_CONTEXT,
   PROP_BACKEND
+};
+
+enum _GumScriptState
+{
+  GUM_SCRIPT_STATE_UNLOADED = 1,
+  GUM_SCRIPT_STATE_LOADED,
+  GUM_SCRIPT_STATE_UNLOADING
+};
+
+struct _GumUnloadNotifyCallback
+{
+  GumUnloadNotifyFunc func;
+  gpointer data;
+  GDestroyNotify data_destroy;
 };
 
 struct _GumEmitMessageData
@@ -56,6 +72,8 @@ static void gum_v8_script_load_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_v8_script_do_load (GumScriptTask * task, gpointer source_object,
     gpointer task_data, GCancellable * cancellable);
+static void gum_v8_script_perform_load_task (GumV8Script * self,
+    GumScriptTask * task);
 static void gum_v8_script_unload (GumScript * script,
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
@@ -65,6 +83,11 @@ static void gum_v8_script_unload_sync (GumScript * script,
     GCancellable * cancellable);
 static void gum_v8_script_do_unload (GumScriptTask * task,
     gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_v8_script_complete_unload_task (GumV8Script * self,
+    GumScriptTask * task);
+static void gum_v8_script_try_unload (GumV8Script * self);
+static void gum_v8_script_once_unloaded (GumV8Script * self,
+    GumUnloadNotifyFunc func, gpointer data, GDestroyNotify data_destroy);
 
 static void gum_v8_script_set_message_handler (GumScript * script,
     GumScriptMessageHandler handler, gpointer data,
@@ -150,7 +173,8 @@ gum_v8_script_init (GumV8Script * self)
   priv = self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self,
       GUM_V8_TYPE_SCRIPT, GumV8ScriptPrivate);
 
-  priv->loaded = FALSE;
+  priv->state = GUM_SCRIPT_STATE_UNLOADED;
+  priv->on_unload = NULL;
 }
 
 static void
@@ -174,7 +198,7 @@ gum_v8_script_dispose (GObject * object)
 
   gum_v8_script_set_message_handler (script, NULL, NULL, NULL);
 
-  if (priv->loaded)
+  if (priv->state == GUM_SCRIPT_STATE_LOADED)
   {
     /* dispose() will be triggered again at the end of unload() */
     gum_v8_script_unload (script, NULL, NULL, NULL);
@@ -273,6 +297,10 @@ gum_v8_script_create_context (GumV8Script * self,
   g_assert (priv->context == NULL);
 
   {
+    Locker locker (priv->isolate);
+    Isolate::Scope isolate_scope (priv->isolate);
+    HandleScope handle_scope (priv->isolate);
+
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
     _gum_v8_core_init (&priv->core, self, gum_v8_script_emit_message,
         gum_v8_script_backend_get_scheduler (priv->backend), priv->isolate,
@@ -357,14 +385,7 @@ gum_v8_script_destroy_context (GumV8Script * self)
   g_assert (priv->context != NULL);
 
   {
-    Local<Context> context (Local<Context>::New (priv->isolate,
-        *priv->context));
-    Context::Scope context_scope (context);
-
-    _gum_v8_stalker_flush (&priv->stalker);
-    _gum_v8_interceptor_flush (&priv->interceptor);
-    _gum_v8_stream_flush (&priv->stream);
-    _gum_v8_core_flush (&priv->core);
+    ScriptScope scope (self);
 
     _gum_v8_instruction_dispose (&priv->instruction);
     _gum_v8_symbol_dispose (&priv->symbol);
@@ -401,8 +422,6 @@ gum_v8_script_destroy_context (GumV8Script * self)
   _gum_v8_memory_finalize (&priv->memory);
   _gum_v8_kernel_finalize (&priv->kernel);
   _gum_v8_core_finalize (&priv->core);
-
-  priv->loaded = FALSE;
 }
 
 static void
@@ -452,13 +471,31 @@ gum_v8_script_do_load (GumScriptTask * task,
                        GCancellable * cancellable)
 {
   GumV8Script * self = GUM_V8_SCRIPT (source_object);
+
+  switch (self->priv->state)
+  {
+    case GUM_SCRIPT_STATE_UNLOADED:
+    case GUM_SCRIPT_STATE_LOADED:
+      gum_v8_script_perform_load_task (self, task);
+      break;
+    case GUM_SCRIPT_STATE_UNLOADING:
+      gum_v8_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_v8_script_perform_load_task,
+          g_object_ref (task), g_object_unref);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+}
+
+static void
+gum_v8_script_perform_load_task (GumV8Script * self,
+                                 GumScriptTask * task)
+{
   GumV8ScriptPrivate * priv = self->priv;
 
+  if (priv->state == GUM_SCRIPT_STATE_UNLOADED)
   {
-    Locker locker (priv->isolate);
-    Isolate::Scope isolate_scope (priv->isolate);
-    HandleScope handle_scope (priv->isolate);
-
     if (priv->code == NULL)
     {
       gboolean created;
@@ -467,10 +504,7 @@ gum_v8_script_do_load (GumScriptTask * task,
       g_assert (created);
     }
 
-    if (!priv->loaded)
     {
-      priv->loaded = TRUE;
-
       ScriptScope scope (self);
       GumV8Platform * platform = static_cast<GumV8Platform *> (
           gum_v8_script_backend_get_platform (priv->backend));
@@ -480,6 +514,8 @@ gum_v8_script_do_load (GumScriptTask * task,
       Local<Script> code (Local<Script>::New (priv->isolate, *priv->code));
       code->Run ();
     }
+
+    priv->state = GUM_SCRIPT_STATE_LOADED;
   }
 
   gum_script_task_return_pointer (task, NULL, NULL);
@@ -534,20 +570,89 @@ gum_v8_script_do_unload (GumScriptTask * task,
   GumV8Script * self = GUM_V8_SCRIPT (source_object);
   GumV8ScriptPrivate * priv = self->priv;
 
+  switch (priv->state)
   {
-    Locker locker (priv->isolate);
-    Isolate::Scope isolate_scope (priv->isolate);
-    HandleScope handle_scope (priv->isolate);
+    case GUM_SCRIPT_STATE_UNLOADED:
+      gum_v8_script_complete_unload_task (self, task);
+      break;
+    case GUM_SCRIPT_STATE_LOADED:
+      priv->state = GUM_SCRIPT_STATE_UNLOADING;
+      gum_v8_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
+          g_object_ref (task), g_object_unref);
+      gum_v8_script_try_unload (self);
+      break;
+    case GUM_SCRIPT_STATE_UNLOADING:
+      gum_v8_script_once_unloaded (self,
+          (GumUnloadNotifyFunc) gum_v8_script_complete_unload_task,
+          g_object_ref (task), g_object_unref);
+      break;
+    default:
+      g_assert_not_reached ();
+  }
+}
 
-    if (priv->loaded)
-    {
-      priv->loaded = FALSE;
+static void
+gum_v8_script_complete_unload_task (GumV8Script * self,
+                                    GumScriptTask * task)
+{
+  gum_script_task_return_pointer (task, NULL, NULL);
+}
 
-      gum_v8_script_destroy_context (self);
-    }
+static void
+gum_v8_script_try_unload (GumV8Script * self)
+{
+  GumV8ScriptPrivate * priv = self->priv;
+  gboolean success;
+
+  g_assert_cmpuint (priv->state, ==, GUM_SCRIPT_STATE_UNLOADING);
+
+  {
+    ScriptScope scope (self);
+
+    _gum_v8_stalker_flush (&priv->stalker);
+    _gum_v8_interceptor_flush (&priv->interceptor);
+    _gum_v8_stream_flush (&priv->stream);
+    success = _gum_v8_core_flush (&priv->core, gum_v8_script_try_unload);
   }
 
-  gum_script_task_return_pointer (task, NULL, NULL);
+  if (success)
+  {
+    gum_v8_script_destroy_context (self);
+
+    priv->state = GUM_SCRIPT_STATE_UNLOADED;
+
+    while (priv->on_unload != NULL)
+    {
+      GSList * link = priv->on_unload;
+      GumUnloadNotifyCallback * callback =
+          (GumUnloadNotifyCallback *) link->data;
+
+      callback->func (self, callback->data);
+      if (callback->data_destroy != NULL)
+        callback->data_destroy (callback->data);
+      g_slice_free (GumUnloadNotifyCallback, callback);
+
+      priv->on_unload = g_slist_delete_link (priv->on_unload, link);
+    }
+  }
+}
+
+static void
+gum_v8_script_once_unloaded (GumV8Script * self,
+                             GumUnloadNotifyFunc func,
+                             gpointer data,
+                             GDestroyNotify data_destroy)
+{
+  GumV8ScriptPrivate * priv = self->priv;
+  GumUnloadNotifyCallback * callback;
+
+  callback = g_slice_new (GumUnloadNotifyCallback);
+  callback->func = func;
+  callback->data = data;
+  callback->data_destroy = data_destroy;
+
+  priv->on_unload = g_slist_append (priv->on_unload, callback);
 }
 
 static void

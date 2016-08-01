@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -1004,7 +1004,8 @@ gum_v8_memory_on_scan (const FunctionCallbackInfo<Value> & info)
       ctx->on_error = new GumPersistent<Function>::type (isolate, on_error);
     ctx->on_complete = new GumPersistent<Function>::type (isolate, on_complete);
 
-    _gum_v8_core_push_job (self->core, gum_v8_script_do_memory_scan, ctx,
+    _gum_v8_core_pin (core);
+    _gum_v8_core_push_job (core, gum_v8_script_do_memory_scan, ctx,
         reinterpret_cast<GDestroyNotify> (gum_memory_scan_context_free));
   }
   else
@@ -1017,16 +1018,18 @@ gum_v8_memory_on_scan (const FunctionCallbackInfo<Value> & info)
 static void
 gum_memory_scan_context_free (GumMemoryScanContext * ctx)
 {
-  if (ctx == NULL)
-    return;
+  GumV8Core * core = ctx->core;
 
   gum_match_pattern_free (ctx->pattern);
 
   {
-    ScriptScope script_scope (ctx->core->script);
+    ScriptScope script_scope (core->script);
+
     delete ctx->on_match;
     delete ctx->on_error;
     delete ctx->on_complete;
+
+    _gum_v8_core_unpin (core);
   }
 
   g_slice_free (GumMemoryScanContext, ctx);
