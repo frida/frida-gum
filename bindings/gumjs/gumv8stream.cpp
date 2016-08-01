@@ -281,7 +281,7 @@ gum_v8_input_stream_on_close (
       callback_value.As<Function> ());
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_v8_close_input_operation_start, op,
-      (GDestroyNotify) gum_v8_close_input_operation_free, core);
+      (GDestroyNotify) gum_v8_close_input_operation_free);
 
   op->module = module;
 
@@ -414,7 +414,7 @@ gum_v8_input_stream_on_read_with_strategy (
       callback_value.As<Function> ());
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_v8_read_operation_start, op,
-      (GDestroyNotify) gum_v8_read_operation_free, core);
+      (GDestroyNotify) gum_v8_read_operation_free);
 
   op->module = module;
 
@@ -596,7 +596,7 @@ gum_v8_output_stream_on_close (
       callback_value.As<Function> ());
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_v8_close_output_operation_start, op,
-      (GDestroyNotify) gum_v8_close_output_operation_free, core);
+      (GDestroyNotify) gum_v8_close_output_operation_free);
 
   op->module = module;
 
@@ -724,7 +724,7 @@ gum_v8_output_stream_on_write_with_strategy (
       callback_value.As<Function> ());
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_v8_write_operation_start, op,
-      (GDestroyNotify) gum_v8_write_operation_free, core);
+      (GDestroyNotify) gum_v8_write_operation_free);
 
   op->module = module;
 

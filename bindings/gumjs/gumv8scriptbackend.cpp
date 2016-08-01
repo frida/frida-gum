@@ -605,7 +605,7 @@ gum_v8_script_backend_set_debug_message_handler (
       (handler != NULL)
           ? (GumScriptJobFunc) gum_v8_script_backend_enable_debugger
           : (GumScriptJobFunc) gum_v8_script_backend_disable_debugger,
-      self, NULL, self);
+      self, NULL);
 }
 
 static void
@@ -726,7 +726,7 @@ gum_v8_script_backend_post_debug_message (GumScriptBackend * backend,
       gum_v8_script_backend_get_scheduler (self),
       G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_v8_script_backend_do_process_debug_messages,
-      self, NULL, self);
+      self, NULL);
 }
 
 static void

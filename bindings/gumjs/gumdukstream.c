@@ -277,7 +277,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_input_stream_close)
   op->callback = _gum_duk_require_heapptr (ctx, -1);
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_duk_close_input_operation_start, op,
-      (GDestroyNotify) gum_duk_close_input_operation_free, core);
+      (GDestroyNotify) gum_duk_close_input_operation_free);
 
   op->module = module;
 
@@ -386,7 +386,7 @@ gumjs_input_stream_read_with_strategy (duk_context * ctx,
   op->callback = _gum_duk_require_heapptr (ctx, -1);
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_duk_read_operation_start, op,
-      (GDestroyNotify) gum_duk_read_operation_free, core);
+      (GDestroyNotify) gum_duk_read_operation_free);
 
   op->module = module;
 
@@ -583,7 +583,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
   op->callback = _gum_duk_require_heapptr (ctx, -1);
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_duk_close_output_operation_start, op,
-      (GDestroyNotify) gum_duk_close_output_operation_free, core);
+      (GDestroyNotify) gum_duk_close_output_operation_free);
 
   op->module = module;
 
@@ -693,7 +693,7 @@ gumjs_output_stream_write_with_strategy (duk_context * ctx,
   op->callback = _gum_duk_require_heapptr (ctx, -1);
   op->job = gum_script_job_new (core->scheduler,
       (GumScriptJobFunc) gum_duk_write_operation_start, op,
-      (GDestroyNotify) gum_duk_write_operation_free, core);
+      (GDestroyNotify) gum_duk_write_operation_free);
 
   op->module = module;
 

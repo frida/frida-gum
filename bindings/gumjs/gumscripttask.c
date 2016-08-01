@@ -300,7 +300,7 @@ gum_script_task_run_in_js_thread (GumScriptTask * self,
 {
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_script_task_run, g_object_ref (self),
-      g_object_unref, NULL);
+      g_object_unref);
 }
 
 void
@@ -316,7 +316,7 @@ gum_script_task_run_in_js_thread_sync (GumScriptTask * self,
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) gum_script_task_run, g_object_ref (self),
-      g_object_unref, NULL);
+      g_object_unref);
 
   g_mutex_lock (&priv->mutex);
   while (!priv->completed)

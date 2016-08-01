@@ -6,23 +6,15 @@
 
 #include "gumscriptscheduler.h"
 
-#define GUM_SCRIPT_SCHEDULER_LOCK()   (g_mutex_lock (&priv->mutex))
-#define GUM_SCRIPT_SCHEDULER_UNLOCK() (g_mutex_unlock (&priv->mutex))
-
 struct _GumScriptSchedulerPrivate
 {
   gboolean disposed;
-
-  GMutex mutex;
-  GCond cond;
 
   GThread * js_thread;
   GMainLoop * js_loop;
   GMainContext * js_context;
 
   GThreadPool * thread_pool;
-
-  GSList * pending;
 };
 
 struct _GumScriptJob
@@ -30,13 +22,11 @@ struct _GumScriptJob
   GumScriptJobFunc func;
   gpointer data;
   GDestroyNotify data_destroy;
-  gpointer tag;
 
   GumScriptScheduler * scheduler;
 };
 
 static void gum_script_scheduler_dispose (GObject * obj);
-static void gum_script_scheduler_finalize (GObject * obj);
 
 static gboolean gum_script_scheduler_perform_js_job (
     GumScriptJob * job);
@@ -55,7 +45,6 @@ gum_script_scheduler_class_init (GumScriptSchedulerClass * klass)
   g_type_class_add_private (klass, sizeof (GumScriptSchedulerPrivate));
 
   object_class->dispose = gum_script_scheduler_dispose;
-  object_class->finalize = gum_script_scheduler_finalize;
 }
 
 static void
@@ -66,9 +55,6 @@ gum_script_scheduler_init (GumScriptScheduler * self)
   self->priv = G_TYPE_INSTANCE_GET_PRIVATE (self, GUM_TYPE_SCRIPT_SCHEDULER,
       GumScriptSchedulerPrivate);
   priv = self->priv;
-
-  g_mutex_init (&priv->mutex);
-  g_cond_init (&priv->cond);
 
   priv->js_context = g_main_context_new ();
   priv->js_loop = g_main_loop_new (priv->js_context, TRUE);
@@ -98,7 +84,7 @@ gum_script_scheduler_dispose (GObject * obj)
     priv->thread_pool = NULL;
 
     gum_script_scheduler_push_job_on_js_thread (self, G_PRIORITY_LOW,
-        (GumScriptJobFunc) g_main_loop_quit, priv->js_loop, NULL, NULL);
+        (GumScriptJobFunc) g_main_loop_quit, priv->js_loop, NULL);
     g_thread_join (priv->js_thread);
     priv->js_thread = NULL;
 
@@ -109,21 +95,7 @@ gum_script_scheduler_dispose (GObject * obj)
     priv->js_context = NULL;
   }
 
-  g_assert (priv->pending == NULL);
-
   G_OBJECT_CLASS (gum_script_scheduler_parent_class)->dispose (obj);
-}
-
-static void
-gum_script_scheduler_finalize (GObject * obj)
-{
-  GumScriptScheduler * self = GUM_SCRIPT_SCHEDULER (obj);
-  GumScriptSchedulerPrivate * priv = self->priv;
-
-  g_cond_clear (&priv->cond);
-  g_mutex_clear (&priv->mutex);
-
-  G_OBJECT_CLASS (gum_script_scheduler_parent_class)->finalize (obj);
 }
 
 GumScriptScheduler *
@@ -143,13 +115,12 @@ gum_script_scheduler_push_job_on_js_thread (GumScriptScheduler * self,
                                             gint priority,
                                             GumScriptJobFunc func,
                                             gpointer data,
-                                            GDestroyNotify data_destroy,
-                                            gpointer tag)
+                                            GDestroyNotify data_destroy)
 {
   GumScriptJob * job;
   GSource * source;
 
-  job = gum_script_job_new (self, func, data, data_destroy, tag);
+  job = gum_script_job_new (self, func, data, data_destroy);
 
   source = g_idle_source_new ();
   g_source_set_priority (source, priority);
@@ -165,70 +136,11 @@ void
 gum_script_scheduler_push_job_on_thread_pool (GumScriptScheduler * self,
                                               GumScriptJobFunc func,
                                               gpointer data,
-                                              GDestroyNotify data_destroy,
-                                              gpointer tag)
+                                              GDestroyNotify data_destroy)
 {
   g_thread_pool_push (self->priv->thread_pool,
-      gum_script_job_new (self, func, data, data_destroy, tag),
+      gum_script_job_new (self, func, data, data_destroy),
       NULL);
-}
-
-void
-gum_script_scheduler_flush_by_tag (GumScriptScheduler * self,
-                                   gpointer tag)
-{
-  GumScriptSchedulerPrivate * priv = self->priv;
-  GSList * cur;
-  gboolean found;
-
-  GUM_SCRIPT_SCHEDULER_LOCK ();
-
-  do
-  {
-    found = FALSE;
-
-    for (cur = priv->pending; cur != NULL && !found; cur = cur->next)
-    {
-      GumScriptJob * job = cur->data;
-      if (job->tag == tag)
-        found = TRUE;
-    }
-
-    if (found)
-      g_cond_wait (&priv->cond, &priv->mutex);
-  }
-  while (found);
-
-  GUM_SCRIPT_SCHEDULER_UNLOCK ();
-}
-
-static void
-gum_script_scheduler_on_job_created (GumScriptScheduler * self,
-                                     GumScriptJob * job)
-{
-  GumScriptSchedulerPrivate * priv = self->priv;
-
-  if (job->tag == NULL)
-    return;
-
-  GUM_SCRIPT_SCHEDULER_LOCK ();
-  priv->pending = g_slist_prepend (priv->pending, job);
-  GUM_SCRIPT_SCHEDULER_UNLOCK ();
-}
-
-static void
-gum_script_scheduler_on_job_destroyed (GumScriptScheduler * self,
-                                       GumScriptJob * job)
-{
-  GumScriptSchedulerPrivate * priv = self->priv;
-
-  if (job->tag == NULL)
-    return;
-
-  GUM_SCRIPT_SCHEDULER_LOCK ();
-  priv->pending = g_slist_remove (priv->pending, job);
-  g_cond_broadcast (&priv->cond);
-  GUM_SCRIPT_SCHEDULER_UNLOCK ();
 }
 
 static gboolean
@@ -266,8 +178,7 @@ GumScriptJob *
 gum_script_job_new (GumScriptScheduler * scheduler,
                     GumScriptJobFunc func,
                     gpointer data,
-                    GDestroyNotify data_destroy,
-                    gpointer tag)
+                    GDestroyNotify data_destroy)
 {
   GumScriptJob * job;
 
@@ -275,11 +186,8 @@ gum_script_job_new (GumScriptScheduler * scheduler,
   job->func = func;
   job->data = data;
   job->data_destroy = data_destroy;
-  job->tag = tag;
 
   job->scheduler = scheduler;
-
-  gum_script_scheduler_on_job_created (scheduler, job);
 
   return job;
 }
@@ -289,8 +197,6 @@ gum_script_job_free (GumScriptJob * job)
 {
   if (job->data_destroy != NULL)
     job->data_destroy (job->data);
-
-  gum_script_scheduler_on_job_destroyed (job->scheduler, job);
 
   g_slice_free (GumScriptJob, job);
 }

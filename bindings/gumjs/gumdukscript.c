@@ -728,7 +728,7 @@ gum_duk_script_post_message (GumScript * script,
   gum_script_scheduler_push_job_on_js_thread (
       gum_duk_script_backend_get_scheduler (self->priv->backend),
       G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_duk_script_do_post_message, d,
-      (GDestroyNotify) gum_duk_post_message_data_free, NULL);
+      (GDestroyNotify) gum_duk_post_message_data_free);
 }
 
 static void

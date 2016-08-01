@@ -1108,7 +1108,7 @@ _gum_v8_core_push_job (GumV8Core * self,
                        GDestroyNotify data_destroy)
 {
   gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
-      data, data_destroy, self);
+      data, data_destroy);
 }
 
 static void

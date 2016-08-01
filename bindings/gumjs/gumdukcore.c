@@ -903,7 +903,7 @@ _gum_duk_core_push_job (GumDukCore * self,
                         GDestroyNotify data_destroy)
 {
   gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
-      data, data_destroy, self);
+      data, data_destroy);
 }
 
 duk_context *

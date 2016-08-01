@@ -53,16 +53,14 @@ G_GNUC_INTERNAL GMainContext * gum_script_scheduler_get_js_context (
 
 G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_js_thread (
     GumScriptScheduler * self, gint priority, GumScriptJobFunc func,
-    gpointer data, GDestroyNotify data_destroy, gpointer tag);
+    gpointer data, GDestroyNotify data_destroy);
 G_GNUC_INTERNAL void gum_script_scheduler_push_job_on_thread_pool (
     GumScriptScheduler * self, GumScriptJobFunc func, gpointer data,
-    GDestroyNotify data_destroy, gpointer tag);
-G_GNUC_INTERNAL void gum_script_scheduler_flush_by_tag (
-    GumScriptScheduler * self, gpointer tag);
+    GDestroyNotify data_destroy);
 
 G_GNUC_INTERNAL GumScriptJob * gum_script_job_new (
     GumScriptScheduler * scheduler, GumScriptJobFunc func, gpointer data,
-    GDestroyNotify data_destroy, gpointer tag);
+    GDestroyNotify data_destroy);
 G_GNUC_INTERNAL void gum_script_job_free (GumScriptJob * job);
 G_GNUC_INTERNAL void gum_script_job_start_on_js_thread (GumScriptJob * job);
 
