@@ -506,12 +506,11 @@ gum_duk_script_do_load (GumScriptTask * task,
                         GCancellable * cancellable)
 {
   GumDukScript * self = GUM_DUK_SCRIPT (source_object);
-  GumDukScriptPrivate * priv = self->priv;
 
   (void) task_data;
   (void) cancellable;
 
-  switch (priv->state)
+  switch (self->priv->state)
   {
     case GUM_SCRIPT_STATE_UNLOADED:
     case GUM_SCRIPT_STATE_LOADED:
