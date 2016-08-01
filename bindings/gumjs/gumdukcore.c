@@ -918,7 +918,7 @@ _gum_duk_scope_enter (GumDukScope * self,
 
   g_rec_mutex_lock (&core->mutex);
 
-  core->usage_count++;
+  _gum_duk_core_pin (core);
   core->mutex_depth++;
 
   if (core->mutex_depth == 1)
@@ -1089,7 +1089,7 @@ _gum_duk_scope_leave (GumDukScope * self)
   }
 
   core->mutex_depth--;
-  core->usage_count--;
+  _gum_duk_core_unpin (core);
 
   notify_flushed = (core->flush_notify != NULL && core->usage_count == 0);
 
