@@ -791,19 +791,21 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 static void
 gum_memory_scan_context_free (GumMemoryScanContext * ctx)
 {
+  GumDukCore * core = ctx->core;
   GumDukScope scope;
   duk_context * js_ctx;
 
-  gum_match_pattern_free (ctx->pattern);
-
-  js_ctx = _gum_duk_scope_enter (&scope, ctx->core);
+  js_ctx = _gum_duk_scope_enter (&scope, core);
 
   _gum_duk_unprotect (js_ctx, ctx->on_match);
   if (ctx->on_error != NULL)
     _gum_duk_unprotect (js_ctx, ctx->on_error);
   _gum_duk_unprotect (js_ctx, ctx->on_complete);
 
+  _gum_duk_core_unpin (core);
   _gum_duk_scope_leave (&scope);
+
+  gum_match_pattern_free (ctx->pattern);
 
   g_slice_free (GumMemoryScanContext, ctx);
 }
@@ -846,7 +848,6 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   _gum_duk_scope_call (&script_scope, 0);
   duk_pop (ctx);
 
-  _gum_duk_core_unpin (core);
   _gum_duk_scope_leave (&script_scope);
 }
 
