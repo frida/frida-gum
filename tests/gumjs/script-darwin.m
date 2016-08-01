@@ -43,6 +43,7 @@ TEST_LIST_BEGIN (script_darwin)
   SCRIPT_TESTENTRY (method_call_preserves_value)
   SCRIPT_TESTENTRY (objects_can_be_serialized_to_json)
   SCRIPT_TESTENTRY (objects_can_be_chosen)
+  SCRIPT_TESTENTRY (function_can_be_scheduled_on_a_dispatch_queue)
   SCRIPT_TESTENTRY (performance)
 TEST_LIST_END ()
 
@@ -909,6 +910,18 @@ SCRIPT_TESTCASE (objects_can_be_chosen)
       EXPECT_SEND_MESSAGE_WITH ("true");
     }
   }
+}
+
+SCRIPT_TESTCASE (function_can_be_scheduled_on_a_dispatch_queue)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var fridaThreadId = Process.getCurrentThreadId();"
+      "ObjC.schedule(" GUM_PTR_CONST ", function () {"
+          "send(Process.getCurrentThreadId() !== fridaThreadId);"
+      "});", dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0));
+  UNLOAD_SCRIPT ();
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (performance)
