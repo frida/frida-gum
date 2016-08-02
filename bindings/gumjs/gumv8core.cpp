@@ -716,19 +716,28 @@ _gum_v8_core_flush (GumV8Core * self,
 
   self->flush_notify = flush_notify;
 
+  if (self->usage_count > 1)
+    return FALSE;
+
   while (self->scheduled_callbacks != NULL)
   {
     GumV8ScheduledCallback * callback = static_cast<GumV8ScheduledCallback *> (
         self->scheduled_callbacks->data);
+    GSource * source;
 
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
+
+    source = g_source_ref (callback->source);
+
+    _gum_v8_core_pin (self);
 
     self->isolate->Exit ();
     {
       Unlocker ul (self->isolate);
 
-      g_source_destroy (callback->source);
+      g_source_destroy (source);
+      g_source_unref (source);
     }
     self->isolate->Enter ();
   }
@@ -1162,7 +1171,6 @@ gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
       reinterpret_cast<GDestroyNotify> (gum_v8_scheduled_callback_free));
   gum_v8_core_add_scheduled_callback (self, callback);
 
-  _gum_v8_core_pin (self);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
 
@@ -1248,7 +1256,22 @@ gum_v8_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
   }
 
   if (callback != NULL)
-    g_source_destroy (callback->source);
+  {
+    GSource * source;
+
+    source = g_source_ref (callback->source);
+
+    _gum_v8_core_pin (self);
+
+    self->isolate->Exit ();
+    {
+      Unlocker ul (self->isolate);
+
+      g_source_destroy (source);
+      g_source_unref (source);
+    }
+    self->isolate->Enter ();
+  }
 
   info.GetReturnValue ().Set (callback != NULL);
 }
@@ -1294,15 +1317,19 @@ gum_v8_scheduled_callback_invoke (gpointer user_data)
 {
   GumV8ScheduledCallback * self =
       static_cast<GumV8ScheduledCallback *> (user_data);
-  Isolate * isolate = self->core->isolate;
+  GumV8Core * core = self->core;
+  Isolate * isolate = core->isolate;
 
-  ScriptScope scope (self->core->script);
+  ScriptScope scope (core->script);
   Local<Function> func (Local<Function>::New (isolate, *self->func));
   Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
   func->Call (receiver, 0, NULL);
 
   if (!self->repeat)
-    gum_v8_core_remove_scheduled_callback (self->core, self);
+  {
+    gum_v8_core_remove_scheduled_callback (core, self);
+    _gum_v8_core_pin (core);
+  }
 
   return self->repeat;
 }

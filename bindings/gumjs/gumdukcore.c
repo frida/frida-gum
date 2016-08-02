@@ -773,16 +773,26 @@ _gum_duk_core_flush (GumDukCore * self,
 
   self->flush_notify = flush_notify;
 
+  if (self->usage_count > 1)
+    return FALSE;
+
   while (self->scheduled_callbacks != NULL)
   {
-    GumDukScheduledCallback * cb =
+    GumDukScheduledCallback * callback =
         (GumDukScheduledCallback *) self->scheduled_callbacks->data;
+    GSource * source;
 
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
 
+    source = g_source_ref (callback->source);
+
+    _gum_duk_core_pin (self);
     _gum_duk_scope_suspend (&scope);
-    g_source_destroy (cb->source);
+
+    g_source_destroy (source);
+    g_source_unref (source);
+
     _gum_duk_scope_resume (&scope);
   }
 
@@ -1292,8 +1302,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 
   if (callback != NULL)
   {
+    GSource * source;
+
+    source = g_source_ref (callback->source);
+
+    _gum_duk_core_pin (self);
     _gum_duk_scope_suspend (&scope);
-    g_source_destroy (callback->source);
+
+    g_source_destroy (source);
+    g_source_unref (source);
+
     _gum_duk_scope_resume (&scope);
   }
 
@@ -2588,7 +2606,6 @@ gum_duk_core_schedule_callback (GumDukCore * self,
       (GDestroyNotify) gum_scheduled_callback_free);
   gum_duk_core_add_scheduled_callback (self, callback);
 
-  _gum_duk_core_pin (self);
   _gum_duk_scope_suspend (&scope);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
@@ -2664,7 +2681,10 @@ gum_scheduled_callback_invoke (gpointer user_data)
   duk_pop (ctx);
 
   if (!self->repeat)
+  {
     gum_duk_core_remove_scheduled_callback (core, self);
+    _gum_duk_core_pin (core);
+  }
 
   _gum_duk_scope_leave (&scope);
 
