@@ -1128,12 +1128,19 @@ gum_v8_core_add_scheduled_callback (GumV8Core * self,
       g_slist_prepend (self->scheduled_callbacks, callback);
 }
 
-static void
+static gboolean
 gum_v8_core_remove_scheduled_callback (GumV8Core * self,
                                        GumV8ScheduledCallback * callback)
 {
+  GSList * link;
+
+  link = g_slist_find (self->scheduled_callbacks, callback);
+  if (link == NULL)
+    return FALSE;
+
   self->scheduled_callbacks =
-      g_slist_remove (self->scheduled_callbacks, callback);
+      g_slist_delete_link (self->scheduled_callbacks, link);
+  return TRUE;
 }
 
 static void
@@ -1327,8 +1334,8 @@ gum_v8_scheduled_callback_invoke (gpointer user_data)
 
   if (!self->repeat)
   {
-    gum_v8_core_remove_scheduled_callback (core, self);
-    _gum_v8_core_pin (core);
+    if (gum_v8_core_remove_scheduled_callback (core, self))
+      _gum_v8_core_pin (core);
   }
 
   return self->repeat;

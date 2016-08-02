@@ -207,7 +207,7 @@ static gint gum_duk_core_schedule_callback (GumDukCore * self,
     const GumDukArgs * args, gboolean repeat);
 static void gum_duk_core_add_scheduled_callback (GumDukCore * self,
     GumDukScheduledCallback * cb);
-static void gum_duk_core_remove_scheduled_callback (GumDukCore * self,
+static gboolean gum_duk_core_remove_scheduled_callback (GumDukCore * self,
     GumDukScheduledCallback * cb);
 
 static GumDukScheduledCallback * gum_scheduled_callback_new (guint id,
@@ -2622,11 +2622,19 @@ gum_duk_core_add_scheduled_callback (GumDukCore * self,
   self->scheduled_callbacks = g_slist_prepend (self->scheduled_callbacks, cb);
 }
 
-static void
+static gboolean
 gum_duk_core_remove_scheduled_callback (GumDukCore * self,
                                         GumDukScheduledCallback * cb)
 {
-  self->scheduled_callbacks = g_slist_remove (self->scheduled_callbacks, cb);
+  GSList * link;
+
+  link = g_slist_find (self->scheduled_callbacks, cb);
+  if (link == NULL)
+    return FALSE;
+
+  self->scheduled_callbacks =
+      g_slist_delete_link (self->scheduled_callbacks, link);
+  return TRUE;
 }
 
 static GumDukScheduledCallback *
@@ -2682,8 +2690,8 @@ gum_scheduled_callback_invoke (gpointer user_data)
 
   if (!self->repeat)
   {
-    gum_duk_core_remove_scheduled_callback (core, self);
-    _gum_duk_core_pin (core);
+    if (gum_duk_core_remove_scheduled_callback (core, self))
+      _gum_duk_core_pin (core);
   }
 
   _gum_duk_scope_leave (&scope);
