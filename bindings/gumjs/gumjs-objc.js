@@ -1317,6 +1317,10 @@
                     this.data.target.release();
                     unbind(this.self);
                     this.super.dealloc();
+
+                    const callback = this.data.events.dealloc;
+                    if (callback !== undefined)
+                        callback.call(this);
                 },
                 '- respondsToSelector:': function (sel) {
                     return this.data.target.respondsToSelector_(sel);
