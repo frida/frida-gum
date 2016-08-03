@@ -24,6 +24,7 @@
 
 using namespace v8;
 
+typedef struct _GumFlushCallback GumFlushCallback;
 typedef struct _GumWeakRef GumWeakRef;
 typedef struct _GumFFIFunction GumFFIFunction;
 typedef struct _GumFFICallback GumFFICallback;
@@ -31,6 +32,12 @@ typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
 typedef struct _GumCpuContextWrapper GumCpuContextWrapper;
+
+struct _GumFlushCallback
+{
+  GumV8FlushNotify func;
+  GumV8Script * script;
+};
 
 struct _GumWeakRef
 {
@@ -757,12 +764,18 @@ _gum_v8_core_flush (GumV8Core * self,
 }
 
 void
-_gum_v8_core_notify_flushed (GumV8Core * self)
+_gum_v8_core_notify_flushed (GumV8Core * self,
+                             GumV8FlushNotify func)
 {
+  GumFlushCallback * callback;
   GSource * source;
 
+  callback = g_slice_new (GumFlushCallback);
+  callback->func = func;
+  callback->script = self->script;
+
   source = g_idle_source_new ();
-  g_source_set_callback (source, gum_v8_core_notify_flushed_when_idle, self,
+  g_source_set_callback (source, gum_v8_core_notify_flushed_when_idle, callback,
       NULL);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
@@ -772,9 +785,11 @@ _gum_v8_core_notify_flushed (GumV8Core * self)
 static gboolean
 gum_v8_core_notify_flushed_when_idle (gpointer user_data)
 {
-  GumV8Core * self = (GumV8Core *) user_data;
+  GumFlushCallback * callback = (GumFlushCallback *) user_data;
 
-  self->flush_notify (self->script);
+  callback->func (callback->script);
+
+  g_slice_free (GumFlushCallback, callback);
 
   return FALSE;
 }

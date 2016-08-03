@@ -39,9 +39,19 @@ ScriptScope::~ScriptScope ()
 
   _gum_v8_core_unpin (core);
 
-  if (core->flush_notify != NULL && core->usage_count == 0)
+  GumV8FlushNotify pending_flush_notify = core->flush_notify;
+  if (pending_flush_notify != NULL && core->usage_count == 0)
   {
-    _gum_v8_core_notify_flushed (core);
+    core->flush_notify = NULL;
+
+    Isolate * isolate = parent->priv->isolate;
+    isolate->Exit ();
+    {
+      Unlocker ul (isolate);
+
+      _gum_v8_core_notify_flushed (core, pending_flush_notify);
+    }
+    isolate->Enter ();
   }
 }
 

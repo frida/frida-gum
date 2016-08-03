@@ -109,7 +109,8 @@ G_GNUC_INTERNAL void _gum_v8_core_init (GumV8Core * self,
 G_GNUC_INTERNAL void _gum_v8_core_realize (GumV8Core * self);
 G_GNUC_INTERNAL gboolean _gum_v8_core_flush (GumV8Core * self,
     GumV8FlushNotify flush_notify);
-G_GNUC_INTERNAL void _gum_v8_core_notify_flushed (GumV8Core * self);
+G_GNUC_INTERNAL void _gum_v8_core_notify_flushed (GumV8Core * self,
+    GumV8FlushNotify func);
 G_GNUC_INTERNAL void _gum_v8_core_dispose (GumV8Core * self);
 G_GNUC_INTERNAL void _gum_v8_core_finalize (GumV8Core * self);
 

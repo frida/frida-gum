@@ -13,11 +13,18 @@
 
 #define GUM_DUK_NATIVE_POINTER_CACHE_SIZE 8
 
+typedef struct _GumDukFlushCallback GumDukFlushCallback;
 typedef struct _GumDukNativeFunction GumDukNativeFunction;
 typedef struct _GumDukNativeCallback GumDukNativeCallback;
 typedef union _GumFFIValue GumFFIValue;
 typedef struct _GumFFITypeMapping GumFFITypeMapping;
 typedef struct _GumFFIABIMapping GumFFIABIMapping;
+
+struct _GumDukFlushCallback
+{
+  GumDukFlushNotify func;
+  GumDukScript * script;
+};
 
 struct _GumDukWeakRef
 {
@@ -809,13 +816,19 @@ _gum_duk_core_flush (GumDukCore * self,
 }
 
 static void
-gum_duk_core_notify_flushed (GumDukCore * self)
+gum_duk_core_notify_flushed (GumDukCore * self,
+                             GumDukFlushNotify func)
 {
+  GumDukFlushCallback * callback;
   GSource * source;
 
+  callback = g_slice_new (GumDukFlushCallback);
+  callback->func = func;
+  callback->script = self->script;
+
   source = g_idle_source_new ();
-  g_source_set_callback (source, gum_duk_core_notify_flushed_when_idle, self,
-      NULL);
+  g_source_set_callback (source, gum_duk_core_notify_flushed_when_idle,
+      callback, NULL);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
   g_source_unref (source);
@@ -824,9 +837,11 @@ gum_duk_core_notify_flushed (GumDukCore * self)
 static gboolean
 gum_duk_core_notify_flushed_when_idle (gpointer user_data)
 {
-  GumDukCore * self = user_data;
+  GumDukFlushCallback * callback = user_data;
 
-  self->flush_notify (self->script);
+  callback->func (callback->script);
+
+  g_slice_free (GumDukFlushCallback, callback);
 
   return FALSE;
 }
@@ -1074,7 +1089,7 @@ _gum_duk_scope_leave (GumDukScope * self)
 {
   GumDukCore * core = self->core;
   duk_context * ctx = core->heap_ctx;
-  gboolean notify_flushed;
+  GumDukFlushNotify pending_flush_notify = NULL;
 
   g_assert (core->current_ctx == self->ctx);
 
@@ -1101,14 +1116,18 @@ _gum_duk_scope_leave (GumDukScope * self)
   core->mutex_depth--;
   _gum_duk_core_unpin (core);
 
-  notify_flushed = (core->flush_notify != NULL && core->usage_count == 0);
+  if (core->flush_notify != NULL && core->usage_count == 0)
+  {
+    pending_flush_notify = core->flush_notify;
+    core->flush_notify = NULL;
+  }
 
   g_rec_mutex_unlock (&core->mutex);
 
   gum_interceptor_end_transaction (self->core->interceptor->interceptor);
 
-  if (notify_flushed)
-    gum_duk_core_notify_flushed (core);
+  if (pending_flush_notify != NULL)
+    gum_duk_core_notify_flushed (core, pending_flush_notify);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_script_construct)
