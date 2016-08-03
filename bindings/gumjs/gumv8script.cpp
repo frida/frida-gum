@@ -613,6 +613,7 @@ gum_v8_script_try_unload (GumV8Script * self)
     _gum_v8_stalker_flush (&priv->stalker);
     _gum_v8_interceptor_flush (&priv->interceptor);
     _gum_v8_stream_flush (&priv->stream);
+    _gum_v8_process_flush (&priv->process);
     success = _gum_v8_core_flush (&priv->core, gum_v8_script_try_unload);
   }
 

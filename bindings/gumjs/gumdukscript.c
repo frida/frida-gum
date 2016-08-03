@@ -655,6 +655,7 @@ gum_duk_script_try_unload (GumDukScript * self)
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
   _gum_duk_stream_flush (&priv->stream);
+  _gum_duk_process_flush (&priv->process);
   success = _gum_duk_core_flush (&priv->core, gum_duk_script_try_unload);
 
   _gum_duk_scope_leave (&scope);

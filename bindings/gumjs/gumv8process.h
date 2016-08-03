@@ -24,6 +24,7 @@ struct _GumV8Process
 G_GNUC_INTERNAL void _gum_v8_process_init (GumV8Process * self,
     GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_process_realize (GumV8Process * self);
+G_GNUC_INTERNAL void _gum_v8_process_flush (GumV8Process * self);
 G_GNUC_INTERNAL void _gum_v8_process_dispose (GumV8Process * self);
 G_GNUC_INTERNAL void _gum_v8_process_finalize (GumV8Process * self);
 

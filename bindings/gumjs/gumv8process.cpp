@@ -136,10 +136,15 @@ _gum_v8_process_realize (GumV8Process * self)
 }
 
 void
+_gum_v8_process_flush (GumV8Process * self)
+{
+  g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
+}
+
+void
 _gum_v8_process_dispose (GumV8Process * self)
 {
-  gum_v8_exception_handler_free (self->exception_handler);
-  self->exception_handler = NULL;
+  g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 }
 
 void
@@ -577,8 +582,7 @@ gum_v8_process_on_set_exception_handler (
     return;
   }
 
-  gum_v8_exception_handler_free (self->exception_handler);
-  self->exception_handler = NULL;
+  g_clear_pointer (&self->exception_handler, gum_v8_exception_handler_free);
 
   if (!callback.IsEmpty ())
   {
@@ -607,9 +611,6 @@ gum_v8_exception_handler_new (Handle<Function> callback,
 static void
 gum_v8_exception_handler_free (GumV8ExceptionHandler * handler)
 {
-  if (handler == NULL)
-    return;
-
   gum_exceptor_remove (handler->core->exceptor,
       gum_v8_exception_handler_on_exception, handler);
 

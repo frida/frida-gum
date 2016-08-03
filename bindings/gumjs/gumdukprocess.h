@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -23,6 +23,7 @@ struct _GumDukProcess
 
 G_GNUC_INTERNAL void _gum_duk_process_init (GumDukProcess * self,
     GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_process_flush (GumDukProcess * self);
 G_GNUC_INTERNAL void _gum_duk_process_dispose (GumDukProcess * self);
 G_GNUC_INTERNAL void _gum_duk_process_finalize (GumDukProcess * self);
 

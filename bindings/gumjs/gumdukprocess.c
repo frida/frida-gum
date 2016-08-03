@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -119,6 +119,12 @@ _gum_duk_process_init (GumDukProcess * self,
   duk_new (ctx, 0);
   _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "Process");
+}
+
+void
+_gum_duk_process_flush (GumDukProcess * self)
+{
+  g_clear_pointer (&self->exception_handler, gum_duk_exception_handler_free);
 }
 
 void
