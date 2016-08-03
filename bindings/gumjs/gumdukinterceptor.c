@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -83,6 +83,8 @@ struct _GumDukReplaceEntry
   GumDukHeapPtr replacement;
   GumDukCore * core;
 };
+
+static gboolean gum_duk_interceptor_on_flush_timer_tick (gpointer user_data);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_interceptor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
@@ -230,6 +232,7 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
       (GDestroyNotify) gum_duk_invocation_listener_destroy);
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_replace_entry_free);
+  self->flush_timer = NULL;
 
   _gum_duk_store_module_data (ctx, "interceptor", self);
 
@@ -290,7 +293,9 @@ _gum_duk_interceptor_init (GumDukInterceptor * self,
 void
 _gum_duk_interceptor_flush (GumDukInterceptor * self)
 {
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+  GumDukCore * core = self->core;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
+  gboolean flushed;
 
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
@@ -298,10 +303,51 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
   _gum_duk_scope_suspend (&scope);
 
   gum_interceptor_end_transaction (self->interceptor);
-  gum_interceptor_flush (self->interceptor);
+  flushed = gum_interceptor_flush (self->interceptor);
   gum_interceptor_begin_transaction (self->interceptor);
 
   _gum_duk_scope_resume (&scope);
+
+  if (!flushed && self->flush_timer == NULL)
+  {
+    GSource * source;
+
+    source = g_timeout_source_new (10);
+    g_source_set_callback (source, gum_duk_interceptor_on_flush_timer_tick,
+        self, NULL);
+    self->flush_timer = source;
+
+    _gum_duk_core_pin (core);
+    _gum_duk_scope_suspend (&scope);
+
+    g_source_attach (source,
+        gum_script_scheduler_get_js_context (core->scheduler));
+    g_source_unref (source);
+
+    _gum_duk_scope_resume (&scope);
+  }
+}
+
+static gboolean
+gum_duk_interceptor_on_flush_timer_tick (gpointer user_data)
+{
+  GumDukInterceptor * self = user_data;
+  gboolean flushed;
+
+  flushed = gum_interceptor_flush (self->interceptor);
+  if (flushed)
+  {
+    GumDukCore * core = self->core;
+    GumDukScope scope;
+    duk_context * ctx;
+
+    ctx = _gum_duk_scope_enter (&scope, core);
+    _gum_duk_core_unpin (core);
+    self->flush_timer = NULL;
+    _gum_duk_scope_leave (&scope);
+  }
+
+  return !flushed;
 }
 
 void
@@ -309,6 +355,8 @@ _gum_duk_interceptor_dispose (GumDukInterceptor * self)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
   duk_context * ctx = scope.ctx;
+
+  g_assert (self->flush_timer == NULL);
 
   gum_duk_invocation_context_release (self->cached_invocation_context);
   gum_duk_invocation_args_release (self->cached_invocation_args);

@@ -77,6 +77,8 @@ struct _GumV8ReplaceEntry
   GumPersistent<Value>::type * replacement;
 };
 
+static gboolean gum_v8_interceptor_on_flush_timer_tick (gpointer user_data);
+
 static void gum_v8_interceptor_on_attach (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_invocation_listener_destroy (
@@ -149,6 +151,7 @@ _gum_v8_interceptor_init (GumV8Interceptor * self,
       reinterpret_cast<GDestroyNotify> (gum_v8_invocation_listener_destroy));
   self->replacement_by_address = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_v8_replace_entry_free));
+  self->flush_timer = NULL;
 
   Local<External> data (External::New (isolate, self));
 
@@ -229,7 +232,9 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 void
 _gum_v8_interceptor_flush (GumV8Interceptor * self)
 {
-  Isolate * isolate = self->core->isolate;
+  GumV8Core * core = self->core;
+  Isolate * isolate = core->isolate;
+  gboolean flushed;
 
   g_hash_table_remove_all (self->invocation_listeners);
   g_hash_table_remove_all (self->replacement_by_address);
@@ -239,15 +244,58 @@ _gum_v8_interceptor_flush (GumV8Interceptor * self)
     Unlocker ul (isolate);
 
     gum_interceptor_end_transaction (self->interceptor);
-    gum_interceptor_flush (self->interceptor);
+    flushed = gum_interceptor_flush (self->interceptor);
     gum_interceptor_begin_transaction (self->interceptor);
   }
   isolate->Enter ();
+
+  if (!flushed && self->flush_timer == NULL)
+  {
+    GSource * source;
+
+    source = g_timeout_source_new (10);
+    g_source_set_callback (source, gum_v8_interceptor_on_flush_timer_tick,
+        self, NULL);
+    self->flush_timer = source;
+
+    _gum_v8_core_pin (core);
+
+    isolate->Exit ();
+    {
+      Unlocker ul (isolate);
+
+      g_source_attach (source,
+          gum_script_scheduler_get_js_context (core->scheduler));
+      g_source_unref (source);
+    }
+    isolate->Enter ();
+  }
+}
+
+static gboolean
+gum_v8_interceptor_on_flush_timer_tick (gpointer user_data)
+{
+  GumV8Interceptor * self = (GumV8Interceptor *) user_data;
+  gboolean flushed;
+
+  flushed = gum_interceptor_flush (self->interceptor);
+  if (flushed)
+  {
+    GumV8Core * core = self->core;
+
+    ScriptScope scope (core->script);
+    _gum_v8_core_unpin (core);
+    self->flush_timer = NULL;
+  }
+
+  return !flushed;
 }
 
 void
 _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 {
+  g_assert (self->flush_timer == NULL);
+
   delete self->invocation_return_value;
   self->invocation_return_value = nullptr;
 

@@ -22,6 +22,7 @@ struct _GumV8Interceptor
 
   GHashTable * invocation_listeners;
   GHashTable * replacement_by_address;
+  GSource * flush_timer;
 
   GumPersistent<v8::Object>::type * invocation_listener_value;
   GumPersistent<v8::Object>::type * invocation_context_value;

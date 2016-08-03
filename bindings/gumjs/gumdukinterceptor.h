@@ -25,6 +25,7 @@ struct _GumDukInterceptor
 
   GHashTable * invocation_listeners;
   GHashTable * replacement_by_address;
+  GSource * flush_timer;
 
   GumDukHeapPtr invocation_listener;
   GumDukHeapPtr invocation_context;
