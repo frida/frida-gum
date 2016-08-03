@@ -77,7 +77,7 @@ GUM_API void gum_interceptor_revert_function (GumInterceptor * self,
 
 GUM_API void gum_interceptor_begin_transaction (GumInterceptor * self);
 GUM_API void gum_interceptor_end_transaction (GumInterceptor * self);
-GUM_API void gum_interceptor_flush (GumInterceptor * self);
+GUM_API gboolean gum_interceptor_flush (GumInterceptor * self);
 
 GUM_API GumInvocationContext * gum_interceptor_get_current_invocation (void);
 GUM_API GumInvocationStack * gum_interceptor_get_current_stack (void);

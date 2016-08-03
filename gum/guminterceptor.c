@@ -534,31 +534,26 @@ gum_interceptor_end_transaction (GumInterceptor * self)
   GUM_INTERCEPTOR_UNLOCK ();
 }
 
-void
+gboolean
 gum_interceptor_flush (GumInterceptor * self)
 {
   GumInterceptorPrivate * priv = self->priv;
-  gboolean flushed;
+  gboolean flushed = FALSE;
 
   GUM_INTERCEPTOR_LOCK ();
 
-  do
+  if (priv->current_transaction.level == 0)
   {
     gum_interceptor_transaction_begin (&priv->current_transaction);
     gum_interceptor_transaction_end (&priv->current_transaction);
 
     flushed =
         g_queue_is_empty (priv->current_transaction.pending_destroy_tasks);
-    if (!flushed)
-    {
-      GUM_INTERCEPTOR_UNLOCK ();
-      g_thread_yield ();
-      GUM_INTERCEPTOR_LOCK ();
-    }
   }
-  while (!flushed);
 
   GUM_INTERCEPTOR_UNLOCK ();
+
+  return flushed;
 }
 
 GumInvocationContext *

@@ -39,6 +39,7 @@ namespace Gum {
 
 		public void begin_transaction ();
 		public void end_transaction ();
+		public bool flush ();
 
 		public static Gum.InvocationContext get_current_invocation ();
 
