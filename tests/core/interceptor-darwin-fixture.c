@@ -7,75 +7,23 @@
 #include "guminterceptor.h"
 
 #include "interceptor-callbacklistener.c"
-#include "lowlevel-helpers.h"
 #include "testutil.h"
 
-#include <stdlib.h>
+#include <dlfcn.h>
 #include <string.h>
-
-#ifdef G_OS_WIN32
-# include "targetfunctions.c"
-#else
-# include <dlfcn.h>
-# include <unistd.h>
-#endif
 
 #define INTERCEPTOR_TESTCASE(NAME) \
     void test_interceptor_ ## NAME ( \
         TestInterceptorFixture * fixture, gconstpointer data)
 #define INTERCEPTOR_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor", \
+    TEST_ENTRY_WITH_FIXTURE ("Core/Interceptor/Darwin", \
         test_interceptor, NAME, TestInterceptorFixture)
 
-/* TODO: fix this in GLib */
-#ifdef HAVE_DARWIN
-# undef G_MODULE_SUFFIX
-# define G_MODULE_SUFFIX "dylib"
-#endif
+typedef struct _TestInterceptorFixture     TestInterceptorFixture;
+typedef struct _DarwinListenerContext      DarwinListenerContext;
+typedef struct _DarwinListenerContextClass DarwinListenerContextClass;
 
-#if defined (G_OS_WIN32)
-# define GUM_TEST_SHLIB_OS "windows"
-#elif defined (HAVE_MAC)
-# define GUM_TEST_SHLIB_OS "mac"
-#elif defined (HAVE_LINUX) && !defined (HAVE_ANDROID)
-# define GUM_TEST_SHLIB_OS "linux"
-#elif defined (HAVE_IOS)
-# define GUM_TEST_SHLIB_OS "ios"
-#elif defined (HAVE_ANDROID)
-# define GUM_TEST_SHLIB_OS "android"
-#elif defined (HAVE_QNX)
-# define GUM_TEST_SHLIB_OS "qnx"
-#else
-# error Unknown OS
-#endif
-
-#if defined (HAVE_I386)
-# if GLIB_SIZEOF_VOID_P == 4
-#  define GUM_TEST_SHLIB_ARCH "ia32"
-# else
-#  define GUM_TEST_SHLIB_ARCH "amd64"
-# endif
-#elif defined (HAVE_ARM)
-# define GUM_TEST_SHLIB_ARCH "arm"
-#elif defined (HAVE_ARM64)
-# define GUM_TEST_SHLIB_ARCH "arm64"
-#elif defined (HAVE_MIPS)
-# if G_BYTE_ORDER == G_LITTLE_ENDIAN
-#  define GUM_TEST_SHLIB_ARCH "mipsel"
-# else
-#  define GUM_TEST_SHLIB_ARCH "mips"
-# endif
-#else
-# error Unknown CPU
-#endif
-
-typedef struct _TestInterceptorFixture   TestInterceptorFixture;
-typedef struct _ListenerContext      ListenerContext;
-typedef struct _ListenerContextClass ListenerContextClass;
-
-typedef gpointer (* InterceptorTestFunc) (gpointer data);
-
-struct _ListenerContext
+struct _DarwinListenerContext
 {
   GObject parent;
 
@@ -88,7 +36,7 @@ struct _ListenerContext
   GumCpuContext last_on_enter_cpu_context;
 };
 
-struct _ListenerContextClass
+struct _DarwinListenerContextClass
 {
   GObjectClass parent_class;
 };
@@ -97,25 +45,18 @@ struct _TestInterceptorFixture
 {
   GumInterceptor * interceptor;
   GString * result;
-  ListenerContext * listener_context[2];
+  DarwinListenerContext * listener_context[2];
 };
 
 static void listener_context_iface_init (gpointer g_iface,
     gpointer iface_data);
 
-G_DEFINE_TYPE_EXTENDED (ListenerContext,
+G_DEFINE_TYPE_EXTENDED (DarwinListenerContext,
                         listener_context,
                         G_TYPE_OBJECT,
                         0,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             listener_context_iface_init));
-
-gpointer (* target_function) (GString * str) = NULL;
-gpointer (* target_nop_function_a) (gpointer data);
-gpointer (* target_nop_function_b) (gpointer data);
-gpointer (* target_nop_function_c) (gpointer data);
-
-gpointer (* special_function) (GString * str) = NULL;
 
 static void
 test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
@@ -126,55 +67,6 @@ test_interceptor_fixture_setup (TestInterceptorFixture * fixture,
   fixture->interceptor = gum_interceptor_obtain ();
   fixture->result = g_string_sized_new (4096);
   memset (&fixture->listener_context, 0, sizeof (fixture->listener_context));
-
-  if (target_function == NULL)
-  {
-#ifdef G_OS_WIN32
-    target_function = gum_test_target_function;
-    special_function = gum_test_target_function;
-    target_nop_function_a = gum_test_target_nop_function_a;
-    target_nop_function_b = gum_test_target_nop_function_b;
-    target_nop_function_c = gum_test_target_nop_function_c;
-#else
-    gchar * testdir, * filename;
-    void * lib;
-
-    testdir = test_util_get_data_dir ();
-
-    filename = g_build_filename (testdir,
-        "targetfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
-        "." G_MODULE_SUFFIX, NULL);
-    lib = dlopen (filename, RTLD_NOW | RTLD_GLOBAL);
-    if (lib == NULL)
-      g_print ("failed to open '%s'\n", filename);
-    g_assert (lib != NULL);
-    g_free (filename);
-
-    target_function = dlsym (lib, "gum_test_target_function");
-    g_assert (target_function != NULL);
-
-    target_nop_function_a = dlsym (lib, "gum_test_target_nop_function_a");
-    g_assert (target_nop_function_a != NULL);
-
-    target_nop_function_b = dlsym (lib, "gum_test_target_nop_function_b");
-    g_assert (target_nop_function_b != NULL);
-
-    target_nop_function_c = dlsym (lib, "gum_test_target_nop_function_c");
-    g_assert (target_nop_function_c != NULL);
-
-    filename = g_build_filename (testdir,
-        "specialfunctions-" GUM_TEST_SHLIB_OS "-" GUM_TEST_SHLIB_ARCH
-        "." G_MODULE_SUFFIX, NULL);
-    lib = dlopen (filename, RTLD_LAZY | RTLD_GLOBAL);
-    g_assert (lib != NULL);
-    g_free (filename);
-
-    special_function = dlsym (lib, "gum_test_special_function");
-    g_assert (special_function != NULL);
-
-    g_free (testdir);
-#endif
-  }
 }
 
 static void
@@ -187,7 +79,7 @@ test_interceptor_fixture_teardown (TestInterceptorFixture * fixture,
 
   for (i = 0; i < G_N_ELEMENTS (fixture->listener_context); i++)
   {
-    ListenerContext * ctx = fixture->listener_context[i];
+    DarwinListenerContext * ctx = fixture->listener_context[i];
 
     if (ctx != NULL)
     {
@@ -209,7 +101,7 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
                                             gchar leave_char)
 {
   GumAttachReturn result;
-  ListenerContext * ctx;
+  DarwinListenerContext * ctx;
 
   if (h->listener_context[listener_index] != NULL)
   {
@@ -217,7 +109,8 @@ interceptor_fixture_try_attaching_listener (TestInterceptorFixture * h,
     h->listener_context[listener_index] = NULL;
   }
 
-  ctx = (ListenerContext *) g_object_new (listener_context_get_type (), NULL);
+  ctx = (DarwinListenerContext *) g_object_new (
+      listener_context_get_type (), NULL);
   ctx->harness = h;
   ctx->enter_char = enter_char;
   ctx->leave_char = leave_char;
@@ -260,7 +153,7 @@ static void
 listener_context_on_enter (GumInvocationListener * listener,
                            GumInvocationContext * context)
 {
-  ListenerContext * self = (ListenerContext *) listener;
+  DarwinListenerContext * self = (DarwinListenerContext *) listener;
 
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_ENTER);
@@ -278,7 +171,7 @@ static void
 listener_context_on_leave (GumInvocationListener * listener,
                            GumInvocationContext * context)
 {
-  ListenerContext * self = (ListenerContext *) listener;
+  DarwinListenerContext * self = (DarwinListenerContext *) listener;
 
   g_assert_cmpuint (gum_invocation_context_get_point_cut (context), ==,
       GUM_POINT_LEAVE);
@@ -289,7 +182,7 @@ listener_context_on_leave (GumInvocationListener * listener,
 }
 
 static void
-listener_context_class_init (ListenerContextClass * klass)
+listener_context_class_init (DarwinListenerContextClass * klass)
 {
   (void) klass;
 }
@@ -307,7 +200,7 @@ listener_context_iface_init (gpointer g_iface,
 }
 
 static void
-listener_context_init (ListenerContext * self)
+listener_context_init (DarwinListenerContext * self)
 {
   (void) self;
 }

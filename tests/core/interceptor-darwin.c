@@ -4,8 +4,7 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#define INTERCEPTOR_SUITE "/Darwin"
-#include "interceptor-fixture.c"
+#include "interceptor-darwin-fixture.c"
 
 #include "backend-darwin/gumdarwin.h"
 
