@@ -213,7 +213,7 @@ gum_module_api_resolver_create_snapshot (void)
 {
   GHashTable * module_by_name;
 
-  module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
+  module_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, g_free,
       (GDestroyNotify) gum_module_metadata_unref);
 
   gum_process_enumerate_modules (gum_module_api_resolver_collect_module,
@@ -236,8 +236,8 @@ gum_module_api_resolver_collect_module (const GumModuleDetails * details,
   module->import_by_name = NULL;
   module->export_by_name = NULL;
 
-  g_hash_table_insert (module_by_name, module->name, module);
-  g_hash_table_insert (module_by_name, module->path, module);
+  g_hash_table_insert (module_by_name, g_strdup (module->name), module);
+  g_hash_table_insert (module_by_name, g_strdup (module->path), module);
 
   return TRUE;
 }
@@ -266,8 +266,8 @@ gum_module_metadata_get_imports (GumModuleMetadata * self)
 {
   if (self->import_by_name == NULL)
   {
-    self->import_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
-        (GDestroyNotify) gum_function_metadata_free);
+    self->import_by_name = g_hash_table_new_full (g_str_hash, g_str_equal,
+        g_free, (GDestroyNotify) gum_function_metadata_free);
     gum_module_enumerate_imports (self->path,
         gum_module_metadata_collect_import, self->import_by_name);
   }
@@ -280,8 +280,8 @@ gum_module_metadata_get_exports (GumModuleMetadata * self)
 {
   if (self->export_by_name == NULL)
   {
-    self->export_by_name = g_hash_table_new_full (g_str_hash, g_str_equal, NULL,
-        (GDestroyNotify) gum_function_metadata_free);
+    self->export_by_name = g_hash_table_new_full (g_str_hash, g_str_equal,
+        g_free, (GDestroyNotify) gum_function_metadata_free);
     gum_module_enumerate_exports (self->path,
         gum_module_metadata_collect_export, self->export_by_name);
   }
@@ -301,7 +301,7 @@ gum_module_metadata_collect_import (const GumImportDetails * details,
 
     function = gum_function_metadata_new (details->name, details->address,
         details->module);
-    g_hash_table_insert (import_by_name, function->name, function);
+    g_hash_table_insert (import_by_name, g_strdup (function->name), function);
   }
 
   return TRUE;
@@ -319,7 +319,7 @@ gum_module_metadata_collect_export (const GumExportDetails * details,
 
     function = gum_function_metadata_new (details->name, details->address,
         NULL);
-    g_hash_table_insert (export_by_name, function->name, function);
+    g_hash_table_insert (export_by_name, g_strdup (function->name), function);
   }
 
   return TRUE;
