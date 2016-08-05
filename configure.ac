@@ -172,6 +172,25 @@ fi
 AC_CHECK_MEMBER([struct mallinfo.arena],
     [AC_DEFINE(HAVE_LIBC_MALLINFO, 1, [Define to 1 if libc has mallinfo struct.])])
 
+AC_COMPILE_IFELSE(
+  [AC_LANG_PROGRAM([[
+#ifndef __SANITIZE_ADDRESS__
+# ifdef __clang__
+#  if __has_feature(address_sanitizer)
+#   define __SANITIZE_ADDRESS__
+#  endif
+# endif
+#endif
+]], [[
+#ifndef __SANITIZE_ADDRESS__
+# error ASAN disabled
+#endif
+]])],
+  [
+    AC_DEFINE(HAVE_ASAN, 1, [Define to 1 if AddressSanitizer is enabled.])
+  ]
+)
+
 GLIB_VERSION=2.46.0
 CAPSTONE_VERSION=3.0.4
 pkg_modules="glib-2.0 >= $GLIB_VERSION, gobject-2.0 >= $GLIB_VERSION,

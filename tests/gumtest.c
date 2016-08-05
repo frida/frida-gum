@@ -17,6 +17,7 @@
 #include <glib.h>
 #include <gio/gio.h>
 #include <gum/gum.h>
+#include <string.h>
 
 #ifdef G_OS_WIN32
 # include <windows.h>
@@ -34,7 +35,7 @@ static guint get_number_of_tests_in_suite (GTestSuite * suite);
 gint
 main (gint argc, gchar * argv[])
 {
-#if !DEBUG_HEAP_LEAKS
+#if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   GMemVTable mem_vtable = {
     gum_malloc,
     gum_realloc,
@@ -86,11 +87,11 @@ main (gint argc, gchar * argv[])
 #endif
 
   gum_memory_init ();
-#if !DEBUG_HEAP_LEAKS
+#if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   g_mem_set_vtable (&mem_vtable);
 #endif
   g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
-#if DEBUG_HEAP_LEAKS
+#if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   /* needed for the above and GUM's heap library */
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif
@@ -104,6 +105,26 @@ main (gint argc, gchar * argv[])
   _test_util_init ();
 #ifdef HAVE_I386
   lowlevel_helpers_init ();
+#endif
+
+#ifdef HAVE_ASAN
+  {
+    const gchar * asan_options;
+
+    asan_options = g_getenv ("ASAN_OPTIONS");
+    if (asan_options == NULL || strstr (asan_options, "handle_segv=0") == NULL)
+    {
+      g_printerr (
+          "\n"
+          "You must disable AddressSanitizer's segv-handling. For example:\n"
+          "\n"
+          "$ export ASAN_OPTIONS=handle_segv=0\n"
+          "\n"
+          "This is required for testing Gum's exception-handling.\n"
+          "\n");
+      exit (1);
+    }
+  }
 #endif
 
 #ifdef _MSC_VER
@@ -193,7 +214,11 @@ main (gint argc, gchar * argv[])
 # ifdef HAVE_V8
     GumScriptBackend * v8_backend;
 
+#  ifndef HAVE_ASAN
     v8_backend = gum_script_backend_obtain_v8 ();
+#  else
+    v8_backend = NULL;
+#  endif
 
     if (v8_backend != NULL)
       TEST_RUN_LIST_WITH_DATA (script, v8_backend);
@@ -237,7 +262,7 @@ main (gint argc, gchar * argv[])
 
   g_print ("\nRan %d tests in %.2f seconds\n", num_tests, t);
 
-#if DEBUG_HEAP_LEAKS
+#if DEBUG_HEAP_LEAKS || defined (HAVE_ASAN)
   {
     GMainContext * context;
 

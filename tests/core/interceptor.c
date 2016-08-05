@@ -58,8 +58,10 @@ TEST_LIST_BEGIN (interceptor)
 #if !(defined (HAVE_ANDROID) && defined (HAVE_ARM64))
   INTERCEPTOR_TESTENTRY (i_can_has_replaceability)
   INTERCEPTOR_TESTENTRY (already_replaced)
+# ifndef HAVE_ASAN
   INTERCEPTOR_TESTENTRY (replace_function)
   INTERCEPTOR_TESTENTRY (two_replaced_functions)
+# endif
   INTERCEPTOR_TESTENTRY (replace_function_then_attach_to_it)
 #endif
 
@@ -76,9 +78,6 @@ static gpointer thread_calling_pthread_setspecific (gpointer data);
 static gpointer hit_target_function_repeatedly (gpointer data);
 #endif
 static gpointer replacement_malloc (gsize size);
-static gpointer replacement_malloc_calling_malloc_and_replaced_free (
-    gsize size);
-static void replacement_free_doing_nothing (gpointer mem);
 static gpointer replacement_target_function (GString * str);
 
 INTERCEPTOR_TESTCASE (attach_one)
@@ -604,6 +603,8 @@ INTERCEPTOR_TESTCASE (relocation_of_early_call)
 
 #endif /* HAVE_I386 */
 
+#ifndef HAVE_ASAN
+
 INTERCEPTOR_TESTCASE (replace_function)
 {
   gpointer (* malloc_impl) (gsize size);
@@ -643,6 +644,10 @@ INTERCEPTOR_TESTCASE (replace_function)
   free (ret);
 }
 
+static gpointer replacement_malloc_calling_malloc_and_replaced_free (
+    gsize size);
+static void replacement_free_doing_nothing (gpointer mem);
+
 INTERCEPTOR_TESTCASE (two_replaced_functions)
 {
   guint malloc_counter = 0, free_counter = 0;
@@ -664,6 +669,42 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
 
   free (ret);
 }
+
+static gpointer
+replacement_malloc_calling_malloc_and_replaced_free (gsize size)
+{
+  GumInvocationContext * ctx;
+  guint * counter;
+  gpointer result;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  counter = (guint *)
+      gum_invocation_context_get_replacement_function_data (ctx);
+  (*counter)++;
+
+  result = malloc (1);
+  free (result); /* should do nothing because we replace free */
+
+  return result;
+}
+
+static void
+replacement_free_doing_nothing (gpointer mem)
+{
+  GumInvocationContext * ctx;
+  guint * counter;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  counter = (guint *)
+      gum_invocation_context_get_replacement_function_data (ctx);
+  (*counter)++;
+}
+
+#endif
 
 INTERCEPTOR_TESTCASE (replace_function_then_attach_to_it)
 {
@@ -817,38 +858,3 @@ replacement_malloc (gsize size)
 
   return GSIZE_TO_POINTER (size);
 }
-
-static gpointer
-replacement_malloc_calling_malloc_and_replaced_free (gsize size)
-{
-  GumInvocationContext * ctx;
-  guint * counter;
-  gpointer result;
-
-  ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
-
-  counter = (guint *)
-      gum_invocation_context_get_replacement_function_data (ctx);
-  (*counter)++;
-
-  result = malloc (1);
-  free (result); /* should do nothing because we replace free */
-
-  return result;
-}
-
-static void
-replacement_free_doing_nothing (gpointer mem)
-{
-  GumInvocationContext * ctx;
-  guint * counter;
-
-  ctx = gum_interceptor_get_current_invocation ();
-  g_assert (ctx != NULL);
-
-  counter = (guint *)
-      gum_invocation_context_get_replacement_function_data (ctx);
-  (*counter)++;
-}
-
