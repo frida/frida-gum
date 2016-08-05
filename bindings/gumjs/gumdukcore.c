@@ -2564,6 +2564,7 @@ gum_duk_weak_ref_new (guint id,
   ref = g_slice_new (GumDukWeakRef);
   ref->id = id;
   ref->target = target;
+  _gum_duk_protect (core->current_ctx, callback);
   ref->callback = callback;
   ref->core = core;
 
@@ -2588,6 +2589,8 @@ gum_duk_weak_ref_free (GumDukWeakRef * ref)
   duk_push_heapptr (ctx, ref->callback);
   _gum_duk_scope_call (&scope, 0);
   duk_pop (ctx);
+
+  _gum_duk_unprotect (ctx, ref->callback);
 
   g_slice_free (GumDukWeakRef, ref);
 }
