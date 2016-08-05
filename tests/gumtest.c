@@ -89,12 +89,10 @@ main (gint argc, gchar * argv[])
   gum_memory_init ();
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
   g_mem_set_vtable (&mem_vtable);
-#endif
-  g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
-#if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
-  /* needed for the above and GUM's heap library */
+#else
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif
+  g_setenv ("G_DEBUG", "fatal-warnings:fatal-criticals", TRUE);
 #if GLIB_CHECK_VERSION (2, 46, 0)
   glib_init ();
   gio_init ();
