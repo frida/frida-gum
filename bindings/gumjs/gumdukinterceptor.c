@@ -339,9 +339,8 @@ gum_duk_interceptor_on_flush_timer_tick (gpointer user_data)
   {
     GumDukCore * core = self->core;
     GumDukScope scope;
-    duk_context * ctx;
 
-    ctx = _gum_duk_scope_enter (&scope, core);
+    _gum_duk_scope_enter (&scope, core);
     _gum_duk_core_unpin (core);
     self->flush_timer = NULL;
     _gum_duk_scope_leave (&scope);
