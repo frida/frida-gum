@@ -42,9 +42,27 @@
 #endif
 #define SCRIPT_TESTCASE(NAME) \
     void test_script_ ## NAME (TestScriptFixture * fixture, gconstpointer data)
-#define SCRIPT_TESTENTRY(NAME) \
-    TEST_ENTRY_WITH_FIXTURE ("GumJS/Script" SCRIPT_SUITE, test_script, NAME, \
-        TestScriptFixture)
+#define SCRIPT_TESTENTRY(NAME)                                            \
+  G_STMT_START                                                            \
+  {                                                                       \
+    extern void test_script_ ##NAME (TestScriptFixture * fixture,         \
+        gconstpointer data);                                              \
+    gchar * path;                                                         \
+                                                                          \
+    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE "/" #NAME "/",      \
+        GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",          \
+        NULL);                                                            \
+                                                                          \
+    g_test_add (path,                                                     \
+        TestScriptFixture,                                                \
+        fixture_data,                                                     \
+        test_script_fixture_setup,                                        \
+        test_script_ ##NAME,                                              \
+        test_script_fixture_teardown);                                    \
+                                                                          \
+    g_free (path);                                                        \
+  }                                                                       \
+  G_STMT_END;
 
 #define COMPILE_AND_LOAD_SCRIPT(SOURCE, ...) \
     test_script_fixture_compile_and_load_script (fixture, SOURCE, \
@@ -129,11 +147,6 @@ test_script_fixture_setup (TestScriptFixture * fixture,
   fixture->context = g_main_context_ref_thread_default ();
   fixture->loop = g_main_loop_new (fixture->context, FALSE);
   fixture->messages = g_queue_new ();
-
-  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
-    g_print ("DUK ");
-  else
-    g_print ("V8 ");
 }
 
 static void
