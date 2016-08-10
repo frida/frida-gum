@@ -49,7 +49,7 @@
         gconstpointer data);                                              \
     gchar * path;                                                         \
                                                                           \
-    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE "/" #NAME "/",      \
+    path = g_strconcat ("/GumJS/Script/" SCRIPT_SUITE "/" #NAME "#",      \
         GUM_DUK_IS_SCRIPT_BACKEND (fixture_data) ? "DUK" : "V8",          \
         NULL);                                                            \
                                                                           \
