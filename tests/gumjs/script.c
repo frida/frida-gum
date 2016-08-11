@@ -3401,7 +3401,7 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   {
     g_assert (strstr (item->message,
         "\"payload\":\"Error: Not yet implemented\\n"
-        "    at Object.module.exports.add (math.js:5:1)\\n"
+        "    at Object.add (math.js:5:1)\\n"
         "    at Object.1../math (index.js:6:1)\\n"
         "    at s (node_modules/frida/node_modules/browserify/node_modules/"
             "browser-pack/_prelude.js:1:1)\\n"
