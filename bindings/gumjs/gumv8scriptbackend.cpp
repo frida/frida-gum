@@ -25,12 +25,20 @@
 
 #define GUM_V8_FLAGS \
     "--es-staging " \
-    "--harmony-array-includes " \
-    "--harmony-regexps " \
-    "--harmony-proxies " \
-    "--harmony-rest-parameters " \
-    "--harmony-reflect " \
-    "--harmony-destructuring " \
+    "--harmony-array-prototype-values " \
+    "--harmony-function-sent " \
+    "--harmony-sharedarraybuffer " \
+    "--harmony-simd " \
+    "--harmony-explicit-tailcalls " \
+    "--harmony-do-expressions " \
+    "--harmony-restrictive-generators " \
+    "--harmony-regexp-named-captures " \
+    "--harmony-regexp-property " \
+    "--harmony-for-in " \
+    "--harmony-trailing-commas " \
+    "--expose-wasm " \
+    "--wasm-simd-prototype " \
+    "--wasm-eh-prototype " \
     "--expose-gc"
 
 using namespace v8;
