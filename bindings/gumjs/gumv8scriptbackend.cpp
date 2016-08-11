@@ -618,9 +618,9 @@ gum_v8_script_backend_enable_debugger (GumV8ScriptBackend * self)
   Isolate::Scope isolate_scope (isolate);
   HandleScope handle_scope (isolate);
 
-  Debug::SetMessageHandler (gum_v8_script_backend_emit_debug_message);
+  Debug::SetMessageHandler (isolate, gum_v8_script_backend_emit_debug_message);
 
-  Local<Context> context = Debug::GetDebugContext ();
+  Local<Context> context = Debug::GetDebugContext (isolate);
   priv->debug_context = new GumPersistent<Context>::type (isolate, context);
   Context::Scope context_scope (context);
 
@@ -641,7 +641,7 @@ gum_v8_script_backend_disable_debugger (GumV8ScriptBackend * self)
   delete priv->debug_context;
   priv->debug_context = nullptr;
 
-  Debug::SetMessageHandler (nullptr);
+  Debug::SetMessageHandler (isolate, nullptr);
 }
 
 static void
@@ -740,5 +740,5 @@ gum_v8_script_backend_do_process_debug_messages (GumV8ScriptBackend * self)
   Local<Context> context (Local<Context>::New (isolate, *priv->debug_context));
   Context::Scope context_scope (context);
 
-  Debug::ProcessDebugMessages ();
+  Debug::ProcessDebugMessages (isolate);
 }

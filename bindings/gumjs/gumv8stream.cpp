@@ -133,7 +133,7 @@ static gboolean gum_v8_stream_constructor_args_parse (
     gboolean * auto_close, GumV8Core * core);
 
 static void gum_v8_stream_on_weak_notify (
-    const WeakCallbackData<Object, GumV8Stream> & data);
+    const WeakCallbackInfo<GumV8Stream> & info);
 static void gum_v8_stream_handle_free (gpointer data);
 
 void
@@ -158,7 +158,7 @@ _gum_v8_stream_init (GumV8Stream * self,
       FunctionTemplate::New (isolate, gum_v8_input_stream_on_read, data));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_readAll"),
       FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all, data));
-  input_stream->InstanceTemplate ()->SetInternalFieldCount (1);
+  input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_INPUT_STREAM),
       input_stream);
 
@@ -174,7 +174,7 @@ _gum_v8_stream_init (GumV8Stream * self,
       FunctionTemplate::New (isolate, gum_v8_output_stream_on_write, data));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_writeAll"),
       FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all, data));
-  output_stream->InstanceTemplate ()->SetInternalFieldCount (1);
+  output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_OUTPUT_STREAM),
       output_stream);
 
@@ -238,11 +238,13 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, stream);
+  instance->SetAlignedPointerInInternalField (1, module);
 
   GumPersistent<Object>::type * instance_handle =
       new GumPersistent<Object>::type (core->isolate, instance);
   instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify);
+  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
+      WeakCallbackType::kInternalFields);
 
   g_hash_table_insert (module->streams, stream, instance_handle);
 }
@@ -553,11 +555,13 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, stream);
+  instance->SetAlignedPointerInInternalField (1, module);
 
   GumPersistent<Object>::type * instance_handle =
       new GumPersistent<Object>::type (core->isolate, instance);
   instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify);
+  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
+      WeakCallbackType::kInternalFields);
 
   g_hash_table_insert (module->streams, stream, instance_handle);
 }
@@ -890,12 +894,11 @@ gum_v8_stream_constructor_args_parse (const FunctionCallbackInfo<Value> & info,
 
 static void
 gum_v8_stream_on_weak_notify (
-    const WeakCallbackData<Object, GumV8Stream> & data)
+    const WeakCallbackInfo<GumV8Stream> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      data.GetParameter ());
-  gpointer stream = data.GetValue ()->GetAlignedPointerFromInternalField (0);
+  HandleScope handle_scope (info.GetIsolate ());
+  gpointer stream = info.GetInternalField (0);
+  GumV8Stream * module = static_cast<GumV8Stream *> (info.GetInternalField (1));
   g_hash_table_remove (module->streams, stream);
 }
 

@@ -34,8 +34,7 @@ static GumFile * gum_file_new (Handle<Object> instance, FILE * handle,
 static void gum_file_free (GumFile * file);
 static gboolean gum_file_is_open (GumFile * self);
 static void gum_file_close (GumFile * self);
-static void gum_file_on_weak_notify (
-    const WeakCallbackData<Object, GumFile> & data);
+static void gum_file_on_weak_notify (const WeakCallbackInfo<GumFile> & info);
 
 void
 _gum_v8_file_init (GumV8File * self,
@@ -252,7 +251,8 @@ gum_file_new (Handle<Object> instance,
   file->instance =
       new GumPersistent<Object>::type (module->core->isolate, instance);
   file->instance->MarkIndependent ();
-  file->instance->SetWeak (file, gum_file_on_weak_notify);
+  file->instance->SetWeak (file, gum_file_on_weak_notify,
+      WeakCallbackType::kParameter);
   file->handle = handle;
   file->module = module;
 
@@ -286,9 +286,9 @@ gum_file_close (GumFile * self)
 }
 
 static void
-gum_file_on_weak_notify (const WeakCallbackData<Object, GumFile> & data)
+gum_file_on_weak_notify (const WeakCallbackInfo<GumFile> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumFile * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumFile * self = info.GetParameter ();
   g_hash_table_remove (self->module->files, self);
 }

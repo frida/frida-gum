@@ -13,6 +13,8 @@
 #include <v8.h>
 #include <v8-platform.h>
 
+template<class T> class GumV8TaskRequest;
+
 class GumV8Platform : public v8::Platform
 {
 public:
@@ -24,17 +26,25 @@ public:
   GumV8Bundle * GetDebugRuntime () const { return debug_runtime; }
   GumScriptScheduler * GetScheduler () const { return scheduler; }
 
+  virtual size_t NumberOfAvailableBackgroundThreads ();
   virtual void CallOnBackgroundThread (v8::Task * task,
       ExpectedRuntime expected_runtime);
   virtual void CallOnForegroundThread (v8::Isolate * isolate, v8::Task * task);
+  virtual void CallDelayedOnForegroundThread (v8::Isolate * isolate,
+      v8::Task * task, double delay_in_seconds);
+  virtual void CallIdleOnForegroundThread (v8::Isolate * isolate,
+      v8::IdleTask * task);
+  virtual bool IdleTasksEnabled (v8::Isolate * isolate);
   virtual double MonotonicallyIncreasingTime ();
 
 private:
   void InitRuntime ();
   static void OnFatalError (const char * location, const char * message);
 
-  static void PerformTask (v8::Task * task);
-  static void DisposeTask (v8::Task * task);
+  static void HandleTaskRequest (GumV8TaskRequest<v8::Task> * request);
+  static gboolean HandleDelayedTaskRequest (
+      GumV8TaskRequest<v8::Task> * request);
+  static void HandleIdleTaskRequest (GumV8TaskRequest<v8::IdleTask> * request);
 
   v8::Isolate * isolate;
   GumV8Bundle * user_runtime;

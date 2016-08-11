@@ -149,8 +149,8 @@ static GumWeakRef * gum_weak_ref_new (guint id, Handle<Value> target,
     Handle<Function> callback, GumV8Core * core);
 static void gum_weak_ref_clear (GumWeakRef * ref);
 static void gum_weak_ref_free (GumWeakRef * ref);
-static void gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
-    GumWeakRef> & data);
+static void gum_weak_ref_on_weak_notify (
+    const WeakCallbackInfo<GumWeakRef> & info);
 static void gum_v8_core_on_set_timeout (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_set_interval (
@@ -255,7 +255,7 @@ static void gum_v8_core_on_native_pointer_to_match_pattern (
 static void gum_v8_core_on_new_native_function (
     const FunctionCallbackInfo<Value> & info);
 static void gum_ffi_function_on_weak_notify (
-    const WeakCallbackData<Object, GumFFIFunction> & data);
+    const WeakCallbackInfo<GumFFIFunction> & info);
 static void gum_v8_core_on_invoke_native_function (
     const FunctionCallbackInfo<Value> & info);
 static void gum_ffi_function_free (GumFFIFunction * func);
@@ -263,7 +263,7 @@ static void gum_ffi_function_free (GumFFIFunction * func);
 static void gum_v8_core_on_new_native_callback (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_free_native_callback (
-    const WeakCallbackData<Object, GumFFICallback> & data);
+    const WeakCallbackInfo<GumFFICallback> & info);
 static void gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
 static void gum_ffi_callback_free (GumFFICallback * callback);
@@ -275,8 +275,8 @@ static void gum_v8_core_on_cpu_context_get_register (Local<String> property,
 static void gum_v8_core_on_cpu_context_set_register (Local<String> property,
     Local<Value> value, const PropertyCallbackInfo<void> & info);
 
-static GumV8ExceptionSink * gum_v8_exception_sink_new (Handle<Function> callback,
-    Isolate * isolate);
+static GumV8ExceptionSink * gum_v8_exception_sink_new (
+    Handle<Function> callback, Isolate * isolate);
 static void gum_v8_exception_sink_free (GumV8ExceptionSink * sink);
 static void gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
     Handle<Value> exception);
@@ -297,7 +297,7 @@ static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
     Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
 
 static void gum_v8_native_resource_on_weak_notify (
-    const WeakCallbackData<Object, GumV8NativeResource> & data);
+    const WeakCallbackInfo<GumV8NativeResource> & info);
 
 static gint64 gum_v8_int64_get_value (Handle<Object> object);
 static void gum_v8_int64_set_value (Handle<Object> object, gint64 value,
@@ -309,8 +309,8 @@ static void gum_v8_uint64_set_value (Handle<Object> object, guint64 value,
 
 static const gchar * gum_exception_type_to_string (GumExceptionType type);
 
-static void gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
-    GumCpuContextWrapper> & data);
+static void gum_cpu_context_on_weak_notify (
+    const WeakCallbackInfo<GumCpuContextWrapper> & info);
 
 void
 _gum_v8_core_init (GumV8Core * self,
@@ -1081,7 +1081,8 @@ gum_weak_ref_new (guint id,
   ref = g_slice_new (GumWeakRef);
   ref->id = id;
   ref->target = new GumPersistent<Value>::type (isolate, target);
-  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify);
+  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify,
+      WeakCallbackType::kParameter);
   ref->target->MarkIndependent ();
   ref->callback = new GumPersistent<Function>::type (isolate, callback);
   ref->core = core;
@@ -1094,7 +1095,6 @@ gum_weak_ref_clear (GumWeakRef * ref)
 {
   if (ref->target != nullptr)
   {
-    ref->target->ClearWeak ();
     delete ref->target;
     ref->target = nullptr;
   }
@@ -1117,10 +1117,9 @@ gum_weak_ref_free (GumWeakRef * ref)
 }
 
 static void
-gum_weak_ref_on_weak_notify (const WeakCallbackData<Value,
-                             GumWeakRef> & data)
+gum_weak_ref_on_weak_notify (const WeakCallbackInfo<GumWeakRef> & info)
 {
-  GumWeakRef * self = data.GetParameter ();
+  GumWeakRef * self = info.GetParameter ();
 
   g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
 }
@@ -2358,7 +2357,8 @@ gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
   instance->SetAlignedPointerInInternalField (1, func);
 
   func->weak_instance = new GumPersistent<Object>::type (isolate, instance);
-  func->weak_instance->SetWeak (func, gum_ffi_function_on_weak_notify);
+  func->weak_instance->SetWeak (func, gum_ffi_function_on_weak_notify,
+      WeakCallbackType::kParameter);
   func->weak_instance->MarkIndependent ();
 
   g_hash_table_insert (self->native_functions, func, func);
@@ -2371,10 +2371,10 @@ error:
 
 static void
 gum_ffi_function_on_weak_notify (
-    const WeakCallbackData<Object, GumFFIFunction> & data)
+    const WeakCallbackInfo<GumFFIFunction> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumFFIFunction * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumFFIFunction * self = info.GetParameter ();
   g_hash_table_remove (self->core->native_functions, self);
 }
 
@@ -2590,7 +2590,7 @@ gum_v8_core_on_new_native_callback (const FunctionCallbackInfo<Value> & info)
 
   callback->weak_instance = new GumPersistent<Object>::type (isolate, instance);
   callback->weak_instance->SetWeak (callback,
-      gum_v8_core_on_free_native_callback);
+      gum_v8_core_on_free_native_callback, WeakCallbackType::kParameter);
   callback->weak_instance->MarkIndependent ();
 
   g_hash_table_insert (self->native_callbacks, callback, callback);
@@ -2603,10 +2603,10 @@ error:
 
 static void
 gum_v8_core_on_free_native_callback (
-    const WeakCallbackData<Object, GumFFICallback> & data)
+    const WeakCallbackInfo<GumFFICallback> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumFFICallback * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumFFICallback * self = info.GetParameter ();
   g_hash_table_remove (self->core->native_callbacks, self);
 }
 
@@ -3307,7 +3307,8 @@ _gum_v8_native_resource_new (gpointer data,
   resource->instance = new GumPersistent<Object>::type (core->isolate,
       _gum_v8_native_pointer_new (data, core));
   resource->instance->MarkIndependent ();
-  resource->instance->SetWeak (resource, gum_v8_native_resource_on_weak_notify);
+  resource->instance->SetWeak (resource, gum_v8_native_resource_on_weak_notify,
+      WeakCallbackType::kParameter);
   resource->data = data;
   resource->size = size;
   resource->notify = notify;
@@ -3334,10 +3335,10 @@ _gum_v8_native_resource_free (GumV8NativeResource * resource)
 
 static void
 gum_v8_native_resource_on_weak_notify (
-    const WeakCallbackData<Object, GumV8NativeResource> & data)
+    const WeakCallbackInfo<GumV8NativeResource> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumV8NativeResource * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumV8NativeResource * self = info.GetParameter ();
   g_hash_table_remove (self->core->native_resources, self);
 }
 
@@ -3855,17 +3856,17 @@ _gum_v8_cpu_context_free_later (GumPersistent<Object>::type * cpu_context,
   wrapper->instance = cpu_context;
   wrapper->cpu_context = copy;
 
-  cpu_context->SetWeak (wrapper, gum_cpu_context_on_weak_notify);
+  cpu_context->SetWeak (wrapper, gum_cpu_context_on_weak_notify,
+      WeakCallbackType::kParameter);
   cpu_context->MarkIndependent ();
 }
 
 static void
-gum_cpu_context_on_weak_notify (const WeakCallbackData<Object,
-                                GumCpuContextWrapper> & data)
+gum_cpu_context_on_weak_notify (
+    const WeakCallbackInfo<GumCpuContextWrapper> & info)
 {
-  GumCpuContextWrapper * wrapper = data.GetParameter ();
+  GumCpuContextWrapper * wrapper = info.GetParameter ();
 
-  wrapper->instance->ClearWeak ();
   delete wrapper->instance;
 
   g_slice_free (GumCpuContext, wrapper->cpu_context);

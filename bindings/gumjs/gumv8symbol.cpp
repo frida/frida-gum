@@ -34,8 +34,8 @@ static void gum_v8_symbol_on_find_functions_matching (
 static GumSymbol * gum_symbol_new (Handle<Object> instance,
     GumV8Symbol * module);
 static void gum_symbol_free (GumSymbol * symbol);
-static void gum_symbol_on_weak_notify (const WeakCallbackData<Object,
-    GumSymbol> & data);
+static void gum_symbol_on_weak_notify (
+    const WeakCallbackInfo<GumSymbol> & info);
 
 static void gum_v8_symbol_on_get_address (Local<String> property,
     const PropertyCallbackInfo<Value> & info);
@@ -329,7 +329,8 @@ gum_symbol_new (Handle<Object> instance,
   symbol = g_slice_new (GumSymbol);
   symbol->instance = new GumPersistent<Object>::type (isolate, instance);
   symbol->instance->MarkIndependent ();
-  symbol->instance->SetWeak (symbol, gum_symbol_on_weak_notify);
+  symbol->instance->SetWeak (symbol, gum_symbol_on_weak_notify,
+      WeakCallbackType::kParameter);
   symbol->module = module;
 
   isolate->AdjustAmountOfExternalAllocatedMemory (sizeof (GumSymbol));
@@ -350,11 +351,10 @@ gum_symbol_free (GumSymbol * symbol)
 }
 
 static void
-gum_symbol_on_weak_notify (const WeakCallbackData<Object,
-                           GumSymbol> & data)
+gum_symbol_on_weak_notify (const WeakCallbackInfo<GumSymbol> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumSymbol * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumSymbol * self = info.GetParameter ();
   g_hash_table_remove (self->module->symbols, self);
 }
 

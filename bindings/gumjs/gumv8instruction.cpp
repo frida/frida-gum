@@ -45,8 +45,8 @@ static void gum_v8_instruction_on_parse (
 static GumInstruction * gum_instruction_new (Handle<Object> instance,
     gpointer target, const cs_insn * insn, GumV8Instruction * module);
 static void gum_instruction_free (GumInstruction * instruction);
-static void gum_instruction_on_weak_notify (const WeakCallbackData<Object,
-    GumInstruction> & data);
+static void gum_instruction_on_weak_notify (
+    const WeakCallbackInfo<GumInstruction> & info);
 
 static void gum_v8_instruction_on_get_address (Local<String> property,
     const PropertyCallbackInfo<Value> & info);
@@ -175,7 +175,8 @@ gum_instruction_new (Handle<Object> instance,
   instruction = g_slice_new (GumInstruction);
   instruction->instance = new GumPersistent<Object>::type (isolate, instance);
   instruction->instance->MarkIndependent ();
-  instruction->instance->SetWeak (instruction, gum_instruction_on_weak_notify);
+  instruction->instance->SetWeak (instruction, gum_instruction_on_weak_notify,
+      WeakCallbackType::kParameter);
   instruction->target = target;
   memcpy (&instruction->insn, insn, sizeof (cs_insn));
   instruction->module = module;
@@ -199,11 +200,10 @@ gum_instruction_free (GumInstruction * instruction)
 }
 
 static void
-gum_instruction_on_weak_notify (const WeakCallbackData<Object,
-    GumInstruction> & data)
+gum_instruction_on_weak_notify (const WeakCallbackInfo<GumInstruction> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumInstruction * self = data.GetParameter ();
+  HandleScope handle_scope (info.GetIsolate ());
+  GumInstruction * self = info.GetParameter ();
   g_hash_table_remove (self->module->instructions, self);
 }
 

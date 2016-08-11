@@ -13,6 +13,7 @@ using namespace v8;
 
 class GumArrayBufferAllocator : public ArrayBuffer::Allocator
 {
+public:
   virtual void *
   Allocate (size_t length)
   {
@@ -32,6 +33,29 @@ class GumArrayBufferAllocator : public ArrayBuffer::Allocator
 
     g_free (data);
   }
+};
+
+template<class T>
+class GumV8TaskRequest
+{
+public:
+  GumV8TaskRequest (Platform * platform,
+                    Isolate * isolate,
+                    T * task)
+    : platform(platform),
+      isolate(isolate),
+      task(task)
+  {
+  }
+
+  ~GumV8TaskRequest ()
+  {
+    delete task;
+  }
+
+  Platform * platform;
+  Isolate * isolate;
+  T * task;
 };
 
 GumV8Platform::GumV8Platform ()
@@ -92,24 +116,69 @@ GumV8Platform::~GumV8Platform ()
   delete array_buffer_allocator;
 }
 
+size_t
+GumV8Platform::NumberOfAvailableBackgroundThreads ()
+{
+  return g_get_num_processors ();
+}
+
 void
 GumV8Platform::CallOnBackgroundThread (Task * task,
                                        ExpectedRuntime expected_runtime)
 {
   (void) expected_runtime;
 
+  GumV8TaskRequest<Task> * request =
+      new GumV8TaskRequest<Task> (this, nullptr, task);
+
   gum_script_scheduler_push_job_on_thread_pool (scheduler,
-      (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask);
+      (GumScriptJobFunc) HandleTaskRequest, request, NULL);
 }
 
 void
-GumV8Platform::CallOnForegroundThread (Isolate * with_isolate,
+GumV8Platform::CallOnForegroundThread (Isolate * isolate,
                                        Task * task)
 {
-  (void) with_isolate;
+  GumV8TaskRequest<Task> * request =
+      new GumV8TaskRequest<Task> (this, isolate, task);
 
-  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_HIGH,
-      (GumScriptJobFunc) PerformTask, task, (GDestroyNotify) DisposeTask);
+  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
+      (GumScriptJobFunc) HandleTaskRequest, request, NULL);
+}
+
+void
+GumV8Platform::CallDelayedOnForegroundThread (Isolate * isolate,
+                                              Task * task,
+                                              double delay_in_seconds)
+{
+  GumV8TaskRequest<Task> * request =
+      new GumV8TaskRequest<Task> (this, isolate, task);
+
+  GSource * source = g_timeout_source_new (delay_in_seconds * 1000.0);
+  g_source_set_priority (source, G_PRIORITY_DEFAULT);
+  g_source_set_callback (source, (GSourceFunc) HandleDelayedTaskRequest,
+      request, NULL);
+  g_source_attach (source, gum_script_scheduler_get_js_context (scheduler));
+  g_source_unref (source);
+}
+
+void
+GumV8Platform::CallIdleOnForegroundThread (Isolate * isolate,
+                                           IdleTask * task)
+{
+  GumV8TaskRequest<IdleTask> * request =
+      new GumV8TaskRequest<IdleTask> (this, isolate, task);
+
+  gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
+      (GumScriptJobFunc) HandleIdleTaskRequest, request, NULL);
+}
+
+bool
+GumV8Platform::IdleTasksEnabled (Isolate * isolate)
+{
+  (void) isolate;
+
+  return true;
 }
 
 double
@@ -120,14 +189,48 @@ GumV8Platform::MonotonicallyIncreasingTime ()
 }
 
 void
-GumV8Platform::PerformTask (Task * task)
+GumV8Platform::HandleTaskRequest (GumV8TaskRequest<Task> * request)
 {
-  task->Run ();
+  Isolate * isolate = request->isolate;
+
+  if (isolate != nullptr)
+  {
+    Locker locker (isolate);
+    Isolate::Scope isolate_scope (isolate);
+    HandleScope handle_scope (isolate);
+
+    request->task->Run ();
+
+    delete request;
+  }
+  else
+  {
+    request->task->Run ();
+
+    delete request;
+  }
+}
+
+gboolean
+GumV8Platform::HandleDelayedTaskRequest (GumV8TaskRequest<Task> * request)
+{
+  HandleTaskRequest (request);
+
+  return FALSE;
 }
 
 void
-GumV8Platform::DisposeTask (Task * task)
+GumV8Platform::HandleIdleTaskRequest (GumV8TaskRequest<IdleTask> * request)
 {
-  delete task;
-}
+  Isolate * isolate = request->isolate;
 
+  Locker locker (isolate);
+  Isolate::Scope isolate_scope (isolate);
+  HandleScope handle_scope (isolate);
+
+  const double deadline_in_seconds =
+      request->platform->MonotonicallyIncreasingTime () + (1.0 / 60.0);
+  request->task->Run (deadline_in_seconds);
+
+  delete request;
+}

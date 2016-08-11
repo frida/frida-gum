@@ -28,7 +28,7 @@ static void gum_v8_api_resolver_on_enumerate_matches (
 static gboolean gum_v8_api_resolver_handle_module_match (
     const GumApiDetails * details, gpointer user_data);
 static void gum_v8_api_resolver_on_weak_notify (
-    const WeakCallbackData<Object, GumV8ApiResolver> & data);
+    const WeakCallbackInfo<GumV8ApiResolver> & info);
 static void gum_v8_api_resolver_handle_free (gpointer data);
 
 void
@@ -49,7 +49,7 @@ _gum_v8_api_resolver_init (GumV8ApiResolver * self,
   api_resolver_proto->Set (String::NewFromUtf8 (isolate, "enumerateMatches"),
       FunctionTemplate::New (isolate, gum_v8_api_resolver_on_enumerate_matches,
       data));
-  api_resolver->InstanceTemplate ()->SetInternalFieldCount (1);
+  api_resolver->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, "ApiResolver"), api_resolver);
 }
 
@@ -105,11 +105,13 @@ gum_v8_api_resolver_on_new (const FunctionCallbackInfo<Value> & info)
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, resolver);
+  instance->SetAlignedPointerInInternalField (1, self);
 
   GumPersistent<v8::Object>::type * instance_handle =
       new GumPersistent<Object>::type (self->core->isolate, instance);
   instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (self, gum_v8_api_resolver_on_weak_notify);
+  instance_handle->SetWeak (self, gum_v8_api_resolver_on_weak_notify,
+      WeakCallbackType::kInternalFields);
 
   g_hash_table_insert (self->resolvers, resolver, instance_handle);
 }
@@ -214,13 +216,13 @@ gum_v8_api_resolver_handle_module_match (const GumApiDetails * details,
 
 static void
 gum_v8_api_resolver_on_weak_notify (
-    const WeakCallbackData<Object, GumV8ApiResolver> & data)
+    const WeakCallbackInfo<GumV8ApiResolver> & info)
 {
-  HandleScope handle_scope (data.GetIsolate ());
-  GumV8ApiResolver * module = static_cast<GumV8ApiResolver *> (
-      data.GetParameter ());
+  HandleScope handle_scope (info.GetIsolate ());
   GumApiResolver * resolver = static_cast<GumApiResolver *> (
-      data.GetValue ()->GetAlignedPointerFromInternalField (0));
+      info.GetInternalField (0));
+  GumV8ApiResolver * module = static_cast<GumV8ApiResolver *> (
+      info.GetInternalField (1));
   g_hash_table_remove (module->resolvers, resolver);
 }
 
