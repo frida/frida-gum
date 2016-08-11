@@ -32,15 +32,29 @@ _gum_v8_thread_init (GumV8Thread * self,
   scope->Set (String::NewFromUtf8 (isolate, "Thread"), thread);
 
   Handle<ObjectTemplate> backtracer = ObjectTemplate::New (isolate);
+  scope->Set (String::NewFromUtf8 (isolate, "Backtracer"), backtracer);
+}
+
+void
+_gum_v8_thread_realize (GumV8Thread * self)
+{
+  Isolate * isolate = self->core->isolate;
+  Local<Context> context (isolate->GetCurrentContext ());
+  Local<Object> global (context->Global ());
+
+  Local<Object> backtracer = global->Get (context,
+      String::NewFromUtf8 (isolate, "Backtracer")).ToLocalChecked ()
+      .As<Object> ();
   Local<Symbol> accurate = Symbol::ForApi (isolate,
       String::NewFromUtf8 (isolate, "Backtracer.ACCURATE"));
-  backtracer->Set (String::NewFromUtf8 (isolate, "ACCURATE"), accurate,
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
+  backtracer->DefineOwnProperty (context,
+      String::NewFromUtf8 (isolate, "ACCURATE"), accurate,
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete)).ToChecked ();
   Local<Symbol> fuzzy = Symbol::ForApi (isolate,
       String::NewFromUtf8 (isolate, "Backtracer.FUZZY"));
-  backtracer->Set (String::NewFromUtf8 (isolate, "FUZZY"), fuzzy,
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete));
-  scope->Set (String::NewFromUtf8 (isolate, "Backtracer"), backtracer);
+  backtracer->DefineOwnProperty (context,
+      String::NewFromUtf8 (isolate, "FUZZY"), fuzzy,
+      static_cast<PropertyAttribute> (ReadOnly | DontDelete)).ToChecked ();
 
   self->accurate_enum_value =
       new GumPersistent<Symbol>::type (isolate, accurate);
@@ -49,15 +63,13 @@ _gum_v8_thread_init (GumV8Thread * self,
 }
 
 void
-_gum_v8_thread_realize (GumV8Thread * self)
-{
-  (void) self;
-}
-
-void
 _gum_v8_thread_dispose (GumV8Thread * self)
 {
-  (void) self;
+  delete self->fuzzy_enum_value;
+  self->fuzzy_enum_value = NULL;
+
+  delete self->accurate_enum_value;
+  self->accurate_enum_value = NULL;
 }
 
 void
@@ -74,12 +86,6 @@ _gum_v8_thread_finalize (GumV8Thread * self)
     g_object_unref (self->fuzzy_backtracer);
     self->fuzzy_backtracer = NULL;
   }
-
-  delete self->fuzzy_enum_value;
-  self->fuzzy_enum_value = NULL;
-
-  delete self->accurate_enum_value;
-  self->accurate_enum_value = NULL;
 }
 
 /*
