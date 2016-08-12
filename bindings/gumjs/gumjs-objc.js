@@ -182,19 +182,16 @@
             const cachedClasses = {};
             let numCachedClasses = 0;
 
-            const original = this;
-            const registry = new Proxy(original, {
-                has(targetOrName, name) {
-                    /* workaround for v8 passing only a single argument */
-                    const propName = (name !== undefined) ? name : targetOrName;
-                    return hasProperty(propName);
+            const registry = new Proxy(this, {
+                has(target, property) {
+                    return hasProperty(property);
                 },
-                get(target, name) {
-                    switch (name) {
+                get(target, property, receiver) {
+                    switch (property) {
                         case "prototype":
-                            return original.prototype;
+                            return target.prototype;
                         case "constructor":
-                            return original.constructor;
+                            return target.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -204,28 +201,14 @@
                         case "valueOf":
                             return valueOf;
                         default:
-                            const klass = findClass(name);
+                            const klass = findClass(property);
                             return (klass !== null) ? klass : undefined;
                     }
                 },
-                set(target, name, value) {
-                    throw new Error("Invalid operation");
+                set(target, property, value, receiver) {
+                    return false;
                 },
-                enumerate() {
-                    return this.keys();
-                },
-                iterate() {
-                    const props = this.keys();
-                    let i = 0;
-                    return {
-                        next() {
-                            if (i === props.length)
-                                throw StopIteration;
-                            return props[i++];
-                        }
-                    };
-                },
-                keys() {
+                ownKeys(target) {
                     let numClasses = api.objc_getClassList(NULL, 0);
                     if (numClasses !== numCachedClasses) {
                         // It's impossible to unregister classes in ObjC, so if the number of
@@ -240,12 +223,20 @@
                     }
                     return Object.keys(cachedClasses);
                 },
-                ownKeys() {
-                     return this.keys();
+                getOwnPropertyDescriptor(target, property) {
+                    return {
+                        writable: false,
+                        configurable: true,
+                        enumerable: true
+                    };
                 },
-                getOwnPropertyNames() {
-                    return this.keys();
-                }
+                // Duktape needs these two legacy traps:
+                enumerate(target) {
+                    return this.ownKeys();
+                },
+                keys(target) {
+                    return this.ownKeys();
+                },
             });
 
             function hasProperty(name) {
@@ -291,19 +282,16 @@
         function ProtocolRegistry() {
             let cachedProtocols = {};
 
-            const original = this;
-            const registry = new Proxy(original, {
-                has(targetOrName, name) {
-                    /* workaround for v8 passing only a single argument */
-                    const propName = (name !== undefined) ? name : targetOrName;
-                    return hasProperty(propName);
+            const registry = new Proxy(this, {
+                has(target, property) {
+                    return hasProperty(property);
                 },
-                get(target, name) {
-                    switch (name) {
+                get(target, property, receiver) {
+                    switch (property) {
                         case "prototype":
-                            return original.prototype;
+                            return target.prototype;
                         case "constructor":
-                            return original.constructor;
+                            return target.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -313,28 +301,14 @@
                         case "valueOf":
                             return valueOf;
                         default:
-                            const proto = findProtocol(name);
+                            const proto = findProtocol(property);
                             return (proto !== null) ? proto : undefined;
                     }
                 },
-                set(target, name, value) {
-                    throw new Error("Invalid operation");
+                set(target, property, value, receiver) {
+                    return false;
                 },
-                enumerate() {
-                    return this.keys();
-                },
-                iterate() {
-                    const props = this.keys();
-                    let i = 0;
-                    return {
-                        next() {
-                            if (i === props.length)
-                                throw StopIteration;
-                            return props[i++];
-                        }
-                    };
-                },
-                keys() {
+                ownKeys(target) {
                     const protocolNames = [];
                     cachedProtocols = {};
                     const numProtocolsBuf = Memory.alloc(pointerSize);
@@ -352,9 +326,20 @@
                     }
                     return protocolNames;
                 },
-                ownKeys() {
-                     return this.keys();
-                }
+                getOwnPropertyDescriptor(target, property) {
+                    return {
+                        writable: false,
+                        configurable: true,
+                        enumerable: true
+                    };
+                },
+                // Duktape needs these two legacy traps:
+                enumerate(target) {
+                    return this.ownKeys();
+                },
+                keys(target) {
+                    return this.ownKeys();
+                },
             });
 
             function hasProperty(name) {
@@ -442,24 +427,18 @@
                 }
             }
 
-            const original = this;
-            const self = new Proxy(original, {
-                has(targetOrName, name) {
-                    /* workaround for v8 passing only a single argument */
-                    const propName = (name !== undefined) ? name : targetOrName;
-                    return hasProperty(propName);
+            const self = new Proxy(this, {
+                has(target, property) {
+                    return hasProperty(property);
                 },
-                get(target, name, receiver) {
-                    /* V8 kludge */
-                    if (receiver === undefined)
-                        receiver = self;
-                    switch (name) {
+                get(target, property, receiver) {
+                    switch (property) {
                         case "handle":
                             return handle;
                         case "prototype":
-                            return original.prototype;
+                            return target.prototype;
                         case "constructor":
-                            return original.constructor;
+                            return target.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -579,34 +558,20 @@
                             return cachedIvars;
                         default:
                             if (protocol) {
-                                const details = findProtocolMethod(name);
+                                const details = findProtocolMethod(property);
                                 if (details === null || !details.implemented)
                                     return undefined;
                             }
-                            const wrapper = findMethodWrapper(name);
+                            const wrapper = findMethodWrapper(property);
                             if (wrapper === null)
                                 return undefined;
                             return wrapper;
                     }
                 },
-                set(target, name, value) {
-                    throw new Error("Invalid operation");
+                set(target, property, value, receiver) {
+                    return false;
                 },
-                enumerate() {
-                    return this.keys();
-                },
-                iterate() {
-                    const props = this.keys();
-                    let i = 0;
-                    return {
-                        next() {
-                            if (i === props.length)
-                                throw StopIteration;
-                            return props[i++];
-                        }
-                    };
-                },
-                keys() {
+                ownKeys(target) {
                     if (cachedMethodNames === null) {
                         if (!protocol) {
                             const jsNames = {};
@@ -672,9 +637,20 @@
 
                     return ['handle'].concat(cachedMethodNames);
                 },
-                ownKeys() {
-                    return this.keys();
-                }
+                getOwnPropertyDescriptor(target, property) {
+                    return {
+                        writable: false,
+                        configurable: true,
+                        enumerable: true
+                    };
+                },
+                // Duktape needs these two legacy traps:
+                enumerate(target) {
+                    return this.ownKeys();
+                },
+                keys(target) {
+                    return this.ownKeys();
+                },
             });
 
             if (protocol) {
@@ -1065,22 +1041,16 @@
                 }
             });
 
-            const original = this;
-            const self = new Proxy(original, {
-                has(targetOrName, name) {
-                    /* workaround for v8 passing only a single argument */
-                    const propName = (name !== undefined) ? name : targetOrName;
-                    return hasProperty(propName);
+            const self = new Proxy(this, {
+                has(target, property) {
+                    return hasProperty(property);
                 },
-                get(target, name, receiver) {
-                    /* V8 kludge */
-                    if (receiver === undefined)
-                        receiver = self;
-                    switch (name) {
+                get(target, property, receiver) {
+                    switch (property) {
                         case "prototype":
-                            return original.prototype;
+                            return target.prototype;
                         case "constructor":
-                            return original.constructor;
+                            return target.constructor;
                         case "hasOwnProperty":
                             return hasProperty;
                         case "toJSON":
@@ -1090,39 +1060,36 @@
                         case "valueOf":
                             return valueOf;
                         default:
-                            const ivar = findIvar(name);
+                            const ivar = findIvar(property);
                             if (ivar === null)
                                 return undefined;
                             return ivar.get();
                     }
                 },
-                set(target, name, value) {
-                    const ivar = findIvar(name);
+                set(target, property, value, receiver) {
+                    const ivar = findIvar(property);
                     if (ivar === null)
                         throw new Error("Unknown ivar");
                     ivar.set(value);
                     return true;
                 },
-                enumerate() {
-                    return this.keys();
-                },
-                iterate() {
-                    const props = this.keys();
-                    let i = 0;
-                    return {
-                        next() {
-                            if (i === props.length)
-                                throw StopIteration;
-                            return props[i++];
-                        }
-                    };
-                },
-                keys() {
+                ownKeys(target) {
                     return Object.keys(ivars);
                 },
-                ownKeys() {
-                    return this.keys();
-                }
+                getOwnPropertyDescriptor(target, property) {
+                    return {
+                        writable: true,
+                        configurable: true,
+                        enumerable: true
+                    };
+                },
+                // Duktape needs these two legacy traps:
+                enumerate(target) {
+                    return this.ownKeys();
+                },
+                keys(target) {
+                    return this.ownKeys();
+                },
             });
 
             return self;
