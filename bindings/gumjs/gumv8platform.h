@@ -47,6 +47,7 @@ private:
       GumV8TaskRequest<v8::Task> * request);
   static void HandleIdleTaskRequest (GumV8TaskRequest<v8::IdleTask> * request);
 
+  bool disposing;
   v8::Isolate * isolate;
   GumV8Bundle * user_runtime;
   GumV8Bundle * debug_runtime;

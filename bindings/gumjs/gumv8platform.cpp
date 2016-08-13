@@ -59,7 +59,8 @@ public:
 };
 
 GumV8Platform::GumV8Platform ()
-  : scheduler (gum_script_scheduler_new ()),
+  : disposing (false),
+    scheduler (gum_script_scheduler_new ()),
     start_time (g_get_monotonic_time ()),
     array_buffer_allocator (new GumArrayBufferAllocator ())
 {
@@ -97,6 +98,8 @@ GumV8Platform::OnFatalError (const char * location,
 
 GumV8Platform::~GumV8Platform ()
 {
+  disposing = true;
+
   {
     Locker locker (isolate);
     Isolate::Scope isolate_scope (isolate);
@@ -128,6 +131,14 @@ GumV8Platform::CallOnBackgroundThread (Task * task,
 {
   (void) expected_runtime;
 
+  if (disposing)
+  {
+    /* This happens during V8::Dispose() */
+    task->Run ();
+    delete task;
+    return;
+  }
+
   GumV8TaskRequest<Task> * request =
       new GumV8TaskRequest<Task> (this, nullptr, task);
 
@@ -139,6 +150,8 @@ void
 GumV8Platform::CallOnForegroundThread (Isolate * for_isolate,
                                        Task * task)
 {
+  g_assert (!disposing);
+
   GumV8TaskRequest<Task> * request =
       new GumV8TaskRequest<Task> (this, for_isolate, task);
 
@@ -151,6 +164,8 @@ GumV8Platform::CallDelayedOnForegroundThread (Isolate * for_isolate,
                                               Task * task,
                                               double delay_in_seconds)
 {
+  g_assert (!disposing);
+
   GumV8TaskRequest<Task> * request =
       new GumV8TaskRequest<Task> (this, for_isolate, task);
 
@@ -166,6 +181,8 @@ void
 GumV8Platform::CallIdleOnForegroundThread (Isolate * for_isolate,
                                            IdleTask * task)
 {
+  g_assert (!disposing);
+
   GumV8TaskRequest<IdleTask> * request =
       new GumV8TaskRequest<IdleTask> (this, for_isolate, task);
 
