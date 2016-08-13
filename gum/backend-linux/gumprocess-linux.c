@@ -2017,7 +2017,7 @@ gum_libc_clone (GumCloneFunc child_func,
         [tls]"g" (tls),
         [child_tidptr]"g" (child_tidptr),
         [exit_syscall]"i" (__NR_exit)
-      : "eax", "ecx", "edx", "esi", "edi", "esp", "cc", "memory"
+      : "eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "cc", "memory"
   );
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
