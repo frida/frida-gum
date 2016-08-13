@@ -136,23 +136,23 @@ GumV8Platform::CallOnBackgroundThread (Task * task,
 }
 
 void
-GumV8Platform::CallOnForegroundThread (Isolate * isolate,
+GumV8Platform::CallOnForegroundThread (Isolate * for_isolate,
                                        Task * task)
 {
   GumV8TaskRequest<Task> * request =
-      new GumV8TaskRequest<Task> (this, isolate, task);
+      new GumV8TaskRequest<Task> (this, for_isolate, task);
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) HandleTaskRequest, request, NULL);
 }
 
 void
-GumV8Platform::CallDelayedOnForegroundThread (Isolate * isolate,
+GumV8Platform::CallDelayedOnForegroundThread (Isolate * for_isolate,
                                               Task * task,
                                               double delay_in_seconds)
 {
   GumV8TaskRequest<Task> * request =
-      new GumV8TaskRequest<Task> (this, isolate, task);
+      new GumV8TaskRequest<Task> (this, for_isolate, task);
 
   GSource * source = g_timeout_source_new (delay_in_seconds * 1000.0);
   g_source_set_priority (source, G_PRIORITY_DEFAULT);
@@ -163,20 +163,20 @@ GumV8Platform::CallDelayedOnForegroundThread (Isolate * isolate,
 }
 
 void
-GumV8Platform::CallIdleOnForegroundThread (Isolate * isolate,
+GumV8Platform::CallIdleOnForegroundThread (Isolate * for_isolate,
                                            IdleTask * task)
 {
   GumV8TaskRequest<IdleTask> * request =
-      new GumV8TaskRequest<IdleTask> (this, isolate, task);
+      new GumV8TaskRequest<IdleTask> (this, for_isolate, task);
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) HandleIdleTaskRequest, request, NULL);
 }
 
 bool
-GumV8Platform::IdleTasksEnabled (Isolate * isolate)
+GumV8Platform::IdleTasksEnabled (Isolate * for_isolate)
 {
-  (void) isolate;
+  (void) for_isolate;
 
   return true;
 }

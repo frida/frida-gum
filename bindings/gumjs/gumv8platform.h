@@ -29,12 +29,13 @@ public:
   virtual size_t NumberOfAvailableBackgroundThreads ();
   virtual void CallOnBackgroundThread (v8::Task * task,
       ExpectedRuntime expected_runtime);
-  virtual void CallOnForegroundThread (v8::Isolate * isolate, v8::Task * task);
-  virtual void CallDelayedOnForegroundThread (v8::Isolate * isolate,
+  virtual void CallOnForegroundThread (v8::Isolate * for_isolate,
+      v8::Task * task);
+  virtual void CallDelayedOnForegroundThread (v8::Isolate * for_isolate,
       v8::Task * task, double delay_in_seconds);
-  virtual void CallIdleOnForegroundThread (v8::Isolate * isolate,
+  virtual void CallIdleOnForegroundThread (v8::Isolate * for_isolate,
       v8::IdleTask * task);
-  virtual bool IdleTasksEnabled (v8::Isolate * isolate);
+  virtual bool IdleTasksEnabled (v8::Isolate * for_isolate);
   virtual double MonotonicallyIncreasingTime ();
 
 private:
