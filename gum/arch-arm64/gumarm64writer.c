@@ -102,6 +102,7 @@ enum _GumArm64MetaReg
 struct _GumArm64RegInfo
 {
   GumArm64MetaReg meta;
+  gboolean is_integer;
   guint width;
   guint index;
   guint32 sf;
@@ -625,7 +626,8 @@ gum_arm64_writer_put_ldr_reg_u64 (GumArm64Writer * self,
   g_assert_cmpuint (ri.width, ==, 64);
 
   gum_arm64_writer_add_literal_reference_here (self, val);
-  gum_arm64_writer_put_instruction (self, 0x58000000 | ri.index);
+  gum_arm64_writer_put_instruction (self,
+      (ri.is_integer ? 0x58000000 : 0x5c000000) | ri.index);
 }
 
 void
@@ -634,23 +636,39 @@ gum_arm64_writer_put_ldr_reg_reg_offset (GumArm64Writer * self,
                                          arm64_reg src_reg,
                                          gsize src_offset)
 {
+
   GumArm64RegInfo rd, rs;
+  guint32 size, v, opc;
 
   gum_arm64_writer_describe_reg (self, dst_reg, &rd);
   gum_arm64_writer_describe_reg (self, src_reg, &rs);
 
-  g_assert_cmpuint (rs.width, ==, 64);
-
-  if (rd.width == 64)
+  opc = 1;
+  if (rd.is_integer)
   {
-    gum_arm64_writer_put_instruction (self, 0xf9400000 |
-        ((guint32) src_offset / 8) << 10 | (rs.index << 5) | rd.index);
+    size = (rd.width == 64) ? 3 : 2;
+    v = 0;
   }
   else
   {
-    gum_arm64_writer_put_instruction (self, 0xb9400000 |
-        ((guint32) src_offset / 4) << 10 | (rs.index << 5) | rd.index);
+    if (rd.width == 128)
+    {
+      size = 0;
+      opc |= 2;
+    }
+    else
+    {
+      size = (rd.width == 64) ? 3 : 2;
+    }
+    v = 1;
   }
+
+  g_assert_cmpuint (rs.width, ==, 64);
+
+  gum_arm64_writer_put_instruction (self, 0x39000000 |
+      (size << 30) | (v << 26) | (opc << 22) |
+      ((guint32) src_offset / (rd.width / 8)) << 10 |
+      (rs.index << 5) | rd.index);
 }
 
 void
@@ -691,22 +709,37 @@ gum_arm64_writer_put_str_reg_reg_offset (GumArm64Writer * self,
                                          gsize dst_offset)
 {
   GumArm64RegInfo rs, rd;
+  guint32 size, v, opc;
 
   gum_arm64_writer_describe_reg (self, src_reg, &rs);
   gum_arm64_writer_describe_reg (self, dst_reg, &rd);
 
-  g_assert_cmpuint (rd.width, ==, 64);
-
-  if (rs.width == 64)
+  opc = 0;
+  if (rs.is_integer)
   {
-    gum_arm64_writer_put_instruction (self, 0xf9000000 |
-        ((guint32) dst_offset / 8) << 10 | (rd.index << 5) | rs.index);
+    size = (rs.width == 64) ? 3 : 2;
+    v = 0;
   }
   else
   {
-    gum_arm64_writer_put_instruction (self, 0xb9000000 |
-        ((guint32) dst_offset / 4) << 10 | (rd.index << 5) | rs.index);
+    if (rs.width == 128)
+    {
+      size = 0;
+      opc |= 2;
+    }
+    else
+    {
+      size = (rs.width == 64) ? 3 : 2;
+    }
+    v = 1;
   }
+
+  g_assert_cmpuint (rd.width, ==, 64);
+
+  gum_arm64_writer_put_instruction (self, 0x39000000 |
+      (size << 30) | (v << 26) | (opc << 22) |
+      ((guint32) dst_offset / (rs.width / 8)) << 10 |
+      (rd.index << 5) | rs.index);
 }
 
 void
@@ -876,42 +909,70 @@ gum_arm64_writer_describe_reg (GumArm64Writer * self,
   if (reg >= ARM64_REG_X0 && reg <= ARM64_REG_X28)
   {
     ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_X0);
+    ri->is_integer = TRUE;
     ri->width = 64;
     ri->sf = 0x80000000;
   }
   else if (reg == ARM64_REG_X29)
   {
     ri->meta = GUM_MREG_R29;
+    ri->is_integer = TRUE;
     ri->width = 64;
     ri->sf = 0x80000000;
   }
   else if (reg == ARM64_REG_X30)
   {
     ri->meta = GUM_MREG_R30;
+    ri->is_integer = TRUE;
     ri->width = 64;
     ri->sf = 0x80000000;
   }
   else if (reg == ARM64_REG_SP)
   {
     ri->meta = GUM_MREG_SP;
+    ri->is_integer = TRUE;
     ri->width = 64;
     ri->sf = 0x80000000;
   }
   else if (reg >= ARM64_REG_W0 && reg <= ARM64_REG_W30)
   {
     ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_W0);
+    ri->is_integer = TRUE;
     ri->width = 32;
+    ri->sf = 0x00000000;
+  }
+  else if (reg >= ARM64_REG_S0 && reg <= ARM64_REG_S31)
+  {
+    ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_S0);
+    ri->is_integer = FALSE;
+    ri->width = 32;
+    ri->sf = 0x00000000;
+  }
+  else if (reg >= ARM64_REG_D0 && reg <= ARM64_REG_D31)
+  {
+    ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_D0);
+    ri->is_integer = FALSE;
+    ri->width = 64;
+    ri->sf = 0x00000000;
+  }
+  else if (reg >= ARM64_REG_Q0 && reg <= ARM64_REG_Q31)
+  {
+    ri->meta = GUM_MREG_R0 + (reg - ARM64_REG_Q0);
+    ri->is_integer = FALSE;
+    ri->width = 128;
     ri->sf = 0x00000000;
   }
   else if (reg == ARM64_REG_XZR)
   {
     ri->meta = GUM_MREG_ZR;
+    ri->is_integer = TRUE;
     ri->width = 64;
     ri->sf = 0x80000000;
   }
   else if (reg == ARM64_REG_WZR)
   {
     ri->meta = GUM_MREG_ZR;
+    ri->is_integer = TRUE;
     ri->width = 32;
     ri->sf = 0x00000000;
   }

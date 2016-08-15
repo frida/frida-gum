@@ -17,9 +17,12 @@ TEST_LIST_BEGIN (arm64writer)
 
   TESTENTRY (push_reg_reg)
   TESTENTRY (pop_reg_reg)
-  TESTENTRY (ldr_reg_address)
-  TESTENTRY (ldr_reg_reg_imm)
-  TESTENTRY (str_reg_reg_imm)
+  TESTENTRY (ldr_x_address)
+  TESTENTRY (ldr_d_address)
+  TESTENTRY (ldr_integer_reg_reg_imm)
+  TESTENTRY (ldr_fp_reg_reg_imm)
+  TESTENTRY (str_integer_reg_reg_imm)
+  TESTENTRY (str_fp_reg_reg_imm)
   TESTENTRY (mov_reg_reg)
   TESTENTRY (add_reg_reg_imm)
   TESTENTRY (sub_reg_reg_imm)
@@ -113,7 +116,7 @@ TESTCASE (pop_reg_reg)
   assert_output_n_equals (1, 0x28c133e7);
 }
 
-TESTCASE (ldr_reg_address)
+TESTCASE (ldr_x_address)
 {
   gum_arm64_writer_put_ldr_reg_address (&fixture->aw, ARM64_REG_X7,
       0x123456789abcdef0);
@@ -124,7 +127,18 @@ TESTCASE (ldr_reg_address)
       ==, 0x123456789abcdef0);
 }
 
-TESTCASE (ldr_reg_reg_imm)
+TESTCASE (ldr_d_address)
+{
+  gum_arm64_writer_put_ldr_reg_address (&fixture->aw, ARM64_REG_D1,
+      0x123456789abcdef0);
+  gum_arm64_writer_flush (&fixture->aw);
+  assert_output_n_equals (0, 0x5c000021);
+  g_assert_cmphex (
+      GUINT64_FROM_LE (*((guint64 *) (((guint8 *) fixture->output) + 4))),
+      ==, 0x123456789abcdef0);
+}
+
+TESTCASE (ldr_integer_reg_reg_imm)
 {
   gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_X3,
       ARM64_REG_X5, 16);
@@ -135,7 +149,22 @@ TESTCASE (ldr_reg_reg_imm)
   assert_output_n_equals (1, 0xb94010a3);
 }
 
-TESTCASE (str_reg_reg_imm)
+TESTCASE (ldr_fp_reg_reg_imm)
+{
+  gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_S3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (0, 0xbd4010e3);
+
+  gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_D3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (1, 0xfd4008e3);
+
+  gum_arm64_writer_put_ldr_reg_reg_offset (&fixture->aw, ARM64_REG_Q3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (2, 0x3dc004e3);
+}
+
+TESTCASE (str_integer_reg_reg_imm)
 {
   gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_X3,
       ARM64_REG_X5, 16);
@@ -144,6 +173,21 @@ TESTCASE (str_reg_reg_imm)
   gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_W3,
       ARM64_REG_X5, 16);
   assert_output_n_equals (1, 0xb90010a3);
+}
+
+TESTCASE (str_fp_reg_reg_imm)
+{
+  gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_S3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (0, 0xbd0010e3);
+
+  gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_D3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (1, 0xfd0008e3);
+
+  gum_arm64_writer_put_str_reg_reg_offset (&fixture->aw, ARM64_REG_Q3,
+      ARM64_REG_X7, 16);
+  assert_output_n_equals (2, 0x3d8004e3);
 }
 
 TESTCASE (mov_reg_reg)
