@@ -493,6 +493,7 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
 {
   const cs_arm64_op * dst = &ctx->detail->operands[0];
   const cs_arm64_op * src = &ctx->detail->operands[1];
+  gboolean dst_reg_is_fp_or_simd;
   arm64_reg tmp_reg;
 
   (void) self;
@@ -500,15 +501,39 @@ gum_arm64_relocator_rewrite_ldr (GumArm64Relocator * self,
   if (src->type != ARM64_OP_IMM)
     return FALSE;
 
-  if (dst->reg >= ARM64_REG_W0 && dst->reg <= ARM64_REG_W28)
-    tmp_reg = ARM64_REG_X0 + (dst->reg - ARM64_REG_W0);
-  else if (dst->reg >= ARM64_REG_W29 && dst->reg <= ARM64_REG_W30)
-    tmp_reg = ARM64_REG_X29 + (dst->reg - ARM64_REG_W29);
-  else
-    tmp_reg = dst->reg;
+  dst_reg_is_fp_or_simd =
+      (dst->reg >= ARM64_REG_S0 && dst->reg <= ARM64_REG_S31) ||
+      (dst->reg >= ARM64_REG_D0 && dst->reg <= ARM64_REG_D31) ||
+      (dst->reg >= ARM64_REG_Q0 && dst->reg <= ARM64_REG_Q31);
+  if (dst_reg_is_fp_or_simd)
+  {
+    tmp_reg = ARM64_REG_X0;
 
-  gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
-  gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
+    gum_arm64_writer_put_sub_reg_reg_imm (ctx->output, ARM64_REG_SP,
+        ARM64_REG_SP, 8);
+    gum_arm64_writer_put_str_reg_reg_offset (ctx->output, tmp_reg,
+        ARM64_REG_SP, 0);
+
+    gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
+    gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
+
+    gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, tmp_reg,
+        ARM64_REG_SP, 0);
+    gum_arm64_writer_put_add_reg_reg_imm (ctx->output, ARM64_REG_SP,
+        ARM64_REG_SP, 8);
+  }
+  else
+  {
+    if (dst->reg >= ARM64_REG_W0 && dst->reg <= ARM64_REG_W28)
+      tmp_reg = ARM64_REG_X0 + (dst->reg - ARM64_REG_W0);
+    else if (dst->reg >= ARM64_REG_W29 && dst->reg <= ARM64_REG_W30)
+      tmp_reg = ARM64_REG_X29 + (dst->reg - ARM64_REG_W29);
+    else
+      tmp_reg = dst->reg;
+
+    gum_arm64_writer_put_ldr_reg_address (ctx->output, tmp_reg, src->imm);
+    gum_arm64_writer_put_ldr_reg_reg_offset (ctx->output, dst->reg, tmp_reg, 0);
+  }
 
   return TRUE;
 }
