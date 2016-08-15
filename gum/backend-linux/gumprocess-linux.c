@@ -2009,15 +2009,15 @@ gum_libc_clone (GumCloneFunc child_func,
       "popl %%ecx\n\t"
       "popl %%ebx\n\t"
       "popl %%eax\n\t"
-      : [result]"=g" (result)
-      : [clone_syscall]"g" (__NR_clone),
-        [flags]"g" (flags),
-        [child_sp]"g" (child_sp),
-        [parent_tidptr]"g" (parent_tidptr),
-        [tls]"g" (tls),
-        [child_tidptr]"g" (child_tidptr),
+      : [result]"=m" (result)
+      : [clone_syscall]"i" (__NR_clone),
+        [flags]"m" (flags),
+        [child_sp]"m" (child_sp),
+        [parent_tidptr]"m" (parent_tidptr),
+        [tls]"m" (tls),
+        [child_tidptr]"m" (child_tidptr),
         [exit_syscall]"i" (__NR_exit)
-      : "eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "cc", "memory"
+      : "esp", "cc", "memory"
   );
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   *(--child_sp) = arg;
