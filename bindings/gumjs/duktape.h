@@ -161,6 +161,7 @@ extern "C" {
 
 struct duk_thread_state;
 struct duk_memory_functions;
+struct duk_global_access_functions;
 struct duk_function_list_entry;
 struct duk_number_list_entry;
 
@@ -169,6 +170,7 @@ struct duk_number_list_entry;
  */
 typedef struct duk_thread_state duk_thread_state;
 typedef struct duk_memory_functions duk_memory_functions;
+typedef struct duk_global_access_functions duk_global_access_functions;
 typedef struct duk_function_list_entry duk_function_list_entry;
 typedef struct duk_number_list_entry duk_number_list_entry;
 
@@ -176,6 +178,8 @@ typedef duk_ret_t (*duk_c_function)(duk_context *ctx);
 typedef void *(*duk_alloc_function) (void *udata, duk_size_t size);
 typedef void *(*duk_realloc_function) (void *udata, void *ptr, duk_size_t size);
 typedef void (*duk_free_function) (void *udata, void *ptr);
+typedef int (*duk_global_enumerate_function) (duk_context *ctx, void *udata);
+typedef int (*duk_global_get_function) (duk_context *ctx, const char *name, void *udata);
 typedef void (*duk_fatal_function) (duk_context *ctx, duk_errcode_t code, const char *msg);
 typedef void (*duk_decode_char_function) (void *udata, duk_codepoint_t codepoint);
 typedef duk_codepoint_t (*duk_map_char_function) (void *udata, duk_codepoint_t codepoint);
@@ -195,6 +199,12 @@ struct duk_memory_functions {
 	duk_alloc_function alloc_func;
 	duk_realloc_function realloc_func;
 	duk_free_function free_func;
+	void *udata;
+};
+
+struct duk_global_access_functions {
+	duk_global_enumerate_function enumerate_func;
+	duk_global_get_function get_func;
 	void *udata;
 };
 
@@ -391,6 +401,7 @@ duk_context *duk_create_heap(duk_alloc_function alloc_func,
                              duk_free_function free_func,
                              void *heap_udata,
                              duk_fatal_function fatal_handler);
+DUK_EXTERNAL_DECL void duk_set_global_access_functions(duk_context *ctx, duk_global_access_functions *functions);
 DUK_EXTERNAL_DECL void duk_destroy_heap(duk_context *ctx);
 
 DUK_EXTERNAL_DECL void duk_suspend(duk_context *ctx, duk_thread_state *state);

@@ -10117,6 +10117,9 @@ struct duk_heap {
 	duk_uint16_t heapptr_deleted16;
 #endif
 
+	duk_global_access_functions *global_access_funcs;
+	duk_global_access_functions global_access_funcs_storage;
+
 	/* Fatal error handling, called e.g. when a longjmp() is needed but
 	 * lj.jmpbuf_ptr is NULL.  fatal_func must never return; it's not
 	 * declared as "noreturn" because doing that for typedefs is a bit
@@ -17580,6 +17583,23 @@ duk_context *duk_create_heap(duk_alloc_function alloc_func,
 	DUK_ASSERT(ctx != NULL);
 	DUK_ASSERT(((duk_hthread *) ctx)->heap != NULL);
 	return ctx;
+}
+
+DUK_EXTERNAL void duk_set_global_access_functions(duk_context *ctx, duk_global_access_functions *functions) {
+	duk_hthread *thr = (duk_hthread *) ctx;
+	duk_heap *heap;
+
+	DUK_ASSERT_CTX_VALID(ctx);
+	DUK_ASSERT(thr != NULL);
+	DUK_ASSERT(thr->heap != NULL);
+
+	heap = thr->heap;
+	if (functions != NULL) {
+		heap->global_access_funcs_storage = *functions;
+		heap->global_access_funcs = &heap->global_access_funcs_storage;
+	} else {
+		heap->global_access_funcs = NULL;
+	}
 }
 
 DUK_EXTERNAL void duk_destroy_heap(duk_context *ctx) {
@@ -49063,6 +49083,30 @@ DUK_INTERNAL void duk_hobject_enumerator_create(duk_context *ctx, duk_small_uint
 			/* [enum_target res] */
 		}
 
+		if (curr == thr->builtins[DUK_BIDX_GLOBAL]) {
+			duk_global_access_functions *funcs = thr->heap->global_access_funcs;
+
+			if (funcs != NULL) {
+				if (funcs->enumerate_func(ctx, funcs->udata) == 1) {
+					duk_size_t length, i;
+
+					length = duk_get_length(ctx, -1);
+					for (i = 0; i < length; i++) {
+						duk_get_prop_index(ctx, -1, i);
+						duk_push_true(ctx);
+
+						/* [enum_target res keys key true] */
+						duk_put_prop(ctx, -4);
+
+						/* [enum_target res keys] */
+					}
+
+					duk_pop(ctx);
+					/* [enum_target res] */
+				}
+			}
+		}
+
 		if (enum_flags & DUK_ENUM_OWN_PROPERTIES_ONLY) {
 			break;
 		}
@@ -51487,6 +51531,30 @@ DUK_LOCAL duk_bool_t duk__get_own_property_desc_raw(duk_hthread *thr, duk_hobjec
 	/*
 	 *  Not found as concrete or virtual
 	 */
+	if (obj == thr->builtins[DUK_BIDX_GLOBAL]) {
+		duk_global_access_functions *funcs = thr->heap->global_access_funcs;
+
+		if (funcs != NULL) {
+			duk_context *ctx = (duk_context *) thr;
+
+			if (funcs->get_func(ctx, (const char *) DUK_HSTRING_GET_DATA(key), funcs->udata) == 1) {
+				out_desc->flags = DUK_PROPDESC_FLAG_ENUMERABLE |
+						  DUK_PROPDESC_FLAG_ACCESSOR |
+						  DUK_DEFPROP_HAVE_GETTER;
+				out_desc->get = duk_get_heapptr(ctx, -1);
+				duk_pop(ctx);
+				out_desc->set = NULL;
+				out_desc->e_idx = -1;
+				out_desc->h_idx = -1;
+				out_desc->a_idx = -1;
+
+				if (flags & DUK__DESC_FLAG_PUSH_VALUE)
+					duk_push_undefined(ctx);
+
+				return 1;
+			}
+		}
+	}
 
 	DUK_DDD(DUK_DDDPRINT("-> not found (virtual, entry part, or array part)"));
 	return 0;
