@@ -65,6 +65,10 @@ struct _GumDukCore
   GumDukExceptionSink * unhandled_exception_sink;
   GumDukMessageSink * incoming_message_sink;
 
+  GumDukHeapPtr on_global_enumerate;
+  GumDukHeapPtr on_global_get;
+  GumDukHeapPtr global_receiver;
+
   GHashTable * weak_refs;
   guint last_weak_ref_id;
 

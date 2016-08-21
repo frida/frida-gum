@@ -132,6 +132,15 @@ struct _GumCpuContextWrapper
 
 static gboolean gum_v8_core_notify_flushed_when_idle (gpointer user_data);
 
+static void gum_v8_core_on_script_set_global_access_handler (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_core_on_global_get (Local<Name> property,
+    const PropertyCallbackInfo<Value> & info);
+static void gum_v8_core_on_global_query (Local<Name> property,
+    const PropertyCallbackInfo<Integer> & info);
+static void gum_v8_core_on_global_enumerate (
+    const PropertyCallbackInfo<Array> & info);
+
 static void gum_v8_core_on_script_pin (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_script_unpin (
@@ -312,6 +321,8 @@ static const gchar * gum_exception_type_to_string (GumExceptionType type);
 static void gum_cpu_context_on_weak_notify (
     const WeakCallbackInfo<GumCpuContextWrapper> & info);
 
+static GPrivate gum_v8_global_accessor_guard_key;
+
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
@@ -355,6 +366,16 @@ _gum_v8_core_init (GumV8Core * self,
       gum_v8_core_on_script_get_file_name, NULL, data);
   script_module->SetAccessor (String::NewFromUtf8 (isolate, "_sourceMapData"),
       gum_v8_core_on_script_get_source_map_data, NULL, data);
+  script_module->Set (String::NewFromUtf8 (isolate, "setGlobalAccessHandler"),
+      FunctionTemplate::New (isolate,
+          gum_v8_core_on_script_set_global_access_handler, data));
+  NamedPropertyHandlerConfiguration global_access;
+  global_access.getter = gum_v8_core_on_global_get;
+  global_access.query = gum_v8_core_on_global_query;
+  global_access.enumerator = gum_v8_core_on_global_enumerate;
+  global_access.data = data;
+  global_access.flags = PropertyHandlerFlags::kNonMasking;
+  scope->SetHandler (global_access);
   scope->Set (String::NewFromUtf8 (isolate, "Script"), script_module);
 
   Handle<ObjectTemplate> weak = ObjectTemplate::New ();
@@ -812,19 +833,26 @@ _gum_v8_core_dispose (GumV8Core * self)
   gum_v8_message_sink_free (self->incoming_message_sink);
   self->incoming_message_sink = NULL;
 
+  delete self->on_global_enumerate;
+  delete self->on_global_get;
+  delete self->global_receiver;
+  self->on_global_enumerate = nullptr;
+  self->on_global_get = nullptr;
+  self->global_receiver = nullptr;
+
   delete self->int64_value;
-  self->int64_value = NULL;
+  self->int64_value = nullptr;
 
   delete self->uint64_value;
-  self->uint64_value = NULL;
+  self->uint64_value = nullptr;
 
   delete self->handle_key;
   delete self->native_pointer_value;
-  self->handle_key = NULL;
-  self->native_pointer_value = NULL;
+  self->handle_key = nullptr;
+  self->native_pointer_value = nullptr;
 
   delete self->cpu_context_value;
-  self->cpu_context_value = NULL;
+  self->cpu_context_value = nullptr;
 }
 
 void
@@ -984,6 +1012,129 @@ gum_v8_core_on_script_get_source_map_data (
     info.GetReturnValue ().Set (result);
   else
     info.GetReturnValue ().SetNull ();
+}
+
+static void
+gum_v8_core_on_script_set_global_access_handler (
+    const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () == 0 || !info[0]->IsObject ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected an object with callbacks, or null")));
+    return;
+  }
+
+  Local<Object> callbacks (info[0].As<Object> ());
+  Local<Function> on_enumerate, on_get;
+  bool has_callbacks = !callbacks->IsNull ();
+  if (has_callbacks)
+  {
+    if (!_gum_v8_callbacks_get (callbacks, "enumerate", &on_enumerate, self))
+      return;
+    if (!_gum_v8_callbacks_get (callbacks, "get", &on_get, self))
+      return;
+  }
+
+  delete self->on_global_enumerate;
+  delete self->on_global_get;
+  delete self->global_receiver;
+  self->on_global_enumerate = nullptr;
+  self->on_global_get = nullptr;
+  self->global_receiver = nullptr;
+
+  if (has_callbacks)
+  {
+    self->on_global_enumerate = new GumPersistent<Function>::type (isolate,
+        on_enumerate.As<Function> ());
+    self->on_global_get = new GumPersistent<Function>::type (isolate,
+        on_get.As<Function> ());
+    self->global_receiver = new GumPersistent<Object>::type (isolate,
+        callbacks);
+  }
+}
+
+static void
+gum_v8_core_on_global_get (Local<Name> property,
+                           const PropertyCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  if (self->on_global_get == nullptr ||
+      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+    return;
+  g_private_set (&gum_v8_global_accessor_guard_key, self);
+
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Function> get (Local<Function>::New (isolate, *self->on_global_get));
+  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
+  Handle<Value> argv[] = { property };
+  Local<Value> result = get->Call (receiver, 1, argv);
+  if (result->IsFunction ())
+  {
+    Local<Value> value = result.As<Function> ()->Call (receiver, 0, nullptr);
+    info.GetReturnValue ().Set (value);
+  }
+
+  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
+}
+
+static void
+gum_v8_core_on_global_query (Local<Name> property,
+                             const PropertyCallbackInfo<Integer> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  if (self->on_global_get == nullptr ||
+      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+    return;
+  g_private_set (&gum_v8_global_accessor_guard_key, self);
+
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Function> get (Local<Function>::New (isolate, *self->on_global_get));
+  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
+  Handle<Value> argv[] = { property };
+  Local<Value> result = get->Call (receiver, 1, argv);
+  if (result->IsFunction ())
+  {
+    info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
+        PropertyAttribute::DontDelete);
+  }
+
+  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
+}
+
+static void
+gum_v8_core_on_global_enumerate (const PropertyCallbackInfo<Array> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+
+  if (self->on_global_enumerate == nullptr ||
+      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+    return;
+  g_private_set (&gum_v8_global_accessor_guard_key, self);
+
+  Isolate * isolate = info.GetIsolate ();
+
+  Local<Function> enumerate (
+      Local<Function>::New (isolate, *self->on_global_enumerate));
+  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
+  Local<Value> result = enumerate->Call (receiver, 0, nullptr);
+  if (result->IsArray ())
+  {
+    info.GetReturnValue ().Set (result.As<Array> ());
+  }
+
+  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
 }
 
 /*

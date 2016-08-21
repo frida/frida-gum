@@ -132,6 +132,10 @@ GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
+GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
+static int gum_duk_core_on_global_enumerate (duk_context * ctx, void * udata);
+static int gum_duk_core_on_global_get (duk_context * ctx, const char * name,
+    void * udata);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_weak_ref_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
@@ -255,6 +259,7 @@ static const duk_function_list_entry gumjs_script_functions[] =
 {
   { "pin", gumjs_script_pin, 0 },
   { "unpin", gumjs_script_unpin, 0 },
+  { "setGlobalAccessHandler", gumjs_script_set_global_access_handler, 1 },
 
   { NULL, NULL, 0 }
 };
@@ -623,6 +628,8 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
   { NULL, NULL, NULL }
 };
 
+static GPrivate gum_duk_global_accessor_guard_key;
+
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
@@ -850,6 +857,15 @@ void
 _gum_duk_core_dispose (GumDukCore * self)
 {
   duk_context * ctx = self->current_ctx;
+
+  duk_set_global_access_functions (ctx, NULL);
+
+  _gum_duk_unprotect (ctx, self->on_global_enumerate);
+  _gum_duk_unprotect (ctx, self->on_global_get);
+  _gum_duk_unprotect (ctx, self->global_receiver);
+  self->on_global_enumerate = NULL;
+  self->on_global_get = NULL;
+  self->global_receiver = NULL;
 
   g_clear_pointer (&self->unhandled_exception_sink,
       gum_duk_exception_sink_free);
@@ -1230,6 +1246,113 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
   _gum_duk_core_unpin (args->core);
 
   return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
+{
+  GumDukCore * self = args->core;
+  GumDukHeapPtr receiver, enumerate, get;
+
+  if (!duk_is_null (ctx, 0))
+  {
+    receiver = duk_get_heapptr (ctx, 0);
+    _gum_duk_args_parse (args, "F{enumerate,get}", &enumerate, &get);
+  }
+  else
+  {
+    receiver = NULL;
+  }
+
+  if (receiver == NULL)
+    duk_set_global_access_functions (ctx, NULL);
+
+  _gum_duk_unprotect (ctx, self->on_global_enumerate);
+  _gum_duk_unprotect (ctx, self->on_global_get);
+  _gum_duk_unprotect (ctx, self->global_receiver);
+  self->on_global_enumerate = NULL;
+  self->on_global_get = NULL;
+  self->global_receiver = NULL;
+
+  if (receiver != NULL)
+  {
+    duk_global_access_functions funcs;
+
+    _gum_duk_protect (ctx, enumerate);
+    _gum_duk_protect (ctx, get);
+    _gum_duk_protect (ctx, receiver);
+    self->on_global_enumerate = enumerate;
+    self->on_global_get = get;
+    self->global_receiver = receiver;
+
+    funcs.enumerate_func = gum_duk_core_on_global_enumerate;
+    funcs.get_func = gum_duk_core_on_global_get;
+    funcs.udata = self;
+    duk_set_global_access_functions (ctx, &funcs);
+  }
+
+  return 0;
+}
+
+static int
+gum_duk_core_on_global_enumerate (duk_context * ctx,
+                                  void * udata)
+{
+  GumDukCore * self = udata;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
+  int result;
+
+  if (g_private_get (&gum_duk_global_accessor_guard_key) != NULL)
+    return 0;
+  g_private_set (&gum_duk_global_accessor_guard_key, self);
+
+  duk_push_heapptr (ctx, self->on_global_enumerate);
+  duk_push_heapptr (ctx, self->global_receiver);
+  _gum_duk_scope_call_method (&scope, 0);
+  if (duk_is_array (ctx, -1))
+  {
+    result = 1;
+  }
+  else
+  {
+    result = 0;
+    duk_pop (ctx);
+  }
+
+  g_private_set (&gum_duk_global_accessor_guard_key, NULL);
+
+  return result;
+}
+
+static int
+gum_duk_core_on_global_get (duk_context * ctx,
+                            const char * name,
+                            void * udata)
+{
+  GumDukCore * self = udata;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
+  int result;
+
+  if (g_private_get (&gum_duk_global_accessor_guard_key) != NULL)
+    return 0;
+  g_private_set (&gum_duk_global_accessor_guard_key, self);
+
+  duk_push_heapptr (ctx, self->on_global_get);
+  duk_push_heapptr (ctx, self->global_receiver);
+  duk_push_string (ctx, name);
+  _gum_duk_scope_call_method (&scope, 1);
+  if (duk_is_function (ctx, -1))
+  {
+    result = 1;
+  }
+  else
+  {
+    result = 0;
+    duk_pop (ctx);
+  }
+
+  g_private_set (&gum_duk_global_accessor_guard_key, NULL);
+
+  return result;
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_weak_ref_construct)

@@ -185,6 +185,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_gc)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unload)
   SCRIPT_TESTENTRY (weak_callback_is_triggered_on_unbind)
+  SCRIPT_TESTENTRY (globals_can_be_dynamically_generated)
   SCRIPT_TESTENTRY (exceptions_can_be_handled)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
 TEST_LIST_END ()
@@ -3514,6 +3515,41 @@ SCRIPT_TESTCASE (weak_callback_is_triggered_on_unbind)
       "});"
       "WeakRef.unbind(id);");
   EXPECT_SEND_MESSAGE_WITH ("\"weak notify\"");
+}
+
+SCRIPT_TESTCASE (globals_can_be_dynamically_generated)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var lengthBefore = Object.getOwnPropertyNames(global).length;"
+      "Script.setGlobalAccessHandler({"
+      "  get: function (property) {"
+      "    if (property === 'badger')"
+      "      return function () { return 1337; }"
+      "  },"
+      "  enumerate: function () {"
+      "    return ['badger'];"
+      "  },"
+      "});"
+      "var lengthAfter = Object.getOwnPropertyNames(global).length;"
+      "send('badger' in global);"
+      "send(badger);"
+      "send(typeof badger);"
+      "send(lengthAfter === lengthBefore + 1);"
+      "send(snake);");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_SEND_MESSAGE_WITH ("\"number\"");
+  EXPECT_SEND_MESSAGE_WITH ("true");
+  if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
+  {
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "ReferenceError: identifier 'snake' undefined");
+  }
+  else
+  {
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "ReferenceError: snake is not defined");
+  }
 }
 
 SCRIPT_TESTCASE (exceptions_can_be_handled)
