@@ -1076,7 +1076,7 @@ gum_v8_core_on_global_get (Local<Name> property,
   Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
   Local<Value> result = get->Call (receiver, 1, argv);
-  if (result->IsFunction ())
+  if (!result.IsEmpty () && result->IsFunction ())
   {
     Local<Value> value = result.As<Function> ()->Call (receiver, 0, nullptr);
     info.GetReturnValue ().Set (value);
@@ -1103,7 +1103,7 @@ gum_v8_core_on_global_query (Local<Name> property,
   Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
   Local<Value> result = get->Call (receiver, 1, argv);
-  if (result->IsFunction ())
+  if (!result.IsEmpty () && result->IsFunction ())
   {
     info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
         PropertyAttribute::DontDelete);
@@ -1129,7 +1129,7 @@ gum_v8_core_on_global_enumerate (const PropertyCallbackInfo<Array> & info)
       Local<Function>::New (isolate, *self->on_global_enumerate));
   Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
   Local<Value> result = enumerate->Call (receiver, 0, nullptr);
-  if (result->IsArray ())
+  if (!result.IsEmpty () && result->IsArray ())
   {
     info.GetReturnValue ().Set (result.As<Array> ());
   }
