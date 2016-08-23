@@ -29,6 +29,7 @@
         const msgSendSuperBySignatureId = {};
         let cachedNSString = null;
         let cachedNSStringCtor = null;
+        let singularTypeById = null;
         const PRIV = Symbol('priv');
 
         Object.defineProperty(this, 'available', {
@@ -2251,7 +2252,7 @@
             };
         }
 
-        const singularTypeById = {
+        singularTypeById = {
             'c': {
                 type: 'char',
                 size: 1,
