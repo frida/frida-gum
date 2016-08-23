@@ -29,6 +29,8 @@
         const msgSendSuperBySignatureId = {};
         let cachedNSString = null;
         let cachedNSStringCtor = null;
+        let cachedNSNumber = null;
+        let cachedNSNumberCtor = null;
         let singularTypeById = null;
         const PRIV = Symbol('priv');
 
@@ -2099,15 +2101,24 @@
         };
 
         const toNativeId = function (v) {
-            if (v === null) {
+            if (v === null)
                 return NULL;
-            } else if (typeof v === 'string') {
+
+            const type = typeof v;
+            if (type === 'string') {
                 if (cachedNSString === null) {
                     cachedNSString = classRegistry.NSString;
                     cachedNSStringCtor = cachedNSString.stringWithUTF8String_;
                 }
                 return cachedNSStringCtor.call(cachedNSString, Memory.allocUtf8String(v));
+            } else if (type === 'number') {
+                if (cachedNSNumber === null) {
+                    cachedNSNumber = classRegistry.NSNumber;
+                    cachedNSNumberCtor = cachedNSNumber.numberWithDouble_;
+                }
+                return cachedNSNumberCtor.call(cachedNSNumber, v);
             }
+
             return v;
         };
 
