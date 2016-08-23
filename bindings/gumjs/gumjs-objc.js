@@ -1956,6 +1956,12 @@
                         skipChar(cursor);
                         readUntil('"', cursor);
                     }
+                } else if (id === '^') {
+                    let next = peekChar(cursor);
+                    if (next === '@') {
+                        id += next;
+                        skipChar(cursor);
+                    }
                 }
 
                 const type = singularTypeById[id];
@@ -2134,6 +2140,18 @@
 
         const toNativeBlock = function (v) {
             return (v !== null) ? v : NULL;
+        };
+
+        const toNativeObjectArray = function (v) {
+            if (v instanceof Array) {
+                const length = v.length;
+                const array = Memory.alloc(length * pointerSize);
+                for (let i = 0; i !== length; i++)
+                    Memory.writePointer(array.add(i * pointerSize), toNativeId(v[i]));
+                return array;
+            }
+
+            return v;
         };
 
         function arrayType(length, elementType) {
@@ -2385,6 +2403,13 @@
                 write: Memory.writePointer,
                 fromNative: fromNativeBlock,
                 toNative: toNativeBlock
+            },
+            '^@': {
+                type: 'pointer',
+                size: pointerSize,
+                read: Memory.readPointer,
+                write: Memory.writePointer,
+                toNative: toNativeObjectArray
             },
             '#': {
                 type: 'pointer',
