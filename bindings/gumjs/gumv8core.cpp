@@ -321,8 +321,6 @@ static const gchar * gum_exception_type_to_string (GumExceptionType type);
 static void gum_cpu_context_on_weak_notify (
     const WeakCallbackInfo<GumCpuContextWrapper> & info);
 
-static GPrivate gum_v8_global_accessor_guard_key;
-
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
@@ -1065,10 +1063,8 @@ gum_v8_core_on_global_get (Local<Name> property,
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
 
-  if (self->on_global_get == nullptr ||
-      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+  if (self->on_global_get == nullptr)
     return;
-  g_private_set (&gum_v8_global_accessor_guard_key, self);
 
   Isolate * isolate = info.GetIsolate ();
 
@@ -1081,8 +1077,6 @@ gum_v8_core_on_global_get (Local<Name> property,
     Local<Value> value = result.As<Function> ()->Call (receiver, 0, nullptr);
     info.GetReturnValue ().Set (value);
   }
-
-  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
 }
 
 static void
@@ -1092,10 +1086,8 @@ gum_v8_core_on_global_query (Local<Name> property,
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
 
-  if (self->on_global_get == nullptr ||
-      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+  if (self->on_global_get == nullptr)
     return;
-  g_private_set (&gum_v8_global_accessor_guard_key, self);
 
   Isolate * isolate = info.GetIsolate ();
 
@@ -1108,8 +1100,6 @@ gum_v8_core_on_global_query (Local<Name> property,
     info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
         PropertyAttribute::DontDelete);
   }
-
-  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
 }
 
 static void
@@ -1118,10 +1108,8 @@ gum_v8_core_on_global_enumerate (const PropertyCallbackInfo<Array> & info)
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
 
-  if (self->on_global_enumerate == nullptr ||
-      g_private_get (&gum_v8_global_accessor_guard_key) != NULL)
+  if (self->on_global_enumerate == nullptr)
     return;
-  g_private_set (&gum_v8_global_accessor_guard_key, self);
 
   Isolate * isolate = info.GetIsolate ();
 
@@ -1133,8 +1121,6 @@ gum_v8_core_on_global_enumerate (const PropertyCallbackInfo<Array> & info)
   {
     info.GetReturnValue ().Set (result.As<Array> ());
   }
-
-  g_private_set (&gum_v8_global_accessor_guard_key, NULL);
 }
 
 /*

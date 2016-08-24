@@ -628,8 +628,6 @@ static const GumDukPropertyEntry gumjs_cpu_context_values[] =
   { NULL, NULL, NULL }
 };
 
-static GPrivate gum_duk_global_accessor_guard_key;
-
 void
 _gum_duk_core_init (GumDukCore * self,
                     GumDukScript * script,
@@ -1301,10 +1299,6 @@ gum_duk_core_on_global_enumerate (duk_context * ctx,
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   int result;
 
-  if (g_private_get (&gum_duk_global_accessor_guard_key) != NULL)
-    return 0;
-  g_private_set (&gum_duk_global_accessor_guard_key, self);
-
   duk_push_heapptr (ctx, self->on_global_enumerate);
   duk_push_heapptr (ctx, self->global_receiver);
   _gum_duk_scope_call_method (&scope, 0);
@@ -1318,8 +1312,6 @@ gum_duk_core_on_global_enumerate (duk_context * ctx,
     duk_pop (ctx);
   }
 
-  g_private_set (&gum_duk_global_accessor_guard_key, NULL);
-
   return result;
 }
 
@@ -1331,10 +1323,6 @@ gum_duk_core_on_global_get (duk_context * ctx,
   GumDukCore * self = udata;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   int result;
-
-  if (g_private_get (&gum_duk_global_accessor_guard_key) != NULL)
-    return 0;
-  g_private_set (&gum_duk_global_accessor_guard_key, self);
 
   duk_push_heapptr (ctx, self->on_global_get);
   duk_push_heapptr (ctx, self->global_receiver);
@@ -1349,8 +1337,6 @@ gum_duk_core_on_global_get (duk_context * ctx,
     result = 0;
     duk_pop (ctx);
   }
-
-  g_private_set (&gum_duk_global_accessor_guard_key, NULL);
 
   return result;
 }
