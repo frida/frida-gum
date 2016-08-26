@@ -3524,7 +3524,7 @@ SCRIPT_TESTCASE (globals_can_be_dynamically_generated)
       "Script.setGlobalAccessHandler({"
       "  get: function (property) {"
       "    if (property === 'badger')"
-      "      return function () { return 1337; }"
+      "      return 1337;"
       "  },"
       "  enumerate: function () {"
       "    return ['badger'];"
@@ -3550,6 +3550,26 @@ SCRIPT_TESTCASE (globals_can_be_dynamically_generated)
     EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
         "ReferenceError: snake is not defined");
   }
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var totalGetCalls = 0;"
+      "Script.setGlobalAccessHandler({"
+      "  get: function (property) {"
+      "    totalGetCalls++;"
+      "  },"
+      "  enumerate: function () {"
+      "    return [];"
+      "  },"
+      "});"
+      "(1, eval)('mushroom = 42;');"
+      "send(totalGetCalls);"
+      "send(mushroom);"
+      "send(totalGetCalls);");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_SEND_MESSAGE_WITH ("42");
+  EXPECT_SEND_MESSAGE_WITH ("0");
+  EXPECT_NO_MESSAGES ();
 }
 
 SCRIPT_TESTCASE (exceptions_can_be_handled)

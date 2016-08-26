@@ -1328,7 +1328,7 @@ gum_duk_core_on_global_get (duk_context * ctx,
   duk_push_heapptr (ctx, self->global_receiver);
   duk_push_string (ctx, name);
   _gum_duk_scope_call_method (&scope, 1);
-  if (duk_is_function (ctx, -1))
+  if (!duk_is_undefined (ctx, -1))
   {
     result = 1;
   }

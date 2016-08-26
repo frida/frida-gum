@@ -1072,10 +1072,9 @@ gum_v8_core_on_global_get (Local<Name> property,
   Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
   Local<Value> result = get->Call (receiver, 1, argv);
-  if (!result.IsEmpty () && result->IsFunction ())
+  if (!result.IsEmpty () && !result->IsUndefined ())
   {
-    Local<Value> value = result.As<Function> ()->Call (receiver, 0, nullptr);
-    info.GetReturnValue ().Set (value);
+    info.GetReturnValue ().Set (result);
   }
 }
 
@@ -1095,7 +1094,7 @@ gum_v8_core_on_global_query (Local<Name> property,
   Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
   Handle<Value> argv[] = { property };
   Local<Value> result = get->Call (receiver, 1, argv);
-  if (!result.IsEmpty () && result->IsFunction ())
+  if (!result.IsEmpty () && !result->IsUndefined ())
   {
     info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
         PropertyAttribute::DontDelete);
