@@ -51531,30 +51531,6 @@ DUK_LOCAL duk_bool_t duk__get_own_property_desc_raw(duk_hthread *thr, duk_hobjec
 	/*
 	 *  Not found as concrete or virtual
 	 */
-	if (obj == thr->builtins[DUK_BIDX_GLOBAL]) {
-		duk_global_access_functions *funcs = thr->heap->global_access_funcs;
-
-		if (funcs != NULL) {
-			duk_context *ctx = (duk_context *) thr;
-
-			if (funcs->get_func(ctx, (const char *) DUK_HSTRING_GET_DATA(key), funcs->udata) == 1) {
-				out_desc->flags = DUK_PROPDESC_FLAG_ENUMERABLE |
-						  DUK_PROPDESC_FLAG_ACCESSOR |
-						  DUK_DEFPROP_HAVE_GETTER;
-				out_desc->get = duk_get_heapptr(ctx, -1);
-				duk_pop(ctx);
-				out_desc->set = NULL;
-				out_desc->e_idx = -1;
-				out_desc->h_idx = -1;
-				out_desc->a_idx = -1;
-
-				if (flags & DUK__DESC_FLAG_PUSH_VALUE)
-					duk_push_undefined(ctx);
-
-				return 1;
-			}
-		}
-	}
 
 	DUK_DDD(DUK_DDDPRINT("-> not found (virtual, entry part, or array part)"));
 	return 0;
@@ -52546,8 +52522,9 @@ DUK_INTERNAL duk_bool_t duk_hobject_hasprop(duk_hthread *thr, duk_tval *tv_obj, 
 				}
 			}
 
-			duk_pop_2(ctx);  /* [ key trap_result ] -> [] */
-			return tmp_bool;
+			duk_pop(ctx);  /* [ key trap_result ] -> [ key ] */
+			rc = tmp_bool;
+			goto pop_and_return;
 		}
 
 		obj = h_target;  /* resume check from proxy target */
@@ -52560,6 +52537,17 @@ DUK_INTERNAL duk_bool_t duk_hobject_hasprop(duk_hthread *thr, duk_tval *tv_obj, 
 	/* fall through */
 
  pop_and_return:
+	if (!rc && obj == thr->builtins[DUK_BIDX_GLOBAL]) {
+		duk_global_access_functions *funcs = thr->heap->global_access_funcs;
+
+		if (funcs != NULL) {
+			if (funcs->get_func(ctx, (const char *) DUK_HSTRING_GET_DATA(key), funcs->udata) == 1) {
+				duk_pop(ctx);
+				rc = 1;
+			}
+		}
+	}
+
 	duk_pop(ctx);  /* [ key ] -> [] */
 	return rc;
 }
@@ -74729,6 +74717,15 @@ duk_bool_t duk__getvar_helper(duk_hthread *thr,
 
 		return 1;
 	} else {
+		duk_global_access_functions *funcs = thr->heap->global_access_funcs;
+
+		if (funcs != NULL) {
+			if (funcs->get_func(ctx, (const char *) DUK_HSTRING_GET_DATA(name), funcs->udata) == 1) {
+				duk_push_undefined(ctx);
+				return 1;
+			}
+		}
+
 		if (throw_flag) {
 			DUK_ERROR(thr, DUK_ERR_REFERENCE_ERROR,
 			          "identifier '%s' undefined",
