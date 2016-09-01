@@ -2065,12 +2065,12 @@
             'char': 'c',
             'int': 'i',
             'int16': 's',
-            'int32': 'l',
+            'int32': 'i',
             'int64': 'q',
             'uchar': 'C',
             'uint': 'I',
             'uint16': 'S',
-            'uint32': 'L',
+            'uint32': 'I',
             'uint64': 'Q',
             'float': 'f',
             'double': 'd',
@@ -2279,6 +2279,8 @@
             };
         }
 
+        const longBits = (pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
+
         singularTypeById = {
             'c': {
                 type: 'char',
@@ -2335,10 +2337,10 @@
                 write: Memory.writeU16
             },
             'L': {
-                type: 'uint32',
-                size: 4,
-                read: Memory.readU32,
-                write: Memory.writeU32
+                type: 'uint' + longBits,
+                size: longBits / 8,
+                read: Memory.readULong,
+                write: Memory.writeULong
             },
             'Q': {
                 type: 'uint64',
