@@ -1945,56 +1945,54 @@
         }
 
         function readType(cursor) {
-            while (true) {
-                let id = readChar(cursor);
-                if (id === '@') {
-                    let next = peekChar(cursor);
-                    if (next === '?') {
-                        id += next;
-                        skipChar(cursor);
-                    } else if (next === '"') {
-                        skipChar(cursor);
-                        readUntil('"', cursor);
-                    }
-                } else if (id === '^') {
-                    let next = peekChar(cursor);
-                    if (next === '@') {
-                        id += next;
-                        skipChar(cursor);
-                    }
+            let id = readChar(cursor);
+            if (id === '@') {
+                let next = peekChar(cursor);
+                if (next === '?') {
+                    id += next;
+                    skipChar(cursor);
+                } else if (next === '"') {
+                    skipChar(cursor);
+                    readUntil('"', cursor);
                 }
+            } else if (id === '^') {
+                let next = peekChar(cursor);
+                if (next === '@') {
+                    id += next;
+                    skipChar(cursor);
+                }
+            }
 
-                const type = singularTypeById[id];
-                if (type !== undefined) {
-                    return type;
-                } else if (id === '[') {
-                    const length = readNumber(cursor);
-                    const elementType = readType(cursor);
-                    skipChar(cursor); // ']'
-                    return arrayType(length, elementType);
-                } else if (id === '{') {
-                    readUntil('=', cursor);
-                    const structFields = [];
-                    while (peekChar(cursor) !== '}')
-                        structFields.push(readType(cursor));
-                    skipChar(cursor); // '}'
-                    return structType(structFields);
-                } else if (id === '(') {
-                    readUntil('=', cursor);
-                    const unionFields = [];
-                    while (peekChar(cursor) !== '}')
-                        unionFields.push(readType(cursor));
-                    skipChar(cursor); // ')'
-                    return unionType(unionFields);
-                } else if (id === 'b') {
-                    readNumber(cursor);
-                    return singularTypeById.i;
-                } else if (id === '^') {
-                    readType(cursor);
-                    return singularTypeById['?'];
-                } else {
-                    throw new Error("Unable to handle type " + id);
-                }
+            const type = singularTypeById[id];
+            if (type !== undefined) {
+                return type;
+            } else if (id === '[') {
+                const length = readNumber(cursor);
+                const elementType = readType(cursor);
+                skipChar(cursor); // ']'
+                return arrayType(length, elementType);
+            } else if (id === '{') {
+                readUntil('=', cursor);
+                const structFields = [];
+                while (peekChar(cursor) !== '}')
+                    structFields.push(readType(cursor));
+                skipChar(cursor); // '}'
+                return structType(structFields);
+            } else if (id === '(') {
+                readUntil('=', cursor);
+                const unionFields = [];
+                while (peekChar(cursor) !== '}')
+                    unionFields.push(readType(cursor));
+                skipChar(cursor); // ')'
+                return unionType(unionFields);
+            } else if (id === 'b') {
+                readNumber(cursor);
+                return singularTypeById.i;
+            } else if (id === '^') {
+                readType(cursor);
+                return singularTypeById['?'];
+            } else {
+                throw new Error("Unable to handle type " + id);
             }
         }
 
