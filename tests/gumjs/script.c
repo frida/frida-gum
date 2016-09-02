@@ -157,6 +157,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (unix_fd_can_be_written_to)
 #endif
   SCRIPT_TESTENTRY (basic_hexdump_functionality_is_available)
+  SCRIPT_TESTENTRY (hexdump_supports_native_pointer_conforming_object)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
@@ -680,6 +681,18 @@ SCRIPT_TESTCASE (basic_hexdump_functionality_is_available)
           "Hello hex world!\\n"
       "00000010  20 77 30 30 74 00                                "
           " w00t.\"");
+}
+
+SCRIPT_TESTCASE (hexdump_supports_native_pointer_conforming_object)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var obj = { handle: Memory.allocUtf8String(\"Hello hex world!\") };"
+      "send(hexdump(obj, { length: 16 }));");
+  EXPECT_SEND_MESSAGE_WITH ("\""
+      "           0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F  "
+          "0123456789ABCDEF\\n"
+      "00000000  48 65 6c 6c 6f 20 68 65 78 20 77 6f 72 6c 64 21  "
+          "Hello hex world!\"");
 }
 
 SCRIPT_TESTCASE (native_pointer_provides_is_null)

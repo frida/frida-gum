@@ -121,12 +121,8 @@
             if (length === undefined)
                 length = target.byteLength;
             buffer = target;
-        } else if (target instanceof NativePointer) {
-            if (length === undefined)
-                length = 256;
-            buffer = Memory.readByteArray(target, length);
         } else {
-            throw new Error("Expected ArrayBuffer or NativePointer");
+            buffer = Memory.readByteArray(target, length);
         }
 
         const bytes = new Uint8Array(buffer);
