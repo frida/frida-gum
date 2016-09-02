@@ -122,6 +122,8 @@
                 length = target.byteLength;
             buffer = target;
         } else {
+            if (length === undefined)
+                length = 256;
             buffer = Memory.readByteArray(target, length);
         }
 
