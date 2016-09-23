@@ -8,6 +8,7 @@
 
 #include "gumlinux.h"
 #include "gummodulemap.h"
+#include "valgrind.h"
 
 #include <dlfcn.h>
 #include <elf.h>
@@ -607,15 +608,22 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   while (carry_on && fgets (line, line_size, fp) != NULL)
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
-    guint8 * start, * end;
+    GumModuleDetails details;
+    GumMemoryRange range;
+    GumAddress end;
     gchar perms[5] = { 0, };
     gint n;
     gboolean readable, shared;
     gchar * name;
-    GumMemoryRange range;
-    GumModuleDetails details;
 
-    n = sscanf (line, "%p-%p %4c %*x %*s %*s %s", &start, &end, perms, path);
+    n = sscanf (line,
+        "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
+        "%4c "
+        "%*x %*s %*d "
+        "%s",
+        &range.base_address, &end,
+        perms,
+        path);
     if (n == 3)
       continue;
     g_assert_cmpint (n, ==, 4);
@@ -628,13 +636,15 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
       continue;
     else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
       continue;
-    else if (memcmp (start, elf_magic, sizeof (elf_magic)) != 0)
+    else if (RUNNING_ON_VALGRIND && strstr (path, "/valgrind/") != NULL)
+      continue;
+    else if (memcmp (GSIZE_TO_POINTER (range.base_address), elf_magic,
+        sizeof (elf_magic)) != 0)
       continue;
 
     name = g_path_get_basename (path);
 
-    range.base_address = GUM_ADDRESS (start);
-    range.size = end - start;
+    range.size = end - range.base_address;
 
     details.name = name;
     details.range = &range;
@@ -715,6 +725,9 @@ gum_linux_enumerate_ranges (pid_t pid,
       {
         *strchr (file.path, '\n') = '\0';
         details.file = &file;
+
+        if (RUNNING_ON_VALGRIND && strstr (file.path, "/valgrind/") != NULL)
+          continue;
       }
     }
 

@@ -24,6 +24,7 @@ libgum_tests_gumjs_la_LIBTOOLFLAGS = \
 
 AM_CPPFLAGS = \
 	-include config.h \
+	-I $(top_srcdir)/gum \
 	-I $(top_srcdir)/bindings/gumjs \
 	-I $(top_srcdir)/bindings \
 	-I $(top_srcdir) \

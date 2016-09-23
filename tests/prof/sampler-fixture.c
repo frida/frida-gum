@@ -8,6 +8,7 @@
 #include "gumsampler.h"
 
 #include "testutil.h"
+#include "valgrind.h"
 
 #include <stdlib.h>
 

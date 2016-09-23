@@ -8,6 +8,8 @@
 
 #include "testutil.h"
 
+#include "valgrind.h"
+
 #ifndef G_OS_WIN32
 #include <dlfcn.h>
 #else
@@ -92,6 +94,12 @@ PROCESS_TESTCASE (process_threads)
   gboolean done = FALSE;
   GThread * thread_a, * thread_b;
   TestForEachContext ctx;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
 
   thread_a = g_thread_new ("process-test-sleeping-dummy-a", sleeping_dummy,
       &done);

@@ -12,6 +12,7 @@
 #ifdef HAVE_I386
 # include "lowlevel-helpers.h"
 #endif
+#include "valgrind.h"
 
 #include <capstone.h>
 #include <glib.h>
@@ -88,7 +89,14 @@ main (gint argc, gchar * argv[])
 
   gum_memory_init ();
 #if !DEBUG_HEAP_LEAKS && !defined (HAVE_ASAN)
-  g_mem_set_vtable (&mem_vtable);
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_setenv ("G_SLICE", "always-malloc", TRUE);
+  }
+  else
+  {
+    g_mem_set_vtable (&mem_vtable);
+  }
 #else
   g_setenv ("G_SLICE", "always-malloc", TRUE);
 #endif

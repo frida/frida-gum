@@ -174,6 +174,12 @@ INTERCEPTOR_TESTCASE (attach_to_heap_api)
 {
   volatile gpointer p;
 
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   gum_interceptor_ignore_current_thread (fixture->interceptor);
   interceptor_fixture_attach_listener (fixture, 0, malloc, '>', '<');
   interceptor_fixture_attach_listener (fixture, 1, free, 'a', 'b');
@@ -611,6 +617,12 @@ INTERCEPTOR_TESTCASE (replace_function)
   guint counter = 0;
   volatile gpointer ret;
 
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
 #ifdef HAVE_LINUX
   /*
    * Get the address of malloc dynamically, as GCC is too smart about
@@ -652,6 +664,12 @@ INTERCEPTOR_TESTCASE (two_replaced_functions)
 {
   guint malloc_counter = 0, free_counter = 0;
   volatile gpointer ret;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
 
   gum_interceptor_replace_function (fixture->interceptor,
       malloc, replacement_malloc_calling_malloc_and_replaced_free,

@@ -80,6 +80,12 @@ SAMPLER_TESTCASE (malloc_count)
   GumInterceptor * interceptor;
   volatile gpointer a, b, c = NULL;
 
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   fixture->sampler = gum_malloc_count_sampler_new ();
 
   helper.sampler = fixture->sampler;

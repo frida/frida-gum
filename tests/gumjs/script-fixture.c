@@ -5,11 +5,10 @@
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
-#include "gumscriptbackend.h"
-
 #include "gumdukscriptbackend.h"
-
+#include "gumscriptbackend.h"
 #include "testutil.h"
+#include "valgrind.h"
 
 #include <stdio.h>
 #include <string.h>

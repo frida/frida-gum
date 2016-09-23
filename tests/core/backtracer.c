@@ -68,6 +68,12 @@ BACKTRACER_TESTCASE (full_cycle)
   GumAllocationBlock * block;
   GumReturnAddress first_address;
 
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   tracker = gum_allocation_tracker_new_with_backtracer (fixture->backtracer);
   gum_allocation_tracker_begin (tracker);
 

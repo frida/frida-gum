@@ -7,6 +7,7 @@
 #include "gummemory.h"
 
 #include "gummemory-priv.h"
+#include "valgrind.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -113,6 +114,8 @@ gum_clear_cache (gpointer address,
 #if defined (HAVE_ARM) || defined (HAVE_ARM64) || defined (HAVE_MIPS)
   __builtin___clear_cache (address, address + size);
 #endif
+
+  VALGRIND_DISCARD_TRANSLATIONS (address, size);
 }
 
 static gboolean

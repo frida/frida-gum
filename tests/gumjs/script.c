@@ -259,9 +259,12 @@ SCRIPT_TESTCASE (instruction_can_be_parsed)
   EXPECT_SEND_MESSAGE_WITH ("true");
   EXPECT_NO_MESSAGES ();
 
-  COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
-  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
-      "Error: access violation accessing 0x1");
+  if (!RUNNING_ON_VALGRIND)
+  {
+    COMPILE_AND_LOAD_SCRIPT ("Instruction.parse(ptr(\"0x1\"));");
+    EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER,
+        "Error: access violation accessing 0x1");
+  }
 }
 
 SCRIPT_TESTCASE (address_can_be_resolved_to_symbol)
@@ -417,6 +420,12 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
 
 SCRIPT_TESTCASE (native_function_crash_results_in_exception)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithString = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['pointer']);"
@@ -431,6 +440,12 @@ SCRIPT_TESTCASE (native_function_crash_results_in_exception)
 
 SCRIPT_TESTCASE (nested_native_function_crash_is_handled_gracefully)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "var targetWithCallback = new NativeFunction(" GUM_PTR_CONST ", "
           "'pointer', ['int', 'pointer', 'pointer']);"
@@ -1160,6 +1175,12 @@ SCRIPT_TESTCASE (process_current_thread_id_is_available)
 
 SCRIPT_TESTCASE (process_threads_can_be_enumerated)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Process.enumerateThreads({"
         "onMatch: function (thread) {"
@@ -1178,6 +1199,12 @@ SCRIPT_TESTCASE (process_threads_can_be_enumerated_synchronously)
 {
   gboolean done = FALSE;
   GThread * thread_a, * thread_b;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
 
   thread_a = g_thread_new ("script-test-sleeping-dummy-a", sleeping_dummy,
       &done);
@@ -2062,6 +2089,12 @@ SCRIPT_TESTCASE (invocations_provide_call_depth)
 
 SCRIPT_TESTCASE (invocations_provide_context_for_backtrace)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "var mode = '%s';"
       "Interceptor.attach(" GUM_PTR_CONST ", {"
@@ -2286,6 +2319,12 @@ SCRIPT_TESTCASE (instructions_can_be_probed)
 
 SCRIPT_TESTCASE (interceptor_handles_invalid_arguments)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(ptr(\"0x1\"), {"
       "  onEnter: function (args) {"
@@ -2457,6 +2496,12 @@ SCRIPT_TESTCASE (memory_scan_should_be_interruptible)
 
 SCRIPT_TESTCASE (memory_scan_handles_unreadable_memory)
 {
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   COMPILE_AND_LOAD_SCRIPT (
       "Memory.scan(ptr(\"1328\"), 7, '13 37', {"
         "onMatch: function (address, size) {"
@@ -2595,9 +2640,12 @@ SCRIPT_TESTCASE (memory_can_be_copied)
   g_assert_cmphex (to[3], ==, 'H');
   g_assert_cmphex (to[4], ==, 'e');
 
-  COMPILE_AND_LOAD_SCRIPT (
-      "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
-  EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x539");
+  if (!RUNNING_ON_VALGRIND)
+  {
+    COMPILE_AND_LOAD_SCRIPT (
+        "Memory.copy(" GUM_PTR_CONST ", ptr(\"1337\"), 1);", to);
+    EXPECT_ERROR_MESSAGE_WITH (1, "Error: access violation accessing 0x539");
+  }
 }
 
 SCRIPT_TESTCASE (memory_can_be_duped)
@@ -3176,6 +3224,12 @@ SCRIPT_TESTCASE (invalid_read_results_in_exception)
   };
   guint i;
 
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
+
   for (i = 0; i != G_N_ELEMENTS (type_name); i++)
   {
     gchar * source;
@@ -3209,6 +3263,12 @@ SCRIPT_TESTCASE (invalid_write_results_in_exception)
       "Utf16String"
   };
   guint i;
+
+  if (RUNNING_ON_VALGRIND)
+  {
+    g_print ("<skipping, not compatible with Valgrind> ");
+    return;
+  }
 
   for (i = 0; i != G_N_ELEMENTS (primitive_type_name); i++)
   {

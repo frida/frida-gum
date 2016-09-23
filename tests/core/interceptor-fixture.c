@@ -9,6 +9,7 @@
 #include "interceptor-callbacklistener.c"
 #include "lowlevel-helpers.h"
 #include "testutil.h"
+#include "valgrind.h"
 
 #include <stdlib.h>
 #include <string.h>
