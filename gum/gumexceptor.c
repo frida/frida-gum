@@ -768,8 +768,12 @@ gum_exceptor_detach (GumExceptor * self)
   GumExceptorPrivate * priv = self->priv;
   gint i;
 
+  gum_interceptor_begin_transaction (priv->interceptor);
+
   gum_interceptor_revert_function (priv->interceptor, signal);
   gum_interceptor_revert_function (priv->interceptor, sigaction);
+
+  gum_interceptor_end_transaction (priv->interceptor);
 
   for (i = 0; i != priv->num_old_handlers; i++)
     gum_exceptor_detach_handler (self, i);
