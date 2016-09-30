@@ -13,6 +13,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (message_can_be_sent)
   SCRIPT_TESTENTRY (message_can_be_sent_with_data)
   SCRIPT_TESTENTRY (message_can_be_received)
+  SCRIPT_TESTENTRY (message_can_be_received_with_data)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
   SCRIPT_TESTENTRY (recv_can_be_waited_for)
   SCRIPT_TESTENTRY (rpc_can_be_performed)
@@ -1654,6 +1655,25 @@ SCRIPT_TESTCASE (message_can_be_received)
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"ping\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pong\"");
+}
+
+SCRIPT_TESTCASE (message_can_be_received_with_data)
+{
+  const guint8 data_to_send[2] = { 0x13, 0x37 };
+  GBytes * bytes;
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "recv(function (message, data) {"
+      "  if (message.type === 'ping')"
+      "    send('pong', data);"
+      "});");
+  EXPECT_NO_MESSAGES ();
+
+  bytes = g_bytes_new_static (data_to_send, sizeof (data_to_send));
+  gum_script_post (fixture->script, "{\"type\":\"ping\"}", bytes);
+  g_bytes_unref (bytes);
+
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"pong\"", "13 37");
 }
 
 SCRIPT_TESTCASE (recv_may_specify_desired_message_type)

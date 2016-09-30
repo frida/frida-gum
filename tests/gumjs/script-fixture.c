@@ -71,7 +71,7 @@
     g_object_unref (fixture->script); \
     fixture->script = NULL;
 #define POST_MESSAGE(MSG) \
-    gum_script_post_message (fixture->script, MSG)
+    gum_script_post (fixture->script, MSG, NULL)
 #define EXPECT_NO_MESSAGES() \
     g_assert (test_script_fixture_try_pop_message (fixture, 1) == NULL)
 #define EXPECT_SEND_MESSAGE_WITH(PAYLOAD, ...) \

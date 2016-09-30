@@ -14,8 +14,8 @@ using namespace v8;
 
 typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
 typedef void (* GumUnloadNotifyFunc) (GumV8Script * self, gpointer user_data);
-typedef struct _GumEmitMessageData GumEmitMessageData;
-typedef struct _GumPostMessageData GumPostMessageData;
+typedef struct _GumEmitData GumEmitData;
+typedef struct _GumPostData GumPostData;
 
 enum
 {
@@ -40,17 +40,18 @@ struct _GumUnloadNotifyCallback
   GDestroyNotify data_destroy;
 };
 
-struct _GumEmitMessageData
+struct _GumEmitData
 {
   GumV8Script * script;
   gchar * message;
   GBytes * data;
 };
 
-struct _GumPostMessageData
+struct _GumPostData
 {
   GumV8Script * script;
   gchar * message;
+  GBytes * data;
 };
 
 static void gum_v8_script_iface_init (gpointer g_iface, gpointer iface_data);
@@ -92,17 +93,17 @@ static void gum_v8_script_once_unloaded (GumV8Script * self,
 static void gum_v8_script_set_message_handler (GumScript * script,
     GumScriptMessageHandler handler, gpointer data,
     GDestroyNotify data_destroy);
-static void gum_v8_script_post_message (GumScript * script,
-    const gchar * message);
-static void gum_v8_script_do_post_message (GumPostMessageData * d);
-static void gum_v8_post_message_data_free (GumPostMessageData * d);
+static void gum_v8_script_post (GumScript * script, const gchar * message,
+    GBytes * data);
+static void gum_v8_script_do_post (GumPostData * d);
+static void gum_v8_post_data_free (GumPostData * d);
 
 static GumStalker * gum_v8_script_get_stalker (GumScript * script);
 
-static void gum_v8_script_emit_message (GumV8Script * self,
-    const gchar * message, GBytes * data);
-static gboolean gum_v8_script_do_emit_message (GumEmitMessageData * d);
-static void gum_v8_emit_message_data_free (GumEmitMessageData * d);
+static void gum_v8_script_emit (GumV8Script * self, const gchar * message,
+    GBytes * data);
+static gboolean gum_v8_script_do_emit (GumEmitData * d);
+static void gum_v8_emit_data_free (GumEmitData * d);
 
 G_DEFINE_TYPE_EXTENDED (GumV8Script,
                         gum_v8_script,
@@ -160,7 +161,7 @@ gum_v8_script_iface_init (gpointer g_iface,
   iface->unload_sync = gum_v8_script_unload_sync;
 
   iface->set_message_handler = gum_v8_script_set_message_handler;
-  iface->post_message = gum_v8_script_post_message;
+  iface->post = gum_v8_script_post;
 
   iface->get_stalker = gum_v8_script_get_stalker;
 }
@@ -302,7 +303,7 @@ gum_v8_script_create_context (GumV8Script * self,
     HandleScope handle_scope (priv->isolate);
 
     Handle<ObjectTemplate> global_templ = ObjectTemplate::New ();
-    _gum_v8_core_init (&priv->core, self, gum_v8_script_emit_message,
+    _gum_v8_core_init (&priv->core, self, gum_v8_script_emit,
         gum_v8_script_backend_get_scheduler (priv->backend), priv->isolate,
         global_templ);
     _gum_v8_kernel_init (&priv->kernel, &priv->core, global_templ);
@@ -673,35 +674,42 @@ gum_v8_script_set_message_handler (GumScript * script,
 }
 
 static void
-gum_v8_script_post_message (GumScript * script,
-                            const gchar * message)
+gum_v8_script_post (GumScript * script,
+                    const gchar * message,
+                    GBytes * data)
 {
   GumV8Script * self = GUM_V8_SCRIPT (script);
 
-  GumPostMessageData * d = g_slice_new (GumPostMessageData);
+  GumPostData * d = g_slice_new (GumPostData);
   d->script = self;
   g_object_ref (self);
   d->message = g_strdup (message);
+  d->data = (data != NULL) ? g_bytes_ref (data) : NULL;
 
   gum_script_scheduler_push_job_on_js_thread (
       gum_v8_script_backend_get_scheduler (self->priv->backend),
-      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_v8_script_do_post_message, d,
-      (GDestroyNotify) gum_v8_post_message_data_free);
+      G_PRIORITY_DEFAULT, (GumScriptJobFunc) gum_v8_script_do_post, d,
+      (GDestroyNotify) gum_v8_post_data_free);
 }
 
 static void
-gum_v8_script_do_post_message (GumPostMessageData * d)
+gum_v8_script_do_post (GumPostData * d)
 {
-  _gum_v8_core_post_message (&d->script->priv->core, d->message);
+  GBytes * data;
+
+  data = d->data;
+  d->data = NULL;
+
+  _gum_v8_core_post (&d->script->priv->core, d->message, data);
 }
 
 static void
-gum_v8_post_message_data_free (GumPostMessageData * d)
+gum_v8_post_data_free (GumPostData * d)
 {
   g_free (d->message);
   g_object_unref (d->script);
 
-  g_slice_free (GumPostMessageData, d);
+  g_slice_free (GumPostData, d);
 }
 
 static GumStalker *
@@ -713,11 +721,11 @@ gum_v8_script_get_stalker (GumScript * script)
 }
 
 static void
-gum_v8_script_emit_message (GumV8Script * self,
-                            const gchar * message,
-                            GBytes * data)
+gum_v8_script_emit (GumV8Script * self,
+                    const gchar * message,
+                    GBytes * data)
 {
-  GumEmitMessageData * d = g_slice_new (GumEmitMessageData);
+  GumEmitData * d = g_slice_new (GumEmitData);
   d->script = self;
   g_object_ref (self);
   d->message = g_strdup (message);
@@ -725,15 +733,15 @@ gum_v8_script_emit_message (GumV8Script * self,
 
   GSource * source = g_idle_source_new ();
   g_source_set_callback (source,
-      (GSourceFunc) gum_v8_script_do_emit_message,
+      (GSourceFunc) gum_v8_script_do_emit,
       d,
-      (GDestroyNotify) gum_v8_emit_message_data_free);
+      (GDestroyNotify) gum_v8_emit_data_free);
   g_source_attach (source, self->priv->main_context);
   g_source_unref (source);
 }
 
 static gboolean
-gum_v8_script_do_emit_message (GumEmitMessageData * d)
+gum_v8_script_do_emit (GumEmitData * d)
 {
   GumV8Script * self = d->script;
   GumV8ScriptPrivate * priv = self->priv;
@@ -748,11 +756,11 @@ gum_v8_script_do_emit_message (GumEmitMessageData * d)
 }
 
 static void
-gum_v8_emit_message_data_free (GumEmitMessageData * d)
+gum_v8_emit_data_free (GumEmitData * d)
 {
   g_bytes_unref (d->data);
   g_free (d->message);
   g_object_unref (d->script);
 
-  g_slice_free (GumEmitMessageData, d);
+  g_slice_free (GumEmitData, d);
 }

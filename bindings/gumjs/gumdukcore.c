@@ -235,8 +235,8 @@ static void gum_duk_exception_sink_handle_exception (
 static GumDukMessageSink * gum_duk_message_sink_new (GumDukHeapPtr callback,
     GumDukCore * core);
 static void gum_duk_message_sink_free (GumDukMessageSink * sink);
-static void gum_duk_message_sink_handle_message (GumDukMessageSink * self,
-    const gchar * message, GumDukScope * scope);
+static void gum_duk_message_sink_post (GumDukMessageSink * self,
+    const gchar * message, GBytes * data, GumDukScope * scope);
 
 static gboolean gum_duk_get_ffi_type (duk_context * ctx, GumDukHeapPtr value,
     ffi_type ** type, GSList ** data);
@@ -909,8 +909,9 @@ _gum_duk_core_unpin (GumDukCore * self)
 }
 
 void
-_gum_duk_core_post_message (GumDukCore * self,
-                            const gchar * message)
+_gum_duk_core_post (GumDukCore * self,
+                    const gchar * message,
+                    GBytes * data)
 {
   gboolean delivered = FALSE;
   GumDukScope scope;
@@ -919,7 +920,7 @@ _gum_duk_core_post_message (GumDukCore * self,
 
   if (self->incoming_message_sink != NULL)
   {
-    gum_duk_message_sink_handle_message (self->incoming_message_sink, message,
+    gum_duk_message_sink_post (self->incoming_message_sink, message, data,
         &scope);
     delivered = TRUE;
   }
@@ -932,6 +933,10 @@ _gum_duk_core_post_message (GumDukCore * self,
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
     g_mutex_unlock (&self->event_mutex);
+  }
+  else
+  {
+    g_bytes_unref (data);
   }
 }
 
@@ -2885,16 +2890,52 @@ gum_duk_message_sink_free (GumDukMessageSink * sink)
   g_slice_free (GumDukMessageSink, sink);
 }
 
+GUMJS_DEFINE_FINALIZER (gum_duk_message_data_finalize)
+{
+  gpointer data;
+
+  data = duk_require_buffer_data (ctx, 0, NULL);
+  g_free (data);
+
+  return 0;
+}
+
 static void
-gum_duk_message_sink_handle_message (GumDukMessageSink * self,
-                                     const gchar * message,
-                                     GumDukScope * scope)
+gum_duk_message_sink_post (GumDukMessageSink * self,
+                           const gchar * message,
+                           GBytes * data,
+                           GumDukScope * scope)
 {
   duk_context * ctx = self->core->current_ctx;
 
   duk_push_heapptr (ctx, self->callback);
+
   duk_push_string (ctx, message);
-  _gum_duk_scope_call (scope, 1);
+  if (data != NULL)
+  {
+    gpointer data_buffer;
+    gsize data_size;
+
+    data_buffer = g_bytes_unref_to_data (data, &data_size);
+
+    duk_push_external_buffer (ctx);
+    duk_config_buffer (ctx, -1, data_buffer, data_size);
+
+    duk_push_buffer_object (ctx, -1, 0, data_size, DUK_BUFOBJ_ARRAYBUFFER);
+
+    duk_swap (ctx, -2, -1);
+    duk_pop (ctx);
+
+    duk_push_c_function (ctx, gum_duk_message_data_finalize, 1);
+    duk_set_finalizer (ctx, -2);
+  }
+  else
+  {
+    duk_push_null (ctx);
+  }
+
+  _gum_duk_scope_call (scope, 2);
+
   duk_pop (ctx);
 }
 

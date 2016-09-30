@@ -33,7 +33,7 @@ namespace Gum {
 		public void unload_sync (GLib.Cancellable? cancellable = null);
 
 		public void set_message_handler (owned Gum.Script.MessageHandler handler);
-		public void post_message (string message);
+		public void post (string message, GLib.Bytes? data);
 
 		public unowned Stalker get_stalker ();
 	}

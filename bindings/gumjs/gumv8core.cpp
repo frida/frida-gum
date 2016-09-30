@@ -293,8 +293,8 @@ static void gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
 static GumV8MessageSink * gum_v8_message_sink_new (Handle<Function> callback,
     Isolate * isolate);
 static void gum_v8_message_sink_free (GumV8MessageSink * sink);
-static void gum_v8_message_sink_handle_message (GumV8MessageSink * self,
-    const gchar * message);
+static void gum_v8_message_sink_post (GumV8MessageSink * self,
+    const gchar * message, GBytes * data);
 
 static gboolean gum_v8_ffi_type_get (GumV8Core * core,
     Handle<Value> name, ffi_type ** type, GSList ** data);
@@ -902,8 +902,9 @@ _gum_v8_core_on_unhandled_exception (GumV8Core * self,
 }
 
 void
-_gum_v8_core_post_message (GumV8Core * self,
-                           const gchar * message)
+_gum_v8_core_post (GumV8Core * self,
+                   const gchar * message,
+                   GBytes * data)
 {
   bool delivered = false;
 
@@ -913,7 +914,7 @@ _gum_v8_core_post_message (GumV8Core * self,
     if (self->incoming_message_sink != NULL)
     {
       ScriptScope scope (self->script);
-      gum_v8_message_sink_handle_message (self->incoming_message_sink, message);
+      gum_v8_message_sink_post (self->incoming_message_sink, message, data);
       delivered = true;
     }
   }
@@ -924,6 +925,10 @@ _gum_v8_core_post_message (GumV8Core * self,
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
     g_mutex_unlock (&self->event_mutex);
+  }
+  else
+  {
+    g_bytes_unref (data);
   }
 }
 
@@ -2971,14 +2976,31 @@ gum_v8_message_sink_free (GumV8MessageSink * sink)
 }
 
 static void
-gum_v8_message_sink_handle_message (GumV8MessageSink * self,
-                                    const gchar * message)
+gum_v8_message_sink_post (GumV8MessageSink * self,
+                          const gchar * message,
+                          GBytes * data)
 {
   Isolate * isolate = self->isolate;
-  Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
+
+  Local<Value> data_value;
+  if (data != NULL)
+  {
+    gsize data_size;
+    gpointer data_buffer = g_bytes_unref_to_data (data, &data_size);
+    data_value = ArrayBuffer::New (isolate, data_buffer, data_size,
+        ArrayBufferCreationMode::kInternalized);
+  }
+  else
+  {
+    data_value = Null (isolate);
+  }
 
   Local<Function> callback (Local<Function>::New (isolate, *self->callback));
-  callback->Call (Null (isolate), 1, argv);
+  Handle<Value> argv[] = {
+    String::NewFromUtf8 (isolate, message),
+    data_value
+  };
+  callback->Call (Null (isolate), 2, argv);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =

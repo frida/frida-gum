@@ -762,12 +762,12 @@
             return op[0];
         };
 
-        function handleMessage(rawMessage) {
+        function handleMessage(rawMessage, data) {
             const message = JSON.parse(rawMessage);
             if (message instanceof Array && message[0] === 'frida:rpc') {
                 handleRpcMessage(message[1], message[2], message.slice(3));
             } else {
-                messages.push(message);
+                messages.push([message, data]);
                 dispatchMessages();
             }
         }
@@ -815,22 +815,24 @@
         }
 
         function dispatchMessages() {
-            messages.splice(0, messages.length).forEach(dispatch);
+            messages.splice(0).forEach(dispatch);
         }
 
-        function dispatch(message) {
+        function dispatch(item) {
+            const [message, data] = item;
+
             let handlerType;
             if (operations.hasOwnProperty(message.type)) {
                 handlerType = message.type;
             } else if (operations.hasOwnProperty('*')) {
                 handlerType = '*';
             } else {
-                messages.push(message);
+                messages.push(item);
                 return;
             }
             const complete = operations[handlerType];
             delete operations[handlerType];
-            complete(message);
+            complete(message, data);
         }
 
         initialize();
@@ -844,8 +846,8 @@
                 engine._waitForEvent();
         };
 
-        function complete(message) {
-            callback(message);
+        function complete(message, data) {
+            callback(message, data);
             completed = true;
         }
 

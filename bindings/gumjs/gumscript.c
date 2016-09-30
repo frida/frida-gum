@@ -84,10 +84,11 @@ gum_script_set_message_handler (GumScript * self,
 }
 
 void
-gum_script_post_message (GumScript * self,
-                         const gchar * message)
+gum_script_post (GumScript * self,
+                 const gchar * message,
+                 GBytes * data)
 {
-  GUM_SCRIPT_GET_INTERFACE (self)->post_message (self, message);
+  GUM_SCRIPT_GET_INTERFACE (self)->post (self, message, data);
 }
 
 GumStalker *
