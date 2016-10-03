@@ -49092,7 +49092,7 @@ DUK_INTERNAL void duk_hobject_enumerator_create(duk_context *ctx, duk_small_uint
 
 					length = duk_get_length(ctx, -1);
 					for (i = 0; i < length; i++) {
-						duk_get_prop_index(ctx, -1, i);
+						duk_get_prop_index(ctx, -1, (duk_uarridx_t) i);
 						duk_push_true(ctx);
 
 						/* [enum_target res keys key true] */
