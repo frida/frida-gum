@@ -1264,6 +1264,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
   else
   {
     receiver = NULL;
+    enumerate = NULL;
+    get = NULL;
   }
 
   if (receiver == NULL)
@@ -2893,6 +2895,8 @@ gum_duk_message_sink_free (GumDukMessageSink * sink)
 GUMJS_DEFINE_FINALIZER (gum_duk_message_data_finalize)
 {
   gpointer data;
+
+  (void) args;
 
   data = duk_require_buffer_data (ctx, 0, NULL);
   g_free (data);
