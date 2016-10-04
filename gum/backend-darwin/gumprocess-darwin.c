@@ -1643,17 +1643,8 @@ gum_darwin_module_resolver_resolve_export (GumDarwinModuleResolver * self,
     case EXPORT_SYMBOL_FLAGS_KIND_REGULAR:
       if ((export->flags & EXPORT_SYMBOL_FLAGS_STUB_AND_RESOLVER) != 0)
       {
-        /* XXX: we ignore interposing */
-        if (module->is_local)
-        {
-          GumDarwinModuleResolverFunc resolver = (GumDarwinModuleResolverFunc)
-              (module->base_address + export->resolver);
-          result->address = GUM_ADDRESS (resolver ());
-        }
-        else
-        {
-          result->address = module->base_address + export->stub;
-        }
+        /* XXX: we ignore resolver and interposing */
+        result->address = module->base_address + export->stub;
       }
       else
       {
