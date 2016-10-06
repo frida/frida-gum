@@ -52,6 +52,7 @@ struct _GumV8Core
   volatile guint usage_count;
   volatile GumV8FlushNotify flush_notify;
 
+  GMainLoop * event_loop;
   GMutex event_mutex;
   GCond event_cond;
   volatile guint event_count;

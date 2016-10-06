@@ -15,7 +15,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (message_can_be_received)
   SCRIPT_TESTENTRY (message_can_be_received_with_data)
   SCRIPT_TESTENTRY (recv_may_specify_desired_message_type)
-  SCRIPT_TESTENTRY (recv_can_be_waited_for)
+  SCRIPT_TESTENTRY (recv_can_be_waited_for_from_an_application_thread)
+  SCRIPT_TESTENTRY (recv_can_be_waited_for_from_our_js_thread)
   SCRIPT_TESTENTRY (rpc_can_be_performed)
   SCRIPT_TESTENTRY (thread_can_be_forced_to_sleep)
   SCRIPT_TESTENTRY (timeout_can_be_scheduled)
@@ -1699,7 +1700,7 @@ struct _GumInvokeTargetContext
   volatile gboolean finished;
 };
 
-SCRIPT_TESTCASE (recv_can_be_waited_for)
+SCRIPT_TESTCASE (recv_can_be_waited_for_from_an_application_thread)
 {
   GThread * worker_thread;
   GumInvokeTargetContext ctx;
@@ -1731,6 +1732,28 @@ SCRIPT_TESTCASE (recv_can_be_waited_for)
   POST_MESSAGE ("{\"type\":\"poke\"}");
   g_thread_join (worker_thread);
   g_assert (ctx.finished);
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (recv_can_be_waited_for_from_our_js_thread)
+{
+  /*
+   * We do the wait() in a setTimeout() as our test fixture loads the
+   * script synchronously...
+   */
+  COMPILE_AND_LOAD_SCRIPT (
+      "setTimeout(function () {"
+      "  var op = recv('poke', function (pokeMessage) {"
+      "    send('pokeBack');"
+      "  });"
+      "  op.wait();"
+      "  send('pokeReceived');"
+      "}, 0);", target_function_int);
+  EXPECT_NO_MESSAGES ();
+
+  POST_MESSAGE ("{\"type\":\"poke\"}");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeBack\"");
   EXPECT_SEND_MESSAGE_WITH ("\"pokeReceived\"");
   EXPECT_NO_MESSAGES ();

@@ -655,6 +655,8 @@ _gum_duk_core_init (GumDukCore * self,
   self->heap_thread_in_use = FALSE;
   self->flush_notify = NULL;
 
+  self->event_loop = g_main_loop_new (
+      gum_script_scheduler_get_js_context (scheduler), FALSE);
   g_mutex_init (&self->event_mutex);
   g_cond_init (&self->event_cond);
   self->event_count = 0;
@@ -887,6 +889,8 @@ _gum_duk_core_finalize (GumDukCore * self)
 {
   g_clear_pointer (&self->weak_refs, g_hash_table_unref);
 
+  g_main_loop_unref (self->event_loop);
+  self->event_loop = NULL;
   g_mutex_clear (&self->event_mutex);
   g_cond_clear (&self->event_cond);
 
@@ -933,6 +937,8 @@ _gum_duk_core_post (GumDukCore * self,
     self->event_count++;
     g_cond_broadcast (&self->event_cond);
     g_mutex_unlock (&self->event_mutex);
+
+    g_main_loop_quit (self->event_loop);
   }
   else
   {
@@ -1545,17 +1551,34 @@ GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
   GumDukCore * self = args->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
+  GMainContext * context;
   guint start_count;
 
   (void) ctx;
 
   _gum_duk_scope_suspend (&scope);
 
-  g_mutex_lock (&self->event_mutex);
-  start_count = self->event_count;
-  while (self->event_count == start_count)
-    g_cond_wait (&self->event_cond, &self->event_mutex);
-  g_mutex_unlock (&self->event_mutex);
+  context = gum_script_scheduler_get_js_context (self->scheduler);
+  if (g_main_context_is_owner (context))
+  {
+    g_mutex_lock (&self->event_mutex);
+    start_count = self->event_count;
+    while (self->event_count == start_count)
+    {
+      g_mutex_unlock (&self->event_mutex);
+      g_main_loop_run (self->event_loop);
+      g_mutex_lock (&self->event_mutex);
+    }
+    g_mutex_unlock (&self->event_mutex);
+  }
+  else
+  {
+    g_mutex_lock (&self->event_mutex);
+    start_count = self->event_count;
+    while (self->event_count == start_count)
+      g_cond_wait (&self->event_cond, &self->event_mutex);
+    g_mutex_unlock (&self->event_mutex);
+  }
 
   _gum_duk_scope_resume (&scope);
 

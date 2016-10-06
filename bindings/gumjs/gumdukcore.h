@@ -58,6 +58,7 @@ struct _GumDukCore
   volatile gboolean heap_thread_in_use;
   volatile GumDukFlushNotify flush_notify;
 
+  GMainLoop * event_loop;
   GMutex event_mutex;
   GCond event_cond;
   volatile guint event_count;
