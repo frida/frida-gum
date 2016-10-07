@@ -18,14 +18,6 @@
 
 #define GUM_IL_LISTENER     0
 
-#define GUM_IC_INVOCATION   0
-#define GUM_IC_CPU          1
-
-#define GUM_ARGS_INVOCATION 0
-
-#define GUM_RV_VALUE        0
-#define GUM_RV_INVOCATION   1
-
 #define GUM_V8_INVOCATION_LISTENER_CAST(obj) \
     ((GumV8InvocationListener *) (obj))
 #define GUM_V8_TYPE_CALL_LISTENER (gum_v8_call_listener_get_type ())
@@ -68,6 +60,22 @@ struct _GumV8ProbeListener
 struct _GumV8ProbeListenerClass
 {
   GObjectClass parent_class;
+};
+
+struct _GumV8InvocationArgs
+{
+  GumPersistent<v8::Object>::type * object;
+  GumInvocationContext * ic;
+
+  GumV8Core * core;
+};
+
+struct _GumV8InvocationReturnValue
+{
+  GumPersistent<v8::Object>::type * object;
+  GumInvocationContext * ic;
+
+  GumV8Core * core;
 };
 
 struct _GumV8ReplaceEntry
@@ -114,6 +122,9 @@ G_DEFINE_TYPE_EXTENDED (GumV8ProbeListener,
                         G_IMPLEMENT_INTERFACE (GUM_TYPE_INVOCATION_LISTENER,
                             gum_v8_probe_listener_iface_init))
 
+static GumV8InvocationContext * gum_v8_invocation_context_new (
+    GumV8Interceptor * parent);
+static void gum_v8_invocation_context_release (GumV8InvocationContext * self);
 static void gumjs_invocation_context_on_get_return_address (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gumjs_invocation_context_on_get_context (
@@ -127,14 +138,36 @@ static void gumjs_invocation_context_on_get_thread_id (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
 static void gumjs_invocation_context_on_get_depth (
     Local<String> property, const PropertyCallbackInfo<Value> & info);
+static void gumjs_invocation_context_on_set_property (Local<Name> property,
+    Local<Value> value, const PropertyCallbackInfo<Value> & info);
 
+static GumV8InvocationArgs * gum_v8_invocation_args_new (
+    GumV8Interceptor * parent);
+static void gum_v8_invocation_args_release (GumV8InvocationArgs * self);
+static void gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
+    GumInvocationContext * ic);
 static void gumjs_invocation_args_on_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
 static void gumjs_invocation_args_on_set_nth (uint32_t index,
     Local<Value> value, const PropertyCallbackInfo<Value> & info);
 
+static GumV8InvocationReturnValue * gum_v8_invocation_return_value_new (
+    GumV8Interceptor * parent);
+static void gum_v8_invocation_return_value_release (
+    GumV8InvocationReturnValue * self);
+static void gum_v8_invocation_return_value_reset (
+    GumV8InvocationReturnValue * self, GumInvocationContext * ic);
 static void gumjs_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
+
+static GumV8InvocationArgs * gum_v8_interceptor_obtain_invocation_args (
+    GumV8Interceptor * self);
+static void gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
+    GumV8InvocationArgs * args);
+static GumV8InvocationReturnValue *
+    gum_v8_interceptor_obtain_invocation_return_value (GumV8Interceptor * self);
+static void gum_v8_interceptor_release_invocation_return_value (
+    GumV8Interceptor * self, GumV8InvocationReturnValue * retval);
 
 void
 _gum_v8_interceptor_init (GumV8Interceptor * self,
@@ -189,7 +222,7 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
       new GumPersistent<Object>::type (isolate, listener_value);
 
   Handle<ObjectTemplate> context = ObjectTemplate::New (isolate);
-  context->SetInternalFieldCount (2);
+  context->SetInternalFieldCount (1);
   context->SetAccessor (String::NewFromUtf8 (isolate, "returnAddress"),
       gumjs_invocation_context_on_get_return_address, NULL, data);
   context->SetAccessor (String::NewFromUtf8 (isolate, "context"),
@@ -201,8 +234,12 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
       gumjs_invocation_context_on_get_thread_id);
   context->SetAccessor (String::NewFromUtf8 (isolate, "depth"),
       gumjs_invocation_context_on_get_depth);
+  NamedPropertyHandlerConfiguration context_access;
+  context_access.setter = gumjs_invocation_context_on_set_property;
+  context_access.data = data;
+  context_access.flags = PropertyHandlerFlags::kNonMasking;
+  context->SetHandler (context_access);
   Local<Object> context_value = context->NewInstance ();
-  context_value->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
   self->invocation_context_value =
       new GumPersistent<Object>::type (isolate, context_value);
 
@@ -227,6 +264,16 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
   return_value->InstanceTemplate ()->SetInternalFieldCount (2);
   self->invocation_return_value = new GumPersistent<Object>::type (isolate,
       return_value->GetFunction ()->NewInstance ());
+
+  self->cached_invocation_context = gum_v8_invocation_context_new (self);
+  self->cached_invocation_context_in_use = FALSE;
+
+  self->cached_invocation_args = gum_v8_invocation_args_new (self);
+  self->cached_invocation_args_in_use = FALSE;
+
+  self->cached_invocation_return_value = gum_v8_invocation_return_value_new (
+      self);
+  self->cached_invocation_return_value_in_use = FALSE;
 }
 
 void
@@ -296,6 +343,13 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 {
   g_assert (self->flush_timer == NULL);
 
+  gum_v8_invocation_context_release (self->cached_invocation_context);
+  gum_v8_invocation_args_release (self->cached_invocation_args);
+  gum_v8_invocation_return_value_release (self->cached_invocation_return_value);
+  self->cached_invocation_context = NULL;
+  self->cached_invocation_args = NULL;
+  self->cached_invocation_return_value = NULL;
+
   delete self->invocation_return_value;
   self->invocation_return_value = nullptr;
 
@@ -317,34 +371,6 @@ _gum_v8_interceptor_finalize (GumV8Interceptor * self)
 
   g_object_unref (self->interceptor);
   self->interceptor = NULL;
-}
-
-Local<Object>
-_gum_v8_interceptor_create_invocation_context_object (
-    GumV8Interceptor * self,
-    GumInvocationContext * context)
-{
-  Isolate * isolate = self->core->isolate;
-  Local<Object> invocation_context_value (Local<Object>::New (isolate,
-      *self->invocation_context_value));
-  Local<Object> result (invocation_context_value->Clone ());
-  result->SetAlignedPointerInInternalField (GUM_IC_INVOCATION, context);
-  return result;
-}
-
-void
-_gum_v8_interceptor_detach_cpu_context (GumV8Interceptor * self,
-                                        Handle<Value> invocation_context)
-{
-  Handle<Object> ic (invocation_context.As<Object> ());
-  GumPersistent<Object>::type * cpu_context =
-      static_cast<GumPersistent<Object>::type *> (
-          ic->GetAlignedPointerFromInternalField (GUM_IC_CPU));
-  if (cpu_context != NULL)
-  {
-    _gum_v8_cpu_context_free_later (cpu_context, self->core);
-    ic->SetAlignedPointerInInternalField (GUM_IC_CPU, NULL);
-  }
 }
 
 /*
@@ -644,25 +670,30 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
 
     Local<Function> on_enter (Local<Function>::New (isolate, *self->on_enter));
 
-    Local<Object> receiver (
-        _gum_v8_interceptor_create_invocation_context_object (module, ic));
+    GumV8InvocationContext * jic =
+        _gum_v8_interceptor_obtain_invocation_context (module);
+    _gum_v8_invocation_context_reset (jic, ic);
+    Local<Object> receiver (Local<Object>::New (isolate, *jic->object));
 
-    Local<Object> invocation_args_value (Local<Object>::New (isolate,
-        *module->invocation_args_value));
-    Local<Object> args (invocation_args_value->Clone ());
-    args->SetAlignedPointerInInternalField (GUM_ARGS_INVOCATION, ic);
-    Handle<Value> argv[] = { args };
+    GumV8InvocationArgs * args =
+        gum_v8_interceptor_obtain_invocation_args (module);
+    gum_v8_invocation_args_reset (args, ic);
+    Local<Object> args_object (Local<Object>::New (isolate, *args->object));
 
-    on_enter->Call (receiver, 1, argv);
+    Handle<Value> argv[] = { args_object };
+    on_enter->Call (receiver, G_N_ELEMENTS (argv), argv);
 
-    _gum_v8_interceptor_detach_cpu_context (module, receiver);
+    gum_v8_invocation_args_reset (args, NULL);
+    gum_v8_interceptor_release_invocation_args (module, args);
 
+    _gum_v8_invocation_context_reset (jic, NULL);
     if (self->on_leave != nullptr)
     {
-      GumPersistent<Value>::type * persistent_receiver =
-          new GumPersistent<Value>::type (isolate, receiver);
-      *GUM_LINCTX_GET_FUNC_INVDATA (ic,
-          GumPersistent<Value>::type *) = persistent_receiver;
+      *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationContext *) = jic;
+    }
+    else
+    {
+      _gum_v8_interceptor_release_invocation_context (module, jic);
     }
   }
 }
@@ -686,28 +717,31 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
 
     Local<Function> on_leave (Local<Function>::New (isolate, *self->on_leave));
 
-    GumPersistent<Object>::type * persistent_receiver =
-        (self->on_enter != nullptr)
-        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumPersistent<Object>::type *)
-        : nullptr;
-    Local<Object> receiver ((persistent_receiver != nullptr)
-        ? Local<Object>::New (isolate, *persistent_receiver)
-        : _gum_v8_interceptor_create_invocation_context_object (module,
-        ic));
+    GumV8InvocationContext * jic = (self->on_enter != nullptr)
+        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationContext *)
+        : NULL;
+    if (jic == NULL)
+    {
+      jic = _gum_v8_interceptor_obtain_invocation_context (module);
+    }
+    _gum_v8_invocation_context_reset (jic, ic);
+    Local<Object> receiver (Local<Object>::New (isolate, *jic->object));
 
-    Local<Object> invocation_return_value (Local<Object>::New (isolate,
-        *module->invocation_return_value));
-    Local<Object> return_value (invocation_return_value->Clone ());
-    return_value->SetInternalField (GUM_RV_VALUE, External::New (isolate,
+    GumV8InvocationReturnValue * retval =
+        gum_v8_interceptor_obtain_invocation_return_value (module);
+    gum_v8_invocation_return_value_reset (retval, ic);
+    Local<Object> retval_object (Local<Object>::New (isolate, *retval->object));
+    retval_object->SetInternalField (0, External::New (isolate,
         gum_invocation_context_get_return_value (ic)));
-    return_value->SetAlignedPointerInInternalField (GUM_RV_INVOCATION, ic);
 
-    Handle<Value> argv[] = { return_value };
-    on_leave->Call (receiver, 1, argv);
+    Handle<Value> argv[] = { retval_object };
+    on_leave->Call (receiver, G_N_ELEMENTS (argv), argv);
 
-    _gum_v8_interceptor_detach_cpu_context (module, receiver);
+    gum_v8_invocation_return_value_reset (retval, NULL);
+    gum_v8_interceptor_release_invocation_return_value (module, retval);
 
-    delete persistent_receiver;
+    _gum_v8_invocation_context_reset (jic, NULL);
+    _gum_v8_interceptor_release_invocation_context (module, jic);
   }
 }
 
@@ -783,17 +817,64 @@ gum_v8_probe_listener_dispose (GObject * object)
   G_OBJECT_CLASS (gum_v8_probe_listener_parent_class)->dispose (object);
 }
 
+static GumV8InvocationContext *
+gum_v8_invocation_context_new (GumV8Interceptor * parent)
+{
+  Isolate * isolate = parent->core->isolate;
+
+  GumV8InvocationContext * jic = g_slice_new (GumV8InvocationContext);
+
+  Local<Object> invocation_context_value (Local<Object>::New (isolate,
+      *parent->invocation_context_value));
+  Local<Object> object (invocation_context_value->Clone ());
+  object->SetAlignedPointerInInternalField (0, jic);
+  jic->object = new GumPersistent<Object>::type (isolate, object);
+  jic->handle = NULL;
+  jic->cpu_context = nullptr;
+
+  jic->core = parent->core;
+
+  return jic;
+}
+
+static void
+gum_v8_invocation_context_release (GumV8InvocationContext * self)
+{
+  delete self->object;
+
+  g_slice_free (GumV8InvocationContext, self);
+}
+
+void
+_gum_v8_invocation_context_reset (GumV8InvocationContext * self,
+                                  GumInvocationContext * handle)
+{
+  self->handle = handle;
+
+  if (self->cpu_context != nullptr)
+  {
+    _gum_v8_cpu_context_free_later (self->cpu_context, self->core);
+    self->cpu_context = nullptr;
+  }
+}
+
+template<typename T>
+static GumV8InvocationContext *
+gum_v8_invocation_context_get (const PropertyCallbackInfo<T> & info)
+{
+  return static_cast<GumV8InvocationContext *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
+}
+
 static void
 gumjs_invocation_context_on_get_return_address (
     Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
-  GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
-      info.Data ().As<External> ()->Value ());
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   (void) property;
-  gpointer return_address = gum_invocation_context_get_return_address (context);
+  gpointer return_address =
+      gum_invocation_context_get_return_address (self->handle);
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (return_address, self->core));
 }
@@ -803,23 +884,17 @@ gumjs_invocation_context_on_get_context (
     Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
-  GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
-      info.Data ().As<External> ()->Value ());
-  Local<Object> instance = info.Holder ();
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   Isolate * isolate = info.GetIsolate ();
 
   (void) property;
 
-  GumPersistent<Object>::type * context =
-      static_cast<GumPersistent<Object>::type *> (
-          instance->GetAlignedPointerFromInternalField (GUM_IC_CPU));
-  if (context == NULL)
+  GumPersistent<Object>::type * context = self->cpu_context;
+  if (context == nullptr)
   {
-    GumInvocationContext * ic = static_cast<GumInvocationContext *> (
-        instance->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
     context = new GumPersistent<Object>::type (isolate,
-        _gum_v8_cpu_context_new (ic->cpu_context, self->core));
-    instance->SetAlignedPointerInInternalField (GUM_IC_CPU, context);
+        _gum_v8_cpu_context_new (self->handle->cpu_context, self->core));
+    self->cpu_context = context;
   }
 
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *context));
@@ -830,10 +905,9 @@ gumjs_invocation_context_on_get_system_error (
     Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   (void) property;
-  info.GetReturnValue ().Set (context->system_error);
+  info.GetReturnValue ().Set (self->handle->system_error);
 }
 
 static void
@@ -842,10 +916,9 @@ gumjs_invocation_context_on_set_system_error (
     Local<Value> value,
     const PropertyCallbackInfo<void> & info)
 {
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   (void) property;
-  context->system_error = value->Int32Value ();
+  self->handle->system_error = value->Int32Value ();
 }
 
 static void
@@ -853,33 +926,88 @@ gumjs_invocation_context_on_get_thread_id (
     Local<String> property,
     const PropertyCallbackInfo<Value> & info)
 {
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   (void) property;
-  info.GetReturnValue ().Set (gum_invocation_context_get_thread_id (context));
+  info.GetReturnValue ().Set (
+      gum_invocation_context_get_thread_id (self->handle));
 }
 
 static void
 gumjs_invocation_context_on_get_depth (Local<String> property,
                                        const PropertyCallbackInfo<Value> & info)
 {
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_IC_INVOCATION));
+  GumV8InvocationContext * self = gum_v8_invocation_context_get (info);
   (void) property;
   info.GetReturnValue ().Set (
-      static_cast<int32_t> (gum_invocation_context_get_depth (context)));
+      static_cast<int32_t> (gum_invocation_context_get_depth (self->handle)));
+}
+
+static void
+gumjs_invocation_context_on_set_property (
+    Local<Name> property,
+    Local<Value> value,
+    const PropertyCallbackInfo<Value> & info)
+{
+  GumV8Interceptor * interceptor = static_cast<GumV8Interceptor *> (
+      info.Data ().As<External> ()->Value ());
+
+  if (info.Holder () == *interceptor->cached_invocation_context->object)
+  {
+    interceptor->cached_invocation_context =
+        gum_v8_invocation_context_new (interceptor);
+    interceptor->cached_invocation_context_in_use = FALSE;
+  }
+}
+
+static GumV8InvocationArgs *
+gum_v8_invocation_args_new (GumV8Interceptor * parent)
+{
+  Isolate * isolate = parent->core->isolate;
+
+  GumV8InvocationArgs * args = g_slice_new (GumV8InvocationArgs);
+
+  Local<Object> invocation_args_value (Local<Object>::New (isolate,
+      *parent->invocation_args_value));
+  Local<Object> object (invocation_args_value->Clone ());
+  object->SetAlignedPointerInInternalField (0, args);
+  args->object = new GumPersistent<Object>::type (isolate, object);
+  args->ic = NULL;
+
+  args->core = parent->core;
+
+  return args;
+}
+
+static void
+gum_v8_invocation_args_release (GumV8InvocationArgs * self)
+{
+  delete self->object;
+
+  g_slice_free (GumV8InvocationArgs, self);
+}
+
+static void
+gum_v8_invocation_args_reset (GumV8InvocationArgs * self,
+                              GumInvocationContext * ic)
+{
+  self->ic = ic;
+}
+
+template<typename T>
+static GumV8InvocationArgs *
+gum_v8_invocation_args_get (const PropertyCallbackInfo<T> & info)
+{
+  return static_cast<GumV8InvocationArgs *> (
+      info.Holder ()->GetAlignedPointerFromInternalField (0));
 }
 
 static void
 gumjs_invocation_args_on_get_nth (uint32_t index,
                                   const PropertyCallbackInfo<Value> & info)
 {
-  GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
-      info.Data ().As<External> ()->Value ());
-  GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_ARGS_INVOCATION));
+  GumV8InvocationArgs * self = gum_v8_invocation_args_get (info);
   info.GetReturnValue ().Set (_gum_v8_native_pointer_new (
-      gum_invocation_context_get_nth_argument (ctx, index), self->core));
+      gum_invocation_context_get_nth_argument (self->ic, index), self->core));
 }
 
 static void
@@ -887,27 +1015,58 @@ gumjs_invocation_args_on_set_nth (uint32_t index,
                                   Local<Value> value,
                                   const PropertyCallbackInfo<Value> & info)
 {
-  GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
-      info.Data ().As<External> ()->Value ());
-  GumInvocationContext * ctx = static_cast<GumInvocationContext *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (GUM_ARGS_INVOCATION));
+  GumV8InvocationArgs * self = gum_v8_invocation_args_get (info);
 
   gpointer raw_value;
   if (!_gum_v8_native_pointer_get (value, &raw_value, self->core))
     return;
 
-  gum_invocation_context_replace_nth_argument (ctx, index, raw_value);
+  gum_invocation_context_replace_nth_argument (self->ic, index, raw_value);
+}
+
+static GumV8InvocationReturnValue *
+gum_v8_invocation_return_value_new (GumV8Interceptor * parent)
+{
+  Isolate * isolate = parent->core->isolate;
+
+  GumV8InvocationReturnValue * retval =
+      g_slice_new (GumV8InvocationReturnValue);
+
+  Local<Object> template_object (Local<Object>::New (isolate,
+      *parent->invocation_return_value));
+  Local<Object> object (template_object->Clone ());
+  object->SetAlignedPointerInInternalField (1, retval);
+  retval->object = new GumPersistent<Object>::type (isolate, object);
+  retval->ic = NULL;
+
+  retval->core = parent->core;
+
+  return retval;
+}
+
+static void
+gum_v8_invocation_return_value_release (GumV8InvocationReturnValue * self)
+{
+  delete self->object;
+
+  g_slice_free (GumV8InvocationReturnValue, self);
+}
+
+static void
+gum_v8_invocation_return_value_reset (GumV8InvocationReturnValue * self,
+                                      GumInvocationContext * ic)
+{
+  self->ic = ic;
 }
 
 static void
 gumjs_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info)
 {
-  GumV8Interceptor * self = static_cast<GumV8Interceptor *> (
-      info.Data ().As<External> ()->Value ());
-  Local<Object> holder (info.Holder ());
-  GumInvocationContext * context = static_cast<GumInvocationContext *> (
-      holder->GetAlignedPointerFromInternalField (GUM_RV_INVOCATION));
+  Local<Object> holder = info.Holder ();
+  GumV8InvocationReturnValue * self =
+      static_cast<GumV8InvocationReturnValue *> (
+          holder->GetAlignedPointerFromInternalField (1));
   Isolate * isolate = info.GetIsolate ();
 
   if (info.Length () == 0)
@@ -920,7 +1079,91 @@ gumjs_invocation_return_value_on_replace (
   gpointer value;
   if (!_gum_v8_native_pointer_parse (info[0], &value, self->core))
     return;
-  gum_invocation_context_replace_return_value (context, value);
-  holder->SetInternalField (GUM_RV_VALUE,
-      External::New (info.GetIsolate (), value));
+  gum_invocation_context_replace_return_value (self->ic, value);
+  holder->SetInternalField (0, External::New (info.GetIsolate (), value));
+}
+
+GumV8InvocationContext *
+_gum_v8_interceptor_obtain_invocation_context (GumV8Interceptor * self)
+{
+  GumV8InvocationContext * jic;
+
+  if (!self->cached_invocation_context_in_use)
+  {
+    jic = self->cached_invocation_context;
+    self->cached_invocation_context_in_use = TRUE;
+  }
+  else
+  {
+    jic = gum_v8_invocation_context_new (self);
+  }
+
+  return jic;
+}
+
+void
+_gum_v8_interceptor_release_invocation_context (GumV8Interceptor * self,
+                                                GumV8InvocationContext * jic)
+{
+  if (jic == self->cached_invocation_context)
+    self->cached_invocation_context_in_use = FALSE;
+  else
+    gum_v8_invocation_context_release (jic);
+}
+
+static GumV8InvocationArgs *
+gum_v8_interceptor_obtain_invocation_args (GumV8Interceptor * self)
+{
+  GumV8InvocationArgs * args;
+
+  if (!self->cached_invocation_args_in_use)
+  {
+    args = self->cached_invocation_args;
+    self->cached_invocation_args_in_use = TRUE;
+  }
+  else
+  {
+    args = gum_v8_invocation_args_new (self);
+  }
+
+  return args;
+}
+
+static void
+gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
+                                            GumV8InvocationArgs * args)
+{
+  if (args == self->cached_invocation_args)
+    self->cached_invocation_args_in_use = FALSE;
+  else
+    gum_v8_invocation_args_release (args);
+}
+
+static GumV8InvocationReturnValue *
+gum_v8_interceptor_obtain_invocation_return_value (GumV8Interceptor * self)
+{
+  GumV8InvocationReturnValue * retval;
+
+  if (!self->cached_invocation_return_value_in_use)
+  {
+    retval = self->cached_invocation_return_value;
+    self->cached_invocation_return_value_in_use = TRUE;
+  }
+  else
+  {
+    retval = gum_v8_invocation_return_value_new (self);
+  }
+
+  return retval;
+}
+
+static void
+gum_v8_interceptor_release_invocation_return_value (
+    GumV8Interceptor * self,
+    GumV8InvocationReturnValue * retval)
+{
+  if (retval == self->cached_invocation_return_value)
+    self->cached_invocation_return_value_in_use = FALSE;
+  else
+    gum_v8_invocation_return_value_release (retval);
 }

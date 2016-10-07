@@ -2812,11 +2812,14 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
   Local<Function> func (Local<Function>::New (isolate, *self->func));
 
   Local<Value> receiver;
+  GumV8Interceptor * interceptor = &self->core->script->priv->interceptor;
+  GumV8InvocationContext * jic = NULL;
   GumInvocationContext * ic = gum_interceptor_get_current_invocation ();
   if (ic != NULL)
   {
-    receiver = _gum_v8_interceptor_create_invocation_context_object (
-        &self->core->script->priv->interceptor, ic);
+    jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
+    _gum_v8_invocation_context_reset (jic, ic);
+    receiver = Local<Object>::New (isolate, *jic->object);
   }
   else
   {
@@ -2825,10 +2828,10 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
 
   Local<Value> result = func->Call (receiver, cif->nargs, argv);
 
-  if (ic != NULL)
+  if (jic != NULL)
   {
-    _gum_v8_interceptor_detach_cpu_context (
-        &self->core->script->priv->interceptor, receiver);
+    _gum_v8_invocation_context_reset (jic, NULL);
+    _gum_v8_interceptor_release_invocation_context (interceptor, jic);
   }
 
   if (cif->rtype != &ffi_type_void)
