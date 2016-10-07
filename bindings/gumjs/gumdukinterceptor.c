@@ -651,7 +651,7 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
     _gum_duk_invocation_context_reset (jic, NULL);
     if (self->on_leave != NULL)
     {
-      *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukHeapPtr) = jic;
+      *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationContext *) = jic;
     }
     else
     {
