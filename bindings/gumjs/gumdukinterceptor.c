@@ -618,11 +618,13 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
 {
   GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
 
+  if (self->on_enter == NULL)
+    return;
+
   if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (ic)))
     return;
 
-  if (self->on_enter != NULL)
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;
@@ -668,11 +670,13 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
 {
   GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
 
+  if (self->on_leave == NULL)
+    return;
+
   if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (ic)))
     return;
 
-  if (self->on_leave != NULL)
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;

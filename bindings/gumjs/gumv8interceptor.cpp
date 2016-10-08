@@ -657,11 +657,13 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
 {
   GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
 
+  if (self->on_enter == nullptr)
+    return;
+
   if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (ic)))
     return;
 
-  if (self->on_enter != nullptr)
   {
     GumV8Interceptor * module = self->module;
     GumV8Core * core = module->core;
@@ -704,11 +706,13 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
 {
   GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
 
+  if (self->on_leave == nullptr)
+    return;
+
   if (gum_script_backend_is_ignoring (
       gum_invocation_context_get_thread_id (ic)))
     return;
 
-  if (self->on_leave != nullptr)
   {
     GumV8Interceptor * module = self->module;
     GumV8Core * core = module->core;
