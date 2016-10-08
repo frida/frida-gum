@@ -229,11 +229,7 @@ gum_process_is_debugger_attached (void)
 GumThreadId
 gum_process_get_current_thread_id (void)
 {
-  mach_port_t port;
-
-  port = mach_thread_self ();
-  mach_port_deallocate (mach_task_self (), port);
-  return (GumThreadId) port;
+  return pthread_mach_thread_np (pthread_self ());
 }
 
 gboolean
