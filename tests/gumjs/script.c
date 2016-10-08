@@ -49,6 +49,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (interceptor_handles_invalid_arguments)
   SCRIPT_TESTENTRY (interceptor_on_enter_performance)
   SCRIPT_TESTENTRY (interceptor_on_leave_performance)
+  SCRIPT_TESTENTRY (interceptor_on_enter_and_leave_performance)
   SCRIPT_TESTENTRY (pointer_can_be_read)
   SCRIPT_TESTENTRY (pointer_can_be_written)
   SCRIPT_TESTENTRY (memory_can_be_allocated)
@@ -2403,6 +2404,24 @@ SCRIPT_TESTCASE (interceptor_on_leave_performance)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onLeave: function (retval) {"
+      "  }"
+      "});", target_function_int);
+
+#if 1
+  measure_target_function_int_overhead ();
+#else
+  while (TRUE)
+    target_function_int (7);
+#endif
+}
+
+SCRIPT_TESTCASE (interceptor_on_enter_and_leave_performance)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.attach(" GUM_PTR_CONST ", {"
+      "  onEnter: function (args) {"
+      "  },"
       "  onLeave: function (retval) {"
       "  }"
       "});", target_function_int);

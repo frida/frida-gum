@@ -25,6 +25,7 @@ typedef struct _GumDukCallListener GumDukCallListener;
 typedef struct _GumDukCallListenerClass GumDukCallListenerClass;
 typedef struct _GumDukProbeListener GumDukProbeListener;
 typedef struct _GumDukProbeListenerClass GumDukProbeListenerClass;
+typedef struct _GumDukInvocationState GumDukInvocationState;
 typedef struct _GumDukReplaceEntry GumDukReplaceEntry;
 
 struct _GumDukInvocationListener
@@ -56,6 +57,12 @@ struct _GumDukProbeListener
 struct _GumDukProbeListenerClass
 {
   GObjectClass parent_class;
+};
+
+struct _GumDukInvocationState
+{
+  GumDukInvocationContext * jic;
+  gboolean is_ignored;
 };
 
 struct _GumDukInvocationArgs
@@ -617,14 +624,16 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
                                       GumInvocationContext * ic)
 {
   GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
+  GumDukInvocationState * state;
 
-  if (self->on_enter == NULL)
+  state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
+
+  state->is_ignored = gum_script_backend_is_ignoring (
+      gum_invocation_context_get_thread_id (ic));
+  if (state->is_ignored)
     return;
 
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic)))
-    return;
-
+  if (self->on_enter != NULL)
   {
     GumDukInterceptor * module = self->module;
     GumDukCore * core = module->core;
@@ -653,7 +662,7 @@ gum_duk_invocation_listener_on_enter (GumInvocationListener * listener,
     _gum_duk_invocation_context_reset (jic, NULL);
     if (self->on_leave != NULL)
     {
-      *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationContext *) = jic;
+      state->jic = jic;
     }
     else
     {
@@ -669,12 +678,13 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
                                       GumInvocationContext * ic)
 {
   GumDukInvocationListener * self = GUM_DUK_INVOCATION_LISTENER_CAST (listener);
+  GumDukInvocationState * state;
 
   if (self->on_leave == NULL)
     return;
 
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic)))
+  state = GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationState);
+  if (state->is_ignored)
     return;
 
   {
@@ -687,9 +697,7 @@ gum_duk_invocation_listener_on_leave (GumInvocationListener * listener,
 
     ctx = _gum_duk_scope_enter (&scope, core);
 
-    jic = (self->on_enter != NULL)
-        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumDukInvocationContext *)
-        : NULL;
+    jic = (self->on_enter != NULL) ? state->jic : NULL;
     if (jic == NULL)
     {
       jic = _gum_duk_interceptor_obtain_invocation_context (module);

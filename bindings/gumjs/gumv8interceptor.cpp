@@ -30,6 +30,7 @@ typedef struct _GumV8CallListener GumV8CallListener;
 typedef struct _GumV8CallListenerClass GumV8CallListenerClass;
 typedef struct _GumV8ProbeListener GumV8ProbeListener;
 typedef struct _GumV8ProbeListenerClass GumV8ProbeListenerClass;
+typedef struct _GumV8InvocationState GumV8InvocationState;
 typedef struct _GumV8ReplaceEntry GumV8ReplaceEntry;
 
 struct _GumV8InvocationListener
@@ -60,6 +61,12 @@ struct _GumV8ProbeListener
 struct _GumV8ProbeListenerClass
 {
   GObjectClass parent_class;
+};
+
+struct _GumV8InvocationState
+{
+  GumV8InvocationContext * jic;
+  gboolean is_ignored;
 };
 
 struct _GumV8InvocationArgs
@@ -656,14 +663,15 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
                                      GumInvocationContext * ic)
 {
   GumV8InvocationListener * self = GUM_V8_INVOCATION_LISTENER_CAST (listener);
+  GumV8InvocationState * state =
+      GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
 
-  if (self->on_enter == nullptr)
+  state->is_ignored = gum_script_backend_is_ignoring (
+      gum_invocation_context_get_thread_id (ic));
+  if (state->is_ignored)
     return;
 
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic)))
-    return;
-
+  if (self->on_enter != nullptr)
   {
     GumV8Interceptor * module = self->module;
     GumV8Core * core = module->core;
@@ -691,7 +699,7 @@ gum_v8_invocation_listener_on_enter (GumInvocationListener * listener,
     _gum_v8_invocation_context_reset (jic, NULL);
     if (self->on_leave != nullptr)
     {
-      *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationContext *) = jic;
+      state->jic = jic;
     }
     else
     {
@@ -709,8 +717,9 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
   if (self->on_leave == nullptr)
     return;
 
-  if (gum_script_backend_is_ignoring (
-      gum_invocation_context_get_thread_id (ic)))
+  GumV8InvocationState * state =
+      GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationState);
+  if (state->is_ignored)
     return;
 
   {
@@ -721,9 +730,8 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
 
     Local<Function> on_leave (Local<Function>::New (isolate, *self->on_leave));
 
-    GumV8InvocationContext * jic = (self->on_enter != nullptr)
-        ? *GUM_LINCTX_GET_FUNC_INVDATA (ic, GumV8InvocationContext *)
-        : NULL;
+    GumV8InvocationContext * jic =
+        (self->on_enter != nullptr) ? state->jic : NULL;
     if (jic == NULL)
     {
       jic = _gum_v8_interceptor_obtain_invocation_context (module);
