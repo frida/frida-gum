@@ -42,6 +42,7 @@ typedef void (* GumPrologueWriteFunc) (GumInterceptor * self,
 
 struct _GumInterceptorTransaction
 {
+  gboolean is_dirty;
   gint level;
   GQueue * pending_destroy_tasks;
   GHashTable * pending_prologue_writes;
@@ -273,6 +274,7 @@ gum_interceptor_dispose (GObject * object)
 
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
+  priv->current_transaction.is_dirty = TRUE;
 
   g_hash_table_remove_all (priv->function_by_address);
 
@@ -354,6 +356,7 @@ gum_interceptor_attach_listener (GumInterceptor * self,
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
+  priv->current_transaction.is_dirty = TRUE;
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -401,6 +404,7 @@ gum_interceptor_detach_listener (GumInterceptor * self,
   gum_interceptor_ignore_current_thread (self);
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
+  priv->current_transaction.is_dirty = TRUE;
 
   g_hash_table_iter_init (&iter, priv->function_by_address);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &function_ctx))
@@ -450,6 +454,7 @@ gum_interceptor_replace_function (GumInterceptor * self,
 
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
+  priv->current_transaction.is_dirty = TRUE;
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -493,6 +498,7 @@ gum_interceptor_revert_function (GumInterceptor * self,
 
   GUM_INTERCEPTOR_LOCK ();
   gum_interceptor_transaction_begin (&priv->current_transaction);
+  priv->current_transaction.is_dirty = TRUE;
 
   function_address = gum_interceptor_resolve (self, function_address);
 
@@ -702,6 +708,7 @@ static void
 gum_interceptor_transaction_init (GumInterceptorTransaction * transaction,
                                   GumInterceptor * interceptor)
 {
+  transaction->is_dirty = FALSE;
   transaction->level = 0;
   transaction->pending_destroy_tasks = g_queue_new ();
   transaction->pending_prologue_writes = g_hash_table_new_full (
@@ -745,6 +752,9 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   self->level--;
   if (self->level > 0)
+    return;
+
+  if (!self->is_dirty)
     return;
 
   gum_interceptor_ignore_current_thread (interceptor);
@@ -886,6 +896,7 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
     }
     else
     {
+      priv->current_transaction.is_dirty = TRUE;
       g_queue_push_tail (priv->current_transaction.pending_destroy_tasks, task);
     }
   }
