@@ -763,7 +763,10 @@ gum_interceptor_transaction_end (GumInterceptorTransaction * self)
 
   if (g_queue_is_empty (self->pending_destroy_tasks) &&
       g_hash_table_size (self->pending_prologue_writes) == 0)
+  {
+    priv->current_transaction.is_dirty = FALSE;
     goto no_changes;
+  }
 
   transaction_copy = priv->current_transaction;
   self = &transaction_copy;
