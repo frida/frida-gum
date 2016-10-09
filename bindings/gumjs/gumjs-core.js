@@ -44,6 +44,22 @@
         }
     });
 
+    Object.defineProperty(engine, 'setImmediate', {
+        enumerable: true,
+        value: function (func, ...args) {
+            return setTimeout(() => {
+                func.apply(null, args);
+            }, 0);
+        }
+    });
+
+    Object.defineProperty(engine, 'clearImmediate', {
+        enumerable: true,
+        value: function (id) {
+            clearTimeout(id);
+        }
+    });
+
     Object.defineProperty(engine, 'int64', {
         enumerable: true,
         value: function (value) {

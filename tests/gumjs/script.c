@@ -23,6 +23,8 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (timeout_can_be_cancelled)
   SCRIPT_TESTENTRY (interval_can_be_scheduled)
   SCRIPT_TESTENTRY (interval_can_be_cancelled)
+  SCRIPT_TESTENTRY (callback_can_be_scheduled)
+  SCRIPT_TESTENTRY (callback_can_be_cancelled)
   SCRIPT_TESTENTRY (argument_can_be_read)
   SCRIPT_TESTENTRY (argument_can_be_replaced)
   SCRIPT_TESTENTRY (return_value_can_be_read)
@@ -1854,6 +1856,27 @@ SCRIPT_TESTCASE (interval_can_be_cancelled)
   g_usleep (25000);
   EXPECT_SEND_MESSAGE_WITH ("2");
 
+  g_usleep (25000);
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (callback_can_be_scheduled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "setImmediate(function () {"
+      "  send(1337);"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (callback_can_be_cancelled)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var id = setImmediate(function () {"
+      "  send(1337);"
+      "});"
+      "clearImmediate(id);");
   g_usleep (25000);
   EXPECT_NO_MESSAGES ();
 }
