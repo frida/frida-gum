@@ -3578,12 +3578,12 @@ SCRIPT_TESTCASE (source_maps_should_be_supported)
   if (GUM_DUK_IS_SCRIPT_BACKEND (fixture->backend))
   {
     g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12\"") != NULL);
+        "    at index.js:12\\n") != NULL);
   }
   else
   {
     g_assert (strstr (item->message, "\"stack\":\"Error: Oops!\\n"
-        "    at index.js:12:1\"") != NULL);
+        "    at index.js:12:1\\n") != NULL);
   }
   g_assert (strstr (item->message, "\"fileName\":\"index.js\"") != NULL);
   g_assert (strstr (item->message, "\"lineNumber\":12") != NULL);
