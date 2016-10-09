@@ -690,9 +690,9 @@ _gum_duk_core_init (GumDukCore * self,
   _gum_duk_put_data (ctx, -1, self);
   duk_put_global_string (ctx, "WeakRef");
 
-  GUMJS_ADD_GLOBAL_FUNCTION ("setTimeout", gumjs_set_timeout, 2);
-  GUMJS_ADD_GLOBAL_FUNCTION ("clearTimeout", gumjs_clear_timer, 1);
-  GUMJS_ADD_GLOBAL_FUNCTION ("setInterval", gumjs_set_interval, 2);
+  GUMJS_ADD_GLOBAL_FUNCTION ("_setTimeout", gumjs_set_timeout, 2);
+  GUMJS_ADD_GLOBAL_FUNCTION ("_clearTimeout", gumjs_clear_timer, 1);
+  GUMJS_ADD_GLOBAL_FUNCTION ("_setInterval", gumjs_set_interval, 2);
   GUMJS_ADD_GLOBAL_FUNCTION ("clearInterval", gumjs_clear_timer, 1);
   GUMJS_ADD_GLOBAL_FUNCTION ("gc", gumjs_gc, 0);
   GUMJS_ADD_GLOBAL_FUNCTION ("_send", gumjs_send, 2);

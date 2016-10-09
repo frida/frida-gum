@@ -4,6 +4,10 @@
 
     const engine = global;
     const longSize = (Process.pointerSize == 8 && Process.platform !== 'windows') ? 64 : 32;
+    const timers = {};
+    let nextTimerId = 1;
+    let immediates = [];
+    let immediateTimer = null;
     let dispatcher;
 
     function initialize() {
@@ -44,21 +48,81 @@
         }
     });
 
+    Object.defineProperty(engine, 'setTimeout', {
+        enumerable: true,
+        value: function (func, delay = 0, ...args) {
+            if (delay === 0)
+                return setImmediate(func, ...args);
+
+            const id = nextTimerId++;
+
+            const nativeId = _setTimeout(function () {
+                func.apply(null, args);
+            }, delay);
+            timers[id] = nativeId;
+
+            return id;
+        }
+    });
+
+    Object.defineProperty(engine, 'clearTimeout', {
+        enumerable: true,
+        value: function (id) {
+            const nativeId = timers[id];
+            if (nativeId !== undefined) {
+                delete timers[id];
+                _clearTimeout(nativeId);
+            } else {
+                clearImmediate(id);
+            }
+        }
+    });
+
+    Object.defineProperty(engine, 'setInterval', {
+        enumerable: true,
+        value: function (func, delay, ...args) {
+            return _setInterval(function () {
+                func.apply(null, args);
+            }, delay);
+        }
+    });
+
     Object.defineProperty(engine, 'setImmediate', {
         enumerable: true,
         value: function (func, ...args) {
-            return setTimeout(() => {
-                func.apply(null, args);
-            }, 0);
+            const id = nextTimerId++;
+
+            immediates.push([id, func, args]);
+
+            if (immediateTimer === null)
+                immediateTimer = _setTimeout(processImmediates, 0);
+
+            return id;
         }
     });
 
     Object.defineProperty(engine, 'clearImmediate', {
         enumerable: true,
         value: function (id) {
-            clearTimeout(id);
+            immediates = immediates.filter(([immediateId]) => immediateId !== id);
         }
     });
+
+    function processImmediates() {
+        while (true) {
+            const item = immediates.shift();
+            if (item === undefined)
+                break;
+            const [, func, args] = item;
+            try {
+                func.apply(null, args);
+            } catch (e) {
+                _setTimeout(function () { throw e; }, 0);
+            }
+        }
+
+        immediateTimer = null;
+    }
 
     Object.defineProperty(engine, 'int64', {
         enumerable: true,

@@ -1798,9 +1798,9 @@ SCRIPT_TESTCASE (timeout_can_be_scheduled)
   EXPECT_NO_MESSAGES ();
 
   COMPILE_AND_LOAD_SCRIPT (
-      "setTimeout(function () {"
-      "  send(1338);"
-      "}, uint64(20));");
+      "setTimeout(function (value) {"
+      "  send(value);"
+      "}, uint64(20), 1338);");
   EXPECT_NO_MESSAGES ();
 
   g_usleep (25000);
@@ -1828,9 +1828,9 @@ SCRIPT_TESTCASE (timeout_can_be_cancelled)
 SCRIPT_TESTCASE (interval_can_be_scheduled)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "setInterval(function () {"
-      "  send(1337);"
-      "}, 20);");
+      "setInterval(function (value) {"
+      "  send(value);"
+      "}, 20, 1337);");
   EXPECT_NO_MESSAGES ();
 
   g_usleep (25000);

@@ -386,11 +386,11 @@ _gum_v8_core_init (GumV8Core * self,
           data));
   scope->Set (String::NewFromUtf8 (isolate, "WeakRef"), weak);
 
-  scope->Set (String::NewFromUtf8 (isolate, "setTimeout"),
+  scope->Set (String::NewFromUtf8 (isolate, "_setTimeout"),
       FunctionTemplate::New (isolate, gum_v8_core_on_set_timeout, data));
-  scope->Set (String::NewFromUtf8 (isolate, "setInterval"),
+  scope->Set (String::NewFromUtf8 (isolate, "_setInterval"),
       FunctionTemplate::New (isolate, gum_v8_core_on_set_interval, data));
-  scope->Set (String::NewFromUtf8 (isolate, "clearTimeout"),
+  scope->Set (String::NewFromUtf8 (isolate, "_clearTimeout"),
       FunctionTemplate::New (isolate, gum_v8_core_on_clear_timeout, data));
   scope->Set (String::NewFromUtf8 (isolate, "clearInterval"),
       FunctionTemplate::New (isolate, gum_v8_core_on_clear_timeout, data));
