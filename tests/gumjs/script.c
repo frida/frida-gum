@@ -878,27 +878,47 @@ SCRIPT_TESTCASE (file_can_be_written_to)
 SCRIPT_TESTCASE (socket_connection_can_be_established)
 {
   COMPILE_AND_LOAD_SCRIPT (
-      "Socket.connect({"
+      "Socket.listen({"
       "  family: 4,"
       "  host: 'localhost',"
       "  port: 1337,"
+      "  backlog: 1,"
       "})"
-      ".then(function (connection) {"
-      "  return connection.setNoDelay(true)"
-      "  .then(function () {"
-      "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
+      ".then(function (listener) {"
+      "  listener.accept()"
+      "  .then(function (client) {"
+      "    return client.input.readAll(5)"
+      "    .then(function (data) {"
+      "      send('server read', data);"
+      "      client.close();"
+      "      listener.close();"
+      "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
+      "  });"
+      ""
+      "  return Socket.connect({"
+      "    family: 4,"
+      "    host: 'localhost',"
+      "    port: 1337,"
+      "  })"
+      "  .then(function (connection) {"
+      "    return connection.setNoDelay(true)"
       "    .then(function () {"
-      "      return connection.close()"
+      "      return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
       "      .then(function () {"
-      "        send('ok');"
+      "        return connection.close();"
       "      });"
       "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
       "  });"
-      "})"
-      ".catch(function (error) {"
-      "  send('error: ' + error.message);"
       "});");
-  EXPECT_SEND_MESSAGE_WITH ("\"ok\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"server read\"");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
+      "31 33 33 37 0a");
 }
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)
