@@ -192,11 +192,11 @@ _gum_v8_stream_init (GumV8Stream * self,
   input_stream->SetClassName (String::NewFromUtf8 (isolate, "InputStream"));
   Local<ObjectTemplate> input_stream_proto = input_stream->PrototypeTemplate ();
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_close, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_close));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_read"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_readAll"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all));
   input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, "InputStream"), input_stream);
   self->input_stream =
@@ -208,11 +208,11 @@ _gum_v8_stream_init (GumV8Stream * self,
   Local<ObjectTemplate> output_stream_proto =
       output_stream->PrototypeTemplate ();
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_close, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_close));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_write"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_writeAll"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all));
   output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, "OutputStream"), output_stream);
   self->output_stream =
@@ -271,6 +271,22 @@ _gum_v8_stream_finalize (GumV8Stream * self)
 
   g_clear_object (&self->cancellable);
   g_clear_pointer (&self->streams, g_hash_table_unref);
+}
+
+template<typename T>
+static void
+gum_v8_stream_get (const FunctionCallbackInfo<Value> & info,
+                   T ** stream,
+                   GumV8Stream ** module,
+                   GumV8Core ** core)
+{
+  Local<Object> instance = info.Holder ();
+
+  *stream = static_cast<T *> (
+      instance->GetAlignedPointerFromInternalField (0));
+  *module = static_cast<GumV8Stream *> (
+      instance->GetAlignedPointerFromInternalField (1));
+  *core = (*module)->core;
 }
 
 Local<Object>
@@ -353,12 +369,11 @@ static void
 gum_v8_io_stream_on_close (const FunctionCallbackInfo<Value> & info)
 {
   Isolate * isolate = info.GetIsolate ();
-  Local<Object> instance (info.Holder ());
-  GIOStream * stream = static_cast<GIOStream *> (
-      instance->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      instance->GetAlignedPointerFromInternalField (1));
-  GumV8Core * core = module->core;
+  GIOStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -493,13 +508,12 @@ static void
 gum_v8_input_stream_on_close (
     const FunctionCallbackInfo<Value> & info)
 {
-  GInputStream * stream = static_cast<GInputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8CloseInputOperation * op;
+  GInputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -516,7 +530,7 @@ gum_v8_input_stream_on_close (
     return;
   }
 
-  op = g_slice_new (GumV8CloseInputOperation);
+  GumV8CloseInputOperation * op = g_slice_new (GumV8CloseInputOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -613,13 +627,12 @@ gum_v8_input_stream_on_read_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8ReadStrategy strategy)
 {
-  GInputStream * stream = static_cast<GInputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8ReadOperation * op;
+  GInputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -646,7 +659,7 @@ gum_v8_input_stream_on_read_with_strategy (
     return;
   }
 
-  op = g_slice_new (GumV8ReadOperation);
+  GumV8ReadOperation * op = g_slice_new (GumV8ReadOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->strategy = strategy;
@@ -805,13 +818,12 @@ static void
 gum_v8_output_stream_on_close (
     const FunctionCallbackInfo<Value> & info)
 {
-  GOutputStream * stream = static_cast<GOutputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8CloseOutputOperation * op;
+  GOutputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -828,7 +840,7 @@ gum_v8_output_stream_on_close (
     return;
   }
 
-  op = g_slice_new (GumV8CloseOutputOperation);
+  GumV8CloseOutputOperation * op = g_slice_new (GumV8CloseOutputOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -925,13 +937,12 @@ gum_v8_output_stream_on_write_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8WriteStrategy strategy)
 {
-  GOutputStream * stream = static_cast<GOutputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8WriteOperation * op;
+  GOutputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -954,7 +965,7 @@ gum_v8_output_stream_on_write_with_strategy (
     return;
   }
 
-  op = g_slice_new (GumV8WriteOperation);
+  GumV8WriteOperation * op = g_slice_new (GumV8WriteOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->strategy = strategy;
