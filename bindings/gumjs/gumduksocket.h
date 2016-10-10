@@ -20,6 +20,7 @@ struct _GumDukSocket
 
 G_GNUC_INTERNAL void _gum_duk_socket_init (GumDukSocket * self,
     GumDukCore * core);
+G_GNUC_INTERNAL void _gum_duk_socket_flush (GumDukSocket * self);
 G_GNUC_INTERNAL void _gum_duk_socket_dispose (GumDukSocket * self);
 G_GNUC_INTERNAL void _gum_duk_socket_finalize (GumDukSocket * self);
 

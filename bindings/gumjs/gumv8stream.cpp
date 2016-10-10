@@ -103,7 +103,6 @@ enum _GumV8WriteStrategy
 static void gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info);
 static void gum_v8_io_stream_on_close (
     const FunctionCallbackInfo<Value> & info);
-
 static void gum_v8_close_io_stream_operation_free (
     GumV8CloseIOStreamOperation * op);
 static void gum_v8_close_io_stream_operation_start (
@@ -296,10 +295,10 @@ _gum_v8_io_stream_new (GIOStream * stream,
   Isolate * isolate = module->core->isolate;
   Local<Context> context = isolate->GetCurrentContext ();
 
-  Local<FunctionTemplate> io_stream (
+  Local<FunctionTemplate> ctor (
       Local<FunctionTemplate>::New (isolate, *module->io_stream));
   Handle<Value> argv[] = { External::New (isolate, stream) };
-  return io_stream->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
+  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
       argv).ToLocalChecked ();
 }
 
@@ -322,11 +321,10 @@ gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info)
   if (!stream_value->IsExternal ())
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid stream handle")));
+        isolate, "invalid IOStream handle")));
     return;
   }
-  GIOStream * stream = static_cast<GIOStream *> (
-      stream_value.As<External> ()->Value ());
+  GIOStream * stream = G_IO_STREAM (stream_value.As<External> ()->Value ());
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, stream);
@@ -488,7 +486,7 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
         isolate, "invalid stream handle")));
     return;
   }
-  GInputStream * stream = static_cast<GInputStream *> (
+  GInputStream * stream = G_INPUT_STREAM (
       stream_value.As<External> ()->Value ());
 
   Local<Object> instance (info.Holder ());
@@ -798,7 +796,7 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
         isolate, "invalid stream handle")));
     return;
   }
-  GOutputStream * stream = static_cast<GOutputStream *> (
+  GOutputStream * stream = G_OUTPUT_STREAM (
       stream_value.As<External> ()->Value ());
 
   Local<Object> instance (info.Holder ());

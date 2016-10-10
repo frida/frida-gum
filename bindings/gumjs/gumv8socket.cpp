@@ -9,6 +9,7 @@
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
 
+#include <gio/gnetworking.h>
 #ifdef G_OS_WIN32
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
@@ -32,11 +33,23 @@ using namespace v8;
 
 typedef struct _GumV8ConnectOperation GumV8ConnectOperation;
 
+typedef struct _GumV8SetNoDelayOperation GumV8SetNoDelayOperation;
+
 struct _GumV8ConnectOperation
 {
   GSocketClient * client;
   gchar * host;
   guint16 port;
+  GumPersistent<Function>::type * callback;
+  GumScriptJob * job;
+
+  GumV8Socket * module;
+};
+
+struct _GumV8SetNoDelayOperation
+{
+  GSocketConnection * connection;
+  gboolean no_delay;
   GumPersistent<Function>::type * callback;
   GumScriptJob * job;
 
@@ -53,6 +66,15 @@ static void gum_v8_socket_on_local_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_socket_on_peer_address (
     const FunctionCallbackInfo<Value> & info);
+
+static void gum_v8_socket_connection_on_new (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_socket_connection_on_set_no_delay (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_set_no_delay_operation_free (GumV8SetNoDelayOperation * op);
+static void gum_v8_set_no_delay_operation_perform (
+    GumV8SetNoDelayOperation * self);
+
 static Local<Value> gum_v8_socket_address_to_value (
     struct sockaddr * addr, GumV8Core * core);
 
@@ -80,6 +102,22 @@ _gum_v8_socket_init (GumV8Socket * self,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
 
+  Local<FunctionTemplate> connection = FunctionTemplate::New (isolate,
+      gum_v8_socket_connection_on_new, data);
+  connection->SetClassName (String::NewFromUtf8 (isolate,
+      "SocketConnection"));
+  Local<ObjectTemplate> connection_proto = connection->PrototypeTemplate ();
+  connection_proto->Set (String::NewFromUtf8 (isolate, "_setNoDelay"),
+      FunctionTemplate::New (isolate,
+          gum_v8_socket_connection_on_set_no_delay));
+  Local<FunctionTemplate> io_stream (Local<FunctionTemplate>::New (isolate,
+      *core->script->priv->stream.io_stream));
+  connection->Inherit (io_stream);
+  connection->InstanceTemplate ()->SetInternalFieldCount (2);
+  scope->Set (String::NewFromUtf8 (isolate, "SocketConnection"), connection);
+  self->connection =
+      new GumPersistent<FunctionTemplate>::type (isolate, connection);
+
   self->cancellable = g_cancellable_new ();
 }
 
@@ -104,6 +142,9 @@ _gum_v8_socket_dispose (GumV8Socket * self)
 void
 _gum_v8_socket_finalize (GumV8Socket * self)
 {
+  delete self->connection;
+  self->connection = nullptr;
+
   g_clear_object (&self->cancellable);
 }
 
@@ -249,8 +290,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     if (error == NULL)
     {
       error_value = null_value;
-      stream_value = _gum_v8_io_stream_new (G_IO_STREAM (connection),
-          &core->script->priv->stream);
+      stream_value = _gum_v8_socket_connection_new (connection, self->module);
     }
     else
     {
@@ -410,6 +450,172 @@ gum_v8_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
   }
 }
 
+Local<Object>
+_gum_v8_socket_connection_new (GSocketConnection * connection,
+                               GumV8Socket * module)
+{
+  Isolate * isolate = module->core->isolate;
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  Local<FunctionTemplate> ctor (
+      Local<FunctionTemplate>::New (isolate, *module->connection));
+  Handle<Value> argv[] = { External::New (isolate, connection) };
+  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
+      argv).ToLocalChecked ();
+}
+
+static void
+gum_v8_socket_connection_on_new (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Stream * module = static_cast<GumV8Stream *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  if (info.Length () < 1)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected a native SocketConnection handle")));
+    return;
+  }
+  Local<Value> connection_value = info[0];
+  if (!connection_value->IsExternal ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid SocketConnection handle")));
+    return;
+  }
+  GSocketConnection * connection = G_SOCKET_CONNECTION (
+      connection_value.As<External> ()->Value ());
+
+  Local<FunctionTemplate> base_ctor (Local<FunctionTemplate>::New (isolate,
+      *module->core->script->priv->stream.io_stream));
+  Handle<Value> argv[] = { External::New (isolate, connection) };
+  base_ctor->GetFunction ()->Call (context, info.Holder (), G_N_ELEMENTS (argv),
+      argv).ToLocalChecked ();
+}
+
+template<typename T>
+static void
+gum_v8_connection_get (const FunctionCallbackInfo<Value> & info,
+                       T ** connection,
+                       GumV8Socket ** module,
+                       GumV8Core ** core)
+{
+  Local<Object> instance = info.Holder ();
+
+  *connection = static_cast<T *> (
+      instance->GetAlignedPointerFromInternalField (0));
+  *module = static_cast<GumV8Socket *> (
+      instance->GetAlignedPointerFromInternalField (1));
+  *core = (*module)->core;
+}
+
+static void
+gum_v8_socket_connection_on_set_no_delay (
+    const FunctionCallbackInfo<Value> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+  GSocketConnection * connection;
+  GumV8Socket * module;
+  GumV8Core * core;
+
+  gum_v8_connection_get (info, &connection, &module, &core);
+
+  if (info.Length () < 2)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected boolean and callback")));
+    return;
+  }
+
+  Local<Value> no_delay_value = info[0];
+  if (!no_delay_value->IsBoolean ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected a boolean")));
+    return;
+  }
+  gboolean no_delay = no_delay_value.As<Boolean> ()->Value ();
+
+  Local<Value> callback_value = info[1];
+  if (!callback_value->IsFunction ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid callback")));
+    return;
+  }
+
+  GumV8SetNoDelayOperation * op = g_slice_new (GumV8SetNoDelayOperation);
+  op->connection = connection;
+  g_object_ref (connection);
+  op->no_delay = no_delay;
+  op->callback = new GumPersistent<Function>::type (isolate,
+      callback_value.As<Function> ());
+  op->job = gum_script_job_new (core->scheduler,
+      (GumScriptJobFunc) gum_v8_set_no_delay_operation_perform, op,
+      (GDestroyNotify) gum_v8_set_no_delay_operation_free);
+
+  op->module = module;
+
+  _gum_v8_core_pin (core);
+  gum_script_job_start_on_js_thread (op->job);
+}
+
+static void
+gum_v8_set_no_delay_operation_free (GumV8SetNoDelayOperation * op)
+{
+  GumV8Core * core = op->module->core;
+
+  {
+    ScriptScope scope (core->script);
+
+    delete op->callback;
+
+    _gum_v8_core_unpin (core);
+  }
+
+  g_object_unref (op->connection);
+
+  g_slice_free (GumV8SetNoDelayOperation, op);
+}
+
+static void
+gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
+{
+  GSocket * socket = g_socket_connection_get_socket (self->connection);
+
+  GError * error = NULL;
+  gboolean success = g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY,
+      self->no_delay, &error);
+
+  {
+    GumV8Core * core = self->module->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Value> error_value;
+    Local<Value> success_value = success ? True (isolate) : False (isolate);
+    Local<Value> null_value = Null (isolate);
+    if (error == NULL)
+    {
+      error_value = null_value;
+    }
+    else
+    {
+      error_value = Exception::Error (
+          String::NewFromUtf8 (isolate, error->message));
+      g_error_free (error);
+    }
+
+    Handle<Value> argv[] = { error_value, success_value };
+    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+
+    gum_script_job_free (self->job);
+  }
+}
+
 static Local<Value>
 gum_v8_socket_address_to_value (struct sockaddr * addr,
                                 GumV8Core * core)
@@ -478,4 +684,3 @@ gum_v8_socket_address_to_value (struct sockaddr * addr,
 
   return Null (isolate);
 }
-

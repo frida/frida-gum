@@ -945,5 +945,18 @@
         });
     };
 
+    const _setNoDelay = SocketConnection.prototype._setNoDelay;
+    SocketConnection.prototype.setNoDelay = function (noDelay = true) {
+        const connection = this;
+        return new Promise(function (resolve, reject) {
+            _setNoDelay.call(connection, noDelay, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
+
     initialize();
 })();

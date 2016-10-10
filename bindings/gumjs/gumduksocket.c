@@ -63,6 +63,12 @@ _gum_duk_socket_init (GumDukSocket * self,
 }
 
 void
+_gum_duk_socket_flush (GumDukSocket * self)
+{
+  (void) self;
+}
+
+void
 _gum_duk_socket_dispose (GumDukSocket * self)
 {
   (void) self;
