@@ -229,7 +229,7 @@ main (gint argc, gchar * argv[])
     if (v8_backend != NULL)
       TEST_RUN_LIST_WITH_DATA (script, v8_backend);
 # endif
-    TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
+    // TEST_RUN_LIST_WITH_DATA (script, gum_script_backend_obtain_duk ());
 
 # ifdef HAVE_DARWIN
 #  ifdef HAVE_V8
@@ -237,7 +237,7 @@ main (gint argc, gchar * argv[])
       TEST_RUN_LIST_WITH_DATA (script_darwin, v8_backend);
 #  endif
 
-    TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
+    // TEST_RUN_LIST_WITH_DATA (script_darwin, gum_script_backend_obtain_duk ());
 # endif
 
 # ifdef HAVE_ANDROID

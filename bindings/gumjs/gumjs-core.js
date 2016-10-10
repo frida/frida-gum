@@ -828,8 +828,40 @@
         }
     });
 
-    const InputStream = engine.UnixInputStream || engine.Win32InputStream;
-    const OutputStream = engine.UnixOutputStream || engine.Win32OutputStream;
+    Object.defineProperties(Socket, {
+        connect: {
+            enumerable: true,
+            value: function (options) {
+                return new Promise(function (resolve, reject) {
+                    const {
+                        family = 4,
+                        host = 'localhost',
+                        port,
+                    } = options;
+
+                    Socket._connect(family, host, port, function (error, stream) {
+                        if (error === null)
+                            resolve(stream);
+                        else
+                            reject(error);
+                    });
+                });
+            },
+        },
+    });
+
+    const _closeIOStream = IOStream.prototype._close;
+    IOStream.prototype.close = function () {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _closeIOStream.call(stream, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
 
     const _closeInput = InputStream.prototype._close;
     InputStream.prototype.close = function () {

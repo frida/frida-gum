@@ -862,16 +862,16 @@ _gum_v8_core_finalize (GumV8Core * self)
   self->weak_refs = NULL;
 
   delete self->native_pointer;
-  self->native_pointer = NULL;
+  self->native_pointer = nullptr;
 
   delete self->int64;
-  self->int64 = NULL;
+  self->int64 = nullptr;
 
   delete self->uint64;
-  self->uint64 = NULL;
+  self->uint64 = nullptr;
 
   delete self->cpu_context;
-  self->cpu_context = NULL;
+  self->cpu_context = nullptr;
 
   g_object_unref (self->exceptor);
   self->exceptor = NULL;

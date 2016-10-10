@@ -6,6 +6,9 @@
 
 #include "gumv8socket.h"
 
+#include "gumv8scope.h"
+#include "gumv8script-priv.h"
+
 #ifdef G_OS_WIN32
 # ifndef WIN32_LEAN_AND_MEAN
 #  define WIN32_LEAN_AND_MEAN
@@ -27,8 +30,25 @@
 
 using namespace v8;
 
-static void gum_v8_socket_on_type (
-    const FunctionCallbackInfo<Value> & info);
+typedef struct _GumV8ConnectOperation GumV8ConnectOperation;
+
+struct _GumV8ConnectOperation
+{
+  GSocketClient * client;
+  gchar * host;
+  guint16 port;
+  GumPersistent<Function>::type * callback;
+  GumScriptJob * job;
+
+  GumV8Socket * module;
+};
+
+static void gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info);
+static void gum_v8_connect_operation_free (GumV8ConnectOperation * op);
+static void gum_v8_connect_operation_start (GumV8ConnectOperation * self);
+static void gum_v8_connect_operation_finish (GSocketClient * client,
+    GAsyncResult * result, GumV8ConnectOperation * self);
+static void gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info);
 static void gum_v8_socket_on_local_address (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_socket_on_peer_address (
@@ -48,6 +68,8 @@ _gum_v8_socket_init (GumV8Socket * self,
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> socket = ObjectTemplate::New (isolate);
+  socket->Set (String::NewFromUtf8 (isolate, "_connect"),
+      FunctionTemplate::New (isolate, gum_v8_socket_on_connect, data));
   socket->Set (String::NewFromUtf8 (isolate, "type"),
       FunctionTemplate::New (isolate, gum_v8_socket_on_type));
   socket->Set (String::NewFromUtf8 (isolate, "localAddress"),
@@ -57,12 +79,20 @@ _gum_v8_socket_init (GumV8Socket * self,
       FunctionTemplate::New (isolate, gum_v8_socket_on_peer_address,
       data));
   scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
+
+  self->cancellable = g_cancellable_new ();
 }
 
 void
 _gum_v8_socket_realize (GumV8Socket * self)
 {
   (void) self;
+}
+
+void
+_gum_v8_socket_flush (GumV8Socket * self)
+{
+  g_cancellable_cancel (self->cancellable);
 }
 
 void
@@ -74,7 +104,169 @@ _gum_v8_socket_dispose (GumV8Socket * self)
 void
 _gum_v8_socket_finalize (GumV8Socket * self)
 {
-  (void) self;
+  g_clear_object (&self->cancellable);
+}
+
+/*
+ * Prototype:
+ * Socket._connect()
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+static void
+gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Socket * module = static_cast<GumV8Socket *> (
+      info.Data ().As<External> ()->Value ());
+  GumV8Core * core = module->core;
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () < 4)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected family, host, port, and callback")));
+    return;
+  }
+
+  Local<Value> family_value = info[0];
+  if (!family_value->IsNumber ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid address family")));
+    return;
+  }
+  GSocketFamily family;
+  switch (family_value->ToInteger ()->Value ())
+  {
+    case 4:
+      family = G_SOCKET_FAMILY_IPV4;
+      break;
+    case 6:
+      family = G_SOCKET_FAMILY_IPV6;
+      break;
+    default:
+      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+          isolate, "invalid address family")));
+      return;
+  }
+
+  Local<Value> host_value = info[1];
+  if (!host_value->IsString ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid host")));
+    return;
+  }
+  String::Utf8Value host_utf8 (host_value);
+  const gchar * host = *host_utf8;
+
+  Local<Value> port_value = info[2];
+  if (!port_value->IsNumber ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid port")));
+    return;
+  }
+  guint16 port = port_value->ToInteger ()->Value ();
+
+  Local<Value> callback_value = info[3];
+  if (!callback_value->IsFunction ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid callback")));
+    return;
+  }
+
+  GSocketClient * client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
+      "family", family,
+      NULL));
+
+  GumV8ConnectOperation * op = g_slice_new (GumV8ConnectOperation);
+  op->client = client;
+  op->host = g_strdup (host);
+  op->port = port;
+  op->callback = new GumPersistent<Function>::type (isolate,
+      callback_value.As<Function> ());
+  op->job = gum_script_job_new (core->scheduler,
+      (GumScriptJobFunc) gum_v8_connect_operation_start, op,
+      (GDestroyNotify) gum_v8_connect_operation_free);
+
+  op->module = module;
+
+  _gum_v8_core_pin (core);
+  gum_script_job_start_on_js_thread (op->job);
+}
+
+static void
+gum_v8_connect_operation_free (GumV8ConnectOperation * op)
+{
+  GumV8Core * core = op->module->core;
+
+  {
+    ScriptScope scope (core->script);
+
+    delete op->callback;
+
+    _gum_v8_core_unpin (core);
+  }
+
+  g_free (op->host);
+  g_object_unref (op->client);
+
+  g_slice_free (GumV8ConnectOperation, op);
+}
+
+static void
+gum_v8_connect_operation_start (GumV8ConnectOperation * self)
+{
+  g_socket_client_connect_to_host_async (self->client, self->host, self->port,
+      self->module->cancellable,
+      (GAsyncReadyCallback) gum_v8_connect_operation_finish, self);
+}
+
+static void
+gum_v8_connect_operation_finish (GSocketClient * client,
+                                 GAsyncResult * result,
+                                 GumV8ConnectOperation * self)
+{
+  GError * error = NULL;
+  GSocketConnection * connection;
+
+  connection = g_socket_client_connect_to_host_finish (client, result, &error);
+
+  {
+    GumV8Core * core = self->module->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Value> error_value;
+    Local<Value> stream_value;
+    Local<Value> null_value = Null (isolate);
+    if (error == NULL)
+    {
+      error_value = null_value;
+      stream_value = _gum_v8_io_stream_new (G_IO_STREAM (connection),
+          &core->script->priv->stream);
+    }
+    else
+    {
+      error_value = Exception::Error (
+          String::NewFromUtf8 (isolate, error->message));
+      stream_value = null_value;
+    }
+
+    g_clear_error (&error);
+
+    Handle<Value> argv[] = { error_value, stream_value };
+    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+
+    gum_script_job_free (self->job);
+  }
 }
 
 /*

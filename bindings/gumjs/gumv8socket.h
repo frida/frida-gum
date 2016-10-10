@@ -16,11 +16,14 @@ typedef struct _GumV8Socket GumV8Socket;
 struct _GumV8Socket
 {
   GumV8Core * core;
+
+  GCancellable * cancellable;
 };
 
 G_GNUC_INTERNAL void _gum_v8_socket_init (GumV8Socket * self,
     GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);
 G_GNUC_INTERNAL void _gum_v8_socket_realize (GumV8Socket * self);
+G_GNUC_INTERNAL void _gum_v8_socket_flush (GumV8Socket * self);
 G_GNUC_INTERNAL void _gum_v8_socket_dispose (GumV8Socket * self);
 G_GNUC_INTERNAL void _gum_v8_socket_finalize (GumV8Socket * self);
 
