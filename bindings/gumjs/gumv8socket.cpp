@@ -11,20 +11,10 @@
 
 #include <gio/gnetworking.h>
 #ifdef G_OS_WIN32
-# ifndef WIN32_LEAN_AND_MEAN
-#  define WIN32_LEAN_AND_MEAN
-# endif
-# include <windows.h>
-# include <winsock2.h>
-# include <ws2tcpip.h>
 # define GUM_SOCKOPT_OPTVAL(v) reinterpret_cast<char *> (v)
   typedef int gum_socklen_t;
 #else
 # include <errno.h>
-# include <arpa/inet.h>
-# include <netinet/in.h>
-# include <sys/socket.h>
-# include <sys/un.h>
 # define GUM_SOCKOPT_OPTVAL(v) (v)
   typedef socklen_t gum_socklen_t;
 #endif
@@ -32,7 +22,6 @@
 using namespace v8;
 
 typedef struct _GumV8ConnectOperation GumV8ConnectOperation;
-
 typedef struct _GumV8SetNoDelayOperation GumV8SetNoDelayOperation;
 
 struct _GumV8ConnectOperation

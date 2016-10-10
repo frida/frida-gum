@@ -18,6 +18,10 @@ struct _GumDukStream
   GumDukCore * core;
 
   GCancellable * cancellable;
+
+  GumDukHeapPtr io_stream;
+  GumDukHeapPtr input_stream;
+  GumDukHeapPtr output_stream;
 };
 
 G_GNUC_INTERNAL void _gum_duk_stream_init (GumDukStream * self,

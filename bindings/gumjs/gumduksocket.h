@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -16,6 +16,11 @@ typedef struct _GumDukSocket GumDukSocket;
 struct _GumDukSocket
 {
   GumDukCore * core;
+
+  GCancellable * cancellable;
+
+  GumDukHeapPtr io_stream;
+  GumDukHeapPtr connection;
 };
 
 G_GNUC_INTERNAL void _gum_duk_socket_init (GumDukSocket * self,
