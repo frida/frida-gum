@@ -879,7 +879,6 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
 {
   COMPILE_AND_LOAD_SCRIPT (
       "Socket.listen({"
-      "  port: 1337,"
       "  backlog: 1,"
       "})"
       ".then(function (listener) {"
