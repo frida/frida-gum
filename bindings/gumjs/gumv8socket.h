@@ -17,8 +17,10 @@ struct _GumV8Socket
 {
   GumV8Core * core;
 
+  GHashTable * listeners;
   GCancellable * cancellable;
 
+  GumPersistent<v8::FunctionTemplate>::type * listener;
   GumPersistent<v8::FunctionTemplate>::type * connection;
 };
 
@@ -28,8 +30,5 @@ G_GNUC_INTERNAL void _gum_v8_socket_realize (GumV8Socket * self);
 G_GNUC_INTERNAL void _gum_v8_socket_flush (GumV8Socket * self);
 G_GNUC_INTERNAL void _gum_v8_socket_dispose (GumV8Socket * self);
 G_GNUC_INTERNAL void _gum_v8_socket_finalize (GumV8Socket * self);
-
-v8::Local<v8::Object> _gum_v8_socket_connection_new (
-    GSocketConnection * connection, GumV8Socket * module);
 
 #endif

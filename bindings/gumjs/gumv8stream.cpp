@@ -288,20 +288,6 @@ gum_v8_stream_get (const FunctionCallbackInfo<Value> & info,
   *core = (*module)->core;
 }
 
-Local<Object>
-_gum_v8_io_stream_new (GIOStream * stream,
-                       GumV8Stream * module)
-{
-  Isolate * isolate = module->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
-
-  Local<FunctionTemplate> ctor (
-      Local<FunctionTemplate>::New (isolate, *module->io_stream));
-  Handle<Value> argv[] = { External::New (isolate, stream) };
-  return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
-      argv).ToLocalChecked ();
-}
-
 static void
 gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info)
 {

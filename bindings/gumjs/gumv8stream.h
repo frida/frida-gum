@@ -32,7 +32,4 @@ G_GNUC_INTERNAL void _gum_v8_stream_flush (GumV8Stream * self);
 G_GNUC_INTERNAL void _gum_v8_stream_dispose (GumV8Stream * self);
 G_GNUC_INTERNAL void _gum_v8_stream_finalize (GumV8Stream * self);
 
-G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_io_stream_new (GIOStream * stream,
-    GumV8Stream * module);
-
 #endif
