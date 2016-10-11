@@ -964,6 +964,8 @@ gum_v8_core_on_script_get_file_name (Local<String> property,
       info.Data ().As<External> ()->Value ());
   GumV8ScriptPrivate * priv = self->script->priv;
 
+  (void) property;
+
   Local<Value> result;
   if (priv->code != nullptr)
   {
@@ -989,6 +991,8 @@ gum_v8_core_on_script_get_source_map_data (
   GumV8Core * self = static_cast<GumV8Core *> (
       info.Data ().As<External> ()->Value ());
   GumV8ScriptPrivate * priv = self->script->priv;
+
+  (void) property;
 
   Local<Value> result;
   if (priv->code != nullptr)

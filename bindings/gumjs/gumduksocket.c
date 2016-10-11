@@ -576,6 +576,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
 {
   GSocketListener * listener;
 
+  (void) args;
+
   listener = G_SOCKET_LISTENER (duk_require_pointer (ctx, 0));
 
   duk_push_this (ctx);

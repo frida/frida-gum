@@ -213,6 +213,9 @@ gum_v8_instruction_on_get_address (Local<String> property,
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
+
+  (void) property;
+
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->insn.address),
           self->module->core));
@@ -226,6 +229,9 @@ gum_v8_instruction_on_get_next (Local<String> property,
       info.Holder ()->GetAlignedPointerFromInternalField (0));
   gpointer next = GSIZE_TO_POINTER (
       GPOINTER_TO_SIZE (self->target) + self->insn.size);
+
+  (void) property;
+
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (next, self->module->core));
 }
@@ -236,6 +242,9 @@ gum_v8_instruction_on_get_size (Local<String> property,
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
+
+  (void) property;
+
   info.GetReturnValue ().Set (self->insn.size);
 }
 
@@ -245,6 +254,9 @@ gum_v8_instruction_on_get_mnemonic (Local<String> property,
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
+
+  (void) property;
+
   info.GetReturnValue ().Set (
       String::NewFromUtf8 (info.GetIsolate (), self->insn.mnemonic));
 }
@@ -255,6 +267,9 @@ gum_v8_instruction_on_get_op_str (Local<String> property,
 {
   GumInstruction * self = static_cast<GumInstruction *> (
       info.Holder ()->GetAlignedPointerFromInternalField (0));
+
+  (void) property;
+
   info.GetReturnValue ().Set (
       String::NewFromUtf8 (info.GetIsolate (), self->insn.op_str));
 }

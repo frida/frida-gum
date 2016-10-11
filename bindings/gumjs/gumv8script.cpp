@@ -473,6 +473,9 @@ gum_v8_script_do_load (GumScriptTask * task,
 {
   GumV8Script * self = GUM_V8_SCRIPT (source_object);
 
+  (void) task_data;
+  (void) cancellable;
+
   switch (self->priv->state)
   {
     case GUM_SCRIPT_STATE_UNLOADED:
@@ -571,6 +574,9 @@ gum_v8_script_do_unload (GumScriptTask * task,
   GumV8Script * self = GUM_V8_SCRIPT (source_object);
   GumV8ScriptPrivate * priv = self->priv;
 
+  (void) task_data;
+  (void) cancellable;
+
   switch (priv->state)
   {
     case GUM_SCRIPT_STATE_UNLOADED:
@@ -597,6 +603,8 @@ static void
 gum_v8_script_complete_unload_task (GumV8Script * self,
                                     GumScriptTask * task)
 {
+  (void) self;
+
   gum_script_task_return_pointer (task, NULL, NULL);
 }
 

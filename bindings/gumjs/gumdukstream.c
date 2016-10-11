@@ -415,6 +415,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_input_stream_construct)
 {
   GInputStream * stream;
 
+  (void) args;
+
   stream = G_INPUT_STREAM (duk_require_pointer (ctx, 0));
 
   duk_push_this (ctx);
@@ -713,6 +715,8 @@ gum_duk_push_output_stream (duk_context * ctx,
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
 {
   GOutputStream * stream;
+
+  (void) args;
 
   stream = G_OUTPUT_STREAM (duk_require_pointer (ctx, 0));
 

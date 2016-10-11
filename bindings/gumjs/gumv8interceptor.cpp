@@ -963,6 +963,9 @@ gumjs_invocation_context_on_set_property (
   GumV8Interceptor * interceptor = static_cast<GumV8Interceptor *> (
       info.Data ().As<External> ()->Value ());
 
+  (void) property;
+  (void) value;
+
   if (info.Holder () == *interceptor->cached_invocation_context->object)
   {
     interceptor->cached_invocation_context =
