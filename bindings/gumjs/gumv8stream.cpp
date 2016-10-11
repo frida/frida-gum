@@ -28,6 +28,8 @@ typedef gpointer GumStreamHandle;
 typedef gint GumStreamHandle;
 #endif
 
+typedef struct _GumV8CloseIOStreamOperation GumV8CloseIOStreamOperation;
+
 typedef struct _GumV8CloseInputOperation GumV8CloseInputOperation;
 typedef struct _GumV8ReadOperation GumV8ReadOperation;
 typedef guint GumV8ReadStrategy;
@@ -35,6 +37,15 @@ typedef guint GumV8ReadStrategy;
 typedef struct _GumV8CloseOutputOperation GumV8CloseOutputOperation;
 typedef struct _GumV8WriteOperation GumV8WriteOperation;
 typedef guint GumV8WriteStrategy;
+
+struct _GumV8CloseIOStreamOperation
+{
+  GIOStream * stream;
+  GumPersistent<Function>::type * callback;
+  GumScriptJob * job;
+
+  GumV8Stream * module;
+};
 
 struct _GumV8CloseInputOperation
 {
@@ -89,6 +100,16 @@ enum _GumV8WriteStrategy
   GUM_V8_WRITE_ALL
 };
 
+static void gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info);
+static void gum_v8_io_stream_on_close (
+    const FunctionCallbackInfo<Value> & info);
+static void gum_v8_close_io_stream_operation_free (
+    GumV8CloseIOStreamOperation * op);
+static void gum_v8_close_io_stream_operation_start (
+    GumV8CloseIOStreamOperation * self);
+static void gum_v8_close_io_stream_operation_finish (GIOStream * stream,
+    GAsyncResult * result, GumV8CloseIOStreamOperation * self);
+
 static void gum_v8_input_stream_on_new (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_input_stream_on_close (
@@ -128,7 +149,13 @@ static void gum_v8_write_operation_start (GumV8WriteOperation * self);
 static void gum_v8_write_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumV8WriteOperation * self);
 
-static gboolean gum_v8_stream_constructor_args_parse (
+static void gum_v8_native_input_stream_on_new (
+    const FunctionCallbackInfo<Value> & info);
+
+static void gum_v8_native_output_stream_on_new (
+    const FunctionCallbackInfo<Value> & info);
+
+static gboolean gum_v8_native_stream_ctor_args_parse (
     const FunctionCallbackInfo<Value> & info, GumStreamHandle * handle,
     gboolean * auto_close, GumV8Core * core);
 
@@ -147,36 +174,66 @@ _gum_v8_stream_init (GumV8Stream * self,
 
   Local<External> data (External::New (isolate, self));
 
+  Local<FunctionTemplate> io_stream = FunctionTemplate::New (isolate,
+      gum_v8_io_stream_on_new, data);
+  io_stream->SetClassName (String::NewFromUtf8 (isolate, "IOStream"));
+  Local<ObjectTemplate> io_stream_proto = io_stream->PrototypeTemplate ();
+  io_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
+      FunctionTemplate::New (isolate, gum_v8_io_stream_on_close));
+  Local<ObjectTemplate> io_stream_object = io_stream->InstanceTemplate ();
+  io_stream_object->SetInternalFieldCount (2);
+  scope->Set (String::NewFromUtf8 (isolate, "IOStream"), io_stream);
+  self->io_stream =
+      new GumPersistent<FunctionTemplate>::type (isolate, io_stream);
+
   Local<FunctionTemplate> input_stream = FunctionTemplate::New (isolate,
       gum_v8_input_stream_on_new, data);
-  input_stream->SetClassName (String::NewFromUtf8 (isolate,
-      GUM_NATIVE_INPUT_STREAM));
+  input_stream->SetClassName (String::NewFromUtf8 (isolate, "InputStream"));
   Local<ObjectTemplate> input_stream_proto = input_stream->PrototypeTemplate ();
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_close, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_close));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_read"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_readAll"),
-      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all, data));
+      FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all));
   input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
-  scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_INPUT_STREAM),
-      input_stream);
+  scope->Set (String::NewFromUtf8 (isolate, "InputStream"), input_stream);
+  self->input_stream =
+      new GumPersistent<FunctionTemplate>::type (isolate, input_stream);
 
   Local<FunctionTemplate> output_stream = FunctionTemplate::New (isolate,
       gum_v8_output_stream_on_new, data);
-  output_stream->SetClassName (String::NewFromUtf8 (isolate,
-      GUM_NATIVE_OUTPUT_STREAM));
+  output_stream->SetClassName (String::NewFromUtf8 (isolate, "OutputStream"));
   Local<ObjectTemplate> output_stream_proto =
       output_stream->PrototypeTemplate ();
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_close, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_close));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_write"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_writeAll"),
-      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all, data));
+      FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all));
   output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  scope->Set (String::NewFromUtf8 (isolate, "OutputStream"), output_stream);
+  self->output_stream =
+      new GumPersistent<FunctionTemplate>::type (isolate, output_stream);
+
+  Local<FunctionTemplate> native_input_stream = FunctionTemplate::New (isolate,
+      gum_v8_native_input_stream_on_new, data);
+  native_input_stream->SetClassName (String::NewFromUtf8 (isolate,
+      GUM_NATIVE_INPUT_STREAM));
+  native_input_stream->Inherit (input_stream);
+  native_input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_INPUT_STREAM),
+      native_input_stream);
+
+  Local<FunctionTemplate> native_output_stream = FunctionTemplate::New (isolate,
+      gum_v8_native_output_stream_on_new, data);
+  native_output_stream->SetClassName (String::NewFromUtf8 (isolate,
+      GUM_NATIVE_OUTPUT_STREAM));
+  native_output_stream->Inherit (output_stream);
+  native_output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
   scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_OUTPUT_STREAM),
-      output_stream);
+      native_output_stream);
 
   self->streams = g_hash_table_new_full (NULL, NULL, g_object_unref,
       gum_v8_stream_handle_free);
@@ -204,44 +261,87 @@ _gum_v8_stream_dispose (GumV8Stream * self)
 void
 _gum_v8_stream_finalize (GumV8Stream * self)
 {
+  delete self->io_stream;
+  delete self->input_stream;
+  delete self->output_stream;
+  self->io_stream = nullptr;
+  self->input_stream = nullptr;
+  self->output_stream = nullptr;
+
   g_clear_object (&self->cancellable);
   g_clear_pointer (&self->streams, g_hash_table_unref);
 }
 
+template<typename T>
 static void
-gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
+gum_v8_stream_get (const FunctionCallbackInfo<Value> & info,
+                   T ** stream,
+                   GumV8Stream ** module,
+                   GumV8Core ** core)
+{
+  Local<Object> instance = info.Holder ();
+
+  *stream = static_cast<T *> (
+      instance->GetAlignedPointerFromInternalField (0));
+  *module = static_cast<GumV8Stream *> (
+      instance->GetAlignedPointerFromInternalField (1));
+  *core = (*module)->core;
+}
+
+static void
+gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Stream * module = static_cast<GumV8Stream *> (
       info.Data ().As<External> ()->Value ());
   GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
+  Local<Context> context = isolate->GetCurrentContext ();
 
-  if (!info.IsConstructCall ())
+  if (info.Length () < 1)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new " GUM_NATIVE_INPUT_STREAM "()` to create a new "
-        "instance")));
+        isolate, "expected a native IOStream handle")));
     return;
   }
-
-  GumStreamHandle handle;
-  gboolean auto_close;
-  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close, core))
+  Local<Value> stream_value = info[0];
+  if (!stream_value->IsExternal ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid IOStream handle")));
     return;
-
-  GInputStream * stream;
-#ifdef G_OS_WIN32
-  stream = g_win32_input_stream_new (handle, auto_close);
-#else
-  stream = g_unix_input_stream_new (handle, auto_close);
-#endif
+  }
+  GIOStream * stream = G_IO_STREAM (stream_value.As<External> ()->Value ());
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, stream);
   instance->SetAlignedPointerInInternalField (1, module);
 
+  {
+    Local<FunctionTemplate> ctor (
+        Local<FunctionTemplate>::New (isolate, *module->input_stream));
+    Handle<Value> argv[] = {
+      External::New (isolate, g_object_ref (
+          g_io_stream_get_input_stream (stream)))
+    };
+    Local<Object> input = ctor->GetFunction ()->NewInstance (context,
+        G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+    _gum_v8_object_set (instance, "input", input, core);
+  }
+
+  {
+    Local<FunctionTemplate> ctor (
+        Local<FunctionTemplate>::New (isolate, *module->output_stream));
+    Handle<Value> argv[] = {
+      External::New (isolate, g_object_ref (
+          g_io_stream_get_output_stream (stream)))
+    };
+    Local<Object> output = ctor->GetFunction ()->NewInstance (context,
+        G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+    _gum_v8_object_set (instance, "output", output, core);
+  }
+
   GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (core->isolate, instance);
+      new GumPersistent<Object>::type (isolate, instance);
   instance_handle->MarkIndependent ();
   instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
       WeakCallbackType::kInternalFields);
@@ -250,16 +350,14 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
-gum_v8_input_stream_on_close (
-    const FunctionCallbackInfo<Value> & info)
+gum_v8_io_stream_on_close (const FunctionCallbackInfo<Value> & info)
 {
-  GInputStream * stream = static_cast<GInputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8CloseInputOperation * op;
+  GIOStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -276,7 +374,147 @@ gum_v8_input_stream_on_close (
     return;
   }
 
-  op = g_slice_new (GumV8CloseInputOperation);
+  GumV8CloseIOStreamOperation * op = g_slice_new (GumV8CloseIOStreamOperation);
+  op->stream = stream;
+  g_object_ref (stream);
+  op->callback = new GumPersistent<Function>::type (isolate,
+      callback_value.As<Function> ());
+  op->job = gum_script_job_new (core->scheduler,
+      (GumScriptJobFunc) gum_v8_close_io_stream_operation_start, op,
+      (GDestroyNotify) gum_v8_close_io_stream_operation_free);
+
+  op->module = module;
+
+  _gum_v8_core_pin (core);
+  gum_script_job_start_on_js_thread (op->job);
+}
+
+static void
+gum_v8_close_io_stream_operation_free (GumV8CloseIOStreamOperation * op)
+{
+  GumV8Core * core = op->module->core;
+
+  {
+    ScriptScope scope (core->script);
+
+    delete op->callback;
+
+    _gum_v8_core_unpin (core);
+  }
+
+  g_object_unref (op->stream);
+
+  g_slice_free (GumV8CloseIOStreamOperation, op);
+}
+
+static void
+gum_v8_close_io_stream_operation_start (GumV8CloseIOStreamOperation * self)
+{
+  g_io_stream_close_async (self->stream, G_PRIORITY_DEFAULT,
+      self->module->cancellable,
+      (GAsyncReadyCallback) gum_v8_close_io_stream_operation_finish, self);
+}
+
+static void
+gum_v8_close_io_stream_operation_finish (GIOStream * stream,
+                                         GAsyncResult * result,
+                                         GumV8CloseIOStreamOperation * self)
+{
+  GError * error = NULL;
+  gboolean success;
+
+  success = g_io_stream_close_finish (stream, result, &error);
+
+  {
+    GumV8Core * core = self->module->core;
+    ScriptScope scope (core->script);
+    Isolate * isolate = core->isolate;
+
+    Local<Value> error_value;
+    Local<Value> success_value = success ? True (isolate) : False (isolate);
+    Local<Value> null_value = Null (isolate);
+    if (error == NULL)
+    {
+      error_value = null_value;
+    }
+    else
+    {
+      error_value = Exception::Error (
+          String::NewFromUtf8 (isolate, error->message));
+      g_error_free (error);
+    }
+
+    Handle<Value> argv[] = { error_value, success_value };
+    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+  }
+
+  gum_script_job_free (self->job);
+}
+
+static void
+gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Stream * module = static_cast<GumV8Stream *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () < 1)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected a native InputStream handle")));
+    return;
+  }
+  Local<Value> stream_value = info[0];
+  if (!stream_value->IsExternal ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid stream handle")));
+    return;
+  }
+  GInputStream * stream = G_INPUT_STREAM (
+      stream_value.As<External> ()->Value ());
+
+  Local<Object> instance (info.Holder ());
+  instance->SetAlignedPointerInInternalField (0, stream);
+  instance->SetAlignedPointerInInternalField (1, module);
+
+  GumPersistent<Object>::type * instance_handle =
+      new GumPersistent<Object>::type (isolate, instance);
+  instance_handle->MarkIndependent ();
+  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
+      WeakCallbackType::kInternalFields);
+
+  g_hash_table_insert (module->streams, stream, instance_handle);
+}
+
+static void
+gum_v8_input_stream_on_close (
+    const FunctionCallbackInfo<Value> & info)
+{
+  Isolate * isolate = info.GetIsolate ();
+  GInputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
+
+  if (info.Length () < 1)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected callback")));
+    return;
+  }
+
+  Local<Value> callback_value = info[0];
+  if (!callback_value->IsFunction ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid callback")));
+    return;
+  }
+
+  GumV8CloseInputOperation * op = g_slice_new (GumV8CloseInputOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -349,9 +587,9 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -373,13 +611,12 @@ gum_v8_input_stream_on_read_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8ReadStrategy strategy)
 {
-  GInputStream * stream = static_cast<GInputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8ReadOperation * op;
+  GInputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -406,7 +643,7 @@ gum_v8_input_stream_on_read_with_strategy (
     return;
   }
 
-  op = g_slice_new (GumV8ReadOperation);
+  GumV8ReadOperation * op = g_slice_new (GumV8ReadOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->strategy = strategy;
@@ -520,9 +757,9 @@ gum_v8_read_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, data_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -530,35 +767,30 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Stream * module = static_cast<GumV8Stream *> (
       info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
 
-  if (!info.IsConstructCall ())
+  if (info.Length () < 1)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new " GUM_NATIVE_OUTPUT_STREAM "()` to create a new "
-        "instance")));
+        isolate, "expected a native OutputStream handle")));
     return;
   }
-
-  GumStreamHandle handle;
-  gboolean auto_close;
-  if (!gum_v8_stream_constructor_args_parse (info, &handle, &auto_close, core))
+  Local<Value> stream_value = info[0];
+  if (!stream_value->IsExternal ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "invalid stream handle")));
     return;
-
-  GOutputStream * stream;
-#ifdef G_OS_WIN32
-  stream = g_win32_output_stream_new (handle, auto_close);
-#else
-  stream = g_unix_output_stream_new (handle, auto_close);
-#endif
+  }
+  GOutputStream * stream = G_OUTPUT_STREAM (
+      stream_value.As<External> ()->Value ());
 
   Local<Object> instance (info.Holder ());
   instance->SetAlignedPointerInInternalField (0, stream);
   instance->SetAlignedPointerInInternalField (1, module);
 
   GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (core->isolate, instance);
+      new GumPersistent<Object>::type (isolate, instance);
   instance_handle->MarkIndependent ();
   instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
       WeakCallbackType::kInternalFields);
@@ -570,13 +802,12 @@ static void
 gum_v8_output_stream_on_close (
     const FunctionCallbackInfo<Value> & info)
 {
-  GOutputStream * stream = static_cast<GOutputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8CloseOutputOperation * op;
+  GOutputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -593,7 +824,7 @@ gum_v8_output_stream_on_close (
     return;
   }
 
-  op = g_slice_new (GumV8CloseOutputOperation);
+  GumV8CloseOutputOperation * op = g_slice_new (GumV8CloseOutputOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -666,9 +897,9 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -690,13 +921,12 @@ gum_v8_output_stream_on_write_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8WriteStrategy strategy)
 {
-  GOutputStream * stream = static_cast<GOutputStream *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumV8Stream * module = static_cast<GumV8Stream *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
-  GumV8WriteOperation * op;
+  GOutputStream * stream;
+  GumV8Stream * module;
+  GumV8Core * core;
+
+  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -719,7 +949,7 @@ gum_v8_output_stream_on_write_with_strategy (
     return;
   }
 
-  op = g_slice_new (GumV8WriteOperation);
+  GumV8WriteOperation * op = g_slice_new (GumV8WriteOperation);
   op->stream = stream;
   g_object_ref (stream);
   op->strategy = strategy;
@@ -830,13 +1060,85 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, size_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
+}
+
+static void
+gum_v8_native_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Stream * module = static_cast<GumV8Stream *> (
+      info.Data ().As<External> ()->Value ());
+  GumV8Core * core = module->core;
+  Isolate * isolate = info.GetIsolate ();
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new " GUM_NATIVE_INPUT_STREAM "()` to create a new "
+        "instance")));
+    return;
+  }
+
+  GumStreamHandle handle;
+  gboolean auto_close;
+  if (!gum_v8_native_stream_ctor_args_parse (info, &handle, &auto_close, core))
+    return;
+
+  GInputStream * stream;
+#ifdef G_OS_WIN32
+  stream = g_win32_input_stream_new (handle, auto_close);
+#else
+  stream = g_unix_input_stream_new (handle, auto_close);
+#endif
+
+  Local<FunctionTemplate> base_ctor (
+      Local<FunctionTemplate>::New (isolate, *module->input_stream));
+  Handle<Value> argv[] = { External::New (isolate, stream) };
+  base_ctor->GetFunction ()->Call (context, info.Holder (), G_N_ELEMENTS (argv),
+      argv).ToLocalChecked ();
+}
+
+static void
+gum_v8_native_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Stream * module = static_cast<GumV8Stream *> (
+      info.Data ().As<External> ()->Value ());
+  GumV8Core * core = module->core;
+  Isolate * isolate = info.GetIsolate ();
+  Local<Context> context = isolate->GetCurrentContext ();
+
+  if (!info.IsConstructCall ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "Use `new " GUM_NATIVE_OUTPUT_STREAM "()` to create a new "
+        "instance")));
+    return;
+  }
+
+  GumStreamHandle handle;
+  gboolean auto_close;
+  if (!gum_v8_native_stream_ctor_args_parse (info, &handle, &auto_close, core))
+    return;
+
+  GOutputStream * stream;
+#ifdef G_OS_WIN32
+  stream = g_win32_output_stream_new (handle, auto_close);
+#else
+  stream = g_unix_output_stream_new (handle, auto_close);
+#endif
+
+  Local<FunctionTemplate> base_ctor (
+      Local<FunctionTemplate>::New (isolate, *module->output_stream));
+  Handle<Value> argv[] = { External::New (isolate, stream) };
+  base_ctor->GetFunction ()->Call (context, info.Holder (), G_N_ELEMENTS (argv),
+      argv).ToLocalChecked ();
 }
 
 static gboolean
-gum_v8_stream_constructor_args_parse (const FunctionCallbackInfo<Value> & info,
+gum_v8_native_stream_ctor_args_parse (const FunctionCallbackInfo<Value> & info,
                                       GumStreamHandle * handle,
                                       gboolean * auto_close,
                                       GumV8Core * core)

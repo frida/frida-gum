@@ -216,6 +216,15 @@ _gum_duk_args_parse (const GumDukArgs * args,
 
         break;
       }
+      case 't':
+      {
+        if (!duk_is_boolean (ctx, arg_index))
+          goto expected_boolean;
+
+        *va_arg (ap, gboolean *) = duk_require_boolean (ctx, arg_index);
+
+        break;
+      }
       case 'p':
       {
         gpointer ptr;
@@ -456,6 +465,11 @@ expected_uint:
 expected_number:
   {
     error_message = "expected a number";
+    goto error;
+  }
+expected_boolean:
+  {
+    error_message = "expected a boolean";
     goto error;
   }
 expected_pointer:

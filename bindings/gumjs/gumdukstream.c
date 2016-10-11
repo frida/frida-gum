@@ -26,6 +26,8 @@ typedef gpointer GumStreamHandle;
 typedef gint GumStreamHandle;
 #endif
 
+typedef struct _GumDukCloseIOStreamOperation GumDukCloseIOStreamOperation;
+
 typedef struct _GumDukCloseInputOperation GumDukCloseInputOperation;
 typedef struct _GumDukReadOperation GumDukReadOperation;
 typedef guint GumDukReadStrategy;
@@ -33,6 +35,15 @@ typedef guint GumDukReadStrategy;
 typedef struct _GumDukCloseOutputOperation GumDukCloseOutputOperation;
 typedef struct _GumDukWriteOperation GumDukWriteOperation;
 typedef guint GumDukWriteStrategy;
+
+struct _GumDukCloseIOStreamOperation
+{
+  GIOStream * stream;
+  GumDukHeapPtr callback;
+  GumScriptJob * job;
+
+  GumDukStream * module;
+};
 
 struct _GumDukCloseInputOperation
 {
@@ -87,6 +98,18 @@ enum _GumDukWriteStrategy
   GUM_DUK_WRITE_ALL
 };
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_io_stream_construct)
+GUMJS_DECLARE_FINALIZER (gumjs_io_stream_finalize)
+GUMJS_DECLARE_FUNCTION (gumjs_io_stream_close)
+static void gum_duk_close_io_stream_operation_free (
+    GumDukCloseIOStreamOperation * op);
+static void gum_duk_close_io_stream_operation_start (
+    GumDukCloseIOStreamOperation * self);
+static void gum_duk_close_io_stream_operation_finish (GIOStream * stream,
+    GAsyncResult * result, GumDukCloseIOStreamOperation * self);
+
+static void gum_duk_push_input_stream (duk_context * ctx, GInputStream * stream,
+    GumDukStream * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_input_stream_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_input_stream_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_input_stream_close)
@@ -104,6 +127,8 @@ static void gum_duk_read_operation_start (GumDukReadOperation * self);
 static void gum_duk_read_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumDukReadOperation * self);
 
+static void gum_duk_push_output_stream (duk_context * ctx,
+    GOutputStream * stream, GumDukStream * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_output_stream_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_output_stream_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_output_stream_close)
@@ -122,8 +147,19 @@ static void gum_duk_write_operation_start (GumDukWriteOperation * self);
 static void gum_duk_write_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumDukWriteOperation * self);
 
-static void gum_duk_stream_constructor_args_parse (const GumDukArgs * args,
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_input_stream_construct)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_output_stream_construct)
+
+static void gum_duk_native_stream_ctor_args_parse (const GumDukArgs * args,
     GumStreamHandle * handle, gboolean * auto_close);
+
+static const duk_function_list_entry gumjs_io_stream_functions[] =
+{
+  { "_close", gumjs_io_stream_close, 1 },
+
+  { NULL, NULL, 0 }
+};
 
 static const duk_function_list_entry gumjs_input_stream_functions[] =
 {
@@ -154,13 +190,23 @@ _gum_duk_stream_init (GumDukStream * self,
 
   _gum_duk_store_module_data (ctx, "stream", self);
 
+  duk_push_c_function (ctx, gumjs_io_stream_construct, 2);
+  duk_push_object (ctx);
+  duk_put_function_list (ctx, -1, gumjs_io_stream_functions);
+  duk_push_c_function (ctx, gumjs_io_stream_finalize, 1);
+  duk_set_finalizer (ctx, -2);
+  duk_put_prop_string (ctx, -2, "prototype");
+  self->io_stream = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "IOStream");
+
   duk_push_c_function (ctx, gumjs_input_stream_construct, 2);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_input_stream_functions);
   duk_push_c_function (ctx, gumjs_input_stream_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  duk_put_global_string (ctx, GUM_NATIVE_INPUT_STREAM);
+  self->input_stream = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "InputStream");
 
   duk_push_c_function (ctx, gumjs_output_stream_construct, 2);
   duk_push_object (ctx);
@@ -168,7 +214,14 @@ _gum_duk_stream_init (GumDukStream * self,
   duk_push_c_function (ctx, gumjs_output_stream_finalize, 1);
   duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
-  duk_put_global_string (ctx, GUM_NATIVE_OUTPUT_STREAM);
+  self->output_stream = _gum_duk_require_heapptr (ctx, -1);
+  duk_put_global_string (ctx, "OutputStream");
+
+  _gum_duk_create_subclass (ctx, "InputStream", GUM_NATIVE_INPUT_STREAM,
+      gumjs_native_input_stream_construct, 2, NULL);
+
+  _gum_duk_create_subclass (ctx, "OutputStream", GUM_NATIVE_OUTPUT_STREAM,
+      gumjs_native_output_stream_construct, 2, NULL);
 
   self->cancellable = g_cancellable_new ();
 }
@@ -182,7 +235,12 @@ _gum_duk_stream_flush (GumDukStream * self)
 void
 _gum_duk_stream_dispose (GumDukStream * self)
 {
-  (void) self;
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+  duk_context * ctx = scope.ctx;
+
+  _gum_duk_release_heapptr (ctx, self->io_stream);
+  _gum_duk_release_heapptr (ctx, self->input_stream);
+  _gum_duk_release_heapptr (ctx, self->output_stream);
 }
 
 void
@@ -210,26 +268,154 @@ gumjs_stream_from_args (const GumDukArgs * args)
   return stream;
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
+{
+  GIOStream * stream;
+  GumDukStream * module;
+
+  stream = G_IO_STREAM (duk_require_pointer (ctx, 0));
+  module = gumjs_module_from_args (args);
+
+  duk_push_this (ctx);
+
+  gum_duk_push_input_stream (ctx,
+      g_object_ref (g_io_stream_get_input_stream (stream)), module);
+  duk_put_prop_string (ctx, -2, "input");
+
+  gum_duk_push_output_stream (ctx,
+      g_object_ref (g_io_stream_get_output_stream (stream)), module);
+  duk_put_prop_string (ctx, -2, "output");
+
+  _gum_duk_put_data (ctx, -1, stream);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FINALIZER (gumjs_io_stream_finalize)
+{
+  GIOStream * stream;
+
+  (void) args;
+
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "IOStream"))
+    return 0;
+
+  stream = _gum_duk_steal_data (ctx, 0);
+  if (stream == NULL)
+    return 0;
+
+  g_object_unref (stream);
+
+  return 0;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
+{
+  GIOStream * stream;
+  GumDukStream * module;
+  GumDukCore * core;
+  GumDukHeapPtr callback;
+  GumDukCloseIOStreamOperation * op;
+
+  stream = gumjs_stream_from_args (args);
+  module = gumjs_module_from_args (args);
+  core = module->core;
+
+  _gum_duk_args_parse (args, "F", &callback);
+
+  duk_push_heapptr (ctx, callback);
+
+  op = g_slice_new (GumDukCloseIOStreamOperation);
+  op->stream = g_object_ref (stream);
+  op->callback = _gum_duk_require_heapptr (ctx, -1);
+  op->job = gum_script_job_new (core->scheduler,
+      (GumScriptJobFunc) gum_duk_close_io_stream_operation_start, op,
+      (GDestroyNotify) gum_duk_close_io_stream_operation_free);
+
+  op->module = module;
+
+  _gum_duk_core_pin (core);
+  gum_script_job_start_on_js_thread (op->job);
+
+  duk_pop (ctx);
+
+  return 0;
+}
+
+static void
+gum_duk_close_io_stream_operation_free (GumDukCloseIOStreamOperation * op)
+{
+  GumDukCore * core = op->module->core;
+  GumDukScope scope;
+  duk_context * ctx;
+
+  ctx = _gum_duk_scope_enter (&scope, core);
+  _gum_duk_core_unpin (core);
+  _gum_duk_release_heapptr (ctx, op->callback);
+  _gum_duk_scope_leave (&scope);
+
+  g_object_unref (op->stream);
+
+  g_slice_free (GumDukCloseIOStreamOperation, op);
+}
+
+static void
+gum_duk_close_io_stream_operation_start (GumDukCloseIOStreamOperation * self)
+{
+  g_io_stream_close_async (self->stream, G_PRIORITY_DEFAULT,
+      self->module->cancellable,
+      (GAsyncReadyCallback) gum_duk_close_io_stream_operation_finish, self);
+}
+
+static void
+gum_duk_close_io_stream_operation_finish (GIOStream * stream,
+                                          GAsyncResult * result,
+                                          GumDukCloseIOStreamOperation * self)
+{
+  GError * error = NULL;
+  gboolean success;
+  GumDukScope scope;
+  duk_context * ctx;
+
+  success = g_io_stream_close_finish (stream, result, &error);
+
+  ctx = _gum_duk_scope_enter (&scope, self->module->core);
+
+  duk_push_heapptr (ctx, self->callback);
+  if (error == NULL)
+  {
+    duk_push_null (ctx);
+  }
+  else
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR, "%s", error->message);
+    g_error_free (error);
+  }
+  duk_push_boolean (ctx, success);
+  _gum_duk_scope_call (&scope, 2);
+  duk_pop (ctx);
+
+  _gum_duk_scope_leave (&scope);
+
+  gum_script_job_free (self->job);
+}
+
+static void
+gum_duk_push_input_stream (duk_context * ctx,
+                           GInputStream * stream,
+                           GumDukStream * module)
+{
+  duk_push_heapptr (ctx, module->input_stream);
+  duk_push_pointer (ctx, stream);
+  duk_new (ctx, 1);
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_input_stream_construct)
 {
-  GumStreamHandle handle;
-  gboolean auto_close;
-
-  if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new " GUM_NATIVE_INPUT_STREAM "()` to create a new instance");
-    duk_throw (ctx);
-  }
-
-  gum_duk_stream_constructor_args_parse (args, &handle, &auto_close);
-
   GInputStream * stream;
-#ifdef G_OS_WIN32
-  stream = g_win32_input_stream_new (handle, auto_close);
-#else
-  stream = g_unix_input_stream_new (handle, auto_close);
-#endif
+
+  stream = G_INPUT_STREAM (duk_require_pointer (ctx, 0));
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, stream);
@@ -244,7 +430,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_input_stream_finalize)
 
   (void) args;
 
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, GUM_NATIVE_INPUT_STREAM))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "InputStream"))
     return 0;
 
   stream = _gum_duk_steal_data (ctx, 0);
@@ -319,15 +505,14 @@ gum_duk_close_input_operation_finish (GInputStream * stream,
                                       GAsyncResult * result,
                                       GumDukCloseInputOperation * self)
 {
-  GumDukCore * core = self->module->core;
-  duk_context * ctx;
   GError * error = NULL;
   gboolean success;
   GumDukScope scope;
+  duk_context * ctx;
 
   success = g_input_stream_close_finish (stream, result, &error);
 
-  ctx = _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, self->module->core);
 
   duk_push_heapptr (ctx, self->callback);
   if (error == NULL)
@@ -440,11 +625,10 @@ gum_duk_read_operation_finish (GInputStream * stream,
                                GAsyncResult * result,
                                GumDukReadOperation * self)
 {
-  GumDukCore * core = self->module->core;
-  duk_context * ctx;
   gsize bytes_read = 0;
   GError * error = NULL;
   GumDukScope scope;
+  duk_context * ctx;
   gboolean emit_data;
 
   if (self->strategy == GUM_DUK_READ_SOME)
@@ -462,7 +646,7 @@ gum_duk_read_operation_finish (GInputStream * stream,
     g_input_stream_read_all_finish (stream, result, &bytes_read, &error);
   }
 
-  ctx = _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, self->module->core);
 
   duk_push_heapptr (ctx, self->callback);
 
@@ -516,26 +700,21 @@ gum_duk_read_operation_finish (GInputStream * stream,
   gum_script_job_free (self->job);
 }
 
+static void
+gum_duk_push_output_stream (duk_context * ctx,
+                            GOutputStream * stream,
+                            GumDukStream * module)
+{
+  duk_push_heapptr (ctx, module->output_stream);
+  duk_push_pointer (ctx, stream);
+  duk_new (ctx, 1);
+}
+
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
 {
-  GumStreamHandle handle;
-  gboolean auto_close;
-
-  if (!duk_is_constructor_call (ctx))
-  {
-    duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new " GUM_NATIVE_OUTPUT_STREAM "()` to create a new instance");
-    duk_throw (ctx);
-  }
-
-  gum_duk_stream_constructor_args_parse (args, &handle, &auto_close);
-
   GOutputStream * stream;
-#ifdef G_OS_WIN32
-  stream = g_win32_output_stream_new (handle, auto_close);
-#else
-  stream = g_unix_output_stream_new (handle, auto_close);
-#endif
+
+  stream = G_OUTPUT_STREAM (duk_require_pointer (ctx, 0));
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, stream);
@@ -550,7 +729,7 @@ GUMJS_DEFINE_FINALIZER (gumjs_output_stream_finalize)
 
   (void) args;
 
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, GUM_NATIVE_OUTPUT_STREAM))
+  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "OutputStream"))
     return 0;
 
   stream = _gum_duk_steal_data (ctx, 0);
@@ -625,15 +804,14 @@ gum_duk_close_output_operation_finish (GOutputStream * stream,
                                        GAsyncResult * result,
                                        GumDukCloseOutputOperation * self)
 {
-  GumDukCore * core = self->module->core;
-  duk_context * ctx;
   GError * error = NULL;
   gboolean success;
   GumDukScope scope;
+  duk_context * ctx;
 
   success = g_output_stream_close_finish (stream, result, &error);
 
-  ctx = _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, self->module->core);
 
   duk_push_heapptr (ctx, self->callback);
   if (error == NULL)
@@ -752,11 +930,10 @@ gum_duk_write_operation_finish (GOutputStream * stream,
                                 GAsyncResult * result,
                                 GumDukWriteOperation * self)
 {
-  GumDukCore * core = self->module->core;
-  duk_context * ctx;
   gsize bytes_written = 0;
   GError * error = NULL;
   GumDukScope scope;
+  duk_context * ctx;
 
   if (self->strategy == GUM_DUK_WRITE_SOME)
   {
@@ -773,7 +950,7 @@ gum_duk_write_operation_finish (GOutputStream * stream,
     g_output_stream_write_all_finish (stream, result, &bytes_written, &error);
   }
 
-  ctx = _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, self->module->core);
 
   duk_push_heapptr (ctx, self->callback);
 
@@ -804,8 +981,74 @@ gum_duk_write_operation_finish (GOutputStream * stream,
   gum_script_job_free (self->job);
 }
 
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
+{
+  GumStreamHandle handle;
+  gboolean auto_close;
+  GInputStream * stream;
+  GumDukStream * module;
+
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new " GUM_NATIVE_INPUT_STREAM "()` to create a new instance");
+    duk_throw (ctx);
+  }
+
+  gum_duk_native_stream_ctor_args_parse (args, &handle, &auto_close);
+
+#ifdef G_OS_WIN32
+  stream = g_win32_input_stream_new (handle, auto_close);
+#else
+  stream = g_unix_input_stream_new (handle, auto_close);
+#endif
+
+  module = gumjs_module_from_args (args);
+
+  duk_push_heapptr (ctx, module->input_stream);
+  duk_push_this (ctx);
+  duk_push_pointer (ctx, stream);
+  duk_call_method (ctx, 1);
+  duk_pop (ctx);
+
+  return 0;
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
+{
+  GumStreamHandle handle;
+  gboolean auto_close;
+  GOutputStream * stream;
+  GumDukStream * module;
+
+  if (!duk_is_constructor_call (ctx))
+  {
+    duk_push_error_object (ctx, DUK_ERR_ERROR,
+        "Use `new " GUM_NATIVE_OUTPUT_STREAM "()` to create a new instance");
+    duk_throw (ctx);
+  }
+
+  gum_duk_native_stream_ctor_args_parse (args, &handle, &auto_close);
+
+#ifdef G_OS_WIN32
+  stream = g_win32_output_stream_new (handle, auto_close);
+#else
+  stream = g_unix_output_stream_new (handle, auto_close);
+#endif
+
+  module = gumjs_module_from_args (args);
+
+  duk_push_heapptr (ctx, module->output_stream);
+  duk_push_this (ctx);
+  duk_push_pointer (ctx, stream);
+  duk_call_method (ctx, 1);
+  duk_pop (ctx);
+
+  return 0;
+}
+
 static void
-gum_duk_stream_constructor_args_parse (const GumDukArgs * args,
+gum_duk_native_stream_ctor_args_parse (const GumDukArgs * args,
                                        GumStreamHandle * handle,
                                        gboolean * auto_close)
 {

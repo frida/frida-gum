@@ -19,6 +19,10 @@ struct _GumV8Stream
 
   GHashTable * streams;
   GCancellable * cancellable;
+
+  GumPersistent<v8::FunctionTemplate>::type * io_stream;
+  GumPersistent<v8::FunctionTemplate>::type * input_stream;
+  GumPersistent<v8::FunctionTemplate>::type * output_stream;
 };
 
 G_GNUC_INTERNAL void _gum_v8_stream_init (GumV8Stream * self, GumV8Core * core,

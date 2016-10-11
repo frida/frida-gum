@@ -8,6 +8,7 @@
 #include "script-fixture.c"
 
 TEST_LIST_BEGIN (script)
+#if 0
   SCRIPT_TESTENTRY (invalid_script_should_return_null)
   SCRIPT_TESTENTRY (array_buffer_can_be_created)
   SCRIPT_TESTENTRY (message_can_be_sent)
@@ -152,15 +153,20 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (module_base_address_can_be_found)
   SCRIPT_TESTENTRY (module_export_can_be_found_by_name)
   SCRIPT_TESTENTRY (api_resolver_can_be_used_to_find_functions)
+#endif
+  SCRIPT_TESTENTRY (socket_connection_can_be_established)
+#if 0
   SCRIPT_TESTENTRY (socket_type_can_be_inspected)
 #if !defined (HAVE_ANDROID) && !(defined (HAVE_LINUX) && defined (HAVE_ARM)) && \
   !(defined (HAVE_LINUX) && defined (HAVE_MIPS))
   SCRIPT_TESTENTRY (socket_endpoints_can_be_inspected)
 #endif
+#endif
 #ifdef G_OS_UNIX
   SCRIPT_TESTENTRY (unix_fd_can_be_read_from)
   SCRIPT_TESTENTRY (unix_fd_can_be_written_to)
 #endif
+#if 0
   SCRIPT_TESTENTRY (basic_hexdump_functionality_is_available)
   SCRIPT_TESTENTRY (hexdump_supports_native_pointer_conforming_object)
   SCRIPT_TESTENTRY (native_pointer_provides_is_null)
@@ -194,6 +200,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (globals_can_be_dynamically_generated)
   SCRIPT_TESTENTRY (exceptions_can_be_handled)
   SCRIPT_TESTENTRY (debugger_can_be_enabled)
+#endif
 TEST_LIST_END ()
 
 typedef struct _TestTrigger TestTrigger;
@@ -866,6 +873,49 @@ SCRIPT_TESTCASE (file_can_be_written_to)
       "log.close();",
       d00d);
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (socket_connection_can_be_established)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "Socket.listen({"
+      "  port: 1337,"
+      "  backlog: 1,"
+      "})"
+      ".then(function (listener) {"
+      "  listener.accept()"
+      "  .then(function (client) {"
+      "    return client.input.readAll(5)"
+      "    .then(function (data) {"
+      "      send('server read', data);"
+      "      client.close();"
+      "      listener.close();"
+      "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
+      "  });"
+      ""
+      "  return Socket.connect({"
+      "    family: 4,"
+      "    host: 'localhost',"
+      "    port: listener.port,"
+      "  })"
+      "  .then(function (connection) {"
+      "    return connection.setNoDelay(true)"
+      "    .then(function () {"
+      "      return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
+      "      .then(function () {"
+      "        return connection.close();"
+      "      });"
+      "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
+      "  });"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
+      "31 33 33 37 0a");
 }
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)

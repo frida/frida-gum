@@ -828,8 +828,18 @@
         }
     });
 
-    const InputStream = engine.UnixInputStream || engine.Win32InputStream;
-    const OutputStream = engine.UnixOutputStream || engine.Win32OutputStream;
+    const _closeIOStream = IOStream.prototype._close;
+    IOStream.prototype.close = function () {
+        const stream = this;
+        return new Promise(function (resolve, reject) {
+            _closeIOStream.call(stream, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
 
     const _closeInput = InputStream.prototype._close;
     InputStream.prototype.close = function () {
@@ -912,6 +922,80 @@
             });
         });
     };
+
+    const _closeListener = SocketListener.prototype._close;
+    SocketListener.prototype.close = function () {
+        const listener = this;
+        return new Promise(function (resolve) {
+            _closeListener.call(listener, resolve);
+        });
+    };
+
+    const _accept = SocketListener.prototype._accept;
+    SocketListener.prototype.accept = function () {
+        const listener = this;
+        return new Promise(function (resolve, reject) {
+            _accept.call(listener, function (error, connection) {
+                if (error === null)
+                    resolve(connection);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    const _setNoDelay = SocketConnection.prototype._setNoDelay;
+    SocketConnection.prototype.setNoDelay = function (noDelay = true) {
+        const connection = this;
+        return new Promise(function (resolve, reject) {
+            _setNoDelay.call(connection, noDelay, function (error, success) {
+                if (error === null)
+                    resolve(success);
+                else
+                    reject(error);
+            });
+        });
+    };
+
+    Object.defineProperties(Socket, {
+        listen: {
+            enumerable: true,
+            value: function (options = {}) {
+                return new Promise(function (resolve, reject) {
+                    const {
+                        port = 0,
+                        backlog = 10,
+                    } = options;
+
+                    Socket._listen(port, backlog, function (error, listener) {
+                        if (error === null)
+                            resolve(listener);
+                        else
+                            reject(error);
+                    });
+                });
+            },
+        },
+        connect: {
+            enumerable: true,
+            value: function (options) {
+                return new Promise(function (resolve, reject) {
+                    const {
+                        family = 4,
+                        host = 'localhost',
+                        port,
+                    } = options;
+
+                    Socket._connect(family, host, port, function (error, connection) {
+                        if (error === null)
+                            resolve(connection);
+                        else
+                            reject(error);
+                    });
+                });
+            },
+        },
+    });
 
     initialize();
 })();

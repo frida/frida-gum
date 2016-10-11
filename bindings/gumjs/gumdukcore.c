@@ -2105,7 +2105,8 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_resource_construct)
   (void) args;
 
   data = duk_require_pointer (ctx, 0);
-  notify = GUM_POINTER_TO_FUNCPTR (GDestroyNotify, duk_require_pointer (ctx, 1));
+  notify = GUM_POINTER_TO_FUNCPTR (GDestroyNotify,
+      duk_require_pointer (ctx, 1));
 
   resource = g_slice_new (GumDukNativeResource);
   ptr = &resource->parent;

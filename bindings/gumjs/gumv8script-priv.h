@@ -47,8 +47,8 @@ struct _GumV8ScriptPrivate
   GumV8Thread thread;
   GumV8Module module;
   GumV8File file;
-  GumV8Socket socket;
   GumV8Stream stream;
+  GumV8Socket socket;
   GumV8Interceptor interceptor;
   GumV8Stalker stalker;
   GumV8ApiResolver api_resolver;

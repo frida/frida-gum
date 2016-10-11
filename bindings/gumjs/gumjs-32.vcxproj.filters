@@ -55,10 +55,10 @@
     <ClCompile Include="gumv8scriptbackend.cpp">
       <Filter>v8</Filter>
     </ClCompile>
-    <ClCompile Include="gumv8socket.cpp">
+    <ClCompile Include="gumv8stream.cpp">
       <Filter>v8</Filter>
     </ClCompile>
-    <ClCompile Include="gumv8stream.cpp">
+    <ClCompile Include="gumv8socket.cpp">
       <Filter>v8</Filter>
     </ClCompile>
     <ClCompile Include="gumv8stalker.cpp">
@@ -109,10 +109,10 @@
     <ClCompile Include="gumdukscriptbackend.c">
       <Filter>duk</Filter>
     </ClCompile>
-    <ClCompile Include="gumduksocket.c">
+    <ClCompile Include="gumdukstream.c">
       <Filter>duk</Filter>
     </ClCompile>
-    <ClCompile Include="gumdukstream.c">
+    <ClCompile Include="gumduksocket.c">
       <Filter>duk</Filter>
     </ClCompile>
     <ClCompile Include="gumdukstalker.c">
@@ -195,10 +195,10 @@
     <ClInclude Include="gumv8script-priv.h">
       <Filter>v8</Filter>
     </ClInclude>
-    <ClInclude Include="gumv8socket.h">
+    <ClInclude Include="gumv8stream.h">
       <Filter>v8</Filter>
     </ClInclude>
-    <ClInclude Include="gumv8stream.h">
+    <ClInclude Include="gumv8socket.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8stalker.h">
@@ -258,10 +258,10 @@
     <ClInclude Include="gumdukscript-priv.h">
       <Filter>duk</Filter>
     </ClInclude>
-    <ClInclude Include="gumduksocket.h">
+    <ClInclude Include="gumdukstream.h">
       <Filter>duk</Filter>
     </ClInclude>
-    <ClInclude Include="gumdukstream.h">
+    <ClInclude Include="gumduksocket.h">
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukstalker.h">

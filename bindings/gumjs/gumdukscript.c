@@ -61,8 +61,8 @@ struct _GumDukScriptPrivate
   GumDukThread thread;
   GumDukModule module;
   GumDukFile file;
-  GumDukSocket socket;
   GumDukStream stream;
+  GumDukSocket socket;
   GumDukInterceptor interceptor;
   GumDukStalker stalker;
   GumDukApiResolver api_resolver;
@@ -392,8 +392,8 @@ gum_duk_script_create_context (GumDukScript * self,
   _gum_duk_thread_init (&priv->thread, &priv->core);
   _gum_duk_module_init (&priv->module, &priv->core);
   _gum_duk_file_init (&priv->file, &priv->core);
-  _gum_duk_socket_init (&priv->socket, &priv->core);
   _gum_duk_stream_init (&priv->stream, &priv->core);
+  _gum_duk_socket_init (&priv->socket, &priv->core);
   _gum_duk_interceptor_init (&priv->interceptor, &priv->core);
   _gum_duk_stalker_init (&priv->stalker, &priv->core);
   _gum_duk_api_resolver_init (&priv->api_resolver, &priv->core);
@@ -426,8 +426,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_api_resolver_dispose (&priv->api_resolver);
   _gum_duk_stalker_dispose (&priv->stalker);
   _gum_duk_interceptor_dispose (&priv->interceptor);
-  _gum_duk_stream_dispose (&priv->stream);
   _gum_duk_socket_dispose (&priv->socket);
+  _gum_duk_stream_dispose (&priv->stream);
   _gum_duk_file_dispose (&priv->file);
   _gum_duk_module_dispose (&priv->module);
   _gum_duk_thread_dispose (&priv->thread);
@@ -449,8 +449,8 @@ gum_duk_script_destroy_context (GumDukScript * self)
   _gum_duk_api_resolver_finalize (&priv->api_resolver);
   _gum_duk_stalker_finalize (&priv->stalker);
   _gum_duk_interceptor_finalize (&priv->interceptor);
-  _gum_duk_stream_finalize (&priv->stream);
   _gum_duk_socket_finalize (&priv->socket);
+  _gum_duk_stream_finalize (&priv->stream);
   _gum_duk_file_finalize (&priv->file);
   _gum_duk_module_finalize (&priv->module);
   _gum_duk_thread_finalize (&priv->thread);
@@ -655,6 +655,7 @@ gum_duk_script_try_unload (GumDukScript * self)
 
   _gum_duk_stalker_flush (&priv->stalker);
   _gum_duk_interceptor_flush (&priv->interceptor);
+  _gum_duk_socket_flush (&priv->socket);
   _gum_duk_stream_flush (&priv->stream);
   _gum_duk_process_flush (&priv->process);
   success = _gum_duk_core_flush (&priv->core, gum_duk_script_try_unload);
