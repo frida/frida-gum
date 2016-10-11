@@ -161,6 +161,11 @@
         return this.compare(ptr) === 0;
     };
 
+    const _nextTick = Script._nextTick;
+    Script.nextTick = function (callback, ...args) {
+        _nextTick(callback.bind(global, ...args));
+    };
+
     if (Script.runtime === 'DUK') {
         const cpuContextFields = Object.getOwnPropertyNames(CpuContext.prototype);
         CpuContext.prototype.toJSON = function () {

@@ -141,6 +141,8 @@ static void gum_v8_core_on_global_query (Local<Name> property,
 static void gum_v8_core_on_global_enumerate (
     const PropertyCallbackInfo<Array> & info);
 
+static void gum_v8_core_on_script_next_tick (
+    const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_script_pin (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_core_on_script_unpin (
@@ -348,6 +350,8 @@ _gum_v8_core_init (GumV8Core * self,
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       reinterpret_cast<GDestroyNotify> (gum_weak_ref_free));
 
+  self->tick_callbacks = g_queue_new ();
+
   Local<External> data (External::New (isolate, self));
 
   Handle<ObjectTemplate> frida = ObjectTemplate::New ();
@@ -356,6 +360,8 @@ _gum_v8_core_init (GumV8Core * self,
   scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
 
   Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
+  script_module->Set (String::NewFromUtf8 (isolate, "_nextTick"),
+      FunctionTemplate::New (isolate, gum_v8_core_on_script_next_tick, data));
   script_module->Set (String::NewFromUtf8 (isolate, "pin"),
       FunctionTemplate::New (isolate, gum_v8_core_on_script_pin, data));
   script_module->Set (String::NewFromUtf8 (isolate, "unpin"),
@@ -858,6 +864,10 @@ _gum_v8_core_dispose (GumV8Core * self)
 void
 _gum_v8_core_finalize (GumV8Core * self)
 {
+  g_assert (g_queue_is_empty (self->tick_callbacks));
+  g_queue_free (self->tick_callbacks);
+  self->tick_callbacks = NULL;
+
   g_hash_table_unref (self->weak_refs);
   self->weak_refs = NULL;
 
@@ -936,6 +946,31 @@ _gum_v8_core_post (GumV8Core * self,
   {
     g_bytes_unref (data);
   }
+}
+
+static void
+gum_v8_core_on_script_next_tick (const FunctionCallbackInfo<Value> & info)
+{
+  GumV8Core * self = static_cast<GumV8Core *> (
+      info.Data ().As<External> ()->Value ());
+  Isolate * isolate = info.GetIsolate ();
+
+  if (info.Length () == 0)
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected a callback")));
+    return;
+  }
+  Local<Value> callback_value = info[0];
+  if (!callback_value->IsFunction ())
+  {
+    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
+        isolate, "expected a callback")));
+    return;
+  }
+
+  g_queue_push_tail (self->tick_callbacks, new GumPersistent<Function>::type (
+      isolate, callback_value.As<Function> ()));
 }
 
 static void

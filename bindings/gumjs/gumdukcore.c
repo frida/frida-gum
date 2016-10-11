@@ -130,6 +130,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_script_construct)
 GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
 GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
 GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
 GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
@@ -257,6 +258,7 @@ static const GumDukPropertyEntry gumjs_script_values[] =
 
 static const duk_function_list_entry gumjs_script_functions[] =
 {
+  { "_nextTick", gumjs_script_next_tick, 1 },
   { "pin", gumjs_script_pin, 0 },
   { "unpin", gumjs_script_unpin, 0 },
   { "setGlobalAccessHandler", gumjs_script_set_global_access_handler, 1 },
@@ -664,6 +666,8 @@ _gum_duk_core_init (GumDukCore * self,
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_duk_weak_ref_free);
 
+  self->tick_callbacks = g_queue_new ();
+
   _gum_duk_store_module_data (ctx, "core", self);
 
   /* set `global` to the global object */
@@ -887,6 +891,9 @@ _gum_duk_core_dispose (GumDukCore * self)
 void
 _gum_duk_core_finalize (GumDukCore * self)
 {
+  g_assert (g_queue_is_empty (self->tick_callbacks));
+  g_clear_pointer (&self->tick_callbacks, g_queue_free);
+
   g_clear_pointer (&self->weak_refs, g_hash_table_unref);
 
   g_main_loop_unref (self->event_loop);
@@ -1114,9 +1121,19 @@ _gum_duk_scope_leave (GumDukScope * self)
 {
   GumDukCore * core = self->core;
   duk_context * ctx = core->heap_ctx;
+  GumDukHeapPtr tick_callback;
   GumDukFlushNotify pending_flush_notify = NULL;
 
   g_assert (core->current_ctx == self->ctx);
+
+  while ((tick_callback = g_queue_pop_head (core->tick_callbacks)) != NULL)
+  {
+    duk_push_heapptr (ctx, tick_callback);
+    _gum_duk_scope_call (self, 0);
+    duk_pop (ctx);
+
+    _gum_duk_unprotect (ctx, tick_callback);
+  }
 
   if (core->mutex_depth == 1)
   {
@@ -1237,6 +1254,18 @@ GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
   g_free (source);
 
   return 1;
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
+{
+  GumDukHeapPtr callback;
+
+  _gum_duk_args_parse (args, "F", &callback);
+
+  _gum_duk_protect (ctx, callback);
+  g_queue_push_tail (args->core->tick_callbacks, callback);
+
+  return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
