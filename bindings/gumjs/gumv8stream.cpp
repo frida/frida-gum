@@ -447,9 +447,9 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -587,9 +587,9 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -757,9 +757,9 @@ gum_v8_read_operation_finish (GInputStream * stream,
     Handle<Value> argv[] = { error_value, data_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -897,9 +897,9 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -1060,9 +1060,9 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     Handle<Value> argv[] = { error_value, size_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void

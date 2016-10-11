@@ -19,8 +19,10 @@ struct _GumDukSocket
 
   GCancellable * cancellable;
 
-  GumDukHeapPtr io_stream;
+  GumDukHeapPtr listener;
   GumDukHeapPtr connection;
+
+  GumDukHeapPtr io_stream;
 };
 
 G_GNUC_INTERNAL void _gum_duk_socket_init (GumDukSocket * self,

@@ -42,6 +42,7 @@ struct _GumV8ListenOperation
 struct _GumV8ConnectOperation
 {
   GSocketClient * client;
+  GSocketFamily family;
   gchar * host;
   guint16 port;
   GumPersistent<Function>::type * callback;
@@ -342,16 +343,16 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     {
       error_value = Exception::Error (
           String::NewFromUtf8 (isolate, error->message));
-      listener_value = null_value;
       g_error_free (error);
+      listener_value = null_value;
     }
 
     Handle<Value> argv[] = { error_value, listener_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 /*
@@ -410,12 +411,9 @@ gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GSocketClient * client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
-      "family", family,
-      NULL));
-
   GumV8ConnectOperation * op = g_slice_new (GumV8ConnectOperation);
-  op->client = client;
+  op->client = NULL;
+  op->family = family;
   op->host = g_strdup (host);
   op->port = port;
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -452,6 +450,10 @@ gum_v8_connect_operation_free (GumV8ConnectOperation * op)
 static void
 gum_v8_connect_operation_start (GumV8ConnectOperation * self)
 {
+  self->client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
+      "family", self->family,
+      NULL));
+
   g_socket_client_connect_to_host_async (self->client, self->host, self->port,
       self->module->cancellable,
       (GAsyncReadyCallback) gum_v8_connect_operation_finish, self);
@@ -485,16 +487,16 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     {
       error_value = Exception::Error (
           String::NewFromUtf8 (isolate, error->message));
-      connection_value = null_value;
       g_error_free (error);
+      connection_value = null_value;
     }
 
     Handle<Value> argv[] = { error_value, connection_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 /*
@@ -774,9 +776,9 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
 
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (Null (isolate), 0, nullptr);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
@@ -872,16 +874,16 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     {
       error_value = Exception::Error (
           String::NewFromUtf8 (isolate, error->message));
-      connection_value = null_value;
       g_error_free (error);
+      connection_value = null_value;
     }
 
     Handle<Value> argv[] = { error_value, connection_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static Local<Object>
@@ -1029,9 +1031,9 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     Handle<Value> argv[] = { error_value, success_value };
     Local<Function> callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
-
-    gum_script_job_free (self->job);
   }
+
+  gum_script_job_free (self->job);
 }
 
 static void
