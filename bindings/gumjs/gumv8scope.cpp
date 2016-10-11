@@ -40,9 +40,9 @@ ScriptScope::~ScriptScope ()
   if (!g_queue_is_empty (core->tick_callbacks))
   {
     Isolate * isolate = parent->priv->isolate;
-    Local<Value> null_value = Null (isolate);
 
     GumPersistent<Function>::type * tick_callback;
+    Local<Value> null_value = Null (isolate);
     while ((tick_callback = static_cast<GumPersistent<Function>::type *> (
         g_queue_pop_head (core->tick_callbacks))) != nullptr)
     {
