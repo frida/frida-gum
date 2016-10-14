@@ -7,18 +7,21 @@
 #ifndef __GUM_V8_STREAM_H__
 #define __GUM_V8_STREAM_H__
 
-#include "gumv8core.h"
+#include "gumv8object.h"
 
 #include <v8.h>
 
 typedef struct _GumV8Stream GumV8Stream;
 
+typedef GumV8Object<GIOStream, GumV8Stream> GumV8IOStream;
+typedef GumV8Object<GInputStream, GumV8Stream> GumV8InputStream;
+typedef GumV8Object<GOutputStream, GumV8Stream> GumV8OutputStream;
+
 struct _GumV8Stream
 {
   GumV8Core * core;
 
-  GHashTable * streams;
-  GCancellable * cancellable;
+  GumV8ObjectManager objects;
 
   GumPersistent<v8::FunctionTemplate>::type * io_stream;
   GumPersistent<v8::FunctionTemplate>::type * input_stream;

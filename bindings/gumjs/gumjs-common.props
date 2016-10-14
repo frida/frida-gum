@@ -30,6 +30,7 @@
     <ClInclude Include="$(IntDir)gumjs\gumv8script-debug.h" />
     <ClInclude Include="gumv8bundle.h" />
     <ClInclude Include="gumv8scope.h" />
+    <ClInclude Include="gumv8object.h" />
     <ClInclude Include="gumv8core.h" />
     <ClInclude Include="gumv8kernel.h" />
     <ClInclude Include="gumv8memory.h" />
@@ -52,6 +53,7 @@
     <ClCompile Include="gumv8platform.cpp" />
     <ClCompile Include="gumv8bundle.cpp" />
     <ClCompile Include="gumv8scope.cpp" />
+    <ClCompile Include="gumv8object.cpp" />
     <ClCompile Include="gumv8core.cpp" />
     <ClCompile Include="gumv8kernel.cpp" />
     <ClCompile Include="gumv8memory.cpp" />

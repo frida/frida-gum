@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -21,66 +21,37 @@
 
 using namespace v8;
 
-typedef struct _GumV8ListenOperation GumV8ListenOperation;
-typedef struct _GumV8ConnectOperation GumV8ConnectOperation;
-
-typedef struct _GumV8CloseListenerOperation GumV8CloseListenerOperation;
-typedef struct _GumV8AcceptOperation GumV8AcceptOperation;
-
-typedef struct _GumV8SetNoDelayOperation GumV8SetNoDelayOperation;
-
-struct _GumV8ListenOperation
+struct GumV8ListenOperation : public GumV8ModuleOperation<GumV8Socket>
 {
   guint16 port;
   gint backlog;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Socket * module;
 };
 
-struct _GumV8ConnectOperation
+struct GumV8ConnectOperation : public GumV8ModuleOperation<GumV8Socket>
 {
   GSocketClient * client;
   GSocketFamily family;
   gchar * host;
   guint16 port;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Socket * module;
 };
 
-struct _GumV8CloseListenerOperation
+struct GumV8CloseListenerOperation
+    : public GumV8ObjectOperation<GSocketListener, GumV8Socket>
 {
-  GSocketListener * listener;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Socket * module;
 };
 
-struct _GumV8AcceptOperation
+struct GumV8AcceptOperation
+    : public GumV8ObjectOperation<GSocketListener, GumV8Socket>
 {
-  GSocketListener * listener;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Socket * module;
 };
 
-struct _GumV8SetNoDelayOperation
+struct GumV8SetNoDelayOperation
+    : public GumV8ObjectOperation<GSocketConnection, GumV8Stream>
 {
-  GSocketConnection * connection;
   gboolean no_delay;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Socket * module;
 };
 
 static void gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info);
-static void gum_v8_listen_operation_free (GumV8ListenOperation * op);
 static void gum_v8_listen_operation_perform (GumV8ListenOperation * self);
 static void gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info);
 static void gum_v8_connect_operation_free (GumV8ConnectOperation * op);
@@ -99,13 +70,10 @@ static void gum_v8_socket_listener_on_new (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_socket_listener_on_close (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_close_listener_operation_free (
-    GumV8CloseListenerOperation * op);
 static void gum_v8_close_listener_operation_perform (
     GumV8CloseListenerOperation * self);
 static void gum_v8_socket_listener_on_accept (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_accept_operation_free (GumV8AcceptOperation * op);
 static void gum_v8_accept_operation_start (GumV8AcceptOperation * self);
 static void gum_v8_accept_operation_finish (GSocketListener * listener,
     GAsyncResult * result, GumV8AcceptOperation * self);
@@ -116,13 +84,8 @@ static void gum_v8_socket_connection_on_new (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_socket_connection_on_set_no_delay (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_set_no_delay_operation_free (GumV8SetNoDelayOperation * op);
 static void gum_v8_set_no_delay_operation_perform (
     GumV8SetNoDelayOperation * self);
-
-static void gum_v8_listener_on_weak_notify (
-    const WeakCallbackInfo<GumV8Socket> & info);
-static void gum_v8_listener_handle_free (gpointer data);
 
 static gboolean gum_v8_socket_family_get (Handle<Value> value,
     GSocketFamily * family, GumV8Core * core);
@@ -180,32 +143,28 @@ _gum_v8_socket_init (GumV8Socket * self,
   Local<FunctionTemplate> io_stream (Local<FunctionTemplate>::New (isolate,
       *core->script->priv->stream.io_stream));
   connection->Inherit (io_stream);
-  connection->InstanceTemplate ()->SetInternalFieldCount (2);
+  connection->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "SocketConnection"), connection);
   self->connection =
       new GumPersistent<FunctionTemplate>::type (isolate, connection);
-
-  self->listeners = g_hash_table_new_full (NULL, NULL, g_object_unref,
-      gum_v8_listener_handle_free);
-  self->cancellable = g_cancellable_new ();
 }
 
 void
 _gum_v8_socket_realize (GumV8Socket * self)
 {
-  (void) self;
+  gum_v8_object_manager_init (&self->objects);
 }
 
 void
 _gum_v8_socket_flush (GumV8Socket * self)
 {
-  g_cancellable_cancel (self->cancellable);
+  gum_v8_object_manager_flush (&self->objects);
 }
 
 void
 _gum_v8_socket_dispose (GumV8Socket * self)
 {
-  g_hash_table_remove_all (self->listeners);
+  gum_v8_object_manager_free (&self->objects);
 }
 
 void
@@ -215,9 +174,6 @@ _gum_v8_socket_finalize (GumV8Socket * self)
   delete self->connection;
   self->listener = nullptr;
   self->connection = nullptr;
-
-  g_clear_object (&self->cancellable);
-  g_clear_pointer (&self->listeners, g_hash_table_unref);
 }
 
 /*
@@ -235,7 +191,6 @@ gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info)
 {
   GumV8Socket * module = static_cast<GumV8Socket *> (
       info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
   Isolate * isolate = info.GetIsolate ();
 
   if (info.Length () < 3)
@@ -271,35 +226,11 @@ gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumV8ListenOperation * op = g_slice_new (GumV8ListenOperation);
+  GumV8ListenOperation * op = gum_v8_module_operation_new (module,
+      callback_value, gum_v8_listen_operation_perform);
   op->port = port;
   op->backlog = backlog;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_listen_operation_perform, op,
-      (GDestroyNotify) gum_v8_listen_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_listen_operation_free (GumV8ListenOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_slice_free (GumV8ListenOperation, op);
+  gum_v8_module_operation_schedule (op);
 }
 
 static void
@@ -352,7 +283,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_module_operation_finish (self);
 }
 
 /*
@@ -411,40 +342,21 @@ gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumV8ConnectOperation * op = g_slice_new (GumV8ConnectOperation);
+  GumV8ConnectOperation * op = gum_v8_module_operation_new (module,
+      callback_value, gum_v8_connect_operation_start,
+      gum_v8_connect_operation_free);
   op->client = NULL;
   op->family = family;
   op->host = g_strdup (host);
   op->port = port;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_connect_operation_start, op,
-      (GDestroyNotify) gum_v8_connect_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
+  gum_v8_module_operation_schedule (op);
 }
 
 static void
 gum_v8_connect_operation_free (GumV8ConnectOperation * op)
 {
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
   g_free (op->host);
   g_object_unref (op->client);
-
-  g_slice_free (GumV8ConnectOperation, op);
 }
 
 static void
@@ -455,8 +367,8 @@ gum_v8_connect_operation_start (GumV8ConnectOperation * self)
       NULL));
 
   g_socket_client_connect_to_host_async (self->client, self->host, self->port,
-      self->module->cancellable,
-      (GAsyncReadyCallback) gum_v8_connect_operation_finish, self);
+      self->cancellable, (GAsyncReadyCallback) gum_v8_connect_operation_finish,
+      self);
 }
 
 static void
@@ -496,7 +408,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_module_operation_finish (self);
 }
 
 /*
@@ -640,22 +552,6 @@ gum_v8_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
   }
 }
 
-template<typename T>
-static void
-gum_v8_socket_object_get (const FunctionCallbackInfo<Value> & info,
-                          T ** object,
-                          GumV8Socket ** module,
-                          GumV8Core ** core)
-{
-  Local<Object> instance = info.Holder ();
-
-  *object = static_cast<T *> (
-      instance->GetAlignedPointerFromInternalField (0));
-  *module = static_cast<GumV8Socket *> (
-      instance->GetAlignedPointerFromInternalField (1));
-  *core = (*module)->core;
-}
-
 static Local<Object>
 gum_v8_socket_listener_new (GSocketListener * listener,
                             GumV8Socket * module)
@@ -693,28 +589,15 @@ gum_v8_socket_listener_on_new (const FunctionCallbackInfo<Value> & info)
   GSocketListener * listener = G_SOCKET_LISTENER (
       listener_value.As<External> ()->Value ());
 
-  Local<Object> instance (info.Holder ());
-  instance->SetAlignedPointerInInternalField (0, listener);
-  instance->SetAlignedPointerInInternalField (1, module);
-
-  GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (isolate, instance);
-  instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_listener_on_weak_notify,
-      WeakCallbackType::kInternalFields);
-
-  g_hash_table_insert (module->listeners, listener, instance_handle);
+  gum_v8_object_manager_add (&module->objects, info.Holder (), listener,
+      module);
 }
 
 static void
 gum_v8_socket_listener_on_close (const FunctionCallbackInfo<Value> & info)
 {
+  GumV8SocketListener * self = gum_v8_object_get<GumV8SocketListener> (info);
   Isolate * isolate = info.GetIsolate ();
-  GSocketListener * listener;
-  GumV8Socket * module;
-  GumV8Core * core;
-
-  gum_v8_socket_object_get (info, &listener, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -731,43 +614,17 @@ gum_v8_socket_listener_on_close (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumV8CloseListenerOperation * op = g_slice_new (GumV8CloseListenerOperation);
-  op->listener = listener;
-  g_object_ref (listener);
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_close_listener_operation_perform, op,
-      (GDestroyNotify) gum_v8_close_listener_operation_free);
+  g_cancellable_cancel (self->cancellable);
 
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_close_listener_operation_free (GumV8CloseListenerOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->listener);
-
-  g_slice_free (GumV8CloseListenerOperation, op);
+  GumV8CloseListenerOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_close_listener_operation_perform);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
 {
-  g_socket_listener_close (self->listener);
+  g_socket_listener_close (self->handle);
 
   {
     GumV8Core * core = self->module->core;
@@ -778,18 +635,14 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
     callback->Call (Null (isolate), 0, nullptr);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
 gum_v8_socket_listener_on_accept (const FunctionCallbackInfo<Value> & info)
 {
+  GumV8SocketListener * self = gum_v8_object_get<GumV8SocketListener> (info);
   Isolate * isolate = info.GetIsolate ();
-  GSocketListener * listener;
-  GumV8Socket * module;
-  GumV8Core * core;
-
-  gum_v8_socket_object_get (info, &listener, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -806,43 +659,15 @@ gum_v8_socket_listener_on_accept (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumV8AcceptOperation * op = g_slice_new (GumV8AcceptOperation);
-  op->listener = listener;
-  g_object_ref (listener);
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_accept_operation_start, op,
-      (GDestroyNotify) gum_v8_accept_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_accept_operation_free (GumV8AcceptOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->listener);
-
-  g_slice_free (GumV8AcceptOperation, op);
+  GumV8AcceptOperation * op = gum_v8_object_operation_new (self, callback_value,
+      gum_v8_accept_operation_start);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_accept_operation_start (GumV8AcceptOperation * self)
 {
-  g_socket_listener_accept_async (self->listener, self->module->cancellable,
+  g_socket_listener_accept_async (self->handle, self->cancellable,
       (GAsyncReadyCallback) gum_v8_accept_operation_finish, self);
 }
 
@@ -883,7 +708,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static Local<Object>
@@ -935,12 +760,8 @@ static void
 gum_v8_socket_connection_on_set_no_delay (
     const FunctionCallbackInfo<Value> & info)
 {
+  GumV8IOStream * self = gum_v8_object_get<GumV8IOStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GSocketConnection * connection;
-  GumV8Socket * module;
-  GumV8Core * core;
-
-  gum_v8_socket_object_get (info, &connection, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -966,44 +787,16 @@ gum_v8_socket_connection_on_set_no_delay (
     return;
   }
 
-  GumV8SetNoDelayOperation * op = g_slice_new (GumV8SetNoDelayOperation);
-  op->connection = connection;
-  g_object_ref (connection);
+  GumV8SetNoDelayOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_set_no_delay_operation_perform);
   op->no_delay = no_delay;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_set_no_delay_operation_perform, op,
-      (GDestroyNotify) gum_v8_set_no_delay_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_set_no_delay_operation_free (GumV8SetNoDelayOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->connection);
-
-  g_slice_free (GumV8SetNoDelayOperation, op);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
 {
-  GSocket * socket = g_socket_connection_get_socket (self->connection);
+  GSocket * socket = g_socket_connection_get_socket (self->handle);
 
   GError * error = NULL;
   gboolean success = g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY,
@@ -1033,24 +826,7 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
-}
-
-static void
-gum_v8_listener_on_weak_notify (const WeakCallbackInfo<GumV8Socket> & info)
-{
-  HandleScope handle_scope (info.GetIsolate ());
-  GSocketListener * listener = G_SOCKET_LISTENER (info.GetInternalField (0));
-  GumV8Socket * module = static_cast<GumV8Socket *> (info.GetInternalField (1));
-  g_hash_table_remove (module->listeners, listener);
-}
-
-static void
-gum_v8_listener_handle_free (gpointer data)
-{
-  GumPersistent<Object>::type * instance_handle =
-      static_cast<GumPersistent<Object>::type *> (data);
-  delete instance_handle;
+  gum_v8_object_operation_finish (self);
 }
 
 static gboolean

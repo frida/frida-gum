@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -7,18 +7,19 @@
 #ifndef __GUM_V8_SOCKET_H__
 #define __GUM_V8_SOCKET_H__
 
-#include "gumv8core.h"
+#include "gumv8object.h"
 
 #include <v8.h>
 
 typedef struct _GumV8Socket GumV8Socket;
 
+typedef GumV8Object<GSocketListener, GumV8Socket> GumV8SocketListener;
+
 struct _GumV8Socket
 {
   GumV8Core * core;
 
-  GHashTable * listeners;
-  GCancellable * cancellable;
+  GumV8ObjectManager objects;
 
   GumPersistent<v8::FunctionTemplate>::type * listener;
   GumPersistent<v8::FunctionTemplate>::type * connection;

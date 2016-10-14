@@ -28,83 +28,51 @@ typedef gpointer GumStreamHandle;
 typedef gint GumStreamHandle;
 #endif
 
-typedef struct _GumV8CloseIOStreamOperation GumV8CloseIOStreamOperation;
-
-typedef struct _GumV8CloseInputOperation GumV8CloseInputOperation;
-typedef struct _GumV8ReadOperation GumV8ReadOperation;
-typedef guint GumV8ReadStrategy;
-
-typedef struct _GumV8CloseOutputOperation GumV8CloseOutputOperation;
-typedef struct _GumV8WriteOperation GumV8WriteOperation;
-typedef guint GumV8WriteStrategy;
-
-struct _GumV8CloseIOStreamOperation
+struct GumV8CloseIOStreamOperation
+    : public GumV8ObjectOperation<GIOStream, GumV8Stream>
 {
-  GIOStream * stream;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Stream * module;
 };
 
-struct _GumV8CloseInputOperation
+struct GumV8CloseInputOperation
+    : public GumV8ObjectOperation<GInputStream, GumV8Stream>
 {
-  GInputStream * stream;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Stream * module;
 };
 
-struct _GumV8ReadOperation
-{
-  GInputStream * stream;
-  GumV8ReadStrategy strategy;
-  gpointer buffer;
-  gsize buffer_size;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Stream * module;
-};
-
-enum _GumV8ReadStrategy
+enum GumV8ReadStrategy
 {
   GUM_V8_READ_SOME,
   GUM_V8_READ_ALL
 };
 
-struct _GumV8CloseOutputOperation
+struct GumV8ReadOperation
+    : public GumV8ObjectOperation<GInputStream, GumV8Stream>
 {
-  GOutputStream * stream;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Stream * module;
+  GumV8ReadStrategy strategy;
+  gpointer buffer;
+  gsize buffer_size;
 };
 
-struct _GumV8WriteOperation
+struct GumV8CloseOutputOperation
+    : public GumV8ObjectOperation<GOutputStream, GumV8Stream>
 {
-  GOutputStream * stream;
-  GumV8WriteStrategy strategy;
-  GBytes * bytes;
-  GumPersistent<Function>::type * callback;
-  GumScriptJob * job;
-
-  GumV8Stream * module;
 };
 
-enum _GumV8WriteStrategy
+enum GumV8WriteStrategy
 {
   GUM_V8_WRITE_SOME,
   GUM_V8_WRITE_ALL
 };
 
+struct GumV8WriteOperation
+    : public GumV8ObjectOperation<GOutputStream, GumV8Stream>
+{
+  GumV8WriteStrategy strategy;
+  GBytes * bytes;
+};
+
 static void gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info);
 static void gum_v8_io_stream_on_close (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_close_io_stream_operation_free (
-    GumV8CloseIOStreamOperation * op);
 static void gum_v8_close_io_stream_operation_start (
     GumV8CloseIOStreamOperation * self);
 static void gum_v8_close_io_stream_operation_finish (GIOStream * stream,
@@ -114,8 +82,8 @@ static void gum_v8_input_stream_on_new (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_input_stream_on_close (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_close_input_operation_free (GumV8CloseInputOperation * op);
-static void gum_v8_close_input_operation_start (GumV8CloseInputOperation * self);
+static void gum_v8_close_input_operation_start (
+    GumV8CloseInputOperation * self);
 static void gum_v8_close_input_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumV8CloseInputOperation * self);
 static void gum_v8_input_stream_on_read (
@@ -133,7 +101,6 @@ static void gum_v8_output_stream_on_new (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_output_stream_on_close (
     const FunctionCallbackInfo<Value> & info);
-static void gum_v8_close_output_operation_free (GumV8CloseOutputOperation * op);
 static void gum_v8_close_output_operation_start (
     GumV8CloseOutputOperation * self);
 static void gum_v8_close_output_operation_finish (GOutputStream * stream,
@@ -159,10 +126,6 @@ static gboolean gum_v8_native_stream_ctor_args_parse (
     const FunctionCallbackInfo<Value> & info, GumStreamHandle * handle,
     gboolean * auto_close, GumV8Core * core);
 
-static void gum_v8_stream_on_weak_notify (
-    const WeakCallbackInfo<GumV8Stream> & info);
-static void gum_v8_stream_handle_free (gpointer data);
-
 void
 _gum_v8_stream_init (GumV8Stream * self,
                      GumV8Core * core,
@@ -181,7 +144,7 @@ _gum_v8_stream_init (GumV8Stream * self,
   io_stream_proto->Set (String::NewFromUtf8 (isolate, "_close"),
       FunctionTemplate::New (isolate, gum_v8_io_stream_on_close));
   Local<ObjectTemplate> io_stream_object = io_stream->InstanceTemplate ();
-  io_stream_object->SetInternalFieldCount (2);
+  io_stream_object->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "IOStream"), io_stream);
   self->io_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, io_stream);
@@ -196,7 +159,7 @@ _gum_v8_stream_init (GumV8Stream * self,
       FunctionTemplate::New (isolate, gum_v8_input_stream_on_read));
   input_stream_proto->Set (String::NewFromUtf8 (isolate, "_readAll"),
       FunctionTemplate::New (isolate, gum_v8_input_stream_on_read_all));
-  input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  input_stream->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "InputStream"), input_stream);
   self->input_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, input_stream);
@@ -212,7 +175,7 @@ _gum_v8_stream_init (GumV8Stream * self,
       FunctionTemplate::New (isolate, gum_v8_output_stream_on_write));
   output_stream_proto->Set (String::NewFromUtf8 (isolate, "_writeAll"),
       FunctionTemplate::New (isolate, gum_v8_output_stream_on_write_all));
-  output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  output_stream->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, "OutputStream"), output_stream);
   self->output_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, output_stream);
@@ -222,7 +185,7 @@ _gum_v8_stream_init (GumV8Stream * self,
   native_input_stream->SetClassName (String::NewFromUtf8 (isolate,
       GUM_NATIVE_INPUT_STREAM));
   native_input_stream->Inherit (input_stream);
-  native_input_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  native_input_stream->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_INPUT_STREAM),
       native_input_stream);
 
@@ -231,31 +194,27 @@ _gum_v8_stream_init (GumV8Stream * self,
   native_output_stream->SetClassName (String::NewFromUtf8 (isolate,
       GUM_NATIVE_OUTPUT_STREAM));
   native_output_stream->Inherit (output_stream);
-  native_output_stream->InstanceTemplate ()->SetInternalFieldCount (2);
+  native_output_stream->InstanceTemplate ()->SetInternalFieldCount (1);
   scope->Set (String::NewFromUtf8 (isolate, GUM_NATIVE_OUTPUT_STREAM),
       native_output_stream);
-
-  self->streams = g_hash_table_new_full (NULL, NULL, g_object_unref,
-      gum_v8_stream_handle_free);
-  self->cancellable = g_cancellable_new ();
 }
 
 void
 _gum_v8_stream_realize (GumV8Stream * self)
 {
-  (void) self;
+  gum_v8_object_manager_init (&self->objects);
 }
 
 void
 _gum_v8_stream_flush (GumV8Stream * self)
 {
-  g_cancellable_cancel (self->cancellable);
+  gum_v8_object_manager_flush (&self->objects);
 }
 
 void
 _gum_v8_stream_dispose (GumV8Stream * self)
 {
-  g_hash_table_remove_all (self->streams);
+  gum_v8_object_manager_free (&self->objects);
 }
 
 void
@@ -267,25 +226,6 @@ _gum_v8_stream_finalize (GumV8Stream * self)
   self->io_stream = nullptr;
   self->input_stream = nullptr;
   self->output_stream = nullptr;
-
-  g_clear_object (&self->cancellable);
-  g_clear_pointer (&self->streams, g_hash_table_unref);
-}
-
-template<typename T>
-static void
-gum_v8_stream_get (const FunctionCallbackInfo<Value> & info,
-                   T ** stream,
-                   GumV8Stream ** module,
-                   GumV8Core ** core)
-{
-  Local<Object> instance = info.Holder ();
-
-  *stream = static_cast<T *> (
-      instance->GetAlignedPointerFromInternalField (0));
-  *module = static_cast<GumV8Stream *> (
-      instance->GetAlignedPointerFromInternalField (1));
-  *core = (*module)->core;
 }
 
 static void
@@ -312,52 +252,39 @@ gum_v8_io_stream_on_new (const FunctionCallbackInfo<Value> & info)
   }
   GIOStream * stream = G_IO_STREAM (stream_value.As<External> ()->Value ());
 
-  Local<Object> instance (info.Holder ());
-  instance->SetAlignedPointerInInternalField (0, stream);
-  instance->SetAlignedPointerInInternalField (1, module);
+  Local<Object> wrapper (info.Holder ());
+  gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 
   {
     Local<FunctionTemplate> ctor (
         Local<FunctionTemplate>::New (isolate, *module->input_stream));
     Handle<Value> argv[] = {
-      External::New (isolate, g_object_ref (
-          g_io_stream_get_input_stream (stream)))
+        External::New (isolate, g_object_ref (
+            g_io_stream_get_input_stream (stream)))
     };
     Local<Object> input = ctor->GetFunction ()->NewInstance (context,
         G_N_ELEMENTS (argv), argv).ToLocalChecked ();
-    _gum_v8_object_set (instance, "input", input, core);
+    _gum_v8_object_set (wrapper, "input", input, core);
   }
 
   {
     Local<FunctionTemplate> ctor (
         Local<FunctionTemplate>::New (isolate, *module->output_stream));
     Handle<Value> argv[] = {
-      External::New (isolate, g_object_ref (
-          g_io_stream_get_output_stream (stream)))
+        External::New (isolate, g_object_ref (
+            g_io_stream_get_output_stream (stream)))
     };
     Local<Object> output = ctor->GetFunction ()->NewInstance (context,
         G_N_ELEMENTS (argv), argv).ToLocalChecked ();
-    _gum_v8_object_set (instance, "output", output, core);
+    _gum_v8_object_set (wrapper, "output", output, core);
   }
-
-  GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (isolate, instance);
-  instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
-      WeakCallbackType::kInternalFields);
-
-  g_hash_table_insert (module->streams, stream, instance_handle);
 }
 
 static void
 gum_v8_io_stream_on_close (const FunctionCallbackInfo<Value> & info)
 {
+  GumV8IOStream * self = gum_v8_object_get<GumV8IOStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GIOStream * stream;
-  GumV8Stream * module;
-  GumV8Core * core;
-
-  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -374,44 +301,24 @@ gum_v8_io_stream_on_close (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
-  GumV8CloseIOStreamOperation * op = g_slice_new (GumV8CloseIOStreamOperation);
-  op->stream = stream;
-  g_object_ref (stream);
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_close_io_stream_operation_start, op,
-      (GDestroyNotify) gum_v8_close_io_stream_operation_free);
+  GumV8ObjectManager * objects = &self->module->objects;
+  GIOStream * stream = self->handle;
+  gum_v8_object_manager_cancel (objects,
+      g_io_stream_get_input_stream (stream));
+  gum_v8_object_manager_cancel (objects,
+      g_io_stream_get_output_stream (stream));
 
-  op->module = module;
+  g_cancellable_cancel (self->cancellable);
 
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_close_io_stream_operation_free (GumV8CloseIOStreamOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->stream);
-
-  g_slice_free (GumV8CloseIOStreamOperation, op);
+  GumV8CloseIOStreamOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_close_io_stream_operation_start);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_close_io_stream_operation_start (GumV8CloseIOStreamOperation * self)
 {
-  g_io_stream_close_async (self->stream, G_PRIORITY_DEFAULT,
-      self->module->cancellable,
+  g_io_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_io_stream_operation_finish, self);
 }
 
@@ -426,7 +333,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
   success = g_io_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -449,7 +356,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
@@ -475,29 +382,15 @@ gum_v8_input_stream_on_new (const FunctionCallbackInfo<Value> & info)
   GInputStream * stream = G_INPUT_STREAM (
       stream_value.As<External> ()->Value ());
 
-  Local<Object> instance (info.Holder ());
-  instance->SetAlignedPointerInInternalField (0, stream);
-  instance->SetAlignedPointerInInternalField (1, module);
-
-  GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (isolate, instance);
-  instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
-      WeakCallbackType::kInternalFields);
-
-  g_hash_table_insert (module->streams, stream, instance_handle);
+  gum_v8_object_manager_add (&module->objects, info.Holder (), stream, module);
 }
 
 static void
 gum_v8_input_stream_on_close (
     const FunctionCallbackInfo<Value> & info)
 {
+  GumV8InputStream * self = gum_v8_object_get<GumV8InputStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GInputStream * stream;
-  GumV8Stream * module;
-  GumV8Core * core;
-
-  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -514,44 +407,17 @@ gum_v8_input_stream_on_close (
     return;
   }
 
-  GumV8CloseInputOperation * op = g_slice_new (GumV8CloseInputOperation);
-  op->stream = stream;
-  g_object_ref (stream);
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_close_input_operation_start, op,
-      (GDestroyNotify) gum_v8_close_input_operation_free);
+  g_cancellable_cancel (self->cancellable);
 
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_close_input_operation_free (GumV8CloseInputOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->stream);
-
-  g_slice_free (GumV8CloseInputOperation, op);
+  GumV8CloseInputOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_close_input_operation_start);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_close_input_operation_start (GumV8CloseInputOperation * self)
 {
-  g_input_stream_close_async (self->stream, G_PRIORITY_DEFAULT,
-      self->module->cancellable,
+  g_input_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_input_operation_finish, self);
 }
 
@@ -566,7 +432,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
   success = g_input_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -589,7 +455,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
@@ -611,12 +477,8 @@ gum_v8_input_stream_on_read_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8ReadStrategy strategy)
 {
+  GumV8InputStream * self = gum_v8_object_get<GumV8InputStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GInputStream * stream;
-  GumV8Stream * module;
-  GumV8Core * core;
-
-  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -626,7 +488,7 @@ gum_v8_input_stream_on_read_with_strategy (
   }
 
   guint64 size;
-  if (!_gum_v8_uint64_get (info[0], &size, core))
+  if (!_gum_v8_uint64_get (info[0], &size, self->core))
     return;
   if (size == 0)
   {
@@ -643,41 +505,18 @@ gum_v8_input_stream_on_read_with_strategy (
     return;
   }
 
-  GumV8ReadOperation * op = g_slice_new (GumV8ReadOperation);
-  op->stream = stream;
-  g_object_ref (stream);
+  GumV8ReadOperation * op = gum_v8_object_operation_new (self, callback_value,
+      gum_v8_read_operation_start, gum_v8_read_operation_free);
   op->strategy = strategy;
   op->buffer = g_malloc (size);
   op->buffer_size = size;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_read_operation_start, op,
-      (GDestroyNotify) gum_v8_read_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_read_operation_free (GumV8ReadOperation * op)
 {
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
   g_free (op->buffer);
-  g_object_unref (op->stream);
-
-  g_slice_free (GumV8ReadOperation, op);
 }
 
 static void
@@ -685,16 +524,16 @@ gum_v8_read_operation_start (GumV8ReadOperation * self)
 {
   if (self->strategy == GUM_V8_READ_SOME)
   {
-    g_input_stream_read_async (self->stream, self->buffer, self->buffer_size,
-        G_PRIORITY_DEFAULT, self->module->cancellable,
+    g_input_stream_read_async (self->handle, self->buffer, self->buffer_size,
+        G_PRIORITY_DEFAULT, self->cancellable,
         (GAsyncReadyCallback) gum_v8_read_operation_finish, self);
   }
   else
   {
     g_assert_cmpuint (self->strategy, ==, GUM_V8_READ_ALL);
 
-    g_input_stream_read_all_async (self->stream, self->buffer,
-        self->buffer_size, G_PRIORITY_DEFAULT, self->module->cancellable,
+    g_input_stream_read_all_async (self->handle, self->buffer,
+        self->buffer_size, G_PRIORITY_DEFAULT, self->cancellable,
         (GAsyncReadyCallback) gum_v8_read_operation_finish, self);
   }
 }
@@ -723,7 +562,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
   }
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -759,7 +598,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
@@ -785,29 +624,15 @@ gum_v8_output_stream_on_new (const FunctionCallbackInfo<Value> & info)
   GOutputStream * stream = G_OUTPUT_STREAM (
       stream_value.As<External> ()->Value ());
 
-  Local<Object> instance (info.Holder ());
-  instance->SetAlignedPointerInInternalField (0, stream);
-  instance->SetAlignedPointerInInternalField (1, module);
-
-  GumPersistent<Object>::type * instance_handle =
-      new GumPersistent<Object>::type (isolate, instance);
-  instance_handle->MarkIndependent ();
-  instance_handle->SetWeak (module, gum_v8_stream_on_weak_notify,
-      WeakCallbackType::kInternalFields);
-
-  g_hash_table_insert (module->streams, stream, instance_handle);
+  gum_v8_object_manager_add (&module->objects, info.Holder (), stream, module);
 }
 
 static void
 gum_v8_output_stream_on_close (
     const FunctionCallbackInfo<Value> & info)
 {
+  GumV8OutputStream * self = gum_v8_object_get<GumV8OutputStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GOutputStream * stream;
-  GumV8Stream * module;
-  GumV8Core * core;
-
-  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 1)
   {
@@ -824,44 +649,17 @@ gum_v8_output_stream_on_close (
     return;
   }
 
-  GumV8CloseOutputOperation * op = g_slice_new (GumV8CloseOutputOperation);
-  op->stream = stream;
-  g_object_ref (stream);
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_close_output_operation_start, op,
-      (GDestroyNotify) gum_v8_close_output_operation_free);
+  g_cancellable_cancel (self->cancellable);
 
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-}
-
-static void
-gum_v8_close_output_operation_free (GumV8CloseOutputOperation * op)
-{
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
-  g_object_unref (op->stream);
-
-  g_slice_free (GumV8CloseOutputOperation, op);
+  GumV8CloseOutputOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_close_output_operation_start);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_close_output_operation_start (GumV8CloseOutputOperation * self)
 {
-  g_output_stream_close_async (self->stream, G_PRIORITY_DEFAULT,
-      self->module->cancellable,
+  g_output_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_output_operation_finish, self);
 }
 
@@ -876,7 +674,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
   success = g_output_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -899,7 +697,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
@@ -921,12 +719,8 @@ gum_v8_output_stream_on_write_with_strategy (
     const FunctionCallbackInfo<Value> & info,
     GumV8WriteStrategy strategy)
 {
+  GumV8OutputStream * self = gum_v8_object_get<GumV8OutputStream> (info);
   Isolate * isolate = info.GetIsolate ();
-  GOutputStream * stream;
-  GumV8Stream * module;
-  GumV8Core * core;
-
-  gum_v8_stream_get (info, &stream, &module, &core);
 
   if (info.Length () < 2)
   {
@@ -935,7 +729,7 @@ gum_v8_output_stream_on_write_with_strategy (
     return;
   }
 
-  GBytes * bytes = _gum_v8_byte_array_get (info[0], core);
+  GBytes * bytes = _gum_v8_byte_array_get (info[0], self->core);
   if (bytes == NULL)
     return;
 
@@ -949,40 +743,17 @@ gum_v8_output_stream_on_write_with_strategy (
     return;
   }
 
-  GumV8WriteOperation * op = g_slice_new (GumV8WriteOperation);
-  op->stream = stream;
-  g_object_ref (stream);
+  GumV8WriteOperation * op = gum_v8_object_operation_new (self, callback_value,
+      gum_v8_write_operation_start, gum_v8_write_operation_free);
   op->strategy = strategy;
   op->bytes = bytes;
-  op->callback = new GumPersistent<Function>::type (isolate,
-      callback_value.As<Function> ());
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_v8_write_operation_start, op,
-      (GDestroyNotify) gum_v8_write_operation_free);
-
-  op->module = module;
-
-  _gum_v8_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
+  gum_v8_object_operation_schedule (op);
 }
 
 static void
 gum_v8_write_operation_free (GumV8WriteOperation * op)
 {
-  GumV8Core * core = op->module->core;
-
-  {
-    ScriptScope scope (core->script);
-
-    delete op->callback;
-
-    _gum_v8_core_unpin (core);
-  }
-
   g_bytes_unref (op->bytes);
-  g_object_unref (op->stream);
-
-  g_slice_free (GumV8WriteOperation, op);
 }
 
 static void
@@ -990,8 +761,8 @@ gum_v8_write_operation_start (GumV8WriteOperation * self)
 {
   if (self->strategy == GUM_V8_WRITE_SOME)
   {
-    g_output_stream_write_bytes_async (self->stream, self->bytes,
-        G_PRIORITY_DEFAULT, self->module->cancellable,
+    g_output_stream_write_bytes_async (self->handle, self->bytes,
+        G_PRIORITY_DEFAULT, self->cancellable,
         (GAsyncReadyCallback) gum_v8_write_operation_finish, self);
   }
   else
@@ -1001,8 +772,8 @@ gum_v8_write_operation_start (GumV8WriteOperation * self)
     gsize size;
     gconstpointer data = g_bytes_get_data (self->bytes, &size);
 
-    g_output_stream_write_all_async (self->stream, data, size,
-        G_PRIORITY_DEFAULT, self->module->cancellable,
+    g_output_stream_write_all_async (self->handle, data, size,
+        G_PRIORITY_DEFAULT, self->cancellable,
         (GAsyncReadyCallback) gum_v8_write_operation_finish, self);
   }
 }
@@ -1031,7 +802,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
   }
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -1062,7 +833,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
-  gum_script_job_free (self->job);
+  gum_v8_object_operation_finish (self);
 }
 
 static void
@@ -1192,22 +963,4 @@ gum_v8_native_stream_ctor_args_parse (const FunctionCallbackInfo<Value> & info,
   }
 
   return TRUE;
-}
-
-static void
-gum_v8_stream_on_weak_notify (
-    const WeakCallbackInfo<GumV8Stream> & info)
-{
-  HandleScope handle_scope (info.GetIsolate ());
-  gpointer stream = info.GetInternalField (0);
-  GumV8Stream * module = static_cast<GumV8Stream *> (info.GetInternalField (1));
-  g_hash_table_remove (module->streams, stream);
-}
-
-static void
-gum_v8_stream_handle_free (gpointer data)
-{
-  GumPersistent<Object>::type * instance_handle =
-      static_cast<GumPersistent<Object>::type *> (data);
-  delete instance_handle;
 }
