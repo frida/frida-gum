@@ -256,7 +256,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     g_clear_object (&listener);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -382,7 +382,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
   connection = g_socket_client_connect_to_host_finish (client, result, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -618,16 +618,16 @@ gum_v8_socket_listener_on_close (const FunctionCallbackInfo<Value> & info)
 
   GumV8CloseListenerOperation * op = gum_v8_object_operation_new (self,
       callback_value, gum_v8_close_listener_operation_perform);
-  gum_v8_object_operation_schedule (op);
+  gum_v8_object_operation_schedule_when_idle (op);
 }
 
 static void
 gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
 {
-  g_socket_listener_close (self->handle);
+  g_socket_listener_close (self->object->handle);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -667,7 +667,9 @@ gum_v8_socket_listener_on_accept (const FunctionCallbackInfo<Value> & info)
 static void
 gum_v8_accept_operation_start (GumV8AcceptOperation * self)
 {
-  g_socket_listener_accept_async (self->handle, self->cancellable,
+  GumV8SocketListener * listener = self->object;
+
+  g_socket_listener_accept_async (listener->handle, listener->cancellable,
       (GAsyncReadyCallback) gum_v8_accept_operation_finish, self);
 }
 
@@ -682,7 +684,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
   connection = g_socket_listener_accept_finish (listener, result, NULL, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 
@@ -693,7 +695,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     {
       error_value = null_value;
       connection_value =
-          gum_v8_socket_connection_new (connection, self->module);
+          gum_v8_socket_connection_new (connection, self->object->module);
     }
     else
     {
@@ -796,14 +798,14 @@ gum_v8_socket_connection_on_set_no_delay (
 static void
 gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
 {
-  GSocket * socket = g_socket_connection_get_socket (self->handle);
+  GSocket * socket = g_socket_connection_get_socket (self->object->handle);
 
   GError * error = NULL;
   gboolean success = g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY,
       self->no_delay, &error);
 
   {
-    GumV8Core * core = self->module->core;
+    GumV8Core * core = self->core;
     ScriptScope scope (core->script);
     Isolate * isolate = core->isolate;
 

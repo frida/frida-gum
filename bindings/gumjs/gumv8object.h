@@ -29,20 +29,21 @@ struct GumV8Object
   M * module;
 
   GumV8ObjectManager * manager;
+  guint num_active_operations;
+  GQueue * pending_operations;
 };
 
 template<typename O, typename M>
 struct GumV8ObjectOperation
 {
-  GumPersistent<v8::Object>::type * wrapper;
-  O * handle;
-  GCancellable * cancellable;
+  GumV8Object<O, M> * object;
   GumPersistent<v8::Function>::type * callback;
 
   GumV8Core * core;
-  M * module;
 
+  GumPersistent<v8::Object>::type * wrapper;
   GumScriptJob * job;
+  GSList * pending_dependencies;
   gsize size;
   void (* cleanup) (GumV8ObjectOperation<O, M> * op);
 };
@@ -67,8 +68,20 @@ G_GNUC_INTERNAL void gum_v8_object_manager_free (GumV8ObjectManager * manager);
 G_GNUC_INTERNAL gpointer _gum_v8_object_manager_add (GumV8ObjectManager * self,
     v8::Handle<v8::Object> wrapper, gpointer handle, gpointer module,
     GumV8Core * core);
-G_GNUC_INTERNAL gboolean gum_v8_object_manager_cancel (
+G_GNUC_INTERNAL gpointer _gum_v8_object_manager_lookup (
     GumV8ObjectManager * self, gpointer handle);
+
+G_GNUC_INTERNAL gpointer _gum_v8_object_operation_new (gsize size,
+    gpointer opaque_object, v8::Handle<v8::Value> callback, GCallback perform,
+    GCallback cleanup, GumV8Core * core);
+G_GNUC_INTERNAL void _gum_v8_object_operation_schedule (gpointer opaque_self);
+G_GNUC_INTERNAL void _gum_v8_object_operation_schedule_when_idle (
+    gpointer opaque_self, GPtrArray * dependencies);
+
+G_GNUC_INTERNAL gpointer _gum_v8_module_operation_new (gsize size,
+    gpointer module, GumV8ObjectManager * manager,
+    v8::Handle<v8::Value> callback, GCallback perform, GCallback cleanup,
+    GumV8Core * core);
 
 template<typename T>
 T *
@@ -76,15 +89,6 @@ gum_v8_object_get (const v8::FunctionCallbackInfo<v8::Value> & info)
 {
   return (T *) info.Holder ()->GetAlignedPointerFromInternalField (0);
 }
-
-G_GNUC_INTERNAL gpointer _gum_v8_object_operation_new (gsize size,
-    gpointer opaque_parent, v8::Handle<v8::Value> callback, GCallback perform,
-    GCallback cleanup, GumV8Core * core);
-
-G_GNUC_INTERNAL gpointer _gum_v8_module_operation_new (gsize size,
-    gpointer module, GumV8ObjectManager * manager,
-    v8::Handle<v8::Value> callback, GCallback perform, GCallback cleanup,
-    GumV8Core * core);
 
 template<typename O, typename M>
 GumV8Object<O, M> *
@@ -97,22 +101,45 @@ gum_v8_object_manager_add (GumV8ObjectManager * self,
       handle, module, module->core);
 }
 
+template<typename O, typename M>
+GumV8Object<O, M> *
+gum_v8_object_manager_lookup (GumV8ObjectManager * self,
+                              O * handle)
+{
+  return (GumV8Object<O, M> *) _gum_v8_object_manager_lookup (self, handle);
+}
+
 template<typename T, typename O, typename M>
 T *
-gum_v8_object_operation_new (GumV8Object<O, M> * parent,
+gum_v8_object_operation_new (GumV8Object<O, M> * object,
                              v8::Handle<v8::Value> callback,
                              void (* perform) (T * operation),
                              void (* cleanup) (T * operation) = nullptr)
 {
-  return (T *) _gum_v8_object_operation_new (sizeof (T), parent, callback,
-      (GCallback) perform, (GCallback) cleanup, parent->module->core);
+  return (T *) _gum_v8_object_operation_new (sizeof (T), object, callback,
+      (GCallback) perform, (GCallback) cleanup, object->core);
 }
 
 template<typename O, typename M>
 void
 gum_v8_object_operation_schedule (GumV8ObjectOperation<O, M> * self)
 {
-  gum_script_job_start_on_js_thread (self->job);
+  _gum_v8_object_operation_schedule (self);
+}
+
+template<typename O, typename M>
+void
+gum_v8_object_operation_schedule_when_idle (GumV8ObjectOperation<O, M> * self)
+{
+  _gum_v8_object_operation_schedule_when_idle (self, NULL);
+}
+
+template<typename O, typename M>
+void
+gum_v8_object_operation_schedule_when_idle (GumV8ObjectOperation<O, M> * self,
+                                            GPtrArray * dependencies)
+{
+  _gum_v8_object_operation_schedule_when_idle (self, dependencies);
 }
 
 template<typename O, typename M>

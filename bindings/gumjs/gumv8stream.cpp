@@ -301,24 +301,43 @@ gum_v8_io_stream_on_close (const FunctionCallbackInfo<Value> & info)
     return;
   }
 
+  GumV8CloseIOStreamOperation * op = gum_v8_object_operation_new (self,
+      callback_value, gum_v8_close_io_stream_operation_start);
+
+  GPtrArray * dependencies = g_ptr_array_sized_new (2);
+
   GumV8ObjectManager * objects = &self->module->objects;
   GIOStream * stream = self->handle;
-  gum_v8_object_manager_cancel (objects,
-      g_io_stream_get_input_stream (stream));
-  gum_v8_object_manager_cancel (objects,
-      g_io_stream_get_output_stream (stream));
+
+  GumV8InputStream * input =
+      gum_v8_object_manager_lookup<GInputStream, GumV8Stream> (objects,
+          g_io_stream_get_input_stream (stream));
+  if (input != NULL)
+  {
+    g_cancellable_cancel (input->cancellable);
+    g_ptr_array_add (dependencies, input);
+  }
+
+  GumV8OutputStream * output =
+      gum_v8_object_manager_lookup<GOutputStream, GumV8Stream> (objects,
+          g_io_stream_get_output_stream (stream));
+  if (output != NULL)
+  {
+    g_cancellable_cancel (output->cancellable);
+    g_ptr_array_add (dependencies, output);
+  }
 
   g_cancellable_cancel (self->cancellable);
 
-  GumV8CloseIOStreamOperation * op = gum_v8_object_operation_new (self,
-      callback_value, gum_v8_close_io_stream_operation_start);
-  gum_v8_object_operation_schedule (op);
+  gum_v8_object_operation_schedule_when_idle (op, dependencies);
+
+  g_ptr_array_unref (dependencies);
 }
 
 static void
 gum_v8_close_io_stream_operation_start (GumV8CloseIOStreamOperation * self)
 {
-  g_io_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
+  g_io_stream_close_async (self->object->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_io_stream_operation_finish, self);
 }
 
@@ -411,13 +430,13 @@ gum_v8_input_stream_on_close (
 
   GumV8CloseInputOperation * op = gum_v8_object_operation_new (self,
       callback_value, gum_v8_close_input_operation_start);
-  gum_v8_object_operation_schedule (op);
+  gum_v8_object_operation_schedule_when_idle (op);
 }
 
 static void
 gum_v8_close_input_operation_start (GumV8CloseInputOperation * self)
 {
-  g_input_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
+  g_input_stream_close_async (self->object->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_input_operation_finish, self);
 }
 
@@ -522,18 +541,20 @@ gum_v8_read_operation_free (GumV8ReadOperation * op)
 static void
 gum_v8_read_operation_start (GumV8ReadOperation * self)
 {
+  GumV8InputStream * stream = self->object;
+
   if (self->strategy == GUM_V8_READ_SOME)
   {
-    g_input_stream_read_async (self->handle, self->buffer, self->buffer_size,
-        G_PRIORITY_DEFAULT, self->cancellable,
+    g_input_stream_read_async (stream->handle, self->buffer, self->buffer_size,
+        G_PRIORITY_DEFAULT, stream->cancellable,
         (GAsyncReadyCallback) gum_v8_read_operation_finish, self);
   }
   else
   {
     g_assert_cmpuint (self->strategy, ==, GUM_V8_READ_ALL);
 
-    g_input_stream_read_all_async (self->handle, self->buffer,
-        self->buffer_size, G_PRIORITY_DEFAULT, self->cancellable,
+    g_input_stream_read_all_async (stream->handle, self->buffer,
+        self->buffer_size, G_PRIORITY_DEFAULT, stream->cancellable,
         (GAsyncReadyCallback) gum_v8_read_operation_finish, self);
   }
 }
@@ -653,13 +674,13 @@ gum_v8_output_stream_on_close (
 
   GumV8CloseOutputOperation * op = gum_v8_object_operation_new (self,
       callback_value, gum_v8_close_output_operation_start);
-  gum_v8_object_operation_schedule (op);
+  gum_v8_object_operation_schedule_when_idle (op);
 }
 
 static void
 gum_v8_close_output_operation_start (GumV8CloseOutputOperation * self)
 {
-  g_output_stream_close_async (self->handle, G_PRIORITY_DEFAULT, NULL,
+  g_output_stream_close_async (self->object->handle, G_PRIORITY_DEFAULT, NULL,
       (GAsyncReadyCallback) gum_v8_close_output_operation_finish, self);
 }
 
@@ -759,10 +780,12 @@ gum_v8_write_operation_free (GumV8WriteOperation * op)
 static void
 gum_v8_write_operation_start (GumV8WriteOperation * self)
 {
+  GumV8OutputStream * stream = self->object;
+
   if (self->strategy == GUM_V8_WRITE_SOME)
   {
-    g_output_stream_write_bytes_async (self->handle, self->bytes,
-        G_PRIORITY_DEFAULT, self->cancellable,
+    g_output_stream_write_bytes_async (stream->handle, self->bytes,
+        G_PRIORITY_DEFAULT, stream->cancellable,
         (GAsyncReadyCallback) gum_v8_write_operation_finish, self);
   }
   else
@@ -772,8 +795,8 @@ gum_v8_write_operation_start (GumV8WriteOperation * self)
     gsize size;
     gconstpointer data = g_bytes_get_data (self->bytes, &size);
 
-    g_output_stream_write_all_async (self->handle, data, size,
-        G_PRIORITY_DEFAULT, self->cancellable,
+    g_output_stream_write_all_async (stream->handle, data, size,
+        G_PRIORITY_DEFAULT, stream->cancellable,
         (GAsyncReadyCallback) gum_v8_write_operation_finish, self);
   }
 }

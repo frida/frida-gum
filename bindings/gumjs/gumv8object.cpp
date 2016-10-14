@@ -14,11 +14,20 @@ typedef GumV8Object<void, void> GumV8AnyObject;
 typedef GumV8ObjectOperation<void, void> GumV8AnyObjectOperation;
 typedef GumV8ModuleOperation<void> GumV8AnyModuleOperation;
 
+struct GumV8TryScheduleIfIdleOperation : public GumV8ObjectOperation<void, void>
+{
+  GumV8AnyObjectOperation * blocked_operation;
+};
+
 static void gum_v8_object_on_weak_notify (
     const WeakCallbackInfo<GumV8AnyObject> & info);
 static void gum_v8_object_free (GumV8AnyObject * obj);
 
 static void gum_v8_object_operation_free (GumV8AnyObjectOperation * op);
+static void gum_v8_object_operation_try_schedule_when_idle (
+    GumV8AnyObjectOperation * self);
+static void gum_v8_try_schedule_if_idle_operation_perform (
+    GumV8TryScheduleIfIdleOperation * self);
 
 static void gum_v8_module_operation_free (GumV8AnyModuleOperation * op);
 
@@ -77,11 +86,22 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
   object->core = core;
   object->module = module;
 
+  object->manager = self;
+  object->num_active_operations = 0;
+  object->pending_operations = g_queue_new ();
+
   wrapper->SetAlignedPointerInInternalField (0, object);
 
   g_hash_table_insert (self->object_by_handle, handle, object);
 
   return object;
+}
+
+gpointer
+_gum_v8_object_manager_lookup (GumV8ObjectManager * self,
+                               gpointer handle)
+{
+  return g_hash_table_lookup (self->object_by_handle, handle);
 }
 
 gboolean
@@ -109,6 +129,10 @@ gum_v8_object_on_weak_notify (
 static void
 gum_v8_object_free (GumV8AnyObject * object)
 {
+  g_assert_cmpuint (object->num_active_operations, ==, 0);
+  g_assert (g_queue_is_empty (object->pending_operations));
+  g_queue_free (object->pending_operations);
+
   g_object_unref (object->cancellable);
   g_object_unref (object->handle);
   delete object->wrapper;
@@ -118,30 +142,29 @@ gum_v8_object_free (GumV8AnyObject * object)
 
 gpointer
 _gum_v8_object_operation_new (gsize size,
-                              gpointer opaque_parent,
+                              gpointer opaque_object,
                               Handle<Value> callback,
                               GCallback perform,
                               GCallback cleanup,
                               GumV8Core * core)
 {
-  GumV8AnyObject * parent = (GumV8AnyObject *) opaque_parent;
+  GumV8AnyObject * object = (GumV8AnyObject *) opaque_object;
   Isolate * isolate = core->isolate;
 
   GumV8AnyObjectOperation * op =
       (GumV8AnyObjectOperation *) g_slice_alloc (size);
 
-  op->wrapper = new GumPersistent<Object>::type (isolate,
-      *parent->wrapper);
-  op->handle = parent->handle;
-  op->cancellable = parent->cancellable;
+  op->object = object;
   op->callback = new GumPersistent<Function>::type (isolate,
       callback.As<Function> ());
 
   op->core = core;
-  op->module = parent->module;
 
+  op->wrapper = new GumPersistent<Object>::type (isolate,
+      *object->wrapper);
   op->job = gum_script_job_new (core->scheduler, (GumScriptJobFunc) perform, op,
       (GDestroyNotify) gum_v8_object_operation_free);
+  op->pending_dependencies = NULL;
   op->size = size;
   op->cleanup = (void (*) (GumV8AnyObjectOperation * op)) cleanup;
 
@@ -153,7 +176,10 @@ _gum_v8_object_operation_new (gsize size,
 static void
 gum_v8_object_operation_free (GumV8AnyObjectOperation * op)
 {
-  GumV8Core * core = op->core;
+  GumV8AnyObject * object = op->object;
+  GumV8Core * core = object->core;
+
+  g_assert (op->pending_dependencies == NULL);
 
   if (op->cleanup != NULL)
     op->cleanup (op);
@@ -161,13 +187,87 @@ gum_v8_object_operation_free (GumV8AnyObjectOperation * op)
   {
     ScriptScope scope (core->script);
 
-    delete op->callback;
     delete op->wrapper;
+    delete op->callback;
+
+    if (--object->num_active_operations == 0)
+    {
+      gpointer next = g_queue_pop_head (object->pending_operations);
+      if (next != NULL)
+        _gum_v8_object_operation_schedule (next);
+    }
 
     _gum_v8_core_unpin (core);
   }
 
   g_slice_free1 (op->size, op);
+}
+
+void
+_gum_v8_object_operation_schedule (gpointer opaque_self)
+{
+  GumV8AnyObjectOperation * self = (GumV8AnyObjectOperation *) opaque_self;
+
+  self->object->num_active_operations++;
+  gum_script_job_start_on_js_thread (self->job);
+}
+
+void
+_gum_v8_object_operation_schedule_when_idle (gpointer opaque_self,
+                                             GPtrArray * dependencies)
+{
+  GumV8AnyObjectOperation * self = (GumV8AnyObjectOperation *) opaque_self;
+
+  if (dependencies != NULL)
+  {
+    for (guint i = 0; i != dependencies->len; i++)
+    {
+      GumV8AnyObject * dependency = (GumV8AnyObject *)
+          g_ptr_array_index (dependencies, i);
+      if (dependency->num_active_operations > 0)
+      {
+        GumV8TryScheduleIfIdleOperation * op = gum_v8_object_operation_new (
+            dependency, Handle<Value> (),
+            gum_v8_try_schedule_if_idle_operation_perform);
+        op->blocked_operation = self;
+        self->pending_dependencies =
+            g_slist_prepend (self->pending_dependencies, op);
+        gum_v8_object_operation_schedule_when_idle (op);
+      }
+    }
+  }
+
+  gum_v8_object_operation_try_schedule_when_idle (self);
+}
+
+static void
+gum_v8_object_operation_try_schedule_when_idle (GumV8AnyObjectOperation * self)
+{
+  GumV8AnyObject * object = self->object;
+
+  if (self->pending_dependencies != NULL)
+    return;
+
+  if (object->num_active_operations == 0)
+    _gum_v8_object_operation_schedule (self);
+  else
+    g_queue_push_tail (object->pending_operations, self);
+}
+
+static void
+gum_v8_try_schedule_if_idle_operation_perform (
+    GumV8TryScheduleIfIdleOperation * self)
+{
+  GumV8AnyObjectOperation * op = self->blocked_operation;
+
+  {
+    ScriptScope scope (self->core->script);
+
+    op->pending_dependencies = g_slist_remove (op->pending_dependencies, self);
+    gum_v8_object_operation_try_schedule_when_idle (op);
+  }
+
+  gum_v8_object_operation_finish (self);
 }
 
 gpointer
