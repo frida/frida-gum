@@ -54,7 +54,7 @@ struct GumV8SetNoDelayOperation
 static void gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info);
 static void gum_v8_listen_operation_perform (GumV8ListenOperation * self);
 static void gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info);
-static void gum_v8_connect_operation_free (GumV8ConnectOperation * op);
+static void gum_v8_connect_operation_dispose (GumV8ConnectOperation * op);
 static void gum_v8_connect_operation_start (GumV8ConnectOperation * self);
 static void gum_v8_connect_operation_finish (GSocketClient * client,
     GAsyncResult * result, GumV8ConnectOperation * self);
@@ -344,7 +344,7 @@ gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
 
   GumV8ConnectOperation * op = gum_v8_module_operation_new (module,
       callback_value, gum_v8_connect_operation_start,
-      gum_v8_connect_operation_free);
+      gum_v8_connect_operation_dispose);
   op->client = NULL;
   op->family = family;
   op->host = g_strdup (host);
@@ -353,7 +353,7 @@ gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
 }
 
 static void
-gum_v8_connect_operation_free (GumV8ConnectOperation * op)
+gum_v8_connect_operation_dispose (GumV8ConnectOperation * op)
 {
   g_free (op->host);
   g_object_unref (op->client);

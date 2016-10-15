@@ -92,7 +92,7 @@ static void gum_v8_input_stream_on_read_all (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_input_stream_on_read_with_strategy (
     const FunctionCallbackInfo<Value> & info, GumV8ReadStrategy strategy);
-static void gum_v8_read_operation_free (GumV8ReadOperation * op);
+static void gum_v8_read_operation_dispose (GumV8ReadOperation * op);
 static void gum_v8_read_operation_start (GumV8ReadOperation * self);
 static void gum_v8_read_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumV8ReadOperation * self);
@@ -111,7 +111,7 @@ static void gum_v8_output_stream_on_write_all (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_output_stream_on_write_with_strategy (
     const FunctionCallbackInfo<Value> & info, GumV8WriteStrategy strategy);
-static void gum_v8_write_operation_free (GumV8WriteOperation * op);
+static void gum_v8_write_operation_dispose (GumV8WriteOperation * op);
 static void gum_v8_write_operation_start (GumV8WriteOperation * self);
 static void gum_v8_write_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumV8WriteOperation * self);
@@ -525,7 +525,7 @@ gum_v8_input_stream_on_read_with_strategy (
   }
 
   GumV8ReadOperation * op = gum_v8_object_operation_new (self, callback_value,
-      gum_v8_read_operation_start, gum_v8_read_operation_free);
+      gum_v8_read_operation_start, gum_v8_read_operation_dispose);
   op->strategy = strategy;
   op->buffer = g_malloc (size);
   op->buffer_size = size;
@@ -533,7 +533,7 @@ gum_v8_input_stream_on_read_with_strategy (
 }
 
 static void
-gum_v8_read_operation_free (GumV8ReadOperation * op)
+gum_v8_read_operation_dispose (GumV8ReadOperation * op)
 {
   g_free (op->buffer);
 }
@@ -765,14 +765,14 @@ gum_v8_output_stream_on_write_with_strategy (
   }
 
   GumV8WriteOperation * op = gum_v8_object_operation_new (self, callback_value,
-      gum_v8_write_operation_start, gum_v8_write_operation_free);
+      gum_v8_write_operation_start, gum_v8_write_operation_dispose);
   op->strategy = strategy;
   op->bytes = bytes;
   gum_v8_object_operation_schedule (op);
 }
 
 static void
-gum_v8_write_operation_free (GumV8WriteOperation * op)
+gum_v8_write_operation_dispose (GumV8WriteOperation * op)
 {
   g_bytes_unref (op->bytes);
 }

@@ -21,47 +21,46 @@ struct GumV8TryScheduleIfIdleOperation : public GumV8ObjectOperation<void, void>
 
 static void gum_v8_object_on_weak_notify (
     const WeakCallbackInfo<GumV8AnyObject> & info);
-static void gum_v8_object_free (GumV8AnyObject * obj);
+static void gum_v8_object_free (GumV8AnyObject * self);
 
-static void gum_v8_object_operation_free (GumV8AnyObjectOperation * op);
+static void gum_v8_object_operation_free (GumV8AnyObjectOperation * self);
 static void gum_v8_object_operation_try_schedule_when_idle (
     GumV8AnyObjectOperation * self);
 static void gum_v8_try_schedule_if_idle_operation_perform (
     GumV8TryScheduleIfIdleOperation * self);
 
-static void gum_v8_module_operation_free (GumV8AnyModuleOperation * op);
+static void gum_v8_module_operation_free (GumV8AnyModuleOperation * self);
 
 void
-gum_v8_object_manager_init (GumV8ObjectManager * manager)
+gum_v8_object_manager_init (GumV8ObjectManager * self)
 {
-  manager->cancellable = g_cancellable_new ();
-
-  manager->object_by_handle = g_hash_table_new_full (NULL, NULL, NULL,
+  self->object_by_handle = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_object_free);
+  self->cancellable = g_cancellable_new ();
 }
 
 void
-gum_v8_object_manager_flush (GumV8ObjectManager * manager)
+gum_v8_object_manager_flush (GumV8ObjectManager * self)
 {
   GHashTableIter iter;
   GumV8AnyObject * object;
 
-  g_hash_table_iter_init (&iter, manager->object_by_handle);
+  g_hash_table_iter_init (&iter, self->object_by_handle);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &object))
   {
     g_cancellable_cancel (object->cancellable);
   }
 
-  g_cancellable_cancel (manager->cancellable);
+  g_cancellable_cancel (self->cancellable);
 }
 
 void
-gum_v8_object_manager_free (GumV8ObjectManager * manager)
+gum_v8_object_manager_free (GumV8ObjectManager * self)
 {
-  g_hash_table_remove_all (manager->object_by_handle);
-  g_hash_table_unref (manager->object_by_handle);
+  g_hash_table_remove_all (self->object_by_handle);
 
-  g_object_unref (manager->cancellable);
+  g_object_unref (self->cancellable);
+  g_hash_table_unref (self->object_by_handle);
 }
 
 gpointer
@@ -104,19 +103,6 @@ _gum_v8_object_manager_lookup (GumV8ObjectManager * self,
   return g_hash_table_lookup (self->object_by_handle, handle);
 }
 
-gboolean
-gum_v8_object_manager_cancel (GumV8ObjectManager * manager,
-                              gpointer handle)
-{
-  GumV8AnyObject * object = (GumV8AnyObject *)
-      g_hash_table_lookup (manager->object_by_handle, handle);
-  if (object == NULL)
-    return FALSE;
-
-  g_cancellable_cancel (object->cancellable);
-  return TRUE;
-}
-
 static void
 gum_v8_object_on_weak_notify (
     const WeakCallbackInfo<GumV8AnyObject> & info)
@@ -127,17 +113,17 @@ gum_v8_object_on_weak_notify (
 }
 
 static void
-gum_v8_object_free (GumV8AnyObject * object)
+gum_v8_object_free (GumV8AnyObject * self)
 {
-  g_assert_cmpuint (object->num_active_operations, ==, 0);
-  g_assert (g_queue_is_empty (object->pending_operations));
-  g_queue_free (object->pending_operations);
+  g_assert_cmpuint (self->num_active_operations, ==, 0);
+  g_assert (g_queue_is_empty (self->pending_operations));
+  g_queue_free (self->pending_operations);
 
-  g_object_unref (object->cancellable);
-  g_object_unref (object->handle);
-  delete object->wrapper;
+  g_object_unref (self->cancellable);
+  g_object_unref (self->handle);
+  delete self->wrapper;
 
-  g_slice_free (GumV8AnyObject, object);
+  g_slice_free (GumV8AnyObject, self);
 }
 
 gpointer
@@ -145,7 +131,7 @@ _gum_v8_object_operation_new (gsize size,
                               gpointer opaque_object,
                               Handle<Value> callback,
                               GCallback perform,
-                              GCallback cleanup,
+                              GDestroyNotify dispose,
                               GumV8Core * core)
 {
   GumV8AnyObject * object = (GumV8AnyObject *) opaque_object;
@@ -166,7 +152,7 @@ _gum_v8_object_operation_new (gsize size,
       (GDestroyNotify) gum_v8_object_operation_free);
   op->pending_dependencies = NULL;
   op->size = size;
-  op->cleanup = (void (*) (GumV8AnyObjectOperation * op)) cleanup;
+  op->dispose = (void (*) (GumV8AnyObjectOperation * op)) dispose;
 
   _gum_v8_core_pin (core);
 
@@ -174,21 +160,21 @@ _gum_v8_object_operation_new (gsize size,
 }
 
 static void
-gum_v8_object_operation_free (GumV8AnyObjectOperation * op)
+gum_v8_object_operation_free (GumV8AnyObjectOperation * self)
 {
-  GumV8AnyObject * object = op->object;
+  GumV8AnyObject * object = self->object;
   GumV8Core * core = object->core;
 
-  g_assert (op->pending_dependencies == NULL);
+  g_assert (self->pending_dependencies == NULL);
 
-  if (op->cleanup != NULL)
-    op->cleanup (op);
+  if (self->dispose != NULL)
+    self->dispose (self);
 
   {
     ScriptScope scope (core->script);
 
-    delete op->wrapper;
-    delete op->callback;
+    delete self->wrapper;
+    delete self->callback;
 
     if (--object->num_active_operations == 0)
     {
@@ -200,7 +186,7 @@ gum_v8_object_operation_free (GumV8AnyObjectOperation * op)
     _gum_v8_core_unpin (core);
   }
 
-  g_slice_free1 (op->size, op);
+  g_slice_free1 (self->size, self);
 }
 
 void
@@ -276,7 +262,7 @@ _gum_v8_module_operation_new (gsize size,
                               GumV8ObjectManager * manager,
                               Handle<Value> callback,
                               GCallback perform,
-                              GCallback cleanup,
+                              GDestroyNotify dispose,
                               GumV8Core * core)
 {
   Isolate * isolate = core->isolate;
@@ -294,7 +280,7 @@ _gum_v8_module_operation_new (gsize size,
   op->job = gum_script_job_new (core->scheduler, (GumScriptJobFunc) perform, op,
       (GDestroyNotify) gum_v8_module_operation_free);
   op->size = size;
-  op->cleanup = (void (*) (GumV8AnyModuleOperation * op)) cleanup;
+  op->dispose = (void (*) (GumV8AnyModuleOperation * op)) dispose;
 
   _gum_v8_core_pin (core);
 
@@ -302,20 +288,20 @@ _gum_v8_module_operation_new (gsize size,
 }
 
 static void
-gum_v8_module_operation_free (GumV8AnyModuleOperation * op)
+gum_v8_module_operation_free (GumV8AnyModuleOperation * self)
 {
-  GumV8Core * core = op->core;
+  GumV8Core * core = self->core;
 
-  if (op->cleanup != NULL)
-    op->cleanup (op);
+  if (self->dispose != NULL)
+    self->dispose (self);
 
   {
     ScriptScope scope (core->script);
 
-    delete op->callback;
+    delete self->callback;
 
     _gum_v8_core_unpin (core);
   }
 
-  g_slice_free1 (op->size, op);
+  g_slice_free1 (self->size, self);
 }

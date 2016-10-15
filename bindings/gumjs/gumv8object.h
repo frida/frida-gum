@@ -13,9 +13,8 @@
 
 struct GumV8ObjectManager
 {
-  GCancellable * cancellable;
-
   GHashTable * object_by_handle;
+  GCancellable * cancellable;
 };
 
 template<typename O, typename M>
@@ -45,7 +44,7 @@ struct GumV8ObjectOperation
   GumScriptJob * job;
   GSList * pending_dependencies;
   gsize size;
-  void (* cleanup) (GumV8ObjectOperation<O, M> * op);
+  void (* dispose) (GumV8ObjectOperation<O, M> * op);
 };
 
 template<typename M>
@@ -59,12 +58,12 @@ struct GumV8ModuleOperation
 
   GumScriptJob * job;
   gsize size;
-  void (* cleanup) (GumV8ModuleOperation<M> * op);
+  void (* dispose) (GumV8ModuleOperation<M> * op);
 };
 
-G_GNUC_INTERNAL void gum_v8_object_manager_init (GumV8ObjectManager * manager);
-G_GNUC_INTERNAL void gum_v8_object_manager_flush (GumV8ObjectManager * manager);
-G_GNUC_INTERNAL void gum_v8_object_manager_free (GumV8ObjectManager * manager);
+G_GNUC_INTERNAL void gum_v8_object_manager_init (GumV8ObjectManager * self);
+G_GNUC_INTERNAL void gum_v8_object_manager_flush (GumV8ObjectManager * self);
+G_GNUC_INTERNAL void gum_v8_object_manager_free (GumV8ObjectManager * self);
 G_GNUC_INTERNAL gpointer _gum_v8_object_manager_add (GumV8ObjectManager * self,
     v8::Handle<v8::Object> wrapper, gpointer handle, gpointer module,
     GumV8Core * core);
@@ -73,14 +72,14 @@ G_GNUC_INTERNAL gpointer _gum_v8_object_manager_lookup (
 
 G_GNUC_INTERNAL gpointer _gum_v8_object_operation_new (gsize size,
     gpointer opaque_object, v8::Handle<v8::Value> callback, GCallback perform,
-    GCallback cleanup, GumV8Core * core);
+    GDestroyNotify dispose, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_object_operation_schedule (gpointer opaque_self);
 G_GNUC_INTERNAL void _gum_v8_object_operation_schedule_when_idle (
     gpointer opaque_self, GPtrArray * dependencies);
 
 G_GNUC_INTERNAL gpointer _gum_v8_module_operation_new (gsize size,
     gpointer module, GumV8ObjectManager * manager,
-    v8::Handle<v8::Value> callback, GCallback perform, GCallback cleanup,
+    v8::Handle<v8::Value> callback, GCallback perform, GDestroyNotify dispose,
     GumV8Core * core);
 
 template<typename T>
@@ -114,10 +113,10 @@ T *
 gum_v8_object_operation_new (GumV8Object<O, M> * object,
                              v8::Handle<v8::Value> callback,
                              void (* perform) (T * operation),
-                             void (* cleanup) (T * operation) = nullptr)
+                             void (* dispose) (T * operation) = nullptr)
 {
   return (T *) _gum_v8_object_operation_new (sizeof (T), object, callback,
-      (GCallback) perform, (GCallback) cleanup, object->core);
+      (GCallback) perform, (GDestroyNotify) dispose, object->core);
 }
 
 template<typename O, typename M>
@@ -154,10 +153,10 @@ T *
 gum_v8_module_operation_new (M * module,
                              v8::Handle<v8::Value> callback,
                              void (* perform) (T * operation),
-                             void (* cleanup) (T * operation) = nullptr)
+                             void (* dispose) (T * operation) = nullptr)
 {
   return (T *) _gum_v8_module_operation_new (sizeof (T), module,
-      &module->objects, callback, (GCallback) perform, (GCallback) cleanup,
+      &module->objects, callback, (GCallback) perform, (GDestroyNotify) dispose,
       module->core);
 }
 
