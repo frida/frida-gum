@@ -78,6 +78,7 @@
     <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h" />
     <ClInclude Include="gumdukbundle.h" />
     <ClInclude Include="gumdukvalue.h" />
+    <ClInclude Include="gumdukobject.h" />
     <ClInclude Include="gumdukcore.h" />
     <ClInclude Include="gumdukkernel.h" />
     <ClInclude Include="gumdukmacros.h" />
@@ -101,6 +102,7 @@
     <ClCompile Include="gumdukscript.c" />
     <ClCompile Include="gumdukbundle.c" />
     <ClCompile Include="gumdukvalue.c" />
+    <ClCompile Include="gumdukobject.c" />
     <ClCompile Include="gumdukcore.c" />
     <ClCompile Include="gumdukkernel.c" />
     <ClCompile Include="gumdukmemory.c" />

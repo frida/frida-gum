@@ -7,7 +7,7 @@
 #ifndef __GUM_DUK_STREAM_H__
 #define __GUM_DUK_STREAM_H__
 
-#include "gumdukcore.h"
+#include "gumdukobject.h"
 
 G_BEGIN_DECLS
 
@@ -17,7 +17,7 @@ struct _GumDukStream
 {
   GumDukCore * core;
 
-  GCancellable * cancellable;
+  GumDukObjectManager objects;
 
   GumDukHeapPtr io_stream;
   GumDukHeapPtr input_stream;

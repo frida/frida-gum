@@ -28,60 +28,41 @@ typedef struct _GumDukSetNoDelayOperation GumDukSetNoDelayOperation;
 
 struct _GumDukListenOperation
 {
+  GumDukModuleOperation parent;
   guint16 port;
   gint backlog;
-  GumDukHeapPtr callback;
-  GumScriptJob * job;
-
-  GumDukSocket * module;
 };
 
 struct _GumDukConnectOperation
 {
+  GumDukModuleOperation parent;
   GSocketClient * client;
   GSocketFamily family;
   gchar * host;
   guint16 port;
-  GumDukHeapPtr callback;
-  GumScriptJob * job;
-
-  GumDukSocket * module;
 };
 
 struct _GumDukCloseListenerOperation
 {
-  GSocketListener * listener;
-  GumDukHeapPtr callback;
-  GumScriptJob * job;
-
-  GumDukSocket * module;
+  GumDukObjectOperation parent;
 };
 
 struct _GumDukAcceptOperation
 {
-  GSocketListener * listener;
-  GumDukHeapPtr callback;
-  GumScriptJob * job;
-
-  GumDukSocket * module;
+  GumDukObjectOperation parent;
 };
 
 struct _GumDukSetNoDelayOperation
 {
-  GSocketConnection * connection;
+  GumDukObjectOperation parent;
   gboolean no_delay;
-  GumDukHeapPtr callback;
-  GumScriptJob * job;
-
-  GumDukSocket * module;
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_socket_listen);
-static void gum_duk_listen_operation_free (GumDukListenOperation * op);
 static void gum_duk_listen_operation_perform (GumDukListenOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_socket_connect)
-static void gum_duk_connect_operation_free (GumDukConnectOperation * op);
+static void gum_duk_connect_operation_dispose (GumDukConnectOperation * op);
 static void gum_duk_connect_operation_start (GumDukConnectOperation * self);
 static void gum_duk_connect_operation_finish (GSocketClient * client,
     GAsyncResult * result, GumDukConnectOperation * self);
@@ -92,14 +73,10 @@ GUMJS_DECLARE_FUNCTION (gumjs_socket_get_peer_address)
 static void gum_duk_push_socket_listener (duk_context * ctx,
     GSocketListener * listener, GumDukSocket * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_listener_construct)
-GUMJS_DECLARE_FINALIZER (gumjs_socket_listener_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_socket_listener_close)
-static void gum_duk_close_listener_operation_free (
-    GumDukCloseListenerOperation * op);
 static void gum_duk_close_listener_operation_perform (
     GumDukCloseListenerOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_socket_listener_accept)
-static void gum_duk_accept_operation_free (GumDukAcceptOperation * op);
 static void gum_duk_accept_operation_start (GumDukAcceptOperation * self);
 static void gum_duk_accept_operation_finish (GSocketListener * listener,
     GAsyncResult * result, GumDukAcceptOperation * self);
@@ -108,8 +85,6 @@ static void gum_duk_push_socket_connection (duk_context * ctx,
     GSocketConnection * connection, GumDukSocket * module);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_connection_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_socket_connection_set_no_delay)
-static void gum_duk_set_no_delay_operation_free (
-    GumDukSetNoDelayOperation * op);
 static void gum_duk_set_no_delay_operation_perform (
     GumDukSetNoDelayOperation * self);
 
@@ -164,8 +139,6 @@ _gum_duk_socket_init (GumDukSocket * self,
   duk_push_c_function (ctx, gumjs_socket_listener_construct, 1);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_socket_listener_functions);
-  duk_push_c_function (ctx, gumjs_socket_listener_finalize, 1);
-  duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->listener = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "SocketListener");
@@ -183,13 +156,13 @@ _gum_duk_socket_init (GumDukSocket * self,
   self->io_stream = _gum_duk_require_heapptr (ctx, -1);
   duk_pop (ctx);
 
-  self->cancellable = g_cancellable_new ();
+  _gum_duk_object_manager_init (&self->objects, self, core);
 }
 
 void
 _gum_duk_socket_flush (GumDukSocket * self)
 {
-  g_cancellable_cancel (self->cancellable);
+  _gum_duk_object_manager_flush (&self->objects);
 }
 
 void
@@ -197,6 +170,8 @@ _gum_duk_socket_dispose (GumDukSocket * self)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
   duk_context * ctx = scope.ctx;
+
+  _gum_duk_object_manager_free (&self->objects);
 
   _gum_duk_release_heapptr (ctx, self->listener);
   _gum_duk_release_heapptr (ctx, self->connection);
@@ -207,7 +182,7 @@ _gum_duk_socket_dispose (GumDukSocket * self)
 void
 _gum_duk_socket_finalize (GumDukSocket * self)
 {
-  g_clear_object (&self->cancellable);
+  (void) self;
 }
 
 static GumDukSocket *
@@ -227,56 +202,28 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 {
   GumDukSocket * module;
-  GumDukCore * core;
   guint port;
   gint backlog;
   GumDukHeapPtr callback;
   GumDukListenOperation * op;
 
   module = gumjs_module_from_args (args);
-  core = module->core;
 
   _gum_duk_args_parse (args, "uiF", &port, &backlog, &callback);
 
-  duk_push_heapptr (ctx, callback);
-
-  op = g_slice_new (GumDukListenOperation);
+  op = _gum_duk_module_operation_new (GumDukListenOperation, module, callback,
+      gum_duk_listen_operation_perform, NULL);
   op->port = port;
   op->backlog = backlog;
-  op->callback = _gum_duk_require_heapptr (ctx, -1);
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_duk_listen_operation_perform, op,
-      (GDestroyNotify) gum_duk_listen_operation_free);
-
-  op->module = module;
-
-  _gum_duk_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-
-  duk_pop (ctx);
+  _gum_duk_module_operation_schedule (op);
 
   return 0;
 }
 
 static void
-gum_duk_listen_operation_free (GumDukListenOperation * op)
-{
-  GumDukCore * core = op->module->core;
-  GumDukScope scope;
-  duk_context * ctx;
-
-  ctx = _gum_duk_scope_enter (&scope, core);
-  _gum_duk_core_unpin (core);
-  _gum_duk_release_heapptr (ctx, op->callback);
-  _gum_duk_scope_leave (&scope);
-
-  g_slice_free (GumDukListenOperation, op);
-}
-
-static void
 gum_duk_listen_operation_perform (GumDukListenOperation * self)
 {
-  GumDukSocket * module = self->module;
+  GumDukModuleOperation * op = GUM_DUK_MODULE_OPERATION (self);
   GSocketListener * listener;
   GError * error = NULL;
   GumDukScope scope;
@@ -298,14 +245,14 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
   if (error != NULL)
     g_clear_object (&listener);
 
-  ctx = _gum_duk_scope_enter (&scope, module->core);
+  ctx = _gum_duk_scope_enter (&scope, op->core);
 
-  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, op->callback);
   if (error == NULL)
   {
     duk_push_null (ctx);
 
-    gum_duk_push_socket_listener (ctx, listener, module);
+    gum_duk_push_socket_listener (ctx, listener, op->module);
     duk_push_uint (ctx, self->port);
     duk_put_prop_string (ctx, -2, "port");
   }
@@ -321,13 +268,12 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
 
   _gum_duk_scope_leave (&scope);
 
-  gum_script_job_free (self->job);
+  _gum_duk_module_operation_finish (op);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 {
   GumDukSocket * module;
-  GumDukCore * core;
   guint family_value;
   GSocketFamily family;
   const gchar * host;
@@ -336,7 +282,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   GumDukConnectOperation * op;
 
   module = gumjs_module_from_args (args);
-  core = module->core;
 
   _gum_duk_args_parse (args, "usuF", &family_value, &host, &port, &callback);
 
@@ -355,54 +300,36 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 
   duk_push_heapptr (ctx, callback);
 
-  op = g_slice_new (GumDukConnectOperation);
+  op = _gum_duk_module_operation_new (GumDukConnectOperation, module, callback,
+      gum_duk_connect_operation_start, gum_duk_connect_operation_dispose);
   op->client = NULL;
   op->family = family;
   op->host = g_strdup (host);
   op->port = port;
-  op->callback = _gum_duk_require_heapptr (ctx, -1);
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_duk_connect_operation_start, op,
-      (GDestroyNotify) gum_duk_connect_operation_free);
-
-  op->module = module;
-
-  _gum_duk_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-
-  duk_pop (ctx);
+  _gum_duk_module_operation_schedule (op);
 
   return 0;
 }
 
 static void
-gum_duk_connect_operation_free (GumDukConnectOperation * op)
+gum_duk_connect_operation_dispose (GumDukConnectOperation * self)
 {
-  GumDukCore * core = op->module->core;
-  GumDukScope scope;
-  duk_context * ctx;
-
-  ctx = _gum_duk_scope_enter (&scope, core);
-  _gum_duk_core_unpin (core);
-  _gum_duk_release_heapptr (ctx, op->callback);
-  _gum_duk_scope_leave (&scope);
-
-  g_free (op->host);
-  g_object_unref (op->client);
-
-  g_slice_free (GumDukConnectOperation, op);
+  g_free (self->host);
+  g_object_unref (self->client);
 }
 
 static void
 gum_duk_connect_operation_start (GumDukConnectOperation * self)
 {
+  GumDukModuleOperation * op = GUM_DUK_MODULE_OPERATION (self);
+
   self->client = G_SOCKET_CLIENT (g_object_new (G_TYPE_SOCKET_CLIENT,
       "family", self->family,
       NULL));
 
   g_socket_client_connect_to_host_async (self->client, self->host, self->port,
-      self->module->cancellable,
-      (GAsyncReadyCallback) gum_duk_connect_operation_finish, self);
+      op->cancellable, (GAsyncReadyCallback) gum_duk_connect_operation_finish,
+      self);
 }
 
 static void
@@ -410,7 +337,7 @@ gum_duk_connect_operation_finish (GSocketClient * client,
                                   GAsyncResult * result,
                                   GumDukConnectOperation * self)
 {
-  GumDukSocket * module = self->module;
+  GumDukModuleOperation * op = GUM_DUK_MODULE_OPERATION (self);
   GError * error = NULL;
   GSocketConnection * connection;
   GumDukScope scope;
@@ -418,13 +345,13 @@ gum_duk_connect_operation_finish (GSocketClient * client,
 
   connection = g_socket_client_connect_to_host_finish (client, result, &error);
 
-  ctx = _gum_duk_scope_enter (&scope, module->core);
+  ctx = _gum_duk_scope_enter (&scope, op->core);
 
-  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, op->callback);
   if (error == NULL)
   {
     duk_push_null (ctx);
-    gum_duk_push_socket_connection (ctx, connection, module);
+    gum_duk_push_socket_connection (ctx, connection, op->module);
   }
   else
   {
@@ -437,7 +364,7 @@ gum_duk_connect_operation_finish (GSocketClient * client,
 
   _gum_duk_scope_leave (&scope);
 
-  gum_script_job_free (self->job);
+  _gum_duk_module_operation_finish (op);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
@@ -575,174 +502,80 @@ gum_duk_push_socket_listener (duk_context * ctx,
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
 {
   GSocketListener * listener;
-
-  (void) args;
+  GumDukSocket * module;
 
   listener = G_SOCKET_LISTENER (duk_require_pointer (ctx, 0));
+  module = gumjs_module_from_args (args);
 
   duk_push_this (ctx);
-  _gum_duk_put_data (ctx, -1, listener);
-  duk_pop (ctx);
+  _gum_duk_object_manager_add (&module->objects, ctx, -1, listener);
 
   return 0;
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_socket_listener_finalize)
-{
-  GSocketListener * listener;
-
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "SocketListener"))
-    return 0;
-
-  listener = _gum_duk_steal_data (ctx, 0);
-  if (listener == NULL)
-    return 0;
-
-  g_object_unref (listener);
-
-  return 0;
-}
-
-static GSocketListener *
-gumjs_listener_from_args (const GumDukArgs * args)
-{
-  duk_context * ctx = args->ctx;
-  GSocketListener * listener;
-
-  duk_push_this (ctx);
-  listener = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return listener;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_close)
 {
-  GSocketListener * listener;
-  GumDukSocket * module;
-  GumDukCore * core;
+  GumDukObject * self;
   GumDukHeapPtr callback;
   GumDukCloseListenerOperation * op;
 
-  listener = gumjs_listener_from_args (args);
-  module = gumjs_module_from_args (args);
-  core = module->core;
+  self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
 
-  duk_push_heapptr (ctx, callback);
+  g_cancellable_cancel (self->cancellable);
 
-  op = g_slice_new (GumDukCloseListenerOperation);
-  op->listener = listener;
-  g_object_ref (listener);
-  op->callback = _gum_duk_require_heapptr (ctx, -1);
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_duk_close_listener_operation_perform, op,
-      (GDestroyNotify) gum_duk_close_listener_operation_free);
-
-  op->module = module;
-
-  _gum_duk_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-
-  duk_pop (ctx);
+  op = _gum_duk_object_operation_new (GumDukCloseListenerOperation, self,
+      callback, gum_duk_close_listener_operation_perform, NULL);
+  _gum_duk_object_operation_schedule_when_idle (op, NULL);
 
   return 0;
-}
-
-static void
-gum_duk_close_listener_operation_free (GumDukCloseListenerOperation * op)
-{
-  GumDukCore * core = op->module->core;
-  GumDukScope scope;
-  duk_context * ctx;
-
-  ctx = _gum_duk_scope_enter (&scope, core);
-  _gum_duk_core_unpin (core);
-  _gum_duk_release_heapptr (ctx, op->callback);
-  _gum_duk_scope_leave (&scope);
-
-  g_object_unref (op->listener);
-
-  g_slice_free (GumDukCloseListenerOperation, op);
 }
 
 static void
 gum_duk_close_listener_operation_perform (GumDukCloseListenerOperation * self)
 {
+  GumDukObjectOperation * op = GUM_DUK_OBJECT_OPERATION (self);
   GumDukScope scope;
   duk_context * ctx;
 
-  g_socket_listener_close (self->listener);
+  g_socket_listener_close (op->object->handle);
 
-  ctx = _gum_duk_scope_enter (&scope, self->module->core);
+  ctx = _gum_duk_scope_enter (&scope, op->core);
 
-  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, op->callback);
   _gum_duk_scope_call (&scope, 0);
   duk_pop (ctx);
 
   _gum_duk_scope_leave (&scope);
 
-  gum_script_job_free (self->job);
+  _gum_duk_object_operation_finish (op);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_accept)
 {
-  GSocketListener * listener;
-  GumDukSocket * module;
-  GumDukCore * core;
+  GumDukObject * self;
   GumDukHeapPtr callback;
   GumDukAcceptOperation * op;
 
-  listener = gumjs_listener_from_args (args);
-  module = gumjs_module_from_args (args);
-  core = module->core;
+  self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
 
-  duk_push_heapptr (ctx, callback);
-
-  op = g_slice_new (GumDukAcceptOperation);
-  op->listener = listener;
-  g_object_ref (listener);
-  op->callback = _gum_duk_require_heapptr (ctx, -1);
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_duk_accept_operation_start, op,
-      (GDestroyNotify) gum_duk_accept_operation_free);
-
-  op->module = module;
-
-  _gum_duk_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-
-  duk_pop (ctx);
+  op = _gum_duk_object_operation_new (GumDukAcceptOperation, self, callback,
+      gum_duk_accept_operation_start, NULL);
+  _gum_duk_object_operation_schedule (op);
 
   return 0;
 }
 
 static void
-gum_duk_accept_operation_free (GumDukAcceptOperation * op)
-{
-  GumDukCore * core = op->module->core;
-  GumDukScope scope;
-  duk_context * ctx;
-
-  ctx = _gum_duk_scope_enter (&scope, core);
-  _gum_duk_core_unpin (core);
-  _gum_duk_release_heapptr (ctx, op->callback);
-  _gum_duk_scope_leave (&scope);
-
-  g_object_unref (op->listener);
-
-  g_slice_free (GumDukAcceptOperation, op);
-}
-
-static void
 gum_duk_accept_operation_start (GumDukAcceptOperation * self)
 {
-  g_socket_listener_accept_async (self->listener, self->module->cancellable,
+  GumDukObjectOperation * op = GUM_DUK_OBJECT_OPERATION (self);
+  GumDukObject * listener = op->object;
+
+  g_socket_listener_accept_async (listener->handle, listener->cancellable,
       (GAsyncReadyCallback) gum_duk_accept_operation_finish, self);
 }
 
@@ -751,7 +584,7 @@ gum_duk_accept_operation_finish (GSocketListener * listener,
                                  GAsyncResult * result,
                                  GumDukAcceptOperation * self)
 {
-  GumDukSocket * module = self->module;
+  GumDukObjectOperation * op = GUM_DUK_OBJECT_OPERATION (self);
   GError * error = NULL;
   GSocketConnection * connection;
   GumDukScope scope;
@@ -759,13 +592,13 @@ gum_duk_accept_operation_finish (GSocketListener * listener,
 
   connection = g_socket_listener_accept_finish (listener, result, NULL, &error);
 
-  ctx = _gum_duk_scope_enter (&scope, module->core);
+  ctx = _gum_duk_scope_enter (&scope, op->core);
 
-  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, op->callback);
   if (error == NULL)
   {
     duk_push_null (ctx);
-    gum_duk_push_socket_connection (ctx, connection, module);
+    gum_duk_push_socket_connection (ctx, connection, op->object->module);
   }
   else
   {
@@ -778,7 +611,7 @@ gum_duk_accept_operation_finish (GSocketListener * listener,
 
   _gum_duk_scope_leave (&scope);
 
-  gum_script_job_free (self->job);
+  _gum_duk_object_operation_finish (op);
 }
 
 static void
@@ -809,89 +642,43 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
   return 0;
 }
 
-static GSocketConnection *
-gumjs_connection_from_args (const GumDukArgs * args)
-{
-  duk_context * ctx = args->ctx;
-  GSocketConnection * connection;
-
-  duk_push_this (ctx);
-  connection = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return connection;
-}
-
 GUMJS_DEFINE_FUNCTION (gumjs_socket_connection_set_no_delay)
 {
-  GSocketConnection * connection;
-  GumDukSocket * module;
-  GumDukCore * core;
+  GumDukObject * self;
   gboolean no_delay;
   GumDukHeapPtr callback;
   GumDukSetNoDelayOperation * op;
 
-  connection = gumjs_connection_from_args (args);
-  module = gumjs_module_from_args (args);
-  core = module->core;
+  self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "tF", &no_delay, &callback);
 
-  duk_push_heapptr (ctx, callback);
-
-  op = g_slice_new (GumDukSetNoDelayOperation);
-  op->connection = connection;
-  g_object_ref (connection);
+  op = _gum_duk_object_operation_new (GumDukSetNoDelayOperation, self, callback,
+      gum_duk_set_no_delay_operation_perform, NULL);
   op->no_delay = no_delay;
-  op->callback = _gum_duk_require_heapptr (ctx, -1);
-  op->job = gum_script_job_new (core->scheduler,
-      (GumScriptJobFunc) gum_duk_set_no_delay_operation_perform, op,
-      (GDestroyNotify) gum_duk_set_no_delay_operation_free);
-
-  op->module = module;
-
-  _gum_duk_core_pin (core);
-  gum_script_job_start_on_js_thread (op->job);
-
-  duk_pop (ctx);
+  _gum_duk_object_operation_schedule (op);
 
   return 0;
 }
 
 static void
-gum_duk_set_no_delay_operation_free (GumDukSetNoDelayOperation * op)
-{
-  GumDukCore * core = op->module->core;
-  GumDukScope scope;
-  duk_context * ctx;
-
-  ctx = _gum_duk_scope_enter (&scope, core);
-  _gum_duk_core_unpin (core);
-  _gum_duk_release_heapptr (ctx, op->callback);
-  _gum_duk_scope_leave (&scope);
-
-  g_object_unref (op->connection);
-
-  g_slice_free (GumDukSetNoDelayOperation, op);
-}
-
-static void
 gum_duk_set_no_delay_operation_perform (GumDukSetNoDelayOperation * self)
 {
+  GumDukObjectOperation * op = GUM_DUK_OBJECT_OPERATION (self);
   GSocket * socket;
   GError * error = NULL;
   gboolean success;
   GumDukScope scope;
   duk_context * ctx;
 
-  socket = g_socket_connection_get_socket (self->connection);
+  socket = g_socket_connection_get_socket (op->object->handle);
 
   success = g_socket_set_option (socket, IPPROTO_TCP, TCP_NODELAY,
       self->no_delay, &error);
 
-  ctx = _gum_duk_scope_enter (&scope, self->module->core);
+  ctx = _gum_duk_scope_enter (&scope, op->core);
 
-  duk_push_heapptr (ctx, self->callback);
+  duk_push_heapptr (ctx, op->callback);
   if (error == NULL)
   {
     duk_push_null (ctx);
@@ -907,7 +694,7 @@ gum_duk_set_no_delay_operation_perform (GumDukSetNoDelayOperation * self)
 
   _gum_duk_scope_leave (&scope);
 
-  gum_script_job_free (self->job);
+  _gum_duk_object_operation_finish (op);
 }
 
 static GumDukHeapPtr

@@ -70,6 +70,9 @@
     <ClCompile Include="gumdukvalue.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukobject.c">
+      <Filter>duk</Filter>
+    </ClCompile>
     <ClCompile Include="gumv8bundle.cpp">
       <Filter>v8</Filter>
     </ClCompile>
@@ -217,6 +220,9 @@
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukvalue.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukobject.h">
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumv8bundle.h">

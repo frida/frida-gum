@@ -65,6 +65,8 @@ duk_sources = \
 	gumdukbundle.c \
 	gumdukvalue.h \
 	gumdukvalue.c \
+	gumdukobject.h \
+	gumdukobject.c \
 	gumdukmacros.h \
 	gumdukcore.h \
 	gumdukcore.c \

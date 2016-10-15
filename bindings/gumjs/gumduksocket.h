@@ -7,7 +7,7 @@
 #ifndef __GUM_DUK_SOCKET_H__
 #define __GUM_DUK_SOCKET_H__
 
-#include "gumdukcore.h"
+#include "gumdukobject.h"
 
 G_BEGIN_DECLS
 
@@ -17,7 +17,7 @@ struct _GumDukSocket
 {
   GumDukCore * core;
 
-  GCancellable * cancellable;
+  GumDukObjectManager objects;
 
   GumDukHeapPtr listener;
   GumDukHeapPtr connection;

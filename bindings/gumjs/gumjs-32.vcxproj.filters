@@ -133,6 +133,9 @@
     <ClCompile Include="gumdukvalue.c">
       <Filter>duk</Filter>
     </ClCompile>
+    <ClCompile Include="gumdukobject.c">
+      <Filter>duk</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="$(IntDir)gumjs\gumv8script-runtime.h">
@@ -283,6 +286,9 @@
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="gumdukvalue.h">
+      <Filter>duk</Filter>
+    </ClInclude>
+    <ClInclude Include="gumdukobject.h">
       <Filter>duk</Filter>
     </ClInclude>
     <ClInclude Include="$(IntDir)gumjs\gumdukscript-runtime.h">
