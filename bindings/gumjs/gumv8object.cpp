@@ -42,14 +42,19 @@ gum_v8_object_manager_init (GumV8ObjectManager * self)
 void
 gum_v8_object_manager_flush (GumV8ObjectManager * self)
 {
+  GPtrArray * cancellables;
   GHashTableIter iter;
   GumV8AnyObject * object;
 
+  cancellables = g_ptr_array_new_full (
+      g_hash_table_size (self->object_by_handle), g_object_unref);
   g_hash_table_iter_init (&iter, self->object_by_handle);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &object))
   {
-    g_cancellable_cancel (object->cancellable);
+    g_ptr_array_add (cancellables, g_object_ref (object->cancellable));
   }
+  g_ptr_array_foreach (cancellables, (GFunc) g_cancellable_cancel, NULL);
+  g_ptr_array_unref (cancellables);
 
   g_cancellable_cancel (self->cancellable);
 }
