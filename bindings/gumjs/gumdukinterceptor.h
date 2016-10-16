@@ -38,8 +38,7 @@ struct _GumDukInterceptor
   GumDukInvocationArgs * cached_invocation_args;
   gboolean cached_invocation_args_in_use;
 
-  GumDukInvocationReturnValue * cached_invocation_return_value;
-  gboolean cached_invocation_return_value_in_use;
+  GumDukInvocationReturnValue * cached_return_values;
 };
 
 struct _GumDukInvocationContext

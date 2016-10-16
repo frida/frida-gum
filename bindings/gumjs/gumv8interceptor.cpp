@@ -77,14 +77,6 @@ struct _GumV8InvocationArgs
   GumV8Core * core;
 };
 
-struct _GumV8InvocationReturnValue
-{
-  GumPersistent<v8::Object>::type * object;
-  GumInvocationContext * ic;
-
-  GumV8Core * core;
-};
-
 struct _GumV8ReplaceEntry
 {
   GumInterceptor * interceptor;
@@ -158,12 +150,6 @@ static void gumjs_invocation_args_on_get_nth (uint32_t index,
 static void gumjs_invocation_args_on_set_nth (uint32_t index,
     Local<Value> value, const PropertyCallbackInfo<Value> & info);
 
-static GumV8InvocationReturnValue * gum_v8_invocation_return_value_new (
-    GumV8Interceptor * parent);
-static void gum_v8_invocation_return_value_release (
-    GumV8InvocationReturnValue * self);
-static void gum_v8_invocation_return_value_reset (
-    GumV8InvocationReturnValue * self, GumInvocationContext * ic);
 static void gumjs_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info);
 
@@ -171,10 +157,6 @@ static GumV8InvocationArgs * gum_v8_interceptor_obtain_invocation_args (
     GumV8Interceptor * self);
 static void gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
     GumV8InvocationArgs * args);
-static GumV8InvocationReturnValue *
-    gum_v8_interceptor_obtain_invocation_return_value (GumV8Interceptor * self);
-static void gum_v8_interceptor_release_invocation_return_value (
-    GumV8Interceptor * self, GumV8InvocationReturnValue * retval);
 
 void
 _gum_v8_interceptor_init (GumV8Interceptor * self,
@@ -277,10 +259,6 @@ _gum_v8_interceptor_realize (GumV8Interceptor * self)
 
   self->cached_invocation_args = gum_v8_invocation_args_new (self);
   self->cached_invocation_args_in_use = FALSE;
-
-  self->cached_invocation_return_value = gum_v8_invocation_return_value_new (
-      self);
-  self->cached_invocation_return_value_in_use = FALSE;
 }
 
 void
@@ -352,10 +330,8 @@ _gum_v8_interceptor_dispose (GumV8Interceptor * self)
 
   gum_v8_invocation_context_release (self->cached_invocation_context);
   gum_v8_invocation_args_release (self->cached_invocation_args);
-  gum_v8_invocation_return_value_release (self->cached_invocation_return_value);
   self->cached_invocation_context = NULL;
   self->cached_invocation_args = NULL;
-  self->cached_invocation_return_value = NULL;
 
   delete self->invocation_return_value;
   self->invocation_return_value = nullptr;
@@ -739,18 +715,17 @@ gum_v8_invocation_listener_on_leave (GumInvocationListener * listener,
     _gum_v8_invocation_context_reset (jic, ic);
     Local<Object> receiver (Local<Object>::New (isolate, *jic->object));
 
-    GumV8InvocationReturnValue * retval =
-        gum_v8_interceptor_obtain_invocation_return_value (module);
-    gum_v8_invocation_return_value_reset (retval, ic);
-    Local<Object> retval_object (Local<Object>::New (isolate, *retval->object));
-    retval_object->SetInternalField (0, External::New (isolate,
+    Local<Object> retval_template (Local<Object>::New (isolate,
+        *module->invocation_return_value));
+    Local<Object> retval (retval_template->Clone ());
+    retval->SetInternalField (0, External::New (isolate,
         gum_invocation_context_get_return_value (ic)));
+    retval->SetAlignedPointerInInternalField (1, ic);
 
-    Handle<Value> argv[] = { retval_object };
+    Handle<Value> argv[] = { retval };
     on_leave->Call (receiver, G_N_ELEMENTS (argv), argv);
 
-    gum_v8_invocation_return_value_reset (retval, NULL);
-    gum_v8_interceptor_release_invocation_return_value (module, retval);
+    retval->SetAlignedPointerInInternalField (1, NULL);
 
     _gum_v8_invocation_context_reset (jic, NULL);
     _gum_v8_interceptor_release_invocation_context (module, jic);
@@ -1039,50 +1014,23 @@ gumjs_invocation_args_on_set_nth (uint32_t index,
   gum_invocation_context_replace_nth_argument (self->ic, index, raw_value);
 }
 
-static GumV8InvocationReturnValue *
-gum_v8_invocation_return_value_new (GumV8Interceptor * parent)
-{
-  Isolate * isolate = parent->core->isolate;
-
-  GumV8InvocationReturnValue * retval =
-      g_slice_new (GumV8InvocationReturnValue);
-
-  Local<Object> template_object (Local<Object>::New (isolate,
-      *parent->invocation_return_value));
-  Local<Object> object (template_object->Clone ());
-  object->SetAlignedPointerInInternalField (1, retval);
-  retval->object = new GumPersistent<Object>::type (isolate, object);
-  retval->ic = NULL;
-
-  retval->core = parent->core;
-
-  return retval;
-}
-
-static void
-gum_v8_invocation_return_value_release (GumV8InvocationReturnValue * self)
-{
-  delete self->object;
-
-  g_slice_free (GumV8InvocationReturnValue, self);
-}
-
-static void
-gum_v8_invocation_return_value_reset (GumV8InvocationReturnValue * self,
-                                      GumInvocationContext * ic)
-{
-  self->ic = ic;
-}
-
 static void
 gumjs_invocation_return_value_on_replace (
     const FunctionCallbackInfo<Value> & info)
 {
   Local<Object> holder = info.Holder ();
-  GumV8InvocationReturnValue * self =
-      static_cast<GumV8InvocationReturnValue *> (
-          holder->GetAlignedPointerFromInternalField (1));
+  GumInvocationContext * ic = static_cast<GumInvocationContext *> (
+      holder->GetAlignedPointerFromInternalField (1));
+  GumV8Interceptor * module = static_cast<GumV8Interceptor *> (
+      info.Data ().As<External> ()->Value ());
   Isolate * isolate = info.GetIsolate ();
+
+  if (ic == NULL)
+  {
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        "invalid operation")));
+    return;
+  }
 
   if (info.Length () == 0)
   {
@@ -1092,10 +1040,10 @@ gumjs_invocation_return_value_on_replace (
   }
 
   gpointer value;
-  if (!_gum_v8_native_pointer_parse (info[0], &value, self->core))
+  if (!_gum_v8_native_pointer_parse (info[0], &value, module->core))
     return;
-  gum_invocation_context_replace_return_value (self->ic, value);
-  holder->SetInternalField (0, External::New (info.GetIsolate (), value));
+  gum_invocation_context_replace_return_value (ic, value);
+  holder->SetInternalField (0, External::New (isolate, value));
 }
 
 GumV8InvocationContext *
@@ -1152,33 +1100,4 @@ gum_v8_interceptor_release_invocation_args (GumV8Interceptor * self,
     self->cached_invocation_args_in_use = FALSE;
   else
     gum_v8_invocation_args_release (args);
-}
-
-static GumV8InvocationReturnValue *
-gum_v8_interceptor_obtain_invocation_return_value (GumV8Interceptor * self)
-{
-  GumV8InvocationReturnValue * retval;
-
-  if (!self->cached_invocation_return_value_in_use)
-  {
-    retval = self->cached_invocation_return_value;
-    self->cached_invocation_return_value_in_use = TRUE;
-  }
-  else
-  {
-    retval = gum_v8_invocation_return_value_new (self);
-  }
-
-  return retval;
-}
-
-static void
-gum_v8_interceptor_release_invocation_return_value (
-    GumV8Interceptor * self,
-    GumV8InvocationReturnValue * retval)
-{
-  if (retval == self->cached_invocation_return_value)
-    self->cached_invocation_return_value_in_use = FALSE;
-  else
-    gum_v8_invocation_return_value_release (retval);
 }
