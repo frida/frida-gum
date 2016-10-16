@@ -1988,7 +1988,6 @@ SCRIPT_TESTCASE (return_value_can_be_replaced)
       "    retval.replace(1337);"
       "  }"
       "});", target_function_int);
-
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (7), ==, 1337);
   EXPECT_NO_MESSAGES ();
@@ -1999,9 +1998,25 @@ SCRIPT_TESTCASE (return_value_can_be_replaced)
       "    retval.replace({ handle: ptr(1338) });"
       "  }"
       "});", target_function_int);
-
   EXPECT_NO_MESSAGES ();
   g_assert_cmpint (target_function_int (7), ==, 1338);
+  EXPECT_NO_MESSAGES ();
+
+  COMPILE_AND_LOAD_SCRIPT (
+      "var savedRetval = null;"
+      "Interceptor.attach(" GUM_PTR_CONST  ", {"
+      "  onLeave: function (retval) {"
+      "    savedRetval = retval;"
+      "  }"
+      "});"
+      "recv('try-replace', function () {"
+      "  savedRetval.replace(1337);"
+      "});", target_function_int);
+  EXPECT_NO_MESSAGES ();
+  target_function_int (7);
+  EXPECT_NO_MESSAGES ();
+  POST_MESSAGE ("{\"type\":\"try-replace\"}");
+  EXPECT_ERROR_MESSAGE_WITH (ANY_LINE_NUMBER, "Error: invalid operation");
   EXPECT_NO_MESSAGES ();
 }
 

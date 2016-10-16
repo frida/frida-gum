@@ -1084,6 +1084,13 @@ gumjs_invocation_return_value_on_replace (
           holder->GetAlignedPointerFromInternalField (1));
   Isolate * isolate = info.GetIsolate ();
 
+  if (self->ic == NULL)
+  {
+    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
+        "invalid operation")));
+    return;
+  }
+
   if (info.Length () == 0)
   {
     isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
