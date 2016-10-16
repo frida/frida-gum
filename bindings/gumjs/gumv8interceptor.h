@@ -15,7 +15,6 @@
 typedef struct _GumV8Interceptor GumV8Interceptor;
 typedef struct _GumV8InvocationContext GumV8InvocationContext;
 typedef struct _GumV8InvocationArgs GumV8InvocationArgs;
-typedef struct _GumV8InvocationReturnValue GumV8InvocationReturnValue;
 
 struct _GumV8Interceptor
 {
@@ -37,9 +36,6 @@ struct _GumV8Interceptor
 
   GumV8InvocationArgs * cached_invocation_args;
   gboolean cached_invocation_args_in_use;
-
-  GumV8InvocationReturnValue * cached_invocation_return_value;
-  gboolean cached_invocation_return_value_in_use;
 };
 
 struct _GumV8InvocationContext
