@@ -12,7 +12,7 @@
 
 #include <gio/gnetworking.h>
 #ifdef G_OS_WIN32
-# define GUM_SOCKOPT_OPTVAL(v) reinterpret_cast<char *> (v)
+# define GUM_SOCKOPT_OPTVAL(v) ((char *) (v))
   typedef int gum_socklen_t;
 #else
 # include <errno.h>
@@ -144,13 +144,15 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   auto listener = _gum_v8_create_class ("SocketListener",
       gumjs_socket_listener_construct, scope, module, isolate);
-  _gum_v8_class_add (listener, gumjs_socket_listener_functions, isolate);
+  _gum_v8_class_add (listener, gumjs_socket_listener_functions, module,
+      isolate);
   self->listener =
       new GumPersistent<FunctionTemplate>::type (isolate, listener);
 
   auto connection = _gum_v8_create_class ("SocketConnection",
       gumjs_socket_connection_construct, scope, module, isolate);
-  _gum_v8_class_add (connection, gumjs_socket_connection_functions, isolate);
+  _gum_v8_class_add (connection, gumjs_socket_connection_functions, module,
+      isolate);
   auto io_stream (Local<FunctionTemplate>::New (isolate,
       *core->script->priv->stream.io_stream));
   connection->Inherit (io_stream);
@@ -197,8 +199,6 @@ _gum_v8_socket_finalize (GumV8Socket * self)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 {
-  GumV8Core * core = args->core;
-
   Local<Value> family_value;
   gchar * host;
   guint port;
@@ -228,7 +228,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
     if (address == NULL)
     {
       g_free (path);
-      _gum_v8_throw_ascii_literal (core->isolate, "invalid host");
+      _gum_v8_throw_ascii_literal (isolate, "invalid host");
       return;
     }
   }
@@ -239,7 +239,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
     g_assert (address != NULL);
 #else
     g_free (path);
-    _gum_v8_throw_ascii_literal (core->isolate, "UNIX sockets not available");
+    _gum_v8_throw_ascii_literal (isolate, "UNIX sockets not available");
     return;
 #endif
   }
@@ -251,7 +251,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
     g_assert (address != NULL);
   }
 
-  GumV8ListenOperation * op = gum_v8_module_operation_new (module, callback,
+  auto op = gum_v8_module_operation_new (module, callback,
       gum_v8_listen_operation_perform, gum_v8_listen_operation_dispose);
   op->port = port;
   op->path = path;
@@ -270,14 +270,12 @@ gum_v8_listen_operation_dispose (GumV8ListenOperation * self)
 static void
 gum_v8_listen_operation_perform (GumV8ListenOperation * self)
 {
-  GSocketListener * listener;
-  GSocketAddress * effective_address = NULL;
-  GError * error = NULL;
-
-  listener = G_SOCKET_LISTENER (g_object_new (G_TYPE_SOCKET_LISTENER,
+  auto listener = G_SOCKET_LISTENER (g_object_new (G_TYPE_SOCKET_LISTENER,
       "listen-backlog", self->backlog,
       NULL));
 
+  GSocketAddress * effective_address = NULL;
+  GError * error = NULL;
   if (self->address != NULL)
   {
     g_socket_listener_add_address (listener, self->address,
@@ -301,19 +299,19 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     g_clear_object (&listener);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
     Local<Value> listener_value;
-    Local<Value> null_value = Null (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
       listener_value = gum_v8_socket_listener_new (listener, self->module);
 
-      Local<Object> listener_object = listener_value.As<Object> ();
+      auto listener_object = listener_value.As<Object> ();
       if (self->path != NULL)
       {
         _gum_v8_object_set_utf8 (listener_object, "path", self->path, core);
@@ -339,7 +337,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     }
 
     Handle<Value> argv[] = { error_value, listener_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -358,8 +356,6 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 {
-  GumV8Core * core = args->core;
-
   Local<Value> family_value;
   gchar * host;
   guint port;
@@ -392,12 +388,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 #else
     g_free (host);
     g_free (path);
-    _gum_v8_throw_ascii_literal (core->isolate, "UNIX sockets not available");
+    _gum_v8_throw_ascii_literal (isolate, "UNIX sockets not available");
     return;
 #endif
   }
 
-  GumV8ConnectOperation * op = gum_v8_module_operation_new (module, callback,
+  auto op = gum_v8_module_operation_new (module, callback,
       gum_v8_connect_operation_start, gum_v8_connect_operation_dispose);
   op->client = NULL;
   op->family = family;
@@ -441,9 +437,8 @@ gum_v8_connect_operation_finish (GSocketClient * client,
                                  GAsyncResult * result,
                                  GumV8ConnectOperation * self)
 {
-  GError * error = NULL;
   GSocketConnection * connection;
-
+  GError * error = NULL;
   if (self->connectable != NULL)
   {
     connection = g_socket_client_connect_finish (client, result, &error);
@@ -455,13 +450,13 @@ gum_v8_connect_operation_finish (GSocketClient * client,
   }
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
     Local<Value> connection_value;
-    Local<Value> null_value = Null (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -477,7 +472,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
     }
 
     Handle<Value> argv[] = { error_value, connection_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -510,8 +505,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
 
     struct sockaddr_in6 addr;
     len = sizeof (addr);
-    if (getsockname (handle,
-        reinterpret_cast<struct sockaddr *> (&addr), &len) == 0)
+    if (getsockname (handle, (struct sockaddr *) &addr, &len) == 0)
     {
       family = addr.sin6_family;
     }
@@ -521,8 +515,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
       invalid_sockaddr.sin_family = AF_INET;
       invalid_sockaddr.sin_port = GUINT16_TO_BE (0);
       invalid_sockaddr.sin_addr.s_addr = GUINT32_TO_BE (0xffffffff);
-      bind (handle,
-          reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
+      bind (handle, (struct sockaddr *) &invalid_sockaddr,
           sizeof (invalid_sockaddr));
 #ifdef G_OS_WIN32
       family = (WSAGetLastError () == WSAEADDRNOTAVAIL) ? AF_INET : AF_INET6;
@@ -559,11 +552,10 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
     }
   }
 
-  ReturnValue<Value> return_value = args->info->GetReturnValue ();
   if (res != NULL)
-    return_value.Set (String::NewFromUtf8 (args->core->isolate, res));
+    info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, res));
   else
-    return_value.SetNull ();
+    info.GetReturnValue ().SetNull ();
 }
 
 /*
@@ -583,13 +575,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
     return;
 
   struct sockaddr_in6 large_addr;
-  struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
+  auto addr = (struct sockaddr *) &large_addr;
   gum_socklen_t len = sizeof (large_addr);
-  ReturnValue<Value> return_value = args->info->GetReturnValue ();
   if (getsockname (handle, addr, &len) == 0)
-    return_value.Set (gum_v8_socket_address_to_value (addr, module->core));
+    info.GetReturnValue ().Set (gum_v8_socket_address_to_value (addr, core));
   else
-    return_value.SetNull ();
+    info.GetReturnValue ().SetNull ();
 }
 
 /*
@@ -609,24 +600,22 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
     return;
 
   struct sockaddr_in6 large_addr;
-  struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
+  auto addr = (struct sockaddr *) (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
-  ReturnValue<Value> return_value = args->info->GetReturnValue ();
   if (getpeername (handle, addr, &len) == 0)
-    return_value.Set (gum_v8_socket_address_to_value (addr, module->core));
+    info.GetReturnValue ().Set (gum_v8_socket_address_to_value (addr, core));
   else
-    return_value.SetNull ();
+    info.GetReturnValue ().SetNull ();
 }
 
 static Local<Object>
 gum_v8_socket_listener_new (GSocketListener * listener,
                             GumV8Socket * module)
 {
-  Isolate * isolate = module->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
+  auto isolate = module->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  Local<FunctionTemplate> ctor (
-      Local<FunctionTemplate>::New (isolate, *module->listener));
+  auto ctor (Local<FunctionTemplate>::New (isolate, *module->listener));
   Handle<Value> argv[] = { External::New (isolate, listener) };
   return ctor->GetFunction ()->NewInstance (context, G_N_ELEMENTS (argv),
       argv).ToLocalChecked ();
@@ -638,11 +627,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
   if (!_gum_v8_args_parse (args, "X", &listener))
     return;
 
-  gum_v8_object_manager_add (&module->objects, args->info->Holder (), listener,
-      module);
+  gum_v8_object_manager_add (&module->objects, wrapper, listener, module);
 }
 
-GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_close)
+GUMJS_DEFINE_METHOD (gumjs_socket_listener_close, GumV8SocketListener)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -650,8 +638,8 @@ GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_close)
 
   g_cancellable_cancel (self->cancellable);
 
-  GumV8CloseListenerOperation * op = gum_v8_object_operation_new (self,
-      callback, gum_v8_close_listener_operation_perform);
+  auto op = gum_v8_object_operation_new (self, callback,
+      gum_v8_close_listener_operation_perform);
   gum_v8_object_operation_schedule_when_idle (op);
 }
 
@@ -661,24 +649,24 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
   g_socket_listener_close (self->object->handle);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (Null (isolate), 0, nullptr);
   }
 
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_accept)
+GUMJS_DEFINE_METHOD (gumjs_socket_listener_accept, GumV8SocketListener)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
     return;
 
-  GumV8AcceptOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_accept_operation_start);
   gum_v8_object_operation_schedule (op);
 }
@@ -686,7 +674,7 @@ GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_accept)
 static void
 gum_v8_accept_operation_start (GumV8AcceptOperation * self)
 {
-  GumV8SocketListener * listener = self->object;
+  auto listener = self->object;
 
   g_socket_listener_accept_async (listener->handle, listener->cancellable,
       (GAsyncReadyCallback) gum_v8_accept_operation_finish, self);
@@ -703,13 +691,13 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
   connection = g_socket_listener_accept_finish (listener, result, NULL, &error);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
     Local<Value> connection_value;
-    Local<Value> null_value = Null (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -725,7 +713,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
     }
 
     Handle<Value> argv[] = { error_value, connection_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -736,8 +724,8 @@ static Local<Object>
 gum_v8_socket_connection_new (GSocketConnection * connection,
                               GumV8Socket * module)
 {
-  Isolate * isolate = module->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
+  auto isolate = module->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
   Local<FunctionTemplate> ctor (
       Local<FunctionTemplate>::New (isolate, *module->connection));
@@ -748,28 +736,27 @@ gum_v8_socket_connection_new (GSocketConnection * connection,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
 {
-  Isolate * isolate = module->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
+  auto context = isolate->GetCurrentContext ();
 
   GSocketConnection * connection;
   if (!_gum_v8_args_parse (args, "X", &connection))
     return;
 
-  Local<FunctionTemplate> base_ctor (Local<FunctionTemplate>::New (isolate,
-      *module->core->script->priv->stream.io_stream));
+  auto base_ctor (Local<FunctionTemplate>::New (isolate,
+      *core->script->priv->stream.io_stream));
   Handle<Value> argv[] = { External::New (isolate, connection) };
-  base_ctor->GetFunction ()->Call (context, args->info->Holder (),
-      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  base_ctor->GetFunction ()->Call (context, wrapper, G_N_ELEMENTS (argv), argv)
+      .ToLocalChecked ();
 }
 
-GUMJS_DEFINE_METHOD (IOStream, gumjs_socket_connection_set_no_delay)
+GUMJS_DEFINE_METHOD (gumjs_socket_connection_set_no_delay, GumV8IOStream)
 {
   gboolean no_delay;
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "tF", &no_delay, &callback))
     return;
 
-  GumV8SetNoDelayOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_set_no_delay_operation_perform);
   op->no_delay = no_delay;
   gum_v8_object_operation_schedule (op);
@@ -785,13 +772,13 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
       self->no_delay, &error);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
-    Local<Value> success_value = success ? True (isolate) : False (isolate);
-    Local<Value> null_value = Null (isolate);
+    auto success_value = success ? True (isolate) : False (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -804,7 +791,7 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
     }
 
     Handle<Value> argv[] = { error_value, success_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -816,7 +803,7 @@ gum_v8_socket_family_get (Handle<Value> value,
                           GSocketFamily * family,
                           GumV8Core * core)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   if (value->IsNull ())
   {
@@ -830,7 +817,7 @@ gum_v8_socket_family_get (Handle<Value> value,
     return FALSE;
   }
   String::Utf8Value value_utf8 (value.As<String> ());
-  const gchar * value_str = *value_utf8;
+  auto value_str = *value_utf8;
 
   if (strcmp (value_str, "unix") == 0)
   {
@@ -859,7 +846,7 @@ gum_v8_unix_socket_address_type_get (Handle<Value> value,
                                      GUnixSocketAddressType * type,
                                      GumV8Core * core)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   if (value->IsNull ())
   {
@@ -873,7 +860,7 @@ gum_v8_unix_socket_address_type_get (Handle<Value> value,
     return FALSE;
   }
   String::Utf8Value value_utf8 (value.As<String> ());
-  const gchar * value_str = *value_utf8;
+  auto value_str = *value_utf8;
 
   if (strcmp (value_str, "anonymous") == 0)
   {
@@ -907,14 +894,13 @@ static Local<Value>
 gum_v8_socket_address_to_value (struct sockaddr * addr,
                                 GumV8Core * core)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   switch (addr->sa_family)
   {
     case AF_INET:
     {
-      struct sockaddr_in * inet_addr =
-          reinterpret_cast<struct sockaddr_in *> (addr);
+      auto inet_addr = (struct sockaddr_in *) addr;
 #ifdef G_OS_WIN32
       gunichar2 ip_utf16[15 + 1 + 5 + 1];
       gchar ip[15 + 1 + 5 + 1];
@@ -938,8 +924,7 @@ gum_v8_socket_address_to_value (struct sockaddr * addr,
     }
     case AF_INET6:
     {
-      struct sockaddr_in6 * inet_addr =
-          reinterpret_cast<struct sockaddr_in6 *> (addr);
+      auto inet_addr = (struct sockaddr_in6 *) addr;
 #ifdef G_OS_WIN32
       gunichar2 ip_utf16[45 + 1 + 5 + 1];
       gchar ip[45 + 1 + 5 + 1];
@@ -955,7 +940,7 @@ gum_v8_socket_address_to_value (struct sockaddr * addr,
       gchar ip[INET6_ADDRSTRLEN];
       inet_ntop (AF_INET6, &inet_addr->sin6_addr, ip, sizeof (ip));
 #endif
-      Local<Object> result (Object::New (isolate));
+      auto result (Object::New (isolate));
       _gum_v8_object_set_ascii (result, "ip", ip, core);
       _gum_v8_object_set_uint (result, "port",
           GUINT16_FROM_BE (inet_addr->sin6_port), core);
@@ -963,7 +948,7 @@ gum_v8_socket_address_to_value (struct sockaddr * addr,
     }
     case AF_UNIX:
     {
-      Local<Object> result (Object::New (isolate));
+      auto result (Object::New (isolate));
       _gum_v8_object_set_ascii (result, "path", "", core); /* FIXME */
       return result;
     }

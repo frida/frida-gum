@@ -6,12 +6,6 @@
 
 #include "gumv8value.h"
 
-#if GLIB_SIZEOF_VOID_P == 4
-# define GLIB_SIZEOF_VOID_P_IN_NIBBLE 8
-#else
-# define GLIB_SIZEOF_VOID_P_IN_NIBBLE 16
-#endif
-
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
 using namespace v8;
@@ -1512,6 +1506,7 @@ _gum_v8_create_class (const gchar * name,
 void
 _gum_v8_class_add (Handle<FunctionTemplate> klass,
                    const GumV8Function * functions,
+                   Handle<External> module,
                    Isolate * isolate)
 {
   auto proto = klass->PrototypeTemplate ();
@@ -1520,7 +1515,7 @@ _gum_v8_class_add (Handle<FunctionTemplate> klass,
   while (func->name != NULL)
   {
     proto->Set (_gum_v8_string_new_from_ascii (func->name, isolate),
-        FunctionTemplate::New (isolate, func->callback));
+        FunctionTemplate::New (isolate, func->callback, module));
     func++;
   }
 }

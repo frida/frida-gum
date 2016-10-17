@@ -137,6 +137,7 @@ G_GNUC_INTERNAL v8::Local<v8::FunctionTemplate> _gum_v8_create_class (
     v8::Handle<v8::ObjectTemplate> scope, v8::Handle<v8::External> module,
     v8::Isolate * isolate);
 G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
-    const GumV8Function * functions, v8::Isolate * isolate);
+    const GumV8Function * functions, v8::Handle<v8::External> module,
+    v8::Isolate * isolate);
 
 #endif

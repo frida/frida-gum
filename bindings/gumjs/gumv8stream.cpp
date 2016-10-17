@@ -157,19 +157,21 @@ _gum_v8_stream_init (GumV8Stream * self,
 
   auto io_stream = _gum_v8_create_class ("IOStream",
       gumjs_io_stream_construct, scope, module, isolate);
-  _gum_v8_class_add (io_stream, gumjs_io_stream_functions, isolate);
+  _gum_v8_class_add (io_stream, gumjs_io_stream_functions, module, isolate);
   self->io_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, io_stream);
 
   auto input_stream = _gum_v8_create_class ("InputStream",
       gumjs_input_stream_construct, scope, module, isolate);
-  _gum_v8_class_add (input_stream, gumjs_input_stream_functions, isolate);
+  _gum_v8_class_add (input_stream, gumjs_input_stream_functions, module,
+      isolate);
   self->input_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, input_stream);
 
   auto output_stream = _gum_v8_create_class ("OutputStream",
       gumjs_output_stream_construct, scope, module, isolate);
-  _gum_v8_class_add (output_stream, gumjs_output_stream_functions, isolate);
+  _gum_v8_class_add (output_stream, gumjs_output_stream_functions, module,
+      isolate);
   self->output_stream =
       new GumPersistent<FunctionTemplate>::type (isolate, output_stream);
 
@@ -213,57 +215,52 @@ _gum_v8_stream_finalize (GumV8Stream * self)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
 {
-  auto core = args->core;
-  auto isolate = core->isolate;
   auto context = isolate->GetCurrentContext ();
 
   GIOStream * stream;
   if (!_gum_v8_args_parse (args, "X", &stream))
     return;
 
-  Local<Object> wrapper (args->info->Holder ());
   gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 
   {
-    Local<FunctionTemplate> ctor (
-        Local<FunctionTemplate>::New (isolate, *module->input_stream));
+    auto ctor (Local<FunctionTemplate>::New (isolate, *module->input_stream));
     Handle<Value> argv[] = {
-        External::New (isolate, g_object_ref (
-            g_io_stream_get_input_stream (stream)))
+      External::New (isolate, g_object_ref (
+          g_io_stream_get_input_stream (stream)))
     };
-    Local<Object> input = ctor->GetFunction ()->NewInstance (context,
+    auto input = ctor->GetFunction ()->NewInstance (context,
         G_N_ELEMENTS (argv), argv).ToLocalChecked ();
     _gum_v8_object_set (wrapper, "input", input, core);
   }
 
   {
-    Local<FunctionTemplate> ctor (
-        Local<FunctionTemplate>::New (isolate, *module->output_stream));
+    auto ctor (Local<FunctionTemplate>::New (isolate, *module->output_stream));
     Handle<Value> argv[] = {
-        External::New (isolate, g_object_ref (
-            g_io_stream_get_output_stream (stream)))
+      External::New (isolate, g_object_ref (
+          g_io_stream_get_output_stream (stream)))
     };
-    Local<Object> output = ctor->GetFunction ()->NewInstance (context,
+    auto output = ctor->GetFunction ()->NewInstance (context,
         G_N_ELEMENTS (argv), argv).ToLocalChecked ();
     _gum_v8_object_set (wrapper, "output", output, core);
   }
 }
 
-GUMJS_DEFINE_METHOD (IOStream, gumjs_io_stream_close)
+GUMJS_DEFINE_METHOD (gumjs_io_stream_close, GumV8IOStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
     return;
 
-  GumV8CloseIOStreamOperation * op = gum_v8_object_operation_new (self,
-      callback, gum_v8_close_io_stream_operation_start);
+  auto op = gum_v8_object_operation_new (self, callback,
+      gum_v8_close_io_stream_operation_start);
 
-  GPtrArray * dependencies = g_ptr_array_sized_new (2);
+  auto dependencies = g_ptr_array_sized_new (2);
 
-  GumV8ObjectManager * objects = &self->module->objects;
-  GIOStream * stream = self->handle;
+  auto objects = &module->objects;
+  auto stream = self->handle;
 
-  GumV8InputStream * input =
+  auto input =
       gum_v8_object_manager_lookup<GInputStream, GumV8Stream> (objects,
           g_io_stream_get_input_stream (stream));
   if (input != NULL)
@@ -272,7 +269,7 @@ GUMJS_DEFINE_METHOD (IOStream, gumjs_io_stream_close)
     g_ptr_array_add (dependencies, input);
   }
 
-  GumV8OutputStream * output =
+  auto output =
       gum_v8_object_manager_lookup<GOutputStream, GumV8Stream> (objects,
           g_io_stream_get_output_stream (stream));
   if (output != NULL)
@@ -306,13 +303,13 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
   success = g_io_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
-    Local<Value> success_value = success ? True (isolate) : False (isolate);
-    Local<Value> null_value = Null (isolate);
+    auto success_value = success ? True (isolate) : False (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -325,7 +322,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
     }
 
     Handle<Value> argv[] = { error_value, success_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -338,11 +335,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_input_stream_construct)
   if (!_gum_v8_args_parse (args, "X", &stream))
     return;
 
-  gum_v8_object_manager_add (&module->objects, args->info->Holder (), stream,
-      module);
+  gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 }
 
-GUMJS_DEFINE_METHOD (InputStream, gumjs_input_stream_close)
+GUMJS_DEFINE_METHOD (gumjs_input_stream_close, GumV8InputStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -350,7 +346,7 @@ GUMJS_DEFINE_METHOD (InputStream, gumjs_input_stream_close)
 
   g_cancellable_cancel (self->cancellable);
 
-  GumV8CloseInputOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_close_input_operation_start);
   gum_v8_object_operation_schedule_when_idle (op);
 }
@@ -373,13 +369,13 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
   success = g_input_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
-    Local<Value> success_value = success ? True (isolate) : False (isolate);
-    Local<Value> null_value = Null (isolate);
+    auto success_value = success ? True (isolate) : False (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -392,19 +388,19 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
     }
 
     Handle<Value> argv[] = { error_value, success_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (InputStream, gumjs_input_stream_read)
+GUMJS_DEFINE_METHOD (gumjs_input_stream_read, GumV8InputStream)
 {
   gumjs_input_stream_read_with_strategy (self, args, GUM_V8_READ_SOME);
 }
 
-GUMJS_DEFINE_METHOD (InputStream, gumjs_input_stream_read_all)
+GUMJS_DEFINE_METHOD (gumjs_input_stream_read_all, GumV8InputStream)
 {
   gumjs_input_stream_read_with_strategy (self, args, GUM_V8_READ_ALL);
 }
@@ -419,7 +415,7 @@ gumjs_input_stream_read_with_strategy (GumV8InputStream * self,
   if (!_gum_v8_args_parse (args, "QF", &size, &callback))
     return;
 
-  GumV8ReadOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_read_operation_start, gum_v8_read_operation_dispose);
   op->strategy = strategy;
   op->buffer = g_malloc (size);
@@ -436,7 +432,7 @@ gum_v8_read_operation_dispose (GumV8ReadOperation * self)
 static void
 gum_v8_read_operation_start (GumV8ReadOperation * self)
 {
-  GumV8InputStream * stream = self->object;
+  auto stream = self->object;
 
   if (self->strategy == GUM_V8_READ_SOME)
   {
@@ -478,9 +474,9 @@ gum_v8_read_operation_finish (GInputStream * stream,
   }
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value, data_value, null_value;
     null_value = Null (isolate);
@@ -510,7 +506,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
     g_clear_error (&error);
 
     Handle<Value> argv[] = { error_value, data_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -523,11 +519,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
   if (!_gum_v8_args_parse (args, "X", &stream))
     return;
 
-  gum_v8_object_manager_add (&module->objects, args->info->Holder (), stream,
-      module);
+  gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 }
 
-GUMJS_DEFINE_METHOD (OutputStream, gumjs_output_stream_close)
+GUMJS_DEFINE_METHOD (gumjs_output_stream_close, GumV8OutputStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -535,7 +530,7 @@ GUMJS_DEFINE_METHOD (OutputStream, gumjs_output_stream_close)
 
   g_cancellable_cancel (self->cancellable);
 
-  GumV8CloseOutputOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_close_output_operation_start);
   gum_v8_object_operation_schedule_when_idle (op);
 }
@@ -558,13 +553,13 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
   success = g_output_stream_close_finish (stream, result, &error);
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
-    Local<Value> success_value = success ? True (isolate) : False (isolate);
-    Local<Value> null_value = Null (isolate);
+    auto success_value = success ? True (isolate) : False (isolate);
+    auto null_value = Null (isolate);
     if (error == NULL)
     {
       error_value = null_value;
@@ -577,19 +572,19 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
     }
 
     Handle<Value> argv[] = { error_value, success_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (OutputStream, gumjs_output_stream_write)
+GUMJS_DEFINE_METHOD (gumjs_output_stream_write, GumV8OutputStream)
 {
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_SOME);
 }
 
-GUMJS_DEFINE_METHOD (OutputStream, gumjs_output_stream_write_all)
+GUMJS_DEFINE_METHOD (gumjs_output_stream_write_all, GumV8OutputStream)
 {
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_ALL);
 }
@@ -604,7 +599,7 @@ gumjs_output_stream_write_with_strategy (GumV8OutputStream * self,
   if (!_gum_v8_args_parse (args, "BF", &bytes, &callback))
     return;
 
-  GumV8WriteOperation * op = gum_v8_object_operation_new (self, callback,
+  auto op = gum_v8_object_operation_new (self, callback,
       gum_v8_write_operation_start, gum_v8_write_operation_dispose);
   op->strategy = strategy;
   op->bytes = bytes;
@@ -620,7 +615,7 @@ gum_v8_write_operation_dispose (GumV8WriteOperation * self)
 static void
 gum_v8_write_operation_start (GumV8WriteOperation * self)
 {
-  GumV8OutputStream * stream = self->object;
+  auto stream = self->object;
 
   if (self->strategy == GUM_V8_WRITE_SOME)
   {
@@ -665,13 +660,13 @@ gum_v8_write_operation_finish (GOutputStream * stream,
   }
 
   {
-    GumV8Core * core = self->core;
+    auto core = self->core;
     ScriptScope scope (core->script);
-    Isolate * isolate = core->isolate;
+    auto isolate = core->isolate;
 
     Local<Value> error_value;
-    Local<Value> size_value = Integer::NewFromUnsigned (isolate, bytes_written);
-    Local<Value> null_value = Null (isolate);
+    auto size_value = Integer::NewFromUnsigned (isolate, bytes_written);
+    auto null_value = Null (isolate);
     if (self->strategy == GUM_V8_WRITE_ALL &&
         bytes_written != g_bytes_get_size (self->bytes))
     {
@@ -692,7 +687,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
     g_clear_error (&error);
 
     Handle<Value> argv[] = { error_value, size_value };
-    Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+    auto callback (Local<Function>::New (isolate, *self->callback));
     callback->Call (null_value, G_N_ELEMENTS (argv), argv);
   }
 
@@ -701,10 +696,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 {
-  auto core = args->core;
-  auto isolate = core->isolate;
-
-  if (!args->info->IsConstructCall ())
+  if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate, "Use `new " GUM_NATIVE_INPUT_STREAM
         "()` to create a new instance");
@@ -716,26 +708,22 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
   if (!gum_v8_native_stream_ctor_args_parse (args, &handle, &auto_close, core))
     return;
 
-  GInputStream * stream;
 #ifdef G_OS_WIN32
-  stream = g_win32_input_stream_new (handle, auto_close);
+  auto stream = g_win32_input_stream_new (handle, auto_close);
 #else
-  stream = g_unix_input_stream_new (handle, auto_close);
+  auto stream = g_unix_input_stream_new (handle, auto_close);
 #endif
 
-  Local<FunctionTemplate> base_ctor (
-      Local<FunctionTemplate>::New (isolate, *module->input_stream));
+  auto base_ctor (Local<FunctionTemplate>::New (isolate,
+      *module->input_stream));
   Handle<Value> argv[] = { External::New (isolate, stream) };
-  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (),
-      args->info->Holder (), G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (), wrapper,
+      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 {
-  auto core = args->core;
-  auto isolate = core->isolate;
-
-  if (!args->info->IsConstructCall ())
+  if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate, "Use `new " GUM_NATIVE_OUTPUT_STREAM
         "()` to create a new instance");
@@ -747,18 +735,17 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
   if (!gum_v8_native_stream_ctor_args_parse (args, &handle, &auto_close, core))
     return;
 
-  GOutputStream * stream;
 #ifdef G_OS_WIN32
-  stream = g_win32_output_stream_new (handle, auto_close);
+  auto stream = g_win32_output_stream_new (handle, auto_close);
 #else
-  stream = g_unix_output_stream_new (handle, auto_close);
+  auto stream = g_unix_output_stream_new (handle, auto_close);
 #endif
 
-  Local<FunctionTemplate> base_ctor (
-      Local<FunctionTemplate>::New (isolate, *module->output_stream));
+  auto base_ctor (Local<FunctionTemplate>::New (isolate,
+      *module->output_stream));
   Handle<Value> argv[] = { External::New (isolate, stream) };
-  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (),
-      args->info->Holder (), G_N_ELEMENTS (argv), argv).ToLocalChecked ();
+  base_ctor->GetFunction ()->Call (isolate->GetCurrentContext (), wrapper,
+      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
 static gboolean
