@@ -274,6 +274,18 @@ _gum_v8_args_parse (const GumV8Args * args,
 
         break;
       }
+      case 'X':
+      {
+        if (!arg->IsExternal ())
+        {
+          _gum_v8_throw_ascii_literal (isolate, "expected an external pointer");
+          return FALSE;
+        }
+
+        *va_arg (ap, gpointer *) = arg.As<External> ()->Value ();
+
+        break;
+      }
       case 's':
       {
         gchar * str;
