@@ -281,10 +281,22 @@ _gum_duk_args_parse (const GumDukArgs * args,
       case 'V':
       {
         GumDukHeapPtr value;
+        gboolean is_nullable;
 
-        value = duk_get_heapptr (ctx, arg_index);
-        if (value == NULL)
-          goto expected_heap_pointer;
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable && duk_is_null (ctx, arg_index))
+        {
+          value = NULL;
+        }
+        else
+        {
+          value = duk_get_heapptr (ctx, arg_index);
+          if (value == NULL)
+            goto expected_heap_pointer;
+        }
 
         *va_arg (ap, GumDukHeapPtr *) = value;
 

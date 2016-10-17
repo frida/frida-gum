@@ -17,6 +17,9 @@
 # define GUM_SOCKOPT_OPTVAL(v) (v)
   typedef socklen_t gum_socklen_t;
 #endif
+#ifdef G_OS_UNIX
+# include <gio/gunixsocketaddress.h>
+#endif
 
 typedef struct _GumDukListenOperation GumDukListenOperation;
 typedef struct _GumDukConnectOperation GumDukConnectOperation;
@@ -29,17 +32,26 @@ typedef struct _GumDukSetNoDelayOperation GumDukSetNoDelayOperation;
 struct _GumDukListenOperation
 {
   GumDukModuleOperation parent;
+
   guint16 port;
+
+  gchar * path;
+
+  GSocketAddress * address;
   gint backlog;
 };
 
 struct _GumDukConnectOperation
 {
   GumDukModuleOperation parent;
+
   GSocketClient * client;
   GSocketFamily family;
+
   gchar * host;
   guint16 port;
+
+  GSocketConnectable * connectable;
 };
 
 struct _GumDukCloseListenerOperation
@@ -59,7 +71,8 @@ struct _GumDukSetNoDelayOperation
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_construct)
-GUMJS_DECLARE_FUNCTION (gumjs_socket_listen);
+GUMJS_DECLARE_FUNCTION (gumjs_socket_listen)
+static void gum_duk_listen_operation_dispose (GumDukListenOperation * self);
 static void gum_duk_listen_operation_perform (GumDukListenOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_socket_connect)
 static void gum_duk_connect_operation_dispose (GumDukConnectOperation * self);
@@ -88,13 +101,17 @@ GUMJS_DECLARE_FUNCTION (gumjs_socket_connection_set_no_delay)
 static void gum_duk_set_no_delay_operation_perform (
     GumDukSetNoDelayOperation * self);
 
+static void gum_duk_get_socket_family (duk_context * ctx, GumDukHeapPtr value,
+    GSocketFamily * family);
+static void gum_duk_get_unix_socket_address_type (duk_context * ctx,
+    GumDukHeapPtr value, GUnixSocketAddressType * type);
 static GumDukHeapPtr gumjs_socket_address_to_value (duk_context * ctx,
     struct sockaddr * addr, GumDukCore * core);
 
 static const duk_function_list_entry gumjs_socket_functions[] =
 {
-  { "_listen", gumjs_socket_listen, 3 },
-  { "_connect", gumjs_socket_connect, 4 },
+  { "_listen", gumjs_socket_listen, 7 },
+  { "_connect", gumjs_socket_connect, 6 },
   { "type", gumjs_socket_get_type, 1 },
   { "localAddress", gumjs_socket_get_local_address, 1 },
   { "peerAddress", gumjs_socket_get_peer_address, 1 },
@@ -202,18 +219,53 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_construct)
 GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 {
   GumDukSocket * module;
+  GSocketFamily family;
+  GumDukHeapPtr family_value;
+  const gchar * host;
   guint port;
-  gint backlog;
+  GUnixSocketAddressType type;
+  GumDukHeapPtr type_value;
+  const gchar * path;
+  guint backlog;
   GumDukHeapPtr callback;
+  GSocketAddress * address = NULL;
   GumDukListenOperation * op;
 
   module = gumjs_module_from_args (args);
 
-  _gum_duk_args_parse (args, "uiF", &port, &backlog, &callback);
+  _gum_duk_args_parse (args, "V?s?uV?s?uF", &family_value, &host, &port,
+      &type_value, &path, &backlog, &callback);
+  gum_duk_get_socket_family (ctx, family_value, &family);
+  gum_duk_get_unix_socket_address_type (ctx, type_value, &type);
+
+  if (host != NULL)
+  {
+    address = g_inet_socket_address_new_from_string (host, port);
+    if (address == NULL)
+      _gum_duk_throw (ctx, "invalid host");
+  }
+  else if (path != NULL)
+  {
+#ifdef G_OS_UNIX
+    address = g_unix_socket_address_new_with_type (path, -1, type);
+    g_assert (address != NULL);
+#else
+    _gum_duk_throw (ctx, "UNIX sockets not available");
+#endif
+  }
+  else if (family != G_SOCKET_FAMILY_INVALID)
+  {
+    address = g_inet_socket_address_new_from_string (
+        (family == G_SOCKET_FAMILY_IPV4) ? "0.0.0.0" : "::",
+        port);
+    g_assert (address != NULL);
+  }
 
   op = _gum_duk_module_operation_new (GumDukListenOperation, module, callback,
-      gum_duk_listen_operation_perform, NULL);
+      gum_duk_listen_operation_perform, gum_duk_listen_operation_dispose);
   op->port = port;
+  op->path = g_strdup (path);
+  op->address = address;
   op->backlog = backlog;
   _gum_duk_module_operation_schedule (op);
 
@@ -221,10 +273,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 }
 
 static void
+gum_duk_listen_operation_dispose (GumDukListenOperation * self)
+{
+  g_clear_object (&self->address);
+  g_free (self->path);
+}
+
+static void
 gum_duk_listen_operation_perform (GumDukListenOperation * self)
 {
   GumDukModuleOperation * op = GUM_DUK_MODULE_OPERATION (self);
   GSocketListener * listener;
+  GSocketAddress * effective_address = NULL;
   GError * error = NULL;
   GumDukScope scope;
   duk_context * ctx;
@@ -233,13 +293,23 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
       "listen-backlog", self->backlog,
       NULL));
 
-  if (self->port != 0)
+  if (self->address != NULL)
   {
-    g_socket_listener_add_inet_port (listener, self->port, NULL, &error);
+    g_socket_listener_add_address (listener, self->address,
+        G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_DEFAULT, NULL,
+        &effective_address, &error);
   }
   else
   {
-    self->port = g_socket_listener_add_any_inet_port (listener, NULL, &error);
+    if (self->port != 0)
+    {
+      g_socket_listener_add_inet_port (listener, self->port, NULL, &error);
+    }
+    else
+    {
+      self->port =
+          g_socket_listener_add_any_inet_port (listener, NULL, &error);
+    }
   }
 
   if (error != NULL)
@@ -253,8 +323,25 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
     duk_push_null (ctx);
 
     gum_duk_push_socket_listener (ctx, listener, op->module);
-    duk_push_uint (ctx, self->port);
-    duk_put_prop_string (ctx, -2, "port");
+    if (self->path != NULL)
+    {
+      duk_push_string (ctx, self->path);
+      duk_put_prop_string (ctx, -2, "path");
+    }
+    else
+    {
+      if (effective_address != NULL)
+      {
+        duk_push_uint (ctx, g_inet_socket_address_get_port (
+            G_INET_SOCKET_ADDRESS (effective_address)));
+        g_clear_object (&effective_address);
+      }
+      else
+      {
+        duk_push_uint (ctx, self->port);
+      }
+      duk_put_prop_string (ctx, -2, "port");
+    }
   }
   else
   {
@@ -274,31 +361,35 @@ gum_duk_listen_operation_perform (GumDukListenOperation * self)
 GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 {
   GumDukSocket * module;
-  guint family_value;
   GSocketFamily family;
+  GumDukHeapPtr family_value;
   const gchar * host;
   guint port;
+  GUnixSocketAddressType type;
+  GumDukHeapPtr type_value;
+  const gchar * path;
   GumDukHeapPtr callback;
+  GSocketConnectable * connectable = NULL;
   GumDukConnectOperation * op;
 
   module = gumjs_module_from_args (args);
 
-  _gum_duk_args_parse (args, "usuF", &family_value, &host, &port, &callback);
+  _gum_duk_args_parse (args, "V?s?uV?s?F", &family_value, &host, &port,
+      &type_value, &path, &callback);
+  gum_duk_get_socket_family (ctx, family_value, &family);
+  gum_duk_get_unix_socket_address_type (ctx, type_value, &type);
 
-  switch (family_value)
+  if (path != NULL)
   {
-    case 4:
-      family = G_SOCKET_FAMILY_IPV4;
-      break;
-    case 6:
-      family = G_SOCKET_FAMILY_IPV6;
-      break;
-    default:
-      family = G_SOCKET_FAMILY_INVALID;
-      _gum_duk_throw (ctx, "invalid address family");
+#ifdef G_OS_UNIX
+    family = G_SOCKET_FAMILY_UNIX;
+    connectable = G_SOCKET_CONNECTABLE (g_unix_socket_address_new_with_type (
+        path, -1, type));
+    g_assert (connectable != NULL);
+#else
+    _gum_duk_throw (ctx, "UNIX sockets not available");
+#endif
   }
-
-  duk_push_heapptr (ctx, callback);
 
   op = _gum_duk_module_operation_new (GumDukConnectOperation, module, callback,
       gum_duk_connect_operation_start, gum_duk_connect_operation_dispose);
@@ -306,6 +397,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
   op->family = family;
   op->host = g_strdup (host);
   op->port = port;
+  op->connectable = connectable;
   _gum_duk_module_operation_schedule (op);
 
   return 0;
@@ -314,6 +406,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 static void
 gum_duk_connect_operation_dispose (GumDukConnectOperation * self)
 {
+  g_clear_object (&self->connectable);
   g_free (self->host);
   g_object_unref (self->client);
 }
@@ -327,9 +420,18 @@ gum_duk_connect_operation_start (GumDukConnectOperation * self)
       "family", self->family,
       NULL));
 
-  g_socket_client_connect_to_host_async (self->client, self->host, self->port,
-      op->cancellable, (GAsyncReadyCallback) gum_duk_connect_operation_finish,
-      self);
+  if (self->connectable != NULL)
+  {
+    g_socket_client_connect_async (self->client, self->connectable,
+        op->cancellable, (GAsyncReadyCallback) gum_duk_connect_operation_finish,
+        self);
+  }
+  else
+  {
+    g_socket_client_connect_to_host_async (self->client, self->host, self->port,
+        op->cancellable, (GAsyncReadyCallback) gum_duk_connect_operation_finish,
+        self);
+  }
 }
 
 static void
@@ -343,7 +445,15 @@ gum_duk_connect_operation_finish (GSocketClient * client,
   GumDukScope scope;
   duk_context * ctx;
 
-  connection = g_socket_client_connect_to_host_finish (client, result, &error);
+  if (self->connectable != NULL)
+  {
+    connection = g_socket_client_connect_finish (client, result, &error);
+  }
+  else
+  {
+    connection = g_socket_client_connect_to_host_finish (client, result,
+        &error);
+  }
 
   ctx = _gum_duk_scope_enter (&scope, op->core);
 
@@ -695,6 +805,70 @@ gum_duk_set_no_delay_operation_perform (GumDukSetNoDelayOperation * self)
   _gum_duk_scope_leave (&scope);
 
   _gum_duk_object_operation_finish (op);
+}
+
+static void
+gum_duk_get_socket_family (duk_context * ctx,
+                           GumDukHeapPtr value,
+                           GSocketFamily * family)
+{
+  const gchar * value_str;
+
+  if (value == NULL)
+  {
+    *family = G_SOCKET_FAMILY_INVALID;
+    return;
+  }
+
+  duk_push_heapptr (ctx, value);
+
+  if (!duk_is_string (ctx, -1))
+    _gum_duk_throw (ctx, "invalid socket address family");
+  value_str = duk_require_string (ctx, -1);
+
+  if (strcmp (value_str, "unix") == 0)
+    *family = G_SOCKET_FAMILY_UNIX;
+  else if (strcmp (value_str, "ipv4") == 0)
+    *family = G_SOCKET_FAMILY_IPV4;
+  else if (strcmp (value_str, "ipv6") == 0)
+    *family = G_SOCKET_FAMILY_IPV6;
+  else
+    _gum_duk_throw (ctx, "invalid socket address family");
+
+  duk_pop (ctx);
+}
+
+static void
+gum_duk_get_unix_socket_address_type (duk_context * ctx,
+                                      GumDukHeapPtr value,
+                                      GUnixSocketAddressType * type)
+{
+  const gchar * value_str;
+
+  if (value == NULL)
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_PATH;
+    return;
+  }
+
+  duk_push_heapptr (ctx, value);
+
+  if (!duk_is_string (ctx, -1))
+    _gum_duk_throw (ctx, "invalid UNIX socket address type");
+  value_str = duk_require_string (ctx, -1);
+
+  if (strcmp (value_str, "anonymous") == 0)
+    *type = G_UNIX_SOCKET_ADDRESS_ANONYMOUS;
+  else if (strcmp (value_str, "path") == 0)
+    *type = G_UNIX_SOCKET_ADDRESS_PATH;
+  else if (strcmp (value_str, "abstract") == 0)
+    *type = G_UNIX_SOCKET_ADDRESS_ABSTRACT;
+  else if (strcmp (value_str, "abstract-padded") == 0)
+    *type = G_UNIX_SOCKET_ADDRESS_ABSTRACT_PADDED;
+  else
+    _gum_duk_throw (ctx, "invalid UNIX socket address type");
+
+  duk_pop (ctx);
 }
 
 static GumDukHeapPtr
