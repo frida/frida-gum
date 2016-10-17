@@ -1470,6 +1470,16 @@ _gum_v8_page_protection_get (Handle<Value> prot_val,
   return TRUE;
 }
 
+Local<ObjectTemplate>
+_gum_v8_create_module (const gchar * name,
+                       Handle<ObjectTemplate> scope,
+                       Isolate * isolate)
+{
+  auto module = ObjectTemplate::New (isolate);
+  scope->Set (_gum_v8_string_new_from_ascii (name, isolate), module);
+  return module;
+}
+
 void
 _gum_v8_module_add (v8::Handle<v8::External> module,
                     v8::Handle<v8::ObjectTemplate> object,

@@ -126,6 +126,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_page_protection_get (
     v8::Handle<v8::Value> prot_val, GumPageProtection * prot,
     GumV8Core * core);
 
+G_GNUC_INTERNAL v8::Local<v8::ObjectTemplate> _gum_v8_create_module (
+    const gchar * name, v8::Handle<v8::ObjectTemplate> scope,
+    v8::Isolate * isolate);
 G_GNUC_INTERNAL void _gum_v8_module_add (v8::Handle<v8::External> module,
     v8::Handle<v8::ObjectTemplate> object, const GumV8Function * functions,
     v8::Isolate * isolate);
