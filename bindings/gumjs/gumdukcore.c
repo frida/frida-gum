@@ -1404,7 +1404,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
   duk_push_heapptr (ctx, target);
   target_is_valid = !duk_is_null (ctx, -1) && duk_is_object (ctx, -1);
   if (!target_is_valid)
-    _gum_duk_throw (ctx, "expected a non-primitive value");
+    _gum_duk_throw (ctx, "expected a heap value");
   duk_pop (ctx);
 
   id = ++args->core->last_weak_ref_id;
@@ -1503,7 +1503,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_send)
   GumDukCore * self = args->core;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GumInterceptor * interceptor = self->interceptor->interceptor;
-  gchar * message;
+  const gchar * message;
   GBytes * data;
 
   (void) ctx;
