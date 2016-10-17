@@ -21,14 +21,8 @@
 #include <gum/gumprocess.h>
 #include <v8.h>
 
-typedef struct _GumV8Core GumV8Core;
-
-typedef struct _GumV8ScheduledCallback GumV8ScheduledCallback;
-typedef struct _GumV8ExceptionSink GumV8ExceptionSink;
-typedef struct _GumV8MessageSink GumV8MessageSink;
-
-typedef struct _GumV8NativeResource GumV8NativeResource;
-typedef struct _GumV8ByteArray GumV8ByteArray;
+struct GumV8ExceptionSink;
+struct GumV8MessageSink;
 
 template <typename T>
 struct GumPersistent
@@ -40,10 +34,11 @@ typedef void (* GumV8FlushNotify) (GumV8Script * script);
 typedef void (* GumV8MessageEmitter) (GumV8Script * script,
     const gchar * message, GBytes * data);
 
-struct _GumV8Core
+struct GumV8Core
 {
   GumV8Script * script;
   GumV8ScriptBackend * backend;
+  GumV8Core * core;
   GumV8MessageEmitter message_emitter;
   GumScriptScheduler * scheduler;
   GumExceptor * exceptor;
@@ -92,7 +87,7 @@ struct _GumV8Core
   GumPersistent<v8::Object>::type * cpu_context_value;
 };
 
-struct _GumV8NativeResource
+struct GumV8NativeResource
 {
   GumPersistent<v8::Object>::type * instance;
   gpointer data;
@@ -101,7 +96,7 @@ struct _GumV8NativeResource
   GumV8Core * core;
 };
 
-struct _GumV8ByteArray
+struct GumV8ByteArray
 {
   GumPersistent<v8::Object>::type * instance;
   gpointer data;

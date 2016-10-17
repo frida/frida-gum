@@ -8,82 +8,81 @@
 
 #include "gumv8core.h"
 
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
-#include "gumv8value.h"
 
 #include <ffi.h>
 #include <string.h>
 
+#define GUMJS_MODULE_NAME Core
+
 using namespace v8;
 
-typedef struct _GumFlushCallback GumFlushCallback;
-typedef struct _GumWeakRef GumWeakRef;
-typedef struct _GumFFIFunction GumFFIFunction;
-typedef struct _GumFFICallback GumFFICallback;
-typedef union _GumFFIValue GumFFIValue;
-typedef struct _GumFFITypeMapping GumFFITypeMapping;
-typedef struct _GumFFIABIMapping GumFFIABIMapping;
-
-struct _GumFlushCallback
+struct GumFlushCallback
 {
   GumV8FlushNotify func;
   GumV8Script * script;
 };
 
-struct _GumWeakRef
+struct GumWeakRef
 {
   guint id;
   GumPersistent<Value>::type * target;
   GumPersistent<Function>::type * callback;
+
   GumV8Core * core;
 };
 
-struct _GumV8ScheduledCallback
+struct GumV8ScheduledCallback
 {
   guint id;
   gboolean repeat;
   GumPersistent<Function>::type * func;
-  GumPersistent<Value>::type * receiver;
   GSource * source;
+
   GumV8Core * core;
 };
 
-struct _GumV8ExceptionSink
+struct GumV8ExceptionSink
 {
   GumPersistent<Function>::type * callback;
   Isolate * isolate;
 };
 
-struct _GumV8MessageSink
+struct GumV8MessageSink
 {
   GumPersistent<Function>::type * callback;
   Isolate * isolate;
 };
 
-struct _GumFFIFunction
+struct GumV8NativeFunction
 {
-  GumV8Core * core;
-  gpointer fn;
+  GumPersistent<Object>::type * wrapper;
+
+  GCallback fn;
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
   GSList * data;
-  GumPersistent<Object>::type * weak_instance;
+
+  GumV8Core * core;
 };
 
-struct _GumFFICallback
+struct GumV8NativeCallback
 {
-  GumV8Core * core;
+  GumPersistent<Object>::type * wrapper;
+
   GumPersistent<Function>::type * func;
   ffi_closure * closure;
   ffi_cif cif;
   ffi_type ** atypes;
   GSList * data;
-  GumPersistent<Object>::type * weak_instance;
+
+  GumV8Core * core;
 };
 
-union _GumFFIValue
+union GumFFIValue
 {
   gpointer v_pointer;
   gint v_sint;
@@ -104,43 +103,53 @@ union _GumFFIValue
   guint64 v_uint64;
 };
 
-struct _GumFFITypeMapping
+struct GumFFITypeMapping
 {
   const gchar * name;
   ffi_type * type;
 };
 
-struct _GumFFIABIMapping
+struct GumFFIABIMapping
 {
   const gchar * name;
   ffi_abi abi;
 };
 
-static gboolean gum_v8_core_notify_flushed_when_idle (gpointer user_data);
+static gboolean gum_v8_core_notify_flushed_when_idle (
+    GumFlushCallback * callback);
 
-static void gum_v8_core_on_script_set_global_access_handler (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_global_get (Local<Name> property,
+GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
+GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
+static void gum_v8_core_schedule_callback (GumV8Core * self,
+    const GumV8Args * args, gboolean repeat);
+static void gum_v8_core_add_scheduled_callback (GumV8Core * self,
+    GumV8ScheduledCallback * callback);
+GUMJS_DECLARE_FUNCTION (gumjs_clear_timer)
+static GumV8ScheduledCallback * gum_v8_scheduled_callback_new (guint id,
+    gboolean repeat, GSource * source, GumV8Core * core);
+static void gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback);
+static gboolean gum_v8_scheduled_callback_invoke (
+    GumV8ScheduledCallback * self);
+GUMJS_DECLARE_FUNCTION (gumjs_send)
+GUMJS_DECLARE_FUNCTION (gumjs_set_unhandled_exception_callback)
+GUMJS_DECLARE_FUNCTION (gumjs_set_incoming_message_callback)
+GUMJS_DECLARE_FUNCTION (gumjs_wait_for_event)
+
+static void gumjs_global_get (Local<Name> property,
     const PropertyCallbackInfo<Value> & info);
-static void gum_v8_core_on_global_query (Local<Name> property,
+static void gumjs_global_query (Local<Name> property,
     const PropertyCallbackInfo<Integer> & info);
-static void gum_v8_core_on_global_enumerate (
-    const PropertyCallbackInfo<Array> & info);
+static void gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info);
 
-static void gum_v8_core_on_script_next_tick (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_script_pin (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_script_unpin (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_script_get_file_name (
-    Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_v8_core_on_script_get_source_map_data (
-    Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_v8_core_on_weak_ref_bind (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_weak_ref_unbind (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_GETTER (gumjs_script_get_file_name)
+GUMJS_DECLARE_GETTER (gumjs_script_get_source_map_data)
+GUMJS_DECLARE_FUNCTION (gumjs_script_next_tick)
+GUMJS_DECLARE_FUNCTION (gumjs_script_pin)
+GUMJS_DECLARE_FUNCTION (gumjs_script_unpin)
+GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
+
+GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
+GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
 static void gum_v8_core_clear_weak_ref_entry (guint id, GumWeakRef * ref);
 static GumWeakRef * gum_weak_ref_new (guint id, Handle<Value> target,
     Handle<Function> callback, GumV8Core * core);
@@ -148,129 +157,66 @@ static void gum_weak_ref_clear (GumWeakRef * ref);
 static void gum_weak_ref_free (GumWeakRef * ref);
 static void gum_weak_ref_on_weak_notify (
     const WeakCallbackInfo<GumWeakRef> & info);
-static void gum_v8_core_on_set_timeout (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_set_interval (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_clear_timeout (
-    const FunctionCallbackInfo<Value> & info);
-static GumV8ScheduledCallback * gum_v8_scheduled_callback_new (guint id,
-    gboolean repeat, GSource * source, GumV8Core * core);
-static void gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback);
-static gboolean gum_v8_scheduled_callback_invoke (gpointer user_data);
-static void gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_set_unhandled_exception_callback (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_set_incoming_message_callback (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_wait_for_event (
-    const FunctionCallbackInfo<Value> & info);
 
-static void gum_v8_core_on_new_int64 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_add (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_sub (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_and (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_or (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_xor (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_shr (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_shl (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_compare (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_to_number (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_to_string (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_to_json (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_int64_value_of (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_int64_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_add)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_and)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_or)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_shr)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_number)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_int64_value_of)
 
-static void gum_v8_core_on_new_uint64 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_add (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_sub (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_and (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_or (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_xor (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_shr (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_shl (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_compare (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_to_number (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_to_string (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_to_json (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_uint64_value_of (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_add)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_and)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_or)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_shr)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_number)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_uint64_value_of)
 
-static void gum_v8_core_on_new_native_pointer (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_is_null (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_add (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_sub (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_and (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_or (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_xor (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_shr (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_shl (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_compare (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_to_int32 (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_to_string (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_to_json (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_native_pointer_to_match_pattern (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_is_null)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_add)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_sub)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_and)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_or)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_xor)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shr)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_shl)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_compare)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_int32)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_string)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
+GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
-static void gum_v8_core_on_new_native_function (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_ffi_function_on_weak_notify (
-    const WeakCallbackInfo<GumFFIFunction> & info);
-static void gum_v8_core_on_invoke_native_function (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_ffi_function_free (GumFFIFunction * func);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
+static void gum_v8_native_function_on_weak_notify (
+    const WeakCallbackInfo<GumV8NativeFunction> & info);
+static void gum_v8_native_function_free (GumV8NativeFunction * self);
+GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 
-static void gum_v8_core_on_new_native_callback (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_free_native_callback (
-    const WeakCallbackInfo<GumFFICallback> & info);
-static void gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
+static void gum_v8_native_callback_on_weak_notify (
+    const WeakCallbackInfo<GumV8NativeCallback> & info);
+static void gum_v8_native_callback_free (GumV8NativeCallback * callback);
+static void gum_v8_native_callback_invoke (ffi_cif * cif,
     void * return_value, void ** args, void * user_data);
-static void gum_ffi_callback_free (GumFFICallback * callback);
 
-static void gum_v8_core_on_new_cpu_context (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_core_on_cpu_context_get_register (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_core_on_cpu_context_set_register (Local<String> property,
-    Local<Value> value, const PropertyCallbackInfo<void> & info);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
+GUMJS_DECLARE_GETTER (gumjs_cpu_context_get_register)
+GUMJS_DECLARE_SETTER (gumjs_cpu_context_set_register)
 
 static GumV8ExceptionSink * gum_v8_exception_sink_new (
     Handle<Function> callback, Isolate * isolate);
@@ -284,14 +230,109 @@ static void gum_v8_message_sink_free (GumV8MessageSink * sink);
 static void gum_v8_message_sink_post (GumV8MessageSink * self,
     const gchar * message, GBytes * data);
 
-static gboolean gum_v8_ffi_type_get (GumV8Core * core,
-    Handle<Value> name, ffi_type ** type, GSList ** data);
-static gboolean gum_v8_ffi_abi_get (GumV8Core * core,
-    Handle<Value> name, ffi_abi * abi);
+static gboolean gum_v8_ffi_type_get (GumV8Core * core, Handle<Value> name,
+    ffi_type ** type, GSList ** data);
+static gboolean gum_v8_ffi_abi_get (GumV8Core * core, Handle<Value> name,
+    ffi_abi * abi);
 static gboolean gum_v8_value_to_ffi_type (GumV8Core * core,
     const Handle<Value> svalue, GumFFIValue * value, const ffi_type * type);
 static gboolean gum_v8_value_from_ffi_type (GumV8Core * core,
     Handle<Value> * svalue, const GumFFIValue * value, const ffi_type * type);
+
+static const GumV8Function gumjs_global_functions[] =
+{
+  { "_setTimeout", gumjs_set_timeout, },
+  { "_setInterval", gumjs_set_interval },
+  { "_clearTimeout", gumjs_clear_timer },
+  { "clearInterval", gumjs_clear_timer },
+  { "_send", gumjs_send },
+  { "_setUnhandledExceptionCallback", gumjs_set_unhandled_exception_callback },
+  { "_setIncomingMessageCallback", gumjs_set_incoming_message_callback },
+  { "_waitForEvent", gumjs_wait_for_event },
+
+  { NULL, NULL }
+};
+
+static const GumV8Property gumjs_script_values[] =
+{
+  { "fileName", gumjs_script_get_file_name, NULL },
+  { "_sourceMapData", gumjs_script_get_source_map_data, NULL },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_script_functions[] =
+{
+  { "_nextTick", gumjs_script_next_tick },
+  { "pin", gumjs_script_pin },
+  { "unpin", gumjs_script_unpin },
+  { "setGlobalAccessHandler", gumjs_script_set_global_access_handler },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_weak_ref_functions[] =
+{
+  { "bind", gumjs_weak_ref_bind },
+  { "unbind", gumjs_weak_ref_unbind },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_int64_functions[] =
+{
+  { "add", gumjs_int64_add },
+  { "sub", gumjs_int64_sub },
+  { "and", gumjs_int64_and },
+  { "or", gumjs_int64_or },
+  { "xor", gumjs_int64_xor },
+  { "shr", gumjs_int64_shr },
+  { "shl", gumjs_int64_shl },
+  { "compare", gumjs_int64_compare },
+  { "toNumber", gumjs_int64_to_number },
+  { "toString", gumjs_int64_to_string },
+  { "toJSON", gumjs_int64_to_json },
+  { "valueOf", gumjs_int64_value_of },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_uint64_functions[] =
+{
+  { "add", gumjs_uint64_add },
+  { "sub", gumjs_uint64_sub },
+  { "and", gumjs_uint64_and },
+  { "or", gumjs_uint64_or },
+  { "xor", gumjs_uint64_xor },
+  { "shr", gumjs_uint64_shr },
+  { "shl", gumjs_uint64_shl },
+  { "compare", gumjs_uint64_compare },
+  { "toNumber", gumjs_uint64_to_number },
+  { "toString", gumjs_uint64_to_string },
+  { "toJSON", gumjs_uint64_to_json },
+  { "valueOf", gumjs_uint64_value_of },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_native_pointer_functions[] =
+{
+  { "isNull", gumjs_native_pointer_is_null },
+  { "add", gumjs_native_pointer_add },
+  { "sub", gumjs_native_pointer_sub },
+  { "and", gumjs_native_pointer_and },
+  { "or", gumjs_native_pointer_or },
+  { "xor", gumjs_native_pointer_xor },
+  { "shr", gumjs_native_pointer_shr },
+  { "shl", gumjs_native_pointer_shl },
+  { "compare", gumjs_native_pointer_compare },
+  { "toInt32", gumjs_native_pointer_to_int32 },
+  { "toString", gumjs_native_pointer_to_string },
+  { "toJSON", gumjs_native_pointer_to_json },
+  { "toMatchPattern", gumjs_native_pointer_to_match_pattern },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_core_init (GumV8Core * self,
@@ -303,6 +344,7 @@ _gum_v8_core_init (GumV8Core * self,
 {
   self->script = script;
   self->backend = script->priv->backend;
+  self->core = self;
   self->message_emitter = message_emitter;
   self->scheduler = scheduler;
   self->exceptor = gum_exceptor_obtain ();
@@ -318,221 +360,80 @@ _gum_v8_core_init (GumV8Core * self,
   self->event_count = 0;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
-      reinterpret_cast<GDestroyNotify> (gum_weak_ref_free));
+      (GDestroyNotify) gum_weak_ref_free);
 
   self->tick_callbacks = g_queue_new ();
 
-  Local<External> data (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
-  Handle<ObjectTemplate> frida = ObjectTemplate::New ();
-  frida->Set (String::NewFromUtf8 (isolate, "version"),
-      String::NewFromUtf8 (isolate, FRIDA_VERSION), ReadOnly);
-  scope->Set (String::NewFromUtf8 (isolate, "Frida"), frida);
+  _gum_v8_module_add (module, scope, gumjs_global_functions, isolate);
 
-  Handle<ObjectTemplate> script_module = ObjectTemplate::New ();
-  script_module->Set (String::NewFromUtf8 (isolate, "_nextTick"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_script_next_tick, data));
-  script_module->Set (String::NewFromUtf8 (isolate, "pin"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_script_pin, data));
-  script_module->Set (String::NewFromUtf8 (isolate, "unpin"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_script_unpin, data));
-  script_module->Set (String::NewFromUtf8 (isolate, "runtime"),
-      String::NewFromUtf8 (isolate, "V8"), ReadOnly);
-  script_module->SetAccessor (String::NewFromUtf8 (isolate, "fileName"),
-      gum_v8_core_on_script_get_file_name, NULL, data);
-  script_module->SetAccessor (String::NewFromUtf8 (isolate, "_sourceMapData"),
-      gum_v8_core_on_script_get_source_map_data, NULL, data);
-  script_module->Set (String::NewFromUtf8 (isolate, "setGlobalAccessHandler"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_script_set_global_access_handler, data));
   NamedPropertyHandlerConfiguration global_access;
-  global_access.getter = gum_v8_core_on_global_get;
-  global_access.query = gum_v8_core_on_global_query;
-  global_access.enumerator = gum_v8_core_on_global_enumerate;
-  global_access.data = data;
+  global_access.getter = gumjs_global_get;
+  global_access.query = gumjs_global_query;
+  global_access.enumerator = gumjs_global_enumerate;
+  global_access.data = module;
   global_access.flags = PropertyHandlerFlags::kNonMasking;
   scope->SetHandler (global_access);
-  scope->Set (String::NewFromUtf8 (isolate, "Script"), script_module);
 
-  Handle<ObjectTemplate> weak = ObjectTemplate::New ();
-  weak->Set (String::NewFromUtf8 (isolate, "bind"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_weak_ref_bind, data));
-  weak->Set (String::NewFromUtf8 (isolate, "unbind"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_weak_ref_unbind,
-          data));
-  scope->Set (String::NewFromUtf8 (isolate, "WeakRef"), weak);
+  auto frida = _gum_v8_create_module ("Frida", scope, isolate);
+  frida->Set (_gum_v8_string_new_from_ascii ("version", isolate),
+      _gum_v8_string_new_from_ascii (FRIDA_VERSION, isolate), ReadOnly);
 
-  scope->Set (String::NewFromUtf8 (isolate, "_setTimeout"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_set_timeout, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_setInterval"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_set_interval, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_clearTimeout"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_clear_timeout, data));
-  scope->Set (String::NewFromUtf8 (isolate, "clearInterval"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_clear_timeout, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_send"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_send, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_setUnhandledExceptionCallback"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_set_unhandled_exception_callback, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_setIncomingMessageCallback"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_set_incoming_message_callback, data));
-  scope->Set (String::NewFromUtf8 (isolate, "_waitForEvent"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_wait_for_event, data));
+  auto script_module = _gum_v8_create_module ("Script", scope, isolate);
+  _gum_v8_module_add (module, script_module, gumjs_script_values, isolate);
+  _gum_v8_module_add (module, script_module, gumjs_script_functions, isolate);
+  script_module->Set (_gum_v8_string_new_from_ascii ("runtime", isolate),
+      _gum_v8_string_new_from_ascii ("V8", isolate), ReadOnly);
 
-  Local<FunctionTemplate> int64 = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_int64, data);
-  int64->SetClassName (String::NewFromUtf8 (isolate, "Int64"));
-  Local<ObjectTemplate> int64_proto = int64->PrototypeTemplate ();
-  int64_proto->Set (String::NewFromUtf8 (isolate, "add"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_add, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "sub"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_sub, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "and"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_and, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "or"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_or, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "xor"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_xor, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "shr"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_shr, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "shl"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_shl, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "compare"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_compare, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "toNumber"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_number, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "toString"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_string, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_to_json, data));
-  int64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_int64_value_of, data));
+  auto weak = _gum_v8_create_module ("WeakRef", scope, isolate);
+  _gum_v8_module_add (module, weak, gumjs_weak_ref_functions, isolate);
+
+  auto int64 = _gum_v8_create_class ("Int64", gumjs_int64_construct, scope,
+      module, isolate);
+  _gum_v8_class_add (int64, gumjs_int64_functions, module, isolate);
   int64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
-  scope->Set (String::NewFromUtf8 (isolate, "Int64"), int64);
   self->int64 = new GumPersistent<FunctionTemplate>::type (isolate, int64);
 
-  Local<FunctionTemplate> uint64 = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_uint64, data);
-  uint64->SetClassName (String::NewFromUtf8 (isolate, "UInt64"));
-  Local<ObjectTemplate> uint64_proto = uint64->PrototypeTemplate ();
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "add"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_add, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "sub"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_sub, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "and"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_and, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "or"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_or, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "xor"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_xor, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "shr"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_shr, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "shl"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_shl, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "compare"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_compare, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "toNumber"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_number, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "toString"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_string, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_to_json, data));
-  uint64_proto->Set (String::NewFromUtf8 (isolate, "valueOf"),
-      FunctionTemplate::New (isolate, gum_v8_core_on_uint64_value_of, data));
+  auto uint64 = _gum_v8_create_class ("UInt64", gumjs_uint64_construct, scope,
+      module, isolate);
+  _gum_v8_class_add (uint64, gumjs_uint64_functions, module, isolate);
   uint64->InstanceTemplate ()->SetInternalFieldCount (8 / GLIB_SIZEOF_VOID_P);
-  scope->Set (String::NewFromUtf8 (isolate, "UInt64"), uint64);
   self->uint64 = new GumPersistent<FunctionTemplate>::type (isolate, uint64);
 
-  Local<FunctionTemplate> native_pointer = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_native_pointer, data);
-  native_pointer->SetClassName (
-      String::NewFromUtf8 (isolate, "NativePointer"));
-  Local<ObjectTemplate> native_pointer_proto =
-      native_pointer->PrototypeTemplate ();
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "isNull"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_is_null));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "add"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_add, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "sub"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_sub, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "and"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_and, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "or"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_or, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "xor"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_xor, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "shr"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_shr, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "shl"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_shl, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "compare"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_compare, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toInt32"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_to_int32, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toString"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_to_string, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toJSON"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_to_json, data));
-  native_pointer_proto->Set (String::NewFromUtf8 (isolate, "toMatchPattern"),
-      FunctionTemplate::New (isolate,
-          gum_v8_core_on_native_pointer_to_match_pattern, data));
-  native_pointer->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::NewFromUtf8 (isolate, "NativePointer"), native_pointer);
+  auto native_pointer = _gum_v8_create_class ("NativePointer",
+      gumjs_native_pointer_construct, scope, module, isolate);
+  _gum_v8_class_add (native_pointer, gumjs_native_pointer_functions, module,
+      isolate);
   self->native_pointer =
       new GumPersistent<FunctionTemplate>::type (isolate, native_pointer);
 
-  Local<FunctionTemplate> native_function = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_native_function, data);
-  native_function->SetClassName (
-      String::NewFromUtf8 (isolate, "NativeFunction"));
+  auto native_function = _gum_v8_create_class ("NativeFunction",
+      gumjs_native_function_construct, scope, module, isolate);
   native_function->Inherit (native_pointer);
-  Local<ObjectTemplate> native_function_object =
-      native_function->InstanceTemplate ();
+  auto native_function_object = native_function->InstanceTemplate ();
   native_function_object->SetCallAsFunctionHandler (
-      gum_v8_core_on_invoke_native_function, data);
+      gumjs_native_function_invoke, module);
   native_function_object->SetInternalFieldCount (2);
-  scope->Set (String::NewFromUtf8 (isolate, "NativeFunction"),
-      native_function);
 
-  Local<FunctionTemplate> native_callback = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_native_callback, data);
-  native_callback->SetClassName (
-      String::NewFromUtf8 (isolate, "NativeCallback"));
+  auto native_callback = _gum_v8_create_class ("NativeCallback",
+      gumjs_native_callback_construct, scope, module, isolate);
   native_callback->Inherit (native_pointer);
   native_callback->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::NewFromUtf8 (isolate, "NativeCallback"),
-      native_callback);
 
-  Local<FunctionTemplate> cpu_context = FunctionTemplate::New (isolate,
-      gum_v8_core_on_new_cpu_context, data);
-  cpu_context->SetClassName (
-      String::NewFromUtf8 (isolate, "CpuContext"));
-  Local<ObjectTemplate> cpu_context_object =
-      cpu_context->InstanceTemplate ();
+  auto cpu_context = _gum_v8_create_class ("CpuContext",
+      gumjs_cpu_context_construct, scope, module, isolate);
+  auto cpu_context_object = cpu_context->InstanceTemplate ();
   cpu_context_object->SetInternalFieldCount (3);
-  Local<AccessorSignature> cpu_context_signature =
-      AccessorSignature::New (isolate, cpu_context);
+  auto cpu_context_signature = AccessorSignature::New (isolate, cpu_context);
+  self->cpu_context =
+      new GumPersistent<FunctionTemplate>::type (isolate, cpu_context);
 
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
-  cpu_context_object->SetAccessor (String::NewFromOneByte (isolate, \
-      reinterpret_cast<const uint8_t *> (G_STRINGIFY (A))), \
-      gum_v8_core_on_cpu_context_get_register, \
-      gum_v8_core_on_cpu_context_set_register, \
+  cpu_context_object->SetAccessor ( \
+      _gum_v8_string_new_from_ascii (G_STRINGIFY (A), isolate), \
+      gumjs_cpu_context_get_register, \
+      gumjs_cpu_context_set_register, \
       Integer::NewFromUnsigned (isolate, \
           G_STRUCT_OFFSET (GumCpuContext, R) / GLIB_SIZEOF_VOID_P), \
       DEFAULT, \
@@ -635,79 +536,54 @@ _gum_v8_core_init (GumV8Core * self,
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (fp);
   GUM_DEFINE_CPU_CONTEXT_ACCESSOR (lr);
 #endif
-
-  scope->Set (String::NewFromUtf8 (isolate, "CpuContext"), cpu_context);
-  self->cpu_context =
-      new GumPersistent<FunctionTemplate>::type (isolate, cpu_context);
 }
 
 void
 _gum_v8_core_realize (GumV8Core * self)
 {
-  Isolate * isolate = self->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
+  auto isolate = self->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  Local<Object> global = context->Global ();
-  global->Set (String::NewFromUtf8 (isolate, "global"), global);
+  auto global = context->Global ();
+  global->Set (_gum_v8_string_new_from_ascii ("global", isolate), global);
 
-  self->native_functions = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_function_free));
+  self->native_functions = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_native_function_free);
 
-  self->native_callbacks = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (gum_ffi_callback_free));
+  self->native_callbacks = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_v8_native_callback_free);
 
-  self->native_resources = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (_gum_v8_native_resource_free));
+  self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) _gum_v8_native_resource_free);
 
-  Local<Value> zero (Number::New (isolate, 0));
+  Local<Value> zero = Number::New (isolate, 0);
 
-  Local<FunctionTemplate> int64 (
-      Local<FunctionTemplate>::New (isolate, *self->int64));
-  MaybeLocal<Object> maybe_int64_value =
-      int64->GetFunction ()->NewInstance (context, 1, &zero);
-  Local<Object> int64_value;
-  bool success = maybe_int64_value.ToLocal (&int64_value);
-  g_assert (success);
-  self->int64_value = new GumPersistent<Object>::type (isolate,
-      int64_value);
+  auto int64 = Local<FunctionTemplate>::New (isolate, *self->int64);
+  auto int64_value =
+      int64->GetFunction ()->NewInstance (context, 1, &zero).ToLocalChecked ();
+  self->int64_value = new GumPersistent<Object>::type (isolate, int64_value);
 
-  Local<FunctionTemplate> uint64 (
-      Local<FunctionTemplate>::New (isolate, *self->uint64));
-  MaybeLocal<Object> maybe_uint64_value =
-      uint64->GetFunction ()->NewInstance (context, 1, &zero);
-  Local<Object> uint64_value;
-  success = maybe_uint64_value.ToLocal (&uint64_value);
-  g_assert (success);
-  self->uint64_value = new GumPersistent<Object>::type (isolate,
-      uint64_value);
+  auto uint64 = Local<FunctionTemplate>::New (isolate, *self->uint64);
+  auto uint64_value = uint64->GetFunction ()->NewInstance (context, 1, &zero)
+      .ToLocalChecked ();
+  self->uint64_value = new GumPersistent<Object>::type (isolate, uint64_value);
 
-  Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (isolate, *self->native_pointer));
-  MaybeLocal<Object> maybe_native_pointer_value =
-      native_pointer->GetFunction ()->NewInstance (context, 1, &zero);
-  Local<Object> native_pointer_value;
-  success = maybe_native_pointer_value.ToLocal (&native_pointer_value);
-  g_assert (success);
+  auto native_pointer = Local<FunctionTemplate>::New (isolate,
+      *self->native_pointer);
+  auto native_pointer_value = native_pointer->GetFunction ()->NewInstance (
+      context, 1, &zero).ToLocalChecked ();
   self->native_pointer_value = new GumPersistent<Object>::type (isolate,
       native_pointer_value);
   self->handle_key = new GumPersistent<String>::type (isolate,
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> ("handle"),
-          NewStringType::kNormal,
-          -1).ToLocalChecked ());
+      _gum_v8_string_new_from_ascii ("handle", isolate));
 
-  Local<FunctionTemplate> cpu_context (
-      Local<FunctionTemplate>::New (isolate, *self->cpu_context));
-  Local<Value> args[2] = {
-      External::New (isolate, NULL),
-      Boolean::New (isolate, false)
+  auto cpu_context = Local<FunctionTemplate>::New (isolate, *self->cpu_context);
+  Local<Value> args[] = {
+    External::New (isolate, NULL),
+    Boolean::New (isolate, false)
   };
-  MaybeLocal<Object> maybe_cpu_context_value =
-      cpu_context->GetFunction ()->NewInstance (
-          context, G_N_ELEMENTS (args), args);
-  Local<Object> cpu_context_value;
-  success = maybe_cpu_context_value.ToLocal (&cpu_context_value);
-  g_assert (success);
+  auto cpu_context_value = cpu_context->GetFunction ()->NewInstance (context,
+      G_N_ELEMENTS (args), args).ToLocalChecked ();
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
 }
@@ -725,14 +601,12 @@ _gum_v8_core_flush (GumV8Core * self,
 
   while (self->scheduled_callbacks != NULL)
   {
-    GumV8ScheduledCallback * callback = static_cast<GumV8ScheduledCallback *> (
-        self->scheduled_callbacks->data);
-    GSource * source;
+    auto callback = (GumV8ScheduledCallback *) self->scheduled_callbacks->data;
 
     self->scheduled_callbacks = g_slist_delete_link (
         self->scheduled_callbacks, self->scheduled_callbacks);
 
-    source = g_source_ref (callback->source);
+    auto source = g_source_ref (callback->source);
 
     _gum_v8_core_pin (self);
 
@@ -764,26 +638,21 @@ void
 _gum_v8_core_notify_flushed (GumV8Core * self,
                              GumV8FlushNotify func)
 {
-  GumFlushCallback * callback;
-  GSource * source;
-
-  callback = g_slice_new (GumFlushCallback);
+  auto callback = g_slice_new (GumFlushCallback);
   callback->func = func;
   callback->script = self->script;
 
-  source = g_idle_source_new ();
-  g_source_set_callback (source, gum_v8_core_notify_flushed_when_idle, callback,
-      NULL);
+  auto source = g_idle_source_new ();
+  g_source_set_callback (source,
+      (GSourceFunc) gum_v8_core_notify_flushed_when_idle, callback, NULL);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
   g_source_unref (source);
 }
 
 static gboolean
-gum_v8_core_notify_flushed_when_idle (gpointer user_data)
+gum_v8_core_notify_flushed_when_idle (GumFlushCallback * callback)
 {
-  GumFlushCallback * callback = (GumFlushCallback *) user_data;
-
   callback->func (callback->script);
 
   g_slice_free (GumFlushCallback, callback);
@@ -803,11 +672,9 @@ _gum_v8_core_dispose (GumV8Core * self)
   g_hash_table_unref (self->native_functions);
   self->native_functions = NULL;
 
-  gum_v8_exception_sink_free (self->unhandled_exception_sink);
-  self->unhandled_exception_sink = NULL;
+  g_clear_pointer (&self->unhandled_exception_sink, gum_v8_exception_sink_free);
 
-  gum_v8_message_sink_free (self->incoming_message_sink);
-  self->incoming_message_sink = NULL;
+  g_clear_pointer (&self->incoming_message_sink, gum_v8_message_sink_free);
 
   delete self->on_global_enumerate;
   delete self->on_global_get;
@@ -878,11 +745,11 @@ void
 _gum_v8_core_on_unhandled_exception (GumV8Core * self,
                                      Handle<Value> exception)
 {
-  if (self->unhandled_exception_sink != NULL)
-  {
-    gum_v8_exception_sink_handle_exception (self->unhandled_exception_sink,
-        exception);
-  }
+  if (self->unhandled_exception_sink == NULL)
+    return;
+
+  gum_v8_exception_sink_handle_exception (self->unhandled_exception_sink,
+      exception);
 }
 
 void
@@ -890,7 +757,7 @@ _gum_v8_core_post (GumV8Core * self,
                    const gchar * message,
                    GBytes * data)
 {
-  bool delivered = false;
+  gboolean delivered = FALSE;
 
   {
     Locker locker (self->isolate);
@@ -899,7 +766,7 @@ _gum_v8_core_post (GumV8Core * self,
     {
       ScriptScope scope (self->script);
       gum_v8_message_sink_post (self->incoming_message_sink, message, data);
-      delivered = true;
+      delivered = TRUE;
     }
   }
 
@@ -918,442 +785,6 @@ _gum_v8_core_post (GumV8Core * self,
   }
 }
 
-static void
-gum_v8_core_on_script_next_tick (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () == 0)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected a callback")));
-    return;
-  }
-  Local<Value> callback_value = info[0];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected a callback")));
-    return;
-  }
-
-  g_queue_push_tail (self->tick_callbacks, new GumPersistent<Function>::type (
-      isolate, callback_value.As<Function> ()));
-}
-
-static void
-gum_v8_core_on_script_pin (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  _gum_v8_core_pin (self);
-}
-
-static void
-gum_v8_core_on_script_unpin (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  _gum_v8_core_unpin (self);
-}
-
-static void
-gum_v8_core_on_script_get_file_name (Local<String> property,
-                                     const PropertyCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8ScriptPrivate * priv = self->script->priv;
-
-  (void) property;
-
-  Local<Value> result;
-  if (priv->code != nullptr)
-  {
-    Isolate * isolate = info.GetIsolate ();
-    Local<Script> code (Local<Script>::New (isolate, *priv->code));
-    Local<Value> file_name (code->GetUnboundScript ()->GetScriptName ());
-
-    if (file_name->IsString ())
-      result = file_name;
-  }
-
-  if (!result.IsEmpty ())
-    info.GetReturnValue ().Set (result);
-  else
-    info.GetReturnValue ().SetNull ();
-}
-
-static void
-gum_v8_core_on_script_get_source_map_data (
-    Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8ScriptPrivate * priv = self->script->priv;
-
-  (void) property;
-
-  Local<Value> result;
-  if (priv->code != nullptr)
-  {
-    Isolate * isolate = info.GetIsolate ();
-    Local<Script> code (Local<Script>::New (isolate, *priv->code));
-    Local<Value> url_value (code->GetUnboundScript ()->GetSourceMappingURL ());
-
-    if (url_value->IsString ())
-    {
-      String::Utf8Value url_utf8 (url_value);
-      const gchar * url = *url_utf8;
-      if (g_str_has_prefix (url, "data:application/json;base64,"))
-      {
-        gsize size;
-        gchar * data;
-
-        data = (gchar *) g_base64_decode (url + 29, &size);
-        if (data != NULL && g_utf8_validate (data, size, NULL))
-        {
-          result = String::NewFromUtf8 (isolate, data, String::kNormalString,
-              size);
-        }
-        g_free (data);
-      }
-    }
-  }
-
-  if (!result.IsEmpty ())
-    info.GetReturnValue ().Set (result);
-  else
-    info.GetReturnValue ().SetNull ();
-}
-
-static void
-gum_v8_core_on_script_set_global_access_handler (
-    const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () == 0 || !info[0]->IsObject ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected an object with callbacks, or null")));
-    return;
-  }
-
-  Local<Object> callbacks (info[0].As<Object> ());
-  Local<Function> on_enumerate, on_get;
-  bool has_callbacks = !callbacks->IsNull ();
-  if (has_callbacks)
-  {
-    if (!_gum_v8_callbacks_get (callbacks, "enumerate", &on_enumerate, self))
-      return;
-    if (!_gum_v8_callbacks_get (callbacks, "get", &on_get, self))
-      return;
-  }
-
-  delete self->on_global_enumerate;
-  delete self->on_global_get;
-  delete self->global_receiver;
-  self->on_global_enumerate = nullptr;
-  self->on_global_get = nullptr;
-  self->global_receiver = nullptr;
-
-  if (has_callbacks)
-  {
-    self->on_global_enumerate = new GumPersistent<Function>::type (isolate,
-        on_enumerate.As<Function> ());
-    self->on_global_get = new GumPersistent<Function>::type (isolate,
-        on_get.As<Function> ());
-    self->global_receiver = new GumPersistent<Object>::type (isolate,
-        callbacks);
-  }
-}
-
-static void
-gum_v8_core_on_global_get (Local<Name> property,
-                           const PropertyCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  if (self->on_global_get == nullptr)
-    return;
-
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Function> get (Local<Function>::New (isolate, *self->on_global_get));
-  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
-  Handle<Value> argv[] = { property };
-  Local<Value> result = get->Call (receiver, 1, argv);
-  if (!result.IsEmpty () && !result->IsUndefined ())
-  {
-    info.GetReturnValue ().Set (result);
-  }
-}
-
-static void
-gum_v8_core_on_global_query (Local<Name> property,
-                             const PropertyCallbackInfo<Integer> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  if (self->on_global_get == nullptr)
-    return;
-
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Function> get (Local<Function>::New (isolate, *self->on_global_get));
-  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
-  Handle<Value> argv[] = { property };
-  Local<Value> result = get->Call (receiver, 1, argv);
-  if (!result.IsEmpty () && !result->IsUndefined ())
-  {
-    info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
-        PropertyAttribute::DontDelete);
-  }
-}
-
-static void
-gum_v8_core_on_global_enumerate (const PropertyCallbackInfo<Array> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  if (self->on_global_enumerate == nullptr)
-    return;
-
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Function> enumerate (
-      Local<Function>::New (isolate, *self->on_global_enumerate));
-  Local<Object> receiver (Local<Object>::New (isolate, *self->global_receiver));
-  Local<Value> result = enumerate->Call (receiver, 0, nullptr);
-  if (!result.IsEmpty () && result->IsArray ())
-  {
-    info.GetReturnValue ().Set (result.As<Array> ());
-  }
-}
-
-/*
- * Prototype:
- * WeakRef.bind(target, callback_val)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
-static void
-gum_v8_core_on_weak_ref_bind (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-  GumWeakRef * ref;
-
-  Local<Value> target = info[0];
-  if (target->IsUndefined () || target->IsNull ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "first argument must be a value with a regular lifespan")));
-    return;
-  }
-
-  Local<Value> callback_val = info[1];
-  if (!callback_val->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "second argument must be a function")));
-    return;
-  }
-
-  guint id = ++self->last_weak_ref_id;
-
-  ref = gum_weak_ref_new (id, target, callback_val.As <Function> (), self);
-  g_hash_table_insert (self->weak_refs, GUINT_TO_POINTER (id), ref);
-
-  info.GetReturnValue ().Set (id);
-}
-
-/*
- * Prototype:
- * WeakRef.unbind(id_val)
- *
- * Docs:
- * TBW
- *
- * Example:
- * TBW
- */
-static void
-gum_v8_core_on_weak_ref_unbind (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> id_val = info[0];
-  if (!id_val->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "argument must be a weak ref id")));
-    return;
-  }
-  guint id = id_val->ToUint32 ()->Value ();
-
-  bool removed =
-      !!g_hash_table_remove (self->weak_refs, GUINT_TO_POINTER (id));
-
-  info.GetReturnValue ().Set (removed);
-}
-
-static void
-gum_v8_core_clear_weak_ref_entry (guint id,
-                                  GumWeakRef * ref)
-{
-  (void) id;
-
-  gum_weak_ref_clear (ref);
-}
-
-static GumWeakRef *
-gum_weak_ref_new (guint id,
-                  Handle<Value> target,
-                  Handle<Function> callback,
-                  GumV8Core * core)
-{
-  GumWeakRef * ref;
-  Isolate * isolate = core->isolate;
-
-  ref = g_slice_new (GumWeakRef);
-  ref->id = id;
-  ref->target = new GumPersistent<Value>::type (isolate, target);
-  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify,
-      WeakCallbackType::kParameter);
-  ref->target->MarkIndependent ();
-  ref->callback = new GumPersistent<Function>::type (isolate, callback);
-  ref->core = core;
-
-  return ref;
-}
-
-static void
-gum_weak_ref_clear (GumWeakRef * ref)
-{
-  if (ref->target != nullptr)
-  {
-    delete ref->target;
-    ref->target = nullptr;
-  }
-}
-
-static void
-gum_weak_ref_free (GumWeakRef * ref)
-{
-  gum_weak_ref_clear (ref);
-
-  {
-    ScriptScope scope (ref->core->script);
-    Isolate * isolate = ref->core->isolate;
-    Local<Function> callback (Local<Function>::New (isolate, *ref->callback));
-    callback->Call (Null (isolate), 0, NULL);
-  }
-  delete ref->callback;
-
-  g_slice_free (GumWeakRef, ref);
-}
-
-static void
-gum_weak_ref_on_weak_notify (const WeakCallbackInfo<GumWeakRef> & info)
-{
-  GumWeakRef * self = info.GetParameter ();
-
-  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
-}
-
-void
-_gum_v8_core_push_job (GumV8Core * self,
-                       GumScriptJobFunc job_func,
-                       gpointer data,
-                       GDestroyNotify data_destroy)
-{
-  gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
-      data, data_destroy);
-}
-
-static void
-gum_v8_core_add_scheduled_callback (GumV8Core * self,
-                                    GumV8ScheduledCallback * callback)
-{
-  self->scheduled_callbacks =
-      g_slist_prepend (self->scheduled_callbacks, callback);
-}
-
-static gboolean
-gum_v8_core_remove_scheduled_callback (GumV8Core * self,
-                                       GumV8ScheduledCallback * callback)
-{
-  GSList * link;
-
-  link = g_slist_find (self->scheduled_callbacks, callback);
-  if (link == NULL)
-    return FALSE;
-
-  self->scheduled_callbacks =
-      g_slist_delete_link (self->scheduled_callbacks, link);
-  return TRUE;
-}
-
-static void
-gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
-                                  gboolean repeat)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  Local<Value> func_val = info[0];
-  if (!func_val->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "first argument must be a function")));
-    return;
-  }
-
-  gsize delay = 0;
-  if (info.Length () > 1 && !_gum_v8_size_get (info[1], &delay, self))
-    return;
-
-  guint id = ++self->last_callback_id;
-  GSource * source;
-  if (delay == 0)
-    source = g_idle_source_new ();
-  else
-    source = g_timeout_source_new ((guint) delay);
-  GumV8ScheduledCallback * callback =
-      gum_v8_scheduled_callback_new (id, repeat, source, self);
-  callback->func = new GumPersistent<Function>::type (isolate,
-      func_val.As <Function> ());
-  callback->receiver = new GumPersistent<Value>::type (isolate, info.This ());
-  g_source_set_callback (source, gum_v8_scheduled_callback_invoke, callback,
-      reinterpret_cast<GDestroyNotify> (gum_v8_scheduled_callback_free));
-  gum_v8_core_add_scheduled_callback (self, callback);
-
-  g_source_attach (source,
-      gum_script_scheduler_get_js_context (self->scheduler));
-
-  info.GetReturnValue ().Set (id);
-}
-
 /*
  * Prototype:
  * setTimeout(callback, delay)
@@ -1365,10 +796,9 @@ gum_v8_core_on_schedule_callback (const FunctionCallbackInfo<Value> & info,
  * // Delay for 3 seconds, then log to console
  * -> setTimeout(function(){console.log("Fired!")}, 3000)
  */
-static void
-gum_v8_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_set_timeout)
 {
-  gum_v8_core_on_schedule_callback (info, FALSE);
+  gum_v8_core_schedule_callback (core, args, FALSE);
 }
 
 /*
@@ -1383,10 +813,68 @@ gum_v8_core_on_set_timeout (const FunctionCallbackInfo<Value> & info)
  * // Every 3 seconds, log to console
  * -> setInterval(function(){console.log("Fired!")}, 3000)
  */
-static void
-gum_v8_core_on_set_interval (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_set_interval)
 {
-  gum_v8_core_on_schedule_callback (info, TRUE);
+  gum_v8_core_schedule_callback (core, args, TRUE);
+}
+
+static void
+gum_v8_core_schedule_callback (GumV8Core * self,
+                               const GumV8Args * args,
+                               gboolean repeat)
+{
+  Local<Function> func;
+  gsize delay;
+
+  if (repeat)
+  {
+    if (!_gum_v8_args_parse (args, "FZ", &func, &delay))
+      return;
+  }
+  else
+  {
+    delay = 0;
+    if (!_gum_v8_args_parse (args, "F|Z", &func, &delay))
+      return;
+  }
+
+  auto id = ++self->last_callback_id;
+  GSource * source;
+  if (delay == 0)
+    source = g_idle_source_new ();
+  else
+    source = g_timeout_source_new ((guint) delay);
+  auto callback = gum_v8_scheduled_callback_new (id, repeat, source, self);
+  callback->func = new GumPersistent<Function>::type (self->isolate, func);
+  g_source_set_callback (source, (GSourceFunc) gum_v8_scheduled_callback_invoke,
+      callback, (GDestroyNotify) gum_v8_scheduled_callback_free);
+  gum_v8_core_add_scheduled_callback (self, callback);
+
+  g_source_attach (source,
+      gum_script_scheduler_get_js_context (self->scheduler));
+
+  args->info->GetReturnValue ().Set (id);
+}
+
+static void
+gum_v8_core_add_scheduled_callback (GumV8Core * self,
+                                    GumV8ScheduledCallback * callback)
+{
+  self->scheduled_callbacks =
+      g_slist_prepend (self->scheduled_callbacks, callback);
+}
+
+static gboolean
+gum_v8_core_remove_scheduled_callback (GumV8Core * self,
+                                       GumV8ScheduledCallback * callback)
+{
+  auto link = g_slist_find (self->scheduled_callbacks, callback);
+  if (link == NULL)
+    return FALSE;
+
+  self->scheduled_callbacks =
+      g_slist_delete_link (self->scheduled_callbacks, link);
+  return TRUE;
 }
 
 /*
@@ -1401,53 +889,39 @@ gum_v8_core_on_set_interval (const FunctionCallbackInfo<Value> & info)
  * -> var test = setTimeout(function(){console.log("Fired!")}, 3000);
  * -> clearTimeout(test)
  */
-static void
-gum_v8_core_on_clear_timeout (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_clear_timer)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-  GSList * cur;
-
-  Local<Value> id_val = info[0];
-  if (!id_val->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "argument must be a timeout id")));
+  gint id;
+  if (!_gum_v8_args_parse (args, "i", &id))
     return;
-  }
-  guint id = id_val->ToUint32 ()->Value ();
 
   GumV8ScheduledCallback * callback = NULL;
-  for (cur = self->scheduled_callbacks; cur != NULL; cur = cur->next)
+  for (auto cur = core->scheduled_callbacks; cur != NULL; cur = cur->next)
   {
-    GumV8ScheduledCallback * cb =
-        static_cast<GumV8ScheduledCallback *> (cur->data);
+    auto cb = (GumV8ScheduledCallback *) cur->data;
     if (cb->id == id)
     {
       callback = cb;
-      self->scheduled_callbacks =
-          g_slist_delete_link (self->scheduled_callbacks, cur);
+      core->scheduled_callbacks =
+          g_slist_delete_link (core->scheduled_callbacks, cur);
       break;
     }
   }
 
   if (callback != NULL)
   {
-    GSource * source;
+    auto source = g_source_ref (callback->source);
 
-    source = g_source_ref (callback->source);
+    _gum_v8_core_pin (core);
 
-    _gum_v8_core_pin (self);
-
-    self->isolate->Exit ();
+    core->isolate->Exit ();
     {
-      Unlocker ul (self->isolate);
+      Unlocker ul (core->isolate);
 
       g_source_destroy (source);
       g_source_unref (source);
     }
-    self->isolate->Enter ();
+    core->isolate->Enter ();
   }
 
   info.GetReturnValue ().Set (callback != NULL);
@@ -1459,12 +933,12 @@ gum_v8_scheduled_callback_new (guint id,
                                GSource * source,
                                GumV8Core * core)
 {
-  GumV8ScheduledCallback * callback;
+  auto callback = g_slice_new (GumV8ScheduledCallback);
 
-  callback = g_slice_new (GumV8ScheduledCallback);
   callback->id = id;
   callback->repeat = repeat;
   callback->source = source;
+
   callback->core = core;
 
   return callback;
@@ -1473,13 +947,12 @@ gum_v8_scheduled_callback_new (guint id,
 static void
 gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback)
 {
-  GumV8Core * core = callback->core;
+  auto core = callback->core;
 
   {
     ScriptScope scope (core->script);
 
     delete callback->func;
-    delete callback->receiver;
 
     _gum_v8_core_unpin (core);
   }
@@ -1490,17 +963,13 @@ gum_v8_scheduled_callback_free (GumV8ScheduledCallback * callback)
 }
 
 static gboolean
-gum_v8_scheduled_callback_invoke (gpointer user_data)
+gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
 {
-  GumV8ScheduledCallback * self =
-      static_cast<GumV8ScheduledCallback *> (user_data);
-  GumV8Core * core = self->core;
-  Isolate * isolate = core->isolate;
+  auto core = self->core;
 
   ScriptScope scope (core->script);
-  Local<Function> func (Local<Function>::New (isolate, *self->func));
-  Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
-  func->Call (receiver, 0, NULL);
+  auto func = Local<Function>::New (core->isolate, *self->func);
+  func->Call (Null (core->isolate), 0, nullptr);
 
   if (!self->repeat)
   {
@@ -1521,23 +990,12 @@ gum_v8_scheduled_callback_invoke (gpointer user_data)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_send)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  GumInterceptor * interceptor = self->script->priv->interceptor.interceptor;
-
-  String::Utf8Value message (info[0]);
-
-  Local<Value> data_value = info[1];
-  GBytes * data = NULL;
-  if (!data_value->IsUndefined () && !data_value->IsNull ())
-  {
-    data = _gum_v8_byte_array_get (data_value, self);
-    if (data == NULL)
-      return;
-  }
+  gchar * message;
+  GBytes * data;
+  if (!_gum_v8_args_parse (args, "sB?", &message, &data))
+    return;
 
   /*
    * Synchronize Interceptor state before sending the message. The application
@@ -1545,12 +1003,14 @@ gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info)
    *
    * This is very important for the RPC API.
    */
+  auto interceptor = core->script->priv->interceptor.interceptor;
   gum_interceptor_end_transaction (interceptor);
   gum_interceptor_begin_transaction (interceptor);
 
-  self->message_emitter (self->script, *message, data);
+  core->message_emitter (core->script, message, data);
 
   g_bytes_unref (data);
+  g_free (message);
 }
 
 /*
@@ -1563,41 +1023,21 @@ gum_v8_core_on_send (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_set_unhandled_exception_callback (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_set_unhandled_exception_callback)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  bool argument_valid = false;
   Local<Function> callback;
-  if (info.Length () >= 1)
-  {
-    Local<Value> argument = info[0];
-    if (argument->IsFunction ())
-    {
-      argument_valid = true;
-      callback = argument.As<Function> ();
-    }
-    else if (argument->IsNull ())
-    {
-      argument_valid = true;
-    }
-  }
-  if (!argument_valid)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid argument")));
+  if (!_gum_v8_args_parse (args, "F?", &callback))
     return;
-  }
 
-  gum_v8_exception_sink_free (self->unhandled_exception_sink);
-  self->unhandled_exception_sink = NULL;
+  auto new_sink = !callback.IsEmpty ()
+      ? gum_v8_exception_sink_new (callback, isolate)
+      : NULL;
 
-  if (!callback.IsEmpty ())
-    self->unhandled_exception_sink = gum_v8_exception_sink_new (callback, isolate);
+  auto old_sink = core->unhandled_exception_sink;
+  core->unhandled_exception_sink = new_sink;
+
+  if (old_sink != NULL)
+    gum_v8_exception_sink_free (old_sink);
 }
 
 /*
@@ -1610,41 +1050,21 @@ gum_v8_core_on_set_unhandled_exception_callback (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_set_incoming_message_callback (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_set_incoming_message_callback)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  bool argument_valid = false;
   Local<Function> callback;
-  if (info.Length () >= 1)
-  {
-    Local<Value> argument = info[0];
-    if (argument->IsFunction ())
-    {
-      argument_valid = true;
-      callback = argument.As<Function> ();
-    }
-    else if (argument->IsNull ())
-    {
-      argument_valid = true;
-    }
-  }
-  if (!argument_valid)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid argument")));
+  if (!_gum_v8_args_parse (args, "F?", &callback))
     return;
-  }
 
-  gum_v8_message_sink_free (self->incoming_message_sink);
-  self->incoming_message_sink = NULL;
+  auto new_sink = !callback.IsEmpty ()
+      ? gum_v8_message_sink_new (callback, isolate)
+      : NULL;
 
-  if (!callback.IsEmpty ())
-    self->incoming_message_sink = gum_v8_message_sink_new (callback, isolate);
+  auto old_sink = core->incoming_message_sink;
+  core->incoming_message_sink = new_sink;
+
+  if (old_sink != NULL)
+    gum_v8_message_sink_free (old_sink);
 }
 
 /*
@@ -1657,130 +1077,352 @@ gum_v8_core_on_set_incoming_message_callback (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_wait_for_event (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_wait_for_event)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
-  self->isolate->Exit ();
+  core->isolate->Exit ();
   {
-    Unlocker ul (self->isolate);
+    Unlocker ul (core->isolate);
 
-    GMainContext * context =
-        gum_script_scheduler_get_js_context (self->scheduler);
+    auto context = gum_script_scheduler_get_js_context (core->scheduler);
     if (g_main_context_is_owner (context))
     {
-      g_mutex_lock (&self->event_mutex);
-      guint start_count = self->event_count;
-      while (self->event_count == start_count)
+      g_mutex_lock (&core->event_mutex);
+      auto start_count = core->event_count;
+      while (core->event_count == start_count)
       {
-        g_mutex_unlock (&self->event_mutex);
-        g_main_loop_run (self->event_loop);
-        g_mutex_lock (&self->event_mutex);
+        g_mutex_unlock (&core->event_mutex);
+        g_main_loop_run (core->event_loop);
+        g_mutex_lock (&core->event_mutex);
       }
-      g_mutex_unlock (&self->event_mutex);
+      g_mutex_unlock (&core->event_mutex);
     }
     else
     {
-      g_mutex_lock (&self->event_mutex);
-      guint start_count = self->event_count;
-      while (self->event_count == start_count)
-        g_cond_wait (&self->event_cond, &self->event_mutex);
-      g_mutex_unlock (&self->event_mutex);
+      g_mutex_lock (&core->event_mutex);
+      auto start_count = core->event_count;
+      while (core->event_count == start_count)
+        g_cond_wait (&core->event_cond, &core->event_mutex);
+      g_mutex_unlock (&core->event_mutex);
     }
   }
-  self->isolate->Enter ();
+  core->isolate->Enter ();
 }
 
 static void
-gum_v8_core_on_new_int64 (const FunctionCallbackInfo<Value> & info)
+gumjs_global_get (Local<Name> property,
+                  const PropertyCallbackInfo<Value> & info)
 {
-  Isolate * isolate = info.GetIsolate ();
-  gint64 value;
+  auto self = (GumV8Core *) info.Data ().As<External> ()->Value ();
 
+  if (self->on_global_get == nullptr)
+    return;
+
+  auto isolate = info.GetIsolate ();
+
+  auto get (Local<Function>::New (isolate, *self->on_global_get));
+  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
+  Handle<Value> argv[] = { property };
+  auto result = get->Call (receiver, G_N_ELEMENTS (argv), argv);
+  if (!result.IsEmpty () && !result->IsUndefined ())
+  {
+    info.GetReturnValue ().Set (result);
+  }
+}
+
+static void
+gumjs_global_query (Local<Name> property,
+                    const PropertyCallbackInfo<Integer> & info)
+{
+  auto self = (GumV8Core *) info.Data ().As<External> ()->Value ();
+
+  if (self->on_global_get == nullptr)
+    return;
+
+  auto isolate = info.GetIsolate ();
+
+  auto get (Local<Function>::New (isolate, *self->on_global_get));
+  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
+  Handle<Value> argv[] = { property };
+  auto result = get->Call (receiver, G_N_ELEMENTS (argv), argv);
+  if (!result.IsEmpty () && !result->IsUndefined ())
+  {
+    info.GetReturnValue ().Set (PropertyAttribute::ReadOnly |
+        PropertyAttribute::DontDelete);
+  }
+}
+
+static void
+gumjs_global_enumerate (const PropertyCallbackInfo<Array> & info)
+{
+  auto self = (GumV8Core *) info.Data ().As<External> ()->Value ();
+
+  if (self->on_global_enumerate == nullptr)
+    return;
+
+  auto isolate = info.GetIsolate ();
+
+  auto enumerate (Local<Function>::New (isolate, *self->on_global_enumerate));
+  auto receiver (Local<Object>::New (isolate, *self->global_receiver));
+  auto result = enumerate->Call (receiver, 0, nullptr);
+  if (!result.IsEmpty () && result->IsArray ())
+  {
+    info.GetReturnValue ().Set (result.As<Array> ());
+  }
+}
+
+GUMJS_DEFINE_GETTER (gumjs_script_get_file_name)
+{
+  Local<Value> result;
+
+  auto priv = core->script->priv;
+  if (priv->code != nullptr)
+  {
+    auto code = Local<Script>::New (isolate, *priv->code);
+    auto file_name = code->GetUnboundScript ()->GetScriptName ();
+    if (file_name->IsString ())
+      result = file_name;
+  }
+
+  if (!result.IsEmpty ())
+    info.GetReturnValue ().Set (result);
+  else
+    info.GetReturnValue ().SetNull ();
+}
+
+GUMJS_DEFINE_GETTER (gumjs_script_get_source_map_data)
+{
+  Local<Value> result;
+
+  auto priv = core->script->priv;
+  if (priv->code != nullptr)
+  {
+    auto code = Local<Script>::New (isolate, *priv->code);
+
+    auto url_value = code->GetUnboundScript ()->GetSourceMappingURL ();
+    if (url_value->IsString ())
+    {
+      String::Utf8Value url_utf8 (url_value);
+      auto url = *url_utf8;
+      if (g_str_has_prefix (url, "data:application/json;base64,"))
+      {
+        gsize size;
+        auto data = (gchar *) g_base64_decode (url + 29, &size);
+        if (data != NULL && g_utf8_validate (data, size, NULL))
+        {
+          result = String::NewFromUtf8 (isolate, data, String::kNormalString,
+              size);
+        }
+        g_free (data);
+      }
+    }
+  }
+
+  if (!result.IsEmpty ())
+    info.GetReturnValue ().Set (result);
+  else
+    info.GetReturnValue ().SetNull ();
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_next_tick)
+{
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "F", &callback))
+    return;
+
+  g_queue_push_tail (core->tick_callbacks, new GumPersistent<Function>::type (
+      isolate, callback));
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_pin)
+{
+  _gum_v8_core_pin (core);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_unpin)
+{
+  _gum_v8_core_unpin (core);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_script_set_global_access_handler)
+{
+  Local<Function> on_enumerate, on_get;
+  Local<Object> callbacks;
+  gboolean has_callbacks = !(info.Length () > 0 && info[0]->IsNull ());
+  if (has_callbacks)
+  {
+    if (!_gum_v8_args_parse (args, "F{enumerate,get}", &on_enumerate, &on_get))
+      return;
+    callbacks = info[0].As<Object> ();
+  }
+
+  delete core->on_global_enumerate;
+  delete core->on_global_get;
+  delete core->global_receiver;
+  core->on_global_enumerate = nullptr;
+  core->on_global_get = nullptr;
+  core->global_receiver = nullptr;
+
+  if (has_callbacks)
+  {
+    core->on_global_enumerate = new GumPersistent<Function>::type (isolate,
+        on_enumerate.As<Function> ());
+    core->on_global_get = new GumPersistent<Function>::type (isolate,
+        on_get.As<Function> ());
+    core->global_receiver = new GumPersistent<Object>::type (isolate,
+        callbacks);
+  }
+}
+
+/*
+ * Prototype:
+ * WeakRef.bind(target, callback_val)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
+{
+  Local<Value> target;
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "VF", &target, &callback))
+    return;
+
+  if (target->IsUndefined () || target->IsNull ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected a heap value");
+    return;
+  }
+
+  auto id = ++core->last_weak_ref_id;
+
+  auto ref = gum_weak_ref_new (id, target, callback, core);
+  g_hash_table_insert (core->weak_refs, GUINT_TO_POINTER (id), ref);
+
+  info.GetReturnValue ().Set (id);
+}
+
+/*
+ * Prototype:
+ * WeakRef.unbind(id_val)
+ *
+ * Docs:
+ * TBW
+ *
+ * Example:
+ * TBW
+ */
+GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
+{
+  guint id;
+  if (!_gum_v8_args_parse (args, "u", &id))
+    return;
+
+  bool removed = !!g_hash_table_remove (core->weak_refs, GUINT_TO_POINTER (id));
+  info.GetReturnValue ().Set (removed);
+}
+
+static void
+gum_v8_core_clear_weak_ref_entry (guint id,
+                                  GumWeakRef * ref)
+{
+  (void) id;
+
+  gum_weak_ref_clear (ref);
+}
+
+static GumWeakRef *
+gum_weak_ref_new (guint id,
+                  Handle<Value> target,
+                  Handle<Function> callback,
+                  GumV8Core * core)
+{
+  auto ref = g_slice_new (GumWeakRef);
+
+  ref->id = id;
+  ref->target = new GumPersistent<Value>::type (core->isolate, target);
+  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify,
+      WeakCallbackType::kParameter);
+  ref->target->MarkIndependent ();
+  ref->callback = new GumPersistent<Function>::type (core->isolate, callback);
+
+  ref->core = core;
+
+  return ref;
+}
+
+static void
+gum_weak_ref_clear (GumWeakRef * ref)
+{
+  delete ref->target;
+  ref->target = nullptr;
+}
+
+static void
+gum_weak_ref_free (GumWeakRef * ref)
+{
+  gum_weak_ref_clear (ref);
+
+  {
+    ScriptScope scope (ref->core->script);
+    auto isolate = ref->core->isolate;
+    auto callback = Local<Function>::New (isolate, *ref->callback);
+    callback->Call (Null (isolate), 0, NULL);
+  }
+  delete ref->callback;
+
+  g_slice_free (GumWeakRef, ref);
+}
+
+static void
+gum_weak_ref_on_weak_notify (const WeakCallbackInfo<GumWeakRef> & info)
+{
+  auto self = info.GetParameter ();
+
+  g_hash_table_remove (self->core->weak_refs, GUINT_TO_POINTER (self->id));
+}
+
+void
+_gum_v8_core_push_job (GumV8Core * self,
+                       GumScriptJobFunc job_func,
+                       gpointer data,
+                       GDestroyNotify data_destroy)
+{
+  gum_script_scheduler_push_job_on_thread_pool (self->scheduler, job_func,
+      data, data_destroy);
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
+{
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new Int64()` to create a new instance,"
-        " or use the shorthand: `int64()`")));
+    _gum_v8_throw_ascii_literal (isolate, "Use `new Int64()` to create a new "
+        "instance, or use the shorthand: `int64()`");
     return;
   }
 
-  if (info.Length () == 0)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Int64: expected a string or number")));
+  gint64 value;
+  if (!_gum_v8_args_parse (args, "q~", &value))
     return;
-  }
 
-  Local<Value> argument = info[0];
-  if (argument->IsString ())
-  {
-    String::Utf8Value value_as_utf8 (argument);
-    const gchar * value_as_string = *value_as_utf8;
-    gchar * endvalue;
-    if (g_str_has_prefix (value_as_string, "0x"))
-    {
-      value = g_ascii_strtoll (value_as_string + 2, &endvalue, 16);
-      if (endvalue == value_as_string + 2)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "Int64: argument is not a valid hexadecimal string")));
-        return;
-      }
-    }
-    else
-    {
-      value = g_ascii_strtoll (value_as_string, &endvalue, 10);
-      if (endvalue == value_as_string)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "Int64: argument is not a valid decimal string")));
-        return;
-      }
-    }
-  }
-  else if (argument->IsNumber ())
-  {
-    value = argument.As<Number> ()->Value ();
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Int64: expected a string or number")));
-    return;
-  }
-
-  _gum_v8_int64_set_value (info.Holder (), value, isolate);
+  _gum_v8_int64_set_value (wrapper, value, isolate);
 }
 
 #define GUM_DEFINE_INT64_OP_IMPL(name, op) \
-    static void \
-    gum_v8_core_on_int64_ ## name ( \
-        const FunctionCallbackInfo<Value> & info) \
-    { \
-        GumV8Core * self = static_cast<GumV8Core *> ( \
-            info.Data ().As<External> ()->Value ()); \
-        \
-        gint64 lhs = _gum_v8_int64_get_value (info.Holder ()); \
-        \
-        gint64 rhs; \
-        Local<FunctionTemplate> int64 ( \
-            Local<FunctionTemplate>::New (self->isolate, \
-                *self->int64)); \
-        if (int64->HasInstance (info[0])) \
-        { \
-          rhs = _gum_v8_int64_get_value (info[0].As<Object> ()); \
-        } \
-        else \
-        { \
-          rhs = info[0]->ToInteger ()->Value (); \
-        } \
-        gint64 result = lhs op rhs; \
-        \
-        info.GetReturnValue ().Set (_gum_v8_int64_new (result, self)); \
-    }
+  GUMJS_DEFINE_FUNCTION (gumjs_int64_##name) \
+  { \
+    gint64 lhs = _gum_v8_int64_get_value (info.Holder ()); \
+    \
+    gint64 rhs; \
+    if (!_gum_v8_args_parse (args, "q~", &rhs)) \
+      return; \
+    \
+    gint64 result = lhs op rhs; \
+    \
+    info.GetReturnValue ().Set (_gum_v8_int64_new (result, core)); \
+  }
 
 GUM_DEFINE_INT64_OP_IMPL (add, +)
 GUM_DEFINE_INT64_OP_IMPL (sub, -)
@@ -1801,26 +1443,14 @@ GUM_DEFINE_INT64_OP_IMPL (shl, <<)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_int64_compare (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_int64_compare)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
   gint64 lhs = _gum_v8_int64_get_value (info.Holder ());
 
   gint64 rhs;
-  Local<FunctionTemplate> int64 (
-      Local<FunctionTemplate>::New (self->isolate, *self->int64));
-  if (int64->HasInstance (info[0]))
-  {
-    rhs = _gum_v8_int64_get_value (info[0].As<Object> ());
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
+  if (!_gum_v8_args_parse (args, "q~", &rhs))
+    return;
+
   int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
 
   info.GetReturnValue ().Set (result);
@@ -1836,12 +1466,10 @@ gum_v8_core_on_int64_compare (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_int64_to_number (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_number)
 {
-  info.GetReturnValue ().Set (static_cast<double> (
-      _gum_v8_int64_get_value (info.Holder ())));
+  info.GetReturnValue ().Set (
+      (double) _gum_v8_int64_get_value (info.Holder ()));
 }
 
 /*
@@ -1854,33 +1482,28 @@ gum_v8_core_on_int64_to_number (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_int64_to_string (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  gint64 value = _gum_v8_int64_get_value (info.Holder ());
-  gint radix = (info.Length () > 0) ? info[0]->Int32Value () : 10;
+  gint radix = 10;
+  if (!_gum_v8_args_parse (args, "|u", &radix))
+    return;
   if (radix != 10 && radix != 16)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "unsupported radix")));
+    _gum_v8_throw_ascii_literal (isolate, "unsupported radix");
     return;
   }
 
-  gchar buf[32];
-  if (radix == 10)
-    sprintf (buf, "%" G_GINT64_FORMAT, value);
-  else if (value >= 0)
-    sprintf (buf, "%" G_GINT64_MODIFIER "x", value);
-  else
-    sprintf (buf, "-%" G_GINT64_MODIFIER "x", -value);
+  auto value = _gum_v8_int64_get_value (info.Holder ());
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  gchar str[32];
+  if (radix == 10)
+    sprintf (str, "%" G_GINT64_FORMAT, value);
+  else if (value >= 0)
+    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+  else
+    sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
+
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -1893,19 +1516,12 @@ gum_v8_core_on_int64_to_string (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_int64_to_json (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
+  gchar str[32];
+  sprintf (str, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
 
-  gchar buf[32];
-  sprintf (buf, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
-
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -1918,102 +1534,41 @@ gum_v8_core_on_int64_to_json (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_int64_value_of (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_int64_value_of)
 {
-  info.GetReturnValue ().Set (static_cast<double> (
-      _gum_v8_int64_get_value (info.Holder ())));
+  info.GetReturnValue ().Set (
+      (double) _gum_v8_int64_get_value (info.Holder ()));
 }
 
-static void
-gum_v8_core_on_new_uint64 (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 {
-  Isolate * isolate = info.GetIsolate ();
-  guint64 value;
-
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new UInt64()` to create a new instance,"
-        " or use the shorthand: `uint64()`")));
+    _gum_v8_throw_ascii_literal (isolate, "Use `new UInt64()` to create a new "
+        "instance, or use the shorthand: `uint64()`");
     return;
   }
 
-  if (info.Length () == 0)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "UInt64: expected a string or number")));
+  guint64 value;
+  if (!_gum_v8_args_parse (args, "Q~", &value))
     return;
-  }
 
-  Local<Value> argument = info[0];
-  if (argument->IsString ())
-  {
-    String::Utf8Value value_as_utf8 (argument);
-    const gchar * value_as_string = *value_as_utf8;
-    gchar * endvalue;
-    if (g_str_has_prefix (value_as_string, "0x"))
-    {
-      value = g_ascii_strtoull (value_as_string + 2, &endvalue, 16);
-      if (endvalue == value_as_string + 2)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "UInt64: argument is not a valid hexadecimal string")));
-        return;
-      }
-    }
-    else
-    {
-      value = g_ascii_strtoull (value_as_string, &endvalue, 10);
-      if (endvalue == value_as_string)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "UInt64: argument is not a valid decimal string")));
-        return;
-      }
-    }
-  }
-  else if (argument->IsNumber ())
-  {
-    value = argument.As<Number> ()->Value ();
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "UInt64: expected a string or number")));
-    return;
-  }
-
-  _gum_v8_uint64_set_value (info.Holder (), value, isolate);
+  _gum_v8_uint64_set_value (wrapper, value, isolate);
 }
 
 #define GUM_DEFINE_UINT64_OP_IMPL(name, op) \
-    static void \
-    gum_v8_core_on_uint64_ ## name ( \
-        const FunctionCallbackInfo<Value> & info) \
-    { \
-        GumV8Core * self = static_cast<GumV8Core *> ( \
-            info.Data ().As<External> ()->Value ()); \
-        \
-        guint64 lhs = _gum_v8_uint64_get_value (info.Holder ()); \
-        \
-        guint64 rhs; \
-        Local<FunctionTemplate> uint64 ( \
-            Local<FunctionTemplate>::New (self->isolate, \
-                *self->uint64)); \
-        if (uint64->HasInstance (info[0])) \
-        { \
-          rhs = _gum_v8_uint64_get_value (info[0].As<Object> ()); \
-        } \
-        else \
-        { \
-          rhs = info[0]->ToInteger ()->Value (); \
-        } \
-        guint64 result = lhs op rhs; \
-        \
-        info.GetReturnValue ().Set (_gum_v8_uint64_new (result, self)); \
-    }
+  GUMJS_DEFINE_FUNCTION (gumjs_uint64_##name) \
+  { \
+    guint64 lhs = _gum_v8_uint64_get_value (info.Holder ()); \
+    \
+    guint64 rhs; \
+    if (!_gum_v8_args_parse (args, "Q~", &rhs)) \
+      return; \
+    \
+    guint64 result = lhs op rhs; \
+    \
+    info.GetReturnValue ().Set (_gum_v8_uint64_new (result, core)); \
+  }
 
 GUM_DEFINE_UINT64_OP_IMPL (add, +)
 GUM_DEFINE_UINT64_OP_IMPL (sub, -)
@@ -2034,26 +1589,14 @@ GUM_DEFINE_UINT64_OP_IMPL (shl, <<)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_uint64_compare (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_compare)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-
   guint64 lhs = _gum_v8_uint64_get_value (info.Holder ());
 
   guint64 rhs;
-  Local<FunctionTemplate> uint64 (
-      Local<FunctionTemplate>::New (self->isolate, *self->uint64));
-  if (uint64->HasInstance (info[0]))
-  {
-    rhs = _gum_v8_uint64_get_value (info[0].As<Object> ());
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
+  if (!_gum_v8_args_parse (args, "Q~", &rhs))
+    return;
+
   int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
 
   info.GetReturnValue ().Set (result);
@@ -2069,12 +1612,10 @@ gum_v8_core_on_uint64_compare (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_uint64_to_number (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_number)
 {
-  info.GetReturnValue ().Set (static_cast<double> (
-      _gum_v8_uint64_get_value (info.Holder ())));
+  info.GetReturnValue ().Set (
+      (double) _gum_v8_uint64_get_value (info.Holder ()));
 }
 
 /*
@@ -2087,31 +1628,26 @@ gum_v8_core_on_uint64_to_number (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_uint64_to_string (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  guint64 value = _gum_v8_uint64_get_value (info.Holder ());
-  gint radix = (info.Length () > 0) ? info[0]->Int32Value () : 10;
+  gint radix = 10;
+  if (!_gum_v8_args_parse (args, "|u", &radix))
+    return;
   if (radix != 10 && radix != 16)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "unsupported radix")));
+    _gum_v8_throw_ascii_literal (isolate, "unsupported radix");
     return;
   }
 
-  gchar buf[32];
-  if (radix == 10)
-    sprintf (buf, "%" G_GUINT64_FORMAT, value);
-  else
-    sprintf (buf, "%" G_GINT64_MODIFIER "x", value);
+  auto value = _gum_v8_uint64_get_value (info.Holder ());
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  gchar str[32];
+  if (radix == 10)
+    sprintf (str, "%" G_GUINT64_FORMAT, value);
+  else
+    sprintf (str, "%" G_GINT64_MODIFIER "x", value);
+
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -2124,20 +1660,13 @@ gum_v8_core_on_uint64_to_string (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_uint64_to_json (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  gchar buf[32];
-  sprintf (buf, "%" G_GUINT64_FORMAT,
+  gchar str[32];
+  sprintf (str, "%" G_GUINT64_FORMAT,
       _gum_v8_uint64_get_value (info.Holder ()));
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -2150,42 +1679,27 @@ gum_v8_core_on_uint64_to_json (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_uint64_value_of (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_uint64_value_of)
 {
-  info.GetReturnValue ().Set (static_cast<double> (
-      _gum_v8_uint64_get_value (info.Holder ())));
+  info.GetReturnValue ().Set (
+      (double) _gum_v8_uint64_get_value (info.Holder ()));
 }
 
-static void
-gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
-  GumV8Core * core = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new NativePointer()` to create a new instance,"
-        " or use one of the two shorthands: `ptr()` and `NULL`")));
+    _gum_v8_throw_ascii_literal (isolate, "Use `new NativePointer()` to "
+        "create a new instance, or use one of the two shorthands: "
+        "`ptr()` and `NULL`");
     return;
   }
 
-  if (info.Length () == 0)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "NativePointer: expected an argument")));
-    return;
-  }
-
-  gpointer value;
-  if (!_gum_v8_native_pointer_parse (info[0], &value, core))
+  gpointer ptr;
+  if (!_gum_v8_args_parse (args, "p~", &ptr))
     return;
 
-  info.Holder ()->SetInternalField (0,
-      External::New (info.GetIsolate (), value));
+  wrapper->SetInternalField (0, External::New (isolate, ptr));
 }
 
 /*
@@ -2198,41 +1712,27 @@ gum_v8_core_on_new_native_pointer (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_is_null (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_is_null)
 {
   info.GetReturnValue ().Set (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()) == 0);
 }
 
 #define GUM_DEFINE_NATIVE_POINTER_OP_IMPL(name, op) \
-    static void \
-    gum_v8_core_on_native_pointer_ ## name ( \
-        const FunctionCallbackInfo<Value> & info) \
-    { \
-        GumV8Core * self = static_cast<GumV8Core *> ( \
-            info.Data ().As<External> ()->Value ()); \
-        \
-        guint64 lhs = reinterpret_cast<guint64> ( \
-            GUMJS_NATIVE_POINTER_VALUE (info.Holder ())); \
-        \
-        guint64 rhs; \
-        Local<FunctionTemplate> native_pointer ( \
-            Local<FunctionTemplate>::New (self->isolate, \
-                *self->native_pointer)); \
-        if (native_pointer->HasInstance (info[0])) \
-        { \
-          rhs = reinterpret_cast<guint64> ( \
-              GUMJS_NATIVE_POINTER_VALUE (info[0].As<Object> ())); \
-        } \
-        else \
-        { \
-          rhs = info[0]->ToInteger ()->Value (); \
-        } \
-        gpointer result = GSIZE_TO_POINTER (lhs op rhs); \
-        \
-        info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, self)); \
-    }
+  GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_##name) \
+  { \
+    gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ()); \
+    \
+    gpointer rhs_ptr; \
+    if (!_gum_v8_args_parse (args, "p~", &rhs_ptr)) \
+      return; \
+    \
+    gsize lhs = GPOINTER_TO_SIZE (lhs_ptr); \
+    gsize rhs = GPOINTER_TO_SIZE (rhs_ptr); \
+    \
+    gpointer result = GSIZE_TO_POINTER (lhs op rhs); \
+    \
+    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (result, core)); \
+  }
 
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (add, +)
 GUM_DEFINE_NATIVE_POINTER_OP_IMPL (sub, -)
@@ -2253,29 +1753,17 @@ GUM_DEFINE_NATIVE_POINTER_OP_IMPL (shl, <<)
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_compare (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_compare)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
+  gpointer lhs_ptr = GUMJS_NATIVE_POINTER_VALUE (info.Holder ());
 
-  guint64 lhs = reinterpret_cast<guint64> (
-      GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
+  gpointer rhs_ptr;
+  if (!_gum_v8_args_parse (args, "p~", &rhs_ptr))
+    return;
 
-  guint64 rhs;
-  Local<FunctionTemplate> native_pointer (
-      Local<FunctionTemplate>::New (self->isolate,
-          *self->native_pointer));
-  if (native_pointer->HasInstance (info[0]))
-  {
-    rhs = reinterpret_cast<guint64> (
-        GUMJS_NATIVE_POINTER_VALUE (info[0].As<Object> ()));
-  }
-  else
-  {
-    rhs = info[0]->ToInteger ()->Value ();
-  }
+  gsize lhs = GPOINTER_TO_SIZE (lhs_ptr);
+  gsize rhs = GPOINTER_TO_SIZE (rhs_ptr);
+
   int32_t result = (lhs == rhs) ? 0 : ((lhs < rhs) ? -1 : 1);
 
   info.GetReturnValue ().Set (result);
@@ -2291,12 +1779,10 @@ gum_v8_core_on_native_pointer_compare (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_to_int32 (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_int32)
 {
-  info.GetReturnValue ().Set (static_cast<int32_t> (GPOINTER_TO_SIZE (
-      GUMJS_NATIVE_POINTER_VALUE (info.Holder ()))));
+  info.GetReturnValue ().Set ((int32_t) GPOINTER_TO_SIZE (
+      GUMJS_NATIVE_POINTER_VALUE (info.Holder ())));
 }
 
 /*
@@ -2309,41 +1795,38 @@ gum_v8_core_on_native_pointer_to_int32 (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_to_string (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
-  gsize ptr = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
-  gint radix = 16;
-  bool radix_specified = info.Length () > 0;
-  if (radix_specified)
-    radix = info[0]->Int32Value ();
-  if (radix != 10 && radix != 16)
+  gint radix = 0;
+  if (!_gum_v8_args_parse (args, "|u", &radix))
+    return;
+  gboolean radix_specified = radix != 0;
+  if (!radix_specified)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "unsupported radix")));
+    radix = 16;
+  }
+  else if (radix != 10 && radix != 16)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "unsupported radix");
     return;
   }
 
-  gchar buf[32];
+  gsize ptr = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
+
+  gchar str[32];
   if (radix == 10)
   {
-    sprintf (buf, "%" G_GSIZE_MODIFIER "u", ptr);
+    sprintf (str, "%" G_GSIZE_MODIFIER "u", ptr);
   }
   else
   {
     if (radix_specified)
-      sprintf (buf, "%" G_GSIZE_MODIFIER "x", ptr);
+      sprintf (str, "%" G_GSIZE_MODIFIER "x", ptr);
     else
-      sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
+      sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
   }
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -2356,21 +1839,14 @@ gum_v8_core_on_native_pointer_to_string (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_to_json (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
   gsize ptr = GPOINTER_TO_SIZE (GUMJS_NATIVE_POINTER_VALUE (info.Holder ()));
 
-  gchar buf[32];
-  sprintf (buf, "0x%" G_GSIZE_MODIFIER "x", ptr);
+  gchar str[32];
+  sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (buf)));
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
 }
 
 /*
@@ -2383,14 +1859,8 @@ gum_v8_core_on_native_pointer_to_json (
  * Example:
  * TBW
  */
-static void
-gum_v8_core_on_native_pointer_to_match_pattern (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-
   gchar result[24];
   gint src, dst;
   const gint num_bits = GLIB_SIZEOF_VOID_P * 8;
@@ -2413,73 +1883,59 @@ gum_v8_core_on_native_pointer_to_match_pattern (
   }
   result[dst] = '\0';
 
-  info.GetReturnValue ().Set (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (result)));
+  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (result, isolate));
 }
 
-static void
-gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-  GumFFIFunction * func;
+  GCallback fn;
   Local<Value> rtype_value;
-  ffi_type * rtype;
-  Local<Value> atypes_value;
   Local<Array> atypes_array;
+  Local<Value> abi_value;
+  GumV8NativeFunction * func;
+  ffi_type * rtype;
   uint32_t nargs_fixed, nargs_total, i;
   gboolean is_variadic;
   ffi_abi abi;
-  Local<Object> instance;
 
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new NativeFunction()` to create a new instance")));
+    _gum_v8_throw_ascii_literal (isolate,
+        "Use `new NativeFunction()` to create a new instance");
     return;
   }
 
-  func = g_slice_new0 (GumFFIFunction);
-  func->core = self;
+  if (!_gum_v8_args_parse (args, "pVA|V", &fn, &rtype_value, &atypes_array,
+      &abi_value))
+    return;
 
-  if (!_gum_v8_native_pointer_get (info[0], &func->fn, self))
+  func = g_slice_new0 (GumV8NativeFunction);
+  func->fn = fn;
+  func->core = core;
+
+  if (!gum_v8_ffi_type_get (core, rtype_value, &rtype, &func->data))
     goto error;
 
-  rtype_value = info[1];
-  if (!gum_v8_ffi_type_get (self, rtype_value, &rtype, &func->data))
-    goto error;
-
-  atypes_value = info[2];
-  if (!atypes_value->IsArray ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeFunction: third argument must be an array specifying "
-        "argument types")));
-    goto error;
-  }
-  atypes_array = atypes_value.As<Array> ();
   nargs_fixed = nargs_total = atypes_array->Length ();
   is_variadic = FALSE;
   func->atypes = g_new (ffi_type *, nargs_total);
   for (i = 0; i != nargs_total; i++)
   {
-    Handle<Value> type (atypes_array->Get (i));
-    String::Utf8Value type_utf (type);
-    if (strcmp (*type_utf, "...") == 0)
+    auto type = atypes_array->Get (i);
+    String::Utf8Value type_utf8 (type);
+    if (strcmp (*type_utf8, "...") == 0)
     {
       if (is_variadic)
       {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "NativeFunction: only one variadic marker may be "
-            "specified")));
+        _gum_v8_throw_ascii_literal (isolate,
+            "only one variadic marker may be specified");
         goto error;
       }
 
       nargs_fixed = i;
       is_variadic = TRUE;
     }
-    else if (!gum_v8_ffi_type_get (self, type,
+    else if (!gum_v8_ffi_type_get (core, type,
         &func->atypes[is_variadic ? i - 1 : i], &func->data))
     {
       goto error;
@@ -2489,9 +1945,9 @@ gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
     nargs_total--;
 
   abi = FFI_DEFAULT_ABI;
-  if (info.Length () > 3)
+  if (!abi_value.IsEmpty ())
   {
-    if (!gum_v8_ffi_abi_get (self, info[3], &abi))
+    if (!gum_v8_ffi_abi_get (core, abi_value, &abi))
       goto error;
   }
 
@@ -2500,9 +1956,8 @@ gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
     if (ffi_prep_cif_var (&func->cif, abi, nargs_fixed, nargs_total, rtype,
         func->atypes) != FFI_OK)
     {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "NativeFunction: failed to compile function call "
-          "interface")));
+      _gum_v8_throw_ascii_literal (isolate,
+          "failed to compile function call interface");
       goto error;
     }
   }
@@ -2511,9 +1966,8 @@ gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
     if (ffi_prep_cif (&func->cif, abi, nargs_total, rtype,
         func->atypes) != FFI_OK)
     {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "NativeFunction: failed to compile function call "
-          "interface")));
+      _gum_v8_throw_ascii_literal (isolate,
+          "failed to compile function call interface");
       goto error;
     }
   }
@@ -2526,56 +1980,68 @@ gum_v8_core_on_new_native_function (const FunctionCallbackInfo<Value> & info)
     func->arglist_size += t->size;
   }
 
-  instance = info.Holder ();
-  instance->SetInternalField (0, External::New (isolate, func->fn));
-  instance->SetAlignedPointerInInternalField (1, func);
+  wrapper->SetInternalField (0, External::New (isolate, (void *) func->fn));
+  wrapper->SetAlignedPointerInInternalField (1, func);
 
-  func->weak_instance = new GumPersistent<Object>::type (isolate, instance);
-  func->weak_instance->SetWeak (func, gum_ffi_function_on_weak_notify,
+  func->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
+  func->wrapper->SetWeak (func, gum_v8_native_function_on_weak_notify,
       WeakCallbackType::kParameter);
-  func->weak_instance->MarkIndependent ();
+  func->wrapper->MarkIndependent ();
 
-  g_hash_table_insert (self->native_functions, func, func);
+  g_hash_table_insert (core->native_functions, func, func);
 
   return;
 
 error:
-  gum_ffi_function_free (func);
+  gum_v8_native_function_free (func);
 }
 
 static void
-gum_ffi_function_on_weak_notify (
-    const WeakCallbackInfo<GumFFIFunction> & info)
+gum_v8_native_function_on_weak_notify (
+    const WeakCallbackInfo<GumV8NativeFunction> & info)
 {
   HandleScope handle_scope (info.GetIsolate ());
-  GumFFIFunction * self = info.GetParameter ();
+  auto self = info.GetParameter ();
   g_hash_table_remove (self->core->native_functions, self);
 }
 
 static void
-gum_v8_core_on_invoke_native_function (const FunctionCallbackInfo<Value> & info)
+gum_v8_native_function_free (GumV8NativeFunction * self)
 {
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-  Local<Object> instance = info.Holder ();
-  GumFFIFunction * func = static_cast<GumFFIFunction *> (
-      instance->GetAlignedPointerFromInternalField (1));
-  gsize nargs = func->cif.nargs;
+  delete self->wrapper;
+
+  while (self->data != NULL)
+  {
+    auto head = self->data;
+    g_free (head->data);
+    self->data = g_slist_delete_link (self->data, head);
+  }
+  g_free (self->atypes);
+
+  g_slice_free (GumV8NativeFunction, self);
+}
+
+static void
+gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
+{
+  auto wrapper = info.Holder ();
+  auto self = (GumV8NativeFunction *) wrapper->GetAlignedPointerFromInternalField (1);
+  auto core = (GumV8Core *) info.Data ().As<External> ()->Value ();
+  auto isolate = core->isolate;
+  gsize nargs = self->cif.nargs;
   GumExceptorScope scope;
 
-  if (info.Length () != static_cast<int> (nargs))
+  if (info.Length () != (int) nargs)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeFunction: bad argument count")));
+    _gum_v8_throw_ascii_literal (isolate, "bad argument count");
     return;
   }
 
-  ffi_type * rtype = func->cif.rtype;
+  auto rtype = self->cif.rtype;
 
   gsize rsize = MAX (rtype->size, sizeof (gsize));
   gsize ralign = MAX (rtype->alignment, sizeof (gsize));
-  GumFFIValue * rvalue = (GumFFIValue *) g_alloca (rsize + ralign - 1);
+  auto rvalue = (GumFFIValue *) g_alloca (rsize + ralign - 1);
   rvalue = GUM_ALIGN_POINTER (GumFFIValue *, rvalue, ralign);
 
   void ** avalue;
@@ -2585,23 +2051,23 @@ gum_v8_core_on_invoke_native_function (const FunctionCallbackInfo<Value> & info)
   {
     avalue = (void **) g_alloca (nargs * sizeof (void *));
 
-    gsize arglist_alignment = func->cif.arg_types[0]->alignment;
-    avalues = (guint8 *) g_alloca (func->arglist_size + arglist_alignment - 1);
+    gsize arglist_alignment = self->cif.arg_types[0]->alignment;
+    avalues = (guint8 *) g_alloca (self->arglist_size + arglist_alignment - 1);
     avalues = GUM_ALIGN_POINTER (guint8 *, avalues, arglist_alignment);
 
     /* Prefill with zero to clear high bits of values smaller than a pointer. */
-    memset (avalues, 0, func->arglist_size);
+    memset (avalues, 0, self->arglist_size);
 
     gsize offset = 0;
     for (gsize i = 0; i != nargs; i++)
     {
-      ffi_type * t = func->cif.arg_types[i];
+      auto t = self->cif.arg_types[i];
 
       offset = GUM_ALIGN_SIZE (offset, t->alignment);
 
-      GumFFIValue * v = (GumFFIValue *) (avalues + offset);
+      auto v = (GumFFIValue *) (avalues + offset);
 
-      if (!gum_v8_value_to_ffi_type (self, info[i], v, t))
+      if (!gum_v8_value_to_ffi_type (core, info[i], v, t))
         return;
       avalue[i] = v;
 
@@ -2613,114 +2079,70 @@ gum_v8_core_on_invoke_native_function (const FunctionCallbackInfo<Value> & info)
     avalue = NULL;
   }
 
-  self->isolate->Exit ();
+  isolate->Exit ();
 
   {
-    Unlocker ul (self->isolate);
+    Unlocker ul (isolate);
 
-    if (gum_exceptor_try (self->exceptor, &scope))
+    if (gum_exceptor_try (core->exceptor, &scope))
     {
-      ffi_call (&func->cif, FFI_FN (func->fn), rvalue, avalue);
+      ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
     }
   }
 
-  self->isolate->Enter ();
+  isolate->Enter ();
 
-  if (gum_exceptor_catch (self->exceptor, &scope))
+  if (gum_exceptor_catch (core->exceptor, &scope))
   {
-    _gum_v8_throw_native (&scope.exception, self);
+    _gum_v8_throw_native (&scope.exception, core);
     return;
   }
 
   if (rtype != &ffi_type_void)
   {
     Local<Value> result;
-    if (!gum_v8_value_from_ffi_type (self, &result, rvalue, rtype))
+    if (!gum_v8_value_from_ffi_type (core, &result, rvalue, rtype))
       return;
 
     info.GetReturnValue ().Set (result);
   }
 }
 
-static void
-gum_ffi_function_free (GumFFIFunction * func)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
 {
-  delete func->weak_instance;
-
-  while (func->data != NULL)
-  {
-    GSList * head = func->data;
-    g_free (head->data);
-    func->data = g_slist_delete_link (func->data, head);
-  }
-  g_free (func->atypes);
-
-  g_slice_free (GumFFIFunction, func);
-}
-
-static void
-gum_v8_core_on_new_native_callback (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->isolate;
-  GumFFICallback * callback;
-  Local<Value> func_value;
+  Local<Function> func_value;
   Local<Value> rtype_value;
-  ffi_type * rtype;
-  Local<Value> atypes_value;
   Local<Array> atypes_array;
+  Local<Value> abi_value;
+  GumV8NativeCallback * callback;
+  ffi_type * rtype;
   uint32_t nargs, i;
   ffi_abi abi;
   gpointer func = NULL;
-  Local<Object> instance;
 
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new NativeCallback()` to create a new instance")));
+    _gum_v8_throw_ascii_literal (isolate,
+        "Use `new NativeCallback()` to create a new instance");
     return;
   }
 
-  callback = g_slice_new0 (GumFFICallback);
-  callback->core = self;
+  if (!_gum_v8_args_parse (args, "FVA|V", &func_value, &rtype_value,
+      &atypes_array, &abi_value))
+    return;
 
-  func_value = info[0];
-  if (!func_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: first argument must be a function implementing "
-        "the callback")));
-    goto error;
-  }
-  callback->func = new GumPersistent<Function>::type (isolate,
-      func_value.As<Function> ());
+  callback = g_slice_new0 (GumV8NativeCallback);
+  callback->func = new GumPersistent<Function>::type (isolate, func_value);
+  callback->core = core;
 
-  rtype_value = info[1];
-  if (!rtype_value->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: second argument must be a string specifying "
-        "return type")));
-    goto error;
-  }
-  if (!gum_v8_ffi_type_get (self, rtype_value, &rtype, &callback->data))
+  if (!gum_v8_ffi_type_get (core, rtype_value, &rtype, &callback->data))
     goto error;
 
-  atypes_value = info[2];
-  if (!atypes_value->IsArray ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: third argument must be an array specifying "
-        "argument types")));
-    goto error;
-  }
-  atypes_array = atypes_value.As<Array> ();
   nargs = atypes_array->Length ();
   callback->atypes = g_new (ffi_type *, nargs);
   for (i = 0; i != nargs; i++)
   {
-    if (!gum_v8_ffi_type_get (self, atypes_array->Get (i),
+    if (!gum_v8_ffi_type_get (core, atypes_array->Get (i),
         &callback->atypes[i], &callback->data))
     {
       goto error;
@@ -2728,74 +2150,90 @@ gum_v8_core_on_new_native_callback (const FunctionCallbackInfo<Value> & info)
   }
 
   abi = FFI_DEFAULT_ABI;
-  if (info.Length () > 3)
+  if (!abi_value.IsEmpty ())
   {
-    if (!gum_v8_ffi_abi_get (self, info[3], &abi))
+    if (!gum_v8_ffi_abi_get (core, abi_value, &abi))
       goto error;
   }
 
-  callback->closure = static_cast<ffi_closure *> (
-      ffi_closure_alloc (sizeof (ffi_closure), &func));
+  callback->closure =
+      (ffi_closure *) ffi_closure_alloc (sizeof (ffi_closure), &func);
   if (callback->closure == NULL)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: failed to allocate closure")));
+    _gum_v8_throw_ascii_literal (isolate, "failed to allocate closure");
     goto error;
   }
 
   if (ffi_prep_cif (&callback->cif, abi, nargs, rtype,
-        callback->atypes) != FFI_OK)
+      callback->atypes) != FFI_OK)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: failed to compile function call interface")));
+    _gum_v8_throw_ascii_literal (isolate,
+        "failed to compile function call interface");
     goto error;
   }
 
   if (ffi_prep_closure_loc (callback->closure, &callback->cif,
-        gum_v8_core_on_invoke_native_callback, callback, func) != FFI_OK)
+      gum_v8_native_callback_invoke, callback, func) != FFI_OK)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "NativeCallback: failed to prepare closure")));
+    _gum_v8_throw_ascii_literal (isolate, "failed to prepare closure");
     goto error;
   }
 
-  instance = info.Holder ();
-  instance->SetInternalField (0, External::New (isolate, func));
+  wrapper->SetInternalField (0, External::New (isolate, func));
 
-  callback->weak_instance = new GumPersistent<Object>::type (isolate, instance);
-  callback->weak_instance->SetWeak (callback,
-      gum_v8_core_on_free_native_callback, WeakCallbackType::kParameter);
-  callback->weak_instance->MarkIndependent ();
+  callback->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
+  callback->wrapper->SetWeak (callback,
+      gum_v8_native_callback_on_weak_notify, WeakCallbackType::kParameter);
+  callback->wrapper->MarkIndependent ();
 
-  g_hash_table_insert (self->native_callbacks, callback, callback);
+  g_hash_table_insert (core->native_callbacks, callback, callback);
 
   return;
 
 error:
-  gum_ffi_callback_free (callback);
+  gum_v8_native_callback_free (callback);
 }
 
 static void
-gum_v8_core_on_free_native_callback (
-    const WeakCallbackInfo<GumFFICallback> & info)
+gum_v8_native_callback_on_weak_notify (
+    const WeakCallbackInfo<GumV8NativeCallback> & info)
 {
   HandleScope handle_scope (info.GetIsolate ());
-  GumFFICallback * self = info.GetParameter ();
+  auto self = info.GetParameter ();
   g_hash_table_remove (self->core->native_callbacks, self);
 }
 
 static void
-gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
-                                       void * return_value,
-                                       void ** args,
-                                       void * user_data)
+gum_v8_native_callback_free (GumV8NativeCallback * self)
 {
-  GumFFICallback * self = static_cast<GumFFICallback *> (user_data);
-  ScriptScope scope (self->core->script);
-  Isolate * isolate = self->core->isolate;
+  delete self->wrapper;
+  delete self->func;
 
-  ffi_type * rtype = cif->rtype;
-  GumFFIValue * retval = (GumFFIValue *) return_value;
+  ffi_closure_free (self->closure);
+
+  while (self->data != NULL)
+  {
+    auto head = self->data;
+    g_free (head->data);
+    self->data = g_slist_delete_link (self->data, head);
+  }
+  g_free (self->atypes);
+
+  g_slice_free (GumV8NativeCallback, self);
+}
+
+static void
+gum_v8_native_callback_invoke (ffi_cif * cif,
+                               void * return_value,
+                               void ** args,
+                               void * user_data)
+{
+  auto self = (GumV8NativeCallback *) user_data;
+  ScriptScope scope (self->core->script);
+  auto isolate = self->core->isolate;
+
+  auto rtype = cif->rtype;
+  auto retval = (GumFFIValue *) return_value;
   if (rtype != &ffi_type_void)
   {
     /*
@@ -2806,8 +2244,7 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
     retval->v_pointer = NULL;
   }
 
-  Local<Value> * argv = static_cast<Local<Value> *> (
-      g_alloca (cif->nargs * sizeof (Local<Value>)));
+  auto argv = (Local<Value> *) g_alloca (cif->nargs * sizeof (Local<Value>));
   for (guint i = 0; i != cif->nargs; i++)
   {
     if (!gum_v8_value_from_ffi_type (self->core, &argv[i],
@@ -2819,12 +2256,12 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
     }
   }
 
-  Local<Function> func (Local<Function>::New (isolate, *self->func));
+  auto func (Local<Function>::New (isolate, *self->func));
 
   Local<Value> receiver;
-  GumV8Interceptor * interceptor = &self->core->script->priv->interceptor;
+  auto interceptor = &self->core->script->priv->interceptor;
   GumV8InvocationContext * jic = NULL;
-  GumInvocationContext * ic = gum_interceptor_get_current_invocation ();
+  auto ic = gum_interceptor_get_current_invocation ();
   if (ic != NULL)
   {
     jic = _gum_v8_interceptor_obtain_invocation_context (interceptor);
@@ -2833,10 +2270,10 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
   }
   else
   {
-    receiver = Undefined (isolate);
+    receiver = Null (isolate);
   }
 
-  Local<Value> result = func->Call (receiver, cif->nargs, argv);
+  auto result = func->Call (receiver, cif->nargs, argv);
 
   if (jic != NULL)
   {
@@ -2854,95 +2291,61 @@ gum_v8_core_on_invoke_native_callback (ffi_cif * cif,
     argv[i].~Local<Value> ();
 }
 
-static void
-gum_ffi_callback_free (GumFFICallback * callback)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 {
-  delete callback->weak_instance;
-
-  delete callback->func;
-
-  ffi_closure_free (callback->closure);
-
-  while (callback->data != NULL)
-  {
-    GSList * head = callback->data;
-    g_free (head->data);
-    callback->data = g_slist_delete_link (callback->data, head);
-  }
-  g_free (callback->atypes);
-
-  g_slice_free (GumFFICallback, callback);
-}
-
-static void
-gum_v8_core_on_new_cpu_context (const FunctionCallbackInfo<Value> & info)
-{
-  GumV8Core * self = static_cast<GumV8Core *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () < 2 || !info[0]->IsExternal () || !info[1]->IsBoolean ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "CpuContext: invalid argument")));
+  GumCpuContext * cpu_context;
+  gboolean is_mutable;
+  if (!_gum_v8_args_parse (args, "Xt", &cpu_context, &is_mutable))
     return;
-  }
 
-  Local<Object> instance = info.Holder ();
-  instance->SetInternalField (0, info[0]);
-  instance->SetInternalField (1, info[1]);
-  instance->SetAlignedPointerInInternalField (2, self);
+  wrapper->SetInternalField (0, External::New (isolate, cpu_context));
+  wrapper->SetInternalField (1, Boolean::New (isolate, is_mutable));
+  wrapper->SetAlignedPointerInInternalField (2, core);
 }
 
 static void
-gum_v8_core_on_cpu_context_get_register (
-    Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+gumjs_cpu_context_get_register (Local<String> property,
+                                const PropertyCallbackInfo<Value> & info)
 {
-  Local<Object> instance = info.Holder ();
-  GumV8Core * self = static_cast<GumV8Core *> (
-      instance->GetAlignedPointerFromInternalField (2));
-  gpointer * cpu_context = static_cast<gpointer *> (
-      instance->GetInternalField (0).As<External> ()->Value ());
+  auto wrapper = info.Holder ();
+  auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
+  auto cpu_context =
+      (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
 
   (void) property;
 
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (cpu_context[offset], self));
+      _gum_v8_native_pointer_new (cpu_context[offset], core));
 }
 
 static void
-gum_v8_core_on_cpu_context_set_register (
-    Local<String> property,
-    Local<Value> value,
-    const PropertyCallbackInfo<void> & info)
+gumjs_cpu_context_set_register (Local<String> property,
+                                Local<Value> value,
+                                const PropertyCallbackInfo<void> & info)
 {
-  Isolate * isolate = info.GetIsolate ();
-  Local<Object> instance = info.Holder ();
-  GumV8Core * self = static_cast<GumV8Core *> (
-      instance->GetAlignedPointerFromInternalField (2));
-  gssize * cpu_context = static_cast<gssize *> (
-      instance->GetInternalField (0).As<External> ()->Value ());
-  bool is_mutable = instance->GetInternalField (1).As<Boolean> ()->Value ();
+  auto isolate = info.GetIsolate ();
+  auto wrapper = info.Holder ();
+  auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
+  auto cpu_context =
+      (gssize *) wrapper->GetInternalField (0).As<External> ()->Value ();
+  bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
 
   (void) property;
 
   if (!is_mutable)
   {
-    isolate->ThrowException (Exception::TypeError (
-        String::NewFromUtf8 (isolate, "this CpuContext is not mutable")));
+    _gum_v8_throw_ascii_literal (isolate, "invalid operation");
     return;
   }
 
-  Local<FunctionTemplate> native_pointer (Local<FunctionTemplate>::New (isolate,
-      *self->native_pointer));
+  auto native_pointer (Local<FunctionTemplate>::New (isolate,
+      *core->native_pointer));
   gssize raw_value;
   if (native_pointer->HasInstance (value))
   {
-    raw_value = reinterpret_cast<gssize> (
-        GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ()));
+    raw_value = (gssize) GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
   }
   else
   {
@@ -2956,21 +2359,15 @@ static GumV8ExceptionSink *
 gum_v8_exception_sink_new (Handle<Function> callback,
                            Isolate * isolate)
 {
-  GumV8ExceptionSink * sink;
-
-  sink = g_slice_new (GumV8ExceptionSink);
+  auto sink = g_slice_new (GumV8ExceptionSink);
   sink->callback = new GumPersistent<Function>::type (isolate, callback);
   sink->isolate = isolate;
-
   return sink;
 }
 
 static void
 gum_v8_exception_sink_free (GumV8ExceptionSink * sink)
 {
-  if (sink == NULL)
-    return;
-
   delete sink->callback;
 
   g_slice_free (GumV8ExceptionSink, sink);
@@ -2980,32 +2377,25 @@ static void
 gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
                                         Handle<Value> exception)
 {
-  Isolate * isolate = self->isolate;
+  auto isolate = self->isolate;
+  auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { exception };
-
-  Local<Function> callback (Local<Function>::New (isolate, *self->callback));
-  callback->Call (Null (isolate), 1, argv);
+  callback->Call (Null (isolate), G_N_ELEMENTS (argv), argv);
 }
 
 static GumV8MessageSink *
 gum_v8_message_sink_new (Handle<Function> callback,
                          Isolate * isolate)
 {
-  GumV8MessageSink * sink;
-
-  sink = g_slice_new (GumV8MessageSink);
+  auto sink = g_slice_new (GumV8MessageSink);
   sink->callback = new GumPersistent<Function>::type (isolate, callback);
   sink->isolate = isolate;
-
   return sink;
 }
 
 static void
 gum_v8_message_sink_free (GumV8MessageSink * sink)
 {
-  if (sink == NULL)
-    return;
-
   delete sink->callback;
 
   g_slice_free (GumV8MessageSink, sink);
@@ -3016,7 +2406,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
                           const gchar * message,
                           GBytes * data)
 {
-  Isolate * isolate = self->isolate;
+  auto isolate = self->isolate;
 
   Local<Value> data_value;
   if (data != NULL)
@@ -3031,12 +2421,12 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
     data_value = Null (isolate);
   }
 
-  Local<Function> callback (Local<Function>::New (isolate, *self->callback));
+  auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = {
     String::NewFromUtf8 (isolate, message),
     data_value
   };
-  callback->Call (Null (isolate), 2, argv);
+  callback->Call (Null (isolate), G_N_ELEMENTS (argv), argv);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =
@@ -3091,13 +2481,15 @@ gum_v8_ffi_type_get (GumV8Core * core,
                      ffi_type ** type,
                      GSList ** data)
 {
+  auto isolate = core->isolate;
+
   if (name->IsString ())
   {
     String::Utf8Value str_value (name);
-    const gchar * str = *str_value;
+    auto str = *str_value;
     for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_type_mappings); i++)
     {
-      const GumFFITypeMapping * m = &gum_ffi_type_mappings[i];
+      auto m = &gum_ffi_type_mappings[i];
       if (strcmp (str, m->name) == 0)
       {
         *type = m->type;
@@ -3107,15 +2499,13 @@ gum_v8_ffi_type_get (GumV8Core * core,
   }
   else if (name->IsArray ())
   {
-    Isolate * isolate = core->isolate;
-    Local<Context> context = isolate->GetCurrentContext ();
-
-    Local<Array> fields_value = Handle<Array>::Cast (name);
+    auto fields_value = name.As<Array> ();
     gsize length = fields_value->Length ();
 
-    ffi_type ** fields = g_new (ffi_type *, length + 1);
+    auto fields = g_new (ffi_type *, length + 1);
     *data = g_slist_prepend (*data, fields);
 
+    auto context = isolate->GetCurrentContext ();
     for (gsize i = 0; i != length; i++)
     {
       Local<Value> field_value;
@@ -3126,15 +2516,14 @@ gum_v8_ffi_type_get (GumV8Core * core,
       }
       else
       {
-        isolate->ThrowException (Exception::TypeError (
-            String::NewFromUtf8 (isolate, "invalid field type specified")));
+        _gum_v8_throw_ascii_literal (isolate, "invalid field type specified");
         return FALSE;
       }
     }
 
     fields[length] = NULL;
 
-    ffi_type * struct_type = g_new0 (ffi_type, 1);
+    auto struct_type = g_new0 (ffi_type, 1);
     struct_type->type = FFI_TYPE_STRUCT;
     struct_type->elements = fields;
     *data = g_slist_prepend (*data, struct_type);
@@ -3143,8 +2532,7 @@ gum_v8_ffi_type_get (GumV8Core * core,
     return TRUE;
   }
 
-  core->isolate->ThrowException (Exception::TypeError (
-      String::NewFromUtf8 (core->isolate, "invalid type specified")));
+  _gum_v8_throw_ascii_literal (isolate, "invalid type specified");
   return FALSE;
 }
 
@@ -3153,11 +2541,17 @@ gum_v8_ffi_abi_get (GumV8Core * core,
                     Handle<Value> name,
                     ffi_abi * abi)
 {
+  if (!name->IsString ())
+  {
+    _gum_v8_throw_ascii_literal (core->isolate, "invalid abi specified");
+    return FALSE;
+  }
+
   String::Utf8Value str_value (name);
-  const gchar * str = *str_value;
+  auto str = *str_value;
   for (guint i = 0; i != G_N_ELEMENTS (gum_ffi_abi_mappings); i++)
   {
-    const GumFFIABIMapping * m = &gum_ffi_abi_mappings[i];
+    auto m = &gum_ffi_abi_mappings[i];
     if (strcmp (str, m->name) == 0)
     {
       *abi = m->abi;
@@ -3165,8 +2559,7 @@ gum_v8_ffi_abi_get (GumV8Core * core,
     }
   }
 
-  core->isolate->ThrowException (Exception::TypeError (
-      String::NewFromUtf8 (core->isolate, "invalid abi specified")));
+  _gum_v8_throw_ascii_literal (core->isolate, "invalid abi specified");
   return FALSE;
 }
 
@@ -3176,7 +2569,7 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
                           GumFFIValue * value,
                           const ffi_type * type)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   if (type == &ffi_type_void)
   {
@@ -3191,37 +2584,37 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint8 = static_cast<gint8> (svalue->Int32Value ());
+    value->v_sint8 = (gint8) svalue->Int32Value ();
   }
   else if (type == &ffi_type_uint8)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint8 = static_cast<guint8> (svalue->Uint32Value ());
+    value->v_uint8 = (guint8) svalue->Uint32Value ();
   }
   else if (type == &ffi_type_sint16)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint16 = static_cast<gint16> (svalue->Int32Value ());
+    value->v_sint16 = (gint16) svalue->Int32Value ();
   }
   else if (type == &ffi_type_uint16)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint16 = static_cast<guint16> (svalue->Uint32Value ());
+    value->v_uint16 = (guint16) svalue->Uint32Value ();
   }
   else if (type == &ffi_type_sint32)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_sint32 = static_cast<gint32> (svalue->Int32Value ());
+    value->v_sint32 = (gint32) svalue->Int32Value ();
   }
   else if (type == &ffi_type_uint32)
   {
     if (!svalue->IsNumber ())
       goto error_expected_number;
-    value->v_uint32 = static_cast<guint32> (svalue->Uint32Value ());
+    value->v_uint32 = (guint32) svalue->Uint32Value ();
   }
   else if (type == &ffi_type_sint64)
   {
@@ -3247,38 +2640,35 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
-    Local<Context> context = isolate->GetCurrentContext ();
-    const ffi_type * const * field_types = type->elements;
-
     if (!svalue->IsArray ())
     {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "expected array with fields")));
+      _gum_v8_throw_ascii_literal (isolate, "expected array with fields");
       return FALSE;
     }
-    Local<Array> field_svalues = Handle<Array>::Cast (svalue);
+    auto field_svalues = svalue.As<Array> ();
 
+    auto field_types = type->elements;
     gsize provided_length = field_svalues->Length ();
     gsize length = 0;
-    for (const ffi_type * const * t = field_types; *t != NULL; t++)
+    for (auto t = field_types; *t != NULL; t++)
       length++;
     if (provided_length != length)
     {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "provided array length does not match number of fields")));
+      _gum_v8_throw_ascii_literal (isolate,
+          "provided array length does not match number of fields");
       return FALSE;
     }
 
-    guint8 * field_values = (guint8 *) value;
+    auto field_values = (guint8 *) value;
     gsize offset = 0;
+    auto context = isolate->GetCurrentContext ();
     for (gsize i = 0; i != length; i++)
     {
-      const ffi_type * field_type = field_types[i];
+      auto field_type = field_types[i];
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      GumFFIValue * field_value =
-          (GumFFIValue *) (field_values + offset);
+      auto field_value = (GumFFIValue *) (field_values + offset);
       Local<Value> field_svalue;
       if (field_svalues->Get (context, i).ToLocal (&field_svalue))
       {
@@ -3290,8 +2680,7 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
       }
       else
       {
-        isolate->ThrowException (Exception::TypeError (
-            String::NewFromUtf8 (isolate, "invalid field value specified")));
+        _gum_v8_throw_ascii_literal (isolate, "invalid field value specified");
         return FALSE;
       }
 
@@ -3307,14 +2696,12 @@ gum_v8_value_to_ffi_type (GumV8Core * core,
 
 error_expected_number:
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected number")));
+    _gum_v8_throw_ascii_literal (isolate, "expected number");
     return FALSE;
   }
 error_unsupported_type:
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "unsupported type")));
+    _gum_v8_throw_ascii_literal (isolate, "unsupported type");
     return FALSE;
   }
 }
@@ -3325,7 +2712,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
                             const GumFFIValue * value,
                             const ffi_type * type)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   if (type == &ffi_type_void)
   {
@@ -3377,23 +2764,22 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   }
   else if (type->type == FFI_TYPE_STRUCT)
   {
-    const ffi_type * const * field_types = type->elements;
+    auto field_types = type->elements;
 
     gsize length = 0;
-    for (const ffi_type * const * t = field_types; *t != NULL; t++)
+    for (auto t = field_types; *t != NULL; t++)
       length++;
 
-    Local<Array> field_svalues = Array::New (isolate, length);
-    const guint8 * field_values = (const guint8 *) value;
+    auto field_svalues = Array::New (isolate, length);
+    auto field_values = (const guint8 *) value;
     gsize offset = 0;
     for (gsize i = 0; i != length; i++)
     {
-      const ffi_type * field_type = field_types[i];
+      auto field_type = field_types[i];
 
       offset = GUM_ALIGN_SIZE (offset, field_type->alignment);
 
-      const GumFFIValue * field_value =
-          (const GumFFIValue *) (field_values + offset);
+      auto field_value = (const GumFFIValue *) (field_values + offset);
       Local<Value> field_svalue;
       if (gum_v8_value_from_ffi_type (core, &field_svalue, field_value,
           field_type))
@@ -3411,8 +2797,7 @@ gum_v8_value_from_ffi_type (GumV8Core * core,
   }
   else
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "unsupported type")));
+    _gum_v8_throw_ascii_literal (isolate, "unsupported type");
     return FALSE;
   }
 
