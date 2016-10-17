@@ -483,6 +483,14 @@ _gum_v8_args_parse (const GumV8Args * args,
   return TRUE;
 }
 
+Local<String>
+_gum_v8_string_new_from_ascii (const gchar * str,
+                               Isolate * isolate)
+{
+  return String::NewFromOneByte (isolate,
+      reinterpret_cast<const uint8_t *> (str));
+}
+
 GBytes *
 _gum_v8_byte_array_get (Handle<Value> value,
                         GumV8Core * core)
@@ -1107,8 +1115,8 @@ void
 _gum_v8_throw_ascii_literal (Isolate * isolate,
                              const gchar * message)
 {
-  isolate->ThrowException (Exception::Error (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (message))));
+  isolate->ThrowException (Exception::Error (
+      _gum_v8_string_new_from_ascii (message, isolate)));
 }
 
 void
@@ -1306,9 +1314,7 @@ _gum_v8_object_set (Handle<Object> object,
 {
   Isolate * isolate = core->isolate;
   Maybe<bool> success = object->Set (isolate->GetCurrentContext (),
-      String::NewFromOneByte (isolate,
-          reinterpret_cast<const uint8_t *> (key)),
-      value);
+      _gum_v8_string_new_from_ascii (key, isolate), value);
   return success.IsJust ();
 }
 
@@ -1354,11 +1360,8 @@ _gum_v8_object_set_ascii (Handle<Object> object,
                           const gchar * value,
                           GumV8Core * core)
 {
-  return _gum_v8_object_set (object,
-      key,
-      String::NewFromOneByte (core->isolate,
-          reinterpret_cast<const uint8_t *> (value)),
-      core);
+  return _gum_v8_object_set (object, key,
+      _gum_v8_string_new_from_ascii (value, core->isolate), core);
 }
 
 gboolean
@@ -1399,8 +1402,8 @@ _gum_v8_callbacks_get_opt (Handle<Object> callbacks,
 {
   Isolate * isolate = core->isolate;
 
-  Local<Value> value = callbacks->Get (String::NewFromOneByte (isolate,
-      reinterpret_cast<const uint8_t *> (name)));
+  Local<Value> value =
+      callbacks->Get (_gum_v8_string_new_from_ascii (name, isolate));
   if (value->IsUndefined () || value->IsNull ())
     return TRUE;
 
