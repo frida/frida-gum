@@ -968,11 +968,18 @@
             value: function (options = {}) {
                 return new Promise(function (resolve, reject) {
                     const {
+                        family = null,
+
+                        host = null,
                         port = 0,
+
+                        type = null,
+                        path = null,
+
                         backlog = 10,
                     } = options;
 
-                    Socket._listen(port, backlog, function (error, listener) {
+                    Socket._listen(family, host, port, type, path, backlog, function (error, listener) {
                         if (error === null)
                             resolve(listener);
                         else
@@ -986,12 +993,16 @@
             value: function (options) {
                 return new Promise(function (resolve, reject) {
                     const {
-                        family = 4,
+                        family = null,
+
                         host = 'localhost',
-                        port,
+                        port = 0,
+
+                        type = null,
+                        path = null,
                     } = options;
 
-                    Socket._connect(family, host, port, function (error, connection) {
+                    Socket._connect(family, host, port, type, path, function (error, connection) {
                         if (error === null)
                             resolve(connection);
                         else

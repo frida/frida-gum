@@ -891,7 +891,7 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
       "  });"
       ""
       "  return Socket.connect({"
-      "    family: 4,"
+      "    family: 'ipv4',"
       "    host: 'localhost',"
       "    port: listener.port,"
       "  })"
@@ -910,6 +910,46 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
       "});");
   EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
       "31 33 33 37 0a");
+
+#ifdef G_OS_UNIX
+  COMPILE_AND_LOAD_SCRIPT (
+      "var id = (Math.random() * 1000000) << 0;"
+      "Socket.listen({"
+      "  type: 'path',"
+      "  path: '/tmp/frida-gum-test-' + id,"
+      "  backlog: 1,"
+      "})"
+      ".then(function (listener) {"
+      "  listener.accept()"
+      "  .then(function (client) {"
+      "    return client.input.readAll(5)"
+      "    .then(function (data) {"
+      "      send('server read', data);"
+      "      client.close();"
+      "      listener.close();"
+      "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
+      "  });"
+      ""
+      "  return Socket.connect({"
+      "    type: 'path',"
+      "    path: listener.path,"
+      "  })"
+      "  .then(function (connection) {"
+      "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
+      "    .then(function () {"
+      "      return connection.close();"
+      "    });"
+      "  })"
+      "  .catch(function (error) {"
+      "    send('error: ' + error.message);"
+      "  });"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH_PAYLOAD_AND_DATA ("\"server read\"",
+      "31 33 33 37 0a");
+#endif
 }
 
 SCRIPT_TESTCASE (socket_type_can_be_inspected)

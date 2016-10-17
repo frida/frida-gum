@@ -19,12 +19,21 @@
 # define GUM_SOCKOPT_OPTVAL(v) (v)
   typedef socklen_t gum_socklen_t;
 #endif
+#ifdef G_OS_UNIX
+# include <gio/gunixsocketaddress.h>
+#endif
+
+#define GUMJS_MODULE_NAME Socket
 
 using namespace v8;
 
 struct GumV8ListenOperation : public GumV8ModuleOperation<GumV8Socket>
 {
   guint16 port;
+
+  gchar * path;
+
+  GSocketAddress * address;
   gint backlog;
 };
 
@@ -32,8 +41,11 @@ struct GumV8ConnectOperation : public GumV8ModuleOperation<GumV8Socket>
 {
   GSocketClient * client;
   GSocketFamily family;
+
   gchar * host;
   guint16 port;
+
+  GSocketConnectable * connectable;
 };
 
 struct GumV8CloseListenerOperation
@@ -52,10 +64,11 @@ struct GumV8SetNoDelayOperation
   gboolean no_delay;
 };
 
-static void gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_socket_listen)
+static void gum_v8_listen_operation_dispose (GumV8ListenOperation * self);
 static void gum_v8_listen_operation_perform (GumV8ListenOperation * self);
-static void gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info);
-static void gum_v8_connect_operation_dispose (GumV8ConnectOperation * op);
+GUMJS_DECLARE_FUNCTION (gumjs_socket_connect)
+static void gum_v8_connect_operation_dispose (GumV8ConnectOperation * self);
 static void gum_v8_connect_operation_start (GumV8ConnectOperation * self);
 static void gum_v8_connect_operation_finish (GSocketClient * client,
     GAsyncResult * result, GumV8ConnectOperation * self);
@@ -90,6 +103,8 @@ static void gum_v8_set_no_delay_operation_perform (
 
 static gboolean gum_v8_socket_family_get (Handle<Value> value,
     GSocketFamily * family, GumV8Core * core);
+static gboolean gum_v8_unix_socket_address_type_get (Handle<Value> value,
+    GUnixSocketAddressType * type, GumV8Core * core);
 
 static Local<Value> gum_v8_socket_address_to_value (
     struct sockaddr * addr, GumV8Core * core);
@@ -107,9 +122,9 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   Handle<ObjectTemplate> socket = ObjectTemplate::New (isolate);
   socket->Set (String::NewFromUtf8 (isolate, "_listen"),
-      FunctionTemplate::New (isolate, gum_v8_socket_on_listen, data));
+      FunctionTemplate::New (isolate, gumjs_socket_listen, data));
   socket->Set (String::NewFromUtf8 (isolate, "_connect"),
-      FunctionTemplate::New (isolate, gum_v8_socket_on_connect, data));
+      FunctionTemplate::New (isolate, gumjs_socket_connect, data));
   socket->Set (String::NewFromUtf8 (isolate, "type"),
       FunctionTemplate::New (isolate, gum_v8_socket_on_type));
   socket->Set (String::NewFromUtf8 (isolate, "localAddress"),
@@ -187,70 +202,106 @@ _gum_v8_socket_finalize (GumV8Socket * self)
  * Example:
  * TBW
  */
-static void
-gum_v8_socket_on_listen (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_socket_listen)
 {
-  GumV8Socket * module = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
+  GumV8Core * core = args->core;
 
-  if (info.Length () < 3)
+  Local<Value> family_value;
+  gchar * host;
+  guint port;
+  Local<Value> type_value;
+  gchar * path;
+  guint backlog;
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "Vs?uVs?uF", &family_value, &host, &port,
+      &type_value, &path, &backlog, &callback))
+    return;
+
+  GSocketFamily family;
+  GUnixSocketAddressType type;
+  if (!gum_v8_socket_family_get (family_value, &family, core) ||
+      !gum_v8_unix_socket_address_type_get (type_value, &type, core))
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected port, backlog, and callback")));
+    g_free (host);
+    g_free (path);
     return;
   }
 
-  Local<Value> port_value = info[0];
-  if (!port_value->IsNumber ())
+  GSocketAddress * address = NULL;
+  if (host != NULL)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid port")));
-    return;
+    address = g_inet_socket_address_new_from_string (host, port);
+    g_clear_pointer (&host, g_free);
+    if (address == NULL)
+    {
+      g_free (path);
+      _gum_v8_throw_ascii_literal (core->isolate, "invalid host");
+      return;
+    }
   }
-  guint16 port = port_value->ToInteger ()->Value ();
-
-  Local<Value> backlog_value = info[1];
-  if (!backlog_value->IsNumber ())
+  else if (path != NULL)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid backlog")));
+#ifdef G_OS_UNIX
+    address = g_unix_socket_address_new_with_type (path, -1, type);
+    g_assert (address != NULL);
+#else
+    g_free (path);
+    _gum_v8_throw_ascii_literal (core->isolate, "UNIX sockets not available");
     return;
+#endif
   }
-  gint backlog = backlog_value->ToInteger ()->Value ();
-
-  Local<Value> callback_value = info[2];
-  if (!callback_value->IsFunction ())
+  else if (family != G_SOCKET_FAMILY_INVALID)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid callback")));
-    return;
+    address = g_inet_socket_address_new_from_string (
+        (family == G_SOCKET_FAMILY_IPV4) ? "0.0.0.0" : "::",
+        port);
+    g_assert (address != NULL);
   }
 
-  GumV8ListenOperation * op = gum_v8_module_operation_new (module,
-      callback_value, gum_v8_listen_operation_perform);
+  GumV8ListenOperation * op = gum_v8_module_operation_new (module, callback,
+      gum_v8_listen_operation_perform, gum_v8_listen_operation_dispose);
   op->port = port;
+  op->path = path;
+  op->address = address;
   op->backlog = backlog;
   gum_v8_module_operation_schedule (op);
+}
+
+static void
+gum_v8_listen_operation_dispose (GumV8ListenOperation * self)
+{
+  g_clear_object (&self->address);
+  g_free (self->path);
 }
 
 static void
 gum_v8_listen_operation_perform (GumV8ListenOperation * self)
 {
   GSocketListener * listener;
+  GSocketAddress * effective_address = NULL;
   GError * error = NULL;
 
   listener = G_SOCKET_LISTENER (g_object_new (G_TYPE_SOCKET_LISTENER,
       "listen-backlog", self->backlog,
       NULL));
 
-  if (self->port != 0)
+  if (self->address != NULL)
   {
-    g_socket_listener_add_inet_port (listener, self->port, NULL, &error);
+    g_socket_listener_add_address (listener, self->address,
+        G_SOCKET_TYPE_STREAM, G_SOCKET_PROTOCOL_DEFAULT, NULL,
+        &effective_address, &error);
   }
   else
   {
-    self->port = g_socket_listener_add_any_inet_port (listener, NULL, &error);
+    if (self->port != 0)
+    {
+      g_socket_listener_add_inet_port (listener, self->port, NULL, &error);
+    }
+    else
+    {
+      self->port =
+          g_socket_listener_add_any_inet_port (listener, NULL, &error);
+    }
   }
 
   if (error != NULL)
@@ -268,8 +319,23 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
     {
       error_value = null_value;
       listener_value = gum_v8_socket_listener_new (listener, self->module);
-      _gum_v8_object_set_uint (listener_value.As<Object> (), "port", self->port,
-          core);
+
+      Local<Object> listener_object = listener_value.As<Object> ();
+      if (self->path != NULL)
+      {
+        _gum_v8_object_set_utf8 (listener_object, "path", self->path, core);
+      }
+      else
+      {
+        if (effective_address != NULL)
+        {
+          self->port = g_inet_socket_address_get_port (
+              G_INET_SOCKET_ADDRESS (effective_address));
+          g_clear_object (&effective_address);
+        }
+
+        _gum_v8_object_set_uint (listener_object, "port", self->port, core);
+      }
     }
     else
     {
@@ -297,67 +363,63 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
  * Example:
  * TBW
  */
-static void
-gum_v8_socket_on_connect (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_socket_connect)
 {
-  GumV8Socket * module = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = module->core;
-  Isolate * isolate = info.GetIsolate ();
+  GumV8Core * core = args->core;
 
-  if (info.Length () < 4)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected family, host, port, and callback")));
+  Local<Value> family_value;
+  gchar * host;
+  guint port;
+  Local<Value> type_value;
+  gchar * path;
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "Vs?uVs?F", &family_value, &host, &port,
+      &type_value, &path, &callback))
     return;
-  }
 
   GSocketFamily family;
-  if (!gum_v8_socket_family_get (info[0], &family, core))
-    return;
-
-  Local<Value> host_value = info[1];
-  if (!host_value->IsString ())
+  GUnixSocketAddressType type;
+  if (!gum_v8_socket_family_get (family_value, &family, core) ||
+      !gum_v8_unix_socket_address_type_get (type_value, &type, core))
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid host")));
-    return;
-  }
-  String::Utf8Value host_utf8 (host_value);
-  const gchar * host = *host_utf8;
-
-  Local<Value> port_value = info[2];
-  if (!port_value->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid port")));
-    return;
-  }
-  guint16 port = port_value->ToInteger ()->Value ();
-
-  Local<Value> callback_value = info[3];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid callback")));
+    g_free (host);
+    g_free (path);
     return;
   }
 
-  GumV8ConnectOperation * op = gum_v8_module_operation_new (module,
-      callback_value, gum_v8_connect_operation_start,
-      gum_v8_connect_operation_dispose);
+  GSocketConnectable * connectable = NULL;
+  if (path != NULL)
+  {
+#ifdef G_OS_UNIX
+    family = G_SOCKET_FAMILY_UNIX;
+    connectable = G_SOCKET_CONNECTABLE (g_unix_socket_address_new_with_type (
+        path, -1, type));
+    g_assert (connectable != NULL);
+    g_clear_pointer (&path, g_free);
+#else
+    g_free (host);
+    g_free (path);
+    _gum_v8_throw_ascii_literal (core->isolate, "UNIX sockets not available");
+    return;
+#endif
+  }
+
+  GumV8ConnectOperation * op = gum_v8_module_operation_new (module, callback,
+      gum_v8_connect_operation_start, gum_v8_connect_operation_dispose);
   op->client = NULL;
   op->family = family;
-  op->host = g_strdup (host);
+  op->host = host;
   op->port = port;
+  op->connectable = connectable;
   gum_v8_module_operation_schedule (op);
 }
 
 static void
-gum_v8_connect_operation_dispose (GumV8ConnectOperation * op)
+gum_v8_connect_operation_dispose (GumV8ConnectOperation * self)
 {
-  g_free (op->host);
-  g_object_unref (op->client);
+  g_clear_object (&self->connectable);
+  g_free (self->host);
+  g_object_unref (self->client);
 }
 
 static void
@@ -367,9 +429,18 @@ gum_v8_connect_operation_start (GumV8ConnectOperation * self)
       "family", self->family,
       NULL));
 
-  g_socket_client_connect_to_host_async (self->client, self->host, self->port,
-      self->cancellable, (GAsyncReadyCallback) gum_v8_connect_operation_finish,
-      self);
+  if (self->connectable != NULL)
+  {
+    g_socket_client_connect_async (self->client, self->connectable,
+        self->cancellable,
+        (GAsyncReadyCallback) gum_v8_connect_operation_finish, self);
+  }
+  else
+  {
+    g_socket_client_connect_to_host_async (self->client, self->host, self->port,
+        self->cancellable,
+        (GAsyncReadyCallback) gum_v8_connect_operation_finish, self);
+  }
 }
 
 static void
@@ -380,7 +451,15 @@ gum_v8_connect_operation_finish (GSocketClient * client,
   GError * error = NULL;
   GSocketConnection * connection;
 
-  connection = g_socket_client_connect_to_host_finish (client, result, &error);
+  if (self->connectable != NULL)
+  {
+    connection = g_socket_client_connect_finish (client, result, &error);
+  }
+  else
+  {
+    connection = g_socket_client_connect_to_host_finish (client, result,
+        &error);
+  }
 
   {
     GumV8Core * core = self->core;
@@ -839,28 +918,94 @@ gum_v8_socket_family_get (Handle<Value> value,
 {
   Isolate * isolate = core->isolate;
 
-  if (!value->IsNumber ())
+  if (value->IsNull ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid address family")));
+    *family = G_SOCKET_FAMILY_INVALID;
+    return TRUE;
+  }
+
+  if (!value->IsString ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid socket address family");
     return FALSE;
   }
+  String::Utf8Value value_utf8 (value.As<String> ());
+  const gchar * value_str = *value_utf8;
 
-  switch (value->ToInteger ()->Value ())
+  if (strcmp (value_str, "unix") == 0)
   {
-    case 4:
-      *family = G_SOCKET_FAMILY_IPV4;
-      break;
-    case 6:
-      *family = G_SOCKET_FAMILY_IPV6;
-      break;
-    default:
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "invalid address family")));
-      return FALSE;
+    *family = G_SOCKET_FAMILY_UNIX;
+    return TRUE;
   }
 
-  return TRUE;
+  if (strcmp (value_str, "ipv4") == 0)
+  {
+    *family = G_SOCKET_FAMILY_IPV4;
+    return TRUE;
+  }
+
+  if (strcmp (value_str, "ipv6") == 0)
+  {
+    *family = G_SOCKET_FAMILY_IPV6;
+    return TRUE;
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid socket address family");
+  return FALSE;
+}
+
+static gboolean
+gum_v8_unix_socket_address_type_get (Handle<Value> value,
+                                     GUnixSocketAddressType * type,
+                                     GumV8Core * core)
+{
+  Isolate * isolate = core->isolate;
+
+  if (value->IsNull ())
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_PATH;
+    return TRUE;
+  }
+
+#ifdef G_OS_UNIX
+  if (!value->IsString ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "invalid UNIX socket address type");
+    return FALSE;
+  }
+  String::Utf8Value value_utf8 (value.As<String> ());
+  const gchar * value_str = *value_utf8;
+
+  if (strcmp (value_str, "anonymous") == 0)
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_ANONYMOUS;
+    return TRUE;
+  }
+
+  if (strcmp (value_str, "path") == 0)
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_PATH;
+    return TRUE;
+  }
+
+  if (strcmp (value_str, "abstract") == 0)
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_ABSTRACT;
+    return TRUE;
+  }
+
+  if (strcmp (value_str, "abstract-padded") == 0)
+  {
+    *type = G_UNIX_SOCKET_ADDRESS_ABSTRACT_PADDED;
+    return TRUE;
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "invalid UNIX socket address type");
+  return FALSE;
+#else
+  _gum_v8_throw_ascii_literal (isolate, "UNIX sockets not available");
+  return FALSE;
+#endif
 }
 
 static Local<Value>
