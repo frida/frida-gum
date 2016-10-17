@@ -967,7 +967,6 @@ gum_v8_unix_socket_address_type_get (Handle<Value> value,
     return TRUE;
   }
 
-#ifdef G_OS_UNIX
   if (!value->IsString ())
   {
     _gum_v8_throw_ascii_literal (isolate, "invalid UNIX socket address type");
@@ -1002,10 +1001,6 @@ gum_v8_unix_socket_address_type_get (Handle<Value> value,
 
   _gum_v8_throw_ascii_literal (isolate, "invalid UNIX socket address type");
   return FALSE;
-#else
-  _gum_v8_throw_ascii_literal (isolate, "UNIX sockets not available");
-  return FALSE;
-#endif
 }
 
 static Local<Value>

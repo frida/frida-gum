@@ -16,18 +16,18 @@
 
 using namespace v8;
 
-struct GumV8ArgParsingContext
+struct GumV8ArgsParseScope
 {
-  GumV8ArgParsingContext ()
-    : success (FALSE),
+  GumV8ArgsParseScope ()
+    : committed (false),
       strings (NULL),
       byte_arrays (NULL)
   {
   }
 
-  ~GumV8ArgParsingContext ()
+  ~GumV8ArgsParseScope ()
   {
-    if (!success)
+    if (!committed)
     {
       g_slist_foreach (strings, (GFunc) g_free, NULL);
       g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
@@ -35,6 +35,12 @@ struct GumV8ArgParsingContext
 
     g_slist_free (strings);
     g_slist_free (byte_arrays);
+  }
+
+  void
+  commit ()
+  {
+    committed = true;
   }
 
   gchar *
@@ -51,7 +57,7 @@ struct GumV8ArgParsingContext
     byte_arrays = g_slist_prepend (byte_arrays, bytes);
   }
 
-  gboolean success;
+  bool committed;
   GSList * strings;
   GSList * byte_arrays;
 };
@@ -79,7 +85,7 @@ _gum_v8_args_parse (const GumV8Args * args,
   GumV8Core * core = args->core;
   Isolate * isolate = info->GetIsolate ();
   Local<Context> context = isolate->GetCurrentContext ();
-  GumV8ArgParsingContext ctx;
+  GumV8ArgsParseScope scope;
   va_list ap;
   int arg_index;
   int arg_count = info->Length ();
@@ -284,7 +290,7 @@ _gum_v8_args_parse (const GumV8Args * args,
         else if (arg->IsString ())
         {
           String::Utf8Value arg_utf8 (arg);
-          str = ctx.strdup (*arg_utf8);
+          str = scope.strdup (*arg_utf8);
         }
         else
         {
@@ -434,7 +440,7 @@ _gum_v8_args_parse (const GumV8Args * args,
         else if ((bytes = _gum_v8_byte_array_get (arg, core)) == NULL)
           return FALSE;
 
-        ctx.add (bytes);
+        scope.add (bytes);
 
         *va_arg (ap, GBytes **) = bytes;
 
@@ -472,7 +478,7 @@ _gum_v8_args_parse (const GumV8Args * args,
 
   va_end (ap);
 
-  ctx.success = TRUE;
+  scope.commit ();
 
   return TRUE;
 }
