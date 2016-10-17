@@ -151,11 +151,11 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   auto connection = _gum_v8_create_class ("SocketConnection",
       gumjs_socket_connection_construct, scope, module, isolate);
-  _gum_v8_class_add (connection, gumjs_socket_connection_functions, module,
-      isolate);
   auto io_stream (Local<FunctionTemplate>::New (isolate,
       *core->script->priv->stream.io_stream));
   connection->Inherit (io_stream);
+  _gum_v8_class_add (connection, gumjs_socket_connection_functions, module,
+      isolate);
   self->connection =
       new GumPersistent<FunctionTemplate>::type (isolate, connection);
 }
