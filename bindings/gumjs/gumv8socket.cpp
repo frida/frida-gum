@@ -72,32 +72,25 @@ static void gum_v8_connect_operation_dispose (GumV8ConnectOperation * self);
 static void gum_v8_connect_operation_start (GumV8ConnectOperation * self);
 static void gum_v8_connect_operation_finish (GSocketClient * client,
     GAsyncResult * result, GumV8ConnectOperation * self);
-static void gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info);
-static void gum_v8_socket_on_local_address (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_socket_on_peer_address (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_socket_get_type)
+GUMJS_DECLARE_FUNCTION (gumjs_socket_get_local_address)
+GUMJS_DECLARE_FUNCTION (gumjs_socket_get_peer_address)
 
 static Local<Object> gum_v8_socket_listener_new (GSocketListener * listener,
     GumV8Socket * module);
-static void gum_v8_socket_listener_on_new (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_socket_listener_on_close (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_listener_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_socket_listener_close)
 static void gum_v8_close_listener_operation_perform (
     GumV8CloseListenerOperation * self);
-static void gum_v8_socket_listener_on_accept (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_socket_listener_accept)
 static void gum_v8_accept_operation_start (GumV8AcceptOperation * self);
 static void gum_v8_accept_operation_finish (GSocketListener * listener,
     GAsyncResult * result, GumV8AcceptOperation * self);
 
 static Local<Object> gum_v8_socket_connection_new (
     GSocketConnection * connection, GumV8Socket * module);
-static void gum_v8_socket_connection_on_new (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_socket_connection_on_set_no_delay (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_connection_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_socket_connection_set_no_delay)
 static void gum_v8_set_no_delay_operation_perform (
     GumV8SetNoDelayOperation * self);
 
@@ -109,6 +102,32 @@ static gboolean gum_v8_unix_socket_address_type_get (Handle<Value> value,
 static Local<Value> gum_v8_socket_address_to_value (
     struct sockaddr * addr, GumV8Core * core);
 
+static const GumV8Function gumjs_socket_functions[] =
+{
+  { "_listen", gumjs_socket_listen },
+  { "_connect", gumjs_socket_connect },
+  { "type", gumjs_socket_get_type },
+  { "localAddress", gumjs_socket_get_local_address },
+  { "peerAddress", gumjs_socket_get_peer_address },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_socket_listener_functions[] =
+{
+  { "_close", gumjs_socket_listener_close },
+  { "_accept", gumjs_socket_listener_accept },
+
+  { NULL, NULL }
+};
+
+static const GumV8Function gumjs_socket_connection_functions[] =
+{
+  { "_setNoDelay", gumjs_socket_connection_set_no_delay },
+
+  { NULL, NULL }
+};
+
 void
 _gum_v8_socket_init (GumV8Socket * self,
                      GumV8Core * core,
@@ -118,49 +137,24 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   self->core = core;
 
-  Local<External> data (External::New (isolate, self));
+  auto module (External::New (isolate, self));
 
-  Handle<ObjectTemplate> socket = ObjectTemplate::New (isolate);
-  socket->Set (String::NewFromUtf8 (isolate, "_listen"),
-      FunctionTemplate::New (isolate, gumjs_socket_listen, data));
-  socket->Set (String::NewFromUtf8 (isolate, "_connect"),
-      FunctionTemplate::New (isolate, gumjs_socket_connect, data));
-  socket->Set (String::NewFromUtf8 (isolate, "type"),
-      FunctionTemplate::New (isolate, gum_v8_socket_on_type));
-  socket->Set (String::NewFromUtf8 (isolate, "localAddress"),
-      FunctionTemplate::New (isolate, gum_v8_socket_on_local_address,
-      data));
-  socket->Set (String::NewFromUtf8 (isolate, "peerAddress"),
-      FunctionTemplate::New (isolate, gum_v8_socket_on_peer_address,
-      data));
+  auto socket = ObjectTemplate::New (isolate);
+  _gum_v8_module_add (module, socket, gumjs_socket_functions, isolate);
   scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
 
-  Local<FunctionTemplate> listener = FunctionTemplate::New (isolate,
-      gum_v8_socket_listener_on_new, data);
-  listener->SetClassName (String::NewFromUtf8 (isolate, "SocketListener"));
-  Local<ObjectTemplate> listener_proto = listener->PrototypeTemplate ();
-  listener_proto->Set (String::NewFromUtf8 (isolate, "_close"),
-      FunctionTemplate::New (isolate, gum_v8_socket_listener_on_close));
-  listener_proto->Set (String::NewFromUtf8 (isolate, "_accept"),
-      FunctionTemplate::New (isolate, gum_v8_socket_listener_on_accept));
-  listener->InstanceTemplate ()->SetInternalFieldCount (2);
-  scope->Set (String::NewFromUtf8 (isolate, "SocketListener"), listener);
+  auto listener = _gum_v8_create_class ("SocketListener",
+      gumjs_socket_listener_construct, scope, module, isolate);
+  _gum_v8_class_add (listener, gumjs_socket_listener_functions, isolate);
   self->listener =
       new GumPersistent<FunctionTemplate>::type (isolate, listener);
 
-  Local<FunctionTemplate> connection = FunctionTemplate::New (isolate,
-      gum_v8_socket_connection_on_new, data);
-  connection->SetClassName (String::NewFromUtf8 (isolate,
-      "SocketConnection"));
-  Local<ObjectTemplate> connection_proto = connection->PrototypeTemplate ();
-  connection_proto->Set (String::NewFromUtf8 (isolate, "_setNoDelay"),
-      FunctionTemplate::New (isolate,
-          gum_v8_socket_connection_on_set_no_delay));
-  Local<FunctionTemplate> io_stream (Local<FunctionTemplate>::New (isolate,
+  auto connection = _gum_v8_create_class ("SocketConnection",
+      gumjs_socket_connection_construct, scope, module, isolate);
+  _gum_v8_class_add (connection, gumjs_socket_connection_functions, isolate);
+  auto io_stream (Local<FunctionTemplate>::New (isolate,
       *core->script->priv->stream.io_stream));
   connection->Inherit (io_stream);
-  connection->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::NewFromUtf8 (isolate, "SocketConnection"), connection);
   self->connection =
       new GumPersistent<FunctionTemplate>::type (isolate, connection);
 }
@@ -501,23 +495,23 @@ gum_v8_connect_operation_finish (GSocketClient * client,
  * Example:
  * TBW
  */
-static void
-gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_socket_get_type)
 {
+  gint handle;
+  if (!_gum_v8_args_parse (args, "i", &handle))
+    return;
+
   const gchar * res = NULL;
-
-  int32_t socket = info[0]->ToInteger ()->Value ();
-
   int type;
   gum_socklen_t len = sizeof (int);
-  if (getsockopt (socket, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
+  if (getsockopt (handle, SOL_SOCKET, SO_TYPE, GUM_SOCKOPT_OPTVAL (&type),
       &len) == 0)
   {
     int family;
 
     struct sockaddr_in6 addr;
     len = sizeof (addr);
-    if (getsockname (socket,
+    if (getsockname (handle,
         reinterpret_cast<struct sockaddr *> (&addr), &len) == 0)
     {
       family = addr.sin6_family;
@@ -528,7 +522,7 @@ gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info)
       invalid_sockaddr.sin_family = AF_INET;
       invalid_sockaddr.sin_port = GUINT16_TO_BE (0);
       invalid_sockaddr.sin_addr.s_addr = GUINT32_TO_BE (0xffffffff);
-      bind (socket,
+      bind (handle,
           reinterpret_cast<struct sockaddr *> (&invalid_sockaddr),
           sizeof (invalid_sockaddr));
 #ifdef G_OS_WIN32
@@ -566,10 +560,11 @@ gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info)
     }
   }
 
+  ReturnValue<Value> return_value = args->info->GetReturnValue ();
   if (res != NULL)
-    info.GetReturnValue ().Set (String::NewFromUtf8 (info.GetIsolate (), res));
+    return_value.Set (String::NewFromUtf8 (args->core->isolate, res));
   else
-    info.GetReturnValue ().SetNull ();
+    return_value.SetNull ();
 }
 
 /*
@@ -582,24 +577,20 @@ gum_v8_socket_on_type (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_socket_get_local_address)
 {
-  GumV8Socket * self = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
+  gint handle;
+  if (!_gum_v8_args_parse (args, "i", &handle))
+    return;
 
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
-  if (getsockname (info[0]->ToInteger ()->Value (), addr, &len) == 0)
-  {
-    info.GetReturnValue ().Set (
-        gum_v8_socket_address_to_value (addr, self->core));
-  }
+  ReturnValue<Value> return_value = args->info->GetReturnValue ();
+  if (getsockname (handle, addr, &len) == 0)
+    return_value.Set (gum_v8_socket_address_to_value (addr, module->core));
   else
-  {
-    info.GetReturnValue ().SetNull ();
-  }
+    return_value.SetNull ();
 }
 
 /*
@@ -612,24 +603,20 @@ gum_v8_socket_on_local_address (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_socket_on_peer_address (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_socket_get_peer_address)
 {
-  GumV8Socket * self = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
+  gint handle;
+  if (!_gum_v8_args_parse (args, "i", &handle))
+    return;
 
   struct sockaddr_in6 large_addr;
   struct sockaddr * addr = reinterpret_cast<struct sockaddr *> (&large_addr);
   gum_socklen_t len = sizeof (large_addr);
-  if (getpeername (info[0]->ToInteger ()->Value (), addr, &len) == 0)
-  {
-    info.GetReturnValue ().Set (
-        gum_v8_socket_address_to_value (addr, self->core));
-  }
+  ReturnValue<Value> return_value = args->info->GetReturnValue ();
+  if (getpeername (handle, addr, &len) == 0)
+    return_value.Set (gum_v8_socket_address_to_value (addr, module->core));
   else
-  {
-    info.GetReturnValue ().SetNull ();
-  }
+    return_value.SetNull ();
 }
 
 static Local<Object>
@@ -646,58 +633,26 @@ gum_v8_socket_listener_new (GSocketListener * listener,
       argv).ToLocalChecked ();
 }
 
-static void
-gum_v8_socket_listener_on_new (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
 {
-  GumV8Socket * module = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () < 1)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected a native SocketListener handle")));
+  GSocketListener * listener;
+  if (!_gum_v8_args_parse (args, "X", &listener))
     return;
-  }
-  Local<Value> listener_value = info[0];
-  if (!listener_value->IsExternal ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid SocketListener handle")));
-    return;
-  }
-  GSocketListener * listener = G_SOCKET_LISTENER (
-      listener_value.As<External> ()->Value ());
 
-  gum_v8_object_manager_add (&module->objects, info.Holder (), listener,
+  gum_v8_object_manager_add (&module->objects, args->info->Holder (), listener,
       module);
 }
 
-static void
-gum_v8_socket_listener_on_close (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_close)
 {
-  GumV8SocketListener * self = gum_v8_object_get<GumV8SocketListener> (info);
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () < 1)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected callback")));
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "F", &callback))
     return;
-  }
-
-  Local<Value> callback_value = info[0];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid callback")));
-    return;
-  }
 
   g_cancellable_cancel (self->cancellable);
 
   GumV8CloseListenerOperation * op = gum_v8_object_operation_new (self,
-      callback_value, gum_v8_close_listener_operation_perform);
+      callback, gum_v8_close_listener_operation_perform);
   gum_v8_object_operation_schedule_when_idle (op);
 }
 
@@ -718,28 +673,13 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
   gum_v8_object_operation_finish (self);
 }
 
-static void
-gum_v8_socket_listener_on_accept (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_METHOD (SocketListener, gumjs_socket_listener_accept)
 {
-  GumV8SocketListener * self = gum_v8_object_get<GumV8SocketListener> (info);
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () < 1)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected callback")));
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "F", &callback))
     return;
-  }
 
-  Local<Value> callback_value = info[0];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid callback")));
-    return;
-  }
-
-  GumV8AcceptOperation * op = gum_v8_object_operation_new (self, callback_value,
+  GumV8AcceptOperation * op = gum_v8_object_operation_new (self, callback,
       gum_v8_accept_operation_start);
   gum_v8_object_operation_schedule (op);
 }
@@ -807,70 +747,31 @@ gum_v8_socket_connection_new (GSocketConnection * connection,
       argv).ToLocalChecked ();
 }
 
-static void
-gum_v8_socket_connection_on_new (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
 {
-  GumV8Socket * module = static_cast<GumV8Socket *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
+  Isolate * isolate = module->core->isolate;
   Local<Context> context = isolate->GetCurrentContext ();
 
-  if (info.Length () < 1)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected a native SocketConnection handle")));
+  GSocketConnection * connection;
+  if (!_gum_v8_args_parse (args, "X", &connection))
     return;
-  }
-  Local<Value> connection_value = info[0];
-  if (!connection_value->IsExternal ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid SocketConnection handle")));
-    return;
-  }
-  GSocketConnection * connection = G_SOCKET_CONNECTION (
-      connection_value.As<External> ()->Value ());
 
   Local<FunctionTemplate> base_ctor (Local<FunctionTemplate>::New (isolate,
       *module->core->script->priv->stream.io_stream));
   Handle<Value> argv[] = { External::New (isolate, connection) };
-  base_ctor->GetFunction ()->Call (context, info.Holder (), G_N_ELEMENTS (argv),
-      argv).ToLocalChecked ();
+  base_ctor->GetFunction ()->Call (context, args->info->Holder (),
+      G_N_ELEMENTS (argv), argv).ToLocalChecked ();
 }
 
-static void
-gum_v8_socket_connection_on_set_no_delay (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_METHOD (IOStream, gumjs_socket_connection_set_no_delay)
 {
-  GumV8IOStream * self = gum_v8_object_get<GumV8IOStream> (info);
-  Isolate * isolate = info.GetIsolate ();
-
-  if (info.Length () < 2)
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected boolean and callback")));
+  gboolean no_delay;
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "tF", &no_delay, &callback))
     return;
-  }
 
-  Local<Value> no_delay_value = info[0];
-  if (!no_delay_value->IsBoolean ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "expected a boolean")));
-    return;
-  }
-  gboolean no_delay = no_delay_value.As<Boolean> ()->Value ();
-
-  Local<Value> callback_value = info[1];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "invalid callback")));
-    return;
-  }
-
-  GumV8SetNoDelayOperation * op = gum_v8_object_operation_new (self,
-      callback_value, gum_v8_set_no_delay_operation_perform);
+  GumV8SetNoDelayOperation * op = gum_v8_object_operation_new (self, callback,
+      gum_v8_set_no_delay_operation_perform);
   op->no_delay = no_delay;
   gum_v8_object_operation_schedule (op);
 }
