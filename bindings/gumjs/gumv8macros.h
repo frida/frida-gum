@@ -14,6 +14,12 @@
 #define GUMJS_DECLARE_CONSTRUCTOR GUMJS_DECLARE_FUNCTION
 #define GUMJS_DECLARE_FUNCTION(N) \
   static void N (const FunctionCallbackInfo<Value> & info);
+#define GUMJS_DECLARE_GETTER(N) \
+  static void N (Local<String> property, \
+      const PropertyCallbackInfo<Value> & info);
+#define GUMJS_DECLARE_SETTER(N) \
+  static void N (Local<String> property, Local<Value> value, \
+      const PropertyCallbackInfo<void> & info);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
   struct GumV8Closure_##N \
@@ -21,8 +27,8 @@
   public: \
     GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
       : wrapper (info.Holder ()), \
-        module (static_cast<GUMJS_MODULE_TYPE *> ( \
-            info.Data ().As<External> ()->Value ())), \
+        module ((GUMJS_MODULE_TYPE *) \
+            info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         args (&_args), \
         info (info), \
@@ -59,8 +65,8 @@
   { \
   public: \
     GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
-      : module (static_cast<GUMJS_MODULE_TYPE *> ( \
-            info.Data ().As<External> ()->Value ())), \
+      : module ((GUMJS_MODULE_TYPE *) \
+            info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         args (&_args), \
         info (info), \
@@ -97,10 +103,8 @@
   public: \
     GumV8Closure_##N (const FunctionCallbackInfo<Value> & info) \
       : wrapper (info.Holder ()), \
-        self (static_cast<C *> ( \
-            wrapper->GetAlignedPointerFromInternalField (0))), \
-        module (static_cast<GUMJS_MODULE_TYPE *> ( \
-            info.Data ().As<External> ()->Value ())), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
         core (module->core), \
         args (&_args), \
         info (info), \
@@ -127,6 +131,39 @@
   static void \
   N (const FunctionCallbackInfo<Value> & info) \
   { \
+    GumV8Closure_##N closure (info); \
+    closure.invoke (); \
+  } \
+  \
+  void \
+  GumV8Closure_##N::invoke ()
+#define GUMJS_DEFINE_GETTER(N) \
+  class GumV8Closure_##N \
+  { \
+  public: \
+    GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
+      : module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        core (module->core), \
+        info (info), \
+        isolate (core->isolate) \
+    { \
+    } \
+    \
+    void invoke (); \
+    \
+  protected: \
+    GUMJS_MODULE_TYPE * module; \
+    GumV8Core * core; \
+    const PropertyCallbackInfo<Value> & info; \
+    Isolate * isolate; \
+  }; \
+  \
+  static void \
+  N (Local<String> property, \
+     const PropertyCallbackInfo<Value> & info) \
+  { \
+    (void) property; \
+    \
     GumV8Closure_##N closure (info); \
     closure.invoke (); \
   } \

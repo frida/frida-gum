@@ -17,6 +17,13 @@ struct GumV8Args
   GumV8Core * core;
 };
 
+struct GumV8Property
+{
+  const gchar * name;
+  v8::AccessorGetterCallback getter;
+  v8::AccessorSetterCallback setter;
+};
+
 struct GumV8Function
 {
   const gchar * name;
@@ -128,6 +135,9 @@ G_GNUC_INTERNAL gboolean _gum_v8_page_protection_get (
 
 G_GNUC_INTERNAL v8::Local<v8::ObjectTemplate> _gum_v8_create_module (
     const gchar * name, v8::Handle<v8::ObjectTemplate> scope,
+    v8::Isolate * isolate);
+G_GNUC_INTERNAL void _gum_v8_module_add (v8::Handle<v8::External> module,
+    v8::Handle<v8::ObjectTemplate> object, const GumV8Property * properties,
     v8::Isolate * isolate);
 G_GNUC_INTERNAL void _gum_v8_module_add (v8::Handle<v8::External> module,
     v8::Handle<v8::ObjectTemplate> object, const GumV8Function * functions,
