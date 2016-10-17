@@ -17,6 +17,12 @@ struct GumV8Args
   GumV8Core * core;
 };
 
+struct GumV8Function
+{
+  const gchar * name;
+  v8::FunctionCallback callback;
+};
+
 G_GNUC_INTERNAL gboolean _gum_v8_args_parse (const GumV8Args * args,
     const gchar * format, ...);
 
@@ -119,5 +125,15 @@ G_GNUC_INTERNAL gboolean _gum_v8_callbacks_get_opt (
 G_GNUC_INTERNAL gboolean _gum_v8_page_protection_get (
     v8::Handle<v8::Value> prot_val, GumPageProtection * prot,
     GumV8Core * core);
+
+G_GNUC_INTERNAL void _gum_v8_module_add (v8::Handle<v8::External> module,
+    v8::Handle<v8::ObjectTemplate> object, const GumV8Function * functions,
+    v8::Isolate * isolate);
+G_GNUC_INTERNAL v8::Local<v8::FunctionTemplate> _gum_v8_create_class (
+    const gchar * name, v8::FunctionCallback ctor,
+    v8::Handle<v8::ObjectTemplate> scope, v8::Handle<v8::External> module,
+    v8::Isolate * isolate);
+G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
+    const GumV8Function * functions, v8::Isolate * isolate);
 
 #endif

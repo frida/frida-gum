@@ -1457,3 +1457,48 @@ _gum_v8_page_protection_get (Handle<Value> prot_val,
 
   return TRUE;
 }
+
+void
+_gum_v8_module_add (v8::Handle<v8::External> module,
+                    v8::Handle<v8::ObjectTemplate> object,
+                    const GumV8Function * functions,
+                    v8::Isolate * isolate)
+{
+  auto func = functions;
+  while (func->name != NULL)
+  {
+    object->Set (_gum_v8_string_new_from_ascii (func->name, isolate),
+        FunctionTemplate::New (isolate, func->callback, module));
+    func++;
+  }
+}
+
+Local<FunctionTemplate>
+_gum_v8_create_class (const gchar * name,
+                      FunctionCallback ctor,
+                      Handle<ObjectTemplate> scope,
+                      Handle<External> module,
+                      Isolate * isolate)
+{
+  auto klass = FunctionTemplate::New (isolate, ctor, module);
+  klass->SetClassName (_gum_v8_string_new_from_ascii (name, isolate));
+  klass->InstanceTemplate ()->SetInternalFieldCount (1);
+  scope->Set (_gum_v8_string_new_from_ascii (name, isolate), klass);
+  return klass;
+}
+
+void
+_gum_v8_class_add (Handle<FunctionTemplate> klass,
+                   const GumV8Function * functions,
+                   Isolate * isolate)
+{
+  auto proto = klass->PrototypeTemplate ();
+
+  auto func = functions;
+  while (func->name != NULL)
+  {
+    proto->Set (_gum_v8_string_new_from_ascii (func->name, isolate),
+        FunctionTemplate::New (isolate, func->callback));
+    func++;
+  }
+}
