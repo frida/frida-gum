@@ -133,15 +133,14 @@ _gum_v8_socket_init (GumV8Socket * self,
                      GumV8Core * core,
                      Handle<ObjectTemplate> scope)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   self->core = core;
 
   auto module (External::New (isolate, self));
 
-  auto socket = ObjectTemplate::New (isolate);
+  auto socket = _gum_v8_create_module ("Socket", scope, isolate);
   _gum_v8_module_add (module, socket, gumjs_socket_functions, isolate);
-  scope->Set (String::NewFromUtf8 (isolate, "Socket"), socket);
 
   auto listener = _gum_v8_create_class ("SocketListener",
       gumjs_socket_listener_construct, scope, module, isolate);
