@@ -6,6 +6,7 @@
 
 #include "gumv8socket.h"
 
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 #include "gumv8script-priv.h"
 

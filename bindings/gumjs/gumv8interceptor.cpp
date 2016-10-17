@@ -6,6 +6,7 @@
 
 #include "gumv8interceptor.h"
 
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 
 #include <errno.h>

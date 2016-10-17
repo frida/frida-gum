@@ -6,8 +6,8 @@
 
 #include "gumv8stalker.h"
 
-#include "gumv8core.h"
 #include "gumv8eventsink.h"
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 
 using namespace v8;

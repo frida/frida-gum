@@ -6,6 +6,8 @@
 
 #include "gumv8kernel.h"
 
+#include "gumv8macros.h"
+
 #include <gum/gumkernel.h>
 #include <string.h>
 

@@ -21,8 +21,11 @@ v8_sources = \
 	gumv8bundle.cpp \
 	gumv8scope.h \
 	gumv8scope.cpp \
+	gumv8value.h \
+	gumv8value.cpp \
 	gumv8object.h \
 	gumv8object.cpp \
+	gumv8macros.h \
 	gumv8core.h \
 	gumv8core.cpp \
 	gumv8kernel.h \

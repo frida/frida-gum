@@ -109,6 +109,9 @@
     <ClCompile Include="gumv8scope.cpp">
       <Filter>v8</Filter>
     </ClCompile>
+    <ClCompile Include="gumv8value.cpp">
+      <Filter>v8</Filter>
+    </ClCompile>
     <ClCompile Include="gumv8object.cpp">
       <Filter>v8</Filter>
     </ClCompile>
@@ -228,6 +231,9 @@
     <ClInclude Include="gumv8bundle.h">
       <Filter>v8</Filter>
     </ClInclude>
+    <ClInclude Include="gumv8macros.h">
+      <Filter>v8</Filter>
+    </ClInclude>
     <ClInclude Include="gumv8core.h">
       <Filter>v8</Filter>
     </ClInclude>
@@ -259,6 +265,9 @@
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8scope.h">
+      <Filter>v8</Filter>
+    </ClInclude>
+    <ClInclude Include="gumv8value.h">
       <Filter>v8</Filter>
     </ClInclude>
     <ClInclude Include="gumv8object.h">

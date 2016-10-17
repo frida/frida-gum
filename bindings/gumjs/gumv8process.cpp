@@ -6,6 +6,7 @@
 
 #include "gumv8process.h"
 
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 
 #include <string.h>

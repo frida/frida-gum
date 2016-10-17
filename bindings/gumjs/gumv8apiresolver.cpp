@@ -6,6 +6,8 @@
 
 #include "gumv8apiresolver.h"
 
+#include "gumv8macros.h"
+
 #include <gum/gumapiresolver.h>
 #include <string.h>
 

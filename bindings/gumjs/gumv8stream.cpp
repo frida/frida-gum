@@ -6,6 +6,7 @@
 
 #include "gumv8stream.h"
 
+#include "gumv8macros.h"
 #include "gumv8scope.h"
 
 using namespace v8;
@@ -92,7 +93,7 @@ static void gum_v8_input_stream_on_read_all (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_input_stream_on_read_with_strategy (
     const FunctionCallbackInfo<Value> & info, GumV8ReadStrategy strategy);
-static void gum_v8_read_operation_dispose (GumV8ReadOperation * op);
+static void gum_v8_read_operation_dispose (GumV8ReadOperation * self);
 static void gum_v8_read_operation_start (GumV8ReadOperation * self);
 static void gum_v8_read_operation_finish (GInputStream * stream,
     GAsyncResult * result, GumV8ReadOperation * self);
@@ -111,7 +112,7 @@ static void gum_v8_output_stream_on_write_all (
     const FunctionCallbackInfo<Value> & info);
 static void gum_v8_output_stream_on_write_with_strategy (
     const FunctionCallbackInfo<Value> & info, GumV8WriteStrategy strategy);
-static void gum_v8_write_operation_dispose (GumV8WriteOperation * op);
+static void gum_v8_write_operation_dispose (GumV8WriteOperation * self);
 static void gum_v8_write_operation_start (GumV8WriteOperation * self);
 static void gum_v8_write_operation_finish (GOutputStream * stream,
     GAsyncResult * result, GumV8WriteOperation * self);
@@ -533,9 +534,9 @@ gum_v8_input_stream_on_read_with_strategy (
 }
 
 static void
-gum_v8_read_operation_dispose (GumV8ReadOperation * op)
+gum_v8_read_operation_dispose (GumV8ReadOperation * self)
 {
-  g_free (op->buffer);
+  g_free (self->buffer);
 }
 
 static void
@@ -772,9 +773,9 @@ gum_v8_output_stream_on_write_with_strategy (
 }
 
 static void
-gum_v8_write_operation_dispose (GumV8WriteOperation * op)
+gum_v8_write_operation_dispose (GumV8WriteOperation * self)
 {
-  g_bytes_unref (op->bytes);
+  g_bytes_unref (self->bytes);
 }
 
 static void

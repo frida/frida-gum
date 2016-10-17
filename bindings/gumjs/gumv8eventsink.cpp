@@ -6,8 +6,8 @@
 
 #include "gumv8eventsink.h"
 
-#include "gumv8core.h"
 #include "gumv8scope.h"
+#include "gumv8value.h"
 
 #include <string.h>
 

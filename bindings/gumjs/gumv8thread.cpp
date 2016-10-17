@@ -6,6 +6,8 @@
 
 #include "gumv8thread.h"
 
+#include "gumv8macros.h"
+
 using namespace v8;
 
 static void gum_v8_thread_on_backtrace (

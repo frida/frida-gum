@@ -6,6 +6,8 @@
 
 #include "gumv8symbol.h"
 
+#include "gumv8macros.h"
+
 #include <gum/gumsymbolutil.h>
 
 using namespace v8;

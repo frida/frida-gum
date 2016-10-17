@@ -6,6 +6,8 @@
 
 #include "gumv8instruction.h"
 
+#include "gumv8macros.h"
+
 #include <string.h>
 
 #if defined (HAVE_I386)

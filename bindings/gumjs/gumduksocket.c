@@ -62,7 +62,7 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_socket_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_socket_listen);
 static void gum_duk_listen_operation_perform (GumDukListenOperation * self);
 GUMJS_DECLARE_FUNCTION (gumjs_socket_connect)
-static void gum_duk_connect_operation_dispose (GumDukConnectOperation * op);
+static void gum_duk_connect_operation_dispose (GumDukConnectOperation * self);
 static void gum_duk_connect_operation_start (GumDukConnectOperation * self);
 static void gum_duk_connect_operation_finish (GSocketClient * client,
     GAsyncResult * result, GumDukConnectOperation * self);
