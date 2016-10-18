@@ -428,7 +428,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
   (void) args;
 
-  _gum_duk_throw (ctx, "Not yet implemented for " GUM_SCRIPT_PLATFORM);
+  _gum_duk_throw (ctx, "not yet implemented for " GUM_SCRIPT_PLATFORM);
   return 0;
 }
 
