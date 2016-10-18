@@ -381,8 +381,8 @@ test_script_fixture_expect_error_message_with (TestScriptFixture * fixture,
                                                const gchar * description)
 {
   TestScriptMessageItem * item;
-  gchar actual_description[256];
-  gchar actual_stack[512];
+  gchar actual_description[1024];
+  gchar actual_stack[1024];
   gchar actual_file_name[64];
   gint actual_line_number;
   gint actual_column_number;
