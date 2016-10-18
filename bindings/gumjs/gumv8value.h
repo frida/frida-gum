@@ -20,8 +20,8 @@ struct GumV8Args
 struct GumV8Property
 {
   const gchar * name;
-  v8::AccessorGetterCallback getter;
-  v8::AccessorSetterCallback setter;
+  v8::AccessorNameGetterCallback getter;
+  v8::AccessorNameSetterCallback setter;
 };
 
 struct GumV8Function
@@ -150,6 +150,9 @@ G_GNUC_INTERNAL void _gum_v8_module_add (v8::Handle<v8::External> module,
 G_GNUC_INTERNAL v8::Local<v8::FunctionTemplate> _gum_v8_create_class (
     const gchar * name, v8::FunctionCallback ctor,
     v8::Handle<v8::ObjectTemplate> scope, v8::Handle<v8::External> module,
+    v8::Isolate * isolate);
+G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
+    const GumV8Property * properties, v8::Handle<v8::External> module,
     v8::Isolate * isolate);
 G_GNUC_INTERNAL void _gum_v8_class_add (v8::Handle<v8::FunctionTemplate> klass,
     const GumV8Function * functions, v8::Handle<v8::External> module,

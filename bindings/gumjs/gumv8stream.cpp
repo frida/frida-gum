@@ -246,7 +246,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_io_stream_construct)
   }
 }
 
-GUMJS_DEFINE_METHOD (gumjs_io_stream_close, GumV8IOStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_io_stream_close, GumV8IOStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -338,7 +338,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_input_stream_construct)
   gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_input_stream_close, GumV8InputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_input_stream_close, GumV8InputStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -395,12 +395,12 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_input_stream_read, GumV8InputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_input_stream_read, GumV8InputStream)
 {
   gumjs_input_stream_read_with_strategy (self, args, GUM_V8_READ_SOME);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_input_stream_read_all, GumV8InputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_input_stream_read_all, GumV8InputStream)
 {
   gumjs_input_stream_read_with_strategy (self, args, GUM_V8_READ_ALL);
 }
@@ -522,7 +522,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_output_stream_construct)
   gum_v8_object_manager_add (&module->objects, wrapper, stream, module);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_output_stream_close, GumV8OutputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_close, GumV8OutputStream)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -579,12 +579,12 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_output_stream_write, GumV8OutputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write, GumV8OutputStream)
 {
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_SOME);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_output_stream_write_all, GumV8OutputStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_output_stream_write_all, GumV8OutputStream)
 {
   gumjs_output_stream_write_with_strategy (self, args, GUM_V8_WRITE_ALL);
 }

@@ -630,7 +630,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_listener_construct)
   gum_v8_object_manager_add (&module->objects, wrapper, listener, module);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_socket_listener_close, GumV8SocketListener)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_socket_listener_close, GumV8SocketListener)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -660,7 +660,7 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
   gum_v8_object_operation_finish (self);
 }
 
-GUMJS_DEFINE_METHOD (gumjs_socket_listener_accept, GumV8SocketListener)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_socket_listener_accept, GumV8SocketListener)
 {
   Local<Function> callback;
   if (!_gum_v8_args_parse (args, "F", &callback))
@@ -749,7 +749,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_socket_connection_construct)
       .ToLocalChecked ();
 }
 
-GUMJS_DEFINE_METHOD (gumjs_socket_connection_set_no_delay, GumV8IOStream)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_socket_connection_set_no_delay, GumV8IOStream)
 {
   gboolean no_delay;
   Local<Function> callback;

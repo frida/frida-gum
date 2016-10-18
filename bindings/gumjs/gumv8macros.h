@@ -15,10 +15,10 @@
 #define GUMJS_DECLARE_FUNCTION(N) \
   static void N (const FunctionCallbackInfo<Value> & info);
 #define GUMJS_DECLARE_GETTER(N) \
-  static void N (Local<String> property, \
+  static void N (Local<Name> property, \
       const PropertyCallbackInfo<Value> & info);
 #define GUMJS_DECLARE_SETTER(N) \
-  static void N (Local<String> property, Local<Value> value, \
+  static void N (Local<Name> property, Local<Value> value, \
       const PropertyCallbackInfo<void> & info);
 
 #define GUMJS_DEFINE_CONSTRUCTOR(N) \
@@ -97,7 +97,118 @@
   \
   void \
   GumV8Closure_##N::invoke ()
-#define GUMJS_DEFINE_METHOD(N, C) \
+#define GUMJS_DEFINE_GETTER(N) \
+  class GumV8Closure_##N \
+  { \
+  public: \
+    GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
+      : module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        core (module->core), \
+        info (info), \
+        isolate (core->isolate) \
+    { \
+    } \
+    \
+    void invoke (); \
+    \
+  protected: \
+    GUMJS_MODULE_TYPE * module; \
+    GumV8Core * core; \
+    const PropertyCallbackInfo<Value> & info; \
+    Isolate * isolate; \
+  }; \
+  \
+  static void \
+  N (Local<Name> property, \
+     const PropertyCallbackInfo<Value> & info) \
+  { \
+    (void) property; \
+    \
+    GumV8Closure_##N closure (info); \
+    closure.invoke (); \
+  } \
+  \
+  void \
+  GumV8Closure_##N::invoke ()
+#define GUMJS_DEFINE_CLASS_GETTER(N, C) \
+  class GumV8Closure_##N \
+  { \
+  public: \
+    GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
+      : wrapper (info.Holder ()), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        core (module->core), \
+        info (info), \
+        isolate (core->isolate) \
+    { \
+    } \
+    \
+    void invoke (); \
+    \
+  protected: \
+    Local<Object> wrapper; \
+    C * self; \
+    GUMJS_MODULE_TYPE * module; \
+    GumV8Core * core; \
+    const PropertyCallbackInfo<Value> & info; \
+    Isolate * isolate; \
+  }; \
+  \
+  static void \
+  N (Local<Name> property, \
+     const PropertyCallbackInfo<Value> & info) \
+  { \
+    (void) property; \
+    \
+    GumV8Closure_##N closure (info); \
+    closure.invoke (); \
+  } \
+  \
+  void \
+  GumV8Closure_##N::invoke ()
+#define GUMJS_DEFINE_CLASS_SETTER(N, C) \
+  class GumV8Closure_##N \
+  { \
+  public: \
+    GumV8Closure_##N (Local<Value> value, \
+        const PropertyCallbackInfo<void> & info) \
+      : wrapper (info.Holder ()), \
+        self ((C *) wrapper->GetAlignedPointerFromInternalField (0)), \
+        module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        core (module->core), \
+        value (value), \
+        info (info), \
+        isolate (core->isolate) \
+    { \
+    } \
+    \
+    void invoke (); \
+    \
+  protected: \
+    Local<Object> wrapper; \
+    C * self; \
+    GUMJS_MODULE_TYPE * module; \
+    GumV8Core * core; \
+    Local<Value> value; \
+    const PropertyCallbackInfo<void> & info; \
+    Isolate * isolate; \
+  }; \
+  \
+  static void \
+  N (Local<Name> property, \
+     Local<Value> value, \
+     const PropertyCallbackInfo<void> & info) \
+  { \
+    (void) property; \
+    \
+    GumV8Closure_##N closure (value, info); \
+    closure.invoke (); \
+  } \
+  \
+  void \
+  GumV8Closure_##N::invoke ()
+#define GUMJS_DEFINE_CLASS_METHOD(N, C) \
   struct GumV8Closure_##N \
   { \
   public: \
@@ -131,39 +242,6 @@
   static void \
   N (const FunctionCallbackInfo<Value> & info) \
   { \
-    GumV8Closure_##N closure (info); \
-    closure.invoke (); \
-  } \
-  \
-  void \
-  GumV8Closure_##N::invoke ()
-#define GUMJS_DEFINE_GETTER(N) \
-  class GumV8Closure_##N \
-  { \
-  public: \
-    GumV8Closure_##N (const PropertyCallbackInfo<Value> & info) \
-      : module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
-        core (module->core), \
-        info (info), \
-        isolate (core->isolate) \
-    { \
-    } \
-    \
-    void invoke (); \
-    \
-  protected: \
-    GUMJS_MODULE_TYPE * module; \
-    GumV8Core * core; \
-    const PropertyCallbackInfo<Value> & info; \
-    Isolate * isolate; \
-  }; \
-  \
-  static void \
-  N (Local<String> property, \
-     const PropertyCallbackInfo<Value> & info) \
-  { \
-    (void) property; \
-    \
     GumV8Closure_##N closure (info); \
     closure.invoke (); \
   } \

@@ -2304,7 +2304,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
 }
 
 static void
-gumjs_cpu_context_get_register (Local<String> property,
+gumjs_cpu_context_get_register (Local<Name> property,
                                 const PropertyCallbackInfo<Value> & info)
 {
   auto wrapper = info.Holder ();
@@ -2320,7 +2320,7 @@ gumjs_cpu_context_get_register (Local<String> property,
 }
 
 static void
-gumjs_cpu_context_set_register (Local<String> property,
+gumjs_cpu_context_set_register (Local<Name> property,
                                 Local<Value> value,
                                 const PropertyCallbackInfo<void> & info)
 {

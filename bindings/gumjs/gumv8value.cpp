@@ -1602,6 +1602,23 @@ _gum_v8_create_class (const gchar * name,
 
 void
 _gum_v8_class_add (Handle<FunctionTemplate> klass,
+                   const GumV8Property * properties,
+                   Handle<External> module,
+                   Isolate * isolate)
+{
+  auto object = klass->InstanceTemplate ();
+
+  auto prop = properties;
+  while (prop->name != NULL)
+  {
+    object->SetAccessor (_gum_v8_string_new_from_ascii (prop->name, isolate),
+        prop->getter, prop->setter, module);
+    prop++;
+  }
+}
+
+void
+_gum_v8_class_add (Handle<FunctionTemplate> klass,
                    const GumV8Function * functions,
                    Handle<External> module,
                    Isolate * isolate)
