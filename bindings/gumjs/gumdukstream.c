@@ -253,6 +253,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_io_stream_close)
   GumDukCloseIOStreamOperation * op;
   GPtrArray * dependencies;
 
+  (void) ctx;
+
   self = _gum_duk_object_get (args);
   module = self->module;
 
@@ -361,6 +363,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_input_stream_close)
   GumDukHeapPtr callback;
   GumDukCloseInputOperation * op;
 
+  (void) ctx;
+
   self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
@@ -436,6 +440,8 @@ gumjs_input_stream_read_with_strategy (duk_context * ctx,
   guint64 size;
   GumDukHeapPtr callback;
   GumDukReadOperation * op;
+
+  (void) ctx;
 
   self = _gum_duk_object_get (args);
 
@@ -590,6 +596,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_output_stream_close)
   GumDukHeapPtr callback;
   GumDukCloseOutputOperation * op;
 
+  (void) ctx;
+
   self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
@@ -667,6 +675,8 @@ gumjs_output_stream_write_with_strategy (duk_context * ctx,
   GBytes * bytes;
   GumDukHeapPtr callback;
   GumDukWriteOperation * op;
+
+  (void) ctx;
 
   self = _gum_duk_object_get (args);
 

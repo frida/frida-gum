@@ -8,7 +8,14 @@
 
 #include "gumdukmacros.h"
 
+#ifdef _MSC_VER
+# pragma warning (push)
+# pragma warning (disable: 4214)
+#endif
 #include <gio/gnetworking.h>
+#ifdef _MSC_VER
+# pragma warning (pop)
+#endif
 #ifdef G_OS_WIN32
 # define GUM_SOCKOPT_OPTVAL(v) (gchar *) (v)
   typedef int gum_socklen_t;
@@ -629,6 +636,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_close)
   GumDukHeapPtr callback;
   GumDukCloseListenerOperation * op;
 
+  (void) ctx;
+
   self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "F", &callback);
@@ -667,6 +676,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_listener_accept)
   GumDukObject * self;
   GumDukHeapPtr callback;
   GumDukAcceptOperation * op;
+
+  (void) ctx;
 
   self = _gum_duk_object_get (args);
 
@@ -758,6 +769,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_socket_connection_set_no_delay)
   gboolean no_delay;
   GumDukHeapPtr callback;
   GumDukSetNoDelayOperation * op;
+
+  (void) ctx;
 
   self = _gum_duk_object_get (args);
 

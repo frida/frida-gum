@@ -36,7 +36,7 @@ struct GumWeakRef
 
 struct GumV8ScheduledCallback
 {
-  guint id;
+  gint id;
   gboolean repeat;
   GumPersistent<Function>::type * func;
   GSource * source;
@@ -2299,7 +2299,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_cpu_context_construct)
     return;
 
   wrapper->SetInternalField (0, External::New (isolate, cpu_context));
-  wrapper->SetInternalField (1, Boolean::New (isolate, is_mutable));
+  wrapper->SetInternalField (1, Boolean::New (isolate, !!is_mutable));
   wrapper->SetAlignedPointerInInternalField (2, core);
 }
 
