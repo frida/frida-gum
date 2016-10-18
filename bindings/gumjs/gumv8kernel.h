@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <oleavr@nowsecure.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -9,9 +9,7 @@
 
 #include "gumv8core.h"
 
-typedef struct _GumV8Kernel GumV8Kernel;
-
-struct _GumV8Kernel
+struct GumV8Kernel
 {
   GumV8Core * core;
 };
