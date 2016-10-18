@@ -21,13 +21,13 @@ struct _GumDukMatchContext
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_module_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_imports)
 static gboolean gum_emit_import (const GumImportDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_exports)
 static gboolean gum_emit_export (const GumExportDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_base_address)
 GUMJS_DECLARE_FUNCTION (gumjs_module_find_export_by_name)
 
@@ -90,7 +90,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_module_enumerate_imports (name, gum_emit_import, &mc);
+  gum_module_enumerate_imports (name, (GumFoundImportFunc) gum_emit_import,
+      &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -102,9 +103,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 
 static gboolean
 gum_emit_import (const GumImportDetails * details,
-                 gpointer user_data)
+                 GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -160,7 +160,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_module_enumerate_exports (name, gum_emit_export, &mc);
+  gum_module_enumerate_exports (name, (GumFoundExportFunc) gum_emit_export,
+      &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -172,9 +173,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 
 static gboolean
 gum_emit_export (const GumExportDetails * details,
-                 gpointer user_data)
+                 GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -219,7 +219,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
       &mc.on_match, &mc.on_complete);
   mc.scope = &scope;
 
-  gum_module_enumerate_ranges (name, prot, gum_emit_range, &mc);
+  gum_module_enumerate_ranges (name, prot, (GumFoundRangeFunc) gum_emit_range,
+      &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -231,9 +232,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                gpointer user_data)
+                GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;

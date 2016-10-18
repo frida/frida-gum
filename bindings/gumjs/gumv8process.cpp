@@ -56,13 +56,13 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
-    gpointer user_data);
+    GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
-    gpointer user_data);
+    GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    gpointer user_data);
+    GumV8MatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
@@ -71,7 +71,7 @@ static GumV8ExceptionHandler * gum_v8_exception_handler_new (
 static void gum_v8_exception_handler_free (
     GumV8ExceptionHandler * handler);
 static gboolean gum_v8_exception_handler_on_exception (
-    GumExceptionDetails * details, gpointer user_data);
+    GumExceptionDetails * details, GumV8ExceptionHandler * handler);
 
 const gchar * gum_v8_script_exception_type_to_string (GumExceptionType type);
 
@@ -184,16 +184,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
     return;
   mc.core = core;
 
-  gum_process_enumerate_threads (gum_emit_thread, &mc);
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
 
   mc.on_complete->Call (Undefined (isolate), 0, nullptr);
 }
 
 static gboolean
 gum_emit_thread (const GumThreadDetails * details,
-                 gpointer user_data)
+                 GumV8MatchContext * mc)
 {
-  auto mc = (GumV8MatchContext *) user_data;
   auto core = mc->core;
   auto isolate = core->isolate;
 
@@ -242,16 +241,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
     return;
   mc.core = core;
 
-  gum_process_enumerate_modules (gum_emit_module, &mc);
+  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
 
   mc.on_complete->Call (Undefined (isolate), 0, nullptr);
 }
 
 static gboolean
 gum_emit_module (const GumModuleDetails * details,
-                 gpointer user_data)
+                 GumV8MatchContext * mc)
 {
-  auto mc = (GumV8MatchContext *) user_data;
   auto core = mc->core;
   auto isolate = core->isolate;
 
@@ -295,16 +293,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
     return;
   mc.core = core;
 
-  gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
+  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
 
   mc.on_complete->Call (Undefined (isolate), 0, nullptr);
 }
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                gpointer user_data)
+                GumV8MatchContext * mc)
 {
-  auto mc = (GumV8MatchContext *) user_data;
   auto core = mc->core;
   auto isolate = core->isolate;
 
@@ -359,7 +356,7 @@ gum_emit_range (const GumRangeDetails * details,
 #ifdef HAVE_DARWIN
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    gpointer user_data);
+    GumV8MatchContext * mc);
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
@@ -369,16 +366,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
     return;
   mc.core = core;
 
-  gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
+  gum_process_enumerate_malloc_ranges (
+      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
 
   mc.on_complete->Call (Undefined (isolate), 0, nullptr);
 }
 
 static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
-                       gpointer user_data)
+                       GumV8MatchContext * mc)
 {
-  auto mc = (GumV8MatchContext *) user_data;
   auto core = mc->core;
   auto isolate = core->isolate;
 
@@ -447,8 +444,8 @@ gum_v8_exception_handler_new (Handle<Function> callback,
       new GumPersistent<Function>::type (core->isolate, callback);
   handler->core = core;
 
-  gum_exceptor_add (core->exceptor, gum_v8_exception_handler_on_exception,
-      handler);
+  gum_exceptor_add (core->exceptor,
+      (GumExceptionHandler) gum_v8_exception_handler_on_exception, handler);
 
   return handler;
 }
@@ -457,7 +454,7 @@ static void
 gum_v8_exception_handler_free (GumV8ExceptionHandler * handler)
 {
   gum_exceptor_remove (handler->core->exceptor,
-      gum_v8_exception_handler_on_exception, handler);
+      (GumExceptionHandler) gum_v8_exception_handler_on_exception, handler);
 
   delete handler->callback;
 
@@ -466,9 +463,8 @@ gum_v8_exception_handler_free (GumV8ExceptionHandler * handler)
 
 static gboolean
 gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
-                                       gpointer user_data)
+                                       GumV8ExceptionHandler * handler)
 {
-  auto handler = (GumV8ExceptionHandler *) user_data;
   auto core = handler->core;
 
   ScriptScope scope (core->script);

@@ -118,7 +118,7 @@ static gboolean gum_memory_scan_context_emit_match (GumAddress address,
     gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
-    gpointer user_data);
+    GumDukCore * core);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
@@ -824,7 +824,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
   if (gum_exceptor_try (exceptor, &exceptor_scope))
   {
     gum_memory_scan (&self->range, self->pattern,
-        gum_memory_scan_context_emit_match, self);
+        (GumMemoryScanMatchFunc) gum_memory_scan_context_emit_match, self);
   }
 
   ctx = _gum_duk_scope_enter (&script_scope, core);
@@ -907,7 +907,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 
   if (gum_exceptor_try (core->exceptor, &scope))
   {
-    gum_memory_scan (&range, pattern, gum_append_match, core);
+    gum_memory_scan (&range, pattern, (GumMemoryScanMatchFunc) gum_append_match,
+        core);
   }
 
   gum_match_pattern_free (pattern);
@@ -923,9 +924,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean
 gum_append_match (GumAddress address,
                   gsize size,
-                  gpointer user_data)
+                  GumDukCore * core)
 {
-  GumDukCore * core = user_data;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
   duk_context * ctx = scope.ctx;
 

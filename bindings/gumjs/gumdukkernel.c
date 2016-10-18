@@ -21,7 +21,7 @@ struct _GumDukMatchContext
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_kernel_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_read_byte_array)
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_write_byte_array)
 
@@ -106,7 +106,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_kernel_enumerate_ranges (prot, gum_emit_range, &mc);
+  gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -118,9 +118,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                gpointer user_data)
+                GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;

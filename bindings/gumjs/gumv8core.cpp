@@ -19,13 +19,13 @@
 
 using namespace v8;
 
-struct GumFlushCallback
+struct GumV8FlushCallback
 {
   GumV8FlushNotify func;
   GumV8Script * script;
 };
 
-struct GumWeakRef
+struct GumV8WeakRef
 {
   guint id;
   GumPersistent<Value>::type * target;
@@ -115,8 +115,8 @@ struct GumFFIABIMapping
   ffi_abi abi;
 };
 
-static gboolean gum_v8_core_notify_flushed_when_idle (
-    GumFlushCallback * callback);
+static void gum_v8_core_clear_weak_refs (GumV8Core * self);
+static gboolean gum_notify_flushed_when_idle (GumV8FlushCallback * callback);
 
 GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
 GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
@@ -150,13 +150,12 @@ GUMJS_DECLARE_FUNCTION (gumjs_script_set_global_access_handler)
 
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_bind)
 GUMJS_DECLARE_FUNCTION (gumjs_weak_ref_unbind)
-static void gum_v8_core_clear_weak_ref_entry (guint id, GumWeakRef * ref);
-static GumWeakRef * gum_weak_ref_new (guint id, Handle<Value> target,
+static GumV8WeakRef * gum_v8_weak_ref_new (guint id, Handle<Value> target,
     Handle<Function> callback, GumV8Core * core);
-static void gum_weak_ref_clear (GumWeakRef * ref);
-static void gum_weak_ref_free (GumWeakRef * ref);
-static void gum_weak_ref_on_weak_notify (
-    const WeakCallbackInfo<GumWeakRef> & info);
+static void gum_v8_weak_ref_clear (GumV8WeakRef * ref);
+static void gum_v8_weak_ref_free (GumV8WeakRef * ref);
+static void gum_v8_weak_ref_on_weak_notify (
+    const WeakCallbackInfo<GumV8WeakRef> & info);
 
 GUMJS_DECLARE_FUNCTION (gumjs_int64_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_int64_add)
@@ -360,7 +359,7 @@ _gum_v8_core_init (GumV8Core * self,
   self->event_count = 0;
 
   self->weak_refs = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_weak_ref_free);
+      (GDestroyNotify) gum_v8_weak_ref_free);
 
   self->tick_callbacks = g_queue_new ();
 
@@ -623,9 +622,7 @@ _gum_v8_core_flush (GumV8Core * self,
   if (self->usage_count > 1)
     return FALSE;
 
-  g_hash_table_foreach (self->weak_refs,
-      (GHFunc) gum_v8_core_clear_weak_ref_entry, NULL);
-  g_hash_table_remove_all (self->weak_refs);
+  gum_v8_core_clear_weak_refs (self);
 
   done = self->usage_count == 1;
   if (done)
@@ -634,28 +631,43 @@ _gum_v8_core_flush (GumV8Core * self,
   return done;
 }
 
+static void
+gum_v8_core_clear_weak_refs (GumV8Core * self)
+{
+  GHashTableIter iter;
+  GumV8WeakRef * ref;
+
+  g_hash_table_iter_init (&iter, self->weak_refs);
+  while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &ref))
+  {
+    gum_v8_weak_ref_clear (ref);
+  }
+
+  g_hash_table_remove_all (self->weak_refs);
+}
+
 void
 _gum_v8_core_notify_flushed (GumV8Core * self,
                              GumV8FlushNotify func)
 {
-  auto callback = g_slice_new (GumFlushCallback);
+  auto callback = g_slice_new (GumV8FlushCallback);
   callback->func = func;
   callback->script = self->script;
 
   auto source = g_idle_source_new ();
-  g_source_set_callback (source,
-      (GSourceFunc) gum_v8_core_notify_flushed_when_idle, callback, NULL);
+  g_source_set_callback (source, (GSourceFunc) gum_notify_flushed_when_idle,
+      callback, NULL);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
   g_source_unref (source);
 }
 
 static gboolean
-gum_v8_core_notify_flushed_when_idle (GumFlushCallback * callback)
+gum_notify_flushed_when_idle (GumV8FlushCallback * callback)
 {
   callback->func (callback->script);
 
-  g_slice_free (GumFlushCallback, callback);
+  g_slice_free (GumV8FlushCallback, callback);
 
   return FALSE;
 }
@@ -1298,7 +1310,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_bind)
 
   auto id = ++core->last_weak_ref_id;
 
-  auto ref = gum_weak_ref_new (id, target, callback, core);
+  auto ref = gum_v8_weak_ref_new (id, target, callback, core);
   g_hash_table_insert (core->weak_refs, GUINT_TO_POINTER (id), ref);
 
   info.GetReturnValue ().Set (id);
@@ -1324,26 +1336,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_weak_ref_unbind)
   info.GetReturnValue ().Set (removed);
 }
 
-static void
-gum_v8_core_clear_weak_ref_entry (guint id,
-                                  GumWeakRef * ref)
+static GumV8WeakRef *
+gum_v8_weak_ref_new (guint id,
+                     Handle<Value> target,
+                     Handle<Function> callback,
+                     GumV8Core * core)
 {
-  (void) id;
-
-  gum_weak_ref_clear (ref);
-}
-
-static GumWeakRef *
-gum_weak_ref_new (guint id,
-                  Handle<Value> target,
-                  Handle<Function> callback,
-                  GumV8Core * core)
-{
-  auto ref = g_slice_new (GumWeakRef);
+  auto ref = g_slice_new (GumV8WeakRef);
 
   ref->id = id;
   ref->target = new GumPersistent<Value>::type (core->isolate, target);
-  ref->target->SetWeak (ref, gum_weak_ref_on_weak_notify,
+  ref->target->SetWeak (ref, gum_v8_weak_ref_on_weak_notify,
       WeakCallbackType::kParameter);
   ref->target->MarkIndependent ();
   ref->callback = new GumPersistent<Function>::type (core->isolate, callback);
@@ -1354,16 +1357,16 @@ gum_weak_ref_new (guint id,
 }
 
 static void
-gum_weak_ref_clear (GumWeakRef * ref)
+gum_v8_weak_ref_clear (GumV8WeakRef * ref)
 {
   delete ref->target;
   ref->target = nullptr;
 }
 
 static void
-gum_weak_ref_free (GumWeakRef * ref)
+gum_v8_weak_ref_free (GumV8WeakRef * ref)
 {
-  gum_weak_ref_clear (ref);
+  gum_v8_weak_ref_clear (ref);
 
   {
     ScriptScope scope (ref->core->script);
@@ -1373,11 +1376,11 @@ gum_weak_ref_free (GumWeakRef * ref)
   }
   delete ref->callback;
 
-  g_slice_free (GumWeakRef, ref);
+  g_slice_free (GumV8WeakRef, ref);
 }
 
 static void
-gum_weak_ref_on_weak_notify (const WeakCallbackInfo<GumWeakRef> & info)
+gum_v8_weak_ref_on_weak_notify (const WeakCallbackInfo<GumV8WeakRef> & info)
 {
   auto self = info.GetParameter ();
 

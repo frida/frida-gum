@@ -116,7 +116,7 @@ struct _GumFFIABIMapping
   ffi_abi abi;
 };
 
-static gboolean gum_duk_core_notify_flushed_when_idle (gpointer user_data);
+static gboolean gum_notify_flushed_when_idle (GumDukFlushCallback * callback);
 
 GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
 GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
@@ -225,7 +225,7 @@ static gboolean gum_duk_core_remove_scheduled_callback (GumDukCore * self,
 static GumDukScheduledCallback * gum_scheduled_callback_new (guint id,
     GumDukHeapPtr func, gboolean repeat, GSource * source, GumDukCore * core);
 static void gum_scheduled_callback_free (GumDukScheduledCallback * callback);
-static gboolean gum_scheduled_callback_invoke (gpointer user_data);
+static gboolean gum_scheduled_callback_invoke (GumDukScheduledCallback * self);
 
 static GumDukExceptionSink * gum_duk_exception_sink_new (GumDukHeapPtr callback,
     GumDukCore * core);
@@ -838,7 +838,7 @@ gum_duk_core_notify_flushed (GumDukCore * self,
   callback->script = self->script;
 
   source = g_idle_source_new ();
-  g_source_set_callback (source, gum_duk_core_notify_flushed_when_idle,
+  g_source_set_callback (source, (GSourceFunc) gum_notify_flushed_when_idle,
       callback, NULL);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
@@ -846,10 +846,8 @@ gum_duk_core_notify_flushed (GumDukCore * self,
 }
 
 static gboolean
-gum_duk_core_notify_flushed_when_idle (gpointer user_data)
+gum_notify_flushed_when_idle (GumDukFlushCallback * callback)
 {
-  GumDukFlushCallback * callback = user_data;
-
   callback->func (callback->script);
 
   g_slice_free (GumDukFlushCallback, callback);
@@ -2793,8 +2791,8 @@ gum_duk_core_schedule_callback (GumDukCore * self,
     source = g_timeout_source_new ((guint) delay);
 
   callback = gum_scheduled_callback_new (id, func, repeat, source, self);
-  g_source_set_callback (source, gum_scheduled_callback_invoke, callback,
-      (GDestroyNotify) gum_scheduled_callback_free);
+  g_source_set_callback (source, (GSourceFunc) gum_scheduled_callback_invoke,
+      callback, (GDestroyNotify) gum_scheduled_callback_free);
   gum_duk_core_add_scheduled_callback (self, callback);
 
   _gum_duk_scope_suspend (&scope);
@@ -2866,9 +2864,8 @@ gum_scheduled_callback_free (GumDukScheduledCallback * callback)
 }
 
 static gboolean
-gum_scheduled_callback_invoke (gpointer user_data)
+gum_scheduled_callback_invoke (GumDukScheduledCallback * self)
 {
-  GumDukScheduledCallback * self = user_data;
   GumDukCore * core = self->core;
   duk_context * ctx;
   GumDukScope scope;

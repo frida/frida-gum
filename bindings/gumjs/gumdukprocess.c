@@ -61,16 +61,16 @@ GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
 GUMJS_DECLARE_FUNCTION (gumjs_process_get_current_thread_id)
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_threads)
 static gboolean gum_emit_thread (const GumThreadDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_modules)
 static gboolean gum_emit_module (const GumModuleDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_find_range_by_address)
 static gboolean gum_push_range_if_containing_address (
-    const GumRangeDetails * details, gpointer user_data);
+    const GumRangeDetails * details, GumDukFindRangeByAddressContext * fc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_ranges)
 static gboolean gum_emit_range (const GumRangeDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 GUMJS_DECLARE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 GUMJS_DECLARE_FUNCTION (gumjs_process_set_exception_handler)
 
@@ -79,7 +79,7 @@ static GumDukExceptionHandler * gum_duk_exception_handler_new (
 static void gum_duk_exception_handler_free (
     GumDukExceptionHandler * handler);
 static gboolean gum_duk_exception_handler_on_exception (
-    GumExceptionDetails * details, gpointer user_data);
+    GumExceptionDetails * details, GumDukExceptionHandler * handler);
 
 static const duk_function_list_entry gumjs_process_functions[] =
 {
@@ -173,7 +173,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_process_enumerate_threads (gum_emit_thread, &mc);
+  gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -185,9 +185,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
 
 static gboolean
 gum_emit_thread (const GumThreadDetails * details,
-                 gpointer user_data)
+                 GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -229,7 +228,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_process_enumerate_modules (gum_emit_module, &mc);
+  gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -241,9 +240,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
 
 static gboolean
 gum_emit_module (const GumModuleDetails * details,
-                 gpointer user_data)
+                 GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -292,16 +290,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_find_range_by_address)
   duk_push_null (ctx);
 
   gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS,
-      gum_push_range_if_containing_address, &fc);
+      (GumFoundRangeFunc) gum_push_range_if_containing_address, &fc);
 
   return 1;
 }
 
 static gboolean
 gum_push_range_if_containing_address (const GumRangeDetails * details,
-                                      gpointer user_data)
+                                      GumDukFindRangeByAddressContext * fc)
 {
-  GumDukFindRangeByAddressContext * fc = user_data;
   gboolean proceed = TRUE;
 
   if (GUM_MEMORY_RANGE_INCLUDES (details->range, fc->address))
@@ -328,7 +325,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_process_enumerate_ranges (prot, gum_emit_range, &mc);
+  gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -340,9 +337,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 
 static gboolean
 gum_emit_range (const GumRangeDetails * details,
-                gpointer user_data)
+                GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -367,7 +363,7 @@ gum_emit_range (const GumRangeDetails * details,
 #ifdef HAVE_DARWIN
 
 static gboolean gum_emit_malloc_range (const GumMallocRangeDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 {
@@ -378,7 +374,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
       &mc.on_complete);
   mc.scope = &scope;
 
-  gum_process_enumerate_malloc_ranges (gum_emit_malloc_range, &mc);
+  gum_process_enumerate_malloc_ranges (
+      (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
   _gum_duk_scope_flush (&scope);
 
   duk_push_heapptr (ctx, mc.on_complete);
@@ -390,9 +387,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
 
 static gboolean
 gum_emit_malloc_range (const GumMallocRangeDetails * details,
-                       gpointer user_data)
+                       GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   duk_context * ctx = scope->ctx;
   gboolean proceed = TRUE;
@@ -471,8 +467,8 @@ gum_duk_exception_handler_new (GumDukHeapPtr callback,
   handler->callback = callback;
   handler->core = core;
 
-  gum_exceptor_add (core->exceptor, gum_duk_exception_handler_on_exception,
-      handler);
+  gum_exceptor_add (core->exceptor,
+      (GumExceptionHandler) gum_duk_exception_handler_on_exception, handler);
 
   return handler;
 }
@@ -484,7 +480,7 @@ gum_duk_exception_handler_free (GumDukExceptionHandler * handler)
   GumDukScope scope = GUM_DUK_SCOPE_INIT (core);
 
   gum_exceptor_remove (core->exceptor,
-      gum_duk_exception_handler_on_exception, handler);
+      (GumExceptionHandler) gum_duk_exception_handler_on_exception, handler);
 
   _gum_duk_unprotect (scope.ctx, handler->callback);
 
@@ -493,9 +489,8 @@ gum_duk_exception_handler_free (GumDukExceptionHandler * handler)
 
 static gboolean
 gum_duk_exception_handler_on_exception (GumExceptionDetails * details,
-                                        gpointer user_data)
+                                        GumDukExceptionHandler * handler)
 {
-  GumDukExceptionHandler * handler = user_data;
   GumDukCore * core = handler->core;
   GumDukScope scope;
   duk_context * ctx;

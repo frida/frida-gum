@@ -25,7 +25,7 @@ GUMJS_DECLARE_CONSTRUCTOR (gumjs_api_resolver_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_api_resolver_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 static gboolean gum_emit_match (const GumApiDetails * details,
-    gpointer user_data);
+    GumDukMatchContext * mc);
 
 static const duk_function_list_entry gumjs_api_resolver_functions[] =
 {
@@ -138,7 +138,8 @@ GUMJS_DEFINE_FUNCTION (gumjs_api_resolver_enumerate_matches)
   mc.scope = &scope;
 
   error = NULL;
-  gum_api_resolver_enumerate_matches (self, query, gum_emit_match, &mc, &error);
+  gum_api_resolver_enumerate_matches (self, query,
+      (GumFoundApiFunc) gum_emit_match, &mc, &error);
   if (error != NULL)
     goto invalid_query;
   _gum_duk_scope_flush (&scope);
@@ -160,9 +161,8 @@ invalid_query:
 
 static gboolean
 gum_emit_match (const GumApiDetails * details,
-                gpointer user_data)
+                GumDukMatchContext * mc)
 {
-  GumDukMatchContext * mc = user_data;
   GumDukScope * scope = mc->scope;
   GumDukCore * core = scope->core;
   duk_context * ctx = scope->ctx;

@@ -91,7 +91,8 @@ struct _GumDukReplaceEntry
   GumDukCore * core;
 };
 
-static gboolean gum_duk_interceptor_on_flush_timer_tick (gpointer user_data);
+static gboolean gum_duk_interceptor_on_flush_timer_tick (
+    GumDukInterceptor * self);
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_interceptor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_interceptor_attach)
@@ -320,8 +321,8 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
     GSource * source;
 
     source = g_timeout_source_new (10);
-    g_source_set_callback (source, gum_duk_interceptor_on_flush_timer_tick,
-        self, NULL);
+    g_source_set_callback (source,
+        (GSourceFunc) gum_duk_interceptor_on_flush_timer_tick, self, NULL);
     self->flush_timer = source;
 
     _gum_duk_core_pin (core);
@@ -336,9 +337,8 @@ _gum_duk_interceptor_flush (GumDukInterceptor * self)
 }
 
 static gboolean
-gum_duk_interceptor_on_flush_timer_tick (gpointer user_data)
+gum_duk_interceptor_on_flush_timer_tick (GumDukInterceptor * self)
 {
-  GumDukInterceptor * self = user_data;
   gboolean flushed;
 
   flushed = gum_interceptor_flush (self->interceptor);
