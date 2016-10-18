@@ -12,9 +12,7 @@
 #include <gum/gummemoryaccessmonitor.h>
 #include <v8.h>
 
-typedef struct _GumV8Memory GumV8Memory;
-
-struct _GumV8Memory
+struct GumV8Memory
 {
   GumV8Core * core;
 
