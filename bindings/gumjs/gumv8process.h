@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,10 +11,9 @@
 
 #include <v8.h>
 
-typedef struct _GumV8Process GumV8Process;
-typedef struct _GumV8ExceptionHandler GumV8ExceptionHandler;
+struct GumV8ExceptionHandler;
 
-struct _GumV8Process
+struct GumV8Process
 {
   GumV8Core * core;
 
