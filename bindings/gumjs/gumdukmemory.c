@@ -115,11 +115,12 @@ GUMJS_DECLARE_FUNCTION (gumjs_memory_scan)
 static void gum_memory_scan_context_free (GumMemoryScanContext * ctx);
 static void gum_memory_scan_context_run (GumMemoryScanContext * self);
 static gboolean gum_memory_scan_context_emit_match (GumAddress address,
-    gsize size, gpointer user_data);
+    gsize size, GumMemoryScanContext * self);
 GUMJS_DECLARE_FUNCTION (gumjs_memory_scan_sync)
 static gboolean gum_append_match (GumAddress address, gsize size,
     gpointer user_data);
 
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
 
@@ -156,7 +157,6 @@ static const duk_function_list_entry gumjs_memory_functions[] =
   { NULL, NULL, 0 }
 };
 
-GUMJS_DECLARE_CONSTRUCTOR (gumjs_memory_access_monitor_construct)
 static const duk_function_list_entry gumjs_memory_access_monitor_functions[] =
 {
   { "enable", gumjs_memory_access_monitor_enable, 0 },
@@ -393,7 +393,7 @@ gum_duk_memory_read (GumMemoryValueType type,
         }
 
         if (length != 0)
-          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
         if (length < 0)
         {
@@ -423,7 +423,7 @@ gum_duk_memory_read (GumMemoryValueType type,
         }
 
         if (length != 0)
-          memcpy (&dummy_to_trap_bad_pointer_early, data, 1);
+          memcpy (&dummy_to_trap_bad_pointer_early, data, sizeof (guint8));
 
         if (length < 0)
         {
@@ -455,9 +455,11 @@ gum_duk_memory_read (GumMemoryValueType type,
         }
 
         if (length != 0)
-          memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, 1);
+          memcpy (&dummy_to_trap_bad_pointer_early, str_utf16, sizeof (guint8));
 
         str_utf8 = g_utf16_to_utf8 (str_utf16, length, NULL, &size, NULL);
+        if (str_utf8 == NULL)
+          _gum_duk_throw (ctx, "invalid string");
         duk_push_string (ctx, str_utf8);
         g_free (str_utf8);
 
@@ -789,25 +791,25 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_scan)
 }
 
 static void
-gum_memory_scan_context_free (GumMemoryScanContext * ctx)
+gum_memory_scan_context_free (GumMemoryScanContext * self)
 {
-  GumDukCore * core = ctx->core;
+  GumDukCore * core = self->core;
   GumDukScope scope;
-  duk_context * js_ctx;
+  duk_context * ctx;
 
-  js_ctx = _gum_duk_scope_enter (&scope, core);
+  ctx = _gum_duk_scope_enter (&scope, core);
 
-  _gum_duk_unprotect (js_ctx, ctx->on_match);
-  if (ctx->on_error != NULL)
-    _gum_duk_unprotect (js_ctx, ctx->on_error);
-  _gum_duk_unprotect (js_ctx, ctx->on_complete);
+  _gum_duk_unprotect (ctx, self->on_match);
+  if (self->on_error != NULL)
+    _gum_duk_unprotect (ctx, self->on_error);
+  _gum_duk_unprotect (ctx, self->on_complete);
 
   _gum_duk_core_unpin (core);
   _gum_duk_scope_leave (&scope);
 
-  gum_match_pattern_free (ctx->pattern);
+  gum_match_pattern_free (self->pattern);
 
-  g_slice_free (GumMemoryScanContext, ctx);
+  g_slice_free (GumMemoryScanContext, self);
 }
 
 static void
@@ -854,9 +856,8 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 static gboolean
 gum_memory_scan_context_emit_match (GumAddress address,
                                     gsize size,
-                                    gpointer user_data)
+                                    GumMemoryScanContext * self)
 {
-  GumMemoryScanContext * self = user_data;
   GumDukCore * core = self->core;
   GumDukScope scope;
   duk_context * ctx;
