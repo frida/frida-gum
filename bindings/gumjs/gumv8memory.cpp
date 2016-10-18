@@ -128,13 +128,10 @@ static gboolean gum_append_match (GumAddress address, gsize size,
 
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DECLARE_FUNCTION (gumjs_memory_access_monitor_disable)
+static void gum_v8_memory_clear_monitor (GumV8Memory * self);
 #ifdef G_OS_WIN32
-static void gum_v8_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
-    const GumMemoryAccessDetails * details, gpointer user_data);
-static gboolean gum_v8_memory_ranges_get (GumV8Memory * self,
-    Handle<Value> value, GumMemoryRange ** ranges, guint * num_ranges);
-static gboolean gum_v8_memory_range_get (GumV8Memory * self,
-    Handle<Value> obj, GumMemoryRange * range);
+static void gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
+    const GumMemoryAccessDetails * details, GumV8Memory * self);
 #endif
 
 static const GumV8Function gumjs_memory_functions[] =
@@ -200,21 +197,13 @@ _gum_v8_memory_init (GumV8Memory * self,
 void
 _gum_v8_memory_realize (GumV8Memory * self)
 {
-  auto isolate = self->core->isolate;
-
-  self->base_key = new GumPersistent<String>::type (isolate,
-      _gum_v8_string_new_from_ascii ("base", isolate));
-  self->size_key = new GumPersistent<String>::type (isolate,
-      _gum_v8_string_new_from_ascii ("size", isolate));
+  (void) self;
 }
 
 void
 _gum_v8_memory_dispose (GumV8Memory * self)
 {
-  delete self->size_key;
-  delete self->base_key;
-  self->size_key = nullptr;
-  self->base_key = nullptr;
+  gum_v8_memory_clear_monitor (self);
 }
 
 void
@@ -327,13 +316,13 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_protect)
     return;
   }
 
-  gboolean success;
+  bool success;
   if (size != 0)
-    success = gum_try_mprotect (address, size, prot);
+    success = !!gum_try_mprotect (address, size, prot);
   else
-    success = TRUE;
+    success = true;
 
-  info.GetReturnValue ().Set (success ? true : false);
+  info.GetReturnValue ().Set (success);
 }
 
 #ifdef _MSC_VER
@@ -546,7 +535,8 @@ gum_v8_memory_read (GumMemoryValueType type,
           result = String::Empty (isolate);
         }
 #else
-        _gum_v8_throw_ascii_literal (isolate, "ANSI API is only applicable on Windows");
+        _gum_v8_throw_ascii_literal (isolate,
+            "ANSI API is only applicable on Windows");
 #endif
 
         break;
@@ -586,7 +576,6 @@ gum_v8_memory_write (GumMemoryValueType type,
   gchar * str_ansi = NULL;
 #endif
   auto core = args->core;
-  auto isolate = core->isolate;
   auto exceptor = core->exceptor;
   GumExceptorScope scope;
 
@@ -702,9 +691,9 @@ gum_v8_memory_write (GumMemoryValueType type,
       case GUM_MEMORY_VALUE_ANSI_STRING:
       {
 #ifdef G_OS_WIN32
-        strcpy (address, str_ansi);
+        strcpy ((char *) address, str_ansi);
 #else
-        _gum_v8_throw_ascii_literal (isolate,
+        _gum_v8_throw_ascii_literal (core->isolate,
             "ANSI API is only applicable on Windows");
 #endif
         break;
@@ -740,7 +729,7 @@ gum_ansi_string_to_utf8 (const gchar * str_ansi,
   if (length < 0)
     length = (gint) strlen (str_ansi);
 
-  auto str_utf16_size = (guint) (length + 1) * sizeof (WCHAR);
+  auto str_utf16_size = (guint) ((length + 1) * sizeof (WCHAR));
   auto str_utf16 = (WCHAR *) g_malloc (str_utf16_size);
   MultiByteToWideChar (CP_ACP, 0, str_ansi, length, str_utf16, str_utf16_size);
   str_utf16[length] = L'\0';
@@ -799,6 +788,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_alloc_utf8_string)
   gchar * str;
   if (!_gum_v8_args_parse (args, "s", &str))
     return;
+
   auto res = _gum_v8_native_resource_new (str, strlen (str), g_free, core);
   info.GetReturnValue ().Set (Local<Object>::New (isolate, *res->instance));
 }
@@ -925,7 +915,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 
     if (gum_exceptor_catch (exceptor, &scope))
     {
-      if (self->on_error != NULL)
+      if (self->on_error != nullptr)
       {
         auto message = gum_exception_details_to_string (&scope.exception);
         auto on_error = Local<Function>::New (isolate, *self->on_error);
@@ -946,7 +936,7 @@ gum_memory_scan_context_emit_match (GumAddress address,
                                     GumMemoryScanContext * self)
 {
   ScriptScope scope (self->core->script);
-  Isolate * isolate = self->core->isolate;
+  auto isolate = self->core->isolate;
 
   auto on_match = Local<Function>::New (isolate, *self->on_match);
   auto receiver = Null (isolate);
@@ -1055,59 +1045,45 @@ gum_append_match (GumAddress address,
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 {
 #ifdef G_OS_WIN32
-  GumV8Memory * self = static_cast<GumV8Memory *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = self->core;
-  Isolate * isolate = info.GetIsolate ();
-
-  GumMemoryRange * ranges;
-  guint num_ranges;
-  if (!gum_v8_memory_ranges_get (self, info[0], &ranges, &num_ranges))
-    return;
-
-  Local<Value> callbacks_value = info[1];
-  if (!callbacks_value->IsObject ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "MemoryAccessMonitor.enable: second argument must be a callback "
-        "object")));
-    return;
-  }
-  Local<Object> callbacks = Local<Object>::Cast (callbacks_value);
+  GArray * ranges;
   Local<Function> on_access;
-  if (!_gum_v8_callbacks_get (callbacks, "onAccess", &on_access, core))
+  if (!_gum_v8_args_parse (args, "RF{onAccess}", &ranges, &on_access))
+    return;
+
+  if (ranges->len == 0)
   {
-    g_free (ranges);
+    _gum_v8_throw_ascii_literal (isolate, "expected one or more ranges");
+    g_array_free (ranges, TRUE);
     return;
   }
 
-  if (self->monitor != NULL)
+  if (module->monitor != NULL)
   {
-    gum_memory_access_monitor_disable (self->monitor);
-    g_object_unref (self->monitor);
-    self->monitor = NULL;
+    gum_memory_access_monitor_disable (module->monitor);
+    g_object_unref (module->monitor);
+    module->monitor = NULL;
   }
 
-  self->monitor = gum_memory_access_monitor_new (ranges, num_ranges,
-      GUM_PAGE_RWX, TRUE, gum_v8_script_handle_memory_access, self, NULL);
+  module->monitor = gum_memory_access_monitor_new (
+      (GumMemoryRange *) ranges->data, ranges->len, GUM_PAGE_RWX, TRUE,
+      (GumMemoryAccessNotify) gum_v8_memory_on_access, module, NULL);
 
-  g_free (ranges);
+  g_array_free (ranges, TRUE);
 
-  delete self->on_access;
-  self->on_access = new GumPersistent<Function>::type (isolate, on_access);
+  delete module->on_access;
+  module->on_access = new GumPersistent<Function>::type (isolate, on_access);
 
   GError * error = NULL;
-  if (!gum_memory_access_monitor_enable (self->monitor, &error))
+  if (!gum_memory_access_monitor_enable (module->monitor, &error))
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        error->message)));
+    _gum_v8_throw_literal (isolate, error->message);
     g_error_free (error);
 
-    delete self->on_access;
-    self->on_access = nullptr;
+    delete module->on_access;
+    module->on_access = nullptr;
 
-    g_object_unref (self->monitor);
-    self->monitor = NULL;
+    g_object_unref (module->monitor);
+    module->monitor = NULL;
   }
 #else
   _gum_v8_throw_ascii_literal (isolate,
@@ -1128,9 +1104,17 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_enable)
 GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
 {
 #ifdef G_OS_WIN32
-  GumV8Memory * self = static_cast<GumV8Memory *> (
-      info.Data ().As<External> ()->Value ());
+  gum_v8_memory_clear_monitor (module);
+#else
+  _gum_v8_throw_ascii_literal (isolate,
+      "MemoryAccessMonitor is only available on Windows for now");
+#endif
+}
 
+static void
+gum_v8_memory_clear_monitor (GumV8Memory * self)
+{
+#ifdef G_OS_WIN32
   if (self->monitor != NULL)
   {
     gum_memory_access_monitor_disable (self->monitor);
@@ -1141,27 +1125,24 @@ GUMJS_DEFINE_FUNCTION (gumjs_memory_access_monitor_disable)
   delete self->on_access;
   self->on_access = nullptr;
 #else
-  _gum_v8_throw_ascii_literal (isolate,
-      "MemoryAccessMonitor is only available on Windows for now");
+  (void) self;
 #endif
 }
 
 #ifdef G_OS_WIN32
 
 static void
-gum_v8_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
-                                    const GumMemoryAccessDetails * details,
-                                    gpointer user_data)
+gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
+                         const GumMemoryAccessDetails * details,
+                         GumV8Memory * self)
 {
-  GumV8Memory * self = static_cast<GumV8Memory *> (user_data);
-  GumV8Core * core = self->core;
-  Isolate * isolate = core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
+  auto core = self->core;
+  auto isolate = core->isolate;
   ScriptScope script_scope (core->script);
 
   (void) monitor;
 
-  Local<Object> d (Object::New (isolate));
+  auto d = Object::New (isolate);
   _gum_v8_object_set_ascii (d, "operation",
       _gum_v8_memory_operation_to_string (details->operation), core);
   _gum_v8_object_set_pointer (d, "from", details->from, core);
@@ -1172,112 +1153,11 @@ gum_v8_script_handle_memory_access (GumMemoryAccessMonitor * monitor,
   _gum_v8_object_set_uint (d, "pagesCompleted", details->pages_completed, core);
   _gum_v8_object_set_uint (d, "pagesTotal", details->pages_total, core);
 
-  Local<Function> on_access (Local<Function>::New (isolate, *self->on_access));
-  Handle<Value> argv[] = {
-    d
-  };
-  MaybeLocal<Value> result =
-      on_access->Call (context, Null (isolate), 1, argv);
+  auto on_access (Local<Function>::New (isolate, *self->on_access));
+  Handle<Value> argv[] = { d };
+  auto result = on_access->Call (isolate->GetCurrentContext (), Null (isolate),
+      G_N_ELEMENTS (argv), argv);
   (void) result;
-}
-
-static gboolean
-gum_v8_memory_ranges_get (GumV8Memory * self,
-                          Handle<Value> value,
-                          GumMemoryRange ** ranges,
-                          guint * num_ranges)
-{
-  Isolate * isolate = self->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
-
-  if (value->IsArray ())
-  {
-    Local<Array> array = Handle<Array>::Cast (value);
-
-    uint32_t length = array->Length ();
-    if (length == 0 || length > 1024)
-    {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "expected one or more range objects")));
-      return FALSE;
-    }
-
-    GumMemoryRange * result = g_new (GumMemoryRange, length);
-    for (uint32_t i = 0; i != length; i++)
-    {
-      Local<Value> range = array->Get (context, i).ToLocalChecked ();
-      if (!gum_v8_memory_range_get (self, range, &result[i]))
-      {
-        g_free (result);
-        return FALSE;
-      }
-    }
-    *ranges = result;
-    *num_ranges = length;
-    return TRUE;
-  }
-  else if (value->IsObject ())
-  {
-    Local<Object> obj = Handle<Object>::Cast (value);
-
-    GumMemoryRange * result = g_new (GumMemoryRange, 1);
-    if (gum_v8_memory_range_get (self, obj, result))
-    {
-      *ranges = result;
-      *num_ranges = 1;
-      return TRUE;
-    }
-    else
-    {
-      g_free (result);
-      return FALSE;
-    }
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "expected a range object or an array of range objects")));
-    return FALSE;
-  }
-}
-
-static gboolean
-gum_v8_memory_range_get (GumV8Memory * self,
-                         Handle<Value> value,
-                         GumMemoryRange * range)
-{
-  GumV8Core * core = self->core;
-  Isolate * isolate = self->core->isolate;
-  Local<Context> context = isolate->GetCurrentContext ();
-
-  if (!value->IsObject ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "expected a range object")));
-    return FALSE;
-  }
-  Local<Object> obj = Handle<Object>::Cast (value);
-
-  Local<String> base_key (Local<String>::New (isolate, *self->base_key));
-  Local<Value> base_val = obj->Get (context, base_key).ToLocalChecked ();
-  gpointer base;
-  if (!_gum_v8_native_pointer_get (base_val, &base, core))
-    return FALSE;
-
-  Local<String> size_key (Local<String>::New (isolate, *self->size_key));
-  Local<Value> size_val = obj->Get (context, size_key).ToLocalChecked ();
-  if (!size_val->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "memory range has invalid or missing size property")));
-    return FALSE;
-  }
-  Local<Number> size = Local<Number>::Cast (size_val);
-
-  range->base_address = GUM_ADDRESS (base);
-  range->size = size->Uint32Value ();
-
-  return TRUE;
 }
 
 #endif

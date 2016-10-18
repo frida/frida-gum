@@ -15,6 +15,7 @@ struct GumV8ArgsParseScope
   GumV8ArgsParseScope ()
     : committed (FALSE),
       strings (NULL),
+      arrays (NULL),
       byte_arrays (NULL)
   {
   }
@@ -24,10 +25,12 @@ struct GumV8ArgsParseScope
     if (!committed)
     {
       g_slist_foreach (strings, (GFunc) g_free, NULL);
+      g_slist_foreach (arrays, (GFunc) g_array_unref, NULL);
       g_slist_foreach (byte_arrays, (GFunc) g_bytes_unref, NULL);
     }
 
     g_slist_free (strings);
+    g_slist_free (arrays);
     g_slist_free (byte_arrays);
   }
 
@@ -46,6 +49,12 @@ struct GumV8ArgsParseScope
   }
 
   void
+  add (GArray * array)
+  {
+    arrays = g_slist_prepend (arrays, array);
+  }
+
+  void
   add (GBytes * bytes)
   {
     byte_arrays = g_slist_prepend (byte_arrays, bytes);
@@ -53,6 +62,7 @@ struct GumV8ArgsParseScope
 
   gboolean committed;
   GSList * strings;
+  GSList * arrays;
   GSList * byte_arrays;
 };
 
@@ -304,6 +314,27 @@ _gum_v8_args_parse (const GumV8Args * args,
         }
 
         *va_arg (ap, gchar **) = str;
+
+        break;
+      }
+      case 'r':
+      {
+        auto range = va_arg (ap, GumMemoryRange *);
+
+        if (!_gum_v8_memory_range_get (arg, range, core))
+          return FALSE;
+
+        break;
+      }
+      case 'R':
+      {
+        auto ranges = _gum_v8_memory_ranges_get (arg, core);
+        if (ranges == NULL)
+          return FALSE;
+
+        scope.add (ranges);
+
+        *va_arg (ap, GArray **) = ranges;
 
         break;
       }
@@ -1387,6 +1418,92 @@ _gum_v8_callbacks_get_opt (Handle<Object> callbacks,
   }
 
   *callback_function = value.As<Function> ();
+  return TRUE;
+}
+
+GArray *
+_gum_v8_memory_ranges_get (Handle<Value> value,
+                           GumV8Core * core)
+{
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  if (value->IsArray ())
+  {
+    auto range_values = value.As<Array> ();
+
+    uint32_t length = range_values->Length ();
+    auto ranges =
+        g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), length);
+    for (uint32_t i = 0; i != length; i++)
+    {
+      Local<Value> range_value;
+      GumMemoryRange range;
+      if (!range_values->Get (context, i).ToLocal (&range_value) ||
+          !_gum_v8_memory_range_get (range_value, &range, core))
+      {
+        g_array_free (ranges, TRUE);
+        return NULL;
+      }
+      g_array_append_val (ranges, range);
+    }
+    return ranges;
+  }
+  else if (value->IsObject ())
+  {
+    GumMemoryRange range;
+    if (!_gum_v8_memory_range_get (value.As<Object> (), &range, core))
+      return NULL;
+
+    auto ranges = g_array_sized_new (FALSE, FALSE, sizeof (GumMemoryRange), 1);
+    g_array_append_val (ranges, range);
+    return ranges;
+  }
+  else
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "expected a range object or an array of range objects");
+    return NULL;
+  }
+}
+
+gboolean
+_gum_v8_memory_range_get (Handle<Value> value,
+                          GumMemoryRange * range,
+                          GumV8Core * core)
+{
+  auto isolate = core->isolate;
+  auto context = isolate->GetCurrentContext ();
+
+  if (!value->IsObject ())
+  {
+    _gum_v8_throw_ascii_literal (isolate, "expected a range object");
+    return FALSE;
+  }
+  auto object = value.As<Object> ();
+
+  Local<Value> base_value;
+  if (!object->Get (context, _gum_v8_string_new_from_ascii ("base", isolate))
+      .ToLocal (&base_value))
+    return FALSE;
+
+  gpointer base;
+  if (!_gum_v8_native_pointer_get (base_value, &base, core))
+    return FALSE;
+
+  Local<Value> size_value;
+  if (!object->Get (context, _gum_v8_string_new_from_ascii ("size", isolate))
+      .ToLocal (&size_value))
+    return FALSE;
+  if (!size_value->IsNumber ())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "range object has an invalid or missing size property");
+    return FALSE;
+  }
+
+  range->base_address = GUM_ADDRESS (base);
+  range->size = size_value.As<Number> ()->Uint32Value ();
   return TRUE;
 }
 

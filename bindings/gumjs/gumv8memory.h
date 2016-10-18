@@ -18,9 +18,6 @@ struct _GumV8Memory
 {
   GumV8Core * core;
 
-  GumPersistent<v8::String>::type * base_key;
-  GumPersistent<v8::String>::type * size_key;
-
   GumMemoryAccessMonitor * monitor;
   GumPersistent<v8::Function>::type * on_access;
 };
