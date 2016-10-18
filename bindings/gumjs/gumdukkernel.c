@@ -145,7 +145,7 @@ gum_emit_range (const GumRangeDetails * details,
 GUMJS_DEFINE_FUNCTION (gumjs_kernel_read_byte_array)
 {
   gpointer address;
-  gssize length = -1;
+  gssize length;
   gsize n_bytes_read;
 
   _gum_duk_args_parse (args, "pZ", &address, &length);
