@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,12 +12,11 @@
 #include <gum/guminterceptor.h>
 #include <v8.h>
 
-typedef struct _GumV8Interceptor GumV8Interceptor;
-typedef struct _GumV8InvocationContext GumV8InvocationContext;
-typedef struct _GumV8InvocationArgs GumV8InvocationArgs;
-typedef struct _GumV8InvocationReturnValue GumV8InvocationReturnValue;
+struct GumV8InvocationContext;
+struct GumV8InvocationArgs;
+struct GumV8InvocationReturnValue;
 
-struct _GumV8Interceptor
+struct GumV8Interceptor
 {
   GumV8Core * core;
 
@@ -26,6 +25,11 @@ struct _GumV8Interceptor
   GHashTable * invocation_listeners;
   GHashTable * replacement_by_address;
   GSource * flush_timer;
+
+  GumPersistent<v8::FunctionTemplate>::type * invocation_listener;
+  GumPersistent<v8::FunctionTemplate>::type * invocation_context;
+  GumPersistent<v8::FunctionTemplate>::type * invocation_args;
+  GumPersistent<v8::FunctionTemplate>::type * invocation_return;
 
   GumPersistent<v8::Object>::type * invocation_listener_value;
   GumPersistent<v8::Object>::type * invocation_context_value;
@@ -42,7 +46,7 @@ struct _GumV8Interceptor
   gboolean cached_invocation_return_value_in_use;
 };
 
-struct _GumV8InvocationContext
+struct GumV8InvocationContext
 {
   GumPersistent<v8::Object>::type * object;
   GumInvocationContext * handle;
