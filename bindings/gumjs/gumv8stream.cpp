@@ -153,7 +153,7 @@ _gum_v8_stream_init (GumV8Stream * self,
 
   self->core = core;
 
-  auto module (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
   auto io_stream = _gum_v8_create_class ("IOStream",
       gumjs_io_stream_construct, scope, module, isolate);
@@ -323,7 +323,7 @@ gum_v8_close_io_stream_operation_finish (GIOStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -389,7 +389,7 @@ gum_v8_close_input_operation_finish (GInputStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -507,7 +507,7 @@ gum_v8_read_operation_finish (GInputStream * stream,
 
     Handle<Value> argv[] = { error_value, data_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -573,7 +573,7 @@ gum_v8_close_output_operation_finish (GOutputStream * stream,
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -688,7 +688,7 @@ gum_v8_write_operation_finish (GOutputStream * stream,
 
     Handle<Value> argv[] = { error_value, size_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);

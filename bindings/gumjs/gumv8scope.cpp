@@ -26,12 +26,12 @@ ScriptScope::ScriptScope (GumV8Script * parent)
 
 ScriptScope::~ScriptScope ()
 {
-  GumV8ScriptPrivate * priv = parent->priv;
-  GumV8Core * core = &priv->core;
+  auto priv = parent->priv;
+  auto core = &priv->core;
 
   if (trycatch.HasCaught ())
   {
-    Handle<Value> exception = trycatch.Exception ();
+    auto exception = trycatch.Exception ();
     trycatch.Reset ();
     _gum_v8_core_on_unhandled_exception (&priv->core, exception);
     trycatch.Reset ();
@@ -39,19 +39,19 @@ ScriptScope::~ScriptScope ()
 
   if (!g_queue_is_empty (core->tick_callbacks))
   {
-    Isolate * isolate = parent->priv->isolate;
+    auto isolate = parent->priv->isolate;
 
     GumPersistent<Function>::type * tick_callback;
-    Local<Value> null_value = Null (isolate);
+    auto receiver = Undefined (isolate);
     while ((tick_callback = static_cast<GumPersistent<Function>::type *> (
         g_queue_pop_head (core->tick_callbacks))) != nullptr)
     {
-      Local<Function> callback (Local<Function>::New (isolate, *tick_callback));
+      auto callback = Local<Function>::New (isolate, *tick_callback);
 
-      callback->Call (null_value, 0, nullptr);
+      callback->Call (receiver, 0, nullptr);
       if (trycatch.HasCaught ())
       {
-        Handle<Value> exception = trycatch.Exception ();
+        auto exception = trycatch.Exception ();
         trycatch.Reset ();
         _gum_v8_core_on_unhandled_exception (&priv->core, exception);
         trycatch.Reset ();
@@ -63,12 +63,12 @@ ScriptScope::~ScriptScope ()
 
   _gum_v8_core_unpin (core);
 
-  GumV8FlushNotify pending_flush_notify = core->flush_notify;
+  auto pending_flush_notify = core->flush_notify;
   if (pending_flush_notify != NULL && core->usage_count == 0)
   {
     core->flush_notify = NULL;
 
-    Isolate * isolate = parent->priv->isolate;
+    auto isolate = parent->priv->isolate;
     isolate->Exit ();
     {
       Unlocker ul (isolate);

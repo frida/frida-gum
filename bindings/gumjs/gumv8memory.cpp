@@ -184,7 +184,7 @@ _gum_v8_memory_init (GumV8Memory * self,
 
   self->core = core;
 
-  auto module (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
   auto memory = _gum_v8_create_module ("Memory", scope, isolate);
   _gum_v8_module_add (module, memory, gumjs_memory_functions, isolate);
@@ -911,7 +911,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
     ScriptScope script_scope (core->script);
     auto isolate = core->isolate;
 
-    auto receiver = Null (isolate);
+    auto receiver = Undefined (isolate);
 
     if (gum_exceptor_catch (exceptor, &scope))
     {
@@ -939,12 +939,11 @@ gum_memory_scan_context_emit_match (GumAddress address,
   auto isolate = self->core->isolate;
 
   auto on_match = Local<Function>::New (isolate, *self->on_match);
-  auto receiver = Null (isolate);
   Handle<Value> argv[] = {
     _gum_v8_native_pointer_new (GSIZE_TO_POINTER (address), self->core),
     Integer::NewFromUnsigned (isolate, size)
   };
-  auto result = on_match->Call (receiver, G_N_ELEMENTS (argv), argv);
+  auto result = on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
   gboolean proceed = TRUE;
   if (!result.IsEmpty () && result->IsString ())
@@ -1155,8 +1154,8 @@ gum_v8_memory_on_access (GumMemoryAccessMonitor * monitor,
 
   auto on_access (Local<Function>::New (isolate, *self->on_access));
   Handle<Value> argv[] = { d };
-  auto result = on_access->Call (isolate->GetCurrentContext (), Null (isolate),
-      G_N_ELEMENTS (argv), argv);
+  auto result = on_access->Call (isolate->GetCurrentContext (),
+      Undefined (isolate), G_N_ELEMENTS (argv), argv);
   (void) result;
 }
 

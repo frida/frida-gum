@@ -137,7 +137,7 @@ _gum_v8_socket_init (GumV8Socket * self,
 
   self->core = core;
 
-  auto module (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
   auto socket = _gum_v8_create_module ("Socket", scope, isolate);
   _gum_v8_module_add (module, socket, gumjs_socket_functions, isolate);
@@ -338,7 +338,7 @@ gum_v8_listen_operation_perform (GumV8ListenOperation * self)
 
     Handle<Value> argv[] = { error_value, listener_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_module_operation_finish (self);
@@ -473,7 +473,7 @@ gum_v8_connect_operation_finish (GSocketClient * client,
 
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_module_operation_finish (self);
@@ -654,7 +654,7 @@ gum_v8_close_listener_operation_perform (GumV8CloseListenerOperation * self)
     auto isolate = core->isolate;
 
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (Null (isolate), 0, nullptr);
+    callback->Call (Undefined (isolate), 0, nullptr);
   }
 
   gum_v8_object_operation_finish (self);
@@ -714,7 +714,7 @@ gum_v8_accept_operation_finish (GSocketListener * listener,
 
     Handle<Value> argv[] = { error_value, connection_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);
@@ -792,7 +792,7 @@ gum_v8_set_no_delay_operation_perform (GumV8SetNoDelayOperation * self)
 
     Handle<Value> argv[] = { error_value, success_value };
     auto callback (Local<Function>::New (isolate, *self->callback));
-    callback->Call (null_value, G_N_ELEMENTS (argv), argv);
+    callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
   }
 
   gum_v8_object_operation_finish (self);

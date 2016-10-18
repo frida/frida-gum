@@ -969,7 +969,7 @@ gum_v8_scheduled_callback_invoke (GumV8ScheduledCallback * self)
 
   ScriptScope scope (core->script);
   auto func = Local<Function>::New (core->isolate, *self->func);
-  func->Call (Null (core->isolate), 0, nullptr);
+  func->Call (Undefined (core->isolate), 0, nullptr);
 
   if (!self->repeat)
   {
@@ -1369,7 +1369,7 @@ gum_weak_ref_free (GumWeakRef * ref)
     ScriptScope scope (ref->core->script);
     auto isolate = ref->core->isolate;
     auto callback = Local<Function>::New (isolate, *ref->callback);
-    callback->Call (Null (isolate), 0, NULL);
+    callback->Call (Undefined (isolate), 0, NULL);
   }
   delete ref->callback;
 
@@ -2270,7 +2270,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   }
   else
   {
-    receiver = Null (isolate);
+    receiver = Undefined (isolate);
   }
 
   auto result = func->Call (receiver, cif->nargs, argv);
@@ -2380,7 +2380,7 @@ gum_v8_exception_sink_handle_exception (GumV8ExceptionSink * self,
   auto isolate = self->isolate;
   auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { exception };
-  callback->Call (Null (isolate), G_N_ELEMENTS (argv), argv);
+  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 }
 
 static GumV8MessageSink *
@@ -2426,7 +2426,7 @@ gum_v8_message_sink_post (GumV8MessageSink * self,
     String::NewFromUtf8 (isolate, message),
     data_value
   };
-  callback->Call (Null (isolate), G_N_ELEMENTS (argv), argv);
+  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 }
 
 static const GumFFITypeMapping gum_ffi_type_mappings[] =

@@ -636,7 +636,7 @@ gum_v8_exception_handler_on_exception (GumExceptionDetails * details,
   _gum_v8_parse_exception_details (details, ex, context, core);
 
   Handle<Value> argv[] = { ex };
-  Local<Value> result = callback->Call (Null (isolate), 1, argv);
+  Local<Value> result = callback->Call (Undefined (isolate), 1, argv);
 
   _gum_v8_cpu_context_free_later (
       new GumPersistent<Object>::type (isolate, context),
