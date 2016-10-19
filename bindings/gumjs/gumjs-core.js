@@ -810,6 +810,58 @@
         },
     });
 
+    const stalkerEventType = {
+      call: 1,
+      ret: 2,
+      exec: 4,
+    };
+
+    Object.defineProperties(Stalker, {
+        follow: {
+            enumerable: true,
+            value: function (first, second) {
+              let threadId = first;
+              let options = second;
+
+              if (typeof first === 'object') {
+                threadId = undefined;
+                options = first;
+              }
+
+              if (threadId === undefined)
+                threadId = Process.getCurrentThreadId();
+              if (options === undefined)
+                options = {};
+
+              if (typeof threadId !== 'number' || (options === null || typeof options !== 'object'))
+                throw new Error('invalid argument');
+
+              const {
+                events = {},
+                onReceive = null,
+                onCallSummary = null,
+              } = options;
+
+              if (events === null || typeof events !== 'object')
+                throw new Error('events must be an object');
+
+              const eventMask = Object.keys(events).reduce((result, name) => {
+                const value = stalkerEventType[name];
+                if (value === undefined)
+                  throw new Error(`unknown event type: ${name}`);
+
+                const enabled = events[name];
+                if (typeof enabled !== 'boolean')
+                  throw new Error('desired events must be specified as boolean values');
+
+                return enabled ? (result | value) : result;
+              }, 0);
+
+              Stalker._follow(threadId, eventMask, onReceive, onCallSummary);
+            }
+        },
+    });
+
     Object.defineProperty(Instruction, 'parse', {
         enumerable: true,
         value: function (target) {

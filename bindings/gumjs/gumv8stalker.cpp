@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,55 +10,77 @@
 #include "gumv8macros.h"
 #include "gumv8scope.h"
 
+#define GUMJS_MODULE_NAME Stalker
+
 using namespace v8;
 
-typedef struct _GumV8CallProbe GumV8CallProbe;
-
-struct _GumV8CallProbe
+struct GumV8CallProbe
 {
-  GumV8Stalker * parent;
   GumPersistent<Function>::type * callback;
-  GumPersistent<Value>::type * receiver;
+
+  GumV8Stalker * module;
 };
 
-static void gum_v8_stalker_on_get_trust_threshold (
-    Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_set_trust_threshold (Local<String> property,
-    Local<Value> value, const PropertyCallbackInfo<void> & info);
-static void gum_v8_stalker_on_get_queue_capacity (
-    Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_set_queue_capacity (Local<String> property,
-    Local<Value> value, const PropertyCallbackInfo<void> & info);
-static void gum_v8_stalker_on_get_queue_drain_interval (
-    Local<String> property, const PropertyCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_set_queue_drain_interval (
-    Local<String> property, Local<Value> value,
-    const PropertyCallbackInfo<void> & info);
-static void gum_v8_stalker_on_garbage_collect (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_follow (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_unfollow (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_add_call_probe (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_stalker_on_remove_call_probe (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_GETTER (gumjs_stalker_get_trust_threshold)
+GUMJS_DECLARE_SETTER (gumjs_stalker_set_trust_threshold)
+
+GUMJS_DECLARE_GETTER (gumjs_stalker_get_queue_capacity)
+GUMJS_DECLARE_SETTER (gumjs_stalker_set_queue_capacity)
+
+GUMJS_DECLARE_GETTER (gumjs_stalker_get_queue_drain_interval)
+GUMJS_DECLARE_SETTER (gumjs_stalker_set_queue_drain_interval)
+
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_garbage_collect)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_follow)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_unfollow)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_add_call_probe)
+GUMJS_DECLARE_FUNCTION (gumjs_stalker_remove_call_probe)
+
 static void gum_v8_call_probe_free (GumV8CallProbe * probe);
-static void gum_v8_call_probe_fire (GumCallSite * site,
-    gpointer user_data);
-static void gum_v8_probe_args_on_get_nth (uint32_t index,
+static void gum_v8_call_probe_on_fire (GumCallSite * site,
+    GumV8CallProbe * self);
+
+static void gumjs_probe_args_get_nth (uint32_t index,
     const PropertyCallbackInfo<Value> & info);
 
-static gboolean gum_v8_flags_get (Handle<Object> flags,
-    const gchar * name, GumV8Core * core);
+static const GumV8Property gumjs_stalker_values[] =
+{
+  {
+    "trustThreshold",
+    gumjs_stalker_get_trust_threshold,
+    gumjs_stalker_set_trust_threshold
+  },
+  {
+    "queueCapacity",
+    gumjs_stalker_get_queue_capacity,
+    gumjs_stalker_set_queue_capacity
+  },
+  {
+    "queueDrainInterval",
+    gumjs_stalker_get_queue_drain_interval,
+    gumjs_stalker_set_queue_drain_interval
+  },
+
+  { NULL, NULL, NULL }
+};
+
+static const GumV8Function gumjs_stalker_functions[] =
+{
+  { "garbageCollect", gumjs_stalker_garbage_collect },
+  { "_follow", gumjs_stalker_follow },
+  { "unfollow", gumjs_stalker_unfollow },
+  { "addCallProbe", gumjs_stalker_add_call_probe },
+  { "removeCallProbe", gumjs_stalker_remove_call_probe },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_stalker_init (GumV8Stalker * self,
                       GumV8Core * core,
                       Handle<ObjectTemplate> scope)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   self->core = core;
   self->stalker = NULL;
@@ -67,47 +89,21 @@ _gum_v8_stalker_init (GumV8Stalker * self,
   self->queue_drain_interval = 250;
   self->pending_follow_level = 0;
 
-  Local<External> data (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
-  Handle<ObjectTemplate> stalker = ObjectTemplate::New (isolate);
-  stalker->SetAccessor (String::NewFromUtf8 (isolate, "trustThreshold"),
-      gum_v8_stalker_on_get_trust_threshold,
-      gum_v8_stalker_on_set_trust_threshold,
-      data);
-  stalker->SetAccessor (String::NewFromUtf8 (isolate, "queueCapacity"),
-      gum_v8_stalker_on_get_queue_capacity,
-      gum_v8_stalker_on_set_queue_capacity,
-      data);
-  stalker->SetAccessor (String::NewFromUtf8 (isolate, "queueDrainInterval"),
-      gum_v8_stalker_on_get_queue_drain_interval,
-      gum_v8_stalker_on_set_queue_drain_interval,
-      data);
-  stalker->Set (String::NewFromUtf8 (isolate, "garbageCollect"),
-      FunctionTemplate::New (isolate, gum_v8_stalker_on_garbage_collect,
-      data));
-  stalker->Set (String::NewFromUtf8 (isolate, "follow"),
-      FunctionTemplate::New (isolate, gum_v8_stalker_on_follow,
-      data));
-  stalker->Set (String::NewFromUtf8 (isolate, "unfollow"),
-      FunctionTemplate::New (isolate, gum_v8_stalker_on_unfollow,
-      data));
-  stalker->Set (String::NewFromUtf8 (isolate, "addCallProbe"),
-      FunctionTemplate::New (isolate, gum_v8_stalker_on_add_call_probe,
-      data));
-  stalker->Set (String::NewFromUtf8 (isolate, "removeCallProbe"),
-      FunctionTemplate::New (isolate, gum_v8_stalker_on_remove_call_probe,
-      data));
-  scope->Set (String::NewFromUtf8 (isolate, "Stalker"), stalker);
+  auto stalker = _gum_v8_create_module ("Stalker", scope, isolate);
+  _gum_v8_module_add (module, stalker, gumjs_stalker_values, isolate);
+  _gum_v8_module_add (module, stalker, gumjs_stalker_functions, isolate);
 }
 
 void
 _gum_v8_stalker_realize (GumV8Stalker * self)
 {
-  Isolate * isolate = self->core->isolate;
+  auto isolate = self->core->isolate;
 
-  Handle<ObjectTemplate> args_templ = ObjectTemplate::New (isolate);
+  auto args_templ = ObjectTemplate::New (isolate);
   args_templ->SetInternalFieldCount (2);
-  args_templ->SetIndexedPropertyHandler (gum_v8_probe_args_on_get_nth);
+  args_templ->SetIndexedPropertyHandler (gumjs_probe_args_get_nth);
   self->probe_args =
       new GumPersistent<ObjectTemplate>::type(isolate, args_templ);
 }
@@ -115,16 +111,16 @@ _gum_v8_stalker_realize (GumV8Stalker * self)
 void
 _gum_v8_stalker_flush (GumV8Stalker * self)
 {
-  Isolate * isolate = self->core->isolate;
+  auto isolate = self->core->isolate;
 
   if (self->sink != NULL)
   {
-    GumEventSink * sink = self->sink;
+    auto sink = self->sink;
     self->sink = NULL;
     g_object_unref (sink);
   }
 
-  GumStalker * stalker = self->stalker;
+  auto stalker = self->stalker;
   if (stalker != NULL)
   {
     self->stalker = NULL;
@@ -144,7 +140,7 @@ void
 _gum_v8_stalker_dispose (GumV8Stalker * self)
 {
   delete self->probe_args;
-  self->probe_args = NULL;
+  self->probe_args = nullptr;
 }
 
 void
@@ -177,77 +173,56 @@ _gum_v8_stalker_process_pending (GumV8Stalker * self)
 
   if (self->sink != NULL)
   {
-    GumEventSink * sink = self->sink;
+    auto sink = self->sink;
     self->sink = NULL;
     g_object_unref (sink);
   }
 }
 
-static void
-gum_v8_stalker_on_get_trust_threshold (Local<String> property,
-                                       const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_GETTER (gumjs_stalker_get_trust_threshold)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  GumStalker * stalker = _gum_v8_stalker_get (self);
-  (void) property;
+  auto stalker = _gum_v8_stalker_get (module);
+
   info.GetReturnValue ().Set (gum_stalker_get_trust_threshold (stalker));
 }
 
-static void
-gum_v8_stalker_on_set_trust_threshold (Local<String> property,
-                                       Local<Value> value,
-                                       const PropertyCallbackInfo<void> & info)
+GUMJS_DEFINE_SETTER (gumjs_stalker_set_trust_threshold)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  GumStalker * stalker = _gum_v8_stalker_get (self);
-  (void) property;
-  gum_stalker_set_trust_threshold (stalker, value->IntegerValue ());
+  auto stalker = _gum_v8_stalker_get (module);
+
+  gint threshold;
+  if (!_gum_v8_int_get (value, &threshold, core))
+    return;
+
+  gum_stalker_set_trust_threshold (stalker, threshold);
 }
 
-static void
-gum_v8_stalker_on_get_queue_capacity (Local<String> property,
-                                      const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_capacity)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  (void) property;
-  info.GetReturnValue ().Set (self->queue_capacity);
+  info.GetReturnValue ().Set (module->queue_capacity);
 }
 
-static void
-gum_v8_stalker_on_set_queue_capacity (Local<String> property,
-                                      Local<Value> value,
-                                      const PropertyCallbackInfo<void> & info)
+GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_capacity)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  (void) property;
-  self->queue_capacity = value->IntegerValue ();
+  guint capacity;
+  if (!_gum_v8_uint_get (value, &capacity, core))
+    return;
+
+  module->queue_capacity = capacity;
 }
 
-static void
-gum_v8_stalker_on_get_queue_drain_interval (
-    Local<String> property,
-    const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_GETTER (gumjs_stalker_get_queue_drain_interval)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  (void) property;
-  info.GetReturnValue ().Set (self->queue_drain_interval);
+  info.GetReturnValue ().Set (module->queue_drain_interval);
 }
 
-static void
-gum_v8_stalker_on_set_queue_drain_interval (
-    Local<String> property,
-    Local<Value> value,
-    const PropertyCallbackInfo<void> & info)
+GUMJS_DEFINE_SETTER (gumjs_stalker_set_queue_drain_interval)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  (void) property;
-  self->queue_drain_interval = value->IntegerValue ();
+  guint interval;
+  if (!_gum_v8_uint_get (value, &interval, core))
+    return;
+
+  module->queue_drain_interval = interval;
 }
 
 /*
@@ -260,13 +235,11 @@ gum_v8_stalker_on_set_queue_drain_interval (
  * Example:
  * TBW
  */
-static void
-gum_v8_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_garbage_collect)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
+  auto stalker = _gum_v8_stalker_get (module);
 
-  gum_stalker_garbage_collect (_gum_v8_stalker_get (self));
+  gum_stalker_garbage_collect (stalker);
 }
 
 /*
@@ -279,110 +252,37 @@ gum_v8_stalker_on_garbage_collect (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_follow)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  GumV8Core * core = self->core;
-  Isolate * isolate = info.GetIsolate ();
-
   GumThreadId thread_id;
-  Local<Value> options_value;
-  switch (info.Length ())
-  {
-    case 0:
-      thread_id = gum_process_get_current_thread_id ();
-      break;
-    case 1:
-      if (info[0]->IsNumber ())
-      {
-        thread_id = info[0]->IntegerValue ();
-      }
-      else
-      {
-        thread_id = gum_process_get_current_thread_id ();
-        options_value = info[0];
-      }
-      break;
-    default:
-      thread_id = info[0]->IntegerValue ();
-      options_value = info[1];
-      break;
-  }
 
   GumV8EventSinkOptions so;
-  so.core = self->core;
-  so.main_context = gum_script_scheduler_get_js_context (self->core->scheduler);
-  so.event_mask = GUM_NOTHING;
-  so.queue_capacity = self->queue_capacity;
-  so.queue_drain_interval = self->queue_drain_interval;
+  so.core = core;
+  so.main_context = gum_script_scheduler_get_js_context (core->scheduler);
+  so.queue_capacity = module->queue_capacity;
+  so.queue_drain_interval = module->queue_drain_interval;
 
-  if (!options_value.IsEmpty ())
+  if (!_gum_v8_args_parse (args, "ZuF?F?", &thread_id, &so.event_mask,
+      &so.on_receive, &so.on_call_summary))
+    return;
+
+  if (module->sink != NULL)
   {
-    if (!options_value->IsObject ())
-    {
-      isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-          isolate, "Stalker.follow: options argument must be an object")));
-      return;
-    }
-
-    Local<Object> options = Local<Object>::Cast (options_value);
-
-    Local<String> events_key (String::NewFromUtf8 (isolate, "events"));
-    if (options->Has (events_key))
-    {
-      Local<Value> events_value (options->Get (events_key));
-      if (!events_value->IsObject ())
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "Stalker.follow: events key must be an object")));
-        return;
-      }
-
-      Local<Object> events (Local<Object>::Cast (events_value));
-
-      if (gum_v8_flags_get (events, "call", core))
-        so.event_mask |= GUM_CALL;
-
-      if (gum_v8_flags_get (events, "ret", core))
-        so.event_mask |= GUM_RET;
-
-      if (gum_v8_flags_get (events, "exec", core))
-        so.event_mask |= GUM_EXEC;
-    }
-
-    if (so.event_mask != GUM_NOTHING &&
-        !_gum_v8_callbacks_get_opt (options, "onReceive", &so.on_receive,
-        core))
-    {
-      return;
-    }
-
-    if ((so.event_mask & GUM_CALL) != 0)
-    {
-      _gum_v8_callbacks_get_opt (options, "onCallSummary",
-          &so.on_call_summary, core);
-    }
-  }
-
-  if (self->sink != NULL)
-  {
-    GumEventSink * sink = self->sink;
-    self->sink = NULL;
+    auto sink = module->sink;
+    module->sink = NULL;
     g_object_unref (sink);
   }
 
-  self->sink = gum_v8_event_sink_new (&so);
+  module->sink = gum_v8_event_sink_new (&so);
   if (thread_id == gum_process_get_current_thread_id ())
   {
-    self->pending_follow_level = 1;
+    module->pending_follow_level = 1;
   }
   else
   {
-    GumEventSink * sink = self->sink;
-    self->sink = NULL;
-    gum_stalker_follow (_gum_v8_stalker_get (self), thread_id, sink);
+    auto sink = module->sink;
+    module->sink = NULL;
+    gum_stalker_follow (_gum_v8_stalker_get (module), thread_id, sink);
     g_object_unref (sink);
   }
 }
@@ -397,29 +297,18 @@ gum_v8_stalker_on_follow (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_unfollow)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  GumStalker * stalker;
-  GumThreadId thread_id;
+  GumThreadId current_thread_id = gum_process_get_current_thread_id ();
 
-  stalker = _gum_v8_stalker_get (self);
+  GumThreadId thread_id = current_thread_id;
+  if (!_gum_v8_args_parse (args, "|Z", &thread_id))
+    return;
 
-  if (info.Length () > 0)
-    thread_id = info[0]->IntegerValue ();
+  if (thread_id == current_thread_id)
+    module->pending_follow_level--;
   else
-    thread_id = gum_process_get_current_thread_id ();
-
-  if (thread_id == gum_process_get_current_thread_id ())
-  {
-    self->pending_follow_level--;
-  }
-  else
-  {
-    gum_stalker_unfollow (stalker, thread_id);
-  }
+    gum_stalker_unfollow (_gum_v8_stalker_get (module), thread_id);
 }
 
 /*
@@ -432,35 +321,20 @@ gum_v8_stalker_on_unfollow (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_add_call_probe)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-  GumV8CallProbe * probe;
-  GumProbeId id;
-
   gpointer target_address;
-  if (!_gum_v8_native_pointer_get (info[0], &target_address, self->core))
+  Local<Function> callback;
+  if (!_gum_v8_args_parse (args, "pF", &target_address, &callback))
     return;
 
-  Local<Value> callback_value = info[1];
-  if (!callback_value->IsFunction ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "Stalker.addCallProbe: second argument must be a function")));
-    return;
-  }
-  Local<Function> callback = Local<Function>::Cast (callback_value);
-
-  probe = g_slice_new (GumV8CallProbe);
-  probe->parent = self;
+  auto probe = g_slice_new (GumV8CallProbe);
   probe->callback = new GumPersistent<Function>::type (isolate, callback);
-  probe->receiver = new GumPersistent<Value>::type (isolate, info.This ());
-  id = gum_stalker_add_call_probe (_gum_v8_stalker_get (self),
-      target_address, gum_v8_call_probe_fire,
-      probe, reinterpret_cast<GDestroyNotify> (gum_v8_call_probe_free));
+  probe->module = module;
+
+  auto id = gum_stalker_add_call_probe (_gum_v8_stalker_get (module),
+      target_address, (GumCallProbeCallback) gum_v8_call_probe_on_fire, probe,
+      (GDestroyNotify) gum_v8_call_probe_free);
 
   info.GetReturnValue ().Set (id);
 }
@@ -475,69 +349,55 @@ gum_v8_stalker_on_add_call_probe (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_stalker_on_remove_call_probe (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_stalker_remove_call_probe)
 {
-  GumV8Stalker * self = static_cast<GumV8Stalker *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> id = info[0];
-  if (!id->IsUint32 ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "Stalker.removeCallProbe: argument must be a probe id")));
+  GumProbeId id;
+  if (!_gum_v8_args_parse (args, "u", &id))
     return;
-  }
 
-  gum_stalker_remove_call_probe (_gum_v8_stalker_get (self),
-      id->ToUint32 ()->Value ());
-
-  return;
+  gum_stalker_remove_call_probe (_gum_v8_stalker_get (module), id);
 }
 
 static void
 gum_v8_call_probe_free (GumV8CallProbe * probe)
 {
-  ScriptScope scope (probe->parent->core->script);
+  ScriptScope scope (probe->module->core->script);
+
   delete probe->callback;
-  delete probe->receiver;
+
   g_slice_free (GumV8CallProbe, probe);
 }
 
 static void
-gum_v8_call_probe_fire (GumCallSite * site,
-                        gpointer user_data)
+gum_v8_call_probe_on_fire (GumCallSite * site,
+                           GumV8CallProbe * self)
 {
-  GumV8CallProbe * self = static_cast<GumV8CallProbe *> (user_data);
+  auto core = self->module->core;
+  ScriptScope scope (core->script);
+  Isolate * isolate = core->isolate;
 
-  ScriptScope scope (self->parent->core->script);
-  Isolate * isolate = self->parent->core->isolate;
-
-  Local<ObjectTemplate> probe_args (
-      Local<ObjectTemplate>::New (isolate, *self->parent->probe_args));
-  Local<Object> args = probe_args->NewInstance ();
+  auto probe_args =
+      Local<ObjectTemplate>::New (isolate, *self->module->probe_args);
+  auto args = probe_args->NewInstance ();
   args->SetAlignedPointerInInternalField (0, self);
   args->SetAlignedPointerInInternalField (1, site);
 
-  Local<Function> callback (Local<Function>::New (isolate, *self->callback));
-  Local<Value> receiver (Local<Value>::New (isolate, *self->receiver));
+  auto callback (Local<Function>::New (isolate, *self->callback));
   Handle<Value> argv[] = { args };
-  callback->Call (receiver, 1, argv);
+  callback->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 }
 
 static void
-gum_v8_probe_args_on_get_nth (uint32_t index,
-                              const PropertyCallbackInfo<Value> & info)
+gumjs_probe_args_get_nth (uint32_t index,
+                          const PropertyCallbackInfo<Value> & info)
 {
-  Handle<Object> instance = info.This ();
-  GumV8CallProbe * self = static_cast<GumV8CallProbe *> (
-      instance->GetAlignedPointerFromInternalField (0));
-  GumCallSite * site = static_cast<GumCallSite *> (
-      instance->GetAlignedPointerFromInternalField (1));
+  auto wrapper = info.This ();
+  auto self =
+      (GumV8CallProbe *) wrapper->GetAlignedPointerFromInternalField (0);
+  auto site =
+      (GumCallSite *) wrapper->GetAlignedPointerFromInternalField (1);
   gsize value;
-  gsize * stack_argument = static_cast<gsize *> (site->stack_data);
+  gsize * stack_argument = (gsize *) site->stack_data;
 
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
   switch (index)
@@ -567,14 +427,6 @@ gum_v8_probe_args_on_get_nth (uint32_t index,
 #endif
 
   info.GetReturnValue ().Set (
-      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (value), self->parent->core));
-}
-
-static gboolean
-gum_v8_flags_get (Handle<Object> flags,
-                  const gchar * name,
-                  GumV8Core * core)
-{
-  Local<String> key (String::NewFromUtf8 (core->isolate, name));
-  return flags->Has (key) && flags->Get (key)->ToBoolean ()->BooleanValue ();
+      _gum_v8_native_pointer_new (GSIZE_TO_POINTER (value),
+          self->module->core));
 }

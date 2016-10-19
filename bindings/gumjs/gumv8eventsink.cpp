@@ -22,8 +22,8 @@ static void gum_v8_event_sink_start (GumEventSink * sink);
 static void gum_v8_event_sink_process (GumEventSink * sink,
     const GumEvent * ev);
 static void gum_v8_event_sink_stop (GumEventSink * sink);
-static gboolean gum_v8_event_sink_stop_idle (gpointer user_data);
-static gboolean gum_v8_event_sink_drain (gpointer user_data);
+static gboolean gum_v8_event_sink_stop_when_idle (GumV8EventSink * self);
+static gboolean gum_v8_event_sink_drain (GumV8EventSink * self);
 
 G_DEFINE_TYPE_EXTENDED (GumV8EventSink,
                         gum_v8_event_sink,
@@ -35,7 +35,7 @@ G_DEFINE_TYPE_EXTENDED (GumV8EventSink,
 static void
 gum_v8_event_sink_class_init (GumV8EventSinkClass * klass)
 {
-  GObjectClass * object_class = G_OBJECT_CLASS (klass);
+  auto object_class = G_OBJECT_CLASS (klass);
 
   object_class->dispose = gum_v8_event_sink_dispose;
   object_class->finalize = gum_v8_event_sink_finalize;
@@ -45,7 +45,7 @@ static void
 gum_v8_event_sink_iface_init (gpointer g_iface,
                               gpointer iface_data)
 {
-  GumEventSinkIface * iface = (GumEventSinkIface *) g_iface;
+  auto iface = (GumEventSinkIface *) g_iface;
 
   (void) iface_data;
 
@@ -64,19 +64,20 @@ gum_v8_event_sink_init (GumV8EventSink * self)
 static void
 gum_v8_event_sink_release_core (GumV8EventSink * self)
 {
-  GumV8Script * script;
-
   if (self->core == NULL)
     return;
-  script = self->core->script;
+
+  auto script = self->core->script;
   self->core = NULL;
 
   {
     ScriptScope scope (script);
+
     delete self->on_receive;
-    self->on_receive = NULL;
+    self->on_receive = nullptr;
+
     delete self->on_call_summary;
-    self->on_call_summary = NULL;
+    self->on_call_summary = nullptr;
   }
 
   g_object_unref (script);
@@ -93,7 +94,7 @@ gum_v8_event_sink_dispose (GObject * obj)
 static void
 gum_v8_event_sink_finalize (GObject * obj)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK (obj);
+  auto self = GUM_V8_EVENT_SINK (obj);
 
   g_assert (self->source == NULL);
 
@@ -106,10 +107,9 @@ gum_v8_event_sink_finalize (GObject * obj)
 GumEventSink *
 gum_v8_event_sink_new (const GumV8EventSinkOptions * options)
 {
-  Isolate * isolate = options->core->isolate;
-  GumV8EventSink * sink;
+  auto isolate = options->core->isolate;
 
-  sink = GUM_V8_EVENT_SINK (
+  auto sink = GUM_V8_EVENT_SINK (
       g_object_new (GUM_TYPE_SCRIPT_EVENT_SINK, NULL));
   sink->queue = g_array_sized_new (FALSE, FALSE, sizeof (GumEvent),
       options->queue_capacity);
@@ -143,9 +143,10 @@ gum_v8_event_sink_query_mask (GumEventSink * sink)
 static void
 gum_v8_event_sink_start (GumEventSink * sink)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK (sink);
+  auto self = GUM_V8_EVENT_SINK (sink);
+
   self->source = g_timeout_source_new (self->queue_drain_interval);
-  g_source_set_callback (self->source, gum_v8_event_sink_drain,
+  g_source_set_callback (self->source, (GSourceFunc) gum_v8_event_sink_drain,
       g_object_ref (self), g_object_unref);
   g_source_attach (self->source, self->main_context);
 }
@@ -154,7 +155,8 @@ static void
 gum_v8_event_sink_process (GumEventSink * sink,
                            const GumEvent * ev)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK_CAST (sink);
+  auto self = GUM_V8_EVENT_SINK_CAST (sink);
+
   gum_spinlock_acquire (&self->lock);
   if (self->queue->len != self->queue_capacity)
     g_array_append_val (self->queue, *ev);
@@ -164,44 +166,43 @@ gum_v8_event_sink_process (GumEventSink * sink,
 static void
 gum_v8_event_sink_stop (GumEventSink * sink)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK (sink);
+  auto self = GUM_V8_EVENT_SINK (sink);
 
   if (g_main_context_is_owner (self->main_context))
   {
-    gum_v8_event_sink_stop_idle (sink);
+    gum_v8_event_sink_stop_when_idle (self);
   }
   else
   {
-    GSource * source;
-
-    source = g_idle_source_new ();
-    g_source_set_callback (source, gum_v8_event_sink_stop_idle, sink, NULL);
+    auto source = g_idle_source_new ();
+    g_source_set_callback (source,
+        (GSourceFunc) gum_v8_event_sink_stop_when_idle, sink, NULL);
     g_source_attach (source, self->main_context);
     g_source_unref (source);
   }
 }
 
 static gboolean
-gum_v8_event_sink_stop_idle (gpointer user_data)
+gum_v8_event_sink_stop_when_idle (GumV8EventSink * self)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK (user_data);
-
   gum_v8_event_sink_drain (self);
 
   g_object_ref (self);
+
   g_source_destroy (self->source);
   g_source_unref (self->source);
   self->source = NULL;
+
   gum_v8_event_sink_release_core (self);
+
   g_object_unref (self);
 
   return FALSE;
 }
 
 static gboolean
-gum_v8_event_sink_drain (gpointer user_data)
+gum_v8_event_sink_drain (GumV8EventSink * self)
 {
-  GumV8EventSink * self = GUM_V8_EVENT_SINK (user_data);
   gpointer buffer = NULL;
   guint len, size;
 
@@ -223,20 +224,20 @@ gum_v8_event_sink_drain (gpointer user_data)
   {
     GHashTable * frequencies = NULL;
 
-    if (self->on_call_summary != NULL)
+    if (self->on_call_summary != nullptr)
     {
       frequencies = g_hash_table_new (NULL, NULL);
 
-      GumCallEvent * ev = static_cast<GumCallEvent *> (buffer);
+      auto ev = (GumCallEvent *) buffer;
       for (guint i = 0; i != len; i++)
       {
         if (ev->type == GUM_CALL)
         {
-          gsize count = GPOINTER_TO_SIZE (
+          auto count = GPOINTER_TO_SIZE (
               g_hash_table_lookup (frequencies, ev->target));
           count++;
-          g_hash_table_insert (frequencies,
-              ev->target, GSIZE_TO_POINTER (count));
+          g_hash_table_insert (frequencies, ev->target,
+              GSIZE_TO_POINTER (count));
         }
 
         ev++;
@@ -244,11 +245,11 @@ gum_v8_event_sink_drain (gpointer user_data)
     }
 
     ScriptScope scope (self->core->script);
-    Isolate * isolate = self->core->isolate;
+    auto isolate = self->core->isolate;
 
     if (frequencies != NULL)
     {
-      Handle<Object> summary = Object::New (isolate);
+      auto summary = Object::New (isolate);
 
       GHashTableIter iter;
       g_hash_table_iter_init (&iter, frequencies);
@@ -256,30 +257,27 @@ gum_v8_event_sink_drain (gpointer user_data)
       Local<Context> jc = isolate->GetCurrentContext ();
       while (g_hash_table_iter_next (&iter, &target, &count))
       {
-        Maybe<bool> success = summary->ForceSet (jc,
-            _gum_v8_native_pointer_new (target, self->core),
+        summary->ForceSet (jc, _gum_v8_native_pointer_new (target, self->core),
             Number::New (isolate, GPOINTER_TO_SIZE (count)),
-            static_cast<PropertyAttribute> (ReadOnly | DontDelete));
-        g_assert (success.IsJust ());
+            (PropertyAttribute) (ReadOnly | DontDelete)).FromJust ();
       }
 
       g_hash_table_unref (frequencies);
 
-      Handle<Value> argv[] = { summary };
-      Local<Function> on_call_summary (Local<Function>::New (isolate,
-          *self->on_call_summary));
-      on_call_summary->Call (on_call_summary, 1, argv);
+      Local<Value> argv[] = { summary };
+      auto on_call_summary =
+          Local<Function>::New (isolate, *self->on_call_summary);
+      on_call_summary->Call (on_call_summary, G_N_ELEMENTS (argv), argv);
     }
 
-    if (self->on_receive != NULL)
+    if (self->on_receive != nullptr)
     {
-      Local<Function> on_receive (Local<Function>::New (isolate,
-          *self->on_receive));
+      auto on_receive = Local<Function>::New (isolate, *self->on_receive);
       Local<Value> argv[] = {
-          ArrayBuffer::New (isolate, buffer, size,
-              ArrayBufferCreationMode::kInternalized)
+        ArrayBuffer::New (isolate, buffer, size,
+            ArrayBufferCreationMode::kInternalized)
       };
-      on_receive->Call (on_receive, 1, argv);
+      on_receive->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
     }
     else
     {
