@@ -20,10 +20,14 @@ struct _GumFile
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_file_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_file_finalize)
-static void gum_file_close (GumFile * self);
 GUMJS_DECLARE_FUNCTION (gumjs_file_write)
 GUMJS_DECLARE_FUNCTION (gumjs_file_flush)
 GUMJS_DECLARE_FUNCTION (gumjs_file_close)
+
+static GumFile * gum_file_new (FILE * handle);
+static void gum_file_free (GumFile * self);
+static void gum_file_close (GumFile * self);
+static void gum_file_check_open (GumFile * self, duk_context * ctx);
 
 static const duk_function_list_entry gumjs_file_functions[] =
 {
@@ -99,8 +103,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   if (handle == NULL)
     _gum_duk_throw (ctx, "failed to open file (%s)", strerror (errno));
 
-  file = g_slice_new (GumFile);
-  file->handle = handle;
+  file = gum_file_new (handle);
 
   duk_push_this (ctx);
   _gum_duk_put_data (ctx, -1, file);
@@ -122,63 +125,28 @@ GUMJS_DEFINE_FINALIZER (gumjs_file_finalize)
   if (self == NULL)
     return 0;
 
-  gum_file_close (self);
-
-  g_slice_free (GumFile, self);
+  gum_file_free (self);
 
   return 0;
-}
-
-static void
-gum_file_check_open (GumFile * self,
-                     duk_context * ctx)
-{
-  if (self->handle == NULL)
-    _gum_duk_throw (ctx, "file is closed");
-}
-
-static void
-gum_file_close (GumFile * self)
-{
-  g_clear_pointer (&self->handle, fclose);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_file_write)
 {
   GumFile * self;
-  GumDukHeapPtr value;
   GBytes * bytes;
+  gconstpointer data;
+  gsize size;
 
   self = gumjs_file_from_args (args);
 
-  _gum_duk_args_parse (args, "V", &value);
-
   gum_file_check_open (self, ctx);
 
-  duk_push_heapptr (ctx, value);
-  if (duk_is_string (ctx, -1))
-  {
-    const gchar * str;
+  _gum_duk_args_parse (args, "B~", &bytes);
 
-    str = duk_require_string (ctx, -1);
+  data = g_bytes_get_data (bytes, &size);
+  fwrite (data, size, 1, self->handle);
 
-    fwrite (str, strlen (str), 1, self->handle);
-  }
-  else if (_gum_duk_parse_bytes (ctx, -1, &bytes))
-  {
-    gconstpointer data;
-    gsize size;
-
-    data = g_bytes_get_data (bytes, &size);
-    fwrite (data, size, 1, self->handle);
-
-    g_bytes_unref (bytes);
-  }
-  else
-  {
-    _gum_duk_throw (ctx, "argument must be a string or byte array");
-  }
-  duk_pop (ctx);
+  g_bytes_unref (bytes);
 
   return 0;
 }
@@ -203,4 +171,37 @@ GUMJS_DEFINE_FUNCTION (gumjs_file_close)
   gum_file_close (self);
 
   return 0;
+}
+
+static GumFile *
+gum_file_new (FILE * handle)
+{
+  GumFile * file;
+
+  file = g_slice_new (GumFile);
+  file->handle = handle;
+
+  return file;
+}
+
+static void
+gum_file_free (GumFile * self)
+{
+  gum_file_close (self);
+
+  g_slice_free (GumFile, self);
+}
+
+static void
+gum_file_close (GumFile * self)
+{
+  g_clear_pointer (&self->handle, fclose);
+}
+
+static void
+gum_file_check_open (GumFile * self,
+                     duk_context * ctx)
+{
+  if (self->handle == NULL)
+    _gum_duk_throw (ctx, "file is closed");
 }
