@@ -208,7 +208,7 @@ static GumDukCpuContext * gumjs_cpu_context_from_args (const GumDukArgs * args);
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_cpu_context_construct)
 GUMJS_DECLARE_FINALIZER (gumjs_cpu_context_finalize)
 static void gumjs_cpu_context_set_register (GumDukCpuContext * self,
-    duk_context * ctx, const GumDukArgs * args, gsize * reg);
+    duk_context * ctx, const GumDukArgs * args, gpointer * reg);
 
 static GumDukWeakRef * gum_duk_weak_ref_new (guint id, GumDukHeapPtr target,
     GumDukHeapPtr callback, GumDukCore * core);
@@ -344,7 +344,7 @@ static const duk_function_list_entry gumjs_native_pointer_functions[] =
     GumDukCpuContext * self = gumjs_cpu_context_from_args (args); \
     \
     gumjs_cpu_context_set_register (self, ctx, args, \
-        (gsize *) &self->handle->R); \
+        (gpointer *) &self->handle->R); \
     return 0; \
   }
 #define GUMJS_DEFINE_CPU_CONTEXT_ACCESSOR(R) \
@@ -2708,16 +2708,12 @@ static void
 gumjs_cpu_context_set_register (GumDukCpuContext * self,
                                 duk_context * ctx,
                                 const GumDukArgs * args,
-                                gsize * reg)
+                                gpointer * reg)
 {
-  gpointer value;
-
-  _gum_duk_args_parse (args, "p~", &value);
-
   if (self->access == GUM_CPU_CONTEXT_READONLY)
     _gum_duk_throw (ctx, "invalid operation");
 
-  *reg = GPOINTER_TO_SIZE (value);
+  _gum_duk_args_parse (args, "p~", reg);
 }
 
 static GumDukWeakRef *

@@ -2331,7 +2331,7 @@ gumjs_cpu_context_set_register (Local<Name> property,
   auto wrapper = info.Holder ();
   auto core = (GumV8Core *) wrapper->GetAlignedPointerFromInternalField (2);
   auto cpu_context =
-      (gssize *) wrapper->GetInternalField (0).As<External> ()->Value ();
+      (gpointer *) wrapper->GetInternalField (0).As<External> ()->Value ();
   bool is_mutable = wrapper->GetInternalField (1).As<Boolean> ()->Value ();
   gsize offset = info.Data ().As<Integer> ()->Value ();
 
@@ -2343,19 +2343,11 @@ gumjs_cpu_context_set_register (Local<Name> property,
     return;
   }
 
-  auto native_pointer (Local<FunctionTemplate>::New (isolate,
-      *core->native_pointer));
-  gssize raw_value;
-  if (native_pointer->HasInstance (value))
-  {
-    raw_value = (gssize) GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
-  }
-  else
-  {
-    raw_value = value->ToInteger ()->Value ();
-  }
+  gpointer ptr;
+  if (!_gum_v8_native_pointer_parse (value, &ptr, core))
+    return;
 
-  cpu_context[offset] = raw_value;
+  cpu_context[offset] = ptr;
 }
 
 static GumV8ExceptionSink *
