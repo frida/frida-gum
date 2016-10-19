@@ -69,7 +69,7 @@ void
 _gum_duk_thread_finalize (GumDukThread * self)
 {
   g_clear_pointer (&self->accurate_backtracer, g_object_unref);
-  g_clear_pointer (&self->fuzzy_backtracer , g_object_unref);
+  g_clear_pointer (&self->fuzzy_backtracer, g_object_unref);
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
