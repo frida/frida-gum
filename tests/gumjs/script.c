@@ -1147,53 +1147,62 @@ on_read_ready (GObject * source_object,
 
 SCRIPT_TESTCASE (execution_can_be_traced)
 {
+  GumThreadId test_thread_id;
+
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
 
+  test_thread_id = gum_process_get_current_thread_id ();
+
   COMPILE_AND_LOAD_SCRIPT (
-    "var me = Process.getCurrentThreadId();"
-    "Stalker.follow(me, {"
+    "Stalker.follow(%" G_GSIZE_FORMAT ", {"
     "  events: {"
     "    call: true,"
     "    ret: false,"
     "    exec: false"
     "  },"
     "  onReceive: function (events) {"
-    "    send(events.length > 0);"
+    "    send('onReceive: ' + (events.byteLength > 0));"
     "  },"
     "  onCallSummary: function (summary) {"
-    "    send(Object.keys(summary).length > 0);"
+    "    send('onCallSummary: ' + (Object.keys(summary).length > 0));"
     "  }"
     "});"
     "recv('stop', function (message) {"
-    "  Stalker.unfollow();"
-    "});");
+    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+    "});", test_thread_id, test_thread_id);
   g_usleep (1);
   EXPECT_NO_MESSAGES ();
   POST_MESSAGE ("{\"type\":\"stop\"}");
-  EXPECT_SEND_MESSAGE_WITH ("true");
-  EXPECT_SEND_MESSAGE_WITH ("true");
+  EXPECT_SEND_MESSAGE_WITH ("\"onCallSummary: true\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"onReceive: true\"");
 }
 
 SCRIPT_TESTCASE (call_can_be_probed)
 {
+  GumThreadId test_thread_id;
+
   if (!g_test_slow ())
   {
     g_print ("<skipping, run in slow mode> ");
     return;
   }
 
-  COMPILE_AND_LOAD_SCRIPT ("Stalker.follow();"
+  test_thread_id = gum_process_get_current_thread_id ();
+
+  COMPILE_AND_LOAD_SCRIPT (
     "Stalker.addCallProbe(" GUM_PTR_CONST ", function (args) {"
     "  send(args[0].toInt32());"
     "});"
+    "Stalker.follow(%" G_GSIZE_FORMAT ");"
     "recv('stop', function (message) {"
-    "  Stalker.unfollow();"
-    "});", target_function_int);
-  EXPECT_NO_MESSAGES ();
+    "  Stalker.unfollow(%" G_GSIZE_FORMAT ");"
+    "});"
+    "send('ready');", target_function_int, test_thread_id, test_thread_id);
+  EXPECT_SEND_MESSAGE_WITH ("\"ready\"");
   target_function_int (1337);
   EXPECT_SEND_MESSAGE_WITH ("1337");
   POST_MESSAGE ("{\"type\":\"stop\"}");
