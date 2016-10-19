@@ -36,26 +36,29 @@ G_GNUC_INTERNAL gboolean _gum_v8_args_parse (const GumV8Args * args,
 G_GNUC_INTERNAL v8::Local<v8::String> _gum_v8_string_new_from_ascii (
     const gchar * str, v8::Isolate * isolate);
 
-G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_get (v8::Handle<v8::Value> value,
+G_GNUC_INTERNAL GBytes * _gum_v8_bytes_get (v8::Handle<v8::Value> value,
     GumV8Core * core);
-G_GNUC_INTERNAL GBytes * _gum_v8_byte_array_try_get (
-    v8::Handle<v8::Value> value, GumV8Core * core);
+G_GNUC_INTERNAL GBytes * _gum_v8_bytes_parse (v8::Handle<v8::Value> value,
+    GumV8Core * core);
+G_GNUC_INTERNAL GBytes * _gum_v8_bytes_try_get (v8::Handle<v8::Value> value,
+    GumV8Core * core);
 
 G_GNUC_INTERNAL GumV8NativeResource * _gum_v8_native_resource_new (
     gpointer data, gsize size, GDestroyNotify notify, GumV8Core * core);
 G_GNUC_INTERNAL void _gum_v8_native_resource_free (GumV8NativeResource * block);
 
-G_GNUC_INTERNAL gboolean _gum_v8_size_get (v8::Handle<v8::Value> value,
-    gsize * target, GumV8Core * core);
-G_GNUC_INTERNAL gboolean _gum_v8_ssize_get (v8::Handle<v8::Value> value,
-    gssize * target, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_int_get (v8::Handle<v8::Value> value, gint * i,
+    GumV8Core * core);
+
+G_GNUC_INTERNAL gboolean _gum_v8_uint_get (v8::Handle<v8::Value> value,
+    guint * u, GumV8Core * core);
 
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_int64_new (gint64 value,
     GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_int64_get (v8::Handle<v8::Value> value,
-    gint64 * target, GumV8Core * core);
+    gint64 * i, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_int64_parse (v8::Handle<v8::Value> value,
-    gint64 * target, GumV8Core * core);
+    gint64 * i, GumV8Core * core);
 G_GNUC_INTERNAL gint64 _gum_v8_int64_get_value (v8::Handle<v8::Object> object);
 G_GNUC_INTERNAL void _gum_v8_int64_set_value (v8::Handle<v8::Object> object,
     gint64 value, v8::Isolate * isolate);
@@ -63,20 +66,25 @@ G_GNUC_INTERNAL void _gum_v8_int64_set_value (v8::Handle<v8::Object> object,
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_uint64_new (guint64 value,
     GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_uint64_get (v8::Handle<v8::Value> value,
-    guint64 * target, GumV8Core * core);
+    guint64 * u, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_uint64_parse (v8::Handle<v8::Value> value,
-    guint64 * target, GumV8Core * core);
+    guint64 * u, GumV8Core * core);
 G_GNUC_INTERNAL guint64 _gum_v8_uint64_get_value (
     v8::Handle<v8::Object> object);
 G_GNUC_INTERNAL void _gum_v8_uint64_set_value (v8::Handle<v8::Object> object,
     guint64 value, v8::Isolate * isolate);
 
+G_GNUC_INTERNAL gboolean _gum_v8_size_get (v8::Handle<v8::Value> value,
+    gsize * size, GumV8Core * core);
+G_GNUC_INTERNAL gboolean _gum_v8_ssize_get (v8::Handle<v8::Value> value,
+    gssize * size, GumV8Core * core);
+
 G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_native_pointer_new (
     gpointer address, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_get (
-    v8::Handle<v8::Value> value, gpointer * target, GumV8Core * core);
+    v8::Handle<v8::Value> value, gpointer * ptr, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_native_pointer_parse (
-    v8::Handle<v8::Value> value, gpointer * target, GumV8Core * core);
+    v8::Handle<v8::Value> value, gpointer * ptr, GumV8Core * core);
 
 G_GNUC_INTERNAL void _gum_v8_throw (v8::Isolate * isolate, const gchar * format,
     ...);
@@ -99,7 +107,7 @@ G_GNUC_INTERNAL v8::Local<v8::Object> _gum_v8_cpu_context_new (
 G_GNUC_INTERNAL void _gum_v8_cpu_context_free_later (
     GumPersistent<v8::Object>::type * cpu_context, GumV8Core * core);
 G_GNUC_INTERNAL gboolean _gum_v8_cpu_context_get (
-    v8::Handle<v8::Value> value, GumCpuContext ** target, GumV8Core * core);
+    v8::Handle<v8::Value> value, GumCpuContext ** context, GumV8Core * core);
 
 G_GNUC_INTERNAL const gchar * _gum_v8_thread_state_to_string (
     GumThreadState state);

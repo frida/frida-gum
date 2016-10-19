@@ -88,7 +88,6 @@ _gum_v8_args_parse (const GumV8Args * args,
   auto info = args->info;
   auto core = args->core;
   auto isolate = info->GetIsolate ();
-  auto context = isolate->GetCurrentContext ();
   GumV8ArgsParseScope scope;
   va_list ap;
   int arg_index, arg_count = info->Length ();
@@ -126,34 +125,23 @@ _gum_v8_args_parse (const GumV8Args * args,
     {
       case 'i':
       {
-        if (!arg->IsNumber ())
-        {
-          _gum_v8_throw_ascii_literal (isolate, "expected an integer");
+        gint i;
+
+        if (!_gum_v8_int_get (arg, &i, core))
           return FALSE;
-        }
 
-        double value = arg->ToNumber (context).ToLocalChecked ()->Value ();
-
-        *va_arg (ap, gint *) = (gint) value;
+        *va_arg (ap, gint *) = (gint) i;
 
         break;
       }
       case 'u':
       {
-        if (!arg->IsNumber ())
-        {
-          _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
-          return FALSE;
-        }
+        guint u;
 
-        double value = arg->ToNumber (context).ToLocalChecked ()->Value ();
-        if (value < 0)
-        {
-          _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
+        if (!_gum_v8_uint_get (arg, &u, core))
           return FALSE;
-        }
 
-        *va_arg (ap, guint *) = (guint) value;
+        *va_arg (ap, guint *) = u;
 
         break;
       }
@@ -235,8 +223,7 @@ _gum_v8_args_parse (const GumV8Args * args,
           return FALSE;
         }
 
-        *va_arg (ap, gdouble *) =
-            arg->ToNumber (context).ToLocalChecked ()->Value ();
+        *va_arg (ap, gdouble *) = arg.As<Number> ()->Value ();
 
         break;
       }
@@ -248,8 +235,7 @@ _gum_v8_args_parse (const GumV8Args * args,
           return FALSE;
         }
 
-        *va_arg (ap, gboolean *) =
-            arg->ToBoolean (context).ToLocalChecked ()->Value ();
+        *va_arg (ap, gboolean *) = arg.As<Boolean> ()->Value ();
 
         break;
       }
@@ -465,18 +451,30 @@ _gum_v8_args_parse (const GumV8Args * args,
       case 'B':
       {
         GBytes * bytes;
-        gboolean is_nullable;
+        gboolean is_fuzzy, is_nullable;
 
+        is_fuzzy = t[1] == '~';
+        if (is_fuzzy)
+          t++;
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
         if (is_nullable && arg->IsNull ())
+        {
           bytes = NULL;
-        else if ((bytes = _gum_v8_byte_array_get (arg, core)) == NULL)
-          return FALSE;
+        }
+        else
+        {
+          if (is_fuzzy)
+            bytes = _gum_v8_bytes_parse (arg, core);
+          else
+            bytes = _gum_v8_bytes_get (arg, core);
+          if (bytes == NULL)
+            return FALSE;
 
-        scope.add (bytes);
+          scope.add (bytes);
+        }
 
         *va_arg (ap, GBytes **) = bytes;
 
@@ -527,10 +525,10 @@ _gum_v8_string_new_from_ascii (const gchar * str,
 }
 
 GBytes *
-_gum_v8_byte_array_get (Handle<Value> value,
-                        GumV8Core * core)
+_gum_v8_bytes_get (Handle<Value> value,
+                   GumV8Core * core)
 {
-  auto result = _gum_v8_byte_array_try_get (value, core);
+  auto result = _gum_v8_bytes_try_get (value, core);
   if (result == NULL)
   {
     _gum_v8_throw_ascii_literal (core->isolate, "unsupported data value");
@@ -541,8 +539,22 @@ _gum_v8_byte_array_get (Handle<Value> value,
 }
 
 GBytes *
-_gum_v8_byte_array_try_get (Handle<Value> value,
-                            GumV8Core * core)
+_gum_v8_bytes_parse (Handle<Value> value,
+                     GumV8Core * core)
+{
+  if (value->IsString ())
+  {
+    String::Utf8Value value_as_utf8 (value);
+    auto value_as_string = *value_as_utf8;
+    return g_bytes_new (value_as_string, strlen (value_as_string));
+  }
+
+  return _gum_v8_bytes_get (value, core);
+}
+
+GBytes *
+_gum_v8_bytes_try_get (Handle<Value> value,
+                       GumV8Core * core)
 {
   if (value->IsArrayBuffer ())
   {
@@ -639,79 +651,42 @@ gum_v8_native_resource_on_weak_notify (
 }
 
 gboolean
-_gum_v8_size_get (Handle<Value> value,
-                  gsize * target,
-                  GumV8Core * core)
+_gum_v8_int_get (Handle<Value> value,
+                 gint * i,
+                 GumV8Core * core)
 {
-  auto isolate = core->isolate;
-
-  if (value->IsNumber ())
+  if (!value->IsNumber ())
   {
-    auto integer_value = value->IntegerValue ();
-    if (integer_value >= 0)
-    {
-      *target = (gsize) integer_value;
-      return TRUE;
-    }
-  }
-  else
-  {
-    auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
-    if (uint64->HasInstance (value))
-    {
-      *target = (gsize) _gum_v8_uint64_get_value (value.As<Object> ());
-      return TRUE;
-    }
-
-    auto int64 (Local<FunctionTemplate>::New (isolate, *core->int64));
-    if (int64->HasInstance (value))
-    {
-      auto int64_value = _gum_v8_int64_get_value (value.As<Object> ());
-      if (int64_value >= 0)
-      {
-        *target = (gsize) int64_value;
-        return TRUE;
-      }
-    }
+    _gum_v8_throw_ascii_literal (core->isolate, "expected an integer");
+    return FALSE;
   }
 
-  _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
-  return FALSE;
+  double number = value.As<Number> ()->Value ();
+
+  *i = (gint) number;
+  return TRUE;
 }
 
 gboolean
-_gum_v8_ssize_get (Handle<Value> value,
-                   gssize * target,
-                   GumV8Core * core)
+_gum_v8_uint_get (Handle<Value> value,
+                  guint * u,
+                  GumV8Core * core)
 {
-  auto isolate = core->isolate;
-
-  if (value->IsNumber ())
+  if (!value->IsNumber ())
   {
-    *target = (gssize) value->IntegerValue ();
-    return TRUE;
-  }
-  else
-  {
-    Local<FunctionTemplate> int64 (Local<FunctionTemplate>::New (
-        isolate, *core->int64));
-    if (int64->HasInstance (value))
-    {
-      *target = (gssize) _gum_v8_int64_get_value (value.As<Object> ());
-      return TRUE;
-    }
-
-    Local<FunctionTemplate> uint64 (Local<FunctionTemplate>::New (isolate,
-        *core->uint64));
-    if (uint64->HasInstance (value))
-    {
-      *target = (gssize) _gum_v8_uint64_get_value (value.As<Object> ());
-      return TRUE;
-    }
+    _gum_v8_throw_ascii_literal (core->isolate, "expected an unsigned integer");
+    return FALSE;
   }
 
-  _gum_v8_throw_ascii_literal (isolate, "expected an integer");
-  return FALSE;
+  double number = value.As<Number> ()->Value ();
+  if (number < 0)
+  {
+    _gum_v8_throw_ascii_literal (core->isolate, "expected an unsigned integer");
+    return FALSE;
+  }
+
+  *u = (guint) number;
+  return TRUE;
 }
 
 Local<Object>
@@ -726,12 +701,12 @@ _gum_v8_int64_new (gint64 value,
 
 gboolean
 _gum_v8_int64_get (Handle<Value> value,
-                   gint64 * target,
+                   gint64 * i,
                    GumV8Core * core)
 {
   if (value->IsNumber ())
   {
-    *target = value->IntegerValue ();
+    *i = value->IntegerValue ();
     return TRUE;
   }
 
@@ -742,13 +717,13 @@ _gum_v8_int64_get (Handle<Value> value,
     return FALSE;
   }
 
-  *target = _gum_v8_int64_get_value (value.As<Object> ());
+  *i = _gum_v8_int64_get_value (value.As<Object> ());
   return TRUE;
 }
 
 gboolean
 _gum_v8_int64_parse (Handle<Value> value,
-                     gint64 * target,
+                     gint64 * i,
                      GumV8Core * core)
 {
   if (value->IsString ())
@@ -758,7 +733,7 @@ _gum_v8_int64_parse (Handle<Value> value,
     gchar * end;
     if (g_str_has_prefix (value_as_string, "0x"))
     {
-      *target = g_ascii_strtoll (value_as_string + 2, &end, 16);
+      *i = g_ascii_strtoll (value_as_string + 2, &end, 16);
       if (end == value_as_string + 2)
       {
         _gum_v8_throw_ascii_literal (core->isolate,
@@ -768,7 +743,7 @@ _gum_v8_int64_parse (Handle<Value> value,
     }
     else
     {
-      *target = g_ascii_strtoll (value_as_string, &end, 10);
+      *i = g_ascii_strtoll (value_as_string, &end, 10);
       if (end == value_as_string)
       {
         _gum_v8_throw_ascii_literal (core->isolate,
@@ -780,7 +755,7 @@ _gum_v8_int64_parse (Handle<Value> value,
     return TRUE;
   }
 
-  return _gum_v8_int64_get (value, target, core);
+  return _gum_v8_int64_get (value, i, core);
 }
 
 Local<Object>
@@ -866,12 +841,12 @@ _gum_v8_int64_set_value (Handle<Object> object,
 
 gboolean
 _gum_v8_uint64_get (Handle<Value> value,
-                    guint64 * target,
+                    guint64 * u,
                     GumV8Core * core)
 {
   if (value->IsNumber ())
   {
-    *target = value->IntegerValue ();
+    *u = value->IntegerValue ();
     return TRUE;
   }
 
@@ -882,13 +857,13 @@ _gum_v8_uint64_get (Handle<Value> value,
     return FALSE;
   }
 
-  *target = _gum_v8_uint64_get_value (value.As<Object> ());
+  *u = _gum_v8_uint64_get_value (value.As<Object> ());
   return TRUE;
 }
 
 gboolean
 _gum_v8_uint64_parse (Handle<Value> value,
-                      guint64 * target,
+                      guint64 * u,
                       GumV8Core * core)
 {
   if (value->IsString ())
@@ -898,7 +873,7 @@ _gum_v8_uint64_parse (Handle<Value> value,
     gchar * end;
     if (g_str_has_prefix (value_as_string, "0x"))
     {
-      *target = g_ascii_strtoull (value_as_string + 2, &end, 16);
+      *u = g_ascii_strtoull (value_as_string + 2, &end, 16);
       if (end == value_as_string + 2)
       {
         _gum_v8_throw_ascii_literal (core->isolate,
@@ -908,7 +883,7 @@ _gum_v8_uint64_parse (Handle<Value> value,
     }
     else
     {
-      *target = g_ascii_strtoull (value_as_string, &end, 10);
+      *u = g_ascii_strtoull (value_as_string, &end, 10);
       if (end == value_as_string)
       {
         _gum_v8_throw_ascii_literal (core->isolate,
@@ -920,7 +895,7 @@ _gum_v8_uint64_parse (Handle<Value> value,
     return TRUE;
   }
 
-  return _gum_v8_uint64_get (value, target, core);
+  return _gum_v8_uint64_get (value, u, core);
 }
 
 guint64
@@ -980,6 +955,82 @@ _gum_v8_uint64_set_value (Handle<Object> object,
 #endif
 }
 
+gboolean
+_gum_v8_size_get (Handle<Value> value,
+                  gsize * size,
+                  GumV8Core * core)
+{
+  auto isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    auto integer_value = value->IntegerValue ();
+    if (integer_value >= 0)
+    {
+      *size = (gsize) integer_value;
+      return TRUE;
+    }
+  }
+  else
+  {
+    auto uint64 (Local<FunctionTemplate>::New (isolate, *core->uint64));
+    if (uint64->HasInstance (value))
+    {
+      *size = (gsize) _gum_v8_uint64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+
+    auto int64 (Local<FunctionTemplate>::New (isolate, *core->int64));
+    if (int64->HasInstance (value))
+    {
+      auto int64_value = _gum_v8_int64_get_value (value.As<Object> ());
+      if (int64_value >= 0)
+      {
+        *size = (gsize) int64_value;
+        return TRUE;
+      }
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "expected an unsigned integer");
+  return FALSE;
+}
+
+gboolean
+_gum_v8_ssize_get (Handle<Value> value,
+                   gssize * size,
+                   GumV8Core * core)
+{
+  auto isolate = core->isolate;
+
+  if (value->IsNumber ())
+  {
+    *size = (gssize) value->IntegerValue ();
+    return TRUE;
+  }
+  else
+  {
+    Local<FunctionTemplate> int64 (Local<FunctionTemplate>::New (
+        isolate, *core->int64));
+    if (int64->HasInstance (value))
+    {
+      *size = (gssize) _gum_v8_int64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+
+    Local<FunctionTemplate> uint64 (Local<FunctionTemplate>::New (isolate,
+        *core->uint64));
+    if (uint64->HasInstance (value))
+    {
+      *size = (gssize) _gum_v8_uint64_get_value (value.As<Object> ());
+      return TRUE;
+    }
+  }
+
+  _gum_v8_throw_ascii_literal (isolate, "expected an integer");
+  return FALSE;
+}
+
 Local<Object>
 _gum_v8_native_pointer_new (gpointer address,
                             GumV8Core * core)
@@ -994,7 +1045,7 @@ _gum_v8_native_pointer_new (gpointer address,
 
 gboolean
 _gum_v8_native_pointer_get (Handle<Value> value,
-                            gpointer * target,
+                            gpointer * ptr,
                             GumV8Core * core)
 {
   auto isolate = core->isolate;
@@ -1004,7 +1055,7 @@ _gum_v8_native_pointer_get (Handle<Value> value,
       *core->native_pointer));
   if (native_pointer->HasInstance (value))
   {
-    *target = GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
+    *ptr = GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
     success = TRUE;
   }
   else
@@ -1027,7 +1078,7 @@ _gum_v8_native_pointer_get (Handle<Value> value,
         auto handle = obj->Get (context, handle_key).ToLocalChecked ();
         if (native_pointer->HasInstance (handle))
         {
-          *target = GUMJS_NATIVE_POINTER_VALUE (handle.As<Object> ());
+          *ptr = GUMJS_NATIVE_POINTER_VALUE (handle.As<Object> ());
           success = TRUE;
         }
       }
@@ -1045,7 +1096,7 @@ _gum_v8_native_pointer_get (Handle<Value> value,
 
 gboolean
 _gum_v8_native_pointer_parse (Handle<Value> value,
-                              gpointer * target,
+                              gpointer * ptr,
                               GumV8Core * core)
 {
   if (value->IsString ())
@@ -1055,7 +1106,7 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
     gchar * endptr;
     if (g_str_has_prefix (ptr_as_string, "0x"))
     {
-      *target = GSIZE_TO_POINTER (
+      *ptr = GSIZE_TO_POINTER (
           g_ascii_strtoull (ptr_as_string + 2, &endptr, 16));
       if (endptr == ptr_as_string + 2)
       {
@@ -1066,8 +1117,7 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
     }
     else
     {
-      *target = GSIZE_TO_POINTER (
-          g_ascii_strtoull (ptr_as_string, &endptr, 10));
+      *ptr = GSIZE_TO_POINTER (g_ascii_strtoull (ptr_as_string, &endptr, 10));
       if (endptr == ptr_as_string)
       {
         _gum_v8_throw_ascii_literal (core->isolate, "invalid decimal string");
@@ -1079,11 +1129,11 @@ _gum_v8_native_pointer_parse (Handle<Value> value,
   }
   else if (value->IsNumber ())
   {
-    *target = GSIZE_TO_POINTER (value.As<Number> ()->Value ());
+    *ptr = GSIZE_TO_POINTER (value.As<Number> ()->Value ());
     return TRUE;
   }
 
-  return _gum_v8_native_pointer_get (value, target, core);
+  return _gum_v8_native_pointer_get (value, ptr, core);
 }
 
 void
@@ -1267,7 +1317,7 @@ gum_cpu_context_on_weak_notify (
 
 gboolean
 _gum_v8_cpu_context_get (Handle<Value> value,
-                         GumCpuContext ** target,
+                         GumCpuContext ** context,
                          GumV8Core * core)
 {
   auto cpu_context (Local<FunctionTemplate>::New (core->isolate,
@@ -1277,7 +1327,7 @@ _gum_v8_cpu_context_get (Handle<Value> value,
     _gum_v8_throw_ascii_literal (core->isolate, "expected a CpuContext object");
     return FALSE;
   }
-  *target = GUMJS_CPU_CONTEXT_VALUE (value.As<Object> ());
+  *context = GUMJS_CPU_CONTEXT_VALUE (value.As<Object> ());
 
   return TRUE;
 }
