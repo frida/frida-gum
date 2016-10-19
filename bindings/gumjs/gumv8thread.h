@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,9 +12,7 @@
 #include <gum/gumbacktracer.h>
 #include <v8.h>
 
-typedef struct _GumV8Thread GumV8Thread;
-
-struct _GumV8Thread
+struct GumV8Thread
 {
   GumV8Core * core;
 

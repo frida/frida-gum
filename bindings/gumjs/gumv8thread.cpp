@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2010-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -8,58 +8,61 @@
 
 #include "gumv8macros.h"
 
+#define GUMJS_MODULE_NAME Thread
+
 using namespace v8;
 
-static void gum_v8_thread_on_backtrace (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_thread_on_sleep (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_thread_backtrace)
+GUMJS_DECLARE_FUNCTION (gumjs_thread_sleep)
+
+static const GumV8Function gumjs_thread_functions[] =
+{
+  { "backtrace", gumjs_thread_backtrace },
+  { "sleep", gumjs_thread_sleep },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_thread_init (GumV8Thread * self,
                      GumV8Core * core,
                      Handle<ObjectTemplate> scope)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   self->core = core;
 
-  Handle<ObjectTemplate> thread = ObjectTemplate::New (isolate);
-  thread->Set (String::NewFromUtf8 (isolate, "backtrace"),
-      FunctionTemplate::New (isolate, gum_v8_thread_on_backtrace,
-      External::New (isolate, self)));
-  thread->Set (String::NewFromUtf8 (isolate, "sleep"),
-      FunctionTemplate::New (isolate, gum_v8_thread_on_sleep,
-      External::New (isolate, self)));
-  scope->Set (String::NewFromUtf8 (isolate, "Thread"), thread);
+  auto module = External::New (isolate, self);
 
-  Handle<ObjectTemplate> backtracer = ObjectTemplate::New (isolate);
-  scope->Set (String::NewFromUtf8 (isolate, "Backtracer"), backtracer);
+  auto thread = _gum_v8_create_module ("Thread", scope, isolate);
+  _gum_v8_module_add (module, thread, gumjs_thread_functions, isolate);
+
+  _gum_v8_create_module ("Backtracer", scope, isolate);
 }
 
 void
 _gum_v8_thread_realize (GumV8Thread * self)
 {
-  Isolate * isolate = self->core->isolate;
-  Local<Context> context (isolate->GetCurrentContext ());
-  Local<Object> global (context->Global ());
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  Local<Object> backtracer = global->Get (context,
-      String::NewFromUtf8 (isolate, "Backtracer")).ToLocalChecked ()
+  auto backtracer = context->Global ()->Get (context,
+      _gum_v8_string_new_from_ascii ("Backtracer", isolate)).ToLocalChecked ()
       .As<Object> ();
-  Local<Symbol> accurate = Symbol::ForApi (isolate,
-      String::NewFromUtf8 (isolate, "Backtracer.ACCURATE"));
-  backtracer->DefineOwnProperty (context,
-      String::NewFromUtf8 (isolate, "ACCURATE"), accurate,
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete)).ToChecked ();
-  Local<Symbol> fuzzy = Symbol::ForApi (isolate,
-      String::NewFromUtf8 (isolate, "Backtracer.FUZZY"));
-  backtracer->DefineOwnProperty (context,
-      String::NewFromUtf8 (isolate, "FUZZY"), fuzzy,
-      static_cast<PropertyAttribute> (ReadOnly | DontDelete)).ToChecked ();
 
+  auto accurate = Symbol::ForApi (isolate,
+      _gum_v8_string_new_from_ascii ("Backtracer.ACCURATE", isolate));
+  backtracer->DefineOwnProperty (context,
+      _gum_v8_string_new_from_ascii ("ACCURATE", isolate), accurate,
+      (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
   self->accurate_enum_value =
       new GumPersistent<Symbol>::type (isolate, accurate);
+
+  auto fuzzy = Symbol::ForApi (isolate,
+      _gum_v8_string_new_from_ascii ("Backtracer.FUZZY", isolate));
+  backtracer->DefineOwnProperty (context,
+      _gum_v8_string_new_from_ascii ("FUZZY", isolate), fuzzy,
+      (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
   self->fuzzy_enum_value =
       new GumPersistent<Symbol>::type (isolate, fuzzy);
 }
@@ -68,26 +71,17 @@ void
 _gum_v8_thread_dispose (GumV8Thread * self)
 {
   delete self->fuzzy_enum_value;
-  self->fuzzy_enum_value = NULL;
+  self->fuzzy_enum_value = nullptr;
 
   delete self->accurate_enum_value;
-  self->accurate_enum_value = NULL;
+  self->accurate_enum_value = nullptr;
 }
 
 void
 _gum_v8_thread_finalize (GumV8Thread * self)
 {
-  if (self->accurate_backtracer != NULL)
-  {
-    g_object_unref (self->accurate_backtracer);
-    self->accurate_backtracer = NULL;
-  }
-
-  if (self->fuzzy_backtracer != NULL)
-  {
-    g_object_unref (self->fuzzy_backtracer);
-    self->fuzzy_backtracer = NULL;
-  }
+  g_clear_object (&self->accurate_backtracer);
+  g_clear_object (&self->fuzzy_backtracer);
 }
 
 /*
@@ -100,76 +94,56 @@ _gum_v8_thread_finalize (GumV8Thread * self)
  * Example:
  * TBW
  */
-static void
-gum_v8_thread_on_backtrace (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_thread_backtrace)
 {
-  GumV8Thread * self = static_cast<GumV8Thread *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  int num_args = info.Length ();
-
   GumCpuContext * cpu_context = NULL;
-  if (num_args >= 1)
-  {
-    Local<Value> value = info[0];
-    if (!value->IsNull ())
-    {
-      if (!_gum_v8_cpu_context_get (value, &cpu_context, self->core))
-        return;
-    }
-  }
+  Local<Value> selector;
+  if (!_gum_v8_args_parse (args, "|C?V", &cpu_context, &selector))
+    return;
 
-  bool accurate = true;
-  if (num_args >= 2)
+  gboolean accurate = TRUE;
+  if (!selector.IsEmpty ())
   {
-    Local<Value> selector = info[1];
-    if (!selector->IsNull ())
+    if ((*module->fuzzy_enum_value) == selector)
     {
-      if ((*self->fuzzy_enum_value) == selector)
-      {
-        accurate = false;
-      }
-      else if ((*self->accurate_enum_value) != selector)
-      {
-        isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-            isolate, "Thread.backtrace: invalid backtracer enum value")));
-        return;
-      }
+      accurate = FALSE;
+    }
+    else if ((*module->accurate_enum_value) != selector)
+    {
+      _gum_v8_throw_ascii_literal (isolate, "invalid backtracer enum value");
+      return;
     }
   }
 
   GumBacktracer * backtracer;
   if (accurate)
   {
-    if (self->accurate_backtracer == NULL)
-      self->accurate_backtracer = gum_backtracer_make_accurate ();
-    backtracer = self->accurate_backtracer;
+    if (module->accurate_backtracer == NULL)
+      module->accurate_backtracer = gum_backtracer_make_accurate ();
+    backtracer = module->accurate_backtracer;
   }
   else
   {
-    if (self->fuzzy_backtracer == NULL)
-      self->fuzzy_backtracer = gum_backtracer_make_fuzzy ();
-    backtracer = self->fuzzy_backtracer;
+    if (module->fuzzy_backtracer == NULL)
+      module->fuzzy_backtracer = gum_backtracer_make_fuzzy ();
+    backtracer = module->fuzzy_backtracer;
   }
   if (backtracer == NULL)
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, accurate
-        ? "Thread.backtrace: backtracer not yet available for this "
-        "platform; please try Thread.backtrace(context, Backtracer.FUZZY)"
-        : "Thread.backtrace: backtracer not yet available for this "
-        "platform; please try Thread.backtrace(context, Backtracer.ACCURATE)"
-        )));
+    _gum_v8_throw_ascii_literal (isolate, accurate
+            ? "backtracer not yet available for this platform; "
+            "please try Thread.backtrace(context, Backtracer.FUZZY)"
+            : "backtracer not yet available for this platform; "
+            "please try Thread.backtrace(context, Backtracer.ACCURATE)");
     return;
   }
 
   GumReturnAddressArray ret_addrs;
   gum_backtracer_generate (backtracer, cpu_context, &ret_addrs);
 
-  Local<Array> result = Array::New (isolate, ret_addrs.len);
+  auto result = Array::New (isolate, ret_addrs.len);
   for (guint i = 0; i != ret_addrs.len; i++)
-    result->Set (i, _gum_v8_native_pointer_new (ret_addrs.items[i], self->core));
+    result->Set (i, _gum_v8_native_pointer_new (ret_addrs.items[i], core));
   info.GetReturnValue ().Set (result);
 }
 
@@ -183,19 +157,13 @@ gum_v8_thread_on_backtrace (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_thread_on_sleep (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_thread_sleep)
 {
-  Isolate * isolate = info.GetIsolate ();
+  gdouble delay;
 
-  Local<Value> delay_val = info[0];
-  if (!delay_val->IsNumber ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "Thread.sleep: argument must be a number specifying delay")));
+  if (!_gum_v8_args_parse (args, "n", &delay))
     return;
-  }
-  double delay = delay_val->ToNumber ()->Value ();
+
   if (delay < 0)
     return;
 
