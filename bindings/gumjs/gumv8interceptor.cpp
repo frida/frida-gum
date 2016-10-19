@@ -887,7 +887,11 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_system_error,
 GUMJS_DEFINE_CLASS_SETTER (gumjs_invocation_context_set_system_error,
                            GumV8InvocationContext)
 {
-  self->handle->system_error = value->Int32Value ();
+  gint system_error;
+  if (!_gum_v8_int_get (value, &system_error, core))
+    return;
+
+  self->handle->system_error = system_error;
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_invocation_context_get_thread_id,
