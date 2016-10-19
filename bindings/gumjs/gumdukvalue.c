@@ -121,38 +121,8 @@ _gum_duk_args_parse (const GumDukArgs * args,
       {
         gssize value;
 
-        if (duk_is_number (ctx, arg_index))
-        {
-          value = (gssize) duk_require_int (ctx, arg_index);
-        }
-        else
-        {
-          duk_push_heapptr (ctx, core->int64);
-          duk_push_heapptr (ctx, core->uint64);
-
-          if (duk_instanceof (ctx, arg_index, -2))
-          {
-            GumDukInt64 * object;
-
-            object = _gum_duk_require_data (ctx, arg_index);
-
-            value = (gssize) object->value;
-          }
-          else if (duk_instanceof (ctx, arg_index, -1))
-          {
-            GumDukUInt64 * object;
-
-            object = _gum_duk_require_data (ctx, arg_index);
-
-            value = (gssize) object->value;
-          }
-          else
-          {
-            goto expected_int;
-          }
-
-          duk_pop_2 (ctx);
-        }
+        if (!_gum_duk_get_ssize (ctx, arg_index, core, &value))
+          goto expected_int;
 
         *va_arg (ap, gssize *) = value;
 
@@ -162,46 +132,8 @@ _gum_duk_args_parse (const GumDukArgs * args,
       {
         gsize value;
 
-        if (duk_is_number (ctx, arg_index))
-        {
-          duk_double_t number;
-
-          number = duk_require_number (ctx, arg_index);
-          if (number < 0)
-            goto expected_uint;
-
-          value = (gsize) number;
-        }
-        else
-        {
-          duk_push_heapptr (ctx, core->int64);
-          duk_push_heapptr (ctx, core->uint64);
-
-          if (duk_instanceof (ctx, arg_index, -1))
-          {
-            GumDukUInt64 * object;
-
-            object = _gum_duk_require_data (ctx, arg_index);
-
-            value = (gsize) object->value;
-          }
-          else if (duk_instanceof (ctx, arg_index, -2))
-          {
-            GumDukInt64 * object;
-
-            object = _gum_duk_require_data (ctx, arg_index);
-            if (object->value < 0)
-              goto expected_uint;
-
-            value = (gsize) object->value;
-          }
-          else
-          {
-            goto expected_uint;
-          }
-
-          duk_pop_2 (ctx);
-        }
+        if (!_gum_duk_get_size (ctx, arg_index, core, &value))
+          goto expected_int;
 
         *va_arg (ap, gsize *) = value;
 
@@ -409,16 +341,31 @@ _gum_duk_args_parse (const GumDukArgs * args,
       case 'B':
       {
         GBytes * bytes;
-        gboolean is_nullable;
+        gboolean is_fuzzy, is_nullable;
 
+        is_fuzzy = t[1] == '~';
+        if (is_fuzzy)
+          t++;
         is_nullable = t[1] == '?';
         if (is_nullable)
           t++;
 
         if (is_nullable && duk_is_null (ctx, arg_index))
+        {
           bytes = NULL;
-        else if (!_gum_duk_parse_bytes (ctx, arg_index, &bytes))
-          goto expected_bytes;
+        }
+        else
+        {
+          gboolean success;
+
+          if (is_fuzzy)
+            success = _gum_duk_parse_bytes (ctx, arg_index, &bytes);
+          else
+            success = _gum_duk_get_bytes (ctx, arg_index, &bytes);
+
+          if (!success)
+            goto expected_bytes;
+        }
 
         *va_arg (ap, GBytes **) = bytes;
 
@@ -849,6 +796,104 @@ _gum_duk_parse_uint64 (duk_context * ctx,
 }
 
 gboolean
+_gum_duk_get_size (duk_context * ctx,
+                   duk_idx_t index,
+                   GumDukCore * core,
+                   gsize * size)
+{
+  gboolean success = TRUE;
+
+  if (duk_is_number (ctx, index))
+  {
+    duk_double_t number;
+
+    number = duk_require_number (ctx, index);
+
+    if (number >= 0)
+      *size = (gsize) number;
+    else
+      success = FALSE;
+  }
+  else
+  {
+    duk_push_heapptr (ctx, core->int64);
+    duk_push_heapptr (ctx, core->uint64);
+
+    if (duk_instanceof (ctx, index, -1))
+    {
+      GumDukUInt64 * object;
+
+      object = _gum_duk_require_data (ctx, index);
+
+      *size = (gsize) object->value;
+    }
+    else if (duk_instanceof (ctx, index, -2))
+    {
+      GumDukInt64 * object;
+
+      object = _gum_duk_require_data (ctx, index);
+
+      if (object->value >= 0)
+        *size = (gsize) object->value;
+      else
+        success = FALSE;
+    }
+    else
+    {
+      success = FALSE;
+    }
+
+    duk_pop_2 (ctx);
+  }
+
+  return success;
+}
+
+gboolean
+_gum_duk_get_ssize (duk_context * ctx,
+                    duk_idx_t index,
+                    GumDukCore * core,
+                    gssize * size)
+{
+  gboolean success = TRUE;
+
+  if (duk_is_number (ctx, index))
+  {
+    *size = (gssize) duk_require_int (ctx, index);
+  }
+  else
+  {
+    duk_push_heapptr (ctx, core->int64);
+    duk_push_heapptr (ctx, core->uint64);
+
+    if (duk_instanceof (ctx, index, -2))
+    {
+      GumDukInt64 * object;
+
+      object = _gum_duk_require_data (ctx, index);
+
+      *size = (gssize) object->value;
+    }
+    else if (duk_instanceof (ctx, index, -1))
+    {
+      GumDukUInt64 * object;
+
+      object = _gum_duk_require_data (ctx, index);
+
+      *size = (gssize) object->value;
+    }
+    else
+    {
+      success = FALSE;
+    }
+
+    duk_pop_2 (ctx);
+  }
+
+  return success;
+}
+
+gboolean
 _gum_duk_get_pointer (duk_context * ctx,
                       duk_idx_t index,
                       GumDukCore * core,
@@ -983,9 +1028,9 @@ _gum_duk_parse_protection (duk_context * ctx,
 }
 
 gboolean
-_gum_duk_parse_bytes (duk_context * ctx,
-                      duk_idx_t index,
-                      GBytes ** bytes)
+_gum_duk_get_bytes (duk_context * ctx,
+                    duk_idx_t index,
+                    GBytes ** bytes)
 {
   gpointer data;
   duk_size_t size;
@@ -1031,6 +1076,24 @@ _gum_duk_parse_bytes (duk_context * ctx,
 
   *bytes = g_bytes_new (NULL, 0);
   return TRUE;
+}
+
+gboolean
+_gum_duk_parse_bytes (duk_context * ctx,
+                      duk_idx_t index,
+                      GBytes ** bytes)
+{
+  if (duk_is_string (ctx, index))
+  {
+    const gchar * str;
+
+    str = duk_require_string (ctx, index);
+
+    *bytes = g_bytes_new (str, strlen (str));
+    return TRUE;
+  }
+
+  return _gum_duk_get_bytes (ctx, index, bytes);
 }
 
 void

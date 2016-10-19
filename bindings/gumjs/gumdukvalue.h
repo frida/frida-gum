@@ -36,6 +36,7 @@ G_GNUC_INTERNAL void _gum_duk_store_module_data (duk_context * ctx,
     const gchar * module_id, gpointer data);
 G_GNUC_INTERNAL gpointer _gum_duk_load_module_data (duk_context * ctx,
     const gchar * module_id);
+
 G_GNUC_INTERNAL gpointer _gum_duk_get_data (duk_context * ctx, duk_idx_t index);
 G_GNUC_INTERNAL gpointer _gum_duk_require_data (duk_context * ctx,
     duk_idx_t index);
@@ -43,24 +44,38 @@ G_GNUC_INTERNAL void _gum_duk_put_data (duk_context * ctx, duk_idx_t index,
     gpointer data);
 G_GNUC_INTERNAL gpointer _gum_duk_steal_data (duk_context * ctx,
     duk_idx_t index);
+
 G_GNUC_INTERNAL guint _gum_duk_require_index (duk_context * ctx,
     duk_idx_t index);
+
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint (duk_context * ctx,
     duk_idx_t index, guint * u);
+
 G_GNUC_INTERNAL gboolean _gum_duk_get_int64 (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gint64 * i);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_int64 (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gint64 * i);
+
 G_GNUC_INTERNAL gboolean _gum_duk_get_uint64 (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, guint64 * u);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_uint64 (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, guint64 * u);
+
+G_GNUC_INTERNAL gboolean _gum_duk_get_size (duk_context * ctx, duk_idx_t index,
+    GumDukCore * core, gsize * size);
+G_GNUC_INTERNAL gboolean _gum_duk_get_ssize (duk_context * ctx, duk_idx_t index,
+    GumDukCore * core, gssize * size);
+
 G_GNUC_INTERNAL gboolean _gum_duk_get_pointer (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gpointer * ptr);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_pointer (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gpointer * ptr);
+
 G_GNUC_INTERNAL gboolean _gum_duk_parse_protection (duk_context * ctx,
     duk_idx_t index, GumPageProtection * prot);
+
+G_GNUC_INTERNAL gboolean _gum_duk_get_bytes (duk_context * ctx,
+    duk_idx_t index, GBytes ** bytes);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_bytes (duk_context * ctx,
     duk_idx_t index, GBytes ** bytes);
 
