@@ -1,71 +1,69 @@
 /*
- * Copyright (C) 2013-2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2013-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
 
 #include "gumv8file.h"
 
+#include "gumv8macros.h"
+
 #include <errno.h>
 #include <string.h>
 
+#define GUMJS_MODULE_NAME File
+
 using namespace v8;
 
-typedef struct _GumFile GumFile;
-
-struct _GumFile
+struct GumFile
 {
-  GumPersistent<v8::Object>::type * instance;
+  GumPersistent<v8::Object>::type * wrapper;
   FILE * handle;
   GumV8File * module;
 };
 
-static void gum_v8_file_on_new_file (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_file_on_file_write (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_file_on_file_flush (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_file_on_file_close (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_file_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_file_write)
+GUMJS_DECLARE_FUNCTION (gumjs_file_flush)
+GUMJS_DECLARE_FUNCTION (gumjs_file_close)
 
-static GumFile * gum_file_new (Handle<Object> instance, FILE * handle,
+static GumFile * gum_file_new (Handle<Object> wrapper, FILE * handle,
     GumV8File * module);
 static void gum_file_free (GumFile * file);
-static gboolean gum_file_is_open (GumFile * self);
+static gboolean gum_file_check_open (GumFile * self, Isolate * isolate);
 static void gum_file_close (GumFile * self);
 static void gum_file_on_weak_notify (const WeakCallbackInfo<GumFile> & info);
+
+static const GumV8Function gumjs_file_functions[] =
+{
+  { "write", gumjs_file_write },
+  { "flush", gumjs_file_flush },
+  { "close", gumjs_file_close },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_file_init (GumV8File * self,
                    GumV8Core * core,
                    Handle<ObjectTemplate> scope)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   self->core = core;
 
-  Local<External> data (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
-  Local<FunctionTemplate> file = FunctionTemplate::New (isolate,
-      gum_v8_file_on_new_file, data);
-  file->SetClassName (String::NewFromUtf8 (isolate, "File"));
-  Local<ObjectTemplate> file_proto = file->PrototypeTemplate ();
-  file_proto->Set (String::NewFromUtf8 (isolate, "write"),
-      FunctionTemplate::New (isolate, gum_v8_file_on_file_write, data));
-  file_proto->Set (String::NewFromUtf8 (isolate, "flush"),
-      FunctionTemplate::New (isolate, gum_v8_file_on_file_flush, data));
-  file_proto->Set (String::NewFromUtf8 (isolate, "close"),
-      FunctionTemplate::New (isolate, gum_v8_file_on_file_close, data));
-  file->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (String::NewFromUtf8 (isolate, "File"), file);
+  auto file = _gum_v8_create_class ("File", gumjs_file_construct, scope,
+      module, isolate);
+  _gum_v8_class_add (file, gumjs_file_functions, module, isolate);
 }
 
 void
 _gum_v8_file_realize (GumV8File * self)
 {
-  self->files = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (gum_file_free));
+  self->files = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_file_free);
 }
 
 void
@@ -81,52 +79,32 @@ _gum_v8_file_finalize (GumV8File * self)
   (void) self;
 }
 
-static void
-gum_v8_file_on_new_file (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
 {
-  GumV8File * self = static_cast<GumV8File *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = self->core->isolate;
-
   if (!info.IsConstructCall ())
   {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "Use `new File()` to create a new instance")));
+    _gum_v8_throw_ascii_literal (isolate,
+        "Use `new File()` to create a new instance");
     return;
   }
 
-  Local<Value> filename_val = info[0];
-  if (!filename_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
-        "File: first argument must be a string specifying filename")));
+  gchar * filename, * mode;
+  if (!_gum_v8_args_parse (args, "ss", &filename, &mode))
     return;
-  }
-  String::Utf8Value filename (filename_val);
 
-  Local<Value> mode_val = info[1];
-  if (!mode_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
-        "File: second argument must be a string specifying mode")));
-    return;
-  }
-  String::Utf8Value mode (mode_val);
+  auto handle = fopen (filename, mode);
 
-  FILE * handle = fopen (*filename, *mode);
+  g_free (filename);
+  g_free (mode);
+
   if (handle == NULL)
   {
-    gchar * message = g_strdup_printf ("File: failed to open file (%s)",
-        strerror (errno));
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        message)));
-    g_free (message);
+    _gum_v8_throw (isolate, "failed to open file (%s)", strerror (errno));
     return;
   }
 
-  Local<Object> instance (info.Holder ());
-  GumFile * file = gum_file_new (instance, handle, self);
-  instance->SetAlignedPointerInInternalField (0, file);
+  auto file = gum_file_new (wrapper, handle, module);
+  wrapper->SetAlignedPointerInInternalField (0, file);
 }
 
 /*
@@ -139,49 +117,20 @@ gum_v8_file_on_new_file (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_file_on_file_write (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_file_write, GumFile)
 {
-  GumFile * file = static_cast<GumFile *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  Isolate * isolate = info.GetIsolate ();
-
-  gpointer data = NULL;
-  gint data_length = 0;
-
-  Local<Value> data_val = info[0];
-  if (data_val->IsArrayBuffer ())
-  {
-    ArrayBuffer::Contents contents =
-        Handle<ArrayBuffer>::Cast (data_val)->GetContents ();
-
-    data = contents.Data ();
-    data_length = (gint) contents.ByteLength ();
-  }
-  else if (!data_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
-        "File.write: argument must be a string or ArrayBuffer")));
+  if (!gum_file_check_open (self, isolate))
     return;
-  }
 
-  if (gum_file_is_open (file))
-  {
-    if (data == NULL)
-    {
-      String::Utf8Value utf_val (data_val);
-      fwrite (*utf_val, utf_val.length (), 1, file->handle);
-    }
-    else
-    {
-      fwrite (data, data_length, 1, file->handle);
-    }
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate, 
-        "File.write: file is closed")));
-  }
+  GBytes * bytes;
+  if (!_gum_v8_args_parse (args, "B~", &bytes))
+    return;
+
+  gsize size;
+  auto data = g_bytes_get_data (bytes, &size);
+  fwrite (data, size, 1, self->handle);
+
+  g_bytes_unref (bytes);
 }
 
 /*
@@ -194,22 +143,12 @@ gum_v8_file_on_file_write (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_file_flush, GumFile)
 {
-  GumFile * file = static_cast<GumFile *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  Isolate * isolate = info.GetIsolate ();
+  if (!gum_file_check_open (self, isolate))
+    return;
 
-  if (gum_file_is_open (file))
-  {
-    fflush (file->handle);
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate, "File.flush: file is closed")));
-  }
+  fflush (self->handle);
 }
 
 /*
@@ -222,36 +161,24 @@ gum_v8_file_on_file_flush (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_file_on_file_close (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_file_close, GumFile)
 {
-  GumFile * file = static_cast<GumFile *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  Isolate * isolate = info.GetIsolate ();
+  if (!gum_file_check_open (self, isolate))
+    return;
 
-  if (gum_file_is_open (file))
-  {
-    gum_file_close (file);
-  }
-  else
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (
-        isolate,  "File.close: file is already closed")));
-  }
+  gum_file_close (self);
 }
 
 static GumFile *
-gum_file_new (Handle<Object> instance,
+gum_file_new (Handle<Object> wrapper,
               FILE * handle,
               GumV8File * module)
 {
-  GumFile * file;
-
-  file = g_slice_new (GumFile);
-  file->instance =
-      new GumPersistent<Object>::type (module->core->isolate, instance);
-  file->instance->MarkIndependent ();
-  file->instance->SetWeak (file, gum_file_on_weak_notify,
+  auto file = g_slice_new (GumFile);
+  file->wrapper =
+      new GumPersistent<Object>::type (module->core->isolate, wrapper);
+  file->wrapper->MarkIndependent ();
+  file->wrapper->SetWeak (file, gum_file_on_weak_notify,
       WeakCallbackType::kParameter);
   file->handle = handle;
   file->module = module;
@@ -262,33 +189,38 @@ gum_file_new (Handle<Object> instance,
 }
 
 static void
-gum_file_free (GumFile * file)
+gum_file_free (GumFile * self)
 {
-  gum_file_close (file);
-  delete file->instance;
-  g_slice_free (GumFile, file);
+  gum_file_close (self);
+
+  delete self->wrapper;
+
+  g_slice_free (GumFile, self);
 }
 
 static gboolean
-gum_file_is_open (GumFile * self)
+gum_file_check_open (GumFile * self,
+                     Isolate * isolate)
 {
-  return self->handle != NULL;
+  if (self->handle == NULL)
+  {
+    _gum_v8_throw_ascii_literal (isolate, "file is closed");
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void
 gum_file_close (GumFile * self)
 {
-  if (self->handle != NULL)
-  {
-    fclose (self->handle);
-    self->handle = NULL;
-  }
+  g_clear_pointer (&self->handle, fclose);
 }
 
 static void
 gum_file_on_weak_notify (const WeakCallbackInfo<GumFile> & info)
 {
   HandleScope handle_scope (info.GetIsolate ());
-  GumFile * self = info.GetParameter ();
+  auto self = info.GetParameter ();
   g_hash_table_remove (self->module->files, self);
 }

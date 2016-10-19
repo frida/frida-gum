@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2013-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -11,9 +11,7 @@
 
 #include <v8.h>
 
-typedef struct _GumV8File GumV8File;
-
-struct _GumV8File
+struct GumV8File
 {
   GumV8Core * core;
 
