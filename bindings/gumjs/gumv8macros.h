@@ -130,6 +130,43 @@
   \
   void \
   GumV8Closure_##N::invoke ()
+#define GUMJS_DEFINE_SETTER(N) \
+  class GumV8Closure_##N \
+  { \
+  public: \
+    GumV8Closure_##N (Local<Value> value, \
+        const PropertyCallbackInfo<void> & info) \
+      : module ((GUMJS_MODULE_TYPE *) info.Data ().As<External> ()->Value ()), \
+        core (module->core), \
+        value (value), \
+        info (info), \
+        isolate (core->isolate) \
+    { \
+    } \
+    \
+    void invoke (); \
+    \
+  protected: \
+    GUMJS_MODULE_TYPE * module; \
+    GumV8Core * core; \
+    Local<Value> value; \
+    const PropertyCallbackInfo<void> & info; \
+    Isolate * isolate; \
+  }; \
+  \
+  static void \
+  N (Local<Name> property, \
+     Local<Value> value, \
+     const PropertyCallbackInfo<void> & info) \
+  { \
+    (void) property; \
+    \
+    GumV8Closure_##N closure (value, info); \
+    closure.invoke (); \
+  } \
+  \
+  void \
+  GumV8Closure_##N::invoke ()
 #define GUMJS_DEFINE_CLASS_GETTER(N, C) \
   class GumV8Closure_##N \
   { \
