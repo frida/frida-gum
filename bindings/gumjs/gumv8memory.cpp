@@ -899,6 +899,7 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
 {
   auto core = self->core;
   auto exceptor = core->exceptor;
+  auto isolate = core->isolate;
   GumExceptorScope scope;
 
   if (gum_exceptor_try (exceptor, &scope))
@@ -907,26 +908,24 @@ gum_memory_scan_context_run (GumMemoryScanContext * self)
         (GumMemoryScanMatchFunc) gum_memory_scan_context_emit_match, self);
   }
 
+  if (gum_exceptor_catch (exceptor, &scope) && self->on_error != nullptr)
   {
     ScriptScope script_scope (core->script);
-    auto isolate = core->isolate;
 
-    auto receiver = Undefined (isolate);
+    auto message = gum_exception_details_to_string (&scope.exception);
 
-    if (gum_exceptor_catch (exceptor, &scope))
-    {
-      if (self->on_error != nullptr)
-      {
-        auto message = gum_exception_details_to_string (&scope.exception);
-        auto on_error = Local<Function>::New (isolate, *self->on_error);
-        Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
-        on_error->Call (receiver, G_N_ELEMENTS (argv), argv);
-        g_free (message);
-      }
-    }
+    auto on_error = Local<Function>::New (isolate, *self->on_error);
+    Handle<Value> argv[] = { String::NewFromUtf8 (isolate, message) };
+    on_error->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
+
+    g_free (message);
+  }
+
+  {
+    ScriptScope script_scope (core->script);
 
     auto on_complete (Local<Function>::New (isolate, *self->on_complete));
-    on_complete->Call (receiver, 0, nullptr);
+    on_complete->Call (Undefined (isolate), 0, nullptr);
   }
 }
 

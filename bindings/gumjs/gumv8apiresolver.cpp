@@ -21,6 +21,8 @@ struct _GumV8MatchContext
   Isolate * isolate;
   Local<Function> on_match;
   Local<Function> on_complete;
+
+  gboolean has_pending_exception;
 };
 
 static void gum_v8_api_resolver_on_new (
@@ -171,6 +173,8 @@ gum_v8_api_resolver_on_enumerate_matches (
     return;
   }
 
+  ctx.has_pending_exception = FALSE;
+
   GError * error = NULL;
   gum_api_resolver_enumerate_matches (api_resolver, *query,
       gum_v8_api_resolver_handle_module_match, &ctx, &error);
@@ -185,7 +189,10 @@ gum_v8_api_resolver_on_enumerate_matches (
     return;
   }
 
-  ctx.on_complete->Call (Undefined (ctx.isolate), 0, 0);
+  if (!ctx.has_pending_exception)
+  {
+    ctx.on_complete->Call (Undefined (ctx.isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -206,11 +213,13 @@ gum_v8_api_resolver_handle_module_match (const GumApiDetails * details,
   };
   Local<Value> result = ctx->on_match->Call (Undefined (isolate), 1, argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  ctx->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !ctx->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   return proceed;

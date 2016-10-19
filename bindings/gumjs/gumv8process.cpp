@@ -50,6 +50,8 @@ struct GumV8MatchContext
   Local<Function> on_complete;
 
   GumV8Core * core;
+
+  gboolean has_pending_exception;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_process_is_debugger_attached)
@@ -184,9 +186,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_threads)
     return;
   mc.core = core;
 
+  mc.has_pending_exception = FALSE;
+
   gum_process_enumerate_threads ((GumFoundThreadFunc) gum_emit_thread, &mc);
 
-  mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -210,11 +217,13 @@ gum_emit_thread (const GumThreadDetails * details,
   auto result =
       mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   _gum_v8_cpu_context_free_later (
@@ -241,9 +250,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_modules)
     return;
   mc.core = core;
 
+  mc.has_pending_exception = FALSE;
+
   gum_process_enumerate_modules ((GumFoundModuleFunc) gum_emit_module, &mc);
 
-  mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -264,11 +278,13 @@ gum_emit_module (const GumModuleDetails * details,
   auto result =
       mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   return proceed;
@@ -293,9 +309,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
     return;
   mc.core = core;
 
+  mc.has_pending_exception = FALSE;
+
   gum_process_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
 
-  mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -332,11 +353,13 @@ gum_emit_range (const GumRangeDetails * details,
   auto result =
       mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   return proceed;
@@ -366,10 +389,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_malloc_ranges)
     return;
   mc.core = core;
 
+  mc.has_pending_exception = FALSE;
+
   gum_process_enumerate_malloc_ranges (
       (GumFoundMallocRangeFunc) gum_emit_malloc_range, &mc);
 
-  mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -388,11 +416,13 @@ gum_emit_malloc_range (const GumMallocRangeDetails * details,
   auto result =
       mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   return proceed;

@@ -21,6 +21,8 @@ struct GumV8MatchContext
   Local<Function> on_complete;
 
   GumV8Core * core;
+
+  gboolean has_pending_exception;
 };
 
 GUMJS_DECLARE_FUNCTION (gumjs_kernel_enumerate_ranges)
@@ -111,9 +113,14 @@ GUMJS_DEFINE_FUNCTION (gumjs_kernel_enumerate_ranges)
     return;
   mc.core = core;
 
+  mc.has_pending_exception = FALSE;
+
   gum_kernel_enumerate_ranges (prot, (GumFoundRangeFunc) gum_emit_range, &mc);
 
-  mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  if (!mc.has_pending_exception)
+  {
+    mc.on_complete->Call (Undefined (isolate), 0, nullptr);
+  }
 }
 
 static gboolean
@@ -150,11 +157,13 @@ gum_emit_range (const GumRangeDetails * details,
   auto result =
       mc->on_match->Call (Undefined (isolate), G_N_ELEMENTS (argv), argv);
 
-  gboolean proceed = TRUE;
-  if (!result.IsEmpty () && result->IsString ())
+  mc->has_pending_exception = result.IsEmpty ();
+
+  gboolean proceed = !mc->has_pending_exception;
+  if (proceed && result->IsString ())
   {
     String::Utf8Value str (result);
-    proceed = (strcmp (*str, "stop") != 0);
+    proceed = strcmp (*str, "stop") != 0;
   }
 
   return proceed;
