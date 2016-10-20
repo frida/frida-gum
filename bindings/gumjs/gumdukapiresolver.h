@@ -7,7 +7,7 @@
 #ifndef __GUM_DUK_API_RESOLVER_H__
 #define __GUM_DUK_API_RESOLVER_H__
 
-#include "gumdukcore.h"
+#include "gumdukobject.h"
 
 G_BEGIN_DECLS
 
@@ -16,6 +16,8 @@ typedef struct _GumDukApiResolver GumDukApiResolver;
 struct _GumDukApiResolver
 {
   GumDukCore * core;
+
+  GumDukObjectManager objects;
 
   GumDukHeapPtr api_resolver;
 };

@@ -22,7 +22,6 @@ struct _GumDukMatchContext
 };
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_api_resolver_construct)
-GUMJS_DECLARE_FINALIZER (gumjs_api_resolver_finalize)
 GUMJS_DECLARE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 static gboolean gum_emit_match (const GumApiDetails * details,
     GumDukMatchContext * mc);
@@ -43,20 +42,24 @@ _gum_duk_api_resolver_init (GumDukApiResolver * self,
 
   self->core = core;
 
+  _gum_duk_store_module_data (ctx, "api-resolver", self);
+
   duk_push_c_function (ctx, gumjs_api_resolver_construct, 1);
   duk_push_object (ctx);
   duk_put_function_list (ctx, -1, gumjs_api_resolver_functions);
-  duk_push_c_function (ctx, gumjs_api_resolver_finalize, 1);
-  duk_set_finalizer (ctx, -2);
   duk_put_prop_string (ctx, -2, "prototype");
   self->api_resolver = _gum_duk_require_heapptr (ctx, -1);
   duk_put_global_string (ctx, "ApiResolver");
+
+  _gum_duk_object_manager_init (&self->objects, self, core);
 }
 
 void
 _gum_duk_api_resolver_dispose (GumDukApiResolver * self)
 {
   GumDukScope scope = GUM_DUK_SCOPE_INIT (self->core);
+
+  _gum_duk_object_manager_free (&self->objects);
 
   _gum_duk_release_heapptr (scope.ctx, self->api_resolver);
 }
@@ -67,23 +70,17 @@ _gum_duk_api_resolver_finalize (GumDukApiResolver * self)
   (void) self;
 }
 
-static GumApiResolver *
-gumjs_api_resolver_from_args (const GumDukArgs * args)
+static GumDukApiResolver *
+gumjs_module_from_args (const GumDukArgs * args)
 {
-  duk_context * ctx = args->ctx;
-  GumApiResolver * self;
-
-  duk_push_this (ctx);
-  self = _gum_duk_require_data (ctx, -1);
-  duk_pop (ctx);
-
-  return self;
+  return _gum_duk_load_module_data (args->ctx, "api-resolver");
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 {
   const gchar * type;
   GumApiResolver * resolver;
+  GumDukApiResolver * module;
 
   if (!duk_is_constructor_call (ctx))
   {
@@ -98,47 +95,30 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   if (resolver == NULL)
     _gum_duk_throw (ctx, "the specified ApiResolver is not available");
 
+  module = gumjs_module_from_args (args);
+
   duk_push_this (ctx);
-  _gum_duk_put_data (ctx, -1, resolver);
-  duk_pop (ctx);
-
-  return 0;
-}
-
-GUMJS_DEFINE_FINALIZER (gumjs_api_resolver_finalize)
-{
-  GumApiResolver * resolver;
-
-  (void) args;
-
-  if (_gum_duk_is_arg0_equal_to_prototype (ctx, "ApiResolver"))
-    return 0;
-
-  resolver = _gum_duk_steal_data (ctx, 0);
-  if (resolver == NULL)
-    return 0;
-
-  g_object_unref (resolver);
+  _gum_duk_object_manager_add (&module->objects, ctx, -1, resolver);
 
   return 0;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_api_resolver_enumerate_matches)
 {
-  GumApiResolver * self;
+  GumDukObject * self;
   GumDukMatchContext mc;
   const gchar * query;
   GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   GError * error;
 
-  self = gumjs_api_resolver_from_args (args);
+  self = _gum_duk_object_get (args);
 
   _gum_duk_args_parse (args, "sF{onMatch,onComplete}", &query, &mc.on_match,
       &mc.on_complete);
   mc.scope = &scope;
 
   error = NULL;
-  gum_api_resolver_enumerate_matches (self, query,
+  gum_api_resolver_enumerate_matches (self->handle, query,
       (GumFoundApiFunc) gum_emit_match, &mc, &error);
   if (error != NULL)
     goto invalid_query;
