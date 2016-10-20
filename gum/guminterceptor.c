@@ -105,6 +105,7 @@ struct _GumInvocationStackEntry
   guint8 listener_invocation_data[GUM_MAX_LISTENERS_PER_FUNCTION]
       [GUM_MAX_LISTENER_DATA];
   gboolean calling_replacement;
+  gint original_system_error;
 };
 
 struct _ListenerDataSlot
@@ -1224,6 +1225,9 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     pc = GPOINTER_TO_SIZE (function_ctx->function_address);
   }
 
+  if (invocation_ctx != NULL)
+    invocation_ctx->system_error = system_error;
+
 #if defined (HAVE_I386)
 # if GLIB_SIZEOF_VOID_P == 4
   cpu_context->eip = pc;
@@ -1246,7 +1250,6 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
     guint i;
 
     invocation_ctx->cpu_context = cpu_context;
-    invocation_ctx->system_error = system_error;
     invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
     listener_entries = g_atomic_pointer_get (&function_ctx->listener_entries);
@@ -1293,6 +1296,7 @@ _gum_function_context_begin_invocation (GumFunctionContext * function_ctx,
   {
     stack_entry->calling_replacement = TRUE;
     stack_entry->cpu_context = *cpu_context;
+    stack_entry->original_system_error = system_error;
     invocation_ctx->cpu_context = &stack_entry->cpu_context;
     invocation_ctx->backend = &interceptor_ctx->replacement_backend;
     invocation_ctx->backend->data = function_ctx->replacement_function_data;
@@ -1346,7 +1350,15 @@ _gum_function_context_end_invocation (GumFunctionContext * function_ctx,
 
   invocation_ctx = &stack_entry->invocation_context;
   invocation_ctx->cpu_context = cpu_context;
-  invocation_ctx->system_error = system_error;
+  if (stack_entry->calling_replacement &&
+      invocation_ctx->system_error != stack_entry->original_system_error)
+  {
+    system_error = invocation_ctx->system_error;
+  }
+  else
+  {
+    invocation_ctx->system_error = system_error;
+  }
   invocation_ctx->backend = &interceptor_ctx->listener_backend;
 
 #if defined (HAVE_I386)

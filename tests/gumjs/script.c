@@ -33,8 +33,10 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (return_address_can_be_read)
   SCRIPT_TESTENTRY (register_can_be_read)
   SCRIPT_TESTENTRY (register_can_be_written)
-  SCRIPT_TESTENTRY (system_error_can_be_read)
-  SCRIPT_TESTENTRY (system_error_can_be_replaced)
+  SCRIPT_TESTENTRY (system_error_can_be_read_from_interceptor_listener)
+  SCRIPT_TESTENTRY (system_error_can_be_read_from_replacement_function)
+  SCRIPT_TESTENTRY (system_error_can_be_replaced_from_interceptor_listener)
+  SCRIPT_TESTENTRY (system_error_can_be_replaced_from_replacement_function)
   SCRIPT_TESTENTRY (invocations_are_bound_on_tls_object)
   SCRIPT_TESTENTRY (invocations_provide_thread_id)
   SCRIPT_TESTENTRY (invocations_provide_call_depth)
@@ -2117,7 +2119,7 @@ SCRIPT_TESTCASE (register_can_be_written)
   EXPECT_NO_MESSAGES ();
 }
 
-SCRIPT_TESTCASE (system_error_can_be_read)
+SCRIPT_TESTCASE (system_error_can_be_read_from_interceptor_listener)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -2148,7 +2150,49 @@ SCRIPT_TESTCASE (system_error_can_be_read)
   EXPECT_SEND_MESSAGE_WITH ("37");
 }
 
-SCRIPT_TESTCASE (system_error_can_be_replaced)
+SCRIPT_TESTCASE (system_error_can_be_read_from_replacement_function)
+{
+  GumInterceptor * interceptor;
+
+  interceptor = gum_interceptor_obtain ();
+
+  /* Replacement should be used regardless: */
+  gum_interceptor_ignore_current_thread (interceptor);
+
+#ifdef G_OS_WIN32
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  send(this.lastError);"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+  SetLastError (13);
+  target_function_int (7);
+  SetLastError (37);
+  target_function_int (7);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  send(this.errno);"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+  errno = 13;
+  target_function_int (7);
+  errno = 37;
+  target_function_int (7);
+#endif
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+
+  gum_interceptor_unignore_current_thread (interceptor);
+
+  g_object_unref (interceptor);
+}
+
+SCRIPT_TESTCASE (system_error_can_be_replaced_from_interceptor_listener)
 {
 #ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
@@ -2168,6 +2212,33 @@ SCRIPT_TESTCASE (system_error_can_be_replaced)
       "    this.errno = 1337;"
       "  }"
       "});", target_function_int);
+
+  errno = 42;
+  target_function_int (7);
+  g_assert_cmpint (errno, ==, 1337);
+#endif
+}
+
+SCRIPT_TESTCASE (system_error_can_be_replaced_from_replacement_function)
+{
+#ifdef G_OS_WIN32
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  this.lastError = 1337;"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
+
+  SetLastError (42);
+  target_function_int (7);
+  g_assert_cmpint (GetLastError (), ==, 1337);
+#else
+  COMPILE_AND_LOAD_SCRIPT (
+      "Interceptor.replace(" GUM_PTR_CONST ","
+      "    new NativeCallback(function (arg) {"
+      "  this.errno = 1337;"
+      "  return 0;"
+      "}, 'int', ['int']));", target_function_int);
 
   errno = 42;
   target_function_int (7);
