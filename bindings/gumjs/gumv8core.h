@@ -10,7 +10,7 @@
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
-    (GumCpuContext *) (o)->GetInternalField (0).As<External> ()->Value ()
+    ((GumCpuContext *) (o)->GetInternalField (0).As<External> ()->Value ())
 
 #include "gumscriptscheduler.h"
 #include "gumv8script.h"

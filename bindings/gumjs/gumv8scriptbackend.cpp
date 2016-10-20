@@ -19,9 +19,9 @@
 #define GUM_V8_SCRIPT_BACKEND_UNLOCK() (g_mutex_unlock (&priv->mutex))
 
 #define GUM_V8_SCRIPT_BACKEND_GET_PLATFORM(backend) \
-    (GumV8Platform *) gum_v8_script_backend_get_platform (backend)
+    ((GumV8Platform *) gum_v8_script_backend_get_platform (backend))
 #define GUM_V8_SCRIPT_BACKEND_GET_ISOLATE(backend) \
-    (Isolate *) gum_v8_script_backend_get_isolate (backend)
+    ((Isolate *) gum_v8_script_backend_get_isolate (backend))
 
 #define GUM_V8_FLAGS \
     "--es-staging " \
