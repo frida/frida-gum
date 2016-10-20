@@ -102,13 +102,13 @@ _gum_v8_process_init (GumV8Process * self,
   auto module = External::New (isolate, self);
 
   auto process = _gum_v8_create_module ("Process", scope, isolate);
-  process->Set (_gum_v8_string_new_from_ascii ("arch", isolate),
+  process->Set (_gum_v8_string_new_ascii (isolate, "arch"),
       String::NewFromUtf8 (isolate, GUM_SCRIPT_ARCH), ReadOnly);
-  process->Set (_gum_v8_string_new_from_ascii ("platform", isolate),
+  process->Set (_gum_v8_string_new_ascii (isolate, "platform"),
       String::NewFromUtf8 (isolate, GUM_SCRIPT_PLATFORM), ReadOnly);
-  process->Set (_gum_v8_string_new_from_ascii ("pageSize", isolate),
+  process->Set (_gum_v8_string_new_ascii (isolate, "pageSize"),
       Number::New (isolate, gum_query_page_size ()), ReadOnly);
-  process->Set (_gum_v8_string_new_from_ascii ("pointerSize", isolate),
+  process->Set (_gum_v8_string_new_ascii (isolate, "pointerSize"),
       Number::New (isolate, GLIB_SIZEOF_VOID_P), ReadOnly);
   _gum_v8_module_add (module, process, gumjs_process_functions, isolate);
 }
@@ -208,8 +208,8 @@ gum_emit_thread (const GumThreadDetails * details,
 
   auto thread = Object::New (isolate);
   _gum_v8_object_set (thread, "id", Number::New (isolate, details->id), core);
-  _gum_v8_object_set (thread, "state", _gum_v8_string_new_from_ascii (
-      _gum_v8_thread_state_to_string (details->state), isolate), core);
+  _gum_v8_object_set (thread, "state", _gum_v8_string_new_ascii (isolate,
+      _gum_v8_thread_state_to_string (details->state)), core);
   auto cpu_context = _gum_v8_cpu_context_new (&details->cpu_context, core);
   _gum_v8_object_set (thread, "context", cpu_context, core);
 

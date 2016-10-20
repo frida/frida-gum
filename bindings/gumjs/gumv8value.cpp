@@ -518,8 +518,8 @@ _gum_v8_args_parse (const GumV8Args * args,
 }
 
 Local<String>
-_gum_v8_string_new_from_ascii (const gchar * str,
-                               Isolate * isolate)
+_gum_v8_string_new_ascii (Isolate * isolate,
+                          const gchar * str)
 {
   return String::NewFromOneByte (isolate, (const uint8_t *) str);
 }
@@ -1179,7 +1179,7 @@ _gum_v8_throw_ascii_literal (Isolate * isolate,
                              const gchar * message)
 {
   isolate->ThrowException (Exception::Error (
-      _gum_v8_string_new_from_ascii (message, isolate)));
+      _gum_v8_string_new_ascii (isolate, message)));
 }
 
 void
@@ -1370,7 +1370,7 @@ _gum_v8_object_set (Handle<Object> object,
                     GumV8Core * core)
 {
   auto success = object->Set (core->isolate->GetCurrentContext (),
-      _gum_v8_string_new_from_ascii (key, core->isolate), value);
+      _gum_v8_string_new_ascii (core->isolate, key), value);
   return success.IsJust ();
 }
 
@@ -1417,7 +1417,7 @@ _gum_v8_object_set_ascii (Handle<Object> object,
                           GumV8Core * core)
 {
   return _gum_v8_object_set (object, key,
-      _gum_v8_string_new_from_ascii (value, core->isolate), core);
+      _gum_v8_string_new_ascii (core->isolate, value), core);
 }
 
 gboolean
@@ -1456,8 +1456,7 @@ _gum_v8_callbacks_get_opt (Handle<Object> callbacks,
                            Handle<Function> * callback_function,
                            GumV8Core * core)
 {
-  auto value = callbacks->Get (_gum_v8_string_new_from_ascii (name,
-      core->isolate));
+  auto value = callbacks->Get (_gum_v8_string_new_ascii (core->isolate, name));
   if (value->IsUndefined () || value->IsNull ())
     return TRUE;
 
@@ -1533,7 +1532,7 @@ _gum_v8_memory_range_get (Handle<Value> value,
   auto object = value.As<Object> ();
 
   Local<Value> base_value;
-  if (!object->Get (context, _gum_v8_string_new_from_ascii ("base", isolate))
+  if (!object->Get (context, _gum_v8_string_new_ascii (isolate, "base"))
       .ToLocal (&base_value))
     return FALSE;
 
@@ -1542,7 +1541,7 @@ _gum_v8_memory_range_get (Handle<Value> value,
     return FALSE;
 
   Local<Value> size_value;
-  if (!object->Get (context, _gum_v8_string_new_from_ascii ("size", isolate))
+  if (!object->Get (context, _gum_v8_string_new_ascii (isolate, "size"))
       .ToLocal (&size_value))
     return FALSE;
   if (!size_value->IsNumber ())
@@ -1602,7 +1601,7 @@ _gum_v8_create_module (const gchar * name,
                        Isolate * isolate)
 {
   auto module = ObjectTemplate::New (isolate);
-  scope->Set (_gum_v8_string_new_from_ascii (name, isolate), module);
+  scope->Set (_gum_v8_string_new_ascii (isolate, name), module);
   return module;
 }
 
@@ -1615,7 +1614,7 @@ _gum_v8_module_add (Handle<External> module,
   auto prop = properties;
   while (prop->name != NULL)
   {
-    object->SetAccessor (_gum_v8_string_new_from_ascii (prop->name, isolate),
+    object->SetAccessor (_gum_v8_string_new_ascii (isolate, prop->name),
         prop->getter, prop->setter, module);
     prop++;
   }
@@ -1630,7 +1629,7 @@ _gum_v8_module_add (Handle<External> module,
   auto func = functions;
   while (func->name != NULL)
   {
-    object->Set (_gum_v8_string_new_from_ascii (func->name, isolate),
+    object->Set (_gum_v8_string_new_ascii (isolate, func->name),
         FunctionTemplate::New (isolate, func->callback, module));
     func++;
   }
@@ -1644,9 +1643,9 @@ _gum_v8_create_class (const gchar * name,
                       Isolate * isolate)
 {
   auto klass = FunctionTemplate::New (isolate, ctor, module);
-  klass->SetClassName (_gum_v8_string_new_from_ascii (name, isolate));
+  klass->SetClassName (_gum_v8_string_new_ascii (isolate, name));
   klass->InstanceTemplate ()->SetInternalFieldCount (1);
-  scope->Set (_gum_v8_string_new_from_ascii (name, isolate), klass);
+  scope->Set (_gum_v8_string_new_ascii (isolate, name), klass);
   return klass;
 }
 
@@ -1661,7 +1660,7 @@ _gum_v8_class_add (Handle<FunctionTemplate> klass,
   auto prop = properties;
   while (prop->name != NULL)
   {
-    object->SetAccessor (_gum_v8_string_new_from_ascii (prop->name, isolate),
+    object->SetAccessor (_gum_v8_string_new_ascii (isolate, prop->name),
         prop->getter, prop->setter, module);
     prop++;
   }
@@ -1678,7 +1677,7 @@ _gum_v8_class_add (Handle<FunctionTemplate> klass,
   auto func = functions;
   while (func->name != NULL)
   {
-    proto->Set (_gum_v8_string_new_from_ascii (func->name, isolate),
+    proto->Set (_gum_v8_string_new_ascii (isolate, func->name),
         FunctionTemplate::New (isolate, func->callback, module));
     func++;
   }

@@ -230,20 +230,20 @@ GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_size, GumInstruction)
 GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_mnemonic, GumInstruction)
 {
   info.GetReturnValue ().Set (
-      _gum_v8_string_new_from_ascii (self->insn.mnemonic, isolate));
+      _gum_v8_string_new_ascii (isolate, self->insn.mnemonic));
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_instruction_get_op_str, GumInstruction)
 {
   info.GetReturnValue ().Set (
-      _gum_v8_string_new_from_ascii (self->insn.op_str, isolate));
+      _gum_v8_string_new_ascii (isolate, self->insn.op_str));
 }
 
 GUMJS_DEFINE_CLASS_METHOD (gumjs_instruction_to_string, GumInstruction)
 {
   cs_insn * insn = &self->insn;
   auto str = g_strconcat (insn->mnemonic, " ", insn->op_str, (void *) NULL);
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
   g_free (str);
 }
 

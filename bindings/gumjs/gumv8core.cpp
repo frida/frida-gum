@@ -376,14 +376,14 @@ _gum_v8_core_init (GumV8Core * self,
   scope->SetHandler (global_access);
 
   auto frida = _gum_v8_create_module ("Frida", scope, isolate);
-  frida->Set (_gum_v8_string_new_from_ascii ("version", isolate),
-      _gum_v8_string_new_from_ascii (FRIDA_VERSION, isolate), ReadOnly);
+  frida->Set (_gum_v8_string_new_ascii (isolate, "version"),
+      _gum_v8_string_new_ascii (isolate, FRIDA_VERSION), ReadOnly);
 
   auto script_module = _gum_v8_create_module ("Script", scope, isolate);
   _gum_v8_module_add (module, script_module, gumjs_script_values, isolate);
   _gum_v8_module_add (module, script_module, gumjs_script_functions, isolate);
-  script_module->Set (_gum_v8_string_new_from_ascii ("runtime", isolate),
-      _gum_v8_string_new_from_ascii ("V8", isolate), ReadOnly);
+  script_module->Set (_gum_v8_string_new_ascii (isolate, "runtime"),
+      _gum_v8_string_new_ascii (isolate, "V8"), ReadOnly);
 
   auto weak = _gum_v8_create_module ("WeakRef", scope, isolate);
   _gum_v8_module_add (module, weak, gumjs_weak_ref_functions, isolate);
@@ -430,7 +430,7 @@ _gum_v8_core_init (GumV8Core * self,
 
 #define GUM_DEFINE_CPU_CONTEXT_ACCESSOR_ALIASED(A, R) \
   cpu_context_object->SetAccessor ( \
-      _gum_v8_string_new_from_ascii (G_STRINGIFY (A), isolate), \
+      _gum_v8_string_new_ascii (isolate, G_STRINGIFY (A)), \
       gumjs_cpu_context_get_register, \
       gumjs_cpu_context_set_register, \
       Integer::NewFromUnsigned (isolate, \
@@ -544,7 +544,7 @@ _gum_v8_core_realize (GumV8Core * self)
   auto context = isolate->GetCurrentContext ();
 
   auto global = context->Global ();
-  global->Set (_gum_v8_string_new_from_ascii ("global", isolate), global);
+  global->Set (_gum_v8_string_new_ascii (isolate, "global"), global);
 
   self->native_functions = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) gum_v8_native_function_free);
@@ -574,7 +574,7 @@ _gum_v8_core_realize (GumV8Core * self)
   self->native_pointer_value = new GumPersistent<Object>::type (isolate,
       native_pointer_value);
   self->handle_key = new GumPersistent<String>::type (isolate,
-      _gum_v8_string_new_from_ascii ("handle", isolate));
+      _gum_v8_string_new_ascii (isolate, "handle"));
 
   auto cpu_context = Local<FunctionTemplate>::New (isolate, *self->cpu_context);
   Local<Value> args[] = {
@@ -1506,7 +1506,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_string)
   else
     sprintf (str, "-%" G_GINT64_MODIFIER "x", -value);
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1524,7 +1524,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_int64_to_json)
   gchar str[32];
   sprintf (str, "%" G_GINT64_FORMAT, _gum_v8_int64_get_value (info.Holder ()));
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1650,7 +1650,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_string)
   else
     sprintf (str, "%" G_GINT64_MODIFIER "x", value);
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1669,7 +1669,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_uint64_to_json)
   sprintf (str, "%" G_GUINT64_FORMAT,
       _gum_v8_uint64_get_value (info.Holder ()));
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1829,7 +1829,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_string)
       sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
   }
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1849,7 +1849,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_json)
   gchar str[32];
   sprintf (str, "0x%" G_GSIZE_MODIFIER "x", ptr);
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (str, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, str));
 }
 
 /*
@@ -1886,7 +1886,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
   }
   result[dst] = '\0';
 
-  info.GetReturnValue ().Set (_gum_v8_string_new_from_ascii (result, isolate));
+  info.GetReturnValue ().Set (_gum_v8_string_new_ascii (isolate, result));
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)

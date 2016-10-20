@@ -56,7 +56,7 @@ _gum_v8_kernel_init (GumV8Kernel * self,
   auto kernel = _gum_v8_create_module ("Kernel", scope, isolate);
 
   auto available = gum_kernel_api_is_available ();
-  kernel->Set (_gum_v8_string_new_from_ascii ("available", isolate),
+  kernel->Set (_gum_v8_string_new_ascii (isolate, "available"),
       Boolean::New (isolate, !!available), ReadOnly);
 
   if (available)

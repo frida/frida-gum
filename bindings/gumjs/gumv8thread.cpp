@@ -47,21 +47,21 @@ _gum_v8_thread_realize (GumV8Thread * self)
   auto context = isolate->GetCurrentContext ();
 
   auto backtracer = context->Global ()->Get (context,
-      _gum_v8_string_new_from_ascii ("Backtracer", isolate)).ToLocalChecked ()
+      _gum_v8_string_new_ascii (isolate, "Backtracer")).ToLocalChecked ()
       .As<Object> ();
 
   auto accurate = Symbol::ForApi (isolate,
-      _gum_v8_string_new_from_ascii ("Backtracer.ACCURATE", isolate));
+      _gum_v8_string_new_ascii (isolate, "Backtracer.ACCURATE"));
   backtracer->DefineOwnProperty (context,
-      _gum_v8_string_new_from_ascii ("ACCURATE", isolate), accurate,
+      _gum_v8_string_new_ascii (isolate, "ACCURATE"), accurate,
       (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
   self->accurate_enum_value =
       new GumPersistent<Symbol>::type (isolate, accurate);
 
   auto fuzzy = Symbol::ForApi (isolate,
-      _gum_v8_string_new_from_ascii ("Backtracer.FUZZY", isolate));
+      _gum_v8_string_new_ascii (isolate, "Backtracer.FUZZY"));
   backtracer->DefineOwnProperty (context,
-      _gum_v8_string_new_from_ascii ("FUZZY", isolate), fuzzy,
+      _gum_v8_string_new_ascii (isolate, "FUZZY"), fuzzy,
       (PropertyAttribute) (ReadOnly | DontDelete)).ToChecked ();
   self->fuzzy_enum_value =
       new GumPersistent<Symbol>::type (isolate, fuzzy);

@@ -761,8 +761,7 @@ gum_v8_native_stream_ctor_args_parse (const GumV8Args * args,
   *auto_close = FALSE;
   if (!options.IsEmpty ())
   {
-    auto auto_close_key =
-        _gum_v8_string_new_from_ascii ("autoClose", core->isolate);
+    auto auto_close_key = _gum_v8_string_new_ascii (core->isolate, "autoClose");
     if (options->Has (auto_close_key))
     {
       *auto_close =

@@ -132,13 +132,13 @@ _gum_v8_module_realize (GumV8Module * self)
     auto isolate = self->core->isolate;
     auto context = isolate->GetCurrentContext ();
 
-    auto type = _gum_v8_string_new_from_ascii ("type", isolate);
-    auto name = _gum_v8_string_new_from_ascii ("name", isolate);
-    auto module = _gum_v8_string_new_from_ascii ("module", isolate);
-    auto address = _gum_v8_string_new_from_ascii ("address", isolate);
+    auto type = _gum_v8_string_new_ascii (isolate, "type");
+    auto name = _gum_v8_string_new_ascii (isolate, "name");
+    auto module = _gum_v8_string_new_ascii (isolate, "module");
+    auto address = _gum_v8_string_new_ascii (isolate, "address");
 
-    auto function = _gum_v8_string_new_from_ascii ("function", isolate);
-    auto variable = _gum_v8_string_new_from_ascii ("variable", isolate);
+    auto function = _gum_v8_string_new_ascii (isolate, "function");
+    auto variable = _gum_v8_string_new_ascii (isolate, "variable");
 
     auto empty_string = String::Empty (isolate);
 
@@ -262,14 +262,12 @@ gum_emit_import (const GumImportDetails * details,
   }
 
   imp->ForceSet (context, ic->name,
-      _gum_v8_string_new_from_ascii (details->name, isolate), attrs)
-      .FromJust ();
+      _gum_v8_string_new_ascii (isolate, details->name), attrs).FromJust ();
 
   if (details->module != NULL)
   {
     imp->ForceSet (context, ic->module,
-        _gum_v8_string_new_from_ascii (details->module, isolate), attrs)
-        .FromJust ();
+        _gum_v8_string_new_ascii (isolate, details->module), attrs).FromJust ();
   }
   else
   {
@@ -361,8 +359,7 @@ gum_emit_export (const GumExportDetails * details,
   }
 
   exp->ForceSet (context, ec->name,
-      _gum_v8_string_new_from_ascii (details->name, isolate), attrs)
-      .FromJust ();
+      _gum_v8_string_new_ascii (isolate, details->name), attrs).FromJust ();
 
   exp->ForceSet (context, ec->address,
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (details->address), core),
