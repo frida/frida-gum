@@ -42,17 +42,17 @@ gum_v8_object_manager_init (GumV8ObjectManager * self)
 void
 gum_v8_object_manager_flush (GumV8ObjectManager * self)
 {
-  GPtrArray * cancellables;
+  auto cancellables = g_ptr_array_new_full (
+      g_hash_table_size (self->object_by_handle), g_object_unref);
+
   GHashTableIter iter;
   GumV8AnyObject * object;
-
-  cancellables = g_ptr_array_new_full (
-      g_hash_table_size (self->object_by_handle), g_object_unref);
   g_hash_table_iter_init (&iter, self->object_by_handle);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &object))
   {
     g_ptr_array_add (cancellables, g_object_ref (object->cancellable));
   }
+
   g_ptr_array_foreach (cancellables, (GFunc) g_cancellable_cancel, NULL);
   g_ptr_array_unref (cancellables);
 
@@ -75,11 +75,9 @@ _gum_v8_object_manager_add (GumV8ObjectManager * self,
                             gpointer module,
                             GumV8Core * core)
 {
-  GumV8AnyObject * object;
+  auto object = g_slice_new (GumV8AnyObject);
 
-  object = g_slice_new (GumV8AnyObject);
-  GumPersistent<Object>::type * w = new GumPersistent<Object>::type (
-      core->isolate, wrapper);
+  auto * w = new GumPersistent<Object>::type (core->isolate, wrapper);
   w->MarkIndependent ();
   w->SetWeak (object, gum_v8_object_on_weak_notify,
       WeakCallbackType::kParameter);
@@ -113,7 +111,7 @@ gum_v8_object_on_weak_notify (
     const WeakCallbackInfo<GumV8AnyObject> & info)
 {
   HandleScope handle_scope (info.GetIsolate ());
-  GumV8AnyObject * object = info.GetParameter ();
+  auto object = info.GetParameter ();
   g_hash_table_remove (object->manager->object_by_handle, object->handle);
 }
 
@@ -139,11 +137,10 @@ _gum_v8_object_operation_new (gsize size,
                               GDestroyNotify dispose,
                               GumV8Core * core)
 {
-  GumV8AnyObject * object = (GumV8AnyObject *) opaque_object;
-  Isolate * isolate = core->isolate;
+  auto object = (GumV8AnyObject *) opaque_object;
+  auto isolate = core->isolate;
 
-  GumV8AnyObjectOperation * op =
-      (GumV8AnyObjectOperation *) g_slice_alloc (size);
+  auto op = (GumV8AnyObjectOperation *) g_slice_alloc (size);
 
   op->object = object;
   op->callback = new GumPersistent<Function>::type (isolate,
@@ -167,8 +164,8 @@ _gum_v8_object_operation_new (gsize size,
 static void
 gum_v8_object_operation_free (GumV8AnyObjectOperation * self)
 {
-  GumV8AnyObject * object = self->object;
-  GumV8Core * core = object->core;
+  auto object = self->object;
+  auto core = object->core;
 
   g_assert (self->pending_dependencies == NULL);
 
@@ -183,7 +180,7 @@ gum_v8_object_operation_free (GumV8AnyObjectOperation * self)
 
     if (--object->num_active_operations == 0)
     {
-      gpointer next = g_queue_pop_head (object->pending_operations);
+      auto next = g_queue_pop_head (object->pending_operations);
       if (next != NULL)
         _gum_v8_object_operation_schedule (next);
     }
@@ -197,7 +194,7 @@ gum_v8_object_operation_free (GumV8AnyObjectOperation * self)
 void
 _gum_v8_object_operation_schedule (gpointer opaque_self)
 {
-  GumV8AnyObjectOperation * self = (GumV8AnyObjectOperation *) opaque_self;
+  auto self = (GumV8AnyObjectOperation *) opaque_self;
 
   self->object->num_active_operations++;
   gum_script_job_start_on_js_thread (self->job);
@@ -207,18 +204,16 @@ void
 _gum_v8_object_operation_schedule_when_idle (gpointer opaque_self,
                                              GPtrArray * dependencies)
 {
-  GumV8AnyObjectOperation * self = (GumV8AnyObjectOperation *) opaque_self;
+  auto self = (GumV8AnyObjectOperation *) opaque_self;
 
   if (dependencies != NULL)
   {
     for (guint i = 0; i != dependencies->len; i++)
     {
-      GumV8AnyObject * dependency = (GumV8AnyObject *)
-          g_ptr_array_index (dependencies, i);
+      auto dependency = (GumV8AnyObject *) g_ptr_array_index (dependencies, i);
       if (dependency->num_active_operations > 0)
       {
-        GumV8TryScheduleIfIdleOperation * op = gum_v8_object_operation_new (
-            dependency, Handle<Value> (),
+        auto op = gum_v8_object_operation_new (dependency, Handle<Value> (),
             gum_v8_try_schedule_if_idle_operation_perform);
         op->blocked_operation = self;
         self->pending_dependencies =
@@ -270,10 +265,9 @@ _gum_v8_module_operation_new (gsize size,
                               GDestroyNotify dispose,
                               GumV8Core * core)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
-  GumV8AnyModuleOperation * op =
-      (GumV8AnyModuleOperation *) g_slice_alloc (size);
+  auto op = (GumV8AnyModuleOperation *) g_slice_alloc (size);
 
   op->module = module;
   op->cancellable = manager->cancellable;
@@ -295,7 +289,7 @@ _gum_v8_module_operation_new (gsize size,
 static void
 gum_v8_module_operation_free (GumV8AnyModuleOperation * self)
 {
-  GumV8Core * core = self->core;
+  auto core = self->core;
 
   if (self->dispose != NULL)
     self->dispose (self);

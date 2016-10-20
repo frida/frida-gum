@@ -55,7 +55,8 @@ static GumScriptTask * gum_create_script_task_new (
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
 static void gum_create_script_task_run (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+    GumDukScriptBackend * self, GumCreateScriptData * d,
+    GCancellable * cancellable);
 static void gum_create_script_data_free (GumCreateScriptData * d);
 static void gum_duk_script_backend_create_from_bytes (
     GumScriptBackend * backend, const gchar * name, GBytes * bytes,
@@ -71,7 +72,8 @@ static GumScriptTask * gum_create_script_from_bytes_task_new (
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
 static void gum_create_script_from_bytes_task_run (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+    GumDukScriptBackend * self, GumCreateScriptFromBytesData * d,
+    GCancellable * cancellable);
 static void gum_create_script_from_bytes_data_free (
     GumCreateScriptFromBytesData * d);
 
@@ -87,7 +89,8 @@ static GumScriptTask * gum_compile_script_task_new (
     GCancellable * cancellable, GAsyncReadyCallback callback,
     gpointer user_data);
 static void gum_compile_script_task_run (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+    GumDukScriptBackend * self, GumCompileScriptData * d,
+    GCancellable * cancellable);
 static void gum_compile_script_data_free (GumCompileScriptData * d);
 
 static void gum_duk_script_backend_set_debug_message_handler (
@@ -295,7 +298,7 @@ gum_create_script_task_new (GumDukScriptBackend * backend,
   d->name = g_strdup (name);
   d->source = g_strdup (source);
 
-  task = gum_script_task_new (gum_create_script_task_run,
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_create_script_task_run,
       backend, cancellable, callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_create_script_data_free);
@@ -304,12 +307,10 @@ gum_create_script_task_new (GumDukScriptBackend * backend,
 
 static void
 gum_create_script_task_run (GumScriptTask * task,
-                            gpointer source_object,
-                            gpointer task_data,
+                            GumDukScriptBackend * self,
+                            GumCreateScriptData * d,
                             GCancellable * cancellable)
 {
-  GumDukScriptBackend * self = source_object;
-  GumCreateScriptData * d = task_data;
   GumDukScript * script;
   GError * error = NULL;
 
@@ -408,7 +409,8 @@ gum_create_script_from_bytes_task_new (GumDukScriptBackend * backend,
   d->name = g_strdup (name);
   d->bytes = g_bytes_ref (bytes);
 
-  task = gum_script_task_new (gum_create_script_from_bytes_task_run, backend,
+  task = gum_script_task_new (
+      (GumScriptTaskFunc) gum_create_script_from_bytes_task_run, backend,
       cancellable, callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_create_script_from_bytes_data_free);
@@ -417,12 +419,10 @@ gum_create_script_from_bytes_task_new (GumDukScriptBackend * backend,
 
 static void
 gum_create_script_from_bytes_task_run (GumScriptTask * task,
-                                       gpointer source_object,
-                                       gpointer task_data,
+                                       GumDukScriptBackend * self,
+                                       GumCreateScriptFromBytesData * d,
                                        GCancellable * cancellable)
 {
-  GumDukScriptBackend * self = source_object;
-  GumCreateScriptFromBytesData * d = task_data;
   GumDukScript * script;
   GError * error = NULL;
 
@@ -513,8 +513,9 @@ gum_compile_script_task_new (GumDukScriptBackend * backend,
   GumCompileScriptData * d = g_slice_new (GumCompileScriptData);
   d->source = g_strdup (source);
 
-  GumScriptTask * task = gum_script_task_new (gum_compile_script_task_run,
-      backend, cancellable, callback, user_data);
+  GumScriptTask * task = gum_script_task_new (
+      (GumScriptTaskFunc) gum_compile_script_task_run, backend, cancellable,
+      callback, user_data);
   gum_script_task_set_task_data (task, d,
       (GDestroyNotify) gum_compile_script_data_free);
   return task;
@@ -522,12 +523,10 @@ gum_compile_script_task_new (GumDukScriptBackend * backend,
 
 static void
 gum_compile_script_task_run (GumScriptTask * task,
-                             gpointer source_object,
-                             gpointer task_data,
+                             GumDukScriptBackend * self,
+                             GumCompileScriptData * d,
                              GCancellable * cancellable)
 {
-  GumDukScriptBackend * self = source_object;
-  GumCompileScriptData * d = task_data;
   duk_context * ctx;
   GError * error = NULL;
 

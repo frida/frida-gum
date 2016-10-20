@@ -139,8 +139,7 @@ GumV8Platform::CallOnBackgroundThread (Task * task,
     return;
   }
 
-  GumV8TaskRequest<Task> * request =
-      new GumV8TaskRequest<Task> (this, nullptr, task);
+  auto request = new GumV8TaskRequest<Task> (this, nullptr, task);
 
   gum_script_scheduler_push_job_on_thread_pool (scheduler,
       (GumScriptJobFunc) HandleTaskRequest, request, NULL);
@@ -152,8 +151,7 @@ GumV8Platform::CallOnForegroundThread (Isolate * for_isolate,
 {
   g_assert (!disposing);
 
-  GumV8TaskRequest<Task> * request =
-      new GumV8TaskRequest<Task> (this, for_isolate, task);
+  auto request = new GumV8TaskRequest<Task> (this, for_isolate, task);
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) HandleTaskRequest, request, NULL);
@@ -166,10 +164,9 @@ GumV8Platform::CallDelayedOnForegroundThread (Isolate * for_isolate,
 {
   g_assert (!disposing);
 
-  GumV8TaskRequest<Task> * request =
-      new GumV8TaskRequest<Task> (this, for_isolate, task);
+  auto request = new GumV8TaskRequest<Task> (this, for_isolate, task);
 
-  GSource * source = g_timeout_source_new (delay_in_seconds * 1000.0);
+  auto source = g_timeout_source_new (delay_in_seconds * 1000.0);
   g_source_set_priority (source, G_PRIORITY_DEFAULT);
   g_source_set_callback (source, (GSourceFunc) HandleDelayedTaskRequest,
       request, NULL);
@@ -183,8 +180,7 @@ GumV8Platform::CallIdleOnForegroundThread (Isolate * for_isolate,
 {
   g_assert (!disposing);
 
-  GumV8TaskRequest<IdleTask> * request =
-      new GumV8TaskRequest<IdleTask> (this, for_isolate, task);
+  auto request = new GumV8TaskRequest<IdleTask> (this, for_isolate, task);
 
   gum_script_scheduler_push_job_on_js_thread (scheduler, G_PRIORITY_DEFAULT,
       (GumScriptJobFunc) HandleIdleTaskRequest, request, NULL);
@@ -202,13 +198,14 @@ double
 GumV8Platform::MonotonicallyIncreasingTime ()
 {
   gint64 delta = g_get_monotonic_time () - start_time;
+
   return ((double) (delta / G_GINT64_CONSTANT (1000))) / 1000.0;
 }
 
 void
 GumV8Platform::HandleTaskRequest (GumV8TaskRequest<Task> * request)
 {
-  Isolate * isolate = request->isolate;
+  auto isolate = request->isolate;
 
   if (isolate != nullptr)
   {
@@ -239,7 +236,7 @@ GumV8Platform::HandleDelayedTaskRequest (GumV8TaskRequest<Task> * request)
 void
 GumV8Platform::HandleIdleTaskRequest (GumV8TaskRequest<IdleTask> * request)
 {
-  Isolate * isolate = request->isolate;
+  auto isolate = request->isolate;
 
   Locker locker (isolate);
   Isolate::Scope isolate_scope (isolate);

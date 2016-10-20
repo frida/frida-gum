@@ -43,8 +43,8 @@ ScriptScope::~ScriptScope ()
 
     GumPersistent<Function>::type * tick_callback;
     auto receiver = Undefined (isolate);
-    while ((tick_callback = static_cast<GumPersistent<Function>::type *> (
-        g_queue_pop_head (core->tick_callbacks))) != nullptr)
+    while ((tick_callback = (GumPersistent<Function>::type *)
+        g_queue_pop_head (core->tick_callbacks)) != nullptr)
     {
       auto callback = Local<Function>::New (isolate, *tick_callback);
 

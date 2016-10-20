@@ -24,14 +24,10 @@ struct GumV8Source
   const gchar * chunks[GUM_MAX_SCRIPT_SOURCE_CHUNKS];
 };
 
-G_BEGIN_DECLS
-
-GumV8Bundle * gum_v8_bundle_new (v8::Isolate * isolate,
+G_GNUC_INTERNAL GumV8Bundle * gum_v8_bundle_new (v8::Isolate * isolate,
     const GumV8Source * sources);
-void gum_v8_bundle_free (GumV8Bundle * bundle);
+G_GNUC_INTERNAL void gum_v8_bundle_free (GumV8Bundle * bundle);
 
-void gum_v8_bundle_run (GumV8Bundle * self);
-
-G_END_DECLS
+G_GNUC_INTERNAL void gum_v8_bundle_run (GumV8Bundle * self);
 
 #endif

@@ -3522,7 +3522,7 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   {
     g_assert (code == NULL);
     g_assert (error != NULL);
-    g_assert_cmpstr (error->message, ==, "Not yet supported by the V8 runtime");
+    g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
 
     code = g_bytes_new (NULL, 0);
@@ -3558,7 +3558,7 @@ SCRIPT_TESTCASE (script_can_be_compiled_to_bytecode)
   {
     g_assert (script == NULL);
     g_assert (error != NULL);
-    g_assert_cmpstr (error->message, ==, "Not yet supported by the V8 runtime");
+    g_assert_cmpstr (error->message, ==, "not yet supported by the V8 runtime");
     g_clear_error (&error);
   }
 

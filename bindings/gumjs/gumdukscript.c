@@ -118,8 +118,8 @@ static void gum_duk_script_load_finish (GumScript * script,
     GAsyncResult * result);
 static void gum_duk_script_load_sync (GumScript * script,
     GCancellable * cancellable);
-static void gum_duk_script_do_load (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_duk_script_do_load (GumScriptTask * task, GumDukScript * self,
+    gpointer task_data, GCancellable * cancellable);
 static void gum_duk_script_perform_load_task (GumDukScript * self,
     GumScriptTask * task);
 static void gum_duk_script_unload (GumScript * script,
@@ -129,8 +129,8 @@ static void gum_duk_script_unload_finish (GumScript * script,
     GAsyncResult * result);
 static void gum_duk_script_unload_sync (GumScript * script,
     GCancellable * cancellable);
-static void gum_duk_script_do_unload (GumScriptTask * task,
-    gpointer source_object, gpointer task_data, GCancellable * cancellable);
+static void gum_duk_script_do_unload (GumScriptTask * task, GumDukScript * self,
+    gpointer task_data, GCancellable * cancellable);
 static void gum_duk_script_complete_unload_task (GumDukScript * self,
     GumScriptTask * task);
 static void gum_duk_script_try_unload (GumDukScript * self);
@@ -469,8 +469,8 @@ gum_duk_script_load (GumScript * script,
   GumDukScript * self = GUM_DUK_SCRIPT (script);
   GumScriptTask * task;
 
-  task = gum_script_task_new (gum_duk_script_do_load, self, cancellable,
-      callback, user_data);
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_duk_script_do_load, self,
+      cancellable, callback, user_data);
   gum_script_task_run_in_js_thread (task,
       gum_duk_script_backend_get_scheduler (self->priv->backend));
   g_object_unref (task);
@@ -492,8 +492,8 @@ gum_duk_script_load_sync (GumScript * script,
   GumDukScript * self = GUM_DUK_SCRIPT (script);
   GumScriptTask * task;
 
-  task = gum_script_task_new (gum_duk_script_do_load, self, cancellable, NULL,
-      NULL);
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_duk_script_do_load, self,
+      cancellable, NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task,
       gum_duk_script_backend_get_scheduler (self->priv->backend));
   gum_script_task_propagate_pointer (task, NULL);
@@ -502,12 +502,10 @@ gum_duk_script_load_sync (GumScript * script,
 
 static void
 gum_duk_script_do_load (GumScriptTask * task,
-                        gpointer source_object,
+                        GumDukScript * self,
                         gpointer task_data,
                         GCancellable * cancellable)
 {
-  GumDukScript * self = GUM_DUK_SCRIPT (source_object);
-
   (void) task_data;
   (void) cancellable;
 
@@ -568,8 +566,8 @@ gum_duk_script_unload (GumScript * script,
   GumDukScript * self = GUM_DUK_SCRIPT (script);
   GumScriptTask * task;
 
-  task = gum_script_task_new (gum_duk_script_do_unload, self, cancellable,
-      callback, user_data);
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_duk_script_do_unload,
+      self, cancellable, callback, user_data);
   gum_script_task_run_in_js_thread (task,
       gum_duk_script_backend_get_scheduler (self->priv->backend));
   g_object_unref (task);
@@ -591,8 +589,8 @@ gum_duk_script_unload_sync (GumScript * script,
   GumDukScript * self = GUM_DUK_SCRIPT (script);
   GumScriptTask * task;
 
-  task = gum_script_task_new (gum_duk_script_do_unload, self, cancellable, NULL,
-      NULL);
+  task = gum_script_task_new ((GumScriptTaskFunc) gum_duk_script_do_unload,
+      self, cancellable, NULL, NULL);
   gum_script_task_run_in_js_thread_sync (task,
       gum_duk_script_backend_get_scheduler (self->priv->backend));
   gum_script_task_propagate_pointer (task, NULL);
@@ -601,11 +599,10 @@ gum_duk_script_unload_sync (GumScript * script,
 
 static void
 gum_duk_script_do_unload (GumScriptTask * task,
-                          gpointer source_object,
+                          GumDukScript * self,
                           gpointer task_data,
                           GCancellable * cancellable)
 {
-  GumDukScript * self = GUM_DUK_SCRIPT (source_object);
   GumDukScriptPrivate * priv = self->priv;
 
   (void) task_data;
