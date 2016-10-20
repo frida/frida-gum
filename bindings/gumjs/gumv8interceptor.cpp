@@ -13,12 +13,6 @@
 
 #define GUMJS_MODULE_NAME Interceptor
 
-#ifdef G_OS_WIN32
-# define GUM_SYSTEM_ERROR_FIELD "lastError"
-#else
-# define GUM_SYSTEM_ERROR_FIELD "errno"
-#endif
-
 #define GUM_V8_INVOCATION_LISTENER_CAST(obj) \
     ((GumV8InvocationListener *) (obj))
 #define GUM_V8_TYPE_CALL_LISTENER (gum_v8_call_listener_get_type ())
@@ -187,7 +181,7 @@ static const GumV8Property gumjs_invocation_context_values[] =
     NULL
   },
   {
-    GUM_SYSTEM_ERROR_FIELD,
+    GUMJS_SYSTEM_ERROR_FIELD,
     gumjs_invocation_context_get_system_error,
     gumjs_invocation_context_set_system_error
   },

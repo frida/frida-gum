@@ -12,6 +12,12 @@
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
     ((GumCpuContext *) (o)->GetInternalField (0).As<External> ()->Value ())
 
+#ifdef G_OS_WIN32
+# define GUMJS_SYSTEM_ERROR_FIELD "lastError"
+#else
+# define GUMJS_SYSTEM_ERROR_FIELD "errno"
+#endif
+
 #include "gumscriptscheduler.h"
 #include "gumv8script.h"
 #include "gumv8scriptbackend.h"

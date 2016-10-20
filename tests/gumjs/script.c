@@ -171,6 +171,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (system_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
   SCRIPT_TESTENTRY (nested_native_function_crash_is_handled_gracefully)
   SCRIPT_TESTENTRY (variadic_native_function_can_be_invoked)
@@ -210,6 +211,7 @@ struct _TestTrigger
   GCond cond;
 };
 
+static gint gum_clobber_system_error (gint value);
 static gint gum_toupper (gchar * str, gint limit);
 static gint64 gum_classify_timestamp (gint64 timestamp);
 static guint64 gum_square (guint64 value);
@@ -425,6 +427,46 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
   EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (system_function_can_be_invoked)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
+#ifdef G_OS_WIN32
+      "send(result.lastError);"
+#else
+      "send(result.errno);"
+#endif
+
+      "result = f(37);"
+      "send(result.value);"
+#ifdef G_OS_WIN32
+      "send(result.lastError);"
+#else
+      "send(result.errno);"
+#endif
+      , gum_clobber_system_error);
+  EXPECT_SEND_MESSAGE_WITH ("26");
+  EXPECT_SEND_MESSAGE_WITH ("13");
+  EXPECT_SEND_MESSAGE_WITH ("74");
+  EXPECT_SEND_MESSAGE_WITH ("37");
+  EXPECT_NO_MESSAGES ();
+}
+
+static gint
+gum_clobber_system_error (gint value)
+{
+#ifdef G_OS_WIN32
+  SetLastError (value);
+#else
+  errno = value;
+#endif
+
+  return value * 2;
 }
 
 SCRIPT_TESTCASE (native_function_crash_results_in_exception)

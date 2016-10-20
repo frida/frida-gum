@@ -13,6 +13,7 @@
 #include "gumv8script-priv.h"
 
 #include <ffi.h>
+#include <gum/gum-init.h>
 #include <string.h>
 
 #define GUMJS_MODULE_NAME Core
@@ -56,11 +57,22 @@ struct GumV8MessageSink
   Isolate * isolate;
 };
 
+struct GumV8NativeFunctionParams
+{
+  GCallback implementation;
+  Local<Value> return_type;
+  Local<Array> argument_types;
+  Local<Value> abi;
+
+  gboolean enable_detailed_return;
+};
+
 struct GumV8NativeFunction
 {
   GumPersistent<Object>::type * wrapper;
 
   GCallback fn;
+  gboolean enable_detailed_return;
   ffi_cif cif;
   ffi_type ** atypes;
   gsize arglist_size;
@@ -201,10 +213,14 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
+static GumV8NativeFunction * gumjs_native_function_init (Handle<Object> wrapper,
+    const GumV8NativeFunctionParams * params, GumV8Core * core);
 static void gum_v8_native_function_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeFunction> & info);
 static void gum_v8_native_function_free (GumV8NativeFunction * self);
 GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
+
+GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_callback_construct)
 static void gum_v8_native_callback_on_weak_notify (
@@ -333,6 +349,24 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { NULL, NULL }
 };
 
+class GumV8ModuleEternals
+{
+public:
+  Eternal<Object> native_return_value;
+
+  Eternal<String> value_key;
+  Eternal<String> system_error_key;
+};
+
+static GumV8ModuleEternals * eternals;
+
+static void
+gum_v8_module_deinit_eternals (void)
+{
+  delete eternals;
+  eternals = nullptr;
+}
+
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
@@ -414,6 +448,14 @@ _gum_v8_core_init (GumV8Core * self,
   native_function_object->SetCallAsFunctionHandler (
       gumjs_native_function_invoke, module);
   native_function_object->SetInternalFieldCount (2);
+
+  auto system_function = _gum_v8_create_class ("SystemFunction",
+      gumjs_system_function_construct, scope, module, isolate);
+  system_function->Inherit (native_function);
+  auto system_function_object = system_function->InstanceTemplate ();
+  system_function_object->SetCallAsFunctionHandler (
+      gumjs_native_function_invoke, module);
+  system_function_object->SetInternalFieldCount (2);
 
   auto native_callback = _gum_v8_create_class ("NativeCallback",
       gumjs_native_callback_construct, scope, module, isolate);
@@ -585,6 +627,31 @@ _gum_v8_core_realize (GumV8Core * self)
       G_N_ELEMENTS (args), args).ToLocalChecked ();
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
+
+  static gsize eternals_initialized = 0;
+
+  if (g_once_init_enter (&eternals_initialized))
+  {
+    auto value_key = _gum_v8_string_new_ascii (isolate, "value");
+    auto system_error_key =
+        _gum_v8_string_new_ascii (isolate, GUMJS_SYSTEM_ERROR_FIELD);
+
+    auto zero = Integer::New (isolate, 0);
+
+    auto native_return_value = Object::New (isolate);
+    native_return_value->Set (context, value_key, zero).FromJust ();
+    native_return_value->Set (context, system_error_key, zero).FromJust ();
+
+    eternals = new GumV8ModuleEternals ();
+    eternals->native_return_value.Set (isolate, native_return_value);
+
+    eternals->value_key.Set (isolate, value_key);
+    eternals->system_error_key.Set (isolate, system_error_key);
+
+    _gum_register_destructor (gum_v8_module_deinit_eternals);
+
+    g_once_init_leave (&eternals_initialized, 1);
+  }
 }
 
 gboolean
@@ -1891,16 +1958,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 {
-  GCallback fn;
-  Local<Value> rtype_value;
-  Local<Array> atypes_array;
-  Local<Value> abi_value;
-  GumV8NativeFunction * func;
-  ffi_type * rtype;
-  uint32_t nargs_fixed, nargs_total, i;
-  gboolean is_variadic;
-  ffi_abi abi;
-
   if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
@@ -1908,23 +1965,43 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     return;
   }
 
-  if (!_gum_v8_args_parse (args, "pVA|V", &fn, &rtype_value, &atypes_array,
-      &abi_value))
+  GumV8NativeFunctionParams params;
+
+  if (!_gum_v8_args_parse (args, "pVA|V", &params.implementation,
+      &params.return_type, &params.argument_types, &params.abi))
     return;
 
+  params.enable_detailed_return = FALSE;
+
+  gumjs_native_function_init (wrapper, &params, core);
+}
+
+static GumV8NativeFunction *
+gumjs_native_function_init (Handle<Object> wrapper,
+                            const GumV8NativeFunctionParams * params,
+                            GumV8Core * core)
+{
+  auto isolate = core->isolate;
+  GumV8NativeFunction * func;
+  ffi_type * rtype;
+  uint32_t nargs_fixed, nargs_total, i;
+  gboolean is_variadic;
+  ffi_abi abi;
+
   func = g_slice_new0 (GumV8NativeFunction);
-  func->fn = fn;
+  func->fn = params->implementation;
+  func->enable_detailed_return = params->enable_detailed_return;
   func->core = core;
 
-  if (!gum_v8_ffi_type_get (core, rtype_value, &rtype, &func->data))
+  if (!gum_v8_ffi_type_get (core, params->return_type, &rtype, &func->data))
     goto error;
 
-  nargs_fixed = nargs_total = atypes_array->Length ();
+  nargs_fixed = nargs_total = params->argument_types->Length ();
   is_variadic = FALSE;
   func->atypes = g_new (ffi_type *, nargs_total);
   for (i = 0; i != nargs_total; i++)
   {
-    auto type = atypes_array->Get (i);
+    auto type = params->argument_types->Get (i);
     String::Utf8Value type_utf8 (type);
     if (strcmp (*type_utf8, "...") == 0)
     {
@@ -1948,9 +2025,9 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
     nargs_total--;
 
   abi = FFI_DEFAULT_ABI;
-  if (!abi_value.IsEmpty ())
+  if (!params->abi.IsEmpty ())
   {
-    if (!gum_v8_ffi_abi_get (core, abi_value, &abi))
+    if (!gum_v8_ffi_abi_get (core, params->abi, &abi))
       goto error;
   }
 
@@ -1993,10 +2070,11 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
 
   g_hash_table_insert (core->native_functions, func, func);
 
-  return;
+  return func;
 
 error:
   gum_v8_native_function_free (func);
+  return NULL;
 }
 
 static void
@@ -2033,6 +2111,7 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
   auto isolate = core->isolate;
   gsize nargs = self->cif.nargs;
   GumExceptorScope scope;
+  gint system_error = -1;
 
   if (info.Length () != (int) nargs)
   {
@@ -2090,6 +2169,9 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
     if (gum_exceptor_try (core->exceptor, &scope))
     {
       ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
+
+      if (self->enable_detailed_return)
+        system_error = gum_thread_get_system_error ();
     }
   }
 
@@ -2107,8 +2189,45 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
     if (!gum_v8_value_from_ffi_type (core, &result, rvalue, rtype))
       return;
 
-    info.GetReturnValue ().Set (result);
+    if (self->enable_detailed_return)
+    {
+      auto context = isolate->GetCurrentContext ();
+
+      auto template_return_value = eternals->native_return_value.Get (isolate);
+      auto return_value = template_return_value->Clone ();
+      return_value->Set (context,
+          eternals->value_key.Get (isolate),
+          result).FromJust ();
+      return_value->Set (context,
+          eternals->system_error_key.Get (isolate),
+          Integer::New (isolate, system_error)).FromJust ();
+      info.GetReturnValue ().Set (return_value);
+    }
+    else
+    {
+      info.GetReturnValue ().Set (result);
+    }
   }
+}
+
+GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)
+{
+  if (!info.IsConstructCall ())
+  {
+    _gum_v8_throw_ascii_literal (isolate,
+        "use `new SystemFunction()` to create a new instance");
+    return;
+  }
+
+  GumV8NativeFunctionParams params;
+
+  if (!_gum_v8_args_parse (args, "pVA|V", &params.implementation,
+      &params.return_type, &params.argument_types, &params.abi))
+    return;
+
+  params.enable_detailed_return = TRUE;
+
+  gumjs_native_function_init (wrapper, &params, core);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
