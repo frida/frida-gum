@@ -12,10 +12,7 @@
 
 using namespace v8;
 
-typedef struct _GumUnloadNotifyCallback GumUnloadNotifyCallback;
 typedef void (* GumUnloadNotifyFunc) (GumV8Script * self, gpointer user_data);
-typedef struct _GumEmitData GumEmitData;
-typedef struct _GumPostData GumPostData;
 
 enum
 {
@@ -33,21 +30,21 @@ enum _GumScriptState
   GUM_SCRIPT_STATE_UNLOADING
 };
 
-struct _GumUnloadNotifyCallback
+struct GumUnloadNotifyCallback
 {
   GumUnloadNotifyFunc func;
   gpointer data;
   GDestroyNotify data_destroy;
 };
 
-struct _GumEmitData
+struct GumEmitData
 {
   GumV8Script * script;
   gchar * message;
   GBytes * data;
 };
 
-struct _GumPostData
+struct GumPostData
 {
   GumV8Script * script;
   gchar * message;

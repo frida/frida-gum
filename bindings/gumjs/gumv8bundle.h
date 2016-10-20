@@ -12,16 +12,13 @@
 
 #define GUM_MAX_SCRIPT_SOURCE_CHUNKS 6
 
-typedef struct _GumV8Bundle GumV8Bundle;
-typedef struct _GumV8Source GumV8Source;
-
-struct _GumV8Bundle
+struct GumV8Bundle
 {
   GPtrArray * scripts;
   v8::Isolate * isolate;
 };
 
-struct _GumV8Source
+struct GumV8Source
 {
   const gchar * name;
   const gchar * chunks[GUM_MAX_SCRIPT_SOURCE_CHUNKS];

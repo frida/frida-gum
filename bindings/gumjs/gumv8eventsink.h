@@ -26,11 +26,7 @@
 #define GUM_V8_EVENT_SINK_GET_CLASS(obj) (G_TYPE_INSTANCE_GET_CLASS (\
     (obj), GUM_TYPE_SCRIPT_EVENT_SINK, GumV8EventSinkClass))
 
-typedef struct _GumV8EventSink GumV8EventSink;
-typedef struct _GumV8EventSinkClass GumV8EventSinkClass;
-typedef struct _GumV8EventSinkOptions GumV8EventSinkOptions;
-
-struct _GumV8EventSink
+struct GumV8EventSink
 {
   GObject parent;
   GumSpinlock lock;
@@ -46,12 +42,12 @@ struct _GumV8EventSink
   GSource * source;
 };
 
-struct _GumV8EventSinkClass
+struct GumV8EventSinkClass
 {
   GObjectClass parent_class;
 };
 
-struct _GumV8EventSinkOptions
+struct GumV8EventSinkOptions
 {
   GumV8Core * core;
   GMainContext * main_context;

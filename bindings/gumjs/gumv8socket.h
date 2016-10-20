@@ -11,11 +11,7 @@
 
 #include <v8.h>
 
-typedef struct _GumV8Socket GumV8Socket;
-
-typedef GumV8Object<GSocketListener, GumV8Socket> GumV8SocketListener;
-
-struct _GumV8Socket
+struct GumV8Socket
 {
   GumV8Core * core;
 
@@ -24,6 +20,8 @@ struct _GumV8Socket
   GumPersistent<v8::FunctionTemplate>::type * listener;
   GumPersistent<v8::FunctionTemplate>::type * connection;
 };
+
+typedef GumV8Object<GSocketListener, GumV8Socket> GumV8SocketListener;
 
 G_GNUC_INTERNAL void _gum_v8_socket_init (GumV8Socket * self,
     GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);

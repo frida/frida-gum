@@ -43,11 +43,6 @@
 
 using namespace v8;
 
-typedef struct _GumCreateScriptData GumCreateScriptData;
-typedef struct _GumCreateScriptFromBytesData GumCreateScriptFromBytesData;
-typedef struct _GumCompileScriptData GumCompileScriptData;
-typedef struct _GumEmitDebugMessageData GumEmitDebugMessageData;
-
 template <typename T>
 struct GumPersistent
 {
@@ -67,24 +62,24 @@ struct _GumV8ScriptBackendPrivate
   GumPersistent<Context>::type * debug_context;
 };
 
-struct _GumCreateScriptData
+struct GumCreateScriptData
 {
   gchar * name;
   gchar * source;
 };
 
-struct _GumCreateScriptFromBytesData
+struct GumCreateScriptFromBytesData
 {
   gchar * name;
   GBytes * bytes;
 };
 
-struct _GumCompileScriptData
+struct GumCompileScriptData
 {
   gchar * source;
 };
 
-struct _GumEmitDebugMessageData
+struct GumEmitDebugMessageData
 {
   GumV8ScriptBackend * backend;
   gchar * message;

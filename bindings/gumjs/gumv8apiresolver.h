@@ -11,15 +11,14 @@
 
 #include <gum/gumapiresolver.h>
 
-struct GumV8ApiResolver;
-typedef GumV8Object<GumApiResolver, GumV8ApiResolver> GumV8ApiResolverObject;
-
 struct GumV8ApiResolver
 {
   GumV8Core * core;
 
   GumV8ObjectManager objects;
 };
+
+typedef GumV8Object<GumApiResolver, GumV8ApiResolver> GumV8ApiResolverObject;
 
 G_GNUC_INTERNAL void _gum_v8_api_resolver_init (GumV8ApiResolver * self,
     GumV8Core * core, v8::Handle<v8::ObjectTemplate> scope);

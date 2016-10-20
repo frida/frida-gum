@@ -9,13 +9,7 @@
 
 #include "gumv8object.h"
 
-typedef struct _GumV8Stream GumV8Stream;
-
-typedef GumV8Object<GIOStream, GumV8Stream> GumV8IOStream;
-typedef GumV8Object<GInputStream, GumV8Stream> GumV8InputStream;
-typedef GumV8Object<GOutputStream, GumV8Stream> GumV8OutputStream;
-
-struct _GumV8Stream
+struct GumV8Stream
 {
   GumV8Core * core;
 
@@ -25,6 +19,10 @@ struct _GumV8Stream
   GumPersistent<v8::FunctionTemplate>::type * input_stream;
   GumPersistent<v8::FunctionTemplate>::type * output_stream;
 };
+
+typedef GumV8Object<GIOStream, GumV8Stream> GumV8IOStream;
+typedef GumV8Object<GInputStream, GumV8Stream> GumV8InputStream;
+typedef GumV8Object<GOutputStream, GumV8Stream> GumV8OutputStream;
 
 G_GNUC_INTERNAL void _gum_v8_stream_init (GumV8Stream * self, GumV8Core * core,
     v8::Handle<v8::ObjectTemplate> scope);
