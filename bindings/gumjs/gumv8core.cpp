@@ -1401,7 +1401,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
 {
   if (!info.IsConstructCall ())
   {
-    _gum_v8_throw_ascii_literal (isolate, "Use `new Int64()` to create a new "
+    _gum_v8_throw_ascii_literal (isolate, "use `new Int64()` to create a new "
         "instance, or use the shorthand: `int64()`");
     return;
   }
@@ -1547,7 +1547,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
 {
   if (!info.IsConstructCall ())
   {
-    _gum_v8_throw_ascii_literal (isolate, "Use `new UInt64()` to create a new "
+    _gum_v8_throw_ascii_literal (isolate, "use `new UInt64()` to create a new "
         "instance, or use the shorthand: `uint64()`");
     return;
   }
@@ -1692,7 +1692,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
 {
   if (!info.IsConstructCall ())
   {
-    _gum_v8_throw_ascii_literal (isolate, "Use `new NativePointer()` to "
+    _gum_v8_throw_ascii_literal (isolate, "use `new NativePointer()` to "
         "create a new instance, or use one of the two shorthands: "
         "`ptr()` and `NULL`");
     return;
@@ -1904,7 +1904,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
-        "Use `new NativeFunction()` to create a new instance");
+        "use `new NativeFunction()` to create a new instance");
     return;
   }
 
@@ -2126,7 +2126,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
-        "Use `new NativeCallback()` to create a new instance");
+        "use `new NativeCallback()` to create a new instance");
     return;
   }
 

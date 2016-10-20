@@ -85,7 +85,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new ApiResolver()` to create a new instance");
+        "use `new ApiResolver()` to create a new instance");
     duk_throw (ctx);
   }
 

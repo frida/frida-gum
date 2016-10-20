@@ -3717,7 +3717,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativePointer()` to create a new "
+  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativePointer()` to create a new "
       "instance, or use one of the two shorthands: `ptr()` and `NULL`\"");
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -3726,7 +3726,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeFunction()` to create a new "
+  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeFunction()` to create a new "
       "instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -3735,7 +3735,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new NativeCallback()` to create a new "
+  EXPECT_SEND_MESSAGE_WITH ("\"use `new NativeCallback()` to create a new "
       "instance\"");
 
   COMPILE_AND_LOAD_SCRIPT (
@@ -3744,7 +3744,7 @@ SCRIPT_TESTCASE (types_handle_invalid_construction)
       "} catch (e) {"
       "  send(e.message);"
       "}");
-  EXPECT_SEND_MESSAGE_WITH ("\"Use `new File()` to create a new instance\"");
+  EXPECT_SEND_MESSAGE_WITH ("\"use `new File()` to create a new instance\"");
 #endif
 }
 

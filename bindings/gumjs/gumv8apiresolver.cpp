@@ -73,7 +73,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
-        "Use `new ApiResolver()` to create a new instance");
+        "use `new ApiResolver()` to create a new instance");
     return;
   }
 

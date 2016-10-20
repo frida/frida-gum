@@ -1633,7 +1633,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_int64_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new Int64()` to create a new instance, "
+        "use `new Int64()` to create a new instance, "
         "or use the shorthand: `int64()`");
     duk_throw (ctx);
   }
@@ -1773,7 +1773,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_uint64_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new UInt64()` to create a new instance, "
+        "use `new UInt64()` to create a new instance, "
         "or use the shorthand: `uint64()`");
     duk_throw (ctx);
   }
@@ -1911,7 +1911,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_pointer_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new NativePointer()` to create a new instance, or use one of the "
+        "use `new NativePointer()` to create a new instance, or use one of the "
         "two shorthands: `ptr()` and `NULL`");
     duk_throw (ctx);
   }
@@ -2184,7 +2184,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new NativeFunction()` to create a new instance");
+        "use `new NativeFunction()` to create a new instance");
     duk_throw (ctx);
   }
 
@@ -2458,7 +2458,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_callback_construct)
   if (!duk_is_constructor_call (ctx))
   {
     duk_push_error_object (ctx, DUK_ERR_ERROR,
-        "Use `new NativeCallback()` to create a new instance");
+        "use `new NativeCallback()` to create a new instance");
     duk_throw (ctx);
   }
 

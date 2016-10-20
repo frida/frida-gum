@@ -698,7 +698,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_input_stream_construct)
 {
   if (!info.IsConstructCall ())
   {
-    _gum_v8_throw_ascii_literal (isolate, "Use `new " GUM_NATIVE_INPUT_STREAM
+    _gum_v8_throw_ascii_literal (isolate, "use `new " GUM_NATIVE_INPUT_STREAM
         "()` to create a new instance");
     return;
   }
@@ -725,7 +725,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_output_stream_construct)
 {
   if (!info.IsConstructCall ())
   {
-    _gum_v8_throw_ascii_literal (isolate, "Use `new " GUM_NATIVE_OUTPUT_STREAM
+    _gum_v8_throw_ascii_literal (isolate, "use `new " GUM_NATIVE_OUTPUT_STREAM
         "()` to create a new instance");
     return;
   }

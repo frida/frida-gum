@@ -84,7 +84,7 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_file_construct)
   if (!info.IsConstructCall ())
   {
     _gum_v8_throw_ascii_literal (isolate,
-        "Use `new File()` to create a new instance");
+        "use `new File()` to create a new instance");
     return;
   }
 
