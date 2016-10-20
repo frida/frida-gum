@@ -6,6 +6,8 @@
 
 #include "gumv8value.h"
 
+#include <string.h>
+
 #define GUM_MAX_SEND_ARRAY_LENGTH (1024 * 1024)
 
 using namespace v8;
