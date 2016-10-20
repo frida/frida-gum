@@ -88,14 +88,14 @@ static const GumV8Function gumjs_module_functions[] =
 class GumV8ModuleEternals
 {
 public:
-  v8::Eternal<v8::Object> imp;
-  v8::Eternal<v8::Object> exp;
+  Eternal<Object> imp;
+  Eternal<Object> exp;
 
-  v8::Eternal<v8::String> type;
-  v8::Eternal<v8::String> name;
-  v8::Eternal<v8::String> module;
-  v8::Eternal<v8::String> address;
-  v8::Eternal<v8::String> variable;
+  Eternal<String> type;
+  Eternal<String> name;
+  Eternal<String> module;
+  Eternal<String> address;
+  Eternal<String> variable;
 };
 
 static GumV8ModuleEternals * eternals;
