@@ -9,8 +9,6 @@
 
 #include "gumv8core.h"
 
-#include <v8.h>
-
 struct GumV8Args
 {
   const v8::FunctionCallbackInfo<v8::Value> * info;

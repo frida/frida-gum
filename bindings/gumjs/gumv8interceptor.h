@@ -10,7 +10,6 @@
 #include "gumv8core.h"
 
 #include <gum/guminterceptor.h>
-#include <v8.h>
 
 struct GumV8InvocationContext;
 struct GumV8InvocationArgs;

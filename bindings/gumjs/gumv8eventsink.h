@@ -11,7 +11,6 @@
 
 #include <gum/gumeventsink.h>
 #include <gum/gumspinlock.h>
-#include <v8.h>
 
 #define GUM_TYPE_SCRIPT_EVENT_SINK (gum_v8_event_sink_get_type ())
 #define GUM_V8_EVENT_SINK(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\

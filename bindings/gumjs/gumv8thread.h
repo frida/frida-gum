@@ -10,7 +10,6 @@
 #include "gumv8core.h"
 
 #include <gum/gumbacktracer.h>
-#include <v8.h>
 
 struct GumV8Thread
 {

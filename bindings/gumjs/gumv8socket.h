@@ -9,8 +9,6 @@
 
 #include "gumv8object.h"
 
-#include <v8.h>
-
 struct GumV8Socket
 {
   GumV8Core * core;

@@ -10,7 +10,6 @@
 #include "gumv8bundle.h"
 #include "gumscriptscheduler.h"
 
-#include <v8.h>
 #include <v8-platform.h>
 
 template<class T> class GumV8TaskRequest;

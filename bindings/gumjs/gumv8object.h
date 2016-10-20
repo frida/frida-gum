@@ -9,8 +9,6 @@
 
 #include "gumv8core.h"
 
-#include <v8.h>
-
 struct GumV8ObjectManager
 {
   GHashTable * object_by_handle;

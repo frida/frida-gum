@@ -10,7 +10,6 @@
 #include "gumv8core.h"
 
 #include <capstone.h>
-#include <v8.h>
 
 struct GumV8Instruction
 {
