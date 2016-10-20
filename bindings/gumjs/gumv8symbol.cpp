@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2015-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -10,102 +10,100 @@
 
 #include <gum/gumsymbolutil.h>
 
+#define GUMJS_MODULE_NAME Symbol
+
 using namespace v8;
 
-typedef struct _GumSymbol GumSymbol;
-
-struct _GumSymbol
+struct GumSymbol
 {
-  GumPersistent<v8::Object>::type * instance;
+  GumPersistent<v8::Object>::type * wrapper;
   gboolean resolved;
   GumSymbolDetails details;
   GumV8Symbol * module;
 };
 
-static void gum_v8_symbol_on_from_address (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_from_name (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_get_function_by_name (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_find_functions_named (
-    const FunctionCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_find_functions_matching (
-    const FunctionCallbackInfo<Value> & info);
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_address)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_from_name)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_get_function_by_name)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_named)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
 
-static GumSymbol * gum_symbol_new (Handle<Object> instance,
-    GumV8Symbol * module);
+static Local<Object> gum_symbol_new (GumV8Symbol * module,
+    GumSymbol ** symbol);
 static void gum_symbol_free (GumSymbol * symbol);
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_address)
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_name)
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_file_name)
+GUMJS_DECLARE_GETTER (gumjs_symbol_get_line_number)
+GUMJS_DECLARE_FUNCTION (gumjs_symbol_to_string)
 static void gum_symbol_on_weak_notify (
     const WeakCallbackInfo<GumSymbol> & info);
 
-static void gum_v8_symbol_on_get_address (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_get_name (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_get_module_name (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_get_file_name (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_get_line_number (Local<String> property,
-    const PropertyCallbackInfo<Value> & info);
-static void gum_v8_symbol_on_to_string (
-    const FunctionCallbackInfo<Value> & info);
+static const GumV8Function gumjs_symbol_module_functions[] =
+{
+  { "fromAddress", gumjs_symbol_from_address },
+  { "fromName", gumjs_symbol_from_name },
+  { "getFunctionByName", gumjs_symbol_get_function_by_name },
+  { "findFunctionsNamed", gumjs_symbol_find_functions_named },
+  { "findFunctionsMatching", gumjs_symbol_find_functions_matching },
+
+  { NULL, NULL }
+};
+
+static const GumV8Property gumjs_symbol_values[] =
+{
+  { "address", gumjs_symbol_get_address, NULL },
+  { "name", gumjs_symbol_get_name, NULL },
+  { "moduleName", gumjs_symbol_get_module_name, NULL },
+  { "fileName", gumjs_symbol_get_file_name, NULL },
+  { "lineNumber", gumjs_symbol_get_line_number, NULL },
+
+  { NULL, NULL, NULL }
+};
+
+static const GumV8Function gumjs_symbol_functions[] =
+{
+  { "toString", gumjs_symbol_to_string },
+
+  { NULL, NULL }
+};
 
 void
 _gum_v8_symbol_init (GumV8Symbol * self,
                      GumV8Core * core,
                      Handle<ObjectTemplate> scope)
 {
-  Isolate * isolate = core->isolate;
+  auto isolate = core->isolate;
 
   self->core = core;
 
-  Local<External> data (External::New (isolate, self));
+  auto module = External::New (isolate, self);
 
-  Handle<ObjectTemplate> symbol = ObjectTemplate::New (isolate);
-  symbol->Set (String::NewFromUtf8 (isolate, "fromAddress"),
-      FunctionTemplate::New (isolate, gum_v8_symbol_on_from_address,
-      data));
-  symbol->Set (String::NewFromUtf8 (isolate, "fromName"),
-      FunctionTemplate::New (isolate, gum_v8_symbol_on_from_name,
-      data));
-  symbol->Set (String::NewFromUtf8 (isolate, "getFunctionByName"),
-      FunctionTemplate::New (isolate,
-      gum_v8_symbol_on_get_function_by_name, data));
-  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsNamed"),
-      FunctionTemplate::New (isolate,
-      gum_v8_symbol_on_find_functions_named, data));
-  symbol->Set (String::NewFromUtf8 (isolate, "findFunctionsMatching"),
-      FunctionTemplate::New (isolate,
-      gum_v8_symbol_on_find_functions_matching, data));
-  scope->Set (String::NewFromUtf8 (isolate, "DebugSymbol"), symbol);
+  auto api = _gum_v8_create_module ("DebugSymbol", scope, isolate);
+  _gum_v8_module_add (module, api, gumjs_symbol_module_functions, isolate);
+
+  auto value = _gum_v8_create_class ("DebugSymbolValue", nullptr, scope, module,
+      isolate);
+  _gum_v8_class_add (value, gumjs_symbol_values, module, isolate);
+  _gum_v8_class_add (value, gumjs_symbol_functions, module, isolate);
+  self->constructor =
+      new GumPersistent<FunctionTemplate>::type (isolate, value);
 }
 
 void
 _gum_v8_symbol_realize (GumV8Symbol * self)
 {
-  Isolate * isolate = self->core->isolate;
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  self->symbols = g_hash_table_new_full (NULL, NULL,
-      NULL, reinterpret_cast<GDestroyNotify> (gum_symbol_free));
+  self->symbols = g_hash_table_new_full (NULL, NULL, NULL,
+      (GDestroyNotify) gum_symbol_free);
 
-  Handle<ObjectTemplate> symbol = ObjectTemplate::New (isolate);
-  symbol->SetInternalFieldCount (1);
-  symbol->SetAccessor (String::NewFromUtf8 (isolate, "address"),
-      gum_v8_symbol_on_get_address);
-  symbol->SetAccessor (String::NewFromUtf8 (isolate, "name"),
-      gum_v8_symbol_on_get_name);
-  symbol->SetAccessor (String::NewFromUtf8 (isolate, "moduleName"),
-      gum_v8_symbol_on_get_module_name);
-  symbol->SetAccessor (String::NewFromUtf8 (isolate, "fileName"),
-      gum_v8_symbol_on_get_file_name);
-  symbol->SetAccessor (String::NewFromUtf8 (isolate, "lineNumber"),
-      gum_v8_symbol_on_get_line_number);
-  symbol->Set (String::NewFromUtf8 (isolate, "toString"),
-      FunctionTemplate::New (isolate, gum_v8_symbol_on_to_string));
-  self->value =
-      new GumPersistent<Object>::type (isolate, symbol->NewInstance ());
+  auto constructor = Local<FunctionTemplate>::New (isolate, *self->constructor);
+  auto object = constructor->GetFunction ()->NewInstance (context, 0, nullptr)
+      .ToLocalChecked ();
+  self->template_object = new GumPersistent<Object>::type (isolate, object);
 }
 
 void
@@ -114,8 +112,11 @@ _gum_v8_symbol_dispose (GumV8Symbol * self)
   g_hash_table_unref (self->symbols);
   self->symbols = NULL;
 
-  delete self->value;
-  self->value = NULL;
+  delete self->template_object;
+  self->template_object = nullptr;
+
+  delete self->constructor;
+  self->constructor = nullptr;
 }
 
 void
@@ -134,25 +135,18 @@ _gum_v8_symbol_finalize (GumV8Symbol * self)
  * Example:
  * TBW
  */
-static void
-gum_v8_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 {
-  GumV8Symbol * self = static_cast<GumV8Symbol *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
   gpointer address;
-  if (!_gum_v8_native_pointer_get (info[0], &address, self->core))
+  if (!_gum_v8_args_parse (args, "p", &address))
     return;
 
-  Local<Object> value (Local<Object>::New (isolate, *self->value));
-  Local<Object> instance (value->Clone ());
-  GumSymbol * symbol = gum_symbol_new (instance, self);
+  GumSymbol * symbol;
+  auto object = gum_symbol_new (module, &symbol);
   symbol->details.address = GPOINTER_TO_SIZE (address);
   symbol->resolved =
       gum_symbol_details_from_address (address, &symbol->details);
-  instance->SetAlignedPointerInInternalField (0, symbol);
-  info.GetReturnValue ().Set (instance);
+  info.GetReturnValue ().Set (object);
 }
 
 /*
@@ -165,27 +159,16 @@ gum_v8_symbol_on_from_address (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 {
-  GumV8Symbol * self = static_cast<GumV8Symbol *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> name_val = info[0];
-  if (!name_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.fromName: argument must be a string "
-        "specifying a symbol name")));
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
     return;
-  }
-  String::Utf8Value name (name_val);
 
-  Local<Object> value (Local<Object>::New (isolate, *self->value));
-  Local<Object> instance (value->Clone ());
-  GumSymbol * symbol = gum_symbol_new (instance, self);
-  gpointer address = gum_find_function (*name);
+  GumSymbol * symbol;
+  auto object = gum_symbol_new (module, &symbol);
+
+  auto address = gum_find_function (name);
   if (address != NULL)
   {
     symbol->resolved =
@@ -196,8 +179,10 @@ gum_v8_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
     symbol->resolved = FALSE;
     symbol->details.address = 0;
   }
-  instance->SetAlignedPointerInInternalField (0, symbol);
-  info.GetReturnValue ().Set (instance);
+
+  g_free (name);
+
+  info.GetReturnValue ().Set (object);
 }
 
 /*
@@ -210,37 +195,23 @@ gum_v8_symbol_on_from_name (const FunctionCallbackInfo<Value> & info)
  * Example:
  * TBW
  */
-static void
-gum_v8_symbol_on_get_function_by_name (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 {
-  GumV8Symbol * self = static_cast<GumV8Symbol *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> name_val = info[0];
-  if (!name_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.getFunctionByName: argument must be a string "
-        "specifying a name")));
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
     return;
-  }
-  String::Utf8Value name (name_val);
 
-  gpointer address = gum_find_function (*name);
+  auto address = gum_find_function (name);
   if (address != NULL)
   {
-    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, self->core));
+    info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, core));
   }
   else
   {
-    gchar * message =
-        g_strdup_printf ("unable to find function with name '%s'", *name);
-    isolate->ThrowException (Exception::Error (String::NewFromUtf8 (isolate,
-        message)));
-    g_free (message);
+    _gum_v8_throw (isolate, "unable to find function with name '%s'", name);
   }
+
+  g_free (name);
 }
 
 /*
@@ -253,33 +224,26 @@ gum_v8_symbol_on_get_function_by_name (
  * Example:
  * TBW
  */
-static void
-gum_v8_symbol_on_find_functions_named (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
-  GumV8Symbol * self = static_cast<GumV8Symbol *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> name_val = info[0];
-  if (!name_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.findFunctionsNamed: argument must be a string "
-        "specifying a name")));
+  gchar * name;
+  if (!_gum_v8_args_parse (args, "s", &name))
     return;
-  }
-  String::Utf8Value name (name_val);
 
-  GArray * functions = gum_find_functions_named (*name);
-  Local<Array> result = Array::New (isolate, functions->len);
+  auto functions = gum_find_functions_named (name);
+
+  auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)
   {
-    gpointer address = g_array_index (functions, gpointer, i);
-    result->Set (i, _gum_v8_native_pointer_new (address, self->core));
+    auto address = g_array_index (functions, gpointer, i);
+    result->Set (i, _gum_v8_native_pointer_new (address, core));
   }
+
   info.GetReturnValue ().Set (result);
+
   g_array_free (functions, TRUE);
+
+  g_free (name);
 }
 
 /*
@@ -292,101 +256,79 @@ gum_v8_symbol_on_find_functions_named (
  * Example:
  * TBW
  */
-static void
-gum_v8_symbol_on_find_functions_matching (
-    const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
-  GumV8Symbol * self = static_cast<GumV8Symbol *> (
-      info.Data ().As<External> ()->Value ());
-  Isolate * isolate = info.GetIsolate ();
-
-  Local<Value> str_val = info[0];
-  if (!str_val->IsString ())
-  {
-    isolate->ThrowException (Exception::TypeError (String::NewFromUtf8 (isolate,
-        "DebugSymbol.findFunctionsMatching: argument must be a string "
-        "specifying a glob")));
+  gchar * str;
+  if (!_gum_v8_args_parse (args, "s", &str))
     return;
-  }
-  String::Utf8Value str (str_val);
 
-  GArray * functions = gum_find_functions_matching (*str);
-  Local<Array> result = Array::New (isolate, functions->len);
+  auto functions = gum_find_functions_matching (str);
+
+  auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)
   {
-    gpointer address = g_array_index (functions, gpointer, i);
-    result->Set (i, _gum_v8_native_pointer_new (address, self->core));
+    auto address = g_array_index (functions, gpointer, i);
+    result->Set (i, _gum_v8_native_pointer_new (address, core));
   }
+
   info.GetReturnValue ().Set (result);
+
   g_array_free (functions, TRUE);
+
+  g_free (str);
 }
 
-static GumSymbol *
-gum_symbol_new (Handle<Object> instance,
-                GumV8Symbol * module)
+static Local<Object>
+gum_symbol_new (GumV8Symbol * module,
+                GumSymbol ** symbol)
 {
-  GumSymbol * symbol;
-  Isolate * isolate = module->core->isolate;
+  auto isolate = module->core->isolate;
 
-  symbol = g_slice_new (GumSymbol);
-  symbol->instance = new GumPersistent<Object>::type (isolate, instance);
-  symbol->instance->MarkIndependent ();
-  symbol->instance->SetWeak (symbol, gum_symbol_on_weak_notify,
+  auto template_object = Local<Object>::New (isolate, *module->template_object);
+  auto object = template_object->Clone ();
+
+  auto s = g_slice_new (GumSymbol);
+  s->wrapper = new GumPersistent<Object>::type (isolate, object);
+  s->wrapper->MarkIndependent ();
+  s->wrapper->SetWeak (s, gum_symbol_on_weak_notify,
       WeakCallbackType::kParameter);
-  symbol->module = module;
+  s->module = module;
+
+  object->SetAlignedPointerInInternalField (0, s);
 
   isolate->AdjustAmountOfExternalAllocatedMemory (sizeof (GumSymbol));
 
-  g_hash_table_insert (module->symbols, symbol, symbol);
+  g_hash_table_insert (module->symbols, s, s);
 
-  return symbol;
+  *symbol = s;
+
+  return object;
 }
 
 static void
 gum_symbol_free (GumSymbol * symbol)
 {
   symbol->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
-      -static_cast<gssize> (sizeof (GumSymbol)));
+      -((gssize) sizeof (GumSymbol)));
 
-  delete symbol->instance;
+  delete symbol->wrapper;
+
   g_slice_free (GumSymbol, symbol);
 }
 
-static void
-gum_symbol_on_weak_notify (const WeakCallbackInfo<GumSymbol> & info)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_address, GumSymbol)
 {
-  HandleScope handle_scope (info.GetIsolate ());
-  GumSymbol * self = info.GetParameter ();
-  g_hash_table_remove (self->module->symbols, self);
-}
-
-static void
-gum_v8_symbol_on_get_address (Local<String> property,
-                              const PropertyCallbackInfo<Value> & info)
-{
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-
-  (void) property;
-
   info.GetReturnValue ().Set (
       _gum_v8_native_pointer_new (GSIZE_TO_POINTER (self->details.address),
-          self->module->core));
+          core));
 }
 
-static void
-gum_v8_symbol_on_get_name (Local<String> property,
-                           const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_name, GumSymbol)
 {
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-
-  (void) property;
-
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (info.GetIsolate (), self->details.symbol_name));
+        String::NewFromUtf8 (isolate, self->details.symbol_name));
   }
   else
   {
@@ -394,19 +336,12 @@ gum_v8_symbol_on_get_name (Local<String> property,
   }
 }
 
-static void
-gum_v8_symbol_on_get_module_name (Local<String> property,
-                                  const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_module_name, GumSymbol)
 {
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-
-  (void) property;
-
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (info.GetIsolate (), self->details.module_name));
+        String::NewFromUtf8 (isolate, self->details.module_name));
   }
   else
   {
@@ -414,19 +349,12 @@ gum_v8_symbol_on_get_module_name (Local<String> property,
   }
 }
 
-static void
-gum_v8_symbol_on_get_file_name (Local<String> property,
-                                const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_file_name, GumSymbol)
 {
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-
-  (void) property;
-
   if (self->resolved)
   {
     info.GetReturnValue ().Set (
-        String::NewFromUtf8 (info.GetIsolate (), self->details.file_name));
+        String::NewFromUtf8 (isolate, self->details.file_name));
   }
   else
   {
@@ -434,19 +362,11 @@ gum_v8_symbol_on_get_file_name (Local<String> property,
   }
 }
 
-static void
-gum_v8_symbol_on_get_line_number (Local<String> property,
-                                  const PropertyCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_line_number, GumSymbol)
 {
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-
-  (void) property;
-
   if (self->resolved)
   {
-    info.GetReturnValue ().Set (
-        static_cast<uint32_t> (self->details.line_number));
+    info.GetReturnValue ().Set ((uint32_t) self->details.line_number);
   }
   else
   {
@@ -454,20 +374,15 @@ gum_v8_symbol_on_get_line_number (Local<String> property,
   }
 }
 
-static void
-gum_v8_symbol_on_to_string (const FunctionCallbackInfo<Value> & info)
+GUMJS_DEFINE_CLASS_METHOD (gumjs_symbol_to_string, GumSymbol)
 {
-  GumSymbol * self = static_cast<GumSymbol *> (
-      info.Holder ()->GetAlignedPointerFromInternalField (0));
-  GumSymbolDetails * d = &self->details;
-  GString * s;
+  auto * d = &self->details;
 
-  s = g_string_new ("0");
+  auto s = g_string_new ("0");
 
   if (self->resolved)
   {
-    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s",
-        d->address,
+    g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x %s!%s", d->address,
         d->module_name, d->symbol_name);
     if (d->file_name[0] != '\0')
     {
@@ -479,8 +394,15 @@ gum_v8_symbol_on_to_string (const FunctionCallbackInfo<Value> & info)
     g_string_append_printf (s, "x%" G_GINT64_MODIFIER "x", d->address);
   }
 
-  info.GetReturnValue ().Set (
-      String::NewFromUtf8 (info.GetIsolate (), s->str));
+  info.GetReturnValue ().Set (String::NewFromUtf8 (isolate, s->str));
 
   g_string_free (s, TRUE);
+}
+
+static void
+gum_symbol_on_weak_notify (const WeakCallbackInfo<GumSymbol> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->module->symbols, self);
 }
