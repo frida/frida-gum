@@ -30,7 +30,7 @@ GUMJS_DECLARE_FUNCTION (gumjs_symbol_find_functions_matching)
 
 static Local<Object> gum_symbol_new (GumV8Symbol * module,
     GumSymbol ** symbol);
-static void gum_symbol_free (GumSymbol * symbol);
+static void gum_symbol_free (GumSymbol * self);
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_address)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_name)
 GUMJS_DECLARE_GETTER (gumjs_symbol_get_module_name)
@@ -306,14 +306,14 @@ gum_symbol_new (GumV8Symbol * module,
 }
 
 static void
-gum_symbol_free (GumSymbol * symbol)
+gum_symbol_free (GumSymbol * self)
 {
-  symbol->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
+  self->module->core->isolate->AdjustAmountOfExternalAllocatedMemory (
       -((gssize) sizeof (GumSymbol)));
 
-  delete symbol->wrapper;
+  delete self->wrapper;
 
-  g_slice_free (GumSymbol, symbol);
+  g_slice_free (GumSymbol, self);
 }
 
 GUMJS_DEFINE_CLASS_GETTER (gumjs_symbol_get_address, GumSymbol)

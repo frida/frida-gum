@@ -11,9 +11,7 @@
 
 #include <v8.h>
 
-typedef struct _GumV8Symbol GumV8Symbol;
-
-struct _GumV8Symbol
+struct GumV8Symbol
 {
   GumV8Core * core;
 
