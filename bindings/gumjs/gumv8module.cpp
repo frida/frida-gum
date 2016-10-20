@@ -29,7 +29,6 @@ struct GumV8ImportsContext
   Local<Value> variable;
 
   GumV8Core * core;
-  Isolate * isolate;
   Local<Context> context;
 
   gboolean has_pending_exception;
@@ -48,7 +47,6 @@ struct GumV8ExportsContext
   Local<Value> variable;
 
   GumV8Core * core;
-  Isolate * isolate;
   Local<Context> context;
 
   gboolean has_pending_exception;
@@ -58,6 +56,7 @@ struct GumV8RangesContext
 {
   Local<Function> on_match;
   Local<Function> on_complete;
+
   GumV8Core * core;
 
   gboolean has_pending_exception;
@@ -196,8 +195,8 @@ _gum_v8_module_finalize (GumV8Module * self)
  */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
 {
-  GumV8ImportsContext ic;
   gchar * name;
+  GumV8ImportsContext ic;
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ic.on_match,
       &ic.on_complete))
     return;
@@ -211,7 +210,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
   ic.variable = eternals->variable.Get (isolate);
 
   ic.core = core;
-  ic.isolate = isolate;
   ic.context = isolate->GetCurrentContext ();
 
   ic.has_pending_exception = FALSE;
@@ -232,7 +230,7 @@ gum_emit_import (const GumImportDetails * details,
                  GumV8ImportsContext * ic)
 {
   auto core = ic->core;
-  auto isolate = ic->isolate;
+  auto isolate = core->isolate;
   auto context = ic->context;
 
   auto imp = ic->imp->Clone ();
@@ -316,8 +314,8 @@ gum_emit_import (const GumImportDetails * details,
  */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
 {
-  GumV8ExportsContext ec;
   gchar * name;
+  GumV8ExportsContext ec;
   if (!_gum_v8_args_parse (args, "sF{onMatch,onComplete}", &name, &ec.on_match,
       &ec.on_complete))
     return;
@@ -330,7 +328,6 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
   ec.variable = eternals->variable.Get (isolate);
 
   ec.core = core;
-  ec.isolate = isolate;
   ec.context = isolate->GetCurrentContext ();
 
   ec.has_pending_exception = FALSE;
@@ -351,7 +348,7 @@ gum_emit_export (const GumExportDetails * details,
                  GumV8ExportsContext * ec)
 {
   auto core = ec->core;
-  auto isolate = ec->isolate;
+  auto isolate = core->isolate;
   auto context = ec->context;
 
   auto exp = ec->exp->Clone ();
@@ -398,9 +395,9 @@ gum_emit_export (const GumExportDetails * details,
  */
 GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_ranges)
 {
-  GumV8RangesContext rc;
   gchar * name;
   GumPageProtection prot;
+  GumV8RangesContext rc;
   if (!_gum_v8_args_parse (args, "smF{onMatch,onComplete}", &name, &prot,
       &rc.on_match, &rc.on_complete))
     return;

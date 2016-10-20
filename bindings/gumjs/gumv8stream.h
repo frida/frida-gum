@@ -9,8 +9,6 @@
 
 #include "gumv8object.h"
 
-#include <v8.h>
-
 typedef struct _GumV8Stream GumV8Stream;
 
 typedef GumV8Object<GIOStream, GumV8Stream> GumV8IOStream;

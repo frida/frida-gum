@@ -302,8 +302,8 @@ gum_emit_module (const GumModuleDetails * details,
  */
 GUMJS_DEFINE_FUNCTION (gumjs_process_enumerate_ranges)
 {
-  GumV8MatchContext mc;
   GumPageProtection prot;
+  GumV8MatchContext mc;
   if (!_gum_v8_args_parse (args, "mF{onMatch,onComplete}", &prot, &mc.on_match,
       &mc.on_complete))
     return;
