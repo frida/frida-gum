@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Ole André Vadla Ravnås <ole.andre.ravnas@tillitech.com>
+ * Copyright (C) 2014-2016 Ole André Vadla Ravnås <oleavr@nowsecure.com>
  *
  * Licence: wxWindows Library Licence, Version 3.1
  */
@@ -12,16 +12,15 @@
 #include <capstone.h>
 #include <v8.h>
 
-typedef struct _GumV8Instruction GumV8Instruction;
-
-struct _GumV8Instruction
+struct GumV8Instruction
 {
   GumV8Core * core;
 
   csh capstone;
   GHashTable * instructions;
 
-  GumPersistent<v8::Object>::type * value;
+  GumPersistent<v8::FunctionTemplate>::type * constructor;
+  GumPersistent<v8::Object>::type * template_object;
 };
 
 G_GNUC_INTERNAL void _gum_v8_instruction_init (GumV8Instruction * self,
