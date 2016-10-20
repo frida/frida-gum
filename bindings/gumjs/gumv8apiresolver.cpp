@@ -8,6 +8,8 @@
 
 #include "gumv8macros.h"
 
+#include <string.h>
+
 #define GUMJS_MODULE_NAME ApiResolver
 
 using namespace v8;
