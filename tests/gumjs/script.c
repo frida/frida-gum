@@ -171,6 +171,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (native_pointer_provides_arithmetic_operations)
   SCRIPT_TESTENTRY (native_pointer_to_match_pattern)
   SCRIPT_TESTENTRY (native_function_can_be_invoked)
+  SCRIPT_TESTENTRY (native_function_should_implement_call_and_apply)
   SCRIPT_TESTENTRY (system_function_can_be_invoked)
   SCRIPT_TESTENTRY (native_function_crash_results_in_exception)
   SCRIPT_TESTENTRY (nested_native_function_crash_is_handled_gracefully)
@@ -426,6 +427,30 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
   EXPECT_SEND_MESSAGE_WITH ("\"4\"");
   EXPECT_SEND_MESSAGE_WITH ("\"16\"");
   EXPECT_SEND_MESSAGE_WITH ("\"36\"");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (native_function_should_implement_call_and_apply)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new NativeFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+      "send(NativeFunction.prototype.call(f, 42));"
+      "send(NativeFunction.prototype.apply(f, [42]));"
+      "send(f.call(null, 42));"
+      "send(f.apply(null, [42]));"
+      "send(f.call(f, 42));"
+      "send(f.apply(f, [42]));"
+      "send(f.call(ptr(" GUM_PTR_CONST "), 42));"
+      "send(f.apply(ptr(" GUM_PTR_CONST "), [42]));",
+      target_function_int, target_function_nested_a, target_function_nested_a);
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("1890");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
+  EXPECT_SEND_MESSAGE_WITH ("16855020");
   EXPECT_NO_MESSAGES ();
 }
 

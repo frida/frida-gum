@@ -236,10 +236,21 @@ _gum_duk_args_parse (const GumDukArgs * args,
       }
       case 'O':
       {
-        if (!duk_is_object (ctx, arg_index))
+        GumDukHeapPtr object;
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable && duk_is_null (ctx, arg_index))
+          object = NULL;
+        else if (duk_is_object (ctx, arg_index))
+          object = duk_require_heapptr (ctx, arg_index);
+        else
           goto expected_object;
 
-        *va_arg (ap, GumDukHeapPtr *) = duk_require_heapptr (ctx, arg_index);
+        *va_arg (ap, GumDukHeapPtr *) = object;
 
         break;
       }
@@ -946,6 +957,19 @@ _gum_duk_get_pointer (duk_context * ctx,
   duk_pop_2 (ctx);
 
   return success;
+}
+
+gpointer
+_gum_duk_require_pointer (duk_context * ctx,
+                          duk_idx_t index,
+                          GumDukCore * core)
+{
+  gpointer ptr;
+
+  if (!_gum_duk_get_pointer (ctx, index, core, &ptr))
+    _gum_duk_throw (ctx, "expected a pointer");
+
+  return ptr;
 }
 
 gboolean

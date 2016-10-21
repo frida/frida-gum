@@ -345,13 +345,25 @@ _gum_v8_args_parse (const GumV8Args * args,
       }
       case 'O':
       {
-        if (!arg->IsObject ())
+        gboolean is_nullable;
+
+        is_nullable = t[1] == '?';
+        if (is_nullable)
+          t++;
+
+        if (is_nullable && arg->IsNull ())
+        {
+          *va_arg (ap, Local<Object> *) = Local<Object> ();
+        }
+        else if (arg->IsObject ())
+        {
+          *va_arg (ap, Local<Object> *) = arg.As<Object> ();
+        }
+        else
         {
           _gum_v8_throw_ascii_literal (isolate, "expected an object");
           return FALSE;
         }
-
-        *va_arg (ap, Local<Object> *) = arg.As<Object> ();
 
         break;
       }
