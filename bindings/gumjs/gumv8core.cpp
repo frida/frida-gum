@@ -2367,6 +2367,7 @@ gum_v8_native_callback_invoke (ffi_cif * cif,
   auto argv = (Local<Value> *) g_alloca (cif->nargs * sizeof (Local<Value>));
   for (guint i = 0; i != cif->nargs; i++)
   {
+    new (&argv[i]) Local<Value> ();
     if (!gum_v8_value_from_ffi_type (self->core, &argv[i],
         (GumFFIValue *) args[i], cif->arg_types[i]))
     {
