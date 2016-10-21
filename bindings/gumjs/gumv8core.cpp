@@ -597,7 +597,7 @@ _gum_v8_core_realize (GumV8Core * self)
   self->native_resources = g_hash_table_new_full (NULL, NULL, NULL,
       (GDestroyNotify) _gum_v8_native_resource_free);
 
-  Local<Value> zero = Number::New (isolate, 0);
+  Local<Value> zero = Integer::New (isolate, 0);
 
   auto int64 = Local<FunctionTemplate>::New (isolate, *self->int64);
   auto int64_value =
@@ -635,8 +635,6 @@ _gum_v8_core_realize (GumV8Core * self)
     auto value_key = _gum_v8_string_new_ascii (isolate, "value");
     auto system_error_key =
         _gum_v8_string_new_ascii (isolate, GUMJS_SYSTEM_ERROR_FIELD);
-
-    auto zero = Integer::New (isolate, 0);
 
     auto native_return_value = Object::New (isolate);
     native_return_value->Set (context, value_key, zero).FromJust ();
