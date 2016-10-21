@@ -431,29 +431,36 @@ SCRIPT_TESTCASE (native_function_can_be_invoked)
 
 SCRIPT_TESTCASE (system_function_can_be_invoked)
 {
+#ifdef G_OS_WIN32
   COMPILE_AND_LOAD_SCRIPT (
       "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
 
       "var result = f(13);"
       "send(result.value);"
-#ifdef G_OS_WIN32
       "send(result.lastError);"
-#else
-      "send(result.errno);"
-#endif
 
       "result = f(37);"
       "send(result.value);"
-#ifdef G_OS_WIN32
-      "send(result.lastError);"
+      "send(result.lastError);", gum_clobber_system_error);
 #else
+  COMPILE_AND_LOAD_SCRIPT (
+      "var f = new SystemFunction(" GUM_PTR_CONST ", 'int', ['int']);"
+
+      "var result = f(13);"
+      "send(result.value);"
       "send(result.errno);"
+
+      "result = f(37);"
+      "send(result.value);"
+      "send(result.errno);", gum_clobber_system_error);
 #endif
-      , gum_clobber_system_error);
+
   EXPECT_SEND_MESSAGE_WITH ("26");
   EXPECT_SEND_MESSAGE_WITH ("13");
+
   EXPECT_SEND_MESSAGE_WITH ("74");
   EXPECT_SEND_MESSAGE_WITH ("37");
+
   EXPECT_NO_MESSAGES ();
 }
 
