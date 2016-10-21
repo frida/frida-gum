@@ -290,9 +290,8 @@ gum_duk_try_schedule_if_idle_operation_perform (
   GumDukObjectOperation * op = GUM_DUK_OBJECT_OPERATION (self);
   GumDukObjectOperation * blocked = self->blocked_operation;
   GumDukScope scope;
-  duk_context * ctx;
 
-  ctx = _gum_duk_scope_enter (&scope, op->core);
+  _gum_duk_scope_enter (&scope, op->core);
 
   blocked->pending_dependencies =
       g_slist_remove (blocked->pending_dependencies, self);
