@@ -1053,8 +1053,8 @@ _gum_v8_native_pointer_get (Handle<Value> value,
   auto isolate = core->isolate;
   gboolean success = FALSE;
 
-  auto native_pointer (Local<FunctionTemplate>::New (isolate,
-      *core->native_pointer));
+  auto native_pointer = Local<FunctionTemplate>::New (isolate,
+      *core->native_pointer);
   if (native_pointer->HasInstance (value))
   {
     *ptr = GUMJS_NATIVE_POINTER_VALUE (value.As<Object> ());
