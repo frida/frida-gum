@@ -16,6 +16,12 @@
 
 #define GUM_DUK_SCOPE_INIT(C) { C, 0, (C)->current_ctx, NULL }
 
+#ifdef G_OS_WIN32
+# define GUMJS_SYSTEM_ERROR_FIELD "lastError"
+#else
+# define GUMJS_SYSTEM_ERROR_FIELD "errno"
+#endif
+
 G_BEGIN_DECLS
 
 typedef struct _GumDukCore GumDukCore;
@@ -84,6 +90,8 @@ struct _GumDukCore
   GumDukHeapPtr native_resource;
   GumDukHeapPtr native_function;
   GumDukHeapPtr native_function_prototype;
+  GumDukHeapPtr system_function;
+  GumDukHeapPtr system_function_prototype;
   GumDukHeapPtr cpu_context;
 
   GumDukNativePointerImpl * cached_native_pointers;
