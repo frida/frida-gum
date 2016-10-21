@@ -71,7 +71,7 @@ struct GumV8NativeFunction
 {
   GumPersistent<Object>::type * wrapper;
 
-  GCallback fn;
+  GCallback implementation;
   gboolean enable_detailed_return;
   ffi_cif cif;
   ffi_type ** atypes;
@@ -213,12 +213,20 @@ GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_json)
 GUMJS_DECLARE_FUNCTION (gumjs_native_pointer_to_match_pattern)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_native_function_construct)
+GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
+GUMJS_DECLARE_FUNCTION (gumjs_native_function_call)
+GUMJS_DECLARE_FUNCTION (gumjs_native_function_apply)
+static gboolean gumjs_native_function_get (
+    const FunctionCallbackInfo<Value> & info, Handle<Object> receiver,
+    GumV8Core * core, GumV8NativeFunction ** func, GCallback * implementation);
 static GumV8NativeFunction * gumjs_native_function_init (Handle<Object> wrapper,
     const GumV8NativeFunctionParams * params, GumV8Core * core);
+static void gum_v8_native_function_free (GumV8NativeFunction * self);
+static void gum_v8_native_function_invoke (GumV8NativeFunction * self,
+    GCallback implementation, const FunctionCallbackInfo<Value> & info,
+    uint32_t argc, Handle<Value> * argv);
 static void gum_v8_native_function_on_weak_notify (
     const WeakCallbackInfo<GumV8NativeFunction> & info);
-static void gum_v8_native_function_free (GumV8NativeFunction * self);
-GUMJS_DECLARE_FUNCTION (gumjs_native_function_invoke)
 
 GUMJS_DECLARE_CONSTRUCTOR (gumjs_system_function_construct)
 
@@ -349,6 +357,14 @@ static const GumV8Function gumjs_native_pointer_functions[] =
   { NULL, NULL }
 };
 
+static const GumV8Function gumjs_native_function_functions[] =
+{
+  { "call", gumjs_native_function_call },
+  { "apply", gumjs_native_function_apply },
+
+  { NULL, NULL }
+};
+
 class GumV8ModuleEternals
 {
 public:
@@ -444,10 +460,14 @@ _gum_v8_core_init (GumV8Core * self,
   auto native_function = _gum_v8_create_class ("NativeFunction",
       gumjs_native_function_construct, scope, module, isolate);
   native_function->Inherit (native_pointer);
+  _gum_v8_class_add (native_function, gumjs_native_function_functions, module,
+      isolate);
   auto native_function_object = native_function->InstanceTemplate ();
   native_function_object->SetCallAsFunctionHandler (
       gumjs_native_function_invoke, module);
   native_function_object->SetInternalFieldCount (2);
+  self->native_function =
+      new GumPersistent<FunctionTemplate>::type (isolate, native_function);
 
   auto system_function = _gum_v8_create_class ("SystemFunction",
       gumjs_system_function_construct, scope, module, isolate);
@@ -785,17 +805,20 @@ _gum_v8_core_finalize (GumV8Core * self)
   g_hash_table_unref (self->weak_refs);
   self->weak_refs = NULL;
 
+  delete self->cpu_context;
+  self->cpu_context = nullptr;
+
+  delete self->native_function;
+  self->native_function = nullptr;
+
   delete self->native_pointer;
   self->native_pointer = nullptr;
-
-  delete self->int64;
-  self->int64 = nullptr;
 
   delete self->uint64;
   self->uint64 = nullptr;
 
-  delete self->cpu_context;
-  self->cpu_context = nullptr;
+  delete self->int64;
+  self->int64 = nullptr;
 
   g_object_unref (self->exceptor);
   self->exceptor = NULL;
@@ -1974,6 +1997,130 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_native_function_construct)
   gumjs_native_function_init (wrapper, &params, core);
 }
 
+static void
+gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
+{
+  auto self = (GumV8NativeFunction *)
+      info.Holder ()->GetAlignedPointerFromInternalField (1);
+
+  gum_v8_native_function_invoke (self, self->implementation, info, 0, nullptr);
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_function_call)
+{
+  Local<Object> receiver;
+  if (!_gum_v8_args_parse (args, "O?", &receiver))
+    return;
+
+  GumV8NativeFunction * func;
+  GCallback implementation;
+  if (!gumjs_native_function_get (info, receiver, core, &func, &implementation))
+    return;
+
+  uint32_t argc = info.Length () - 1;
+
+  Local<Value> * argv = nullptr;
+  if (argc > 0)
+  {
+    argv = (Local<Value> *) g_alloca (argc * sizeof (Local<Value>));
+    for (uint32_t i = 0; i != argc; i++)
+    {
+      new (&argv[i]) Local<Value> ();
+      argv[i] = info[1 + i];
+    }
+  }
+
+  gum_v8_native_function_invoke (func, implementation, info, argc, argv);
+
+  for (uint32_t i = 0; i != argc; i++)
+    argv[i].~Local<Value> ();
+}
+
+GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
+{
+  Local<Object> receiver;
+  Local<Array> argv_array;
+  if (!_gum_v8_args_parse (args, "O?A", &receiver, &argv_array))
+    return;
+
+  GumV8NativeFunction * func;
+  GCallback implementation;
+  if (!gumjs_native_function_get (info, receiver, core, &func, &implementation))
+    return;
+
+  uint32_t argc = argv_array->Length ();
+
+  Local<Value> * argv = nullptr;
+  if (argc > 0)
+  {
+    auto context = isolate->GetCurrentContext ();
+
+    argv = (Local<Value> *) g_alloca (argc * sizeof (Local<Value>));
+    for (uint32_t i = 0; i != argc; i++)
+    {
+      new (&argv[i]) Local<Value> ();
+      if (!argv_array->Get (context, i).ToLocal (&argv[i]))
+      {
+        for (uint32_t j = 0; j != i; j++)
+          argv[j].~Local<Value> ();
+        return;
+      }
+    }
+  }
+
+  gum_v8_native_function_invoke (func, implementation, info, argc, argv);
+
+  for (uint32_t i = 0; i != argc; i++)
+    argv[i].~Local<Value> ();
+}
+
+static gboolean
+gumjs_native_function_get (const FunctionCallbackInfo<Value> & info,
+                           Handle<Object> receiver,
+                           GumV8Core * core,
+                           GumV8NativeFunction ** func,
+                           GCallback * implementation)
+{
+  auto isolate = core->isolate;
+
+  auto native_function = Local<FunctionTemplate>::New (isolate,
+      *core->native_function);
+  auto holder = info.Holder ();
+  if (native_function->HasInstance (holder))
+  {
+    auto f =
+        (GumV8NativeFunction *) holder->GetAlignedPointerFromInternalField (1);
+
+    *func = f;
+
+    if (!receiver.IsEmpty ())
+    {
+      if (!_gum_v8_native_pointer_get (receiver, (gpointer *) implementation,
+          core))
+        return FALSE;
+    }
+    else
+    {
+      *implementation = f->implementation;
+    }
+  }
+  else
+  {
+    if (receiver.IsEmpty () || !native_function->HasInstance (receiver))
+    {
+      _gum_v8_throw_ascii_literal (isolate, "expected a NativeFunction");
+      return FALSE;
+    }
+
+    auto f = (GumV8NativeFunction *)
+        receiver->GetAlignedPointerFromInternalField (1);
+    *func = f;
+    *implementation = f->implementation;
+  }
+
+  return TRUE;
+}
+
 static GumV8NativeFunction *
 gumjs_native_function_init (Handle<Object> wrapper,
                             const GumV8NativeFunctionParams * params,
@@ -1987,7 +2134,7 @@ gumjs_native_function_init (Handle<Object> wrapper,
   ffi_abi abi;
 
   func = g_slice_new0 (GumV8NativeFunction);
-  func->fn = params->implementation;
+  func->implementation = params->implementation;
   func->enable_detailed_return = params->enable_detailed_return;
   func->core = core;
 
@@ -2058,7 +2205,8 @@ gumjs_native_function_init (Handle<Object> wrapper,
     func->arglist_size += t->size;
   }
 
-  wrapper->SetInternalField (0, External::New (isolate, (void *) func->fn));
+  wrapper->SetInternalField (0, External::New (isolate,
+      (void *) func->implementation));
   wrapper->SetAlignedPointerInInternalField (1, func);
 
   func->wrapper = new GumPersistent<Object>::type (isolate, wrapper);
@@ -2073,15 +2221,6 @@ gumjs_native_function_init (Handle<Object> wrapper,
 error:
   gum_v8_native_function_free (func);
   return NULL;
-}
-
-static void
-gum_v8_native_function_on_weak_notify (
-    const WeakCallbackInfo<GumV8NativeFunction> & info)
-{
-  HandleScope handle_scope (info.GetIsolate ());
-  auto self = info.GetParameter ();
-  g_hash_table_remove (self->core->native_functions, self);
 }
 
 static void
@@ -2101,17 +2240,20 @@ gum_v8_native_function_free (GumV8NativeFunction * self)
 }
 
 static void
-gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
+gum_v8_native_function_invoke (GumV8NativeFunction * self,
+                               GCallback implementation,
+                               const FunctionCallbackInfo<Value> & info,
+                               uint32_t argc,
+                               Handle<Value> * argv)
 {
-  auto wrapper = info.Holder ();
-  auto self = (GumV8NativeFunction *) wrapper->GetAlignedPointerFromInternalField (1);
   auto core = (GumV8Core *) info.Data ().As<External> ()->Value ();
   auto isolate = core->isolate;
-  gsize nargs = self->cif.nargs;
+  gsize num_args_required = self->cif.nargs;
+  gsize num_args_provided = (argv != nullptr) ? argc : info.Length ();
   GumExceptorScope scope;
   gint system_error = -1;
 
-  if (info.Length () != (int) nargs)
+  if (num_args_provided != num_args_required)
   {
     _gum_v8_throw_ascii_literal (isolate, "bad argument count");
     return;
@@ -2127,9 +2269,9 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
   void ** avalue;
   guint8 * avalues;
 
-  if (nargs > 0)
+  if (num_args_required > 0)
   {
-    avalue = (void **) g_alloca (nargs * sizeof (void *));
+    avalue = (void **) g_alloca (num_args_required * sizeof (void *));
 
     gsize arglist_alignment = self->cif.arg_types[0]->alignment;
     avalues = (guint8 *) g_alloca (self->arglist_size + arglist_alignment - 1);
@@ -2139,7 +2281,7 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
     memset (avalues, 0, self->arglist_size);
 
     gsize offset = 0;
-    for (gsize i = 0; i != nargs; i++)
+    for (gsize i = 0; i != num_args_required; i++)
     {
       auto t = self->cif.arg_types[i];
 
@@ -2147,7 +2289,8 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
 
       auto v = (GumFFIValue *) (avalues + offset);
 
-      if (!gum_v8_value_to_ffi_type (core, info[i], v, t))
+      if (!gum_v8_value_to_ffi_type (core,
+          (argv != nullptr) ? argv[i] : info[i], v, t))
         return;
       avalue[i] = v;
 
@@ -2166,7 +2309,7 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
 
     if (gum_exceptor_try (core->exceptor, &scope))
     {
-      ffi_call (&self->cif, FFI_FN (self->fn), rvalue, avalue);
+      ffi_call (&self->cif, FFI_FN (implementation), rvalue, avalue);
 
       if (self->enable_detailed_return)
         system_error = gum_thread_get_system_error ();
@@ -2206,6 +2349,15 @@ gumjs_native_function_invoke (const FunctionCallbackInfo<Value> & info)
       info.GetReturnValue ().Set (result);
     }
   }
+}
+
+static void
+gum_v8_native_function_on_weak_notify (
+    const WeakCallbackInfo<GumV8NativeFunction> & info)
+{
+  HandleScope handle_scope (info.GetIsolate ());
+  auto self = info.GetParameter ();
+  g_hash_table_remove (self->core->native_functions, self);
 }
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_system_function_construct)

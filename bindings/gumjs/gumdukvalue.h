@@ -68,6 +68,8 @@ G_GNUC_INTERNAL gboolean _gum_duk_get_ssize (duk_context * ctx, duk_idx_t index,
 
 G_GNUC_INTERNAL gboolean _gum_duk_get_pointer (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gpointer * ptr);
+G_GNUC_INTERNAL gpointer _gum_duk_require_pointer (duk_context * ctx,
+    duk_idx_t index, GumDukCore * core);
 G_GNUC_INTERNAL gboolean _gum_duk_parse_pointer (duk_context * ctx,
     duk_idx_t index, GumDukCore * core, gpointer * ptr);
 
