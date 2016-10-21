@@ -7,6 +7,14 @@
 #ifndef __GUM_V8_CORE_H__
 #define __GUM_V8_CORE_H__
 
+#include "gumscriptscheduler.h"
+#include "gumv8script.h"
+#include "gumv8scriptbackend.h"
+
+#include <gum/gumexceptor.h>
+#include <gum/gumprocess.h>
+#include <v8.h>
+
 #define GUMJS_NATIVE_POINTER_VALUE(o) \
     (o)->GetInternalField (0).As<External> ()->Value ()
 #define GUMJS_CPU_CONTEXT_VALUE(o) \
@@ -17,14 +25,6 @@
 #else
 # define GUMJS_SYSTEM_ERROR_FIELD "errno"
 #endif
-
-#include "gumscriptscheduler.h"
-#include "gumv8script.h"
-#include "gumv8scriptbackend.h"
-
-#include <gum/gumexceptor.h>
-#include <gum/gumprocess.h>
-#include <v8.h>
 
 struct GumV8ExceptionSink;
 struct GumV8MessageSink;
