@@ -1972,6 +1972,10 @@
                 skipChar(cursor); // ']'
                 return arrayType(length, elementType);
             } else if (id === '{') {
+                if (!tokenExistsAhead('=', '}', cursor)) {
+                    readUntil('}', cursor);
+                    return structType([]);
+                }
                 readUntil('=', cursor);
                 const structFields = [];
                 while (peekChar(cursor) !== '}')
@@ -2029,6 +2033,20 @@
 
         function peekChar(cursor) {
             return cursor[0][cursor[1]];
+        }
+
+        function tokenExistsAhead(token, terminator, cursor) {
+            const [buffer, offset] = cursor;
+
+            const tokenIndex = buffer.indexOf(token, offset);
+            if (tokenIndex === -1)
+                return false;
+
+            const terminatorIndex = buffer.indexOf(terminator, offset);
+            if (terminatorIndex === -1)
+                throw new Error("Expected to find terminator: " + terminator);
+
+            return tokenIndex < terminatorIndex;
         }
 
         function skipChar(cursor) {
