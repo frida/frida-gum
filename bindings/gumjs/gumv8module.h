@@ -12,6 +12,15 @@
 struct GumV8Module
 {
   GumV8Core * core;
+
+  GumPersistent<v8::Object>::type * import_value;
+  GumPersistent<v8::Object>::type * export_value;
+
+  GumPersistent<v8::String>::type * type_key;
+  GumPersistent<v8::String>::type * name_key;
+  GumPersistent<v8::String>::type * module_key;
+  GumPersistent<v8::String>::type * address_key;
+  GumPersistent<v8::String>::type * variable_value;
 };
 
 G_GNUC_INTERNAL void _gum_v8_module_init (GumV8Module * self,

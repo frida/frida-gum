@@ -365,24 +365,6 @@ static const GumV8Function gumjs_native_function_functions[] =
   { NULL, NULL }
 };
 
-class GumV8ModuleEternals
-{
-public:
-  Eternal<Object> native_return_value;
-
-  Eternal<String> value_key;
-  Eternal<String> system_error_key;
-};
-
-static GumV8ModuleEternals * eternals;
-
-static void
-gum_v8_module_deinit_eternals (void)
-{
-  delete eternals;
-  eternals = nullptr;
-}
-
 void
 _gum_v8_core_init (GumV8Core * self,
                    GumV8Script * script,
@@ -638,6 +620,19 @@ _gum_v8_core_realize (GumV8Core * self)
   self->handle_key = new GumPersistent<String>::type (isolate,
       _gum_v8_string_new_ascii (isolate, "handle"));
 
+  auto value_key = _gum_v8_string_new_ascii (isolate, "value");
+  self->value_key = new GumPersistent<String>::type (isolate, value_key);
+  auto system_error_key =
+      _gum_v8_string_new_ascii (isolate, GUMJS_SYSTEM_ERROR_FIELD);
+  self->system_error_key = new GumPersistent<String>::type (isolate,
+      system_error_key);
+
+  auto native_return_value = Object::New (isolate);
+  native_return_value->Set (context, value_key, zero).FromJust ();
+  native_return_value->Set (context, system_error_key, zero).FromJust ();
+  self->native_return_value = new GumPersistent<Object>::type (isolate,
+      native_return_value);
+
   auto cpu_context = Local<FunctionTemplate>::New (isolate, *self->cpu_context);
   Local<Value> args[] = {
     External::New (isolate, NULL),
@@ -647,29 +642,6 @@ _gum_v8_core_realize (GumV8Core * self)
       G_N_ELEMENTS (args), args).ToLocalChecked ();
   self->cpu_context_value = new GumPersistent<Object>::type (isolate,
       cpu_context_value);
-
-  static gsize eternals_initialized = 0;
-
-  if (g_once_init_enter (&eternals_initialized))
-  {
-    auto value_key = _gum_v8_string_new_ascii (isolate, "value");
-    auto system_error_key =
-        _gum_v8_string_new_ascii (isolate, GUMJS_SYSTEM_ERROR_FIELD);
-
-    auto native_return_value = Object::New (isolate);
-    native_return_value->Set (context, value_key, zero).FromJust ();
-    native_return_value->Set (context, system_error_key, zero).FromJust ();
-
-    eternals = new GumV8ModuleEternals ();
-    eternals->native_return_value.Set (isolate, native_return_value);
-
-    eternals->value_key.Set (isolate, value_key);
-    eternals->system_error_key.Set (isolate, system_error_key);
-
-    _gum_register_destructor (gum_v8_module_deinit_eternals);
-
-    g_once_init_leave (&eternals_initialized, 1);
-  }
 }
 
 gboolean
@@ -790,6 +762,14 @@ _gum_v8_core_dispose (GumV8Core * self)
   delete self->native_pointer_value;
   self->handle_key = nullptr;
   self->native_pointer_value = nullptr;
+
+  delete self->value_key;
+  delete self->system_error_key;
+  self->value_key = nullptr;
+  self->system_error_key = nullptr;
+
+  delete self->native_return_value;
+  self->native_return_value = nullptr;
 
   delete self->cpu_context_value;
   self->cpu_context_value = nullptr;
@@ -2334,13 +2314,14 @@ gum_v8_native_function_invoke (GumV8NativeFunction * self,
     {
       auto context = isolate->GetCurrentContext ();
 
-      auto template_return_value = eternals->native_return_value.Get (isolate);
+      auto template_return_value =
+          Local<Object>::New (isolate, *core->native_return_value);
       auto return_value = template_return_value->Clone ();
       return_value->Set (context,
-          eternals->value_key.Get (isolate),
+          Local<String>::New (isolate, *core->value_key),
           result).FromJust ();
       return_value->Set (context,
-          eternals->system_error_key.Get (isolate),
+          Local<String>::New (isolate, *core->system_error_key),
           Integer::New (isolate, system_error)).FromJust ();
       info.GetReturnValue ().Set (return_value);
     }

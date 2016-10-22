@@ -22,11 +22,11 @@ struct GumV8ImportsContext
   Local<Value> receiver;
 
   Local<Object> imp;
-  Local<Value> type;
-  Local<Value> name;
-  Local<Value> module;
-  Local<Value> address;
-  Local<Value> variable;
+  Local<String> type;
+  Local<String> name;
+  Local<String> module;
+  Local<String> address;
+  Local<String> variable;
 
   GumV8Core * core;
   Local<Context> context;
@@ -41,10 +41,10 @@ struct GumV8ExportsContext
   Local<Value> receiver;
 
   Local<Object> exp;
-  Local<Value> type;
-  Local<Value> name;
-  Local<Value> address;
-  Local<Value> variable;
+  Local<String> type;
+  Local<String> name;
+  Local<String> address;
+  Local<String> variable;
 
   GumV8Core * core;
   Local<Context> context;
@@ -85,28 +85,6 @@ static const GumV8Function gumjs_module_functions[] =
   { NULL, NULL }
 };
 
-class GumV8ModuleEternals
-{
-public:
-  Eternal<Object> imp;
-  Eternal<Object> exp;
-
-  Eternal<String> type;
-  Eternal<String> name;
-  Eternal<String> module;
-  Eternal<String> address;
-  Eternal<String> variable;
-};
-
-static GumV8ModuleEternals * eternals;
-
-static void
-gum_v8_module_deinit_eternals (void)
-{
-  delete eternals;
-  eternals = nullptr;
-}
-
 void
 _gum_v8_module_init (GumV8Module * self,
                      GumV8Core * core,
@@ -125,56 +103,60 @@ _gum_v8_module_init (GumV8Module * self,
 void
 _gum_v8_module_realize (GumV8Module * self)
 {
-  static gsize gonce_value = 0;
+  auto isolate = self->core->isolate;
+  auto context = isolate->GetCurrentContext ();
 
-  if (g_once_init_enter (&gonce_value))
-  {
-    auto isolate = self->core->isolate;
-    auto context = isolate->GetCurrentContext ();
+  auto type_key = _gum_v8_string_new_ascii (isolate, "type");
+  self->type_key = new GumPersistent<String>::type (isolate, type_key);
+  auto name_key = _gum_v8_string_new_ascii (isolate, "name");
+  self->name_key = new GumPersistent<String>::type (isolate, name_key);
+  auto module_key = _gum_v8_string_new_ascii (isolate, "module");
+  self->module_key = new GumPersistent<String>::type (isolate, module_key);
+  auto address_key = _gum_v8_string_new_ascii (isolate, "address");
+  self->address_key = new GumPersistent<String>::type (isolate, address_key);
 
-    auto type = _gum_v8_string_new_ascii (isolate, "type");
-    auto name = _gum_v8_string_new_ascii (isolate, "name");
-    auto module = _gum_v8_string_new_ascii (isolate, "module");
-    auto address = _gum_v8_string_new_ascii (isolate, "address");
+  auto function_value = _gum_v8_string_new_ascii (isolate, "function");
+  auto variable_value = _gum_v8_string_new_ascii (isolate, "variable");
+  self->variable_value = new GumPersistent<String>::type (isolate,
+      variable_value);
 
-    auto function = _gum_v8_string_new_ascii (isolate, "function");
-    auto variable = _gum_v8_string_new_ascii (isolate, "variable");
+  auto empty_string = String::Empty (isolate);
 
-    auto empty_string = String::Empty (isolate);
+  auto imp = Object::New (isolate);
+  imp->ForceSet (context, type_key, function_value).FromJust ();
+  imp->ForceSet (context, name_key, empty_string, DontDelete).FromJust ();
+  imp->ForceSet (context, module_key, empty_string).FromJust ();
+  imp->ForceSet (context, address_key, _gum_v8_native_pointer_new (
+      GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
+  self->import_value = new GumPersistent<Object>::type (isolate, imp);
 
-    auto imp = Object::New (isolate);
-    imp->ForceSet (context, type, function).FromJust ();
-    imp->ForceSet (context, name, empty_string, DontDelete).FromJust ();
-    imp->ForceSet (context, module, empty_string).FromJust ();
-    imp->ForceSet (context, address, _gum_v8_native_pointer_new (
-        GSIZE_TO_POINTER (NULL), self->core)).FromJust ();
-
-    auto exp = Object::New (isolate);
-    exp->ForceSet (context, type, function, DontDelete).FromJust ();
-    exp->ForceSet (context, name, empty_string, DontDelete).FromJust ();
-    exp->ForceSet (context, address, _gum_v8_native_pointer_new (
-        GSIZE_TO_POINTER (NULL), self->core), DontDelete).FromJust ();
-
-    eternals = new GumV8ModuleEternals ();
-    eternals->imp.Set (isolate, imp);
-    eternals->exp.Set (isolate, exp);
-
-    eternals->type.Set (isolate, type);
-    eternals->name.Set (isolate, name);
-    eternals->module.Set (isolate, module);
-    eternals->address.Set (isolate, address);
-    eternals->variable.Set (isolate, variable);
-
-    _gum_register_destructor (gum_v8_module_deinit_eternals);
-
-    g_once_init_leave (&gonce_value, 1);
-  }
+  auto exp = Object::New (isolate);
+  exp->ForceSet (context, type_key, function_value, DontDelete)
+      .FromJust ();
+  exp->ForceSet (context, name_key, empty_string, DontDelete).FromJust ();
+  exp->ForceSet (context, address_key, _gum_v8_native_pointer_new (
+      GSIZE_TO_POINTER (NULL), self->core), DontDelete).FromJust ();
+  self->export_value = new GumPersistent<Object>::type (isolate, exp);
 }
 
 void
 _gum_v8_module_dispose (GumV8Module * self)
 {
-  (void) self;
+  delete self->import_value;
+  delete self->export_value;
+  self->import_value = nullptr;
+  self->export_value = nullptr;
+
+  delete self->type_key;
+  delete self->name_key;
+  delete self->module_key;
+  delete self->address_key;
+  delete self->variable_value;
+  self->type_key = nullptr;
+  self->name_key = nullptr;
+  self->module_key = nullptr;
+  self->address_key = nullptr;
+  self->variable_value = nullptr;
 }
 
 void
@@ -202,12 +184,12 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_imports)
     return;
   ic.receiver = Undefined (isolate);
 
-  ic.imp = eternals->imp.Get (isolate);
-  ic.type = eternals->type.Get (isolate);
-  ic.name = eternals->name.Get (isolate);
-  ic.module = eternals->module.Get (isolate);
-  ic.address = eternals->address.Get (isolate);
-  ic.variable = eternals->variable.Get (isolate);
+  ic.imp = Local<Object>::New (isolate, *module->import_value);
+  ic.type = Local<String>::New (isolate, *module->type_key);
+  ic.name = Local<String>::New (isolate, *module->name_key);
+  ic.module = Local<String>::New (isolate, *module->module_key);
+  ic.address = Local<String>::New (isolate, *module->address_key);
+  ic.variable = Local<String>::New (isolate, *module->variable_value);
 
   ic.core = core;
   ic.context = isolate->GetCurrentContext ();
@@ -319,11 +301,11 @@ GUMJS_DEFINE_FUNCTION (gumjs_module_enumerate_exports)
     return;
   ec.receiver = Undefined (isolate);
 
-  ec.exp = eternals->exp.Get (isolate);
-  ec.type = eternals->type.Get (isolate);
-  ec.name = eternals->name.Get (isolate);
-  ec.address = eternals->address.Get (isolate);
-  ec.variable = eternals->variable.Get (isolate);
+  ec.exp = Local<Object>::New (isolate, *module->export_value);
+  ec.type = Local<String>::New (isolate, *module->type_key);
+  ec.name = Local<String>::New (isolate, *module->name_key);
+  ec.address = Local<String>::New (isolate, *module->address_key);
+  ec.variable = Local<String>::New (isolate, *module->variable_value);
 
   ec.core = core;
   ec.context = isolate->GetCurrentContext ();
