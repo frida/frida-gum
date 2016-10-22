@@ -2308,7 +2308,7 @@ GUMJS_DEFINE_FUNCTION (gumjs_native_function_apply)
   argc = duk_get_length (ctx, argv_array_index);
   for (i = argc; i != 0; i--)
   {
-    duk_get_prop_index (ctx, argv_array_index, i - 1);
+    duk_get_prop_index (ctx, argv_array_index, (duk_uarridx_t) (i - 1));
   }
   argv_index = duk_get_top_index (ctx);
 
@@ -2337,7 +2337,8 @@ gumjs_native_function_get (duk_context * ctx,
     if (receiver != NULL)
     {
       duk_push_heapptr (ctx, receiver);
-      *implementation = _gum_duk_require_pointer (ctx, -1, core);
+      *implementation = GUM_POINTER_TO_FUNCPTR (GCallback,
+          _gum_duk_require_pointer (ctx, -1, core));
 
       duk_pop_3 (ctx);
     }
