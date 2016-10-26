@@ -1285,7 +1285,9 @@
 
             const proxyMethods = {
                 '- dealloc': function () {
-                    this.data.target.release();
+                    const target = this.data.target;
+                    if ('- release' in target)
+                        target.release();
                     unbind(this.self);
                     this.super.dealloc();
 
@@ -1331,7 +1333,7 @@
                 const instance = ProxyClass.alloc().autorelease();
 
                 const boundData = getBoundData(instance);
-                boundData.target = target.retain();
+                boundData.target = ('- retain' in target) ? target.retain() : target;
                 boundData.events = events;
                 for (var key in data) {
                     if (data.hasOwnProperty(key)) {
