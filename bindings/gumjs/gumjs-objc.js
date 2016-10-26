@@ -730,18 +730,19 @@
                             wrapper: null
                         };
                     } else {
-                        if (isClass() || kind !== '-')
+                        if (isClass() || kind !== '-' || name === "forwardingTargetForSelector:" || name === "methodSignatureForSelector:") {
                             return null;
+                        }
 
                         let target = self;
-                        if (name !== "forwardingTargetForSelector:" && "- forwardingTargetForSelector:" in self) {
+                        if ("- forwardingTargetForSelector:" in self) {
                             const forwardingTarget = self.forwardingTargetForSelector_(sel);
                             if (forwardingTarget !== null && forwardingTarget.$kind === 'instance') {
                                 target = forwardingTarget;
                             }
                         }
 
-                        if (name !== "methodSignatureForSelector:" && "- methodSignatureForSelector:" in target) {
+                        if ("- methodSignatureForSelector:" in target) {
                             const s = target.methodSignatureForSelector_(sel);
                             if (s === null)
                                 return null;
