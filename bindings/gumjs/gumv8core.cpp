@@ -1440,7 +1440,7 @@ gum_v8_weak_ref_free (GumV8WeakRef * ref)
     ScriptScope scope (ref->core->script);
     auto isolate = ref->core->isolate;
     auto callback = Local<Function>::New (isolate, *ref->callback);
-    callback->Call (Undefined (isolate), 0, NULL);
+    callback->Call (Undefined (isolate), 0, nullptr);
   }
   delete ref->callback;
 
