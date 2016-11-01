@@ -46,6 +46,9 @@ TEST_LIST_BEGIN (process)
   PROCESS_TESTENTRY (darwin_module_exports)
   PROCESS_TESTENTRY (process_malloc_ranges)
 #endif
+#ifdef HAVE_LINUX
+  PROCESS_TESTENTRY (linux_process_modules)
+#endif
 TEST_LIST_END ()
 
 typedef struct _TestForEachContext {
@@ -135,6 +138,85 @@ PROCESS_TESTCASE (process_modules)
   gum_process_enumerate_modules (module_found_cb, &ctx);
   g_assert_cmpuint (ctx.number_of_calls, ==, 1);
 }
+
+#ifdef HAVE_LINUX
+
+typedef struct _ModuleBounds ModuleBounds;
+
+struct _ModuleBounds
+{
+  const gchar * name;
+  GumAddress start;
+  GumAddress end;
+};
+
+static gboolean find_module_bounds (const GumRangeDetails * details,
+    gpointer user_data);
+static gboolean verify_module_bounds (const GumModuleDetails * details,
+    gpointer user_data);
+
+PROCESS_TESTCASE (linux_process_modules)
+{
+  ModuleBounds bounds;
+
+  bounds.name = SYSTEM_MODULE_NAME;
+  bounds.start = 0;
+  bounds.end = 0;
+
+  gum_process_enumerate_ranges (GUM_PAGE_NO_ACCESS, find_module_bounds,
+      &bounds);
+
+  g_assert (bounds.start != 0);
+  g_assert (bounds.end != 0);
+
+  gum_process_enumerate_modules (verify_module_bounds, &bounds);
+}
+
+static gboolean
+find_module_bounds (const GumRangeDetails * details,
+                    gpointer user_data)
+{
+  ModuleBounds * bounds = user_data;
+  const GumMemoryRange * range = details->range;
+  const GumFileMapping * file = details->file;
+  gchar * name;
+  gboolean is_match;
+
+  if (file == NULL)
+    return TRUE;
+
+  name = g_path_get_basename (file->path);
+  is_match = strcmp (name, bounds->name) == 0;
+  g_free (name);
+
+  if (!is_match)
+    return TRUE;
+
+  if (bounds->start == 0)
+    bounds->start = range->base_address;
+
+  bounds->end = range->base_address + range->size;
+
+  return TRUE;
+}
+
+static gboolean
+verify_module_bounds (const GumModuleDetails * details,
+                      gpointer user_data)
+{
+  ModuleBounds * bounds = user_data;
+  const GumMemoryRange * range = details->range;
+
+  if (strcmp (details->name, bounds->name) != 0)
+    return TRUE;
+
+  g_assert_cmphex (range->base_address, ==, bounds->start);
+  g_assert_cmphex (range->base_address + range->size, ==, bounds->end);
+
+  return TRUE;
+}
+
+#endif
 
 PROCESS_TESTCASE (process_ranges)
 {
