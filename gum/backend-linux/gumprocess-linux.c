@@ -593,8 +593,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
 {
   FILE * fp;
   const guint line_size = GUM_MAPS_LINE_SIZE;
-  gchar * line, * path, * prev_path;
+  gchar * line, * path, * next_path;
   gboolean carry_on = TRUE;
+  gboolean got_line = FALSE;
 
   fp = fopen ("/proc/self/maps", "r");
   g_assert (fp != NULL);
@@ -602,10 +603,9 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
   line = g_malloc (line_size);
 
   path = g_malloc (PATH_MAX);
-  prev_path = g_malloc (PATH_MAX);
-  prev_path[0] = '\0';
+  next_path = g_malloc (PATH_MAX);
 
-  while (carry_on && fgets (line, line_size, fp) != NULL)
+  do
   {
     const guint8 elf_magic[] = { 0x7f, 'E', 'L', 'F' };
     GumModuleDetails details;
@@ -615,6 +615,16 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     gint n;
     gboolean readable, shared;
     gchar * name;
+
+    if (!got_line)
+    {
+      if (fgets (line, line_size, fp) == NULL)
+        break;
+    }
+    else
+    {
+      got_line = FALSE;
+    }
 
     n = sscanf (line,
         "%" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x "
@@ -632,8 +642,6 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     shared = perms[3] == 's';
     if (!readable || shared)
       continue;
-    else if (strcmp (path, prev_path) == 0)
-      continue;
     else if (path[0] != '/' || g_str_has_prefix (path, "/dev/"))
       continue;
     else if (RUNNING_ON_VALGRIND && strstr (path, "/valgrind/") != NULL)
@@ -650,15 +658,36 @@ gum_process_enumerate_modules (GumFoundModuleFunc func,
     details.range = &range;
     details.path = path;
 
+    while (fgets (line, line_size, fp) != NULL)
+    {
+      n = sscanf (line,
+          "%*" G_GINT64_MODIFIER "x-%" G_GINT64_MODIFIER "x %*4c %*x %*s %*d "
+          "%s",
+          &end,
+          next_path);
+      if (n == 1)
+      {
+        continue;
+      }
+      else if (n == 2 && strcmp (next_path, path) == 0)
+      {
+        range.size = end - range.base_address;
+      }
+      else
+      {
+        got_line = TRUE;
+        break;
+      }
+    }
+
     carry_on = func (&details, user_data);
 
     g_free (name);
-
-    strcpy (prev_path, path);
   }
+  while (carry_on);
 
   g_free (path);
-  g_free (prev_path);
+  g_free (next_path);
 
   g_free (line);
 
