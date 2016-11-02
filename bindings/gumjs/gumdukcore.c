@@ -2991,7 +2991,6 @@ gum_duk_core_schedule_callback (GumDukCore * self,
                                 const GumDukArgs * args,
                                 gboolean repeat)
 {
-  GumDukScope scope = GUM_DUK_SCOPE_INIT (self);
   GumDukHeapPtr func;
   gsize delay;
   guint id;
