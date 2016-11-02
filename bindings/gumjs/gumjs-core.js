@@ -76,6 +76,7 @@
                 const id = nextTimerId++;
 
                 const nativeId = _setTimeout(function () {
+                    delete timers[id];
                     func.apply(null, args);
                 }, delay);
                 timers[id] = nativeId;
