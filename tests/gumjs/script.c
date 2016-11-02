@@ -24,6 +24,7 @@ TEST_LIST_BEGIN (script)
   SCRIPT_TESTENTRY (interval_can_be_scheduled)
   SCRIPT_TESTENTRY (interval_can_be_cancelled)
   SCRIPT_TESTENTRY (callback_can_be_scheduled)
+  SCRIPT_TESTENTRY (callback_can_be_scheduled_from_a_scheduled_callback)
   SCRIPT_TESTENTRY (callback_can_be_cancelled)
   SCRIPT_TESTENTRY (callback_can_be_scheduled_on_next_tick)
   SCRIPT_TESTENTRY (argument_can_be_read)
@@ -2036,6 +2037,22 @@ SCRIPT_TESTCASE (callback_can_be_scheduled)
       "  send(1337);"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_NO_MESSAGES ();
+}
+
+SCRIPT_TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
+{
+  COMPILE_AND_LOAD_SCRIPT (
+      "setImmediate(function () {"
+      "  send(1337);"
+      "  Script.nextTick(function () { send(1338); });"
+      "  setImmediate(function () {"
+      "    send(1339);"
+      "  });"
+      "});");
+  EXPECT_SEND_MESSAGE_WITH ("1337");
+  EXPECT_SEND_MESSAGE_WITH ("1338");
+  EXPECT_SEND_MESSAGE_WITH ("1339");
   EXPECT_NO_MESSAGES ();
 }
 

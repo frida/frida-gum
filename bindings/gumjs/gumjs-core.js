@@ -291,19 +291,24 @@
     }
 
     function processImmediates() {
-        while (true) {
-            const item = immediates.shift();
-            if (item === undefined)
+        immediateTimer = null;
+
+        const length = immediates.length;
+        if (length === 0)
+            return;
+        const [maxId] = immediates[length - 1];
+
+        do {
+            const [id] = immediates[0];
+            if (id > maxId)
                 break;
-            const [, func, args] = item;
+            const [, func, args] = immediates.shift();
             try {
                 func.apply(null, args);
             } catch (e) {
                 _setTimeout(function () { throw e; }, 0);
             }
-        }
-
-        immediateTimer = null;
+        } while (immediates.length > 0);
     }
 
     function sendLogMessage(level, values) {
