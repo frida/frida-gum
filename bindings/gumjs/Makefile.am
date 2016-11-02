@@ -149,12 +149,14 @@ libfrida_gumjs_la_LIBTOOLFLAGS = \
 	$(NULL)
 
 script_runtime_sources = \
-	gumjs-core.js \
-	gumjs-source-map.js \
-	gumjs-java.js \
-	gumjs-objc.js \
+	runtime/index.js \
+	runtime/message-dispatcher.js \
+	runtime/error-handler.js \
+	runtime/console.js \
+	runtime/hexdump.js \
 	gumjs-debug.js \
 	gumjs-babel-polyfill.js \
+	gumjs-regenerator.js \
 	$(NULL)
 
 script-runtime-stamp: generate-runtime.py $(script_runtime_sources)
