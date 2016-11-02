@@ -3019,10 +3019,8 @@ gum_duk_core_schedule_callback (GumDukCore * self,
       callback, (GDestroyNotify) gum_scheduled_callback_free);
   gum_duk_core_add_scheduled_callback (self, callback);
 
-  _gum_duk_scope_suspend (&scope);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
-  _gum_duk_scope_resume (&scope);
 
   duk_push_number (args->ctx, id);
   return 1;
