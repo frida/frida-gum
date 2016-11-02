@@ -2046,9 +2046,7 @@ SCRIPT_TESTCASE (callback_can_be_scheduled_from_a_scheduled_callback)
       "setImmediate(function () {"
       "  send(1337);"
       "  Script.nextTick(function () { send(1338); });"
-      "  setImmediate(function () {"
-      "    send(1339);"
-      "  });"
+      "  setImmediate(function () { send(1339); });"
       "});");
   EXPECT_SEND_MESSAGE_WITH ("1337");
   EXPECT_SEND_MESSAGE_WITH ("1338");
