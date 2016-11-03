@@ -10,6 +10,7 @@
 #include "gummemory.h"
 #include "gumprocess.h"
 #ifdef HAVE_ARM
+# include "gumarmwriter.h"
 # include "gumthumbwriter.h"
 #endif
 #ifdef HAVE_ARM64
@@ -38,6 +39,7 @@ typedef struct _GumCodeSliceElement GumCodeSliceElement;
 typedef struct _GumCodeDeflectorDispatcher GumCodeDeflectorDispatcher;
 typedef struct _GumCodeDeflectorImpl GumCodeDeflectorImpl;
 typedef struct _GumProbeRangeForCodeCaveContext GumProbeRangeForCodeCaveContext;
+typedef struct _GumInsertDeflectorContext GumInsertDeflectorContext;
 
 typedef void (* GumModifyCaveFunc) (GumCodeDeflectorDispatcher * self,
     gpointer cave, gsize size, GumAddress pc, gpointer user_data);
@@ -87,6 +89,12 @@ struct _GumProbeRangeForCodeCaveContext
   GumMemoryRange cave;
 };
 
+struct _GumInsertDeflectorContext
+{
+  gpointer return_address;
+  gpointer dedicated_target;
+};
+
 static GumCodeSlice * gum_code_allocator_try_alloc_batch_near (
     GumCodeAllocator * self, const GumAddressSpec * spec);
 
@@ -98,11 +106,12 @@ static gboolean gum_code_slice_is_aligned (const GumCodeSlice * slice,
     gsize alignment);
 
 static GumCodeDeflectorDispatcher * gum_code_deflector_dispatcher_new (
-    const GumAddressSpec * caller, gpointer dedicated_target);
+    const GumAddressSpec * caller, gpointer return_address,
+    gpointer dedicated_target);
 static void gum_code_deflector_dispatcher_free (
     GumCodeDeflectorDispatcher * dispatcher);
 static void gum_insert_deflector (GumCodeDeflectorDispatcher * self,
-    gpointer cave, gsize size, GumAddress pc, gpointer user_data);
+    gpointer cave, gsize size, GumAddress pc, GumInsertDeflectorContext * ctx);
 static void gum_remove_deflector (GumCodeDeflectorDispatcher * self,
     gpointer cave, gsize size, GumAddress pc, gpointer user_data);
 static gpointer gum_code_deflector_dispatcher_lookup (
@@ -423,7 +432,7 @@ gum_code_allocator_alloc_deflector (GumCodeAllocator * self,
 
   if (dispatcher == NULL)
   {
-    dispatcher = gum_code_deflector_dispatcher_new (caller,
+    dispatcher = gum_code_deflector_dispatcher_new (caller, return_address,
         dedicated ? target : NULL);
     if (dispatcher == NULL)
       return NULL;
@@ -483,12 +492,14 @@ gum_code_deflector_free (GumCodeDeflector * deflector)
 
 static GumCodeDeflectorDispatcher *
 gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
+                                   gpointer return_address,
                                    gpointer dedicated_target)
 {
 #if defined (HAVE_LINUX) && defined (HAVE_ARM64)
   /* FIXME: need to find a larger cave */
 
   (void) caller;
+  (void) return_address;
   (void) dedicated_target;
 
   (void) gum_insert_deflector;
@@ -497,18 +508,19 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
   return NULL;
 #else
   GumCodeDeflectorDispatcher * dispatcher;
-  GumProbeRangeForCodeCaveContext ctx;
+  GumProbeRangeForCodeCaveContext probe_ctx;
   gsize size_in_pages, size_in_bytes;
+  GumInsertDeflectorContext insert_ctx;
 
-  ctx.caller = caller;
+  probe_ctx.caller = caller;
 
-  ctx.cave.base_address = 0;
-  ctx.cave.size = 0;
+  probe_ctx.cave.base_address = 0;
+  probe_ctx.cave.size = 0;
 
   gum_process_enumerate_ranges (GUM_PAGE_RX, gum_probe_range_for_code_cave,
-      &ctx);
+      &probe_ctx);
 
-  if (ctx.cave.base_address == 0)
+  if (probe_ctx.cave.base_address == 0)
     return NULL;
 
   size_in_pages = 1;
@@ -518,17 +530,21 @@ gum_code_deflector_dispatcher_new (const GumAddressSpec * caller,
 
   dispatcher->callers = NULL;
 
-  dispatcher->address = GSIZE_TO_POINTER (ctx.cave.base_address);
+  dispatcher->address = GSIZE_TO_POINTER (probe_ctx.cave.base_address);
   dispatcher->trampoline = dispatcher->address;
   dispatcher->thunk = (dedicated_target == NULL)
       ? gum_alloc_n_pages (size_in_pages, GUM_PAGE_RW)
       : NULL;
 
-  dispatcher->original_data = g_memdup (dispatcher->address, ctx.cave.size);
-  dispatcher->original_size = ctx.cave.size;
+  dispatcher->original_data = g_memdup (dispatcher->address,
+      probe_ctx.cave.size);
+  dispatcher->original_size = probe_ctx.cave.size;
 
-  gum_code_deflector_dispatcher_modify_cave (dispatcher, gum_insert_deflector,
-      dedicated_target);
+  insert_ctx.return_address = return_address;
+  insert_ctx.dedicated_target = dedicated_target;
+
+  gum_code_deflector_dispatcher_modify_cave (dispatcher,
+      (GumModifyCaveFunc) gum_insert_deflector, &insert_ctx);
 
   if (dispatcher->thunk != NULL)
   {
@@ -562,18 +578,37 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
                       gpointer cave,
                       gsize size,
                       GumAddress pc,
-                      gpointer user_data)
+                      GumInsertDeflectorContext * ctx)
 {
 # if defined (HAVE_ARM)
-  gpointer dedicated_target = user_data;
   GumThumbWriter tw;
 
-  if (dedicated_target != NULL)
+  if (ctx->dedicated_target != NULL)
   {
+    gboolean owner_is_arm;
+
+    owner_is_arm = (GPOINTER_TO_SIZE (ctx->return_address) & 1) == 0;
+    if (owner_is_arm)
+    {
+      GumArmWriter aw;
+
+      gum_arm_writer_init (&aw, cave);
+      aw.pc = pc;
+      gum_arm_writer_put_ldr_reg_address (&aw, ARM_REG_PC,
+          GUM_ADDRESS (ctx->dedicated_target));
+      gum_arm_writer_flush (&aw);
+      g_assert_cmpuint (gum_arm_writer_offset (&aw), <=, size);
+      gum_arm_writer_free (&aw);
+
+      self->trampoline = self->address;
+
+      return;
+    }
+
     gum_thumb_writer_init (&tw, cave);
     tw.pc = pc;
     gum_thumb_writer_put_ldr_reg_address (&tw, ARM_REG_PC,
-        GUM_ADDRESS (dedicated_target));
+        GUM_ADDRESS (ctx->dedicated_target));
   }
   else
   {
@@ -603,16 +638,15 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
 
   self->trampoline = self->address + 1;
 # elif defined (HAVE_ARM64)
-  gpointer dedicated_target = user_data;
   GumArm64Writer aw;
 
-  if (dedicated_target != NULL)
+  if (ctx->dedicated_target != NULL)
   {
     gum_arm64_writer_init (&aw, cave);
     aw.pc = pc;
     gum_arm64_writer_put_push_reg_reg (&aw, ARM64_REG_X0, ARM64_REG_LR);
     gum_arm64_writer_put_ldr_reg_address (&aw, ARM64_REG_X0,
-        GUM_ADDRESS (dedicated_target));
+        GUM_ADDRESS (ctx->dedicated_target));
     gum_arm64_writer_put_br_reg (&aw, ARM64_REG_X0);
   }
   else
@@ -676,7 +710,7 @@ gum_insert_deflector (GumCodeDeflectorDispatcher * self,
   (void) cave;
   (void) size;
   (void) pc;
-  (void) user_data;
+  (void) ctx;
 
   (void) gum_code_deflector_dispatcher_lookup;
 # endif
