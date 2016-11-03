@@ -35,8 +35,7 @@ _gum_duk_object_manager_init (GumDukObjectManager * self,
 {
   self->module = module;
   self->core = core;
-  self->object_by_handle = g_hash_table_new_full (NULL, NULL, NULL,
-      (GDestroyNotify) gum_duk_object_free);
+  self->object_by_handle = g_hash_table_new_full (NULL, NULL, NULL, NULL);
   self->cancellable = g_cancellable_new ();
 }
 
@@ -63,17 +62,13 @@ _gum_duk_object_manager_flush (GumDukObjectManager * self)
 void
 _gum_duk_object_manager_free (GumDukObjectManager * self)
 {
-  duk_context * ctx = self->core->current_ctx;
   GHashTableIter iter;
   GumDukObject * object;
 
   g_hash_table_iter_init (&iter, self->object_by_handle);
   while (g_hash_table_iter_next (&iter, NULL, (gpointer *) &object))
   {
-    duk_push_heapptr (ctx, object->wrapper);
-    duk_push_undefined (ctx);
-    duk_set_finalizer (ctx, -2);
-    duk_pop (ctx);
+    object->manager = NULL;
   }
   g_hash_table_remove_all (self->object_by_handle);
 
@@ -131,7 +126,12 @@ GUMJS_DEFINE_FINALIZER (gumjs_object_finalize)
   if (self == NULL)
     return 0;
 
-  g_hash_table_remove (self->manager->object_by_handle, self->handle);
+  if (self->manager != NULL)
+  {
+    g_hash_table_remove (self->manager->object_by_handle, self->handle);
+  }
+
+  gum_duk_object_free (self);
 
   return 0;
 }
