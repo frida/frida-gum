@@ -990,10 +990,14 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
 
 #ifdef G_OS_UNIX
   COMPILE_AND_LOAD_SCRIPT (
-      "var id = (Math.random() * 1000000) << 0;"
+      "var getpid = new NativeFunction(Module.findExportByName(null, 'getpid'),"
+      "    'int', []);"
+      "var unlink = new NativeFunction(Module.findExportByName(null, 'unlink'),"
+      "    'int', ['pointer']);"
+      ""
       "Socket.listen({"
       "  type: 'path',"
-      "  path: '/tmp/frida-gum-test-' + id,"
+      "  path: '/tmp/frida-gum-test-listener-' + getpid(),"
       "  backlog: 1,"
       "})"
       ".then(function (listener) {"
@@ -1015,6 +1019,7 @@ SCRIPT_TESTCASE (socket_connection_can_be_established)
       "    path: listener.path,"
       "  })"
       "  .then(function (connection) {"
+      "    unlink(Memory.allocUtf8String(listener.path));"
       "    return connection.output.writeAll([0x31, 0x33, 0x33, 0x37, 0x0a])"
       "    .then(function () {"
       "      return connection.close();"
