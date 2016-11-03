@@ -50,7 +50,8 @@ void gum_arm_relocator_write_all (GumArmRelocator * self);
 gboolean gum_arm_relocator_eob (GumArmRelocator * self);
 gboolean gum_arm_relocator_eoi (GumArmRelocator * self);
 
-gboolean gum_arm_relocator_can_relocate (gpointer address, guint min_bytes);
+gboolean gum_arm_relocator_can_relocate (gpointer address, guint min_bytes,
+    guint * maximum);
 guint gum_arm_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
 
 G_END_DECLS

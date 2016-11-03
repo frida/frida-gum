@@ -321,8 +321,10 @@ gum_x86_relocator_put_label_for (GumX86Relocator * self,
 
 gboolean
 gum_x86_relocator_can_relocate (gpointer address,
-                                guint min_bytes)
+                                guint min_bytes,
+                                guint * maximum)
 {
+  guint n = 0;
   guint8 * buf;
   GumX86Writer cw;
   GumX86Relocator rl;
@@ -337,7 +339,9 @@ gum_x86_relocator_can_relocate (gpointer address,
   {
     reloc_bytes = gum_x86_relocator_read_one (&rl, NULL);
     if (reloc_bytes == 0)
-      return FALSE;
+      break;
+
+    n = reloc_bytes;
   }
   while (reloc_bytes < min_bytes);
 
@@ -345,7 +349,10 @@ gum_x86_relocator_can_relocate (gpointer address,
 
   gum_x86_writer_free (&cw);
 
-  return TRUE;
+  if (maximum != NULL)
+    *maximum = n;
+
+  return n >= min_bytes;
 }
 
 guint

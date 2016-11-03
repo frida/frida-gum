@@ -138,7 +138,7 @@ gum_interceptor_backend_prepare_trampoline (GumInterceptorBackend * self,
   else
   {
     if (gum_arm_relocator_can_relocate (function_address,
-        GUM_INTERCEPTOR_ARM_REDIRECT_SIZE))
+        GUM_INTERCEPTOR_ARM_REDIRECT_SIZE, NULL))
     {
       data->redirect_code_size = GUM_INTERCEPTOR_ARM_REDIRECT_SIZE;
     }

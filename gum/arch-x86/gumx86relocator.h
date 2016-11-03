@@ -51,7 +51,8 @@ void gum_x86_relocator_write_all (GumX86Relocator * self);
 gboolean gum_x86_relocator_eob (GumX86Relocator * self);
 gboolean gum_x86_relocator_eoi (GumX86Relocator * self);
 
-gboolean gum_x86_relocator_can_relocate (gpointer address, guint min_bytes);
+gboolean gum_x86_relocator_can_relocate (gpointer address, guint min_bytes,
+    guint * maximum);
 guint gum_x86_relocator_relocate (gpointer from, guint min_bytes, gpointer to);
 
 G_END_DECLS

@@ -106,7 +106,7 @@ _gum_interceptor_backend_create_trampoline (GumInterceptorBackend * self,
   guint reloc_bytes;
 
   if (!gum_x86_relocator_can_relocate (ctx->function_address,
-      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE))
+      GUM_INTERCEPTOR_REDIRECT_CODE_SIZE, NULL))
     return FALSE;
 
   if (!gum_interceptor_backend_prepare_trampoline (self, ctx))
