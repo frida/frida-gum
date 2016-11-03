@@ -2,6 +2,8 @@
 
 const hexdump = require('./hexdump');
 
+const engine = global;
+
 class Console {
   log() {
     sendLogMessage('info', Array.from(arguments));
