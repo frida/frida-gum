@@ -10,6 +10,8 @@
 #include <capstone.h>
 #include <gum/gumdefs.h>
 
+#define GUM_ARM_B_MAX_DISTANCE 0x01fffffc
+
 G_BEGIN_DECLS
 
 typedef struct _GumArmWriter GumArmWriter;
@@ -38,6 +40,8 @@ guint gum_arm_writer_offset (GumArmWriter * self);
 void gum_arm_writer_skip (GumArmWriter * self, guint n_bytes);
 
 void gum_arm_writer_flush (GumArmWriter * self);
+
+void gum_arm_writer_put_b_imm (GumArmWriter * self, GumAddress target);
 
 void gum_arm_writer_put_ldr_reg_address (GumArmWriter * self, arm_reg reg,
     GumAddress address);

@@ -319,6 +319,7 @@ enum _GumRelocationScenario
 #define GUM_INT16_MASK 0x0000ffff
 #define GUM_INT18_MASK 0x0003ffff
 #define GUM_INT19_MASK 0x0007ffff
+#define GUM_INT24_MASK 0x00ffffff
 #define GUM_INT26_MASK 0x03ffffff
 #define GUM_INT28_MASK 0x0fffffff
 

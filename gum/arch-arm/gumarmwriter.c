@@ -138,6 +138,21 @@ gum_arm_writer_add_literal_reference_here (GumArmWriter * self,
 }
 
 void
+gum_arm_writer_put_b_imm (GumArmWriter * self,
+                          GumAddress target)
+{
+  gint32 distance_in_bytes, distance_in_words;
+
+  distance_in_bytes = target - (self->pc + 8);
+  g_assert (GUM_IS_WITHIN_INT26_RANGE (distance_in_bytes));
+
+  distance_in_words = distance_in_bytes / 4;
+
+  gum_arm_writer_put_instruction (self, 0xea000000 |
+      (distance_in_words & GUM_INT24_MASK));
+}
+
+void
 gum_arm_writer_put_ldr_reg_address (GumArmWriter * self,
                                     arm_reg reg,
                                     GumAddress address)
