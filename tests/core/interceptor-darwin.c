@@ -27,6 +27,7 @@ TEST_LIST_BEGIN (interceptor_darwin)
   INTERCEPTOR_TESTENTRY (can_attach_to_xpc_retain)
   INTERCEPTOR_TESTENTRY (can_attach_to_sqlite3_close)
   INTERCEPTOR_TESTENTRY (can_attach_to_sqlite3_thread_cleanup)
+  INTERCEPTOR_TESTENTRY (can_attach_to_dyld_callback)
 
   INTERCEPTOR_TESTENTRY (attach_performance)
   INTERCEPTOR_TESTENTRY (replace_performance)
@@ -296,6 +297,28 @@ INTERCEPTOR_TESTCASE (can_attach_to_sqlite3_thread_cleanup)
 
   interceptor_fixture_detach_listener (fixture, 0);
   g_string_truncate (fixture->result, 0);
+}
+
+INTERCEPTOR_TESTCASE (can_attach_to_dyld_callback)
+{
+  gpointer (* get_all_image_infos) (void);
+  gpointer infos, notification;
+
+  get_all_image_infos = dlsym (RTLD_DEFAULT, "_dyld_get_all_image_infos");
+  g_assert (get_all_image_infos != NULL);
+
+  infos = get_all_image_infos ();
+
+  notification = *((gpointer *) (infos + 8 + GLIB_SIZEOF_VOID_P));
+
+  interceptor_fixture_attach_listener (fixture, 0, notification, '>', '<');
+
+  /* For manual testing: */
+#if 0
+  dlopen ("/Library/Frameworks/CydiaSubstrate.framework/CydiaSubstrate",
+      RTLD_GLOBAL | RTLD_LAZY);
+  g_assert_cmpstr (fixture->result->str, ==, "><");
+#endif
 }
 
 static gpointer
