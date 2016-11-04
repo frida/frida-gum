@@ -83,7 +83,13 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
   if (!_gum_v8_args_parse (args, "s", &type))
     return;
 
-  auto resolver = gum_api_resolver_make (type);
+  GumApiResolver * resolver;
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+    resolver = gum_api_resolver_make (type);
+  }
+  isolate->Enter ();
 
   g_free (type);
 

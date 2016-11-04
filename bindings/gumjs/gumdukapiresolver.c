@@ -78,6 +78,7 @@ gumjs_module_from_args (const GumDukArgs * args)
 
 GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   const gchar * type;
   GumApiResolver * resolver;
   GumDukApiResolver * module;
@@ -91,7 +92,10 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_api_resolver_construct)
 
   _gum_duk_args_parse (args, "s", &type);
 
+  _gum_duk_scope_suspend (&scope);
   resolver = gum_api_resolver_make (type);
+  _gum_duk_scope_resume (&scope);
+
   if (resolver == NULL)
     _gum_duk_throw (ctx, "the specified ApiResolver is not available");
 
