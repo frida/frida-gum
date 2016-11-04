@@ -665,6 +665,8 @@ gum_duk_script_try_unload (GumDukScript * self)
 
     priv->state = GUM_SCRIPT_STATE_UNLOADED;
 
+    g_object_ref (self);
+
     while (priv->on_unload != NULL)
     {
       GSList * link = priv->on_unload;
@@ -677,6 +679,8 @@ gum_duk_script_try_unload (GumDukScript * self)
 
       priv->on_unload = g_slist_delete_link (priv->on_unload, link);
     }
+
+    g_object_unref (self);
   }
 }
 

@@ -614,6 +614,8 @@ gum_v8_script_try_unload (GumV8Script * self)
 
     priv->state = GUM_SCRIPT_STATE_UNLOADED;
 
+    g_object_ref (self);
+
     while (priv->on_unload != NULL)
     {
       auto link = priv->on_unload;
@@ -626,6 +628,8 @@ gum_v8_script_try_unload (GumV8Script * self)
 
       priv->on_unload = g_slist_delete_link (priv->on_unload, link);
     }
+
+    g_object_unref (self);
   }
 }
 
