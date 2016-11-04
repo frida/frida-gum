@@ -1012,7 +1012,7 @@ duk_context *
 _gum_duk_scope_enter (GumDukScope * self,
                       GumDukCore * core)
 {
-  duk_context * ctx = core->heap_ctx;
+  duk_context * heap_ctx = core->heap_ctx;
 
   self->core = core;
 
@@ -1029,7 +1029,7 @@ _gum_duk_scope_enter (GumDukScope * self,
     {
       core->heap_thread_in_use = TRUE;
 
-      self->ctx = ctx;
+      self->ctx = heap_ctx;
     }
     else
     {
@@ -1038,14 +1038,14 @@ _gum_duk_scope_enter (GumDukScope * self,
 
       sprintf (name, "thread_%p", self);
 
-      thread_index = duk_push_thread (ctx);
-      self->ctx = duk_get_context (ctx, thread_index);
+      thread_index = duk_push_thread (heap_ctx);
+      self->ctx = duk_get_context (heap_ctx, thread_index);
 
-      duk_push_global_stash (ctx);
-      duk_dup (ctx, -2);
-      duk_put_prop_string (ctx, -2, name);
+      duk_push_global_stash (heap_ctx);
+      duk_dup (heap_ctx, -2);
+      duk_put_prop_string (heap_ctx, -2, name);
 
-      duk_pop_2 (ctx);
+      duk_pop_2 (heap_ctx);
     }
 
     g_assert (core->current_ctx == NULL);
@@ -1165,7 +1165,7 @@ void
 _gum_duk_scope_leave (GumDukScope * self)
 {
   GumDukCore * core = self->core;
-  duk_context * ctx = core->heap_ctx;
+  duk_context * heap_ctx = core->heap_ctx;
   GumDukHeapPtr tick_callback;
   GumDukFlushNotify pending_flush_notify = NULL;
 
@@ -1173,6 +1173,8 @@ _gum_duk_scope_leave (GumDukScope * self)
 
   while ((tick_callback = g_queue_pop_head (core->tick_callbacks)) != NULL)
   {
+    duk_context * ctx = heap_ctx;
+
     duk_push_heapptr (ctx, tick_callback);
     _gum_duk_scope_call (self, 0);
     duk_pop (ctx);
@@ -1184,7 +1186,7 @@ _gum_duk_scope_leave (GumDukScope * self)
   {
     core->current_ctx = NULL;
 
-    if (self->ctx == ctx)
+    if (self->ctx == heap_ctx)
     {
       core->heap_thread_in_use = FALSE;
     }
@@ -1194,9 +1196,9 @@ _gum_duk_scope_leave (GumDukScope * self)
 
       sprintf (name, "thread_%p", self);
 
-      duk_push_global_stash (ctx);
-      duk_del_prop_string (ctx, -1, name);
-      duk_pop (ctx);
+      duk_push_global_stash (heap_ctx);
+      duk_del_prop_string (heap_ctx, -1, name);
+      duk_pop (heap_ctx);
     }
   }
 
