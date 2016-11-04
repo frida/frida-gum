@@ -282,11 +282,12 @@ gum_mach_vm_protect (vm_map_t target_task,
   };
 
   asm volatile (
-      "ldmdb %1!, {r4, r5, r6, r7}\n\t"
-      "ldmdb %1!, {r0, r1, r2, r3}\n\t"
+      "push {r0, r1, r2, r3, r4, r5, r6, r7, r12}\n\t"
+      "ldmdb %1!, {r0, r1, r2, r3, r4, r5, r6, r7}\n\t"
       "mvn r12, 0xd\n\t"
       "svc 0x80\n\t"
       "mov %0, r0\n\t"
+      "pop {r0, r1, r2, r3, r4, r5, r6, r7, r12}\n\t"
       : "=r" (result)
       : "r" (args + G_N_ELEMENTS (args))
       : "r0", "r1", "r2", "r3", "r4", "r5", "r6", "r7", "r12"
@@ -297,14 +298,22 @@ gum_mach_vm_protect (vm_map_t target_task,
   kern_return_t result;
 
   asm volatile (
-      "mov x4, %5\n\t"
-      "mov x3, %4\n\t"
-      "mov x2, %3\n\t"
-      "mov x1, %2\n\t"
+      "sub sp, sp, #16 * 3\n\t"
+      "stp x0, x1, [sp, #16 * 0]\n\t"
+      "stp x2, x3, [sp, #16 * 1]\n\t"
+      "stp x4, x16, [sp, #16 * 2]\n\t"
       "mov x0, %1\n\t"
+      "mov x1, %2\n\t"
+      "mov x2, %3\n\t"
+      "mov x3, %4\n\t"
+      "mov x4, %5\n\t"
       "movn x16, 0xd\n\t"
       "svc 0x80\n\t"
       "mov %w0, w0\n\t"
+      "ldp x0, x1, [sp, #16 * 0]\n\t"
+      "ldp x2, x3, [sp, #16 * 1]\n\t"
+      "ldp x4, x16, [sp, #16 * 2]\n\t"
+      "add sp, sp, #16 * 3\n\t"
       : "=r" (result)
       : "r" ((gsize) target_task),
         "r" (address),
