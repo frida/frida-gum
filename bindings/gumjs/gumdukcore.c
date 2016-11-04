@@ -130,7 +130,8 @@ struct _GumFFIABIMapping
   ffi_abi abi;
 };
 
-static gboolean gum_notify_flushed_when_idle (GumDukFlushCallback * callback);
+static void gum_duk_flush_callback_free (GumDukFlushCallback * self);
+static gboolean gum_duk_flush_callback_notify (GumDukFlushCallback * self);
 
 GUMJS_DECLARE_FUNCTION (gumjs_set_timeout)
 GUMJS_DECLARE_FUNCTION (gumjs_set_interval)
@@ -879,23 +880,28 @@ gum_duk_core_notify_flushed (GumDukCore * self,
 
   callback = g_slice_new (GumDukFlushCallback);
   callback->func = func;
-  callback->script = self->script;
+  callback->script = g_object_ref (self->script);
 
   source = g_idle_source_new ();
-  g_source_set_callback (source, (GSourceFunc) gum_notify_flushed_when_idle,
-      callback, NULL);
+  g_source_set_callback (source, (GSourceFunc) gum_duk_flush_callback_notify,
+      callback, (GDestroyNotify) gum_duk_flush_callback_free);
   g_source_attach (source,
       gum_script_scheduler_get_js_context (self->scheduler));
   g_source_unref (source);
 }
 
-static gboolean
-gum_notify_flushed_when_idle (GumDukFlushCallback * callback)
+static void
+gum_duk_flush_callback_free (GumDukFlushCallback * self)
 {
-  callback->func (callback->script);
+  g_object_unref (self->script);
 
-  g_slice_free (GumDukFlushCallback, callback);
+  g_slice_free (GumDukFlushCallback, self);
+}
 
+static gboolean
+gum_duk_flush_callback_notify (GumDukFlushCallback * self)
+{
+  self->func (self->script);
   return FALSE;
 }
 
