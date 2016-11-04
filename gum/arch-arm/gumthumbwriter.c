@@ -590,26 +590,28 @@ gum_thumb_writer_put_push_or_pop_regs (GumThumbWriter * self,
 {
   GumArmRegInfo * regs;
   gboolean need_wide_instruction;
-  arm_reg cur_reg;
   guint reg_index;
 
   g_assert_cmpuint (n_regs, !=, 0);
 
   regs = g_alloca (n_regs * sizeof (GumArmRegInfo));
   need_wide_instruction = FALSE;
-  cur_reg = first_reg;
   for (reg_index = 0; reg_index != n_regs; reg_index++)
   {
+    arm_reg cur_reg;
     GumArmRegInfo * ri = &regs[reg_index];
     gboolean is_low_reg;
+
+    if (reg_index == 0)
+      cur_reg = first_reg;
+    else
+      cur_reg = va_arg (vl, arm_reg);
 
     gum_arm_reg_describe (cur_reg, ri);
 
     is_low_reg = (ri->meta >= GUM_ARM_MREG_R0 && ri->meta <= GUM_ARM_MREG_R7);
     if (!is_low_reg && ri->meta != special_reg)
       need_wide_instruction = TRUE;
-
-    cur_reg = va_arg (vl, arm_reg);
   }
 
   if (need_wide_instruction)
