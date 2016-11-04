@@ -246,8 +246,10 @@ main (gint argc, gchar * argv[])
 #  endif
 # endif
 
+# ifndef HAVE_ASAN
     if (gum_kernel_api_is_available ())
       TEST_RUN_LIST (kscript);
+# endif
   }
 #endif
 
