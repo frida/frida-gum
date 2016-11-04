@@ -1173,7 +1173,7 @@ _gum_duk_scope_leave (GumDukScope * self)
 
   while ((tick_callback = g_queue_pop_head (core->tick_callbacks)) != NULL)
   {
-    duk_context * ctx = heap_ctx;
+    duk_context * ctx = core->current_ctx;
 
     duk_push_heapptr (ctx, tick_callback);
     _gum_duk_scope_call (self, 0);
