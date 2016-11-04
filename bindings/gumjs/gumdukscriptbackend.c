@@ -600,8 +600,8 @@ gum_duk_script_backend_on_fatal_error (duk_context * ctx,
 {
   (void) ctx;
 
-  g_printerr ("FATAL ERROR OCCURRED: %d, %s\n", code, msg);
-  abort();
+  g_log ("DUK", G_LOG_LEVEL_ERROR, "%d: %s", code, msg);
+  abort ();
 }
 
 static void *
