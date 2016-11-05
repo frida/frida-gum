@@ -98,54 +98,65 @@ GUMJS_DEFINE_CONSTRUCTOR (gumjs_symbol_module_construct)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   GumDukSymbol * self;
   gpointer address;
   GumSymbolDetails details;
+  gboolean success;
 
   self = gumjs_symbol_module_from_args (args);
 
   _gum_duk_args_parse (args, "p", &address);
 
+  _gum_duk_scope_suspend (&scope);
+  success = gum_symbol_details_from_address (address, &details);
+  _gum_duk_scope_resume (&scope);
+
   duk_push_heapptr (ctx, self->symbol);
   duk_push_pointer (ctx, address);
-  if (gum_symbol_details_from_address (address, &details))
-    duk_push_pointer (ctx, &details);
-  else
-    duk_push_pointer (ctx, NULL);
+  duk_push_pointer (ctx, success ? &details : NULL);
   duk_new (ctx, 2);
   return 1;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   GumDukSymbol * self;
   const gchar * name;
   gpointer address;
   GumSymbolDetails details;
+  gboolean success;
 
   self = gumjs_symbol_module_from_args (args);
 
   _gum_duk_args_parse (args, "s", &name);
 
-  duk_push_heapptr (ctx, self->symbol);
+  _gum_duk_scope_suspend (&scope);
   address = gum_find_function (name);
+  success = (address != NULL &&
+      gum_symbol_details_from_address (address, &details));
+  _gum_duk_scope_resume (&scope);
+
+  duk_push_heapptr (ctx, self->symbol);
   duk_push_pointer (ctx, address);
-  if (address != NULL && gum_symbol_details_from_address (address, &details))
-    duk_push_pointer (ctx, &details);
-  else
-    duk_push_pointer (ctx, NULL);
+  duk_push_pointer (ctx, success ? &details : NULL);
   duk_new (ctx, 2);
   return 1;
 }
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   const gchar * name;
   gpointer address;
 
   _gum_duk_args_parse (args, "s", &name);
 
+  _gum_duk_scope_suspend (&scope);
   address = gum_find_function (name);
+  _gum_duk_scope_resume (&scope);
+
   if (address == NULL)
     _gum_duk_throw (ctx, "unable to find function with name '%s'", name);
 
@@ -155,12 +166,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   gchar * name;
   GArray * functions;
 
   _gum_duk_args_parse (args, "s", &name);
 
+  _gum_duk_scope_suspend (&scope);
   functions = gum_find_functions_named (name);
+  _gum_duk_scope_resume (&scope);
+
   gumjs_pointer_array_push (ctx, functions, args->core);
   g_array_free (functions, TRUE);
   return 1;
@@ -168,12 +183,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
 
 GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
 {
+  GumDukScope scope = GUM_DUK_SCOPE_INIT (args->core);
   const gchar * str;
   GArray * functions;
 
   _gum_duk_args_parse (args, "s", &str);
 
+  _gum_duk_scope_suspend (&scope);
   functions = gum_find_functions_matching (str);
+  _gum_duk_scope_resume (&scope);
+
   gumjs_pointer_array_push (ctx, functions, args->core);
   g_array_free (functions, TRUE);
   return 1;

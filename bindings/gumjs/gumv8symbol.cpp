@@ -143,9 +143,18 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_address)
 
   GumSymbol * symbol;
   auto object = gum_symbol_new (module, &symbol);
+
   symbol->details.address = GPOINTER_TO_SIZE (address);
-  symbol->resolved =
-      gum_symbol_details_from_address (address, &symbol->details);
+
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+
+    symbol->resolved =
+        gum_symbol_details_from_address (address, &symbol->details);
+  }
+  isolate->Enter ();
+
   info.GetReturnValue ().Set (object);
 }
 
@@ -168,17 +177,23 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_from_name)
   GumSymbol * symbol;
   auto object = gum_symbol_new (module, &symbol);
 
-  auto address = gum_find_function (name);
-  if (address != NULL)
+  isolate->Exit ();
   {
-    symbol->resolved =
-        gum_symbol_details_from_address (address, &symbol->details);
+    Unlocker ul (isolate);
+
+    auto address = gum_find_function (name);
+    if (address != NULL)
+    {
+      symbol->resolved =
+          gum_symbol_details_from_address (address, &symbol->details);
+    }
+    else
+    {
+      symbol->resolved = FALSE;
+      symbol->details.address = 0;
+    }
   }
-  else
-  {
-    symbol->resolved = FALSE;
-    symbol->details.address = 0;
-  }
+  isolate->Enter ();
 
   g_free (name);
 
@@ -201,7 +216,16 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_get_function_by_name)
   if (!_gum_v8_args_parse (args, "s", &name))
     return;
 
-  auto address = gum_find_function (name);
+  gpointer address;
+
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+
+    address = gum_find_function (name);
+  }
+  isolate->Enter ();
+
   if (address != NULL)
   {
     info.GetReturnValue ().Set (_gum_v8_native_pointer_new (address, core));
@@ -230,7 +254,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_named)
   if (!_gum_v8_args_parse (args, "s", &name))
     return;
 
-  auto functions = gum_find_functions_named (name);
+  GArray * functions;
+
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+
+    functions = gum_find_functions_named (name);
+  }
+  isolate->Enter ();
 
   auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)
@@ -262,7 +294,15 @@ GUMJS_DEFINE_FUNCTION (gumjs_symbol_find_functions_matching)
   if (!_gum_v8_args_parse (args, "s", &str))
     return;
 
-  auto functions = gum_find_functions_matching (str);
+  GArray * functions;
+
+  isolate->Exit ();
+  {
+    Unlocker ul (isolate);
+
+    functions = gum_find_functions_matching (str);
+  }
+  isolate->Enter ();
 
   auto result = Array::New (isolate, functions->len);
   for (guint i = 0; i != functions->len; i++)
