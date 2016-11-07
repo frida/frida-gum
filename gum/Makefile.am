@@ -160,7 +160,7 @@ fridainclude_HEADERS += \
 	backend-darwin/gumdarwinbacktracer.h \
 	backend-darwin/gumdarwinmapper.h \
 	backend-darwin/gumdarwinmodule.h
-else 
+else
 if OS_QNX
 backend_sources += \
 	backend-qnx/gumprocess-qnx.c \
@@ -175,6 +175,9 @@ backend_sources += \
 	backend-posix/gummemory-posix.c
 endif
 endif
+
+backend_sources += \
+	backend-posix/gumexceptor-posix.c
 
 if HAVE_LIBUNWIND
 backend_sources += \
@@ -196,6 +199,7 @@ libfrida_gum_la_SOURCES = \
 	gumcodeallocator.c \
 	gumcodesegment.c \
 	gumexceptor.c \
+	gumexceptorbackend.h \
 	gumeventsink.c \
 	guminterceptor.c \
 	guminvocationcontext.c \

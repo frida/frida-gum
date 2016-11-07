@@ -17,6 +17,7 @@
     <ClInclude Include="gum\gumcodesegment.h" />
     <ClInclude Include="gum\gumdefs.h" />
     <ClInclude Include="gum\gumexceptor.h" />
+    <ClInclude Include="gum\gumexceptorbackend.h" />
     <ClInclude Include="gum\gumevent.h" />
     <ClInclude Include="gum\gumeventsink.h" />
     <ClInclude Include="gum\gumfunction.h" />
@@ -120,6 +121,7 @@
     <ClCompile Include="gum\backend-windows\gumtls-windows.c" />
     <ClCompile Include="gum\backend-windows\gummemory-windows.c" />
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c" />
+    <ClCompile Include="gum\backend-windows\gumexceptor-windows.c" />
     <ClCompile Include="gum\backend-windows\gummemoryaccessmonitor-windows.c" />
   </ItemGroup>
 

@@ -186,6 +186,9 @@
     <ClCompile Include="gum\backend-windows\gumprocess-windows.c">
       <Filter>core\backend-windows</Filter>
     </ClCompile>
+    <ClCompile Include="gum\backend-windows\gumexceptor-windows.c">
+      <Filter>core\backend-windows</Filter>
+    </ClCompile>
     <ClCompile Include="gum\arch-arm64\gumarm64relocator.c">
       <Filter>core\arch-arm64</Filter>
     </ClCompile>
@@ -363,6 +366,9 @@
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumexceptor.h">
+      <Filter>core</Filter>
+    </ClInclude>
+    <ClInclude Include="gum\gumexceptorbackend.h">
       <Filter>core</Filter>
     </ClInclude>
     <ClInclude Include="gum\gumevent.h">

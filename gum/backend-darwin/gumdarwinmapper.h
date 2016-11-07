@@ -8,6 +8,7 @@
 #define __GUM_DARWIN_MAPPER_H__
 
 #include "gumdarwin.h"
+#include "gumdefs.h"
 
 G_BEGIN_DECLS
 
