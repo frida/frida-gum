@@ -962,7 +962,7 @@ GUMJS_DEFINE_SETTER (gumjs_invocation_context_set_property)
   (void) args;
 
   self = _gum_duk_require_data (ctx, 0);
-  receiver = _gum_duk_require_heapptr (ctx, 3);
+  receiver = duk_require_heapptr (ctx, 3);
   interceptor = self->interceptor;
 
   duk_dup (ctx, 1);
