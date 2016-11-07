@@ -179,7 +179,7 @@ static BOOL
 gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
                                CONTEXT * context)
 {
-  GumExceptor * self;
+  GumExceptorBackend * self;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
