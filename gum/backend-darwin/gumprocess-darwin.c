@@ -1843,12 +1843,32 @@ gum_darwin_unparse_unified_thread_state (const GumCpuContext * ctx,
                                          GumDarwinUnifiedThreadState * ts)
 {
 #if defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 4
+  x86_state_hdr_t * header = &ts->tsh;
+
+  header->flavor = x86_THREAD_STATE32;
+  header->count = x86_THREAD_STATE32_COUNT;
+
   gum_darwin_unparse_native_thread_state (ctx, &ts->uts.ts32);
 #elif defined (HAVE_I386) && GLIB_SIZEOF_VOID_P == 8
+  x86_state_hdr_t * header = &ts->tsh;
+
+  header->flavor = x86_THREAD_STATE64;
+  header->count = x86_THREAD_STATE64_COUNT;
+
   gum_darwin_unparse_native_thread_state (ctx, &ts->uts.ts64);
 #elif defined (HAVE_ARM)
+  arm_state_hdr_t * header = &ts->ash;
+
+  header->flavor = ARM_THREAD_STATE;
+  header->count = ARM_THREAD_STATE_COUNT;
+
   gum_darwin_unparse_native_thread_state (ctx, &ts->ts_32);
 #elif defined (HAVE_ARM64)
+  arm_state_hdr_t * header = &ts->ash;
+
+  header->flavor = ARM_THREAD_STATE64;
+  header->count = ARM_THREAD_STATE64_COUNT;
+
   gum_darwin_unparse_native_thread_state (ctx, &ts->ts_64);
 #endif
 }
