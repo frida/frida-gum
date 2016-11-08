@@ -246,9 +246,10 @@ gum_exceptor_backend_on_server_recv (void * context)
 
   if (self->handler (&ed, self->handler_data))
   {
-    __Reply__exception_raise_t response;
+    __Reply__exception_raise_state_identity_t response;
 
     bzero (&response, sizeof (response));
+
     header = &response.Head;
     header->msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_MOVE_SEND_ONCE, 0);
     header->msgh_size = sizeof (response);
@@ -256,8 +257,15 @@ gum_exceptor_backend_on_server_recv (void * context)
     header->msgh_local_port = MACH_PORT_NULL;
     header->msgh_reserved = 0;
     header->msgh_id = request.Head.msgh_id + 100;
+
     response.NDR = NDR_record;
     response.RetCode = KERN_SUCCESS;
+
+    response.flavor = request.flavor;
+    response.new_stateCnt = request.old_stateCnt;
+    gum_darwin_unparse_unified_thread_state (cpu_context,
+        (GumDarwinUnifiedThreadState *) response.new_state);
+
     ret = mach_msg_send (header);
     g_assert_cmpint (ret, ==, 0);
   }
