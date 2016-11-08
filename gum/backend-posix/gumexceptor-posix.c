@@ -293,6 +293,8 @@ gum_exceptor_backend_on_signal (int sig,
 
   action = self->old_handlers[sig];
 
+  ed.thread_id = gum_process_get_current_thread_id ();
+
   switch (sig)
   {
     case SIGABRT:

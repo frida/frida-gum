@@ -192,6 +192,8 @@ gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
   if (self == NULL)
     return FALSE;
 
+  ed.thread_id = gum_process_get_current_thread_id ();
+
   switch (exception_record->ExceptionCode)
   {
     case EXCEPTION_ACCESS_VIOLATION:

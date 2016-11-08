@@ -7,7 +7,6 @@
 #include "gumexceptor.h"
 
 #include "gumexceptorbackend.h"
-#include "gumtls.h"
 
 #include <setjmp.h>
 #include <string.h>
@@ -35,7 +34,7 @@ struct _GumExceptorPrivate
   GMutex mutex;
 
   GSList * handlers;
-  GumTlsKey scope_tls;
+  GHashTable * scopes;
 
   GumExceptorBackend * backend;
 };
@@ -94,7 +93,7 @@ gum_exceptor_init (GumExceptor * self)
 
   g_mutex_init (&priv->mutex);
 
-  priv->scope_tls = gum_tls_key_new ();
+  priv->scopes = g_hash_table_new (NULL, NULL);
 
   gum_exceptor_add (self, gum_exceptor_handle_scope_exception, self);
 
@@ -120,7 +119,7 @@ gum_exceptor_finalize (GObject * object)
 
   gum_exceptor_remove (self, gum_exceptor_handle_scope_exception, self);
 
-  gum_tls_key_free (priv->scope_tls);
+  g_hash_table_unref (priv->scopes);
 
   g_mutex_clear (&priv->mutex);
 
@@ -262,10 +261,14 @@ GumExceptorJmpBuf
 _gum_exceptor_prepare_try (GumExceptor * self,
                            GumExceptorScope * scope)
 {
+  GHashTable * scopes = self->priv->scopes;
+  gpointer thread_id_key;
   GumExceptorScopeImpl * impl;
 
   if (scope->impl != NULL)
     return scope->impl->env;
+
+  thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
 
   impl = g_slice_new (GumExceptorScopeImpl);
   impl->exception_occurred = FALSE;
@@ -275,9 +278,9 @@ _gum_exceptor_prepare_try (GumExceptor * self,
 #endif
 
   scope->impl = impl;
-  scope->next = gum_tls_key_get_value (self->priv->scope_tls);
+  scope->next = g_hash_table_lookup (scopes, thread_id_key);
 
-  gum_tls_key_set_value (self->priv->scope_tls, scope);
+  g_hash_table_insert (scopes, thread_id_key, scope);
 
   return impl->env;
 }
@@ -287,9 +290,12 @@ gum_exceptor_catch (GumExceptor * self,
                     GumExceptorScope * scope)
 {
   GumExceptorScopeImpl * impl = scope->impl;
+  gpointer thread_id_key;
   gboolean exception_occurred;
 
-  gum_tls_key_set_value (self->priv->scope_tls, scope->next);
+  thread_id_key = GSIZE_TO_POINTER (gum_process_get_current_thread_id ());
+
+  g_hash_table_insert (self->priv->scopes, thread_id_key, scope->next);
 
   exception_occurred = impl->exception_occurred;
   g_slice_free (GumExceptorScopeImpl, impl);
@@ -356,7 +362,8 @@ gum_exceptor_handle_scope_exception (GumExceptionDetails * details,
   GumExceptorScopeImpl * impl;
   GumCpuContext * context = &details->context;
 
-  scope = (GumExceptorScope *) gum_tls_key_get_value (self->priv->scope_tls);
+  scope = g_hash_table_lookup (self->priv->scopes,
+      GSIZE_TO_POINTER (details->thread_id));
   if (scope == NULL)
     return FALSE;
 

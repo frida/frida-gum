@@ -9,6 +9,7 @@
 
 #include <glib-object.h>
 #include <gum/gummemory.h>
+#include <gum/gumprocess.h>
 
 #define GUM_TYPE_EXCEPTOR (gum_exceptor_get_type ())
 #define GUM_EXCEPTOR(obj) (G_TYPE_CHECK_INSTANCE_CAST ((obj),\
@@ -73,6 +74,7 @@ struct _GumExceptionMemoryDetails
 
 struct _GumExceptionDetails
 {
+  GumThreadId thread_id;
   GumExceptionType type;
   gpointer address;
   GumExceptionMemoryDetails memory;
