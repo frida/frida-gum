@@ -8,10 +8,21 @@
 
 #include "gumdarwin.h"
 #include "guminterceptor.h"
+#include "machexc.h"
+#include "machexcserver.c"
 
 #include <dispatch/dispatch.h>
-#include <mach/exc.h>
 #include <mach/mach.h>
+
+/*
+ * Regenerate with:
+ *
+ * $(xcrun --sdk macosx -f mig) \
+ *     -header machexc.h \
+ *     -user machexcclient.c \
+ *     -server machexcserver.c \
+ *     $(xcrun --sdk macosx --show-sdk-path)/usr/include/mach/mach_exc.defs
+ */
 
 typedef struct _GumExceptionPortSet GumExceptionPortSet;
 
@@ -49,6 +60,8 @@ static void gum_exceptor_backend_on_server_recv (void * context);
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
+static GumExceptorBackend * the_backend = NULL;
+
 static void
 gum_exceptor_backend_class_init (GumExceptorBackendClass * klass)
 {
@@ -61,6 +74,8 @@ static void
 gum_exceptor_backend_init (GumExceptorBackend * self)
 {
   self->interceptor = gum_interceptor_obtain ();
+
+  the_backend = self;
 }
 
 static void
@@ -126,7 +141,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
       EXC_MASK_GUARD |
       EXC_MASK_SOFTWARE,
       self->server_port,
-      EXCEPTION_STATE_IDENTITY,
+      EXCEPTION_STATE_IDENTITY | MACH_EXCEPTION_CODES,
       GUM_DARWIN_THREAD_STATE_FLAVOR,
       previous_ports->masks,
       &previous_ports->count,
@@ -185,26 +200,79 @@ static void
 gum_exceptor_backend_on_server_recv (void * context)
 {
   GumExceptorBackend * self = context;
-  task_t self_task;
-  __Request__exception_raise_state_identity_t request;
-  mach_msg_header_t * header;
+  union __RequestUnion__mach_exc_subsystem request;
+  union __ReplyUnion__mach_exc_subsystem reply;
+  mach_msg_header_t * header_in, * header_out;
   kern_return_t ret;
+  boolean_t handled;
+
+  bzero (&request, sizeof (request));
+  header_in = (mach_msg_header_t *) &request;
+  header_in->msgh_size = sizeof (request);
+  header_in->msgh_local_port = self->server_port;
+  ret = mach_msg_receive (header_in);
+  g_assert_cmpint (ret, ==, 0);
+
+  header_out = (mach_msg_header_t *) &reply;
+
+  handled = mach_exc_server (header_in, header_out);
+  g_assert (handled);
+
+  ret = mach_msg_send (header_out);
+  g_assert_cmpint (ret, ==, 0);
+}
+
+kern_return_t
+catch_mach_exception_raise (mach_port_t exception_port,
+                            mach_port_t thread,
+                            mach_port_t task,
+                            exception_type_t exception,
+                            mach_exception_data_t code,
+                            mach_msg_type_number_t code_count)
+{
+  g_assert_not_reached ();
+
+  return KERN_INVALID_ARGUMENT;
+}
+
+kern_return_t
+catch_mach_exception_raise_state (mach_port_t exception_port,
+                                  exception_type_t exception,
+                                  const mach_exception_data_t code,
+                                  mach_msg_type_number_t code_count,
+                                  int * flavor,
+                                  const thread_state_t old_state,
+                                  mach_msg_type_number_t old_state_count,
+                                  thread_state_t new_state,
+                                  mach_msg_type_number_t *new_state_count)
+{
+  g_assert_not_reached ();
+
+  return KERN_INVALID_ARGUMENT;
+}
+
+kern_return_t
+catch_mach_exception_raise_state_identity (
+    mach_port_t exception_port,
+    mach_port_t thread,
+    mach_port_t task,
+    exception_type_t exception,
+    mach_exception_data_t code,
+    mach_msg_type_number_t code_count,
+    int * flavor,
+    thread_state_t old_state,
+    mach_msg_type_number_t old_state_count,
+    thread_state_t new_state,
+    mach_msg_type_number_t * new_state_count)
+{
+  GumExceptorBackend * self = the_backend;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
 
-  self_task = mach_task_self ();
+  ed.thread_id = thread;
 
-  bzero (&request, sizeof (request));
-  header = &request.Head;
-  header->msgh_size = sizeof (request);
-  header->msgh_local_port = self->server_port;
-  ret = mach_msg_receive (header);
-  g_assert_cmpint (ret, ==, 0);
-
-  ed.thread_id = request.thread.name;
-
-  switch (request.exception)
+  switch (exception)
   {
     case EXC_ARITHMETIC:
       ed.type = GUM_EXCEPTION_ARITHMETIC;
@@ -229,8 +297,8 @@ gum_exceptor_backend_on_server_recv (void * context)
   }
 
   gum_darwin_parse_unified_thread_state (
-      (const GumDarwinUnifiedThreadState *) request.old_state, cpu_context);
-  ed.native_context = request.old_state;
+      (const GumDarwinUnifiedThreadState *) old_state, cpu_context);
+  ed.native_context = old_state;
 
 #if defined (HAVE_I386)
   ed.address = GSIZE_TO_POINTER (GUM_CPU_CONTEXT_XIP (cpu_context));
@@ -246,28 +314,11 @@ gum_exceptor_backend_on_server_recv (void * context)
 
   if (self->handler (&ed, self->handler_data))
   {
-    __Reply__exception_raise_state_identity_t response;
-
-    bzero (&response, sizeof (response));
-
-    header = &response.Head;
-    header->msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_MOVE_SEND_ONCE, 0);
-    header->msgh_size = sizeof (response);
-    header->msgh_remote_port = request.Head.msgh_remote_port;
-    header->msgh_local_port = MACH_PORT_NULL;
-    header->msgh_reserved = 0;
-    header->msgh_id = request.Head.msgh_id + 100;
-
-    response.NDR = NDR_record;
-    response.RetCode = KERN_SUCCESS;
-
-    response.flavor = request.flavor;
-    response.new_stateCnt = request.old_stateCnt;
     gum_darwin_unparse_unified_thread_state (cpu_context,
-        (GumDarwinUnifiedThreadState *) response.new_state);
+        (GumDarwinUnifiedThreadState *) new_state);
+    *new_state_count = old_state_count;
 
-    ret = mach_msg_send (header);
-    g_assert_cmpint (ret, ==, 0);
+    return KERN_SUCCESS;
   }
   else
   {
@@ -275,4 +326,6 @@ gum_exceptor_backend_on_server_recv (void * context)
   }
 
   /* FIXME: deallocate ports */
+
+  return KERN_INVALID_ARGUMENT;
 }
