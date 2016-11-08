@@ -58,6 +58,9 @@ static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
 static void gum_exceptor_backend_on_server_recv (void * context);
 
+static kern_return_t gum_exception_memory_details_from_thread (
+    mach_port_t thread, GumExceptionMemoryDetails * md);
+
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
 static GumExceptorBackend * the_backend = NULL;
@@ -115,7 +118,7 @@ static void
 gum_exceptor_backend_attach (GumExceptorBackend * self)
 {
   mach_port_name_t self_task;
-  kern_return_t ret;
+  kern_return_t kr;
   GumExceptionPortSet * previous_ports;
   dispatch_source_t source;
 
@@ -124,16 +127,16 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   self->dispatch_queue = dispatch_queue_create ("re.frida.gum.exceptor.queue",
       DISPATCH_QUEUE_SERIAL);
 
-  ret = mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE,
+  kr = mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE,
       &self->server_port);
-  g_assert_cmpint (ret, ==, KERN_SUCCESS);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  ret = mach_port_insert_right (self_task, self->server_port, self->server_port,
+  kr = mach_port_insert_right (self_task, self->server_port, self->server_port,
       MACH_MSG_TYPE_MAKE_SEND);
-  g_assert_cmpint (ret, ==, KERN_SUCCESS);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   previous_ports = &self->previous_ports;
-  ret = task_swap_exception_ports (self_task,
+  kr = task_swap_exception_ports (self_task,
       EXC_MASK_ARITHMETIC |
       EXC_MASK_BAD_ACCESS |
       EXC_MASK_BAD_INSTRUCTION |
@@ -148,7 +151,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
       previous_ports->ports,
       previous_ports->behaviors,
       previous_ports->flavors);
-  g_assert_cmpint (ret, ==, KERN_SUCCESS);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   /* TODO: SIGABRT */
 
@@ -173,14 +176,14 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   previous_ports = &self->previous_ports;
   for (port_index = 0; port_index != previous_ports->count; port_index++)
   {
-    kern_return_t ret;
+    kern_return_t kr;
 
-    ret = task_set_exception_ports (self_task,
+    kr = task_set_exception_ports (self_task,
         previous_ports->masks[port_index],
         previous_ports->ports[port_index],
         previous_ports->behaviors[port_index],
         previous_ports->flavors[port_index]);
-    g_assert_cmpint (ret, ==, KERN_SUCCESS);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
   }
   previous_ports->count = 0;
 
@@ -203,23 +206,23 @@ gum_exceptor_backend_on_server_recv (void * context)
   union __RequestUnion__mach_exc_subsystem request;
   union __ReplyUnion__mach_exc_subsystem reply;
   mach_msg_header_t * header_in, * header_out;
-  kern_return_t ret;
+  kern_return_t kr;
   boolean_t handled;
 
   bzero (&request, sizeof (request));
   header_in = (mach_msg_header_t *) &request;
   header_in->msgh_size = sizeof (request);
   header_in->msgh_local_port = self->server_port;
-  ret = mach_msg_receive (header_in);
-  g_assert_cmpint (ret, ==, 0);
+  kr = mach_msg_receive (header_in);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   header_out = (mach_msg_header_t *) &reply;
 
   handled = mach_exc_server (header_in, header_out);
-  g_assert (handled);
+  if (!handled)
+    return;
 
-  ret = mach_msg_send (header_out);
-  g_assert_cmpint (ret, ==, 0);
+  mach_msg_send (header_out);
 }
 
 kern_return_t
@@ -269,6 +272,7 @@ catch_mach_exception_raise_state_identity (
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
+  kern_return_t kr = KERN_SUCCESS;
 
   ed.thread_id = thread;
 
@@ -308,17 +312,24 @@ catch_mach_exception_raise_state_identity (
 # error Unsupported architecture
 #endif
 
-  /* FIXME: */
-  md->operation = GUM_MEMOP_INVALID;
-  md->address = NULL;
+  switch (exception)
+  {
+    case EXC_BAD_ACCESS:
+    case EXC_GUARD:
+      kr = gum_exception_memory_details_from_thread (thread, md);
+      if (kr == KERN_SUCCESS)
+        break;
+    default:
+      md->operation = GUM_MEMOP_INVALID;
+      md->address = NULL;
+      break;
+  }
 
   if (self->handler (&ed, self->handler_data))
   {
     gum_darwin_unparse_unified_thread_state (cpu_context,
         (GumDarwinUnifiedThreadState *) new_state);
     *new_state_count = old_state_count;
-
-    return KERN_SUCCESS;
   }
   else
   {
@@ -327,5 +338,60 @@ catch_mach_exception_raise_state_identity (
 
   /* FIXME: deallocate ports */
 
-  return KERN_INVALID_ARGUMENT;
+  return kr;
+}
+
+static kern_return_t
+gum_exception_memory_details_from_thread (mach_port_t thread,
+                                          GumExceptionMemoryDetails * md)
+{
+  mach_msg_type_number_t state_count;
+  kern_return_t kr;
+
+#if defined (HAVE_I386)
+  __uint32_t err;
+
+# if GLIB_SIZEOF_VOID_P == 4
+  x86_exception_state32_t es;
+
+  state_count = x86_EXCEPTION_STATE32_COUNT;
+  kr = thread_get_state (thread, x86_EXCEPTION_STATE32,
+      (thread_state_t) &es, &state_count);
+  if (kr != KERN_SUCCESS)
+    return kr;
+
+  md->address = GSIZE_TO_POINTER (es.__faultvaddr);
+
+  err = es.__err;
+# else
+  x86_exception_state64_t es;
+
+  state_count = x86_EXCEPTION_STATE64_COUNT;
+  kr = thread_get_state (thread, x86_EXCEPTION_STATE64,
+      (thread_state_t) &es, &state_count);
+  if (kr != KERN_SUCCESS)
+    return kr;
+
+  md->address = GSIZE_TO_POINTER (es.__faultvaddr);
+
+  err = es.__err;
+# endif
+
+  /*
+   * Constants from osfmk/i386/trap.h
+   */
+# define GUM_TRAP_PAGE_FAULT_WRITE 0x02
+# define GUM_TRAP_PAGE_FAULT_EXECUTE 0x10
+
+  if ((err & GUM_TRAP_PAGE_FAULT_EXECUTE) != 0)
+    md->operation = GUM_MEMOP_EXECUTE;
+  else if ((err & GUM_TRAP_PAGE_FAULT_WRITE) != 0)
+    md->operation = GUM_MEMOP_WRITE;
+  else
+    md->operation = GUM_MEMOP_READ;
+#else
+# error FIXME
+#endif
+
+  return kr;
 }
