@@ -8,11 +8,6 @@
 
 #include "gumdarwin.h"
 #include "guminterceptor.h"
-#include "machexc.h"
-#include "machexcserver.c"
-
-#include <dispatch/dispatch.h>
-#include <mach/mach.h>
 
 /*
  * Regenerate with:
@@ -23,6 +18,11 @@
  *     -server machexcserver.c \
  *     $(xcrun --sdk macosx --show-sdk-path)/usr/include/mach/mach_exc.defs
  */
+#include "machexc.h"
+#include "machexcserver.c"
+
+#include <dispatch/dispatch.h>
+#include <mach/mach.h>
 
 typedef struct _GumExceptionPortSet GumExceptionPortSet;
 
@@ -347,8 +347,6 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
   mach_msg_type_number_t state_count;
 
 #if defined (HAVE_I386)
-  __uint32_t err;
-
 # if GLIB_SIZEOF_VOID_P == 4
   x86_exception_state32_t es;
 
@@ -356,10 +354,6 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
   if (thread_get_state (thread, x86_EXCEPTION_STATE32,
       (thread_state_t) &es, &state_count) != KERN_SUCCESS)
     return FALSE;
-
-  md->address = GSIZE_TO_POINTER (es.__faultvaddr);
-
-  err = es.__err;
 # else
   x86_exception_state64_t es;
 
@@ -367,10 +361,6 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
   if (thread_get_state (thread, x86_EXCEPTION_STATE64,
       (thread_state_t) &es, &state_count) != KERN_SUCCESS)
     return FALSE;
-
-  md->address = GSIZE_TO_POINTER (es.__faultvaddr);
-
-  err = es.__err;
 # endif
 
   /*
@@ -379,15 +369,38 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
 # define GUM_TRAP_PAGE_FAULT_WRITE 0x02
 # define GUM_TRAP_PAGE_FAULT_EXECUTE 0x10
 
-  if ((err & GUM_TRAP_PAGE_FAULT_EXECUTE) != 0)
+  if ((es.__err & GUM_TRAP_PAGE_FAULT_EXECUTE) != 0)
     md->operation = GUM_MEMOP_EXECUTE;
-  else if ((err & GUM_TRAP_PAGE_FAULT_WRITE) != 0)
+  else if ((es.__err & GUM_TRAP_PAGE_FAULT_WRITE) != 0)
     md->operation = GUM_MEMOP_WRITE;
   else
     md->operation = GUM_MEMOP_READ;
-#elif defined (HAVE_ARM)
-# error Unsupported architecture
-#elif defined (HAVE_ARM64)
+
+  md->address = GSIZE_TO_POINTER (es.__faultvaddr);
+#elif defined (HAVE_ARM) || defined (HAVE_ARM64)
+# if GLIB_SIZEOF_VOID_P == 4
+  arm_exception_state32_t es;
+
+  state_count = ARM_EXCEPTION_STATE_COUNT;
+  if (thread_get_state (thread, ARM_EXCEPTION_STATE,
+      (thread_state_t) &es, &state_count) != KERN_SUCCESS)
+    return FALSE;
+
+  /*
+   * FSR aka Fault Status Register
+   *
+   * execute: 1000 001000000000000000000 0 000111
+   *
+   *    read: 1001 001000000000000000000 0 000111
+   *   write: 1001 001000000000000000000 1 000111
+   */
+  if ((es.__fsr & 0xf0000000) == 0x80000000)
+    md->operation = GUM_MEMOP_EXECUTE;
+  else if ((es.__fsr & 0x40) != 0)
+    md->operation = GUM_MEMOP_WRITE;
+  else
+    md->operation = GUM_MEMOP_READ;
+# else
   arm_exception_state64_t es;
 
   state_count = ARM_EXCEPTION_STATE64_COUNT;
@@ -395,27 +408,29 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
       (thread_state_t) &es, &state_count) != KERN_SUCCESS)
     return FALSE;
 
-  md->address = GSIZE_TO_POINTER (es.__far);
-
   /*
    * ESR aka Exception Syndrome Register:
    *
    * Instruction Abort from a lower Exception level
    *            ||
-   *            ||            Translation fault, third level
-   *            ||                          ||
-   *          __vv__                      __vv__
-   * execute: 100000 10000000000000000000 000111
+   *            ||             Translation fault, third level
+   *            ||                           ||
+   *          __vv__                       __vv__
+   * execute: 100000 1 0000000000000000000 000111
+   *                 |
+   *     4 byte instruction length
    *
    * Data Abort from a lower Exception level
    *            ||
-   *            ||            Translation fault, first level
-   *            ||                          ||
-   *          __vv__                      __vv__
-   *    read: 100100 10000000000000000000 000101
-   *   write: 100100 10000000000000000001 000101
-   *                                    |
-   *                    Abort caused by a write instruction
+   *            ||             Translation fault, first level
+   *            ||                            ||
+   *          __vv__                        __vv__
+   *    read: 100100 1 000000000000000000 0 000101
+   *   write: 100100 1 000000000000000000 1 000101
+   *                 |                    |
+   *     4 byte instruction length        |
+   *                                      |
+   *                      Abort caused by a write instruction
    */
   if ((es.__esr & 0xfc000000) == 0x80000000)
     md->operation = GUM_MEMOP_EXECUTE;
@@ -423,6 +438,9 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
     md->operation = GUM_MEMOP_WRITE;
   else
     md->operation = GUM_MEMOP_READ;
+# endif
+
+  md->address = GSIZE_TO_POINTER (es.__far);
 #else
 # error Unsupported architecture
 #endif
