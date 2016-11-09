@@ -58,7 +58,7 @@ static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
 static void gum_exceptor_backend_on_server_recv (void * context);
 
-static kern_return_t gum_exception_memory_details_from_thread (
+static gboolean gum_exception_memory_details_from_thread (
     mach_port_t thread, GumExceptionMemoryDetails * md);
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
@@ -272,7 +272,6 @@ catch_mach_exception_raise_state_identity (
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
-  kern_return_t kr = KERN_SUCCESS;
 
   ed.thread_id = thread;
 
@@ -316,8 +315,7 @@ catch_mach_exception_raise_state_identity (
   {
     case EXC_BAD_ACCESS:
     case EXC_GUARD:
-      kr = gum_exception_memory_details_from_thread (thread, md);
-      if (kr == KERN_SUCCESS)
+      if (gum_exception_memory_details_from_thread (thread, md))
         break;
     default:
       md->operation = GUM_MEMOP_INVALID;
@@ -334,19 +332,19 @@ catch_mach_exception_raise_state_identity (
   else
   {
     /* FIXME: forward to old handler */
+    g_print ("FIXME: forward!\n");
   }
 
   /* FIXME: deallocate ports */
 
-  return kr;
+  return KERN_SUCCESS;
 }
 
-static kern_return_t
+static gboolean
 gum_exception_memory_details_from_thread (mach_port_t thread,
                                           GumExceptionMemoryDetails * md)
 {
   mach_msg_type_number_t state_count;
-  kern_return_t kr;
 
 #if defined (HAVE_I386)
   __uint32_t err;
@@ -355,10 +353,9 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
   x86_exception_state32_t es;
 
   state_count = x86_EXCEPTION_STATE32_COUNT;
-  kr = thread_get_state (thread, x86_EXCEPTION_STATE32,
-      (thread_state_t) &es, &state_count);
-  if (kr != KERN_SUCCESS)
-    return kr;
+  if (thread_get_state (thread, x86_EXCEPTION_STATE32,
+      (thread_state_t) &es, &state_count) != KERN_SUCCESS)
+    return FALSE;
 
   md->address = GSIZE_TO_POINTER (es.__faultvaddr);
 
@@ -367,10 +364,9 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
   x86_exception_state64_t es;
 
   state_count = x86_EXCEPTION_STATE64_COUNT;
-  kr = thread_get_state (thread, x86_EXCEPTION_STATE64,
-      (thread_state_t) &es, &state_count);
-  if (kr != KERN_SUCCESS)
-    return kr;
+  if (thread_get_state (thread, x86_EXCEPTION_STATE64,
+      (thread_state_t) &es, &state_count) != KERN_SUCCESS)
+    return FALSE;
 
   md->address = GSIZE_TO_POINTER (es.__faultvaddr);
 
@@ -389,9 +385,47 @@ gum_exception_memory_details_from_thread (mach_port_t thread,
     md->operation = GUM_MEMOP_WRITE;
   else
     md->operation = GUM_MEMOP_READ;
+#elif defined (HAVE_ARM)
+# error Unsupported architecture
+#elif defined (HAVE_ARM64)
+  arm_exception_state64_t es;
+
+  state_count = ARM_EXCEPTION_STATE64_COUNT;
+  if (thread_get_state (thread, ARM_EXCEPTION_STATE64,
+      (thread_state_t) &es, &state_count) != KERN_SUCCESS)
+    return FALSE;
+
+  md->address = GSIZE_TO_POINTER (es.__far);
+
+  /*
+   * ESR aka Exception Syndrome Register:
+   *
+   * Instruction Abort from a lower Exception level
+   *            ||
+   *            ||            Translation fault, third level
+   *            ||                          ||
+   *          __vv__                      __vv__
+   * execute: 100000 10000000000000000000 000111
+   *
+   * Data Abort from a lower Exception level
+   *            ||
+   *            ||            Translation fault, first level
+   *            ||                          ||
+   *          __vv__                      __vv__
+   *    read: 100100 10000000000000000000 000101
+   *   write: 100100 10000000000000000001 000101
+   *                                    |
+   *                    Abort caused by a write instruction
+   */
+  if ((es.__esr & 0xfc000000) == 0x80000000)
+    md->operation = GUM_MEMOP_EXECUTE;
+  else if ((es.__esr & 0x40) != 0)
+    md->operation = GUM_MEMOP_WRITE;
+  else
+    md->operation = GUM_MEMOP_READ;
 #else
-# error FIXME
+# error Unsupported architecture
 #endif
 
-  return kr;
+  return TRUE;
 }
