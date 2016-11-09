@@ -106,6 +106,8 @@ gum_exceptor_backend_dispose (GObject * object)
     self->interceptor = NULL;
   }
 
+  the_backend = NULL;
+
   G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->dispose (object);
 }
 
