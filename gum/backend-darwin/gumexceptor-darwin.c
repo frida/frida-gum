@@ -13,12 +13,22 @@
  * Regenerate with:
  *
  * $(xcrun --sdk macosx -f mig) \
+ *     -header exc.h \
+ *     -user excclient.c \
+ *     -server excserver.c \
+ *     $(xcrun --sdk macosx --show-sdk-path)/usr/include/mach/exc.defs
+ * $(xcrun --sdk macosx -f mig) \
  *     -header machexc.h \
  *     -user machexcclient.c \
  *     -server machexcserver.c \
  *     $(xcrun --sdk macosx --show-sdk-path)/usr/include/mach/mach_exc.defs
  */
+#include "exc.h"
+#include "excclient.c"
 #include "machexc.h"
+#include "machexcclient.c"
+#undef msgh_request_port
+#undef msgh_reply_port
 #include "machexcserver.c"
 
 #include <dispatch/dispatch.h>
