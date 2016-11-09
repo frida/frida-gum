@@ -176,6 +176,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
   old_ports = &self->old_ports;
+  old_ports->count = G_N_ELEMENTS (old_ports->masks);
   kr = task_swap_exception_ports (self_task,
       EXC_MASK_ARITHMETIC |
       EXC_MASK_BAD_ACCESS |
