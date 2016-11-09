@@ -56,7 +56,7 @@ struct _GumExceptorBackend
   GumExceptionHandler handler;
   gpointer handler_data;
 
-  mach_port_name_t server_port;
+  mach_port_t server_port;
   GumExceptionPortSet old_ports;
   gboolean old_abort_handler_present;
   struct sigaction old_abort_handler;
@@ -160,7 +160,7 @@ static void
 gum_exceptor_backend_attach (GumExceptorBackend * self)
 {
   GumInterceptor * interceptor = self->interceptor;
-  mach_port_name_t self_task;
+  mach_port_t self_task;
   kern_return_t kr;
   GumExceptionPortSet * old_ports;
   struct sigaction action;
@@ -223,7 +223,7 @@ static void
 gum_exceptor_backend_detach (GumExceptorBackend * self)
 {
   GumInterceptor * interceptor = self->interceptor;
-  mach_port_name_t self_task;
+  mach_port_t self_task;
   GumExceptionPortSet * old_ports;
   mach_msg_type_number_t port_index;
 
@@ -357,7 +357,7 @@ catch_mach_exception_raise_state_identity (
     mach_msg_type_number_t * new_state_count)
 {
   GumExceptorBackend * self = the_backend;
-  mach_port_name_t self_task;
+  mach_port_t self_task;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
