@@ -62,7 +62,6 @@ static void gum_unparse_context (const GumCpuContext * ctx,
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
-G_LOCK_DEFINE_STATIC (the_backend);
 static GumExceptorBackend * the_backend = NULL;
 
 static void
@@ -78,10 +77,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
 {
   self->interceptor = gum_interceptor_obtain ();
 
-  G_LOCK (the_backend);
-  g_assert (the_backend == NULL);
   the_backend = self;
-  G_UNLOCK (the_backend);
 }
 
 static void
@@ -93,15 +89,12 @@ gum_exceptor_backend_dispose (GObject * object)
   {
     self->disposed = TRUE;
 
-    G_LOCK (the_backend);
-    g_assert (the_backend == self);
-    the_backend = NULL;
-    G_UNLOCK (the_backend);
-
     gum_exceptor_backend_detach (self);
 
     g_object_unref (self->interceptor);
     self->interceptor = NULL;
+
+    the_backend = NULL;
   }
 
   G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->dispose (object);
@@ -278,18 +271,11 @@ gum_exceptor_backend_on_signal (int sig,
                                 siginfo_t * siginfo,
                                 void * context)
 {
-  GumExceptorBackend * self;
+  GumExceptorBackend * self = the_backend;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
   struct sigaction * action;
-
-  G_LOCK (the_backend);
-  self = (the_backend != NULL) ? g_object_ref (the_backend) : NULL;
-  G_UNLOCK (the_backend);
-
-  if (self == NULL)
-    return;
 
   action = self->old_handlers[sig];
 
@@ -353,7 +339,7 @@ gum_exceptor_backend_on_signal (int sig,
   if (self->handler (&ed, self->handler_data))
   {
     gum_unparse_context (cpu_context, context);
-    goto beach;
+    return;
   }
 
   if ((action->sa_flags & SA_SIGINFO) != 0)
@@ -362,8 +348,6 @@ gum_exceptor_backend_on_signal (int sig,
 
     if (old_sigaction != NULL)
     {
-      g_object_unref (self);
-
       old_sigaction (sig, siginfo, context);
 
       return;
@@ -379,8 +363,6 @@ gum_exceptor_backend_on_signal (int sig,
 
     if (gum_is_signal_handler_chainable (old_handler))
     {
-      g_object_unref (self);
-
       old_handler (sig);
 
       return;
@@ -391,13 +373,10 @@ gum_exceptor_backend_on_signal (int sig,
     }
   }
 
-  goto beach;
+  return;
 
 panic:
   gum_exceptor_backend_detach_handler (self, sig);
-
-beach:
-  g_object_unref (self);
 }
 
 static void

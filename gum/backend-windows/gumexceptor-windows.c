@@ -38,7 +38,6 @@ static BOOL gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
 
 G_DEFINE_TYPE (GumExceptorBackend, gum_exceptor_backend, G_TYPE_OBJECT)
 
-G_LOCK_DEFINE_STATIC (the_backend);
 static GumExceptorBackend * the_backend = NULL;
 
 static void
@@ -57,10 +56,7 @@ gum_exceptor_backend_init (GumExceptorBackend * self)
   cs_err err;
   guint offset;
 
-  G_LOCK (the_backend);
-  g_assert (the_backend == NULL);
   the_backend = self;
-  G_UNLOCK (the_backend);
 
   ntdll_mod = GetModuleHandle (_T ("ntdll.dll"));
   g_assert (ntdll_mod != NULL);
@@ -139,11 +135,6 @@ gum_exceptor_backend_finalize (GObject * object)
   GumExceptorBackend * self = GUM_EXCEPTOR_BACKEND (object);
   DWORD page_prot;
 
-  G_LOCK (the_backend);
-  g_assert (the_backend == self);
-  the_backend = NULL;
-  G_UNLOCK (the_backend);
-
   *self->dispatcher_impl_call_immediate =
       (gssize) self->system_handler -
       (gssize) (self->dispatcher_impl_call_immediate + 1);
@@ -158,6 +149,8 @@ gum_exceptor_backend_finalize (GObject * object)
   self->previous_page_protection = 0;
 
   g_clear_pointer (&self->trampoline, gum_free_pages);
+
+  the_backend = NULL;
 
   G_OBJECT_CLASS (gum_exceptor_backend_parent_class)->finalize (object);
 }
@@ -179,18 +172,11 @@ static BOOL
 gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
                                CONTEXT * context)
 {
-  GumExceptorBackend * self;
+  GumExceptorBackend * self = the_backend;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
   GumWindowsExceptionHandler system_handler;
-
-  G_LOCK (the_backend);
-  self = (the_backend != NULL) ? g_object_ref (the_backend) : NULL;
-  G_UNLOCK (the_backend);
-
-  if (self == NULL)
-    return FALSE;
 
   ed.thread_id = gum_process_get_current_thread_id ();
 
@@ -270,12 +256,10 @@ gum_exceptor_backend_dispatch (EXCEPTION_RECORD * exception_record,
   if (self->handler (&ed, self->handler_data))
   {
     gum_windows_unparse_context (cpu_context, context);
-    g_object_unref (self);
     return TRUE;
   }
 
   system_handler = self->system_handler;
-  g_object_unref (self);
 
   return system_handler (exception_record, context);
 }
