@@ -34,6 +34,8 @@
 #include <dispatch/dispatch.h>
 #include <mach/mach.h>
 
+#define GUM_EXCEPTOR_BACKEND_MESSAGE_STOP 1
+
 typedef struct _GumExceptionPortSet GumExceptionPortSet;
 
 struct _GumExceptionPortSet
@@ -54,10 +56,9 @@ struct _GumExceptorBackend
   GumExceptionHandler handler;
   gpointer handler_data;
 
-  dispatch_queue_t dispatch_queue;
   mach_port_name_t server_port;
-  dispatch_source_t server_recv_source;
   GumExceptionPortSet previous_ports;
+  GThread * worker;
 
   GumInterceptor * interceptor;
 };
@@ -66,7 +67,9 @@ static void gum_exceptor_backend_dispose (GObject * object);
 
 static void gum_exceptor_backend_attach (GumExceptorBackend * self);
 static void gum_exceptor_backend_detach (GumExceptorBackend * self);
-static void gum_exceptor_backend_on_server_recv (void * context);
+static void gum_exceptor_backend_send_stop_request (GumExceptorBackend * self);
+static gpointer gum_exceptor_backend_process_messages (
+    GumExceptorBackend * self);
 
 static gboolean gum_exception_memory_details_from_thread (
     mach_port_t thread, GumExceptionMemoryDetails * md);
@@ -132,12 +135,8 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
   mach_port_name_t self_task;
   kern_return_t kr;
   GumExceptionPortSet * previous_ports;
-  dispatch_source_t source;
 
   self_task = mach_task_self ();
-
-  self->dispatch_queue = dispatch_queue_create ("re.frida.gum.exceptor.queue",
-      DISPATCH_QUEUE_SERIAL);
 
   kr = mach_port_allocate (self_task, MACH_PORT_RIGHT_RECEIVE,
       &self->server_port);
@@ -167,13 +166,8 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
 
   /* TODO: SIGABRT */
 
-  source = dispatch_source_create (DISPATCH_SOURCE_TYPE_MACH_RECV,
-      self->server_port, 0, self->dispatch_queue);
-  self->server_recv_source = source;
-  dispatch_set_context (source, self);
-  dispatch_source_set_event_handler_f (source,
-      gum_exceptor_backend_on_server_recv);
-  dispatch_resume (source);
+  self->worker = g_thread_new ("gum-exceptor-worker",
+      (GThreadFunc) gum_exceptor_backend_process_messages, self);
 }
 
 static void
@@ -199,42 +193,63 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   }
   previous_ports->count = 0;
 
-  dispatch_release (self->server_recv_source);
-  self->server_recv_source = NULL;
+  gum_exceptor_backend_send_stop_request (self);
+  g_thread_join (self->worker);
+  self->worker = NULL;
 
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_SEND, -1);
   mach_port_mod_refs (self_task, self->server_port, MACH_PORT_RIGHT_RECEIVE,
       -1);
   self->server_port = MACH_PORT_NULL;
-
-  dispatch_release (self->dispatch_queue);
-  self->dispatch_queue = NULL;
 }
 
 static void
-gum_exceptor_backend_on_server_recv (void * context)
+gum_exceptor_backend_send_stop_request (GumExceptorBackend * self)
 {
-  GumExceptorBackend * self = context;
+  mach_msg_header_t header;
+  kern_return_t kr;
+
+  header.msgh_bits = MACH_MSGH_BITS (MACH_MSG_TYPE_MAKE_SEND_ONCE, 0);
+  header.msgh_size = sizeof (header);
+  header.msgh_remote_port = self->server_port;
+  header.msgh_local_port = MACH_PORT_NULL;
+  header.msgh_reserved = 0;
+  header.msgh_id = GUM_EXCEPTOR_BACKEND_MESSAGE_STOP;
+  kr = mach_msg_send (&header);
+  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+}
+
+static gpointer
+gum_exceptor_backend_process_messages (GumExceptorBackend * self)
+{
   union __RequestUnion__mach_exc_subsystem request;
   union __ReplyUnion__mach_exc_subsystem reply;
   mach_msg_header_t * header_in, * header_out;
   kern_return_t kr;
   boolean_t handled;
 
-  bzero (&request, sizeof (request));
-  header_in = (mach_msg_header_t *) &request;
-  header_in->msgh_size = sizeof (request);
-  header_in->msgh_local_port = self->server_port;
-  kr = mach_msg_receive (header_in);
-  g_assert_cmpint (kr, ==, KERN_SUCCESS);
+  while (TRUE)
+  {
+    bzero (&request, sizeof (request));
+    header_in = (mach_msg_header_t *) &request;
+    header_in->msgh_size = sizeof (request);
+    header_in->msgh_local_port = self->server_port;
+    kr = mach_msg_receive (header_in);
+    g_assert_cmpint (kr, ==, KERN_SUCCESS);
 
-  header_out = (mach_msg_header_t *) &reply;
+    if (header_in->msgh_id == GUM_EXCEPTOR_BACKEND_MESSAGE_STOP)
+      break;
 
-  handled = mach_exc_server (header_in, header_out);
-  if (!handled)
-    return;
+    header_out = (mach_msg_header_t *) &reply;
 
-  mach_msg_send (header_out);
+    handled = mach_exc_server (header_in, header_out);
+    if (!handled)
+      continue;
+
+    mach_msg_send (header_out);
+  }
+
+  return NULL;
 }
 
 kern_return_t
