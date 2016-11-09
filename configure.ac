@@ -283,6 +283,9 @@ AC_SUBST(V8_REQUIRES)
 if [[ "x$HAVE_LINUX" = "xyes" ]]; then
   GUMDUK_LIBS_PRIVATE="-lm"
 fi
+if [[ "x$HAVE_QNX" = "xyes" ]]; then
+  GUMDUK_LIBS_PRIVATE="-lm"
+fi
 AC_SUBST(GUMDUK_LIBS_PRIVATE)
 
 GUM_TEST_LIBS=""
