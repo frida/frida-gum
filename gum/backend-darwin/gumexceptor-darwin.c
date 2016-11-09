@@ -279,10 +279,13 @@ catch_mach_exception_raise_state_identity (
     mach_msg_type_number_t * new_state_count)
 {
   GumExceptorBackend * self = the_backend;
+  mach_port_name_t self_task;
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
   kern_return_t kr;
+
+  self_task = mach_task_self ();
 
   ed.thread_id = thread;
 
@@ -440,7 +443,8 @@ catch_mach_exception_raise_state_identity (
     }
   }
 
-  /* FIXME: deallocate ports */
+  mach_port_deallocate (self_task, thread);
+  mach_port_deallocate (self_task, task);
 
   return kr;
 }
