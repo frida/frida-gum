@@ -77,5 +77,10 @@ EXCEPTOR_TESTCASE (task_get_exception_ports_should_hide_our_handler)
     g_assert_cmpuint (new_flavors[i], ==, old_flavors[i]);
   }
 
+  for (i = 0; i != new_count; i++)
+  {
+    mach_port_mod_refs (self_task, new_handlers[i], MACH_PORT_RIGHT_SEND, -2);
+  }
+
   g_object_unref (exceptor);
 }
