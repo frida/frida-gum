@@ -42,7 +42,7 @@ struct _GumExceptionPortSet
 {
   mach_msg_type_number_t count;
   exception_mask_t masks[EXC_TYPES_COUNT];
-  mach_port_t ports[EXC_TYPES_COUNT];
+  mach_port_t handlers[EXC_TYPES_COUNT];
   exception_behavior_t behaviors[EXC_TYPES_COUNT];
   thread_state_flavor_t flavors[EXC_TYPES_COUNT];
 };
@@ -188,7 +188,7 @@ gum_exceptor_backend_attach (GumExceptorBackend * self)
       GUM_DARWIN_THREAD_STATE_FLAVOR,
       old_ports->masks,
       &old_ports->count,
-      old_ports->ports,
+      old_ports->handlers,
       old_ports->behaviors,
       old_ports->flavors);
   g_assert_cmpint (kr, ==, KERN_SUCCESS);
@@ -243,14 +243,18 @@ gum_exceptor_backend_detach (GumExceptorBackend * self)
   old_ports = &self->old_ports;
   for (port_index = 0; port_index != old_ports->count; port_index++)
   {
+    mach_port_t handler = old_ports->handlers[port_index];
     kern_return_t kr;
 
     kr = task_set_exception_ports (self_task,
         old_ports->masks[port_index],
-        old_ports->ports[port_index],
+        handler,
         old_ports->behaviors[port_index],
         old_ports->flavors[port_index]);
     g_assert_cmpint (kr, ==, KERN_SUCCESS);
+
+    if (handler != MACH_PORT_NULL)
+      mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, -1);
   }
   old_ports->count = 0;
 
@@ -441,7 +445,7 @@ catch_mach_exception_raise_state_identity (
     for (port_index = 0; port_index != old_ports->count; port_index++)
     {
       exception_mask_t mask = old_ports->masks[port_index];
-      mach_port_t port = old_ports->ports[port_index];
+      mach_port_t port = old_ports->handlers[port_index];
       exception_behavior_t behavior = old_ports->behaviors[port_index];
       gboolean is_modern;
 
@@ -605,8 +609,110 @@ gum_exceptor_backend_replacement_task_get_exception_ports (
     exception_behavior_array_t old_behaviors,
     exception_flavor_array_t old_flavors)
 {
-  if (task != mach_task_self ())
+  mach_port_t self_task;
+  GumExceptorBackend * self;
+  GumInvocationContext * ctx;
+  mach_msg_type_number_t count, src_index, dst_index;
+  exception_mask_t all_masks[EXC_TYPES_COUNT];
+  mach_port_t all_handlers[EXC_TYPES_COUNT];
+  exception_behavior_t all_behaviors[EXC_TYPES_COUNT];
+  thread_state_flavor_t all_flavors[EXC_TYPES_COUNT];
+  kern_return_t kr;
+  gboolean found_server_port;
+
+  self_task = mach_task_self ();
+
+  if (task != self_task)
     goto passthrough;
+
+  ctx = gum_interceptor_get_current_invocation ();
+  g_assert (ctx != NULL);
+
+  self = GUM_EXCEPTOR_BACKEND (
+      gum_invocation_context_get_replacement_function_data (ctx));
+
+  count = G_N_ELEMENTS (all_masks);
+  kr = task_get_exception_ports (task, exception_mask, all_masks, &count,
+      all_handlers, all_behaviors, all_flavors);
+  if (kr != KERN_SUCCESS)
+    return kr;
+
+  dst_index = 0;
+  found_server_port = FALSE;
+
+  for (src_index = 0; src_index != count; src_index++)
+  {
+    mach_port_t handler = all_handlers[src_index];
+
+    if (dst_index >= *masks_count)
+      break;
+
+    if (handler == self->server_port)
+    {
+      found_server_port = TRUE;
+      continue;
+    }
+
+    all_handlers[src_index] = MACH_PORT_NULL;
+
+    masks[dst_index] = all_masks[src_index];
+    old_handlers[dst_index] = handler;
+    old_behaviors[dst_index] = all_behaviors[src_index];
+    old_flavors[dst_index] = all_flavors[src_index];
+    dst_index++;
+  }
+
+  if (found_server_port)
+  {
+    GumExceptionPortSet * old_ports = &self->old_ports;
+    mach_msg_type_number_t old_index;
+
+    for (old_index = 0; old_index != old_ports->count; old_index++)
+    {
+      exception_mask_t old_mask = old_ports->masks[old_index];
+      mach_port_t old_handler = old_ports->handlers[old_index];
+      exception_behavior_t old_behavior = old_ports->behaviors[old_index];
+      thread_state_flavor_t old_flavor = old_ports->flavors[old_index];
+      mach_msg_type_number_t existing_index;
+
+      for (existing_index = 0; existing_index != dst_index; existing_index++)
+      {
+        if (old_handlers[existing_index] == old_handler &&
+            old_behaviors[existing_index] == old_behavior &&
+            old_flavors[existing_index] == old_flavor)
+        {
+          masks[existing_index] |= old_mask;
+          break;
+        }
+      }
+
+      if (existing_index == dst_index)
+      {
+        if (dst_index >= *masks_count)
+          break;
+
+        mach_port_mod_refs (self_task, old_handler, MACH_PORT_RIGHT_SEND, 1);
+
+        masks[dst_index] = old_mask;
+        old_handlers[dst_index] = old_handler;
+        old_behaviors[dst_index] = old_behavior;
+        old_flavors[dst_index] = old_flavor;
+        dst_index++;
+      }
+    }
+  }
+
+  *masks_count = dst_index;
+
+  for (src_index = 0; src_index != count; src_index++)
+  {
+    mach_port_t handler = all_handlers[src_index];
+
+    if (handler != MACH_PORT_NULL)
+      mach_port_mod_refs (self_task, handler, MACH_PORT_RIGHT_SEND, -1);
+  }
+
+  return KERN_SUCCESS;
 
 passthrough:
   return task_get_exception_ports (task, exception_mask, masks, masks_count,
