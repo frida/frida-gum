@@ -282,6 +282,7 @@ catch_mach_exception_raise_state_identity (
   GumExceptionDetails ed;
   GumExceptionMemoryDetails * md = &ed.memory;
   GumCpuContext * cpu_context = &ed.context;
+  kern_return_t kr;
 
   ed.thread_id = thread;
 
@@ -338,16 +339,114 @@ catch_mach_exception_raise_state_identity (
     gum_darwin_unparse_unified_thread_state (cpu_context,
         (GumDarwinUnifiedThreadState *) new_state);
     *new_state_count = old_state_count;
+
+    kr = KERN_SUCCESS;
   }
   else
   {
-    /* FIXME: forward to old handler */
-    g_print ("FIXME: forward!\n");
+    GumExceptionPortSet * previous_ports = &self->previous_ports;
+    mach_msg_type_number_t port_index;
+
+    kr = KERN_FAILURE;
+
+    for (port_index = 0; port_index != previous_ports->count; port_index++)
+    {
+      exception_mask_t mask = previous_ports->masks[port_index];
+      mach_port_t port = previous_ports->ports[port_index];
+      exception_behavior_t behavior = previous_ports->behaviors[port_index];
+      gboolean is_modern;
+      exception_data_t small_code = NULL;
+
+      if (port == MACH_PORT_NULL)
+        continue;
+
+      if ((mask & (1 << exception)) == 0)
+        continue;
+
+      is_modern = behavior & MACH_EXCEPTION_CODES;
+
+      if (!is_modern)
+      {
+        mach_msg_type_number_t code_index;
+
+        small_code = g_alloca (code_count * sizeof (exception_data_type_t));
+        for (code_index = 0; code_index != code_count; code_index++)
+        {
+          small_code[code_index] = code[code_index];
+        }
+      }
+
+      switch (behavior & ~MACH_EXCEPTION_CODES)
+      {
+        case EXCEPTION_DEFAULT:
+        {
+          if (is_modern)
+          {
+            kr = mach_exception_raise (port, thread, task, exception, code,
+                code_count);
+          }
+          else
+          {
+            kr = exception_raise (port, thread, task, exception, small_code,
+                code_count);
+          }
+
+          if (kr == KERN_SUCCESS)
+          {
+            *new_state_count = old_state_count;
+            kr = thread_get_state (thread, GUM_DARWIN_THREAD_STATE_FLAVOR,
+                new_state, new_state_count);
+          }
+
+          break;
+        }
+        case EXCEPTION_STATE:
+        {
+          if (is_modern)
+          {
+            kr = mach_exception_raise_state (port, exception, code, code_count,
+                flavor, old_state, old_state_count, new_state, new_state_count);
+          }
+          else
+          {
+            kr = exception_raise_state (port, exception, small_code, code_count,
+                flavor, old_state, old_state_count, new_state, new_state_count);
+          }
+
+          break;
+        }
+        case EXCEPTION_STATE_IDENTITY:
+        {
+          if (is_modern)
+          {
+            kr = mach_exception_raise_state_identity (port, thread, task,
+                exception, code, code_count, flavor, old_state,
+                old_state_count, new_state, new_state_count);
+          }
+          else
+          {
+            kr = exception_raise_state_identity (port, thread, task, exception,
+                small_code, code_count, flavor, old_state, old_state_count,
+                new_state, new_state_count);
+          }
+
+          break;
+        }
+        default:
+        {
+          g_assert_not_reached ();
+          break;
+        }
+      }
+
+      if (kr == KERN_SUCCESS)
+        break;
+    }
   }
 
   /* FIXME: deallocate ports */
 
-  return KERN_SUCCESS;
+  return kr;
 }
 
 static gboolean
